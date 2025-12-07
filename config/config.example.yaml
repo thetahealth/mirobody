@@ -20,26 +20,21 @@ HTTP_HOST: 0.0.0.0
 HTTP_PORT: 18080
 HTTP_URI_PREFIX: ''
 HTTP_ROOT: mirobody/pub/htdoc
+HTTP_HTDOC: mirobody/pub/htdoc
+
 HTTP_HEADERS:
   Access-Control-Allow-Origin: '*'
   Access-Control-Allow-Credentials: 'true'
   Access-Control-Allow-Methods: '*'
   Access-Control-Allow-Headers: '*'
   Access-Control-Max-Age: '86400'
+
 MCP_FRONTEND_URL: http://localhost:18080
 MCP_PUBLIC_URL: http://localhost:18080
 DATA_PUBLIC_URL: http://localhost:18080
 QR_LOGIN_URL: ''
 DATABASE_DECRYPTION_KEY: 'mydatabaseencryptionkey'
 JWT_KEY: 'myjwtkey'
-
-MINIO_ENDPOINT: 'http://minio:9000'
-MINIO_PUBLIC_URL: 'http://localhost:9000'
-MINIO_ACCESS_KEY: 'minioadmin'
-MINIO_SECRET_KEY: 'minioapwd'
-MINIO_BUCKET: 'theta'
-MINIO_REGION: 'us-east-1'
-MINIO_PUBLIC: 'true'
 
 REDIS_HOST: redis
 REDIS_PORT: 6379

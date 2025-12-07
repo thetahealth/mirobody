@@ -1,5 +1,5 @@
---extra-index-url https://repo.thetahealth.ai/repository/pypi-ai-releases/simple/
+# --extra-index-url https://repo.thetahealth.ai/repository/pypi-ai-releases/simple/
 # --extra-index-url https://repo.thetahealth.ai/repository/pypi-ai-snapshots/simple/
 
-# --extra-index-url https://dev-nexus.aws.thetahealth.ai/repository/pypi-ai-snapshots/simple/
-mirobody
+--extra-index-url https://dev-nexus.aws.thetahealth.ai/repository/pypi-ai-snapshots/simple/
+mirobody==20251205.183000

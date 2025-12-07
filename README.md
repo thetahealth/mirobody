@@ -15,7 +15,7 @@ Mirobody transforms your personal data into a powerful research engine. It's a s
 * 🚀 **Write Once, Run Everywhere**
     Create Python tools once. Mirobody instantly bridges them to **ChatGPT** (via Apps-SDK) and the entire **MCP Ecosystem** (Claude Desktop, Cursor), making your code universal.
 
-* 🧠 **Local Intelligence, Global Reach**
+* 🧠 **Private Data, Limitless AI**
     Keep your sensitive data encrypted locally. Mirobody serves it as on-demand context to any AI model you choose, ensuring privacy without sacrificing power.
 
 * 🤖 **Professional Agent Engine**
