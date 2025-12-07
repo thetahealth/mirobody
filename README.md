@@ -109,6 +109,18 @@ Once deployed, you can access the platform through the local web interface or ou
 | **Local Web App** | `http://localhost:18080` | Fully self-hosted web interface running locally. |
 | **Official Client**| [https://my.mirobody.ai](https://my.mirobody.ai) | **Recommended.** Our official web client that connects securely to your local backend service. |
 | **MCP Server** | `http://localhost:18080/mcp` | For Claude Desktop / Cursor integration. |
+To use Mirobody with Cursor, add the following configuration to your MCP settings:
+
+"mirobady_mcp": {
+  "command": "npx",
+  "args": [
+    "-y",
+    "universal-mcp-proxy"
+  ],
+  "env": {
+    "UMCP_ENDPOINT": "http://localhost:18080/mcp"
+  }
+}
 
 ### 2\. Login Methods
 
