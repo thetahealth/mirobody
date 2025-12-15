@@ -1,4 +1,4 @@
 --extra-index-url https://repo.thetahealth.ai/repository/pypi-ai-releases/simple/
-mirobody==20251129.131400
+mirobody==20251212.205900
 
 yfinance
