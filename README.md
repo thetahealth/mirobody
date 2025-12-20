@@ -107,7 +107,7 @@ Once deployed, you can access the platform through the local web interface or ou
 | Interface | URL | Description |
 |-----------|-----|-------------|
 | **Local Web App** | `http://localhost:18080` | Fully self-hosted web interface running locally. |
-| **Official Client**| [https://my.mirobody.ai](https://my.mirobody.ai) | **Recommended.** Our official web client that connects securely to your local backend service. |
+| **Official Client**| [https://mirobody.ai](https://mirobody.ai) | **Recommended.** Our official web client that connects securely to your local backend service. |
 | **MCP Server** | `http://localhost:18080/mcp` | For Claude Desktop / Cursor integration. |
 
 
