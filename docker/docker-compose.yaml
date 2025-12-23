@@ -50,6 +50,26 @@ services:
       - redis
       - db
 
+  db-init:
+    image: ${POSTGRES_IMAGE:-pgvector/pgvector:pg17}
+    pull_policy: never
+    restart: "no"
+    depends_on:
+      - db
+    volumes:
+      - ./mirobody_fake_people.sql:/sql/mirobody_fake_people.sql:ro
+      - ./init_fake_data.sh:/init_fake_data.sh:ro
+    entrypoint: ["/bin/bash", "/init_fake_data.sh"]
+    networks:
+      - mirobody_network
+    environment:
+      - TZ=Etc/UTC
+      - PGHOST=db
+      - PGPORT=5432
+      # FIXME
+      - PGUSER=holistic_user
+      - PGPASSWORD=holistic_password
+      - PGDATABASE=holistic_db
 
   db:
     image: ${POSTGRES_IMAGE:-pgvector/pgvector:pg17}
@@ -106,9 +126,6 @@ networks:
     driver: bridge
     ipam:
       driver: default
-      config:
-        - subnet: 10.103.0.0/16
-          gateway: 10.103.0.1
 
 volumes:
   mirobody_postgres:

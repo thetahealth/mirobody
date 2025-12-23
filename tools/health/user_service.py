@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict
 
-from mirobody.utils import execute_query
+from mirobody.utils.db import execute_query
 
 #-----------------------------------------------------------------------------
 
