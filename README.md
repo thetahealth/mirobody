@@ -29,9 +29,9 @@ Mirobody is not just another chatbot wrapper. It is a privacy-first data platfor
 
 ## 🏥 Theta Wellness: Our Health Intelligence App
 
-**Theta Wellness** is our flagship application built on Mirobody, demonstrating the platform's capabilities in the **Personal Health** domain. We have built a professional-grade **Health Data Analysis** suite that showcases how Mirobody can handle the most complex, multi-modal, and sensitive data environments.
+[**Theta Wellness**](https://www.thetahealth.ai/) is our flagship application built on Mirobody, demonstrating the platform's capabilities in the **Personal Health** domain. We have built a professional-grade **Health Data Analysis** suite that showcases how Mirobody can handle the most complex, multi-modal, and sensitive data environments.
 
-* **Broad Integration**: Connects with **300+ device manufacturers**, Apple Health, and Google Health.
+* **Broad Integration**: Connects with **300+ devices**, Apple Health, and Google Health.
 * **EHR Ready**: Compatible with systems covering **90% of the US population's** Electronic Health Records.
 * **Multi-Modal Analysis**: Analyze health data via Voice, Image, Files, or Text.
 
