@@ -1,5 +1,12 @@
 # Mirobody
 
+</div>
+
+> [!IMPORTANT]  
+> Check out our latest health-specific platform built on top of Mirobody：[Mirobody Health - AI-native data engine bridging rich health context and AI](https://github.com/thetahealth/mirobody-health)
+
+> We encourage you to **use and contribute to** the Mirobody-Health repo if you are using or building health-specific applications.
+
 ### Open Source AI-Native Data Engine for Your Personal Data
 
 Mirobody is not just another chatbot wrapper. It is a privacy-first data platform designed to bridge your data with the latest AI capabilities. It serves as a universal adapter for your tools, fully compliant with the Model Context Protocol (MCP).
