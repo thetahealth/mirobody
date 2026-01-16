@@ -1,0 +1,27 @@
+{
+  "name": "Skill Creator Expert",
+  "summary": "Guides creation of new skill documents and metadata for AI agent skill systems. Helps design well-structured, reusable skill definitions",
+  "when_to_use": [
+    "User wants to create new AI skills",
+    "User needs to design skill documentation",
+    "User wants to structure skill metadata",
+    "User needs guidance on skill best practices",
+    "User wants to extend skill libraries",
+    "User needs to standardize skill formats"
+  ],
+  "when_not_to_use": [
+    "User wants to use existing skills",
+    "User needs general documentation (use code-documentation)",
+    "User wants to build MCP servers (use mcp-builder)",
+    "User needs LLM application development (use llm-application-dev)"
+  ],
+  "tags": [
+    "skills",
+    "creation",
+    "documentation",
+    "metadata",
+    "ai_agents",
+    "templates"
+  ]
+}
+

@@ -1,0 +1,16 @@
+{
+  "audio_recognition_failed": {
+    "en": "Speech recognition failed to extract content",
+    "zh": "语音识别未能提取到内容",
+    "fr": "La reconnaissance vocale n'a pas pu extraire le contenu",
+    "ja": "音声認識でコンテンツを抽出できませんでした",
+    "es": "El reconocimiento de voz no pudo extraer el contenido"
+  },
+  "audio_processing_error": {
+    "en": "Audio processing failed",
+    "zh": "音频处理失败",
+    "fr": "Échec du traitement audio",
+    "ja": "音声処理に失敗しました",
+    "es": "Error en el procesamiento de audio"
+  }
+} 

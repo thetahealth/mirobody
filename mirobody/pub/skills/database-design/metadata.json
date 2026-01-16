@@ -1,0 +1,27 @@
+{
+  "name": "Database Design Expert",
+  "summary": "Comprehensive database design guidance covering schema design, normalization, indexing strategies, query optimization, and data modeling best practices",
+  "when_to_use": [
+    "User needs database schema design",
+    "User wants data modeling guidance",
+    "User needs normalization or denormalization advice",
+    "User wants indexing strategies",
+    "User needs database performance optimization",
+    "User wants to design relational or document databases"
+  ],
+  "when_not_to_use": [
+    "User needs full backend architecture (use backend-development)",
+    "User wants SQL query help only",
+    "User needs API design",
+    "User wants data analysis (not database design)"
+  ],
+  "tags": [
+    "database",
+    "schema",
+    "data_modeling",
+    "normalization",
+    "sql",
+    "architecture"
+  ]
+}
+

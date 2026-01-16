@@ -1,0 +1,27 @@
+{
+  "name": "Frontend Design Expert",
+  "summary": "Comprehensive frontend development guidance covering UI/UX design, responsive layouts, accessibility, component architecture, and modern frontend best practices",
+  "when_to_use": [
+    "User needs frontend architecture design",
+    "User wants UI/UX implementation guidance",
+    "User needs responsive design help",
+    "User wants component design advice",
+    "User needs accessibility implementation",
+    "User wants modern frontend best practices"
+  ],
+  "when_not_to_use": [
+    "User needs backend development (use backend-development)",
+    "User wants graphic design only (use canvas-design)",
+    "User needs specific JavaScript help (use javascript-typescript)",
+    "User wants code review (use code-review)"
+  ],
+  "tags": [
+    "frontend",
+    "ui",
+    "ux",
+    "design",
+    "responsive",
+    "accessibility"
+  ]
+}
+

@@ -1,0 +1,27 @@
+{
+  "name": "JavaScript/TypeScript Expert",
+  "summary": "Comprehensive JavaScript and TypeScript development guidance covering modern syntax, frameworks, type safety, async patterns, and ecosystem best practices",
+  "when_to_use": [
+    "User needs JavaScript or TypeScript development help",
+    "User wants modern JS/TS best practices",
+    "User needs type safety guidance",
+    "User wants async/await and Promise patterns",
+    "User needs framework-agnostic JS advice",
+    "User wants to understand JS/TS ecosystem"
+  ],
+  "when_not_to_use": [
+    "User needs full frontend architecture (use frontend-design)",
+    "User wants backend-specific help (use backend-development)",
+    "User needs code review (use code-review)",
+    "User wants Python help (use python-development)"
+  ],
+  "tags": [
+    "javascript",
+    "typescript",
+    "js",
+    "ts",
+    "web_development",
+    "programming"
+  ]
+}
+

@@ -1,0 +1,27 @@
+{
+  "name": "Meeting Insights Analyzer",
+  "summary": "Analyzes meeting transcripts and notes to extract key insights, action items, decisions, and follow-ups with organized summaries",
+  "when_to_use": [
+    "User has meeting transcripts to analyze",
+    "User wants to extract action items from meetings",
+    "User needs meeting summaries",
+    "User wants to identify key decisions",
+    "User needs to organize meeting follow-ups",
+    "User wants insights from meeting discussions"
+  ],
+  "when_not_to_use": [
+    "User needs to schedule meetings",
+    "User wants general document analysis (use doc-coauthoring)",
+    "User needs internal communications (use internal-comms)",
+    "User wants research analysis (use lead-research-assistant)"
+  ],
+  "tags": [
+    "meetings",
+    "analysis",
+    "insights",
+    "action_items",
+    "summaries",
+    "productivity"
+  ]
+}
+

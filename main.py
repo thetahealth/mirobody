@@ -1,25 +1,24 @@
+import asyncio, sys
+
 from mirobody.server import Server
-from mirobody.utils import Config
-from mirobody.utils.db_initializer import initialize_database
+
 #-----------------------------------------------------------------------------
 
 async def main():
-    yaml_filenames = ['config/config.yaml']
-
-    config = await Config.init(yaml_filenames=yaml_filenames)
-    
-    # Initialize database schema before starting server
-    pg_config = config.get_postgresql()
-    db_init_success = await initialize_database(pg_config, enable_idempotency=False)
-    if not db_init_success:
-        print("Warning: Database initialization encountered errors. Check logs for details.")
+    yaml_filenames: list[str] = []
+    if len(sys.argv) > 1:
+        yaml_filenames.extend(sys.argv[1:])
+    else:
+        print(f"Usage: python {sys.argv[0]} [config_files]\n")
 
     await Server.start(yaml_filenames)
 
 #-----------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    import asyncio
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
     asyncio.run(main())
 
 #-----------------------------------------------------------------------------

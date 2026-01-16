@@ -1,0 +1,27 @@
+{
+  "name": "Canvas Design Expert",
+  "summary": "Guides creation of visual designs, graphics, and layouts for presentations, social media, marketing materials, and digital content",
+  "when_to_use": [
+    "User needs design guidance for visual content",
+    "User wants to create presentation designs",
+    "User needs social media graphics layout",
+    "User wants marketing material design",
+    "User needs infographic or poster design guidance",
+    "User wants visual layout and composition advice"
+  ],
+  "when_not_to_use": [
+    "User needs code-based web design (use frontend-design)",
+    "User wants brand strategy (use brand-guidelines)",
+    "User needs algorithmic art (use algorithmic-art)",
+    "User wants to apply pre-made themes (use theme-factory)"
+  ],
+  "tags": [
+    "design",
+    "graphics",
+    "visual",
+    "layout",
+    "presentation",
+    "creative"
+  ]
+}
+

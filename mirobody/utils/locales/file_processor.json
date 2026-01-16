@@ -1,0 +1,268 @@
+{
+  "file_not_supported": {
+    "en": "File type not supported",
+    "zh": "不支持的文件类型",
+    "fr": "Type de fichier non supporté",
+    "ja": "サポートされていないファイル形式",
+    "es": "Tipo de archivo no compatible"
+  },
+  "file_too_large": {
+    "en": "File size exceeds the maximum limit",
+    "zh": "文件大小超过限制",
+    "fr": "La taille du fichier dépasse la limite maximale",
+    "ja": "ファイルサイズが制限を超えています",
+    "es": "El tamaño del archivo excede el límite máximo"
+  },
+  "unsupported_compress_format": {
+    "en": "Unsupported compression format",
+    "zh": "不支持的压缩格式",
+    "fr": "Format de compression non supporté",
+    "ja": "サポートされていない圧縮形式",
+    "es": "Formato de compresión no compatible"
+  },
+  "no_valid_files_in_archive": {
+    "en": "No valid files found in the archive",
+    "zh": "压缩包中未找到有效文件",
+    "fr": "Aucun fichier valide trouvé dans l'archive",
+    "ja": "アーカイブ内に有効なファイルが見つかりません",
+    "es": "No se encontraron archivos válidos en el archivo comprimido"
+  },
+  "compressed_file_processed_successfully": {
+    "en": "Compressed file processed successfully: {successful_count}/{total_count} files",
+    "zh": "压缩文件处理成功：{successful_count}/{total_count} 个文件",
+    "fr": "Fichier compressé traité avec succès : {successful_count}/{total_count} fichiers",
+    "ja": "圧縮ファイルの処理が成功しました：{successful_count}/{total_count} ファイル",
+    "es": "Archivo comprimido procesado exitosamente: {successful_count}/{total_count} archivos"
+  },
+  "all_files_in_archive_failed": {
+    "en": "All files in the archive failed to process",
+    "zh": "压缩包中的所有文件处理都失败了",
+    "fr": "Tous les fichiers de l'archive ont échoué lors du traitement",
+    "ja": "アーカイブ内のすべてのファイルの処理に失敗しました",
+    "es": "Todos los archivos del archivo comprimido fallaron al procesarse"
+  },
+  "compress_file_extracted": {
+    "en": "Archive extracted successfully",
+    "zh": "压缩文件解压成功",
+    "fr": "Archive extraite avec succès",
+    "ja": "アーカイブの展開が成功しました",
+    "es": "Archivo extraído exitosamente"
+  },
+  "compress_file_security_check_failed": {
+    "en": "Archive failed security check",
+    "zh": "压缩文件安全检查失败",
+    "fr": "L'archive a échoué à la vérification de sécurité",
+    "ja": "アーカイブのセキュリティチェックに失敗しました",
+    "es": "El archivo falló en la verificación de seguridad"
+  },
+  "not_genetic_file": {
+    "en": "is not a genetic file",
+    "zh": "不是基因文件",
+    "fr": "n'est pas un fichier génétique",
+    "ja": "遺伝子ファイルではありません",
+    "es": "no es un archivo genético"
+  },
+  "file_upload_failed": {
+    "en": "File upload failed",
+    "zh": "文件上传失败",
+    "fr": "Échec du téléchargement du fichier",
+    "ja": "ファイルのアップロードに失敗しました",
+    "es": "Error al subir el archivo"
+  },
+  "file_processed_successfully": {
+    "en": "File processed successfully",
+    "zh": "文件处理成功",
+    "fr": "Fichier traité avec succès",
+    "ja": "ファイルの処理が成功しました",
+    "es": "Archivo procesado exitosamente"
+  },
+  "unsupported_file_type_aws": {
+    "en": "Unsupported file type",
+    "zh": "不支持的文件类型",
+    "fr": "Type de fichier non supporté",
+    "ja": "サポートされていないファイル形式",
+    "es": "Tipo de archivo no compatible"
+  },
+  "file_empty_aws": {
+    "en": "File is empty",
+    "zh": "文件为空",
+    "fr": "Le fichier est vide",
+    "ja": "ファイルが空です",
+    "es": "El archivo está vacío"
+  },
+  "upload_failed_aws": {
+    "en": "Upload failed",
+    "zh": "上传失败",
+    "fr": "Échec du téléchargement",
+    "ja": "アップロードに失敗しました",
+    "es": "Error en la subida"
+  },
+  "file_upload_failed_content": {
+    "en": "File upload failed: {error}",
+    "zh": "文件上传失败: {error}",
+    "fr": "Échec du téléchargement du fichier: {error}",
+    "ja": "ファイルのアップロードに失敗しました: {error}",
+    "es": "Error al subir el archivo: {error}"
+  },
+  "file_uploaded_processing_background": {
+    "en": "File uploaded successfully! Content extraction and indicator analysis are processing in the background.",
+    "zh": "文件上传成功！内容提取和指标分析正在后台处理中。",
+    "fr": "Fichier téléchargé avec succès ! L'extraction de contenu et l'analyse des indicateurs sont en cours en arrière-plan.",
+    "ja": "ファイルのアップロードが成功しました！コンテンツ抽出と指標分析がバックグラウンドで処理中です。",
+    "es": "¡Archivo subido exitosamente! La extracción de contenido y el análisis de indicadores se están procesando en segundo plano."
+  },
+  "file_upload_completed": {
+    "en": "File upload completed",
+    "zh": "文件上传完成",
+    "fr": "Téléchargement du fichier terminé",
+    "ja": "ファイルのアップロードが完了しました",
+    "es": "Subida de archivo completada"
+  },
+  "genetic_file_saving": {
+    "en": "Saving genetic file",
+    "zh": "正在保存基因文件",
+    "fr": "Sauvegarde du fichier génétique",
+    "ja": "遺伝子ファイルを保存中",
+    "es": "Guardando archivo genético"
+  },
+  "uploading_file": {
+    "en": "Uploading file",
+    "zh": "正在上传文件",
+    "fr": "Téléchargement du fichier",
+    "ja": "ファイルをアップロード中",
+    "es": "Subiendo archivo"
+  },
+  "saving_temp_file": {
+    "en": "Saving temporary file",
+    "zh": "正在保存临时文件",
+    "fr": "Sauvegarde du fichier temporaire",
+    "ja": "一時ファイルを保存中",
+    "es": "Guardando archivo temporal"
+  },
+  "extracting_content": {
+    "en": "Extracting content",
+    "zh": "正在提取内容",
+    "fr": "Extraction du contenu",
+    "ja": "コンテンツを抽出中",
+    "es": "Extrayendo contenido"
+  },
+  "processing_indicators": {
+    "en": "Processing health indicators",
+    "zh": "正在处理健康指标",
+    "fr": "Traitement des indicateurs de santé",
+    "ja": "健康指標を処理中",
+    "es": "Procesando indicadores de salud"
+  },
+  "image_processing_success": {
+    "en": "Image processing completed",
+    "zh": "图片处理完成",
+    "fr": "Traitement d'image terminé",
+    "ja": "画像処理が完了しました",
+    "es": "Procesamiento de imagen completado"
+  },
+  "image_processing_failed": {
+    "en": "Image processing failed",
+    "zh": "图片处理失败",
+    "fr": "Échec du traitement d'image",
+    "ja": "画像処理に失敗しました",
+    "es": "Procesamiento de imagen falló"
+  },
+  "uploading_pdf": {
+    "en": "Uploading PDF file",
+    "zh": "正在上传PDF文件",
+    "fr": "Téléchargement du fichier PDF",
+    "ja": "PDFファイルをアップロード中",
+    "es": "Subiendo archivo PDF"
+  },
+  "extracting_pdf_content": {
+    "en": "Extracting PDF content",
+    "zh": "正在提取PDF内容",
+    "fr": "Extraction du contenu PDF",
+    "ja": "PDFコンテンツを抽出中",
+    "es": "Extrayendo contenido PDF"
+  },
+  "processing_pdf_indicators": {
+    "en": "Processing PDF health indicators",
+    "zh": "正在处理PDF健康指标",
+    "fr": "Traitement des indicateurs de santé PDF",
+    "ja": "PDF健康指標を処理中",
+    "es": "Procesando indicadores de salud PDF"
+  },
+  "pdf_processing_success": {
+    "en": "PDF processing completed",
+    "zh": "PDF处理完成",
+    "fr": "Traitement PDF terminé",
+    "ja": "PDF処理が完了しました",
+    "es": "Procesamiento PDF completado"
+  },
+  "pdf_processing_failed": {
+    "en": "PDF processing failed",
+    "zh": "PDF处理失败",
+    "fr": "Échec du traitement PDF",
+    "ja": "PDF処理に失敗しました",
+    "es": "Procesamiento PDF falló"
+  },
+  "uploading_audio": {
+    "en": "Uploading audio file",
+    "zh": "正在上传音频文件",
+    "fr": "Téléchargement du fichier audio",
+    "ja": "音声ファイルをアップロード中",
+    "es": "Subiendo archivo de audio"
+  },
+  "extracting_audio_content": {
+    "en": "Extracting audio content",
+    "zh": "正在提取音频内容",
+    "fr": "Extraction du contenu audio",
+    "ja": "音声コンテンツを抽出中",
+    "es": "Extrayendo contenido de audio"
+  },
+  "saving_audio_results": {
+    "en": "Saving audio results",
+    "zh": "正在保存音频结果",
+    "fr": "Sauvegarde des résultats audio",
+    "ja": "音声結果を保存中",
+    "es": "Guardando resultados de audio"
+  },
+  "audio_processing_success": {
+    "en": "Audio processing completed",
+    "zh": "音频处理完成",
+    "fr": "Traitement audio terminé",
+    "ja": "音声処理が完了しました",
+    "es": "Procesamiento de audio completado"
+  },
+  "audio_processing_failed": {
+    "en": "Audio processing failed",
+    "zh": "音频处理失败",
+    "fr": "Échec du traitement audio",
+    "ja": "音声処理に失敗しました",
+    "es": "Procesamiento de audio falló"
+  },
+  "extracting_text_content": {
+    "en": "Extracting text content",
+    "zh": "正在提取文本内容",
+    "fr": "Extraction du contenu textuel",
+    "ja": "テキストコンテンツを抽出中",
+    "es": "Extrayendo contenido de texto"
+  },
+  "saving_text_results": {
+    "en": "Saving text results",
+    "zh": "正在保存文本结果",
+    "fr": "Sauvegarde des résultats textuels",
+    "ja": "テキスト結果を保存中",
+    "es": "Guardando resultados de texto"
+  },
+  "text_processing_success": {
+    "en": "Text processing completed",
+    "zh": "文本处理完成",
+    "fr": "Traitement de texte terminé",
+    "ja": "テキスト処理が完了しました",
+    "es": "Procesamiento de texto completado"
+  },
+  "text_processing_failed": {
+    "en": "Text processing failed",
+    "zh": "文本处理失败",
+    "fr": "Échec du traitement de texte",
+    "ja": "テキスト処理に失敗しました",
+    "es": "Procesamiento de texto falló"
+  }
+} 

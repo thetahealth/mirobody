@@ -1,0 +1,86 @@
+services:
+  pg:
+    image: pgvector/pgvector:pg17-trixie
+    ports:
+      - "18082:5432"
+    environment:
+      POSTGRES_USER: holistic_user
+      POSTGRES_DB: holistic_db
+      POSTGRES_PASSWORD: REPLACE_THIS_VALUE_IN_PRODUCTION
+    volumes:
+      - mirobody_postgres:/var/lib/postgresql/data
+    networks:
+      mirobody_network:
+        ipv4_address: 10.108.0.2
+
+  redis:
+    image: redis:7.0-alpine
+    ports:
+      - "18089:6379"
+    command: >
+      redis-server
+      --bind 0.0.0.0
+      --port 6379
+      --protected-mode no
+      --requirepass REPLACE_THIS_VALUE_IN_PRODUCTION
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfilename "appendonly.aof"
+      --appendfsync everysec
+      --loglevel notice
+      --timeout 60
+      --tcp-keepalive 30
+      --io-threads 4
+      --io-threads-do-reads yes
+      --tcp-backlog 511
+    networks:
+      mirobody_network:
+        ipv4_address: 10.108.0.9
+
+  mirobody:
+    image: mirobody
+    ports:
+      - "18080:80"
+    command: >
+      /bin/bash -c "
+        cd /app/ &&
+        npm install --omit=dev &&
+        source /root/venv/bin/activate &&
+        pip install --upgrade pip &&
+        pip install -r requirements.txt &&
+        python -m main
+      "
+    volumes:
+      - .:/app
+      - mirobody_upload:/app/.theta/mcp/upload
+      - mirobody_charts:/app/.theta/mcp/charts
+      - mirobody_site_packages:/root/venv/lib/python3.12/site-packages
+      - mirobody_node_modules:/app/node_modules
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+      - HTTP_HOST=0.0.0.0
+      - HTTP_PORT=80
+    networks:
+      mirobody_network:
+        ipv4_address: 10.108.0.8
+    depends_on:
+      - pg
+      - redis
+
+networks:
+  mirobody_network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.108.0.0/24
+          gateway: 10.108.0.1
+
+volumes:
+  mirobody_postgres:
+  mirobody_upload:
+  mirobody_charts:
+  mirobody_site_packages:
+  mirobody_node_modules:

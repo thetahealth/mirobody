@@ -1,0 +1,557 @@
+# Holywell Pulse System - Development Rules
+
+## Core Language Requirements (MANDATORY)
+
+### All Content Must Use English
+- **Comments**: All code comments must be in English
+- **Docstrings**: All function and class documentation in English  
+- **API Messages**: Error messages, status descriptions, log messages in English
+- **Variable Names**: All variables, functions, classes named in English
+- **Exception Messages**: All error descriptions in English
+- **README Files**: Can temporarily keep Chinese but prefer English for new content
+
+## Architecture Overview
+
+### Platform-Provider Architecture
+Two-layer health data management system providing unified data ingestion and processing.
+
+**Core Components:**
+- **PlatformManager**: Global singleton managing all Platform instances
+- **Platform**: Manages Provider lifecycle for specific data sources
+- **Provider**: Handles connections to specific data sources, formats data to StandardPulseData
+
+**Supported Platforms:**
+- **Vital Platform**: Third-party health platforms (Garmin, Fitbit, etc.)
+- **Theta Platform**: Direct device connections (Renpho, ResMed, FrontierX)
+- **Apple Platform**: Apple Health data import and CDA document processing
+
+## Data Models
+
+### StandardPulseData Family
+```python
+# Located in: pulse/data_upload/models/requests.py
+
+class StandardPulseMetaInfo(BaseModel):
+    userId: str
+    requestId: Optional[str] = None
+    source: Optional[str] = None  # "vital", "theta", or "apple"
+    timezone: str = "UTC"
+    taskId: Optional[str] = None
+
+class StandardPulseRecord(BaseModel):
+    source: str              # e.g. "vital.garmin", "theta.theta_renpho", "apple.health"
+    type: str               # e.g. "heart_rate", "weight"
+    timestamp: int          # milliseconds
+    unit: Optional[str]     # e.g. "bpm", "kg"
+    value: float           # required
+    timezone: Optional[str] = "UTC"
+    startTime: Optional[int] = None
+    endTime: Optional[int] = None
+
+class StandardPulseData(BaseModel):
+    metaInfo: StandardPulseMetaInfo
+    healthData: List[StandardPulseRecord]
+    batchInfo: Optional[Dict[str, Any]] = None
+    processingInfo: Optional[Dict[str, Any]] = None
+```
+
+## Provider Implementation Requirements
+
+### Base Provider Interface
+```python
+from ..base import Provider
+from ..data_upload.models.requests import StandardPulseData
+
+class YourProvider(Provider):
+    async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:
+        # Must return StandardPulseData format
+        return StandardPulseData(...)
+```
+
+### Platform Integration
+```python
+# ... existing code ...
+```
+
+### Platform Standardization (MANDATORY)
+
+All Platforms MUST call standardization after Provider formatting:
+
+```python
+from ..core import standardize_pulse_data
+
+# Platform standardizes after Provider formatting
+standardized_data = standardize_pulse_data(pulse_data)
+```
+
+### Standard Indicators and Units
+**Common Indicators:**
+- `heart_rate`, `weight`, `body_fat_percentage`, `blood_pressure_systolic`
+- `steps`, `distance`, `calories_active`, `blood_glucose`
+
+**Auto Unit Conversion:**
+- Mass: `g`, `lb`, `oz` → `kg`
+- Length: `cm`, `mm`, `ft`, `in` → `m`
+- Temperature: `°F`, `F` → `°C`
+- Pressure: `kPa`, `psi` → `mmHg`
+
+## Token Verification (CRITICAL SECURITY)
+
+### STRICTLY FORBIDDEN
+- ❌ Creating mock token verification functions
+- ❌ Returning fixed user IDs like "mock_user_123"
+- ❌ Bypassing real token verification logic
+- ❌ Duplicating existing verification functions
+
+### MANDATORY Usage
+```python
+# ONLY correct import location
+from ...utils.utils_auth import verify_token, verify_token_optional
+
+@router.get("/endpoint")
+async def endpoint(current_user: str = Depends(verify_token)):
+    # current_user contains real user ID from JWT verification
+    pass
+```
+
+**Security Level**: 🔴 P0 - Critical Security Issue
+
+## Python Coding Standards (MANDATORY)
+
+### Async/Await Requirements
+- **ALWAYS** use `await` when calling async functions
+- ❌ BAD: `result = async_function()`  # Returns coroutine object
+- ✅ GOOD: `result = await async_function()`
+
+### Type Annotations
+- **Optional parameters with list/dict defaults**:
+  - ❌ BAD: `def func(items=List[str]):`  # Uses type object as default
+  - ✅ GOOD: `def func(items: Optional[List[str]] = None):`
+  
+### Import Timing Issues
+- **Avoid static imports for objects initialized at runtime**
+- Use dynamic getter functions instead:
+```python
+# ❌ BAD: Module-level import
+from ...utils.utils_redis import redis_client  # May be None at import time
+
+# ✅ GOOD: Dynamic getter function
+def get_redis_client():
+    from ...utils.utils_redis import redis_client
+    return redis_client
+```
+
+### Circular Dependency Prevention
+- **Follow layered architecture**: Application → Service → Core
+- **Avoid lazy imports**: Don't use lazy imports unless absolutely necessary for breaking circular dependencies
+- **Never** create circular imports between modules
+- Test imports before committing changes
+- If circular dependency is unavoidable, use lazy import as last resort
+
+## Data Processing Rules
+
+### Sleep Data Time Window (CRITICAL CONSTRAINT)
+
+**Key Constraint**: Sleep data uses **18:00-18:00** time window (previous day 18:00 to current day 18:00), NOT the standard 00:00-24:00 window used for other data.
+
+#### Sleep Data Identification
+
+**Current Implementation**: Keyword matching in SQL
+```sql
+LOWER(indicator) LIKE '%sleep%'
+```
+
+**Known Limitations**: The following sleep category indicators are MISSED by keyword matching:
+1. `napDuration` - Nap duration
+2. `inBedStartTime` - Time when user got into bed
+3. `endSleepReportTimeOffset` - Sleep report end time offset
+4. `startSleepReportTimeOffset` - Sleep report start time offset
+
+**Alternative Solutions** (in priority order):
+1. **Recommended**: Use `category=Categories.SLEEP.value` (requires join or pre-built mapping)
+2. Extended keywords: `LIKE '%sleep%' OR LIKE '%nap%' OR LIKE '%inbed%' OR LIKE '%awake%'`
+3. Maintain sleep indicator whitelist
+
+**IMPORTANT**: If modifying sleep data identification logic, MUST update:
+- `mirobody/pulse/core/aggregate_indicator/aggregators/sql_aggregator.py` - `get_trigger_tasks` method
+- `mirobody/pulse/core/aggregate_indicator/aggregators/sql_aggregator.py` - `_get_tasks_for_user_date_range` method
+- `mirobody/pulse/core/aggregate_indicator/README.md` documentation
+- This cursorrules file
+
+#### data_begin Calculation Logic
+
+**Normal Data**:
+```sql
+DATE(time AT TIME ZONE timezone) as data_begin
+-- Result: 00:00:00 of user's local date
+-- Query range: [data_begin, data_begin+24h)
+```
+
+**Sleep Data**:
+```sql
+DATE((time AT TIME ZONE timezone) - INTERVAL '18 hours') + INTERVAL '18 hours' as data_begin
+-- Result: 18:00:00 of user's local date
+-- Query range: [data_begin, data_begin+24h) i.e. 18:00 to next day 18:00
+```
+
+**Examples**:
+- User timezone: Asia/Shanghai (+8)
+- Data time: 2025-10-30 20:00 (local)
+  - Normal data: data_begin = 2025-10-30 00:00:00
+  - Sleep data: data_begin = 2025-10-30 18:00:00
+
+- Data time: 2025-10-30 12:00 (local)
+  - Normal data: data_begin = 2025-10-30 00:00:00
+  - Sleep data: data_begin = 2025-10-29 18:00:00 (previous day!)
+
+#### Timezone Processing Principles
+
+1. **Timezone conversion in SQL layer**: Use `time AT TIME ZONE timezone` to convert UTC to user local time
+2. **data_begin contains complete time info**: Not just date, but also time point (00:00 or 18:00)
+3. **Downstream processing fully decoupled**: Calculate time boundaries based on data_begin, no timezone needed
+4. **Unified query range**: Always `[data_begin, data_begin+24h)`
+
+### Health Data Type Handling
+- **Permissive Mode**: Unknown health data types should NOT throw errors
+- **Log Unknown Types**: Record detailed WARNING logs for unmapped types:
+```python
+log_error(
+    f"⚠️ UNMAPPED_HEALTH_TYPE: '{type_name}' not found in mapping. "
+    f"Record details - UUID: {uuid}, Value: {value}, Unit: {unit}, "
+    f"This record will be DISCARDED. Please add mapping if needed."
+)
+```
+- **Flexible Validation**: Accept all string types in validation layer, filter in processing layer
+
+### Query Timing (CRITICAL)
+- **Query BEFORE Insert**: Always get `max_stored_key` BEFORE inserting data
+- **Avoid Self-Interference**: New data should not affect duplicate checks
+```python
+# ❌ BAD: Query after insert
+await save_raw_data(data)
+max_key = await get_max_stored_key()  # Includes newly saved data!
+
+# ✅ GOOD: Query before insert  
+max_key = await get_max_stored_key()  # Only existing data
+await save_raw_data(data)
+if data.timestamp > max_key:  # Correct comparison
+    await process_data(data)
+```
+
+### Boundary Conditions
+- **Think Carefully**: Don't casually change boundary conditions (`<=`, `>=`, `<`, `>`)
+- **Understand Logic**: When user says restore boundary conditions, think about root cause first
+- **Default Behavior**: Keep strict comparison for incremental data processing
+- **Document Reasoning**: Explain why certain boundary is used
+
+## Logging Standards
+
+### Log Levels
+- **INFO**: Basic request/response information, major workflow steps
+- **DEBUG**: Detailed request body, internal state, debugging information  
+- **WARNING**: Unmapped types, degraded functionality, configuration issues
+- **ERROR**: Operation failures, exceptions, data processing errors
+
+### Request Logging
+- **Basic Info** (INFO level): Method, path, client IP, headers (filtered), trace ID
+- **Request Body** (DEBUG level): Full body content with sensitive fields filtered
+- **Response** (INFO level): Status code, process time, trace ID
+- **Validation Errors**: Use RequestValidationError handler to show detailed field errors
+
+### Best Practices
+```python
+# Request start
+log_info(f"🚀 REQUEST START - {method} {path}")
+log_info(f"   📍 Client IP: {client_ip}")
+log_debug(f"   📦 Request Body: {filtered_body}")
+
+# Request end  
+log_info(f"✅ REQUEST END - {method} {path}")
+log_info(f"   📊 Status: {status_code}")
+log_info(f"   ⏱️ Process Time: {time:.3f}s")
+```
+
+## Provider Development (Autoload Pattern)
+
+### Factory Method Pattern
+All Providers MUST implement `create_provider` class method:
+```python
+@classmethod
+def create_provider(cls, config: Dict[str, Any]) -> Optional['YourProvider']:
+    """
+    Factory method to create provider from config
+    
+    Required config keys:
+    - YOUR_API_KEY
+    - YOUR_CLIENT_SECRET
+    
+    Returns:
+        Provider instance if config is valid, None otherwise
+    """
+    # 1. Check required config
+    if not config.get("YOUR_API_KEY"):
+        logging.info("YourProvider disabled: missing YOUR_API_KEY")
+        return None
+    
+    # 2. Verify global_config is accessible (if used in __init__)
+    if uses_global_config:
+        from ...utils.config import global_config
+        cfg = global_config()
+        if cfg is None:
+            logging.warning("Failed to create provider: global_config is None")
+            return None
+    
+    # 3. Create instance with error handling
+    try:
+        return cls()
+    except Exception as e:
+        logging.warning(f"Failed to create provider: {e}")
+        return None
+```
+
+### Autoload Benefits
+- ✅ Delete provider file → Auto-disabled
+- ✅ Missing config → Auto-skipped  
+- ✅ Add new provider file → Auto-discovered
+- ✅ No manual registration needed
+
+## Development Checklist
+
+### Before Development
+- [ ] Use existing token verification from `utils.utils_auth`
+- [ ] Plan data flow: Provider → StandardPulseData → Platform standardization
+- [ ] Check dependency direction to avoid circular imports
+- [ ] Verify async functions are properly awaited
+- [ ] Check for module import timing issues
+
+### Code Review
+- [ ] All comments and messages in English
+- [ ] Provider returns StandardPulseData
+- [ ] Platform calls standardize_pulse_data()
+- [ ] No mock token verification functions
+- [ ] Async functions called with `await`
+- [ ] Type annotations use `Optional[List[X]] = None` not `List[X]` as default
+- [ ] No circular imports (test with fresh Python interpreter)
+- [ ] Query timing is correct (query before insert for duplicate checks)
+- [ ] Boundary conditions are well-reasoned (don't change casually)
+- [ ] Proper error handling and logging with correct levels
+- [ ] Sensitive data filtered in logs (passwords, tokens, keys)
+- [ ] Clean up redundant/obsolete code after refactoring
+
+### Before Deployment
+- [ ] `docker restart data_service` succeeds
+- [ ] No import errors in startup logs
+- [ ] Token verification works with real users
+- [ ] API endpoints respond correctly
+- [ ] All providers with sufficient config load successfully
+- [ ] Missing config providers are gracefully skipped
+- [ ] No circular dependency errors
+- [ ] Validation errors show helpful details
+
+## Service Management
+
+### Development Environment
+```bash
+# Always use this to start services
+sh run.sh
+
+# Or use specific environment
+ENV=test-inlocal bash deploy.sh
+
+# MCP server connection
+ws://localhost  # Port 80
+```
+
+### Port Configuration
+- **Default Ports**:
+  - Backend (main.py): 18060 (configurable via --port)
+  - Backend (pulse/main.py): 18060 (default)
+  - Frontend expects: 18060 (NEXT_PUBLIC_BASE_URL_DATA)
+- **Docker Compose**: Ensure port mapping matches (e.g., `18060:18060`)
+- **Environment Variables**: Set `MCP_HTTP_PORT=18060` in docker-compose.yml
+
+### Testing
+```bash
+# Restart service after changes
+docker restart data_service
+
+# Check service health
+curl http://localhost:18060/api/health
+
+# Check provider loading
+docker logs data_service | grep "Loaded provider"
+
+# Trigger specific theta provider
+curl -X POST "http://localhost:18060/api/v1/manage/theta/pull/trigger" \
+  -H "Content-Type: application/json" \
+  -d '{"provider_slug": "theta_renpho", "force": true}'
+```
+
+## Common Issues and Solutions
+
+### Issue: "coroutine object is not iterable"
+**Cause**: Forgot to `await` an async function  
+**Solution**: Add `await` keyword before async function calls
+
+### Issue: "'NoneType' object has no attribute 'setnx'"  
+**Cause**: Static import of `redis_client` before initialization  
+**Solution**: Use dynamic getter function `get_redis_client()`
+
+### Issue: "No data pulled for user" but API returns data
+**Cause**: Query timing - `max_stored_key` includes newly inserted data  
+**Solution**: Query `max_stored_key` BEFORE saving raw data
+
+### Issue: "UNMAPPED_HEALTH_TYPE validation error"
+**Cause**: New health data type not in enum  
+**Solution**: Either add to enum or use permissive validation mode
+
+### Issue: Circular import errors on startup
+**Cause**: Module dependency cycle (A imports B imports A)  
+**Solution**: Follow layered architecture, use lazy imports
+
+### Issue: Provider not loading despite config present
+**Cause**: `create_provider` returns None due to validation failure  
+**Solution**: Check logs for "provider disabled" messages, verify config keys
+
+### Issue: Router endpoints not responding
+**Cause**: Router file deleted but not removed from imports  
+**Solution**: Use autoload pattern - router/__init__.py auto-discovers routers
+
+## Debugging Tips
+
+### Enable Debug Logging
+- Set log level to DEBUG to see request bodies and internal state
+- Check validation errors with RequestValidationError handler
+- Use trace ID to correlate logs across services
+
+### Check Configuration
+```python
+# Verify config loading
+from mirobody.utils.config import global_config
+cfg = global_config()
+print(cfg.get("YOUR_KEY"))
+```
+
+### Test Provider Creation
+```python
+# Test provider factory method
+from mirobody.pulse.theta.provider_xxx import ThetaXxxProvider
+provider = ThetaXxxProvider.create_provider(config_dict)
+print(f"Provider created: {provider is not None}")
+```
+
+### Verify Data Flow
+- Check raw data saved: `SELECT * FROM theta_ai.health_data_xxx WHERE uid = ?`
+- Check processed data: `SELECT * FROM theta_ai.series_data WHERE user_id = ?`
+- Check max_stored_key: `SELECT MAX(key) FROM theta_ai.health_data_xxx WHERE uid = ?`
+
+## Code Quality Standards
+
+### Remove Redundant Code
+- Delete obsolete code after refactoring
+- Don't leave commented-out code  
+- Remove duplicate implementations
+- Clean up unused imports
+
+### Error Handling
+- Always wrap provider creation in try-except
+- Return None on configuration errors (don't crash)
+- Log warnings for degraded functionality
+- Log errors for actual failures
+
+### Performance Considerations
+- Use DEBUG level for verbose logging (not INFO)
+- Cache expensive operations (timezone conversions, etc.)
+- Query only necessary data (use pagination for large datasets)
+- Use batch operations where possible
+
+## Work Process Best Practices
+
+### Problem Analysis Approach
+1. **Read and Understand**: Read error logs and relevant code carefully before making changes
+2. **Think Then Act**: Analyze root cause, don't jump to quick fixes
+3. **Verify Assumptions**: When user says "restore changes", re-analyze the problem
+4. **Minimal Changes**: Make smallest necessary changes, avoid over-engineering
+5. **Clean Up After**: Remove redundant code introduced during iteration
+
+### When User Says "No"
+- **Restore Changes**: Undo modifications user disagrees with
+- **Re-analyze Problem**: The initial analysis may be wrong
+- **Ask for Clarification**: Understand the actual requirement
+- **Don't Defend**: Accept feedback and adjust approach
+
+### Code Modification Principles
+1. **Preserve Existing Logic**: Don't change working code without clear reason
+2. **Test Before Deleting**: Verify code is truly redundant before removing
+3. **Follow Conventions**: Match existing code style and patterns
+4. **Document Changes**: Explain why changes are needed in commit messages
+
+### Configuration Management
+- **tenant_id=0**: Global configurations visible to all users
+- **Config Validation**: Check config exists before using in provider creation
+- **Graceful Degradation**: Missing config → skip provider, don't crash
+
+### FastAPI Best Practices
+- **Middleware Registration**: Call `register_middleware(app)` after creating FastAPI app
+- **Exception Handlers**: Enable RequestValidationError handler for detailed validation errors
+- **Multiple Endpoints**: Can register same handler to multiple paths
+- **Response Models**: Always define response models for type safety
+
+## Common Patterns
+
+### Adding New Health Data Type
+1. Add to `FlutterHealthTypeEnum` in both files:
+   - `mirobody/pulse/apple/models.py`
+   - `mirobody/utils/health_enums.py`
+2. Add mapping in `FLUTTER_TO_RECORD_TYPE_MAPPING`
+3. Verify `RecordTypeEnum` has corresponding value
+4. Test with sample data
+
+### Adding New Provider
+1. Create `theta/provider_xxx.py`
+2. Define class inheriting `BaseThetaProvider`
+3. Implement `create_provider` class method with config validation
+4. Implement `info` property and required methods
+5. Provider will auto-load on next startup (no manual registration needed)
+
+### Adding New Router
+1. Create `router/xxx_router.py`
+2. Define `router = APIRouter(...)` variable
+3. Add route handlers
+4. Router will auto-include in public_router (no manual registration needed)
+
+### Fixing Circular Dependencies
+1. Identify the cycle: A → B → C → A
+2. Apply layered architecture:
+   - Core layer (no dependencies)
+   - Service layer (depends on core)
+   - Application layer (depends on service and core)
+3. Refactor shared code to a separate module (preferred solution)
+4. Use lazy imports ONLY as last resort if refactoring is not feasible
+
+## Project-Specific Knowledge
+
+### Data Tables
+- **Raw Data**: `theta_ai.health_data_xxx` (provider-specific raw data storage)
+- **Processed Data**: `theta_ai.series_data` (standardized indicator data)
+- **User Mapping**: `theta_ai.health_user_provider` (user credentials for providers)
+- **Config**: `theta_ai.config_*` tables (configuration management)
+
+### Key Fields
+- `max_stored_key`: Maximum timestamp of stored data (used for incremental sync)
+- `app_user_id`: MD5 encrypted user ID
+- `vital_user_id`: Vital API's client_user_id
+- `trace_id`: Request tracing identifier (timestamp-based)
+
+### Timezone Handling
+- All timestamps stored in UTC milliseconds
+- Use `convert_timezone_offset_to_timezone_name()` for timezone conversion
+- Cache timezone objects to avoid repeated creation
+- Support both offset (-480) and name ("Asia/Shanghai") formats
+
+### Provider Slugs
+- Vital: `vital.garmin`, `vital.fitbit`, etc.
+- Theta: `theta.theta_renpho`, `theta.theta_libre`, etc.
+- Apple: `apple.health`
+
+This architecture ensures data consistency, security, and maintainability across the entire Pulse system. 

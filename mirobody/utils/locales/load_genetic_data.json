@@ -1,0 +1,158 @@
+{
+  "genetic_processing_start": {
+    "en": "🧬 Starting to parse genetic data file...",
+    "zh": "🧬 开始解析基因数据文件...",
+    "fr": "🧬 Début de l'analyse du fichier de données génétiques...",
+    "ja": "🧬 遺伝子データファイルの解析を開始しています...",
+    "es": "🧬 Comenzando a analizar el archivo de datos genéticos..."
+  },
+  "genetic_parsing_start": {
+    "en": "🧬 Starting to parse genetic data file...",
+    "zh": "🧬 开始解析基因数据文件...",
+    "fr": "🧬 Début de l'analyse du fichier de données génétiques...",
+    "ja": "🧬 遺伝子データファイルの解析を開始しています...",
+    "es": "🧬 Comenzando a analizar el archivo de datos genéticos..."
+  },
+  "genetic_file_estimation": {
+    "en": "📊 Estimating file size... approximately {total:,} lines to process",
+    "zh": "📊 预估文件大小... 大约需要处理 {total:,} 行数据",
+    "fr": "📊 Estimation de la taille du fichier... environ {total:,} lignes à traiter",
+    "ja": "📊 ファイルサイズを推定中... 約 {total:,} 行の処理が必要です",
+    "es": "📊 Estimando el tamaño del archivo... aproximadamente {total:,} líneas para procesar"
+  },
+  "genetic_parsing_progress": {
+    "en": "📖 Parsing genetic data... {total:,} lines processed",
+    "zh": "📖 解析基因数据中... 已处理 {total:,} 行",
+    "fr": "📖 Analyse des données génétiques... {total:,} lignes traitées",
+    "ja": "📖 遺伝子データ解析中... {total:,} 行を処理しました",
+    "es": "📖 Analizando datos genéticos... {total:,} líneas procesadas"
+  },
+  "genetic_batch_completed": {
+    "en": "💾 Batch {batch_num} saved: {batch_size} records stored successfully",
+    "zh": "💾 批次 {batch_num} 已保存: {batch_size} 条记录存储成功",
+    "fr": "💾 Lot {batch_num} sauvegardé: {batch_size} enregistrements stockés avec succès",
+    "ja": "💾 バッチ {batch_num} 保存完了: {batch_size} レコードが正常に保存されました",
+    "es": "💾 Lote {batch_num} guardado: {batch_size} registros almacenados exitosamente"
+  },
+  "genetic_batch_status": {
+    "en": "⚙️ Processing status: {batches} batches completed",
+    "zh": "⚙️ 处理状态: 已完成 {batches} 个批次",
+    "fr": "⚙️ État du traitement: {batches} lots terminés",
+    "ja": "⚙️ 処理状況: {batches} バッチが完了しました",
+    "es": "⚙️ Estado del procesamiento: {batches} lotes completados"
+  },
+  "genetic_batch_failed": {
+    "en": "⚠️ Batch {batch_num} failed, continuing with next batch...",
+    "zh": "⚠️ 批次 {batch_num} 失败，继续处理下一批次...",
+    "fr": "⚠️ Le lot {batch_num} a échoué, on continue avec le prochain lot...",
+    "ja": "⚠️ バッチ {batch_num} が失敗しました。次のバッチに進みます...",
+    "es": "⚠️ El lote {batch_num} falló, continuando con el siguiente lote..."
+  },
+  "genetic_final_batch": {
+    "en": "🏁 Processing final batch: {count} remaining records",
+    "zh": "🏁 处理最终批次: 剩余 {count} 条记录",
+    "fr": "🏁 Traitement du lot final: {count} enregistrements restants",
+    "ja": "🏁 最終バッチ処理中: 残り {count} レコード",
+    "es": "🏁 Procesando lote final: {count} registros restantes"
+  },
+  "genetic_final_batch_completed": {
+    "en": "✅ Final batch completed: {count} records saved",
+    "zh": "✅ 最终批次完成: {count} 条记录已保存",
+    "fr": "✅ Lot final terminé: {count} enregistrements sauvegardés",
+    "ja": "✅ 最終バッチ完了: {count} レコードが保存されました",
+    "es": "✅ Lote final completado: {count} registros guardados"
+  },
+  "genetic_processing_finished": {
+    "en": "🎉 Processing completed: {total} records parsed, {saved} records saved successfully",
+    "zh": "🎉 处理完成: 解析了 {total} 条记录，成功保存 {saved} 条记录",
+    "fr": "🎉 Traitement terminé: {total} enregistrements analysés, {saved} enregistrements sauvegardés avec succès",
+    "ja": "🎉 処理完了: {total} レコードを解析し、{saved} レコードを正常に保存しました",
+    "es": "🎉 Procesamiento completado: {total} registros analizados, {saved} registros guardados exitosamente"
+  },
+  "genetic_progress_display": {
+    "en": "🧬 Processing genetic data...\n\nParsed: {processed:,} records\nSaved: {saved:,} records\nProgress: {percent:.1f}%",
+    "zh": "🧬 基因数据处理中...\n\n已解析: {processed:,} 条记录\n已保存: {saved:,} 条记录\n进度: {percent:.1f}%",
+    "fr": "🧬 Traitement des données génétiques...\n\nAnalysé: {processed:,} enregistrements\nSauvegardé: {saved:,} enregistrements\nProgrès: {percent:.1f}%",
+    "ja": "🧬 遺伝子データ処理中...\n\n解析済み: {processed:,} レコード\n保存済み: {saved:,} レコード\n進行状況: {percent:.1f}%",
+    "es": "🧬 Procesando datos genéticos...\n\nAnalizados: {processed:,} registros\nGuardados: {saved:,} registros\nProgreso: {percent:.1f}%"
+  },
+  "genetic_processing_complete_message": {
+    "en": "✅ Genetic data file processing completed!\n\n📊 Processing Results:\n• Successfully saved {records:,} genetic records\n• Data has been imported into your health profile\n• You can now start genetic analysis and consultation",
+    "zh": "✅ 基因数据文件处理完成！\n\n📊 处理结果:\n• 成功保存 {records:,} 条基因记录\n• 数据已导入到您的健康档案中\n• 可以开始进行基因分析和咨询",
+    "fr": "✅ Traitement du fichier de données génétiques terminé!\n\n📊 Résultats du traitement:\n• {records:,} enregistrements génétiques sauvegardés avec succès\n• Les données ont été importées dans votre profil de santé\n• Vous pouvez maintenant commencer l'analyse génétique et la consultation",
+    "ja": "✅ 遺伝子データファイルの処理が完了しました！\n\n📊 処理結果:\n• {records:,} 件の遺伝子記録を正常に保存しました\n• データがあなたの健康プロファイルにインポートされました\n• 遺伝子分析と相談を開始できます",
+    "es": "✅ ¡Procesamiento del archivo de datos genéticos completado!\n\n📊 Resultados del procesamiento:\n• Se guardaron exitosamente {records:,} registros genéticos\n• Los datos han sido importados a su perfil de salud\n• Ahora puede comenzar el análisis genético y la consulta"
+  },
+  "genetic_processing_complete_reasoning": {
+    "en": "Genetic data processing completed successfully. The file has been parsed and all valid genetic records have been imported into the user's health profile.",
+    "zh": "基因数据处理成功完成。文件已解析，所有有效的基因记录已导入用户健康档案。",
+    "fr": "Le traitement des données génétiques s'est terminé avec succès. Le fichier a été analysé et tous les enregistrements génétiques valides ont été importés dans le profil de santé de l'utilisateur.",
+    "ja": "遺伝子データの処理が正常に完了しました。ファイルが解析され、すべての有効な遺伝子記録がユーザーの健康プロファイルにインポートされました。",
+    "es": "El procesamiento de datos genéticos se completó exitosamente. El archivo ha sido analizado y todos los registros genéticos válidos han sido importados al perfil de salud del usuario."
+  },
+  "genetic_processing_failed_message": {
+    "en": "❌ Genetic data file processing failed\n\n🔍 Error Information:\n{error}\n\n💡 Suggestions:\n• Check if the file format is WeGene standard format\n• Ensure the file is not corrupted\n• Contact technical support for help",
+    "zh": "❌ 基因数据文件处理失败\n\n🔍 错误信息:\n{error}\n\n💡 建议:\n• 检查文件格式是否为WeGene标准格式\n• 确保文件未损坏\n• 联系技术支持获取帮助",
+    "fr": "❌ Échec du traitement du fichier de données génétiques\n\n🔍 Informations sur l'erreur:\n{error}\n\n💡 Suggestions:\n• Vérifiez si le format de fichier est le format standard WeGene\n• Assurez-vous que le fichier n'est pas corrompu\n• Contactez le support technique pour obtenir de l'aide",
+    "ja": "❌ 遺伝子データファイルの処理に失敗しました\n\n🔍 エラー情報:\n{error}\n\n💡 提案:\n• ファイル形式がWeGene標準形式かどうか確認してください\n• ファイルが破損していないことを確認してください\n• 技術サポートにお問い合わせください",
+    "es": "❌ Error al procesar el archivo de datos genéticos\n\n🔍 Información del error:\n{error}\n\n💡 Sugerencias:\n• Verifique si el formato del archivo es el formato estándar de WeGene\n• Asegúrese de que el archivo no esté dañado\n• Contacte al soporte técnico para obtener ayuda"
+  },
+  "genetic_processing_failed_reasoning": {
+    "en": "Genetic data processing failed due to an error during file parsing or database operations. Error details: {error}",
+    "zh": "基因数据处理失败，原因是文件解析或数据库操作过程中出现错误。错误详情: {error}",
+    "fr": "Le traitement des données génétiques a échoué en raison d'une erreur lors de l'analyse du fichier ou des opérations de base de données. Détails de l'erreur: {error}",
+    "ja": "ファイル解析またはデータベース操作中にエラーが発生したため、遺伝子データの処理に失敗しました。エラーの詳細: {error}",
+    "es": "El procesamiento de datos genéticos falló debido a un error durante el análisis del archivo o las operaciones de la base de datos. Detalles del error: {error}"
+  },
+
+
+  "genetic_file_received": {
+    "en": "🧬 Genetic file received and processing started",
+    "zh": "🧬 基因文件已接收，开始处理",
+    "fr": "🧬 Fichier génétique reçu et traitement commencé",
+    "ja": "🧬 遺伝子ファイルを受信し、処理を開始しました",
+    "es": "🧬 Archivo genético recibido y procesamiento iniciado"
+  },
+  "genetic_file_abstract": {
+    "en": "Genetic data file ({filename}) containing SNP/InDel identifiers, chromosomal positions, and genotype information.",
+    "zh": "基因数据文件（{filename}），包含 SNP/InDel 标识符、染色体位置和基因型信息。",
+    "fr": "Fichier de données génétiques ({filename}) contenant des identifiants SNP/InDel, des positions chromosomiques et des informations de génotype.",
+    "ja": "遺伝子データファイル（{filename}）、SNP/InDel識別子、染色体位置、遺伝子型情報を含みます。",
+    "es": "Archivo de datos genéticos ({filename}) que contiene identificadores SNP/InDel, posiciones cromosómicas e información de genotipo."
+  },
+  "genetic_file_saving": {
+    "en": "💾 Saving genetic file to temporary storage",
+    "zh": "💾 正在将基因文件保存到临时存储",
+    "fr": "💾 Sauvegarde du fichier génétique dans le stockage temporaire",
+    "ja": "💾 遺伝子ファイルを一時保存場所に保存中",
+    "es": "💾 Guardando archivo genético en almacenamiento temporal"
+  },
+  "genetic_file_processing_background": {
+    "en": "⚙️ Genetic file processing in background",
+    "zh": "⚙️ 基因文件正在后台处理",
+    "fr": "⚙️ Traitement du fichier génétique en arrière-plan",
+    "ja": "⚙️ バックグラウンドで遺伝子ファイルを処理中",
+    "es": "⚙️ Procesamiento de archivo genético en segundo plano"
+  },
+  "genetic_processing_start_message": {
+    "en": "🧬 Starting genetic data processing...",
+    "zh": "🧬 开始处理基因数据...",
+    "fr": "🧬 Début du traitement des données génétiques...",
+    "ja": "🧬 遺伝子データの処理を開始しています...",
+    "es": "🧬 Iniciando el procesamiento de datos genéticos..."
+  },
+  "genetic_initializing_loader": {
+    "en": "Initializing genetic data loader and preparing for file processing",
+    "zh": "初始化基因数据加载器，准备文件处理",
+    "fr": "Initialisation du chargeur de données génétiques et préparation du traitement de fichier",
+    "ja": "遺伝子データローダーを初期化し、ファイル処理の準備をしています",
+    "es": "Inicializando el cargador de datos genéticos y preparando para el procesamiento de archivos"
+  },
+  "disk_space_insufficient": {
+    "en": "Insufficient disk space, please contact administrator to clean up disk space",
+    "zh": "磁盘空间不足，请联系管理员清理磁盘空间",
+    "fr": "Espace disque insuffisant, veuillez contacter l'administrateur pour nettoyer l'espace disque",
+    "ja": "ディスク容量が不足しています。管理者に連絡してディスク容量をクリーンアップしてください",
+    "es": "Espacio en disco insuficiente, póngase en contacto con el administrador para limpiar el espacio en disco"
+  }
+} 

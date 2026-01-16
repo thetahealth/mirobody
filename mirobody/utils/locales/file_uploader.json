@@ -1,0 +1,240 @@
+{
+  "file_empty": {
+    "en": "File is empty",
+    "zh": "文件为空",
+    "fr": "Le fichier est vide",
+    "ja": "ファイルが空です",
+    "es": "El archivo está vacío"
+  },
+  "file_upload_timeout": {
+    "en": "File upload timeout, please try again later or reduce file size",
+    "zh": "文件上传超时，请稍后重试或减小文件大小",
+    "fr": "Délai d'attente de téléchargement, veuillez réessayer plus tard ou réduire la taille du fichier",
+    "ja": "ファイルアップロードがタイムアウトしました。後でもう一度試すか、ファイルサイズを小さくしてください",
+    "es": "Tiempo de carga agotado, inténtelo más tarde o reduzca el tamaño del archivo"
+  },
+  "file_upload_failed": {
+    "en": "File upload failed",
+    "zh": "文件上传失败",
+    "fr": "Échec du téléchargement du fichier",
+    "ja": "ファイルのアップロードに失敗しました",
+    "es": "Error al subir el archivo"
+  },
+  "upload_success_message": {
+    "en": "File uploaded successfully, please check the progress",
+    "zh": "文件上传成功，请查看处理进度",
+    "ja": "ファイルのアップロードが成功しました。処理の進行状況をご確認ください",
+    "fr": "Fichier téléchargé avec succès, veuillez vérifier le progrès",
+    "es": "Archivo subido exitosamente, por favor verifique el progreso"
+  },
+  "unauthorized_file_upload": {
+    "en": "You do not have permission to upload files for this user",
+    "zh": "您没有权限为该用户上传文件",
+    "ja": "このユーザーのファイルをアップロードする権限がありません",
+    "fr": "Vous n'avez pas l'autorisation de télécharger des fichiers pour cet utilisateur",
+    "es": "No tiene permisos para subir archivos para este usuario"
+  },
+  "file_processing_status": {
+    "en": "🔄 Processing uploaded file...",
+    "zh": "🔄 正在处理上传的文件...",
+    "ja": "🔄 アップロードされたファイルを処理中...",
+    "fr": "🔄 Traitement du fichier téléchargé...",
+    "es": "🔄 Procesando archivo subido..."
+  },
+  "file_uploading_status": {
+    "en": "File uploading",
+    "zh": "文件上传中",
+    "ja": "ファイルアップロード中",
+    "fr": "Téléchargement de fichier",
+    "es": "Subiendo archivo"
+  },
+  "file_processing_failed_content": {
+    "en": "❌ File processing failed\n\nNo files were successfully processed",
+    "zh": "❌ 文件处理失败\n\n没有文件被成功处理",
+    "ja": "❌ ファイル処理に失敗しました\n\n正常に処理されたファイルはありません",
+    "fr": "❌ Échec du traitement du fichier\n\nAucun fichier n'a été traité avec succès",
+    "es": "❌ Falló el procesamiento de todos los archivos"
+  },
+  "all_files_failed_reason": {
+    "en": "All file processing failed",
+    "zh": "所有文件处理均失败",
+    "ja": "すべてのファイル処理が失敗しました",
+    "fr": "Tous les traitements de fichiers ont échoué",
+    "es": "Falló el procesamiento de todos los archivos"
+  },
+  "no_files_processed": {
+    "en": "No files were successfully processed",
+    "zh": "没有文件被成功处理",
+    "ja": "正常に処理されたファイルはありません",
+    "fr": "Aucun fichier n'a été traité avec succès",
+    "es": "No se procesaron archivos exitosamente"
+  },
+  "file_upload_failed_content": {
+    "en": "❌ File upload failed\n\nError: {error}",
+    "zh": "❌ 文件上传失败\n\n错误信息: {error}",
+    "ja": "❌ ファイルのアップロードに失敗しました\n\nエラー: {error}",
+    "fr": "❌ Échec du téléchargement du fichier\n\nErreur: {error}",
+    "es": "❌ Falló la subida del archivo\n\nError: {error}"
+  },
+  "file_upload_exception_reason": {
+    "en": "File upload process exception: {error}",
+    "zh": "文件上传过程中发生异常: {error}",
+    "ja": "ファイルアップロード処理中に例外が発生しました: {error}",
+    "fr": "Exception lors du processus de téléchargement: {error}",
+    "es": "Excepción en el proceso de subida de archivo: {error}"
+  },
+  "upload_processing_failed": {
+    "en": "Failed to process health report upload",
+    "zh": "健康报告上传处理失败",
+    "ja": "健康レポートのアップロード処理に失敗しました",
+    "fr": "Échec du traitement du téléchargement du rapport de santé",
+    "es": "Falló el procesamiento de la subida del reporte de salud"
+  },
+  "compressed_file_processed_successfully": {
+    "en": "Compressed file processed successfully: {successful_count}/{total_count} files processed",
+    "zh": "压缩文件处理成功: 成功处理 {successful_count}/{total_count} 个文件",
+    "ja": "圧縮ファイルの処理が成功しました: {successful_count}/{total_count} ファイルが処理されました",
+    "fr": "Fichier compressé traité avec succès: {successful_count}/{total_count} fichiers traités",
+    "es": "Archivo comprimido procesado exitosamente: {successful_count}/{total_count} archivos procesados"
+  },
+  "all_files_in_archive_failed": {
+    "en": "All files in the compressed archive failed to process",
+    "zh": "压缩包中的所有文件都处理失败",
+    "ja": "圧縮アーカイブ内のすべてのファイルの処理に失敗しました",
+    "fr": "Tous les fichiers de l'archive compressée ont échoué lors du traitement",
+    "es": "Todos los archivos en el archivo comprimido fallaron al procesarse"
+  },
+  "compressed_file_processing_failed": {
+    "en": "Failed to process compressed file",
+    "zh": "压缩文件处理失败",
+    "ja": "圧縮ファイルの処理に失敗しました",
+    "fr": "Échec du traitement du fichier compressé",
+    "es": "Falló el procesamiento del archivo comprimido"
+  },
+  "no_valid_files_in_archive": {
+    "en": "No supported files found in the compressed archive",
+    "zh": "压缩包中没有找到支持的文件类型",
+    "ja": "圧縮アーカイブ内にサポートされているファイルが見つかりません",
+    "fr": "Aucun fichier pris en charge trouvé dans l'archive compressée",
+    "es": "No se encontraron archivos compatibles en el archivo comprimido"
+  },
+  "file_too_large": {
+    "en": "File size exceeds the maximum limit",
+    "zh": "文件大小超出最大限制",
+    "ja": "ファイルサイズが最大制限を超えています",
+    "fr": "La taille du fichier dépasse la limite maximale",
+    "es": "El tamaño del archivo excede el límite máximo"
+  },
+  "unsupported_compress_format": {
+    "en": "Unsupported compression format",
+    "zh": "不支持的压缩格式",
+    "ja": "サポートされていない圧縮形式",
+    "fr": "Format de compression non pris en charge",
+    "es": "Formato de compresión no compatible"
+  },
+  "file_upload_accepted": {
+    "en": "Files received, processing in background...",
+    "zh": "文件已接收，正在后台处理...",
+    "ja": "ファイルを受信しました、バックグラウンドで処理中...",
+    "fr": "Fichiers reçus, traitement en arrière-plan...",
+    "es": "Archivos recibidos, procesando en segundo plano..."
+  },
+  "no_files_uploaded": {
+    "en": "No files were uploaded",
+    "zh": "没有上传任何文件",
+    "ja": "ファイルがアップロードされませんでした",
+    "fr": "Aucun fichier n'a été téléchargé",
+    "es": "No se subieron archivos"
+  },
+  "file_processing_started": {
+    "en": "Starting file processing...",
+    "zh": "开始处理文件...",
+    "ja": "ファイル処理を開始...",
+    "fr": "Début du traitement de fichier...",
+    "es": "Iniciando procesamiento de archivos..."
+  },
+  "processing_file": {
+    "en": "Processing file: {filename}",
+    "zh": "正在处理文件: {filename}",
+    "ja": "ファイルを処理中: {filename}",
+    "fr": "Traitement du fichier: {filename}",
+    "es": "Procesando archivo: {filename}"
+  },
+  "file_processed": {
+    "en": "File processed: {filename}",
+    "zh": "文件已处理: {filename}",
+    "ja": "ファイル処理完了: {filename}",
+    "fr": "Fichier traité: {filename}",
+    "es": "Archivo procesado: {filename}"
+  },
+  "saving_results": {
+    "en": "Saving processing results...",
+    "zh": "正在保存处理结果...",
+    "ja": "処理結果を保存中...",
+    "fr": "Sauvegarde des résultats...",
+    "es": "Guardando resultados del procesamiento..."
+  },
+  "file_processing_completed": {
+    "en": "File processing completed successfully",
+    "zh": "文件处理完成",
+    "ja": "ファイル処理が完了しました",
+    "fr": "Traitement de fichier terminé avec succès",
+    "es": "Procesamiento de archivos completado exitosamente"
+  },
+  "file_processing_error": {
+    "en": "File processing error: {error}",
+    "zh": "文件处理错误: {error}",
+    "ja": "ファイル処理エラー: {error}",
+    "fr": "Erreur de traitement de fichier: {error}",
+    "es": "Error de procesamiento de archivo: {error}"
+  },
+  "file_saving_started": {
+    "en": "Starting to save files to cloud...",
+    "zh": "开始保存文件到云端...",
+    "ja": "ファイルをクラウドに保存開始...",
+    "fr": "Début de la sauvegarde des fichiers vers le cloud...",
+    "es": "Iniciando guardado de archivos en la nube..."
+  },
+  "saving_file": {
+    "en": "Saving file to cloud: {filename}",
+    "zh": "正在保存文件到云端: {filename}",
+    "ja": "ファイルをクラウドに保存中: {filename}",
+    "fr": "Sauvegarde du fichier vers le cloud: {filename}",
+    "es": "Guardando archivo en la nube: {filename}"
+  },
+  "parsing_file": {
+    "en": "Parsing file content: {filename}",
+    "zh": "正在解析文件内容: {filename}",
+    "ja": "ファイル内容を解析中: {filename}",
+    "fr": "Analyse du contenu du fichier: {filename}",
+    "es": "Analizando contenido del archivo: {filename}"
+  },
+  "finalizing_results": {
+    "en": "Finalizing processing results...",
+    "zh": "正在整理处理结果...",
+    "ja": "処理結果を最終化中...",
+    "fr": "Finalisation des résultats...",
+    "es": "Finalizando resultados del procesamiento..."
+  },
+  "files_uploaded_successfully": {
+    "en": "All files uploaded successfully",
+    "zh": "所有文件上传成功",
+    "ja": "すべてのファイルが正常にアップロードされました",
+    "fr": "Tous les fichiers téléchargés avec succès",
+    "es": "Todos los archivos subidos con éxito"
+  },
+  "file_uploaded_pending_analysis": {
+    "en": "File uploaded successfully, analysis pending...",
+    "zh": "文件上传成功，正在等待分析...",
+    "ja": "ファイルのアップロードが成功しました、分析を待機中...",
+    "fr": "Fichier téléchargé avec succès, analyse en attente...",
+    "es": "Archivo subido exitosamente, análisis pendiente..."
+  },
+  "files_uploaded_awaiting_processing": {
+    "en": "Files uploaded successfully, awaiting background processing",
+    "zh": "文件上传成功，等待后台处理",
+    "ja": "ファイルのアップロードが成功しました、バックグラウンド処理を待機中",
+    "fr": "Fichiers téléchargés avec succès, en attente de traitement en arrière-plan",
+    "es": "Archivos subidos exitosamente, esperando procesamiento en segundo plano"
+  }
+} 

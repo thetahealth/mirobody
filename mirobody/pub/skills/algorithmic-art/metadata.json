@@ -1,0 +1,26 @@
+{
+  "name": "Algorithmic Art Creator",
+  "summary": "Creates algorithmic and generative art using code-based approaches. Designs visual patterns, fractals, and artistic compositions through mathematical and computational methods",
+  "when_to_use": [
+    "User wants to create generative or algorithmic art",
+    "User needs mathematical or fractal art designs",
+    "User wants creative coding patterns",
+    "User requests visual art based on algorithms",
+    "User wants to explore computational creativity"
+  ],
+  "when_not_to_use": [
+    "User needs image editing or photo manipulation",
+    "User wants hand-drawn style illustrations",
+    "User needs UI/UX design (use frontend-design instead)",
+    "User wants static graphic design (use canvas-design instead)"
+  ],
+  "tags": [
+    "art",
+    "generative",
+    "algorithmic",
+    "creative_coding",
+    "visualization",
+    "mathematics"
+  ]
+}
+

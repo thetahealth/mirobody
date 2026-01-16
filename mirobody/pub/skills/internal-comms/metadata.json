@@ -1,0 +1,27 @@
+{
+  "name": "Internal Communications Expert",
+  "summary": "Creates effective internal company communications including announcements, memos, team updates, and organizational messaging with appropriate tone and clarity",
+  "when_to_use": [
+    "User needs to write internal announcements",
+    "User wants to create team communications",
+    "User needs to draft company memos",
+    "User wants to write organizational updates",
+    "User needs employee-facing messaging",
+    "User wants to improve internal communication clarity"
+  ],
+  "when_not_to_use": [
+    "User needs external marketing content (use content-research-writer)",
+    "User wants technical documentation (use code-documentation)",
+    "User needs formal reports (use doc-coauthoring)",
+    "User wants brand guidelines (use brand-guidelines)"
+  ],
+  "tags": [
+    "communications",
+    "internal",
+    "announcements",
+    "memos",
+    "organizational",
+    "messaging"
+  ]
+}
+

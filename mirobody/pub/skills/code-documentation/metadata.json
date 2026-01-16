@@ -1,0 +1,27 @@
+{
+  "name": "Code Documentation Expert",
+  "summary": "Creates comprehensive code documentation including API docs, inline comments, README files, architecture documentation, and usage guides",
+  "when_to_use": [
+    "User needs to document code or APIs",
+    "User wants to create README files",
+    "User needs inline code comments",
+    "User wants architecture documentation",
+    "User needs usage guides or tutorials",
+    "User wants to improve existing documentation"
+  ],
+  "when_not_to_use": [
+    "User needs changelog (use changelog-generator)",
+    "User wants code review (use code-review)",
+    "User needs refactoring (use code-refactoring)",
+    "User wants brand documentation (use brand-guidelines)"
+  ],
+  "tags": [
+    "documentation",
+    "api_docs",
+    "comments",
+    "readme",
+    "technical_writing",
+    "guides"
+  ]
+}
+

@@ -1,0 +1,27 @@
+{
+  "name": "Code Refactoring Expert",
+  "summary": "Guides code refactoring to improve maintainability, readability, and structure while preserving functionality. Applies design patterns and best practices",
+  "when_to_use": [
+    "User wants to refactor existing code",
+    "User needs to improve code structure",
+    "User wants to apply design patterns",
+    "User needs to reduce code duplication",
+    "User wants to improve code maintainability",
+    "User needs to simplify complex code"
+  ],
+  "when_not_to_use": [
+    "User wants code review (use code-review)",
+    "User needs new feature implementation",
+    "User wants documentation (use code-documentation)",
+    "User needs performance optimization only (use code-review)"
+  ],
+  "tags": [
+    "refactoring",
+    "code_quality",
+    "design_patterns",
+    "maintainability",
+    "clean_code",
+    "restructuring"
+  ]
+}
+

@@ -1,0 +1,136 @@
+{
+  "analyzing_medical_indicators": {
+    "en": "Analyzing medical indicators",
+    "zh": "正在分析医疗指标",
+    "fr": "Analyse des indicateurs médicaux",
+    "ja": "医療指標を分析中",
+    "es": "Analizando indicadores médicos"
+  },
+  "organizing_indicator_data": {
+    "en": "Organizing indicator data: {count} items",
+    "zh": "正在整理指标数据：{count} 项",
+    "fr": "Organisation des données d'indicateurs : {count} éléments",
+    "ja": "指標データを整理中：{count} 項目",
+    "es": "Organizando datos de indicadores: {count} elementos"
+  },
+  "indicator_extraction_completed": {
+    "en": "Indicator extraction completed: {count} items",
+    "zh": "指标提取完成：{count} 项",
+    "fr": "Extraction d'indicateurs terminée : {count} éléments",
+    "ja": "指標抽出が完了しました：{count} 項目",
+    "es": "Extracción de indicadores completada: {count} elementos"
+  },
+  "json_parsing_error": {
+    "en": "JSON parsing encountered an issue",
+    "zh": "JSON解析遇到问题",
+    "fr": "Problème rencontré lors de l'analyse JSON",
+    "ja": "JSON解析で問題が発生しました",
+    "es": "Se encontró un problema al analizar JSON"
+  },
+  "json_parsing_failed": {
+    "en": "JSON parsing failed, processing completed",
+    "zh": "JSON解析失败，处理完成",
+    "fr": "Échec de l'analyse JSON, traitement terminé",
+    "ja": "JSON解析に失敗しました、処理が完了しました",
+    "es": "Análisis JSON falló, procesamiento completado"
+  },
+  "processing_issue_completing": {
+    "en": "Processing issue encountered, completing operation",
+    "zh": "处理遇到问题，正在完成操作",
+    "fr": "Problème de traitement rencontré, finalisation de l'opération",
+    "ja": "処理中に問題が発生しました、操作を完了中",
+    "es": "Problema de procesamiento encontrado, completando operación"
+  },
+  "indicator_extraction_error": {
+    "en": "Indicator extraction encountered an error",
+    "zh": "指标提取遇到错误",
+    "fr": "Erreur rencontrée lors de l'extraction d'indicateurs",
+    "ja": "指標抽出でエラーが発生しました",
+    "es": "Error encontrado al extraer indicadores"
+  },
+  "indicator_extraction_skipped": {
+    "en": "Indicator extraction is disabled, skipping",
+    "zh": "指标提取已禁用，已跳过",
+    "fr": "Extraction d'indicateurs désactivée, ignorée",
+    "ja": "指標抽出が無効になっています、スキップされました",
+    "es": "Extracción de indicadores deshabilitada, omitida"
+  },
+  "pdf_pages_analysis": {
+    "en": "Analyzing PDF: {count} pages",
+    "zh": "正在分析PDF：{count} 页",
+    "fr": "Analyse du PDF : {count} pages",
+    "ja": "PDFを分析中：{count} ページ",
+    "es": "Analizando PDF: {count} páginas"
+  },
+  "pdf_split_completed": {
+    "en": "PDF split completed: {count} page files",
+    "zh": "PDF拆分完成：{count} 个页面文件",
+    "fr": "Division du PDF terminée : {count} fichiers de page",
+    "ja": "PDF分割が完了しました：{count} ページファイル",
+    "es": "División de PDF completada: {count} archivos de página"
+  },
+  "pages_processed": {
+    "en": "Processing pages: {completed}/{total}, {count} indicators found",
+    "zh": "正在处理页面：{completed}/{total}，已找到 {count} 个指标",
+    "fr": "Traitement des pages : {completed}/{total}, {count} indicateurs trouvés",
+    "ja": "ページを処理中：{completed}/{total}、{count} 個の指標が見つかりました",
+    "es": "Procesando páginas: {completed}/{total}, {count} indicadores encontrados"
+  },
+  "merging_results": {
+    "en": "Merging results: {count} indicators",
+    "zh": "正在合并结果：{count} 个指标",
+    "fr": "Fusion des résultats : {count} indicateurs",
+    "ja": "結果を統合中：{count} 個の指標",
+    "es": "Fusionando resultados: {count} indicadores"
+  },
+  "saving_to_database": {
+    "en": "Saving to database: {count} indicators",
+    "zh": "正在保存到数据库：{count} 个指标",
+    "fr": "Enregistrement dans la base de données : {count} indicateurs",
+    "ja": "データベースに保存中：{count} 個の指標",
+    "es": "Guardando en la base de datos: {count} indicadores"
+  },
+  "pdf_indicators_completed": {
+    "en": "PDF indicator extraction completed: {count} indicators",
+    "zh": "PDF指标提取完成：{count} 个指标",
+    "fr": "Extraction d'indicateurs PDF terminée : {count} indicateurs",
+    "ja": "PDF指標抽出が完了しました：{count} 個の指標",
+    "es": "Extracción de indicadores PDF completada: {count} indicadores"
+  },
+  "parsing_indicator_data": {
+    "en": "Parsing indicator data",
+    "zh": "正在解析指标数据",
+    "fr": "Analyse des données d'indicateurs",
+    "ja": "指標データを解析中",
+    "es": "Analizando datos de indicadores"
+  },
+  "saving_indicators_to_database": {
+    "en": "Saving indicators to database: {count} items",
+    "zh": "正在保存指标到数据库：{count} 项",
+    "fr": "Enregistrement des indicateurs dans la base de données : {count} éléments",
+    "ja": "データベースに指標を保存中：{count} 項目",
+    "es": "Guardando indicadores en la base de datos: {count} elementos"
+  },
+  "database_save_completed": {
+    "en": "Database save completed: {count} items saved",
+    "zh": "数据库保存完成：已保存 {count} 项",
+    "fr": "Enregistrement dans la base de données terminé : {count} éléments enregistrés",
+    "ja": "データベース保存が完了しました：{count} 項目を保存",
+    "es": "Guardado en base de datos completado: {count} elementos guardados"
+  },
+  "single_file_extraction_completed": {
+    "en": "File extraction completed: {count} indicators",
+    "zh": "文件提取完成：{count} 个指标",
+    "fr": "Extraction de fichier terminée : {count} indicateurs",
+    "ja": "ファイル抽出が完了しました：{count} 個の指標",
+    "es": "Extracción de archivo completada: {count} indicadores"
+  },
+  "single_file_processing_completed": {
+    "en": "File processing completed",
+    "zh": "文件处理完成",
+    "fr": "Traitement de fichier terminé",
+    "ja": "ファイル処理が完了しました",
+    "es": "Procesamiento de archivo completado"
+  }
+}
+

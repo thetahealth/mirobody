@@ -1,0 +1,21 @@
+{
+  "name": "mirobody-chart-renderer",
+  "version": "1.0.0",
+  "description": "Chart rendering service for Mirobody using @antv/gpt-vis-ssr",
+  "private": true,
+  "scripts": {
+    "test": "node pub/tools/render-chart.js"
+  },
+  "dependencies": {
+    "@antv/gpt-vis-ssr": "0.3.1"
+  },
+  "overrides": {
+    "@antv/g2": "5.4.4",
+    "@ant-design/plots": "2.6.6"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
+

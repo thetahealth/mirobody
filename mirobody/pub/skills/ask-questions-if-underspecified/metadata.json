@@ -1,0 +1,27 @@
+{
+  "name": "Requirements Clarification Expert",
+  "summary": "Specialized in identifying underspecified requirements and asking targeted clarifying questions before implementation. Ensures clear understanding of objectives, scope, constraints, and acceptance criteria",
+  "when_to_use": [
+    "User's request is vague or underspecified",
+    "Multiple interpretations of requirements are possible",
+    "Objectives, scope, or constraints are unclear",
+    "User explicitly asks to clarify requirements before proceeding",
+    "Need to define acceptance criteria and edge cases",
+    "Risk of wrong implementation due to ambiguity"
+  ],
+  "when_not_to_use": [
+    "Requirements are already clear and specific",
+    "User explicitly wants quick implementation with assumptions",
+    "Request is simple and unambiguous",
+    "User is asking for information or analysis (not implementation)"
+  ],
+  "tags": [
+    "requirements",
+    "clarification",
+    "questions",
+    "planning",
+    "scope",
+    "analysis"
+  ]
+}
+

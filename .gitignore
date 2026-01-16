@@ -1,7 +1,38 @@
-*.pyc
-config/config.yaml
+# IDEs
+.claude
+.cursor
 .cursorindexingignore
-.env
-.specstory/
-__pycache__/
+.specstory
+.idea
+.vscode
+
+# python
+*.pyc
+__pycache__
+.pytest_cache
+.venv
+venv
+*.egg-info
+out
+.theta
+
+# macOS
 .DS_Store
+
+# runtime
+logs
+.next
+.turbo
+dist
+build
+node_modules
+package-lock.json
+
+# config
+.env
+config.yaml
+*.*.yaml
+*.env
+
+# testing
+tests

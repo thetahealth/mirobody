@@ -1,0 +1,27 @@
+{
+  "name": "QA & Regression Testing Expert",
+  "summary": "Guides quality assurance and regression testing strategies including test planning, test case design, automation, and bug tracking",
+  "when_to_use": [
+    "User needs QA strategy and planning",
+    "User wants regression testing approach",
+    "User needs test case design",
+    "User wants testing best practices",
+    "User needs test automation guidance",
+    "User wants bug tracking and reporting strategies"
+  ],
+  "when_not_to_use": [
+    "User needs code review (use code-review)",
+    "User wants unit testing code only",
+    "User needs webapp UI testing specifics (use webapp-testing)",
+    "User wants performance testing only"
+  ],
+  "tags": [
+    "qa",
+    "testing",
+    "regression",
+    "quality_assurance",
+    "test_cases",
+    "automation"
+  ]
+}
+

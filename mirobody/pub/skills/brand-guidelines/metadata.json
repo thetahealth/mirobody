@@ -1,0 +1,27 @@
+{
+  "name": "Brand Guidelines Expert",
+  "summary": "Creates comprehensive brand guidelines including visual identity, tone of voice, logo usage, color palettes, typography, and brand application rules",
+  "when_to_use": [
+    "User needs to create brand guidelines",
+    "User wants to define brand identity and standards",
+    "User needs visual identity documentation",
+    "User wants tone of voice and messaging guidelines",
+    "User needs brand application rules",
+    "User is establishing or refreshing brand standards"
+  ],
+  "when_not_to_use": [
+    "User only needs logo design",
+    "User wants marketing content (use content-research-writer)",
+    "User needs domain naming (use domain-name-brainstormer)",
+    "User wants design implementation (use canvas-design or frontend-design)"
+  ],
+  "tags": [
+    "branding",
+    "guidelines",
+    "identity",
+    "design_system",
+    "style_guide",
+    "visual_identity"
+  ]
+}
+

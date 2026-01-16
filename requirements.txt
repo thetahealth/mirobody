@@ -1,4 +1,70 @@
---extra-index-url https://repo.thetahealth.ai/repository/pypi-ai-releases/simple/
-mirobody==20251212.205900
+# Configuration.
+python-dotenv
+ruamel.yaml<0.18.0
+cryptography
 
+# Data.
+redis
+psycopg[binary]
+psycopg[pool]
+sqlalchemy
+pandas
+
+# HTTP.
+aiohttp
+starlette
+fastapi
+uvicorn
+
+pydantic
+pyjwt
+pytz
+
+# Storage.
+aioboto3
+
+# File.
+pypdf>=5.1.0
+pypdfium2>=4.30.0
+pdfplumber~=0.11.7
+
+Pillow>=11.1.0,<12.0.0
+
+tinytag>=1.6.0
+mutagen~=1.47.0
+
+rarfile~=4.0
+py7zr~=0.22.0
+
+openpyxl~=3.1.5
+
+# Email.
+mandrill
+
+# LLM.
+openai>=2.11.0
+openai-agents
+google-genai
+volcengine-python-sdk[ark]~=3.0.1
+
+langchain
+langchain-openai
+langchain-anthropic
+langchain-google-genai>=4.1.2
+langchain-google-vertexai
+langchain_community
+
+deepagents
+jinja2
+
+# Tools and so forth.
 yfinance
+
+# Deprecated.
+Deprecated
+dashscope                               # utils.utils_asr
+aiofiles~=24.1.0                        # utils.utils_files.utils_s3
+oss2                                    # utils.utils_files.utils_oss
+pycryptodome>=3.20.0                    # pulse.theta.platform
+requests-oauthlib                       # pulse.theta.mirobody_garmin_connect
+tiktoken>=0.9.0                         # utils.truncate
