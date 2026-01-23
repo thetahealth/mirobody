@@ -317,6 +317,10 @@ class ChatStreamRequest:
         self.token          = token
         self.language       = language
         self.timezone       = timezone
+        
+        # files_data: Downloaded file content (set by HTTP adapter to avoid re-downloading)
+        # List of dicts with 'content' (bytes), 'filename', 'content_type', 's3_key'
+        self.files_data     : list[dict[str, Any]] | None = None
 
 #-----------------------------------------------------------------------------
 

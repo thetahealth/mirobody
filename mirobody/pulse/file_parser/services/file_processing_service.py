@@ -171,57 +171,59 @@ async def save_upload_message(
     total_files: int
 ) -> Optional[Dict[str, Any]]:
     """
-    Save file upload message to database
+    Save file upload records to th_files table.
+    
+    Now writes to th_files instead of th_messages.
     
     Args:
-        msg_id: Message ID
+        msg_id: Message ID (used as created_source_id)
         user_id: User ID
-        session_id: Session ID
+        session_id: Session ID (stored in file_content)
         upload_result: Upload result from process_file_uploads
         successful_count: Number of successful uploads
         failed_count: Number of failed uploads
         total_files: Total number of files
         
     Returns:
-        Database save result or None
+        Dict with inserted file IDs or None on failure
     """
-    upload_time = datetime.now()
+    from .file_db_service import FileDbService
     
-    # Prepare content for th_messages (single record for all files)
-    message_content = {
-        "success": True,
-        "message": f"Processing completed: {successful_count} files successful",
-        "type": upload_result["overall_type"] if len(upload_result["files_info"]) == 1 else "file",
-        "url_thumb": upload_result["url_thumbs"],
-        "url_full": upload_result["url_fulls"],
-        "message_id": msg_id,
-        "files": upload_result["files_info"],
-        "original_filenames": upload_result["original_filenames"],
-        "file_sizes": upload_result["file_sizes"],
-        "upload_time": upload_time.isoformat(),
-        "total_files": total_files,
-        "successful_files": successful_count,
-        "failed_files": failed_count,
-        "query_user_id": user_id,
-        "status": "uploaded",
-        "progress": 0,
-        "timestamp": datetime.now().isoformat(),
-        "session_id": session_id
-    }
-    
-    # Save file upload message to database using database service
-    db_result = await FileParserDatabaseService.save_file_upload_message(
-        msg_id=msg_id,
-        user_id=user_id,
-        session_id=session_id,
-        content=message_content,
-        message_type=upload_result["overall_type"] if len(upload_result["files_info"]) == 1 else "file"
-    )
-    
-    if db_result:
-        logging.info(f"Files saved to database with msg_id: {msg_id}, total: {successful_count} files")
-    
-    return db_result
+    try:
+        # Prepare files_info for th_files table
+        files_info = upload_result.get("files_info", [])
+        
+        # Enrich files_info with additional metadata
+        for file_info in files_info:
+            file_info["session_id"] = session_id
+            file_info["upload_time"] = datetime.now().isoformat()
+            file_info["status"] = "uploaded"
+        
+        # Insert files into th_files table
+        inserted_ids = await FileDbService.insert_files_batch(
+            user_id=user_id,
+            files_info=files_info,
+            scene="web",
+            created_source="file_upload",
+            created_source_id=msg_id,
+            query_user_id=user_id,
+        )
+        
+        if inserted_ids:
+            logging.info(f"Files saved to th_files: msg_id={msg_id}, inserted={len(inserted_ids)}/{len(files_info)}")
+            return {
+                "success": True,
+                "msg_id": msg_id,
+                "inserted_ids": inserted_ids,
+                "total_inserted": len(inserted_ids),
+            }
+        else:
+            logging.warning(f"No files inserted for msg_id: {msg_id}")
+            return None
+            
+    except Exception as e:
+        logging.error(f"Error saving files to th_files: {str(e)}", stack_info=True)
+        return None
 
 
 async def process_single_file_upload(
@@ -445,15 +447,29 @@ async def process_files_async(
         # Filter out any None results
         processed_files = [pf for pf in processed_files if pf is not None]
         
-        # Update th_messages with all processed results at once
+        # Update th_files with all processed results
         if processed_files:
-            logging.info(f"Updating database with {len(processed_files)} processed files")
+            logging.info(f"Updating th_files with {len(processed_files)} processed files")
             
-            # Update database service method
-            await FileParserDatabaseService.update_message_processed_files(
-                msg_id=msg_id,
-                processed_files=processed_files
-            )
+            from .file_db_service import FileDbService
+            
+            # Update each file's content in th_files table
+            for processed_file in processed_files:
+                file_key = None
+                # Find file_key from files_data
+                for file_data in files_data:
+                    if file_data.get("filename") == processed_file.get("filename"):
+                        file_key = file_data.get("s3_key") or file_data.get("file_key")
+                        break
+                
+                if file_key and processed_file.get("processed"):
+                    await FileDbService.update_file_processed(
+                        file_key=file_key,
+                        raw=processed_file.get("raw", ""),
+                        file_abstract=processed_file.get("file_abstract", ""),
+                        indicators=processed_file.get("indicators", []),
+                        file_name=processed_file.get("file_name"),
+                    )
             
             logging.info(f"Concurrent async processing completed for all files, msg_id: {msg_id}")
             
@@ -467,159 +483,94 @@ async def delete_files_from_message(
     user_id: str
 ) -> dict[str, Any]:
     """
-    Delete specific files from a message
+    Delete specific files from th_files table.
+    
+    Now operates on th_files table instead of th_messages.
     
     Args:
-        message_id: The message ID containing the files (may include #idx suffix)
+        message_id: The source ID (created_source_id in th_files)
         file_keys: List of file keys to delete
         user_id: User ID for authorization
     
     Returns:
         Dict containing deletion results
     """
+    from .file_db_service import FileDbService
+    
     try:
-        # Handle message_id with sub-index suffix (e.g., "msg_id#0" -> "msg_id")
-        # This suffix is added by get_uploaded_files_paginated when a message contains multiple files
-        if "#" in message_id:
-            original_id = message_id
-            message_id = message_id.split("#")[0]
-            logging.info(f"Parsed message_id: original={original_id}, actual_msg_id={message_id}")
-        
-        logging.info(f"Starting file deletion: message_id={message_id}, file_keys={file_keys}")
-        
-        # Get message content from database
-        query = """
-            SELECT theta_ai.decrypt_content(content) AS content, user_id, query_user_id
-            FROM theta_ai.th_messages 
-            WHERE id = :message_id
-            LIMIT 1
-        """
-        result = await execute_query(
-            query=query,
-            params={"message_id": message_id},
-        )
-        
-        if not result:
-            return {
-                "success": False,
-                "error": "Message not found",
-                "message_id": message_id
-            }
-        
-        # Handle different result formats from execute_query
-        if isinstance(result, list) and len(result) > 0:
-            message_data = result[0]
-        elif isinstance(result, dict):
-            message_data = result
-        else:
-            return {
-                "success": False,
-                "error": "Invalid message data format",
-                "message_id": message_id
-            }
-        
-        # Validate user permission to delete files
-        msg_user_id = str(message_data.get("user_id")) if message_data.get("user_id") else None
-        msg_query_user_id = str(message_data.get("query_user_id")) if message_data.get("query_user_id") else None
-        owner_user_id = msg_query_user_id or msg_user_id
-        
-        permission_result = await validate_file_operation_permission(
-            user_id=user_id, 
-            owner_user_id=owner_user_id, 
-            required_permissions={'upload': 2}
-        )
-        
-        if not permission_result["success"]:
-            logging.warning(f"Permission denied for file deletion: {permission_result['message']}")
-            return {
-                "success": False,
-                "error": f"Permission denied: {permission_result['message']}",
-                "message_id": message_id
-            }
-        
-        # Parse content field - it may be a JSON string
-        message_content = safe_json_loads(message_data.get("content", "{}"))
-        
-        
-        # Get files from content
-        files_list = message_content.get("files", [])
-        if not files_list:
-            return {
-                "success": False,
-                "error": "No files found in this message",
-                "message_id": message_id
-            }
+        logging.info(f"Starting file deletion from th_files: source_id={message_id}, file_keys={file_keys}")
         
         # Track deletion results
         deleted_files = []
         failed_deletions = []
-        remaining_files = []
         
-        # Process each file
-        for file_info in files_list:
-            current_file_key = file_info.get("file_key") or file_info.get("s3_key")
+        # Process each file key
+        # Track query_user_id for cascade delete (used for th_series_data which stores target user's data)
+        cascade_delete_user_id = None
+        
+        for file_key in file_keys:
+            # Get file info first
+            file_record = await FileDbService.get_file_by_key(file_key, user_id)
             
-            if current_file_key in file_keys:
-                # Delete from storage using unified storage client
-                deletion_success = await delete_file_from_storage(
-                    file_key=current_file_key
-                )
-                
-                if deletion_success:
-                    deleted_files.append({
-                        "file_key": current_file_key,
-                        "filename": file_info.get("filename", ""),
-                        "type": file_info.get("type", "other"),  # Get file type from files array
-                        "status": "deleted"
-                    })
-                    logging.info(f"Successfully deleted file: {current_file_key}")
-                else:
-                    failed_deletions.append({
-                        "file_key": current_file_key,
-                        "filename": file_info.get("filename", ""),
-                        "type": file_info.get("type", "other"),  # Get file type from files array
-                        "status": "failed",
-                        "error": "Storage deletion failed"
-                    })
-                    # Still remove from database even if storage deletion fails
-                    logging.warning(f"Storage deletion failed but removing from database: {current_file_key}")
+            if not file_record:
+                failed_deletions.append({
+                    "file_key": file_key,
+                    "filename": "",
+                    "type": "other",
+                    "status": "failed",
+                    "error": "File not found"
+                })
+                continue
+            
+            filename = file_record.get("file_name", "")
+            file_type = file_record.get("file_type", "other")
+            scene = file_record.get("scene", "")  # Get scene for determining file category
+            
+            # Get query_user_id for cascade delete (th_series_data uses query_user_id as user_id)
+            if not cascade_delete_user_id:
+                cascade_delete_user_id = file_record.get("query_user_id") or user_id
+            
+            # Delete from storage
+            storage_deleted = await delete_file_from_storage(file_key=file_key)
+            
+            # Soft delete from database (even if storage deletion fails)
+            db_deleted = await FileDbService.soft_delete_file(file_key, user_id)
+            
+            if db_deleted:
+                deleted_files.append({
+                    "file_key": file_key,
+                    "filename": filename,
+                    "type": file_type,
+                    "scene": scene,  # Pass scene for cascade delete logic
+                    "status": "deleted",
+                    "storage_deleted": storage_deleted
+                })
+                logging.info(f"Successfully deleted file: {file_key}")
             else:
-                # Keep files not marked for deletion
-                remaining_files.append(file_info)
-        
-        query_user_id = message_data.get("query_user_id", user_id)
-        # Update message in database
-        update_success = await update_message_after_deletion(
-            message_id=message_id,
-            remaining_files=remaining_files,
-            message_content=message_content
-        )
-        
-        if not update_success:
-            return {
-                "success": False,
-                "error": "Failed to update message in database",
-                "message_id": message_id,
-                "deleted_files": deleted_files,
-                "failed_deletions": failed_deletions
-            }
+                failed_deletions.append({
+                    "file_key": file_key,
+                    "filename": filename,
+                    "type": file_type,
+                    "status": "failed",
+                    "error": "Database deletion failed"
+                })
         
         # Start background cascade delete task for successfully deleted files
-        owner_user_id = query_user_id if query_user_id else user_id
+        # Use query_user_id (target user) for th_series_data deletion
         if deleted_files:
             _start_background_cascade_delete(
                 message_id=message_id,
-                user_id=owner_user_id,
+                user_id=cascade_delete_user_id or user_id,
                 deleted_files=deleted_files
             )
-
+        
         return {
-            "success": True,
+            "success": len(deleted_files) > 0,
             "message_id": message_id,
             "deleted_files": deleted_files,
             "failed_deletions": failed_deletions,
-            "remaining_files_count": len(remaining_files),
-            "message_deleted": len(remaining_files) == 0
+            "remaining_files_count": 0,  # Not applicable for th_files
+            "message_deleted": False
         }
         
     except Exception as e:
@@ -665,7 +616,10 @@ async def update_message_after_deletion(
     message_content: dict[str, Any]
 ) -> bool:
     """
-    Update message in database after file deletion
+    [DEPRECATED] Update message in database after file deletion.
+    
+    This function operates on th_messages table and is kept for backward compatibility.
+    New code should use FileDbService for th_files operations.
     
     Args:
         message_id: The message ID
@@ -781,90 +735,66 @@ async def delete_all_files_from_message(
     user_id: str
 ) -> dict[str, Any]:
     """
-    Delete all files from a message
+    Delete all files associated with a source ID from th_files table.
     
-    Handles two scenarios:
-    1. Normal files with valid file_keys: Delete from storage and update database
-    2. Failed uploads without file_keys: Directly mark message as deleted
+    Now operates on th_files table instead of th_messages.
     
     Args:
-        message_id: The message ID (may include #idx suffix)
+        message_id: The source ID (created_source_id in th_files)
         user_id: User ID for authorization
     
     Returns:
         Dict containing deletion results
     """
-    # Handle message_id with sub-index suffix (e.g., "msg_id#0" -> "msg_id")
-    # This suffix is added by get_uploaded_files_paginated when a message contains multiple files
-    if "#" in message_id:
-        original_id = message_id
-        message_id = message_id.split("#")[0]
-        logging.info(f"Parsed message_id: original={original_id}, actual_msg_id={message_id}")
+    from .file_db_service import FileDbService
     
-    # Fetch message data
-    query = """
-        SELECT theta_ai.decrypt_content(content) AS content, user_id, query_user_id
-        FROM theta_ai.th_messages 
-        WHERE id = :message_id
-        LIMIT 1
-    """
-    result = await execute_query(
-        query=query,
-        params={"message_id": message_id},
-    )
-    
-    if not result:
-        return {"success": False, "error": "Message not found", "message_id": message_id}
-    
-    # Normalize result format
-    message_data = result[0] if isinstance(result, list) else result
-    if not message_data:
-        return {"success": False, "error": "Invalid message data format", "message_id": message_id}
-    
-    # Validate permissions
-    owner_user_id = str(message_data.get("query_user_id") or message_data.get("user_id") or "")
-    permission_result = await validate_file_operation_permission(
-        user_id=user_id, 
-        owner_user_id=owner_user_id, 
-        required_permissions={'upload': 2}
-    )
-    
-    if not permission_result["success"]:
-        logging.warning(f"Permission denied for deleting files: message_id={message_id}, reason={permission_result['message']}")
+    try:
+        logging.info(f"Starting deletion of all files for source_id={message_id}")
+        
+        # Get all files for this source_id
+        files = await FileDbService.get_files_by_source(
+            user_id=user_id,
+            created_source="file_upload",
+            created_source_id=message_id,
+        )
+        
+        if not files:
+            logging.info(f"No files found for source_id={message_id}")
+            return {
+                "success": True,
+                "message_id": message_id,
+                "deleted_files": [],
+                "failed_deletions": [],
+                "note": "No files found"
+            }
+        
+        # Extract file keys
+        file_keys = [f.get("file_key") for f in files if f.get("file_key")]
+        
+        if not file_keys:
+            logging.info(f"No valid file_keys found for source_id={message_id}")
+            return {
+                "success": True,
+                "message_id": message_id,
+                "deleted_files": [],
+                "failed_deletions": [],
+                "note": "No valid file keys found"
+            }
+        
+        # Delete all files
+        return await delete_files_from_message(
+            message_id=message_id,
+            file_keys=file_keys,
+            user_id=user_id
+        )
+        
+    except Exception as e:
+        logging.error(f"Error in delete_all_files_from_message: {str(e)}", stack_info=True)
         return {
             "success": False,
-            "error": f"Permission denied: {permission_result['message']}",
+            "error": f"Internal error: {str(e)}",
             "message_id": message_id
         }
-    
-    # Parse message content
-    message_content = safe_json_loads(message_data.get("content", "{}"))
-    files_list = message_content.get("files", [])
-    
-    if not files_list:
-        return {"success": False, "error": "No files found in this message", "message_id": message_id}
-    
-    # Extract valid file keys
-    file_keys = [
-        file_info.get("file_key") or file_info.get("s3_key")
-        for file_info in files_list
-        if file_info.get("file_key") or file_info.get("s3_key")
-    ]
-    
-    # Handle failed uploads (no file_keys means files never reached storage)
-    if not file_keys:
-        logging.info(f"No valid file_keys found (failed upload), directly marking message as deleted: message_id={message_id}, files_count={len(files_list)}")
-        result = await _mark_message_as_deleted(message_id)
-        if result["success"]:
-            result["note"] = "Message marked as deleted (all files had failed processing)"
-        return result
-    
-    # Normal deletion flow with valid file_keys
-    return await delete_files_from_message(
-        message_id=message_id,
-        file_keys=file_keys,
-        user_id=user_id
-    )
 
 
 async def _background_cascade_delete_by_file_info(
@@ -891,19 +821,19 @@ async def _background_cascade_delete_by_file_info(
         for file_info in deleted_files:
             filename = file_info.get("filename", "")
             file_key = file_info.get("file_key", "")
-            file_type = file_info.get("type", "other")
+            scene = file_info.get("scene", "")  # Use scene to determine file category
             
-            # Different deletion strategy based on file type
-            if file_type == "genetic":
-                # For genetic files, only delete genetic data
-                genetic_delete_success = await _delete_genetic_data_background(user_id, message_id)
+            # Different deletion strategy based on scene
+            if scene == "genetic":
+                # For genetic files, delete from th_series_data_genetic using file_key
+                genetic_delete_success = await _delete_genetic_data_background(user_id, file_key)
                 if genetic_delete_success:
-                    logging.info(f"Genetic data deletion successful for genetic file: user_id={user_id}, message_id={message_id}, filename={filename}, type={file_type}")
+                    logging.info(f"Genetic data deletion successful for genetic file: user_id={user_id}, file_key={file_key}, filename={filename}, scene={scene}")
                 else:
-                    logging.warning(f"Genetic data deletion failed or no data found: user_id={user_id}, message_id={message_id}, filename={filename}, type={file_type}")
+                    logging.warning(f"Genetic data deletion failed or no data found: user_id={user_id}, file_key={file_key}, filename={filename}, scene={scene}")
             else:
-                # For non-genetic files, delete th_series_data
-                await _delete_th_series_data_background(user_id, "theta_ai.th_messages", message_id, file_key)
+                # For non-genetic files (report, etc.), delete th_series_data
+                await _delete_th_series_data_background(user_id, "theta_ai.th_files", message_id, file_key)
         
         logging.info(f"Background cascade delete task completed successfully: message_id={message_id}, user_id={user_id}")
         
@@ -920,45 +850,51 @@ async def _delete_th_series_data_background(
     """
     Physically delete th_series_data in background task (DELETE statement)
     
+    Now uses source_table = 'theta_ai.th_files' for new data.
+    Supports source_table_id formats:
+    - New format: file_key directly
+    - Old format: msg_id_#_file_key_hash
+    - Legacy format: msg_id only
+    
     Args:
         user_id: User ID
-        source_table: Source table name (not used in WHERE clause)
-        message_id: Message ID
-        file_key: File key for precise deletion (if None, will try both new and old formats)
+        source_table: Source table name (theta_ai.th_files for new data)
+        message_id: Source ID (created_source_id in th_files)
+        file_key: File key for precise deletion
     """
     try:
         delete_count = 0
         
         if file_key:
-            # Use efficient OR condition to handle both new and old formats in one query
-            new_source_table_id = FileParserDatabaseService.generate_source_table_id(message_id, file_key)
+            # Build old format source_table_id for backward compatibility
+            from hashlib import md5
+            file_key_hash = md5(file_key.encode()).hexdigest()[:10]
             
+            # Old format: msg_id_#_file_key_hash
+            old_format = f"{message_id}_#_{file_key_hash}"
+            
+            # Delete matching new format (file_key) and old format
             delete_sql = """
             DELETE FROM theta_ai.th_series_data 
             WHERE user_id = :user_id 
-              AND (source_table_id = :new_source_table_id 
-                   OR (source_table_id = :old_source_table_id 
-                       AND NOT EXISTS (
-                           SELECT 1 FROM theta_ai.th_series_data t2 
-                           WHERE t2.user_id = :user_id 
-                             AND t2.source_table_id = :new_source_table_id
-                       )))
+              AND (source_table_id = :file_key 
+                   OR source_table_id = :old_format)
             """
 
             result = await execute_query(
                 delete_sql,
                 {
                     "user_id": user_id,
-                    "new_source_table_id": new_source_table_id,
-                    "old_source_table_id": message_id,
+                    "file_key": file_key,
+                    "old_format": old_format,
                 },
             )
             
             delete_count = len(result) if result else 0
             
-            logging.info(f"th_series_data physical deletion successful: user_id={user_id}, message_id={message_id}, file_key={file_key}, deleted_count={delete_count}")
+            logging.info(f"th_series_data deletion successful: user_id={user_id}, file_key={file_key}, deleted_count={delete_count}")
         else:
-            # No file_key provided - use old format (backward compatibility)
+            # No file_key provided - delete by source_table_id (backward compatibility)
             delete_sql = """
             DELETE FROM theta_ai.th_series_data 
             WHERE user_id = :user_id 
@@ -975,36 +911,41 @@ async def _delete_th_series_data_background(
             
             delete_count = len(result) if result else 0
             
-            logging.info(f"th_series_data physical deletion successful (old format): user_id={user_id}, message_id={message_id}, deleted_count={delete_count}")
+            logging.info(f"th_series_data deletion successful (legacy format): user_id={user_id}, source_id={message_id}, deleted_count={delete_count}")
 
     except Exception as e:
-        logging.warning(f"th_series_data physical deletion failed: user_id={user_id}, message_id={message_id}, file_key={file_key}, error={str(e)}", stack_info=True)
+        logging.warning(f"th_series_data deletion failed: user_id={user_id}, source_id={message_id}, file_key={file_key}, error={str(e)}", stack_info=True)
         raise
 
 
-async def _delete_genetic_data_background(user_id: str, message_id: str) -> bool:
+async def _delete_genetic_data_background(user_id: str, file_key: str) -> bool:
     """
     Delete genetic data in background task
     
     Args:
         user_id: User ID
-        message_id: Message ID
+        file_key: File key (used as source_table_id)
         
     Returns:
         bool: True if deletion was successful, False otherwise
     """
     try:
-        delete_success = await FileParserDatabaseService.delete_genetic_data_by_message_id(user_id, message_id)
+        # Use file_key as source_table_id with source_table = "theta_ai.th_files"
+        delete_success = await FileParserDatabaseService.delete_genetic_data_by_source(
+            user_id, 
+            "theta_ai.th_files", 
+            file_key
+        )
         
         if delete_success:
-            logging.info(f"Genetic data deletion successful: user_id={user_id}, message_id={message_id}")
+            logging.info(f"Genetic data deletion successful: user_id={user_id}, file_key={file_key}")
         else:
-            logging.info(f"No genetic data found for deletion: user_id={user_id}, message_id={message_id}")
+            logging.info(f"No genetic data found for deletion: user_id={user_id}, file_key={file_key}")
             
         return delete_success
 
     except Exception as e:
-        logging.warning(f"Genetic data deletion failed: user_id={user_id}, message_id={message_id}, error={str(e)}", stack_info=True)
+        logging.warning(f"Genetic data deletion failed: user_id={user_id}, file_key={file_key}, error={str(e)}", stack_info=True)
         return False
 
 

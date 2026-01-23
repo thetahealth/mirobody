@@ -66,6 +66,10 @@ class Config:
         if data:
             self._raw.update(data)
 
+        # Clear cached configuration objects to ensure they use updated _raw values
+        self._postgresqls = {}
+        self._redises = {}
+
         self.log = LogConfig(
             name        = self.get_str("LOG_NAME"),
             dir         = self.get_str("LOG_DIR"),
@@ -119,7 +123,7 @@ class Config:
                 return
 
         elif isinstance(file, io.StringIO):
-            # File content.
+            # File content from StringIO (e.g., remote config)
             stream = file
 
         if stream is None:
@@ -127,8 +131,7 @@ class Config:
 
         #-------------------------------------------------
 
-        if Config.yaml is None:
-            Config.yaml = YAML()
+        Config.yaml = YAML()
 
         modified = False
 
@@ -665,7 +668,9 @@ class Config:
 
             mcp_public_url = self.get_str("MCP_PUBLIC_URL")
 
-            print(f"\nNow you can open {BOLD}{GREEN}{mcp_public_url if mcp_public_url else "http://localhost:18080"}{RESET} in browser, and then\n  login with the following:")
+            # Use MCP_PUBLIC_URL if set, otherwise construct URL from HTTP config
+            default_url = f"http://localhost:{self.http.port}" if self.http.port != 80 else "http://localhost"
+            print(f"\nNow you can open {BOLD}{GREEN}{mcp_public_url if mcp_public_url else default_url}{RESET} in browser, and then\n  login with the following:")
             print("------------------------------------------------")
             print(f"{"EMAIL":<25} | VERIFICATION CODE")
             print("------------------------------------------------")

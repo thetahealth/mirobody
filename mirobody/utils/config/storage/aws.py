@@ -142,7 +142,7 @@ class AwsStorage(AbstractStorage):
                 return file_content, url
 
         except Exception as e:
-            logger.error(f"Failed to get file from S3: {str(e)}", exc_info=True)
+            logger.error(f"Failed to get file from S3: {str(e)}, object_key: {object_key}, bucket: {self.bucket}", exc_info=True)
             return None, None
     
     #-----------------------------------------------------

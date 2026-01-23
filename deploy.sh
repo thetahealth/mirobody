@@ -64,17 +64,17 @@ EMAIL_PREDEFINE_CODES:
 # Google Gemini API key.
 # Required for Google Gemini AI model integration.
 # Get your API key from: https://makersuite.google.com/app/apikey
-GOOGLE_API_KEY: ''
+# GOOGLE_API_KEY: 'YOUR GOOGLE/GEMINI API KEY'
 
 # OpenAI API key.
 # Required for OpenAI model integration (GPT-5, etc.).
 # Get your API key from: https://platform.openai.com/api-keys
-OPENAI_API_KEY: ''
+# OPENAI_API_KEY: 'YOUR OPENAI/CHATGPT API KEY'
 
 # OpenRouter API key.
 # Required for accessing multiple AI models through OpenRouter service.
 # Get your API key from: https://openrouter.ai/keys
-OPENROUTER_API_KEY: ''
+# OPENROUTER_API_KEY: 'YOUR OPENROUTER API KEY'
 
 
 # ============================================================================
@@ -94,7 +94,7 @@ OPENROUTER_API_KEY: ''
 #   MCP_PUBLIC_URL: 'https://abc123.ngrok-free.app'
 #   or
 #   MCP_PUBLIC_URL: 'https://yourdomain.com'
-MCP_PUBLIC_URL: ''" > "${config_filename}"
+# MCP_PUBLIC_URL: 'YOUR PUBLIC DOMAIN NAME WIH SCHEMA'" > "${config_filename}"
     echo "Configure file '${config_filename}' has been created."
 fi
 

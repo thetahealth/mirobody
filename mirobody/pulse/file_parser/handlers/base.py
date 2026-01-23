@@ -94,9 +94,9 @@ class BaseFileHandler(abc.ABC):
         if ctx.file_key:
             return ctx.file_key
         
-        # Default unique filename generation
+        # Default unique filename generation with web_uploads prefix
         extension = ctx.file.filename.split('.')[-1].lower() if '.' in ctx.file.filename else "bin"
-        return f"{str(uuid.uuid4())}.{extension}"
+        return f"web_uploads/{str(uuid.uuid4())}.{extension}"
 
     async def _handle_upload(self, ctx: FileProcessingContext, unique_filename: str, language: str) -> str:
         if ctx.progress_callback:
@@ -218,7 +218,7 @@ class BaseFileHandler(abc.ABC):
     async def _handle_error(self, ctx: FileProcessingContext, e: Exception, file_key: Optional[str] = None) -> Dict[str, Any]:
         language = get_req_ctx("language", "en")
         error_msg = str(e)
-        logging.error(f"File processing failed: {ctx.filename}, file_key: {file_key}", stack_info=True)
+        logging.error(f"File processing failed: {ctx.filename}, file_key: {file_key}, error: {error_msg}", exc_info=True)
 
         if ctx.message_id:
             try:

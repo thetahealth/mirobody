@@ -61,7 +61,6 @@ jinja2
 yfinance
 
 # Deprecated.
-Deprecated
 dashscope                               # utils.utils_asr
 aiofiles~=24.1.0                        # utils.utils_files.utils_s3
 oss2                                    # utils.utils_files.utils_oss

@@ -405,6 +405,7 @@ async def get_platform_webhooks(
         platform: str,
         page: int = Query(1, description="Page number (starting from 1)"),
         page_size: int = Query(20, description="Number of records per page"),
+        provider: Optional[str] = Query(None, description="Provider slug (for Theta platform)"),
         event_type: Optional[str] = Query(None, description="Filter by event type"),
         user_id: Optional[str] = Query(None, description="Filter by user ID"),
         status: Optional[str] = Query(None, description="Filter by status (e.g., 'success', 'pending', 'error')"),
@@ -414,9 +415,10 @@ async def get_platform_webhooks(
     Get platform webhook data with pagination and filters
     
     Args:
-        platform: Platform name (e.g., 'vital')
+        platform: Platform name (e.g., 'vital', 'theta')
         page: Page number (starting from 1)
         page_size: Number of records per page
+        provider: Optional provider slug (required for Theta, ignored for Vital)
         event_type: Optional filter for event type
         user_id: Optional filter for user ID
         status: Optional filter for status
@@ -425,7 +427,7 @@ async def get_platform_webhooks(
         Paginated webhook data
     """
     try:
-        logging.info(f"Getting {platform} webhooks: page={page}, page_size={page_size}, filters: event_type={event_type}, user_id={user_id}, status={status}")
+        logging.info(f"Getting {platform} webhooks: page={page}, page_size={page_size}, provider={provider}, filters: event_type={event_type}, user_id={user_id}, status={status}")
 
         # Get platform instance
         platform_instance = platform_manager.get_platform(platform)
@@ -433,6 +435,7 @@ async def get_platform_webhooks(
             return ErrorResponse(code=404, detail=f"Platform '{platform}' not found")
 
         # Strip whitespace from filter parameters
+        provider_clean = provider.strip() if provider else None
         event_type_clean = event_type.strip() if event_type else None
         user_id_clean = user_id.strip() if user_id else None
         status_clean = status.strip() if status else None
@@ -441,6 +444,7 @@ async def get_platform_webhooks(
         webhook_data = await platform_instance.get_webhooks(
             page=page,
             page_size=page_size,
+            provider=provider_clean,
             event_type=event_type_clean,
             user_id=user_id_clean,
             status=status_clean
@@ -460,28 +464,38 @@ async def get_platform_webhooks(
 async def check_platform_webhook_format(
         platform: str,
         id: int = Query(..., description="Webhook ID"),
+        provider: Optional[str] = Query(None, description="Provider slug (for Theta platform)"),
         authorized: bool = Depends(verify_manage_key)
 ):
     """
     Check platform webhook format by simulating event provider processing
     
     Args:
-        platform: Platform name (e.g., 'vital')
+        platform: Platform name (e.g., 'vital', 'theta')
         id: Webhook ID from database
+        provider: Optional provider slug (required for Theta, ignored for Vital)
         
     Returns:
         Original webhook data and formatted result
     """
     try:
-        logging.info(f"Checking {platform} webhook format for ID: {id}")
+        logging.info(f"Checking {platform} webhook format for ID: {id}, provider: {provider}")
 
         # Get platform instance
         platform_instance = platform_manager.get_platform(platform)
         if not platform_instance:
             return ErrorResponse(code=404, detail=f"Platform '{platform}' not found")
 
+        # Strip whitespace from provider parameter
+        provider_clean = provider.strip() if provider else None
+
         # Call platform's check_format method
-        format_result = await platform_instance.check_format(id)
+        # Note: Only pass provider parameter if it's not None (for Theta platform)
+        # Vital platform's check_format doesn't accept provider parameter
+        if provider_clean:
+            format_result = await platform_instance.check_format(id, provider=provider_clean)
+        else:
+            format_result = await platform_instance.check_format(id)
 
         return StandardResponse(code=0, msg="ok", data=format_result)
 
@@ -640,3 +654,59 @@ async def get_user_indicators(
     except Exception as e:
         logging.error(f"Failed to get user indicators: {str(e)}")
         return ErrorResponse(code=500, detail=str(e))
+
+
+# ===== Theta Provider Raw Data Query Interfaces =====
+
+
+@router.get("/pulse/theta/providers", response_model=Union[StandardResponse, ErrorResponse])
+async def get_theta_providers(
+    authorized: bool = Depends(verify_manage_key)
+):
+    """
+    Get all registered Theta providers (Management API)
+    
+    Query parameters:
+        - sk: Management secret key (required, passed as query parameter)
+    
+    Returns:
+        List of provider information with slug, name, description, logo, etc.
+    """
+    try:
+        # Get theta platform from platform_manager
+        platform_instance = platform_manager.get_platform("theta")
+        if not platform_instance:
+            return ErrorResponse(code=404, detail="Theta platform not found")
+        
+        # Get all registered providers
+        providers = await platform_instance.get_providers()
+        
+        # Format response
+        provider_list = [
+            {
+                "slug": p.slug,
+                "name": p.name,
+                "description": p.description,
+                "logo": p.logo,
+                "supported": p.supported,
+                "auth_type": p.auth_type.value if p.auth_type else None,
+                "status": p.status.value if p.status else None,
+            }
+            for p in providers
+        ]
+        
+        return StandardResponse(
+            code=0,
+            msg="ok",
+            data={
+                "providers": provider_list,
+                "total": len(provider_list)
+            }
+        )
+    except Exception as e:
+        logging.error(f"Error getting theta providers: {str(e)}")
+        return ErrorResponse(
+            code=500,
+            msg="Failed to get theta providers",
+            detail=str(e)
+        )

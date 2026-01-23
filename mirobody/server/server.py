@@ -409,6 +409,7 @@ class Server:
                                 logging.info(f"SQL file {filename} executed successfully.")
                             except Exception as e:
                                 logging.error(str(e), exc_info=True, extra={"sql_filename": filename})
+                    logging.info("SQL files initialization completed.")
 
         #-----------------------------------------------------
         # Init mirobody server.

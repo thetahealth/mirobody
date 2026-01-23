@@ -134,7 +134,7 @@ class FileProcessor:
 
         except Exception as e:
             language = get_req_ctx("language", "en")
-            logging.error("File processing failed", stack_info=True)
+            logging.error(f"File processing failed: {file.filename}, error: {e}", exc_info=True)
 
             # If there's a message ID, update message status to failed
             if message_id:
@@ -145,7 +145,7 @@ class FileProcessor:
                         reasoning=f"Error occurred during file processing: {str(e)}",
                     )
                 except Exception as update_error:
-                    logging.error(f"Failed to update message status: {str(update_error)}", stack_info=True)
+                    logging.error(f"Failed to update message status: {str(update_error)}", exc_info=True)
 
             return {
                 "success": False,

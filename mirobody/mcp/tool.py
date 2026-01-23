@@ -635,16 +635,17 @@ def get_global_descriptions() -> list:
     return global_descriptions
 
 
-def get_global_functions(style: str="openai") -> list:
+def get_global_functions(style: str="") -> list:
     if style == "openai":
         global global_openai_functions
         return global_openai_functions
 
-    if style == "gemini":
+    elif style == "gemini":
         global global_gemini_functions
         return global_gemini_functions
 
-    global global_openai_simplified_functions
-    return global_openai_simplified_functions
+    else:
+        global global_openai_simplified_functions
+        return global_openai_simplified_functions
 
 #-----------------------------------------------------------------------------

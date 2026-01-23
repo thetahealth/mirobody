@@ -1424,7 +1424,7 @@ class UserProfileService:
         on data.indicator = dim.original_indicator
         where data.user_id = :user_id
         and data.id > :last_execute_doc_id
-        and data.source_table in ('chat', 'th_messages', 'theta_ai.th_messages', 'apple_health_cda', 'excel', 'health_data_epic', 'health_data_oracle')
+        and data.source_table in ('chat', 'th_messages', 'theta_ai.th_messages', 'theta_ai.th_files', 'th_files', 'apple_health_cda', 'excel', 'health_data_epic', 'health_data_oracle')
         and data.deleted = 0
         order by data.id asc
         """

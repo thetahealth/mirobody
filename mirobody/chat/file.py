@@ -1,5 +1,5 @@
 """
-File processing module for chat
+File processing module for chat(th_messages)
 
 All parameters are explicitly passed - no implicit context dependencies (get_req_ctx).
 This ensures thread safety and testability.
@@ -13,7 +13,8 @@ from typing import List, Dict, Any
 
 from ..pulse.file_parser.services.file_processing_service import process_files_async
 from ..pulse.file_parser.services.async_file_processor import AsyncFileProcessor
-from ..pulse.file_parser.services.database_services import FileParserDatabaseService
+from ..pulse.file_parser.services.file_db_service import FileDbService
+from ..pulse.file_parser.services.db_utils import get_mime_type
 from ..utils.config.storage import get_storage_client
 
 #-----------------------------------------------------------------------------
@@ -67,7 +68,7 @@ async def process_files_from_storage(
     session_id: str = None,
     query_user_id: str = None,
     language: str = "en"
-):
+) -> List[Dict[str, Any]]:
     """
     Process files from storage (S3/MinIO/OSS) by downloading content and scheduling processing tasks
     
@@ -80,11 +81,15 @@ async def process_files_from_storage(
         session_id: Session ID (required, should be passed explicitly from caller)
         query_user_id: Query user ID (optional, defaults to user_id)
         language: Language code for extraction (default: "en", should be passed explicitly)
+    
+    Returns:
+        List of file data dicts with 'content' (bytes), 'filename', 'content_type', 's3_key'
+        Returns empty list if no files or on error
     """
     try:
         if not file_list:
             logging.warning(f"Empty file_list provided for msg_id: {msg_id}")
-            return
+            return []
         
         # Use explicit defaults (no get_req_ctx)
         session_id = session_id or ""
@@ -92,7 +97,6 @@ async def process_files_from_storage(
         
         files_data = []
         files_info = []
-        overall_type = None
         
         for file_dict in file_list:
             try:
@@ -106,7 +110,11 @@ async def process_files_from_storage(
                     logging.warning(f"Missing file_key or file_name in file dict: {file_dict}")
                     continue
                 
-                # Download file content from storage
+                # Ensure standard MIME type - fallback to filename-based detection
+                if not file_type or "/" not in file_type:
+                    file_type = get_mime_type(file_name)
+                
+                # Download file content from storage (with timing)
                 storage = get_storage_client()
                 file_content, _ = await storage.get(file_key)
                 
@@ -114,21 +122,7 @@ async def process_files_from_storage(
                     logging.warning(f"Failed to download file content for key: {file_key}")
                     continue
                 
-                # Determine file type category
-                if file_type.startswith("image/"):
-                    file_type_category = "image"
-                elif file_type.startswith("audio/"):
-                    file_type_category = "audio"
-                elif file_type == "application/pdf":
-                    file_type_category = "pdf"
-                else:
-                    file_type_category = "file"
-                
-                # Set overall_type (first file type or "file" if mixed)
-                if overall_type is None:
-                    overall_type = file_type_category
-                elif overall_type != file_type_category:
-                    overall_type = "file"
+                logging.info(f"📥 Downloaded {file_name} from S3 for ({len(file_content)} bytes)")
                 
                 # Append processing data
                 files_data.append({
@@ -140,13 +134,14 @@ async def process_files_from_storage(
                 
                 # Build files_info for database
                 files_info.append({
+                    "file_key": file_key,
                     "filename": file_name,
-                    "type": file_type_category,
+                    "file_type": file_type,
+                    "file_size": file_size,
                     "url_thumb": file_url,
                     "url_full": file_url,
-                    "raw": "",
-                    "file_size": file_size,
-                    "file_key": file_key,
+                    "session_id": session_id,
+                    "upload_time": datetime.now().isoformat(),
                 })
                 
             except Exception as file_error:
@@ -155,55 +150,36 @@ async def process_files_from_storage(
         
         if not files_data:
             logging.warning(f"No valid files to process for msg_id: {msg_id}")
-            return
+            return []
         
-        # Prepare message content for database
-        upload_time = datetime.now()
-        message_content = {
-            "success": True,
-            "message": f"Processing completed: {len(files_data)} files successful",
-            "type": overall_type or "file",
-            "url_thumb": [f["url_thumb"] for f in files_info],
-            "url_full": [f["url_full"] for f in files_info],
-            "message_id": msg_id,
-            "files": files_info,
-            "original_filenames": [f["filename"] for f in files_info],
-            "file_sizes": [f["file_size"] for f in files_info],
-            "upload_time": upload_time.isoformat(),
-            "total_files": len(files_data),
-            "successful_files": len(files_data),
-            "failed_files": 0,
-            "query_user_id": user_id,
-            "status": "uploaded",
-            "progress": 0,
-            "timestamp": upload_time.isoformat(),
-            "session_id": session_id
-        }
-        
-        # Save to database
-        db_result = await FileParserDatabaseService.save_file_upload_message(
-            msg_id=msg_id,
+        # Save files to th_files table
+        inserted_ids = await FileDbService.insert_files_batch(
             user_id=user_id,
-            session_id=session_id,
-            content=message_content,
-            message_type=overall_type or "file",
-            query_user_id=query_user_id
+            files_info=files_info,
+            scene="report",
+            created_source="web_chat",
+            created_source_id=msg_id,
+            query_user_id=query_user_id,
         )
         
-        if db_result:
-            logging.info(f"Files saved to database with msg_id: {msg_id}, total: {len(files_data)} files")
+        if inserted_ids:
+            logging.info(f"Files saved to th_files with msg_id: {msg_id}, inserted: {len(inserted_ids)}/{len(files_info)} files")
         
         # Schedule file processing tasks
         await schedule_file_processing_tasks(
             files_data=files_data,
-            user_id=user_id,
+            user_id=query_user_id,
             msg_id=msg_id,
             language=language
         )
         
         logging.info(f"Successfully scheduled processing for {len(files_data)} files with msg_id: {msg_id}")
+        
+        # Return files_data (with content) for Agent to use - avoids re-downloading
+        return files_data
             
     except Exception as e:
         logging.error(f"Error in process_files_from_storage: {str(e)}", exc_info=True)
+        return []
 
 #-----------------------------------------------------------------------------

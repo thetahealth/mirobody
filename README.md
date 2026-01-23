@@ -1,381 +1,403 @@
-<div align="center">
 
-# 🚀 Mirobody
+## Project Setup and Run Guide
 
-**Open Source AI-Native Data Engine for Your Personal Data**
+This guide walks you through configuring, building, and running the project in both Docker and local environments. Follow the steps in order, and refer to the notes for your platform when relevant.
 
-[![Demos](https://img.shields.io/badge/Live%20Demos-mirobody.ai-blue)](https://mirobody.ai)
-[![Theta Wellness](https://img.shields.io/badge/Theta%20Wellness-thetahealth.ai-green)](https://www.thetahealth.ai/)
+## I. Config
 
-*Privacy-first data platform that bridges your data with the latest AI capabilities*
+1. Set up environment variables.
+    
+   Create your own `.env` file based on the `.env.example` file:
+   ```ini
+   ENV=localdb
+   ```
 
-**Key Features:**
-- 🌐 **HTTP Remote MCP Server** - Deploy and access MCP tools over HTTPS
-- 🎯 **Claude Agent Skills Support** - Develop tools using standard Skills format (SKILL.md)
-- 🔄 **Universal Tool Adapter** - Works with ChatGPT, Claude, Cursor, and more
+2. Accomplish configuration.
 
-</div>
+   Create your own `config.localdb.yaml` file according to the value of `ENV` variable.
+   
+   First of all, you have to fill one of the following api keys at least, so as to visit LLMs:
+   ```yml
+   GOOGLE_API_KEY: ''
+   OPENAI_API_KEY: ''
+   OPENROUTER_API_KEY: ''
+   ```
 
----
+   Append your local directories to the following lists, once you are ready to develop your own MCP tools/resources or agents:
+   ```yml
+   MCP_TOOL_DIRS:
+   - mirobody/pub/tools
+   MCP_RESOURCE_DIRS:
+   - mirobody/pub/resources
+   AGENT_DIRS:
+   - mirobody/pub/agents
+   ```
 
-## 📖 Table of Contents
+   You can take configuration keys listed in the `config.yaml` into account.
+   However, `config.yaml` itself is assumed to be immutable.
 
-- [Why Mirobody?](#-why-mirobody)
-- [Theta Wellness: Our Health Intelligence App](#-theta-wellness-our-health-intelligence-app)
-- [Quick Start](#-quick-start)
-- [Access & Authentication](#-access--authentication)
-- [API Reference](#-api-reference)
+## III. Agent Development Guide
 
----
+This project provides two types of agents, each with different capabilities and use cases:
 
-## ✨ Why Mirobody?
+### 1. DeepAgent (Recommended for Complex Tasks, Especially File Processing & Management)
 
-### 🔄 Write Tools Once, Run Everywhere
+**Framework**: [LangChain DeepAgents](https://docs.langchain.com/oss/python/deepagents/overview)
 
-Forget about complex JSON schemas, manual bindings, or router configurations. In Mirobody, **your Python code is the only definition required.**
+**Features**:
+- ✅ Multi-step task planning and execution
+- ✅ File system operations (read, write, edit, glob, grep)
+- ✅ Subagent spawning for context isolation
+- ✅ Long-term memory across conversations
+- ✅ PostgreSQL backend for file persistence
+- ✅ Full MCP tools integration
 
-- Tools built here instantly work in **ChatGPT** (via Apps-SDK) and the entire **MCP Ecosystem** (Claude, Cursor, IDEs).
-- Mirobody works simultaneously as an **MCP Client** (to use tools) and an **OAuth-enabled MCP Server** (to provide data), creating a complete data loop.
-- **🌐 HTTP Remote MCP Support**: Mirobody supports **HTTP-based remote MCP servers**, enabling cloud deployments and cross-network tool access. Configure `MCP_PUBLIC_URL` to expose your MCP server over HTTPS for ChatGPT Apps and other remote integrations.
+**When to Use**:
+- Complex workflows requiring multiple steps
+- Tasks involving file operations
+- Projects needing persistent context
+- Scenarios requiring task decomposition
 
-### 💎 Your Data Is an Asset, Not a Payload
 
-Mirobody is built for **Personal Intelligence**, not just local storage. We believe the next frontier of AI is not knowing more about the world, but knowing more about *you*.
+**Supported Providers(via langchain)**:
+- **Gemini 3.0** (via Google GenAI SDK)
+- **GPT-5** (via OpenAI API or Openrouter)
+- **Claude Sonnet an other models** (via OpenRouter)
 
-- General AI creates generic answers. Mirobody uses your data to create a **Personal Knowledge Base**, enabling AI to give answers that are truly relevant to your life.
-- You can run the entire engine **locally** on your machine. We provide the architecture to unlock your data's value without ever compromising ownership.
+**Configuration** (`config.yaml`):
 
-### 🤖 Native Agent Engine
+```yaml
+GOOGLE_API_KEY: 'your_google_api_key'        # For Gemini models
+OPENAI_API_KEY: 'your_openai_api_key'        # For GPT models
+OPENROUTER_API_KEY: 'your_openrouter_key'    # For Claude, DeepSeek, etc.
+# For other models, refer to: https://docs.langchain.com/oss/python/integrations/chat
 
-- Powered by a **self-developed agent engine** that fully reproduces **Claude Code's** autonomous capabilities locally.
-- **🎯 Skills-Based Tool Development**: Mirobody supports developing tools using **Claude Agent Skills** format (SKILL.md files). You can create reusable tools that work seamlessly across the MCP ecosystem. Simply structure your tools as Skills and drop them into the `skills/` directory - Mirobody will automatically discover and expose them.
-- Designed to load **Claude Agent Skills** SKILL.md files, turning your private data into an actionable knowledge base.
 
----
+# Provider Configurations
+PROVIDERS_DEEP:
+  # Gemini 3.0 models (requires langchain-google-genai>=4.1.2)
+  gemini-3-pro:
+    llm_type: google-genai
+    api_key: GOOGLE_API_KEY
+    model: gemini-3-pro-preview
+    temperature: 1.0
+  
+  gemini-3-flash:
+    llm_type: google-genai
+    api_key: GOOGLE_API_KEY
+    model: gemini-3-flash-preview
+    temperature: 1.0
+  
+  # OpenAI GPT models
+  gpt-5.1:
+    llm_type: openai
+    api_key: OPENAI_API_KEY
+    base_url: https://api.openai.com/v1/
+    model: gpt-5.1
+    temperature: 0.1
+  
+  # Claude via OpenRouter
+  claude-sonnet:
+    llm_type: openai  # Use OpenAI-compatible API
+    api_key: OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+    model: anthropic/claude-sonnet-4.5
+    temperature: 0.1
+  
+  # DeepSeek via OpenRouter
+  deepseek-v3.2:
+    llm_type: openai
+    api_key: OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+    model: deepseek/deepseek-v3.2
+    temperature: 0.1
 
-## 🏥 Theta Wellness: Our Health Intelligence App
+# Optional: Custom prompts
+PROMPTS_DEEP:
+- mirobody/pub/agents/deep/prompts/theta_health.jinja
+- mirobody/pub/agents/deep/prompts/theta_health_simple.jinja
 
-[**Theta Wellness**](https://www.thetahealth.ai/) is our flagship application built on Mirobody, demonstrating the platform's capabilities in the **Personal Health** domain. We have built a professional-grade **Health Data Analysis** suite that showcases how Mirobody can handle the most complex, multi-modal, and sensitive data environments.
-
-### Key Features
-
-- **📱 Broad Integration**: Connects with **300+ devices**, Apple Health, and Google Health.
-- **🏥 EHR Ready**: Compatible with systems covering **90% of the US population's** Electronic Health Records.
-- **🎯 Multi-Modal Analysis**: Analyze health data via Voice, Image, Files, or Text.
-
-> **💡 Empowering the Community**
->
-> We are open-sourcing the Mirobody engine because the same architecture that powers our medical-grade Health Agent can power **your business**.
->
-> Whether you want to build a **Finance Analyzer**, **Legal Assistant**, or **DevOps Bot**, the infrastructure is ready. We focus on Health; you build the rest. Simply swap the files in the `tools/` directory to start your own vertical.
-
----
-
-## ⚡ Quick Start
-
-### 1. Deploy via Docker
-
-Initialize your environment in seconds:
-
-```bash
-git clone https://github.com/thetahealth/mirobody.git
-cd mirobody
-./deploy.sh
+# Optional: Tool filtering
+ALLOWED_TOOLS_DEEP:    # Leave empty to allow all tools
+DISALLOWED_TOOLS_DEEP: # Specify tools to disable
 ```
 
-Then open `http://localhost:18080` in your web browser.
+**API Key Setup**:
 
-> **📝 Configuration Notes:**
->
-> - A `.env` file will be created automatically with two variables:
->   - `ENV`: The name of the current config.
->   - `CONFIG_ENCRYPTION_KEY`: A 32-byte string used for encrypting sensitive variable values.
-> - A `config.{env}.yaml` file (usually `config.localdb.yaml`) will be created automatically. You can override default config values in this file. 
->   - **Tip**: Check `EMAIL_PREDEFINE_CODES` for predefined email accounts and verification codes used for user login.
-> - **LLM Setup**: `OPENROUTER_API_KEY` is required for the Deep agent.
-> - **Auth Setup**: To enable **Google/Apple OAuth** or **Email Verification**, set the respective variables in `config.{env}.yaml`.
-> - All API keys will be encrypted automatically once Mirobody loads them using the `CONFIG_ENCRYPTION_KEY` value.
+1. **Google API Key**: Get from [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. **OpenAI API Key**: Get from [OpenAI Platform](https://platform.openai.com/api-keys)
+3. **OpenRouter API Key**: Get from [OpenRouter](https://openrouter.ai/keys)
 
-### 2. Create Your Tools
+> **Note**: You only need to configure the API keys for the providers you plan to use.
 
-Mirobody adopts a **"Tools-First"** philosophy. No complex binding logic is required:
 
-- **Python Tools**: Drop your Python scripts into the `tools/` directory
-- **Claude Agent Skills**: Place SKILL.md files in the `skills/` directory (content loaded directly as agent instructions)
-- ✨ **Zero Config**: The system auto-discovers your functions and skills.
-- 🐍 **Pure Python**: Use the libraries you love (Pandas, NumPy, etc.).
-- 🎯 **Skills Support**: Develop tools using **Claude Agent Skills** SKILL.md format - write instructions freely, they become agent context.
-- 🔧 **Universal**: A single tool file works for both REST API and MCP (local and remote HTTP).
-
-Example Tools structure:
+**Usage**:
 ```python
-# tools/my_tools.py
-def analyze_data(input_data: str) -> dict:
-    """
-    Description of this tool.
+from mirobody.pub.agents.deep_agent import DeepAgent
 
+agent = DeepAgent(
+    user_id="user123",
+    user_name="John Doe",
+    token="jwt_token",
+    timezone="America/Los_Angeles"
+)
+
+async for event in agent.generate_response(
+    user_id="user123",
+    messages=[{"role": "user", "content": "Analyze this data"}],
+    provider="gemini-3-flash",
+    session_id="session_001"
+):
+    print(event)
+```
+
+### 2. BaselineAgent (Best for Simple MCP Integration)
+
+**Framework**: Direct MCP integration with Gemini 2.5 / MiroMind
+
+**Features**:
+- ✅ Native MCP server support
+- ✅ Streaming responses
+- ✅ Direct tool configuration to LLM
+- ✅ Lightweight and fast
+- ❌ No file system operations
+- ❌ No subagents
+
+**When to Use**:
+- Simple conversational tasks
+- Direct MCP tool usage
+- Minimal setup required
+- Gemini/MiroMind native features
+
+**Supported Providers**:
+- **Gemini 2.5/3.0** (native Google GenAI)
+- **MiroThinker** (custom model)
+
+**Configuration** (`config.yaml`):
+
+```yaml
+# Required API Keys
+GOOGLE_API_KEY: 'your_google_api_key'           # For Gemini models
+MIROTHINKER_API_KEY: 'your_mirothinker_key'     # For MiroThinker refer to https://research.miromind.ai
+
+# Provider Configurations
+PROVIDERS_BASELINE:
+  gemini-3-pro:
+    api_key: GOOGLE_API_KEY
+    model: gemini-3-pro-preview
+  
+  gemini-3-flash:
+    api_key: GOOGLE_API_KEY
+    model: gemini-3-flash-preview
+  
+  gemini-2.5-flash:
+    api_key: GOOGLE_API_KEY
+    model: gemini-2.5-flash
+  
+  miro-thinker:
+    api_key: MIROTHINKER_API_KEY
+    model: miro-thinker
+```
+
+**Usage**:
+```python
+from mirobody.pub.agents.baseline_agent import BaselineAgent
+
+agent = BaselineAgent(
+    user_id="user123",
+    user_name="John Doe"
+)
+
+async for event in agent.generate_response(
+    user_id="user123",
+    messages=[{"role": "user", "content": "What's my health status?"}],
+    provider="gemini-2.5-flash"
+):
+    print(event)
+```
+
+## IV. MCP Tools Development Guide
+
+MCP (Model Context Protocol) tools are modular functions that agents can call to extend their capabilities.
+
+### Tool Structure
+
+```
+mirobody/pub/
+├── tools/              # General-purpose tools
+│   ├── chart_service.py    # Visualization tools (25+ chart types)
+│   └── ...
+└── tools_health/       # Domain-specific tools
+    ├── genetic_service.py
+    ├── health_indicator_service.py
+    └── user_service.py
+```
+
+### Creating a New Tool
+
+**Example**: Create a weather service tool
+
+1. **Create tool file** (`mirobody/pub/tools/weather_service.py`):
+
+```python
+from typing import Dict, Any, Optional
+
+async def get_weather(
+    city: str,
+    user_info: Optional[Dict[str, Any]] = None,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Get weather information for a city.
+    
     Args:
-        input_data: Description of this argument.
-
+        city: City name
+        user_info: Optional user authentication info
+        
     Returns:
-        Description of the return value.
+        Weather data dictionary
     """
-    return {"result": "analysis"}
-```
-
-> **🔐 JWT Authentication**: If your tool requires JWT authentication, add a `user_id: str` parameter. This parameter will be automatically injected by Mirobody from the JWT token and **should NOT be included in the docstring's Args section**. Example:
-> 
-> ```python
-> # tools/my_authenticated_tools.py
-> def get_user_data(user_id: str, query: str) -> dict:
->     """
->     Retrieves user-specific data.
-> 
->     Args:
->         query: The search query.
-> 
->     Returns:
->         User data matching the query.
->     """
->     # user_id is automatically provided by Mirobody from JWT
->     return {"user_id": user_id, "data": "..."}
-> ```
-
-#### 🎯 Developing Tools with Claude Agent Skills
-
-Mirobody supports the **[Claude Agent Skills specification](https://agentskills.io/specification)**, allowing you to create sophisticated, reusable tools:
-
-- **📋 Standards Compliant**: Follows the official Agent Skills format with YAML frontmatter
-- **🔍 Auto-Discovery**: Place Skills in the `skills/` directory - Mirobody automatically detects and loads them
-- **✍️ Flexible Content**: SKILL.md body is loaded directly into agent context - write comprehensive instructions freely
-- **🌐 MCP Native**: Skills work seamlessly across the entire MCP ecosystem
-
-> **⚠️ Current Implementation Status**
->
-> Mirobody currently supports **SKILL.md files with metadata.json**. The following features from the full Agent Skills specification are not yet implemented:
-> - ❌ `scripts/` directory execution
-> - ❌ `references/` directory loading
-> - ❌ `assets/` directory resources
-> - ❌ Sandbox environment for script execution
-> - ❌ `allowed-tools` field enforcement
->
-> **What works**: 
-> - ✅ **SKILL.md files** with YAML frontmatter - loaded directly into agent context
-> - ✅ **metadata.json files** - required by Mirobody for skill discovery
->
-> **💡 Simple but Powerful**: The entire SKILL.md body becomes part of the agent's instructions. Write comprehensive guides, detailed workflows, examples, and troubleshooting tips - all will be available to the agent. Full specification support is planned for future releases.
-
-A skill is a directory containing a `SKILL.md` file and a `metadata.json` file:
-
-```
-skills/
-└── my-custom-skill/
-    ├── metadata.json     # Required by Mirobody: Skill metadata for discovery
-    └── SKILL.md          # Required by spec: Skill definition with YAML frontmatter
-```
-
-(Optional directories like `scripts/`, `references/`, and `assets/` are defined in the specification but not yet supported by Mirobody)
-
-**metadata.json** (Required by Mirobody):
-
-```json
-{
-  "name": "My Custom Skill",
-  "summary": "Extract and analyze data from structured documents",
-  "when_to_use": [
-    "When user needs to process CSV, Excel, or JSON files",
-    "When data extraction or transformation is required",
-    "When statistical analysis of structured data is needed"
-  ],
-  "when_not_to_use": [
-    "For unstructured text documents",
-    "For image or video processing",
-    "When simple file reading is sufficient"
-  ],
-  "tags": ["data-analysis", "csv", "excel", "statistics"]
-}
-```
-
-| Field | Description | Required |
-|-------|-------------|----------|
-| `name` | Display name of the skill (can be human-readable with spaces) | Yes |
-| `summary` | Brief description for quick reference | Yes |
-| `when_to_use` | Array of use case scenarios | Yes |
-| `when_not_to_use` | Array of scenarios to avoid this skill | Yes |
-| `tags` | Array of tags for categorization | Yes |
-
-> **📝 Note**: 
-> - `metadata.json` is a **Mirobody-specific requirement** for skill discovery and IDE integration. It's not part of the official Agent Skills specification.
-> - The `name` in `metadata.json` is for display purposes (can contain spaces and capitals).
-> - The `name` in SKILL.md frontmatter must follow the strict naming convention (lowercase, hyphens only, matching directory name).
-
-**SKILL.md Example** (Required by Specification):
-
-```markdown
----
-name: my-custom-skill
-description: Extract and analyze data from structured documents. Use when working with CSV, Excel, or JSON files that need parsing, transformation, or statistical analysis.
-license: MIT
-metadata:
-  author: your-org
-  version: "1.0.0"
----
-
-# My Custom Skill
-
-This skill provides comprehensive data extraction and analysis capabilities for structured documents.
-
-## Instructions
-
-1. **Identify the file format** - Check if the input is CSV, Excel, or JSON
-2. **Parse the document** - Use appropriate parsing techniques for the file type
-3. **Validate data** - Ensure data integrity and handle missing values
-4. **Perform analysis** - Apply requested statistical or transformation operations
-5. **Return results** - Format output according to user preferences
-
-## Available Tools
-
-You can use the following MCP tools to accomplish this task:
-- Use file reading tools to access the document
-- Use data processing tools for transformation
-- Use statistical analysis tools for calculations
-
-## Edge Cases
-
-- Handle missing or malformed data gracefully
-- Support multiple encodings (UTF-8, Latin-1, etc.)
-- For large files, consider processing in manageable chunks
-
-## Example Usage
-
-When user provides sales_data.csv with columns: date, product, revenue
-1. Read and parse the CSV file
-2. Group data by month
-3. Calculate monthly revenue totals
-4. Identify trends and generate summary report
-```
-
-> **💡 SKILL.md Flexibility**
->
-> The SKILL.md file content is **loaded directly into the agent's context** when the skill is activated. This means:
-> - ✍️ **Write freely**: Structure your instructions however works best for your use case
-> - 📝 **No format restrictions**: Use any markdown format - lists, tables, code blocks, etc.
-> - 🎯 **Be as detailed as needed**: Include step-by-step guides, examples, edge cases, or troubleshooting tips
-> - 🧩 **Think of it as a prompt**: The content becomes part of the agent's instructions, so write clearly and comprehensively
->
-> The agent will read and follow everything you write in the body section, so make it as helpful and detailed as necessary!
-
-**Required Frontmatter Fields:**
-
-| Field | Description | Constraints |
-|-------|-------------|-------------|
-| `name` | Skill identifier (must match directory name) | 1-64 chars, lowercase, hyphens only, no leading/trailing hyphens |
-| `description` | What the skill does and when to use it | 1-1024 chars, include keywords for discoverability |
-
-**Optional Frontmatter Fields:**
-
-| Field | Description | Example |
-|-------|-------------|---------|
-| `license` | License identifier | `MIT`, `Apache-2.0`, `Proprietary` |
-| `compatibility` | Environment requirements | `Requires pandas, numpy, and network access` |
-| `metadata` | Additional custom properties | `author`, `version`, `category` |
-| `allowed-tools` | Pre-approved tools (not yet enforced) | `Bash(git:*) Read Write` |
-
-> **💡 Mirobody Requirements**: In addition to the standard SKILL.md file, Mirobody requires a `metadata.json` file for skill discovery and categorization. This is a Mirobody-specific requirement and not part of the official Agent Skills specification.
-
-
-#### 🌐 HTTP Remote MCP Server
-
-Mirobody's MCP server supports **HTTP/HTTPS remote access**, enabling:
-
-- **Cloud Deployments**: Deploy your MCP server on any cloud platform
-- **ChatGPT Apps**: Integrate with OpenAI's ChatGPT Apps via HTTPS
-- **Cross-Network Access**: Access tools from anywhere, not just localhost
-- **OAuth Security**: Secure remote access with OAuth authentication
-
-To enable remote HTTP access, set `MCP_PUBLIC_URL` in your `config.{env}.yaml`:
-```yaml
-MCP_PUBLIC_URL: "https://yourdomain.com"
-```
-
-Your MCP server will then be accessible at the configured HTTPS endpoint, ready for remote integrations.
-
----
-
-## 🔐 Access & Authentication
-
-Once deployed, you can access the platform through the local web interface or our official hosted client.
-
-### 1. Access Interfaces
-
-| Interface | URL | Description |
-|-----------|-----|-------------|
-| **Local Web App** | `http://localhost:18080` | Fully self-hosted web interface running locally. |
-| **Official Client** | [https://mirobody.ai](https://mirobody.ai) | **Recommended.** Our official web client that connects securely to your local backend service. |
-| **MCP Server (Local)** | `http://localhost:18080/mcp` | For Claude Desktop / Cursor integration via local connection. |
-| **MCP Server (Remote HTTP)** | `https://yourdomain.com/mcp` | **🌐 HTTP Remote MCP Support** - For ChatGPT Apps and remote integrations. Set `MCP_PUBLIC_URL` in your config file to enable HTTPS access. |
-
-#### MCP Integration
-
-Mirobody supports both **local** and **remote HTTP** MCP connections:
-
-**Local Connection (Cursor/Claude Desktop):**
-
-```json
-{
-  "mirobody_mcp": {
-    "command": "npx",
-    "args": [
-      "-y",
-      "universal-mcp-proxy"
-    ],
-    "env": {
-      "UMCP_ENDPOINT": "http://localhost:18080/mcp"
+    # Your implementation here
+    return {
+        "city": city,
+        "temperature": "22°C",
+        "condition": "Sunny"
     }
-  }
-}
+
+# Export for MCP loader
+__all__ = ["get_weather"]
 ```
 
-**Remote HTTP Connection (ChatGPT Apps, Cloud Deployments):**
-
-Configure `MCP_PUBLIC_URL` in your `config.{env}.yaml`:
+2. **Add tool directory to config** (`config.yaml`):
 
 ```yaml
-MCP_PUBLIC_URL: "https://yourdomain.com"
+MCP_TOOL_DIRS:
+  - mirobody/pub/tools
+  - mirobody/pub/tools_health
+  - your/custom/tools/directory  # Add your directory
 ```
 
-Then access your MCP server via HTTPS at the configured URL. This enables:
-- ✅ ChatGPT Apps integration
-- ✅ Cross-network tool access
-- ✅ Cloud-based deployments
-- ✅ Secure OAuth-enabled remote MCP access
+3. **Use in agent**:
 
-### 2. Login Methods
+All tools are automatically loaded and available to agents that support MCP:
+- ✅ DeepAgent (full support)
+- ✅ BaselineAgent (native MCP)
 
-You can choose to configure your own authentication providers or use the pre-set demo account.
+### Tool Best Practices
 
-- **🔐 Social Login**: Google Account / Apple Account (Requires configuration in `config.yaml`)
-- **📧 Email Login**: Email Verification Code (Requires configuration in `config.yaml`)
-- **🎮 Demo Account** (Instant Access):
-  - **Users**: `demo1@mirobody.ai`, `demo2@mirobody.ai`, `demo3@mirobody.ai` (More demo users configurable in `config.yaml`)
-  - **Password**: `777777`
+1. **Authentication**: Use `user_info` parameter for user-specific operations
+   ```python
+   async def my_tool(param: str, user_info: Optional[Dict[str, Any]] = None):
+       user_id = user_info.get("user_id") if user_info else None
+       # Validate user access
+   ```
 
----
+2. **Error Handling**: Return structured error responses
+   ```python
+   return {"error": "Invalid input", "code": 400}
+   ```
 
-## 🔌 API Reference
+3. **Type Hints**: Use proper type annotations for better validation
+   ```python
+   from typing import List, Dict, Any, Optional
+   ```
 
-Mirobody provides standard endpoints for integration:
+4. **Documentation**: Include clear docstrings with Args and Returns
 
-| Endpoint | Description | Protocol |
-|----------|-------------|----------|
-| `/mcp` | MCP Protocol Interface | JSON-RPC 2.0 |
-| `/api/chat` | AI Chat Interface | OpenAI Compatible |
-| `/api/history` | Session Management | REST |
+5. **Async Operations**: Prefer async functions for I/O operations
+   ```python
+   async def fetch_data(...) -> Dict[str, Any]:
+       async with aiohttp.ClientSession() as session:
+           ...
+   ```
 
----
+### Available Built-in Tools
 
-<div align="center">
+**General Tools** (`mirobody/pub/tools/`):
+- `chart_service.py` - 25+ chart types (line, bar, pie, sankey, etc.)
 
-**Built with ❤️ for the AI Open Source Community**
+**Health Tools** (`mirobody/pub/tools_health/`):
+- `genetic_service.py` - Genetic data analysis
+- `health_indicator_service.py` - Health metrics tracking
+- `user_service.py` - User profile management
 
-</div>
+### Tool Discovery
+
+Tools are automatically discovered by:
+1. Scanning directories in `MCP_TOOL_DIRS`
+2. Loading all functions with proper signatures
+3. Registering them with the MCP service
+
+No manual registration required! Just add your tool file to a configured directory.
+
+## V. Agent Comparison Matrix
+
+| Feature | DeepAgent | BaselineAgent |
+|---------|-----------|---------------|
+| **Framework** | LangChain DeepAgents | Gemini/MiroThinker MCP |
+| **Planning** | ✅ Built-in todos | ❌ |
+| **File System** | ✅ Full support | ❌ |
+| **Subagents** | ✅ Task isolation | ❌ |
+| **MCP Tools** | ✅ Full integration | ✅ Native |
+| **MCP Resources** | ❌ | ✅ Native |
+| **MCP Prompt Templates** | ❌ | ✅ Native |
+| **Memory** | ✅ PostgreSQL | ❌ |
+| **Streaming** | ✅ | ✅ |
+| **Model Support** | Multi-provider (Gemini, GPT, Claude, DeepSeek) | Gemini 2.5/3.0, MiroThinker |
+| **Best For** | Complex workflows, file operations | Simple tasks, native MCP |
+| **Setup Complexity** | Medium | Low |
+
+Choose the agent that best fits your use case!
+
+## II. Run
+
+1. Run as Dockers.
+   
+   ```bash
+   ./deploy.sh
+   ```
+
+2. Run as Local Server.
+
+   [Optional] Create a Python virtual environment, and then activate it:
+   ```bash
+   python -v venv .venv
+   source .venv/bin/activate
+   ```
+
+   Install Python packages:
+   ```bash
+   pip install mirobody -r requirements.txt
+   ```
+   And you might need to install the following system packages as well:
+   ```bash
+   sudo apt install -y g++ gfortran build-essential libfftw3-dev libhdf5-dev libblas-dev liblapack-dev
+   ```
+   
+   Install Nodejs packages:
+   ```bash
+   npm install @antv/gpt-vis-ssr ws
+   ```
+
+   Configure PostgreSQL and Redis servers via filling the following values within your `config.localdb.yaml` file:
+   ```yml
+   # PostgreSQL.
+   PG_HOST: ''
+   PG_PORT: 5432
+   PG_USER: ''
+   PG_PASSWORD: ''
+   PG_DBNAME: ''
+   PG_SCHEMA: ''
+
+   # Redis.
+   REDIS_HOST: ''
+   REDIS_PORT: 6379
+   REDIS_DB: 0
+   REDIS_PASSWORD: ''
+   ```
+
+   Start mirobody server:
+   ```bash
+   python main.py
+   ```
+   The server will start with default settings. Check the console output for the host and port. If you’re running under WSL, access the server from Windows via `http://localhost:18080`.

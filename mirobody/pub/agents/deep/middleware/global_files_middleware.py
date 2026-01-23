@@ -48,7 +48,7 @@ Usage:
 - Use start_date/end_date to filter by date range (format: 'YYYY-MM-DD')
 - Use offset/limit for pagination (default: 0/50, max limit: 200)
 - Returns dict with: files (list), total (count), offset, limit, has_more (bool)
-- Each file contains: file_key (identifier), date, abstract (optional), url (fallback only)
+- Each file contains: file_key (identifier), date, file_type (MIME type), filename, abstract (optional)
 - If you can't find the file, increase offset to fetch more results
 """
 
@@ -147,16 +147,45 @@ def _sanitize_filename(filename: str) -> str:
 
 
 async def _get_file_info_from_file_key(file_key: str) -> Optional[Dict[str, Any]]:
-    """Generate signed URL and metadata from file_key."""
+    """Generate signed URL and metadata from file_key (with database lookup)."""
     try:
-        storage = get_storage_client()
-        url = await storage.generate_signed_url(file_key) or ""
+        # Try to get file info from database first
+        from mirobody.utils import execute_query
         
-        return {
+        file_info = {
             "file_key": file_key,
-            "url": url,
             "filename": _sanitize_filename(Path(file_key).name),
         }
+        
+        # Query th_files for metadata
+        try:
+            query = """
+                SELECT file_name, file_type, file_content
+                FROM theta_ai.th_files
+                WHERE file_key = :file_key AND is_del = false
+                LIMIT 1
+            """
+            result = await execute_query(query, params={"file_key": file_key})
+            
+            if result and len(result) > 0:
+                row = result[0]
+                # Use database filename if available
+                if row.get("file_name"):
+                    file_info["filename"] = _sanitize_filename(row["file_name"])
+                if row.get("file_type"):
+                    file_info["file_type"] = row["file_type"]
+                # Store file_content for future use
+                if row.get("file_content"):
+                    file_info["file_content"] = row["file_content"]
+        except Exception as db_err:
+            logger.warning(f"Failed to get metadata from database for '{file_key}': {db_err}")
+        
+        # Generate signed URL
+        storage = get_storage_client()
+        url = await storage.generate_signed_url(file_key) or ""
+        file_info["url"] = url
+        
+        return file_info
     except Exception as e:
         logger.error(f"Failed to get file info from file_key '{file_key}': {e}")
         return None
@@ -169,20 +198,14 @@ async def _list_global_files_from_db(
     offset: int = 0,
     limit: int = 50,
 ) -> Dict[str, Any]:
-    """List all files uploaded by the user from th_messages table."""
+    """List all files uploaded by the user from th_files table (optimized)."""
     try:
         # Constraints: offset >= 0, limit between 1 and 200
         offset = max(0, offset)
         limit = max(1, min(limit, 200))
         
         # Build WHERE clause for filters
-        where_conditions = """
-            WHERE query_user_id = :user_id 
-                AND content IS NOT NULL
-                AND message_type IN ('image', 'pdf', 'file', 'external_email', 'excel', 'ehr_csv')
-                AND is_del = false
-        """
-        
+        where_conditions = "WHERE query_user_id = :user_id AND is_del = false"
         params = {"user_id": user_id}
         
         # Add date filters
@@ -200,119 +223,114 @@ async def _list_global_files_from_db(
             except ValueError as e:
                 logger.warning(f"Invalid end_date '{end_date}': {e}")
         
-        # First, get total count (before deduplication)
+        # Get total count (fast count from th_files, with automatic deduplication by file_key)
         count_sql = f"""
-            SELECT COUNT(*) as total
-            FROM theta_ai.th_messages
+            SELECT COUNT(DISTINCT file_key) as total
+            FROM theta_ai.th_files
             {where_conditions}
         """
         count_result = await execute_query(count_sql, params=params)
-        total_messages = count_result[0]["total"] if count_result else 0
+        total_files = count_result[0]["total"] if count_result else 0
         
-        # Then, get paginated results
+        # Get paginated results (already deduplicated by DISTINCT ON file_key)
         params["limit"] = limit
         params["offset"] = offset
         
         list_sql = f"""
-            SELECT id, theta_ai.decrypt_content(content) AS content, updated_at, message_type
-            FROM theta_ai.th_messages
+            SELECT DISTINCT ON (file_key)
+                file_key,
+                file_name,
+                file_type,
+                file_content,
+                updated_at
+            FROM theta_ai.th_files
             {where_conditions}
+            ORDER BY file_key, updated_at DESC
+        """
+        # Sort by updated_at DESC for final result (newest first)
+        list_sql = f"""
+            SELECT * FROM ({list_sql}) AS deduplicated
             ORDER BY updated_at DESC
             LIMIT :limit OFFSET :offset
         """
         list_results = await execute_query(list_sql, params=params)
         
         if not isinstance(list_results, list):
-            return []
+            logger.warning(f"Unexpected query result type: {type(list_results)}")
+            return {
+                "files": [],
+                "total": 0,
+                "offset": offset,
+                "limit": limit,
+                "has_more": False,
+            }
         
-        logger.info(f"Found {len(list_results)} messages with files")
+        logger.info(f"Found {len(list_results)} files from th_files table")
         
-        # Extract file metadata
+        # Extract file metadata (much simpler than parsing th_messages)
         results = []
-        seen_identifiers = set()  # For deduplication
-        
         for row in list_results:
             try:
-                if not row["content"] or not row["content"].strip():
+                file_key = row.get("file_key", "")
+                if not file_key:
+                    logger.warning(f"Skipping row without file_key: {row}")
                     continue
                 
-                content_json = json.loads(row["content"])
-                files = content_json.get("files", [])
+                # Parse file_content JSON
+                file_content = row.get("file_content", {})
+                if isinstance(file_content, str):
+                    try:
+                        file_content = json.loads(file_content)
+                    except json.JSONDecodeError:
+                        logger.warning(f"Failed to parse file_content for {file_key}")
+                        file_content = {}
                 
-                for idx, file_data in enumerate(files):
-                    # Debug: Log file keys to understand structure
-                    logger.debug(f"File data keys: {file_data.keys()}")
-                    
-                    # Get file_key (primary identifier)
-                    file_key = file_data.get("file_key", "")
-                    
-                    # Fallback: if no file_key, try to get URL for downloading
-                    url = ""
-                    if not file_key:
-                        # Try different URL fields
-                        url = (file_data.get("url_full") or 
-                               file_data.get("url") or 
-                               "")
-                        # If list, take first element
-                        if isinstance(url, list) and url:
-                            url = url[0]
-                        
-                        if not url:
-                            logger.warning(f"Skipping file without file_key or url: {file_data}")
-                            continue
-                    
-                    # Deduplication: use file_key or url as unique identifier
-                    identifier = file_key if file_key else url
-                    if identifier in seen_identifiers:
-                        logger.debug(f"Skipping duplicate file: {identifier}")
-                        continue
-                    seen_identifiers.add(identifier)
-                    
-                    # Get abstract (prefer file_abstract, fallback to truncated raw)
-                    # Keep it short to avoid too large tool result
-                    abstract = file_data.get("file_abstract", "")
-                    if abstract and len(abstract) > 80:
-                        abstract = abstract[:80] + "..."
-                    elif not abstract and file_data.get("raw"):
-                        # Truncate raw content (might be long markdown)
-                        raw = str(file_data.get("raw", ""))
+                # Get abstract (prefer file_abstract, fallback to truncated raw)
+                abstract = file_content.get("file_abstract", "")
+                if not abstract:
+                    raw = file_content.get("raw", "")
+                    if raw:
                         abstract = raw[:80] + "..." if len(raw) > 80 else raw
-                    
-                    file_info = {
-                        "file_key": file_key,
-                        "date": row["updated_at"].strftime("%Y-%m-%d") if row.get("updated_at") else "Unknown",
-                    }
-                    
-                    # Only add abstract if not empty (reduce output size)
-                    if abstract:
-                        file_info["abstract"] = abstract
-                    
-                    # Add URL only if file_key is empty (as fallback)
-                    if not file_key and url:
-                        file_info["url"] = url
-                    
-                    results.append(file_info)
+                elif len(abstract) > 80:
+                    abstract = abstract[:80] + "..."
+                
+                file_info = {
+                    "file_key": file_key,
+                    "date": row["updated_at"].strftime("%Y-%m-%d") if row.get("updated_at") else "Unknown",
+                }
+                
+                # Add file type for better context
+                if row.get("file_type"):
+                    file_info["file_type"] = row["file_type"]
+                
+                # Add abstract if available
+                if abstract:
+                    file_info["abstract"] = abstract
+                
+                # Add filename for better context
+                if row.get("file_name"):
+                    file_info["filename"] = row["file_name"]
+                
+                results.append(file_info)
             
-            except (json.JSONDecodeError, KeyError) as e:
-                logger.warning(f"Failed to parse message {row['id']}: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to process file record: {e}")
                 continue
         
-        # Calculate final total after deduplication
-        total_files = len(results)
-        has_more = (offset + limit) < total_messages  # Estimate based on messages
+        has_more = (offset + limit) < total_files
         
-        logger.info(f"Returning {total_files} files (after deduplication), total_messages: {total_messages}, offset: {offset}, limit: {limit}")
+        logger.info(f"Returning {len(results)} files, total: {total_files}, offset: {offset}, limit: {limit}, has_more: {has_more}")
         
         return {
             "files": results,
-            "total": total_messages,  # Note: this is message count, not file count (since one message can have multiple files)
+            "total": total_files,
             "offset": offset,
             "limit": limit,
             "has_more": has_more,
         }
     
     except Exception as e:
-        logger.error(f"List files error: {e}")
+        logger.error(f"List files error: {e}", exc_info=True)
         return {
             "files": [],
             "total": 0,

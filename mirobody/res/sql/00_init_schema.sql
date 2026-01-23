@@ -161,7 +161,20 @@ CREATE TABLE IF NOT EXISTS theta_ai.health_user_profile_by_system
     common_part character varying COLLATE pg_catalog."default" NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS ix_theta_ai_health_user_profile_by_system_id
+    ON theta_ai.health_user_profile_by_system USING btree
+    (id ASC NULLS LAST)
+    TABLESPACE pg_default;
 
+CREATE INDEX IF NOT EXISTS ix_theta_ai_health_user_profile_by_system_user_id
+    ON theta_ai.health_user_profile_by_system USING btree
+    (user_id COLLATE pg_catalog."default" ASC NULLS LAST)
+    TABLESPACE pg_default;
+
+CREATE INDEX IF NOT EXISTS ix_theta_ai_health_user_profile_by_system_version
+    ON theta_ai.health_user_profile_by_system USING btree
+    (version ASC NULLS LAST)
+    TABLESPACE pg_default;
 
 
 CREATE TABLE IF NOT EXISTS theta_ai.th_task_flow

@@ -405,6 +405,7 @@ class ChatProtocolAdapter(ABC):
             'session_id': self.get_session_id(params),
             'group_id': params.group_id,
             'file_list': params.file_list,
+            'files_data': getattr(params, 'files_data', None),  # Pass downloaded file content
             'prompt_name': params.prompt_name,
             'token': params.token or '',
             'language': params.language or '',

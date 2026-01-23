@@ -11,11 +11,13 @@ from datetime import datetime
 from typing import Dict, List
 
 from fastapi import WebSocket
-from mirobody.utils import execute_query, get_req_ctx, safe_read_cfg
+from mirobody.utils import get_req_ctx, safe_read_cfg
 from mirobody.pulse.file_parser.file_processor import FileProcessor
 
 from mirobody.pulse.file_parser.services.async_file_processor import AsyncFileProcessor
 from mirobody.pulse.file_parser.services.database_services import FileParserDatabaseService
+from mirobody.pulse.file_parser.services.file_db_service import FileDbService
+from mirobody.pulse.file_parser.services.db_utils import get_mime_type
 from mirobody.pulse.file_parser.tools.utils_sync_dim_table import sync_all_missing_indicators
 from mirobody.pulse.file_parser.handlers.genetic import GeneticHandler
 
@@ -160,8 +162,36 @@ class WebSocketFileUploadManager:
             await self.disconnect(connection_id)
             return False
 
+    async def send_message_by_message_id(self, message_id: str, message: Dict) -> bool:
+        """Send message to connection associated with a message_id.
+        
+        This method looks up the connection_id from upload_sessions using message_id,
+        which is useful for background tasks that only know the message_id.
+        
+        Args:
+            message_id: The message ID to find the connection for
+            message: The message dict to send
+            
+        Returns:
+            True if message sent successfully, False otherwise
+        """
+        if message_id not in self.upload_sessions:
+            logging.debug(f"Session not found for message_id={message_id}, cannot send message")
+            return False
+        
+        session = self.upload_sessions[message_id]
+        connection_id = session.get("connection_id")
+        
+        if not connection_id:
+            logging.debug(f"No connection_id in session for message_id={message_id}")
+            return False
+        
+        return await self.send_message(connection_id, message)
+
     async def handle_upload_start(self, connection_id: str, message_data: Dict):
         """Handle file upload start
+        
+        Now writes to th_files table instead of th_messages.
         
         Args:
             connection_id: Unique connection identifier (format: user_id_trace_id)
@@ -225,7 +255,7 @@ class WebSocketFileUploadManager:
 
             self.upload_sessions[message_id] = session_info
 
-            # Generate summary for first message
+            # Generate summary for first message (session summary, not th_messages)
             if is_first_message:
                 try:
                     file_names = [f.get("filename", "unknown") for f in files_info]
@@ -242,66 +272,8 @@ class WebSocketFileUploadManager:
                 except Exception as e:
                     logging.error(f"Failed to generate first message summary: {e}")
 
-            # Check if message record already exists in database
-            try:
-                existing_message = await FileParserDatabaseService.get_message_details(message_id)
-                if existing_message:
-                    logging.warning(f"Message record {message_id} already exists in database, skipping creation")
-                else:
-                    # Create initial message record using real_user_id as uploader
-                    await FileParserDatabaseService.log_chat_message(
-                        id=message_id,
-                        question_id=message_id,
-                        user_id=real_user_id,  # Store uploader user ID
-                        session_id=session_id,
-                        role="user",
-                        content=json.dumps(
-                            {
-                                "status": "uploading",
-                                "progress": 0,
-                                "files": files_info,
-                                "query": query,
-                                "message": "File uploading...",
-                                "timestamp": datetime.now().isoformat(),
-                                "query_user_id": query_user_id,
-                                "uploader_user_id": real_user_id,  # Track who actually uploaded it
-                            }
-                        ),
-                        reasoning="WebSocket file upload start",
-                        agent="agent0",
-                        provider="system",
-                        message_type="file",
-                        user_name="",
-                        query_user_id=target_user_id,
-                    )
-                    logging.info(f"Created new message record: {message_id}")
-            except Exception as e:
-                logging.error(f"Failed to check or create message record: {e}")
-                # If check fails, still try to create message record
-                await FileParserDatabaseService.log_chat_message(
-                    id=message_id,
-                    question_id=message_id,
-                    user_id=real_user_id,
-                    session_id=session_id,
-                    role="user",
-                    content=json.dumps(
-                        {
-                            "status": "uploading",
-                            "progress": 0,
-                            "files": files_info,
-                            "query": query,
-                            "message": "File uploading...",
-                            "timestamp": datetime.now().isoformat(),
-                            "query_user_id": query_user_id,
-                        }
-                    ),
-                    reasoning="WebSocket file upload start",
-                    agent="agent0",
-                    provider="system",
-                    message_type="file",
-                    user_name="",
-                    query_user_id=target_user_id,
-                )
+            # NOTE: No longer write to th_messages table here
+            # Files will be saved to th_files table after successful upload in process_files_async
 
             # Send upload start confirmation
             await self.send_message(
@@ -627,12 +599,16 @@ class WebSocketFileUploadManager:
                     uploaded_files, failed_results, message_id, user_id_for_business, query_user_id, session
                 )
                 
-                # Update message content in database with complete file info
-                await FileParserDatabaseService.update_message_content(
+                # Try to save files to th_files (some might have file_key even if processing failed)
+                await self._save_files_to_database(
+                    return_info=return_info,
                     message_id=message_id,
-                    content=return_info,
-                    message_type="file",
+                    user_id=user_id_for_business,
+                    query_user_id=query_user_id,
+                    session_id=session.get("session_id", ""),
                 )
+                
+                # NOTE: No longer update th_messages - files are stored in th_files table
                 
                 # Send failure status with complete file info (use connection_id for WebSocket)
                 await self.send_message(
@@ -655,7 +631,7 @@ class WebSocketFileUploadManager:
                 session["progress"] = 0
                 session["results"] = return_info
                 
-                logging.info(f"All files failed, saved complete file info: message_id={message_id}")
+                logging.info(f"All files failed, saved complete file info to th_files: message_id={message_id}")
                 return
 
             # Build return information (include failed_results for partial success scenarios)
@@ -663,16 +639,16 @@ class WebSocketFileUploadManager:
                 uploaded_files, results, raws, url_thumb, url_full, type_list, message_id, user_id_for_business, query_user_id, session, failed_results
             )
 
-            # Update message content in database
-            message_type = return_info.get("type", "file")
-            updated_return_info = return_info.copy()
-            updated_return_info["type"] = message_type
-
-            await FileParserDatabaseService.update_message_content(
+            # Save files to th_files table
+            await self._save_files_to_database(
+                return_info=return_info,
                 message_id=message_id,
-                content=updated_return_info,
-                message_type=message_type,
+                user_id=user_id_for_business,
+                query_user_id=query_user_id,
+                session_id=session.get("session_id", ""),
             )
+
+            # NOTE: No longer update th_messages - files are stored in th_files table
 
             # Send final completion status (use connection_id for WebSocket)
             await self._send_final_completion_status(
@@ -685,7 +661,7 @@ class WebSocketFileUploadManager:
             await self._start_embedding_update_task(user_id_for_business, message_id, query_user_id)
 
         except Exception as e:
-            logging.error(f"Asynchronous file processing failed: {e}", stack_info=True)
+            logging.error(f"Asynchronous file processing failed: {e}", exc_info=True)
             await self.update_progress(connection_id, message_id, "failed", 0, f"Processing failed: {str(e)}")
 
     async def update_genetic_processing_complete(self, user_id: str, message_id: str):
@@ -702,6 +678,134 @@ class WebSocketFileUploadManager:
             logging.error(f"Failed to update genetic processing completion status: {e}")
 
     # ==================== Helper Methods for process_files_async ====================
+
+    async def _save_files_to_database(
+        self,
+        return_info: Dict,
+        message_id: str,
+        user_id: str,
+        query_user_id: str,
+        session_id: str,
+    ):
+        """
+        Save uploaded files to th_files table.
+        
+        This is the primary storage for file records. All file metadata is stored here
+        including file_key, urls, raw content, indicators, status, etc.
+        
+        Both successful and failed files are saved (if they have file_key).
+        Status field in file_content tracks: uploading, processing, completed, failed
+        
+        Args:
+            return_info: The return information containing files array
+            message_id: Message ID (used as created_source_id for tracking)
+            user_id: User ID (uploader)
+            query_user_id: Query user ID (file owner, if different from uploader)
+            session_id: Session ID
+        """
+        try:
+            files_array = return_info.get("files", [])
+            if not files_array:
+                logging.warning(f"No files to save to th_files: message_id={message_id}")
+                return
+            
+            # Prepare files_info for batch insert
+            files_info = []
+            for file_entry in files_array:
+                file_key = file_entry.get("file_key", "")
+                
+                # Skip files without file_key (never uploaded to storage)
+                if not file_key:
+                    logging.warning(f"Skipping file without file_key: {file_entry.get('filename', 'unknown')}")
+                    continue
+                
+                # Determine status based on success flag
+                is_success = file_entry.get("success", True)
+                if is_success:
+                    status = "completed"
+                    error_message = ""
+                else:
+                    status = "failed"
+                    error_message = file_entry.get("error", "Processing failed")
+                
+                # Extract original filename for display
+                original_filename = file_entry.get("filename", "")
+                # Use generated file_name if available, otherwise fallback to original
+                display_file_name = file_entry.get("file_name", original_filename)
+                
+                # Get MIME type from filename extension
+                actual_mime_type = get_mime_type(original_filename or file_key)
+                
+                file_info = {
+                    "file_key": file_key,
+                    "file_name": display_file_name,
+                    "original_filename": original_filename,  # Keep original filename
+                    "file_type": actual_mime_type,  # Use derived MIME type
+                    "content_type": actual_mime_type,
+                    "url_thumb": file_entry.get("url_thumb", ""),
+                    "url_full": file_entry.get("url_full", ""),
+                    "file_size": file_entry.get("file_size", file_entry.get("size", 0)),
+                    "raw": file_entry.get("raw", ""),
+                    "file_abstract": file_entry.get("file_abstract", ""),
+                    "indicators": file_entry.get("indicators", []),
+                    "indicators_count": file_entry.get("indicators_count", 0),
+                    "processed": is_success,
+                    "session_id": session_id,
+                    "upload_time": datetime.now().isoformat(),
+                    "query": return_info.get("query", ""),  # Store user query if provided
+                    # Status fields - similar to th_messages content structure
+                    "status": status,  # uploading, processing, completed, failed
+                    "error": error_message,  # Error message if failed
+                    "progress": 100 if is_success else 0,  # Progress percentage
+                }
+                files_info.append(file_info)
+            
+            if not files_info:
+                logging.warning(f"No valid files to save to th_files after filtering: message_id={message_id}")
+                return
+            
+            # Determine target user for file ownership
+            # user_id = current logged-in user (who uploaded)
+            # query_user_id = target user (for whom the file is uploaded)
+            target_user_id = query_user_id if query_user_id else user_id
+            
+            # Determine file scene based on file type
+            # Priority: genetic > excel > csv > report
+            has_genetic = any(f.get("type") == "genetic" for f in return_info.get("files", []))
+            has_excel = any(f.get("type") == "excel" for f in return_info.get("files", []))
+            has_csv = any(f.get("type") == "csv" for f in return_info.get("files", []))
+            
+            if has_genetic:
+                file_scene = "genetic"
+            elif has_excel:
+                file_scene = "excel"
+            elif has_csv:
+                file_scene = "csv"
+            else:
+                file_scene = "report"
+            
+            # Insert files into th_files table
+            # user_id: current user who performed the upload
+            # query_user_id: target user who owns the data (for "upload for others" feature)
+            inserted_ids = await FileDbService.insert_files_batch(
+                user_id=user_id,
+                files_info=files_info,
+                scene=file_scene,
+                created_source="web_drive",
+                created_source_id=message_id,
+                query_user_id=target_user_id,
+            )
+            
+            if inserted_ids:
+                success_count = sum(1 for f in files_info if f.get("status") == "completed")
+                failed_count = sum(1 for f in files_info if f.get("status") == "failed")
+                logging.info(f"✅ Files saved to th_files: message_id={message_id}, inserted={len(inserted_ids)}, success={success_count}, failed={failed_count}")
+            else:
+                logging.warning(f"⚠️ No files inserted to th_files: message_id={message_id}")
+                
+        except Exception as e:
+            logging.error(f"❌ Failed to save files to th_files: message_id={message_id}, error={str(e)}", stack_info=True)
+            # Don't raise - this is a secondary operation, the main upload was successful
 
     def _normalize_raw_data(self, raw_data, filename: str = "") -> str:
         """
@@ -1214,7 +1318,11 @@ class WebSocketFileUploadManager:
         }
 
     async def update_progress(self, user_id: str, message_id: str, status: str, progress: int, message: str, filename: str = None):
-        """Update progress and sync to database and WebSocket"""
+        """Update progress and sync to WebSocket
+        
+        NOTE: No longer writes to th_messages table - progress is tracked in session and sent via WebSocket only.
+        Files are stored in th_files table after successful upload.
+        """
         try:
             # Update session status
             if message_id in self.upload_sessions:
@@ -1224,79 +1332,7 @@ class WebSocketFileUploadManager:
                 session["last_message"] = message
                 session["updated_at"] = datetime.now()
 
-            # Get existing message content to avoid overwriting file result information
-            try:
-                existing_message = await FileParserDatabaseService.get_message_details(message_id)
-
-                if existing_message and existing_message.get("content"):
-                    import json
-
-                    try:
-                        existing_content = (
-                            json.loads(existing_message["content"])
-                            if isinstance(existing_message["content"], str)
-                            else existing_message["content"]
-                        )
-                    except (json.JSONDecodeError, TypeError):
-                        existing_content = {}
-                else:
-                    existing_content = {}
-            except Exception as e:
-                logging.warning(f"Failed to get existing message content: {e}")
-                existing_content = {}
-
-            # Update progress information but retain existing file result information
-            content_data = existing_content.copy() if existing_content else {}
-
-            # Update progress and status information
-            content_data.update(
-                {
-                    "status": status,
-                    "progress": progress,
-                    "message": message,
-                    "timestamp": datetime.now().isoformat(),
-                }
-            )
-
-            # If session information exists, add more details (but don't overwrite existing file information)
-            if message_id in self.upload_sessions:
-                session = self.upload_sessions[message_id]
-                session_info = {
-                    "files": session.get("files", []),
-                    "query": session.get("query", ""),
-                    "session_id": session.get("session_id", ""),
-                    "query_user_id": session.get("query_user_id", ""),  # Add proxy upload user ID to message content
-                }
-
-                # Only add if this information doesn't exist, avoid overwriting existing complete file results
-                for key, value in session_info.items():
-                    if key not in content_data or not content_data[key]:
-                        content_data[key] = value
-
-            # Ensure important file result information is not overwritten
-            # If session has complete results information, use it with priority
-            if message_id in self.upload_sessions:
-                session = self.upload_sessions[message_id]
-                if session.get("results"):
-                    session_results = session["results"]
-                    # Retain important information like file URLs
-                    important_keys = [
-                        "url_thumb",
-                        "url_full",
-                        "files",
-                        "original_filenames",
-                        "file_sizes",
-                        "successful_files",
-                        "failed_files",
-                        "total_files",
-                        "type",
-                    ]
-                    for key in important_keys:
-                        if key in session_results:
-                            content_data[key] = session_results[key]
-
-            # Update chat message
-            await FileParserDatabaseService.update_message_content(message_id=message_id, content=content_data)
+            # NOTE: No longer update th_messages - progress is sent via WebSocket only
 
             # Send WebSocket message
             websocket_data = {
@@ -1324,23 +1360,13 @@ class WebSocketFileUploadManager:
             logging.error(f"Failed to update progress: {e}", stack_info=True)
 
     async def delete_failed_message_record(self, message_id: str):
-        """Delete failed message records"""
-        try:
-            # Delete message record directly from database
-            delete_sql = """
-                DELETE FROM  theta_ai.th_messages 
-                WHERE id = :message_id
-            """
-
-            await execute_query(
-                query=delete_sql,
-                params={"message_id": message_id}
-            )
-
-            logging.info(f"Successfully deleted failed message record: {message_id}")
-
-        except Exception as e:
-            logging.error(f"Failed to delete failed message record: {message_id}, error: {e}", stack_info=True)
+        """
+        [DEPRECATED] Delete failed message records from th_messages.
+        
+        This method is no longer needed as file records are stored in th_files table.
+        Use FileDbService.soft_delete_by_source_id() to delete files by source_id.
+        """
+        logging.warning(f"[DEPRECATED] delete_failed_message_record called for message_id={message_id}. This method is no longer needed.")
 
     async def handle_upload_end(self, connection_id: str, message_data: Dict):
         """Handle file upload end"""

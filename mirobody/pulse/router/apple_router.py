@@ -144,7 +144,7 @@ async def process_apple_health_data(
         # Add debug log
         logging.info(f"Validated data: request_id={validated_data.request_id}, "
             f"timezone={validated_data.metaInfo.timezone}, "
-            f"cost_time={(t2 - t1) * 1e3}, "
+            f"time_cost={(t2 - t1) * 1e3}, "
             f"healthData_count={len(validated_data.healthData)}")
 
         # Get Apple Health platform
@@ -170,7 +170,7 @@ async def process_apple_health_data(
         t3 = time.time()
 
         # Add result log
-        logging.info(f"Processing result: success={success}, taskId={validated_data.metaInfo.taskId}, cost_time={(t3 - t2) * 1e3}")
+        logging.info(f"Processing result: success={success}, taskId={validated_data.metaInfo.taskId}, time_cost={(t3 - t2) * 1e3}")
 
         if success:
             return JSONResponse(

@@ -31,7 +31,7 @@ class FinanceFundamentalsService:
 
     async def get_key_metrics(
         self,
-        symbol: str,
+        symbol: str | None = None,
         user_info: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
@@ -41,8 +41,8 @@ class FinanceFundamentalsService:
         profitability metrics, financial health indicators, and other key metrics for investment analysis.
         
         Args:
-            symbol (str): Stock ticker symbol (e.g., "AAPL", "TSLA", "MSFT").
-                         This is a required parameter. Case-insensitive.
+            symbol (str | None): Stock ticker symbol (e.g., "AAPL", "TSLA", "MSFT").
+                                 Required parameter but defaults to None for graceful error handling. Case-insensitive.
             
             user_info (Optional[Dict[str, Any]]): User information for logging and tracking purposes.
                                                  Not used for authentication in this service.
@@ -124,8 +124,16 @@ class FinanceFundamentalsService:
                 }
             
             # Validate required parameters
-            if not symbol or not symbol.strip():
-                raise ValueError("Stock symbol is required and cannot be empty")
+            if not symbol or (isinstance(symbol, str) and not symbol.strip()):
+                return {
+                    "success": False,
+                    "error": "Stock symbol is required. Please provide a valid ticker symbol (e.g., 'AAPL', 'TSLA', 'MSFT').",
+                    "data": {},
+                    "metadata": {
+                        "query_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "data_source": "yfinance"
+                    }
+                }
             
             symbol = symbol.strip().upper()
             

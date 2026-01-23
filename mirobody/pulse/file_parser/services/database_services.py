@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from hashlib import md5
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse, unquote
@@ -13,7 +13,6 @@ from .db_utils import (
     safe_json_dumps,
     safe_json_loads,
     parse_date,
-    parse_iso_datetime,
     get_utc_now,
     extract_first_record,
     get_mime_type,
@@ -510,22 +509,24 @@ class FileParserDatabaseService:
     @staticmethod
     def generate_source_table_id(msg_id: str, file_key: str) -> str:
         """
-        Generate new format source_table_id for th_series_data
+        Generate source_table_id for th_series_data based on file_key.
+        
+        Uses file_key directly as source_table_id since source_table is theta_ai.th_files.
+        file_key is the unique identifier in th_files table.
         
         Args:
-            msg_id: Message ID
-            file_key: File key from files array
+            msg_id: Message ID (legacy parameter, kept for backward compatibility)
+            file_key: File key from th_files table (primary identifier)
             
         Returns:
-            str: Generated source_table_id in format: msg_id_#_hash[:10]
+            str: file_key as source_table_id, or msg_id as fallback
         """
-        if not file_key:
-            # Fallback to old format if no file_key
-            return msg_id
+        # Use file_key directly as source_table_id
+        if file_key:
+            return file_key
         
-        # Generate MD5 hash of file_key and take first 10 characters
-        file_key_hash = md5(file_key.encode()).hexdigest()[:10]
-        return f"{msg_id}_#_{file_key_hash}"
+        # Fallback to msg_id if no file_key (legacy support)
+        return msg_id or ""
 
     @staticmethod
     async def get_user_current_time_with_timezone(user_id: str) -> datetime:
@@ -560,7 +561,7 @@ class FileParserDatabaseService:
         exam_date: str,
         msg_id: str,
         comment: str = "",
-        source_table: str = "theta_ai.th_messages",
+        source_table: str = "theta_ai.th_files",
         file_key: str = None,
     ) -> int:
         """Batch save health indicators to th_series_data table"""
@@ -700,269 +701,6 @@ class FileParserDatabaseService:
         return {row.get("indicator_name_cn"): row.get("indicator_id") for row in rows}
 
     @staticmethod
-    async def get_health_data_by_type(
-        user_id: str,
-        message_type: str,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        limit: int = 100,
-    ) -> List[Dict[str, Any]]:
-        """
-        Retrieve health management data from theta_ai.th_messages table by message type
-
-        Args:
-            user_id: User ID
-            message_type: Type of message to filter
-            start_date: Start date filter (YYYY-MM-DD format)
-            end_date: End date filter (YYYY-MM-DD format)
-            limit: Maximum number of records to return
-
-        Returns:
-            List of health data records
-        """
-        try:
-            # Build SQL query
-            base_sql = """
-                SELECT id, theta_ai.decrypt_content(content) AS content, reasoning, created_at, session_id
-                FROM theta_ai.th_messages 
-                WHERE user_id = :user_id 
-                    AND message_type = :message_type
-                    AND (is_del = false OR is_del IS NULL)
-            """
-
-            params = {"user_id": user_id, "message_type": message_type, "limit": limit}
-
-            if start_date:
-                try:
-                    start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
-                    base_sql += " AND DATE(created_at) >= :start_date"
-                    params["start_date"] = start_date_obj
-                except ValueError:
-                    pass  # Skip invalid date filter
-
-            if end_date:
-                try:
-                    end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
-                    base_sql += " AND DATE(created_at) <= :end_date"
-                    params["end_date"] = end_date_obj
-                except ValueError:
-                    pass  # Skip invalid date filter
-
-            base_sql += " ORDER BY created_at DESC LIMIT :limit"
-
-            # Execute query
-            results = await execute_query(
-                query=base_sql,
-                params=params,
-            )
-
-            # Parse and format results
-            health_data = []
-            for row in results:
-                try:
-                    content = json.loads(row["content"]) if isinstance(row["content"], str) else row["content"]
-
-                    health_data.append(
-                        {
-                            "id": row["id"],
-                            "content": content,
-                            "notes": row["reasoning"] or "",
-                            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
-                            "session_id": row["session_id"],
-                        }
-                    )
-                except (json.JSONDecodeError, KeyError, AttributeError):
-                    # Skip invalid records
-                    continue
-
-            logging.info(f"Retrieved {len(health_data)} health data records for user {user_id}, type {message_type}")
-
-            return health_data
-
-        except Exception as e:
-            logging.error(f"Error retrieving health data by type: {str(e)}", stack_info=True)
-            return []
-
-    @staticmethod
-    async def get_health_series_data_by_filters(
-        user_id: str,
-        start_time: Optional[str] = None,
-        end_time: Optional[str] = None,
-        indicators: Optional[str] = None,
-        limit: int = 1000,
-    ) -> List[Dict[str, Any]]:
-        """
-        Get health series data from th_series_data table with filters
-
-        Args:
-            user_id: User ID
-            start_time: Start time filter in ISO format
-            end_time: End time filter in ISO format
-            indicators: Comma-separated list of indicators
-            limit: Maximum number of records to return
-
-        Returns:
-            List of health data points
-        """
-        try:
-            # Build the base query
-            query = """
-            SELECT 
-                id,
-                user_id,
-                indicator,
-                value,
-                start_time,
-                end_time,
-                source_table,
-                source_table_id,
-                comment,
-                update_time
-            FROM theta_ai.th_series_data 
-            WHERE user_id = :user_id
-            """
-
-            params = {"user_id": user_id}
-
-            # Add time filters
-            if start_time:
-                query += " AND start_time >= :start_time"
-                parsed = parse_iso_datetime(start_time)
-                if parsed is None:
-                        raise ValueError(f"Invalid start_time format: {start_time}")
-                params["start_time"] = parsed
-
-            if end_time:
-                query += " AND start_time <= :end_time"
-                parsed = parse_iso_datetime(end_time)
-                if parsed is None:
-                        raise ValueError(f"Invalid end_time format: {end_time}")
-                params["end_time"] = parsed
-
-            # Add indicator filters
-            if indicators:
-                indicator_list = [ind.strip() for ind in indicators.split(",")]
-                placeholders = ",".join([f":indicator_{i}" for i in range(len(indicator_list))])
-                query += f" AND indicator IN ({placeholders})"
-                for i, indicator in enumerate(indicator_list):
-                    params[f"indicator_{i}"] = indicator
-
-            # Add ordering and limit
-            query += " ORDER BY start_time DESC, indicator"
-            query += f" LIMIT {limit}"
-
-            logging.info(f"Fetching health series data for user {user_id} with query: {query[:100]}...")
-
-            # Execute query
-            result = await execute_query(
-                query=query,
-                params=params,
-            )
-
-            # Process results
-            data = []
-            if result and hasattr(result, "__iter__"):
-                for row in result:
-                    try:
-                        # Convert row to dict if it's not already
-                        if hasattr(row, "_asdict"):
-                            row_dict = row._asdict()
-                        elif hasattr(row, "keys"):
-                            row_dict = dict(row)
-                        else:
-                            # Assume it's a tuple and map to expected columns
-                            row_dict = {
-                                "id": row[0],
-                                "user_id": row[1],
-                                "indicator": row[2],
-                                "value": row[3],
-                                "start_time": row[4],
-                                "end_time": row[5],
-                                "source_table": row[6],
-                                "source_table_id": row[7],
-                                "comment": row[8],
-                                "update_time": row[9] if len(row) > 9 else None,
-                            }
-
-                        # Convert datetime objects to ISO strings
-                        for key in ["start_time", "end_time", "update_time"]:
-                            if key in row_dict and row_dict[key]:
-                                if isinstance(row_dict[key], datetime):
-                                    row_dict[key] = row_dict[key].isoformat()
-
-                        data.append(row_dict)
-
-                    except Exception as e:
-                        logging.warning(f"Error processing row: {str(e)}")
-                        continue
-
-            logging.info(f"Successfully fetched {len(data)} health data points for user {user_id}")
-
-            return data
-
-        except Exception as e:
-            logging.error(f"Error fetching health series data for user {user_id}: {str(e)}", stack_info=True)
-            raise Exception(f"Failed to fetch health series data: {str(e)}")
-
-    @staticmethod
-    async def get_health_records_paginated(
-        user_id: str,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> List[Dict[str, Any]]:
-        """
-        Get health records from theta_ai.th_messages table with pagination
-
-        Args:
-            user_id: User ID
-            limit: Maximum number of records to return
-            offset: Offset for pagination
-
-        Returns:
-            List of health record entries
-        """
-        try:
-            query = """
-                SELECT id, theta_ai.decrypt_content(content) AS content, created_at, session_id
-                FROM theta_ai.th_messages 
-                WHERE user_id = :user_id 
-                AND message_type = 'health_record'
-                AND (is_del IS NULL OR is_del = FALSE)
-                ORDER BY created_at DESC
-                LIMIT :limit OFFSET :offset
-            """
-
-            result = await execute_query(
-                query=query,
-                params={"user_id": user_id, "limit": limit, "offset": offset},
-            )
-
-            records = []
-            for row in result:
-                try:
-                    content_data = json.loads(row["content"])
-                    records.append(
-                        {
-                            "id": row["id"],
-                            "session_id": row["session_id"],
-                            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
-                            "template_name": content_data.get("template_name"),
-                            "records": content_data.get("records", []),
-                            "timestamp": content_data.get("timestamp"),
-                        }
-                    )
-                except json.JSONDecodeError:
-                    continue
-
-            logging.info(f"Retrieved {len(records)} health records for user {user_id} with limit {limit}, offset {offset}")
-
-            return records
-
-        except Exception as e:
-            logging.error(f"Error getting health records: {str(e)}", stack_info=True)
-            raise Exception(f"Failed to get health records: {str(e)}")
-
-    @staticmethod
     def get_simple_type(file_type: str) -> str:
         """Get simplified type for compatibility"""
         return get_simple_file_type(file_type)
@@ -1050,7 +788,10 @@ class FileParserDatabaseService:
     @staticmethod
     def _extract_file_info_from_content(content: dict, row: dict, default_id: str) -> list:
         """
-        Extract file info from content JSON
+        [DEPRECATED] Extract file info from content JSON.
+        
+        This method is for th_messages table and is kept for backward compatibility.
+        New code should use FileDbService for th_files operations.
         
         Args:
             content: Parsed content JSON dict
@@ -1142,7 +883,7 @@ class FileParserDatabaseService:
 
     @staticmethod
     def _determine_upload_status(content: dict, message_type: str) -> dict:
-        """Determine upload status from content"""
+        """[DEPRECATED] Determine upload status from content. For th_messages backward compatibility."""
         # First check the status field (works for all file types including genetic)
         status = content.get("status", "")
         
@@ -1205,7 +946,9 @@ class FileParserDatabaseService:
         offset: int = 0,
     ) -> Dict[str, Any]:
         """
-        Get user's uploaded file history with pagination
+        Get user's uploaded file history with pagination.
+        
+        Now reads from th_files table instead of th_messages.
         
         Args:
             uploader_user_id: Current user ID (for permission checking)
@@ -1216,472 +959,88 @@ class FileParserDatabaseService:
         Returns:
             Dict containing files list, total count, and total size
         """
+        from .file_db_service import FileDbService
+        
         try:
-            query_user_id = target_user_id or uploader_user_id
-            query_user_id_str = str(query_user_id)
-            
-            # Define both queries
-            list_sql = """
-            SELECT id, user_id, session_id, message_type,
-                   theta_ai.decrypt_content(content) AS content, created_at
-            FROM theta_ai.th_messages 
-            WHERE message_type IN ('image', 'pdf', 'excel', 'genetic', 'file', 'csv')
-                AND COALESCE(query_user_id, user_id) = :target_query_user_id
-                AND (is_del IS NULL OR is_del = false)
-                AND scene = 'web'
-            ORDER BY created_at DESC
-            LIMIT :limit OFFSET :offset
-            """
-            
-            total_sql = """
-            WITH decrypted AS (
-                SELECT theta_ai.decrypt_content(content)::jsonb AS cj
-                FROM theta_ai.th_messages 
-                WHERE message_type IN ('image', 'pdf', 'excel', 'genetic', 'file', 'csv')
-                    AND COALESCE(query_user_id, user_id) = :target_query_user_id
-                    AND (is_del IS NULL OR is_del = false)
-                    AND scene = 'web'
+            # Use FileDbService to query from th_files table
+            # Include both report and genetic scenes
+            result = await FileDbService.get_files_paginated(
+                user_id=uploader_user_id,
+                query_user_id=target_user_id,
+                # scene=["report", "genetic", "excel", "csv"],  # Both report and genetic files
+                created_source=["web_drive", "web_chat"],  # Web drive and chat uploads
+                limit=limit,
+                offset=offset,
             )
-            SELECT 
-                COALESCE(SUM(
-                    CASE 
-                        WHEN cj->'files' IS NOT NULL AND jsonb_typeof(cj->'files') = 'array' 
-                             AND jsonb_array_length(cj->'files') > 0 
-                        THEN jsonb_array_length(cj->'files')
-                        ELSE 1 
-                    END
-                ), 0)::bigint AS total_files
-            FROM decrypted
-            """
             
-            # Execute both queries in parallel
-            list_task = execute_query(query=list_sql, params={
-                "target_query_user_id": query_user_id_str,
-                "limit": limit, "offset": offset
-            })
-            total_task = execute_query(query=total_sql, params={"target_query_user_id": query_user_id_str})
-            
-            result, total_result = await asyncio.gather(list_task, total_task)
-
-            files = []
-            is_for_others = target_user_id and target_user_id != uploader_user_id
-            timezone = get_req_ctx("timezone", "America/Los_Angeles")
-            
-            for row in result:
-                row_id = row.get("id", "")
-                created_at = row.get("created_at")
-                # Convert created_at to user's timezone
-                if created_at:
-                    try:
-                        if created_at.tzinfo is None:
-                            created_at = created_at.replace(tzinfo=ZoneInfo("UTC"))
-                        local_time = created_at.astimezone(ZoneInfo(timezone))
-                        create_time = local_time.isoformat()
-                    except Exception:
-                        create_time = created_at.isoformat()
-                else:
-                    create_time = None
-                message_type = row.get("message_type")
-                
-                file_info = {
-                    "id": row_id, "user_id": row.get("user_id"), "session_id": row.get("session_id"),
-                    "message_type": message_type, "create_time": create_time,
-                    "upload_status": "complete", "file_size": 0, "file_key": "", "is_uploaded_for_others": False,
-                }
-                
-                content = None
-                try:
-                    content = json.loads(row.get("content", "{}"))
-                    if isinstance(content, dict):
-                        extracted_files = FileParserDatabaseService._extract_file_info_from_content(content, row, row_id)
-                        upload_status = FileParserDatabaseService._determine_upload_status(content, message_type)
-                        
-                        for idx, extracted in enumerate(extracted_files):
-                            file_entry = file_info.copy()
-                            # Add sub-index for multiple files from same row
-                            if len(extracted_files) > 1:
-                                file_entry["id"] = f"{row_id}#{idx}"
-                            file_entry.update(extracted)
-                            file_entry["upload_time"] = create_time
-                            file_entry.update(upload_status)
-                            if is_for_others:
-                                file_entry.update({"target_user_id": target_user_id, "is_uploaded_for_others": True, "target_user_name": f"User{target_user_id[:8]}"})
-                            files.append(file_entry)
-                        continue  # Skip the default append below
-                    else:
-                        content = None  # Treat non-dict as parse failure
-                except Exception as e:
-                    logging.warning(f"Parse failed: {e}, row_id={row_id}")
-                
-                # Apply defaults if content parsing failed
-                if not isinstance(content, dict):
-                    file_info.update({
-                        "file_name": f"File_{row_id[:8]}", "original_name": f"File_{row_id[:8]}",
-                        "file_type": message_type, "type": FileParserDatabaseService.get_simple_type(message_type),
-                        "contentType": "application/octet-stream", "upload_time": create_time,
-                    })
-                    files.append(file_info)
-            
-            # Regenerate URLs concurrently for files with valid file_key
+            # Regenerate URLs for files with valid file_key
+            files = result.get("files", [])
             files_with_keys = [f for f in files if f.get("file_key")]
             if files_with_keys:
-                await asyncio.gather(*[FileParserDatabaseService._regenerate_urls(f) for f in files_with_keys], return_exceptions=True)
-
-            # Extract total from parallel query result
-            total_files = total_result[0].get("total_files", 0) if total_result else 0
-
-            logging.info(f"Success: query_user_id={query_user_id}, total={total_files}")
-
-            return {"files": files, "total": total_files, "limit": limit, "offset": offset}
-
+                await asyncio.gather(
+                    *[FileParserDatabaseService._regenerate_urls(f) for f in files_with_keys],
+                    return_exceptions=True
+                )
+            
+            # Convert MIME type to friendly file type
+            for f in files:
+                f["file_type"] = FileParserDatabaseService._convert_mime_to_file_type(
+                    f.get("file_type", ""),
+                    f.get("scene", "")
+                )
+            
+            logging.info(f"Success: query_user_id={target_user_id or uploader_user_id}, total={result.get('total', 0)}")
+            
+            return result
+            
         except Exception as e:
-            logging.error(f"Get uploaded files failed: {str(e)}", "get_uploaded_files_paginated", stack_info=True)
+            logging.error(f"Get uploaded files failed: {str(e)}", stack_info=True)
             raise Exception(f"Failed to get uploaded files: {str(e)}")
 
     @staticmethod
-    async def delete_uploaded_file(
-        file_id: str,
-        user_id: str,
-        target_user_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    def _convert_mime_to_file_type(mime_type: str, scene: str = "") -> str:
         """
-        Soft delete uploaded file
+        Convert MIME type to friendly file type name.
         
-        Args:
-            file_id: File ID (message ID)
-            user_id: Current user ID (who is performing the deletion)
-            target_user_id: Target user ID (whose file is being deleted, if different from user_id)
-            
-        Returns:
-            Dict containing deletion result
+        Returns one of: excel, csv, image, pdf, genetic
         """
-        try:
-            # Handle file_id with sub-index suffix (e.g., "msg_id#0" -> "msg_id")
-            # This suffix is added by get_uploaded_files_paginated when a message contains multiple files
-            original_file_id = file_id
-            if "#" in file_id:
-                file_id = file_id.split("#")[0]
-                logging.info(f"Parsed file_id: original={original_file_id}, actual_msg_id={file_id}")
-            
-            # Determine the actual file owner (target user if specified, otherwise current user)
-            file_owner_id = target_user_id if target_user_id else user_id
-            
-            logging.info(f"Delete file request: file_id={file_id}, operator_user_id={user_id}, file_owner_id={file_owner_id}")
-
-            # Query file info - check if file exists and belongs to the expected owner
-            # Use query_user_id to determine file ownership (with fallback to user_id for old data)
-            query_sql = """
-            SELECT theta_ai.decrypt_content(content) AS content, message_type, user_id
-            FROM  theta_ai.th_messages 
-            WHERE id = :file_id 
-                AND COALESCE(query_user_id, user_id) = :file_owner_id
-                AND message_type <> 'text'
-                AND (is_del IS NULL OR is_del = false)
-            """
-
-            query_params = {
-                "file_id": file_id,
-                "file_owner_id": file_owner_id,
-            }
-
-            file_info = await execute_query(
-                query=query_sql,
-                params=query_params,
-            )
-
-            if not file_info or len(file_info) == 0:
-                logging.warning(f"File not found or not owned by expected user: file_id={file_id}, expected_owner={file_owner_id}")
-                return {
-                    "success": False,
-                    "code": "NOT_FOUND",
-                    "message": "File not found",
-                }
-
-            # Parse file type for cleanup purposes
-            file_type = "unknown"
-            try:
-                content = file_info[0].get("content", "")
-                if content:
-                    content_json = json.loads(content)
-                    file_type = content_json.get("type", "unknown")
-            except (json.JSONDecodeError, Exception) as e:
-                logging.warning(f"Failed to parse file content, using default type: {str(e)}")
-
-            # Update message record, mark as deleted
-            update_sql = """
-            UPDATE  theta_ai.th_messages 
-            SET is_del = true,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = :file_id 
-                AND user_id = :user_id
-                AND message_type <> 'text'
-            RETURNING id
-            """
-
-            result = await execute_query(
-                query=update_sql,
-                params={"file_id": file_id, "user_id": str(file_owner_id)},
-            )
-
-            if result and len(result) > 0:
-                # Execute cascade delete based on file type
-                cascade_result = await FileParserDatabaseService._cascade_delete_by_file_type(
-                    file_type, file_id, str(file_owner_id)
-                )
-
-                logging.info(f"File delete success: file_id={file_id}, file_type={file_type}, file_owner_id={file_owner_id}")
-
-                return {
-                    "success": True,
-                    "code": "SUCCESS",
-                    "message": "File deleted successfully",
-                    "data": {
-                        "file_id": file_id,
-                        "cascade_deleted": cascade_result,
-                    }
-                }
-            else:
-                logging.warning(f"File not found or no permission to delete: file_id={file_id}, user_id={user_id}")
-
-                return {
-                    "success": False,
-                    "code": "UPDATE_FAILED",
-                    "message": "File not found or already deleted",
-                }
-
-        except Exception as e:
-            logging.error(f"Delete file failed: {str(e)}", stack_info=True)
-
-            return {
-                "success": False,
-                "code": "INTERNAL_ERROR",
-                "message": f"Delete file failed: {str(e)}",
-            }
-
-    async def _cascade_delete_by_file_type(file_type: str, file_id: str, user_id: str) -> None:
-        """
-        Execute cascade delete operations based on file type
-
-        Args:
-            file_type: File type (excel, genetic, image, pdf, etc.)
-            file_id: File ID (message ID)
-            user_id: Operating user ID
-            target_user_id: Target user ID (for files uploaded for others)
-        """
-        try:
-            # Since files are stored under target user ID, data_user_id is always the same as user_id from th_messages
-            data_user_id = user_id
-
-            if file_type == "excel":
-                # Excel files: delete data in th_series_data table with source_table='excel'
-                await FileParserDatabaseService._delete_th_series_data(data_user_id, "excel", file_id)
-
-            elif file_type == "genetic":
-                # Genetic files: use specialized genetic data deletion method
-                await FileParserDatabaseService._delete_genetic_data(data_user_id, file_id)
-
-            else:
-                # Other file types: delete data in th_series_data table with source_table='theta_ai.th_messages'
-                await FileParserDatabaseService._delete_th_series_data(data_user_id, "theta_ai.th_messages", file_id)
-
-            logging.info(f"Cascade delete successful: file_type={file_type}, file_id={file_id}, data_user_id={data_user_id}")
-
-        except Exception as e:
-            logging.warning(f"Cascade delete failed: file_type={file_type}, file_id={file_id}, error={str(e)}")
-
-
-    async def _delete_th_series_data(user_id: str, source_table: str, source_table_id: str) -> None:
-        """
-        Delete related data in th_series_data table
-        """
-        try:
-            delete_sql = """
-            DELETE FROM theta_ai.th_series_data 
-            WHERE user_id = :user_id 
-            AND source_table = :source_table 
-            AND source_table_id = :source_table_id
-            """
-
-            result = await execute_query(
-                delete_sql,
-                {
-                    "user_id": user_id,
-                    "source_table": source_table,
-                    "source_table_id": source_table_id,
-                },
-            )
-
-            delete_count = len(result) if result else 0
-            logging.info(f"Deleted th_series_data successfully: user_id={user_id}, source_table={source_table}, source_table_id={source_table_id}, deleted_records={delete_count}")
-
-        except Exception as e:
-            logging.warning(f"Failed to delete th_series_data: {str(e)}", stack_info=True)
-            raise
-
-
-    async def _delete_genetic_data(user_id: str, message_id: str) -> None:
-        """
-        Delete genetic data
-        """
-        try:
-
-            delete_success = await FileParserDatabaseService.delete_genetic_data_by_message_id(user_id, message_id)
-
-            if delete_success:
-                logging.info(f"Genetic data deleted successfully: user_id={user_id}, message_id={message_id}")
-            else:
-                logging.info(f"Delete genetic data: user_id={user_id}, message_id={message_id}, no related data found")
-
-        except Exception as e:
-            logging.warning(f"Failed to delete genetic data: {str(e)}", stack_info=True)
-            raise
-
-    @staticmethod
-    async def get_weekly_health_stats(
-        user_id: str,
-        end_date: str,
-        period: int = 7,
-    ) -> Dict[str, Any]:
-        """
-        Get weekly health statistics for dashboard display
+        if not mime_type:
+            return "unknown"
         
-        Args:
-            user_id: User ID
-            end_date: End date in YYYY-MM-DD format
-            period: Number of days to analyze (defaults to 7)
-            
-        Returns:
-            Dict containing weekly health statistics
-        """
-        try:
-            if not end_date:
-                end_date = datetime.now().strftime("%Y-%m-%d")
-
-            # Calculate date range for the last N days
-            end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
-            start_date_obj = end_date_obj - timedelta(days=period - 1)  # period-1 to include end_date
-
-            # SQL query to get daily data for the last N days
-            sql = """
-                SELECT
-                    uis_inner.indicator,
-                    DATE(uis_inner.start_time) AS date,
-                    
-                    -- Choose sum or avg based on indicator type
-                    ROUND(AVG(
-                        CASE
-                        WHEN uis_inner.indicator IN (
-                            'daily_stats_cyclingDistances',
-                            'daily_stats_exerciseMinutes',
-                            'daily_stats_floors',
-                            'daily_stats_steps',
-                            'daily_stats_walkingRunningDistances',
-                            'daily_stats_sleepAnalysis_Awake',
-                            'daily_stats_sleepAnalysis_Asleep(REM)',
-                            'daily_stats_sleepAnalysis_Asleep(Deep)',
-                            'daily_stats_sleepAnalysis_Asleep(Core)'
-                        )
-                        THEN (uis_inner.value::json ->> 'sum')::numeric
-                        ELSE (uis_inner.value::json ->> 'avg')::numeric
-                        END
-                    ), 2) AS daily_value,
-                    
-                    idim.unit AS unit,
-                    COALESCE(idim.standard_indicator, uis_inner.indicator) as display_name,
-                    COALESCE(idim.category, 'other') as category
-                FROM theta_ai.th_series_data uis_inner
-                LEFT JOIN theta_ai.th_series_dim idim
-                ON uis_inner.indicator = idim.original_indicator
-                WHERE uis_inner.user_id = :user_id
-                AND DATE(uis_inner.start_time) BETWEEN :start_date AND :end_date
-                AND uis_inner.value LIKE '{%'
-                AND uis_inner.deleted = 0
-                GROUP BY uis_inner.indicator, DATE(uis_inner.start_time), idim.unit, display_name, category
-                ORDER BY uis_inner.indicator, DATE(uis_inner.start_time);
-            """
-
-            result = await execute_query(
-                query=sql,
-                params={
-                    "user_id": user_id,
-                    "start_date": start_date_obj,
-                    "end_date": end_date_obj,
-                },
-            )
-
-            # Convert Decimal values to strings for JSON serialization
-            for row in result:
-                if "daily_value" in row and row["daily_value"] is not None:
-                    row["daily_value"] = str(row["daily_value"])
-
-            # Organize data by indicator for chart display
-            indicators_data = {}
-
-            for row in result:
-                indicator = row["indicator"]
-                date_str = row["date"].strftime("%Y-%m-%d") if hasattr(row["date"], "strftime") else str(row["date"])
-                value = float(row["daily_value"]) if row["daily_value"] else 0
-
-                if indicator not in indicators_data:
-                    indicators_data[indicator] = {
-                        "indicator": indicator,
-                        "display_name": row.get("display_name", indicator),
-                        "unit": row.get("unit", ""),
-                        "category": row.get("category", ""),
-                        "daily_data": [],
-                        "total_value": 0,
-                        "avg_value": 0,
-                        "max_value": 0,
-                        "min_value": float("inf"),
-                    }
-
-                # Add daily data point
-                indicators_data[indicator]["daily_data"].append({"date": date_str, "value": value})
-
-                # Update statistics
-                indicators_data[indicator]["total_value"] += value
-                indicators_data[indicator]["max_value"] = max(indicators_data[indicator]["max_value"], value)
-                indicators_data[indicator]["min_value"] = min(indicators_data[indicator]["min_value"], value)
-
-            # Calculate averages and prepare final data
-            for indicator, data in indicators_data.items():
-                data_count = len(data["daily_data"])
-                if data_count > 0:
-                    data["avg_value"] = round(data["total_value"] / data_count, 2)
-                    if data["min_value"] == float("inf"):
-                        data["min_value"] = 0
-
-                # Sort daily data by date
-                data["daily_data"].sort(key=lambda x: x["date"])
-
-            # Generate date range for the period
-            date_range = []
-            current_date = start_date_obj
-            while current_date <= end_date_obj:
-                date_range.append(current_date.strftime("%Y-%m-%d"))
-                current_date += timedelta(days=1)
-
-            response_data = {
-                "indicators": list(indicators_data.values()),
-                "date_range": date_range,
-                "period": {
-                    "start_date": start_date_obj.strftime("%Y-%m-%d"),
-                    "end_date": end_date_obj.strftime("%Y-%m-%d"),
-                    "days": period,
-                },
-                "summary": {
-                    "total_indicators": len(indicators_data),
-                    "date_range_days": len(date_range),
-                },
-            }
-
-            logging.info(f"Get weekly health stats success: user_id={user_id}, indicators={len(indicators_data)}")
-
-            return response_data
-
-        except Exception as e:
-            logging.error(f"Get weekly health stats failed: {str(e)}", stack_info=True)
-            raise Exception(f"Failed to get weekly health stats: {str(e)}")
+        mime_lower = mime_type.lower()
+        
+        # Genetic files (scene-based detection)
+        if scene == "genetic":
+            return "genetic"
+        
+        # PDF
+        if "pdf" in mime_lower:
+            return "pdf"
+        
+        # Image types
+        if mime_lower.startswith("image/"):
+            return "image"
+        
+        # Excel types
+        excel_mimes = [
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # xlsx
+            "application/vnd.ms-excel",  # xls
+            "application/vnd.ms-excel.sheet.macroenabled.12",  # xlsm
+            "application/vnd.ms-excel.sheet.binary.macroenabled.12",  # xlsb
+        ]
+        if mime_lower in excel_mimes or "spreadsheet" in mime_lower or "excel" in mime_lower:
+            return "excel"
+        
+        # CSV
+        if "csv" in mime_lower:
+            return "csv"
+        
+        # Default fallback based on common patterns
+        if "text/plain" in mime_lower:
+            # text/plain could be genetic or csv - check file extension if available
+            return "genetic"  # Default to genetic for text files in this context
+        
+        return "unknown"
 
     @staticmethod
     async def get_user_data_distribution(user_id: str) -> Dict[str, Any]:
@@ -1825,7 +1184,13 @@ class FileParserDatabaseService:
         query_user_id: str = None
     ) -> bool:
         """
-        Save file upload message to th_messages table
+        [DEPRECATED] Save file upload message to th_messages table.
+        
+        This method is deprecated. File records are now stored in th_files table.
+        Use FileDbService.insert_files_batch() for th_files operations.
+        
+        This method is kept only for backward compatibility with old code paths.
+        It will be removed in a future version.
         
         Args:
             msg_id: Message ID
@@ -1838,6 +1203,7 @@ class FileParserDatabaseService:
         Returns:
             bool: True if successful, False otherwise
         """
+        logging.warning(f"[DEPRECATED] save_file_upload_message called for msg_id={msg_id}. Use FileDbService.insert_files_batch() instead.")
         try:
             # Default query_user_id to user_id if not provided
             if query_user_id is None:
@@ -1906,7 +1272,10 @@ class FileParserDatabaseService:
         processed_files: List[Dict[str, Any]]
     ) -> bool:
         """
-        Update th_messages with processed file information
+        [DEPRECATED] Update th_messages with processed file information.
+        
+        This method is kept for backward compatibility.
+        New code should use FileDbService.update_file_processed() for th_files operations.
         
         Args:
             msg_id: Message ID
@@ -1996,7 +1365,10 @@ class FileParserDatabaseService:
         llm_analysis: Dict[str, Any]
     ) -> bool:
         """
-        Update th_messages with LLM analysis result
+        [DEPRECATED] Update th_messages with LLM analysis result.
+        
+        This method is kept for backward compatibility.
+        New code should use FileDbService.update_file_content() for th_files operations.
         
         Args:
             msg_id: Message ID

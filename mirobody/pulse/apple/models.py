@@ -54,6 +54,7 @@ class FlutterHealthTypeEnum(str, Enum):
 
     # Compatible with renpho body scale
     BASAL_METABOLIC_RATE = "BASAL_METABOLIC_RATE"
+    ACTIVE_ENERGY_BURNED = "ACTIVE_ENERGY_BURNED"
     BASAL_ENERGY_BURNED = "BASAL_ENERGY_BURNED"
     BODY_WATER = "BODY_WATER"
     BODY_AGE = "BODY_AGE"
@@ -128,6 +129,7 @@ FLUTTER_TO_RECORD_TYPE_MAPPING = {
     FlutterHealthTypeEnum.UV_EXPOSURE: StandardIndicator.UV_EXPOSURE.value.name,
     # Renpho body scale related
     FlutterHealthTypeEnum.BASAL_METABOLIC_RATE: StandardIndicator.BMR.value.name,
+    FlutterHealthTypeEnum.ACTIVE_ENERGY_BURNED: StandardIndicator.CALORIES_ACTIVE.value.name,
     FlutterHealthTypeEnum.BASAL_ENERGY_BURNED: StandardIndicator.CALORIES_BASAL.value.name,
     FlutterHealthTypeEnum.BODY_WATER: StandardIndicator.BODY_WATER_PERCENTAGE.value.name,
     FlutterHealthTypeEnum.BODY_AGE: StandardIndicator.BODY_AGE.value.name,

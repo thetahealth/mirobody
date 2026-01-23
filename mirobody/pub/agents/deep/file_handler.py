@@ -16,13 +16,14 @@ logger = logging.getLogger(__name__)
 
 def upload_files_to_backend(
     file_list: list[dict[str, Any]], 
-    backend: Any
+    backend: Any,
+    files_data: list[dict[str, Any]] | None = None
 ) -> tuple[list[str], str]:
     """
     Upload files directly to PostgreSQL backend.
     
-    Downloads remote files and uploads them as binary data to PostgreSQL.
-    Files are stored with intelligent parsing support (lazy parsing on read).
+    Performance optimization: If files_data is provided (from HTTP layer),
+    use it directly to avoid re-downloading from S3/URL.
     
     Args:
         file_list: List of file info dicts with keys:
@@ -32,6 +33,11 @@ def upload_files_to_backend(
             - file_key: S3 key or storage identifier (optional)
             - file_size: File size in bytes (optional)
         backend: PostgresBackend instance with upload_files() method
+        files_data: Optional list of already-downloaded file data dicts with:
+            - content: File binary content (bytes)
+            - filename: File name
+            - content_type: MIME type
+            - s3_key: S3 key
         
     Returns:
         Tuple of (uploaded_file_paths, reminder_message)
@@ -41,6 +47,16 @@ def upload_files_to_backend(
     
     files_to_upload = []  # List of (file_path, file_bytes) tuples
     uploaded_paths = []
+    
+    # Build filename -> content mapping for fast lookup (if files_data provided)
+    files_content_map = {}
+    if files_data:
+        for file_data in files_data:
+            filename = file_data.get("filename")
+            content = file_data.get("content")
+            if filename and content:
+                files_content_map[filename] = content
+        logger.info(f"✅ Using {len(files_content_map)} cached files from memory (avoiding re-download)")
     
     for file_info in file_list:
         file_name = file_info.get("file_name")
@@ -54,33 +70,39 @@ def upload_files_to_backend(
         # Create database file path (no temp directories)
         file_path = f"/uploads/{file_name}"
         
-        # Parse URL to determine source
-        parsed_url = urlparse(file_url)
-        is_local_file = parsed_url.scheme == "file"
-        is_remote_file = parsed_url.scheme in ("http", "https")
-        
         try:
             file_bytes = None
             
-            if is_local_file:
-                # Read local file as binary
-                local_path = unquote(parsed_url.path)
-                with open(local_path, 'rb') as f:
-                    file_bytes = f.read()
-                logger.info(f"📁 Read {len(file_bytes)} bytes from local file: {file_name}")
+            # Priority 1: Use cached content from memory (fastest)
+            if file_name in files_content_map:
+                file_bytes = files_content_map[file_name]
+                logger.info(f"✅ Cache hit: {file_name} ({len(file_bytes)} bytes, saved ~500ms)")
             
-            elif is_remote_file:
-                # Download remote file
-                logger.info(f"📥 Downloading remote file: {file_name} from {file_url}")
-                with httpx.Client(timeout=30.0) as client:
-                    response = client.get(file_url)
-                    response.raise_for_status()
-                    file_bytes = response.content
-                logger.info(f"✅ Downloaded {len(file_bytes)} bytes: {file_name}")
-            
+            # Priority 2: Download from URL (fallback)
             else:
-                logger.warning(f"⚠️ Unsupported URL scheme for {file_name}: {parsed_url.scheme}")
-                continue
+                parsed_url = urlparse(file_url)
+                is_local_file = parsed_url.scheme == "file"
+                is_remote_file = parsed_url.scheme in ("http", "https")
+                
+                if is_local_file:
+                    # Read local file as binary
+                    local_path = unquote(parsed_url.path)
+                    with open(local_path, 'rb') as f:
+                        file_bytes = f.read()
+                    logger.info(f"📁 Read {len(file_bytes)} bytes from local file: {file_name}")
+                
+                elif is_remote_file:
+                    # Download remote file
+                    logger.info(f"📥 Cache miss, downloading from URL: {file_name}")
+                    with httpx.Client(timeout=30.0) as client:
+                        response = client.get(file_url)
+                        response.raise_for_status()
+                        file_bytes = response.content
+                    logger.info(f"✅ Downloaded {len(file_bytes)} bytes: {file_name}")
+                
+                else:
+                    logger.warning(f"⚠️ Unsupported URL scheme for {file_name}: {parsed_url.scheme}")
+                    continue
             
             if file_bytes:
                 files_to_upload.append((file_path, file_bytes))

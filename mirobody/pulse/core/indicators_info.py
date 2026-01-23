@@ -235,7 +235,7 @@ class StandardIndicator(Enum):
         name_zh="生物电阻抗",
         description="Bioelectrical impedance analysis measurement value",
         description_zh="生物电阻抗测量值",
-        data_type=HealthDataType.SERIES,
+        data_type=HealthDataType.MIX,
     )
     BIRTH_DATE = IndicatorInfo(
         category=Categories.LIFESTYLE.value,
@@ -303,7 +303,7 @@ class StandardIndicator(Enum):
         name_zh="基础代谢率",
         description="Energy required to maintain basic physiological functions",
         description_zh="维持基本生理功能所需的能量",
-        data_type=HealthDataType.SERIES,
+        data_type=HealthDataType.MIX,
     )
     BODY_AGE = IndicatorInfo(
         category=Categories.BODY_COMPOSITION.value,
@@ -350,7 +350,7 @@ class StandardIndicator(Enum):
         name_zh="体水分率",
         description="Percentage of body water relative to total body weight",
         description_zh="体内水分占体重的百分比",
-        data_type=HealthDataType.SERIES,
+        data_type=HealthDataType.MIX,
     )
     BONE_MASS = IndicatorInfo(
         category=Categories.BODY_COMPOSITION.value,
@@ -359,7 +359,7 @@ class StandardIndicator(Enum):
         name_zh="骨量",
         description="Bone mass weight",
         description_zh="骨骼重量",
-        data_type=HealthDataType.SERIES,
+        data_type=HealthDataType.MIX,
     )
     CALORIES_ACTIVE = IndicatorInfo(
         category=Categories.ACTIVITY.value,
@@ -469,7 +469,7 @@ class StandardIndicator(Enum):
         name_zh="每日基础卡路里",
         description="Daily summary of calories burned through basal metabolism",
         description_zh="每日基础代谢消耗的卡路里汇总",
-        data_type=HealthDataType.SERIES,
+        data_type=HealthDataType.SUMMARY,
     )
     DAILY_DISTANCE = IndicatorInfo(
         category=Categories.ACTIVITY.value,
@@ -840,7 +840,7 @@ class StandardIndicator(Enum):
         name_zh="去脂体重",
         description="Fat-free body weight",
         description_zh="除脂肪外的体重",
-        data_type=HealthDataType.SERIES,
+        data_type=HealthDataType.MIX,
     )
     FLOORS_CLIMBED = IndicatorInfo(
         category=Categories.ACTIVITY.value,
@@ -1042,7 +1042,7 @@ class StandardIndicator(Enum):
         name_zh="肌肉率",
         description="Percentage of muscle relative to total body weight",
         description_zh="肌肉占体重的百分比",
-        data_type=HealthDataType.SERIES,
+        data_type=HealthDataType.MIX,
     )
     PROTEIN_PERCENTAGE = IndicatorInfo(
         category=Categories.BODY_COMPOSITION.value,
@@ -1051,7 +1051,7 @@ class StandardIndicator(Enum):
         name_zh="蛋白质率",
         description="Percentage of protein relative to total body weight",
         description_zh="蛋白质占体重的百分比",
-        data_type=HealthDataType.SERIES,
+        data_type=HealthDataType.MIX,
     )
     RECOVERY_SCORE = IndicatorInfo(
         category=Categories.PERFORMANCE.value,
@@ -1801,7 +1801,7 @@ class StandardIndicator(Enum):
         name_zh="皮下脂肪",
         description="Subcutaneous fat percentage",
         description_zh="皮下脂肪百分比",
-        data_type=HealthDataType.SERIES,
+        data_type=HealthDataType.MIX,
     )
     TEMPERATURE_DELTA = IndicatorInfo(
         category=Categories.VITAL_SIGNS.value,
@@ -1882,7 +1882,7 @@ class StandardIndicator(Enum):
         name_zh="内脏脂肪",
         description="Visceral fat level around organs",
         description_zh="内脏周围脂肪等级",
-        data_type=HealthDataType.SERIES,
+        data_type=HealthDataType.MIX,
     )
     VO2_MAX = IndicatorInfo(
         category=Categories.PERFORMANCE.value,
@@ -1947,7 +1947,7 @@ class StandardIndicator(Enum):
         name_zh="锻炼时长",
         description="Total workout duration",
         description_zh="总锻炼时间",
-        data_type=HealthDataType.SERIES,
+        data_type=HealthDataType.MIX,
     )
     WORKOUT_DURATION_HIGH = IndicatorInfo(
         category=Categories.PERFORMANCE.value,

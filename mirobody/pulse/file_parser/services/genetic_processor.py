@@ -12,6 +12,7 @@ from typing import Any, Dict, Generator, List
 from mirobody.utils.i18n import clear_translation_cache, t
 from mirobody.utils import execute_query
 from mirobody.pulse.file_parser.services.database_services import FileParserDatabaseService
+from mirobody.pulse.file_parser.services.file_db_service import FileDbService
 
 
 
@@ -43,12 +44,14 @@ class GeneticDataLoader:
         user_id=None,
         display_filename: str = None,
         display_file_size: int = None,
+        file_key: str = None,  # New: file_key for th_files updates
     ):
         self.message_id = message_id
         self.language = language
         self.user_id = user_id
         self.display_filename = display_filename
         self.display_file_size = display_file_size
+        self.file_key = file_key
 
     def parse_genetic_file(
         self,
@@ -117,13 +120,12 @@ class GeneticDataLoader:
 
 
     async def update_progress(self, processed: int, saved: int, message: str, total: int = None):
-        """Update processing progress"""
-        if not self.message_id:
+        """Update processing progress - updates th_files table"""
+        if not self.file_key:
             return
 
         try:
             from ..file_upload_manager import websocket_file_upload_manager
-            db_service = FileParserDatabaseService()
 
             # Calculate progress: genetic processing maps to 50-100%
             genetic_progress = min((processed / total * 100), 100) if total and total > 0 else 0
@@ -132,39 +134,29 @@ class GeneticDataLoader:
             content = t("genetic_progress_display", self.language, "load_genetic_data",
                        processed=processed, saved=saved, percent=progress_percent)
 
-            # Get existing message content to preserve file details
+            # Update th_files table with progress
             try:
-                existing_message = await db_service.get_message_details(self.message_id)
-                existing_content = existing_message.get("content", "")
-
-                if existing_content:
-                    try:
-                        existing_data = json.loads(existing_content)
-                        if isinstance(existing_data, dict) and existing_data.get("files"):
-                            # Preserve file details and update progress
-                            updated_content = existing_data.copy()
-                            updated_content.update({
-                                "status": "processing", "progress": int(progress_percent),
-                                "message": content, "timestamp": datetime.now().isoformat(),
-                                "progress_details": {"processed": processed, "saved": saved,
-                                                    "progress_percent": progress_percent, "stage": "genetic_processing"}
-                            })
-                            for file_info in updated_content.get("files", []):
-                                # Match by filename or type (initial type might be MIME type like "text/plain")
-                                if file_info.get("type") == "genetic" or file_info.get("filename") == self.display_filename:
-                                    file_info.update({"progress": int(progress_percent), "status": "processing", "progress_message": content, "type": "genetic"})
-                            await db_service.update_message_content(message_id=self.message_id, content=updated_content)
-                        else:
-                            await db_service.update_message_content(message_id=self.message_id, content=content, reasoning=message)
-                    except json.JSONDecodeError:
-                        await db_service.update_message_content(message_id=self.message_id, content=content, reasoning=message)
-                else:
-                    await db_service.update_message_content(message_id=self.message_id, content=content, reasoning=message)
-            except Exception:
-                await db_service.update_message_content(message_id=self.message_id, content=content, reasoning=message)
+                await FileDbService.update_file_content(
+                    file_key=self.file_key,
+                    updates={
+                        "status": "processing",
+                        "progress": int(progress_percent),
+                        "message": content,
+                        "timestamp": datetime.now().isoformat(),
+                        "progress_details": {
+                            "processed": processed,
+                            "saved": saved,
+                            "progress_percent": progress_percent,
+                            "stage": "genetic_processing"
+                        },
+                        "raw": content,
+                    }
+                )
+            except Exception as e:
+                logging.warning(f"Failed to update th_files progress: {e}")
 
             # Send real-time progress updates via WebSocket
-            if self.user_id:
+            if self.message_id:
                 try:
                     detailed_message = f"🧬 Genetic data processing... {processed:,}/{total:,} ({progress_percent:.1f}%)"
                     if total and processed > 1000:
@@ -173,11 +165,13 @@ class GeneticDataLoader:
                             time_str = f"{remaining_time / 60:.0f}min" if remaining_time > 60 else f"{remaining_time:.0f}s"
                             detailed_message += f" ~{time_str} remaining"
 
-                    await websocket_file_upload_manager.send_message(str(self.user_id), {
+                    # Use send_message_by_message_id to find connection from session
+                    await websocket_file_upload_manager.send_message_by_message_id(self.message_id, {
                         "type": "upload_progress", "messageId": self.message_id,
                         "status": "processing", "progress": int(progress_percent),
                         "message": detailed_message, "file_type": "genetic",
                         "filename": self.display_filename, "success": False,
+                        "file_key": self.file_key,
                         "processing_stats": {"processed_records": processed, "saved_records": saved,
                                            "total_estimated": total, "progress_percent": progress_percent},
                     })
@@ -321,11 +315,18 @@ async def process_genetic_file(
     original_file_size: int = None,  # New: original file size parameter
     source_table: str = None,  # New: data source table name
     source_table_id: str = None,  # New: data source table record ID
-    file_key: str = None,  # New: file_key for th_messages files field
+    file_key: str = None,  # New: file_key for th_files updates
     full_url: str = None,  # New: OSS/S3 URL for the file
     file_abstract: str = None,  # New: file abstract/summary
+    target_user_id: str = None,  # Data owner ID for th_series_data_genetic
 ):
-    """Entry function for processing genetic data files"""
+    """Entry function for processing genetic data files - writes to th_files table
+    
+    Args:
+        user_id: Uploader ID (for WebSocket notifications)
+        target_user_id: Data owner ID (for th_series_data_genetic.user_id)
+        ... other params
+    """
     try:
         # Import websocket manager locally to avoid circular import
         from ..file_upload_manager import websocket_file_upload_manager
@@ -336,107 +337,56 @@ async def process_genetic_file(
         display_filename = original_filename or temp_file_path.name
         display_file_size = original_file_size or (temp_file_path.stat().st_size if temp_file_path.exists() else 0)
 
-        loader = GeneticDataLoader(message_id, language, user_id, display_filename, display_file_size)
+        # Determine the user ID for genetic data ownership
+        # Use target_user_id if provided (upload for others), otherwise use uploader's user_id
+        data_owner_user_id = target_user_id or user_id
 
-        if message_id:
+        # Pass file_key to loader for th_files updates
+        loader = GeneticDataLoader(message_id, language, user_id, display_filename, display_file_size, file_key)
+
+        if file_key:
             await loader.update_progress(0, 0, t("genetic_initializing_loader", language, "load_genetic_data"))
 
-        # Execute data loading
+        # Execute data loading - use data_owner_user_id for th_series_data_genetic
         loaded_records = await loader.load_user_genetic_data(
-            user_id,
+            data_owner_user_id,  # Use target user ID for genetic data ownership
             str(temp_file_path),
             source_table=source_table,
             source_table_id=source_table_id,
         )
 
-        # Update completion status
-        if message_id:
+        # Update completion status in th_files
+        if file_key:
             final_content = t(
                 "genetic_processing_complete_message",
                 language,
                 "load_genetic_data",
                 records=loaded_records,
             )
-            final_reasoning = t(
-                "genetic_processing_complete_reasoning",
-                language,
-                "load_genetic_data",
-                records=loaded_records,
-            )
 
-            db_service = FileParserDatabaseService()
-
-            # Build complete file info structure (consistent with Excel format)
             url_value = full_url or display_filename
-            complete_file_info = {
-                "filename": display_filename,
-                "type": "genetic",
-                "url_thumb": url_value,
-                "url_full": url_value,
-                "raw": final_content,
-                "file_abstract": file_abstract or "",
-                "file_name": display_filename,
-                "file_size": display_file_size,
-                "file_key": file_key or "",
-                "success": True,
-                "status": "completed",
-                "progress": 100,
-                "loaded_records": loaded_records,
-                "contentType": "text/plain",
-            }
-
-            # Get existing message content to preserve session info etc.
-            try:
-                existing_message = await db_service.get_message_details(message_id)
-                existing_content = existing_message.get("content", "")
-                existing_data = {}
-
-                if existing_content:
-                    try:
-                        existing_data = json.loads(existing_content)
-                        if not isinstance(existing_data, dict):
-                            existing_data = {}
-                    except json.JSONDecodeError:
-                        existing_data = {}
-
-                # Build complete content structure (consistent with Excel format)
-                updated_content = {
-                    "success": True,
-                    "message": "Processing completed: 1 files successful",
-                    "type": "genetic",
-                    "url_thumb": [url_value],
-                    "url_full": [url_value],
-                    "message_id": message_id,
-                    "files": [complete_file_info],
-                    "original_filenames": [display_filename],
-                    "file_sizes": [display_file_size],
-                    "upload_time": existing_data.get("upload_time", datetime.now().isoformat()),
-                    "total_files": 1,
-                    "successful_files": 1,
-                    "failed_files": 0,
-                    "CODE_VERSION": "v2.0_WEBSOCKET_GENETIC_SUPPORTED",
+            
+            # Update th_files with completion status
+            await FileDbService.update_file_content(
+                file_key=file_key,
+                updates={
                     "status": "completed",
                     "progress": 100,
-                    "timestamp": datetime.now().isoformat(),
+                    "processed": True,
+                    "raw": final_content,
+                    "file_abstract": file_abstract or "",
                     "loaded_records": loaded_records,
+                    "timestamp": datetime.now().isoformat(),
+                    "success": True,
+                    "type": "genetic",
                 }
-
-                # Preserve session info from existing data
-                for key in ["query_user_id", "target_user_name", "is_uploaded_for_others", "query", "session_id"]:
-                    if key in existing_data:
-                        updated_content[key] = existing_data[key]
-
-                await db_service.update_message_content(message_id=message_id, content=updated_content, reasoning=final_reasoning)
-
-            except Exception as e:
-                logging.warning(f"Failed to update complete content, using simple format: {e}")
-                await db_service.update_message_content(message_id=message_id, content=final_content, reasoning=final_reasoning)
+            )
 
             # Send completion status via WebSocket
-            if user_id:
+            if message_id:
                 try:
                     detailed_final_message = f"✅ Genetic data processing completed! Saved {loaded_records:,} records"
-                    send_success = await websocket_file_upload_manager.send_message(str(user_id), {
+                    send_success = await websocket_file_upload_manager.send_message_by_message_id(message_id, {
                         "type": "upload_completed", "messageId": message_id, "status": "completed",
                         "progress": 100, "message": detailed_final_message, "file_type": "genetic",
                         "filename": display_filename, "success": True, "raw": final_content,
@@ -474,115 +424,39 @@ async def process_genetic_file(
         display_filename = original_filename or temp_file_path.name
         display_file_size = original_file_size or (temp_file_path.stat().st_size if temp_file_path.exists() else 0)
 
-        # Update failure status
-        if message_id:
+        # Update failure status in th_files
+        if file_key:
             try:
-                db_service = FileParserDatabaseService()
-
                 failed_content = t(
                     "genetic_processing_failed_message",
                     language,
                     "load_genetic_data",
                     stack_info=True,
                 )
-                failed_reasoning = t(
-                    "genetic_processing_failed_reasoning",
-                    language,
-                    "load_genetic_data",
-                    stack_info=True,
+
+                # Update th_files with failure status
+                await FileDbService.update_file_content(
+                    file_key=file_key,
+                    updates={
+                        "status": "failed",
+                        "progress": 0,
+                        "processed": False,
+                        "success": False,
+                        "error": str(e),
+                        "raw": failed_content,
+                        "timestamp": datetime.now().isoformat(),
+                        "type": "genetic",
+                    }
                 )
-
-                # 🔧 Fix: Get existing message content to avoid overwriting file details
-                try:
-                    existing_message = await db_service.get_message_details(message_id)
-                    existing_content = existing_message.get("content", "")
-
-                    if existing_content:
-                        try:
-                            existing_data = json.loads(existing_content)
-                            # If existing content contains file details, preserve them and update to failure status
-                            if isinstance(existing_data, dict) and existing_data.get("files"):
-                                # Update failure status while preserving file details
-                                updated_content = existing_data.copy()
-                                updated_content.update(
-                                    {
-                                        "status": "failed",
-                                        "progress": 0,
-                                        "message": failed_content,
-                                        "timestamp": datetime.now().isoformat(),
-                                        "success": False,
-                                        "error": str(e),
-                                        "processing_failed": True,
-                                        "progress_details": {
-                                            "processed": 0,
-                                            "saved": 0,
-                                            "progress_percent": 0,
-                                            "stage": "genetic_failed",
-                                            "error": str(e),
-                                        },
-                                    }
-                                )
-
-                                # Update failure status for each file
-                                if "files" in updated_content:
-                                    for file_info in updated_content["files"]:
-                                        # Match by filename or type (initial type might be MIME type like "text/plain")
-                                        if file_info.get("type") == "genetic" or file_info.get("filename") == display_filename:
-                                            file_info["progress"] = 0
-                                            file_info["status"] = "failed"
-                                            file_info["success"] = False
-                                            file_info["progress_message"] = failed_content
-                                            file_info["error"] = str(e)
-                                            file_info["raw"] = failed_content
-                                            file_info["file_key"] = file_key
-                                            file_info["type"] = "genetic"
-
-                                await db_service.update_message_content(
-                                    message_id=message_id,
-                                    content=updated_content,
-                                    reasoning=failed_reasoning,
-                                )
-                            else:
-                                # If no file details, use simple failure update
-                                await db_service.update_message_content(
-                                    message_id=message_id,
-                                    content=failed_content,
-                                    reasoning=failed_reasoning,
-                                )
-                        except json.JSONDecodeError:
-                            # If parsing fails, use simple failure update
-                            await db_service.update_message_content(
-                                message_id=message_id,
-                                content=failed_content,
-                                reasoning=failed_reasoning,
-                            )
-                    else:
-                        # If no existing content, use simple failure update
-                        await db_service.update_message_content(
-                            message_id=message_id,
-                            content=failed_content,
-                            reasoning=failed_reasoning,
-                        )
-
-                except Exception as update_error:
-                    logging.warning(f"Failed to get existing message content: {update_error}, using simple update")
-                    await db_service.update_message_content(
-                        message_id=message_id,
-                        content=failed_content,
-                        reasoning=failed_reasoning,
-                    )
 
                 # Send failure status via WebSocket
                 try:
-                    # 🔧 Fix: Use correct file info in WebSocket updates
-                    if user_id:
-                        # 🔧 Enhancement: WebSocket error handling
+                    if message_id:
                         try:
-                            # Use websocket_file_upload_manager to send failure status
-                            send_success = await websocket_file_upload_manager.send_message(
-                                str(user_id),  # 🔧 Ensure user ID is string type
+                            send_success = await websocket_file_upload_manager.send_message_by_message_id(
+                                message_id,
                                 {
-                                    "type": "upload_error",  # 🔧 Fix: Use frontend expected message type
+                                    "type": "upload_error",
                                     "messageId": message_id,
                                     "status": "failed",
                                     "progress": 0,
@@ -593,28 +467,24 @@ async def process_genetic_file(
                                     "raw": failed_content,
                                     "url_thumb": display_filename,
                                     "url_full": display_filename,
-                                    "error": str(e),  # 🔧 New: Provide error details for frontend
+                                    "file_key": file_key,
+                                    "error": str(e),
                                 },
                             )
-                            # 🔧 Fix: Only log success when actually sent successfully
                             if send_success:
-                                logging.info(f"✅ WebSocket failure status sent successfully: user_id={user_id}, error={str(e)}")
+                                logging.info(f"✅ WebSocket failure status sent successfully: message_id={message_id}, error={str(e)}")
                             else:
-                                logging.info(f"📡 WebSocket failure status send failed (user not connected): user_id={user_id}")
+                                logging.info(f"📡 WebSocket failure status send failed (session not found): message_id={message_id}")
                         except Exception as ws_error:
                             logging.info(f"📡 WebSocket failure status send exception: {ws_error}")
-                            logging.info(f"📝 Error information recorded to database: {str(e)}")
-                            # WebSocket failure does not affect error recording, error information has been saved to database
                     else:
-                        logging.warning(f"WebSocket failure status update skipped: user_id is empty")
+                        logging.warning("WebSocket failure status update skipped: message_id is empty")
 
                 except Exception as ws_error:
                     logging.warning(f"⚠️ WebSocket module loading failed: {ws_error}")
-                    logging.info(f"📝 Even if WebSocket is unavailable, error information has been recorded to database: {str(e)}")
-                    # WebSocket failure does not affect error recording, error information has been saved to database
 
             except Exception as update_error:
-                logging.error(f"Error updating failure message status: {update_error}")
+                logging.error(f"Error updating failure status in th_files: {update_error}")
 
         return {
             "success": False,

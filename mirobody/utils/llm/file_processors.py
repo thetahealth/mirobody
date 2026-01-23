@@ -323,6 +323,132 @@ class FileProcessor:
             else:
                 raise ValueError(f"Gemini API failed: {error_msg}") from e
 
+    @staticmethod
+    async def gemini_multi_file_extract(
+        files: List[Dict[str, str]],
+        prompt: str,
+        config: Optional[types.GenerateContentConfig] = None,
+        model: str = "gemini-3-flash-preview",
+    ) -> str:
+        """
+        Use Gemini model to process multiple files at once
+        
+        Args:
+            files: List of file dictionaries, each containing:
+                   - 'path': local file path
+                   - 'mime_type': file MIME type
+            prompt: Prompt text
+            config: Generation configuration
+            model: Model name
+            
+        Returns:
+            Extracted content from files
+        """
+        try:
+            # Validate files list is not empty
+            if not files:
+                logging.error("Files list is empty")
+                raise ValueError("Files list cannot be empty")
+            
+            # Validate each file has required keys
+            for idx, file in enumerate(files):
+                if not isinstance(file, dict):
+                    logging.error(f"File at index {idx} is not a dictionary")
+                    raise ValueError(f"File at index {idx} must be a dictionary")
+                if "path" not in file:
+                    logging.error(f"File at index {idx} is missing 'path' key")
+                    raise ValueError(f"File at index {idx} is missing required 'path' key")
+                if "mime_type" not in file:
+                    logging.error(f"File at index {idx} is missing 'mime_type' key")
+                    raise ValueError(f"File at index {idx} is missing required 'mime_type' key")
+            
+            # Check if all files exist
+            for file in files:
+                filepath = pathlib.Path(file["path"])
+                if not filepath.exists():
+                    logging.error(f"File does not exist: {file['path']}")
+                    raise ValueError(f"File does not exist: {file['path']}")
+            
+            # Get Gemini client
+            client = client_manager.get_async_gemini_client()
+            
+            # Set default config if not provided
+            if config is None:
+                config = types.GenerateContentConfig(temperature=0.1)
+            
+            # Build contents list with all files
+            contents = []
+            
+            # Add all file parts
+            for file in files:
+                filepath = pathlib.Path(file["path"])
+                file_data = filepath.read_bytes()
+                
+                # Optimize image files before sending to API
+                if file["mime_type"] and file["mime_type"].startswith('image/'):
+                    optimized_data, stats = FileProcessor.optimize_image_for_llm(
+                        file_data,
+                        max_dimension=1536,  # Suitable resolution for medical reports
+                        quality=85  # Maintain high quality for text clarity
+                    )
+                    logging.info(f"Gemini: Image {file['path']} optimized for processing, {stats}")
+                    file_data = optimized_data
+                
+                file_part = types.Part.from_bytes(
+                    data=file_data,
+                    mime_type=file["mime_type"],
+                )
+                contents.append(file_part)
+            
+            # Add prompt at the end
+            contents.append(prompt)
+            
+            # Call Gemini API
+            response = await client.models.generate_content(
+                model=model,
+                contents=contents,
+                config=config,
+            )
+            
+            # Check if response is valid
+            if not response:
+                logging.error("Gemini API returned empty response")
+                return ""
+            
+            # Check if response has text content
+            if not hasattr(response, "text") or response.text is None:
+                logging.error("Gemini API response has no text content")
+                return ""
+            
+            # Check for candidates and content safety
+            if hasattr(response, "candidates") and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, "finish_reason"):
+                    if candidate.finish_reason in ["SAFETY", "BLOCKED"]:
+                        logging.warning(f"Content blocked by safety filter: {candidate.finish_reason}")
+                        return ""
+                    elif candidate.finish_reason == "OTHER":
+                        logging.warning("Content generation stopped for unknown reason")
+                        return ""
+            
+            return response.text or ""
+            
+        except Exception as e:
+            error_msg = str(e)
+            logging.error(f"Gemini multi-file processing failed: {type(e).__name__}: {error_msg}", stack_info=True)
+            # Check for specific error types and raise with appropriate message
+            if "User location is not supported" in error_msg:
+                raise ValueError("Gemini API error: User location is not supported for the API use. Please check your API region settings.")
+            elif "400" in error_msg or "FAILED_PRECONDITION" in error_msg:
+                raise ValueError(f"Gemini API configuration error: {error_msg}")
+            elif "401" in error_msg or "403" in error_msg:
+                raise ValueError(f"Gemini API authentication error: {error_msg}")
+            elif "429" in error_msg:
+                raise ValueError(f"Gemini API rate limit exceeded: {error_msg}")
+            else:
+                # Re-raise the original exception with context
+                raise ValueError(f"Gemini API failed: {error_msg}") from e
+
 
 class VisionProcessor:
     """Vision Processor - Uses OpenRouter to call vision models"""
@@ -924,6 +1050,24 @@ async def gemini_file_extract(
         model: Model name
     """
     return await FileProcessor.gemini_file_extract(file_path, content_type, prompt, config, model)
+
+
+async def gemini_multi_file_extract(
+    files: List[Dict[str, str]], 
+    prompt: str, 
+    config=None, 
+    model: str = "gemini-2.5-flash"
+) -> str:
+    """
+    Extract content from multiple files using Gemini vision model
+    
+    Args:
+        files: List of file dictionaries with 'path' and 'mime_type' keys
+        prompt: Extraction prompt
+        config: Configuration parameters
+        model: Model name
+    """
+    return await FileProcessor.gemini_multi_file_extract(files, prompt, config, model)
 
 
 async def doubao_file_extract(

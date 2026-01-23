@@ -15,6 +15,8 @@ FILE_ABSTRACT_PROMPT = """Please generate a detailed abstract and filename for t
 ## Filename Generation Requirements (file_name):
 1. **Information Completeness**: Include the following key information (if present in file):
    - Date: Prefer YYYY-MM-DD format (e.g., 2024-03-15)
+     - **Date Priority**: Sample Collection Date > Sample Receipt Date > Report Date > File Upload Date
+     - Always use the highest priority date found in the document
    - Core content description: Main subject name (e.g., Blood Test Report, Chest CT, ECG)
    - Important distinguishing info: Institution name, examination area, test type, etc. (optional)
    

@@ -9,8 +9,6 @@ from typing import Any, AsyncGenerator
 
 from .agent import get_global_agent
 
-from ..utils.config import global_config
-
 #-----------------------------------------------------------------------------
 
 class UnifiedChatService:
@@ -32,7 +30,9 @@ class UnifiedChatService:
         query_user_id: str,
         agent: str,
         messages: list[dict[str, Any]],
+        user_id: str | None = None,  # JWT认证的用户ID（可选）
         file_list: list | None = None,
+        files_data: list | None = None,
         prompt_name: str = "",
         **kwargs
     ) -> AsyncGenerator[dict[str, Any], None]:
@@ -48,6 +48,7 @@ class UnifiedChatService:
             query_user_id: User being queried (for help-ask feature)
             agent: Agent type to use
             messages: Previous messages in the conversation including current user's message
+            user_id: JWT authenticated user ID (optional, defaults to query_user_id)
             file_list: List of files attached to the message
             prompt_name: Name of the prompt template to use
             **kwargs: Additional arguments (trace_id, session_id, provider, timezone, language, token, etc.)
@@ -70,26 +71,26 @@ class UnifiedChatService:
 
         #-------------------------------------------------
         # Load agent configuration
-
-        config = global_config()
-        agent_options = config.get_options_for_agent(agent) if config else {}
-
+        
+        authenticated_user_id = user_id or query_user_id
+        
         agent_kwargs = {
             # User.
-            "user_id"           : query_user_id,
-            "session_id"        : kwargs.get("session_id", "") or kwargs.get("trace_id", ""),
-            "language"          : kwargs.get("language", "en"),
-            "timezone"          : kwargs.get("timezone", "America/Los_Angeles"),
-            "token"             : kwargs.get("token", ""),
+            "user_id"               : query_user_id, # for backward compatibility
+            "authenticated_user_id" : authenticated_user_id,  
+            "query_user_id"         : query_user_id,  
+            "session_id"            : kwargs.get("session_id", "") or kwargs.get("trace_id", ""),
+            "language"              : kwargs.get("language", "en"),
+            "timezone"              : kwargs.get("timezone", "America/Los_Angeles"),
+            "token"                 : kwargs.get("token", ""),
             # Chat.
-            "messages"          : messages,
-            "file_list"         : file_list or [],
+            "messages"              : messages,
+            "file_list"             : file_list or [],
+            "files_data"            : files_data,  # Downloaded file content (avoids re-download)
             # LLM.
-            "provider"          : kwargs.get("provider", ""),
-            "allowed_tools"     : agent_options.get("allowed_tools"),
-            "disallowed_tools"  : agent_options.get("disallowed_tools"),
-            "prompt_templates"  : agent_options.get("prompt_templates"),
-            "prompt_name"       : prompt_name,
+            "provider"              : kwargs.get("provider", ""),
+            "prompt_name"           : prompt_name,
+            "tools"                 : kwargs.get("tools", None),
         }
 
         #-------------------------------------------------
@@ -100,7 +101,7 @@ class UnifiedChatService:
 
             if agent_instance:
                 # Use the requested agent
-                logging.info(f"Using agent '{agent}' for user: {query_user_id}")
+                logging.info(f"Using agent '{agent}' for authenticated_user: {authenticated_user_id}, query_user: {query_user_id}")
 
             else:
                 # Agent initialization failed - fallback with warning
@@ -108,17 +109,17 @@ class UnifiedChatService:
                     f"⚠️ Agent '{agent}' failed to initialize for user {query_user_id}. "
                     f"Falling back to DeepAgent."
                 )
-                
+
                 # Yield warning chunk so frontend knows about the fallback
                 yield {
                     "type": "thinking",
                     "content": f"[System] Agent '{agent}' unavailable, using default agent."
                 }
-                
+
                 # Try Deep as fallback
                 agent = "Deep"
                 agent_instance = get_global_agent(agent_name = agent, **agent_kwargs)
-                
+
                 if not agent_instance:
                     yield {"type": "error", "content": f"No agent instance available"}
                     yield {"type": "end", "content": ""}
@@ -129,7 +130,7 @@ class UnifiedChatService:
             # Stream chunks directly from agent without accumulation or formatting
             async for chunk in response_gen:
                 yield chunk
-            
+
             # Signal end of stream
             yield {"type": "end", "content": ""}
 

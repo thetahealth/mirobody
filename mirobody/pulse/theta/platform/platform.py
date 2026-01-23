@@ -7,7 +7,7 @@ import importlib.util
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from mirobody.pulse.base import LinkRequest, Platform, ProviderInfo, UserProvider
 from mirobody.pulse.core import ProviderStatus
@@ -350,3 +350,172 @@ class ThetaPlatform(Platform):
         except Exception as e:
             logging.error(f"Error syncing theta devices for user {user_id}: {str(e)}")
             return False
+
+    # ===== Webhook Management (for Management UI) =====
+
+    async def get_webhooks(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        provider: Optional[str] = None,
+        event_type: Optional[str] = None,
+        user_id: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get webhook/raw data records with pagination and filters
+        
+        For Theta platform, 'provider' parameter is REQUIRED to specify which provider's data to query.
+        This method delegates to the provider's get_raw_data_records method.
+        
+        Args:
+            page: Page number (starting from 1)
+            page_size: Number of records per page
+            provider: Provider slug (REQUIRED for Theta, e.g., 'theta_garmin')
+            event_type: Not used for Theta (kept for interface compatibility)
+            user_id: Optional filter by user ID
+            status: Not used for Theta (kept for interface compatibility)
+            
+        Returns:
+            Dictionary containing paginated webhook data with metadata
+            
+        Raises:
+            ValueError: If provider parameter is not provided
+        """
+        if not provider:
+            raise ValueError("Provider parameter is required for Theta platform")
+        
+        logging.info(f"Getting Theta webhooks for provider {provider}: page={page}, page_size={page_size}, user_id={user_id}")
+        
+        # Get provider instance
+        provider_instance = self.get_provider(provider)
+        if not provider_instance:
+            raise ValueError(f"Provider '{provider}' not found in Theta platform")
+        
+        # Call provider's get_raw_data_records method
+        raw_data_result = await provider_instance.get_raw_data_records(
+            page=page,
+            page_size=page_size,
+            user_id=user_id,
+            start_date=None,  # Not filtering by date in webhook list
+            end_date=None,
+        )
+        
+        # Transform to webhook format for frontend compatibility
+        webhooks = []
+        for record in raw_data_result.get("records", []):
+            webhook = {
+                "id": record.get("id"),
+                "create_at": record.get("create_at"),
+                "event_type": provider,  # Use provider slug as event_type
+                "user_id": record.get("theta_user_id"),
+                "client_user_id": record.get("external_user_id", ""),
+                "team_id": "",  # Theta doesn't have team_id
+                "msg_id": record.get("msg_id", ""),
+                "req_id": "",  # Theta doesn't have req_id
+                "status": 1,  # Assume success (1) for existing records
+                "app_user_id": record.get("theta_user_id"),
+                "is_event_type_implemented": True,  # Theta providers are all implemented
+            }
+            webhooks.append(webhook)
+        
+        return {
+            "webhooks": webhooks,
+            "total": raw_data_result.get("total", 0),
+            "page": page,
+            "page_size": page_size,
+            "total_pages": raw_data_result.get("total_pages", 0),
+        }
+
+    async def check_format(self, webhook_id: int, provider: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Check webhook format by retrieving raw data and simulating provider processing
+        
+        For Theta platform, 'provider' parameter is REQUIRED to specify which provider's data to check.
+        This method calls the provider's format_data() method to show the actual formatting transformation.
+        
+        Args:
+            webhook_id: Record ID from database
+            provider: Provider slug (REQUIRED for Theta, e.g., 'theta_garmin')
+            
+        Returns:
+            Dictionary containing original data and formatted result
+            
+        Raises:
+            ValueError: If provider parameter is not provided
+        """
+        if not provider:
+            raise ValueError("Provider parameter is required for Theta platform")
+        
+        logging.info(f"Checking Theta format for provider {provider}, webhook_id: {webhook_id}")
+        
+        # Get provider instance
+        provider_instance = self.get_provider(provider)
+        if not provider_instance:
+            raise ValueError(f"Provider '{provider}' not found in Theta platform")
+        
+        # Get the raw data record by ID
+        raw_data_result = await provider_instance.get_raw_data_by_id(webhook_id)
+        
+        if not raw_data_result:
+            raise ValueError(f"Record with ID {webhook_id} not found for provider {provider}")
+        
+        # Extract raw_data field (original webhook data)
+        original_data = raw_data_result.get("raw_data", {})
+        
+        # Call provider's format_data method to get formatted result
+        # IMPORTANT: Pass the raw_data field, not the entire database record!
+        try:
+            formatted_pulse_data = await provider_instance.format_data(original_data)
+            
+            # Convert StandardPulseData to dict for JSON serialization
+            # Use model_dump() or dict() to safely convert Pydantic models
+            if hasattr(formatted_pulse_data, 'model_dump'):
+                # Pydantic v2
+                formatted_data = formatted_pulse_data.model_dump()
+            elif hasattr(formatted_pulse_data, 'dict'):
+                # Pydantic v1
+                formatted_data = formatted_pulse_data.dict()
+            else:
+                # Fallback: manual conversion
+                formatted_data = {
+                    "metaInfo": {
+                        "userId": getattr(formatted_pulse_data.metaInfo, 'userId', None),
+                        "timezone": getattr(formatted_pulse_data.metaInfo, 'timezone', None),
+                        "startTime": getattr(formatted_pulse_data.metaInfo, 'startTime', None),
+                        "endTime": getattr(formatted_pulse_data.metaInfo, 'endTime', None),
+                    } if formatted_pulse_data.metaInfo else None,
+                    "healthData": [
+                        {
+                            "type": getattr(record, 'type', None),
+                            "value": getattr(record, 'value', None),
+                            "unit": getattr(record, 'unit', None),
+                            "startTime": getattr(record, 'startTime', None),
+                            "endTime": getattr(record, 'endTime', None),
+                            "sourceId": getattr(record, 'sourceId', None),
+                            "metadata": getattr(record, 'metadata', None),
+                        }
+                        for record in (formatted_pulse_data.healthData or [])
+                    ],
+                    "processingInfo": formatted_pulse_data.processingInfo if hasattr(formatted_pulse_data, 'processingInfo') else None,
+                }
+            
+            success = True
+            error_msg = None
+            
+        except Exception as e:
+            logging.error(f"Error formatting data: {str(e)}", exc_info=True)
+            formatted_data = None
+            success = False
+            error_msg = str(e)
+        
+        # Return format check result
+        return {
+            "success": success,
+            "original_data": original_data,  # The raw webhook data (raw_data field)
+            "formatted_data": formatted_data,  # The formatted StandardPulseData
+            "event_type": provider,
+            "msg_id": raw_data_result.get("msg_id", ""),
+            "user_id": raw_data_result.get("theta_user_id", ""),
+            "error": error_msg,
+        }

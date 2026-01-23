@@ -73,6 +73,9 @@ CREATE TABLE IF NOT EXISTS theta_ai.series_data (
     CONSTRAINT unique_series_data_user_indicator_source_time UNIQUE (user_id, indicator, source, time)
 );
 
+-- Create composite index on user_id and platform for better query performance
+CREATE INDEX IF NOT EXISTS idx_series_data_user_platform
+ON theta_ai.series_data(user_id, platform) WHERE platform IS NOT NULL;
 
 
 CREATE TABLE IF NOT EXISTS theta_ai.th_series_data

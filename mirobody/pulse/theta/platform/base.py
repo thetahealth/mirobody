@@ -14,6 +14,7 @@ from mirobody.pulse.core.push_service import push_service
 from mirobody.pulse.core.user import ThetaUserService
 from mirobody.pulse.data_upload.models.requests import StandardPulseData, StandardPulseMetaInfo
 from mirobody.pulse.theta.platform.database_service import ThetaDatabaseService
+from mirobody.utils import execute_query
 
 
 class BaseThetaProvider(Provider):
@@ -281,3 +282,227 @@ class BaseThetaProvider(Provider):
 
     async def pull_from_vendor_api(self, username: str, password: str) -> List[Dict[str, Any]]:
         raise NotImplementedError("Subclasses must implement pull_from_vendor_api method")
+
+    # ========== Raw Data Query Methods (for Management UI) ==========
+
+    def get_table_name(self) -> str:
+        """
+        Get the database table name for this provider
+        
+        Default implementation: theta_ai.health_data_{provider_name}
+        where provider_name is extracted from provider slug (e.g., theta_renpho -> renpho)
+        
+        Providers can override this method for custom table names.
+        
+        Returns:
+            Full table name with schema (e.g., "theta_ai.health_data_renpho")
+        """
+        # Extract provider name from slug: theta_renpho -> renpho
+        provider_name = self.info.slug.replace("theta_", "")
+        return f"theta_ai.health_data_{provider_name}"
+
+    def get_user_id_column(self) -> str:
+        """
+        Get the user ID column name for this provider
+        
+        Default: "theta_user_id"
+        Override for providers using different column names (e.g., FrontierX uses "uid")
+        
+        Returns:
+            Column name for system user ID
+        """
+        return "theta_user_id"
+
+    def get_query_columns(self) -> List[str]:
+        """
+        Get the columns to select in raw data query
+        
+        Default: standard columns matching actual Garmin/Whoop table structure
+        Override for providers with different column structure.
+        
+        Returns:
+            List of column names to select
+        """
+        return [
+            "id",
+            self.get_user_id_column(),
+            "external_user_id",
+            "msg_id",
+            "raw_data",
+            "create_at",
+            "update_at",
+            "is_del"
+        ]
+
+    def get_order_by_clause(self) -> str:
+        """
+        Get the ORDER BY clause for raw data query
+        
+        Default: "ORDER BY create_at DESC, id DESC"
+        Override for custom sorting.
+        
+        Returns:
+            ORDER BY clause (without the "ORDER BY" prefix)
+        """
+        return "create_at DESC, id DESC"
+
+    async def get_raw_data_records(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        user_id: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Query raw data records from provider's storage table
+        
+        This is a generic implementation that works for standard table structures.
+        Providers with non-standard tables (like Resmed) should override this method.
+        
+        Standard table structure:
+        - id: bigint (identity)
+        - create_at, update_at: timestamp
+        - user_id: varchar - system user ID
+        - out_uid: bigint/varchar - external platform user ID
+        - key: bigint - external data unique identifier
+        - data: text - JSON format raw data
+        
+        Args:
+            page: Page number (starting from 1)
+            page_size: Number of records per page
+            user_id: Optional filter for system user ID
+            start_date: Optional start date (YYYY-MM-DD)
+            end_date: Optional end date (YYYY-MM-DD)
+            
+        Returns:
+            Dictionary containing paginated raw data with metadata
+        """
+        try:
+            table_name = self.get_table_name()
+            user_id_column = self.get_user_id_column()
+            columns = self.get_query_columns()
+            order_by = self.get_order_by_clause()
+            
+            # Build WHERE clause
+            where_conditions = ["1=1"]
+            params = {"limit": page_size, "offset": (page - 1) * page_size}
+            
+            # Add soft delete filter if table has is_del column
+            if "is_del" in columns:
+                where_conditions.append("is_del = false")
+            
+            if user_id:
+                where_conditions.append(f"{user_id_column} = :user_id")
+                params["user_id"] = user_id
+                
+            if start_date:
+                where_conditions.append("create_at >= :start_date::timestamp")
+                params["start_date"] = start_date
+                
+            if end_date:
+                # End date should include the entire day
+                where_conditions.append("create_at < (:end_date::timestamp + interval '1 day')")
+                params["end_date"] = end_date
+            
+            where_clause = " AND ".join(where_conditions)
+            
+            # Count total records
+            count_query = f"""
+                SELECT COUNT(*) as total
+                FROM {table_name}
+                WHERE {where_clause}
+            """
+            count_result = await execute_query(query=count_query, params=params)
+            total = count_result[0]["total"] if count_result else 0
+            
+            # Get paginated records
+            columns_str = ", ".join(columns)
+            query = f"""
+                SELECT {columns_str}
+                FROM {table_name}
+                WHERE {where_clause}
+                ORDER BY {order_by}
+                LIMIT :limit OFFSET :offset
+            """
+            records = await execute_query(query=query, params=params)
+            
+            # Format records
+            formatted_records = []
+            for record in records:
+                formatted_record = {}
+                for col in columns:
+                    value = record.get(col)
+                    # Convert datetime to ISO format string
+                    if hasattr(value, 'isoformat'):
+                        formatted_record[col] = value.isoformat()
+                    else:
+                        formatted_record[col] = value
+                formatted_records.append(formatted_record)
+            
+            total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+            
+            return {
+                "records": formatted_records,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": total_pages,
+                "provider_slug": self.info.slug,
+            }
+            
+        except Exception as e:
+            logging.error(f"Error querying raw data for provider {self.info.slug}: {str(e)}")
+            return {
+                "records": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": 0,
+                "provider_slug": self.info.slug,
+                "error": str(e)
+            }
+
+    async def get_raw_data_by_id(self, record_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get a single raw data record by ID
+        
+        Args:
+            record_id: Record ID from database
+            
+        Returns:
+            Dictionary containing the record data, or None if not found
+        """
+        try:
+            table_name = self.get_table_name()
+            query_columns = self.get_query_columns()
+            columns_str = ", ".join(query_columns)
+            
+            query = f"""
+                SELECT {columns_str}
+                FROM {table_name}
+                WHERE id = :record_id
+            """
+            
+            records = await execute_query(query=query, params={"record_id": record_id})
+            
+            if not records or len(records) == 0:
+                logging.warning(f"Record with ID {record_id} not found in {table_name}")
+                return None
+            
+            record = records[0]
+            
+            # Format the record (convert datetime to ISO format)
+            formatted_record = {}
+            for col in query_columns:
+                value = record.get(col)
+                if hasattr(value, 'isoformat'):
+                    formatted_record[col] = value.isoformat()
+                else:
+                    formatted_record[col] = value
+            
+            return formatted_record
+            
+        except Exception as e:
+            logging.error(f"Error getting record {record_id} for provider {self.info.slug}: {str(e)}")
+            return None

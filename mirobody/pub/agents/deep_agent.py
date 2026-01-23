@@ -1,10 +1,11 @@
 # Standard library imports
 import logging
 import os
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Optional
 from dataclasses import dataclass, field
 
 from langchain_core.messages import BaseMessage
+from langchain_core.tools import BaseTool
 
 from mirobody.chat.model import UserInfo
 from mirobody.chat.agent import get_llm_client_by_name
@@ -14,7 +15,7 @@ from deepagents import create_deep_agent
 from langchain.chat_models import init_chat_model
 
 # Local module imports
-from .deep.stream_converter import StreamConverter, TokenUsageCallback
+from .deep.utils import StreamConverter, TokenUsageCallback
 from .deep.parser import FileParser
 from .deep.backends import create_postgres_backend
 from .deep.file_handler import upload_files_to_backend
@@ -22,6 +23,22 @@ from .deep.prompt_builder import build_system_prompt
 from .deep.tool_loader import load_global_tools, load_mcp_tools
 from .deep.middleware import GlobalFilesMiddleware
 from mirobody.utils.config import safe_read_cfg
+
+# Exception handling
+from .deep.exceptions import (
+    DeepAgentException,
+    ConfigurationError,
+    APIKeyError,
+    ProviderConfigError,
+    DatabaseConnectionError,
+    LLMInitializationError,
+    BackendCreationError,
+    ToolLoadError,
+    PromptLoadError,
+    SystemPromptBuildError,
+    AgentBuildError,
+    ErrorMessageHandler,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +62,9 @@ class AgentContext:
     backend: Any = None
     agent: Any = None
     token_counter: Any = None
-    converter: Any = None
+    
+    # Downloaded file content (from HTTP layer) - avoids re-downloading
+    files_data: list[dict[str, Any]] | None = None
 
     # Fallback information
     fallback_used: bool = False
@@ -128,48 +147,89 @@ class DeepAgent():
     async def _init_llm_client(self, provider: str | Any | None, agent_class_name: str) -> tuple[Any, str, bool, str]:
         """
         Initialize LLM client from provider name or instance.
-        
+
         Args:
             provider: LLM provider name, alias, or ChatModel instance
             agent_class_name: Agent class name for config matching
-            
+
         Returns:
             Tuple of (llm_client, model_name, fallback_used, fallback_message)
+            
+        Raises:
+            LLMInitializationError: If LLM client cannot be initialized
         """
-        original_provider = provider
-        fallback_used = False
-        fallback_message = ""
+        try:
+            original_provider = provider
+            fallback_used = False
+            fallback_message = ""
 
-        if provider:
-            if isinstance(provider, str):
-                agent_llm_client = get_llm_client_by_name(agent_class_name, provider)
+            if provider:
+                if isinstance(provider, str):
+                    agent_llm_client = get_llm_client_by_name(agent_class_name, provider)
+                else:
+                    agent_llm_client = provider
             else:
-                agent_llm_client = provider
-        else:
-            agent_llm_client = get_llm_client_by_name(agent_class_name, self.default_provider)
+                agent_llm_client = get_llm_client_by_name(agent_class_name, self.default_provider)
 
-        # Fallback to default provider if the requested one is not supported
-        if not agent_llm_client:
-            default_provider = self.default_provider
-            logger.warning(f"Provider '{original_provider}' not supported, falling back to '{default_provider}'")
-            agent_llm_client = get_llm_client_by_name(agent_class_name, default_provider)
+            # Fallback to default provider if the requested one is not supported
+            if not agent_llm_client:
+                default_provider = self.default_provider
+                logger.warning(f"Provider '{original_provider}' not supported, falling back to '{default_provider}'")
+                agent_llm_client = get_llm_client_by_name(agent_class_name, default_provider)
 
-            if agent_llm_client:
-                fallback_used = True
-                fallback_message = f"The requested provider '{original_provider}' is not supported. Using default provider '{default_provider}' instead.\n"
+                if agent_llm_client:
+                    fallback_used = True
+                    fallback_message = f"Provider '{original_provider}' not configured. Using default '{default_provider}'.\n"
+                else:
+                    from mirobody.chat.agent import global_llm_clients_for_agents
+                    available = list(global_llm_clients_for_agents.get(agent_class_name, {}).keys())
+                    
+                    error_msg = ErrorMessageHandler.provider_not_found(
+                        provider_name=original_provider or default_provider,
+                        agent_name=agent_class_name,
+                        available_providers=available
+                    )
+                    
+                    raise LLMInitializationError(
+                        f"Provider not available: {original_provider or default_provider}",
+                        user_message=error_msg
+                    )
+
+            # ===== Early Detection: Check if this is a PlaceholderClient (missing API key) =====
+            # We need to validate it NOW before it enters streaming phase
+            try:
+                # Try to access a method that real LLM clients have but PlaceholderClient doesn't
+                # This will trigger PlaceholderClient's __getattribute__ and expose the API key error
+                _ = agent_llm_client.invoke
+            except AttributeError as attr_error:
+                # This is a PlaceholderClient with missing API key
+                error_msg = str(attr_error)
+                logger.error(f"Provider validation failed: {error_msg}")
+                raise LLMInitializationError(
+                    f"Provider initialization failed: {error_msg}",
+                    user_message=error_msg
+                )
+            
+            # Extract model name for logging
+            if hasattr(agent_llm_client, "model_name"):
+                model_name = agent_llm_client.model_name
+            elif hasattr(agent_llm_client, "model"):
+                model_name = agent_llm_client.model
             else:
-                # Even default provider failed - this is a critical error
-                raise ValueError(f"Critical error: Default provider '{default_provider}' is also unavailable for agent: {agent_class_name}")
+                model_name = "Unknown"
 
-        if hasattr(agent_llm_client, "model_name"):
-            model_name = agent_llm_client.model_name
-        elif hasattr(agent_llm_client, "model"):
-            model_name = agent_llm_client.model
-        else:
-            model_name = "Unknown"
-
-        return agent_llm_client, model_name, fallback_used, fallback_message
-
+            return agent_llm_client, model_name, fallback_used, fallback_message
+            
+        except LLMInitializationError:
+            raise
+        except Exception as e:
+            error_msg = ErrorMessageHandler.provider_init_failed(
+                provider_name=str(provider) if provider else "default",
+                error=e
+            )
+            logger.error(f"LLM init failed: {str(e)}", exc_info=True)
+            raise LLMInitializationError(f"LLM init failed: {str(e)}", user_message=error_msg)
+    
     async def _load_global_tools(self, user_id: str) -> list:
         """
         Load global/project tools.
@@ -179,6 +239,9 @@ class DeepAgent():
             
         Returns:
             List of global tools
+            
+        Raises:
+            ToolLoadError: If critical tool loading fails
         """
         try:
             global_tools = await load_global_tools(
@@ -187,9 +250,13 @@ class DeepAgent():
                 allowed_tools=self.allowed_tools,
                 disallowed_tools=self.disallowed_tools
             )
+            logger.info(f"Loaded {len(global_tools)} global tools")
             return global_tools
         except Exception as e:
-            logger.error(f"Failed to load project global tools: {str(e)}", exc_info=True)
+            error_msg = ErrorMessageHandler.tool_load_failed("global", e)
+            logger.error(f"Failed to load global tools: {str(e)}", exc_info=True)
+            logger.warning("Continuing without global tools")
+            # Tools are optional - return empty list instead of raising
             return []
 
     async def _load_mcp_tools(self, user_id: str) -> list:
@@ -201,12 +268,19 @@ class DeepAgent():
             
         Returns:
             List of MCP tools
+            
+        Raises:
+            ToolLoadError: If critical MCP tool loading fails
         """
         try:
             user_tools = await load_mcp_tools(user_id=user_id, token=self.token)
+            logger.info(f"Loaded {len(user_tools)} MCP tools")
             return user_tools
         except Exception as e:
-            logger.error(f"Failed to load user mcp tools: {str(e)}", exc_info=True)
+            error_msg = ErrorMessageHandler.tool_load_failed("MCP", e)
+            logger.error(f"Failed to load MCP tools: {str(e)}", exc_info=True)
+            logger.warning("Continuing without MCP tools")
+            # Tools are optional - return empty list instead of raising
             return []
 
     async def _load_tools(self, user_id: str) -> list:
@@ -233,29 +307,59 @@ class DeepAgent():
             
         Returns:
             Base prompt string
+            
+        Raises:
+            PromptLoadError: If no prompt template can be loaded
         """
         from ...chat.user_config import get_user_prompt_by_name
 
         base_prompt = ""
-
-        # Get user's prompt
-        s, err = await get_user_prompt_by_name(user_id, prompt_name)
-        if not err and s:
-            base_prompt = s
-
-        # Get system prompt from templates
-        if not base_prompt and self.prompt_templates:
-            base_prompt = self.prompt_templates.get(prompt_name)
-
-        # Fallback to first available template
-        if not base_prompt and self.prompt_templates:
-            for key, value in self.prompt_templates.items():
-                if value:
-                    base_prompt = value
-                    break
-
-        return base_prompt
-
+        
+        try:
+            # Get user's prompt
+            s, err = await get_user_prompt_by_name(user_id, prompt_name)
+            if not err and s:
+                base_prompt = s
+                logger.info(f"Loaded user prompt: {prompt_name}")
+            elif err:
+                logger.warning(f"Failed to load user prompt '{prompt_name}': {err}")
+            
+            # Get system prompt from templates
+            if not base_prompt and self.prompt_templates:
+                base_prompt = self.prompt_templates.get(prompt_name)
+                if base_prompt:
+                    logger.info(f"Using template prompt: {prompt_name}")
+            
+            # Fallback to first available template
+            if not base_prompt and self.prompt_templates:
+                for key, value in self.prompt_templates.items():
+                    if value:
+                        base_prompt = value
+                        logger.info(f"Using fallback prompt: {key}")
+                        break
+            
+            # If still no prompt, this is critical
+            if not base_prompt:
+                error = Exception(f"No prompt template found for '{prompt_name}' and no fallback available")
+                error_msg = ErrorMessageHandler.prompt_load_failed(prompt_name, error)
+                logger.error(error_msg)
+                raise PromptLoadError(
+                    f"No prompt template available for '{prompt_name}'",
+                    user_message=error_msg
+                )
+            
+            return base_prompt
+            
+        except PromptLoadError:
+            raise
+        except Exception as e:
+            error_msg = ErrorMessageHandler.prompt_load_failed(prompt_name, e)
+            logger.error(f"Unexpected error loading prompt: {str(e)}", exc_info=True)
+            raise PromptLoadError(
+                f"Failed to load prompt '{prompt_name}': {str(e)}",
+                user_message=error_msg
+            )
+    
     async def _build_system_prompt(
             self,
             base_prompt: str,
@@ -276,6 +380,9 @@ class DeepAgent():
             
         Returns:
             Built system prompt
+            
+        Raises:
+            SystemPromptBuildError: If system prompt construction fails
         """
         try:
             system_prompt = await build_system_prompt(
@@ -288,52 +395,72 @@ class DeepAgent():
                 user_name=self.user_info.user_name,
                 timezone=self.timezone
             )
-            logger.info(f"Built dynamic system prompt, type: {type(system_prompt)}")
+            logger.info(f"Built system prompt successfully, type: {type(system_prompt)}")
             return system_prompt
         except Exception as e:
+            error_msg = ErrorMessageHandler.system_prompt_build_failed(e)
             logger.error(f"Failed to build system prompt: {str(e)}", exc_info=True)
-            raise ValueError(f"Failed to build system prompt: {str(e)}")
-
+            raise SystemPromptBuildError(
+                f"System prompt construction failed: {str(e)}",
+                user_message=error_msg
+            )
+    
     async def _create_backend(self, session_id: str, user_id: str) -> Any:
         """
         Create backend instance for file storage and persistence.
-        
+
         Args:
             session_id: Session ID
             user_id: User ID
-            
+
         Returns:
             Backend instance
+            
+        Raises:
+            BackendCreationError: If backend creation fails
         """
-        backend = create_postgres_backend(
-            session_id=session_id,
-            user_id=user_id,
-            file_parser=FileParser(),
-            cache_ttl=self.file_parse_cache_ttl,
-            cache_maxsize=self.file_parse_cache_maxsize,
-        )
-        logger.info(f"Created PostgresBackend for session: {session_id}, user: {user_id}")
-        return backend
-
+        try:
+            backend = create_postgres_backend(
+                session_id=session_id,
+                user_id=user_id,
+                file_parser=FileParser(),
+                cache_ttl=self.file_parse_cache_ttl,
+                cache_maxsize=self.file_parse_cache_maxsize,
+            )
+            logger.info(f"Created backend for session: {session_id}")
+            return backend
+            
+        except Exception as e:
+            error_msg = ErrorMessageHandler.backend_creation_failed(e)
+            logger.error(f"Backend creation failed: {str(e)}", exc_info=True)
+            raise BackendCreationError(f"Backend creation failed: {str(e)}", user_message=error_msg)
+    
     async def _upload_files_to_backend(
             self,
             file_list: list[dict[str, Any]] | None,
             backend: Any,
-            messages: list[dict[str, Any]] | list[BaseMessage]
+            messages: list[dict[str, Any]] | list[BaseMessage],
+            files_data: list[dict[str, Any]] | None = None
     ) -> None:
         """
         Upload files to backend and add reminder to messages.
         
         Args:
-            file_list: List of files to upload
+            file_list: List of files to upload (metadata)
             backend: Backend instance
             messages: Message list (modified in-place)
+            files_data: Downloaded file content (from HTTP layer) - avoids re-downloading
         """
         if not file_list:
             return
 
         try:
-            uploaded_paths, reminder_message = upload_files_to_backend(file_list, backend)
+            # Pass files_data to avoid re-downloading from S3
+            uploaded_paths, reminder_message = upload_files_to_backend(
+                file_list, 
+                backend,
+                files_data=files_data
+            )
 
             if uploaded_paths:
                 logger.info(f"✅ Uploaded {len(uploaded_paths)} files to PostgreSQL")
@@ -398,21 +525,21 @@ class DeepAgent():
         )
         return agent
 
-    def _prepare_messages(self, messages: list[dict[str, Any]] | list[BaseMessage]) -> list[dict[str, Any]]:
-        """
-        Prepare messages by adding language following instruction.
+    # def _prepare_messages(self, messages: list[dict[str, Any]] | list[BaseMessage]) -> list[dict[str, Any]]:
+    #     """
+    #     Prepare messages by adding language following instruction.
         
-        Args:
-            messages: Original message list
+    #     Args:
+    #         messages: Original message list
             
-        Returns:
-            Modified message list
-        """
-        if self._check_base_messages(messages):
-            return messages
-        if isinstance(messages[-1], dict) and messages[-1].get("role") == "user":
-            messages[-1]["content"] += "(You must reply in same Language I just asked)"
-        return messages
+    #     Returns:
+    #         Modified message list
+    #     """
+    #     if self._check_base_messages(messages):
+    #         return messages
+    #     if isinstance(messages[-1], dict) and messages[-1].get("role") == "user":
+    #         messages[-1]["content"] += "(You must reply in same Language I just asked)"
+    #     return messages
 
     def _create_stream_config(self, user_id: str, token_counter: Any) -> dict:
         """
@@ -450,7 +577,9 @@ class DeepAgent():
             provider: str | Any | None,
             messages: list[dict[str, Any]],
             file_list: list[dict[str, Any]] | None,
-            prompt_name: str
+            files_data: list[dict[str, Any]] | None,
+            prompt_name: str,
+            tools: list[BaseTool] | None = None,
     ) -> AgentContext:
         """
         Stage 1: Prepare all context components (LLM, tools, prompt).
@@ -474,6 +603,7 @@ class DeepAgent():
             provider=provider,
             messages=messages,
             file_list=file_list,
+            files_data=files_data,  # Pass downloaded file content
             prompt_name=prompt_name
         )
 
@@ -482,7 +612,7 @@ class DeepAgent():
         context.llm_client, context.model_name, context.fallback_used, context.fallback_message = await self._init_llm_client(provider, agent_class_name)
 
         # Load external tools （deepagents tools are not ） 
-        context.tools = await self._load_tools(user_id)
+        context.tools = tools if tools is not None else await self._load_tools(user_id)
 
         # Build system prompt
         base_prompt = await self._get_base_prompt(user_id, prompt_name)
@@ -505,32 +635,53 @@ class DeepAgent():
             
         Returns:
             Updated context with agent instance
+            
+        Raises:
+            AgentBuildError: If agent building fails
+            BackendCreationError: If backend creation fails
         """
-        # Create backend
-        context.backend = await self._create_backend(context.session_id, context.user_id)
-
-        # Upload files
-        await self._upload_files_to_backend(context.file_list, context.backend, context.messages)
-
-        # Create middleware
-        middleware = self._create_middleware(context.backend)
-
-        # Create agent instance
-        context.agent = self._create_agent_instance(
-            context.llm_client,
-            context.system_prompt,
-            context.tools,
-            context.backend,
-            middleware
-        )
-
-        return context
-
+        try:
+            # Create backend
+            context.backend = await self._create_backend(context.session_id, context.user_id)
+            
+            # Upload files (pass files_data to avoid re-downloading)
+            await self._upload_files_to_backend(
+                context.file_list, 
+                context.backend, 
+                context.messages,
+                files_data=context.files_data
+            )
+            
+            # Create middleware
+            middleware = self._create_middleware(context.backend)
+            
+            # Create agent instance
+            context.agent = self._create_agent_instance(
+                context.llm_client,
+                context.system_prompt,
+                context.tools,
+                context.backend,
+                middleware
+            )
+            
+            logger.info(f"Agent built successfully for session: {context.session_id}")
+            return context
+            
+        except BackendCreationError:
+            # Re-raise backend errors as-is (already have user message)
+            raise
+        except Exception as e:
+            error_msg = ErrorMessageHandler.agent_build_failed(e)
+            logger.error(f"Agent building failed: {str(e)}", exc_info=True)
+            raise AgentBuildError(
+                f"Failed to build agent: {str(e)}",
+                user_message=error_msg
+            )
+    
     async def _stream_agent_response(
             self,
             agent: Any,
             messages: list[dict[str, Any]] | list[BaseMessage],
-            converter: StreamConverter,
             token_counter: TokenUsageCallback,
             config: dict,
             model_name: str
@@ -541,7 +692,6 @@ class DeepAgent():
         Args:
             agent: Agent instance
             messages: Prepared messages
-            converter: Stream converter
             token_counter: Token counter callback
             config: Stream configuration
             model_name: Model name for cost calculation
@@ -549,7 +699,6 @@ class DeepAgent():
         Yields:
             Converted stream events
         """
-        input_data = {"messages": messages}
         logger.info("Starting DeepAgent stream")
         trace_id = get_req_ctx("trace_id")
 
@@ -576,12 +725,16 @@ class DeepAgent():
             )
 
         try:
-            # Stream with messages mode for real-time token streaming and tool call logging
-            async for stream_mode, data in agent.astream(input_data, stream_mode=["messages"], config=config):
+            async for stream_type, stream_event in agent.astream(
+                {"messages": messages}, 
+                stream_mode=["messages", "updates"], 
+                config=config
+            ):
                 try:
-                    chunk, chunk_metadata = data
-                    # Convert message chunks and yield events (converter handles logging internally)
-                    for event in converter.convert_message_chunk(chunk, chunk_metadata, trace_id=trace_id):
+                    # Process stream event using StreamConverter static method
+                    async for event in StreamConverter.process_stream_event(
+                        stream_type, stream_event, trace_id=trace_id
+                    ):
                         if event:
                             yield event
 
@@ -592,14 +745,14 @@ class DeepAgent():
             logger.info("DeepAgent stream completed")
 
             # Add cost statistics at the end
-            yield converter.create_cost_statistics(
+            yield StreamConverter.create_cost_statistics(
                 token_counter.total_input_tokens,
                 token_counter.total_output_tokens,
                 model_name
             )
 
         except Exception as e:
-            logger.error(f"DeepAgent streaming error: {str(e)}", exc_info=True)
+            logger.error(f"DeepAgent streaming error: {str(e)}", stack_info=True)
             yield {"type": "error", "content": f"Streaming error: {str(e)}"}
 
     # ------------------------- Main Entry Point -------------------------
@@ -611,8 +764,10 @@ class DeepAgent():
             language: str = "en",
             session_id: str = "",
             file_list: list[dict[str, Any]] | None = None,
+            files_data: list[dict[str, Any]] | None = None,
             provider: str | Any | None = None,
             prompt_name: str = "",
+            tools: Optional[list[BaseTool]] = None,
             **kargs
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
@@ -636,7 +791,26 @@ class DeepAgent():
         Yields:
             Stream chunks in unified format
         """
-        logger.info(f"DeepAgent generating response for session: {session_id}, provider: {provider}")
+        # ===== Early Validation (baseline_agent style) =====
+        
+        # Validate messages
+        if not messages:
+            logger.warning("Empty messages received")
+            yield {"type": "error", "content": "Empty message"}
+            return
+        
+        if not isinstance(messages, list):
+            logger.warning(f"Invalid messages type: {type(messages)}")
+            yield {"type": "error", "content": "Invalid messages format"}
+            return
+        
+        # Validate user_id
+        if not user_id or not isinstance(user_id, str):
+            logger.warning("Invalid or missing user_id")
+            yield {"type": "error", "content": "User ID is required"}
+            return
+        
+        logger.info(f"DeepAgent request: session={session_id}, provider={provider}, messages={len(messages)}")
 
         try:
             # Stage 1: Prepare context (LLM, tools, prompt)
@@ -647,8 +821,15 @@ class DeepAgent():
                 provider=provider,
                 messages=messages,
                 file_list=file_list,
-                prompt_name=prompt_name
+                files_data=files_data,
+                prompt_name=prompt_name,
+                tools=tools,
             )
+            
+            # Attach files_data from kargs (set by HTTP adapter)
+            if 'files_data' in kargs:
+                context.files_data = kargs['files_data']
+                logger.info(f"✅ Received {len(context.files_data)} files from HTTP layer (in-memory)")
 
             # Yield fallback warning if provider was not supported
             if context.fallback_used and context.fallback_message:
@@ -658,10 +839,9 @@ class DeepAgent():
             context = await self._build_agent(context)
 
             # Prepare messages for streaming
-            context.messages = self._prepare_messages(context.messages)
+            # context.messages = self._prepare_messages(context.messages)
 
             # Initialize streaming components
-            context.converter = StreamConverter()
             context.token_counter = TokenUsageCallback()
             stream_config = self._create_stream_config(user_id, context.token_counter)
 
@@ -669,23 +849,26 @@ class DeepAgent():
             async for event in self._stream_agent_response(
                     agent=context.agent,
                     messages=context.messages,
-                    converter=context.converter,
                     token_counter=context.token_counter,
                     config=stream_config,
                     model_name=context.model_name
             ):
                 yield event
-
+            
+        except DeepAgentException as e:
+            logger.error(f"DeepAgent error: {str(e)}")
+            yield {"type": "error", "content": e.user_message}
+            
         except ValueError as e:
-            # Handle specific errors (e.g., unsupported provider)
-            logger.error(f"DeepAgent configuration error: {str(e)}")
+            logger.error(f"DeepAgent value error: {str(e)}")
             yield {"type": "error", "content": str(e)}
+            
         except Exception as e:
-            logger.error(f"DeepAgent error: {str(e)}", exc_info=True)
-            yield {"type": "error", "content": f"DeepAgent error: {str(e)}"}
-
-    # -------------------------------------------------------------------------
-
+            logger.error(f"Unexpected error: {str(e)}", exc_info=True)
+            yield {"type": "error", "content": f"Unexpected error: {str(e)}\n\nCheck logs for details."}
+    
+    #-------------------------------------------------------------------------
+    
     @staticmethod
     def load_llm_clients(llm_client_config: dict[str, Any]) -> dict[str, Any]:
         """
@@ -703,51 +886,126 @@ class DeepAgent():
             Dictionary mapping provider names to initialized LangChain ChatModel instances
         """
         from mirobody.utils.config import safe_read_cfg
-
+        
+        # ===== Early Configuration Check =====
+        
+        # Check if any providers are configured
+        if not llm_client_config or len(llm_client_config) == 0:
+            logger.warning("No LLM providers configured in PROVIDERS_DEEP section")
+            logger.warning("Add at least one provider in config.yaml under PROVIDERS_DEEP")
+            return {}
+        
+        # Check if any common API key is available
+        common_keys = ["GOOGLE_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY"]
+        has_any_key = any(
+            os.environ.get(key) or safe_read_cfg(key)
+            for key in common_keys
+        )
+        
+        if not has_any_key:
+            logger.warning(f"No API keys found. Please set at least one: {', '.join(common_keys)}")
+        
         llm_clients = {}
-
+        failed = []
+        
         for provider_name, provider_kwargs in llm_client_config.items():
+            logger.debug(f"Initializing provider '{provider_name}'...")
+            
             if not provider_kwargs or not isinstance(provider_kwargs, dict):
-                logger.warning(f"Invalid config for provider {provider_name}, skipping")
+                logger.warning(f"Invalid config for '{provider_name}': not a dictionary")
+                failed.append((provider_name, "Invalid format"))
                 continue
 
             try:
-                # Make a copy to avoid modifying the original config
                 config = dict(provider_kwargs)
-
-                # 1. Resolve api_key from environment or config
-                if "api_key" in config:
-                    api_key_name = config["api_key"]
-                    if isinstance(api_key_name, str) and api_key_name:
-                        # Try environment variable first, then safe_read_cfg
-                        actual_api_key = os.environ.get(api_key_name) or safe_read_cfg(api_key_name)
-                        if actual_api_key:
-                            config["api_key"] = actual_api_key
-
-                # 2. Extract model and model_provider
-                model = config.get("model")
-                if not model:
-                    logger.warning(f"Missing 'model' for {provider_name}, skipping")
+                
+                # Log what we're trying to initialize
+                model = config.get("model", "unknown")
+                llm_type = config.get("llm_type", "openai")
+                logger.debug(f"  Model: {model}, Type: {llm_type}")
+                
+                # Resolve API key
+                api_key_name = config.get("api_key")
+                actual_api_key = None
+                
+                if api_key_name and isinstance(api_key_name, str):
+                    logger.debug(f"  Looking for API key: {api_key_name}")
+                    actual_api_key = os.environ.get(api_key_name) or safe_read_cfg(api_key_name)
+                    
+                    if actual_api_key:
+                        config["api_key"] = actual_api_key
+                        logger.debug(f"  API key resolved")
+                    else:
+                        logger.warning(f"  {api_key_name} not found - creating placeholder for frontend visibility")
+                
+                # Check model field
+                if not model or model == "unknown":
+                    logger.warning(f"Provider '{provider_name}' skipped: missing 'model' field")
+                    failed.append((provider_name, "Missing 'model'"))
                     continue
-
-                model_provider = config.get("llm_type", "openai")
-
-                # 3. Filter out parameters not needed by init_chat_model
-                # Remove 'model' and 'llm_type' as they're passed explicitly
+                
+                # If API key is missing, create placeholder immediately
+                if not actual_api_key and api_key_name:
+                    # Create placeholder that throws friendly error on ANY attribute access
+                    class PlaceholderClient:
+                        """Placeholder that throws friendly error immediately when accessed."""
+                        def __init__(self, model_name, missing_key, provider_name):
+                            # Use object.__setattr__ to bypass __getattribute__
+                            object.__setattr__(self, '_model_name', model_name)
+                            object.__setattr__(self, '_missing_key', missing_key)
+                            object.__setattr__(self, '_provider_name', provider_name)
+                            object.__setattr__(self, 'model_name', model_name)
+                            object.__setattr__(self, 'model', model_name)
+                        
+                        def __getattribute__(self, name):
+                            # Allow access to internal attributes
+                            if name in ('_model_name', '_missing_key', '_provider_name', 'model_name', 'model'):
+                                return object.__getattribute__(self, name)
+                            
+                            # Any other attribute access triggers friendly error via ErrorMessageHandler
+                            missing_key = object.__getattribute__(self, '_missing_key')
+                            provider_name = object.__getattribute__(self, '_provider_name')
+                            
+                            error_msg = ErrorMessageHandler.api_key_missing(missing_key, provider_name)
+                            raise AttributeError(error_msg)
+                    
+                    llm_clients[provider_name] = PlaceholderClient(model, api_key_name, provider_name)
+                    logger.info(f"Created placeholder for '{provider_name}': {model} (missing {api_key_name})")
+                    continue
+                
+                # API key is present, initialize real client
+                model_provider = llm_type
                 init_kwargs = {k: v for k, v in config.items() if k not in ["model", "llm_type"]}
-
-                # 4. Initialize client using LangChain's unified interface
-                client = init_chat_model(
-                    model=model,
-                    model_provider=model_provider,
-                    **init_kwargs
-                )
-                llm_clients[provider_name] = client
-                logger.info(f"✅ Loaded {provider_name}: {model_provider}/{model}")
-
-            except Exception as e:
-                logger.error(f"❌ Failed to load {provider_name}: {e}", exc_info=True)
-                continue
-
-        logger.info(f"Finished loading LLM clients for DeepAgent: {len(llm_clients)}/{len(llm_client_config)} succeeded")
+                
+                try:
+                    client = init_chat_model(model=model, model_provider=model_provider, **init_kwargs)
+                    llm_clients[provider_name] = client
+                    logger.info(f"Successfully initialized '{provider_name}': {model_provider}/{model}")
+                except Exception as e:
+                    api_key_var = config.get("api_key") if "config" in locals() else None
+                    error_msg = ErrorMessageHandler.provider_init_failed(provider_name, e, api_key_var)
+                    logger.error(f"Failed to load '{provider_name}': {str(e)}")
+                    logger.debug(error_msg)
+                    failed.append((provider_name, str(e)))
+                        
+            except Exception as outer_e:
+                # Catch any unexpected errors in the outer try block
+                logger.error(f"Unexpected error loading provider '{provider_name}': {str(outer_e)}", exc_info=True)
+                failed.append((provider_name, str(outer_e)))
+        
+        # Log summary
+        loaded = len(llm_clients)
+        total = len(llm_client_config)
+        
+        logger.info(f"\nDeepAgent Providers: {loaded}/{total} loaded")
+        if loaded > 0:
+            logger.info(f"Available: {', '.join(llm_clients.keys())}")
+        if failed:
+            logger.warning(f"Failed: {len(failed)}/{total}")
+            for name, reason in failed[:3]:
+                logger.warning(f"  - {name}: {reason}")
+        
+        if loaded == 0:
+            logger.warning("WARNING: No LLM providers loaded. Check API keys and config.yaml PROVIDERS_DEEP section.")
+        
         return llm_clients

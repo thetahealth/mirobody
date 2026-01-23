@@ -117,7 +117,7 @@ class GeminiClient():
                 "url": f"{mcp_public_url}{mcp_uri}"
             })
         else:
-            body["tools"].extend(get_global_functions(style="gemini"))
+            body["tools"].extend(get_global_functions())
 
         #-------------------------------------------------
 

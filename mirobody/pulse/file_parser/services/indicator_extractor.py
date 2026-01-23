@@ -135,7 +135,7 @@ class IndicatorExtractor:
             return indicators, llm_ret
 
         except json.JSONDecodeError as e:
-            logging.error(f"JSON parse failed: {file_name}", stack_info=True)
+            logging.error(f"JSON parse failed: {file_name}, error: {e}", exc_info=True)
             if progress_callback:
                 language = get_req_ctx("language", "en")
                 await progress_callback(88, t("json_parsing_error", language, "indicator_extractor"))
@@ -143,7 +143,7 @@ class IndicatorExtractor:
                 await progress_callback(90, t("json_parsing_failed", language, "indicator_extractor"))
             raise ValueError(f"JSON parsing failed: {str(e)}")
         except Exception as e:
-            logging.error(f"Indicator extraction failed: {file_name}", stack_info=True)
+            logging.error(f"Indicator extraction failed: {file_name}, error: {e}", exc_info=True)
             if progress_callback:
                 language = get_req_ctx("language", "en")
                 await progress_callback(88, t("processing_issue_completing", language, "indicator_extractor"))
@@ -225,7 +225,7 @@ class IndicatorExtractor:
                 logging.info(f"Parallel processing done: {len(all_indicators)} indicators, {time.time() - pdf_start_time:.2f}s")
                 return all_indicators, combined_llm_ret
         except Exception as e:
-            logging.error(f"PDF processing failed: {e}", stack_info=True)
+            logging.error(f"PDF processing failed: {file_name}, error: {e}", exc_info=True)
             raise e
         finally:
             PDFSplitter.cleanup_page_files(page_files)
@@ -301,7 +301,7 @@ class IndicatorExtractor:
                     }
                 except Exception as e:
                     completed_pages += 1
-                    logging.error(f"Page {page_num} processing failed: {str(e)}", stack_info=True)
+                    logging.error(f"Page {page_num} processing failed: {str(e)}", exc_info=True)
                     return {
                         "page_num": page_num,
                         "indicators": [],
@@ -672,8 +672,8 @@ class IndicatorExtractor:
                 progress_callback,
                 file_key=file_key,
             )
-        except Exception:
-            logging.error(f"Background indicator extraction task failed, user_id: {user_id}, file_name: {file_name}", stack_info=True)
+        except Exception as e:
+            logging.error(f"Background indicator extraction task failed, user_id: {user_id}, file_name: {file_name}, error: {e}", exc_info=True)
 
     @staticmethod
     def start_indicator_extraction_task(
@@ -719,8 +719,7 @@ class IndicatorExtractor:
             completion_time = datetime.now()
             duration = (completion_time - task_create_time).total_seconds()
             if task.exception():
-                logging.error(f"Indicator extraction background task failed - user_id: {user_id}, file_name: {file_name}, duration: {duration:.2f}s", stack_info=True)
-
+                logging.error(f"Indicator extraction background task failed - user_id: {user_id}, file_name: {file_name}, duration: {duration:.2f}s, error: {task.exception()}", exc_info=task.exception())
             else:
                 logging.info(f"Indicator extraction background task completed - user_id: {user_id}, file_name: {file_name}, duration: {duration:.2f}s")
 

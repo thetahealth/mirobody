@@ -3,7 +3,7 @@ import importlib, importlib.util, inspect, logging, os
 from types import ModuleType
 from typing import Any, AsyncGenerator, Callable
 
-from ..utils import Config
+from ..utils import Config, global_config
 
 #-----------------------------------------------------------------------------
 
@@ -231,8 +231,19 @@ def get_agent(agents: dict, agent_name: str, **kwargs) -> AbstractAgent | None:
 
 
 def get_global_agent(agent_name: str, **kwargs) -> AbstractAgent | None:
+    config = global_config()
+
+    if not config:
+        options = kwargs
+    else:
+        options = config.get_options_for_agent(agent_name=agent_name)
+        if not options or not isinstance(options, dict):
+            options = kwargs
+        else:
+            options.update(kwargs)
+
     global global_agents
-    return get_agent(global_agents, agent_name, **kwargs)
+    return get_agent(agents=global_agents, agent_name=agent_name, **options)
 
 #-----------------------------------------------------------------------------
 

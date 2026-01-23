@@ -160,13 +160,15 @@ class SkillService:
         which skills are available and understand their capabilities and use cases.
         
         Each skill includes:
+        - id: Unique identifier for the skill (⚠️ USE THIS for read_skill_document())
         - name: Display name of the skill
         - summary: Brief description of what the skill does
         - when_to_use: Scenarios where this skill should be used
         - when_not_to_use: Scenarios where this skill should NOT be used
         - tags: Categories/keywords for skill classification
         
-        After identifying a suitable skill, use read_skill_document() to get detailed instructions.
+        After identifying a suitable skill, use read_skill_document() with the exact "id" field 
+        value to get detailed instructions.
         
         Args:
             tags: Optional comma-separated list of tags to filter skills
@@ -178,12 +180,19 @@ class SkillService:
             - success: Boolean indicating if the query was successful
             - data: Object containing:
                 - total_skills: Number of skills returned
-                - skills: Array of skill metadata objects
+                - skills: Array of skill metadata objects, each with:
+                    - id: Skill identifier (use this for read_skill_document)
+                    - name: Display name
+                    - summary: Brief description
+                    - when_to_use: Array of use case scenarios
+                    - when_not_to_use: Array of scenarios to avoid
+                    - tags: Array of category tags
                 - filter_info: Information about applied filters (if any)
         
         Examples:
             # List all available skills
-            list_skill()
+            result = list_skill()
+            # Use the "id" field from results: result["data"]["skills"][0]["id"]
             
             # List only data analysis skills
             list_skill(tags="data_analysis")
@@ -308,8 +317,16 @@ class SkillService:
         - Error handling guidance
         
         Args:
-            skill_id: The ID of the skill to read (from list_skill response)
-                     Example: "csv_analysis", "sql_expert"
+            skill_id: The ID of the skill to read. 
+                     ⚠️ IMPORTANT: This MUST be the exact "id" field value from list_skill() response.
+                     DO NOT use the "name" field or make up IDs.
+                     System skills use directory names (e.g., "csv-analysis", "sql-expert").
+                     User custom skills use format "custom-skill-{numeric_id}".
+                     
+                     Examples of valid IDs (must match list_skill results):
+                     - "csv-analysis" (system skill)
+                     - "sql-expert" (system skill)
+                     - "custom-skill-123" (user custom skill)
         
         Returns:
             Dictionary containing:
@@ -321,11 +338,15 @@ class SkillService:
                 - summary: Brief summary of the skill
         
         Examples:
-            # Read detailed instructions for CSV analysis skill
-            read_skill_document(skill_id="csv_analysis")
+            # Step 1: First call list_skill() to get available skills. If already have the id, skip this step.
+            result = list_skill()
+            # Response: {"success": true, "data": {"skills": [{"id": "csv-analysis", "name": "CSV Analysis", ...}]}}
             
-            # Read SQL expert skill document
-            read_skill_document(skill_id="sql_expert")
+            # Step 2: Use the exact "id" from the response
+            read_skill_document(skill_id="csv-analysis")  # ✅ Correct - uses the "id" field
+            
+            # ❌ WRONG - Don't use the "name" field
+            read_skill_document(skill_id="CSV Analysis")
         """
         try:
             # Validate skill_id

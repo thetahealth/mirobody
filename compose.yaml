@@ -41,7 +41,7 @@ services:
   mirobody:
     image: mirobody
     ports:
-      - "18080:80"
+      - "18080:18080"
     command: >
       /bin/bash -c "
         cd /app/ &&
@@ -58,10 +58,13 @@ services:
       - mirobody_site_packages:/root/venv/lib/python3.12/site-packages
       - mirobody_node_modules:/app/node_modules
     environment:
+      - ENV=${ENV}
+      - CONFIG_SERVER=${CONFIG_SERVER}
+      - CONFIG_TOKEN=${CONFIG_TOKEN}
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app
       - HTTP_HOST=0.0.0.0
-      - HTTP_PORT=80
+      - HTTP_PORT=18080
     networks:
       mirobody_network:
         ipv4_address: 10.108.0.8

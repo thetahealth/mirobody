@@ -85,16 +85,18 @@ class GeneticHandler(BaseFileHandler):
             }
 
             # Spawn background task
+            # Use target_user_id for genetic data ownership (th_series_data_genetic.user_id)
             asyncio.create_task(
                 process_genetic_file(
-                    user_id=ctx.user_id,
+                    user_id=ctx.user_id,  # Uploader ID (for WebSocket notifications)
+                    target_user_id=ctx.target_user_id,  # Data owner ID (for th_series_data_genetic)
                     temp_file_path=str(temp_file_path),
                     message_id=ctx.message_id,
                     language=language,
                     original_filename=ctx.filename,
                     original_file_size=file_size,
-                    source_table="theta_ai.th_messages",
-                    source_table_id=str(ctx.message_id),
+                    source_table="theta_ai.th_files",
+                    source_table_id=file_key,  # Use file_key as source_table_id for th_files
                     file_key=file_key,
                     full_url=full_url,
                     file_abstract=file_abstract,

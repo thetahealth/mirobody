@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from mirobody.pulse.file_parser.services.database_services import FileParserDatabaseService
+from mirobody.pulse.file_parser.services.file_db_service import FileDbService
 from mirobody.pulse.file_parser.file_processor import FileProcessor
 from mirobody.pulse.file_parser.services.file_abstract_extractor import FileAbstractExtractor
 from mirobody.utils.distributed_websocket import get_distributed_ws_manager as get_file_progress_manager
@@ -123,31 +124,37 @@ class AsyncFileProcessor:
                 except Exception:
                     file_abstracts.append({"file_name": "", "file_abstract": f"{file_data['filename']} - File uploaded successfully"})
 
-            # Update message content with abstracts
-            try:
-                current_content = await FileParserDatabaseService.get_message_content(message_id)
-                
-                if current_content and "files" in current_content:
-                    files_array = current_content["files"]
+            # Update th_files with abstracts (by file_key)
+            for i, file_data in enumerate(files_data):
+                try:
+                    file_key = file_data.get("s3_key") or file_data.get("file_key")
+                    if not file_key:
+                        logging.warning(f"No file_key found for file index {i}, skipping abstract update")
+                        continue
                     
-                    for i, abstract_result in enumerate(file_abstracts):
-                        if i < len(files_array):
-                            file_abstract = abstract_result.get("file_abstract", "") if isinstance(abstract_result, dict) else ""
-                            file_name = abstract_result.get("file_name", "") if isinstance(abstract_result, dict) else ""
-                            
-                            file_type = files_array[i].get("type", "")
-                            is_pdf_or_image = file_type in ["pdf", "image"] or file_type.startswith("image/")
-                            
-                            if not file_name or not is_pdf_or_image:
-                                file_name = files_array[i].get("filename", "")
-                            
-                            files_array[i]["file_abstract"] = file_abstract
-                            files_array[i]["file_name"] = file_name
-                    
-                    await FileParserDatabaseService.update_message_content(message_id=message_id, content=current_content)
-                    
-            except Exception:
-                pass
+                    if i < len(file_abstracts):
+                        abstract_result = file_abstracts[i]
+                        file_abstract = abstract_result.get("file_abstract", "") if isinstance(abstract_result, dict) else ""
+                        generated_file_name = abstract_result.get("file_name", "") if isinstance(abstract_result, dict) else ""
+                        
+                        # Determine content_type for file_name logic
+                        content_type = file_data.get("content_type", "")
+                        is_pdf_or_image = (
+                            content_type == "application/pdf" or 
+                            content_type.startswith("image/")
+                        )
+                        
+                        # Only use generated file_name for PDF/image files
+                        file_name_to_save = generated_file_name if (generated_file_name and is_pdf_or_image) else None
+                        
+                        await FileDbService.update_file_abstract(
+                            file_key=file_key,
+                            file_abstract=file_abstract,
+                            file_name=file_name_to_save,
+                        )
+                        
+                except Exception as update_error:
+                    logging.warning(f"Failed to update abstract for file {file_data.get('filename', 'unknown')}: {update_error}")
 
         except Exception as e:
             logging.error(f"Abstract generation failed: {e}", stack_info=True)

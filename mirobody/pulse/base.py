@@ -172,6 +172,7 @@ class Platform(ABC):
         self,
         page: int = 1,
         page_size: int = 20,
+        provider: Optional[str] = None,
         event_type: Optional[str] = None,
         user_id: Optional[str] = None,
         status: Optional[str] = None,
@@ -185,6 +186,7 @@ class Platform(ABC):
         Args:
             page: Page number (starting from 1)
             page_size: Number of records per page
+            provider: Optional provider slug (for multi-provider platforms like Theta)
             event_type: Optional filter for event type
             user_id: Optional filter for user ID
             status: Optional filter for status (e.g., 'success', 'pending', 'error')
@@ -197,7 +199,7 @@ class Platform(ABC):
         """
         raise NotImplementedError(f"Platform {self.name} does not support webhook management")
 
-    async def check_format(self, webhook_id: int) -> Dict[str, Any]:
+    async def check_format(self, webhook_id: int, provider: Optional[str] = None) -> Dict[str, Any]:
         """
         Check webhook format by simulating event provider processing
         
@@ -206,6 +208,7 @@ class Platform(ABC):
         
         Args:
             webhook_id: Webhook ID from database
+            provider: Optional provider slug (for multi-provider platforms like Theta)
             
         Returns:
             Dictionary containing original webhook data and formatted result

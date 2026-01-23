@@ -76,6 +76,7 @@ class ChatService:
         self._mcp_server_url = mcp_server_url
 
         self._openai_api_key = api_keys.get("OPENAI_API_KEY", "")
+        self._gemini_api_key = api_keys.get("GOOGLE_API_KEY", "")
 
         cfg = global_config()
         self._agents = load_agents_from_directories(agent_dirs, config=cfg)
@@ -89,7 +90,6 @@ class ChatService:
             self.routes = routes
         else:
             self.routes = []
-
 
         self.routes.append(Route(f"{uri_prefix}/api/agents", endpoint=self.agents_handler, methods=["GET", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/api/providers", endpoint=self.provider_handler, methods=["GET", "OPTIONS"]))
