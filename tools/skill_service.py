@@ -115,7 +115,7 @@ class SkillService:
                 try:
                     with open(metadata_file, 'r', encoding='utf-8') as f:
                         metadata = json.load(f)
-                    
+
                     # Validate required fields
                     required_fields = ["name", "summary", "when_to_use", "when_not_to_use", "tags"]
                     missing_fields = [field for field in required_fields if field not in metadata]
@@ -138,7 +138,7 @@ class SkillService:
                         "skill_document_path": str(skill_doc_file.resolve())
                     }
                     
-                    logging.info(f"Loaded skill: {skill_id} - {metadata['name']}")
+                    logging.info(f"Loaded skill: {skill_id}")
                     
                 except json.JSONDecodeError as e:
                     logging.error(f"Invalid JSON in {metadata_file}: {str(e)}")

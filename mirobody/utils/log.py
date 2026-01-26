@@ -1,7 +1,5 @@
 import base64, datetime, json, logging, os
 
-from deprecated import deprecated
-
 from .config import FernetEncrypter
 from .req_ctx import get_req_ctx
 
