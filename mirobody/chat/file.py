@@ -9,13 +9,82 @@ import asyncio
 import logging
 
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from ..pulse.file_parser.services.file_processing_service import process_files_async
 from ..pulse.file_parser.services.async_file_processor import AsyncFileProcessor
 from ..pulse.file_parser.services.file_db_service import FileDbService
 from ..pulse.file_parser.services.db_utils import get_mime_type
 from ..utils.config.storage import get_storage_client
+
+#-----------------------------------------------------------------------------
+
+async def _download_single_file(
+    file_dict: Dict[str, Any],
+    storage: Any,
+    session_id: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Download single file from storage and prepare data.
+    
+    Args:
+        file_dict: File info dictionary
+        storage: Storage client
+        session_id: Session ID
+        
+    Returns:
+        Dict with file_data and file_info, or None if failed
+    """
+    try:
+        file_key = file_dict.get("file_key", "")
+        file_name = file_dict.get("file_name", "")
+        file_type = file_dict.get("file_type", "")
+        file_url = file_dict.get("file_url", "")
+        file_size = file_dict.get("file_size", 0)
+        
+        if not file_key or not file_name:
+            logging.warning(f"Missing file_key or file_name in file dict: {file_dict}")
+            return None
+        
+        # Ensure standard MIME type - fallback to filename-based detection
+        if not file_type or "/" not in file_type:
+            file_type = get_mime_type(file_name)
+        
+        # Download file content from storage
+        file_content, _ = await storage.get(file_key)
+        
+        if not file_content:
+            logging.warning(f"Failed to download file content for key: {file_key}")
+            return None
+        
+        logging.info(f"📥 Downloaded {file_name} from S3 ({len(file_content)} bytes)")
+        
+        return {
+            "file_data": {
+                "content": file_content,
+                "filename": file_name,           # Pulse modules expect "filename"
+                "file_name": file_name,          # Deep agent expects "file_name"
+                "content_type": file_type,
+                "file_key": file_key
+            },
+            "file_info": {
+                "file_key": file_key,
+                "filename": file_name,
+                "file_type": file_type,
+                "file_size": file_size,
+                "url_thumb": file_url,
+                "url_full": file_url,
+                "session_id": session_id,
+                "upload_time": datetime.now().isoformat(),
+            }
+        }
+        
+    except Exception as file_error:
+        logging.error(
+            f"Failed to process file {file_dict.get('file_name', 'unknown')}: {str(file_error)}", 
+            exc_info=True
+        )
+        return None
 
 #-----------------------------------------------------------------------------
 
@@ -70,7 +139,7 @@ async def process_files_from_storage(
     language: str = "en"
 ) -> List[Dict[str, Any]]:
     """
-    Process files from storage (S3/MinIO/OSS) by downloading content and scheduling processing tasks
+    Process files from storage with concurrent downloads for better performance.
     
     All parameters are explicitly passed - no implicit context dependencies.
     
@@ -95,62 +164,36 @@ async def process_files_from_storage(
         session_id = session_id or ""
         query_user_id = query_user_id or user_id
         
+        # Get storage client (reuse for all downloads)
+        storage = get_storage_client()
+        
+        # 🚀 Concurrent download: Create tasks for all files
+        download_tasks = [
+            _download_single_file(file_dict, storage, session_id)
+            for file_dict in file_list
+        ]
+        
+        # Execute all downloads concurrently
+        results = await asyncio.gather(*download_tasks, return_exceptions=True)
+        
+        # Separate successful results from failures
         files_data = []
         files_info = []
         
-        for file_dict in file_list:
-            try:
-                file_key = file_dict.get("file_key", "")
-                file_name = file_dict.get("file_name", "")
-                file_type = file_dict.get("file_type", "")
-                file_url = file_dict.get("file_url", "")
-                file_size = file_dict.get("file_size", 0)
-                
-                if not file_key or not file_name:
-                    logging.warning(f"Missing file_key or file_name in file dict: {file_dict}")
-                    continue
-                
-                # Ensure standard MIME type - fallback to filename-based detection
-                if not file_type or "/" not in file_type:
-                    file_type = get_mime_type(file_name)
-                
-                # Download file content from storage (with timing)
-                storage = get_storage_client()
-                file_content, _ = await storage.get(file_key)
-                
-                if not file_content:
-                    logging.warning(f"Failed to download file content for key: {file_key}")
-                    continue
-                
-                logging.info(f"📥 Downloaded {file_name} from S3 for ({len(file_content)} bytes)")
-                
-                # Append processing data
-                files_data.append({
-                    "content": file_content,
-                    "filename": file_name,
-                    "content_type": file_type,
-                    "s3_key": file_key
-                })
-                
-                # Build files_info for database
-                files_info.append({
-                    "file_key": file_key,
-                    "filename": file_name,
-                    "file_type": file_type,
-                    "file_size": file_size,
-                    "url_thumb": file_url,
-                    "url_full": file_url,
-                    "session_id": session_id,
-                    "upload_time": datetime.now().isoformat(),
-                })
-                
-            except Exception as file_error:
-                logging.error(f"Failed to process file {file_dict.get('file_name', 'unknown')}: {str(file_error)}", exc_info=True)
-                continue
+        for result in results:
+            if result and isinstance(result, dict):
+                files_data.append(result["file_data"])
+                files_info.append(result["file_info"])
+            elif isinstance(result, Exception):
+                logging.error(f"Download task failed with exception: {result}")
         
         if not files_data:
             logging.warning(f"No valid files to process for msg_id: {msg_id}")
             return []
+        
+        logging.info(
+            f"✅ Concurrent download completed: {len(files_data)}/{len(file_list)} files successful"
+        )
         
         # Save files to th_files table
         inserted_ids = await FileDbService.insert_files_batch(
@@ -163,7 +206,10 @@ async def process_files_from_storage(
         )
         
         if inserted_ids:
-            logging.info(f"Files saved to th_files with msg_id: {msg_id}, inserted: {len(inserted_ids)}/{len(files_info)} files")
+            logging.info(
+                f"Files saved to th_files with msg_id: {msg_id}, "
+                f"inserted: {len(inserted_ids)}/{len(files_info)} files"
+            )
         
         # Schedule file processing tasks
         await schedule_file_processing_tasks(

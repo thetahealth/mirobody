@@ -47,7 +47,7 @@ class IndicatorExtractor:
         content_type: str,
         file_name: str,
         user_id: int,
-        source_table: str = "theta_ai.health_ocr",
+        source_table: str = "health_ocr",
         progress_callback: Optional[Callable[[int, str], None]] = None,
         file_key: str = None,
     ) -> Tuple[List[Dict[str, Any]], Any]:
@@ -646,7 +646,7 @@ class IndicatorExtractor:
         content_type: str,
         file_name: str,
         user_id: int,
-        source_table: str = "theta_ai.health_ocr",
+        source_table: str = "health_ocr",
         progress_callback: Optional[Callable[[int, str], None]] = None,
         file_key: str = None,
     ):
@@ -682,7 +682,7 @@ class IndicatorExtractor:
         content_type: str,
         file_name: str,
         user_id: int,
-        source_table: str = "theta_ai.health_ocr",
+        source_table: str = "health_ocr",
         progress_callback: Optional[Callable[[int, str], None]] = None,
         file_key: str = None,
     ):

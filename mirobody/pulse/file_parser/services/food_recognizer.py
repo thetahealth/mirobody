@@ -263,11 +263,11 @@ class FoodImageRecognizer:
     async def save_food_message_result(user_id: str, session_id: str, msg_id: str, content: str) -> Dict[str, Any]:
         """Save food recognition result to th_messages table"""
         sql = """
-            INSERT INTO theta_ai.th_messages (
+            INSERT INTO th_messages (
                 id, user_id, session_id, role, content, message_type,
                 created_at, updated_at, is_del
             ) VALUES (
-                :id, :user_id, :session_id, 'assistant', theta_ai.encrypt_content(:content), 'food',
+                :id, :user_id, :session_id, 'assistant', encrypt_content(:content), 'food',
                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false
             ) RETURNING *
         """

@@ -95,7 +95,7 @@ class GeneticHandler(BaseFileHandler):
                     language=language,
                     original_filename=ctx.filename,
                     original_file_size=file_size,
-                    source_table="theta_ai.th_files",
+                    source_table="th_files",
                     source_table_id=file_key,  # Use file_key as source_table_id for th_files
                     file_key=file_key,
                     full_url=full_url,

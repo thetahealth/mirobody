@@ -16,7 +16,6 @@ from langchain.chat_models import init_chat_model
 
 # Local module imports
 from .deep.utils import StreamConverter, TokenUsageCallback
-from .deep.parser import FileParser
 from .deep.backends import create_postgres_backend
 from .deep.file_handler import upload_files_to_backend
 from .deep.prompt_builder import build_system_prompt
@@ -27,13 +26,8 @@ from mirobody.utils.config import safe_read_cfg
 # Exception handling
 from .deep.exceptions import (
     DeepAgentException,
-    ConfigurationError,
-    APIKeyError,
-    ProviderConfigError,
-    DatabaseConnectionError,
     LLMInitializationError,
     BackendCreationError,
-    ToolLoadError,
     PromptLoadError,
     SystemPromptBuildError,
     AgentBuildError,
@@ -45,30 +39,24 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AgentContext:
-    """Context object for passing data between agent preparation stages."""
+    """Context for passing data between agent preparation stages."""
+    # Input data
     user_id: str
     session_id: str
     language: str
     provider: str | Any | None
     messages: list[dict[str, Any]] | list[BaseMessage]
     file_list: list[dict[str, Any]] | None
+    files_data: list[dict[str, Any]] | None
     prompt_name: str
 
-    # Initialized during preparation
+    # Initialized components
     llm_client: Any = None
     model_name: str = "Unknown"
     tools: list = field(default_factory=list)
     system_prompt: Any = None
     backend: Any = None
     agent: Any = None
-    token_counter: Any = None
-    
-    # Downloaded file content (from HTTP layer) - avoids re-downloading
-    files_data: list[dict[str, Any]] | None = None
-
-    # Fallback information
-    fallback_used: bool = False
-    fallback_message: str = ""
 
 
 class DeepAgent():
@@ -230,19 +218,15 @@ class DeepAgent():
             logger.error(f"LLM init failed: {str(e)}", exc_info=True)
             raise LLMInitializationError(f"LLM init failed: {str(e)}", user_message=error_msg)
     
-    async def _load_global_tools(self, user_id: str) -> list:
+    async def _load_tools(self, user_id: str) -> list:
         """
-        Load global/project tools.
+        Load all tools (global + MCP) with graceful error recovery.
         
-        Args:
-            user_id: User ID
-            
-        Returns:
-            List of global tools
-            
-        Raises:
-            ToolLoadError: If critical tool loading fails
+        Tools are optional - failures are logged but don't block agent initialization.
         """
+        tools = []
+        
+        # Load global tools
         try:
             global_tools = await load_global_tools(
                 user_id=user_id,
@@ -250,67 +234,23 @@ class DeepAgent():
                 allowed_tools=self.allowed_tools,
                 disallowed_tools=self.disallowed_tools
             )
+            tools.extend(global_tools)
             logger.info(f"Loaded {len(global_tools)} global tools")
-            return global_tools
         except Exception as e:
-            error_msg = ErrorMessageHandler.tool_load_failed("global", e)
-            logger.error(f"Failed to load global tools: {str(e)}", exc_info=True)
-            logger.warning("Continuing without global tools")
-            # Tools are optional - return empty list instead of raising
-            return []
-
-    async def _load_mcp_tools(self, user_id: str) -> list:
-        """
-        Load user MCP tools.
+            logger.warning(f"Failed to load global tools: {e}")
         
-        Args:
-            user_id: User ID
-            
-        Returns:
-            List of MCP tools
-            
-        Raises:
-            ToolLoadError: If critical MCP tool loading fails
-        """
+        # Load MCP tools
         try:
-            user_tools = await load_mcp_tools(user_id=user_id, token=self.token)
-            logger.info(f"Loaded {len(user_tools)} MCP tools")
-            return user_tools
+            mcp_tools = await load_mcp_tools(user_id=user_id, token=self.token)
+            tools.extend(mcp_tools)
+            logger.info(f"Loaded {len(mcp_tools)} MCP tools")
         except Exception as e:
-            error_msg = ErrorMessageHandler.tool_load_failed("MCP", e)
-            logger.error(f"Failed to load MCP tools: {str(e)}", exc_info=True)
-            logger.warning("Continuing without MCP tools")
-            # Tools are optional - return empty list instead of raising
-            return []
-
-    async def _load_tools(self, user_id: str) -> list:
-        """
-        Load all tools (global + MCP).
+            logger.warning(f"Failed to load MCP tools: {e}")
         
-        Args:
-            user_id: User ID
-            
-        Returns:
-            Combined list of all tools
-        """
-        global_tools = await self._load_global_tools(user_id)
-        mcp_tools = await self._load_mcp_tools(user_id)
-        return global_tools + mcp_tools
+        return tools
 
     async def _get_base_prompt(self, user_id: str, prompt_name: str) -> str:
-        """
-        Get base prompt from user config or templates.
-        
-        Args:
-            user_id: User ID
-            prompt_name: Name of prompt template
-            
-        Returns:
-            Base prompt string
-            
-        Raises:
-            PromptLoadError: If no prompt template can be loaded
-        """
+        """Get base prompt from user config or templates, with fallback handling."""
         from ...chat.user_config import get_user_prompt_by_name
 
         base_prompt = ""
@@ -368,22 +308,7 @@ class DeepAgent():
             tools: list,
             llm_client: Any
     ) -> Any:
-        """
-        Build system prompt with dynamic components.
-        
-        Args:
-            base_prompt: Base prompt template
-            language: User language
-            user_id: User ID
-            tools: List of available tools
-            llm_client: LLM client instance
-            
-        Returns:
-            Built system prompt
-            
-        Raises:
-            SystemPromptBuildError: If system prompt construction fails
-        """
+        """Build system prompt with tools, time, and user context."""
         try:
             system_prompt = await build_system_prompt(
                 base_prompt=base_prompt,
@@ -406,33 +331,20 @@ class DeepAgent():
             )
     
     async def _create_backend(self, session_id: str, user_id: str) -> Any:
-        """
-        Create backend instance for file storage and persistence.
-
-        Args:
-            session_id: Session ID
-            user_id: User ID
-
-        Returns:
-            Backend instance
-            
-        Raises:
-            BackendCreationError: If backend creation fails
-        """
+        """Create PostgreSQL backend with auto-initialized FileParser."""
         try:
             backend = create_postgres_backend(
                 session_id=session_id,
                 user_id=user_id,
-                file_parser=FileParser(),
                 cache_ttl=self.file_parse_cache_ttl,
                 cache_maxsize=self.file_parse_cache_maxsize,
             )
-            logger.info(f"Created backend for session: {session_id}")
+            logger.info(f"✅ Created backend for session: {session_id}")
             return backend
             
         except Exception as e:
             error_msg = ErrorMessageHandler.backend_creation_failed(e)
-            logger.error(f"Backend creation failed: {str(e)}", exc_info=True)
+            logger.error(f"❌ Backend creation failed: {str(e)}", exc_info=True)
             raise BackendCreationError(f"Backend creation failed: {str(e)}", user_message=error_msg)
     
     async def _upload_files_to_backend(
@@ -442,21 +354,13 @@ class DeepAgent():
             messages: list[dict[str, Any]] | list[BaseMessage],
             files_data: list[dict[str, Any]] | None = None
     ) -> None:
-        """
-        Upload files to backend and add reminder to messages.
-        
-        Args:
-            file_list: List of files to upload (metadata)
-            backend: Backend instance
-            messages: Message list (modified in-place)
-            files_data: Downloaded file content (from HTTP layer) - avoids re-downloading
-        """
+        """Upload files to backend and add reminder message to conversation."""
         if not file_list:
             return
 
         try:
             # Pass files_data to avoid re-downloading from S3
-            uploaded_paths, reminder_message = upload_files_to_backend(
+            uploaded_paths, reminder_message = await upload_files_to_backend(
                 file_list, 
                 backend,
                 files_data=files_data
@@ -465,8 +369,8 @@ class DeepAgent():
             if uploaded_paths:
                 logger.info(f"✅ Uploaded {len(uploaded_paths)} files to PostgreSQL")
 
-                # Add reminder message to conversation
-                if reminder_message and not self._check_base_messages(messages):
+                # Add reminder message to conversation (skip if messages are BaseMessage objects)
+                if reminder_message and not any(isinstance(msg, BaseMessage) for msg in messages):
                     messages.append({
                         "role": "user",
                         "content": reminder_message
@@ -478,8 +382,6 @@ class DeepAgent():
             logger.error(f"❌ Error uploading files to backend: {str(e)}", exc_info=True)
             # Continue without files - non-critical error
 
-    def _check_base_messages(self, messages: list[BaseMessage]) -> bool:
-        return any(isinstance(msg, BaseMessage) for msg in messages)
 
     def _create_middleware(self, backend: Any) -> list:
         """
@@ -503,19 +405,7 @@ class DeepAgent():
             backend: Any,
             middleware: list
     ) -> Any:
-        """
-        Create agent instance with all components.
-        
-        Args:
-            llm_client: LLM client instance
-            system_prompt: System prompt
-            tools: List of tools
-            backend: Backend instance
-            middleware: List of middleware
-            
-        Returns:
-            Agent instance
-        """
+        """Create DeepAgent instance with LLM, tools, backend, and middleware."""
         agent = create_deep_agent(
             model=llm_client,
             system_prompt=system_prompt,
@@ -581,21 +471,7 @@ class DeepAgent():
             prompt_name: str,
             tools: list[BaseTool] | None = None,
     ) -> AgentContext:
-        """
-        Stage 1: Prepare all context components (LLM, tools, prompt).
-        
-        Args:
-            user_id: User ID
-            session_id: Session ID
-            language: User language
-            provider: LLM provider
-            messages: Chat messages
-            file_list: Uploaded files
-            prompt_name: Prompt template name
-            
-        Returns:
-            AgentContext with initialized components
-        """
+        """Stage 1: Initialize LLM, load tools, and build system prompt."""
         context = AgentContext(
             user_id=user_id,
             session_id=session_id,
@@ -609,7 +485,10 @@ class DeepAgent():
 
         # Initialize LLM client
         agent_class_name = self.__class__.__name__.replace("Agent", "")
-        context.llm_client, context.model_name, context.fallback_used, context.fallback_message = await self._init_llm_client(provider, agent_class_name)
+        llm_result = await self._init_llm_client(provider, agent_class_name)
+        context.llm_client = llm_result[0]
+        context.model_name = llm_result[1]
+        context._fallback_msg = llm_result[3] if llm_result[2] else None  # Store fallback message temporarily
 
         # Load external tools （deepagents tools are not ） 
         context.tools = tools if tools is not None else await self._load_tools(user_id)
@@ -627,19 +506,7 @@ class DeepAgent():
         return context
 
     async def _build_agent(self, context: AgentContext) -> AgentContext:
-        """
-        Stage 2: Build agent with backend, files, and middleware.
-        
-        Args:
-            context: Agent context from preparation stage
-            
-        Returns:
-            Updated context with agent instance
-            
-        Raises:
-            AgentBuildError: If agent building fails
-            BackendCreationError: If backend creation fails
-        """
+        """Stage 2: Create backend, upload files, and build agent instance."""
         try:
             # Create backend
             context.backend = await self._create_backend(context.session_id, context.user_id)
@@ -686,19 +553,7 @@ class DeepAgent():
             config: dict,
             model_name: str
     ) -> AsyncGenerator[dict[str, Any], None]:
-        """
-        Stage 3: Stream agent responses with token conversion.
-        
-        Args:
-            agent: Agent instance
-            messages: Prepared messages
-            token_counter: Token counter callback
-            config: Stream configuration
-            model_name: Model name for cost calculation
-            
-        Yields:
-            Converted stream events
-        """
+        """Stage 3: Stream agent responses and track token usage."""
         logger.info("Starting DeepAgent stream")
         trace_id = get_req_ctx("trace_id")
 
@@ -832,8 +687,8 @@ class DeepAgent():
                 logger.info(f"✅ Received {len(context.files_data)} files from HTTP layer (in-memory)")
 
             # Yield fallback warning if provider was not supported
-            if context.fallback_used and context.fallback_message:
-                yield {"type": "thinking", "content": context.fallback_message}
+            if hasattr(context, '_fallback_msg') and context._fallback_msg:
+                yield {"type": "thinking", "content": context._fallback_msg}
 
             # Stage 2: Build agent (backend, files, middleware)
             context = await self._build_agent(context)

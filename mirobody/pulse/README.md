@@ -52,7 +52,7 @@ OAUTH_TEMP_TTL_SECONDS: 900
 Ensure your database has the provider-specific table:
 
 ```sql
-CREATE TABLE IF NOT EXISTS theta_ai.health_data_<provider> (
+CREATE TABLE IF NOT EXISTS health_data_<provider> (
     id SERIAL PRIMARY KEY,
     create_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     update_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -64,9 +64,9 @@ CREATE TABLE IF NOT EXISTS theta_ai.health_data_<provider> (
 );
 
 CREATE INDEX idx_health_data_<provider>_theta_user_id 
-    ON theta_ai.health_data_<provider>(theta_user_id);
+    ON health_data_<provider>(theta_user_id);
 CREATE INDEX idx_health_data_<provider>_msg_id 
-    ON theta_ai.health_data_<provider>(msg_id);
+    ON health_data_<provider>(msg_id);
 ```
 
 ---
@@ -1093,7 +1093,7 @@ async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, 
         
         # Insert into database
         insert_sql = (
-            f"INSERT INTO theta_ai.health_data_{self.info.slug.replace('theta_', '')} "
+            f"INSERT INTO health_data_{self.info.slug.replace('theta_', '')} "
             "(create_at, update_at, is_del, msg_id, raw_data, theta_user_id, external_user_id) "
             "VALUES (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :is_del, :msg_id, "
             ":raw_data, :theta_user_id, :external_user_id) "
@@ -1161,7 +1161,7 @@ async def is_data_already_processed(self, raw_data: Dict[str, Any]) -> bool:
     #     
     #     query = f"""
     #         SELECT EXISTS(
-    #             SELECT 1 FROM theta_ai.health_data_{self.info.slug.replace('theta_', '')}
+    #             SELECT 1 FROM health_data_{self.info.slug.replace('theta_', '')}
     #             WHERE msg_id = :msg_id
     #         ) as exists
     #     """

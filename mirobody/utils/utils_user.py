@@ -112,7 +112,7 @@ async def get_query_user_id(
     if user_id != query_user_id:
         query = """
         select member_user_id as query_user_id, permissions as permission 
-        from theta_ai.th_share_relationship
+        from th_share_relationship
         where member_user_id = :query_user_id
         and owner_user_id = :user_id
         and status = 'authorized'
@@ -178,7 +178,7 @@ async def get_user_language(user_id: str) -> str:
             logging.warning(f"Invalid user_id format: {user_id}. Using default language 'en'.")
             return "en"
 
-        sql = """SELECT lang FROM theta_ai.health_app_user WHERE id = :user_id"""
+        sql = """SELECT lang FROM health_app_user WHERE id = :user_id"""
 
         result = await execute_query(
             sql, params={"user_id": user_id_int}, query_type="select", mode="async"

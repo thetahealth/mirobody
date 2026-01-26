@@ -42,7 +42,7 @@ class AggregateDatabaseService:
         try:
             # UPSERT query with ON CONFLICT
             query = """
-            INSERT INTO theta_ai.th_series_data (
+            INSERT INTO th_series_data (
                 user_id, indicator, value, start_time, end_time,
                 source, task_id, comment, source_table, source_table_id, indicator_id,
                 deleted

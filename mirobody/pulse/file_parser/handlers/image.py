@@ -25,7 +25,7 @@ class ImageHandler(BaseFileHandler):
             content_type=ctx.content_type,
             file_name=ctx.filename,
             user_id=int(ctx.target_user_id),
-            source_table="theta_ai.th_files",
+            source_table="th_files",
             progress_callback=ctx.progress_callback,
             file_key=unique_filename,
         )

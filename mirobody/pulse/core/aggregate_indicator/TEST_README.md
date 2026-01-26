@@ -220,10 +220,10 @@ ERROR: Aggregation boundary error
 ```
 **Solution**: Manually clean up test data
 ```sql
-DELETE FROM theta_ai.series_data 
+DELETE FROM series_data 
 WHERE user_id = '138' AND source = 'test.integration';
 
-DELETE FROM theta_ai.th_series_data 
+DELETE FROM th_series_data 
 WHERE user_id = '138' AND DATE(start_time) = CURRENT_DATE;
 ```
 

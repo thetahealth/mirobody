@@ -51,7 +51,7 @@ from deepagents.backends.utils import (
 
 if TYPE_CHECKING:
     from .postgres_store import PostgresLangGraphStore
-    from ..parser import FileParser
+    from .file_parser import FileParser
 
 logger = logging.getLogger(__name__)
 
@@ -124,11 +124,7 @@ class PostgresBackend:
         self.store = store
         self.file_parser = file_parser
         
-        # Namespace for session workspace (contains local files + global file references)
-        # Format: ("deep_agent", "session", session_id, user_id)
-        self.namespace = ("deep_agent", "session", session_id, user_id)
-        
-        # Local cache for performance (key is file_path only, no namespace tuple)
+        # Local cache for performance (key is file_path only)
         if HAS_CACHETOOLS:
             self._cache = TTLCache(maxsize=cache_maxsize, ttl=cache_ttl)
         else:
@@ -136,7 +132,7 @@ class PostgresBackend:
             self._cache = {}
         
         logger.info(
-            f"PostgresBackend initialized: namespace={self.namespace}, "
+            f"PostgresBackend initialized: session={session_id}, user={user_id}, "
             f"file_parser={'enabled' if file_parser else 'disabled'}, "
             f"cache={'TTL' if HAS_CACHETOOLS else 'dict'}"
         )
@@ -208,7 +204,7 @@ class PostgresBackend:
         
         # Query PostgreSQL
         try:
-            item = await self.store.get(self.namespace, file_path)
+            item = await self.store.get((self.session_id, self.user_id), file_path)
             
             if item is None:
                 return None
@@ -239,7 +235,7 @@ class PostgresBackend:
                 file_data["created_at"] = datetime.now().isoformat()
             
             # Save to PostgreSQL
-            await self.store.put(self.namespace, file_path, file_data)
+            await self.store.put((self.session_id, self.user_id), file_path, file_data)
             
             # Update local cache
             self._cache[file_path] = file_data
@@ -490,7 +486,7 @@ class PostgresBackend:
         """
         try:
             # Search workspace
-            items = await self.store.search(self.namespace)
+            items = await self.store.search((self.session_id, self.user_id))
             
             results = []
             for item in items:
@@ -833,7 +829,7 @@ class PostgresBackend:
                 return f"Invalid regex pattern: {str(e)}"
             
             # Search workspace
-            items = await self.store.search(self.namespace)
+            items = await self.store.search((self.session_id, self.user_id))
             
             matches = []
             for item in items:
@@ -901,7 +897,7 @@ class PostgresBackend:
         """
         try:
             # Search workspace
-            items = await self.store.search(self.namespace)
+            items = await self.store.search((self.session_id, self.user_id))
             
             results = []
             for item in items:
@@ -1073,3 +1069,141 @@ class PostgresBackend:
                 ))
         
         return responses
+    
+    # ========================================
+    # New Methods: Parsed File Upload & Parse
+    # ========================================
+    
+    def upload_parsed_files(
+        self, 
+        files: list[tuple[str, str, dict[str, Any]]]
+    ) -> list[FileUploadResponse]:
+        """
+        Upload already-parsed files to workspace.
+        
+        This method stores parsed text content (not binary) directly to workspace.
+        Used by file_handler after parsing or cache lookup.
+        
+        Args:
+            files: List of (file_path, parsed_text, metadata) tuples
+                - file_path: Path in workspace (e.g., /uploads/report.pdf)
+                - parsed_text: Parsed content as plain text (newline-separated)
+                - metadata: Dict with:
+                    - content_hash: SHA256 hash
+                    - file_key: Reference to th_files.file_key
+                    - file_type: PDF/DOCX/IMAGE/TEXT/UNKNOWN
+                    - file_extension: .pdf, .docx, etc.
+                    - parsed: Boolean flag
+                    - cache_hit: Whether content was from cache
+                    - parse_method: Parse method used
+                    - parse_model: Model used for parsing
+                    - etc.
+        
+        Returns:
+            List of FileUploadResponse objects
+        """
+        return self._run_async(self._upload_parsed_files_async(files))
+    
+    async def aupload_parsed_files(
+        self, 
+        files: list[tuple[str, str, dict[str, Any]]]
+    ) -> list[FileUploadResponse]:
+        """Async version of upload_parsed_files."""
+        return await self._upload_parsed_files_async(files)
+    
+    async def _upload_parsed_files_async(
+        self, 
+        files: list[tuple[str, str, dict[str, Any]]]
+    ) -> list[FileUploadResponse]:
+        """Async implementation of upload_parsed_files."""
+        responses = []
+        
+        for file_path, parsed_text, metadata in files:
+            try:
+                # Build file_data structure for new workspace table
+                # content is stored as TEXT, not JSONB array
+                file_data = {
+                    "content": parsed_text.split("\n"),  # Will be joined in postgres_store.py
+                    "file_key": metadata.get("file_key"),
+                    "content_hash": metadata.get("content_hash"),
+                    "file_type": metadata.get("file_type"),
+                    "file_extension": metadata.get("file_extension"),
+                    "parsed": metadata.get("parsed", True),
+                    # All other metadata fields
+                    **{k: v for k, v in metadata.items() 
+                       if k not in ["file_key", "content_hash", "file_type", 
+                                    "file_extension", "parsed"]}
+                }
+                
+                # Save to workspace
+                await self._put_file_data(file_path, file_data)
+                
+                responses.append(FileUploadResponse(path=file_path, error=None))
+                
+                logger.info(
+                    f"Uploaded parsed file: {file_path} "
+                    f"({metadata.get('file_type')}, {len(parsed_text)} chars, "
+                    f"cache_hit={metadata.get('cache_hit', False)})"
+                )
+                
+            except Exception as e:
+                logger.error(f"Failed to upload parsed file {file_path}: {e}", exc_info=True)
+                responses.append(FileUploadResponse(path=file_path, error="invalid_path"))
+        
+        return responses
+    
+    async def parse_file(
+        self,
+        file_bytes: bytes,
+        file_name: str,
+        file_type: str
+    ) -> tuple[str, str, str]:
+        """
+        Parse file content to plain text.
+        
+        Uses FileParser to extract text from various file types.
+        
+        Args:
+            file_bytes: Raw file binary content
+            file_name: File name (for context)
+            file_type: File type (PDF/DOCX/IMAGE/TEXT/UNKNOWN)
+        
+        Returns:
+            Tuple of (parsed_text, parse_method, parse_model)
+        """
+        if not self.file_parser:
+            logger.warning("FileParser not available, returning empty content")
+            return ("", "none", "")
+        
+        try:
+            # Convert bytes to BytesIO (FileParser expects FileInput = URL | IO)
+            file_io = io.BytesIO(file_bytes)
+            
+            # Get file extension for file_type parameter
+            file_ext = Path(file_name).suffix.lstrip('.')
+            if not file_ext:
+                file_ext = file_type.lower()
+            
+            # Use FileParser to parse content
+            # FileParser.parse_file(file_input: FileInput, file_type: str, filename: Optional[str])
+            parsed_text = await self.file_parser.parse_file(
+                file_input=file_io,
+                file_type=file_ext,
+                filename=file_name
+            )
+            
+            # FileParser returns string directly
+            if isinstance(parsed_text, str):
+                # Infer parse method from file type
+                parse_method = f"fileparser-{file_ext}"
+                parse_model = ""
+                
+                return (parsed_text, parse_method, parse_model)
+            
+            else:
+                logger.warning(f"Unexpected parse result type: {type(parsed_text)}")
+                return ("", "unknown", "")
+        
+        except Exception as e:
+            logger.error(f"Parse failed for {file_name}: {e}", exc_info=True)
+            return ("", "error", "")

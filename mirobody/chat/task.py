@@ -22,7 +22,7 @@ async def get_reference_task_detail(reference_task_id: str, user_id: str) -> tup
         task_detail = ''
         task_recommend_question = ''
         
-        sql = "SELECT * FROM theta_ai.file_parser_tasks WHERE id = :reference_task_id and user_id = :user_id"
+        sql = "SELECT * FROM file_parser_tasks WHERE id = :reference_task_id and user_id = :user_id"
         result = await execute_query(
             sql,
             params={"reference_task_id": reference_task_id, "user_id": user_id},

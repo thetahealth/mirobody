@@ -54,8 +54,8 @@ async def generate_summary(conversation_text: str) -> str:
 async def generate_and_save_summary(user_id: str, session_id: str, provider: Optional[str] = None) -> Dict[str, Any]:
     try:
         messages_sql = """
-            SELECT role, theta_ai.decrypt_content(content) AS content, created_at
-            FROM theta_ai.th_messages
+            SELECT role, decrypt_content(content) AS content, created_at
+            FROM th_messages
             WHERE session_id = :session_id AND user_id = :user_id
             ORDER BY created_at ASC
             LIMIT 10
@@ -108,7 +108,7 @@ async def save_conversation_summary(user_id: str, session_id: str, summary: str)
         logging.info(f"save_conversation_summary: {user_id}, {session_id}, {summary}")
 
         summary_sql = """
-            INSERT INTO theta_ai.th_sessions (
+            INSERT INTO th_sessions (
                 user_id, session_id, summary, created_at, in_use
             )
             VALUES (:user_id, :session_id, :summary, :created_at, :in_use) 

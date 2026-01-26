@@ -85,6 +85,12 @@ You are a professional health profile analyst. Generate a concise user health pr
 6. **Concise Output**: Keep the output concise and to the point. Summarize and condense information where appropriate
 7. **Skip Empty Sections**: If a section or subsection has no data, do NOT output it at all (no placeholder text like "暂无数据")
 8. **No Code Blocks**: Do NOT wrap the output in ```markdown``` or any other code block format. Output plain Markdown text directly
+9. **Time-Based Indicator Management** (CRITICAL):
+   - For the SAME health indicator with multiple time points, keep ALL values from the **past 3 years**
+   - Sort multiple values by date in **descending order** (most recent first)
+   - Do NOT let older data overwrite newer data - if existing profile has a 2025 value, uploading a 2023 report should ADD the 2023 value, NOT replace the 2025 value
+   - Remove data older than 3 years from today
+   - Use the multi-time-point format shown below for indicators with multiple dates
 
 ## Output Structure (Markdown)
 Only output sections that have actual data. Skip sections entirely if no data is available.
@@ -102,6 +108,14 @@ Include the following subsections (only output subsections with actual data):
 - 家族史 / Family History: hereditary diseases, immediate family health status
 - 免疫接种 / Immunization History: vaccination records
 - 月经周期 / Menstrual Cycle: (only for females, skip for males)
+- 检验指标 / Lab Test Results: use multi-time-point format for indicators with multiple dates:
+  ```
+  - 指标名称 / Indicator Name:
+    - 2025-01-15: 值 单位
+    - 2024-03-20: 值 单位
+    - 2023-06-10: 值 单位
+  ```
+  For indicators with only one time point, use simple format: `- 指标名称: 值 单位 (日期)`
 
 ### 4. 近一周设备数据 / Recent Device Data (Past 7 Days)
 Include: heart rate, steps, sleep data, and other wearable device metrics from the past week
@@ -284,16 +298,26 @@ You are a professional health profile analyst. Merge the following profile chunk
 ## Merging Instructions
 1. **Consolidate Information**: Combine related entries from different chunks
 2. **Preserve All Data**: Ensure no important information is lost during merging
-3. **Remove Duplicates**: Eliminate redundant information while preserving unique details
+3. **Remove Duplicates**: Eliminate redundant information while preserving unique details (same indicator + same date + same value = duplicate)
 4. **Concise Output**: Keep the output concise and summarized
 5. **Skip Empty Sections**: Do NOT output any section or subsection that has no data
 6. **Language Consistency**: Use consistent language throughout the merged profile
+7. **Time-Based Indicator Merging** (CRITICAL):
+   - For the SAME health indicator appearing in multiple chunks, merge ALL time points together
+   - Sort by date in **descending order** (most recent first)
+   - Only keep data from the **past 3 years**
+   - Use multi-time-point format for indicators with multiple dates:
+     ```
+     - 指标名称:
+       - 2025-01-15: 值 单位
+       - 2024-03-20: 值 单位
+     ```
 
 ## Required Output Structure
 Only output sections that have actual data:
 1. 用户基础信息 / Basic Information
 2. 生活方式 / Lifestyle
-3. 健康情况 / Health Status (subsections: 用药史, 既往史, 家族史, 免疫接种, 月经周期 - only include subsections with data)
+3. 健康情况 / Health Status (subsections: 用药史, 既往史, 家族史, 免疫接种, 月经周期, 检验指标 - only include subsections with data)
 4. 近一周设备数据 / Recent Device Data
 5. ## 场景 (仅当有适用场景时输出，使用二级标题格式，直接列出中文场景名称。格式: ## 场景\n\n场景名称。场景名称必须使用中文，不要包含英文翻译)
 
@@ -390,6 +414,127 @@ REMOVE_INDICATORS_USER_PROMPT = """
 {deleted_indicators}
 
 Please update the health profile by removing all content related to the deleted indicators listed above. Return the updated profile in Markdown format.
+"""
+
+#-----------------------------------------------------------------------------
+# Remove Indicators with Version Fallback Prompt
+#-----------------------------------------------------------------------------
+
+REMOVE_INDICATORS_WITH_FALLBACK_PROMPT = """
+You are a professional health profile editor. Your task is to intelligently remove or restore health indicators based on version comparison.
+
+## Input
+You will receive:
+1. **Current Profile**: The latest version of user health profile
+2. **Previous Profile**: The previous version of user health profile (may be empty if this is the first version)
+3. **Deleted Indicators**: List of indicators to be deleted (with their values and dates)
+
+## Important: Multi-Time-Point Format
+
+Health indicators may have multiple time points in this format:
+```
+- MCH:
+  - 2025-01-15: 1.5 fL
+  - 2024-03-20: 1.2 fL
+  - 2023-06-10: 1.1 fL
+```
+
+When deleting, you need to match the **indicator name + date + value** combination.
+
+## Core Logic (MUST FOLLOW STRICTLY)
+
+For EACH indicator in the "Deleted Indicators" list, follow this decision tree:
+
+```
+Step 1: Is this indicator (with this specific date) present in Current Profile?
+        ├─ NO  → Do nothing (skip this indicator)
+        └─ YES → Go to Step 2
+
+Step 2: Does the deleted value EXACTLY match the current value for that date?
+        ├─ NO  → Do NOT delete (the current value is different, keep it)
+        └─ YES → Go to Step 3
+
+Step 3: Is this indicator (with this specific date) present in Previous Profile?
+        ├─ YES → RESTORE that specific date entry from Previous Profile
+        └─ NO  → Go to Step 4
+
+Step 4: Does the indicator have other time points remaining after deletion?
+        ├─ YES → DELETE only that specific date entry, keep other time points
+        └─ NO  → DELETE the entire indicator from Current Profile
+```
+
+## Critical Rules
+
+1. **EXACT MATCHING**: Match indicator name + date + value together
+   - Example: Deleting "MCH: 2025-01-15: 1.5 fL" should only affect that specific entry
+   - Other dates like "MCH: 2024-03-20: 1.2 fL" should remain unchanged
+   
+2. **PARTIAL DELETE**: If an indicator has multiple time points and only one is deleted:
+   - Remove only the matching time point
+   - Keep all other time points intact
+   - Maintain the multi-time-point format if multiple entries remain
+   - Convert to single-line format if only one entry remains
+   
+3. **RESTORE**: If previous profile has the deleted date entry, restore it
+   
+4. **PRESERVE EVERYTHING ELSE**: 
+   - Keep ALL other indicators unchanged
+   - Keep formatting, structure, section headers intact
+   - Keep the scenario section (## 场景) unchanged
+   
+5. **NO ADDITIONS**: Do NOT add new information not present in either version
+
+6. **OUTPUT FORMAT**: Output Markdown DIRECTLY without code block wrappers
+
+## Examples
+
+### Example 1: Delete one time point, keep others
+- Current Profile:
+  ```
+  - MCH:
+    - 2025-01-15: 1.5 fL
+    - 2024-03-20: 1.2 fL
+  ```
+- Deleted Indicator: "MCH: 2025-01-15: 1.5 fL"
+- Previous Profile: (no MCH for 2025-01-15)
+- Action: DELETE that date entry only
+- Output:
+  ```
+  - MCH: 1.2 fL (2024-03-20)
+  ```
+
+### Example 2: Restore to previous value
+- Current Profile: "MCH: 2025-01-15: 1.5 fL"
+- Previous Profile: "MCH: 2025-01-15: 1.3 fL"
+- Deleted Indicator: "MCH: 2025-01-15: 1.5 fL"
+- Action: RESTORE → Output should contain "MCH: 2025-01-15: 1.3 fL"
+
+### Example 3: Keep (value mismatch)
+- Current Profile: "MCH: 2025-01-15: 1.5 fL"
+- Deleted Indicator: "MCH: 2025-01-15: 1.2 fL"
+- Action: KEEP → Values don't match, keep current value
+
+### Example 4: Delete entire indicator (only one time point)
+- Current Profile: "MCH: 1.5 fL (2025-01-15)"
+- Previous Profile: (no MCH indicator)
+- Deleted Indicator: "MCH: 2025-01-15: 1.5 fL"
+- Action: DELETE entire indicator
+"""
+
+REMOVE_INDICATORS_WITH_FALLBACK_USER_PROMPT = """
+## Current User Health Profile
+
+{current_profile}
+
+## Previous User Health Profile
+
+{previous_profile}
+
+## Deleted Indicators (to be processed)
+
+{deleted_indicators}
+
+Based on the decision logic described above, process each deleted indicator and return the updated profile in Markdown format.
 """
 
 #-----------------------------------------------------------------------------
@@ -650,7 +795,7 @@ class BasicInfoService:
         
         sql = """
         select blood, gender, birth, lang
-        from theta_ai.health_app_user
+        from health_app_user
         where id = :user_id
         and is_del = false
         limit 1
@@ -694,7 +839,7 @@ class DeviceDataService:
         """
         sql = """
         select distinct on (indicator) indicator, value, to_char(start_time, 'YYYY-MM-DD HH24:MI:SS') as start_time
-        from theta_ai.th_series_data
+        from th_series_data
         where user_id = :user_id
         and indicator like 'rolling_7d%'
         and deleted = 0
@@ -735,7 +880,7 @@ class UserProfileGenerator:
         """
         sql = """
         select common_part, scenario_zh
-        from theta_ai.health_user_profile_by_system
+        from health_user_profile_by_system
         where user_id = :user_id
         and is_deleted = false
         order by version desc
@@ -912,19 +1057,32 @@ class UserProfileGenerator:
             return None
     
     @staticmethod
-    async def _remove_indicators_from_profile(profile_content: str, deleted_indicators: str) -> Optional[str]:
+    async def _remove_indicators_from_profile(
+        profile_content: str, 
+        deleted_indicators: str,
+        previous_profile_content: Optional[str] = None
+    ) -> Optional[str]:
         """
-        Remove specified indicators and related content from existing profile using LLM
+        Remove or restore indicators from existing profile using LLM with version comparison
         
         This method is used when user deletes uploaded documents and the corresponding
-        indicators need to be removed from the profile.
+        indicators need to be removed from the profile. It supports intelligent fallback
+        to previous version values when available.
+        
+        Decision Logic for each deleted indicator:
+        1. If indicator not in current profile → skip
+        2. If deleted value ≠ current value → do not delete (keep current)
+        3. If deleted value = current value:
+           - If indicator exists in previous profile → restore to previous value
+           - If indicator not in previous profile → delete the indicator
         
         Args:
-            profile_content: Existing user profile content in Markdown format
+            profile_content: Current user profile content in Markdown format
             deleted_indicators: String describing the deleted indicators
+            previous_profile_content: Previous version profile content (optional)
             
         Returns:
-            Updated profile with deleted indicators removed, or None on failure
+            Updated profile with indicators processed, or None on failure
         """
         if not profile_content:
             logger.warning("[remove_indicators] Cannot process: empty profile content")
@@ -935,15 +1093,29 @@ class UserProfileGenerator:
             return profile_content
         
         try:
-            logger.info(f"[remove_indicators] Starting to remove indicators from profile, indicators: {deleted_indicators[:200]}...")
+            logger.info(f"[remove_indicators] Starting to process indicators, deleted: {deleted_indicators[:200]}...")
+            logger.info(f"[remove_indicators] Previous profile available: {bool(previous_profile_content)}")
             
-            messages = [
-                {"role": "system", "content": REMOVE_INDICATORS_PROMPT},
-                {"role": "user", "content": REMOVE_INDICATORS_USER_PROMPT.format(
-                    profile_content=profile_content,
-                    deleted_indicators=deleted_indicators
-                )}
-            ]
+            # Use fallback prompt if previous profile is available, otherwise use simple prompt
+            if previous_profile_content:
+                messages = [
+                    {"role": "system", "content": REMOVE_INDICATORS_WITH_FALLBACK_PROMPT},
+                    {"role": "user", "content": REMOVE_INDICATORS_WITH_FALLBACK_USER_PROMPT.format(
+                        current_profile=profile_content,
+                        previous_profile=previous_profile_content,
+                        deleted_indicators=deleted_indicators
+                    )}
+                ]
+                logger.info("[remove_indicators] Using fallback prompt with version comparison")
+            else:
+                messages = [
+                    {"role": "system", "content": REMOVE_INDICATORS_PROMPT},
+                    {"role": "user", "content": REMOVE_INDICATORS_USER_PROMPT.format(
+                        profile_content=profile_content,
+                        deleted_indicators=deleted_indicators
+                    )}
+                ]
+                logger.info("[remove_indicators] Using simple prompt (no previous version)")
             
             result = await async_get_text_completion(
                 messages=messages,
@@ -1260,11 +1432,17 @@ class UserProfileService:
     @classmethod
     async def remove_indicators_from_profile(cls, user_id: str, deleted_indicators: str) -> Dict[str, Any]:
         """
-        Remove specified indicators from user profile when documents are deleted.
+        Remove or restore indicators from user profile when documents are deleted.
         
-        This method is called when user deletes uploaded documents. It removes the
-        corresponding indicator content from the user profile while keeping all
-        other information intact.
+        This method is called when user deletes uploaded documents. It intelligently
+        processes the indicators based on version comparison:
+        
+        Decision Logic for each deleted indicator:
+        1. If indicator not in current profile → skip
+        2. If deleted value ≠ current value → do not delete (keep current)
+        3. If deleted value = current value:
+           - If indicator exists in previous profile → restore to previous value
+           - If indicator not in previous profile → delete the indicator
         
         Args:
             user_id: User ID
@@ -1305,10 +1483,20 @@ class UserProfileService:
                 "message": "Profile content is empty"
             }
         
-        # Step 2: Use LLM to remove indicators from profile
+        # Step 2: Get previous profile for version comparison (fallback support)
+        previous_profile_info = await cls._get_previous_profile_info(user_id)
+        previous_common_part = previous_profile_info['common_part'] if previous_profile_info else None
+        
+        if previous_profile_info:
+            logger.info(f"[remove_indicators_from_profile] Found previous profile version {previous_profile_info['version']} for fallback")
+        else:
+            logger.info(f"[remove_indicators_from_profile] No previous profile found, will use simple deletion")
+        
+        # Step 3: Use LLM to process indicators with version comparison
         updated_profile = await UserProfileGenerator._remove_indicators_from_profile(
             profile_content=common_part,
-            deleted_indicators=deleted_indicators
+            deleted_indicators=deleted_indicators,
+            previous_profile_content=previous_common_part
         )
         
         if not updated_profile:
@@ -1318,13 +1506,13 @@ class UserProfileService:
                 "message": "Failed to generate updated profile"
             }
         
-        # Step 3: Save new version (only common_part changes, other fields remain unchanged)
+        # Step 4: Save new version (only common_part changes, other fields remain unchanged)
         new_version = current_version + 1
         
         profile_id = await cls._save_profile(
             user_id=user_id,
             version=new_version,
-            profile_markdown=updated_profile,  # Updated profile with indicators removed
+            profile_markdown=updated_profile,  # Updated profile with indicators processed
             last_execute_doc_id=last_execute_doc_id,  # Keep unchanged
             scenario_zh=scenario_zh,  # Keep unchanged
             scenario_en=scenario_en,  # Keep unchanged
@@ -1350,7 +1538,7 @@ class UserProfileService:
         """Get version control information"""
         sql = """
         select version, last_execute_doc_id
-        from theta_ai.health_user_profile_by_system
+        from health_user_profile_by_system
         where user_id = :user_id
         and is_deleted = false
         order by version desc
@@ -1388,7 +1576,7 @@ class UserProfileService:
         sql = """
         select version, last_execute_doc_id, common_part, 
                scenario_zh, scenario_en, scenario_image_url
-        from theta_ai.health_user_profile_by_system
+        from health_user_profile_by_system
         where user_id = :user_id
         and is_deleted = false
         order by version desc
@@ -1413,18 +1601,55 @@ class UserProfileService:
             return None
     
     @staticmethod
+    async def _get_previous_profile_info(user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get user's previous (second latest) profile information
+        
+        This method is used for version comparison during indicator deletion,
+        allowing fallback to previous values when current indicators are deleted.
+        
+        Args:
+            user_id: User ID
+            
+        Returns:
+            Dictionary containing version and common_part of the previous version,
+            or None if not found (user has only one or no profile versions)
+        """
+        sql = """
+        select version, common_part
+        from theta_ai.health_user_profile_by_system
+        where user_id = :user_id
+        and is_deleted = false
+        order by version desc
+        limit 1 offset 1
+        """
+        
+        results = await execute_query(
+            sql,
+            params={"user_id": user_id},
+        )
+        
+        if results:
+            return {
+                "version": results[0]['version'],
+                "common_part": results[0]['common_part']
+            }
+        else:
+            return None
+    
+    @staticmethod
     async def _get_incremental_data(user_id: str, last_execute_doc_id: int) -> List[Dict]:
         """Get incremental data"""
         sql = """
         select
             data.id, data.value, data.start_time,
             dim.original_indicator, dim.unit
-        from theta_ai.th_series_dim as dim
-        join theta_ai.th_series_data as data
+        from th_series_dim as dim
+        join th_series_data as data
         on data.indicator = dim.original_indicator
         where data.user_id = :user_id
         and data.id > :last_execute_doc_id
-        and data.source_table in ('chat', 'th_messages', 'theta_ai.th_messages', 'theta_ai.th_files', 'th_files', 'apple_health_cda', 'excel', 'health_data_epic', 'health_data_oracle')
+        and data.source_table in ('chat', 'th_messages', 'th_messages', 'th_files', 'th_files', 'apple_health_cda', 'excel', 'health_data_epic', 'health_data_oracle')
         and data.deleted = 0
         order by data.id asc
         """
@@ -1467,7 +1692,7 @@ class UserProfileService:
             Profile record ID
         """
         sql = """
-        insert into theta_ai.health_user_profile_by_system
+        insert into health_user_profile_by_system
         (user_id, version, name, last_execute_doc_id, common_part, scenario_zh, scenario_en, scenario_image_url, action_type, is_deleted)
         values (:user_id, :version, :name, :last_execute_doc_id, :common_part, :scenario_zh, :scenario_en, :scenario_image_url, :action_type, :is_deleted)
         returning id

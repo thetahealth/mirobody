@@ -323,7 +323,7 @@ class ManageDatabaseService(CacheableDatabaseService):
             COUNT(*) as total_records,
             MAX(time) as latest_time,
             'series' as indicator_type
-        FROM theta_ai.series_data 
+        FROM series_data 
         WHERE time > :start_time 
         GROUP BY source, indicator 
         """
@@ -342,13 +342,13 @@ class ManageDatabaseService(CacheableDatabaseService):
                 THEN 'aggregate'
                 ELSE 'summary'
             END as indicator_type
-        FROM theta_ai.th_series_data th
+        FROM th_series_data th
         WHERE th.end_time > :start_time 
           AND th.deleted = 0
           AND th.source_table IN ('series_data', '')
           AND th.source IN (
               SELECT DISTINCT source 
-              FROM theta_ai.series_data 
+              FROM series_data 
               WHERE source IS NOT NULL
           )
         GROUP BY th.source, th.indicator
@@ -395,7 +395,7 @@ class ManageDatabaseService(CacheableDatabaseService):
                 COUNT(DISTINCT user_id) as user_count,
                 MIN(start_time) as earliest_time,
                 MAX(end_time) as latest_time
-            FROM theta_ai.th_series_data 
+            FROM th_series_data 
             WHERE indicator = :indicator AND source = :source AND deleted = 0 AND source_table = ''
             """
         else:
@@ -406,7 +406,7 @@ class ManageDatabaseService(CacheableDatabaseService):
                 COUNT(DISTINCT user_id) as user_count,
                 MIN(time) as earliest_time,
                 MAX(time) as latest_time
-            FROM theta_ai.series_data 
+            FROM series_data 
             WHERE indicator = :indicator AND source = :source
             """
 
@@ -441,14 +441,14 @@ class ManageDatabaseService(CacheableDatabaseService):
             # Query th_series_data for summary indicators
             query = """
             SELECT COUNT(*) as existing_count
-            FROM theta_ai.th_series_data 
+            FROM th_series_data 
             WHERE indicator = :indicator AND source = :source AND deleted = 0 AND source_table = ''
             """
         else:
             # Query series_data for series indicators
             query = """
             SELECT COUNT(*) as existing_count
-            FROM theta_ai.series_data 
+            FROM series_data 
             WHERE indicator = :indicator AND source = :source
             """
 
@@ -482,7 +482,7 @@ class ManageDatabaseService(CacheableDatabaseService):
         if is_summary:
             # Update th_series_data for summary indicators
             query = """
-            UPDATE theta_ai.th_series_data 
+            UPDATE th_series_data 
             SET 
                 indicator = :new_indicator,
                 update_time = CURRENT_TIMESTAMP
@@ -494,7 +494,7 @@ class ManageDatabaseService(CacheableDatabaseService):
         else:
             # Update series_data for series indicators
             query = """
-            UPDATE theta_ai.series_data 
+            UPDATE series_data 
             SET 
                 indicator = :new_indicator,
                 update_time = CURRENT_TIMESTAMP
@@ -537,7 +537,7 @@ class ManageDatabaseService(CacheableDatabaseService):
                 source,
                 COUNT(*) as record_count,
                 MAX(time) as last_sync_time
-            FROM theta_ai.series_data 
+            FROM series_data 
             where user_id =:user_id
             GROUP BY source
             order by source desc

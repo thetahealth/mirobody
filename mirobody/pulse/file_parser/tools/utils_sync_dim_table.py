@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Dimension Table Sync Tool
-Fetches indicators from theta_ai.th_series_data table, inserts new records if they don't exist in theta_ai.th_series_dim dimension table.
+Fetches indicators from th_series_data table, inserts new records if they don't exist in th_series_dim dimension table.
 Based on the implementation pattern of utils_update_embeddings.py
 """
 
@@ -197,8 +197,8 @@ class DimTableSyncer:
         # Build base query
         base_query = """
         SELECT DISTINCT sd.indicator
-        FROM theta_ai.th_series_data sd
-        LEFT JOIN theta_ai.th_series_dim dim ON sd.indicator = dim.original_indicator
+        FROM th_series_data sd
+        LEFT JOIN th_series_dim dim ON sd.indicator = dim.original_indicator
         WHERE dim.original_indicator IS NULL
         """
 
@@ -581,7 +581,7 @@ class DimTableSyncer:
 
                     if batch_params:
                         insert_query = """
-                        INSERT INTO theta_ai.th_series_dim 
+                        INSERT INTO th_series_dim 
                         (original_indicator, standard_indicator, category_group, category, 
                          original_indicator_embedding, standard_indicator_embedding, category_embedding,
                          diagnosis_recommended_organ, diagnosis_recommended_system, diagnosis_recommended_disease,
@@ -604,7 +604,7 @@ class DimTableSyncer:
 
                     if batch_params:
                         insert_query = """
-                        INSERT INTO theta_ai.th_series_dim 
+                        INSERT INTO th_series_dim 
                         (original_indicator, standard_indicator, category_group, category,
                          diagnosis_recommended_organ, diagnosis_recommended_system, diagnosis_recommended_disease,
                          department, symptom, updated_at)
@@ -651,7 +651,7 @@ class DimTableSyncer:
         # 1. Query records that need updating
         query = """
             SELECT id, original_indicator
-            FROM theta_ai.th_series_dim
+            FROM th_series_dim
             WHERE diagnosis_recommended_organ IS NULL 
                OR diagnosis_recommended_organ = ''
                OR original_indicator_embedding is NULL
@@ -766,7 +766,7 @@ class DimTableSyncer:
                         # Execute batch update
                         if generate_embeddings and embeddings_map:
                             update_query = """
-                                UPDATE theta_ai.th_series_dim 
+                                UPDATE th_series_dim 
                                 SET 
                                     diagnosis_recommended_organ = :diagnosis_recommended_organ,
                                     diagnosis_recommended_system = :diagnosis_recommended_system,
@@ -782,7 +782,7 @@ class DimTableSyncer:
                             """
                         else:
                             update_query = """
-                                UPDATE theta_ai.th_series_dim 
+                                UPDATE th_series_dim 
                                 SET 
                                     diagnosis_recommended_organ = :diagnosis_recommended_organ,
                                     diagnosis_recommended_system = :diagnosis_recommended_system,

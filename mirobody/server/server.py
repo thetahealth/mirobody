@@ -15,6 +15,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from .middlewares import JwtMiddleware, UserInfoUpdaterMiddleware, RequestRateLimiterMiddleware
 
 from ..user import (
+    AbstractTokenValidator,
     JwtTokenValidator,
     OAuthService,
     UserService
@@ -36,7 +37,13 @@ class Server:
 
         jwt_key         : str = "",
         jwt_private_key : str = "",
+        jwt_iss         : str = "",
+        jwt_aud         : str = "",
+        jwt_client_id   : str = "",
+        jwt_scope       : str = "",
+        jwt_expires_in  : int = 0,
 
+        jwt_token_validator : AbstractTokenValidator | None = None,
         jwt_sub_decode_func : Callable[[str], int] | None = None,
         gen_jwt_claims_func : Callable[[str, str], dict] | None = None,
 
@@ -100,7 +107,16 @@ class Server:
         self._redis = redis
         logging.info(f"Server is running in {"Redis" if self._redis else "local memory"} mode.")
 
-        self._jwt_token_validator = JwtTokenValidator(jwt_key)
+        self._jwt_token_validator = jwt_token_validator \
+            if jwt_token_validator \
+            else JwtTokenValidator(
+                key         = jwt_key,
+                iss         = jwt_iss,
+                aud         = jwt_aud,
+                client_id   = jwt_client_id,
+                scope       = jwt_scope,
+                expires_in  = jwt_expires_in
+            )
 
         self._webpage_config = webpage_config
         if not self._webpage_config:
@@ -390,7 +406,7 @@ class Server:
     #-----------------------------------------------------
 
     @staticmethod
-    async def start(yaml_files: list[str] = []):
+    async def start(yaml_files: list[str] = [], fastapi_routers: list = []):
         # Load configuration via file.
         from ..utils import Config
         config = await Config.init(yaml_filenames=yaml_files)
@@ -421,8 +437,8 @@ class Server:
             uri_prefix      = config.http.uri_prefix,
             htdoc           = config.http.htdoc,
 
-            jwt_key         = config.jwt_key,
-            jwt_private_key = config.jwt_private_key,
+            # jwt_key         = config.jwt_key,
+            # jwt_private_key = config.jwt_private_key,
 
             pg_pool         = await config.get_postgresql().get_async_pool(),
             redis           = await config.get_redis().get_async_client(),
@@ -433,9 +449,9 @@ class Server:
             url_paths_for_user_info_updater     = config.get_list("USER_INFO_UPDATER"),
 
             **config.get_mcp_options(),
-
             **config.get_agent_options(),
 
+            **config.get_jwt_options(),
             **config.get_email_options(),
             **config.get_apple_options(),
             **config.get_google_options(),
@@ -480,6 +496,9 @@ class Server:
 
         from mirobody.user.sharing import router as user_invitation_router
         app.include_router(user_invitation_router)
+
+        for router in fastapi_routers:
+            app.include_router(router)
 
         #-----------------------------------------------------
         # Start asgi server.

@@ -33,7 +33,7 @@ class AbstractTokenValidator:
         extra_claims.update(
             {
                 "email"     : email.strip().lower(),
-                "client_id" : f"mcp_{auth_method}_auth" if auth_method else "data_server",
+                # "client_id" : f"mcp_{auth_method}_auth" if auth_method else "data_server",
                 "token_type": "oauth_access_token"
             }
         )
@@ -48,7 +48,7 @@ class AbstractTokenValidator:
         #-------------------------------------------------
 
         extra_claims = {
-            "client_id" : f"mcp_{auth_method}_auth" if auth_method else "data_server",
+            # "client_id" : f"mcp_{auth_method}_auth" if auth_method else "data_server",
             "token_type": "oauth_refresh_token"
         }
 
@@ -118,19 +118,18 @@ class JwtTokenValidator(AbstractTokenValidator):
         self,
         key: str,
         algorithms  : list[str] = [],
-        iss         : str       = "theta_oauth",
-        aud         : str       = "theta",
-        client_id   : str       = "theta_data",
-        scope       : str       = "mcp:read mcp:write",
+        iss         : str       = "",
+        aud         : str       = "",
+        client_id   : str       = "",
+        scope       : str       = "",
         expires_in  : int       = 0
     ):
-
         self._key       = key
         self._algorithms= algorithms if algorithms else ["HS256"]
-        self._iss       = iss
-        self._aud       = aud
-        self._client_id = client_id
-        self._scope     = scope
+        self._iss       = iss if isinstance(iss, str) else "theta_oauth"
+        self._aud       = aud if isinstance(aud, str) else "theta"
+        self._client_id = client_id if isinstance(client_id, str) else "theta_data"
+        self._scope     = scope if isinstance(scope, str) else "mcp:read mcp:write"
         self._expires_in= expires_in if expires_in > 0 else 60*60*24*30
 
     #-----------------------------------------------------
@@ -176,7 +175,7 @@ class JwtTokenValidator(AbstractTokenValidator):
     #-----------------------------------------------------
     
     def generate_token(self, subject: str, extra: dict | None = None, expires_in: int = 0) -> str:
-        now = int(time.time())
+        now = int(time.time()) - 60
 
         payload = {
             "sub"       : subject,                  # Subject of the token (usually user ID).

@@ -57,7 +57,7 @@ async def build_system_prompt(
     if tools_description:
         tools_description += "\n\n---\n\n"
     
-    current_time = datetime.now(ZoneInfo(timezone)).strftime("%A, %B %d, %Y, at %I:00 %p")
+    current_time = datetime.now(ZoneInfo(timezone)).strftime("%A, %B %d, %Y, at %I:00 %p %Z (UTC%z)")
     
     # Build prompt with Jinja2 template rendering
     try:

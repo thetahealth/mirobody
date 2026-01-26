@@ -326,7 +326,7 @@ class HTTPChatAdapter(ChatProtocolAdapter):
                         async def _generate_summary_background():
                             try:
                                 check_sql = """
-                                    SELECT summary FROM theta_ai.th_sessions 
+                                    SELECT summary FROM th_sessions 
                                     WHERE session_id = :session_id AND user_id = :user_id
                                     LIMIT 1
                                 """

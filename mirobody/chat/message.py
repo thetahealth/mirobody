@@ -136,9 +136,9 @@ async def create_message(
     question_id = "app_" + str(uuid.uuid4())
     
     sql = """
-        INSERT INTO theta_ai.th_messages 
+        INSERT INTO th_messages 
         (id, user_id, query_user_id, session_id, role, content, agent, message_type, scene, created_at, reference_task_id) 
-        VALUES (:id, :user_id, :query_user_id, :session_id, :role, theta_ai.encrypt_content(:content), :agent, :message_type, :scene, now(), :reference_task_id) 
+        VALUES (:id, :user_id, :query_user_id, :session_id, :role, encrypt_content(:content), :agent, :message_type, :scene, now(), :reference_task_id) 
         RETURNING id
     """
     record = await execute_query(
@@ -189,11 +189,11 @@ async def save_message(
         msg_id = f"app_{uuid.uuid4()}"
     
     sql = """
-        INSERT INTO theta_ai.th_messages 
+        INSERT INTO th_messages 
         (id, user_id, query_user_id, session_id, role, content, 
          agent, message_type, scene, created_at, question_id, provider)
         VALUES 
-        (:id, :user_id, :query_user_id, :session_id, :role, theta_ai.encrypt_content(:content),
+        (:id, :user_id, :query_user_id, :session_id, :role, encrypt_content(:content),
          :agent, :message_type, :scene, NOW(), :question_id, :provider)
         ON CONFLICT (id) DO NOTHING RETURNING id
     """
@@ -240,13 +240,13 @@ async def get_last_message(user_id: str, query_user_id: str = None, session_id: 
     try:
         if not include_all:
             sql = f"""
-                select id, role, agent, theta_ai.decrypt_content(content) as content, reference_task_id, created_at from theta_ai.th_messages where user_id = :user_id and query_user_id = :query_user_id and scene = :scene and is_del = false {session_phrase} order by created_at desc limit 15
+                select id, role, agent, decrypt_content(content) as content, reference_task_id, created_at from th_messages where user_id = :user_id and query_user_id = :query_user_id and scene = :scene and is_del = false {session_phrase} order by created_at desc limit 15
             """
             params = {"user_id": user_id, "query_user_id": query_user_id, "scene": scene}
             rows = await execute_query(sql, params)
         else:
             sql = f"""
-                select id, role, agent, theta_ai.decrypt_content(content) as content, reference_task_id, created_at from theta_ai.th_messages where user_id = :user_id and scene = :scene and is_del = false {session_phrase} order by created_at desc limit 15
+                select id, role, agent, decrypt_content(content) as content, reference_task_id, created_at from th_messages where user_id = :user_id and scene = :scene and is_del = false {session_phrase} order by created_at desc limit 15
             """
             params = {"user_id": user_id, "scene": scene}
             rows = await execute_query(sql, params)
@@ -415,7 +415,7 @@ async def create_new_question(trace_id: str, question: str, user_id: int, messag
     else:
         question_id = "app_" + str(uuid.uuid4())
     
-    sql = "insert into theta_ai.th_messages (id, user_id, query_user_id, session_id, role, content, agent, message_type, scene, created_at) values (:id, :user_id, :query_user_id, :session_id, :role, theta_ai.encrypt_content(:content), :agent, :message_type, :scene, now()) RETURNING id"
+    sql = "insert into th_messages (id, user_id, query_user_id, session_id, role, content, agent, message_type, scene, created_at) values (:id, :user_id, :query_user_id, :session_id, :role, encrypt_content(:content), :agent, :message_type, :scene, now()) RETURNING id"
     record = await execute_query(
         sql,
         params={
@@ -442,9 +442,9 @@ async def get_chat_history(user_id: str, session_id: str) -> list[dict[str, Any]
     try:
         session_sql = """
             SELECT 
-                id, theta_ai.decrypt_content(content) AS content, reasoning, role, agent, provider, 
+                id, decrypt_content(content) AS content, reasoning, role, agent, provider, 
                 input_prompt, created_at, rating, question_id, message_type
-            FROM theta_ai.th_messages
+            FROM th_messages
             WHERE user_id = :user_id AND session_id = :session_id
             ORDER BY created_at ASC
         """
@@ -531,7 +531,10 @@ async def get_chat_history(user_id: str, session_id: str) -> list[dict[str, Any]
 
             user_messages.sort(key=lambda x: x["timestamp"])
 
-            for user_msg in user_messages:
+            for user_msg in user_messages: 
+                if not user_msg.get("provider"): # filter duplicate messages 
+                    continue
+                
                 history.append(user_msg)
 
                 question_id = user_msg.get("questionId")
@@ -555,7 +558,7 @@ async def query_external_chat_history(user_id: str):
     try:
         group_sql = """
         SELECT DISTINCT group_id 
-        FROM theta_ai.th_messages 
+        FROM th_messages 
         WHERE message_type = :message_type 
         AND user_id = :user_id 
         AND group_id IS NOT NULL
@@ -577,11 +580,11 @@ async def query_external_chat_history(user_id: str):
             m.id,
             m.user_id,
             m.group_id,
-            theta_ai.decrypt_content(m.content) AS content,
+            decrypt_content(m.content) AS content,
             m.created_at,
             COALESCE(u.name, m.user_id::text) as user_name
-        FROM theta_ai.th_messages m
-        LEFT JOIN theta_ai.health_app_user u ON m.user_id::int = u.id
+        FROM th_messages m
+        LEFT JOIN health_app_user u ON m.user_id::int = u.id
         WHERE m.message_type = :message_type 
         AND m.group_id = ANY(:group_ids)
         AND m.content IS NOT NULL 

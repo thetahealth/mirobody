@@ -60,7 +60,7 @@ class UserService:
 
             # Get the latest profile from health_user_profile_by_system table
             sql = """
-                SELECT last_update_time, common_part FROM theta_ai.health_user_profile_by_system 
+                SELECT last_update_time, common_part FROM health_user_profile_by_system 
                 WHERE user_id = :user_id AND is_deleted = false 
                 ORDER BY version DESC 
                 LIMIT 1

@@ -1414,7 +1414,7 @@ class ThetaWhoopProvider(BaseThetaProvider):
 
     async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Save full Whoop payload into theta_ai.health_data_whoop.
+        Save full Whoop payload into health_data_whoop.
         We store the entire provider response as jsonb for auditing and reprocessing.
         """
         try:
@@ -1428,7 +1428,7 @@ class ThetaWhoopProvider(BaseThetaProvider):
             msg_id = f"whoop_{user_id}_{int(time.time())}" if user_id else f"whoop_{int(time.time())}"
 
             insert_sql = (
-                "INSERT INTO theta_ai.health_data_whoop "
+                "INSERT INTO health_data_whoop "
                 "(create_at, update_at, is_del, msg_id, raw_data, theta_user_id, external_user_id) "
                 "VALUES (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :is_del, :msg_id, :raw_data, :theta_user_id, :external_user_id)"
             )

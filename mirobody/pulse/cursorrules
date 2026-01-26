@@ -441,9 +441,9 @@ print(f"Provider created: {provider is not None}")
 ```
 
 ### Verify Data Flow
-- Check raw data saved: `SELECT * FROM theta_ai.health_data_xxx WHERE uid = ?`
-- Check processed data: `SELECT * FROM theta_ai.series_data WHERE user_id = ?`
-- Check max_stored_key: `SELECT MAX(key) FROM theta_ai.health_data_xxx WHERE uid = ?`
+- Check raw data saved: `SELECT * FROM health_data_xxx WHERE uid = ?`
+- Check processed data: `SELECT * FROM series_data WHERE user_id = ?`
+- Check max_stored_key: `SELECT MAX(key) FROM health_data_xxx WHERE uid = ?`
 
 ## Code Quality Standards
 
@@ -532,10 +532,10 @@ print(f"Provider created: {provider is not None}")
 ## Project-Specific Knowledge
 
 ### Data Tables
-- **Raw Data**: `theta_ai.health_data_xxx` (provider-specific raw data storage)
-- **Processed Data**: `theta_ai.series_data` (standardized indicator data)
-- **User Mapping**: `theta_ai.health_user_provider` (user credentials for providers)
-- **Config**: `theta_ai.config_*` tables (configuration management)
+- **Raw Data**: `health_data_xxx` (provider-specific raw data storage)
+- **Processed Data**: `series_data` (standardized indicator data)
+- **User Mapping**: `health_user_provider` (user credentials for providers)
+- **Config**: `config_*` tables (configuration management)
 
 ### Key Fields
 - `max_stored_key`: Maximum timestamp of stored data (used for incremental sync)

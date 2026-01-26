@@ -248,7 +248,7 @@ class SharingService:
         try:
             # Get current user info
             owner_info = await execute_query(
-                "SELECT id, name, email FROM theta_ai.health_app_user WHERE id=:owner_user_id AND is_del=FALSE;",
+                "SELECT id, name, email FROM health_app_user WHERE id=:owner_user_id AND is_del=FALSE;",
                 params={"owner_user_id": int(user_id)},
             )
             if not owner_info:
@@ -258,7 +258,7 @@ class SharingService:
 
             # Check if user exists
             existing_user = await execute_query(
-                "SELECT id, name FROM theta_ai.health_app_user WHERE email=:email AND is_del=FALSE;",
+                "SELECT id, name FROM health_app_user WHERE email=:email AND is_del=FALSE;",
                 params={"email": lower_email},
             )
 
@@ -268,7 +268,7 @@ class SharingService:
                 # Create new user
                 default_nickname = nickname if nickname else lower_email.split("@")[0]
                 new_user = await execute_query(
-                    """INSERT INTO theta_ai.health_app_user (email, name, is_del)
+                    """INSERT INTO health_app_user (email, name, is_del)
                        VALUES (:email, :name, false) RETURNING id;""",
                     params={"email": lower_email, "name": default_nickname},
                 )
@@ -279,7 +279,7 @@ class SharingService:
             # Check if relationship already exists
             existing_rel = await execute_query(
                 """SELECT share_id
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE owner_user_id = :owner_user_id
                      AND member_user_id = :member_user_id
                      and status in ('authorized', 'pending')
@@ -295,7 +295,7 @@ class SharingService:
                 permission = {"all": 0}
 
             await execute_query(
-                """INSERT INTO theta_ai.th_share_relationship
+                """INSERT INTO th_share_relationship
                        (owner_user_id, member_user_id, owner_email, member_email, status, permissions, relationship_type)
                    VALUES (:owner_user_id, :member_user_id, :owner_email, :member_email, 'authorized', :permissions, :relationship_type);""",
                 params={
@@ -311,7 +311,7 @@ class SharingService:
             # Insert nickname record for owner (how I call the member)
             default_nickname = nickname if nickname else lower_email.split("@")[0]
             await execute_query(
-                """INSERT INTO theta_ai.th_share_user_config
+                """INSERT INTO th_share_user_config
                        (setter_user_id, target_user_id, nickname, created_at, updated_at)
                    VALUES (:setter_user_id, :target_user_id, :nickname, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (setter_user_id, target_user_id, context)
                 DO
@@ -331,7 +331,7 @@ class SharingService:
                 reverse_nickname = owner_user_name
 
             await execute_query(
-                """INSERT INTO theta_ai.th_share_user_config
+                """INSERT INTO th_share_user_config
                        (setter_user_id, target_user_id, nickname, created_at, updated_at)
                    VALUES (:setter_user_id, :target_user_id, :nickname, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (setter_user_id, target_user_id, context)
                 DO
@@ -356,7 +356,7 @@ class SharingService:
         try:
             result = await execute_query(
                 """DELETE
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE owner_user_id = :current_user_id
                      AND member_user_id = :query_user_id;""",
                 params={"current_user_id": current_user_id, "query_user_id": query_user_id},
@@ -370,7 +370,7 @@ class SharingService:
             # Check if there are any other relationships between these two users
             remaining_relations = await execute_query(
                 """SELECT COUNT(*) as cnt
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE (owner_user_id = :user1 AND member_user_id = :user2)
                       OR (owner_user_id = :user2 AND member_user_id = :user1);""",
                 params={"user1": current_user_id, "user2": query_user_id},
@@ -380,7 +380,7 @@ class SharingService:
             if remaining_relations and remaining_relations[0].get("cnt", 0) == 0:
                 await execute_query(
                     """DELETE
-                       FROM theta_ai.th_share_user_config
+                       FROM th_share_user_config
                        WHERE (setter_user_id = :user1 AND target_user_id = :user2)
                           OR (setter_user_id = :user2 AND target_user_id = :user1);""",
                     params={"user1": current_user_id, "user2": query_user_id},
@@ -397,7 +397,7 @@ class SharingService:
         try:
             result = await execute_query(
                 """DELETE
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE owner_user_id = :owner_user_id
                      AND member_user_id = :current_user_id;""",
                 params={"owner_user_id": owner_user_id, "current_user_id": current_user_id},
@@ -409,7 +409,7 @@ class SharingService:
             # Check if there are any other relationships between these two users
             remaining_relations = await execute_query(
                 """SELECT COUNT(*) as cnt
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE (owner_user_id = :user1 AND member_user_id = :user2)
                       OR (owner_user_id = :user2 AND member_user_id = :user1);""",
                 params={"user1": current_user_id, "user2": owner_user_id},
@@ -419,7 +419,7 @@ class SharingService:
             if remaining_relations and remaining_relations[0].get("cnt", 0) == 0:
                 await execute_query(
                     """DELETE
-                       FROM theta_ai.th_share_user_config
+                       FROM th_share_user_config
                        WHERE (setter_user_id = :user1 AND target_user_id = :user2)
                           OR (setter_user_id = :user2 AND target_user_id = :user1);""",
                     params={"user1": current_user_id, "user2": owner_user_id},
@@ -455,11 +455,11 @@ class SharingService:
                        ELSE NULL
                 END
                 as expired_at
-                FROM theta_ai.th_share_relationship r
-                INNER JOIN theta_ai.health_app_user u
+                FROM th_share_relationship r
+                INNER JOIN health_app_user u
                     ON u.id::text = r.member_user_id
                     AND u.is_del = false
-                LEFT JOIN theta_ai.th_share_user_config c
+                LEFT JOIN th_share_user_config c
                     ON c.setter_user_id = r.owner_user_id
                     AND c.target_user_id = r.member_user_id
                     AND c.context = 'default'
@@ -545,11 +545,11 @@ class SharingService:
                        ELSE NULL
                 END
                 as expired_at
-                FROM theta_ai.th_share_relationship r
-                INNER JOIN theta_ai.health_app_user u
+                FROM th_share_relationship r
+                INNER JOIN health_app_user u
                     ON u.id::text = r.owner_user_id
                     AND u.is_del = false
-                LEFT JOIN theta_ai.th_share_user_config c
+                LEFT JOIN th_share_user_config c
                     ON c.setter_user_id = r.member_user_id
                     AND c.target_user_id = r.owner_user_id
                     AND c.context = 'default'
@@ -640,7 +640,7 @@ class SharingService:
             # Build UPDATE query based on parameters
             if share_id:
                 # Use share_id directly - more efficient
-                update_query = """UPDATE theta_ai.th_share_relationship
+                update_query = """UPDATE th_share_relationship
                                   SET status='authorized',
                                       permissions=:permissions,
                                       updated_at=NOW()
@@ -651,7 +651,7 @@ class SharingService:
                 }
             elif owner_user_id and query_user_id:
                 # Fallback to old method for backward compatibility
-                update_query = """UPDATE theta_ai.th_share_relationship
+                update_query = """UPDATE th_share_relationship
                                   SET status='authorized',
                                       permissions=:permissions,
                                       updated_at=NOW()
@@ -683,7 +683,7 @@ class SharingService:
             # If nickname not provided, get it from user table name, or use email prefix
             if not nickname:
                 target_user = await execute_query(
-                    "SELECT name, email FROM theta_ai.health_app_user WHERE id=:user_id AND is_del=FALSE;",
+                    "SELECT name, email FROM health_app_user WHERE id=:user_id AND is_del=FALSE;",
                     params={"user_id": int(actual_owner_id)},
                 )
                 if target_user and target_user[0]:
@@ -696,7 +696,7 @@ class SharingService:
                     nickname = "Unknown"
 
             await execute_query(
-                """INSERT INTO theta_ai.th_share_user_config
+                """INSERT INTO th_share_user_config
                        (setter_user_id, target_user_id, nickname, created_at, updated_at)
                    VALUES (:setter_user_id, :target_user_id, :nickname, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (setter_user_id, target_user_id, context)
                 DO
@@ -759,7 +759,7 @@ class SharingService:
 
             update_clause = ", ".join(update_fields) + ", updated_at = CURRENT_TIMESTAMP"
 
-            query = f"""INSERT INTO theta_ai.th_share_user_config
+            query = f"""INSERT INTO th_share_user_config
                 ({", ".join(columns)})
                 VALUES ({", ".join(values)})
                 ON CONFLICT (setter_user_id, target_user_id, context)
@@ -805,7 +805,7 @@ class SharingService:
         try:
             # Get current user info
             user_info = await execute_query(
-                "SELECT id, name, email FROM theta_ai.health_app_user WHERE id=:query_user_id AND is_del=FALSE;",
+                "SELECT id, name, email FROM health_app_user WHERE id=:query_user_id AND is_del=FALSE;",
                 params={"query_user_id": int(query_user_id)},
             )
             if not user_info:
@@ -815,7 +815,7 @@ class SharingService:
 
             # Check if invitee exists
             existing_user = await execute_query(
-                "SELECT id, name FROM theta_ai.health_app_user WHERE email=:email AND is_del=FALSE;",
+                "SELECT id, name FROM health_app_user WHERE email=:email AND is_del=FALSE;",
                 params={"email": lower_email},
             )
 
@@ -824,7 +824,7 @@ class SharingService:
             else:
                 # Create new user
                 new_user = await execute_query(
-                    """INSERT INTO theta_ai.health_app_user (email, name, is_del)
+                    """INSERT INTO health_app_user (email, name, is_del)
                        VALUES (:email, :name, false) RETURNING id;""",
                     params={"email": lower_email, "name": default_nickname},
                 )
@@ -835,7 +835,7 @@ class SharingService:
             # Check if relationship already exists
             existing_rel = await execute_query(
                 """SELECT share_id
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE owner_user_id = :owner_user_id
                      AND member_user_id = :query_user_id;""",
                 params={"owner_user_id": owner_user_id, "query_user_id": query_user_id},
@@ -849,7 +849,7 @@ class SharingService:
                 permission = {"all": 1}
 
             await execute_query(
-                """INSERT INTO theta_ai.th_share_relationship
+                """INSERT INTO th_share_relationship
                        (owner_user_id, member_user_id, owner_email, member_email, status, permissions, relationship_type)
                    VALUES (:owner_user_id, :member_user_id, :owner_email, :member_email, 'pending', :permissions, :relationship_type);""",
                 params={
@@ -864,7 +864,7 @@ class SharingService:
 
             # Insert nickname record for current user (how I call the invitee)
             await execute_query(
-                """INSERT INTO theta_ai.th_share_user_config
+                """INSERT INTO th_share_user_config
                        (setter_user_id, target_user_id, nickname, created_at, updated_at)
                    VALUES (:setter_user_id, :target_user_id, :nickname, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (setter_user_id, target_user_id, context)
                 DO
@@ -884,7 +884,7 @@ class SharingService:
                 reverse_nickname = current_user_name
 
             await execute_query(
-                """INSERT INTO theta_ai.th_share_user_config
+                """INSERT INTO th_share_user_config
                        (setter_user_id, target_user_id, nickname, created_at, updated_at)
                    VALUES (:setter_user_id, :target_user_id, :nickname, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (setter_user_id, target_user_id, context)
                 DO
@@ -976,7 +976,7 @@ class SharingService:
             # Query current user's information
             current_user_query = """
                                  SELECT blood, birth, name, gender
-                                 FROM theta_ai.health_app_user
+                                 FROM health_app_user
                                  WHERE id = :user_id
                                    AND is_del = false \
                                  """
@@ -1021,12 +1021,12 @@ class SharingService:
                            h.birth,
                            h.name     as user_name,
                            h.gender   as user_gender
-                    FROM theta_ai.th_share_relationship r
-                             LEFT JOIN theta_ai.th_share_user_config c
+                    FROM th_share_relationship r
+                             LEFT JOIN th_share_user_config c
                                        ON c.setter_user_id = r.member_user_id
                                            AND c.target_user_id = r.owner_user_id
                                            AND c.context = 'default'
-                             LEFT JOIN theta_ai.health_app_user h
+                             LEFT JOIN health_app_user h
                                        ON h.id = CAST(r.owner_user_id AS INTEGER)
                                            AND h.is_del = false
                     WHERE r.member_user_id = :user_id
@@ -1188,7 +1188,7 @@ async def remove_shared_by_me(
             # Get member_user_id for cleanup check
             check_result = await execute_query(
                 """SELECT member_user_id
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE share_id = :share_id
                      AND owner_user_id = :current_user_id;""",
                 params={"share_id": int(request.share_id), "current_user_id": current_user_id},
@@ -1200,7 +1200,7 @@ async def remove_shared_by_me(
             # Delete using share_id
             result = await execute_query(
                 """DELETE
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE share_id = :share_id
                      AND owner_user_id = :current_user_id;""",
                 params={"share_id": int(request.share_id), "current_user_id": current_user_id},
@@ -1210,7 +1210,7 @@ async def remove_shared_by_me(
             member_user_id = request.query_user_id
             result = await execute_query(
                 """DELETE
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE owner_user_id = :current_user_id
                      AND member_user_id = :query_user_id;""",
                 params={"current_user_id": current_user_id, "query_user_id": request.query_user_id},
@@ -1224,7 +1224,7 @@ async def remove_shared_by_me(
         # Check if there are any other relationships between these two users
         remaining_relations = await execute_query(
             """SELECT COUNT(*) as cnt
-               FROM theta_ai.th_share_relationship
+               FROM th_share_relationship
                WHERE (owner_user_id = :user1 AND member_user_id = :user2)
                   OR (owner_user_id = :user2 AND member_user_id = :user1);""",
             params={"user1": current_user_id, "user2": member_user_id},
@@ -1234,7 +1234,7 @@ async def remove_shared_by_me(
         if remaining_relations and remaining_relations[0].get("cnt", 0) == 0:
             await execute_query(
                 """DELETE
-                   FROM theta_ai.th_share_user_config
+                   FROM th_share_user_config
                    WHERE (setter_user_id = :user1 AND target_user_id = :user2)
                       OR (setter_user_id = :user2 AND target_user_id = :user1);""",
                 params={"user1": current_user_id, "user2": member_user_id},
@@ -1263,7 +1263,7 @@ async def remove_shared_with_me(
             # Get owner_user_id for cleanup check
             check_result = await execute_query(
                 """SELECT owner_user_id
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE share_id = :share_id
                      AND member_user_id = :current_user_id;""",
                 params={"share_id": int(request.share_id), "current_user_id": current_user_id},
@@ -1275,7 +1275,7 @@ async def remove_shared_with_me(
             # Delete using share_id
             result = await execute_query(
                 """DELETE
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE share_id = :share_id
                      AND member_user_id = :current_user_id;""",
                 params={"share_id": int(request.share_id), "current_user_id": current_user_id},
@@ -1285,7 +1285,7 @@ async def remove_shared_with_me(
             owner_user_id = request.owner_user_id
             result = await execute_query(
                 """DELETE
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE owner_user_id = :owner_user_id
                      AND member_user_id = :current_user_id;""",
                 params={"owner_user_id": request.owner_user_id, "current_user_id": current_user_id},
@@ -1299,7 +1299,7 @@ async def remove_shared_with_me(
         # Check if there are any other relationships between these two users
         remaining_relations = await execute_query(
             """SELECT COUNT(*) as cnt
-               FROM theta_ai.th_share_relationship
+               FROM th_share_relationship
                WHERE (owner_user_id = :user1 AND member_user_id = :user2)
                   OR (owner_user_id = :user2 AND member_user_id = :user1);""",
             params={"user1": current_user_id, "user2": owner_user_id},
@@ -1309,7 +1309,7 @@ async def remove_shared_with_me(
         if remaining_relations and remaining_relations[0].get("cnt", 0) == 0:
             await execute_query(
                 """DELETE
-                   FROM theta_ai.th_share_user_config
+                   FROM th_share_user_config
                    WHERE (setter_user_id = :user1 AND target_user_id = :user2)
                       OR (setter_user_id = :user2 AND target_user_id = :user1);""",
                 params={"user1": current_user_id, "user2": owner_user_id},
@@ -1379,7 +1379,7 @@ async def get_shared_detail(
         # Get shared user info
         user_result = await execute_query(
             """SELECT id, email
-               FROM theta_ai.health_app_user
+               FROM health_app_user
                WHERE id = :user_id
                  AND is_del = false""",
             params={"user_id": shared_user_id},
@@ -1398,7 +1398,7 @@ async def get_shared_detail(
         # Storage: setter_user_id=me, target_user_id=shared_user_id
         config_result = await execute_query(
             """SELECT nickname, avatar_key
-               FROM theta_ai.th_share_user_config
+               FROM th_share_user_config
                WHERE setter_user_id = :setter
                  AND target_user_id = :target
                  AND context = 'default'""",
@@ -1428,7 +1428,7 @@ async def get_shared_detail(
                    ELSE NULL
             END
             as expired_at
-            FROM theta_ai.th_share_relationship r
+            FROM th_share_relationship r
             WHERE r.owner_user_id = :owner AND r.member_user_id = :member""",
             params={"owner": current_user_id, "member": shared_user_id},
         )
@@ -1467,7 +1467,7 @@ async def get_shared_detail(
                    ELSE NULL
             END
             as expired_at
-            FROM theta_ai.th_share_relationship r
+            FROM th_share_relationship r
             WHERE r.owner_user_id = :owner AND r.member_user_id = :member""",
             params={"owner": shared_user_id, "member": current_user_id},
         )
@@ -1543,11 +1543,11 @@ async def list_all_shared_relationships(
                    c.nickname,
                    c.avatar_key,
                    NULL             as expired_at
-            FROM theta_ai.th_share_relationship r
-                     INNER JOIN theta_ai.health_app_user u
+            FROM th_share_relationship r
+                     INNER JOIN health_app_user u
                                 ON u.id::text = r.member_user_id
                 AND u.is_del = false
-            LEFT JOIN theta_ai.th_share_user_config c
+            LEFT JOIN th_share_user_config c
             ON c.setter_user_id = :current_user_id
                 AND c.target_user_id = r.member_user_id
                 AND c.context = 'default'
@@ -1567,11 +1567,11 @@ async def list_all_shared_relationships(
                    c.nickname,
                    c.avatar_key,
                    NULL            as expired_at
-            FROM theta_ai.th_share_relationship r
-                     INNER JOIN theta_ai.health_app_user u
+            FROM th_share_relationship r
+                     INNER JOIN health_app_user u
                                 ON u.id::text = r.owner_user_id
                 AND u.is_del = false
-            LEFT JOIN theta_ai.th_share_user_config c
+            LEFT JOIN th_share_user_config c
             ON c.setter_user_id = :current_user_id
                 AND c.target_user_id = r.owner_user_id
                 AND c.context = 'default'
@@ -1714,7 +1714,7 @@ async def check_user_exists(
 
         user_result = await execute_query(
             """SELECT id, name, email
-               FROM theta_ai.health_app_user
+               FROM health_app_user
                WHERE email = :email
                  AND is_del = false""",
             params={"email": lower_email},
@@ -1729,7 +1729,7 @@ async def check_user_exists(
             # Check if I share to them (owner=me, member=them)
             share_by_me = await execute_query(
                 """SELECT status
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE owner_user_id = :owner
                      AND member_user_id = :member
                      AND status = 'authorized'""",
@@ -1739,7 +1739,7 @@ async def check_user_exists(
             # Check if they share to me (owner=them, member=me)
             share_with_me = await execute_query(
                 """SELECT status
-                   FROM theta_ai.th_share_relationship
+                   FROM th_share_relationship
                    WHERE owner_user_id = :owner
                      AND member_user_id = :member
                      AND status = 'authorized'""",
@@ -1902,7 +1902,7 @@ async def authorize_shared_with_me(
             lower_email = request.email.strip().lower()
             user_result = await execute_query(
                 """SELECT id, name, email
-                   FROM theta_ai.health_app_user
+                   FROM health_app_user
                    WHERE email = :email
                      AND is_del = false""",
                 params={"email": lower_email},
@@ -1976,14 +1976,14 @@ async def _resolve_user_id_from_share(
         if role == "owner":
             # Current user is owner, get member
             query = """SELECT member_user_id
-                       FROM theta_ai.th_share_relationship
+                       FROM th_share_relationship
                        WHERE share_id = :share_id
                          AND owner_user_id = :current_user_id;"""
             result_key = "member_user_id"
         else:
             # Current user is member, get owner
             query = """SELECT owner_user_id
-                       FROM theta_ai.th_share_relationship
+                       FROM th_share_relationship
                        WHERE share_id = :share_id
                          AND member_user_id = :current_user_id;"""
             result_key = "owner_user_id"
@@ -2017,7 +2017,7 @@ async def _resolve_bidirectional_share(
         # Get both owner and member from share_id
         check_result = await execute_query(
             """SELECT owner_user_id, member_user_id
-               FROM theta_ai.th_share_relationship
+               FROM th_share_relationship
                WHERE share_id = :share_id;""",
             params={"share_id": int(share_id)},
         )
@@ -2151,7 +2151,7 @@ async def get_permission_list(
         # Use th_share_permission_type table
         permissions = await execute_query(
             """SELECT permission_key, permission_name, permission_description, category, display_order
-               FROM theta_ai.th_share_permission_type
+               FROM th_share_permission_type
                WHERE is_active = true
                ORDER BY display_order, permission_key;""",
             params={},

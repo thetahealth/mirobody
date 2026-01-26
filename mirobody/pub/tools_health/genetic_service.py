@@ -152,7 +152,7 @@ class GeneticService():
                         ABS(position - :{target_pos_param}) as distance,
                         :{target_pos_param} as query_position,
                         :{chr_param} as query_chromosome
-                    FROM theta_ai.th_series_data_genetic
+                    FROM th_series_data_genetic
                     WHERE user_id = :user_id 
                       AND is_deleted = false
                       AND chromosome = :{chr_param}
@@ -249,7 +249,7 @@ class GeneticService():
             sql = """
             SELECT id, user_id, rsid, chromosome, position, genotype, 
                    create_time, update_time
-            FROM theta_ai.th_series_data_genetic
+            FROM th_series_data_genetic
             WHERE user_id = :user_id AND is_deleted = false
             """
 

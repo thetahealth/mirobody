@@ -10,7 +10,7 @@ from ..utils import execute_query
 async def get_user_mcps(user_id: str) -> tuple[dict[str, Any] | None, str | None]:
     try:
         records = await execute_query(
-            "SELECT mcp FROM theta_ai.user_mcp_config WHERE user_id = :user_id",
+            "SELECT mcp FROM user_mcp_config WHERE user_id = :user_id",
             {"user_id": user_id}
         )
 
@@ -38,7 +38,7 @@ async def _set_user_mcps(user_id: str, mcps: dict[str, Any]) -> str | None:
         
         await execute_query(
             """
-            INSERT INTO theta_ai.user_mcp_config (user_id, mcp, created_at, updated_at)
+            INSERT INTO user_mcp_config (user_id, mcp, created_at, updated_at)
             VALUES (:user_id, :mcp, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (user_id) 
             DO UPDATE SET 
@@ -125,7 +125,7 @@ async def delete_user_mcp(user_id: str, name: str) -> str | None:
 async def get_user_prompts(user_id: str) -> tuple[dict[str, Any] | None, str | None]:
     try:
         records = await execute_query(
-            "SELECT prompt FROM theta_ai.user_agent_prompt WHERE user_id=:user_id",
+            "SELECT prompt FROM user_agent_prompt WHERE user_id=:user_id",
             {"user_id": user_id}
         )
         
@@ -152,7 +152,7 @@ async def _set_user_prompts(user_id: str, prompts: dict[str, Any]) -> str | None
         
         await execute_query(
             """
-            INSERT INTO theta_ai.user_agent_prompt (user_id, prompt, created_at, updated_at)
+            INSERT INTO user_agent_prompt (user_id, prompt, created_at, updated_at)
             VALUES (:user_id, :prompts, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (user_id) 
             DO UPDATE SET 

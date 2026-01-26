@@ -29,7 +29,7 @@ class FileDbService:
     Handles all CRUD operations for file records stored in th_files table.
     """
     
-    TABLE_NAME = "theta_ai.th_files"
+    TABLE_NAME = "th_files"
     
     # ============== INSERT Operations ==============
     
@@ -64,7 +64,7 @@ class FileDbService:
         """
         try:
             sql = """
-                INSERT INTO theta_ai.th_files (
+                INSERT INTO th_files (
                     user_id, query_user_id, file_name, file_type, file_key,
                     file_content, scene, created_source, created_source_id,
                     is_del, created_at, updated_at
@@ -218,7 +218,7 @@ class FileDbService:
                 SELECT id, user_id, query_user_id, file_name, file_type, file_key,
                        file_content, scene, created_source, created_source_id,
                        is_del, created_at, updated_at
-                FROM theta_ai.th_files
+                FROM th_files
                 WHERE file_key = :file_key AND is_del = false
             """
             params: Dict[str, Any] = {"file_key": file_key}
@@ -258,7 +258,7 @@ class FileDbService:
                 SELECT id, user_id, query_user_id, file_name, file_type, file_key,
                        file_content, scene, created_source, created_source_id,
                        is_del, created_at, updated_at
-                FROM theta_ai.th_files
+                FROM th_files
                 WHERE id = :file_id AND is_del = false
                 LIMIT 1
             """
@@ -351,7 +351,7 @@ class FileDbService:
                 SELECT id, user_id, query_user_id, file_name, file_type, file_key,
                        file_content, scene, created_source, created_source_id,
                        created_at, updated_at
-                FROM theta_ai.th_files
+                FROM th_files
                 WHERE {where_clause}
                 ORDER BY created_at DESC
                 LIMIT :limit OFFSET :offset
@@ -360,7 +360,7 @@ class FileDbService:
             # Count total
             count_sql = f"""
                 SELECT COUNT(1) as total
-                FROM theta_ai.th_files
+                FROM th_files
                 WHERE {where_clause}
             """
             
@@ -477,7 +477,7 @@ class FileDbService:
                 SELECT id, user_id, query_user_id, file_name, file_type, file_key,
                        file_content, scene, created_source, created_source_id,
                        created_at, updated_at
-                FROM theta_ai.th_files
+                FROM th_files
                 WHERE user_id = :user_id 
                   AND created_source = :created_source
                   AND is_del = false
@@ -541,7 +541,7 @@ class FileDbService:
             
             if update_file_name:
                 sql = """
-                    UPDATE theta_ai.th_files
+                    UPDATE th_files
                     SET file_content = CAST(:file_content AS jsonb),
                         file_name = :file_name,
                         updated_at = now()
@@ -549,7 +549,7 @@ class FileDbService:
                 """
             else:
                 sql = """
-                    UPDATE theta_ai.th_files
+                    UPDATE th_files
                     SET file_content = CAST(:file_content AS jsonb),
                         updated_at = now()
                     WHERE file_key = :file_key AND is_del = false
@@ -699,7 +699,7 @@ class FileDbService:
         """
         try:
             sql = """
-                UPDATE theta_ai.th_files
+                UPDATE th_files
                 SET created_source_id = :created_source_id,
                     updated_at = now()
                 WHERE file_key = :file_key AND is_del = false
@@ -740,7 +740,7 @@ class FileDbService:
         """
         try:
             sql = """
-                UPDATE theta_ai.th_files
+                UPDATE th_files
                 SET is_del = true,
                     updated_at = now()
                 WHERE file_key = :file_key 
@@ -782,7 +782,7 @@ class FileDbService:
         """
         try:
             sql = """
-                UPDATE theta_ai.th_files
+                UPDATE th_files
                 SET is_del = true,
                     updated_at = now()
                 WHERE user_id = :user_id 

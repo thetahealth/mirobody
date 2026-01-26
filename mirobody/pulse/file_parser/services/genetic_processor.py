@@ -209,7 +209,7 @@ class GeneticDataLoader:
             raise FileNotFoundError(f"File does not exist: {file_path}")
 
         insert_sql = """
-        INSERT INTO theta_ai.th_series_data_genetic 
+        INSERT INTO th_series_data_genetic 
         (user_id, rsid, chromosome, position, genotype, source_table, source_table_id, create_time, update_time, is_deleted)
         VALUES (:user_id, :rsid, :chromosome, :position, :genotype, :source_table, :source_table_id, NOW(), NOW(), FALSE)
         """

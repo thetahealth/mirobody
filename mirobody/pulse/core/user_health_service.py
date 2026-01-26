@@ -144,7 +144,7 @@ class UserHealthDataService:
             update_time,
             task_id,
             source_id
-        FROM theta_ai.series_data
+        FROM series_data
         WHERE user_id = :user_id
           AND time >= :start_date
           AND time <= :end_date
@@ -217,8 +217,8 @@ class UserHealthDataService:
             t2.category_group,
             t2.category,
             t2.unit
-        FROM theta_ai.th_series_data t1
-        LEFT JOIN theta_ai.th_series_dim t2 ON t1.indicator = t2.original_indicator
+        FROM th_series_data t1
+        LEFT JOIN th_series_dim t2 ON t1.indicator = t2.original_indicator
         WHERE t1.user_id = :user_id
           AND t1.start_time >= :start_date
           AND t1.end_time <= :end_date
@@ -271,7 +271,7 @@ class UserHealthDataService:
             COUNT(*) as record_count,
             MIN(time) as earliest_data,
             MAX(time) as latest_data
-        FROM theta_ai.series_data
+        FROM series_data
         WHERE user_id = :user_id
         GROUP BY source
         ORDER BY record_count DESC
@@ -305,8 +305,8 @@ class UserHealthDataService:
             COUNT(*) as record_count,
             MIN(t1.time) as earliest_data,
             MAX(t1.time) as latest_data
-        FROM theta_ai.series_data t1
-        LEFT JOIN theta_ai.th_series_dim t2 ON t1.indicator = t2.original_indicator
+        FROM series_data t1
+        LEFT JOIN th_series_dim t2 ON t1.indicator = t2.original_indicator
         WHERE t1.user_id = :user_id
         GROUP BY t1.indicator, t2.standard_indicator, t2.category_group, t2.category, t2.unit
         ORDER BY record_count DESC

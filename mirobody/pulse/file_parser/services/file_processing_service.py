@@ -633,7 +633,7 @@ async def update_message_after_deletion(
         if len(remaining_files) == 0:
             # No files left, mark message as deleted
             update_query = """
-                UPDATE theta_ai.th_messages
+                UPDATE th_messages
                 SET is_del = true,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = :message_id
@@ -656,8 +656,8 @@ async def update_message_after_deletion(
             updated_content["successful_files"] = len(remaining_files)
             
             update_query = """
-                UPDATE theta_ai.th_messages
-                SET content = theta_ai.encrypt_content(:content),
+                UPDATE th_messages
+                SET content = encrypt_content(:content),
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = :message_id
                 RETURNING id
@@ -692,7 +692,7 @@ async def _mark_message_as_deleted(message_id: str) -> dict[str, Any]:
         Dict containing operation result
     """
     update_query = """
-        UPDATE theta_ai.th_messages
+        UPDATE th_messages
         SET is_del = true,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = :message_id
@@ -833,7 +833,7 @@ async def _background_cascade_delete_by_file_info(
                     logging.warning(f"Genetic data deletion failed or no data found: user_id={user_id}, file_key={file_key}, filename={filename}, scene={scene}")
             else:
                 # For non-genetic files (report, etc.), delete th_series_data
-                await _delete_th_series_data_background(user_id, "theta_ai.th_files", message_id, file_key)
+                await _delete_th_series_data_background(user_id, "th_files", message_id, file_key)
         
         logging.info(f"Background cascade delete task completed successfully: message_id={message_id}, user_id={user_id}")
         
@@ -850,7 +850,7 @@ async def _delete_th_series_data_background(
     """
     Physically delete th_series_data in background task (DELETE statement)
     
-    Now uses source_table = 'theta_ai.th_files' for new data.
+    Now uses source_table = 'th_files' for new data.
     Supports source_table_id formats:
     - New format: file_key directly
     - Old format: msg_id_#_file_key_hash
@@ -858,7 +858,7 @@ async def _delete_th_series_data_background(
     
     Args:
         user_id: User ID
-        source_table: Source table name (theta_ai.th_files for new data)
+        source_table: Source table name (th_files for new data)
         message_id: Source ID (created_source_id in th_files)
         file_key: File key for precise deletion
     """
@@ -875,7 +875,7 @@ async def _delete_th_series_data_background(
             
             # Delete matching new format (file_key) and old format
             delete_sql = """
-            DELETE FROM theta_ai.th_series_data 
+            DELETE FROM th_series_data 
             WHERE user_id = :user_id 
               AND (source_table_id = :file_key 
                    OR source_table_id = :old_format)
@@ -896,7 +896,7 @@ async def _delete_th_series_data_background(
         else:
             # No file_key provided - delete by source_table_id (backward compatibility)
             delete_sql = """
-            DELETE FROM theta_ai.th_series_data 
+            DELETE FROM th_series_data 
             WHERE user_id = :user_id 
               AND source_table_id = :source_table_id
             """
@@ -930,10 +930,10 @@ async def _delete_genetic_data_background(user_id: str, file_key: str) -> bool:
         bool: True if deletion was successful, False otherwise
     """
     try:
-        # Use file_key as source_table_id with source_table = "theta_ai.th_files"
+        # Use file_key as source_table_id with source_table = "th_files"
         delete_success = await FileParserDatabaseService.delete_genetic_data_by_source(
             user_id, 
-            "theta_ai.th_files", 
+            "th_files", 
             file_key
         )
         
@@ -1252,7 +1252,7 @@ async def get_user_ids_by_msg_id(msg_id: str) -> Dict[str, Any]:
             SELECT 
                 user_id, 
                 query_user_id
-            FROM theta_ai.th_messages 
+            FROM th_messages 
             WHERE id = :msg_id 
             AND is_del = false
         """

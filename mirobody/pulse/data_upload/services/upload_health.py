@@ -285,7 +285,7 @@ class StandardHealthService(BaseHealthService):
 
         try:
             query = """
-            INSERT INTO theta_ai.th_series_data (
+            INSERT INTO th_series_data (
                 user_id, indicator, value, start_time, end_time, source_table, 
                 source_table_id, comment, indicator_id, source, task_id,
                 create_time, update_time, deleted

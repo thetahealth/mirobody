@@ -1417,7 +1417,7 @@ class ThetaGarminProvider(BaseThetaProvider):
 
                 try:
                     insert_sql = (
-                        "INSERT INTO theta_ai.health_data_garmin "
+                        "INSERT INTO health_data_garmin "
                         "(create_at, update_at, is_del, msg_id, raw_data, theta_user_id, external_user_id) "
                         "VALUES (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :is_del, :msg_id, :raw_data, :theta_user_id, :external_user_id) "
                         "ON CONFLICT (msg_id) DO NOTHING"
@@ -1467,7 +1467,7 @@ class ThetaGarminProvider(BaseThetaProvider):
         try:
             placeholders = ", ".join([f":username_{i}" for i in range(len(external_user_ids))])
             sql = (
-                f"SELECT username, user_id FROM theta_ai.health_user_provider "
+                f"SELECT username, user_id FROM health_user_provider "
                 f"WHERE username IN ({placeholders}) AND provider = :provider AND is_del = FALSE "
                 f"ORDER BY username, update_at DESC"
             )

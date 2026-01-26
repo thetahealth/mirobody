@@ -39,7 +39,7 @@ class SessionShareService:
         try:
             # Check if user owns this session
             session_check_sql = """
-                SELECT user_id FROM theta_ai.th_sessions 
+                SELECT user_id FROM th_sessions 
                 WHERE session_id = :session_id
             """
             session_result = await execute_query(
@@ -65,7 +65,7 @@ class SessionShareService:
             # Check if share session already exists
             check_sql = """
                 SELECT share_session_id, created_at, is_active 
-                FROM theta_ai.th_session_share 
+                FROM th_session_share 
                 WHERE session_id = :session_id AND is_active = TRUE
             """
             
@@ -95,7 +95,7 @@ class SessionShareService:
             # Create new share session
             share_session_id = str(uuid.uuid4())
             insert_sql = """
-                INSERT INTO theta_ai.th_session_share (
+                INSERT INTO th_session_share (
                     share_session_id, session_id, user_id, created_at, updated_at, is_active
                 )
                 VALUES (:share_session_id, :session_id, :user_id, :created_at, :updated_at, TRUE)
@@ -157,7 +157,7 @@ class SessionShareService:
             # Get session_id from share_session_id
             share_query_sql = """
                 SELECT session_id, user_id, created_at, is_active
-                FROM theta_ai.th_session_share
+                FROM th_session_share
                 WHERE share_session_id = :share_session_id
             """
             
@@ -230,7 +230,7 @@ class SessionShareService:
         try:
             # Check ownership
             check_sql = """
-                SELECT user_id FROM theta_ai.th_session_share
+                SELECT user_id FROM th_session_share
                 WHERE session_id = :session_id
             """
             
@@ -256,7 +256,7 @@ class SessionShareService:
             
             # Deactivate
             update_sql = """
-                UPDATE theta_ai.th_session_share
+                UPDATE th_session_share
                 SET is_active = FALSE, updated_at = :updated_at
                 WHERE session_id = :session_id
             """

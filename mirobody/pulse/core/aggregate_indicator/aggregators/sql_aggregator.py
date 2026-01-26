@@ -67,7 +67,7 @@ class SQLAggregator:
                 (((((time AT TIME ZONE 'UTC') AT TIME ZONE timezone) - INTERVAL '18 hours')::date::text || ' 18:00:00')::timestamp AT TIME ZONE timezone) AT TIME ZONE 'UTC' AS data_begin_utc,
                 MIN(update_time) as min_update_time,
                 MAX(update_time) as max_update_time
-            FROM theta_ai.series_data
+            FROM series_data
             WHERE update_time > :since_time
               AND time >= NOW() - INTERVAL '3 months'
               AND LOWER(indicator) LIKE '%sleep%'
@@ -85,7 +85,7 @@ class SQLAggregator:
                 ((((time AT TIME ZONE 'UTC') AT TIME ZONE timezone)::date::text || ' 00:00:00')::timestamp AT TIME ZONE timezone) AT TIME ZONE 'UTC' AS data_begin_utc,
                 MIN(update_time) as min_update_time,
                 MAX(update_time) as max_update_time
-            FROM theta_ai.series_data
+            FROM series_data
             WHERE update_time > :since_time
               AND time >= NOW() - INTERVAL '3 months'
               AND LOWER(indicator) NOT LIKE '%sleep%'
@@ -278,7 +278,7 @@ class SQLAggregator:
                 (((((time AT TIME ZONE 'UTC') AT TIME ZONE timezone) - INTERVAL '18 hours')::date::text || ' 18:00:00')::timestamp AT TIME ZONE timezone) AT TIME ZONE 'UTC' AS data_begin_utc,
                 MIN(update_time) as min_update_time,
                 MAX(update_time) as max_update_time
-            FROM theta_ai.series_data
+            FROM series_data
             WHERE user_id = :user_id
               AND time >= :start_date
               AND time <= :end_date
@@ -295,7 +295,7 @@ class SQLAggregator:
                 ((((time AT TIME ZONE 'UTC') AT TIME ZONE timezone)::date::text || ' 00:00:00')::timestamp AT TIME ZONE timezone) AT TIME ZONE 'UTC' AS data_begin_utc,
                 MIN(update_time) as min_update_time,
                 MAX(update_time) as max_update_time
-            FROM theta_ai.series_data
+            FROM series_data
             WHERE user_id = :user_id
               AND time >= :start_date
               AND time <= :end_date
@@ -515,7 +515,7 @@ class SQLAggregator:
         # day_start/day_end are UTC times, can directly compare with time column (UTC)
         query = f"""
         SELECT {', '.join(agg_clauses)}
-        FROM theta_ai.series_data
+        FROM series_data
         WHERE {user_filter}
           AND indicator = ANY(:indicators)
           AND time >= :day_start

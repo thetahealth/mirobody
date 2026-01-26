@@ -2,7 +2,7 @@
 Content formatter service for file processing results
 
 This service formats raw content from PDF/image/Excel parsing results
-for structured storage in theta_ai.th_messages.content.raw field.
+for structured storage in th_messages.content.raw field.
 Supports multi-page PDF aggregation and health indicator formatting.
 """
 
@@ -24,7 +24,7 @@ class ContentFormatter:
     ) -> str:
         """
         Format parsed content from multiple files (including multi-page PDFs)
-        into a structured display format for storage in theta_ai.th_messages.content.raw field.
+        into a structured display format for storage in th_messages.content.raw field.
 
         Args:
             file_results: List of file processing results

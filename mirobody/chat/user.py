@@ -6,7 +6,7 @@ from ..user.sharing import get_sharing_service
 #-----------------------------------------------------------------------------
 
 async def query_asker_info(user_id: str, query_user_id: str):
-    asker_info_sql = "select name from theta_ai.health_app_user where id = :user_id limit 1"
+    asker_info_sql = "select name from health_app_user where id = :user_id limit 1"
     service = await get_sharing_service()
     
     asker_info_result, beneficiary_info_result = await asyncio.gather(
@@ -37,7 +37,7 @@ async def fetch_system_user_profile(user_id: str):
 
         last_doc_id = -1
 
-        sql = "select * from theta_ai.health_user_profile_by_system where user_id= :user_id and is_deleted=false order by version desc limit 1"
+        sql = "select * from health_user_profile_by_system where user_id= :user_id and is_deleted=false order by version desc limit 1"
         result = await execute_query(sql, params=dict(user_id=user_id))
 
         if result:

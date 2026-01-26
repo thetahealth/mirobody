@@ -1,7 +1,7 @@
 
 SET search_path TO theta_ai, public;
 
-CREATE TABLE IF NOT EXISTS theta_ai.th_messages (
+CREATE TABLE IF NOT EXISTS th_messages (
     id varchar(50) UNIQUE NOT NULL,
     user_id character varying(100) not null,
     user_name character varying(100),
@@ -25,13 +25,13 @@ CREATE TABLE IF NOT EXISTS theta_ai.th_messages (
     reference_task_id VARCHAR(128) DEFAULT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_th_message_sessionID ON theta_ai.th_messages(session_id);
-CREATE INDEX IF NOT EXISTS idx_th_message_questionID ON theta_ai.th_messages(question_id);
-CREATE INDEX IF NOT EXISTS idx_th_messages_file_list ON theta_ai.th_messages(user_id, message_type, is_del, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_th_messages_comment_trgm ON theta_ai.th_messages USING GIN (comment gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_th_message_sessionID ON th_messages(session_id);
+CREATE INDEX IF NOT EXISTS idx_th_message_questionID ON th_messages(question_id);
+CREATE INDEX IF NOT EXISTS idx_th_messages_file_list ON th_messages(user_id, message_type, is_del, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_th_messages_comment_trgm ON th_messages USING GIN (comment gin_trgm_ops);
 
 
-CREATE TABLE IF NOT EXISTS theta_ai.th_sessions (
+CREATE TABLE IF NOT EXISTS th_sessions (
     session_id varchar(100) UNIQUE NOT NULL,
     user_id character varying(100),
     user_name character varying(100),
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS theta_ai.th_sessions (
     created_at timestamp with time zone default CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_th_sessions_user_id ON theta_ai.th_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_th_sessions_user_id ON th_sessions(user_id);
 
 DO $$
 BEGIN
@@ -52,13 +52,13 @@ BEGIN
         AND table_name = 'th_sessions' 
         AND column_name = 'category'
     ) THEN
-        ALTER TABLE theta_ai.th_sessions ADD COLUMN category VARCHAR(50);
+        ALTER TABLE th_sessions ADD COLUMN category VARCHAR(50);
     END IF;
 END
 $$;
 
 
-CREATE TABLE IF NOT EXISTS theta_ai.series_data (
+CREATE TABLE IF NOT EXISTS series_data (
     user_id character varying not null,
     indicator character varying not null,
     source character varying,
@@ -75,10 +75,10 @@ CREATE TABLE IF NOT EXISTS theta_ai.series_data (
 
 -- Create composite index on user_id and platform for better query performance
 CREATE INDEX IF NOT EXISTS idx_series_data_user_platform
-ON theta_ai.series_data(user_id, platform) WHERE platform IS NOT NULL;
+ON series_data(user_id, platform) WHERE platform IS NOT NULL;
 
 
-CREATE TABLE IF NOT EXISTS theta_ai.th_series_data
+CREATE TABLE IF NOT EXISTS th_series_data
 (
     id integer generated always as identity not null,
     user_id character varying(200) COLLATE pg_catalog."default",
@@ -99,10 +99,10 @@ CREATE TABLE IF NOT EXISTS theta_ai.th_series_data
     CONSTRAINT unique_user_indicator_start_end_time UNIQUE (user_id, indicator, start_time, end_time)
 );
 
-CREATE INDEX IF NOT EXISTS idx_th_series_data_source_table_id ON theta_ai.th_series_data(source_table_id);
+CREATE INDEX IF NOT EXISTS idx_th_series_data_source_table_id ON th_series_data(source_table_id);
 
 
-CREATE TABLE IF NOT EXISTS theta_ai.th_series_dim (
+CREATE TABLE IF NOT EXISTS th_series_dim (
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     original_indicator character varying(200) UNIQUE NOT NULL,
     standard_indicator character varying(200),
@@ -123,21 +123,21 @@ CREATE TABLE IF NOT EXISTS theta_ai.th_series_dim (
     symptom text
 );
 
-COMMENT ON COLUMN theta_ai.th_series_dim.diagnosis_recommended_organ IS 'AI-recommended primary organ related to this health indicator';
-COMMENT ON COLUMN theta_ai.th_series_dim.diagnosis_recommended_system IS 'AI-recommended body system related to this health indicator';
-COMMENT ON COLUMN theta_ai.th_series_dim.diagnosis_recommended_disease IS 'AI-recommended possible diseases related to this health indicator (comma-separated)';
-COMMENT ON COLUMN theta_ai.th_series_dim.department IS 'AI-recommended medical departments for this health indicator (comma-separated)';
-COMMENT ON COLUMN theta_ai.th_series_dim.symptom IS 'AI-identified symptoms related to this health indicator (comma-separated)';
+COMMENT ON COLUMN th_series_dim.diagnosis_recommended_organ IS 'AI-recommended primary organ related to this health indicator';
+COMMENT ON COLUMN th_series_dim.diagnosis_recommended_system IS 'AI-recommended body system related to this health indicator';
+COMMENT ON COLUMN th_series_dim.diagnosis_recommended_disease IS 'AI-recommended possible diseases related to this health indicator (comma-separated)';
+COMMENT ON COLUMN th_series_dim.department IS 'AI-recommended medical departments for this health indicator (comma-separated)';
+COMMENT ON COLUMN th_series_dim.symptom IS 'AI-identified symptoms related to this health indicator (comma-separated)';
 
-drop view if exists theta_ai.v_th_messages;
-CREATE OR REPLACE VIEW theta_ai.v_th_messages AS
+drop view if exists v_th_messages;
+CREATE OR REPLACE VIEW v_th_messages AS
 SELECT 
     id,
     user_id,
     user_name,
     session_id,
     role,
-    theta_ai.decrypt_content(content) AS content,
+    decrypt_content(content) AS content,
     reasoning,
     agent,
     provider,
@@ -145,10 +145,10 @@ SELECT
     question_id,
     rating,
     created_at
-FROM theta_ai.th_messages
+FROM th_messages
 WHERE role='assistant' AND rating IS NOT NULL;
 
-CREATE TABLE IF NOT EXISTS theta_ai.th_series_data_genetic
+CREATE TABLE IF NOT EXISTS th_series_data_genetic
 (
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id character varying(255) COLLATE pg_catalog."default" NOT NULL,
@@ -163,22 +163,22 @@ CREATE TABLE IF NOT EXISTS theta_ai.th_series_data_genetic
     source_table_id character varying(200) COLLATE pg_catalog."default");
 
 
-COMMENT ON TABLE theta_ai.th_series_data_genetic IS 'User genetic data table';
-COMMENT ON COLUMN theta_ai.th_series_data_genetic.id IS 'Primary key ID';
-COMMENT ON COLUMN theta_ai.th_series_data_genetic.user_id IS 'User ID';
-COMMENT ON COLUMN theta_ai.th_series_data_genetic.rsid IS 'Genetic locus ID';
-COMMENT ON COLUMN theta_ai.th_series_data_genetic.chromosome IS 'Chromosome';
-COMMENT ON COLUMN theta_ai.th_series_data_genetic."position" IS 'Position';
-COMMENT ON COLUMN theta_ai.th_series_data_genetic.genotype IS 'Genotype';
-COMMENT ON COLUMN theta_ai.th_series_data_genetic.create_time IS 'Creation time';
-COMMENT ON COLUMN theta_ai.th_series_data_genetic.update_time IS 'Update time';
-COMMENT ON COLUMN theta_ai.th_series_data_genetic.is_deleted IS 'Whether deleted';
+COMMENT ON TABLE th_series_data_genetic IS 'User genetic data table';
+COMMENT ON COLUMN th_series_data_genetic.id IS 'Primary key ID';
+COMMENT ON COLUMN th_series_data_genetic.user_id IS 'User ID';
+COMMENT ON COLUMN th_series_data_genetic.rsid IS 'Genetic locus ID';
+COMMENT ON COLUMN th_series_data_genetic.chromosome IS 'Chromosome';
+COMMENT ON COLUMN th_series_data_genetic."position" IS 'Position';
+COMMENT ON COLUMN th_series_data_genetic.genotype IS 'Genotype';
+COMMENT ON COLUMN th_series_data_genetic.create_time IS 'Creation time';
+COMMENT ON COLUMN th_series_data_genetic.update_time IS 'Update time';
+COMMENT ON COLUMN th_series_data_genetic.is_deleted IS 'Whether deleted';
 CREATE INDEX IF NOT EXISTS idx_th_series_data_genetic_rsid
-    ON theta_ai.th_series_data_genetic USING btree(user_id, rsid);
+    ON th_series_data_genetic USING btree(user_id, rsid);
 CREATE INDEX IF NOT EXISTS idx_th_series_data_genetic_user_id 
-    ON theta_ai.th_series_data_genetic(user_id);
+    ON th_series_data_genetic(user_id);
 
-CREATE TABLE IF NOT EXISTS theta_ai.th_data_source_priority
+CREATE TABLE IF NOT EXISTS th_data_source_priority
 (
     id integer generated always as identity not null,
     source character varying(255) COLLATE pg_catalog."default" NOT NULL,
@@ -194,13 +194,13 @@ CREATE TABLE IF NOT EXISTS theta_ai.th_data_source_priority
     CONSTRAINT th_data_source_priority_source_key UNIQUE (source)
 );
 
-COMMENT ON TABLE theta_ai.th_data_source_priority IS 'Data source priority configuration table';
-COMMENT ON COLUMN theta_ai.th_data_source_priority.support_status IS 'Support status: SUPPORTED-fully supported, TBD-in development';
-COMMENT ON COLUMN theta_ai.th_data_source_priority.is_device IS 'Whether the data source is a physical device (true) or software platform (false)';
+COMMENT ON TABLE th_data_source_priority IS 'Data source priority configuration table';
+COMMENT ON COLUMN th_data_source_priority.support_status IS 'Support status: SUPPORTED-fully supported, TBD-in development';
+COMMENT ON COLUMN th_data_source_priority.is_device IS 'Whether the data source is a physical device (true) or software platform (false)';
 
-CREATE INDEX IF NOT EXISTS idx_th_data_source_priority_source ON theta_ai.th_data_source_priority(source);
+CREATE INDEX IF NOT EXISTS idx_th_data_source_priority_source ON th_data_source_priority(source);
 
-INSERT INTO theta_ai.th_data_source_priority (source, priority, category, description, is_device) VALUES
+INSERT INTO th_data_source_priority (source, priority, category, description, is_device) VALUES
 ('vital.dexcom_v3', 1, 'glucose', 'Dexcom', TRUE),
 ('vital.abbott_libreview', 2, 'glucose', 'Abbott FreeStyle Libre', TRUE),
 ('vital.freestyle_libre', 3, 'glucose', 'FreeStyle Libre', FALSE),
@@ -245,8 +245,8 @@ ON CONFLICT (source) DO UPDATE SET
     updated_at = CURRENT_TIMESTAMP;
 
 
-DROP VIEW IF EXISTS theta_ai.v_th_series_data;
-CREATE OR REPLACE VIEW theta_ai.v_th_series_data
+DROP VIEW IF EXISTS v_th_series_data;
+CREATE OR REPLACE VIEW v_th_series_data
  AS
  SELECT
         CASE
@@ -284,8 +284,8 @@ CREATE OR REPLACE VIEW theta_ai.v_th_series_data
     t1.create_time,
     t1.update_time,
     t1.source
-   FROM theta_ai.th_series_data t1
-     LEFT JOIN theta_ai.th_series_dim t2 ON t1.indicator::text = t2.original_indicator::text;
+   FROM th_series_data t1
+     LEFT JOIN th_series_dim t2 ON t1.indicator::text = t2.original_indicator::text;
 SET search_path TO theta_ai;
 
 set check_function_bodies = off;

@@ -23,7 +23,7 @@ async def create_session(user_id: str, query_user_id: str) -> dict:
         created_at = datetime.now()
         
         session_sql = """
-            INSERT INTO theta_ai.th_sessions (
+            INSERT INTO th_sessions (
                 session_id, user_id, query_user_id,summary, created_at, in_use
             )
             VALUES (:session_id, :user_id, :query_user_id, :summary, :created_at, :in_use)
@@ -68,8 +68,8 @@ async def get_session_summaries(user_id: str) -> list[dict[str, any]]:
         # Modified SQL to only return sessions that contain text messages
         summary_sql = """
             SELECT DISTINCT ts.session_id, ts.summary, ts.created_at, ts.query_user_id
-            FROM theta_ai.th_sessions ts
-            INNER JOIN theta_ai.th_messages tm ON ts.session_id = tm.session_id 
+            FROM th_sessions ts
+            INNER JOIN th_messages tm ON ts.session_id = tm.session_id 
                 AND ts.user_id = tm.user_id
             WHERE ts.user_id = :user_id 
                 AND ts.category IS NULL
@@ -109,8 +109,8 @@ async def get_session_summaries_by_person(user_id: str) -> list[dict[str, any]]:
         
         summary_sql = """
             SELECT ts.session_id, ts.summary, ts.created_at, ts.query_user_id, tu.name, tu.gender, tu.birth, tu.blood
-            FROM theta_ai.th_sessions ts
-            INNER JOIN theta_ai.health_app_user tu ON ts.query_user_id::integer = tu.id
+            FROM th_sessions ts
+            INNER JOIN health_app_user tu ON ts.query_user_id::integer = tu.id
             WHERE ts.user_id = :user_id
             ORDER BY created_at DESC
         """
@@ -146,7 +146,7 @@ async def get_session_summaries_by_person(user_id: str) -> list[dict[str, any]]:
             
             if query_user_id != user_id:
                 if query_user_id not in nickname_map:
-                    query_user_nickname_sql = "select nickname from theta_ai.th_share_user_config where setter_user_id = :user_id and target_user_id = :query_user_id limit 1"
+                    query_user_nickname_sql = "select nickname from th_share_user_config where setter_user_id = :user_id and target_user_id = :query_user_id limit 1"
                     query_user_nickname_result = await execute_query(
                         query_user_nickname_sql,
                         params={"user_id": user_id, "query_user_id": query_user_id}
@@ -196,7 +196,7 @@ async def delete_session(user_id: str, session_id: str) -> str | None:
     try:
         # First delete all messages in the session
         delete_messages_sql = """
-            DELETE FROM theta_ai.th_messages 
+            DELETE FROM th_messages 
             WHERE user_id = :user_id AND session_id = :session_id
         """
         await execute_query(
@@ -206,7 +206,7 @@ async def delete_session(user_id: str, session_id: str) -> str | None:
 
         # Then delete the session summary
         delete_session_sql = """
-            DELETE FROM theta_ai.th_sessions 
+            DELETE FROM th_sessions 
             WHERE user_id = :user_id AND session_id = :session_id
         """
         await execute_query(

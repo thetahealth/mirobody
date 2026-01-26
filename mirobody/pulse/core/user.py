@@ -96,7 +96,7 @@ class ThetaUserService:
 
         # Check if user already exists
         check_query = """
-                SELECT id, name, is_del FROM theta_ai.health_app_user 
+                SELECT id, name, is_del FROM health_app_user 
                 WHERE email = :email
                 ORDER BY create_at DESC
                 LIMIT 1
@@ -116,7 +116,7 @@ class ThetaUserService:
 
         # Create new user
         create_query = """
-                INSERT INTO theta_ai.health_app_user 
+                INSERT INTO health_app_user 
                 (is_del, email, name, gender, birth, blood, tz, create_at, update_at)
                 VALUES (:is_del, :email, :name, :gender, :birth, :blood, :tz, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 RETURNING id, name
@@ -159,7 +159,7 @@ class ThetaUserService:
             # Check existing associations (including deleted ones)
             check_query = """
                 SELECT id, is_del, reconnect, username, create_at
-                FROM theta_ai.health_user_provider
+                FROM health_user_provider
                 WHERE user_id = :user_id AND provider = :provider
                 ORDER BY create_at DESC
                 LIMIT 1
@@ -184,7 +184,7 @@ class ThetaUserService:
                         # Link is active but needs reconnection, recreate it
                         logging.info(f"Recreating link for user {user_id}, provider {provider_slug} (reconnect={reconnect_status})")
                         delete_query = """
-                            UPDATE theta_ai.health_user_provider
+                            UPDATE health_user_provider
                             SET is_del = TRUE, update_at = CURRENT_TIMESTAMP
                             WHERE id = :link_id
                         """
@@ -198,7 +198,7 @@ class ThetaUserService:
                     logging.info(f"Recreating link for user {user_id}, provider {provider_slug} (inactive, active={active})")
 
             create_query = """
-                INSERT INTO theta_ai.health_user_provider 
+                INSERT INTO health_user_provider 
                 (user_id, provider, username, password, llm_access, is_del, reconnect, create_at, update_at)
                 VALUES (:user_id, :provider, :username, :password, :llm_access, :is_del, :reconnect, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """
@@ -231,7 +231,7 @@ class ThetaUserService:
         # 1. Find existing association
         find_query = """
                 SELECT user_id, is_del, reconnect, create_at
-                FROM theta_ai.health_user_provider
+                FROM health_user_provider
                 WHERE provider = :provider AND username = :provider_user_id
                 ORDER BY create_at DESC
                 LIMIT 1
@@ -256,7 +256,7 @@ class ThetaUserService:
                 # Association deleted, restore and reset reconnect=0
                 user_id = str(link["user_id"])
                 restore_query = """
-                    UPDATE theta_ai.health_user_provider
+                    UPDATE health_user_provider
                     SET is_del = FALSE, reconnect = 0, update_at = CURRENT_TIMESTAMP
                     WHERE provider = :provider AND username = :provider_user_id
                 """
@@ -308,7 +308,7 @@ class ThetaUserService:
         try:
             query = """
                 SELECT id, email, name, gender, birth, blood, tz, create_at, update_at
-                FROM theta_ai.health_app_user
+                FROM health_app_user
                 WHERE id = :user_id AND is_del = FALSE
             """
 
@@ -340,7 +340,7 @@ class ThetaUserService:
         try:
             base_query = """
                 SELECT provider, username, llm_access, create_at, update_at
-                FROM theta_ai.health_user_provider
+                FROM health_user_provider
                 WHERE user_id = :user_id AND is_del = FALSE
             """
 

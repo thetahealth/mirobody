@@ -38,7 +38,7 @@ class HealthDataRepository:
 
             # Batch insert SQL
             query_batch = """
-                INSERT INTO theta_ai.series_data (user_id, indicator, source, time, value, timezone, task_id, source_id, create_time, update_time) 
+                INSERT INTO series_data (user_id, indicator, source, time, value, timezone, task_id, source_id, create_time, update_time) 
                 VALUES (:user_id, :indicator, :source, :time, :value, :timezone, :task_id, :source_id, now(), now())
                 ON CONFLICT (user_id, indicator, source, time) 
                 DO UPDATE 
@@ -48,8 +48,8 @@ class HealthDataRepository:
                   task_id = EXCLUDED.task_id,
                   source_id = EXCLUDED.source_id,
                   update_time = now()
-                WHERE theta_ai.series_data.value IS DISTINCT FROM EXCLUDED.value
-                   OR theta_ai.series_data.task_id IS DISTINCT FROM EXCLUDED.task_id
+                WHERE series_data.value IS DISTINCT FROM EXCLUDED.value
+                   OR series_data.task_id IS DISTINCT FROM EXCLUDED.task_id
             """
 
             # Process in batches, 1000 records per batch

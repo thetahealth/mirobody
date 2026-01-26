@@ -82,7 +82,7 @@ async def set_user_settings(
     request: PostUserSettingsRequest,
     user_id: str = Depends(verify_token)
 ):
-    update_sql = "UPDATE theta_ai.health_app_user SET"
+    update_sql = "UPDATE health_app_user SET"
     params = {}
     is_first_param = True
 
@@ -121,7 +121,7 @@ async def get_user_settings(
         # Get user profile info from health_app_user table
         user_sql = """
             SELECT email, gender, birth, blood, tz, lang
-            FROM theta_ai.health_app_user 
+            FROM health_app_user 
             WHERE id = :user_id AND is_del = false
         """
 
@@ -235,7 +235,7 @@ async def update_user_settings(
         if update_fields:
             update_fields.append("update_at = CURRENT_TIMESTAMP")
             update_sql = f"""
-                UPDATE theta_ai.health_app_user 
+                UPDATE health_app_user 
                 SET {", ".join(update_fields)}
                 WHERE id = :user_id AND is_del = false
             """
@@ -269,7 +269,7 @@ async def create_virtual_user(
 
         # Check if username already exists
         check_email_query = """
-            SELECT id FROM theta_ai.health_app_user 
+            SELECT id FROM health_app_user 
             WHERE email = :email AND is_del = false
         """
         
@@ -286,7 +286,7 @@ async def create_virtual_user(
 
         # Create virtual user in health_app_user table
         create_user_query = """
-            INSERT INTO theta_ai.health_app_user 
+            INSERT INTO health_app_user 
             (is_del, email, name, gender, birth, blood, tz, create_at, update_at)
             VALUES (false, :email, :name, :gender, :birth, :blood, 'UTC', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             RETURNING id, name
@@ -333,7 +333,7 @@ async def create_virtual_user(
 
         # Get current user's email for the relationship
         current_user_query = """
-            SELECT email FROM theta_ai.health_app_user
+            SELECT email FROM health_app_user
             WHERE id = :user_id AND is_del = false
         """
 
@@ -346,7 +346,7 @@ async def create_virtual_user(
 
         # Create share relationship using new th_share_relationship table
         create_relationship_query = """
-            INSERT INTO theta_ai.th_share_relationship
+            INSERT INTO th_share_relationship
             (owner_user_id, member_user_id, owner_email, member_email, status, permissions, relationship_type)
             VALUES (:owner_user_id, :member_user_id, :owner_email, :member_email, 'authorized', :permissions, 'data_sharing')
             ON CONFLICT (owner_user_id, member_user_id) DO NOTHING
@@ -369,7 +369,7 @@ async def create_virtual_user(
 
         # Create nickname record in th_share_user_config
         create_config_query = """
-            INSERT INTO theta_ai.th_share_user_config
+            INSERT INTO th_share_user_config
             (setter_user_id, target_user_id, nickname, created_at, updated_at)
             VALUES (:setter_user_id, :target_user_id, :nickname, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (setter_user_id, target_user_id, context)

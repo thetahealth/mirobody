@@ -29,7 +29,7 @@ class AppleDatabaseService:
         try:
             existing_query = """
             SELECT id, username, create_at
-            FROM theta_ai.health_user_provider
+            FROM health_user_provider
             WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
             ORDER BY create_at DESC
             LIMIT 1
@@ -42,7 +42,7 @@ class AppleDatabaseService:
 
             if existing_result and len(existing_result) > 0:
                 update_query = """
-                UPDATE theta_ai.health_user_provider
+                UPDATE health_user_provider
                 SET llm_access = :llm_access, update_at = CURRENT_TIMESTAMP
                 WHERE id = :id
                 """
@@ -54,7 +54,7 @@ class AppleDatabaseService:
 
             else:
                 insert_query = """
-                INSERT INTO theta_ai.health_user_provider 
+                INSERT INTO health_user_provider 
                 (user_id, provider, username, password, llm_access, is_del, reconnect, create_at, update_at)
                 VALUES (:user_id, :provider, :username, :password, :llm_access, :is_del, :reconnect, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 """
@@ -92,7 +92,7 @@ class AppleDatabaseService:
         try:
             query = """
             SELECT provider, llm_access
-            FROM theta_ai.health_user_provider
+            FROM health_user_provider
             WHERE user_id = :user_id AND provider in ('apple_health', 'cda') AND is_del = FALSE
             """
 

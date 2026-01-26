@@ -254,11 +254,11 @@ async def save_food_analysis(
 
         # Save to th_messages table
         save_sql = """
-            INSERT INTO theta_ai.th_messages (
+            INSERT INTO th_messages (
                 id, user_id, session_id, role, content, message_type, 
                 created_at, agent, provider
             ) VALUES (
-                :id, :user_id, :session_id, :role, theta_ai.encrypt_content(:content), :message_type,
+                :id, :user_id, :session_id, :role, encrypt_content(:content), :message_type,
                 :created_at, :agent, :provider
             )
         """
@@ -317,8 +317,8 @@ async def get_food_analysis_history(
     try:
         # Build query with optional date filter
         base_sql = """
-            SELECT id, theta_ai.decrypt_content(content) AS content, created_at
-            FROM theta_ai.th_messages 
+            SELECT id, decrypt_content(content) AS content, created_at
+            FROM th_messages 
             WHERE user_id = :user_id 
                 AND message_type = 'food'
                 AND role = 'user'
@@ -413,7 +413,7 @@ async def delete_food_analysis(
     try:
         # Check if the record exists and belongs to the user
         check_sql = """
-            SELECT id FROM theta_ai.th_messages 
+            SELECT id FROM th_messages 
             WHERE id = :food_id 
                 AND user_id = :user_id 
                 AND message_type = 'food'
@@ -429,7 +429,7 @@ async def delete_food_analysis(
 
         # Soft delete the record by setting is_del = true
         delete_sql = """
-            UPDATE theta_ai.th_messages 
+            UPDATE th_messages 
             SET is_del = true, updated_at = CURRENT_TIMESTAMP
             WHERE id = :food_id AND user_id = :user_id
         """

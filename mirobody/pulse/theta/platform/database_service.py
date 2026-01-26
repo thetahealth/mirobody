@@ -91,28 +91,28 @@ class ThetaDatabaseService:
             if link_type == LinkType.PASSWORD:
                 query = """
                 SELECT user_id, username, password
-                FROM theta_ai.health_user_provider
+                FROM health_user_provider
                 WHERE provider = :provider AND is_del = FALSE AND reconnect = 0
                 ORDER BY create_at DESC
                 """
             elif link_type == LinkType.OAUTH1:
                 query = """
                 SELECT user_id, username, access_token, access_token_secret
-                FROM theta_ai.health_user_provider
+                FROM health_user_provider
                 WHERE provider = :provider AND is_del = FALSE AND reconnect = 0
                 ORDER BY create_at DESC
                 """
             elif link_type == LinkType.CUSTOMIZED:
                 query = """
                 SELECT user_id, connect_info
-                FROM theta_ai.health_user_provider
+                FROM health_user_provider
                 WHERE provider = :provider AND is_del = FALSE AND reconnect = 0
                 ORDER BY create_at DESC
                 """
             else:  # OAUTH2
                 query = """
                 SELECT user_id, access_token, refresh_token, expires_at
-                FROM theta_ai.health_user_provider
+                FROM health_user_provider
                 WHERE provider = :provider AND is_del = FALSE AND reconnect = 0
                 ORDER BY create_at DESC
                 """
@@ -190,7 +190,7 @@ class ThetaDatabaseService:
         """
         # 1. Soft delete existing record if any
         delete_query = """
-        UPDATE theta_ai.health_user_provider
+        UPDATE health_user_provider
         SET is_del = TRUE, update_at = CURRENT_TIMESTAMP
         WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
         """
@@ -257,7 +257,7 @@ class ThetaDatabaseService:
             params["connect_info"] = json.dumps(credentials.connect_info)
 
         insert_query = f"""
-        INSERT INTO theta_ai.health_user_provider ({', '.join(fields)})
+        INSERT INTO health_user_provider ({', '.join(fields)})
         VALUES ({', '.join(values)})
         """
 
@@ -270,7 +270,7 @@ class ThetaDatabaseService:
         try:
             query = """
             SELECT DISTINCT provider 
-            FROM theta_ai.health_user_provider
+            FROM health_user_provider
             WHERE user_id = :user_id AND is_del = FALSE and provider like 'theta_%'
             """
 
@@ -284,7 +284,7 @@ class ThetaDatabaseService:
 
     async def delete_user_theta_provider(self, user_id: str, provider_slug: str) -> bool:
         query = """
-        UPDATE theta_ai.health_user_provider
+        UPDATE health_user_provider
         SET is_del = TRUE, update_at = CURRENT_TIMESTAMP
         WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
         """
@@ -311,7 +311,7 @@ class ThetaDatabaseService:
         """
         try:
             query = """
-            UPDATE theta_ai.health_user_provider
+            UPDATE health_user_provider
             SET llm_access = :llm_access, update_at = CURRENT_TIMESTAMP
             WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
             """
@@ -346,7 +346,7 @@ class ThetaDatabaseService:
         try:
             query = """
             SELECT provider, llm_access, reconnect
-            FROM theta_ai.health_user_provider
+            FROM health_user_provider
             WHERE user_id = :user_id AND is_del = FALSE
             """
 
@@ -384,7 +384,7 @@ class ThetaDatabaseService:
                 # For CUSTOMIZED type, return connect_info
                 query = """
                 SELECT connect_info
-                FROM theta_ai.health_user_provider
+                FROM health_user_provider
                 WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
                 ORDER BY create_at DESC LIMIT 1
                 """
@@ -405,7 +405,7 @@ class ThetaDatabaseService:
                 # Some PASSWORD providers (like FrontierX) also store OAuth2-style tokens
                 query = """
                 SELECT username, password, access_token, refresh_token, expires_at
-                FROM theta_ai.health_user_provider
+                FROM health_user_provider
                 WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
                 ORDER BY create_at DESC LIMIT 1
                 """
@@ -445,7 +445,7 @@ class ThetaDatabaseService:
             elif link_type == LinkType.OAUTH1:
                 query = """
                 SELECT username, access_token, access_token_secret
-                FROM theta_ai.health_user_provider
+                FROM health_user_provider
                 WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
                 ORDER BY create_at DESC LIMIT 1
                 """
@@ -469,7 +469,7 @@ class ThetaDatabaseService:
             else:  # OAUTH2
                 query = """
                 SELECT access_token, refresh_token, expires_at, username
-                FROM theta_ai.health_user_provider
+                FROM health_user_provider
                 WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
                 ORDER BY create_at DESC LIMIT 1
                 """

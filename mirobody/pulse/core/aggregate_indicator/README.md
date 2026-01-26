@@ -178,7 +178,7 @@ graph TD
 SELECT user_id, indicator, source,
        ROUND(AVG(value::numeric), 2) as avg_value,
        ROUND(MAX(value::numeric), 2) as max_value
-FROM theta_ai.series_data
+FROM series_data
 WHERE user_id = ANY(:user_ids)
   AND indicator = ANY(:indicators)
   AND time >= :day_start AND time <= :day_end

@@ -289,17 +289,17 @@ class BaseThetaProvider(Provider):
         """
         Get the database table name for this provider
         
-        Default implementation: theta_ai.health_data_{provider_name}
+        Default implementation: health_data_{provider_name}
         where provider_name is extracted from provider slug (e.g., theta_renpho -> renpho)
         
         Providers can override this method for custom table names.
         
         Returns:
-            Full table name with schema (e.g., "theta_ai.health_data_renpho")
+            Full table name with schema (e.g., "health_data_renpho")
         """
         # Extract provider name from slug: theta_renpho -> renpho
         provider_name = self.info.slug.replace("theta_", "")
-        return f"theta_ai.health_data_{provider_name}"
+        return f"health_data_{provider_name}"
 
     def get_user_id_column(self) -> str:
         """

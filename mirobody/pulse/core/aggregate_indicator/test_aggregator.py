@@ -571,7 +571,7 @@ class AggregatorTester:
         # Query all data for this user to debug (filter by test source)
         debug_query = """
         SELECT indicator, value, start_time, end_time, DATE(start_time) as start_date, source
-        FROM theta_ai.th_series_data
+        FROM th_series_data
         WHERE user_id = :user_id
           AND (indicator LIKE '%steps%' OR source LIKE '%test.integration%')
         ORDER BY update_time DESC
@@ -590,7 +590,7 @@ class AggregatorTester:
         # Note: Use exact indicator match for test data and filter by current test date
         query = """
         SELECT indicator, value, start_time, end_time
-        FROM theta_ai.th_series_data
+        FROM th_series_data
         WHERE user_id = :user_id
           AND indicator = 'dailyTotalSteps.test.integration'
           AND DATE(start_time) = :test_date
@@ -660,7 +660,7 @@ class AggregatorTester:
     ):
         """Insert a test record into series_data"""
         query = """
-        INSERT INTO theta_ai.series_data 
+        INSERT INTO series_data 
         (user_id, indicator, value, time, timezone, source, update_time)
         VALUES (:user_id, :indicator, :value, :time, :timezone, :source, :update_time)
         """
@@ -679,7 +679,7 @@ class AggregatorTester:
         """Clean up test data for specific indicator"""
         # Delete from series_data
         delete_series = """
-        DELETE FROM theta_ai.series_data
+        DELETE FROM series_data
         WHERE user_id = :user_id
           AND indicator = :indicator
           AND source = 'test.integration'
@@ -693,7 +693,7 @@ class AggregatorTester:
         # Clean up ALL test integration data for this user and indicator pattern
         # This removes all test data regardless of date to avoid leftover data from previous test runs
         delete_summary = """
-        DELETE FROM theta_ai.th_series_data
+        DELETE FROM th_series_data
         WHERE user_id = :user_id
           AND source = 'test.integration'
           AND indicator LIKE :indicator_pattern

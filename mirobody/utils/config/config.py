@@ -317,6 +317,19 @@ class Config:
 
     #-----------------------------------------------------
 
+    def get_jwt_options(self) -> dict[str, str]:
+        return {
+            "jwt_key"           : self.get_str("JWT_KEY"),
+            # "jwt_private_key"   : self.get_str("JWT_PRIVATE_KEY"),
+            "jwt_iss"           : self.get_str("JWT_ISS"),
+            "jwt_aud"           : self.get_str("JWT_AUD"),
+            "jwt_client_id"     : self.get_str("JWT_CLIENT_ID"),
+            "jwt_scope"         : self.get_str("JWT_SCOPE"),
+            "jwt_expires_in"    : self.get_int("JWT_EXPIRES_IN")
+        }
+
+    #-----------------------------------------------------
+
     def get_api_keys(self) -> dict[str, str]:
         results = {}
 
@@ -324,6 +337,7 @@ class Config:
             "OPENROUTER_API_KEY",
             "OPENAI_API_KEY",
             "GOOGLE_API_KEY",
+            "GOOGLE_CLOUD_API_KEY",
             "ANTHROPIC_API_KEY",
             "MIROTHINKER_API_KEY",
             "E2B_API_KEY",

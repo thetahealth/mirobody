@@ -41,7 +41,7 @@ class HealthIndicatorService:
         """
         Get health indicators based on keywords
 
-        Searches the theta_ai.th_series_data table for indicators matching the keywords.
+        Searches the th_series_data table for indicators matching the keywords.
 
         Args:
             user_info: User information dictionary (must contain 'user_id')
@@ -70,7 +70,7 @@ class HealthIndicatorService:
             # Select all columns to ensure we get "other fields" like original_data, etc.
             # Sorting by column 5 (timestamp) descending to get latest data first
             sql = """
-                SELECT * FROM theta_ai.th_series_data 
+                SELECT * FROM th_series_data 
                 WHERE user_id = :user_id 
                 AND indicator ILIKE :keywords
                 ORDER BY 5 DESC

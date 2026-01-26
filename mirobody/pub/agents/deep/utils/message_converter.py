@@ -338,10 +338,11 @@ class StreamConverter:
             total_tokens = input_tokens + output_tokens
             
             # Find matching pricing by substring match (prefer longest key for precision)
+            model_name_lower = model_name.lower()
             rates = None
             matched_key = ""
             for key, pricing in PRICING.items():
-                if key in model_name and len(key) > len(matched_key):
+                if key in model_name_lower and len(key) > len(matched_key):
                     matched_key = key
                     rates = pricing
             

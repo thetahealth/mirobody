@@ -2,28 +2,308 @@
 File Handler Module for DeepAgent
 
 Handles file upload and processing logic for PostgreSQL backend.
+Integrates with global file cache for efficient parsing and storage.
 """
 
+import asyncio
 import logging
 import os
-from typing import Any
+import time
+from typing import Any, Optional
 from urllib.parse import urlparse, unquote
 
 import httpx
 
+from mirobody.pub.agents.deep.backends.cache_manager import (
+    get_cache_manager,
+    calculate_content_hash
+)
+from mirobody.pub.agents.deep.backends.file_parser import get_file_type_from_extension
+
 logger = logging.getLogger(__name__)
 
 
-def upload_files_to_backend(
+def _build_file_metadata(
+    content_hash: str,
+    file_key: str,
+    file_type: str,
+    file_extension: str,
+    original_size: int,
+    cache_hit: bool,
+    parse_method: str,
+    parse_model: str,
+    parse_info: dict = None,
+    parse_duration_ms: int = None
+) -> dict:
+    """
+    Build unified file metadata dictionary.
+    
+    Args:
+        content_hash: SHA256 hash of file content
+        file_key: S3 key or storage identifier
+        file_type: File type (PDF, IMAGE, TEXT, etc.)
+        file_extension: File extension (.pdf, .jpg, etc.)
+        original_size: Original file size in bytes
+        cache_hit: Whether cache was hit
+        parse_method: Parse method used
+        parse_model: Model used for parsing
+        parse_info: Parse info from cache (for cache hit)
+        parse_duration_ms: Parse duration (for cache miss)
+        
+    Returns:
+        Metadata dictionary
+    """
+    metadata = {
+        "content_hash": content_hash,
+        "file_key": file_key,
+        "file_type": file_type,
+        "file_extension": file_extension,
+        "parsed": True,
+        "cache_hit": cache_hit,
+        "parse_method": parse_method,
+        "parse_model": parse_model,
+        "original_size": original_size,
+    }
+    
+    if cache_hit and parse_info:
+        metadata["parse_timestamp"] = parse_info["timestamp"].isoformat()
+        metadata["parse_age_hours"] = parse_info["age_hours"]
+    elif not cache_hit and parse_duration_ms is not None:
+        metadata["parse_duration_ms"] = parse_duration_ms
+    
+    return metadata
+
+
+def _build_reminder_message(uploaded_paths: list[str]) -> str:
+    """
+    Build reminder message for successfully uploaded files.
+    
+    Args:
+        uploaded_paths: List of uploaded file paths
+        
+    Returns:
+        Formatted reminder message
+    """
+    if not uploaded_paths:
+        return ""
+    
+    if len(uploaded_paths) == 1:
+        return (
+            f"Uploaded and parsed: {os.path.basename(uploaded_paths[0])}\n"
+            f"Path: {uploaded_paths[0]}\n\n"
+            f"Use read_file(\"{uploaded_paths[0]}\") to read the parsed content"
+        )
+    else:
+        file_items = [
+            f"{i+1}. {os.path.basename(p)}" 
+            for i, p in enumerate(uploaded_paths)
+        ]
+        files_text = "\n".join(file_items)
+        return (
+            f"Uploaded and parsed {len(uploaded_paths)} files:\n{files_text}\n\n"
+            f"Example: read_file(\"{uploaded_paths[0]}\")"
+        )
+
+
+async def _process_single_file(
+    file_info: dict[str, Any],
+    files_content_map: dict[str, bytes],
+    backend: Any,
+    cache_manager: Any
+) -> Optional[tuple[str, str, dict]]:
+    """
+    Process single file with caching and parsing.
+    
+    Args:
+        file_info: File information dict from file_list
+        files_content_map: Pre-loaded file content mapping
+        backend: Backend instance for parsing
+        cache_manager: Cache manager instance
+        
+    Returns:
+        Tuple of (file_path, parsed_text, metadata) or None if failed
+    """
+    try:
+        file_name = file_info.get("file_name")
+        file_url = file_info.get("file_url")
+        file_key = file_info.get("file_key")
+        file_type = file_info.get("file_type", "").upper()
+        
+        # Skip files without required fields
+        if not file_name or not file_url:
+            logger.warning(f"Skipping file with missing name or URL: {file_info}")
+            return None
+        
+        # Create workspace file path
+        file_path = f"/uploads/{file_name}"
+        
+        # Step 1: Get file binary content
+        file_bytes = None
+        
+        # Priority 1: Use pre-loaded content from memory (fastest)
+        if file_key and file_key in files_content_map:
+            file_bytes = files_content_map[file_key]
+            logger.info(f"✅ Memory cache hit (by file_key): {file_name} ({len(file_bytes)} bytes)")
+        elif file_name in files_content_map:
+            file_bytes = files_content_map[file_name]
+            logger.info(f"✅ Memory cache hit (by filename): {file_name} ({len(file_bytes)} bytes)")
+        
+        # Priority 2: Download from URL (fallback)
+        else:
+            parsed_url = urlparse(file_url)
+            is_local_file = parsed_url.scheme == "file"
+            is_remote_file = parsed_url.scheme in ("http", "https")
+            
+            if is_local_file:
+                local_path = unquote(parsed_url.path)
+                with open(local_path, 'rb') as f:
+                    file_bytes = f.read()
+                logger.info(f"📁 Read {len(file_bytes)} bytes from local file: {file_name}")
+            
+            elif is_remote_file:
+                logger.info(f"📥 Downloading from URL: {file_name}")
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.get(file_url)
+                    response.raise_for_status()
+                    file_bytes = response.content
+                logger.info(f"✅ Downloaded {len(file_bytes)} bytes: {file_name}")
+            
+            else:
+                logger.warning(f"⚠️ Unsupported URL scheme for {file_name}: {parsed_url.scheme}")
+                return None
+        
+        if not file_bytes:
+            logger.warning(f"⚠️ No content for {file_name}")
+            return None
+        
+        # Step 2: Calculate content hash
+        content_hash = calculate_content_hash(file_bytes)
+        logger.debug(f"Content hash for {file_name}: {content_hash[:12]}...")
+        
+        # Step 3: Check global cache
+        cached_data = await cache_manager.get_cached_file(content_hash)
+        
+        if cached_data:
+            # Cache hit! Use cached parsed content
+            parsed_text = cached_data["content"]
+            parse_info = cached_data["parse_info"]
+            file_extension = cached_data.get("file_extension", os.path.splitext(file_name)[1])
+            
+            logger.info(
+                f"🎯 Global cache hit: {file_name} "
+                f"(method: {parse_info['method']}, "
+                f"age: {parse_info['age_hours']:.1f}h, "
+                f"saved parsing time!)"
+            )
+            
+            # Build metadata
+            metadata = _build_file_metadata(
+                content_hash=content_hash,
+                file_key=file_key,
+                file_type=file_type or cached_data.get("file_type", "UNKNOWN"),
+                file_extension=file_extension,
+                original_size=len(file_bytes),
+                cache_hit=True,
+                parse_method=parse_info["method"],
+                parse_model=parse_info.get("model", ""),
+                parse_info=parse_info
+            )
+            
+            return (file_path, parsed_text, metadata)
+        
+        else:
+            # Cache miss - need to parse file
+            logger.info(f"📄 Global cache miss: {file_name} - parsing now...")
+            
+            # Infer file type from extension if not provided
+            file_extension = os.path.splitext(file_name)[1]
+            if not file_type:
+                file_type = get_file_type_from_extension(file_extension)
+            
+            # Parse file directly using backend's parser
+            parse_start = time.time()
+            try:
+                result = await backend.parse_file(file_bytes, file_name, file_type)
+                
+                if isinstance(result, tuple) and len(result) == 3:
+                    parsed_text, parse_method, parse_model = result
+                elif isinstance(result, str):
+                    parsed_text = result
+                    parse_method = f"default-{file_type.lower()}"
+                    parse_model = ""
+                else:
+                    logger.warning(f"Unexpected parse result type: {type(result)}")
+                    parsed_text = ""
+                    parse_method = "unknown"
+                    parse_model = ""
+            except Exception as e:
+                logger.error(f"Parse failed for {file_name}: {e}", exc_info=True)
+                parsed_text = ""
+                parse_method = "error"
+                parse_model = ""
+            
+            parse_duration_ms = int((time.time() - parse_start) * 1000)
+            
+            if not parsed_text:
+                logger.warning(f"⚠️ Failed to parse {file_name}, skipping")
+                return None
+            
+            logger.info(
+                f"✅ Parsed {file_name}: {len(parsed_text)} chars, "
+                f"{len(parsed_text.split(chr(10)))} lines, "
+                f"{parse_duration_ms}ms ({parse_method})"
+            )
+            
+            # Save to global cache
+            await cache_manager.save_cached_file(
+                content_hash=content_hash,
+                content=parsed_text,
+                file_type=file_type,
+                file_extension=file_extension,
+                original_size=len(file_bytes),
+                parse_method=parse_method,
+                parse_model=parse_model,
+                parse_duration_ms=parse_duration_ms,
+                file_key=file_key
+            )
+            
+            # Build metadata
+            metadata = _build_file_metadata(
+                content_hash=content_hash,
+                file_key=file_key,
+                file_type=file_type,
+                file_extension=file_extension,
+                original_size=len(file_bytes),
+                cache_hit=False,
+                parse_method=parse_method,
+                parse_model=parse_model,
+                parse_duration_ms=parse_duration_ms
+            )
+            
+            return (file_path, parsed_text, metadata)
+    
+    except Exception as e:
+        logger.error(f"❌ Failed to process file {file_info.get('file_name', 'unknown')}: {e}", exc_info=True)
+        return None
+
+
+async def upload_files_to_backend(
     file_list: list[dict[str, Any]], 
     backend: Any,
     files_data: list[dict[str, Any]] | None = None
 ) -> tuple[list[str], str]:
     """
-    Upload files directly to PostgreSQL backend.
+    Upload files to PostgreSQL backend with concurrent processing and global cache support.
     
-    Performance optimization: If files_data is provided (from HTTP layer),
-    use it directly to avoid re-downloading from S3/URL.
+    Workflow (concurrent for each file):
+    1. Calculate content hash for each file
+    2. Check global cache for parsed content
+    3. If cache miss, parse file and save to cache
+    4. Store parsed text in workspace (not binary)
+    
+    Performance optimization: 
+    - Files are processed concurrently for better performance
+    - If files_data is provided (from HTTP layer), use it directly to avoid re-downloading
     
     Args:
         file_list: List of file info dicts with keys:
@@ -35,9 +315,9 @@ def upload_files_to_backend(
         backend: PostgresBackend instance with upload_files() method
         files_data: Optional list of already-downloaded file data dicts with:
             - content: File binary content (bytes)
-            - filename: File name
+            - file_name: File name
             - content_type: MIME type
-            - s3_key: S3 key
+            - file_key: S3 key
         
     Returns:
         Tuple of (uploaded_file_paths, reminder_message)
@@ -45,77 +325,55 @@ def upload_files_to_backend(
     if not file_list:
         return ([], "")
     
-    files_to_upload = []  # List of (file_path, file_bytes) tuples
-    uploaded_paths = []
+    cache_manager = get_cache_manager()
     
-    # Build filename -> content mapping for fast lookup (if files_data provided)
+    # Build file_key/filename -> content mapping for fast lookup (if files_data provided)
     files_content_map = {}
     if files_data:
         for file_data in files_data:
-            filename = file_data.get("filename")
+            filename = file_data.get("file_name")
+            file_key = file_data.get("file_key")
             content = file_data.get("content")
-            if filename and content:
-                files_content_map[filename] = content
-        logger.info(f"✅ Using {len(files_content_map)} cached files from memory (avoiding re-download)")
+            
+            if content:
+                # Index by both file_key (most reliable) and filename
+                if file_key:
+                    files_content_map[file_key] = content
+                if filename:
+                    files_content_map[filename] = content
+        
+        logger.info(f"✅ Using {len(files_data)} pre-loaded files from memory (avoiding re-download)")
     
-    for file_info in file_list:
-        file_name = file_info.get("file_name")
-        file_url = file_info.get("file_url")
-        
-        # Skip files without required fields
-        if not file_name or not file_url:
-            logger.warning(f"Skipping file with missing name or URL: {file_info}")
-            continue
-        
-        # Create database file path (no temp directories)
-        file_path = f"/uploads/{file_name}"
-        
-        try:
-            file_bytes = None
-            
-            # Priority 1: Use cached content from memory (fastest)
-            if file_name in files_content_map:
-                file_bytes = files_content_map[file_name]
-                logger.info(f"✅ Cache hit: {file_name} ({len(file_bytes)} bytes, saved ~500ms)")
-            
-            # Priority 2: Download from URL (fallback)
-            else:
-                parsed_url = urlparse(file_url)
-                is_local_file = parsed_url.scheme == "file"
-                is_remote_file = parsed_url.scheme in ("http", "https")
-                
-                if is_local_file:
-                    # Read local file as binary
-                    local_path = unquote(parsed_url.path)
-                    with open(local_path, 'rb') as f:
-                        file_bytes = f.read()
-                    logger.info(f"📁 Read {len(file_bytes)} bytes from local file: {file_name}")
-                
-                elif is_remote_file:
-                    # Download remote file
-                    logger.info(f"📥 Cache miss, downloading from URL: {file_name}")
-                    with httpx.Client(timeout=30.0) as client:
-                        response = client.get(file_url)
-                        response.raise_for_status()
-                        file_bytes = response.content
-                    logger.info(f"✅ Downloaded {len(file_bytes)} bytes: {file_name}")
-                
-                else:
-                    logger.warning(f"⚠️ Unsupported URL scheme for {file_name}: {parsed_url.scheme}")
-                    continue
-            
-            if file_bytes:
-                files_to_upload.append((file_path, file_bytes))
-                uploaded_paths.append(file_path)
-                
-        except Exception as e:
-            logger.error(f"❌ Failed to process file {file_name}: {e}", exc_info=True)
-            continue
+    # 🚀 Concurrent processing: Create tasks for all files
+    process_tasks = [
+        _process_single_file(file_info, files_content_map, backend, cache_manager)
+        for file_info in file_list
+    ]
     
-    # Upload all files to PostgreSQL backend
+    # Execute all file processing concurrently
+    results = await asyncio.gather(*process_tasks, return_exceptions=True)
+    
+    # Collect successful results
+    files_to_upload = []
+    uploaded_paths = []
+    
+    for result in results:
+        if result and isinstance(result, tuple):
+            file_path, parsed_text, metadata = result
+            files_to_upload.append((file_path, parsed_text, metadata))
+            uploaded_paths.append(file_path)
+        elif isinstance(result, Exception):
+            logger.error(f"File processing task failed with exception: {result}")
+    
+    logger.info(
+        f"✅ Concurrent processing completed: {len(files_to_upload)}/{len(file_list)} files successful"
+    )
+    
+    # Upload all parsed files to PostgreSQL backend (workspace)
     if files_to_upload:
         try:
-            upload_results = backend.upload_files(files_to_upload)
+            # Upload to workspace (parsed text only, not binary)
+            upload_results = backend.upload_parsed_files(files_to_upload)
             
             # Check for upload errors
             successful_uploads = []
@@ -124,17 +382,11 @@ def upload_files_to_backend(
                     logger.error(f"❌ Upload failed for {result.path}: {result.error}")
                 else:
                     successful_uploads.append(result.path)
-                    logger.info(f"✅ Uploaded to PostgreSQL: {result.path}")
+                    logger.info(f"✅ Saved to workspace: {result.path}")
             
             # Create reminder message
             if successful_uploads:
-                if len(successful_uploads) == 1:
-                    reminder = f"📎 Uploaded: {os.path.basename(successful_uploads[0])} → {successful_uploads[0]}\n\nUse read_file(\"{successful_uploads[0]}\") to read the file"
-                else:
-                    file_items = [f"{i+1}. {os.path.basename(p)} → {p}" for i, p in enumerate(successful_uploads)]
-                    files_text = "\n".join(file_items)
-                    reminder = f"📎 Uploaded {len(successful_uploads)} files:\n{files_text}\n\nExample: read_file(\"{successful_uploads[0]}\")"
-                
+                reminder = _build_reminder_message(successful_uploads)
                 return (successful_uploads, reminder)
             
         except Exception as e:

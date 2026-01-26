@@ -40,12 +40,12 @@ class FileParserDatabaseService:
         """Log chat message to database"""
         try:
             message_sql = """
-                INSERT INTO theta_ai.th_messages (
+                INSERT INTO th_messages (
                     id, user_id, user_name, session_id, role, content, reasoning,
                     agent, provider, input_prompt, created_at, question_id, rating,
                     message_type, query_user_id
                 )
-                VALUES (:id, :user_id, :user_name, :session_id, :role, theta_ai.encrypt_content(:content), :reasoning, :agent, :provider, :input_prompt, :created_at, :question_id, :rating, :message_type, :query_user_id)
+                VALUES (:id, :user_id, :user_name, :session_id, :role, encrypt_content(:content), :reasoning, :agent, :provider, :input_prompt, :created_at, :question_id, :rating, :message_type, :query_user_id)
                 ON CONFLICT (id) DO NOTHING RETURNING id
             """
 
@@ -79,7 +79,7 @@ class FileParserDatabaseService:
         """Get message content by message ID"""
         try:
             query = """
-                SELECT theta_ai.decrypt_content(content) AS content FROM theta_ai.th_messages WHERE id = :message_id LIMIT 1
+                SELECT decrypt_content(content) AS content FROM th_messages WHERE id = :message_id LIMIT 1
             """
             
             result = await execute_query(
@@ -117,7 +117,7 @@ class FileParserDatabaseService:
             params = {"message_id": message_id}
 
             if content is not None:
-                update_fields.append("content = theta_ai.encrypt_content(:content)")
+                update_fields.append("content = encrypt_content(:content)")
                 params["content"] = safe_json_dumps(content) if isinstance(content, (dict, list)) else content
 
             if reasoning is not None:
@@ -136,7 +136,7 @@ class FileParserDatabaseService:
                 return False
 
             update_sql = f"""
-                UPDATE theta_ai.th_messages SET {", ".join(update_fields)} WHERE id = :message_id
+                UPDATE th_messages SET {", ".join(update_fields)} WHERE id = :message_id
             """
 
             update_result = await execute_query(
@@ -158,10 +158,10 @@ class FileParserDatabaseService:
 
             message_sql = """
                 SELECT 
-                    id, user_id, session_id, role, theta_ai.decrypt_content(content) AS content, reasoning,
+                    id, user_id, session_id, role, decrypt_content(content) AS content, reasoning,
                     agent, provider, input_prompt, created_at, question_id, 
                     rating, comment, message_type
-                FROM theta_ai.th_messages
+                FROM th_messages
                 WHERE id = :response_id
             """
 
@@ -246,7 +246,7 @@ class FileParserDatabaseService:
             logging.info(f"save_conversation_summary: {user_id}, {session_id}, {summary}")
             # Insert summary, do nothing on conflict
             summary_sql = """
-                INSERT INTO theta_ai.th_sessions (
+                INSERT INTO th_sessions (
                     user_id, session_id, summary, created_at
                 )
                 VALUES (:user_id, :session_id, :summary, :created_at) 
@@ -275,7 +275,7 @@ class FileParserDatabaseService:
         try:
             summary_sql = """
                 SELECT session_id, summary, created_at
-                FROM theta_ai.th_sessions
+                FROM th_sessions
                 WHERE session_id = :session_id
             """
 
@@ -427,7 +427,7 @@ class FileParserDatabaseService:
         try:
             # Use parameterized queries to avoid SQL injection issues
             sql = """
-            INSERT INTO theta_ai.th_health_report_summary (
+            INSERT INTO th_health_report_summary (
                 user_id, doc_type, doc_text, doc_summary, create_time, update_time
             ) VALUES (
                 :user_id, :file_type, :raw_text, :doc_summary, now(), now()
@@ -460,7 +460,7 @@ class FileParserDatabaseService:
             return 0
 
         await execute_query(
-            query="""INSERT INTO theta_ai.th_series_data (user_id, indicator, value, start_time, end_time, source_table, source_table_id, comment) 
+            query="""INSERT INTO th_series_data (user_id, indicator, value, start_time, end_time, source_table, source_table_id, comment) 
                VALUES (:user_id, :indicator, :value, :start_time, :end_time, :source_table, :source_table_id, :comment)
                ON CONFLICT DO NOTHING""",
             fieldList=db_params,
@@ -484,7 +484,7 @@ class FileParserDatabaseService:
 
             # Execute batch insert
             insert_query = """
-            INSERT INTO theta_ai.th_series_dim 
+            INSERT INTO th_series_dim 
             (original_indicator, standard_indicator, category_group, category, updated_at)
             VALUES 
             (:original_indicator, :standard_indicator, :category_group, :category, :updated_at)
@@ -494,7 +494,7 @@ class FileParserDatabaseService:
                 category_group = EXCLUDED.category_group,
                 category = EXCLUDED.category,
                 updated_at = EXCLUDED.updated_at
-            WHERE theta_ai.th_series_dim.updated_at < EXCLUDED.updated_at
+            WHERE th_series_dim.updated_at < EXCLUDED.updated_at
             """
 
             await execute_query(query=insert_query, fieldList=batch_params)
@@ -511,7 +511,7 @@ class FileParserDatabaseService:
         """
         Generate source_table_id for th_series_data based on file_key.
         
-        Uses file_key directly as source_table_id since source_table is theta_ai.th_files.
+        Uses file_key directly as source_table_id since source_table is th_files.
         file_key is the unique identifier in th_files table.
         
         Args:
@@ -532,7 +532,7 @@ class FileParserDatabaseService:
     async def get_user_current_time_with_timezone(user_id: str) -> datetime:
         """Get current time in user's timezone, falls back to UTC"""
         try:
-            query = "SELECT tz FROM theta_ai.health_app_user WHERE id = :user_id AND is_del = FALSE"
+            query = "SELECT tz FROM health_app_user WHERE id = :user_id AND is_del = FALSE"
             result = await execute_query(
                 query=query,
                 params={"user_id": int(user_id)},
@@ -561,7 +561,7 @@ class FileParserDatabaseService:
         exam_date: str,
         msg_id: str,
         comment: str = "",
-        source_table: str = "theta_ai.th_files",
+        source_table: str = "th_files",
         file_key: str = None,
     ) -> int:
         """Batch save health indicators to th_series_data table"""
@@ -641,7 +641,7 @@ class FileParserDatabaseService:
         try:
             # Delete genetic data
             sql = """
-                DELETE FROM theta_ai.th_series_data_genetic 
+                DELETE FROM th_series_data_genetic 
                 WHERE user_id = :user_id 
                 AND source_table = :source_table 
                 AND source_table_id = :source_table_id
@@ -674,7 +674,7 @@ class FileParserDatabaseService:
         Returns:
             bool: Whether deletion was successful
         """
-        return await FileParserDatabaseService.delete_genetic_data_by_source(user_id, "theta_ai.th_messages", message_id)
+        return await FileParserDatabaseService.delete_genetic_data_by_source(user_id, "th_messages", message_id)
 
     @staticmethod
     def generate_file_hash(content: str) -> str:
@@ -695,7 +695,7 @@ class FileParserDatabaseService:
         Get indicator dictionary
         """
         sql = """
-            select indicator_id, indicator_name_cn from theta_ai.indicator_dimension_all
+            select indicator_id, indicator_name_cn from indicator_dimension_all
         """
         rows = await execute_query(query=sql, params={})
         return {row.get("indicator_name_cn"): row.get("indicator_id") for row in rows}
@@ -1070,7 +1070,7 @@ class FileParserDatabaseService:
                     'Other' as category,
                     MAX(update_time) as last_update_time,
                     COUNT(1) as record_count
-                FROM theta_ai.v_th_series_data
+                FROM v_th_series_data
                 WHERE user_id = :user_id
                   AND (department IS NULL OR TRIM(department) = '')
                 
@@ -1081,7 +1081,7 @@ class FileParserDatabaseService:
                     TRIM(dept_expanded.dept) as category,
                     MAX(v.update_time) as last_update_time,
                     COUNT(1) as record_count
-                FROM theta_ai.v_th_series_data v
+                FROM v_th_series_data v
                 CROSS JOIN LATERAL unnest(string_to_array(v.department, ',')) AS dept_expanded(dept)
                 WHERE v.user_id = :user_id
                   AND v.department IS NOT NULL 
@@ -1096,7 +1096,7 @@ class FileParserDatabaseService:
                     'genetic' as category,
                     MAX(update_time) as last_update_time,
                     COUNT(1) as record_count
-                FROM theta_ai.th_series_data_genetic
+                FROM th_series_data_genetic
                 WHERE user_id = :user_id
                 
             ) AS data_distribution
@@ -1138,8 +1138,8 @@ class FileParserDatabaseService:
             # This should NOT be the sum of category counts to avoid double-counting when records have multiple departments
             total_records_query = """
             SELECT 
-                (SELECT COUNT(1) FROM theta_ai.th_series_data WHERE user_id = :user_id AND deleted = 0) +
-                (SELECT COUNT(1) FROM theta_ai.th_series_data_genetic WHERE user_id = :user_id AND is_deleted = false)
+                (SELECT COUNT(1) FROM th_series_data WHERE user_id = :user_id AND deleted = 0) +
+                (SELECT COUNT(1) FROM th_series_data_genetic WHERE user_id = :user_id AND is_deleted = false)
                 AS total_records
             """
 
@@ -1216,7 +1216,7 @@ class FileParserDatabaseService:
                 content_json = content
 
             insert_sql = """
-                INSERT INTO theta_ai.th_messages (
+                INSERT INTO th_messages (
                     id, 
                     user_id,
                     query_user_id,
@@ -1232,7 +1232,7 @@ class FileParserDatabaseService:
                     :query_user_id,
                     :session_id,
                     :role,
-                    theta_ai.encrypt_content(:content),
+                    encrypt_content(:content),
                     :message_type,
                     :scene,
                     NOW()
@@ -1287,8 +1287,8 @@ class FileParserDatabaseService:
         try:
             # First get current content to merge with processed files
             get_sql = """
-                SELECT theta_ai.decrypt_content(content) AS content
-                FROM theta_ai.th_messages 
+                SELECT decrypt_content(content) AS content
+                FROM th_messages 
                 WHERE id = :msg_id
             """
             
@@ -1334,8 +1334,8 @@ class FileParserDatabaseService:
             
             # Update content field with merged data
             update_sql = """
-                UPDATE theta_ai.th_messages 
-                SET content = theta_ai.encrypt_content(:content)
+                UPDATE th_messages 
+                SET content = encrypt_content(:content)
                 WHERE id = :msg_id
                 RETURNING id
             """
@@ -1380,8 +1380,8 @@ class FileParserDatabaseService:
         try:
             # First get current content to merge with LLM analysis
             get_sql = """
-                SELECT theta_ai.decrypt_content(content) AS content
-                FROM theta_ai.th_messages 
+                SELECT decrypt_content(content) AS content
+                FROM th_messages 
                 WHERE id = :msg_id
             """
             
@@ -1404,8 +1404,8 @@ class FileParserDatabaseService:
             
             # Update the message
             update_sql = """
-                UPDATE theta_ai.th_messages
-                SET content = theta_ai.encrypt_content(:content),
+                UPDATE th_messages
+                SET content = encrypt_content(:content),
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = :msg_id
             """

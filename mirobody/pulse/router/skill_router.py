@@ -74,7 +74,7 @@ async def create_skill(
     try:
         # Insert into database
         insert_sql = """
-            INSERT INTO theta_ai.th_user_custom_skills 
+            INSERT INTO th_user_custom_skills 
             (user_id, name, summary, when_to_use, when_not_to_use, tags, skill_md)
             VALUES (:user_id, :name, :summary, :when_to_use, :when_not_to_use, :tags, :skill_md)
             RETURNING id, created_at, updated_at
@@ -135,7 +135,7 @@ async def list_skills(
         query_sql = """
             SELECT id, user_id, name, summary, when_to_use, when_not_to_use, 
                    tags, skill_md, created_at, updated_at
-            FROM theta_ai.th_user_custom_skills
+            FROM th_user_custom_skills
             WHERE user_id = :user_id AND is_deleted = false
             ORDER BY updated_at DESC
         """
@@ -194,7 +194,7 @@ async def get_skill(
         query_sql = """
             SELECT id, user_id, name, summary, when_to_use, when_not_to_use, 
                    tags, skill_md, created_at, updated_at
-            FROM theta_ai.th_user_custom_skills
+            FROM th_user_custom_skills
             WHERE id = :skill_id AND user_id = :user_id AND is_deleted = false
         """
         
@@ -291,7 +291,7 @@ async def update_skill(
         update_fields.append("updated_at = CURRENT_TIMESTAMP")
         
         update_sql = f"""
-            UPDATE theta_ai.th_user_custom_skills
+            UPDATE th_user_custom_skills
             SET {', '.join(update_fields)}
             WHERE id = :skill_id AND user_id = :user_id AND is_deleted = false
         """
@@ -308,7 +308,7 @@ async def update_skill(
         # Query the updated record to get updated_at
         query_sql = """
             SELECT id, updated_at
-            FROM theta_ai.th_user_custom_skills
+            FROM th_user_custom_skills
             WHERE id = :skill_id AND user_id = :user_id
         """
         updated_records = await execute_query(
@@ -355,7 +355,7 @@ async def delete_skill(
     """
     try:
         delete_sql = """
-            UPDATE theta_ai.th_user_custom_skills
+            UPDATE th_user_custom_skills
             SET is_deleted = true, updated_at = CURRENT_TIMESTAMP
             WHERE id = :skill_id AND user_id = :user_id AND is_deleted = false
         """

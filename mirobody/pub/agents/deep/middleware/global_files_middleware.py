@@ -161,7 +161,7 @@ async def _get_file_info_from_file_key(file_key: str) -> Optional[Dict[str, Any]
         try:
             query = """
                 SELECT file_name, file_type, file_content
-                FROM theta_ai.th_files
+                FROM th_files
                 WHERE file_key = :file_key AND is_del = false
                 LIMIT 1
             """
@@ -226,7 +226,7 @@ async def _list_global_files_from_db(
         # Get total count (fast count from th_files, with automatic deduplication by file_key)
         count_sql = f"""
             SELECT COUNT(DISTINCT file_key) as total
-            FROM theta_ai.th_files
+            FROM th_files
             {where_conditions}
         """
         count_result = await execute_query(count_sql, params=params)
@@ -243,7 +243,7 @@ async def _list_global_files_from_db(
                 file_type,
                 file_content,
                 updated_at
-            FROM theta_ai.th_files
+            FROM th_files
             {where_conditions}
             ORDER BY file_key, updated_at DESC
         """
@@ -453,7 +453,7 @@ async def _create_file_reference(
     }
     
     # Save reference directly to store (bypass awrite to avoid text processing)
-    await backend.store.put(backend.namespace, workspace_path, file_data)
+    await backend.store.put((backend.session_id, backend.user_id), workspace_path, file_data)
     
     # Update cache
     backend._cache[workspace_path] = file_data
