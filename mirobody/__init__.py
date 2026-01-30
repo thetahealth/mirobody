@@ -1,0 +1,1 @@
+__version__ = "0.0.0"  # This will be replaced by CI/CD with actual tag version

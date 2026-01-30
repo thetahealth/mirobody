@@ -1,0 +1,134 @@
+name: Test Build
+
+# 手动触发、PR 或推送时触发
+on:
+  workflow_dispatch:
+    inputs:
+      test_version:
+        description: 'Test version number (e.g., 1.0.0a1, 1.0.0b1, 1.0.0rc1)'
+        required: false
+        default: '0.0.0a1'
+  pull_request:
+    branches: [ main, master, develop ]
+    paths:
+      - '**.py'
+      - 'pyproject.toml'
+      - '.github/workflows/test-build.yml'
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.13']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine setuptools wheel pytest
+
+    - name: Set test version
+      run: |
+        VERSION="${{ github.event.inputs.test_version || '0.0.0a1' }}"
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "Testing with version: $VERSION"
+        sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" mirobody/__init__.py
+
+    - name: Build package
+      run: |
+        python -m build
+        ls -la dist/
+        echo "Built packages:"
+        ls -1 dist/
+
+    - name: Check package with twine
+      run: |
+        twine check dist/*
+
+    - name: Test package installation
+      run: |
+        # 测试 wheel 安装
+        pip install dist/*.whl
+        python -c "import mirobody; assert mirobody.__version__ == '${{ env.VERSION }}', f'Version mismatch: {mirobody.__version__} != ${{ env.VERSION }}'"
+        pip show mirobody
+        pip uninstall -y mirobody
+
+        # 测试 sdist 安装
+        pip install dist/*.tar.gz
+        python -c "import mirobody; print(f'Successfully installed version: {mirobody.__version__}')"
+        pip uninstall -y mirobody
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-python-${{ matrix.python-version }}
+        path: dist/
+        retention-days: 7
+
+  test-import:
+    needs: test-build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.12']
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist-python-${{ matrix.python-version }}
+        path: dist/
+
+    - name: Install and test package (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        pip install dist/*.whl
+        python -c "import mirobody; print(f'Mirobody {mirobody.__version__} works on ${{ matrix.os }}')"
+
+    - name: Install and test package (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        $wheel = Get-ChildItem -Path "dist" -Filter "*.whl" | Select-Object -First 1
+        pip install $wheel.FullName
+        python -c "import mirobody; print(f'Mirobody {mirobody.__version__} works on ${{ matrix.os }}')"
+
+  summary:
+    needs: [test-build, test-import]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+    - name: Test Summary
+      run: |
+        echo "## 📊 Test Build Summary"
+        echo ""
+        if [ "${{ needs.test-build.result }}" == "success" ]; then
+          echo "✅ Build tests passed for all Python versions"
+        else
+          echo "❌ Build tests failed"
+        fi
+
+        if [ "${{ needs.test-import.result }}" == "success" ]; then
+          echo "✅ Import tests passed for all OS platforms"
+        else
+          echo "❌ Import tests failed"
+        fi
+
+        echo ""
+        echo "Ready for release: ${{ needs.test-build.result == 'success' && needs.test-import.result == 'success' }}"
