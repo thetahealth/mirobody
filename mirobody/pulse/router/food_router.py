@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import random
 import time
 import uuid
 from datetime import datetime
@@ -129,9 +130,10 @@ async def analyze_food_image(
             contents = []
             sid = str(uuid.uuid4())
             msg_id = f"food_analysis_{int(time.time())}_{user_id}"
+            
 
             # Send message ID
-            yield f"{json.dumps({'type': 'id', 'content': msg_id})}\n"
+            yield f"data: {json.dumps({'type': 'id', 'content': msg_id})}\n\n"
 
             # Define thinking messages
             thinking_messages = [
@@ -164,8 +166,10 @@ async def analyze_food_image(
             while not processing_task.done():
                 if thinking_index < len(thinking_messages):
                     # Output thinking message
-                    yield f"{json.dumps({'type': 'thinking', 'content': thinking_messages[thinking_index]})}\n"
+                    yield f"data: {json.dumps({'type': 'thinking', 'content': thinking_messages[thinking_index]})}\n\n"
                     thinking_index += 1
+                    # Random delay between 0.5-1.0 seconds for natural feel
+                    await asyncio.sleep(random.uniform(0.5, 1.0))
 
                 # Wait for a while then check task status
                 try:
@@ -179,42 +183,42 @@ async def analyze_food_image(
             result = await processing_task
 
             # Send thinking end
-            yield f"{json.dumps({'type': 'thinking', 'content': '🎉 Analysis complete! Now generating your detailed nutrition results...'})}\n"
+            yield f"data: {json.dumps({'type': 'thinking', 'content': '🎉 Analysis complete! Now generating your detailed nutrition results...'})}\n\n"
 
             # Process results
             if isinstance(result, Exception):
                 logging.error(f"File processing error: {str(result)}", stack_info=True)
-                yield f"{json.dumps({'type': 'error', 'content': 'File processing failed'})}\n"
+                yield f"data: {json.dumps({'type': 'error', 'content': 'File processing failed'})}\n\n"
             elif not result.get("success", True):
                 logging.error(f"File processing returned failure result: {result.get('message', 'Unknown error')}")
                 error_content = json.dumps({"type": "error", "content": result.get("message", "Unknown error")})
-                yield f"{error_content}\n"
+                yield f"data: {error_content}\n\n"
             else:
                 content = {
                     "type": "food",
-                    "content": json.dumps(result["content"], ensure_ascii=False),
+                    "content": result["content"],
                 }
                 contents.append(content)
-                yield f"{json.dumps(content)}\n"
+                yield f"data: {json.dumps(content, ensure_ascii=False)}\n\n"
 
                 logging.info(f"user_id: {user_id}, Food recognition successful")
 
         except Exception:
             logging.error(f"user_id: {user_id}, Error occurred while processing results", stack_info=True)
-            yield f"{json.dumps({'type': 'error', 'content': 'Error occurred while processing results'})}\n"
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Error occurred while processing results'})}\n\n"
 
         # Send end marker
-        yield '{"type": "end"}\n'
+        yield 'data: {"type": "end"}\n\n'
 
     return StreamingResponse(
         _stream(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
+            "cache-control": "no-cache, no-transform",
+            "x-accel-buffering": "no",
         },
     )
+    
 
 
 @router.post("/save")

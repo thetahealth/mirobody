@@ -51,13 +51,14 @@ class LinkProviderRequest(BaseModel):
     # Additional options (optional)
     redirect_url: Optional[str] = Field(None, description="Redirect URL for OAuth")
     return_url: Optional[str] = Field(None, description="Frontend return URL after OAuth completes")
-
+    owner_user_id: Optional[str] = Field(None, description="if sharing device,help link")
 
 class UnlinkProviderRequest(BaseModel):
     """Disconnect Provider request model"""
 
     provider_slug: str = Field(..., description="Provider slug")
     platform: str = Field(..., description="Platform name")
+    owner_user_id: Optional[str] = Field(None, description="if sharing device, help unlink")
 
 
 class GetLlmAccessRequest(BaseModel):
@@ -420,6 +421,34 @@ async def link_provider(request: LinkProviderRequest, req: Request, current_user
         current_user: User ID obtained from token
     """
     try:
+        query_user_id = current_user
+
+        # If owner_user_id is provided, verify sharing permissions
+        if request.owner_user_id and request.owner_user_id != current_user:
+            from mirobody.utils.utils_user import get_query_user_id
+
+            permission_check = await get_query_user_id(
+                user_id=request.owner_user_id,  # Data owner
+                query_user_id=current_user,  # Querier (current user)
+                permission=["device"]  # Check 'all' permission for provider linking
+            )
+
+            if not permission_check.get("success", False):
+                return ErrorResponse(
+                    code=-1,
+                    msg=f"No permission to link provider for user {request.owner_user_id}"
+                )
+
+            all_permission = permission_check.get("permissions", {}).get("device", 0)
+            if all_permission < 2:
+                return ErrorResponse(
+                    code=-1,
+                    msg="Insufficient permission to link provider. Write access required."
+                )
+
+            query_user_id = request.owner_user_id
+            logging.info(f"User {current_user} linking provider for shared user {request.owner_user_id}")
+
         # Auto-detect correct platform (based on provider_slug prefix)
         actual_platform = request.platform
         provider_slug = request.provider_slug
@@ -455,7 +484,7 @@ async def link_provider(request: LinkProviderRequest, req: Request, current_user
 
         # Call PlatformManager's simplified interface (business logic has been delegated)
         result_data = await platform_manager.link_provider(
-            user_id=current_user,
+            user_id=query_user_id,  # Use query_user_id instead of current_user to support sharing
             provider_slug=provider_slug,
             platform=actual_platform,
             auth_type=request.auth_type,
@@ -597,13 +626,42 @@ async def oauth_callback(platform: str, provider: str, request: Request):
 @router.post("/user/providers/unlink", response_model=Union[StandardResponse, ErrorResponse])
 async def unlink_provider(request: UnlinkProviderRequest, current_user: str = Depends(verify_token)):
     """
-    Unlink Provider connection
+    Unlink Provider connection with optional sharing support
 
     Args:
         request: Unlink request
         current_user: User ID obtained from token
     """
     try:
+        query_user_id = current_user
+
+        # If owner_user_id is provided, verify sharing permissions
+        if request.owner_user_id and request.owner_user_id != current_user:
+            from mirobody.utils.utils_user import get_query_user_id
+
+            permission_check = await get_query_user_id(
+                user_id=request.owner_user_id,  # Data owner
+                query_user_id=current_user,  # Querier (current user)
+                permission=["device"]  # Check 'device' permission for provider unlinking
+            )
+
+            if not permission_check.get("success", False):
+                return ErrorResponse(
+                    code=-1,
+                    msg=f"No permission to unlink provider for user {request.owner_user_id}"
+                )
+
+            # Check if user has write permission (level 2) required for unlinking
+            device_permission = permission_check.get("permissions", {}).get("device", 0)
+            if device_permission < 2:
+                return ErrorResponse(
+                    code=-1,
+                    msg="Insufficient permission to unlink provider. Write access required."
+                )
+
+            query_user_id = request.owner_user_id
+            logging.info(f"User {current_user} unlinking provider for shared user {request.owner_user_id}")
+
         # Auto-detect correct platform (based on provider_slug prefix)
         actual_platform = request.platform
         provider_slug = request.provider_slug
@@ -618,7 +676,7 @@ async def unlink_provider(request: UnlinkProviderRequest, current_user: str = De
 
         # Call PlatformManager interface
         result_data = await platform_manager.unlink_provider(
-            user_id=current_user,
+            user_id=query_user_id,  # Use query_user_id instead of current_user to support sharing
             provider_slug=provider_slug,
             platform=actual_platform,
         )

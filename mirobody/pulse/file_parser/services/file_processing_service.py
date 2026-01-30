@@ -6,6 +6,7 @@ import asyncio
 import json
 import mimetypes
 import logging
+import os
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -987,6 +988,8 @@ async def upload_files_to_storage(
     files: List[UploadFile], 
     user_id: str,
     folder_prefix: Optional[str] = None,
+    redis_client: Optional[Any] = None,
+    cache_ttl: int = 3600
 ) -> Dict[str, Any]:
     """
     Universal file upload service that can be reused across projects
@@ -994,11 +997,18 @@ async def upload_files_to_storage(
     Uploads multiple files directly to S3/Aliyun OSS without storing metadata in database.
     This function is project-agnostic and can be used in holywell or other projects.
     
+    File Caching Strategy:
+        - Files are uploaded to S3/OSS for persistent storage
+        - Files are also cached locally in /tmp/holywell_cache/ for faster access
+        - Redis stores the local file path (string) with TTL, not binary content
+        - This avoids UTF-8 decode errors and provides fast local file access
+    
     Args:
         files: List of files to upload (UploadFile objects)
         user_id: User identifier for logging and authentication context
         folder_prefix: Custom folder prefix for uploaded files (optional, defaults to 'uploads')
-        max_file_size: Maximum allowed file size in bytes (default 50MB)
+        redis_client: Optional Redis client for storing local cache paths (default None)
+        cache_ttl: Cache expiration time in seconds (default 3600 = 1 hour)
         
     Returns:
         Dict containing (same format as original FileUploadResponse):
@@ -1080,6 +1090,20 @@ async def upload_files_to_storage(
                 continue           
             
             logging.info(f"File uploaded successfully: {file.filename} -> {file_url}")
+            
+            # Cache file content as base64 in Redis
+            if redis_client and file_content:
+                try:
+                    import base64
+                    b64_content = base64.b64encode(file_content).decode('utf-8')
+                    await redis_client.setex(
+                        f"file_cache:{file_key}",
+                        cache_ttl,
+                        b64_content
+                    )
+                    logging.info(f"💾 Cached file to Redis: {file.filename} (TTL: {cache_ttl}s)")
+                except Exception as cache_error:
+                    logging.warning(f"⚠️ Failed to cache file for {file.filename}: {cache_error}")
             
             # Calculate audio duration if file is audio type
             audio_duration = 0

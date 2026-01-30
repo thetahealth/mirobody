@@ -8,8 +8,8 @@ import logging
 
 from typing import Any, Dict, List, Optional, Union
 
-from mirobody.utils.data import DataConverter
-from mirobody.utils.db import execute_query
+from ...utils.data import DataConverter
+from ...utils.db import execute_query
 
 
 class GeneticService():

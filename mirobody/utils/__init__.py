@@ -30,9 +30,6 @@ from starlette.responses import Response, StreamingResponse
 from starlette.routing import Route
 
 from .db import (
-    execute_query_with_pg_pool,
-    
-    init_db,
     execute_query
 )
 

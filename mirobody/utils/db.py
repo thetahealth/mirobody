@@ -1,85 +1,12 @@
 import logging, time, re
 
 from sqlalchemy import text
-from psycopg_pool import AsyncConnectionPool
 
-from .config import Config
-
-#-----------------------------------------------------------------------------
-
-async def execute_query_with_pg_pool(
-    pool    : AsyncConnectionPool,
-    query   : str,
-    params  : dict | list | None = None
-) -> tuple[
-    list | None,    # Records.
-    int,            # Number of records affected.
-    str | None      # Error message, None denotes success.
-]:
-
-    if not pool:
-        return None, 0, "Invalid connection pool."
-    if pool.closed:
-        return None, 0, "Connection pool closed."
-    
-    stripped_query = query.strip()
-    if not stripped_query:
-        return None, 0, "Empty query statement."
-
-    #-----------------------------------------------------
-
-    records = None
-    affected_rows = 0
-    err = ""
-
-    start_time = time.time()
-
-    try:
-        async with pool.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(stripped_query, params)
-
-                records = await cur.fetchall()
-                affected_rows = cur.rowcount
-
-                logging.info(
-                    "",
-                    extra = {
-                        "sql"       : " ".join(stripped_query.split()),
-                        "params"    : params,
-                        "records"   : len(records) if records else cur.rowcount,
-                        "time_cost" : round((time.time()-start_time)*1e3, 2)
-                    },
-                    stacklevel=2
-                )
-
-            await conn.commit()
-
-    except Exception as e:
-        err = str(e)
-
-        logging.error(
-            str(e),
-            extra = {
-                "sql"       : " ".join(stripped_query.split()),
-                "params"    : params,
-                "time_cost" : round((time.time()-start_time)*1e3, 2)
-            },
-            stacklevel = 2
-        )
-    
-    return records, affected_rows, err
+from .config import global_config
 
 #-----------------------------------------------------------------------------
 
-global_config   = None
 global_engines  = {}
-
-
-def init_db(config: Config):
-    global global_config
-    global_config = config
-
 
 async def execute_query(
     query       : str,
@@ -102,12 +29,12 @@ async def execute_query(
         engine = global_engines[db_config]
     else:
         # Check database configuration.
-        global global_config
-        if not global_config:
+        config = global_config()
+        if not config:
             raise ValueError("no configuration found")
     
         # Init a new engine.
-        engine = global_config.get_postgresql(db_config).get_async_engine()
+        engine = config.get_postgresql(db_config).get_async_engine()
 
         # Record this engine.
         global_engines[db_config] = engine

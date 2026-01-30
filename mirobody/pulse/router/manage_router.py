@@ -441,14 +441,21 @@ async def get_platform_webhooks(
         status_clean = status.strip() if status else None
 
         # Call platform's get_webhooks method
-        webhook_data = await platform_instance.get_webhooks(
-            page=page,
-            page_size=page_size,
-            provider=provider_clean,
-            event_type=event_type_clean,
-            user_id=user_id_clean,
-            status=status_clean
-        )
+        # Only pass provider parameter if it's not None (for platforms that support it like Theta)
+        # Vital platform doesn't accept provider parameter
+        webhook_params = {
+            "page": page,
+            "page_size": page_size,
+            "event_type": event_type_clean,
+            "user_id": user_id_clean,
+            "status": status_clean
+        }
+        
+        # Only add provider if it's specified (for Theta platform)
+        if provider_clean is not None:
+            webhook_params["provider"] = provider_clean
+            
+        webhook_data = await platform_instance.get_webhooks(**webhook_params)
 
         return StandardResponse(code=0, msg="ok", data=webhook_data)
 

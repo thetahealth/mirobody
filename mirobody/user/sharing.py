@@ -1028,9 +1028,9 @@ class SharingService:
                                            AND c.context = 'default'
                              LEFT JOIN health_app_user h
                                        ON h.id = CAST(r.owner_user_id AS INTEGER)
-                                           AND h.is_del = false
                     WHERE r.member_user_id = :user_id
-                      AND r.status = 'authorized' \
+                      AND r.status = 'authorized'
+                      AND h.is_del = false \
                     """
 
             share_result = await execute_query(

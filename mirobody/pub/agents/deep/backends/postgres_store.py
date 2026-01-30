@@ -6,11 +6,12 @@ Primary Key: (session_id, user_id, key)
 
 import json
 import logging
+import re
 from typing import Any, Optional
 
 from langgraph.store.base import BaseStore, Item, Op, Result
 
-from mirobody.utils.db import execute_query
+from .....utils.db import execute_query
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,49 @@ class PostgresLangGraphStore(BaseStore):
             elif obj == float('-inf'):
                 return -1.7976931348623157e+308
         return obj
+    
+    @staticmethod
+    def _sanitize_content(content: str) -> str:
+        """
+        Sanitize content before PostgreSQL insertion (defense layer).
+        
+        Replaces unsafe characters with spaces:
+        - NULL bytes, C0/C1 controls (except \t\n\r)
+        - Zero-width chars, bidirectional marks
+        - Invalid UTF-8 sequences
+        
+        Args:
+            content: Text content
+            
+        Returns:
+            Database-safe content
+            
+        Example:
+            >>> PostgresLangGraphStore._sanitize_content("data\x00text")
+            'data text'
+        """
+        if not content:
+            return content
+        
+        # Same pattern as file_handler for consistency
+        pattern = (
+            r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F'
+            r'\u200B-\u200D\uFEFF'
+            r'\u202A-\u202E'
+            r'\uFFFE\uFFFF]'
+        )
+        
+        cleaned = re.sub(pattern, ' ', content)
+        
+        try:
+            cleaned = cleaned.encode('utf-8', errors='replace').decode('utf-8')
+        except Exception:
+            pass
+        
+        if cleaned != content:
+            logger.warning("[DB Layer] Sanitized unsafe chars - defense layer triggered")
+        
+        return cleaned
     
     # ========================================================================
     # Core CRUD Operations
@@ -150,6 +194,10 @@ class PostgresLangGraphStore(BaseStore):
             content = "\n".join(str(line) for line in content_list)
         else:
             content = str(content_list) if content_list else None
+        
+        # Sanitize content to remove NULL bytes (database defense layer)
+        if content:
+            content = self._sanitize_content(content)
         
         # Extract file-specific fields
         file_key = value.get("file_key")

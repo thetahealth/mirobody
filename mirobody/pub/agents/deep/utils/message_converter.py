@@ -307,13 +307,22 @@ class StreamConverter:
             return None
     
     @staticmethod
-    def create_cost_statistics(input_tokens, output_tokens, model_name: str = "unknown") -> Dict[str, Any]:
+    def create_cost_statistics(
+        input_tokens, 
+        output_tokens, 
+        model_name: str = "unknown",
+        cache_read_tokens: int = 0,
+        cache_creation_tokens: int = 0
+    ) -> Dict[str, Any]:
         """
         Create cost statistics (unified format).
         
         Args:
-            usage_data: Token usage data
+            input_tokens: Total input tokens
+            output_tokens: Total output tokens
             model_name: Model name
+            cache_read_tokens: Tokens read from cache (prompt caching hit)
+            cache_creation_tokens: Tokens written to cache (prompt caching miss)
             
         Returns:
             Cost statistics dictionary
@@ -321,10 +330,11 @@ class StreamConverter:
         try:
             # Pricing configuration (USD per million tokens)
             # Keys are substrings to match against model_name
+            # cache_read is typically 90% cheaper, cache_creation is 25% more expensive
             PRICING = {
-                "claude-sonnet-4.5": {"input": 3.00, "output": 15.00},
-                "claude-haiku-4.5": {"input": 1.00, "output": 5.00},
-                "claude-opus-4.5": {"input": 5.00, "output": 25.00},
+                "claude-sonnet-4.5": {"input": 3.00, "output": 15.00, "cache_read": 0.30, "cache_creation": 3.75},
+                "claude-haiku-4.5": {"input": 1.00, "output": 5.00, "cache_read": 0.10, "cache_creation": 1.25},
+                "claude-opus-4.5": {"input": 5.00, "output": 25.00, "cache_read": 0.50, "cache_creation": 6.25},
                 "gemini-3-flash": {"input": 0.50, "output": 3.00},
                 "gemini-3-pro": {"input": 2.00, "output": 12.00},
                 "gpt-5-mini": {"input": 0.25, "output": 2.00},
@@ -348,9 +358,16 @@ class StreamConverter:
             
             # Calculate cost if model pricing is available
             if rates:
-                input_cost = (input_tokens / 1_000_000) * rates["input"]
+                # Base cost for non-cached input tokens
+                non_cached_input = input_tokens - cache_read_tokens - cache_creation_tokens
+                input_cost = (max(0, non_cached_input) / 1_000_000) * rates["input"]
                 output_cost = (output_tokens / 1_000_000) * rates["output"]
-                total_cost = round(input_cost + output_cost, 5)
+                
+                # Add cache costs if applicable
+                cache_read_cost = (cache_read_tokens / 1_000_000) * rates.get("cache_read", rates["input"] * 0.1)
+                cache_creation_cost = (cache_creation_tokens / 1_000_000) * rates.get("cache_creation", rates["input"] * 1.25)
+                
+                total_cost = round(input_cost + output_cost + cache_read_cost + cache_creation_cost, 5)
             else:
                 total_cost = "unrecognized model"
             
@@ -361,7 +378,9 @@ class StreamConverter:
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
                     "total_tokens": total_tokens,
-                    "total_cost": total_cost
+                    "total_cost": total_cost,
+                    "cache_read_tokens": cache_read_tokens,
+                    "cache_creation_tokens": cache_creation_tokens
                 }
             }
         except Exception as e:

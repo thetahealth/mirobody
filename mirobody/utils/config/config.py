@@ -933,11 +933,6 @@ class Config:
             secret_key  = config.log.secret_key
         )
 
-        # TODO:
-        #   It is not a good idea to initiate such a global database instance.
-        from ..db import init_db
-        init_db(config)
-
         return config
 
 #-----------------------------------------------------------------------------

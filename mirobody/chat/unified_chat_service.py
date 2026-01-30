@@ -72,13 +72,9 @@ class UnifiedChatService:
         #-------------------------------------------------
         # Load agent configuration
         
-        authenticated_user_id = user_id or query_user_id
-        
         agent_kwargs = {
             # User.
             "user_id"               : query_user_id, # for backward compatibility
-            "authenticated_user_id" : authenticated_user_id,  
-            "query_user_id"         : query_user_id,  
             "session_id"            : kwargs.get("session_id", "") or kwargs.get("trace_id", ""),
             "language"              : kwargs.get("language", "en"),
             "timezone"              : kwargs.get("timezone", "America/Los_Angeles"),
@@ -99,11 +95,7 @@ class UnifiedChatService:
             # Get agent instance from global registry
             agent_instance = get_global_agent(agent_name = agent, **agent_kwargs)
 
-            if agent_instance:
-                # Use the requested agent
-                logging.info(f"Using agent '{agent}' for authenticated_user: {authenticated_user_id}, query_user: {query_user_id}")
-
-            else:
+            if not agent_instance:
                 # Agent initialization failed - fallback with warning
                 logging.warning(
                     f"⚠️ Agent '{agent}' failed to initialize for user {query_user_id}. "

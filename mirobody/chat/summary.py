@@ -9,8 +9,8 @@ import json
 import logging
 from datetime import datetime
 from typing import Optional, Dict, Any
-from mirobody.utils import execute_query
-from mirobody.utils.llm import async_get_text_completion
+from ..utils import execute_query
+from ..utils.llm import async_get_text_completion
 
 
 #-----------------------------------------------------------------------------

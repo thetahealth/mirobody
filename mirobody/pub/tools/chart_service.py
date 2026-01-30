@@ -13,9 +13,9 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from mirobody.utils.utils_files.utils_s3 import aupload_image_with_thumbnail
-from mirobody.utils.utils_files.utils_oss import AliOSS
-from mirobody.utils.config import safe_read_cfg
+from ...utils.utils_files.utils_s3 import aupload_image_with_thumbnail
+from ...utils.utils_files.utils_oss import AliOSS
+from ...utils.config import safe_read_cfg
 
 # Environment configuration
 ENV = os.getenv("ENV", "localdb")
@@ -63,6 +63,25 @@ class ChartService:
             f"charts_dir={self.charts_dir}, use_local_fallback={self.use_local_fallback}, "
             f"render_script={self.render_script}"
         )
+
+    def _normalize_data(self, data) -> Any:
+        """
+        Normalize data input (handles string JSON, list, dict).
+        Returns parsed data or raises ValueError if invalid.
+        """
+        if isinstance(data, (list, dict)):
+            return data
+        
+        if isinstance(data, str):
+            try:
+                parsed_data = json.loads(data)
+                if not isinstance(parsed_data, (list, dict)):
+                    raise ValueError(f"Invalid JSON type: {type(parsed_data).__name__}")
+                return parsed_data
+            except json.JSONDecodeError as e:
+                raise ValueError(f"JSON parse error: {str(e)}")
+        
+        raise ValueError(f"Invalid data type: {type(data).__name__}")
 
     async def _render_advanced_chart(
         self,
@@ -179,6 +198,9 @@ class ChartService:
                                        orient="horizontal", theme="dark")
         """
         try:
+            # Normalize data input (handle string JSON, list, dict)
+            data = self._normalize_data(data)
+            
             # Build chart configuration
             chart_config = {
                 "type": chart_type,
@@ -320,6 +342,9 @@ class ChartService:
             Dictionary containing success, url, message fields
         """
         try:
+            # Normalize data input (handle string JSON, list, dict)
+            data = self._normalize_data(data)
+            
             # Build chart configuration
             chart_config = {
                 "type": chart_type,
@@ -834,6 +859,10 @@ class ChartService:
         Returns:
             Dictionary containing success, url, message fields
         """
+        # Normalize categories and series (handle string JSON inputs)
+        categories = self._normalize_data(categories)
+        series = self._normalize_data(series)
+        
         # Dual axes chart has different data structure
         chart_config = {
             "type": "dual-axes",
@@ -1032,7 +1061,7 @@ class ChartService:
 # 🔧 Load and attach inputSchemas from JSON files
 # This must be done after class definition
 try:
-    from mirobody.pub.tools._chart_service_schema_loader import attach_schemas_to_service, attach_meta_to_service
+    from ._chart_service_schema_loader import attach_schemas_to_service, attach_meta_to_service
 
     attach_schemas_to_service(ChartService)
     attach_meta_to_service(ChartService)

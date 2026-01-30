@@ -47,7 +47,7 @@ class BaseDatabaseService(ABC):
             self,
             table: str,
             data: Dict[str, Any],
-            schema: str = "theta_ai",
+            schema: str = "",
             returning: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
@@ -68,7 +68,7 @@ class BaseDatabaseService(ABC):
             placeholders = [f":{col}" for col in columns]
 
             query = f"""
-                INSERT INTO {schema}.{table} ({", ".join(columns)})
+                INSERT INTO {table} ({", ".join(columns)})
                 VALUES ({", ".join(placeholders)})
             """
 
@@ -88,7 +88,7 @@ class BaseDatabaseService(ABC):
             data: Dict[str, Any],
             where_clause: str,
             where_params: Dict[str, Any],
-            schema: str = "theta_ai",
+            schema: str = "",
     ) -> int:
         """
         Execute update operation
@@ -108,7 +108,7 @@ class BaseDatabaseService(ABC):
             set_clauses = [f"{col} = :{col}" for col in data.keys()]
 
             query = f"""
-                UPDATE {schema}.{table} 
+                UPDATE {table} 
                 SET {", ".join(set_clauses)}
                 WHERE {where_clause}
             """
@@ -128,7 +128,7 @@ class BaseDatabaseService(ABC):
             table: str,
             where_clause: str,
             where_params: Dict[str, Any],
-            schema: str = "theta_ai",
+            schema: str = "",
     ) -> int:
         """
         Execute delete operation
@@ -144,7 +144,7 @@ class BaseDatabaseService(ABC):
         """
         try:
             query = f"""
-                DELETE FROM {schema}.{table} 
+                DELETE FROM {table} 
                 WHERE {where_clause}
             """
 
@@ -155,7 +155,7 @@ class BaseDatabaseService(ABC):
             logging.error(f"Database delete failed: {str(e)}")
             raise
 
-    async def check_table_exists(self, table: str, schema: str = "theta_ai") -> bool:
+    async def check_table_exists(self, table: str, schema: str = "") -> bool:
         """
         Check if table exists
 
@@ -170,17 +170,16 @@ class BaseDatabaseService(ABC):
             query = """
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
-                    WHERE table_schema = :schema 
-                    AND table_name = :table
+                    WHERE table_name = :table
                 )
             """
-            result = await self.execute_query(query, {"schema": schema, "table": table})
+            result = await self.execute_query(query, {"table": table})
             return result[0]["exists"] if result else False
         except Exception as e:
             logging.error(f"Check table existence failed: {str(e)}")
             return False
 
-    async def get_table_info(self, table: str, schema: str = "theta_ai") -> List[Dict[str, Any]]:
+    async def get_table_info(self, table: str, schema: str = "") -> List[Dict[str, Any]]:
         """
         Get table information
 
@@ -199,11 +198,10 @@ class BaseDatabaseService(ABC):
                     is_nullable,
                     column_default
                 FROM information_schema.columns 
-                WHERE table_schema = :schema 
-                AND table_name = :table
+                WHERE table_name = :table
                 ORDER BY ordinal_position
             """
-            result = await self.execute_query(query, {"schema": schema, "table": table})
+            result = await self.execute_query(query, {"table": table})
             return result or []
         except Exception as e:
             logging.error(f"Get table info failed: {str(e)}")

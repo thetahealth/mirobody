@@ -141,7 +141,7 @@ class PostgreSQLConfig:
 
 
     def print(self):
-        print(f"pg              : {self.host}:{self.port}/{self.database}")
+        print(f"pg              : {self.host}:{self.port}/{self.database}:{self.schema}")
 
     # -----------------------------------------------------
 

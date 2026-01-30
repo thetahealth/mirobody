@@ -212,7 +212,7 @@ class SkillService:
                 try:
                     query_sql = """
                         SELECT id, name, summary, when_to_use, when_not_to_use, tags
-                        FROM theta_ai.th_user_custom_skills
+                        FROM th_user_custom_skills
                         WHERE user_id = :user_id AND is_deleted = false
                     """
                     user_skills_rows = await execute_query(query_sql, params={"user_id": user_id})
@@ -384,7 +384,7 @@ class SkillService:
                 try:
                     query_sql = """
                         SELECT id, name, summary, when_to_use, when_not_to_use, tags, skill_md
-                        FROM theta_ai.th_user_custom_skills
+                        FROM th_user_custom_skills
                         WHERE id = :skill_id AND user_id = :user_id AND is_deleted = false
                     """
                     results = await execute_query(

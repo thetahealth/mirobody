@@ -73,18 +73,3 @@ CREATE TABLE IF NOT EXISTS health_data_libre
     data text NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_health_data_libre_key ON health_data_libre(key);
-
-
-CREATE TABLE IF NOT EXISTS health_data_renpho
-(
-    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    create_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    update_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    user_id character varying(128) NOT NULL,
-    out_uid integer NOT NULL DEFAULT 0,
-    key bigint NOT NULL,
-    data text NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_health_data_renpho_user_id ON health_data_renpho(user_id);
-CREATE INDEX IF NOT EXISTS idx_health_data_renpho_key ON health_data_renpho(key);
-CREATE INDEX IF NOT EXISTS idx_health_data_renpho_out_uid ON health_data_renpho(out_uid);

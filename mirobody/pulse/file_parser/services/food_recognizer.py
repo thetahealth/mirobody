@@ -187,7 +187,8 @@ class FoodImageRecognizer:
 
                 # Parse content and format response for frontend compatibility
             try:
-                content_data = json.loads(food_db_result.get("content", "{}"))
+                #content_data = json.loads(food_db_result.get("content", "{}"))
+                content_data = food_content
 
                 # Extract only the fields that frontend expects (FoodAnalysisData interface)
                 frontend_data = {

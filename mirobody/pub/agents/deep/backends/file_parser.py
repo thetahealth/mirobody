@@ -1,42 +1,24 @@
 """
-Unified File Parser
+Unified File Parser for DeepAgent
 
-Integrates basic parsing (Langchain) and intelligent parsing (LLM) capabilities.
-Supports 10+ file types with automatic routing to the best parsing method.
+Lightweight adapter that delegates to framework layer (mirobody/pulse/file_parser)
+while implementing Agent-specific strategies (PyPDF fallback, full-text extraction).
 """
 
 import logging
 import os
 import tempfile
-import traceback
-from contextlib import asynccontextmanager
-from io import BytesIO, StringIO
-from typing import BinaryIO, List, Optional, TextIO, Union
+from pathlib import Path
+from typing import Union, BinaryIO
 
-from langchain_community.document_loaders import (
-    CSVLoader,
-    Docx2txtLoader,
-    JSONLoader,
-    PyPDFLoader,
-    UnstructuredPowerPointLoader,
-    WebBaseLoader,
-)
-from langchain_core.documents import Document
+from langchain_community.document_loaders import PyPDFLoader
 
-# Import unified file extraction function at module level
-from mirobody.utils.llm.file_processors import unified_file_extract
+# unified file parser
+from .....pulse.file_parser.services.content_extractor import ContentExtractor
 
-try:
-    import pandas as pd
-except ImportError:
-    pd = None
+logger = logging.getLogger(__name__)
 
-try:
-    import openpyxl
-except ImportError:
-    openpyxl = None
-
-# Supported file type mapping - centralized configuration
+# Supported file type mapping (inherited from framework)
 SUPPORTED_FILE_TYPES = {
     # Document types
     "pdf": "document",
@@ -63,84 +45,27 @@ SUPPORTED_FILE_TYPES = {
     "java": "text",
     "c": "text",
     "cpp": "text",
-    "h": "text",
-    "hpp": "text",
-    "cs": "text",
-    "php": "text",
-    "rb": "text",
-    "go": "text",
-    "rs": "text",
-    "swift": "text",
-    "kt": "text",
-    "scala": "text",
-    "r": "text",
-    "sql": "text",
-    "sh": "text",
-    "bash": "text",
-    "zsh": "text",
-    "fish": "text",
-    "ps1": "text",
-    "bat": "text",
-    "cmd": "text",
-    "yaml": "text",
-    "yml": "text",
-    "toml": "text",
-    "ini": "text",
-    "cfg": "text",
-    "conf": "text",
-    "properties": "text",
-    "css": "text",
-    "scss": "text",
-    "sass": "text",
-    "less": "text",
-    "vue": "text",
-    "svelte": "text",
-    "jinja": "text",
-    "j2": "text",
-    "template": "text",
-    "tpl": "text",
-    "hbs": "text",
-    "mustache": "text",
-    "ejs": "text",
-    "dockerfile": "text",
-    "makefile": "text",
-    "gradle": "text",
-    "cmake": "text",
-    "requirements": "text",
     "md": "text",
     "txt": "text",
-    "htm": "text",
-    "html": "text",
     "json": "text",
     "xml": "text",
+    "yaml": "text",
+    "yml": "text",
+    # Add more as needed
 }
 
-# Derived sets for quick type checking
+# Derived sets
 IMAGE_EXTENSIONS: set[str] = {ext for ext, type_ in SUPPORTED_FILE_TYPES.items() if type_ == "image"}
 TEXT_CODE_EXTENSIONS: set[str] = {ext for ext, type_ in SUPPORTED_FILE_TYPES.items() if type_ == "text"}
 
-logger = logging.getLogger(__name__)
+# Agent-specific prompts for full-text extraction
+FULL_TEXT_PROMPT = """Please extract and return ALL the original text content from this file.
+Return the complete text exactly as it appears in the document, preserving formatting where possible.
+Do not summarize or modify the content - return the full original text."""
 
-# File input type
-FileInput = Union[str, BinaryIO, TextIO, BytesIO, StringIO]
-
-# Prompt constants for LLM-based parsing
-IMAGE_PARSE_PROMPT = (
-    "You are a professional image recognition expert. Please fully understand the content format and meaning of the image, and convert it into clear textual content.\n\n"
-    "- Your first goal is to ensure the accuracy of the original text content and clarity of the presentation format\n"
-    "- When encountering non-text content, always represent it in the form of <image>image content description</image> to help understand the original information\n"
-    "- When non-text content contains effective information such as data, you can create custom formats to aid understanding. For example, <chart>important data in the table</chart>, etc.\n"
-    "- You must respect the original content and cannot fabricate information that does not exist\n"
-    "- The final output should be a clear and concise text description of the image content, without any additional formatting or comments\n"
-    "\nPlease describe the main content in this image."
-)
-
-PDF_PARSE_PROMPT = (
-    "Please extract all text content from this PDF document. "
-    "Extract the text exactly as it appears, preserving formatting, line breaks, and structure. "
-    "If the document contains tables, charts, or diagrams, describe their content clearly. "
-    "Do not summarize or paraphrase - extract the complete text content."
-)
+FULL_IMAGE_PROMPT = """Please extract and return ALL text content visible in this image.
+Return the complete text exactly as it appears, preserving the order and structure where possible.
+If there is no text or minimal text in the image, provide a detailed description of the visual content including main subjects, scene, colors, actions, and notable details."""
 
 
 def get_file_type_from_extension(ext: str) -> str:
@@ -159,7 +84,7 @@ def get_file_type_from_extension(ext: str) -> str:
     if category == "image":
         return "IMAGE"
     elif category == "document":
-        return ext.upper()  # PDF, DOCX, etc.
+        return ext.upper()
     elif category == "text":
         return "TEXT"
     elif category == "excel":
@@ -170,458 +95,173 @@ def get_file_type_from_extension(ext: str) -> str:
         return "UNKNOWN"
 
 
-class StructuredExcelLoader:
-    """
-    Custom Excel loader that preserves formatting information and line breaks.
-    Uses pandas and openpyxl for better Excel file parsing.
-    """
-
-    def __init__(self, file_path: str):
-        self.file_path = file_path
-
-    def load(self) -> List[Document]:
-        """Load Excel file and return Document list."""
-        if not pd:
-            raise ImportError(
-                "pandas is required for StructuredExcelLoader. Please install it with: pip install pandas"
-            )
-
-        if not openpyxl:
-            raise ImportError(
-                "openpyxl is required for StructuredExcelLoader. Please install it with: pip install openpyxl"
-            )
-
-        documents: List[Document] = []
-
-        try:
-            # Read all sheets
-            excel_file = pd.ExcelFile(self.file_path, engine="openpyxl")
-
-            for sheet_name in excel_file.sheet_names:
-                # Read each sheet, preserving original format
-                df = pd.read_excel(
-                    self.file_path,
-                    sheet_name=sheet_name,
-                    engine="openpyxl",
-                    keep_default_na=False,  # Keep empty values as empty strings instead of NaN
-                    dtype=str,  # Read all data as strings to preserve format
-                )
-
-                # Build table content, preserving formatting
-                content_lines: List[str] = []
-
-                # Add sheet name
-                if len(excel_file.sheet_names) > 1:
-                    content_lines.append(f"=== Sheet: {sheet_name} ===\n")
-
-                if df.empty:
-                    content_lines.append("(Empty sheet)")
-                else:
-                    # Add headers
-                    headers = df.columns.tolist()
-                    header_line = " | ".join(str(h) for h in headers)
-                    content_lines.append(header_line)
-                    content_lines.append("-" * len(header_line))
-
-                    # Add data rows
-                    for index, row in df.iterrows():
-                        row_data: List[str] = []
-                        for col in df.columns:
-                            cell_value = row[col]
-                            # Preserve original format, including line breaks
-                            if pd.isna(cell_value) or cell_value == "":
-                                row_data.append("")
-                            else:
-                                # Ensure line breaks are preserved
-                                cell_str = str(cell_value).replace("\\n", "\n")
-                                row_data.append(cell_str)
-
-                        row_line = " | ".join(row_data)
-                        content_lines.append(row_line)
-
-                # Create document
-                content = "\n".join(content_lines)
-
-                metadata = {
-                    "source": self.file_path,
-                    "sheet_name": sheet_name,
-                    "sheet_index": excel_file.sheet_names.index(sheet_name),
-                    "total_sheets": len(excel_file.sheet_names),
-                    "rows": len(df) if not df.empty else 0,
-                    "columns": len(df.columns) if not df.empty else 0,
-                }
-
-                document = Document(page_content=content, metadata=metadata)
-                documents.append(document)
-
-        except Exception as e:
-            # If custom parsing fails, create an error document
-            error_content = f"Failed to parse Excel file: {str(e)}"
-            error_metadata = {
-                "source": self.file_path,
-                "error": str(e),
-                "loader": "StructuredExcelLoader",
-            }
-            document = Document(page_content=error_content, metadata=error_metadata)
-            documents.append(document)
-
-        return documents
-
-
 class FileParser:
     """
-    Unified File Parser with intelligent fallback strategy.
-
-    Supported file types:
-    - PDF: PyPDF (fast, local) → unified vision API (fallback for complex PDFs)
-    - Image: unified vision API (auto-selects: gemini → openrouter → doubao)
-    - DOCX/DOC: Docx2txt
-    - Excel (XLSX/XLS): StructuredExcelLoader
-    - CSV: CSVLoader
-    - PowerPoint: UnstructuredPowerPointLoader
-    - Text/Code: Direct read (70+ file extensions supported)
-    - Webpage: WebBaseLoader
-
-    Supported input types:
-    - URL (str): Network URL or local file path
-    - IO objects: BinaryIO, TextIO, BytesIO, StringIO
+    Lightweight file parser for DeepAgent's read_file tool.
     
-    Note: LLM-based parsing automatically selects the best available provider
-    based on configured API keys (GOOGLE_API_KEY, OPENROUTER_API_KEY, VOLCENGINE_API_KEY)
+    Delegates extraction to framework layer (ContentExtractor) while implementing
+    Agent-specific strategies like PyPDF fallback for optimal performance.
+    
+    Workflow:
+    1. Create temp file from bytes
+    2. Try local extraction (PyPDF for PDFs) - fast, free
+    3. Fallback to LLM via ContentExtractor - accurate but costly
+    4. Clean up temp file
     """
 
     def __init__(self):
-        """Initialize file parser with unified vision API support."""
-        logger.info("FileParser initialized with unified vision API support")
+        """Initialize file parser with framework layer extractor."""
+        self.content_extractor = ContentExtractor()
+        logger.info("FileParser initialized with framework layer ContentExtractor")
     
-    @asynccontextmanager
-    async def _managed_temp_file(
-        self, 
-        file_input: FileInput, 
-        file_type: str, 
-        filename: Optional[str] = None
-    ):
-        """
-        Context manager for temporary file lifecycle management.
-        
-        Handles:
-        - Converting IO objects to temporary files
-        - Downloading remote URLs
-        - Validating file existence
-        - Automatic cleanup of temporary files
-        
-        Args:
-            file_input: File input (path, URL, or IO object)
-            file_type: File type/extension
-            filename: Optional filename for IO objects
-            
-        Yields:
-            str: Path to the file (temporary or original)
-            
-        Raises:
-            ValueError: If file doesn't exist or download fails
-        """
-        temp_file_path = await self._ensure_file_path(file_input, file_type, filename)
-        needs_cleanup = not isinstance(file_input, str) or file_input.startswith(("http://", "https://"))
-        
-        if not temp_file_path or not os.path.exists(temp_file_path):
-            raise ValueError(f"File does not exist or failed to create: {temp_file_path}")
-        
-        try:
-            yield temp_file_path
-        finally:
-            if needs_cleanup:
-                self._delete_file(temp_file_path)
-
     async def parse_file(
-        self, file_input: FileInput, file_type: str, filename: Optional[str] = None
-    ) -> str:
+        self, 
+        file_input: Union[bytes, BinaryIO],
+        filename: str,
+        file_type: str
+    ) -> tuple[str, str, str]:
         """
-        Unified parsing entry point, automatically routes to the appropriate parsing method
-
+        Parse file and return full text content.
+        
         Args:
-            file_input: File input, can be URL string or IO object
-            file_type: File type/extension
-            filename: Filename (required when file_input is an IO object)
-
+            file_input: File content as bytes or BinaryIO
+            filename: Original filename
+            file_type: File type (PDF, IMAGE, TEXT, etc.)
+            
         Returns:
-            Parsed text content
+            Tuple of (parsed_text, parse_method, parse_model)
         """
         try:
             # Normalize file type
             file_type = file_type.lower().lstrip(".")
-
-            # Check if file type is supported
-            if file_type not in SUPPORTED_FILE_TYPES:
-                logger.warning(f"Unsupported file type: {file_type}")
-                return f"Unsupported file type: {file_type}"
-
-            # Handle image files
-            if file_type in IMAGE_EXTENSIONS:
-                return await self._parse_image(file_input, file_type, filename)
-
-            # Read text/code files directly
-            if file_type in TEXT_CODE_EXTENSIONS:
-                return await self._parse_text_file(file_input, file_type, filename)
-
-            # PDF special handling: Try PyPDF first (fast), fallback to LLM on failure
-            if file_type == "pdf":
-                try:
-                    logger.info("Attempting PDF parsing with PyPDF (Langchain)")
-                    content = await self._parse_document_with_langchain(
-                        file_input, file_type, filename
-                    )
-                    # Check if content is meaningful (not just whitespace or too short)
-                    if content and len(content.strip()) > 50:
-                        logger.info(f"PDF parsed successfully with PyPDF, content length: {len(content)}")
-                        return content
-                    # Content insufficient, fall through to LLM parsing
-                    logger.warning(
-                        f"PyPDF parsing returned insufficient content (length: {len(content.strip())}), "
-                        "falling back to LLM-based parsing"
-                    )
-                except Exception as e:
-                    # PyPDF failed, fall through to LLM parsing
-                    logger.warning(f"PyPDF parsing failed: {e}, falling back to LLM-based parsing")
-                
-                # Fallback to LLM-based parsing
-                return await self._parse_pdf_with_llm(file_input=file_input, filename=filename)
-
-            # Other document types use Langchain
-            return await self._parse_document_with_langchain(
-                file_input, file_type, filename
-            )
-
-        except Exception as e:
-            logger.error(f"File parsing failed: {e}\n{traceback.format_exc()}")
-            return f"File parsing failed: {str(e)}"
-
-    # ==================== Private Parsing Methods ====================
-
-    async def _parse_image(
-        self,
-        file_input: FileInput,
-        image_type: str,
-        filename: Optional[str] = None,
-    ) -> str:
-        """Parse image file using unified vision API."""
-        async with self._managed_temp_file(file_input, image_type, filename) as temp_file_path:
-            img_type = "jpeg" if image_type in ["jpg", "jpeg"] else "png"
-            mime_type = f"image/{img_type}"
             
-            content = await unified_file_extract(
-                file_path=temp_file_path,
-                prompt=IMAGE_PARSE_PROMPT,
-                content_type=mime_type,
-            )
-            
-            if not content:
-                raise ValueError("Image content reading failed")
-            
-            return content
-
-    async def _parse_text_file(
-        self, file_input: FileInput, file_type: str, filename: Optional[str] = None
-    ) -> str:
-        """Parse text file by reading content directly."""
-        async with self._managed_temp_file(file_input, file_type, filename) as temp_file_path:
-            with open(temp_file_path, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read()
-            
-            if not content:
-                logger.warning(f"Text file content is empty: {temp_file_path}")
-            
-            return content
-
-    async def _parse_document_with_langchain(
-        self, file_input: FileInput, file_type: str, filename: Optional[str] = None
-    ) -> str:
-        """Parse document using Langchain loaders."""
-        # File type to loader mapping
-        LOADER_MAP = {
-            "pdf": PyPDFLoader,
-            "docx": Docx2txtLoader,
-            "doc": Docx2txtLoader,
-            "csv": CSVLoader,
-            "json": JSONLoader,
-            "xlsx": StructuredExcelLoader,
-            "xls": StructuredExcelLoader,
-            "pptx": UnstructuredPowerPointLoader,
-            "ppt": UnstructuredPowerPointLoader,
-        }
-        
-        async with self._managed_temp_file(file_input, file_type, filename) as temp_file_path:
-            loader_class = LOADER_MAP.get(file_type.lower())
-            
-            if not loader_class:
-                raise ValueError(f"Unsupported file type: {file_type}")
-            
-            # Special handling for different loader types
-            if loader_class == JSONLoader:
-                loader = loader_class(
-                    file_path=temp_file_path, jq_schema=".", text_content=False
-                )
-            elif loader_class == StructuredExcelLoader:
-                loader = loader_class(temp_file_path)
+            # Read bytes if BinaryIO
+            if hasattr(file_input, 'read'):
+                if hasattr(file_input, 'seek'):
+                    file_input.seek(0)
+                file_bytes = file_input.read()
             else:
-                loader = loader_class(temp_file_path)
+                file_bytes = file_input
             
-            # Load documents
-            docs: List[Document] = loader.load()
+            # Create temp file
+            suffix = f".{file_type}" if file_type else Path(filename).suffix
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp_file:
+                temp_file.write(file_bytes)
+                temp_file_path = temp_file.name
             
-            # Extract text content
+            try:
+                # Route to appropriate parser
+                if file_type == "pdf":
+                    return await self._parse_pdf(temp_file_path)
+                
+                elif file_type in IMAGE_EXTENSIONS:
+                    return await self._parse_image(temp_file_path, file_type)
+                
+                elif file_type in TEXT_CODE_EXTENSIONS:
+                    return await self._parse_text(temp_file_path)
+                
+                else:
+                    # Generic file handling
+                    return await self._parse_generic(temp_file_path, filename)
+            
+            finally:
+                # Always cleanup temp file
+                try:
+                    os.unlink(temp_file_path)
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to cleanup temp file {temp_file_path}: {cleanup_error}")
+        
+        except Exception as e:
+            logger.error(f"File parsing failed for {filename}: {e}", exc_info=True)
+            return (f"File parsing failed: {str(e)}", "error", "")
+    
+    async def _parse_pdf(self, file_path: str) -> tuple[str, str, str]:
+        """
+        Parse PDF with PyPDF fallback strategy.
+        
+        Strategy:
+        1. Try PyPDF first (fast, local, complete, free)
+        2. Fallback to LLM if PyPDF fails or content insufficient
+        
+        Returns:
+            Tuple of (content, method, model)
+        """
+        # Step 1: Try PyPDF (local extraction)
+        try:
+            logger.info("Attempting PDF parsing with PyPDF (fast, local)")
+            loader = PyPDFLoader(file_path)
+            docs = loader.load()
             content = "\n\n".join([doc.page_content for doc in docs])
             
-            if not content:
-                logger.warning(f"Document reading failed or content is empty: {temp_file_path}")
-                raise ValueError("Document content reading failed")
+            # Check if content is meaningful
+            if content and len(content.strip()) > 50:
+                logger.info(f"✅ PyPDF successful: {len(content)} chars")
+                return (content, "pypdf_local", "")
             
-            return content
-
-    async def _parse_pdf_with_llm(
-        self,
-        file_input: FileInput,
-        filename: Optional[str] = None,
-    ) -> str:
-        """Parse PDF file using LLM (unified vision API)."""
-        async with self._managed_temp_file(file_input, "pdf", filename) as temp_file_path:
-            content = await unified_file_extract(
-                file_path=temp_file_path,
-                prompt=PDF_PARSE_PROMPT,
-                content_type="application/pdf"
-            )
-            
-            if not content:
-                raise ValueError("LLM PDF parsing returned empty content")
-            
-            return content
-
-    async def parse_webpage(self, url: str) -> str:
-        """Parse webpage content"""
-        try:
-            loader = WebBaseLoader(url)
-            docs: List[Document] = []
-            async for doc in loader.alazy_load():
-                docs.append(doc)
-
-            if not docs:
-                logger.warning(f"No content extracted from URL: {url}")
-                return f"No content could be extracted from the URL: {url}"
-
-            # Extract and merge text content
-            content = ""
-            for doc in docs:
-                metadata = doc.metadata  
-                title = metadata.get("title", "Untitled")
-                description = metadata.get("description", "[NULL]")
-                content += (
-                    f"### {title}\n\n{description}\n\n{doc.page_content}\n\n"
-                )
-
-            if not content:
-                logger.warning(f"Empty content extracted from URL: {url}")
-                return f"The webpage at {url} appears to be empty or could not be parsed properly."
-
-            return content
-
-        except Exception as e:
-            logger.error(f"Webpage parsing failed: {e}\n{traceback.format_exc()}")
-            return f"Failed to parse webpage: {str(e)}"
-
-    # ==================== Helper Methods ====================
-
-    def _get_temp_file_path(
-        self, file_input: FileInput, file_type: str, filename: Optional[str] = None
-    ) -> Optional[str]:
-        """Create temporary file path based on input type."""
-        if isinstance(file_input, str):
-            return None  # URL or file path, needs download
-
-        # IO object, create temporary file
-        suffix = f".{file_type}" if not file_type.startswith(".") else file_type
-        if filename and "." in filename:
-            suffix = "." + filename.split(".")[-1]
-
-        temp_fd, temp_path = tempfile.mkstemp(suffix=suffix)
-
-        try:
-            with os.fdopen(temp_fd, "wb") as temp_file:
-                if hasattr(file_input, "read"):
-                    # Reset file pointer to beginning if seekable (e.g., BytesIO)
-                    # This fixes the issue where BytesIO is read multiple times (PyPDF fallback to LLM)
-                    if hasattr(file_input, "seek"):
-                        file_input.seek(0)
-                    
-                    content = file_input.read()
-                    if isinstance(content, str):
-                        content = content.encode("utf-8")
-                    temp_file.write(content)
-                else:
-                    raise ValueError(f"Unsupported file input type: {type(file_input)}")
-
-            return temp_path
-        except Exception as e:
-            try:
-                os.unlink(temp_path)
-            except:
-                pass
-            raise e
-
-    async def _ensure_file_path(
-        self, file_input: FileInput, file_type: str, filename: Optional[str] = None
-    ) -> str:
-        """Ensure file path is obtained, handle URL download and IO objects."""
-        if isinstance(file_input, str):
-            # URL or file path
-            if file_input.startswith(("http://", "https://")):
-                # Download network file
-                temp_file_path = await self._download_file(file_input, file_type)
-                if not temp_file_path or not os.path.exists(temp_file_path):
-                    raise ValueError(f"File download failed: {file_input}")
-                return temp_file_path
-            else:
-                # Local file path
-                if not os.path.exists(file_input):
-                    raise ValueError(f"File not found: {file_input}")
-                return file_input
-        else:
-            # IO object
-            temp_path = self._get_temp_file_path(file_input, file_type, filename)
-            if not temp_path:
-                raise ValueError("Failed to create temporary file from IO object")
-            return temp_path
-
-    async def _download_file(self, url: str, file_type: str) -> str:
-        """Download file from URL to temporary location."""
-        import httpx
+            logger.warning(f"⚠️ PyPDF content insufficient ({len(content.strip())} chars), falling back to LLM")
         
-        suffix = f".{file_type}" if not file_type.startswith(".") else file_type
-        temp_fd, temp_path = tempfile.mkstemp(suffix=suffix)
+        except Exception as pypdf_error:
+            logger.warning(f"⚠️ PyPDF failed: {pypdf_error}, falling back to LLM")
         
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.get(url, follow_redirects=True)
-                response.raise_for_status()
-                
-                with os.fdopen(temp_fd, "wb") as temp_file:
-                    temp_file.write(response.content)
-                
-                logger.info(f"Downloaded file from {url} to {temp_path}")
-                return temp_path
-                
-        except Exception as e:
-            try:
-                os.unlink(temp_path)
-            except:
-                pass
-            logger.error(f"Failed to download file from {url}: {e}")
-            raise ValueError(f"File download failed: {e}") from e
-
+        # Step 2: Fallback to LLM via framework layer
+        logger.info("Using LLM extraction for PDF via ContentExtractor")
+        content = await self.content_extractor.extract_from_pdf(
+            Path(file_path),
+            content_type="application/pdf",
+            prompt=FULL_TEXT_PROMPT  # Agent's full-text prompt
+        )
+        
+        return (content, "llm_fallback", "gemini/doubao")
+    
+    async def _parse_image(self, file_path: str, file_type: str) -> tuple[str, str, str]:
+        """
+        Parse image file via framework layer ContentExtractor.
+        
+        Returns:
+            Tuple of (content, method, model)
+        """
+        content = await self.content_extractor.extract_from_image(
+            Path(file_path),
+            content_type=f"image/{file_type}",
+            prompt=FULL_IMAGE_PROMPT
+        )
+        
+        return (content, "unified_vision", "gemini/doubao")
+    
+    async def _parse_text(self, file_path: str) -> tuple[str, str, str]:
+        """
+        Parse text file via framework layer ContentExtractor.
+        
+        Returns:
+            Tuple of (content, method, model)
+        """
+        content = await self.content_extractor.extract_from_text_file(
+            Path(file_path)
+        )
+        
+        return (content, "direct_read", "")
+    
+    async def _parse_generic(self, file_path: str, filename: str) -> tuple[str, str, str]:
+        """
+        Parse generic file type via framework layer ContentExtractor.
+        
+        Returns:
+            Tuple of (content, method, model)
+        """
+        # Infer content type from filename
+        content_type = self._infer_content_type(filename)
+        
+        content = await self.content_extractor.extract_from_file(
+            Path(file_path),
+            content_type=content_type,
+            prompt=FULL_TEXT_PROMPT
+        )
+        
+        return (content, "unified_extract", "gemini/doubao")
+    
     @staticmethod
-    def _delete_file(file_path: str) -> None:
-        """Safely delete file."""
-        try:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-        except Exception as e:
-            logger.warning(f"Delete file failed: {file_path}. {e}")
+    def _infer_content_type(filename: str) -> str:
+        """Infer MIME content type from filename."""
+        import mimetypes
+        content_type, _ = mimetypes.guess_type(filename)
+        return content_type or "application/octet-stream"

@@ -412,11 +412,20 @@ class Server:
         config = await Config.init(yaml_filenames=yaml_files)
         config.print()
 
-        if os.environ.get("ENV").strip().upper() not in ["TEST", "GRAY", "PROD"]:
-            async with await config.get_postgresql().get_async_client(cursor_factory=None) as conn:
-                dirname = os.path.join(os.path.dirname(__file__), "..", "res", "sql")
+        if os.environ.get("ENV").strip().upper() not in ["TEST", "GRAY", "PROD", 'TEST-INLOCAL']:
+            pg_config = config.get_postgresql()
 
+            async with await pg_config.get_async_client(cursor_factory=None) as conn:
                 async with conn.cursor() as cur:
+                    for schema in pg_config.schema.split(","):
+                        if schema and isinstance(schema, str) and schema != "public":
+                            try:
+                                await cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema};")
+                                logging.info(f"Schema {schema} has been created.")
+                            except Exception as e:
+                                logging.error(str(e), exc_info=True)
+
+                    dirname = os.path.join(os.path.dirname(__file__), "..", "res", "sql")
                     for filename in sorted(os.listdir(dirname)):
                         with open(os.path.join(dirname, filename), "r", encoding="utf-8") as f:
                             statements = f.read()
@@ -425,10 +434,15 @@ class Server:
                                 logging.info(f"SQL file {filename} executed successfully.")
                             except Exception as e:
                                 logging.error(str(e), exc_info=True, extra={"sql_filename": filename})
+
                     logging.info("SQL files initialization completed.")
 
         #-----------------------------------------------------
         # Init mirobody server.
+        
+        # Create global resources (PostgreSQL pool and Redis client)
+        pg_pool = await config.get_postgresql().get_async_pool()
+        redis = await config.get_redis().get_async_client()
 
         server = Server(
             server_name     = config.http.name,
@@ -440,8 +454,8 @@ class Server:
             # jwt_key         = config.jwt_key,
             # jwt_private_key = config.jwt_private_key,
 
-            pg_pool         = await config.get_postgresql().get_async_pool(),
-            redis           = await config.get_redis().get_async_client(),
+            pg_pool         = pg_pool,
+            redis           = redis,
 
             webpage_config  = config.get_dict("MIROBODY_WEB_CONFIG", {}),
 
@@ -468,6 +482,12 @@ class Server:
             routes      = server.get_routes(),
             middleware  = server.get_middlewares()
         )
+
+        # Store global resources in app.state for access by all routers
+        app.state.redis = redis
+        app.state.pg_pool = pg_pool
+        
+        logging.info(f"Global resources stored in app.state: Redis={'enabled' if redis else 'disabled'}, PostgreSQL={'enabled' if pg_pool else 'disabled'}")
 
         #-----------------------------------------------------
         # Add other routers.

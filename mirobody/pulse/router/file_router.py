@@ -421,6 +421,7 @@ async def get_uploaded_files(
 
 @router.post("/files/upload", response_model=FileUploadResponse)
 async def upload_files(
+    request: Request,
     files: List[UploadFile] = File(..., description="Files to upload (PDF, images, documents, etc.)"),
     user_id: str = Depends(verify_token),
     folder: Optional[str] = Query(None, description="Custom folder prefix for uploaded files, defaults to 'uploads'")
@@ -443,11 +444,15 @@ async def upload_files(
         - msg: Response message
         - data: List of upload results, each containing file URL, file key, size, type, and timestamp
     """
+    # Get Redis client from global app state (shared across all requests)
+    redis_client = getattr(request.app.state, 'redis', None)
+    
     # Use the universal upload service
     result = await upload_files_to_storage(
         files=files,
         user_id=user_id,
-        folder_prefix=folder
+        folder_prefix=folder,
+        redis_client=redis_client
     )
     
     # Convert result to FastAPI response format
@@ -456,71 +461,6 @@ async def upload_files(
         msg=result["msg"],
         data=result["data"]
     )
-    
-    
-@router.post("/files/upload/synergy")
-async def upload_file(
-    request: Request,
-    localId: Optional[str] = Form(None),
-    userIds: str = Form(...),
-    orgId: Optional[str] = Form(None),
-    traceId: Optional[str] = Header(None),
-
-):
-    """
-    Upload file to S3 and return URL.
-    
-    This endpoint is used by synergy's CustomS3Uploader.
-    Response format must be: {"files": [{"url": "...", "size": 123}]}
-    """
-    from fastapi.responses import JSONResponse
-    try:
-        # Get all form data
-        form = await request.form()
-        
-        # Find file field (exclude known text fields)
-        file = None
-        
-        for field_name, field_value in form.items():
-            # Duck typing: UploadFile has 'filename' attribute, str doesn't
-            if hasattr(field_value, 'filename'):
-                file = field_value
-                break
-        
-        if not file:
-            return JSONResponse(
-                content={"files": [], "error": "No file provided"},
-                status_code=400
-            )
-        
-        result = await upload_files_to_storage(
-            files=[file],
-            user_id=userIds,
-            folder_prefix="workspace"
-        )
-        
-        data = result.get("data", [])
-        if not data:
-            return JSONResponse(
-                content={"files": [], "error": "Upload failed, no data returned"},
-                status_code=500
-            )
-        
-        file_res = data[0]
-        return {
-            "files": [{
-                "url": file_res["file_url"],
-                "size": file_res["file_size"]
-            }]
-        }
-        
-    except Exception as e:
-        return JSONResponse(
-            content={"files": [], "error": str(e)},
-            status_code=500
-        )
-
-
 
 
 @router.post("/api/v1/data/delete-files", response_model=FileDeleteResponse)

@@ -1,20 +1,215 @@
 import asyncio
 import logging
-import os
 import re
-from typing import List, Dict, Optional, Any
+import uuid
+from typing import List, Dict, Optional, Any, Tuple
 from datetime import datetime, date
 
-from mirobody.utils.truncate import _split
-from mirobody.utils import execute_query
-from mirobody.utils.llm import async_get_text_completion
-from mirobody.utils.config import safe_read_cfg
+import redis.asyncio
+
+from ..utils.truncate import _split
+from ..utils import execute_query
+from ..utils.llm import async_get_text_completion
+from ..utils.config import safe_read_cfg, global_config
 
 logger = logging.getLogger(__name__)
 
 MAX_TOKENS = 10000
 MAX_OUTPUT_TOKENS = 32000  # No limit on profile output length to avoid truncation
 MAX_PREVIOUS_PROFILE_LENGTH = 15000  # Maximum character limit for previous profile version
+PROFILE_LOCK_TIMEOUT_SECONDS = 600  # 10 minutes lock timeout for profile generation
+PROFILE_LOCK_WAIT_TIMEOUT_SECONDS = 120  # Maximum wait time to acquire lock (2 minutes)
+PROFILE_LOCK_RETRY_INTERVAL_SECONDS = 2  # Retry interval when waiting for lock
+
+#-----------------------------------------------------------------------------
+# Redis Client for Profile Lock
+#-----------------------------------------------------------------------------
+
+_profile_redis_client = None
+
+async def _get_profile_redis_client() -> Optional[redis.asyncio.Redis]:
+    """
+    Get Redis client for profile lock management
+    
+    Returns:
+        Redis async client or None if not available
+    """
+    global _profile_redis_client
+    
+    if _profile_redis_client is None:
+        try:
+            _profile_redis_client = await global_config().get_redis().get_async_client()
+        except Exception as e:
+            logger.warning(f"[ProfileLock] Failed to get Redis client: {e}")
+            return None
+    
+    return _profile_redis_client
+
+
+class UserProfileLockManager:
+    """
+    User Profile distributed lock manager
+    
+    Ensures that profile generation/update for the same user is serialized,
+    preventing race conditions when multiple documents are uploaded simultaneously.
+    
+    Features:
+    - User-based distributed locking
+    - Configurable lock timeout (default 10 minutes)
+    - Automatic retry with wait
+    - Graceful degradation when Redis is unavailable
+    """
+    
+    def __init__(self):
+        self.instance_id = str(uuid.uuid4())[:8]
+    
+    def _get_lock_key(self, user_id: str) -> str:
+        """Get Redis key for user profile lock"""
+        return f"user_profile_lock:{user_id}"
+    
+    def _get_lock_value(self, lock_id: str) -> str:
+        """Get lock value containing instance and timestamp info"""
+        timestamp = datetime.now().isoformat()
+        return f"{self.instance_id}:{timestamp}:{lock_id}"
+    
+    async def try_acquire_lock(
+        self, 
+        user_id: str, 
+        timeout_seconds: int = PROFILE_LOCK_TIMEOUT_SECONDS
+    ) -> Optional[str]:
+        """
+        Try to acquire lock for user profile operation
+        
+        Args:
+            user_id: User ID
+            timeout_seconds: Lock timeout in seconds (default 10 minutes)
+            
+        Returns:
+            lock_id if acquired, None if failed
+        """
+        lock_id = str(uuid.uuid4())
+        lock_key = self._get_lock_key(user_id)
+        
+        redis_client = await _get_profile_redis_client()
+        if redis_client is None:
+            logger.warning(f"[ProfileLock] Redis not available for user {user_id}, proceeding without lock")
+            return lock_id  # Return lock_id to allow operation without actual lock
+        
+        try:
+            lock_value = self._get_lock_value(lock_id)
+            
+            # Try to acquire lock with NX (only set if not exists)
+            acquired = await redis_client.set(
+                lock_key, 
+                lock_value, 
+                ex=timeout_seconds, 
+                nx=True
+            )
+            
+            if acquired:
+                logger.info(
+                    f"[ProfileLock] Lock acquired for user {user_id} "
+                    f"(instance: {self.instance_id}, lock_id: {lock_id}, timeout: {timeout_seconds}s)"
+                )
+                return lock_id
+            else:
+                # Lock already held by another process
+                existing_lock = await redis_client.get(lock_key)
+                if existing_lock:
+                    lock_info = existing_lock.decode() if isinstance(existing_lock, bytes) else existing_lock
+                    logger.info(f"[ProfileLock] Lock already held for user {user_id}: {lock_info}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"[ProfileLock] Error acquiring lock for user {user_id}: {e}")
+            return None
+    
+    async def acquire_lock_with_wait(
+        self,
+        user_id: str,
+        timeout_seconds: int = PROFILE_LOCK_TIMEOUT_SECONDS,
+        wait_timeout_seconds: int = PROFILE_LOCK_WAIT_TIMEOUT_SECONDS,
+        retry_interval_seconds: int = PROFILE_LOCK_RETRY_INTERVAL_SECONDS
+    ) -> Optional[str]:
+        """
+        Acquire lock with waiting and retry
+        
+        Args:
+            user_id: User ID
+            timeout_seconds: Lock timeout
+            wait_timeout_seconds: Maximum time to wait for lock
+            retry_interval_seconds: Interval between retry attempts
+            
+        Returns:
+            lock_id if acquired, None if timeout
+        """
+        start_time = asyncio.get_event_loop().time()
+        
+        while True:
+            lock_id = await self.try_acquire_lock(user_id, timeout_seconds)
+            if lock_id:
+                return lock_id
+            
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed >= wait_timeout_seconds:
+                logger.warning(
+                    f"[ProfileLock] Timeout waiting for lock for user {user_id} "
+                    f"after {elapsed:.1f}s"
+                )
+                return None
+            
+            logger.info(
+                f"[ProfileLock] Waiting for lock for user {user_id}, "
+                f"elapsed: {elapsed:.1f}s, will retry in {retry_interval_seconds}s"
+            )
+            await asyncio.sleep(retry_interval_seconds)
+    
+    async def release_lock(self, user_id: str, lock_id: str) -> bool:
+        """
+        Release lock for user profile operation
+        
+        Args:
+            user_id: User ID
+            lock_id: Lock ID returned from acquire_lock
+            
+        Returns:
+            True if released successfully
+        """
+        redis_client = await _get_profile_redis_client()
+        if redis_client is None:
+            logger.warning(f"[ProfileLock] Redis not available, skip lock release for user {user_id}")
+            return True
+        
+        lock_key = self._get_lock_key(user_id)
+        
+        try:
+            # Get current lock to verify ownership
+            current_lock = await redis_client.get(lock_key)
+            if current_lock is None:
+                logger.warning(f"[ProfileLock] Lock already expired for user {user_id}")
+                return True
+            
+            current_lock_str = current_lock.decode() if isinstance(current_lock, bytes) else current_lock
+            
+            # Verify we own this lock
+            if lock_id in current_lock_str and self.instance_id in current_lock_str:
+                await redis_client.delete(lock_key)
+                logger.info(f"[ProfileLock] Lock released for user {user_id} (lock_id: {lock_id})")
+                return True
+            else:
+                logger.warning(
+                    f"[ProfileLock] Lock ownership mismatch for user {user_id}, "
+                    f"expected lock_id: {lock_id}, current: {current_lock_str}"
+                )
+                return False
+                
+        except Exception as e:
+            logger.error(f"[ProfileLock] Error releasing lock for user {user_id}: {e}")
+            return False
+
+
+# Global lock manager instance
+user_profile_lock_manager = UserProfileLockManager()
 
 #-----------------------------------------------------------------------------
 
@@ -1225,6 +1420,9 @@ class UserProfileService:
         """
         Create complete user profile
         
+        This method uses distributed locking to ensure serialized execution
+        when multiple documents are uploaded simultaneously for the same user.
+        
         Args:
             user_id: User ID
             
@@ -1233,87 +1431,100 @@ class UserProfileService:
         """
         logger.info(f"Starting profile creation for user: {user_id}")
         
-        # 1. Get version control information
-        version_info = await cls._get_version_info(user_id)
-        current_version = version_info['version']
-        last_execute_doc_id = version_info['last_execute_doc_id']
-        
-        # 2. Get basic information
-        basic_info = await BasicInfoService.get_user_basic_info(user_id)
-        language = basic_info.get('language') or "English"
-        
-        # 3. Get incremental data
-        doc_list = await cls._get_incremental_data(user_id, last_execute_doc_id)
-        
-        if not doc_list:
-            logger.info(f"No incremental data found for user: {user_id}, last_execute_doc_id: {last_execute_doc_id}. Skipping profile update.")
-            return {
-                "status": "no_incremental_data",
-                "message": "No new data to process since last update",
-                "current_version": current_version,
-                "last_execute_doc_id": last_execute_doc_id
-            }
-        
-        # 4. Get device data
-        device_data = await DeviceDataService.get_device_data(user_id)
-        
-        # 5. Generate user profile (Markdown format)
-        profile_markdown = await UserProfileGenerator.generate_user_profile(
-            user_id=user_id,
-            basic_info=basic_info,
-            doc_list=doc_list,
-            device_data=device_data,
-            language=language
-        )
-        
-        if not profile_markdown:
-            logger.info(f"Failed to generate profile for user: {user_id}")
+        # Acquire distributed lock to prevent concurrent profile updates
+        lock_id = await user_profile_lock_manager.acquire_lock_with_wait(user_id)
+        if lock_id is None:
+            logger.error(f"Failed to acquire lock for user {user_id} after waiting, aborting profile creation")
             return {
                 "status": "error",
-                "message": "Failed to generate user profile"
+                "message": "Failed to acquire lock for profile update, please try again later"
             }
         
-        # 6. Extract scenario from profile
-        profile_without_scenario, scenario_zh = _extract_scenario_from_profile(profile_markdown)
-        
-        # 7. Get scenario info (English translation and image URL)
-        scenario_info = None
-        if scenario_zh:
-            scenario_info = _get_scenario_info(scenario_zh)
-            if scenario_info:
-                logger.info(f"Extracted scenario for user {user_id}: {scenario_zh} -> {scenario_info['scenario_en']}")
-            else:
-                logger.warning(f"Scenario extracted but not found in mapping for user {user_id}: {scenario_zh}")
-        
-        # 8. Fallback to default scenario if no scenario matched
-        if not scenario_info:
-            scenario_info = _get_default_scenario_info()
-            logger.info(f"Using default fallback scenario for user {user_id}: {scenario_info['scenario_zh']}")
-        
-        # 9. Save profile
-        new_version = current_version + 1
-        new_last_execute_doc_id = max([doc['id'] for doc in doc_list]) if doc_list else last_execute_doc_id
-        
-        profile_id = await cls._save_profile(
-            user_id=user_id,
-            version=new_version,
-            profile_markdown=profile_without_scenario,
-            last_execute_doc_id=new_last_execute_doc_id,
-            scenario_zh=scenario_info['scenario_zh'] if scenario_info else None,
-            scenario_en=scenario_info['scenario_en'] if scenario_info else None,
-            scenario_image_url=scenario_info['scenario_image_url'] if scenario_info else None,
-            action_type="add"
-        )
-        
-        logger.info(f"Successfully created profile {profile_id} version {new_version} for user: {user_id}, last_execute_doc_id: {new_last_execute_doc_id}, action_type: add")
-        
-        return {
-            "status": "success",
-            "profile_id": profile_id,
-            "version": new_version,
-            "last_execute_doc_id": new_last_execute_doc_id,
-            "profile_data": profile_markdown
-        }
+        try:
+            # 1. Get version control information
+            version_info = await cls._get_version_info(user_id)
+            current_version = version_info['version']
+            last_execute_doc_id = version_info['last_execute_doc_id']
+            
+            # 2. Get basic information
+            basic_info = await BasicInfoService.get_user_basic_info(user_id)
+            language = basic_info.get('language') or "English"
+            
+            # 3. Get incremental data
+            doc_list = await cls._get_incremental_data(user_id, last_execute_doc_id)
+            
+            if not doc_list:
+                logger.info(f"No incremental data found for user: {user_id}, last_execute_doc_id: {last_execute_doc_id}. Skipping profile update.")
+                return {
+                    "status": "no_incremental_data",
+                    "message": "No new data to process since last update",
+                    "current_version": current_version,
+                    "last_execute_doc_id": last_execute_doc_id
+                }
+            
+            # 4. Get device data
+            device_data = await DeviceDataService.get_device_data(user_id)
+            
+            # 5. Generate user profile (Markdown format)
+            profile_markdown = await UserProfileGenerator.generate_user_profile(
+                user_id=user_id,
+                basic_info=basic_info,
+                doc_list=doc_list,
+                device_data=device_data,
+                language=language
+            )
+            
+            if not profile_markdown:
+                logger.info(f"Failed to generate profile for user: {user_id}")
+                return {
+                    "status": "error",
+                    "message": "Failed to generate user profile"
+                }
+            
+            # 6. Extract scenario from profile
+            profile_without_scenario, scenario_zh = _extract_scenario_from_profile(profile_markdown)
+            
+            # 7. Get scenario info (English translation and image URL)
+            scenario_info = None
+            if scenario_zh:
+                scenario_info = _get_scenario_info(scenario_zh)
+                if scenario_info:
+                    logger.info(f"Extracted scenario for user {user_id}: {scenario_zh} -> {scenario_info['scenario_en']}")
+                else:
+                    logger.warning(f"Scenario extracted but not found in mapping for user {user_id}: {scenario_zh}")
+            
+            # 8. Fallback to default scenario if no scenario matched
+            if not scenario_info:
+                scenario_info = _get_default_scenario_info()
+                logger.info(f"Using default fallback scenario for user {user_id}: {scenario_info['scenario_zh']}")
+            
+            # 9. Save profile
+            new_version = current_version + 1
+            new_last_execute_doc_id = max([doc['id'] for doc in doc_list]) if doc_list else last_execute_doc_id
+            
+            profile_id = await cls._save_profile(
+                user_id=user_id,
+                version=new_version,
+                profile_markdown=profile_without_scenario,
+                last_execute_doc_id=new_last_execute_doc_id,
+                scenario_zh=scenario_info['scenario_zh'] if scenario_info else None,
+                scenario_en=scenario_info['scenario_en'] if scenario_info else None,
+                scenario_image_url=scenario_info['scenario_image_url'] if scenario_info else None,
+                action_type="add"
+            )
+            
+            logger.info(f"Successfully created profile {profile_id} version {new_version} for user: {user_id}, last_execute_doc_id: {new_last_execute_doc_id}, action_type: add")
+            
+            return {
+                "status": "success",
+                "profile_id": profile_id,
+                "version": new_version,
+                "last_execute_doc_id": new_last_execute_doc_id,
+                "profile_data": profile_markdown
+            }
+        finally:
+            # Always release lock
+            await user_profile_lock_manager.release_lock(user_id, lock_id)
     
     @classmethod
     async def ensure_scenario_exists(cls, user_id: str) -> Dict[str, Any]:
@@ -1435,7 +1646,10 @@ class UserProfileService:
         Remove or restore indicators from user profile when documents are deleted.
         
         This method is called when user deletes uploaded documents. It intelligently
-        processes the indicators based on version comparison:
+        processes the indicators based on version comparison.
+        
+        This method uses distributed locking to ensure serialized execution
+        when multiple delete operations occur simultaneously for the same user.
         
         Decision Logic for each deleted indicator:
         1. If indicator not in current profile → skip
@@ -1454,84 +1668,97 @@ class UserProfileService:
         logger.info(f"[remove_indicators_from_profile] Starting for user: {user_id}")
         logger.info(f"[remove_indicators_from_profile] Deleted indicators: {deleted_indicators[:500] if deleted_indicators else 'None'}...")
         
-        # Step 1: Get latest profile info
-        profile_info = await cls._get_latest_profile_info(user_id)
-        
-        # Check if profile exists
-        if profile_info is None:
-            logger.warning(f"[remove_indicators_from_profile] No existing profile found for user {user_id}, nothing to update")
-            return {
-                "status": "no_profile",
-                "message": "No existing profile found for user"
-            }
-        
-        logger.info(f"[remove_indicators_from_profile] Found existing profile for user {user_id}, version: {profile_info['version']}")
-        
-        # Extract current profile info
-        current_version = profile_info['version']
-        last_execute_doc_id = profile_info['last_execute_doc_id']
-        common_part = profile_info['common_part']
-        scenario_zh = profile_info['scenario_zh']
-        scenario_en = profile_info['scenario_en']
-        scenario_image_url = profile_info['scenario_image_url']
-        
-        # Check if profile content exists
-        if not common_part:
-            logger.warning(f"[remove_indicators_from_profile] Profile content is empty for user {user_id}")
-            return {
-                "status": "empty_profile",
-                "message": "Profile content is empty"
-            }
-        
-        # Step 2: Get previous profile for version comparison (fallback support)
-        previous_profile_info = await cls._get_previous_profile_info(user_id)
-        previous_common_part = previous_profile_info['common_part'] if previous_profile_info else None
-        
-        if previous_profile_info:
-            logger.info(f"[remove_indicators_from_profile] Found previous profile version {previous_profile_info['version']} for fallback")
-        else:
-            logger.info(f"[remove_indicators_from_profile] No previous profile found, will use simple deletion")
-        
-        # Step 3: Use LLM to process indicators with version comparison
-        updated_profile = await UserProfileGenerator._remove_indicators_from_profile(
-            profile_content=common_part,
-            deleted_indicators=deleted_indicators,
-            previous_profile_content=previous_common_part
-        )
-        
-        if not updated_profile:
-            logger.error(f"[remove_indicators_from_profile] Failed to generate updated profile for user {user_id}")
+        # Acquire distributed lock to prevent concurrent profile updates
+        lock_id = await user_profile_lock_manager.acquire_lock_with_wait(user_id)
+        if lock_id is None:
+            logger.error(f"[remove_indicators_from_profile] Failed to acquire lock for user {user_id} after waiting")
             return {
                 "status": "error",
-                "message": "Failed to generate updated profile"
+                "message": "Failed to acquire lock for profile update, please try again later"
             }
         
-        # Step 4: Save new version (only common_part changes, other fields remain unchanged)
-        new_version = current_version + 1
-        
-        profile_id = await cls._save_profile(
-            user_id=user_id,
-            version=new_version,
-            profile_markdown=updated_profile,  # Updated profile with indicators processed
-            last_execute_doc_id=last_execute_doc_id,  # Keep unchanged
-            scenario_zh=scenario_zh,  # Keep unchanged
-            scenario_en=scenario_en,  # Keep unchanged
-            scenario_image_url=scenario_image_url,  # Keep unchanged
-            action_type="delete"
-        )
-        
-        logger.info(f"[remove_indicators_from_profile] Successfully saved updated profile {profile_id} version {new_version} for user {user_id}, action_type: delete")
-        
-        return {
-            "status": "success",
-            "profile_id": profile_id,
-            "version": new_version,
-            "last_execute_doc_id": last_execute_doc_id,
-            "scenario_zh": scenario_zh,
-            "scenario_en": scenario_en,
-            "scenario_image_url": scenario_image_url,
-            "profile_data": updated_profile
-        }
+        try:
+            # Step 1: Get latest profile info
+            profile_info = await cls._get_latest_profile_info(user_id)
+            
+            # Check if profile exists
+            if profile_info is None:
+                logger.warning(f"[remove_indicators_from_profile] No existing profile found for user {user_id}, nothing to update")
+                return {
+                    "status": "no_profile",
+                    "message": "No existing profile found for user"
+                }
+            
+            logger.info(f"[remove_indicators_from_profile] Found existing profile for user {user_id}, version: {profile_info['version']}")
+            
+            # Extract current profile info
+            current_version = profile_info['version']
+            last_execute_doc_id = profile_info['last_execute_doc_id']
+            common_part = profile_info['common_part']
+            scenario_zh = profile_info['scenario_zh']
+            scenario_en = profile_info['scenario_en']
+            scenario_image_url = profile_info['scenario_image_url']
+            
+            # Check if profile content exists
+            if not common_part:
+                logger.warning(f"[remove_indicators_from_profile] Profile content is empty for user {user_id}")
+                return {
+                    "status": "empty_profile",
+                    "message": "Profile content is empty"
+                }
+            
+            # Step 2: Get previous profile for version comparison (fallback support)
+            previous_profile_info = await cls._get_previous_profile_info(user_id)
+            previous_common_part = previous_profile_info['common_part'] if previous_profile_info else None
+            
+            if previous_profile_info:
+                logger.info(f"[remove_indicators_from_profile] Found previous profile version {previous_profile_info['version']} for fallback")
+            else:
+                logger.info(f"[remove_indicators_from_profile] No previous profile found, will use simple deletion")
+            
+            # Step 3: Use LLM to process indicators with version comparison
+            updated_profile = await UserProfileGenerator._remove_indicators_from_profile(
+                profile_content=common_part,
+                deleted_indicators=deleted_indicators,
+                previous_profile_content=previous_common_part
+            )
+            
+            if not updated_profile:
+                logger.error(f"[remove_indicators_from_profile] Failed to generate updated profile for user {user_id}")
+                return {
+                    "status": "error",
+                    "message": "Failed to generate updated profile"
+                }
+            
+            # Step 4: Save new version (only common_part changes, other fields remain unchanged)
+            new_version = current_version + 1
+            
+            profile_id = await cls._save_profile(
+                user_id=user_id,
+                version=new_version,
+                profile_markdown=updated_profile,  # Updated profile with indicators processed
+                last_execute_doc_id=last_execute_doc_id,  # Keep unchanged
+                scenario_zh=scenario_zh,  # Keep unchanged
+                scenario_en=scenario_en,  # Keep unchanged
+                scenario_image_url=scenario_image_url,  # Keep unchanged
+                action_type="delete"
+            )
+            
+            logger.info(f"[remove_indicators_from_profile] Successfully saved updated profile {profile_id} version {new_version} for user {user_id}, action_type: delete")
+            
+            return {
+                "status": "success",
+                "profile_id": profile_id,
+                "version": new_version,
+                "last_execute_doc_id": last_execute_doc_id,
+                "scenario_zh": scenario_zh,
+                "scenario_en": scenario_en,
+                "scenario_image_url": scenario_image_url,
+                "profile_data": updated_profile
+            }
+        finally:
+            # Always release lock
+            await user_profile_lock_manager.release_lock(user_id, lock_id)
     
     @staticmethod
     async def _get_version_info(user_id: str) -> Dict[str, int]:
@@ -1617,7 +1844,7 @@ class UserProfileService:
         """
         sql = """
         select version, common_part
-        from theta_ai.health_user_profile_by_system
+        from health_user_profile_by_system
         where user_id = :user_id
         and is_deleted = false
         order by version desc

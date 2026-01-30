@@ -8,19 +8,68 @@ Integrates with global file cache for efficient parsing and storage.
 import asyncio
 import logging
 import os
+import re
 import time
 from typing import Any, Optional
 from urllib.parse import urlparse, unquote
 
 import httpx
 
-from mirobody.pub.agents.deep.backends.cache_manager import (
+from .backends.cache_manager import (
     get_cache_manager,
     calculate_content_hash
 )
-from mirobody.pub.agents.deep.backends.file_parser import get_file_type_from_extension
+from .backends.file_parser import get_file_type_from_extension
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_text(text: str) -> str:
+    """
+    Sanitize text for PostgreSQL by replacing unsafe characters with spaces.
+    
+    Removes/replaces:
+    - NULL bytes (0x00) - PostgreSQL incompatible
+    - C0/C1 control chars (except tab/newline/CR) - potential issues
+    - Zero-width chars (ZWSP, ZWNJ, etc) - security risk
+    - Bidirectional marks (LTR/RTL) - Trojan Source attack vector
+    - Invalid UTF-8 sequences
+    
+    Args:
+        text: Raw text from file parsing
+        
+    Returns:
+        Database-safe text with dangerous chars replaced by spaces
+        
+    Example:
+        >>> _sanitize_text("hello\x00world\u200Btest")
+        'hello world test'
+    """
+    if not text:
+        return text
+    
+    # Pattern: NULL + dangerous C0/C1 controls + zero-width + bidi marks
+    # Keep: \t(09) \n(0A) \r(0D)
+    pattern = (
+        r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F'  # NULL + C0/C1 controls
+        r'\u200B-\u200D\uFEFF'  # Zero-width spaces
+        r'\u202A-\u202E'  # Bidirectional marks
+        r'\uFFFE\uFFFF]'  # Non-characters
+    )
+    
+    cleaned = re.sub(pattern, ' ', text)
+    
+    # Handle invalid UTF-8 by encoding/decoding with error replacement
+    try:
+        cleaned = cleaned.encode('utf-8', errors='replace').decode('utf-8')
+    except Exception:
+        pass
+    
+    if cleaned != text:
+        diff = len(text) - len(cleaned.replace(' ', ''))
+        logger.warning(f"Sanitized {diff} unsafe char(s) from text")
+    
+    return cleaned
 
 
 def _build_file_metadata(
@@ -113,13 +162,13 @@ async def _process_single_file(
 ) -> Optional[tuple[str, str, dict]]:
     """
     Process single file with caching and parsing.
-    
+
     Args:
         file_info: File information dict from file_list
-        files_content_map: Pre-loaded file content mapping
+        files_content_map: Pre-loaded file content mapping (file_key/filename -> bytes)
         backend: Backend instance for parsing
         cache_manager: Cache manager instance
-        
+
     Returns:
         Tuple of (file_path, parsed_text, metadata) or None if failed
     """
@@ -128,50 +177,40 @@ async def _process_single_file(
         file_url = file_info.get("file_url")
         file_key = file_info.get("file_key")
         file_type = file_info.get("file_type", "").upper()
-        
+
         # Skip files without required fields
         if not file_name or not file_url:
             logger.warning(f"Skipping file with missing name or URL: {file_info}")
             return None
-        
+
         # Create workspace file path
         file_path = f"/uploads/{file_name}"
-        
+
         # Step 1: Get file binary content
         file_bytes = None
-        
-        # Priority 1: Use pre-loaded content from memory (fastest)
+
+        # Priority 1: Use pre-loaded content from files_content_map (fastest)
         if file_key and file_key in files_content_map:
             file_bytes = files_content_map[file_key]
-            logger.info(f"✅ Memory cache hit (by file_key): {file_name} ({len(file_bytes)} bytes)")
+            logger.info(f"✅ Content cache hit (by file_key): {file_name} ({len(file_bytes)} bytes)")
         elif file_name in files_content_map:
             file_bytes = files_content_map[file_name]
-            logger.info(f"✅ Memory cache hit (by filename): {file_name} ({len(file_bytes)} bytes)")
-        
-        # Priority 2: Download from URL (fallback)
-        else:
+            logger.info(f"✅ Content cache hit (by filename): {file_name} ({len(file_bytes)} bytes)")
+
+        # Priority 2: Download from URL as fallback
+        if not file_bytes and file_url:
             parsed_url = urlparse(file_url)
-            is_local_file = parsed_url.scheme == "file"
-            is_remote_file = parsed_url.scheme in ("http", "https")
-            
-            if is_local_file:
-                local_path = unquote(parsed_url.path)
-                with open(local_path, 'rb') as f:
-                    file_bytes = f.read()
-                logger.info(f"📁 Read {len(file_bytes)} bytes from local file: {file_name}")
-            
-            elif is_remote_file:
+            if parsed_url.scheme in ("http", "https"):
                 logger.info(f"📥 Downloading from URL: {file_name}")
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     response = await client.get(file_url)
                     response.raise_for_status()
                     file_bytes = response.content
                 logger.info(f"✅ Downloaded {len(file_bytes)} bytes: {file_name}")
-            
-            else:
+            elif parsed_url.scheme != "file":
                 logger.warning(f"⚠️ Unsupported URL scheme for {file_name}: {parsed_url.scheme}")
                 return None
-        
+
         if not file_bytes:
             logger.warning(f"⚠️ No content for {file_name}")
             return None
@@ -188,6 +227,9 @@ async def _process_single_file(
             parsed_text = cached_data["content"]
             parse_info = cached_data["parse_info"]
             file_extension = cached_data.get("file_extension", os.path.splitext(file_name)[1])
+            
+            # Sanitize text to remove NULL bytes (source protection)
+            parsed_text = _sanitize_text(parsed_text)
             
             logger.info(
                 f"🎯 Global cache hit: {file_name} "
@@ -223,7 +265,11 @@ async def _process_single_file(
             # Parse file directly using backend's parser
             parse_start = time.time()
             try:
-                result = await backend.parse_file(file_bytes, file_name, file_type)
+                result = await backend.parse_file(
+                    file_bytes=file_bytes,
+                    file_name=file_name,
+                    file_type=file_type
+                )
                 
                 if isinstance(result, tuple) and len(result) == 3:
                     parsed_text, parse_method, parse_model = result
@@ -247,6 +293,9 @@ async def _process_single_file(
             if not parsed_text:
                 logger.warning(f"⚠️ Failed to parse {file_name}, skipping")
                 return None
+            
+            # Sanitize text to remove NULL bytes (source protection)
+            parsed_text = _sanitize_text(parsed_text)
             
             logger.info(
                 f"✅ Parsed {file_name}: {len(parsed_text)} chars, "
@@ -296,14 +345,16 @@ async def upload_files_to_backend(
     Upload files to PostgreSQL backend with concurrent processing and global cache support.
     
     Workflow (concurrent for each file):
-    1. Calculate content hash for each file
-    2. Check global cache for parsed content
-    3. If cache miss, parse file and save to cache
-    4. Store parsed text in workspace (not binary)
+    1. Read file from local path
+    2. Calculate content hash for each file
+    3. Check global cache for parsed content
+    4. If cache miss, parse file and save to cache
+    5. Store parsed text in workspace (not binary)
     
     Performance optimization: 
     - Files are processed concurrently for better performance
-    - If files_data is provided (from HTTP layer), use it directly to avoid re-downloading
+    - If files_data is provided (from HTTP layer), use local paths to avoid re-downloading
+    - Memory-efficient: only file paths are passed, not content
     
     Args:
         file_list: List of file info dicts with keys:
@@ -313,20 +364,20 @@ async def upload_files_to_backend(
             - file_key: S3 key or storage identifier (optional)
             - file_size: File size in bytes (optional)
         backend: PostgresBackend instance with upload_files() method
-        files_data: Optional list of already-downloaded file data dicts with:
-            - content: File binary content (bytes)
+        files_data: Optional list of already-cached file data dicts with:
+            - content: File content (bytes)
             - file_name: File name
             - content_type: MIME type
             - file_key: S3 key
-        
+
     Returns:
         Tuple of (uploaded_file_paths, reminder_message)
     """
     if not file_list:
         return ([], "")
-    
+
     cache_manager = get_cache_manager()
-    
+
     # Build file_key/filename -> content mapping for fast lookup (if files_data provided)
     files_content_map = {}
     if files_data:
@@ -334,16 +385,16 @@ async def upload_files_to_backend(
             filename = file_data.get("file_name")
             file_key = file_data.get("file_key")
             content = file_data.get("content")
-            
+
             if content:
                 # Index by both file_key (most reliable) and filename
                 if file_key:
                     files_content_map[file_key] = content
                 if filename:
                     files_content_map[filename] = content
-        
-        logger.info(f"✅ Using {len(files_data)} pre-loaded files from memory (avoiding re-download)")
-    
+
+        logger.info(f"✅ Using {len(files_data)} pre-cached file contents (avoiding re-download)")
+
     # 🚀 Concurrent processing: Create tasks for all files
     process_tasks = [
         _process_single_file(file_info, files_content_map, backend, cache_manager)

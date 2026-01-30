@@ -6,6 +6,7 @@ This ensures thread safety and testability.
 """
 
 import asyncio
+import base64
 import logging
 
 from datetime import datetime
@@ -22,18 +23,25 @@ from ..utils.config.storage import get_storage_client
 async def _download_single_file(
     file_dict: Dict[str, Any],
     storage: Any,
-    session_id: str
+    session_id: str,
+    redis_client: Optional[Any] = None
 ) -> Optional[Dict[str, Any]]:
     """
-    Download single file from storage and prepare data.
-    
+    Download single file from storage and return file content.
+
+    File Retrieval Strategy:
+        1. Check Redis for cached base64 content
+        2. If cache hit, decode and return content directly
+        3. Otherwise, download from S3/OSS, cache base64 to Redis, return content
+
     Args:
         file_dict: File info dictionary
         storage: Storage client
         session_id: Session ID
-        
+        redis_client: Optional Redis client for content caching
+
     Returns:
-        Dict with file_data and file_info, or None if failed
+        Dict with file_data (containing content) and file_info, or None if failed
     """
     try:
         file_key = file_dict.get("file_key", "")
@@ -41,31 +49,55 @@ async def _download_single_file(
         file_type = file_dict.get("file_type", "")
         file_url = file_dict.get("file_url", "")
         file_size = file_dict.get("file_size", 0)
-        
+
         if not file_key or not file_name:
             logging.warning(f"Missing file_key or file_name in file dict: {file_dict}")
             return None
-        
-        # Ensure standard MIME type - fallback to filename-based detection
+
         if not file_type or "/" not in file_type:
             file_type = get_mime_type(file_name)
-        
-        # Download file content from storage
-        file_content, _ = await storage.get(file_key)
-        
+
+        file_content = None
+        cache_key = f"file_cache:{file_key}"
+
+        # Try Redis cache first
+        if redis_client:
+            try:
+                cached_b64 = await redis_client.get(cache_key)
+                if cached_b64:
+                    if isinstance(cached_b64, bytes):
+                        cached_b64 = cached_b64.decode('utf-8')
+                    file_content = base64.b64decode(cached_b64)
+                    logging.info(f"🎯 Cache HIT: {file_name} ({len(file_content)} bytes)")
+            except Exception as e:
+                logging.warning(f"Redis cache read failed for {file_name}: {e}")
+
+        # Download from S3/OSS if not cached
         if not file_content:
-            logging.warning(f"Failed to download file content for key: {file_key}")
-            return None
-        
-        logging.info(f"📥 Downloaded {file_name} from S3 ({len(file_content)} bytes)")
-        
+            file_content, _ = await storage.get(file_key)
+            if not file_content:
+                logging.warning(f"Failed to download file content for key: {file_key}")
+                return None
+
+            logging.info(f"📥 Downloaded {file_name} from S3 ({len(file_content)} bytes)")
+
+            # Cache to Redis as base64
+            if redis_client:
+                try:
+                    b64_content = base64.b64encode(file_content).decode('utf-8')
+                    await redis_client.set(cache_key, b64_content, ex=3600)  # 1 hour TTL
+                    logging.info(f"💾 Cached to Redis: {file_name}")
+                except Exception as e:
+                    logging.warning(f"Redis cache write failed for {file_name}: {e}")
+
         return {
             "file_data": {
                 "content": file_content,
-                "filename": file_name,           # Pulse modules expect "filename"
-                "file_name": file_name,          # Deep agent expects "file_name"
+                "filename": file_name,
+                "file_name": file_name,
                 "content_type": file_type,
-                "file_key": file_key
+                "file_key": file_key,
+                "s3_key": file_key  # backward compatibility
             },
             "file_info": {
                 "file_key": file_key,
@@ -78,10 +110,10 @@ async def _download_single_file(
                 "upload_time": datetime.now().isoformat(),
             }
         }
-        
+
     except Exception as file_error:
         logging.error(
-            f"Failed to process file {file_dict.get('file_name', 'unknown')}: {str(file_error)}", 
+            f"Failed to process file {file_dict.get('file_name', 'unknown')}: {str(file_error)}",
             exc_info=True
         )
         return None
@@ -136,12 +168,14 @@ async def process_files_from_storage(
     msg_id: str,
     session_id: str = None,
     query_user_id: str = None,
-    language: str = "en"
+    language: str = "en",
+    redis_client: Optional[Any] = None
 ) -> List[Dict[str, Any]]:
     """
     Process files from storage with concurrent downloads for better performance.
     
     All parameters are explicitly passed - no implicit context dependencies.
+    Supports Redis caching for improved performance.
     
     Args:
         file_list: List of file dicts with file_key, file_name, file_type, file_url, file_size
@@ -150,6 +184,7 @@ async def process_files_from_storage(
         session_id: Session ID (required, should be passed explicitly from caller)
         query_user_id: Query user ID (optional, defaults to user_id)
         language: Language code for extraction (default: "en", should be passed explicitly)
+        redis_client: Optional Redis client for caching (default None, backward compatible)
     
     Returns:
         List of file data dicts with 'content' (bytes), 'filename', 'content_type', 's3_key'
@@ -169,7 +204,7 @@ async def process_files_from_storage(
         
         # 🚀 Concurrent download: Create tasks for all files
         download_tasks = [
-            _download_single_file(file_dict, storage, session_id)
+            _download_single_file(file_dict, storage, session_id, redis_client)
             for file_dict in file_list
         ]
         

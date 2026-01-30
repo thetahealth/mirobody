@@ -108,6 +108,53 @@ PG_MAX_CONNECTION: 20
 # S3_CDN: ''
 
 #-----------------------------------------------------------------------------
+# User login.
+
+# EMAIL_FROM: ''
+# EMAIL_FROM_NAME: ''
+# EMAIL_TEMPLATE: ''
+# EMAIL_SMTP_PASS: ''
+
+# Predefined email addresses and verification codes for testing purposes.
+# EMAIL_PREDEFINE_CODES:
+#   someone@example.com: '123456'
+
+#-----------------------------------------------------------------------------
+# OAuth.
+
+# JWT secret key used for HS256 algorithm.
+JWT_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
+
+# JWT issuer.
+JWT_ISS: mirobody
+# JWT audience.
+JWT_AUD: mirobody_aud
+# JWT client ID.
+JWT_CLIENT_ID: mirobody_data
+# JWT scope.
+JWT_SCOPE: 'mcp:read mcp:write'
+
+# JWT private key used for RS256 algorithm.
+# JWT_PRIVATE_KEY: 'REPLACE_THIS_VALUE_IN_PRODUCTION'
+
+#-----------------------------------------------------------------------------
+
+# GOOGLE_CLIENT_ID: ''
+# FIREBASE_PROJECT_ID: ''
+
+# APPLE_TEAM_ID: ''
+# APPLE_KEY_ID: ''
+# APPLE_PRIVATE_KEY: ''
+
+# Apple OAuth client IDs for JWT token generation.
+# APPLE_CLIENT_ID: ''
+# APPLE_CLIENT_ID_APP: ''
+
+# Apple authorization code client ID.
+#   Can be omitted if the two client IDs above are identical.
+# APPLE_AUTH_CLIENT_ID: ''
+
+#-----------------------------------------------------------------------------
 # LLM Configuration.
 
 MCP_TOOL_DIRS:
@@ -201,47 +248,6 @@ DISALLOWED_TOOLS_BASELINE:
 PROMPTS_BASELINE:
 
 #-----------------------------------------------------------------------------
-# File Processing Configuration.
-
-# Enable or disable health indicator extraction from uploaded files.
-#   0 = disabled (skip extraction)
-#   1 = enabled (extract indicators)
-ENABLE_INDICATOR_EXTRACTION: 1
-
-#-----------------------------------------------------------------------------
-# OAuth and User Authentication.
-
-# JWT secret key used for HS256 algorithm.
-JWT_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
-
-# JWT private key used for RS256 algorithm.
-# JWT_PRIVATE_KEY: ''
-
-# GOOGLE_CLIENT_ID: ''
-# FIREBASE_PROJECT_ID: ''
-
-# APPLE_TEAM_ID: ''
-# APPLE_KEY_ID: ''
-# APPLE_PRIVATE_KEY: ''
-
-# Apple OAuth client IDs for JWT token generation.
-# APPLE_CLIENT_ID: ''
-# APPLE_CLIENT_ID_APP: ''
-
-# Apple authorization code client ID.
-#   Can be omitted if the two client IDs above are identical.
-# APPLE_AUTH_CLIENT_ID: ''
-
-# EMAIL_FROM: ''
-# EMAIL_FROM_NAME: ''
-# EMAIL_TEMPLATE: ''
-# EMAIL_SMTP_PASS: ''
-
-# Predefined email addresses and verification codes for testing purposes.
-# EMAIL_PREDEFINE_CODES:
-#   someone@example.com: '123456'
-
-#-----------------------------------------------------------------------------
 # Third-Party Platform Integrations (Health Devices and Services).
 
 # Vital Platform Configuration.
@@ -297,5 +303,13 @@ DATABASE_DECRYPTION_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
 
 # Jina API Key (OPTIONAL)
 # JINA_API_KEY: ''
+
+#-----------------------------------------------------------------------------
+# File Processing Configuration.
+
+# Enable or disable health indicator extraction from uploaded files.
+#   0 = disabled (skip extraction)
+#   1 = enabled (extract indicators)
+ENABLE_INDICATOR_EXTRACTION: 1
 
 #-----------------------------------------------------------------------------

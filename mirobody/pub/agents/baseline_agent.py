@@ -127,6 +127,7 @@ class GeminiClient():
         total_tokens    = 0
 
         steps = 0
+        interaction_id = None  # Initialize interaction_id
 
         while body:
             async with aiohttp.ClientSession() as session:
@@ -141,7 +142,9 @@ class GeminiClient():
                     body = None
 
                     if not response.ok:
-                        yield {"type": "error", "content": await response.text()}
+                        error_text = await response.text()
+                        logging.error(f"Gemini API error (status {response.status}): {error_text}")
+                        yield {"type": "error", "content": error_text}
 
                     else:
                         try:
@@ -246,6 +249,9 @@ class GeminiClient():
                                                     steps += 1
                                                     if steps > self._max_steps:
                                                         yield {"type": "error", "content": "Too many steps."}
+                                                    elif not interaction_id:
+                                                        logging.error("interaction_id is not available for function result")
+                                                        yield {"type": "error", "content": "Failed to get interaction context from Gemini"}
                                                     else:
                                                         body = {
                                                             "model": self._model,

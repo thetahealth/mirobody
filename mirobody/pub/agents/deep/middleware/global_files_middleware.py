@@ -17,11 +17,11 @@ from langchain.agents.middleware.types import AgentMiddleware, ModelRequest, Mod
 from langchain.tools import ToolRuntime
 from langchain_core.tools import BaseTool, StructuredTool
 
-from mirobody.utils import execute_query
-from mirobody.utils.config.storage import get_storage_client
+from .....utils import execute_query
+from .....utils.config.storage import get_storage_client
 
 if TYPE_CHECKING:
-    from mirobody.pub.agents.deep.backends.postgres_backend import PostgresBackend
+    from ..backends.postgres_backend import PostgresBackend
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ async def _get_file_info_from_file_key(file_key: str) -> Optional[Dict[str, Any]
     """Generate signed URL and metadata from file_key (with database lookup)."""
     try:
         # Try to get file info from database first
-        from mirobody.utils import execute_query
+        from .....utils import execute_query
         
         file_info = {
             "file_key": file_key,

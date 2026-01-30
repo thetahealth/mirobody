@@ -1,6 +1,4 @@
 
-SET search_path TO theta_ai, public;
-
 CREATE TABLE IF NOT EXISTS th_messages (
     id varchar(50) UNIQUE NOT NULL,
     user_id character varying(100) not null,
@@ -43,19 +41,7 @@ CREATE TABLE IF NOT EXISTS th_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_th_sessions_user_id ON th_sessions(user_id);
 
-DO $$
-BEGIN
-    -- Add category field
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_schema = 'theta_ai' 
-        AND table_name = 'th_sessions' 
-        AND column_name = 'category'
-    ) THEN
-        ALTER TABLE th_sessions ADD COLUMN category VARCHAR(50);
-    END IF;
-END
-$$;
+ALTER TABLE th_sessions ADD COLUMN IF NOT EXISTS category VARCHAR(50);
 
 
 CREATE TABLE IF NOT EXISTS series_data (
@@ -286,6 +272,5 @@ CREATE OR REPLACE VIEW v_th_series_data
     t1.source
    FROM th_series_data t1
      LEFT JOIN th_series_dim t2 ON t1.indicator::text = t2.original_indicator::text;
-SET search_path TO theta_ai;
 
 set check_function_bodies = off;

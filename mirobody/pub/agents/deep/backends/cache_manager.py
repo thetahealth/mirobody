@@ -35,8 +35,8 @@ import logging
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-from mirobody.utils.config import safe_read_cfg
-from mirobody.utils.db import execute_query
+from .....utils.config import safe_read_cfg
+from .....utils.db import execute_query
 
 logger = logging.getLogger(__name__)
 

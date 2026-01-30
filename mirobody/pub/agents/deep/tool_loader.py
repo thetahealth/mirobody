@@ -34,7 +34,7 @@ async def load_global_tools(
     Returns:
         List of LangChain StructuredTool instances
     """
-    from mirobody.mcp.tool import get_global_tools
+    from ....mcp.tool import get_global_tools
         
     existing_tools = get_global_tools()
     
@@ -159,37 +159,37 @@ async def load_global_tools(
     return langchain_tools
 
 
-async def load_mcp_tools(user_id: str, token: str) -> list[StructuredTool]:
-    """
-    Load user-specific MCP tools.
+# async def load_mcp_tools(user_id: str, token: str) -> list[StructuredTool]:
+#     """
+#     Load user-specific MCP tools.
     
-    Args:
-        user_id: User ID for tool loading
-        token: JWT token for authentication
+#     Args:
+#         user_id: User ID for tool loading
+#         token: JWT token for authentication
         
-    Returns:
-        List of LangChain StructuredTool instances
-    """
-    langchain_tools = []
+#     Returns:
+#         List of LangChain StructuredTool instances
+#     """
+#     langchain_tools = []
     
-    try:
-        from mirobody.chat.mcp_loader import load_user_mcp_tools
+#     try:
+#         from ....chat.mcp_loader import load_user_mcp_tools
         
-        logger.info(f"Loading user MCP tools for user_id: {user_id}")
-        user_mcp_tools = await load_user_mcp_tools(
-            user_id=user_id,
-            jwt_token=token
-        )
+#         logger.info(f"Loading user MCP tools for user_id: {user_id}")
+#         user_mcp_tools = await load_user_mcp_tools(
+#             user_id=user_id,
+#             jwt_token=token
+#         )
         
-        if user_mcp_tools:
-            langchain_tools.extend(user_mcp_tools)
-            logger.info(f"Added {len(user_mcp_tools)} user MCP tools to DeepAgent")
-            tool_names = [tool.name for tool in user_mcp_tools]
-            tool_names_str = ", ".join(tool_names)
-            logger.info(f"Loaded {len(user_mcp_tools)} user MCP tools, tool names: {tool_names_str}")
-        else:
-            logger.info("No user MCP tools configured or loaded")
-    except Exception as e:
-        logger.error(f"Failed to load user MCP tools: {e}", exc_info=True)
+#         if user_mcp_tools:
+#             langchain_tools.extend(user_mcp_tools)
+#             logger.info(f"Added {len(user_mcp_tools)} user MCP tools to DeepAgent")
+#             tool_names = [tool.name for tool in user_mcp_tools]
+#             tool_names_str = ", ".join(tool_names)
+#             logger.info(f"Loaded {len(user_mcp_tools)} user MCP tools, tool names: {tool_names_str}")
+#         else:
+#             logger.info("No user MCP tools configured or loaded")
+#     except Exception as e:
+#         logger.error(f"Failed to load user MCP tools: {e}", exc_info=True)
     
-    return langchain_tools
+#     return langchain_tools

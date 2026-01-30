@@ -94,9 +94,16 @@ class HTTPChatAdapter(ChatProtocolAdapter):
     1. Uses Server-Sent Events (SSE) for streaming
     2. Uses real session_id for session management
     3. scene='web' for web connections
+    4. Supports Redis connection pool reuse across requests
     """
     
     def __init__(self, chat_service: UnifiedChatService):
+        """
+        Initialize HTTP chat adapter.
+        
+        Args:
+            chat_service: Unified chat service instance
+        """
         super().__init__(chat_service)
         self.scene = "web"
     
@@ -185,32 +192,40 @@ class HTTPChatAdapter(ChatProtocolAdapter):
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)}, ensure_ascii=False)}\n\n"
     
     async def _process_files_if_needed(
-        self, 
-        params: ChatStreamRequest, 
+        self,
+        params: ChatStreamRequest,
         msg_id: str
     ) -> list[dict] | None:
         """
         Process files if file_list is provided.
         Safe to use in asyncio.gather() - returns files_data with content if files exist.
-        
+
         All parameters are passed explicitly from ChatStreamRequest.
-        
+
         Returns:
             List of file data dicts with 'content' (bytes) if files processed, None otherwise
         """
         if not params.file_list:
             return None
-        
+
+        # Get Redis client dynamically
+        from ...utils.config import global_config
+        redis_client = None
+        try:
+            redis_client = await global_config().get_redis().get_async_client()
+        except Exception as e:
+            logging.warning(f"Failed to get Redis client for file caching: {e}")
+
         files_data = await process_files_from_storage(
             file_list=params.file_list,
             user_id=params.user_id,
             msg_id=msg_id,
             session_id=params.session_id,
             query_user_id=params.query_user_id,
-            language=params.language  # Explicit parameter from request
+            language=params.language,
+            redis_client=redis_client
         )
-        
-        # Return files_data (with content) to avoid re-downloading in Agent
+
         return files_data if files_data else None
     
     async def _save_question_if_needed(

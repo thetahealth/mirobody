@@ -1,21 +1,7 @@
-"""
-PostgreSQL Backend Implementation
+"""PostgreSQL Backend: Store files in PostgreSQL with intelligent parsing.
 
-Implements BackendProtocol using PostgresLangGraphStore for persistent storage
-and FileParser for intelligent file parsing.
-
-Key Features:
-- Persistent storage across sessions/threads using PostgreSQL
-- Intelligent file parsing (PDF, DOCX, images)
-- Lazy parsing strategy (parse only when needed)
-- Local caching for performance
-- Full BackendProtocol compatibility
-
-Architecture:
-    PostgresBackend (BackendProtocol)
-        ├── PostgresLangGraphStore (persistence)
-        ├── FileParser (intelligent parsing)
-        └── TTLCache (local caching)
+Persistent storage across sessions using PostgresLangGraphStore, with lazy file
+parsing (PDF, DOCX, images) and local caching for performance optimization.
 """
 
 import asyncio
@@ -28,7 +14,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
-# Try to import cachetools, fallback to simple dict if not available
 try:
     from cachetools import TTLCache
     HAS_CACHETOOLS = True
@@ -76,27 +61,10 @@ FILE_TYPE_MAP = {
 
 
 class PostgresBackend:
-    """
-    PostgreSQL-backed implementation of BackendProtocol.
-    
-    Provides persistent file storage using PostgresLangGraphStore with
-    intelligent file parsing capabilities via FileParser.
-    
-    FileData format (stored in PostgreSQL as JSONB):
-    {
-        "content": ["line1", "line2", ...],      # Parsed text lines
-        "raw_content": "base64_encoded_bytes",   # Original binary (optional)
-        "file_type": "PDF" | "IMAGE" | "TEXT",   # File type
-        "file_extension": ".pdf",                # File extension
-        "parsed": True | False,                  # Parse status
-        "created_at": "ISO_timestamp",
-        "modified_at": "ISO_timestamp",
-        "metadata": {
-            "parse_mode": "llm",
-            "original_size": 1024,
-            ...
-        }
-    }
+    """Backend that stores files in PostgreSQL with session-based isolation.
+
+    Files are stored as parsed text with metadata in PostgreSQL. Binary content
+    is parsed lazily on first read and cached for subsequent access.
     """
     
     def __init__(
@@ -124,18 +92,35 @@ class PostgresBackend:
         self.store = store
         self.file_parser = file_parser
         
-        # Local cache for performance (key is file_path only)
+        # Local cache for performance
         if HAS_CACHETOOLS:
             self._cache = TTLCache(maxsize=cache_maxsize, ttl=cache_ttl)
         else:
-            # Fallback to simple dict cache (no TTL)
             self._cache = {}
         
+        # Pending files: {file_key: content_bytes}
+        self._pending_files: dict[str, bytes] = {}
+
         logger.info(
             f"PostgresBackend initialized: session={session_id}, user={user_id}, "
             f"file_parser={'enabled' if file_parser else 'disabled'}, "
             f"cache={'TTL' if HAS_CACHETOOLS else 'dict'}"
         )
+
+    def store_pending_files(self, files_data: list[dict[str, Any]]) -> None:
+        """Store file content for processing."""
+        if not files_data:
+            return
+
+        for f in files_data:
+            content = f.get("content")
+            if content and isinstance(content, bytes):
+                if f.get("file_key"):
+                    self._pending_files[f["file_key"]] = content
+                if f.get("file_name"):
+                    self._pending_files[f["file_name"]] = content
+
+        logger.info(f"Stored {len(files_data)} file contents for processing")
     
     def _get_file_type(self, extension: str) -> str:
         """Get file type from extension."""
@@ -145,15 +130,12 @@ class PostgresBackend:
         return FILE_TYPE_MAP.get(ext_lower, 'UNKNOWN')
     
     def _match_glob(self, file_path: str, glob_pattern: str) -> bool:
-        """
-        Match file path against glob pattern.
-        
-        Supports standard glob patterns: *, ?, [seq], [!seq]
-        
+        """Match file path against glob pattern (*, ?, [seq], [!seq]).
+
         Args:
             file_path: File path to match
             glob_pattern: Glob pattern (e.g., "*.txt", "test_*.py")
-            
+
         Returns:
             True if path matches pattern
         """
@@ -167,12 +149,7 @@ class PostgresBackend:
         return fnmatch.fnmatch(filename, glob_pattern)
     
     def _run_async(self, coro):
-        """
-        Run async coroutine in sync context.
-        
-        Handles nested event loop issues by checking for running loops
-        and using thread pool executor when necessary.
-        """
+        """Run async coroutine in sync context with nested loop handling."""
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
@@ -188,42 +165,48 @@ class PostgresBackend:
             return asyncio.run(coro)
     
     async def _get_file_data(self, file_path: str) -> Optional[dict]:
-        """
-        Get file data from workspace with caching.
-        
-        Args:
-            file_path: File path (used as key)
-            
-        Returns:
-            FileData dict or None if not found
-        """
-        # Check local cache first
+        """Get file data: cache → database → pending files."""
+        # Check cache
         if file_path in self._cache:
-            logger.debug(f"Cache hit: {file_path}")
             return self._cache[file_path]
         
-        # Query PostgreSQL
         try:
+            # Check database
             item = await self.store.get((self.session_id, self.user_id), file_path)
+            if item:
+                self._cache[file_path] = item.value
+                return item.value
             
-            if item is None:
-                return None
+            # Check pending files (stores content bytes)
+            file_name = Path(file_path).name
+            file_key = file_path[9:] if file_path.startswith("/uploads/") else None
+
+            binary_content = (
+                self._pending_files.get(file_key) or
+                self._pending_files.get(file_name)
+            )
+
+            if binary_content:
+                file_ext = Path(file_path).suffix
+                file_data = {
+                    "content": [],
+                    "raw_content": base64.b64encode(binary_content).decode('utf-8'),
+                    "file_type": self._get_file_type(file_ext),
+                    "file_extension": file_ext,
+                    "parsed": False
+                }
+                self._cache[file_path] = file_data
+                return file_data
             
-            file_data = item.value
-            
-            # Update local cache
-            self._cache[file_path] = file_data
-            
-            return file_data
+            return None
             
         except Exception as e:
             logger.error(f"Failed to get file data for {file_path}: {e}", exc_info=True)
             return None
     
     async def _put_file_data(self, file_path: str, file_data: dict) -> None:
-        """
-        Save file data to workspace and update cache.
-        
+        """Save file data to database and update cache.
+
         Args:
             file_path: File path (used as key)
             file_data: FileData dict
@@ -247,20 +230,12 @@ class PostgresBackend:
             raise
     
     async def _download_reference_file(self, file_path: str, file_data: dict) -> bool:
-        """
-        Download reference file from external storage or URL.
-        
-        Supports two download methods:
-        1. file_key: Download from S3/OSS storage using storage client
-        2. url: Download from HTTP/HTTPS URL
-        
-        Downloads binary, stores as base64 in raw_content,
-        marks is_reference = False, and saves to database + cache.
-        
+        """Download file from storage (file_key) or HTTP (url).
+
         Args:
-            file_path: File path in workspace (e.g., /workspace/global_files/report.pdf)
-            file_data: FileData dict with file_key or url for download
-            
+            file_path: File path in workspace
+            file_data: FileData dict with file_key or url
+
         Returns:
             True if download successful, False otherwise
         """
@@ -272,7 +247,7 @@ class PostgresBackend:
             if file_key:
                 logger.info(f"Downloading from storage: {file_key}")
                 try:
-                    from mirobody.utils.config.storage import get_storage_client
+                    from .....utils.config.storage import get_storage_client
                     storage = get_storage_client()
                     file_content, _ = await storage.get(file_key)
                     
@@ -350,140 +325,99 @@ class PostgresBackend:
             return False
     
     async def _parse_file_lazy(self, file_path: str, file_data: dict) -> str:
-        """
-        Parse file content using FileParser (lazy loading).
-        
-        Args:
-            file_path: File path
-            file_data: FileData dict with raw_content
-            
-        Returns:
-            Parsed text content
-        """
+        """Parse file with global cache support."""
         if not self.file_parser:
             return "[No file parser available]"
         
         raw_content_b64 = file_data.get("raw_content", "")
+        file_type = file_data.get("file_type", "UNKNOWN")
         if not raw_content_b64:
-            return "[No raw content to parse]"
+            return "[No raw content]"
         
         try:
-            # Decode base64 to bytes
-            file_bytes = base64.b64decode(raw_content_b64)
+            from .cache_manager import get_cache_manager, calculate_content_hash
+            import time
             
-            # Get file info
-            file_ext = file_data.get("file_extension", "")
+            file_bytes = base64.b64decode(raw_content_b64)
             file_name = Path(file_path).name
             
-            logger.debug(f"Parsing file: {file_name} ({len(file_bytes)} bytes)")
+            # Check global cache
+            content_hash = calculate_content_hash(file_bytes)
+            cache_manager = get_cache_manager()
+            cached_data = await cache_manager.get_cached_file(content_hash)
             
-            # Call FileParser (async)
-            parsed_content = await self.file_parser.parse_file(
-                io.BytesIO(file_bytes),
-                file_ext,
-                file_name
+            if cached_data:
+                logger.info(f"🎯 Cache hit: {file_name}")
+                return cached_data["content"]
+            
+            # Parse file
+            logger.info(f"📄 Parsing: {file_name}")
+            parse_start = time.time()
+            
+            # ✅ Correctly unpack tuple: (parsed_text, parse_method, parse_model)
+            parsed_content, parse_method, parse_model = await self.file_parser.parse_file(
+                file_input=io.BytesIO(file_bytes),
+                filename=file_name,
+                file_type=file_type
             )
             
-            logger.info(f"Successfully parsed {file_name}: {len(parsed_content)} chars")
+            parse_duration_ms = int((time.time() - parse_start) * 1000)
+            logger.info(f"✅ Parsed {file_name}: {len(parsed_content)} chars, {parse_duration_ms}ms")
+            
+            # Save to global cache
+            await cache_manager.save_cached_file(
+                content_hash=content_hash,
+                content=parsed_content,
+                file_type=file_type,
+                file_extension=file_data.get("file_extension", ""),
+                original_size=len(file_bytes),
+                parse_method=parse_method,
+                parse_model=parse_model,
+                parse_duration_ms=parse_duration_ms,
+                file_key=file_data.get("file_key")
+            )
+            
             return parsed_content
             
         except Exception as e:
-            logger.error(f"Failed to parse file {file_path}: {e}", exc_info=True)
+            logger.error(f"Parse failed for {file_path}: {e}", exc_info=True)
             return f"[Parse Error: {str(e)}]"
     
     # ==================== BackendProtocol Methods ====================
     
     def ls_info(self, path: str = "/") -> list[FileInfo]:
-        """
-        List files in a directory.
-        
+        """List files in the directory (non-recursive).
+
         Args:
             path: Directory path (default: "/")
-            
+
         Returns:
             List of FileInfo objects
         """
         return self._run_async(self._ls_info_async(path))
     
     async def als_info(self, path: str = "/") -> list[FileInfo]:
-        """
-        Async version of ls_info.
-        
-        Args:
-            path: Directory path (default: "/")
-            
-        Returns:
-            List of FileInfo objects
-        """
+        """Async version of ls_info."""
         return await self._ls_info_async(path)
     
     async def aread(self, file_path: str, offset: int = 0, limit: int = 2000) -> str:
-        """
-        Async version of read.
-        
-        Args:
-            file_path: File path
-            offset: Line offset (0-indexed)
-            limit: Maximum lines to return
-            
-        Returns:
-            Formatted file content with line numbers
-        """
+        """Async version of read."""
         return await self._read_async(file_path, offset, limit)
     
     async def awrite(self, file_path: str, content: str) -> WriteResult:
-        """
-        Async version of write.
-        
-        Args:
-            file_path: File path
-            content: Text content
-            
-        Returns:
-            WriteResult
-        """
+        """Async version of write."""
         return await self._write_async(file_path, content)
     
-    async def aedit(
-        self,
-        file_path: str,
-        old_string: str,
-        new_string: str,
-        replace_all: bool = False
-    ) -> EditResult:
-        """
-        Async version of edit.
-        
-        Args:
-            file_path: File path
-            old_string: String to replace
-            new_string: Replacement string
-            replace_all: Replace all occurrences
-            
-        Returns:
-            EditResult
-        """
+    async def aedit(self, file_path: str, old_string: str, new_string: str, replace_all: bool = False) -> EditResult:
+        """Async version of edit."""
         return await self._edit_async(file_path, old_string, new_string, replace_all)
     
     async def aglob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
-        """
-        Async version of glob_info.
-        
-        Args:
-            pattern: Glob pattern (e.g., "*.txt", "test_*.py")
-            path: Directory path to search in (default: "/")
-            
-        Returns:
-            List of FileInfo objects sorted by path
-        """
+        """Async version of glob_info."""
         return await self._glob_info_async(pattern, path)
     
     async def _ls_info_async(self, path: str) -> list[FileInfo]:
-        """
-        List files in workspace.
-        
-        Includes all files (local + global references).
-        """
+        """List files in workspace matching path prefix."""
         try:
             # Search workspace
             items = await self.store.search((self.session_id, self.user_id))
@@ -515,82 +449,50 @@ class PostgresBackend:
             return []
     
     def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> str:
-        """
-        Read file with intelligent lazy parsing.
-        
-        Workflow:
-        1. Get file data from store
-        2. Check if already parsed
-        3. If not parsed and needs parsing → call _parse_file_lazy()
-        4. Cache parsed content
-        5. Return formatted content with line numbers
-        
+        """Read file content with lazy parsing (parse on first read, cache after).
+
         Args:
             file_path: File path
             offset: Line offset (0-indexed)
             limit: Maximum lines to return
-            
+
         Returns:
             Formatted file content with line numbers
         """
         return self._run_async(self._read_async(file_path, offset, limit))
     
     async def _read_async(self, file_path: str, offset: int, limit: int) -> str:
-        """
-        Read file with lazy loading and caching guarantee.
-        
-        Performance:
-        - First read: 2-10 seconds (download + parse)
-        - Subsequent reads: < 1ms (cache hit)
-        - Edit/grep after read: < 1ms (use cached content)
-        
-        Caching guarantee: Once parsed, content stays in cache for entire session.
-        No re-download, no re-parsing on subsequent reads/edits/greps.
-        """
+        """Read file with lazy loading. First read: parse, subsequent: cached."""
         # Get file_data from cache or database
         file_data = await self._get_file_data(file_path)
         
         if file_data is None:
             return f"Error: File '{file_path}' not found"
         
-        # ⚡ Fast path: Already parsed and cached
+        # Fast path: already parsed
         if file_data.get("parsed") and file_data.get("content"):
-            logger.debug(f"Cache hit (parsed): {file_path}")
             return self._format_file_content(file_data, offset, limit)
         
-        # Slow path: Need to download/parse
-        
-        # Step 1: Handle reference (lazy download)
+        # Download if needed
         if file_data.get("is_reference"):
-            logger.info(f"Lazy downloading: {file_path}")
-            downloaded = await self._download_reference_file(file_path, file_data)
-            if not downloaded:
+            if not await self._download_reference_file(file_path, file_data):
                 return f"Error: Failed to download '{file_path}'"
-            
-            # Reload after download
             file_data = await self._get_file_data(file_path)
         
-        # Step 2: Parse if needed (PDF/DOCX/IMAGE/EXCEL)
+        # Parse if needed
         file_type = file_data.get("file_type", "UNKNOWN")
         if not file_data.get("parsed") and file_type in ["PDF", "DOCX", "IMAGE", "DOC", "EXCEL"]:
             if self.file_parser:
-                logger.info(f"Lazy parsing: {file_path} ({file_type})")
                 parsed_content = await self._parse_file_lazy(file_path, file_data)
-                
-                # Cache parsed content
                 file_data["content"] = parsed_content.split("\n") if parsed_content else []
                 file_data["parsed"] = True
                 file_data["metadata"] = file_data.get("metadata", {})
                 file_data["metadata"]["parse_timestamp"] = datetime.now().isoformat()
-                
-                # Save to database and local cache
                 await self._put_file_data(file_path, file_data)
-                
-                logger.info(f"✅ Cached: {file_path} ({len(file_data['content'])} lines)")
             else:
-                logger.warning(f"No file_parser available for {file_type}: {file_path}")
+                logger.warning(f"No parser for {file_type}: {file_path}")
         
-        # For text files without raw_content, mark as already parsed
+        # Mark text files as parsed
         if not file_data.get("parsed") and not file_data.get("raw_content"):
             file_data["parsed"] = True
             await self._put_file_data(file_path, file_data)
@@ -631,20 +533,19 @@ class PostgresBackend:
         return format_content_with_line_numbers(selected_lines, start_line=start_idx + 1)
     
     def write(self, file_path: str, content: str) -> WriteResult:
-        """
-        Create a new text file.
-        
+        """Create a new text file (fails if file already exists).
+
         Args:
             file_path: File path
             content: Text content
-            
+
         Returns:
             WriteResult
         """
         return self._run_async(self._write_async(file_path, content))
     
     async def _write_async(self, file_path: str, content: str) -> WriteResult:
-        """Async implementation of write."""
+        """Create new file in workspace."""
         # Check if file already exists
         existing = await self._get_file_data(file_path)
         if existing is not None:
@@ -669,43 +570,24 @@ class PostgresBackend:
         
         return WriteResult(path=file_path, files_update={file_path: file_data})
     
-    def edit(
-        self,
-        file_path: str,
-        old_string: str,
-        new_string: str,
-        replace_all: bool = False
-    ) -> EditResult:
-        """
-        Edit file by replacing strings.
-        
+    def edit(self, file_path: str, old_string: str, new_string: str,
+             replace_all: bool = False) -> EditResult:
+        """Edit file by replacing old_string with new_string.
+
         Args:
             file_path: File path
             old_string: String to replace
             new_string: Replacement string
-            replace_all: Replace all occurrences
-            
+            replace_all: Replace all occurrences (default: False)
+
         Returns:
             EditResult
         """
         return self._run_async(self._edit_async(file_path, old_string, new_string, replace_all))
     
-    async def _edit_async(
-        self,
-        file_path: str,
-        old_string: str,
-        new_string: str,
-        replace_all: bool
-    ) -> EditResult:
-        """
-        Edit file in-place.
-        
-        All edits affect only this session's workspace (session isolation).
-        Global files are already in workspace after fetch.
-        
-        Note: File content must be available (cached).
-        For global files, read them first to cache content.
-        """
+    async def _edit_async(self, file_path: str, old_string: str, new_string: str,
+                          replace_all: bool) -> EditResult:
+        """Edit file in-place with session isolation."""
         # Get file_data (from cache or database)
         file_data = await self._get_file_data(file_path)
         
@@ -759,61 +641,28 @@ class PostgresBackend:
             occurrences=int(occurrences)
         )
     
-    def grep_raw(
-        self,
-        pattern: str,
-        path: Optional[str] = None,
-        glob: Optional[str] = None
-    ) -> list[GrepMatch] | str:
-        """
-        Search for pattern in files.
-        
+    def grep_raw(self, pattern: str, path: Optional[str] = None,
+                 glob: Optional[str] = None) -> list[GrepMatch] | str:
+        """Search for regex pattern in files.
+
         Args:
             pattern: Search pattern (regex)
-            path: Directory path to search in (default: "/")
+            path: Directory path to search (default: "/")
             glob: File glob pattern (default: "*")
-            
+
         Returns:
             List of GrepMatch objects, or error string for invalid regex
         """
         return self._run_async(self._grep_raw_async(pattern, path, glob))
     
-    async def agrep_raw(
-        self,
-        pattern: str,
-        path: Optional[str] = None,
-        glob: Optional[str] = None
-    ) -> list[GrepMatch] | str:
-        """
-        Async version of grep_raw.
-        
-        Args:
-            pattern: Search pattern (regex)
-            path: Directory path to search in (default: "/")
-            glob: File glob pattern (default: "*")
-            
-        Returns:
-            List of GrepMatch objects, or error string for invalid regex
-        """
+    async def agrep_raw(self, pattern: str, path: Optional[str] = None,
+                        glob: Optional[str] = None) -> list[GrepMatch] | str:
+        """Async version of grep_raw."""
         return await self._grep_raw_async(pattern, path, glob)
     
-    async def _grep_raw_async(
-        self,
-        pattern: str,
-        path: Optional[str],
-        glob: Optional[str]
-    ) -> list[GrepMatch] | str:
-        """
-        Search all workspace files (local + cached global).
-        
-        Performance:
-        - Searches cached content only (no download/parse triggered)
-        - If global file not yet read, it's skipped (invisible to grep)
-        - If global file was read before, searches its cached content (fast)
-        
-        Skips: Reference files that haven't been downloaded yet
-               (is_reference=true and content is empty)
-        """
+    async def _grep_raw_async(self, pattern: str, path: Optional[str],
+                              glob: Optional[str]) -> list[GrepMatch] | str:
+        """Search cached workspace files (no download/parse triggered)."""
         # Set defaults
         if path is None:
             path = "/"
@@ -889,12 +738,7 @@ class PostgresBackend:
         return self._run_async(self._glob_info_async(pattern, path))
     
     async def _glob_info_async(self, pattern: str, path: str) -> list[FileInfo]:
-        """
-        Find files matching pattern in workspace.
-        
-        Includes all files (local + global references).
-        Unlike grep, glob shows ALL files including un-downloaded references.
-        """
+        """Find files in workspace matching glob pattern (includes all files)."""
         try:
             # Search workspace
             items = await self.store.search((self.session_id, self.user_id))
@@ -933,32 +777,18 @@ class PostgresBackend:
             return []
     
     def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        """
-        Upload binary files to store.
-        
-        Creates FileData entries with:
-        - raw_content: base64 encoded binary
-        - parsed: False (lazy parsing)
-        - file_type: Detected from extension
-        
+        """Upload binary files to workspace (lazy parsing).
+
         Args:
             files: List of (file_path, file_bytes) tuples
-            
+
         Returns:
             List of FileUploadResponse objects
         """
         return self._run_async(self._upload_files_async(files))
     
     async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        """
-        Async version of upload_files.
-        
-        Args:
-            files: List of (file_path, file_bytes) tuples
-            
-        Returns:
-            List of FileUploadResponse objects
-        """
+        """Async version of upload_files."""
         return await self._upload_files_async(files)
     
     async def _upload_files_async(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
@@ -1001,33 +831,22 @@ class PostgresBackend:
         return responses
     
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        """
-        Download files from store.
-        
-        Returns raw binary content (decoded from base64).
-        
+        """Download binary file content from workspace.
+
         Args:
             paths: List of file paths
-            
+
         Returns:
             List of FileDownloadResponse objects
         """
         return self._run_async(self._download_files_async(paths))
     
     async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        """
-        Async version of download_files.
-        
-        Args:
-            paths: List of file paths
-            
-        Returns:
-            List of FileDownloadResponse objects
-        """
+        """Async version of download_files."""
         return await self._download_files_async(paths)
     
     async def _download_files_async(self, paths: list[str]) -> list[FileDownloadResponse]:
-        """Async implementation of download_files."""
+        """Download binary content (decoded from base64)."""
         responses = []
         
         for file_path in paths:
@@ -1074,48 +893,26 @@ class PostgresBackend:
     # New Methods: Parsed File Upload & Parse
     # ========================================
     
-    def upload_parsed_files(
-        self, 
-        files: list[tuple[str, str, dict[str, Any]]]
-    ) -> list[FileUploadResponse]:
-        """
-        Upload already-parsed files to workspace.
-        
-        This method stores parsed text content (not binary) directly to workspace.
-        Used by file_handler after parsing or cache lookup.
-        
+    def upload_parsed_files(self, files: list[tuple[str, str, dict[str, Any]]]
+                           ) -> list[FileUploadResponse]:
+        """Upload already-parsed text files (used by file_handler).
+
         Args:
             files: List of (file_path, parsed_text, metadata) tuples
-                - file_path: Path in workspace (e.g., /uploads/report.pdf)
-                - parsed_text: Parsed content as plain text (newline-separated)
-                - metadata: Dict with:
-                    - content_hash: SHA256 hash
-                    - file_key: Reference to th_files.file_key
-                    - file_type: PDF/DOCX/IMAGE/TEXT/UNKNOWN
-                    - file_extension: .pdf, .docx, etc.
-                    - parsed: Boolean flag
-                    - cache_hit: Whether content was from cache
-                    - parse_method: Parse method used
-                    - parse_model: Model used for parsing
-                    - etc.
-        
+
         Returns:
             List of FileUploadResponse objects
         """
         return self._run_async(self._upload_parsed_files_async(files))
     
-    async def aupload_parsed_files(
-        self, 
-        files: list[tuple[str, str, dict[str, Any]]]
-    ) -> list[FileUploadResponse]:
+    async def aupload_parsed_files(self, files: list[tuple[str, str, dict[str, Any]]]
+                                  ) -> list[FileUploadResponse]:
         """Async version of upload_parsed_files."""
         return await self._upload_parsed_files_async(files)
     
-    async def _upload_parsed_files_async(
-        self, 
-        files: list[tuple[str, str, dict[str, Any]]]
-    ) -> list[FileUploadResponse]:
-        """Async implementation of upload_parsed_files."""
+    async def _upload_parsed_files_async(self, files: list[tuple[str, str, dict[str, Any]]]
+                                        ) -> list[FileUploadResponse]:
+        """Store parsed text files to workspace."""
         responses = []
         
         for file_path, parsed_text, metadata in files:
@@ -1152,22 +949,15 @@ class PostgresBackend:
         
         return responses
     
-    async def parse_file(
-        self,
-        file_bytes: bytes,
-        file_name: str,
-        file_type: str
-    ) -> tuple[str, str, str]:
-        """
-        Parse file content to plain text.
-        
-        Uses FileParser to extract text from various file types.
-        
+    async def parse_file(self, file_bytes: bytes, file_name: str,
+                        file_type: str) -> tuple[str, str, str]:
+        """Parse binary file to text using FileParser.
+
         Args:
             file_bytes: Raw file binary content
             file_name: File name (for context)
             file_type: File type (PDF/DOCX/IMAGE/TEXT/UNKNOWN)
-        
+
         Returns:
             Tuple of (parsed_text, parse_method, parse_model)
         """
@@ -1185,24 +975,15 @@ class PostgresBackend:
                 file_ext = file_type.lower()
             
             # Use FileParser to parse content
-            # FileParser.parse_file(file_input: FileInput, file_type: str, filename: Optional[str])
-            parsed_text = await self.file_parser.parse_file(
+            # ✅ FileParser.parse_file() returns tuple: (parsed_text, parse_method, parse_model)
+            parsed_text, parse_method, parse_model = await self.file_parser.parse_file(
                 file_input=file_io,
-                file_type=file_ext,
-                filename=file_name
+                filename=file_name,
+                file_type=file_ext
             )
             
-            # FileParser returns string directly
-            if isinstance(parsed_text, str):
-                # Infer parse method from file type
-                parse_method = f"fileparser-{file_ext}"
-                parse_model = ""
-                
-                return (parsed_text, parse_method, parse_model)
-            
-            else:
-                logger.warning(f"Unexpected parse result type: {type(parsed_text)}")
-                return ("", "unknown", "")
+            # Return the tuple directly from FileParser
+            return (parsed_text, parse_method, parse_model)
         
         except Exception as e:
             logger.error(f"Parse failed for {file_name}: {e}", exc_info=True)

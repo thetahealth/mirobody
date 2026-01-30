@@ -15,18 +15,20 @@ from mirobody.utils.llm import unified_file_extract
 from mirobody.utils.req_ctx import get_req_ctx
 from mirobody.utils.utils_asr import asr_paraformer_with_urls
 
-
+DEFAULT_PROMPT = "Extract the content from the file, return only the file content in markdown format, do not return any other information"
 
 class ContentExtractor:
     """Content extraction service class"""
 
     @staticmethod
-    async def extract_from_file(file_path: Path, content_type: str = "text/plain") -> str:
+    async def extract_from_file(file_path: Path, content_type: str = "text/plain", prompt: str = DEFAULT_PROMPT) -> str:
         """
         Extract text content from file
 
         Args:
             file_path: File path
+            content_type: MIME content type
+            prompt: Custom prompt for LLM extraction (default: general extraction)
 
         Returns:
             str: Extracted text content
@@ -49,7 +51,6 @@ class ContentExtractor:
                 return raw_text
 
             logging.info("Using unified_file_extract to extract content")
-            prompt = "Extract the content from the file, return only the file content in markdown format, do not return any other information"
             raw_text = await unified_file_extract(
                 file_path=str(file_path),
                 prompt=prompt,
@@ -84,38 +85,42 @@ class ContentExtractor:
             return {}
 
     @staticmethod
-    async def extract_from_image(file_path: Path, content_type: str = "image/jpeg") -> str:
+    async def extract_from_image(file_path: Path, content_type: str = "image/jpeg", prompt: str = DEFAULT_PROMPT) -> str:
         """
         Extract text content from image file
 
         Args:
             file_path: Image file path
+            content_type: MIME content type
+            prompt: Custom prompt for LLM extraction
 
         Returns:
             str: Extracted text content
         """
         try:
             logging.info(f"Starting to process image file: {file_path}")
-            raw_text = await ContentExtractor.extract_from_file(file_path, content_type)
+            raw_text = await ContentExtractor.extract_from_file(file_path, content_type, prompt)
             return raw_text
         except Exception as e:
             logging.error(f"Image content extraction error: {str(e)}", stack_info=True)
             return ""
 
     @staticmethod
-    async def extract_from_pdf(file_path: Path, content_type: str = "application/pdf") -> str:
+    async def extract_from_pdf(file_path: Path, content_type: str = "application/pdf", prompt: str = DEFAULT_PROMPT) -> str:
         """
         Extract text content from PDF file
 
         Args:
             file_path: PDF file path
+            content_type: MIME content type
+            prompt: Custom prompt for LLM extraction
 
         Returns:
             str: Extracted text content
         """
         try:
             logging.info(f"Starting to process PDF file: {file_path}")
-            raw_text = await ContentExtractor.extract_from_file(file_path, content_type)
+            raw_text = await ContentExtractor.extract_from_file(file_path, content_type, prompt)
             return raw_text
         except Exception as e:
             logging.error(f"PDF content extraction error: {str(e)}", stack_info=True)
