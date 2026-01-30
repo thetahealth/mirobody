@@ -1,0 +1,102 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mirobody"
+dynamic = ["version"]
+authors = [
+    {name = "Theta AI Team", email = "developer@thetahealth.ai"},
+]
+description = "Mirobody is a Python package for processing and analyzing health data."
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["health", "wellness", "data processing", "AI", "LLM"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "setuptools",
+    "python-dotenv",
+    "ruamel.yaml<0.18.0",
+    "cryptography",
+    "redis",
+    "psycopg[binary]",
+    "psycopg[pool]",
+    "sqlalchemy",
+    "pandas",
+    "aiohttp",
+    "starlette",
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "pyjwt",
+    "pytz",
+    "aioboto3",
+    "cachetools",
+    "pypdf>=5.1.0",
+    "pypdfium2>=4.30.0",
+    "pdfplumber~=0.11.7",
+    "Pillow>=11.1.0,<12.0.0",
+    "tinytag>=1.6.0",
+    "mutagen~=1.47.0",
+    "rarfile~=4.0",
+    "py7zr~=0.22.0",
+    "openpyxl~=3.1.5",
+    "mandrill",
+    "openai>=2.11.0",
+    "openai-agents",
+    "google-genai",
+    "volcengine-python-sdk[ark]~=3.0.1",
+    "langchain",
+    "langchain-openai",
+    "langchain-anthropic",
+    "langchain-google-genai>=4.1.2",
+    "langchain-google-vertexai",
+    "langchain_community",
+    "deepagents",
+    "jinja2",
+    "dashscope",
+    "aiofiles~=24.1.0",
+    "oss2",
+    "pycryptodome>=3.20.0",
+    "requests-oauthlib",
+    "tiktoken>=0.9.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/thetahealth/mirobody"
+"Bug Reports" = "https://github.com/thetahealth/mirobody/issues"
+"Source" = "https://github.com/thetahealth/mirobody"
+
+[tool.setuptools]
+packages = ["mirobody"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+mirobody = [
+    "**/*.md",
+    "**/*.sql",
+    "**/*.json",
+    "**/*.yaml",
+    "**/*.jinja",
+    "**/*.so",
+    "**/*.html",
+    "**/*.htm",
+    "**/*.js",
+    "**/*.css",
+    "**/*.png",
+    "**/*.jpg",
+    "**/*.jpeg",
+    "**/*.svg",
+    "**/*.ico",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "mirobody.__version__"}
