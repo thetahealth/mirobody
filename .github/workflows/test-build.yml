@@ -1,6 +1,6 @@
 name: Test Build
 
-# 手动触发、PR 或推送时触发
+# Triggered manually, on PR, or on push
 on:
   workflow_dispatch:
     inputs:
@@ -55,13 +55,13 @@ jobs:
 
     - name: Test package installation
       run: |
-        # 测试 wheel 安装
+        # Test wheel installation
         pip install dist/*.whl
         python -c "import mirobody; assert mirobody.__version__ == '${{ env.VERSION }}', f'Version mismatch: {mirobody.__version__} != ${{ env.VERSION }}'"
         pip show mirobody
         pip uninstall -y mirobody
 
-        # 测试 sdist 安装
+        # Test sdist installation
         pip install dist/*.tar.gz
         python -c "import mirobody; print(f'Successfully installed version: {mirobody.__version__}')"
         pip uninstall -y mirobody

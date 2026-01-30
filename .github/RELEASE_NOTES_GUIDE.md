@@ -1,110 +1,110 @@
-# 🚀 智能 Release Notes 生成指南
+# 🚀 Intelligent Release Notes Generation Guide
 
-本指南介绍如何使用 mirobody 项目的智能 release notes 自动生成功能。
+This guide explains how to use the automatic intelligent release notes generation feature for the mirobody project.
 
-## ✨ 功能特性
+## ✨ Features
 
-我们的 GitHub Actions 会自动根据以下信息生成详细的 release notes：
+Our GitHub Actions automatically generates detailed release notes based on the following information:
 
-### 📝 自动包含的内容
+### 📝 Automatically Included Content
 
-1. **Tag 消息** - 如果使用带注释的 tag
-2. **分类的提交记录**:
-   - 🆕 新功能 (feat:, feature:, add:, 新增, 功能)
-   - 🐛 Bug 修复 (fix:, bug:, 修复, bugfix)
-   - 🔧 改进 (improve:, update:, 优化, 改进)
-   - 📚 文档 (docs:, doc:, 文档)
-   - 🔨 其他变更
-3. **相关 Pull Requests** - 自动识别并链接
-4. **贡献者列表** - 自动统计
-5. **发布统计** - 提交数、文件变更数等
-6. **安装说明** - 多种安装方式
-7. **包详情** - 版本、日期、平台支持等
+1. **Tag Message** - If using annotated tags
+2. **Categorized Commit History**:
+   - 🆕 New Features (feat:, feature:, add:, 新增, 功能)
+   - 🐛 Bug Fixes (fix:, bug:, 修复, bugfix)
+   - 🔧 Improvements (improve:, update:, 优化, 改进)
+   - 📚 Documentation (docs:, doc:, 文档)
+   - 🔨 Other Changes
+3. **Related Pull Requests** - Automatically identified and linked
+4. **Contributor List** - Automatically compiled
+5. **Release Statistics** - Commit count, file changes, etc.
+6. **Installation Instructions** - Multiple installation methods
+7. **Package Details** - Version, date, platform support, etc.
 
-## 📋 使用方法
+## 📋 Usage
 
-### 1. 标准发布流程
+### 1. Standard Release Process
 
 ```bash
-# 1. 确保所有更改已提交
+# 1. Ensure all changes are committed
 git add .
 git commit -m "feat: add new health analysis feature"
 git push
 
-# 2. 创建带注释的 tag（推荐）
+# 2. Create an annotated tag (recommended)
 git tag -a 1.0.0 -m "Major release: Add health analysis and improved performance
 
-新功能：
-- 健康数据分析模块
-- 性能优化
-- 新的 API 接口
+New Features:
+- Health data analysis module
+- Performance optimization
+- New API interfaces
 
-Bug 修复：
-- 修复数据导入问题
-- 解决内存泄漏
+Bug Fixes:
+- Fix data import issue
+- Resolve memory leak
 
-感谢所有贡献者的努力！"
+Thanks to all contributors for their efforts!"
 
-# 3. 推送 tag 触发自动发布
+# 3. Push the tag to trigger automatic release
 git push origin 1.0.0
 ```
 
-### 2. 快速发布（简单 tag）
+### 2. Quick Release (Simple Tag)
 
 ```bash
-# 创建简单 tag
+# Create a simple tag
 git tag 1.0.1
 git push origin 1.0.1
 ```
 
-## 🎯 优化 Release Notes 的技巧
+## 🎯 Tips for Optimizing Release Notes
 
-### 1. 使用规范的提交消息格式
+### 1. Use Standardized Commit Message Format
 
 ```bash
-# 推荐的提交消息格式
+# Recommended commit message format
 git commit -m "feat: add user authentication system"
 git commit -m "fix: resolve login timeout issue"
 git commit -m "docs: update API documentation"
 git commit -m "improve: optimize database queries"
 ```
 
-### 2. 支持的中英文关键词
+### 2. Supported English and Chinese Keywords
 
-- **新功能**: `feat:`, `feature:`, `add:`, `新增`, `功能`
-- **Bug修复**: `fix:`, `bug:`, `修复`, `bugfix`
-- **改进**: `improve:`, `update:`, `优化`, `改进`
-- **文档**: `docs:`, `doc:`, `文档`
+- **New Features**: `feat:`, `feature:`, `add:`, `新增`, `功能`
+- **Bug Fixes**: `fix:`, `bug:`, `修复`, `bugfix`
+- **Improvements**: `improve:`, `update:`, `优化`, `改进`
+- **Documentation**: `docs:`, `doc:`, `文档`
 
-### 3. 在提交消息中引用 PR
+### 3. Reference PRs in Commit Messages
 
 ```bash
 git commit -m "feat: add health metrics tracking (#123)"
 git commit -m "fix: resolve data sync issue (closes #456)"
 ```
 
-### 4. 使用带注释的 tag
+### 4. Use Annotated Tags
 
 ```bash
-# 详细的 release 消息
+# Detailed release message
 git tag -a 2.0.0 -m "🎉 Major Release v2.0.0
 
-## 主要更新
-- 全新的用户界面设计
-- 支持多语言
-- 性能提升 50%
+## Major Updates
+- Brand new user interface design
+- Multi-language support
+- 50% performance improvement
 
-## 破坏性更改
-- API v1 已弃用，请升级到 v2
-- 配置文件格式已更改
+## Breaking Changes
+- API v1 is deprecated, please upgrade to v2
+- Configuration file format has changed
 
-## 迁移指南
-请参考文档进行升级：https://docs.mirobody.com/migration"
+## Migration Guide
+Please refer to the documentation for upgrade instructions: https://docs.mirobody.com/migration"
 ```
 
-## 📊 生成的 Release Notes 示例
+## 📊 Example of Generated Release Notes
 
-当您推送 tag 后，系统会自动生成类似以下格式的 release notes：
+When you push a tag, the system will automatically generate release notes in a format similar to this:
 
 ```markdown
 ## 🚀 What's New in v1.0.0
@@ -164,44 +164,44 @@ pip install mirobody-1.0.0-py3-none-any.whl
 - **Platforms**: Linux, macOS, Windows
 ```
 
-## 🔧 高级配置
+## 🔧 Advanced Configuration
 
-### 自定义分类规则
+### Custom Categorization Rules
 
-如果需要修改分类规则，可以编辑 `.github/workflows/pypi-release.yml` 中的 grep 模式：
+If you need to modify the categorization rules, you can edit the grep patterns in [.github/workflows/pypi-release.yml](.github/workflows/pypi-release.yml):
 
 ```bash
-# 例如：添加新的功能关键词
+# Example: Add new feature keywords
 git log --oneline --grep="feat:" --grep="feature:" --grep="add:" --grep="新功能"
 ```
 
-### 预发布版本
+### Pre-release Versions
 
-系统会自动识别预发布版本并标记为 prerelease：
+The system will automatically identify pre-release versions and mark them as prerelease:
 
-- `1.0.0a1` - Alpha 版本
-- `1.0.0b1` - Beta 版本
+- `1.0.0a1` - Alpha version
+- `1.0.0b1` - Beta version
 - `1.0.0rc1` - Release Candidate
-- `1.0.0.dev1` - Development 版本
+- `1.0.0.dev1` - Development version
 
-## 🚨 注意事项
+## 🚨 Important Notes
 
-1. **首次发布**: 如果没有之前的 tag，系统会显示最近 10 个提交
-2. **PR 信息**: 需要在提交消息中包含 PR 编号 (如 #123)
-3. **GitHub CLI**: 如果 runner 上有 gh 命令，会获取更详细的 PR 信息
-4. **标签格式**: 支持语义化版本格式 (1.0.0, 2.1.3 等)
+1. **First Release**: If there are no previous tags, the system will display the last 10 commits
+2. **PR Information**: PR numbers need to be included in commit messages (e.g., #123)
+3. **GitHub CLI**: If the gh command is available on the runner, more detailed PR information will be retrieved
+4. **Tag Format**: Supports semantic versioning format (1.0.0, 2.1.3, etc.)
 
-## 🎯 最佳实践
+## 🎯 Best Practices
 
-1. **定期发布**: 建议每 2-4 周发布一次小版本
-2. **清晰的提交**: 使用描述性的提交消息
-3. **文档同步**: 确保 README 和文档与代码同步
-4. **测试验证**: 发布前运行 test-build workflow
-5. **版本规划**: 遵循语义化版本控制 (SemVer)
+1. **Regular Releases**: Recommended to release a minor version every 2-4 weeks
+2. **Clear Commits**: Use descriptive commit messages
+3. **Documentation Sync**: Ensure README and documentation are in sync with code
+4. **Testing Validation**: Run the test-build workflow before release
+5. **Version Planning**: Follow Semantic Versioning (SemVer)
 
-## 📞 支持
+## 📞 Support
 
-如有问题，请：
-1. 查看 [GitHub Actions 日志](https://github.com/thetahealth/mirobody/actions)
-2. 提交 [Issue](https://github.com/thetahealth/mirobody/issues)
-3. 参考 [工作流程文档](.github/workflows/README.md)
+If you have any questions:
+1. Check [GitHub Actions logs](https://github.com/thetahealth/mirobody/actions)
+2. Submit an [Issue](https://github.com/thetahealth/mirobody/issues)
+3. Refer to [Workflow Documentation](.github/workflows/README.md)

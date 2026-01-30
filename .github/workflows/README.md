@@ -1,149 +1,149 @@
 # GitHub Actions Workflows
 
-本项目包含两个主要的 GitHub Actions 工作流程，用于自动化包的构建、测试和发布。
+This project contains two main GitHub Actions workflows for automating package building, testing, and release.
 
-## 📦 工作流程说明
+## 📦 Workflow Descriptions
 
 ### 1. PyPI Release (`pypi-release.yml`)
 
-**触发条件**: 推送符合版本格式的 tag（如 `1.0.0`, `2.1.3`, `1.0.0-beta1`）
+**Trigger Conditions**: Push a tag with version format (e.g., `1.0.0`, `2.1.3`, `1.0.0-beta1`)
 
-**功能**:
-- 自动从 tag 名称提取版本号
-- 构建 Python 包（wheel 和 source distribution）
-- 运行包验证测试
-- 发布到 TestPyPI
-- **智能生成 Release Notes**:
-  - 自动分类提交记录（功能/修复/改进/文档）
-  - 提取并链接相关 Pull Requests
-  - 显示贡献者信息和发布统计
-  - 包含详细的安装说明
-  - 支持中英文提交消息识别
-- 创建 GitHub Release，附带构建产物
-- 支持多种 Python 版本
-- 自动识别预发布版本（alpha/beta/rc）
+**Features**:
+- Automatically extract version number from tag name
+- Build Python package (wheel and source distribution)
+- Run package validation tests
+- Publish to TestPyPI
+- **Intelligent Release Notes Generation**:
+  - Automatically categorize commit history (features/fixes/improvements/documentation)
+  - Extract and link related Pull Requests
+  - Display contributor information and release statistics
+  - Include detailed installation instructions
+  - Support both English and Chinese commit message recognition
+- Create GitHub Release with build artifacts
+- Support multiple Python versions
+- Automatically identify pre-release versions (alpha/beta/rc)
 
 ### 2. Test Build (`test-build.yml`)
 
-**触发条件**:
-- 手动触发（可指定测试版本号）
-- Pull Request 到 main/master/develop 分支
+**Trigger Conditions**:
+- Manual trigger (can specify test version number)
+- Pull Request to main/master/develop branch
 
-**功能**:
-- 在多个 Python 版本（3.8-3.12）上测试构建
-- 在多个操作系统（Linux, macOS, Windows）上测试包导入
-- 验证包的安装和导入
-- 生成测试报告
+**Features**:
+- Test build on multiple Python versions (3.8-3.12)
+- Test package import on multiple operating systems (Linux, macOS, Windows)
+- Validate package installation and import
+- Generate test reports
 
-## 🚀 使用指南
+## 🚀 Usage Guide
 
-### 发布新版本
+### Release a New Version
 
-1. **准备发布**
+1. **Prepare Release**
    ```bash
-   # 确保所有更改已提交
+   # Ensure all changes are committed
    git add .
    git commit -m "Prepare for release"
    git push
    ```
 
-2. **运行测试构建**（可选但推荐）
-   - 访问 Actions 页面
-   - 选择 "Test Build" workflow
-   - 点击 "Run workflow"
-   - 输入测试版本号（如 `1.0.0-test`）
-   - 等待测试完成
+2. **Run Test Build** (optional but recommended)
+   - Visit the Actions page
+   - Select "Test Build" workflow
+   - Click "Run workflow"
+   - Enter test version number (e.g., `1.0.0-test`)
+   - Wait for tests to complete
 
-3. **创建并推送 tag**
+3. **Create and Push Tag**
    ```bash
-   # 创建版本 tag
+   # Create version tag
    git tag 1.0.0
-   # 或创建带注释的 tag（推荐）
+   # Or create annotated tag (recommended)
    git tag -a 1.0.0 -m "Release version 1.0.0"
 
-   # 推送 tag 到 GitHub
+   # Push tag to GitHub
    git push origin 1.0.0
    ```
 
-4. **监控发布过程**
-   - 访问 Actions 页面查看工作流程运行状态
-   - 检查 GitHub Releases 页面
-   - 验证 TestPyPI 上的包
+4. **Monitor Release Process**
+   - Visit Actions page to check workflow run status
+   - Check GitHub Releases page
+   - Verify package on TestPyPI
 
-> 💡 **提示**: 查看 [智能 Release Notes 生成指南](RELEASE_NOTES_GUIDE.md) 了解如何优化自动生成的发布说明。
+> 💡 **Tip**: See [Intelligent Release Notes Generation Guide](RELEASE_NOTES_GUIDE.md) to learn how to optimize automatically generated release notes.
 
-### 手动测试构建
+### Manual Test Build
 
-1. 访问仓库的 Actions 标签页
-2. 选择 "Test Build" workflow
-3. 点击 "Run workflow"
-4. 输入测试版本号（可选）
-5. 点击 "Run workflow" 按钮
+1. Visit the repository's Actions tab
+2. Select "Test Build" workflow
+3. Click "Run workflow"
+4. Enter test version number (optional)
+5. Click "Run workflow" button
 
-## ⚙️ 配置要求
+## ⚙️ Configuration Requirements
 
-### 必需的 Secrets
+### Required Secrets
 
-在 GitHub 仓库设置中配置以下 secrets：
+Configure the following secrets in GitHub repository settings:
 
-- `TEST_PYPI_API_TOKEN`: TestPyPI 的 API token
-  - 获取方式：
-    1. 访问 https://test.pypi.org/
-    2. 登录账号
-    3. 进入 Account Settings → API tokens
-    4. 创建新 token（scope: 整个账号或特定项目）
-    5. 在仓库 Settings → Secrets → Actions 中添加
+- `TEST_PYPI_API_TOKEN`: API token for TestPyPI
+  - How to obtain:
+    1. Visit https://test.pypi.org/
+    2. Login to your account
+    3. Go to Account Settings → API tokens
+    4. Create new token (scope: entire account or specific project)
+    5. Add in repository Settings → Secrets → Actions
 
-### 可选配置
+### Optional Configuration
 
-如果要发布到正式 PyPI，需要添加：
-- `PYPI_API_TOKEN`: 正式 PyPI 的 API token
+To publish to official PyPI, add:
+- `PYPI_API_TOKEN`: API token for official PyPI
 
-## 📝 版本号规范
+## 📝 Version Number Specifications
 
-支持的版本号格式：
-- 标准版本：`1.0.0`, `2.3.1`
-- 预发布版本：`1.0.0-alpha`, `1.0.0-beta1`, `1.0.0-rc2`
+Supported version number formats:
+- Standard versions: `1.0.0`, `2.3.1`
+- Pre-release versions: `1.0.0-alpha`, `1.0.0-beta1`, `1.0.0-rc2`
 
-版本号必须符合 PEP 440 规范。
+Version numbers must comply with PEP 440 specification.
 
-## 🔧 故障排除
+## 🔧 Troubleshooting
 
-### 常见问题
+### Common Issues
 
-1. **TestPyPI 上传失败**
-   - 检查 `TEST_PYPI_API_TOKEN` 是否正确配置
-   - 确认包名在 TestPyPI 上未被占用
-   - 检查版本号是否已存在
+1. **TestPyPI Upload Failed**
+   - Check if `TEST_PYPI_API_TOKEN` is correctly configured
+   - Confirm package name is not taken on TestPyPI
+   - Check if version number already exists
 
-2. **构建失败**
-   - 查看 Actions 日志中的错误信息
-   - 本地运行 `python -m build` 测试
-   - 检查 `pyproject.toml` 配置
+2. **Build Failed**
+   - Check error messages in Actions logs
+   - Test locally by running `python -m build`
+   - Check `pyproject.toml` configuration
 
-3. **GitHub Release 创建失败**
-   - 确认 tag 格式正确
-   - 检查仓库权限设置
+3. **GitHub Release Creation Failed**
+   - Confirm tag format is correct
+   - Check repository permission settings
 
-## 📊 工作流程状态徽章
+## 📊 Workflow Status Badges
 
-可以在 README 中添加状态徽章：
+You can add status badges to your README:
 
 ```markdown
 [![PyPI Release](https://github.com/thetahealth/mirobody/actions/workflows/pypi-release.yml/badge.svg)](https://github.com/thetahealth/mirobody/actions/workflows/pypi-release.yml)
 [![Test Build](https://github.com/thetahealth/mirobody/actions/workflows/test-build.yml/badge.svg)](https://github.com/thetahealth/mirobody/actions/workflows/test-build.yml)
 ```
 
-## 🔄 更新工作流程
+## 🔄 Updating Workflows
 
-修改工作流程文件后：
-1. 提交更改到仓库
-2. 工作流程会自动使用最新版本
-3. 建议先在测试分支上验证更改
+After modifying workflow files:
+1. Commit changes to repository
+2. Workflows will automatically use the latest version
+3. It's recommended to verify changes on a test branch first
 
-## 📚 相关链接
+## 📚 Related Links
 
-- [GitHub Actions 文档](https://docs.github.com/en/actions)
-- [Python Packaging 指南](https://packaging.python.org/)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [Python Packaging Guide](https://packaging.python.org/)
 - [TestPyPI](https://test.pypi.org/)
-- [PEP 440 - 版本标识和依赖规范](https://www.python.org/dev/peps/pep-0440/)
+- [PEP 440 - Version Identification and Dependency Specification](https://www.python.org/dev/peps/pep-0440/)
