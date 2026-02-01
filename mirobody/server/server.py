@@ -350,12 +350,12 @@ class Server:
                         suffix = file[pos+1:].strip().lower()
                     media_type = filename_suffix_to_media_type.get(suffix, "text/html")
 
-                    if placeholders:
-                        if media_type.startswith("application/") or media_type.startswith("text/"):
-                            s = bytes.decode()
-                            for k, v in placeholders.items():
-                                s = s.replace(k, v)
-                            bytes = s.encode()
+                    # if placeholders:
+                    #     if media_type.startswith("application/") or media_type.startswith("text/"):
+                    #         s = bytes.decode()
+                    #         for k, v in placeholders.items():
+                    #             s = s.replace(k, v)
+                    #         bytes = s.encode()
 
                     if route == "/__/auth/handler":
                         auth_handler_bytes = bytes

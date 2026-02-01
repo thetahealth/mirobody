@@ -19,7 +19,7 @@ LOG_LEVEL: DEBUG
 # HTTP Server Configuration.
 
 HTTP_SERVER_NAME: mirobody
-HTTP_SERVER_VERSION: 1.0.2
+HTTP_SERVER_VERSION: 1.0.3
 
 # HTTP_HOST: 0.0.0.0
 # HTTP_PORT: 80
@@ -132,7 +132,7 @@ JWT_AUD: mirobody_aud
 # JWT client ID.
 JWT_CLIENT_ID: mirobody_data
 # JWT scope.
-JWT_SCOPE: 'mcp:read mcp:write'
+JWT_SCOPE: "mcp:read mcp:write"
 
 # JWT private key used for RS256 algorithm.
 # JWT_PRIVATE_KEY: 'REPLACE_THIS_VALUE_IN_PRODUCTION'
@@ -154,29 +154,59 @@ JWT_SCOPE: 'mcp:read mcp:write'
 #   Can be omitted if the two client IDs above are identical.
 # APPLE_AUTH_CLIENT_ID: ''
 
+# Web frontend configuration.
+#   These settings are injected into the frontend at build/runtime.
+#
+# Feature toggles:
+#   __IS_API_CONFIG_ON__: Enable API configuration panel in settings.
+#   __IS_QR_LOGIN_ON__: Enable QR code login feature.
+#   __IS_GOOGLE_LOGIN_ON__: Enable Google OAuth login.
+#   __IS_APPLE_LOGIN_ON__: Enable Apple Sign-In.
+#   __IS_NEW_FEATURES_ON__: List of new features to enable (e.g., MCP).
+#   __IS_MOBILE_SOURCE_ON__: Enable mobile data source integration.
+#
+# Firebase configuration (for authentication and analytics):
+#   Obtain these values from Firebase Console -> Project Settings.
+#
+# MIROBODY_WEB_CONFIG:
+#   __IS_API_CONFIG_ON__: true
+#   __IS_QR_LOGIN_ON__: false
+#   __IS_GOOGLE_LOGIN_ON__: true
+#   __IS_APPLE_LOGIN_ON__: true
+#   __IS_NEW_FEATURES_ON__:
+#     - MCP
+#   __IS_MOBILE_SOURCE_ON__: true
+#   __FIREBASE_API_KEY__: ""
+#   __FIREBASE_AUTH_DOMAIN__: ""
+#   __FIREBASE_PROJECT_ID__: ""
+#   __FIREBASE_STORAGE_BUCKET__: ""
+#   __FIREBASE_MESSAGING_SENDER_ID__: ""
+#   __FIREBASE_APP_ID__: ""
+#   __FIREBASE_MEASUREMENT_ID__: ""
+
 #-----------------------------------------------------------------------------
 # LLM Configuration.
 
 MCP_TOOL_DIRS:
-- mirobody/pub/tools
-- mirobody/pub/tools_health
-- tools
+  - mirobody/pub/tools
+  - mirobody/pub/tools_health
+  - tools
 MCP_RESOURCE_DIRS:
-- mirobody/pub/resources
-- resources
+  - mirobody/pub/resources
+  - resources
 AGENT_DIRS:
-- mirobody/pub/agents
-- agents
+  - mirobody/pub/agents
+  - agents
 PROVIDER_DIRS:
-- mirobody/pulse/theta
-- providers
+  - mirobody/pulse/theta
+  - providers
 SKILL_DIRS:
-- mirobody/pub/skills
-- skills
+  - mirobody/pub/skills
+  - skills
 
-GOOGLE_API_KEY: ''
-OPENAI_API_KEY: ''
-OPENROUTER_API_KEY: ''
+GOOGLE_API_KEY: ""
+OPENAI_API_KEY: ""
+OPENROUTER_API_KEY: ""
 
 #---------------------------------------------------------
 
@@ -185,8 +215,8 @@ ALLOWED_TOOLS_DEEP:
 DISALLOWED_TOOLS_DEEP:
 
 PROMPTS_DEEP:
-- mirobody/pub/agents/deep/prompts/theta_health.jinja
-- mirobody/pub/agents/deep/prompts/theta_health_simple.jinja
+  - pub/agents/deep/prompts/theta_health.jinja
+  - pub/agents/deep/prompts/theta_health_simple.jinja
 
 PROVIDERS_DEEP:
   gemini-3-pro:
@@ -216,7 +246,7 @@ PROVIDERS_DEEP:
     temperature: 0.1
     max_completion_tokens: 60000
   deepseek-v3.2:
-    llm_type: openai  # Uses OpenAI-compatible API via OpenRouter
+    llm_type: openai # Uses OpenAI-compatible API via OpenRouter
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
     model: deepseek/deepseek-v3.2
@@ -251,14 +281,14 @@ PROMPTS_BASELINE:
 # Third-Party Platform Integrations (Health Devices and Services).
 
 # Vital Platform Configuration.
-VITAL_API_KEY: ''
+VITAL_API_KEY: ""
 VITAL_ENVIRONMENT: sandbox
 
 # Renpho Platform Configuration.
 RENPHO_API_BASE_URL: https://cloud.renpho.com
 RENPHO_APP_VERSION: 6.16.1
 RENPHO_PLATFORM: android
-RENPHO_ENCRYPTION_KEY: ''
+RENPHO_ENCRYPTION_KEY: ""
 
 # Garmin Platform Configuration.
 GARMIN_TOKEN_URL: https://connectapi.garmin.com/oauth-service/oauth/request_token
@@ -266,19 +296,20 @@ GARMIN_AUTH_URL: https://connect.garmin.com/oauthConfirm/
 GARMIN_ACCESS_TOKEN_URL: https://connectapi.garmin.com/oauth-service/oauth/access_token
 GARMIN_API_BASE_URL: https://apis.garmin.com/wellness-api/rest
 OAUTH_TEMP_TTL_SECONDS: 900
-GARMIN_CLIENT_ID: ''
-GARMIN_CLIENT_SECRET: ''
-GARMIN_REDIRECT_URL: ''
+GARMIN_CLIENT_ID: ""
+GARMIN_CLIENT_SECRET: ""
+GARMIN_REDIRECT_URL: ""
 
 # Whoop Platform Configuration.
-WHOOP_SCOPES: offline read:recovery read:sleep read:cycles read:profile read:workout
+WHOOP_SCOPES:
+  offline read:recovery read:sleep read:cycles read:profile read:workout
   read:body_measurement
 WHOOP_TOKEN_URL: https://api.prod.whoop.com/oauth/oauth2/token
 WHOOP_AUTH_URL: https://api.prod.whoop.com/oauth/oauth2/auth
 WHOOP_API_BASE_URL: https://api.prod.whoop.com/developer/v2
-WHOOP_CLIENT_ID: ''
-WHOOP_CLIENT_SECRET: ''
-WHOOP_REDIRECT_URL: ''
+WHOOP_CLIENT_ID: ""
+WHOOP_CLIENT_SECRET: ""
+WHOOP_REDIRECT_URL: ""
 
 # Frontierx Platform Configuration.
 # FRONTIERX_CLIENT_ID: ''
