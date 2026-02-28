@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS health_app_user (
     coins integer default 0
 );
 
+ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS wechat_openid VARCHAR(64);
+CREATE        INDEX IF NOT EXISTS idx_health_app_user_wechat_openid ON health_app_user USING btree(wechat_openid);
+
 CREATE        INDEX IF NOT EXISTS idx_health_app_user_apple_sub ON health_app_user USING btree (apple_sub);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_uni_health_app_user_email_active ON health_app_user USING btree (email) WHERE (is_del = false);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_uni_health_app_user_apple_sub_active ON health_app_user USING btree (apple_sub) WHERE (is_del = false);

@@ -134,8 +134,6 @@ async def serve_storage_file(file_path: str):
 
 
 # === WebSocket Routes ===
-
-
 @router.websocket("/ws/upload-health-report")
 async def websocket_upload_health_report(
     websocket: WebSocket, 
@@ -709,8 +707,8 @@ async def handle_websocket_upload_files(websocket: WebSocket, user_id: str, mess
                 file_content = base64.b64decode(content_b64)
                 
                 processed_files_data.append({
-                    "filename": filename,
-                    "content": file_content,
+                    "file_name": filename,
+                    "content_bytes": file_content,
                     "content_type": content_type
                 })
                 
@@ -761,7 +759,7 @@ async def handle_websocket_upload_files(websocket: WebSocket, user_id: str, mess
                 return self.file.seek(offset)
         
         mock_files = [
-            MockUploadFile(file_data["filename"], file_data["content"], file_data["content_type"])
+            MockUploadFile(file_data["file_name"], file_data["content_bytes"], file_data["content_type"])
             for file_data in processed_files_data
         ]
         

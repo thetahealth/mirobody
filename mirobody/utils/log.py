@@ -170,6 +170,50 @@ class JsonFormatter(logging.Formatter):
 
 #-----------------------------------------------------------------------------
 
+class TqdmLoggingHandler(logging.Handler):
+    def __init__(self):
+        super().__init__()
+
+    def emit(self, record):
+        from tqdm import tqdm
+        try:
+            msg = self.format(record)
+            tqdm.write(msg)
+            self.flush()
+
+        except Exception:
+            self.handleError(record)
+
+#-----------------------------------------------------------------------------
+
+# Third-party libraries that output verbose DEBUG logs (e.g., full request bodies)
+# Set these to WARNING to reduce noise while keeping your own DEBUG logs visible
+VERBOSE_LOGGERS = [
+    "google.genai",           # Google GenAI SDK - logs full request/response bodies
+    "google.genai._interactions",
+    "httpx",                  # HTTP client - logs request details
+    "httpcore",               # HTTP core - logs connection details
+    "urllib3",                # URL lib - logs request details
+    "openai",                 # OpenAI SDK
+    "anthropic",              # Anthropic SDK
+    "langchain",              # LangChain - can be verbose
+    "langchain_core",
+]
+
+
+def _silence_verbose_loggers(app_level: int):
+    """
+    Set higher log level for verbose third-party libraries.
+
+    When app log level is DEBUG, these libraries output extremely verbose logs
+    (full HTTP request bodies, etc.). This function sets them to WARNING
+    to reduce noise while keeping your application's DEBUG logs visible.
+    """
+    if app_level <= logging.DEBUG:
+        for logger_name in VERBOSE_LOGGERS:
+            logging.getLogger(logger_name).setLevel(logging.WARNING)
+
+
 def init_log_console(level: int = logging.INFO, extra: dict = {}, secret_key: str = ""):
     if secret_key:
         global _fernet_encryptor
@@ -182,6 +226,9 @@ def init_log_console(level: int = logging.INFO, extra: dict = {}, secret_key: st
 
     logging.root.handlers = [stream_handler]
     logging.root.setLevel(level=level)
+
+    # Silence verbose third-party library logs (especially in DEBUG mode)
+    _silence_verbose_loggers(level)
 
 #-----------------------------------------------------------------------------
 
@@ -208,6 +255,18 @@ def init_log_file(name: str, dir: str, level: int = logging.INFO, extra: dict = 
     # logging.basicConfig(level=level, handlers=[file_handler, stream_handler])
 
     logging.root.handlers = [file_handler, stream_handler]
+    logging.root.setLevel(level=level)
+
+    # Silence verbose third-party library logs (especially in DEBUG mode)
+    _silence_verbose_loggers(level)
+
+#-----------------------------------------------------------------------------
+
+def init_log_tqdm(level: int = logging.INFO):
+    tqdm_handler = TqdmLoggingHandler()
+    tqdm_handler.setFormatter(JsonFormatter())
+
+    logging.root.handlers = [tqdm_handler]
     logging.root.setLevel(level=level)
 
 #-----------------------------------------------------------------------------

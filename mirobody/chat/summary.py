@@ -15,7 +15,15 @@ from ..utils.llm import async_get_text_completion
 
 #-----------------------------------------------------------------------------
 
-async def generate_summary(conversation_text: str) -> str:
+async def generate_summary(conversation_text: str, provider: Optional[str] = None) -> str:
+    """
+    Generate a summary for the conversation.
+    
+    Args:
+        conversation_text: The conversation text to summarize
+        provider: LLM provider to use (e.g., "gemini", "openai", "openrouter"). 
+                  If None, auto-selects based on available API keys.
+    """
     try:
         if len(conversation_text.strip()) < 5:
             return conversation_text.strip()
@@ -31,6 +39,7 @@ async def generate_summary(conversation_text: str) -> str:
                 Summary:"""
         result = await async_get_text_completion(
             messages=[{"role": "user", "content": prompt}],
+            provider=provider,
             temperature=0,
             max_tokens=100,
         )
@@ -90,7 +99,7 @@ async def generate_and_save_summary(user_id: str, session_id: str, provider: Opt
             role_label = "User" if role == "user" else "Assistant"
             conversation_text += f"{role_label}: {content}\n\n"
         
-        summary = await generate_summary(conversation_text.strip())
+        summary = await generate_summary(conversation_text.strip(), provider=provider)
 
         await save_conversation_summary(user_id, session_id, summary)
 

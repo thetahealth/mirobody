@@ -31,13 +31,13 @@ class AIConfig:
         {
             "name": "openai",
             "api_key_env": "OPENAI_API_KEY",
-            "default_model": "gpt-4.1",
+            "default_model": "gpt-5.2",
             "description": "OpenAI GPT Models",
         },
         {
             "name": "openrouter",
             "api_key_env": "OPENROUTER_API_KEY",
-            "default_model": "google/gemini-2.5-flash",
+            "default_model": "google/gemini-3-flash-preview",
             "description": "OpenRouter (Multi-model Gateway)",
         },
         {
@@ -49,20 +49,20 @@ class AIConfig:
         {
             "name": "gemini",
             "api_key_env": "GOOGLE_API_KEY",
-            "default_model": "gemini-2.5-flash",
+            "default_model": "gemini-3-flash-preview",
             "description": "Google Gemini",
         },
         {
             "name": "volcengine",
             "api_key_env": "VOLCENGINE_API_KEY",
-            "default_model": "doubao-1.5-thinking-pro-250415",
-            "description": "Volcengine Doubao",
+            "default_model": "doubao-seed-1-8-251228",
+            "description": "Volcengine Doubao Seed 1.8",
         },
         {
             "name": "dashscope",
             "api_key_env": "DASHSCOPE_API_KEY",
-            "default_model": "qwen-max",
-            "description": "Aliyun DashScope (Qwen)",
+            "default_model": "qwen-flash",
+            "description": "Aliyun DashScope (Qwen Flash)",
         },
     ]
 
@@ -82,8 +82,8 @@ class AIConfig:
             "api_path": "/v1/chat/completions",
             "type": "openai",
         },
-        "gpt-4.1": {
-            "model": "gpt-4.1",
+        "gpt-5.2": {
+            "model": "gpt-5.2",
             "api_key_env": "OPENAI_API_KEY",
             "api_base": "https://api.openai.com",
             "api_path": "/v1/chat/completions",
@@ -97,7 +97,7 @@ class AIConfig:
             "type": "openai",
         },
         "volcengine": {
-            "model": "doubao-1.5-thinking-pro-250415",
+            "model": "doubao-seed-1-8-251228",
             "api_key_env": "VOLCENGINE_API_KEY",
             "api_base": "https://ark.cn-beijing.volces.com/api/v3",
             "api_path": "/chat/completions",

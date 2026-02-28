@@ -50,8 +50,8 @@ class AliyunStorage(AbstractStorage):
             protocol = "https"
             self._endpoint_url = f"{protocol}://{self.endpoint}"
             
-            # Create Auth instance
-            self._auth = oss2.Auth(self.access_key_id, self.secret_access_key)
+            # Create Auth instance (V2 signature for proper response-header override support)
+            self._auth = oss2.AuthV2(self.access_key_id, self.secret_access_key)
             
             # Create Bucket instance
             self._bucket = oss2.Bucket(self._auth, self._endpoint_url, self.bucket)
@@ -201,10 +201,10 @@ class AliyunStorage(AbstractStorage):
             
             loop = asyncio.get_event_loop()
             response_headers = {"response-content-disposition": "inline"}
-            
-            # Add content type if provided for proper browser rendering
-            if content_type:
-                response_headers["response-content-type"] = content_type
+            # Note: Do NOT add response-content-type here.
+            # OSS V2 signature does not support overriding content-type via signed URL params
+            # (causes "Can not override response header on content-type" error).
+            # Content-Type is already set correctly during upload via put() headers.
             
             url = await loop.run_in_executor(
                 None,

@@ -49,6 +49,11 @@ from ..utils import (
     Route
 )
 
+from .memory import (
+    AbstractMemoryClient,
+    EverMemOSClient
+)
+
 #-----------------------------------------------------------------------------
 
 class ChatService:
@@ -77,6 +82,12 @@ class ChatService:
 
         self._openai_api_key = api_keys.get("OPENAI_API_KEY", "")
         self._gemini_api_key = api_keys.get("GOOGLE_API_KEY", "")
+        self._google_cloud_api_key = api_keys.get("GOOGLE_CLOUD_API_KEY", "")
+
+        self._memory: AbstractMemoryClient | None = None
+        evermemos_api_key = api_keys.get("EVERMEMOS_API_KEY")
+        if evermemos_api_key:
+            self._memory = EverMemOSClient(evermemos_api_key)
 
         cfg = global_config()
         self._agents = load_agents_from_directories(agent_dirs, config=cfg)
@@ -307,7 +318,7 @@ class ChatService:
             not isinstance(request.state.user_id, int) or \
             request.state.user_id <= 0:
 
-            return json_response(status_code=401, request=request)
+            return json_response("", status_code=401, request=request)
 
         user_id = request.state.user_id
 
@@ -320,6 +331,19 @@ class ChatService:
 
         except Exception as e:
             return json_response_with_code(-1, str(e), request=request)
+
+        #-------------------------------------------------
+
+        if not isinstance(params.get("question"), str):
+            return json_response_with_code(-2, "Invalid question.", request=request)
+
+        params["question"] = params["question"].strip()
+        if not params["question"]:
+            return json_response_with_code(-3, "Empty question.", request=request)
+
+        if self._memory and \
+            (not isinstance(params.get("query_user_id"), str) or params["query_user_id"] == params["user_id"]):
+            await self._memory.add(params["user_id"], params["question"])
 
         #-------------------------------------------------
 

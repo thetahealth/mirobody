@@ -44,6 +44,9 @@ class FileDbService:
         created_source: str = "file_upload",
         created_source_id: Optional[str] = None,
         query_user_id: Optional[str] = None,
+        original_text: str = "",
+        text_length: int = 0,
+        content_hash: str = "",
     ) -> Optional[int]:
         """
         Insert a new file record into th_files table.
@@ -58,6 +61,9 @@ class FileDbService:
             created_source: Source that created this file
             created_source_id: Source record ID (e.g., message_id, journal_id)
             query_user_id: Query user ID (defaults to user_id)
+            original_text: Original text content extracted from file (for rerank)
+            text_length: Length of original text (for rerank strategy)
+            content_hash: SHA256 hash of file content (for deduplication, references th_file_contents)
             
         Returns:
             Inserted file ID or None on failure
@@ -67,10 +73,12 @@ class FileDbService:
                 INSERT INTO th_files (
                     user_id, query_user_id, file_name, file_type, file_key,
                     file_content, scene, created_source, created_source_id,
+                    original_text, text_length, content_hash,
                     is_del, created_at, updated_at
                 ) VALUES (
                     :user_id, :query_user_id, :file_name, :file_type, :file_key,
                     CAST(:file_content AS jsonb), :scene, :created_source, :created_source_id,
+                    :original_text, :text_length, :content_hash,
                     false, now(), now()
                 )
                 ON CONFLICT (file_key) DO UPDATE SET
@@ -80,6 +88,9 @@ class FileDbService:
                     scene = EXCLUDED.scene,
                     created_source = EXCLUDED.created_source,
                     created_source_id = EXCLUDED.created_source_id,
+                    original_text = EXCLUDED.original_text,
+                    text_length = EXCLUDED.text_length,
+                    content_hash = EXCLUDED.content_hash,
                     updated_at = now()
                 RETURNING id
             """
@@ -94,6 +105,9 @@ class FileDbService:
                 "scene": scene or "web",
                 "created_source": created_source or "file_upload",
                 "created_source_id": created_source_id,
+                "original_text": original_text or "",
+                "text_length": text_length or 0,
+                "content_hash": content_hash or "",
             }
             
             result = await execute_query(query=sql, params=params)
@@ -151,7 +165,7 @@ class FileDbService:
         inserted_ids = []
         
         for file_info in files_info:
-            file_key = file_info.get("file_key") or file_info.get("s3_key")
+            file_key = file_info.get("file_key")
             if not file_key:
                 logging.warning(f"Skipping file without file_key: {file_info}")
                 continue
@@ -167,7 +181,7 @@ class FileDbService:
                 "indicators_count": file_info.get("indicators_count", 0),
                 "processed": file_info.get("processed", False),
                 "duration": file_info.get("duration"),
-                "original_filename": file_info.get("original_filename", file_info.get("filename", "")),
+                "original_filename": file_info.get("original_filename") or file_info.get("file_name", ""),
                 "content_type": file_info.get("content_type", "application/octet-stream"),
                 "session_id": file_info.get("session_id", ""),
                 "upload_time": file_info.get("upload_time", ""),
@@ -181,13 +195,16 @@ class FileDbService:
             file_id = await FileDbService.insert_file(
                 user_id=user_id,
                 file_key=file_key,
-                file_name=file_info.get("file_name") or file_info.get("filename", ""),
+                file_name=file_info.get("file_name", "") or file_info.get("filename", ""),
                 file_type=file_info.get("file_type") or file_info.get("content_type", ""),
                 file_content=file_content,
                 scene=scene,
                 created_source=created_source,
                 created_source_id=created_source_id,
                 query_user_id=query_user_id,
+                original_text=file_info.get("original_text", ""),
+                text_length=file_info.get("text_length", 0),
+                content_hash=file_info.get("content_hash", ""),
             )
             
             if file_id:
@@ -582,6 +599,9 @@ class FileDbService:
         file_abstract: str = "",
         indicators: Optional[List[Dict]] = None,
         file_name: Optional[str] = None,
+        original_text: str = "",
+        text_length: int = 0,
+        content_hash: str = "",
     ) -> bool:
         """
         Update file with processing results.
@@ -592,27 +612,77 @@ class FileDbService:
             file_abstract: File abstract/summary
             indicators: List of extracted indicators
             file_name: Optional generated file name
+            original_text: Original text content (for rerank)
+            text_length: Length of original text
+            content_hash: SHA256 hash of file content
             
         Returns:
             True if successful
         """
-        updates = {
-            "raw": raw,
-            "file_abstract": file_abstract,
-            "indicators": indicators or [],
-            "indicators_count": len(indicators) if indicators else 0,
-            "processed": True,
-            "processed_at": datetime.now().isoformat(),
-            # Update status to completed
-            "status": "completed",
-            "error": "",
-            "progress": 100,
-        }
-        
-        if file_name:
-            updates["generated_file_name"] = file_name
-        
-        return await FileDbService.update_file_content(file_key, updates)
+        try:
+            # Update file_content JSON fields
+            content_updates = {
+                "raw": raw,
+                "file_abstract": file_abstract,
+                "indicators": indicators or [],
+                "indicators_count": len(indicators) if indicators else 0,
+                "processed": True,
+                "processed_at": datetime.now().isoformat(),
+                "status": "completed",
+                "error": "",
+                "progress": 100,
+            }
+            
+            if file_name:
+                content_updates["generated_file_name"] = file_name
+            
+            # Build SQL to update both file_content JSON and standalone columns
+            sql_parts = [
+                "UPDATE th_files SET",
+                "file_content = COALESCE(file_content, CAST('{}' AS jsonb)) || CAST(:content_updates AS jsonb)",
+            ]
+            params: Dict[str, Any] = {
+                "file_key": file_key,
+                "content_updates": safe_json_dumps(content_updates),
+            }
+            
+            # Update file_name column if provided
+            if file_name:
+                sql_parts.append(", file_name = :file_name")
+                params["file_name"] = file_name
+            
+            # Update original_text column if provided
+            if original_text:
+                sql_parts.append(", original_text = :original_text")
+                params["original_text"] = original_text
+            
+            # Update text_length column if provided
+            if text_length > 0:
+                sql_parts.append(", text_length = :text_length")
+                params["text_length"] = text_length
+            
+            # Update content_hash column if provided
+            if content_hash:
+                sql_parts.append(", content_hash = :content_hash")
+                params["content_hash"] = content_hash
+            
+            sql_parts.append(", updated_at = now()")
+            sql_parts.append("WHERE file_key = :file_key AND is_del = false")
+            
+            sql = " ".join(sql_parts)
+            
+            result = await execute_query(
+                query=sql,
+                params=params,
+                query_type="update",
+                mode="async"
+            )
+            
+            return True
+            
+        except Exception as e:
+            logging.error(f"Failed to update file processed: {file_key}, error: {e}")
+            return False
     
     @staticmethod
     async def update_file_abstract(

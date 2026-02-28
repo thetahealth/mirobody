@@ -18,7 +18,7 @@ from .config import AI_CONFIG, AIConfig
 # File processing
 from .file_processors import (
     FileProcessor,
-    VisionProcessor,
+    # VisionProcessor,
     VisionProviderConfig,
     gemini_file_extract,
     doubao_file_extract,
@@ -69,7 +69,7 @@ __all__ = [
     "health_check",  # Health check
     # === File processing ===
     "FileProcessor",  # File processor
-    "VisionProcessor",  # Vision processor
+    # "VisionProcessor",  # Vision processor
     "VisionProviderConfig",  # Vision provider config (query available providers)
     "gemini_file_extract",  # Gemini file extraction
     "doubao_file_extract",  # Doubao file extraction

@@ -1,21 +1,23 @@
 """
 File Processing Module
 
-Provides various file extraction and processing functions.
-Automatically selects appropriate vision model provider based on configured API keys.
+Provides unified file extraction using various vision model providers.
+Automatically selects provider based on configured API keys.
 """
 
+import asyncio
 import base64
+import io
+import json
 import logging
 import pathlib
 import time
-import io
-from typing import Optional, Tuple, Dict, Any, List
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import pypdfium2 as pdfium
 from google.genai import types
-from PIL import Image
 from openai import AsyncOpenAI
+from PIL import Image
 from volcenginesdkarkruntime import AsyncArk
 
 from mirobody.utils.config import safe_read_cfg
@@ -24,15 +26,27 @@ from .clients import client_manager
 from .config import AIConfig
 
 
+# =============================================================================
+# Constants
+# =============================================================================
+
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp'}
+
+# Provider-specific extra parameters for API calls (no thinking to improve latency )
+PROVIDER_EXTRA_PARAMS: Dict[str, Dict[str, Any]] = {
+    "openrouter": {"extra_body": {"reasoning": {"enabled": False}}},
+    "qwen": {"extra_body": {"enable_thinking": False}},
+    "doubao": {"thinking": {"type": "disabled"}},
+}
+
+
+# =============================================================================
+# Provider Configuration
+# =============================================================================
+
 class VisionProviderConfig:
-    """
-    Vision Provider Configuration
-    
-    Automatically selects appropriate vision model provider based on available API keys.
-    Priority order: gemini > openrouter > doubao
-    """
-    
-    # Vision provider configuration list (sorted by priority)
+    """Vision provider configuration with auto-selection based on API keys."""
+
     VISION_PROVIDERS: List[Dict[str, Any]] = [
         {
             "name": "gemini",
@@ -47,133 +61,176 @@ class VisionProviderConfig:
             "description": "OpenRouter (OpenAI Compatible)",
         },
         {
+            "name": "qwen",
+            "api_key_env": "DASHSCOPE_API_KEY",
+            "default_model": "qwen3-vl-flash",
+            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "description": "Qwen Vision (Alibaba Dashscope)",
+        },
+        {
             "name": "doubao",
             "api_key_env": "VOLCENGINE_API_KEY",
             "default_model": "doubao-seed-1-6-vision-250815",
             "description": "Doubao/Volcengine Vision",
         },
     ]
-    
+
     @classmethod
     def get_available_provider(cls) -> Optional[Dict[str, Any]]:
-        """
-        Get the first available vision provider (based on configured API keys)
-        
-        Returns:
-            Provider configuration dict, or None if no provider is available
-        """
+        """Get first available provider with configured API key."""
         for provider in cls.VISION_PROVIDERS:
-            api_key = safe_read_cfg(provider["api_key_env"])
-            if api_key:
+            if safe_read_cfg(provider["api_key_env"]):
                 logging.info(f"🔍 Vision provider selected: {provider['name']} ({provider['description']})")
                 return provider
         return None
-    
+
     @classmethod
     def get_provider_by_name(cls, name: str) -> Optional[Dict[str, Any]]:
-        """
-        Get provider configuration by name
-        
-        Args:
-            name: Provider name (gemini/openrouter/doubao)
-            
-        Returns:
-            Provider configuration dict
-        """
+        """Get provider configuration by name."""
         for provider in cls.VISION_PROVIDERS:
             if provider["name"] == name:
                 return provider
         return None
-    
+
     @classmethod
     def list_available_providers(cls) -> List[str]:
-        """
-        List all available providers with configured API keys
-        
-        Returns:
-            List of available provider names
-        """
-        available = []
-        for provider in cls.VISION_PROVIDERS:
-            api_key = safe_read_cfg(provider["api_key_env"])
-            if api_key:
-                available.append(provider["name"])
-        return available
-    
+        """List all providers with configured API keys."""
+        return [p["name"] for p in cls.VISION_PROVIDERS if safe_read_cfg(p["api_key_env"])]
+
     @classmethod
     def get_provider_status(cls) -> Dict[str, bool]:
-        """
-        Get configuration status of all providers
-        
-        Returns:
-            Mapping of provider names to availability status
-        """
-        return {
-            provider["name"]: bool(safe_read_cfg(provider["api_key_env"]))
-            for provider in cls.VISION_PROVIDERS
-        }
+        """Get availability status of all providers."""
+        return {p["name"]: bool(safe_read_cfg(p["api_key_env"])) for p in cls.VISION_PROVIDERS}
 
+
+# =============================================================================
+# Utility Functions
+# =============================================================================
 
 def clean_json_response(response: str) -> str:
-    """
-    Clean LLM response by removing markdown code block markers.
-    
-    Args:
-        response: Raw LLM response
-        
-    Returns:
-        Cleaned JSON string
-    """
+    """Remove markdown code block markers from LLM response."""
     if not response:
         return response
-        
     response = response.strip()
-    
-    # Remove markdown code block markers
     if response.startswith('```json'):
         response = response[7:]
     elif response.startswith('```'):
         response = response[3:]
-        
     if response.endswith('```'):
         response = response[:-3]
-        
     return response.strip()
 
 
+def _build_prompt_with_schema(prompt: str, response_schema: Optional[Any] = None) -> str:
+    """Embed response_schema into prompt for providers without native schema support."""
+    if not response_schema:
+        return prompt + "\n\nPlease return the result in JSON format."
+
+    try:
+        if hasattr(response_schema, 'to_dict'):
+            schema_dict = response_schema.to_dict()
+        elif hasattr(response_schema, '__dict__'):
+            schema_dict = response_schema.__dict__
+        elif isinstance(response_schema, dict):
+            schema_dict = response_schema
+        else:
+            schema_dict = str(response_schema)
+
+        schema_str = json.dumps(schema_dict, indent=2, ensure_ascii=False)
+        return f"""{prompt}
+
+Please return the result in JSON format that strictly follows this schema:
+```json
+{schema_str}
+```"""
+    except Exception as e:
+        logging.warning(f"Failed to serialize response_schema: {e}")
+        return prompt + "\n\nPlease return the result in JSON format."
+
+
+def _merge_json_results(json_strings: List[str]) -> str:
+    """Merge multiple JSON results into one combined result."""
+    merged = {}
+    for json_str in json_strings:
+        try:
+            data = json.loads(json_str)
+            if not isinstance(data, dict):
+                continue
+            for key, value in data.items():
+                if key not in merged:
+                    merged[key] = value
+                elif isinstance(value, list) and isinstance(merged[key], list):
+                    merged[key].extend(value)
+                elif isinstance(value, dict) and isinstance(merged[key], dict):
+                    for k, v in value.items():
+                        if k not in merged[key] or not merged[key][k]:
+                            merged[key][k] = v
+                elif not merged[key] and value:
+                    merged[key] = value
+        except json.JSONDecodeError as e:
+            logging.warning(f"Failed to parse JSON: {e}, content: {json_str[:100]}...")
+    return json.dumps(merged, ensure_ascii=False)
+
+
+def _merge_page_results(all_results: List[Dict[str, Any]], json_mode: bool) -> str:
+    """Merge page-by-page results into final output."""
+    if not all_results:
+        logging.warning("No valid analysis results obtained")
+        return ""
+
+    valid_contents = []
+    for result in all_results:
+        if 'content' in result and result['content']:
+            valid_contents.append({'page': result.get('page', 0), 'content': result['content']})
+        elif 'error' in result:
+            logging.warning(f"Page {result.get('page', 0)} extraction failed: {result['error']}")
+
+    if not valid_contents:
+        logging.warning("No valid content extracted from any page")
+        return ""
+
+    # Single page: return directly
+    if len(valid_contents) == 1:
+        content = valid_contents[0]['content']
+        return clean_json_response(content) if json_mode else content
+
+    # Multiple pages: merge based on mode
+    if json_mode:
+        cleaned_contents = [clean_json_response(vc['content']) for vc in valid_contents]
+        combined = _merge_json_results(cleaned_contents)
+        logging.info(f"Merged {len(valid_contents)} pages JSON results")
+        return combined
+    else:
+        text_parts = [f"[Page {vc['page']}]\n{vc['content']}" for vc in valid_contents]
+        combined = "\n\n".join(text_parts)
+        logging.info(f"Combined {len(valid_contents)} pages, total {len(combined)} characters")
+        return combined
+
+
+# =============================================================================
+# Image Processing
+# =============================================================================
+
 class FileProcessor:
-    """Base class for file processors"""
-    
+    """Base file processor with image optimization."""
+
     @staticmethod
     def optimize_image_for_llm(
-        image_data: bytes, 
+        image_data: bytes,
         max_dimension: int = 2048,
         quality: int = 85,
         format: str = "JPEG"
     ) -> Tuple[bytes, dict]:
-        """
-        Optimize image for LLM processing by reducing resolution and applying compression
-        
-        Args:
-            image_data: Original image data in bytes
-            max_dimension: Maximum dimension (width or height) for the image
-            quality: JPEG quality (1-100, higher is better quality but larger size)
-            format: Output format (JPEG recommended for best compression)
-            
-        Returns:
-            Tuple[bytes, dict]: (Optimized image data, optimization stats)
-        """
+        """Optimize image by reducing resolution and applying compression."""
         try:
             start_time = time.time()
             original_size = len(image_data)
-            
-            # Open image from bytes
+
             img = Image.open(io.BytesIO(image_data))
             original_width, original_height = img.size
-            
-            # Convert RGBA to RGB if necessary (for JPEG compatibility)
+
+            # Convert to RGB if necessary
             if img.mode in ('RGBA', 'LA', 'P'):
-                # Create a white background
                 background = Image.new('RGB', img.size, (255, 255, 255))
                 if img.mode == 'P':
                     img = img.convert('RGBA')
@@ -181,908 +238,582 @@ class FileProcessor:
                 img = background
             elif img.mode not in ('RGB', 'L'):
                 img = img.convert('RGB')
-            
-            # Calculate new dimensions if image is too large
+
+            # Resize if too large
             width, height = img.size
             if width > max_dimension or height > max_dimension:
-                # Calculate scaling factor
                 scale = min(max_dimension / width, max_dimension / height)
-                new_width = int(width * scale)
-                new_height = int(height * scale)
-                
-                # Resize image using high-quality resampling
+                new_width, new_height = int(width * scale), int(height * scale)
                 img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-                logging.info(f"📐 Image resized from {original_width}x{original_height} to {new_width}x{new_height}")
-            
-            # Save optimized image to bytes
+                logging.info(f"📐 Image resized: {original_width}x{original_height} → {new_width}x{new_height}")
+
+            # Save optimized image
             output = io.BytesIO()
+            save_kwargs = {"format": format, "quality": quality, "optimize": True}
             if format == "JPEG":
-                # Use optimize flag for better compression
-                img.save(output, format=format, quality=quality, optimize=True, progressive=True)
-            else:
-                img.save(output, format=format, quality=quality, optimize=True)
-            
+                save_kwargs["progressive"] = True
+            img.save(output, **save_kwargs)
+
             optimized_data = output.getvalue()
-            optimized_size = len(optimized_data)
-            
-            # Calculate statistics
-            compression_ratio = (1 - optimized_size / original_size) * 100
-            processing_time = time.time() - start_time
-            
+            compression_ratio = (1 - len(optimized_data) / original_size) * 100
+
             stats = {
                 "original_size": original_size,
-                "optimized_size": optimized_size,
+                "optimized_size": len(optimized_data),
                 "compression_ratio": compression_ratio,
                 "original_dimensions": (original_width, original_height),
                 "optimized_dimensions": img.size,
-                "processing_time": processing_time
+                "processing_time": time.time() - start_time
             }
-            
-            logging.info(f"✅ Image optimized: {original_size/1024:.1f}KB → {optimized_size/1024:.1f}KB "
-                      f"({compression_ratio:.1f}% reduction), took {processing_time:.2f}s")
-            
+            logging.info(f"✅ Image optimized: {original_size/1024:.1f}KB → {len(optimized_data)/1024:.1f}KB "
+                        f"({compression_ratio:.1f}% reduction)")
             return optimized_data, stats
-            
+
         except Exception as e:
-            logging.warning(f"Image optimization failed, using original: {str(e)}")
-            # Return original data if optimization fails
+            logging.warning(f"Image optimization failed: {e}")
             return image_data, {"error": str(e), "original_size": len(image_data)}
 
-    @staticmethod
-    async def gemini_file_extract(
-        local_file_path: str,
-        mime_type: str,
-        prompt: str,
-        config: Optional[types.GenerateContentConfig] = None,
-        model: str = "gemini-3-flash-preview",
-    ) -> str:
-        """
-        Extract file content using Gemini model
 
-        Args:
-            local_file_path: Local file path
-            mime_type: File MIME type
-            prompt: Extraction prompt
-            config: Generation configuration
-            model: Model name
+# =============================================================================
+# Common Processing Utilities
+# =============================================================================
 
-        Returns:
-            Extracted file content
-        """
-        try:
-            filepath = pathlib.Path(local_file_path)
-            if not filepath.exists():
-                logging.error(f"File not found: {local_file_path}")
-                return ""
+def _convert_pdf_to_base64_images(pdf_path: str, scale: float = 1.5) -> List[Dict[str, Any]]:
+    """Convert PDF pages to optimized base64 images."""
+    pdf = pdfium.PdfDocument(pdf_path)
+    page_images = []
 
-            client = client_manager.get_async_gemini_client()
+    for page_num in range(len(pdf)):
+        page_start = time.time()
+        page = pdf[page_num]
+        bitmap = page.render(scale=scale)
+        pil_image = bitmap.to_pil()
 
-            if config is None:
-                config = types.GenerateContentConfig(temperature=0.1)
+        img_buffer = io.BytesIO()
+        pil_image.save(img_buffer, format="JPEG", quality=90)
+        img_data = img_buffer.getvalue()
 
-            # Read file data
-            file_data = filepath.read_bytes()
-            
-            # Optimize image files before sending to API
-            if mime_type and mime_type.startswith('image/'):
-                optimized_data, stats = FileProcessor.optimize_image_for_llm(
-                    file_data,
-                    max_dimension=1536,  # Suitable resolution for medical reports
-                    quality=85  # Maintain high quality for text clarity
-                )
-                logging.info(f"Gemini: Image optimized for processing, {stats}")
-                file_data = optimized_data
-            
-            response = await client.models.generate_content(
-                model=model,
-                contents=[
-                    types.Part.from_bytes(
-                        data=file_data,
-                        mime_type=mime_type,
-                    ),
-                    prompt,
-                ],
-                config=config,
-            )
+        optimized_data, stats = FileProcessor.optimize_image_for_llm(
+            img_data, max_dimension=1536, quality=85
+        )
+        base64_image = base64.b64encode(optimized_data).decode('utf-8')
 
-            # Check if response is valid
-            if not response:
-                logging.error("Gemini API returned empty response")
-                return ""
+        conversion_time = time.time() - page_start
+        page_images.append({
+            'page_num': page_num + 1,
+            'base64_image': base64_image,
+            'conversion_time': conversion_time,
+            'stats': stats
+        })
+        logging.info(f"Page {page_num + 1} converted in {conversion_time:.2f}s")
 
-            # Check if response has text content
-            if not hasattr(response, "text") or response.text is None:
-                logging.error("Gemini API response has no text content")
-                return ""
-
-            # Check for candidates and content safety
-            if hasattr(response, "candidates") and response.candidates:
-                candidate = response.candidates[0]
-                if hasattr(candidate, "finish_reason"):
-                    if candidate.finish_reason in ["SAFETY", "BLOCKED"]:
-                        logging.warning(f"Content blocked by safety filter: {candidate.finish_reason}")
-                        return ""
-                    elif candidate.finish_reason == "OTHER":
-                        logging.warning("Content generation stopped for unknown reason")
-                        return ""
-
-            return response.text or ""
-
-        except Exception as e:
-            error_msg = str(e)
-            logging.error(f"Gemini file processing failed: {type(e).__name__}: {error_msg}", stack_info=True)
-            # Check for specific error types and raise with appropriate message
-            if "User location is not supported" in error_msg:
-                raise ValueError("Gemini API error: User location is not supported for the API use. Please check your API region settings.")
-            elif "400" in error_msg or "FAILED_PRECONDITION" in error_msg:
-                raise ValueError(f"Gemini API configuration error: {error_msg}")
-            elif "401" in error_msg or "403" in error_msg:
-                raise ValueError(f"Gemini API authentication error: {error_msg}")
-            elif "429" in error_msg:
-                raise ValueError(f"Gemini API rate limit exceeded: {error_msg}")
-            else:
-                raise ValueError(f"Gemini API failed: {error_msg}") from e
-
-    @staticmethod
-    async def gemini_multi_file_extract(
-        files: List[Dict[str, str]],
-        prompt: str,
-        config: Optional[types.GenerateContentConfig] = None,
-        model: str = "gemini-3-flash-preview",
-    ) -> str:
-        """
-        Use Gemini model to process multiple files at once
-        
-        Args:
-            files: List of file dictionaries, each containing:
-                   - 'path': local file path
-                   - 'mime_type': file MIME type
-            prompt: Prompt text
-            config: Generation configuration
-            model: Model name
-            
-        Returns:
-            Extracted content from files
-        """
-        try:
-            # Validate files list is not empty
-            if not files:
-                logging.error("Files list is empty")
-                raise ValueError("Files list cannot be empty")
-            
-            # Validate each file has required keys
-            for idx, file in enumerate(files):
-                if not isinstance(file, dict):
-                    logging.error(f"File at index {idx} is not a dictionary")
-                    raise ValueError(f"File at index {idx} must be a dictionary")
-                if "path" not in file:
-                    logging.error(f"File at index {idx} is missing 'path' key")
-                    raise ValueError(f"File at index {idx} is missing required 'path' key")
-                if "mime_type" not in file:
-                    logging.error(f"File at index {idx} is missing 'mime_type' key")
-                    raise ValueError(f"File at index {idx} is missing required 'mime_type' key")
-            
-            # Check if all files exist
-            for file in files:
-                filepath = pathlib.Path(file["path"])
-                if not filepath.exists():
-                    logging.error(f"File does not exist: {file['path']}")
-                    raise ValueError(f"File does not exist: {file['path']}")
-            
-            # Get Gemini client
-            client = client_manager.get_async_gemini_client()
-            
-            # Set default config if not provided
-            if config is None:
-                config = types.GenerateContentConfig(temperature=0.1)
-            
-            # Build contents list with all files
-            contents = []
-            
-            # Add all file parts
-            for file in files:
-                filepath = pathlib.Path(file["path"])
-                file_data = filepath.read_bytes()
-                
-                # Optimize image files before sending to API
-                if file["mime_type"] and file["mime_type"].startswith('image/'):
-                    optimized_data, stats = FileProcessor.optimize_image_for_llm(
-                        file_data,
-                        max_dimension=1536,  # Suitable resolution for medical reports
-                        quality=85  # Maintain high quality for text clarity
-                    )
-                    logging.info(f"Gemini: Image {file['path']} optimized for processing, {stats}")
-                    file_data = optimized_data
-                
-                file_part = types.Part.from_bytes(
-                    data=file_data,
-                    mime_type=file["mime_type"],
-                )
-                contents.append(file_part)
-            
-            # Add prompt at the end
-            contents.append(prompt)
-            
-            # Call Gemini API
-            response = await client.models.generate_content(
-                model=model,
-                contents=contents,
-                config=config,
-            )
-            
-            # Check if response is valid
-            if not response:
-                logging.error("Gemini API returned empty response")
-                return ""
-            
-            # Check if response has text content
-            if not hasattr(response, "text") or response.text is None:
-                logging.error("Gemini API response has no text content")
-                return ""
-            
-            # Check for candidates and content safety
-            if hasattr(response, "candidates") and response.candidates:
-                candidate = response.candidates[0]
-                if hasattr(candidate, "finish_reason"):
-                    if candidate.finish_reason in ["SAFETY", "BLOCKED"]:
-                        logging.warning(f"Content blocked by safety filter: {candidate.finish_reason}")
-                        return ""
-                    elif candidate.finish_reason == "OTHER":
-                        logging.warning("Content generation stopped for unknown reason")
-                        return ""
-            
-            return response.text or ""
-            
-        except Exception as e:
-            error_msg = str(e)
-            logging.error(f"Gemini multi-file processing failed: {type(e).__name__}: {error_msg}", stack_info=True)
-            # Check for specific error types and raise with appropriate message
-            if "User location is not supported" in error_msg:
-                raise ValueError("Gemini API error: User location is not supported for the API use. Please check your API region settings.")
-            elif "400" in error_msg or "FAILED_PRECONDITION" in error_msg:
-                raise ValueError(f"Gemini API configuration error: {error_msg}")
-            elif "401" in error_msg or "403" in error_msg:
-                raise ValueError(f"Gemini API authentication error: {error_msg}")
-            elif "429" in error_msg:
-                raise ValueError(f"Gemini API rate limit exceeded: {error_msg}")
-            else:
-                # Re-raise the original exception with context
-                raise ValueError(f"Gemini API failed: {error_msg}") from e
+    pdf.close()
+    return page_images
 
 
-class VisionProcessor:
-    """Vision Processor - Uses OpenRouter to call vision models"""
-    
-    @staticmethod
-    async def _process_pdf_with_openrouter(pdf_path: str, prompt: str, client: AsyncOpenAI, model: str) -> str:
-        """
-        Convert PDF to images using pypdfium2 and analyze with OpenRouter
-        
-        Args:
-            pdf_path: PDF file path
-            prompt: Analysis prompt
-            client: OpenRouter client
-            model: Model name
-            
-        Returns:
-            Analysis result as JSON string
-        """
-        try:
-            logging.info(f"Starting PDF processing: {pdf_path}")
-            
-            # Open PDF document with pypdfium2
-            pdf = pdfium.PdfDocument(pdf_path)
-            page_count = len(pdf)
-            logging.info(f"PDF has {page_count} pages")
-            
-            all_results = []
-            
-            for page_num in range(page_count):
-                logging.info(f"Processing page {page_num + 1}")
-                page_start_time = time.time()
-                
-                # Load page
-                page = pdf[page_num]
-                
-                # Render page to image with 1.5x scale (216 DPI = 72 * 3)
-                # scale=1.5 gives good balance between quality and speed
-                scale = 1.5
-                bitmap = page.render(scale=scale)
-                
-                # Convert to PIL Image
-                pil_image = bitmap.to_pil()
-                
-                # Convert to JPEG bytes
-                img_buffer = io.BytesIO()
-                pil_image.save(img_buffer, format="JPEG", quality=90)
-                img_data = img_buffer.getvalue()
-                
-                # Optimize image
-                optimized_img_data, stats = FileProcessor.optimize_image_for_llm(
-                    img_data,
-                    max_dimension=1536,
-                    quality=85
-                )
-                
-                # Convert to base64 for API call
-                base64_image = base64.b64encode(optimized_img_data).decode('utf-8')
-                
-                image_conversion_time = time.time() - page_start_time
-                logging.info(f"Image optimization and conversion took: {image_conversion_time:.2f}s, {stats}")
-                
-                # Create OpenRouter API message
-                messages = [{
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
-                        },
-                        {
-                            "type": "text", 
-                            "text": f"{prompt}. Please return the result in JSON format."
-                        }
-                    ]
-                }]
-                
-                try:
-                    logging.info(f"Calling OpenRouter API (model: {model})...")
-                    api_start_time = time.time()
-                    
-                    response = await client.chat.completions.create(
-                        model=model,
-                        messages=messages,
-                        response_format={"type": "json_object"}
-                    )
-                    
-                    api_duration = time.time() - api_start_time
-                    page_total_time = time.time() - page_start_time
-                    
-                    logging.info(f"API request completed, took: {api_duration:.2f}s")
-                    logging.info(f"Page {page_num + 1} total processing time: {page_total_time:.2f}s")
-                    
-                    result = response.choices[0].message.content
-                    all_results.append({
-                        'page': page_num + 1,
-                        'content': result,
-                        'api_duration': api_duration,
-                        'image_conversion_time': image_conversion_time,
-                        'page_total_time': page_total_time
-                    })
-                    
-                    logging.info(f"Page {page_num + 1} analysis completed")
-                    
-                except Exception as api_error:
-                    logging.error(f"Page {page_num + 1} API call failed: {api_error}")
-                    all_results.append({
-                        'page': page_num + 1,
-                        'error': str(api_error)
-                    })
-            
-            # Close document
-            pdf.close()
-            
-            # Merge all page results
-            if all_results:
-                # Single page - return result directly
-                if len(all_results) == 1 and 'content' in all_results[0]:
-                    return clean_json_response(all_results[0]['content'])
-                
-                # Multiple pages - return first valid result
-                for result in all_results:
-                    if 'content' in result and result['content']:
-                        return clean_json_response(result['content'])
-            
-            logging.warning("No valid analysis results obtained")
-            return ""
-            
-        except Exception as e:
-            logging.error(f"PDF processing error: {type(e).__name__}: {str(e)}", stack_info=True)
-            return ""
-    
-    @staticmethod
-    async def _process_image_with_openrouter(image_path: str, prompt: str, client: AsyncOpenAI, model: str) -> str:
-        """
-        Process image file directly and analyze with OpenRouter
-        
-        Args:
-            image_path: Image file path
-            prompt: Analysis prompt
-            client: OpenRouter client
-            model: Model name
-            
-        Returns:
-            Analysis result as JSON string
-        """
-        try:
-            logging.info(f"Starting image processing: {image_path}")
-            start_time = time.time()
-            
-            # Read image file
-            with open(image_path, "rb") as img_file:
-                img_data = img_file.read()
-            
-            # Optimize image for faster processing
-            optimized_img_data, stats = FileProcessor.optimize_image_for_llm(
-                img_data,
-                max_dimension=1536,
-                quality=85
-            )
-            
-            # Convert to base64
-            base64_image = base64.b64encode(optimized_img_data).decode('utf-8')
-            
-            image_conversion_time = time.time() - start_time
-            logging.info(f"Image optimization and conversion took: {image_conversion_time:.2f}s, {stats}")
-            
-            # Create OpenRouter API message
-            messages = [{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
-                    },
-                    {
-                        "type": "text",
-                        "text": f"{prompt}. Please return the result in JSON format."
-                    }
-                ]
-            }]
-            
-            try:
-                logging.info(f"Calling OpenRouter API (model: {model})...")
-                api_start_time = time.time()
-                
-                response = await client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    response_format={"type": "json_object"}
-                )
-                
-                api_duration = time.time() - api_start_time
-                total_time = time.time() - start_time
-                
-                logging.info(f"API request completed, took: {api_duration:.2f}s")
-                logging.info(f"Total image processing time: {total_time:.2f}s")
-                
-                result = response.choices[0].message.content
-                logging.info("Image analysis completed")
-                
-                # Clean markdown code block markers from response
-                return clean_json_response(result) if result else ""
-                
-            except Exception as api_error:
-                logging.error(f"API call failed: {api_error}")
-                return ""
-                
-        except Exception as e:
-            logging.error(f"Image processing error: {type(e).__name__}: {str(e)}", stack_info=True)
-            return ""
-
-    @staticmethod
-    def _build_prompt_with_schema(prompt: str, response_schema: Optional[Any] = None) -> str:
-        """
-        Embed response_schema into prompt for providers that don't support native schema (OpenRouter/Doubao)
-        
-        Args:
-            prompt: Original prompt
-            response_schema: Gemini format response_schema or JSON schema dict
-            
-        Returns:
-            Complete prompt with schema instructions
-        """
-        if not response_schema:
-            return prompt + "\n\nPlease return the result in JSON format."
-        
-        import json
-        
-        # Try to convert schema to JSON string
-        try:
-            if hasattr(response_schema, 'to_dict'):
-                # Gemini schema object
-                schema_dict = response_schema.to_dict()
-            elif hasattr(response_schema, '__dict__'):
-                schema_dict = response_schema.__dict__
-            elif isinstance(response_schema, dict):
-                schema_dict = response_schema
-            else:
-                schema_dict = str(response_schema)
-            
-            schema_str = json.dumps(schema_dict, indent=2, ensure_ascii=False)
-            
-            return f"""{prompt}
-
-Please return the result in JSON format that strictly follows this schema:
-```json
-{schema_str}
-```"""
-        except Exception as e:
-            logging.warning(f"Failed to serialize response_schema: {e}, using prompt without schema")
-            return prompt + "\n\nPlease return the result in JSON format."
-
-    @staticmethod
-    async def vision_file_extract(
-        local_file_path: str, 
-        prompt: str = "Please extract all test indicators from this report and return the result in JSON format",
-        model: str = "google/gemini-2.5-flash",
-        client: Optional[AsyncOpenAI] = None,
-        response_schema: Optional[Any] = None
-    ) -> str:
-        """
-        Extract file content using vision model, supports PDF and image files
-        
-        Args:
-            local_file_path: Local file path
-            prompt: Extraction prompt
-            model: Model name
-            client: Client (optional, auto-created if not provided)
-            response_schema: JSON schema (optional, embedded in prompt to guide output format)
-            
-        Returns:
-            Analysis result as JSON string
-        """
-        try:
-            file_path = pathlib.Path(local_file_path)
-            if not file_path.exists():
-                logging.error(f"File not found: {local_file_path}")
-                return "" 
-            
-            # Get or create OpenRouter client
-            if client is None:
-                client = client_manager.get_async_openrouter_client()
-            
-            # Embed response_schema into prompt if provided
-            final_prompt = VisionProcessor._build_prompt_with_schema(prompt, response_schema)
-            
-            # Check file type
-            file_extension = file_path.suffix.lower()
-            logging.info(f"Processing file: {local_file_path}, extension: {file_extension}")
-            
-            # Supported image formats
-            image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp'}
-            
-            if file_extension == '.pdf':
-                # PDF file - convert to images for processing
-                return await VisionProcessor._process_pdf_with_openrouter(
-                    pdf_path=str(file_path),
-                    prompt=final_prompt, 
-                    client=client,
-                    model=model
-                )
-            elif file_extension in image_extensions:
-                # Image file - process directly
-                return await VisionProcessor._process_image_with_openrouter(
-                    image_path=str(file_path),
-                    prompt=final_prompt,
-                    client=client,
-                    model=model
-                )
-            else:
-                # Unsupported file type
-                logging.warning(f"Unsupported file type: {file_extension}")
-                return ""
-                
-        except Exception as e:
-            error_msg = str(e)
-            logging.error(f"OpenRouter file extraction failed: {type(e).__name__}: {error_msg}", stack_info=True)
-            raise ValueError(f"OpenRouter API failed: {error_msg}") from e
-
-    @staticmethod
-    async def _process_pdf_with_doubao(pdf_path: str, prompt: str, client: AsyncArk, model: str) -> str:
-        """
-        Convert PDF to images using pypdfium2 and analyze with Doubao
-        
-        Args:
-            pdf_path: PDF file path
-            prompt: Analysis prompt
-            client: Doubao client
-            model: Model name
-            
-        Returns:
-            Analysis result as JSON string
-        """
-        try:
-            logging.info(f"Starting PDF processing: {pdf_path}")
-            
-            # Open PDF document with pypdfium2
-            pdf = pdfium.PdfDocument(pdf_path)
-            page_count = len(pdf)
-            logging.info(f"PDF has {page_count} pages")
-            
-            all_results = []
-            
-            for page_num in range(page_count):
-                logging.info(f"Processing page {page_num + 1}")
-                page_start_time = time.time()
-                
-                # Load page
-                page = pdf[page_num]
-                
-                # Render page to image with 1.5x scale
-                scale = 1.5
-                bitmap = page.render(scale=scale)
-                
-                # Convert to PIL Image
-                pil_image = bitmap.to_pil()
-                
-                # Convert to JPEG bytes
-                img_buffer = io.BytesIO()
-                pil_image.save(img_buffer, format="JPEG", quality=90)
-                img_data = img_buffer.getvalue()
-                
-                # Optimize image
-                optimized_img_data, stats = FileProcessor.optimize_image_for_llm(
-                    img_data,
-                    max_dimension=1536,
-                    quality=85
-                )
-                
-                # Convert to base64 for API call
-                base64_image = base64.b64encode(optimized_img_data).decode('utf-8')
-                
-                image_conversion_time = time.time() - page_start_time
-                logging.info(f"Image optimization and conversion took: {image_conversion_time:.2f}s, {stats}")
-                
-                # Create Doubao API message
-                messages = [{
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
-                        },
-                        {
-                            "type": "text", 
-                            "text": f"{prompt}. Please return the result in JSON format."
-                        }
-                    ]
-                }]
-                
-                try:
-                    logging.info(f"Calling Doubao API (model: {model})...")
-                    api_start_time = time.time()
-                    
-                    response = await client.chat.completions.create(
-                        model=model,
-                        messages=messages,
-                        response_format={"type": "json_object"}
-                    )
-                    
-                    api_duration = time.time() - api_start_time
-                    page_total_time = time.time() - page_start_time
-                    
-                    logging.info(f"API request completed, took: {api_duration:.2f}s")
-                    logging.info(f"Page {page_num + 1} total processing time: {page_total_time:.2f}s")
-                    
-                    result = response.choices[0].message.content
-                    all_results.append({
-                        'page': page_num + 1,
-                        'content': result,
-                        'api_duration': api_duration,
-                        'image_conversion_time': image_conversion_time,
-                        'page_total_time': page_total_time
-                    })
-                    
-                    logging.info(f"Page {page_num + 1} analysis completed")
-                    
-                except Exception as api_error:
-                    logging.error(f"Page {page_num + 1} API call failed: {api_error}")
-                    all_results.append({
-                        'page': page_num + 1,
-                        'error': str(api_error)
-                    })
-            
-            # Close document
-            pdf.close()
-            
-            # Merge all page results
-            if all_results:
-                if len(all_results) == 1 and 'content' in all_results[0]:
-                    return all_results[0]['content']
-                
-                for result in all_results:
-                    if 'content' in result and result['content']:
-                        return result['content']
-            
-            logging.warning("No valid analysis results obtained")
-            return ""
-            
-        except Exception as e:
-            logging.error(f"PDF processing error: {type(e).__name__}: {str(e)}", stack_info=True)
-            return ""
-    
-    @staticmethod
-    async def _process_image_with_doubao(image_path: str, prompt: str, client: AsyncArk, model: str) -> str:
-        """
-        Process image file directly and analyze with Doubao
-        
-        Args:
-            image_path: Image file path
-            prompt: Analysis prompt
-            client: Doubao client
-            model: Model name
-            
-        Returns:
-            Analysis result as JSON string
-        """
-        try:
-            logging.info(f"Starting image processing: {image_path}")
-            start_time = time.time()
-            
-            # Read image file
-            with open(image_path, "rb") as img_file:
-                img_data = img_file.read()
-            
-            # Optimize image
-            optimized_img_data, stats = FileProcessor.optimize_image_for_llm(
-                img_data,
-                max_dimension=1536,
-                quality=85
-            )
-            
-            # Convert to base64
-            base64_image = base64.b64encode(optimized_img_data).decode('utf-8')
-            
-            image_conversion_time = time.time() - start_time
-            logging.info(f"Image optimization and conversion took: {image_conversion_time:.2f}s, {stats}")
-            
-            # Create Doubao API message
-            messages = [{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
-                    },
-                    {
-                        "type": "text",
-                        "text": f"{prompt}. Please return the result in JSON format."
-                    }
-                ]
-            }]
-            
-            try:
-                logging.info(f"Calling Doubao API (model: {model})...")
-                api_start_time = time.time()
-                
-                response = await client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    response_format={"type": "json_object"}
-                )
-                
-                api_duration = time.time() - api_start_time
-                total_time = time.time() - start_time
-                
-                logging.info(f"API request completed, took: {api_duration:.2f}s")
-                logging.info(f"Total image processing time: {total_time:.2f}s")
-                
-                result = response.choices[0].message.content
-                logging.info("Image analysis completed")
-                
-                return result or ""
-                
-            except Exception as api_error:
-                logging.error(f"API call failed: {api_error}")
-                return ""
-                
-        except Exception as e:
-            logging.error(f"Image processing error: {type(e).__name__}: {str(e)}", stack_info=True)
-            return ""
-
-    @staticmethod
-    async def doubao_file_extract(
-        local_file_path: str, 
-        prompt: str = "Please extract all test indicators from this report and return the result in JSON format",
-        model: str = "doubao-1-5-ui-tars-250428",
-        client: Optional[AsyncArk] = None
-    ) -> str:
-        """
-        Doubao file extraction, supports PDF and image files
-        
-        Args:
-            local_file_path: Local file path
-            prompt: Extraction prompt
-            model: Model name
-            client: Doubao client (optional)
-            
-        Returns:
-            Analysis result as JSON string
-        """
-        try:
-            file_path = pathlib.Path(local_file_path)
-            if not file_path.exists():
-                logging.error(f"File not found: {local_file_path}")
-                return "" 
-            
-            # Get or create Doubao client
-            if client is None:
-                volcengine_config = AIConfig.get_provider_config("volcengine")
-                client = AsyncArk(
-                    api_key=volcengine_config["api_key"],
-                    base_url=volcengine_config["api_base"],
-                )
-            
-            # Check file type
-            file_extension = file_path.suffix.lower()
-            logging.info(f"Processing file: {local_file_path}, extension: {file_extension}")
-            
-            # Supported image formats
-            image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp'}
-            
-            if file_extension == '.pdf':
-                return await VisionProcessor._process_pdf_with_doubao(
-                    pdf_path=str(file_path),
-                    prompt=prompt, 
-                    client=client,
-                    model=model
-                )
-            elif file_extension in image_extensions:
-                return await VisionProcessor._process_image_with_doubao(
-                    image_path=str(file_path),
-                    prompt=prompt,
-                    client=client,
-                    model=model
-                )
-            else:
-                logging.warning(f"Unsupported file type: {file_extension}")
-                return ""
-                
-        except Exception as e:
-            error_msg = str(e)
-            logging.error(f"Doubao file extraction failed: {type(e).__name__}: {error_msg}", stack_info=True)
-            raise ValueError(f"Doubao API failed: {error_msg}") from e
+def _build_vision_message(base64_image: str, prompt: str, json_mode: bool) -> List[Dict]:
+    """Build OpenAI-compatible vision message."""
+    text_content = f"{prompt}. Please return the result in JSON format." if json_mode else prompt
+    return [{
+        "role": "user",
+        "content": [
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}},
+            {"type": "text", "text": text_content}
+        ]
+    }]
 
 
-# Exported file processing functions (directly use class methods to avoid redundant wrapping)
-async def gemini_file_extract(
-    file_path: str, content_type: str, prompt: str, config=None, model: str = "gemini-2.5-flash"
+def _read_and_optimize_image(image_path: str) -> Tuple[str, dict]:
+    """Read image file and return optimized base64 string."""
+    with open(image_path, "rb") as f:
+        img_data = f.read()
+    optimized_data, stats = FileProcessor.optimize_image_for_llm(
+        img_data, max_dimension=1536, quality=85
+    )
+    return base64.b64encode(optimized_data).decode('utf-8'), stats
+
+
+# =============================================================================
+# OpenAI-Compatible Provider Processing (OpenRouter/Qwen/Doubao)
+# =============================================================================
+
+async def _openai_compatible_process_pdf(
+    pdf_path: str,
+    prompt: str,
+    client: Union[AsyncOpenAI, AsyncArk],
+    model: str,
+    provider: str,
+    max_concurrency: int = 5,
+    json_mode: bool = True
 ) -> str:
-    """
-    Extract file content using Gemini vision model
-    
-    Args:
-        file_path: File path
-        content_type: MIME type
-        prompt: Extraction prompt
-        config: Configuration parameters
-        model: Model name
-    """
-    return await FileProcessor.gemini_file_extract(file_path, content_type, prompt, config, model)
+    """Process PDF with OpenAI-compatible API (OpenRouter/Qwen/Doubao)."""
+    logging.info(f"Processing PDF with {provider}: {pdf_path}, json_mode={json_mode}")
+    total_start = time.time()
+
+    # Phase 1: Convert PDF to images
+    conversion_start = time.time()
+    page_images = _convert_pdf_to_base64_images(pdf_path)
+    logging.info(f"All {len(page_images)} pages converted in {time.time() - conversion_start:.2f}s")
+
+    # Phase 2: Concurrent API calls
+    semaphore = asyncio.Semaphore(max_concurrency)
+    extra_params = PROVIDER_EXTRA_PARAMS.get(provider, {})
+
+    async def process_page(page_info: Dict[str, Any]) -> Dict[str, Any]:
+        page_num = page_info['page_num']
+        async with semaphore:
+            try:
+                logging.info(f"Calling {provider} API for page {page_num}...")
+                api_start = time.time()
+
+                messages = _build_vision_message(page_info['base64_image'], prompt, json_mode)
+                api_params = {"model": model, "messages": messages, **extra_params}
+                if json_mode:
+                    api_params["response_format"] = {"type": "json_object"}
+
+                response = await client.chat.completions.create(**api_params)
+
+                logging.info(f"Page {page_num} completed in {time.time() - api_start:.2f}s")
+                return {
+                    'page': page_num,
+                    'content': response.choices[0].message.content,
+                    'api_duration': time.time() - api_start
+                }
+            except Exception as e:
+                logging.error(f"Page {page_num} API call failed: {e}")
+                return {'page': page_num, 'error': str(e)}
+
+    tasks = [process_page(page_info) for page_info in page_images]
+    all_results = sorted(await asyncio.gather(*tasks), key=lambda x: x['page'])
+
+    logging.info(f"All {provider} API calls completed in {time.time() - total_start:.2f}s")
+    return _merge_page_results(all_results, json_mode)
+
+
+async def _openai_compatible_process_image(
+    image_path: str,
+    prompt: str,
+    client: Union[AsyncOpenAI, AsyncArk],
+    model: str,
+    provider: str,
+    json_mode: bool = True
+) -> str:
+    """Process image with OpenAI-compatible API (OpenRouter/Qwen/Doubao)."""
+    logging.info(f"Processing image with {provider}: {image_path}, json_mode={json_mode}")
+    start_time = time.time()
+
+    base64_image, stats = _read_and_optimize_image(image_path)
+    logging.info(f"Image optimization took: {time.time() - start_time:.2f}s, {stats}")
+
+    try:
+        api_start = time.time()
+        messages = _build_vision_message(base64_image, prompt, json_mode)
+        extra_params = PROVIDER_EXTRA_PARAMS.get(provider, {})
+        api_params = {"model": model, "messages": messages, **extra_params}
+        if json_mode:
+            api_params["response_format"] = {"type": "json_object"}
+
+        response = await client.chat.completions.create(**api_params)
+
+        logging.info(f"{provider} API completed in {time.time() - api_start:.2f}s")
+        result = response.choices[0].message.content
+        return clean_json_response(result) if json_mode and result else (result or "")
+
+    except Exception as e:
+        logging.error(f"{provider} API call failed: {e}")
+        return ""
+
+
+async def _openai_compatible_file_extract(
+    local_file_path: str,
+    prompt: str,
+    model: str,
+    client: Union[AsyncOpenAI, AsyncArk],
+    provider: str,
+    response_schema: Optional[Any] = None,
+    json_mode: bool = True
+) -> str:
+    """Unified file extraction for OpenAI-compatible providers."""
+    file_path = pathlib.Path(local_file_path)
+    if not file_path.exists():
+        logging.error(f"File not found: {local_file_path}")
+        return ""
+
+    # Embed schema in prompt if provided
+    final_prompt = _build_prompt_with_schema(prompt, response_schema) if json_mode and response_schema else prompt
+    file_ext = file_path.suffix.lower()
+
+    if file_ext == '.pdf':
+        return await _openai_compatible_process_pdf(
+            str(file_path), final_prompt, client, model, provider, json_mode=json_mode
+        )
+    elif file_ext in IMAGE_EXTENSIONS:
+        return await _openai_compatible_process_image(
+            str(file_path), final_prompt, client, model, provider, json_mode=json_mode
+        )
+    else:
+        logging.warning(f"Unsupported file type: {file_ext}")
+        return ""
+
+
+# =============================================================================
+# Gemini-Specific Processing
+# =============================================================================
+
+async def _gemini_process_pdf_by_pages(
+    pdf_path: str,
+    prompt: str,
+    client,
+    config,
+    model: str,
+    max_concurrency: int = 8
+) -> str:
+    """Process PDF page-by-page with Gemini API."""
+    logging.info(f"Processing PDF with Gemini: {pdf_path}")
+    total_start = time.time()
+
+    # Extract each page as separate PDF
+    pdf = pdfium.PdfDocument(pdf_path)
+    page_pdfs = []
+
+    for page_num in range(len(pdf)):
+        new_pdf = pdfium.PdfDocument.new()
+        new_pdf.import_pages(pdf, [page_num])
+        pdf_buffer = io.BytesIO()
+        new_pdf.save(pdf_buffer)
+        page_pdfs.append({'page_num': page_num + 1, 'pdf_data': pdf_buffer.getvalue()})
+        new_pdf.close()
+
+    pdf.close()
+    logging.info(f"Extracted {len(page_pdfs)} pages")
+
+    # Concurrent API calls
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    async def process_page(page_info: Dict[str, Any]) -> Dict[str, Any]:
+        page_num = page_info['page_num']
+        async with semaphore:
+            try:
+                api_start = time.time()
+                response = await client.models.generate_content(
+                    model=model,
+                    contents=[
+                        types.Part.from_bytes(data=page_info['pdf_data'], mime_type="application/pdf"),
+                        prompt,
+                    ],
+                    config=config,
+                )
+
+                if not response or not hasattr(response, "text") or response.text is None:
+                    return {'page': page_num, 'error': 'Empty response'}
+
+                if hasattr(response, "candidates") and response.candidates:
+                    finish_reason = getattr(response.candidates[0], "finish_reason", None)
+                    if finish_reason in ["SAFETY", "BLOCKED"]:
+                        return {'page': page_num, 'error': 'Safety blocked'}
+
+                logging.info(f"Page {page_num} completed in {time.time() - api_start:.2f}s")
+                return {'page': page_num, 'content': response.text}
+
+            except Exception as e:
+                logging.error(f"Page {page_num} failed: {e}")
+                return {'page': page_num, 'error': str(e)}
+
+    tasks = [process_page(page_info) for page_info in page_pdfs]
+    all_results = sorted(await asyncio.gather(*tasks), key=lambda x: x['page'])
+
+    logging.info(f"Gemini processing completed in {time.time() - total_start:.2f}s")
+
+    # Determine JSON mode from config
+    is_json_mode = config and hasattr(config, 'response_mime_type') and config.response_mime_type == "application/json"
+    return _merge_page_results(all_results, is_json_mode)
+
+
+def _handle_gemini_error(error_msg: str) -> ValueError:
+    """Map Gemini API errors to appropriate ValueError messages."""
+    error_mappings = [
+        ("User location is not supported", "User location is not supported for the API use"),
+        ("400", "Configuration error"),
+        ("FAILED_PRECONDITION", "Configuration error"),
+        ("401", "Authentication error"),
+        ("403", "Authentication error"),
+        ("429", "Rate limit exceeded"),
+    ]
+    for key, msg in error_mappings:
+        if key in error_msg:
+            return ValueError(f"Gemini API {msg}: {error_msg}")
+    return ValueError(f"Gemini API failed: {error_msg}")
+
+
+async def gemini_file_extract(
+    file_path: str,
+    content_type: str,
+    prompt: str,
+    config: Optional[types.GenerateContentConfig] = None,
+    model: str = "gemini-3-flash-preview"
+) -> str:
+    """Extract file content using Gemini model (supports PDF natively)."""
+    try:
+        filepath = pathlib.Path(file_path)
+        if not filepath.exists():
+            logging.error(f"File not found: {file_path}")
+            return ""
+
+        client = client_manager.get_async_gemini_client()
+
+        if config is None:
+            config = types.GenerateContentConfig(
+                temperature=0.1,
+                thinking_config=types.ThinkingConfig(thinking_level="minimal")
+            )
+
+        # PDF: use page-by-page processing
+        if content_type == "application/pdf" or filepath.suffix.lower() == ".pdf":
+            return await _gemini_process_pdf_by_pages(str(filepath), prompt, client, config, model)
+
+        # Other files: process directly
+        file_data = filepath.read_bytes()
+
+        # Optimize images
+        if content_type and content_type.startswith('image/'):
+            file_data, stats = FileProcessor.optimize_image_for_llm(
+                file_data, max_dimension=1536, quality=85
+            )
+            logging.info(f"Gemini: Image optimized, {stats}")
+
+        response = await client.models.generate_content(
+            model=model,
+            contents=[types.Part.from_bytes(data=file_data, mime_type=content_type), prompt],
+            config=config,
+        )
+
+        # Validate response
+        if not response or not hasattr(response, "text") or response.text is None:
+            logging.error("Gemini API returned empty response")
+            return ""
+
+        if hasattr(response, "candidates") and response.candidates:
+            finish_reason = getattr(response.candidates[0], "finish_reason", None)
+            if finish_reason in ["SAFETY", "BLOCKED", "OTHER"]:
+                logging.warning(f"Content blocked: {finish_reason}")
+                return ""
+
+        return response.text or ""
+
+    except Exception as e:
+        error_msg = str(e)
+        logging.error(f"Gemini processing failed: {type(e).__name__}: {error_msg}", stack_info=True)
+        raise _handle_gemini_error(error_msg) from e
 
 
 async def gemini_multi_file_extract(
-    files: List[Dict[str, str]], 
-    prompt: str, 
-    config=None, 
-    model: str = "gemini-2.5-flash"
+    files: List[Dict[str, str]],
+    prompt: str,
+    config: Optional[types.GenerateContentConfig] = None,
+    model: str = "gemini-3-flash-preview",
 ) -> str:
-    """
-    Extract content from multiple files using Gemini vision model
-    
-    Args:
-        files: List of file dictionaries with 'path' and 'mime_type' keys
-        prompt: Extraction prompt
-        config: Configuration parameters
-        model: Model name
-    """
-    return await FileProcessor.gemini_multi_file_extract(files, prompt, config, model)
+    """Process multiple files at once with Gemini."""
+    if not files:
+        raise ValueError("Files list cannot be empty")
 
+    # Validate files
+    for idx, file in enumerate(files):
+        if not isinstance(file, dict) or "path" not in file or "mime_type" not in file:
+            raise ValueError(f"File at index {idx} must have 'path' and 'mime_type' keys")
+        if not pathlib.Path(file["path"]).exists():
+            raise ValueError(f"File does not exist: {file['path']}")
+
+    client = client_manager.get_async_gemini_client()
+    config = config or types.GenerateContentConfig(temperature=0.1)
+
+    # Build contents
+    contents = []
+    for file in files:
+        file_data = pathlib.Path(file["path"]).read_bytes()
+        if file["mime_type"] and file["mime_type"].startswith('image/'):
+            file_data, stats = FileProcessor.optimize_image_for_llm(
+                file_data, max_dimension=1536, quality=85
+            )
+            logging.info(f"Gemini: Image {file['path']} optimized, {stats}")
+        contents.append(types.Part.from_bytes(data=file_data, mime_type=file["mime_type"]))
+    contents.append(prompt)
+
+    try:
+        response = await client.models.generate_content(model=model, contents=contents, config=config)
+
+        if not response or not hasattr(response, "text") or response.text is None:
+            logging.error("Gemini API returned empty response")
+            return ""
+
+        if hasattr(response, "candidates") and response.candidates:
+            finish_reason = getattr(response.candidates[0], "finish_reason", None)
+            if finish_reason in ["SAFETY", "BLOCKED", "OTHER"]:
+                logging.warning(f"Content blocked: {finish_reason}")
+                return ""
+
+        return response.text or ""
+
+    except Exception as e:
+        error_msg = str(e)
+        logging.error(f"Gemini multi-file processing failed: {error_msg}", stack_info=True)
+        raise _handle_gemini_error(error_msg) from e
+
+
+# =============================================================================
+# Provider-Specific Client Factories
+# =============================================================================
+
+def _get_openrouter_client() -> AsyncOpenAI:
+    """Get OpenRouter client."""
+    return client_manager.get_async_openrouter_client()
+
+
+def _get_qwen_client() -> AsyncOpenAI:
+    """Get Qwen client (OpenAI compatible)."""
+    api_key = safe_read_cfg("DASHSCOPE_API_KEY")
+    if not api_key:
+        raise ValueError("DASHSCOPE_API_KEY not configured")
+    return AsyncOpenAI(
+        api_key=api_key,
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    )
+
+
+def _get_doubao_client() -> AsyncArk:
+    """Get Doubao client."""
+    config = AIConfig.get_provider_config("volcengine")
+    return AsyncArk(api_key=config["api_key"], base_url=config["api_base"])
+
+
+# =============================================================================
+# Public API - Provider-Specific Extractors
+# =============================================================================
 
 async def doubao_file_extract(
-    local_file_path: str, 
+    local_file_path: str,
     prompt: str = "Please extract all test indicators from this report and return the result in JSON format",
     model: str = "doubao-1-5-ui-tars-250428",
-    client: Optional[AsyncArk] = None
+    client: Optional[AsyncArk] = None,
+    json_mode: bool = True
 ) -> str:
-    """Doubao file extraction, supports PDF and image file analysis"""
-    return await VisionProcessor.doubao_file_extract(
-        local_file_path=local_file_path,
-        prompt=prompt, 
-        model=model,
-        client=client
+    """Doubao file extraction, supports PDF and image files."""
+    try:
+        client = client or _get_doubao_client()
+        return await _openai_compatible_file_extract(
+            local_file_path, prompt, model, client, "doubao", json_mode=json_mode
+        )
+    except Exception as e:
+        logging.error(f"Doubao extraction failed: {e}", stack_info=True)
+        raise ValueError(f"Doubao API failed: {e}") from e
+
+
+async def qwen_file_extract(
+    local_file_path: str,
+    prompt: str = "Please extract all test indicators from this report and return the result in JSON format",
+    model: str = "qwen3-vl-plus",
+    client: Optional[AsyncOpenAI] = None,
+    response_schema: Optional[Any] = None,
+    json_mode: bool = True
+) -> str:
+    """Qwen file extraction using OpenAI-compatible API."""
+    try:
+        client = client or _get_qwen_client()
+        return await _openai_compatible_file_extract(
+            local_file_path, prompt, model, client, "qwen",
+            response_schema=response_schema, json_mode=json_mode
+        )
+    except Exception as e:
+        logging.error(f"Qwen extraction failed: {e}", stack_info=True)
+        raise ValueError(f"Qwen API failed: {e}") from e
+
+
+async def vision_file_extract(
+    local_file_path: str,
+    prompt: str = "Please extract all test indicators from this report and return the result in JSON format",
+    model: str = "google/gemini-3-flash-preview",
+    client: Optional[AsyncOpenAI] = None,
+    response_schema: Optional[Any] = None,
+    json_mode: bool = True
+) -> str:
+    """OpenRouter file extraction using vision model."""
+    try:
+        client = client or _get_openrouter_client()
+        return await _openai_compatible_file_extract(
+            local_file_path, prompt, model, client, "openrouter",
+            response_schema=response_schema, json_mode=json_mode
+        )
+    except Exception as e:
+        logging.error(f"OpenRouter extraction failed: {e}", stack_info=True)
+        raise ValueError(f"OpenRouter API failed: {e}") from e
+
+
+# =============================================================================
+# Unified Entry Point with Handler Map
+# =============================================================================
+
+async def _handle_gemini(
+    file_path: str, prompt: str, content_type: str, model: str,
+    config: Any, response_schema: Any, json_mode: bool
+) -> str:
+    """Handler for Gemini provider."""
+    return await gemini_file_extract(
+        file_path=file_path,
+        content_type=content_type,
+        prompt=prompt,
+        config=config,
+        model=model
     )
+
+
+async def _handle_openrouter(
+    file_path: str, prompt: str, content_type: str, model: str,
+    config: Any, response_schema: Any, json_mode: bool
+) -> str:
+    """Handler for OpenRouter provider."""
+    return await vision_file_extract(
+        local_file_path=file_path,
+        prompt=prompt,
+        model=model,
+        response_schema=response_schema,
+        json_mode=json_mode
+    )
+
+
+async def _handle_qwen(
+    file_path: str, prompt: str, content_type: str, model: str,
+    config: Any, response_schema: Any, json_mode: bool
+) -> str:
+    """Handler for Qwen provider."""
+    return await qwen_file_extract(
+        local_file_path=file_path,
+        prompt=prompt,
+        model=model,
+        response_schema=response_schema,
+        json_mode=json_mode
+    )
+
+
+async def _handle_doubao(
+    file_path: str, prompt: str, content_type: str, model: str,
+    config: Any, response_schema: Any, json_mode: bool
+) -> str:
+    """Handler for Doubao provider."""
+    final_prompt = _build_prompt_with_schema(prompt, response_schema) if response_schema else prompt
+    return await doubao_file_extract(
+        local_file_path=file_path,
+        prompt=final_prompt,
+        model=model,
+        json_mode=json_mode
+    )
+
+
+# Provider handler registry
+PROVIDER_HANDLERS: Dict[str, Callable] = {
+    "gemini": _handle_gemini,
+    "openrouter": _handle_openrouter,
+    "qwen": _handle_qwen,
+    "doubao": _handle_doubao,
+}
 
 
 async def unified_file_extract(
@@ -1090,103 +821,75 @@ async def unified_file_extract(
     prompt: str,
     content_type: str = "image/jpeg",
     model: Optional[str] = None,
-    config: Optional[dict] = None,
-    provider: Optional[str] = None
+    config: Optional[types.GenerateContentConfig] = None,
+    provider: Optional[str] = None,
+    json_mode: Optional[bool] = None
 ) -> str:
     """
-    Unified file extraction entry point that automatically selects provider based on available API keys.
-    
-    Provider selection priority (based on configured API keys):
-    1. gemini - If GOOGLE_API_KEY is configured
-    2. openrouter - If OPENROUTER_API_KEY is configured
-    3. doubao - If VOLCENGINE_API_KEY is configured
-    
-    JSON output comparison:
-    - Gemini: Supports response_schema (enforced structure) + response_mime_type
-    - OpenRouter: Supports response_format: {type: 'json_object'} (JSON mode, requires prompt to describe format)
-    - Doubao: Supports response_format: {type: 'json_object'} (JSON mode, requires prompt to describe format)
-    
-    Notes:
-    - config parameter (GenerateContentConfig) only works with Gemini native API
-    - OpenRouter/Doubao automatically use JSON mode (response_format: json_object)
-    - prompt should include clear JSON format requirements to ensure consistent output across providers
-    
+    Unified file extraction that auto-selects provider based on API keys.
+
+    Provider priority: gemini > openrouter > qwen > doubao
+
     Args:
         file_path: Path to the file
-        prompt: Prompt for extraction (should include JSON format requirements)
-        content_type: MIME type (only used for Gemini direct API)
-        model: Model name (optional, auto-selects default based on provider if not provided)
-        config: Gemini GenerateContentConfig (only works with Gemini, OpenRouter/Doubao use JSON mode automatically)
-        provider: Force specific provider (optional, overrides auto-selection)
-        
+        prompt: Extraction prompt
+        content_type: MIME type (only used for Gemini)
+        model: Model name (auto-selects default if not provided)
+        config: Gemini GenerateContentConfig (only works with Gemini)
+        provider: Force specific provider (overrides auto-selection)
+        json_mode: Force JSON output (None=auto-detect from config)
+
     Returns:
-        Extracted file content (JSON string)
-        
+        Extracted content (JSON string or plain text)
+
     Raises:
-        ValueError: If no vision provider is available (no API keys configured)
-        
-    Reference:
-        - OpenRouter JSON mode: https://openrouter.ai/docs/api/reference/overview
+        ValueError: If no provider is available or specified provider is invalid
     """
-    # Get provider config
+    # Resolve provider
     if provider:
-        # Use specified provider
         provider_config = VisionProviderConfig.get_provider_by_name(provider)
         if not provider_config:
-            raise ValueError(f"Unknown vision provider: {provider}. Available: gemini, openrouter, doubao")
-        # Check if API key is configured for specified provider
-        api_key = safe_read_cfg(provider_config["api_key_env"])
-        if not api_key:
-            raise ValueError(f"API key not configured for provider '{provider}' (env: {provider_config['api_key_env']})")
+            raise ValueError(f"Unknown provider: {provider}. Available: {list(PROVIDER_HANDLERS.keys())}")
+        if not safe_read_cfg(provider_config["api_key_env"]):
+            raise ValueError(f"API key not configured for '{provider}' (env: {provider_config['api_key_env']})")
     else:
-        # Auto-select based on available API keys
         provider_config = VisionProviderConfig.get_available_provider()
         if not provider_config:
-            available_status = VisionProviderConfig.get_provider_status()
+            status = VisionProviderConfig.get_provider_status()
             raise ValueError(
-                f"No vision provider available. Please configure one of the following API keys:\n"
-                f"  - GOOGLE_API_KEY (for Gemini)\n"
-                f"  - OPENROUTER_API_KEY (for OpenRouter)\n"
-                f"  - VOLCENGINE_API_KEY (for Doubao)\n"
-                f"Current status: {available_status}"
+                f"No vision provider available. Configure one of: "
+                f"GOOGLE_API_KEY, OPENROUTER_API_KEY, DASHSCOPE_API_KEY, VOLCENGINE_API_KEY. "
+                f"Current status: {status}"
             )
-    
+
     provider_name = provider_config["name"]
-    actual_model = model or provider_config["default_model"]
-    
-    # Extract response_schema from Gemini config (for OpenRouter/Doubao)
-    response_schema = None
-    if config and hasattr(config, 'response_schema'):
-        response_schema = config.response_schema
-        if provider_name != "gemini":
-            logging.info(f"📋 Embedding response_schema into prompt for {provider_name} provider")
-    
-    logging.info(f"unified_file_extract: Using {provider_name} provider with model {actual_model}")
-    
-    # Dispatch to appropriate handler
-    if provider_name == "gemini":
-        # Gemini native API - natively supports response_schema
-        return await gemini_file_extract(
-            file_path=file_path,
-            content_type=content_type,
-            prompt=prompt,
-            config=config,
-            model=actual_model
+    actual_model = model or safe_read_cfg(f"{provider_name.upper()}_VISION_MODEL", provider_config["default_model"])
+
+    # Extract response_schema from config
+    response_schema = getattr(config, 'response_schema', None) if config else None
+    if response_schema and provider_name != "gemini":
+        logging.info(f"📋 Embedding response_schema into prompt for {provider_name}")
+
+    # Auto-detect json_mode from config
+    if json_mode is None:
+        json_mode = bool(
+            (config and getattr(config, 'response_schema', None)) or
+            (config and getattr(config, 'response_mime_type', None) == "application/json")
         )
-    elif provider_name == "openrouter":
-        # OpenRouter - JSON mode + embed schema in prompt
-        return await VisionProcessor.vision_file_extract(
-            local_file_path=file_path,
-            prompt=prompt,
-            model=actual_model,
-            response_schema=response_schema
-        )
-    elif provider_name == "doubao":
-        # Doubao - JSON mode + embed schema in prompt
-        return await VisionProcessor.doubao_file_extract(
-            local_file_path=file_path,
-            prompt=VisionProcessor._build_prompt_with_schema(prompt, response_schema),
-            model=actual_model
-        )
-    else:
-        raise ValueError(f"Unsupported vision provider: {provider_name}")
+
+    logging.info(f"unified_file_extract: {provider_name}, model={actual_model}, json_mode={json_mode}")
+
+    # Dispatch to handler
+    handler = PROVIDER_HANDLERS.get(provider_name)
+    if not handler:
+        raise ValueError(f"Unsupported provider: {provider_name}")
+
+    return await handler(
+        file_path=file_path,
+        prompt=prompt,
+        content_type=content_type,
+        model=actual_model,
+        config=config,
+        response_schema=response_schema,
+        json_mode=json_mode
+    )

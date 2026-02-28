@@ -1,4 +1,4 @@
-import importlib, importlib.util, inspect, logging, os
+import importlib, importlib.util, inspect, logging, os, re
 
 from types import ModuleType
 from typing import Any, AsyncGenerator, Callable
@@ -333,5 +333,39 @@ def get_llm_client_by_name(agent_name: str, provider_name: str) -> Any:
         return None
 
     return llm_clients.get(provider_name)
+
+#-----------------------------------------------------------------------------
+
+def detect_language(text: str, default: str = "English") -> str:
+    """
+    Detect the language of the input text.
+    """
+    if not text:
+        return default
+
+    #-------------------------------------------------
+
+    if re.search(r"[\u3040-\u309F\u30A0-\u30FF]", text):
+        return "Japanese"
+
+    if re.search(r"[\uAC00-\uD7AF]", text):
+        return "Korean"
+
+    if re.search(r"[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]", text):
+        return "Simplified Chinese"
+
+    #-------------------------------------------------
+
+    if re.search(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]", text):
+        return "Arabic"
+
+    if re.search(r"[\u0590-\u05FF]", text):
+        return "Hebrew"
+
+    if re.search(r"[\u0400-\u04FF\u0500-\u052F]", text):
+        return "Russian"
+
+    # For Latin-script languages, let the LLM detect
+    return f"the same language as the user's message: ```{text}```"
 
 #-----------------------------------------------------------------------------

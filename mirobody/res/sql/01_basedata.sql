@@ -115,6 +115,15 @@ COMMENT ON COLUMN th_series_dim.diagnosis_recommended_disease IS 'AI-recommended
 COMMENT ON COLUMN th_series_dim.department IS 'AI-recommended medical departments for this health indicator (comma-separated)';
 COMMENT ON COLUMN th_series_dim.symptom IS 'AI-identified symptoms related to this health indicator (comma-separated)';
 
+--  Add embedding_gemini field for Gemini 1024-dimension vector search (used by indicator_service_v3)
+ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS embedding_gemini vector(1024);
+COMMENT ON COLUMN th_series_dim.embedding_gemini IS 'Gemini embedding (1024 dimensions) for semantic search';
+
+CREATE INDEX IF NOT EXISTS idx_th_series_dim_embedding_gemini 
+    ON th_series_dim USING hnsw (embedding_gemini vector_cosine_ops);
+
+
+
 drop view if exists v_th_messages;
 CREATE OR REPLACE VIEW v_th_messages AS
 SELECT 

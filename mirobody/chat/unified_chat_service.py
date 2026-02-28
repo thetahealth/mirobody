@@ -30,7 +30,7 @@ class UnifiedChatService:
         query_user_id: str,
         agent: str,
         messages: list[dict[str, Any]],
-        user_id: str | None = None,  # JWT认证的用户ID（可选）
+        user_id: str | None = None,
         file_list: list | None = None,
         files_data: list | None = None,
         prompt_name: str = "",
@@ -74,12 +74,13 @@ class UnifiedChatService:
         
         agent_kwargs = {
             # User.
-            "user_id"               : query_user_id, # for backward compatibility
+            "user_id"               : query_user_id,
             "session_id"            : kwargs.get("session_id", "") or kwargs.get("trace_id", ""),
             "language"              : kwargs.get("language", "en"),
             "timezone"              : kwargs.get("timezone", "America/Los_Angeles"),
             "token"                 : kwargs.get("token", ""),
             # Chat.
+            "question"              : kwargs.get("content", ""),
             "messages"              : messages,
             "file_list"             : file_list or [],
             "files_data"            : files_data,  # Downloaded file content (avoids re-download)

@@ -4,16 +4,25 @@ AI utility functions module
 Provides format conversion, helper functions and other common utilities.
 """
 
-import aiohttp
 import json
 import logging
 import os
 import uuid
 from typing import Dict, List, Optional
 
-# from mirobody.utils.config import PROJECT_DIR
-
 from .config import AIConfig
+
+# 从 archived.py introduce old funcs for (back compatible)
+from .archived import (
+    format_openai_messages,
+    get_volcengine_chat,
+    validate_messages,
+    extract_function_calls_from_response,
+    merge_streaming_content,
+    calculate_token_estimate,
+    build_function_call_message,
+    build_function_result_message,
+)
 
 #-----------------------------------------------------------------------------
 
@@ -22,72 +31,6 @@ PROJECT_DIR = os.getenv("PROJECT_PATH") or os.path.abspath(
 )
 
 #-----------------------------------------------------------------------------
-
-def format_openai_messages(messages: List[Dict], agent_type: str = "agent1") -> List[Dict]:
-    """
-    Format messages for OpenAI
-
-    Args:
-        messages: Original message list
-        agent_type: Agent type
-
-    Returns:
-        Formatted message list
-    """
-    formatted_messages = []
-    for msg in messages:
-        formatted_msg = {"role": msg["role"], "content": msg["content"]}
-        # TODO: Can add special handling based on agent_type
-        formatted_messages.append(formatted_msg)
-    return formatted_messages
-
-
-async def get_volcengine_chat(model_name: str, messages: List[Dict], **kwargs) -> Optional[Dict]:
-    """
-    Get Volcengine chat response (raw HTTP interface)
-
-    Args:
-        model_name: Model name
-        messages: Message list
-        **kwargs: Other parameters
-
-    Returns:
-        Response data or None
-    """
-    try:
-        if model_name not in ["doubao-lite", "volcengine"]:
-            raise ValueError(f"Invalid model name: {model_name}")
-
-        config = AIConfig.get_provider_config(model_name)
-
-        url = f"{config['api_base']}{config['api_path']}"
-
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {config['api_key']}",
-        }
-
-        data = {
-            "model": config["model"],
-            "messages": messages,
-            "max_tokens": kwargs.get("max_tokens", 2000),
-            "stream": kwargs.get("stream", False),
-            "temperature": kwargs.get("temperature", 0.5),
-            "thinking": {"type": kwargs.get("thinking", "disabled")},
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=data, headers=headers, timeout=60) as response:
-                if response.status != 200:
-                    logging.error(f"Volcengine API error: {response.status}, {response.text}")
-                    return None
-
-                return response.json()
-
-    except Exception as e:
-        logging.error(f"Volcengine chat API error: {type(e).__name__}", stack_info=True)
-        return None
-
 
 async def get_openai_chat(model_name: str, messages: List[Dict], **kwargs) -> Optional[str]:
     """
@@ -116,137 +59,6 @@ async def get_openai_chat(model_name: str, messages: List[Dict], **kwargs) -> Op
     except Exception as e:
         logging.error(f"OpenAI chat API error: {type(e).__name__}", stack_info=True)
         return None
-
-
-def validate_messages(messages: List[Dict]) -> bool:
-    """
-    Validate message format
-
-    Args:
-        messages: Message list
-
-    Returns:
-        Whether valid
-    """
-    if not isinstance(messages, list) or not messages:
-        return False
-
-    for msg in messages:
-        if not isinstance(msg, dict):
-            return False
-        if "role" not in msg or "content" not in msg:
-            return False
-        if msg["role"] not in ["system", "user", "assistant"]:
-            return False
-        if not isinstance(msg["content"], str):
-            return False
-
-    return True
-
-
-def extract_function_calls_from_response(response: Dict, provider: str) -> Optional[List[Dict]]:
-    """
-    Extract function calls from response
-
-    Args:
-        response: API response
-        provider: Provider name
-
-    Returns:
-        Function call list or None
-    """
-    try:
-        if provider in ["openai", "gpt-4o", "gpt-4.1", "volcengine", "doubao-lite"]:
-            # OpenAI format
-            if "choices" in response and response["choices"]:
-                choice = response["choices"][0]
-                if "message" in choice and "function_call" in choice["message"]:
-                    func_call = choice["message"]["function_call"]
-                    return [{"name": func_call["name"], "arguments": json.loads(func_call["arguments"])}]
-
-        elif provider == "gemini":
-            # Gemini format needs special handling
-            # Simplified here, should be handled in adapter
-            pass
-
-    except Exception as e:
-        logging.error(f"Failed to extract function calls: {type(e).__name__}", stack_info=True)
-
-    return None
-
-
-def merge_streaming_content(chunks: List[str]) -> str:
-    """
-    Merge streaming content chunks
-
-    Args:
-        chunks: Content chunk list
-
-    Returns:
-        Merged content
-    """
-    return "".join(chunks)
-
-
-def calculate_token_estimate(text: str) -> int:
-    """
-    Estimate token count for text (simple estimation)
-
-    Args:
-        text: Input text
-
-    Returns:
-        Estimated token count
-    """
-    # Simple estimation: ~4 chars/token for English, ~1.5 chars/token for Chinese
-    chinese_chars = len([c for c in text if "\u4e00" <= c <= "\u9fff"])
-    english_chars = len(text) - chinese_chars
-
-    return int(chinese_chars / 1.5 + english_chars / 4)
-
-
-def build_function_call_message(name: str, arguments: Dict, call_id: str = None) -> Dict:
-    """
-    Build function call message
-
-    Args:
-        name: Function name
-        arguments: Function arguments
-        call_id: Call ID (optional)
-
-    Returns:
-        Function call message
-    """
-    message = {
-        "role": "assistant",
-        "content": None,
-        "function_call": {"name": name, "arguments": json.dumps(arguments, ensure_ascii=False)},
-    }
-
-    if call_id:
-        message["function_call"]["id"] = call_id
-
-    return message
-
-
-def build_function_result_message(name: str, content: str, call_id: str = None) -> Dict:
-    """
-    Build function result message
-
-    Args:
-        name: Function name
-        content: Function execution result
-        call_id: Call ID (optional)
-
-    Returns:
-        Function result message
-    """
-    message = {"role": "function", "name": name, "content": content}
-
-    if call_id:
-        message["tool_call_id"] = call_id
-
-    return message
 
 
 async def async_get_openai_tts(text: str, voice: str = "alloy", model: str = "tts-1", **kwargs) -> Optional[str]:
@@ -378,27 +190,40 @@ async def async_get_doubao_structured_output(
         
         # Extract response content
         if response.choices and len(response.choices) > 0:
+            finish_reason = getattr(response.choices[0], "finish_reason", None)
+            if finish_reason == "length":
+                total_duration = time.time() - start_time
+                logging.error(f"Doubao response truncated (finish_reason=length), max_tokens too low. Total: {total_duration:.3f}s")
+
             content = response.choices[0].message.content
             if content:
                 try:
                     # Record JSON parse start time
                     parse_start_time = time.time()
-                    
+
                     # Try to parse JSON
                     final_result = json.loads(content)
-                    
+
                     # Calculate JSON parse duration
                     parse_duration = time.time() - parse_start_time
-                    
+
                     # Calculate total duration
                     total_duration = time.time() - start_time
-                    
+
                     logging.info(f"Doubao structured output success - Parse: {parse_duration:.3f}s, Total: {total_duration:.3f}s")
                     return final_result
-                    
+
                 except json.JSONDecodeError as json_error:
                     total_duration = time.time() - start_time
-                    logging.error(f"Doubao response JSON parse failed: {json_error}, Total: {total_duration:.3f}s, Original content: {content[:500]}...", stack_info=True)
+                    content_len = len(content) if content else 0
+                    logging.error(
+                        f"Doubao response JSON parse failed: {json_error}, "
+                        f"finish_reason={finish_reason}, content_length={content_len}, "
+                        f"Total: {total_duration:.3f}s, "
+                        f"Original content (first 500): {content[:500]}... "
+                        f"Original content (last 200): ...{content[-200:] if content_len > 200 else content}",
+                        stack_info=True
+                    )
                     return None
             else:
                 total_duration = time.time() - start_time
@@ -454,125 +279,171 @@ async def async_get_structured_output(
     """
     import time
     from .clients import client_manager
+    from mirobody.utils.config import safe_read_cfg
     
     start_time = time.time()
     
+    # Structured output priority list (Gemini first for best JSON schema support)
+    STRUCTURED_OUTPUT_PRIORITY = [
+        {
+            "name": "gemini",
+            "api_key_env": "GOOGLE_API_KEY",
+            "default_model": "gemini-3-flash-preview",
+            "description": "Google Gemini (Best for structured output)",
+        },
+        {
+            "name": "openai",
+            "api_key_env": "OPENAI_API_KEY",
+            "default_model": "gpt-5.2",
+            "description": "OpenAI GPT Models",
+        },
+        {
+            "name": "openrouter",
+            "api_key_env": "OPENROUTER_API_KEY",
+            "default_model": "google/gemini-3-flash-preview",
+            "description": "OpenRouter (Multi-model Gateway)",
+        },
+        {
+            "name": "volcengine",
+            "api_key_env": "VOLCENGINE_API_KEY",
+            "default_model": "doubao-seed-1-8-251228",
+            "description": "Volcengine Doubao Seed 1.8",
+        },
+        {
+            "name": "dashscope",
+            "api_key_env": "DASHSCOPE_API_KEY",
+            "default_model": "qwen-flash",
+            "description": "Aliyun DashScope (Qwen Flash)",
+        },
+    ]
+    
+    # Normalize max_tokens across providers
+    max_tokens_value = kwargs.pop("max_tokens", None) or kwargs.pop("max_completion_tokens", None)
+
+    async def _call_provider(prov_name: str, prov_model: str) -> Optional[Dict]:
+        """Call a specific provider. Returns result dict or None on failure."""
+        try:
+            if prov_name in ["openai", "openrouter"]:
+                if prov_name == "openai":
+                    client = client_manager.get_async_openai_client()
+                else:
+                    client = client_manager.get_async_openrouter_client()
+
+                # OpenAI newer models (GPT-4o+) use max_completion_tokens instead of max_tokens
+                provider_kwargs = {**kwargs}
+                if max_tokens_value:
+                    provider_kwargs["max_completion_tokens"] = max_tokens_value
+
+                response = await client.chat.completions.create(
+                    model=prov_model,
+                    messages=messages,
+                    response_format=response_format,
+                    **provider_kwargs
+                )
+                result = response.choices[0].message.to_dict()
+                if result.get("refusal") is None:
+                    final_result = json.loads(result["content"])
+                    duration = time.time() - start_time
+                    logging.info(f"✅ {prov_name} structured output completed, duration: {duration:.3f}s")
+                    return final_result
+                return None
+
+            elif prov_name == "volcengine":
+                volcengine_kwargs = {**kwargs}
+                if max_tokens_value:
+                    volcengine_kwargs["max_tokens"] = max_tokens_value
+                return await async_get_doubao_structured_output(
+                    model_name=prov_model,
+                    messages=messages,
+                    response_format=response_format,
+                    **volcengine_kwargs
+                )
+
+            elif prov_name == "dashscope":
+                dashscope_kwargs = {**kwargs}
+                if max_tokens_value:
+                    dashscope_kwargs["max_tokens"] = max_tokens_value
+                client = client_manager.get_async_dashscope_client()
+                response = await client.chat.completions.create(
+                    model=prov_model,
+                    messages=messages,
+                    response_format=response_format,
+                    **dashscope_kwargs
+                )
+                result = response.choices[0].message.to_dict()
+                if result.get("refusal") is None:
+                    final_result = json.loads(result["content"])
+                    duration = time.time() - start_time
+                    logging.info(f"✅ DashScope structured output completed, duration: {duration:.3f}s")
+                    return final_result
+                return None
+
+            elif prov_name == "gemini":
+                client = client_manager.get_async_gemini_client()
+                from google.genai import types
+                gemini_config_params = {
+                    "response_mime_type": "application/json",
+                    "temperature": kwargs.get("temperature", 0.1),
+                }
+                if max_tokens_value:
+                    gemini_config_params["max_output_tokens"] = max_tokens_value
+                config = types.GenerateContentConfig(**gemini_config_params)
+                prompt = "\n".join([
+                    f"{msg['role']}: {msg['content']}"
+                    for msg in messages
+                ])
+                response = await client.models.generate_content(
+                    model=prov_model,
+                    contents=prompt,
+                    config=config,
+                )
+                if response and response.text:
+                    final_result = json.loads(response.text)
+                    duration = time.time() - start_time
+                    logging.info(f"✅ Gemini structured output completed, duration: {duration:.3f}s")
+                    return final_result
+                return None
+
+            else:
+                logging.error(f"Unsupported provider: {prov_name}")
+                return None
+
+        except Exception as e:
+            duration = time.time() - start_time
+            logging.error(f"Structured output API error ({prov_name}): {type(e).__name__}: {str(e)}, duration: {duration:.3f}s")
+            return None
+
     # Determine provider to use
     if provider:
-        # Use specified provider
+        # User specified a provider — use it directly, no fallback
         provider_info = AIConfig.get_provider_by_priority_name(provider)
         if not provider_info:
             logging.error(f"Unknown provider: {provider}")
             return None
-        # Check if API Key is configured
-        from mirobody.utils.config import safe_read_cfg
+
         if not safe_read_cfg(provider_info["api_key_env"]):
             logging.error(f"Provider {provider} API Key not configured")
             return None
-        # When provider is specified, can use custom model_name
         actual_model = model_name or provider_info["default_model"]
+        logging.info(f"🔄 async_get_structured_output: Using {provider} provider, model: {actual_model}")
+        return await _call_provider(provider, actual_model)
     else:
-        # Auto-select available provider
-        provider_info = AIConfig.get_available_provider()
-        if not provider_info:
-            status = AIConfig.get_provider_status()
-            logging.error(f"No available AI provider, please configure API Key: {status}")
-            return None
-        provider = provider_info["name"]
-        # When auto-selecting, ignore model_name, always use provider's default model (avoid model name mismatch)
-        actual_model = provider_info["default_model"]
-        if model_name:
-            logging.warning(f"⚠️ model_name='{model_name}' ignored, using provider default model: {actual_model}")
-    
-    logging.info(f"🔄 async_get_structured_output: Using {provider} provider, model: {actual_model}")
-    
-    try:
-        # Call different implementations based on provider type
-        if provider in ["openai", "openrouter"]:
-            # Both OpenAI and OpenRouter use OpenAI-compatible clients
-            if provider == "openai":
-                client = client_manager.get_async_openai_client()
-            else:
-                client = client_manager.get_async_openrouter_client()
-            
-            response = await client.chat.completions.create(
-                model=actual_model,
-                messages=messages,
-                response_format=response_format,
-                **kwargs
-            )
-            result = response.choices[0].message.to_dict()
-            if result.get("refusal") is None:
-                final_result = json.loads(result["content"])
-                duration = time.time() - start_time
-                logging.info(f"✅ {provider} structured output completed, duration: {duration:.3f}s")
-                return final_result
-            return None
-            
-        elif provider == "volcengine":
-            # Use Doubao
-            return await async_get_doubao_structured_output(
-                model_name=actual_model,
-                messages=messages,
-                response_format=response_format,
-                **kwargs
-            )
-            
-        elif provider == "dashscope":
-            # Use DashScope (Qwen)
-            client = client_manager.get_async_dashscope_client()
-            response = await client.chat.completions.create(
-                model=actual_model,
-                messages=messages,
-                response_format=response_format,
-                **kwargs
-            )
-            result = response.choices[0].message.to_dict()
-            if result.get("refusal") is None:
-                final_result = json.loads(result["content"])
-                duration = time.time() - start_time
-                logging.info(f"✅ DashScope structured output completed, duration: {duration:.3f}s")
-                return final_result
-            return None
-            
-        elif provider == "gemini":
-            # Gemini uses native client
-            client = client_manager.get_async_gemini_client()
-            # Gemini structured output needs special handling
-            from google.genai import types
-            config = types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=kwargs.get("temperature", 0.1),
-            )
-            # Build Gemini-format messages
-            prompt = "\n".join([
-                f"{msg['role']}: {msg['content']}" 
-                for msg in messages
-            ])
-            response = await client.models.generate_content(
-                model=actual_model,
-                contents=prompt,
-                config=config,
-            )
-            if response and response.text:
-                final_result = json.loads(response.text)
-                duration = time.time() - start_time
-                logging.info(f"✅ Gemini structured output completed, duration: {duration:.3f}s")
-                return final_result
-            return None
-            
-        elif provider == "claude":
-            # Claude needs special handling (Anthropic API)
-            logging.warning("Claude structured output not supported yet, please use other providers")
-            return None
-            
-        else:
-            logging.error(f"Unsupported provider: {provider}")
-            return None
-            
-    except Exception as e:
-        duration = time.time() - start_time
-        logging.error(f"Structured output API error ({provider}): {type(e).__name__}: {str(e)}, duration: {duration:.3f}s", stack_info=True)
+        # Auto-select: try each available provider in priority order, fallback on failure
+        tried_providers = []
+        for p in STRUCTURED_OUTPUT_PRIORITY:
+            if not safe_read_cfg(p["api_key_env"]):
+                continue
+            prov_name = p["name"]
+            prov_model = p["default_model"]
+            logging.info(f"🔄 async_get_structured_output: Trying {prov_name} provider, model: {prov_model}")
+            result = await _call_provider(prov_name, prov_model)
+            if result is not None:
+                return result
+            tried_providers.append(prov_name)
+            logging.warning(f"⚠️ Provider {prov_name} failed, trying next available provider...")
+
+        status = AIConfig.get_provider_status()
+        logging.error(f"All providers failed (tried: {tried_providers}), status: {status}")
         return None
 
 
@@ -653,10 +524,23 @@ async def async_get_text_completion(
             else:
                 client = client_manager.get_async_dashscope_client()
             
+            # Handle max_tokens vs max_completion_tokens for newer OpenAI models
+            # Models that require max_completion_tokens: o1, o3, gpt-5.x, etc.
+            api_kwargs = kwargs.copy()
+            if provider == "openai" and actual_model and "max_tokens" in api_kwargs:
+                # Check if model requires max_completion_tokens instead of max_tokens
+                requires_new_param = (
+                    "o1" in actual_model or 
+                    "o3" in actual_model or 
+                    actual_model.startswith("gpt-5")
+                )
+                if requires_new_param:
+                    api_kwargs["max_completion_tokens"] = api_kwargs.pop("max_tokens")
+            
             response = await client.chat.completions.create(
                 model=actual_model,
                 messages=messages,
-                **kwargs
+                **api_kwargs
             )
             content = response.choices[0].message.content
             duration = time.time() - start_time

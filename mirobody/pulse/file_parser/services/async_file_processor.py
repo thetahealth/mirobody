@@ -116,18 +116,18 @@ class AsyncFileProcessor:
                             file_type = "excel"
                     
                     result_data = await abstract_extractor.extract_file_abstract(
-                        file_content=file_data["content"], file_type=file_type,
-                        filename=file_data["filename"], content_type=content_type
+                        file_content=file_data["content_bytes"], file_type=file_type,
+                        filename=file_data["file_name"], content_type=content_type
                     )
                     file_abstracts.append(result_data)
-                    
+
                 except Exception:
-                    file_abstracts.append({"file_name": "", "file_abstract": f"{file_data['filename']} - File uploaded successfully"})
+                    file_abstracts.append({"file_name": "", "file_abstract": f"{file_data.get('file_name', '')} - File uploaded successfully"})
 
             # Update th_files with abstracts (by file_key)
             for i, file_data in enumerate(files_data):
                 try:
-                    file_key = file_data.get("s3_key") or file_data.get("file_key")
+                    file_key = file_data.get("file_key")
                     if not file_key:
                         logging.warning(f"No file_key found for file index {i}, skipping abstract update")
                         continue
@@ -140,10 +140,10 @@ class AsyncFileProcessor:
                         # Determine content_type for file_name logic
                         content_type = file_data.get("content_type", "")
                         is_pdf_or_image = (
-                            content_type == "application/pdf" or 
+                            content_type == "application/pdf" or
                             content_type.startswith("image/")
                         )
-                        
+
                         # Only use generated file_name for PDF/image files
                         file_name_to_save = generated_file_name if (generated_file_name and is_pdf_or_image) else None
                         
@@ -206,24 +206,24 @@ class AsyncFileProcessor:
                             file_type = "excel"
                     
                     original_text = await text_extractor.extract_file_original_text(
-                        file_content=file_data["content"], file_type=file_type,
-                        filename=file_data["filename"], content_type=content_type
+                        file_content=file_data["content_bytes"], file_type=file_type,
+                        filename=file_data["file_name"], content_type=content_type
                     )
-                    
+
                     file_original_texts.append({
-                        "filename": file_data["filename"],
-                        "file_key": file_data.get("s3_key", ""),
+                        "filename": file_data["file_name"],
+                        "file_key": file_data.get("file_key", ""),
                         "content_type": content_type,
                         "file_type": file_type,
                         "original_text": original_text,
                         "text_length": len(original_text) if original_text else 0,
                         "extracted_at": datetime.now().isoformat()
                     })
-                    
+
                 except Exception as extract_error:
                     file_original_texts.append({
-                        "filename": file_data["filename"],
-                        "file_key": file_data.get("s3_key", ""),
+                        "filename": file_data.get("file_name", ""),
+                        "file_key": file_data.get("file_key", ""),
                         "content_type": file_data.get("content_type", ""),
                         "file_type": "unknown",
                         "original_text": "",

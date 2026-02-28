@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from mirobody.utils.utils_auth import verify_token
-from mirobody.utils import execute_query
+from mirobody.utils import execute_query, get_req_ctx
 
 from ..file_parser.services.food_recognizer import FoodImageRecognizer
 
@@ -130,13 +130,13 @@ async def analyze_food_image(
             contents = []
             sid = str(uuid.uuid4())
             msg_id = f"food_analysis_{int(time.time())}_{user_id}"
-            
+            language = get_req_ctx("language", "en")
 
             # Send message ID
             yield f"data: {json.dumps({'type': 'id', 'content': msg_id})}\n\n"
 
-            # Define thinking messages
-            thinking_messages = [
+            # Define thinking messages (English)
+            thinking_messages_en = [
                 "🔍 Analyzing your uploaded image... Looking at colors, textures, and food details!",
                 "🥗 Identifying different food items... Processing ingredients through nutrition database!",
                 "🧮 Calculating nutritional composition... Estimating calories, proteins, carbs, and fats!",
@@ -146,18 +146,31 @@ async def analyze_food_image(
                 "🎯 Almost ready! Adding final touches to your nutrition report...",
             ]
 
+            # Define thinking messages (Chinese)
+            thinking_messages_cn = [
+                "🔍 正在分析您上传的图片... 识别颜色、质地和食物细节！",
+                "🥗 正在识别不同的食物... 通过营养数据库处理食材！",
+                "🧮 正在计算营养成分... 估算卡路里、蛋白质、碳水和脂肪！",
+                "💡 正在分析健康影响... 结合您的健康目标进行交叉分析！",
+                "📋 正在生成个性化建议... 为您创建定制的营养建议！",
+                "✨ 正在完成食物分析... 整合营养分析和健康见解！",
+                "🎯 即将完成！正在为您的营养报告添加最后细节...",
+            ]
+
+            thinking_messages = thinking_messages_cn if "zh" in language else thinking_messages_en
+
             # Start food processing task
             food_image_recognizer = FoodImageRecognizer()
-
             processing_task = asyncio.create_task(
                 food_image_recognizer.food_image_recognize(
-                    file_content,
-                    file.filename,
-                    content_type,
-                    user_id,
-                    msg_id,
-                    query,
-                    sid,
+                    file_content=file_content,
+                    filename_original=file.filename,
+                    content_type=content_type,
+                    user_id=user_id,
+                    msg_id=msg_id,
+                    query=query,
+                    sid=sid,
+                    language=language,
                 )
             )
 
@@ -168,8 +181,8 @@ async def analyze_food_image(
                     # Output thinking message
                     yield f"data: {json.dumps({'type': 'thinking', 'content': thinking_messages[thinking_index]})}\n\n"
                     thinking_index += 1
-                    # Random delay between 0.5-1.0 seconds for natural feel
-                    await asyncio.sleep(random.uniform(0.5, 1.0))
+                    # Random delay between 1-3 seconds for natural feel
+                    await asyncio.sleep(random.uniform(2, 5))
 
                 # Wait for a while then check task status
                 try:
@@ -182,8 +195,9 @@ async def analyze_food_image(
             # Get processing results
             result = await processing_task
 
-            # Send thinking end
-            yield f"data: {json.dumps({'type': 'thinking', 'content': '🎉 Analysis complete! Now generating your detailed nutrition results...'})}\n\n"
+            # Send thinking end message
+            end_message = "🎉 分析完成！正在为您生成详细的营养报告..." if "zh" in language else "🎉 Analysis complete! Now generating your detailed nutrition results..."
+            yield f"data: {json.dumps({'type': 'thinking', 'content': end_message})}\n\n"
 
             # Process results
             if isinstance(result, Exception):

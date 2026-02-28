@@ -27,6 +27,7 @@ aioboto3
 pypdf>=5.1.0
 pypdfium2>=4.30.0
 pdfplumber~=0.11.7
+cachetools~=6.2.4
 
 Pillow>=11.1.0,<12.0.0
 
@@ -43,7 +44,7 @@ mandrill
 
 # LLM.
 openai>=2.11.0
-openai-agents
+openai-agents==0.7.0
 google-genai>=1.55.0
 volcengine-python-sdk[ark]~=3.0.1
 
@@ -54,7 +55,7 @@ langchain-google-genai>=4.1.2
 langchain-google-vertexai
 langchain_community
 
-deepagents
+deepagents>=0.4.3
 jinja2
 
 # Tools and so forth.

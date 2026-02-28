@@ -59,7 +59,7 @@ async function renderChart(config) {
   try {
     // Parse configuration
     const chartConfig = typeof config === 'string' ? JSON.parse(config) : config;
-    
+
     // Render chart
     const vis = await render(chartConfig);
     const buffer = vis.toBuffer();
@@ -72,7 +72,7 @@ async function renderChart(config) {
 
     // Return base64 encoded image data and filename
     const base64 = buffer.toString('base64');
-    
+
     return {
       success: true,
       filename: filename,
@@ -92,7 +92,7 @@ async function main() {
   try {
     // Get configuration from command line arguments
     const configJson = process.argv[2];
-    
+
     if (!configJson) {
       console.error(JSON.stringify({
         success: false,
@@ -103,7 +103,7 @@ async function main() {
 
     const result = await renderChart(configJson);
     console.log(JSON.stringify(result));
-    
+
     if (!result.success) {
       process.exit(1);
     }

@@ -78,16 +78,17 @@ class Provider(ABC):
         """
         pass
 
-    async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> list[dict[str, any]]:
+    async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
+        Save raw data to database (optional, subclasses can override)
+
         Args:
             raw_data: Raw data
 
         Returns:
-            Whether save succeeded
+            List of saved records
         """
-
-    pass
+        return []
 
     @abstractmethod
     async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:

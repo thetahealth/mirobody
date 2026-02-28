@@ -9,7 +9,9 @@ from .agent import (
     get_agent,
     get_global_agent,
 
-    get_llm_client_by_name
+    get_llm_client_by_name,
+
+    detect_language
 )
 
 from .service import ChatService

@@ -283,7 +283,7 @@ async def test_new_scenario(self):
 ## Related Documentation
 
 - [Aggregate Indicator README](README.md)
-- [Pulse Cursor Rules](../../cursorrules)
+- [Pulse Cursor Rules](../../rules)
 - [Testing Guide](../../../../../TESTING.md)
 
 

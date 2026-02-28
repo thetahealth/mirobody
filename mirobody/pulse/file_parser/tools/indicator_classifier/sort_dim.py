@@ -246,7 +246,7 @@ class MedicalIndicatorClassifier:
                 messages=messages,
                 response_format=MEDICAL_INDICATOR_CLASSIFICATION_SCHEMA,
                 temperature=0.1,
-                
+                max_tokens=8000,
             )
             if not content:
                 logging.error("LLM returned empty content")

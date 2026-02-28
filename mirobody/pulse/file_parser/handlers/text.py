@@ -2,6 +2,8 @@ from typing import Any, Dict
 from mirobody.utils.i18n import t
 from mirobody.pulse.file_parser.handlers.base import BaseFileHandler, FileProcessingContext
 import uuid
+import hashlib
+import logging
 
 class TextHandler(BaseFileHandler):
     def get_type_name(self) -> str:
@@ -18,6 +20,11 @@ class TextHandler(BaseFileHandler):
         if ctx.progress_callback:
              await ctx.progress_callback(70, t("extracting_text_content", language, "file_processor"))
 
+        # Calculate content hash for deduplication
+        await ctx.file.seek(0)
+        file_content = await ctx.file.read()
+        content_hash = hashlib.sha256(file_content).hexdigest() if file_content else ""
+
         # Extract text content
         raw_text = await self.content_extractor.extract_from_text_file(temp_file_path)
 
@@ -27,12 +34,51 @@ class TextHandler(BaseFileHandler):
         # Save to database
         record_id = await self.db_service.save_raw_text_to_db(ctx.target_user_id, "text", raw_text)
 
+        # Extract original text using unified method (with th_file_contents cache)
+        original_text = raw_text  # For text files, raw content is the original text
+        try:
+            from mirobody.utils.db import execute_query
+            
+            # Check th_file_contents cache first
+            rows = await execute_query(
+                "SELECT original_text FROM th_file_contents WHERE content_hash = :hash LIMIT 1",
+                params={"hash": content_hash},
+                query_type="select",
+                mode="async",
+            )
+            
+            if rows and len(rows) > 0 and rows[0].get("original_text"):
+                original_text = rows[0]["original_text"]
+                logging.info(f"✅ Text file reused cached original text: hash={content_hash[:16]}..., length={len(original_text)}")
+            elif original_text:
+                # Save to th_file_contents for future deduplication
+                await execute_query(
+                    """
+                    INSERT INTO th_file_contents (content_hash, original_text, text_length, file_type)
+                    VALUES (:hash, :text, :length, :file_type)
+                    ON CONFLICT (content_hash) DO NOTHING
+                    """,
+                    params={
+                        "hash": content_hash,
+                        "text": original_text,
+                        "length": len(original_text),
+                        "file_type": "text",
+                    },
+                    query_type="insert",
+                    mode="async",
+                )
+                logging.info(f"✅ Text file original text saved to cache: hash={content_hash[:16]}..., length={len(original_text)}")
+        except Exception as e:
+            logging.warning(f"⚠️ Failed to cache text file original text: {e}")
+
         if ctx.progress_callback:
             await ctx.progress_callback(90, t("text_processing_success", language, "file_processor"))
             
         return {
             "raw": raw_text,
             "record_id": record_id,
-            # Text handler DOES call abstract extractor in original code.
+            "original_text": original_text,
+            "text_length": len(original_text) if original_text else 0,
+            "content_hash": content_hash,
         }
 

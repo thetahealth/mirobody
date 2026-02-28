@@ -13,8 +13,6 @@ from abc import ABC, abstractmethod
 from typing import Any, AsyncGenerator
 
 from mirobody.chat.unified_chat_service import UnifiedChatService
-from mirobody.chat.message import create_message
-from mirobody.chat.task import get_reference_task_detail
 
 from ..message import (
     save_message,
@@ -413,30 +411,4 @@ class ChatProtocolAdapter(ABC):
             'provider': params.provider
         }
     
-    #-------------------------------------------------------------------------
-    async def _handle_reference_task(self, reference_task_id, params: ChatStreamRequest, user_id: int, need_create: bool = True):
-        """
-        Handle today task reference if specified
-        """
-        task_detail, task_recommend_question = await get_reference_task_detail(reference_task_id, user_id)
-        if need_create and task_recommend_question:
-            if task_recommend_question:
-                content = json.dumps([dict(type="reply", content=task_recommend_question)], ensure_ascii=False)
-                await create_message(
-                    user_id, params.trace_id, content,
-                    params.agent, query_user_id=params.query_user_id, 
-                    role='assistant', reference_task_id=reference_task_id
-                )
-
-                return [
-                    dict(role="user", content=f"<system-reminder>User has performed a data input action, and here is the result:\n{task_detail}</system-reminder>"),
-                    dict(role="assistant", content=task_recommend_question)
-                ]
-            else:
-                return []
-        else:
-            return [
-                dict(role="user", content=f"<system-reminder>User has performed a data input action, and here is the result:\n{task_detail}</system-reminder>")
-            ] if task_detail else []
-
 #-----------------------------------------------------------------------------

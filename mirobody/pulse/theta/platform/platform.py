@@ -232,7 +232,7 @@ class ThetaPlatform(Platform):
             data["msg_id"] = msg_id
             saved_data_list = await provider.save_raw_data_to_db(data)
             if not saved_data_list:
-                logging.error(f"Raw data save failed for provider {provider_slug}, msg_id={msg_id}")
+                logging.warning(f"Raw data save failed for provider {provider_slug}, msg_id={msg_id}")
 
             standard_health_service = StandardHealthService()
             total_records = 0

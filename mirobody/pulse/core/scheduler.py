@@ -482,7 +482,7 @@ class Scheduler:
         while self.running:
             try:
                 current_time = datetime.now()
-                logging.info(f"Scheduler check at {current_time.isoformat()}")
+                logging.debug(f"Scheduler check at {current_time.isoformat()}")
 
                 # Check all tasks
                 for task in self.tasks.values():

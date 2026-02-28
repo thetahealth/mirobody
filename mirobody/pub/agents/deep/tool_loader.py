@@ -19,30 +19,33 @@ logger = logging.getLogger(__name__)
 async def load_global_tools(
     user_id: str,
     token: str,
+    session_id: Optional[str] = None,
     allowed_tools: Optional[list[str]] = None,
     disallowed_tools: Optional[list[str]] = None
 ) -> list[StructuredTool]:
     """
     Load global tools and properly handle async functions.
-    
+
     Args:
         user_id: User ID for authentication
         token: JWT token for authentication
+        session_id: Session ID for file workspace isolation
         allowed_tools: List of allowed tool names (whitelist)
         disallowed_tools: List of disallowed tool names (blacklist)
-    
+
     Returns:
         List of LangChain StructuredTool instances
     """
     from ....mcp.tool import get_global_tools
-        
+
     existing_tools = get_global_tools()
-    
+
     # Prepare user_info for tools that require authentication
     user_info = {
         "user_id": user_id,
         "token": token,
-        "success": True  # used for authentication 
+        "session_id": session_id,
+        "success": True  # used for authentication
     }
     
     # Convert to LangChain tools

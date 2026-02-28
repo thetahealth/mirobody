@@ -334,7 +334,9 @@ class Config:
         results = {}
 
         for key in [
+            "EVERMEMOS_API_KEY",
             "OPENROUTER_API_KEY",
+            "NEBULA_API_KEY",
             "OPENAI_API_KEY",
             "GOOGLE_API_KEY",
             "GOOGLE_CLOUD_API_KEY",
@@ -505,7 +507,10 @@ class Config:
             "email_from_name"   : self.get_str("EMAIL_FROM_NAME"),
             "email_template"    : self.get_str("EMAIL_TEMPLATE"),
             "email_password"    : self.get_str("EMAIL_SMTP_PASS"),
-            "email_predefined"  : self.get_dict("EMAIL_PREDEFINE_CODES", {})
+            "email_predefined"  : self.get_dict("EMAIL_PREDEFINE_CODES", {}),
+            "email_smtp_host"   : self.get_str("EMAIL_SMTP_HOST"),
+            "email_smtp_port"   : self.get_int("EMAIL_SMTP_PORT", 0),
+            "email_smtp_user"   : self.get_str("EMAIL_SMTP_USER"),
         }
 
 
@@ -528,6 +533,12 @@ class Config:
     def get_qr_options(self) -> dict[str, str]:
         return {
             "qr_login_url"  : self.get_str("QR_LOGIN_URL")
+        }
+
+    def get_wechat_mp_options(self) -> dict[str, str]:
+        return {
+            "wechat_mp_appid"   : self.get_str("WECHAT_MP_APPID"),
+            "wechat_mp_secret"  : self.get_str("WECHAT_MP_SECRET")
         }
 
     def get_firebase_options(self) -> dict[str, str]:

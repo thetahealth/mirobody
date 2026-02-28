@@ -1,3 +1,4 @@
+import logging
 import importlib, importlib.util, inspect, logging, os
 
 from types import ModuleType, FunctionType
@@ -8,10 +9,17 @@ from types import ModuleType, FunctionType
 global_tools = {}
 global_descriptions = []
 
+private_tools = {}
+private_descriptions = []
+
 # For LLM function calls.
 global_openai_functions = []
 global_openai_simplified_functions = []
 global_gemini_functions = []
+
+private_openai_functions = []
+private_openai_simplified_functions = []
+private_gemini_functions = []
 
 #-----------------------------------------------------------------------------
 
@@ -61,7 +69,7 @@ def _parse_type(s: str) -> tuple[str, str]:
     # Unknown type.
     return "string", ""
 
-def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
+def parse_function(function: FunctionType, private: bool = False) -> tuple[dict, bool, dict]:
     # 🆕 Check if function has custom inputSchema attribute
     if hasattr(function, 'inputSchema') and isinstance(function.inputSchema, dict):
         # Use custom inputSchema
@@ -202,8 +210,9 @@ def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
                 try:
                     default_value = function.__defaults__[param_cnt - required_param_size]
 
-                    # Description.
-                    tool["inputSchema"]["properties"][param_name]["default"] = default_value
+                    # Description. Skip None defaults as some APIs (e.g. Gemini) don't support null in schema.
+                    if default_value is not None:
+                        tool["inputSchema"]["properties"][param_name]["default"] = default_value
 
                     # Callable.
                     parameters[param_name] = default_value
@@ -225,6 +234,7 @@ def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
     # 2: return description.
     # 3: exception description.
     line_type = 0
+    current_arg_key = ""
 
     for line in function.__doc__.splitlines():
 
@@ -239,11 +249,12 @@ def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
         # Update line type.
 
         lower = line.lower()
-        if lower == "args:":
+        if lower in ("arg:", "args:", "argument:", "arguments:", "param:", "params:", "parameter:", "parameters:"):
             line_type = 1
+            current_arg_key = ""
             continue
 
-        elif lower == "returns:":
+        elif lower in ("return:", "returns:", "result:", "results:"):
             line_type = 2
             continue
 
@@ -260,6 +271,13 @@ def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
 
                     if key and key in tool["inputSchema"]["properties"]:
                         tool["inputSchema"]["properties"][key]["description"] = value
+                        current_arg_key = key
+                        continue
+
+                # Continuation line for current argument's description.
+                if current_arg_key and current_arg_key in tool["inputSchema"]["properties"]:
+                    desc = tool["inputSchema"]["properties"][current_arg_key].get("description", "")
+                    tool["inputSchema"]["properties"][current_arg_key]["description"] = desc + "\n" + line if desc else line
 
             except Exception as e:
                 logging.warning(str(e), extra={"line": line})
@@ -298,11 +316,16 @@ def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
 
     #-----------------------------------------------------
 
+    # Clean up empty required list that some APIs (e.g. Gemini) don't accept.
+    schema = tool.get("inputSchema", {})
+    if "required" in schema and not schema["required"]:
+        del schema["required"]
+
     return tool, require_user_info, parameters
 
 #-----------------------------------------------------------------------------
 
-def load_tools_from_class(klass, module_name: str) -> dict:
+def load_tools_from_class(klass, module_name: str, private: bool = False) -> dict:
     try:
         functions = inspect.getmembers(klass, predicate=inspect.isfunction)
     except Exception as e:
@@ -358,7 +381,7 @@ def load_tools_from_class(klass, module_name: str) -> dict:
 
 #-----------------------------------------------------------------------------
 
-def load_tools_from_module(module: ModuleType, module_name: str) -> dict:
+def load_tools_from_module(module: ModuleType, module_name: str, private: bool = False) -> dict:
 
     tools = {}
 
@@ -380,7 +403,7 @@ def load_tools_from_module(module: ModuleType, module_name: str) -> dict:
             logging.debug(f"Ignore class: {class_name}")
             continue
 
-        class_tools = load_tools_from_class(klass, module_name)
+        class_tools = load_tools_from_class(klass, module_name, private=private)
         if class_tools:
             tools[class_name] = class_tools
 
@@ -396,7 +419,8 @@ def load_tools_from_module(module: ModuleType, module_name: str) -> dict:
     module_tools = {}
 
     for function_name, function in functions:
-        if inspect.isabstract(function) or \
+        if function_name.startswith("_") or \
+            inspect.isabstract(function) or \
             inspect.isbuiltin(function) or \
             function.__module__ != module_name:
 
@@ -423,7 +447,7 @@ def load_tools_from_module(module: ModuleType, module_name: str) -> dict:
 
 #-----------------------------------------------------------------------------
 
-def load_tools_from_directory(dir: str) -> tuple[dict, list]:
+def load_tools_from_directory(dir: str, private: bool = False) -> tuple[dict, list]:
     target_directory = dir.strip()
     if not target_directory:
         return {}, []
@@ -483,7 +507,7 @@ def load_tools_from_directory(dir: str) -> tuple[dict, list]:
 
         #-------------------------------------------------
 
-        module_tools = load_tools_from_module(imported_module, module_name)
+        module_tools = load_tools_from_module(imported_module, module_name, private=private)
         if not module_tools:
             continue
 
@@ -507,48 +531,86 @@ def load_tools_from_directory(dir: str) -> tuple[dict, list]:
     #-----------------------------------------------------
 
     if tools:
-        global global_tools
-        global_tools.update(tools)
+        if private:
+            global private_tools
+            private_tools.update(tools)
+        else:
+            global global_tools
+            global_tools.update(tools)
 
     if descriptions:
-        global global_descriptions
-        global_descriptions.extend(descriptions)
+        if private:
+            global private_descriptions
+            private_descriptions.extend(descriptions)
 
-        global global_openai_functions
-        global global_openai_simplified_functions
-        global global_gemini_functions
-        for description in descriptions:
-            global_openai_functions.append(
-                {
-                    "type"      : "function",
-                    "function"  : {
+            global private_openai_functions
+            global private_openai_simplified_functions
+            global private_gemini_functions
+            for description in descriptions:
+                private_openai_functions.append(
+                    {
+                        "type"      : "function",
+                        "function"  : {
+                            "name"          : description["name"],
+                            "description"   : description["description"],
+                            "parameters"    : description["inputSchema"]
+                        }
+                    }
+                )
+                private_openai_simplified_functions.append(
+                    {
+                        "type"          : "function",
                         "name"          : description["name"],
                         "description"   : description["description"],
                         "parameters"    : description["inputSchema"]
                     }
-                }
-            )
-            global_openai_simplified_functions.append(
-                {
-                    "type"          : "function",
-                    "name"          : description["name"],
-                    "description"   : description["description"],
-                    "parameters"    : description["inputSchema"]
-                }
-            )
-            global_gemini_functions.append(
-                {
-                    "name"          : description["name"],
-                    "description"   : description["description"],
-                    "parameters"    : description["inputSchema"]
-                }
-            )
+                )
+                private_gemini_functions.append(
+                    {
+                        "name"          : description["name"],
+                        "description"   : description["description"],
+                        "parameters"    : description["inputSchema"]
+                    }
+                )
+        else:
+            global global_descriptions
+            global_descriptions.extend(descriptions)
+
+            global global_openai_functions
+            global global_openai_simplified_functions
+            global global_gemini_functions
+            for description in descriptions:
+                global_openai_functions.append(
+                    {
+                        "type"      : "function",
+                        "function"  : {
+                            "name"          : description["name"],
+                            "description"   : description["description"],
+                            "parameters"    : description["inputSchema"]
+                        }
+                    }
+                )
+                global_openai_simplified_functions.append(
+                    {
+                        "type"          : "function",
+                        "name"          : description["name"],
+                        "description"   : description["description"],
+                        "parameters"    : description["inputSchema"]
+                    }
+                )
+                global_gemini_functions.append(
+                    {
+                        "name"          : description["name"],
+                        "description"   : description["description"],
+                        "parameters"    : description["inputSchema"]
+                    }
+                )
 
     return tools, descriptions
 
 #-----------------------------------------------------------------------------
 
-def load_tools_from_directories(dirs: list[str]) -> tuple[dict, list]:
+def load_tools_from_directories(dirs: list[str], private: bool = False) -> tuple[dict, list]:
     tools       = {}
     descriptions= []
 
@@ -556,7 +618,7 @@ def load_tools_from_directories(dirs: list[str]) -> tuple[dict, list]:
         if not dir:
             continue
 
-        cur_tools, cur_descriptions = load_tools_from_directory(dir)
+        cur_tools, cur_descriptions = load_tools_from_directory(dir, private=private)
         if cur_tools:
             tools.update(cur_tools)
             descriptions.extend(cur_descriptions)
@@ -565,7 +627,7 @@ def load_tools_from_directories(dirs: list[str]) -> tuple[dict, list]:
 
 #-----------------------------------------------------------------------------
 
-async def call_tool(tools: dict, tool_name: str, arguments: dict | None = None, user_id: str = ""):
+async def call_tool(tools: dict, tool_name: str, arguments: dict | None = None, user_id: str = "", session_id: str = ""):
     # The following two scenarios should never occur.
     if not tools or \
         not tool_name or \
@@ -587,11 +649,11 @@ async def call_tool(tools: dict, tool_name: str, arguments: dict | None = None, 
         for k in arguments:
             if k in kwargs:
                 kwargs[k] = arguments[k]
-
     if "auth" in tool and tool["auth"]:
         kwargs["user_info"] = {
             "success": True,
-            "user_id": user_id
+            "user_id": user_id,
+            "session_id": session_id
         }
 
     #-----------------------------------------------------
@@ -615,10 +677,13 @@ async def call_tool(tools: dict, tool_name: str, arguments: dict | None = None, 
     return result
 
 
-async def call_global_tool(tool_name: str, arguments: dict | None = None, user_id: str = ""):
+async def call_global_tool(tool_name: str, arguments: dict | None = None, user_id: str = "", session_id: str = ""):
     global global_tools
-    return await call_tool(global_tools, tool_name=tool_name, arguments=arguments, user_id=user_id)
+    return await call_tool(global_tools, tool_name=tool_name, arguments=arguments, user_id=user_id, session_id=session_id)
 
+async def call_private_tool(tool_name: str, arguments: dict | None = None, user_id: str = ""):
+    global private_tools
+    return await call_tool(private_tools, tool_name=tool_name, arguments=arguments, user_id=user_id)
 
 def get_global_tool_count() -> int:
     global global_tools
@@ -647,5 +712,19 @@ def get_global_functions(style: str="") -> list:
     else:
         global global_openai_simplified_functions
         return global_openai_simplified_functions
+
+def get_private_functions(style: str="") -> list:
+    if style == "openai":
+        global private_openai_functions
+        return private_openai_functions
+
+    elif style == "gemini":
+        global private_gemini_functions
+        return private_gemini_functions
+
+    else:
+        global private_openai_simplified_functions
+        return private_openai_simplified_functions
+
 
 #-----------------------------------------------------------------------------

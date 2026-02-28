@@ -9,7 +9,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict
 
-from ...utils import execute_query
+from mirobody.utils import execute_query
 
 #-----------------------------------------------------------------------------
 
@@ -42,7 +42,9 @@ class UserService:
         """
         Get user health profile information
 
-        Retrieves comprehensive health profile data from health_user_profile_by_system table.
+        Retrieves non-structure health profile data from the health_user_profile_by_system table only.
+
+        If this tool says no data, you'd better check other tools in addition.
 
         Args:
             no args needed.

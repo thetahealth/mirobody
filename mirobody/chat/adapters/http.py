@@ -128,6 +128,9 @@ class HTTPChatAdapter(ChatProtocolAdapter):
         All parameters are explicitly passed via ChatContext - no implicit dependencies.
         """
         try:
+            if params.scene and isinstance(params.scene, str):
+                self.scene = params.scene
+
             # Ensure query_user_id is set
             if not params.query_user_id:
                 params.query_user_id = params.user_id
@@ -358,7 +361,8 @@ class HTTPChatAdapter(ChatProtocolAdapter):
                                     await generate_and_save_summary(
                                         user_id=context['user_id'],
                                         session_id=context['session_id'],
-                                        provider=params.provider or "auto"
+                                        provider = None
+                                        # provider=params.provider or "auto" # don't explicitly import provider let system choose itself for summary
                                     )
                                     logging.info("✅ Summary generated (session=%s)", context['session_id'])
                             except Exception as summary_error:
@@ -387,8 +391,8 @@ class HTTPChatAdapter(ChatProtocolAdapter):
         
         asyncio.create_task(_background_processor())
         
-        HEARTBEAT_INTERVAL = 3
-        HEARTBEAT_COUNTER_THRESHOLD = 10
+        HEARTBEAT_INTERVAL = 10
+        HEARTBEAT_COUNTER_THRESHOLD = 3
         heartbeat_counter = 0
         try:
             while True:

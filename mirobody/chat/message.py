@@ -406,7 +406,36 @@ def compress_messages(agent, messages: list[dict[str, Any]], max_tokens: int = 4
 
 #-----------------------------------------------------------------------------
 
-async def create_new_question(trace_id: str, question: str, user_id: int, message_type: str = "text", msg_id: str = None, query_user_id: int = None, scene: str = "app"):
+async def create_new_question(
+    trace_id: str, 
+    question: str, 
+    user_id: int, 
+    message_type: str = "text", 
+    msg_id: str = None, 
+    query_user_id: int = None, 
+    scene: str = "app",
+    created_at: datetime = None,
+    agent: str = "chat_v3",
+    on_conflict_do_nothing: bool = False
+):
+    """
+    Create a new user question message in the database
+    
+    Args:
+        trace_id: Session/trace ID
+        question: Question content
+        user_id: User ID
+        message_type: Message type (default: "text")
+        msg_id: Optional message ID (auto-generated if not provided)
+        query_user_id: Query user ID (defaults to user_id)
+        scene: Scene identifier (default: "app")
+        created_at: Optional creation timestamp (defaults to now())
+        agent: Agent identifier (default: "chat_v3")
+        on_conflict_do_nothing: If True, adds ON CONFLICT DO NOTHING clause
+        
+    Returns:
+        Created message ID
+    """
     if query_user_id is None:
         query_user_id = user_id
     
@@ -415,7 +444,10 @@ async def create_new_question(trace_id: str, question: str, user_id: int, messag
     else:
         question_id = "app_" + str(uuid.uuid4())
     
-    sql = "insert into th_messages (id, user_id, query_user_id, session_id, role, content, agent, message_type, scene, created_at) values (:id, :user_id, :query_user_id, :session_id, :role, encrypt_content(:content), :agent, :message_type, :scene, now()) RETURNING id"
+    # Build SQL with optional ON CONFLICT clause
+    conflict_clause = " ON CONFLICT DO NOTHING" if on_conflict_do_nothing else ""
+    sql = f"insert into th_messages (id, user_id, query_user_id, session_id, role, content, agent, message_type, scene, created_at) values (:id, :user_id, :query_user_id, :session_id, :role, encrypt_content(:content), :agent, :message_type, :scene, COALESCE(:created_at, now())){conflict_clause} RETURNING id"
+    
     record = await execute_query(
         sql,
         params={
@@ -425,9 +457,10 @@ async def create_new_question(trace_id: str, question: str, user_id: int, messag
             "session_id": trace_id, 
             "role": "user", 
             "content": question, 
-            "agent": "chat_v3", 
+            "agent": agent, 
             "message_type": message_type,
-            "scene": scene
+            "scene": scene,
+            "created_at": created_at
         },
         query_type="insert",
         mode="async",
@@ -436,18 +469,28 @@ async def create_new_question(trace_id: str, question: str, user_id: int, messag
 
 #-----------------------------------------------------------------------------
 
-async def get_chat_history(user_id: str, session_id: str) -> list[dict[str, Any]]:
+async def get_chat_history(user_id: str, session_id: str, filter_message_type: bool = False) -> list[dict[str, Any]]:
     """Load chat history for given session from database"""
     history = []
     try:
-        session_sql = """
-            SELECT 
-                id, decrypt_content(content) AS content, reasoning, role, agent, provider, 
-                input_prompt, created_at, rating, question_id, message_type
-            FROM th_messages
-            WHERE user_id = :user_id AND session_id = :session_id
-            ORDER BY created_at ASC
-        """
+        if filter_message_type:
+            session_sql = """
+                SELECT 
+                    id, decrypt_content(content) AS content, reasoning, role, agent, provider, 
+                    input_prompt, created_at, rating, question_id, message_type
+                FROM th_messages
+                WHERE user_id = :user_id AND session_id = :session_id
+                ORDER BY created_at ASC
+            """
+        else:
+            session_sql = """
+                SELECT 
+                    id, decrypt_content(content) AS content, reasoning, role, agent, provider, 
+                    input_prompt, created_at, rating, question_id, message_type
+                FROM th_messages
+                WHERE user_id = :user_id AND session_id = :session_id AND message_type in ('text', 'file', 'pdf', 'image')
+                ORDER BY created_at ASC
+            """
         db_messages = await execute_query(
             session_sql,
             params={"user_id": user_id, "session_id": session_id}

@@ -17,7 +17,9 @@ from ..utils import (
     json_response_with_code,
 
     jsonrpc_result,
-    jsonrpc_error
+    jsonrpc_error,
+
+    global_config
 )
 
 from ..user import (
@@ -31,16 +33,16 @@ from .tool import load_tools_from_directories, call_tool
 
 #-----------------------------------------------------------------------------
 
-CODE_PARSE_ERROR = -32700
-CODE_INVALID_REQUEST = -32600
-CODE_METHOD_NOT_FOUND = -32601
-CODE_INVALID_PARAMS = -32602
-CODE_INTERNAL_ERROR = -32603
+CODE_PARSE_ERROR        = -32700
+CODE_INVALID_REQUEST    = -32600
+CODE_METHOD_NOT_FOUND   = -32601
+CODE_INVALID_PARAMS     = -32602
+CODE_INTERNAL_ERROR     = -32603
 
 # Implementation specific errors: -32000 to -32099.
 
 # Custom application errors: -32768 to -32000.
-CODE_AUTH_REQUIRED = -32000
+CODE_AUTH_REQUIRED      = -32000
 
 #-----------------------------------------------------------------------------
 
@@ -49,7 +51,6 @@ class ResponseEncoder(json.JSONEncoder):
         if isinstance(o, datetime):
             return o.isoformat()
         return super().default(o)
-
 
 #-----------------------------------------------------------------------------
 
@@ -60,47 +61,39 @@ class McpService:
     def __init__(
         self,
 
-        token_validator: AbstractTokenValidator | None = None,
+        token_validator         : AbstractTokenValidator | None = None,
 
-        protocol_version: str = "",
+        protocol_version        : str = "",
+        name                    : str = "",
+        version                 : str = "",
 
-        name: str = "",
-        version: str = "",
+        uri_prefix              : str = "",
+        routes                  : list | None = None,
 
-        uri_prefix: str = "",
-        routes: list | None = None,
+        tool_dirs               : list[str] = [],
+        resource_dirs           : list[str] = [],
+        private_tool_dirs       : list[str] = [],
+        private_resource_dirs   : list[str] = [],
 
-        tool_dirs: list[str] = [],
-        resource_dirs: list[str] = [],
+        db_pool                 : AsyncConnectionPool[Any] | None = None,
+        redis                   : Redis | None = None,
 
-        private_tool_dirs: list[str] = [],
-        private_resource_dirs: list[str] = [],
-
-        web_server_url: str = "",
-        mcp_server_url: str = "",
-        data_server_url: str = "",
-
-        db_pool: AsyncConnectionPool[Any] | None = None,
-        redis: Redis | None = None
+        **kwargs
     ):
-        self._token_validator = token_validator
+        self._token_validator   = token_validator
 
-        self._protocol_version = protocol_version if protocol_version else "2025-06-18"
-        self._name = name if name else "Theta MCP Server"
-        self._version = version if version else "1.0.0"
+        self._protocol_version  = protocol_version if protocol_version else "2025-06-18"
+        self._name              = name if name else "Theta MCP Server"
+        self._version           = version if version else "1.0.0"
 
-        self._uri_prefix = uri_prefix
+        self._uri_prefix        = uri_prefix
 
-        # self._web_server_url  = web_server_url
-        # self._mcp_server_url = mcp_server_url
-        # self._data_server_url = data_server_url
+        self._db_pool           = db_pool
 
-        self._db_pool = db_pool
-
-        self._redis = redis
+        self._redis             = redis
         if self._redis:
-            self._mcp_url_keyprefix = "mirobody:mcp:url:"
-            self._temporary_mcp_url_keyprefix = "mirobody:mcp:url:temp:"
+            self._mcp_url_keyprefix             = "mirobody:mcp:url:"
+            self._temporary_mcp_url_keyprefix   = "mirobody:mcp:url:temp:"
         else:
             self._mcp_urls = {}
 
@@ -125,6 +118,8 @@ class McpService:
 
         if not self._tool_descriptions:
             self._tool_descriptions = []
+
+        load_tools_from_directories(private_tool_dirs, private=True)
 
         #----------------------------------------------
 
@@ -211,6 +206,7 @@ class McpService:
             )
 
         logging.info(f"mcp_handler received request {jsonrpc} headers: {request.headers}")
+
         # According to the MCP specification,
         #   the ID field should always be there.
         id = None
@@ -243,6 +239,26 @@ class McpService:
 
         #-------------------------------------------------
 
+        user_id     = ""
+        session_id  = ""
+        agent_name  = ""
+
+        user_secret = request.path_params.get("secret", "")
+        if user_secret and self._redis:
+            try:
+                user_secret_payload = await self._redis.get(self._temporary_mcp_url_keyprefix + user_secret)
+                if user_secret_payload:
+                    user_secret_params = json.loads(user_secret_payload)
+
+                    if user_secret_params and isinstance(user_secret_params, dict):
+                        user_id     = user_secret_params.get("user_id", "")
+                        session_id  = user_secret_params.get("session_id", "")
+                        agent_name  = user_secret_params.get("agent_name", "")   
+            except:
+                pass
+
+        #-------------------------------------------------
+
         # tools/list                Discover available tools        Array of tool definitions with schemas
         # tools/call                Execute a specific tool         Tool execution result
 
@@ -255,6 +271,36 @@ class McpService:
         # prompts/get               Retrieve prompt details	Full    prompt definition with arguments
 
         if method == "tools/list":
+            if agent_name and self._tool_descriptions:
+                # Filter tools based on agent configuration
+
+                # Get agent options from config
+                config = global_config()
+                suffix = agent_name.strip().upper()
+
+                allowed_tools   = config.get(f"ALLOWED_TOOLS_{suffix}", [])
+                disallowed_tools= config.get(f"DISALLOWED_TOOLS_{suffix}", [])
+
+                # Apply filtering
+                if allowed_tools:
+                    # Whitelist mode: only include allowed tools
+                    tools = [tool for tool in self._tool_descriptions if tool.get("name") in allowed_tools]
+                else:
+                    tools = []
+
+                # Apply blacklist (higher priority, can override whitelist)
+                if disallowed_tools:
+                    tools = [tool for tool in (tools if tools else self._tool_descriptions) if tool.get("name") not in disallowed_tools]
+
+                return jsonrpc_result(
+                    id=id,
+                    result={
+                        "tools": tools
+                    },
+                    method=method,
+                    request=request
+                )
+
             return jsonrpc_result(
                 id=id,
                 result={
@@ -325,9 +371,8 @@ class McpService:
             tool = self._callable[params["name"]]
             jwt_token = get_jwt_token(request)
             logging.debug(f"jwt_token: {jwt_token}")
-            user_id = ""
 
-            if tool["auth"] and jwt_token and self._token_validator:
+            if tool["auth"] and not user_id and jwt_token and self._token_validator:
                 payload, err = self._token_validator.verify_token(jwt_token)
                 if err:
                     logging.warning(err)
@@ -339,35 +384,28 @@ class McpService:
                     user_id = payload["sub"]
 
             if tool["auth"] and not user_id:
-                try:
-                    user_secret = request.path_params["secret"]
-                    if user_secret:
-                        if self._redis:
-                            resp = await self._redis.get(self._mcp_url_keyprefix + user_secret)
-                            if resp and isinstance(resp, str):
-                                user_id = resp
-
-                            if not user_id:
-                                # Then check temporary urls.
-                                resp = await self._redis.get(self._temporary_mcp_url_keyprefix + user_secret)
-                                if resp and isinstance(resp, str):
-                                    user_id = resp
-                        else:
-                            user_id = self._mcp_urls.get(user_secret, "")
-                except:
-                    user_id = ""
+                user_secret = request.path_params.get("secret", "")
+                if user_secret:
+                    if self._redis:
+                        # Check permanent urls.
+                        try:
+                            user_id = await self._redis.get(self._mcp_url_keyprefix + user_secret)
+                        except:
+                            user_id = ""
+                    else:
+                        user_id = self._mcp_urls.get(user_secret, "")
 
             if tool["auth"] and not user_id:
-                state = secrets.token_urlsafe(32)
-                check_interval = 10  # Seconds.
-                timeout = 300  # Seconds.
+                state           = secrets.token_urlsafe(32)
+                check_interval  = 10    # Seconds.
+                timeout         = 300   # Seconds.
 
                 oauth_params = {
-                    "response_type": "code",
-                    "client_id": "theta_mcp",
-                    "redirect_uri": "urn:ietf:wg:oauth:2.0:oob",
-                    "scope": "read write",
-                    "state": state,
+                    "response_type" : "code",
+                    "client_id"     : "theta_mcp",
+                    "redirect_uri"  : "urn:ietf:wg:oauth:2.0:oob",
+                    "scope"         : "read write",
+                    "state"         : state,
                 }
 
                 authorization_url = f"""{url_prefix}/mcplogin?oauth_params={
@@ -420,40 +458,12 @@ class McpService:
 
             #---------------------------------------------
 
-            # query_user_id = ""
-            # try:
-            #     user_secret = request.path_params["secret"]
-            #     if user_secret:
-            #         if self._redis:
-            #             resp = await self._redis.get(self._mcp_url_keyprefix + user_secret)
-            #             if resp and isinstance(resp, str):
-            #                 query_user_id = resp
-            #         else:
-            #             query_user_id = self._mcp_urls.get(user_secret, "")
-            # except:
-            #     query_user_id = ""
-
-            # if query_user_id:
-            #     if user_id != query_user_id:
-            #         err = await check_relationship(self._db_pool, user_id, query_user_id, ["chat"])
-            #         if err:
-            #             return jsonrpc_error(
-            #                 id      = id,
-            #                 code    = CODE_INTERNAL_ERROR,
-            #                 msg     = err,
-            #                 method  = params["name"],
-            #                 request = request
-            #             )
-
-            #         user_id = query_user_id
-
-            #---------------------------------------------
-
             result = await call_tool(
-                tools=self._callable,
-                tool_name=params["name"],
-                arguments=params["arguments"] if "arguments" in params else {},
-                user_id=user_id
+                tools       = self._callable,
+                tool_name   = params["name"],
+                arguments   = params["arguments"] if "arguments" in params else {},
+                user_id     = user_id,
+                session_id  = session_id
             )
 
             is_error = False
@@ -676,17 +686,18 @@ class McpService:
 
         if not user_secret:
             # Generate a new user secret.
-            user_secret = secrets.token_urlsafe(64)
+            user_secret = secrets.token_urlsafe(96)
 
             if self._redis:
                 try:
-                    await self._redis.set(self._mcp_url_keyprefix+user_secret, user_id)
-                    await self._redis.set(self._mcp_url_keyprefix+user_id, user_secret)
+                    # Set 1 year expiration (365 days)
+                    await self._redis.set(self._mcp_url_keyprefix+user_secret, user_id, ex=365*24*60*60)
+                    await self._redis.set(self._mcp_url_keyprefix+user_id, user_secret, ex=365*24*60*60)
                 except Exception as e:
                     return json_response_with_code(-6, str(e), request=request)
             else:
                 self._mcp_urls[user_secret] = user_id
-                self._mcp_urls[user_id] = user_secret
+                self._mcp_urls[user_id]     = user_secret
 
         #-------------------------------------------------
 
@@ -697,7 +708,7 @@ class McpService:
     #-----------------------------------------------------
 
     @classmethod
-    async def generate_temporary_personal_mcp(cls, user_id: str) -> tuple[str | None, str | None]:
+    async def generate_temporary_personal_mcp(cls, user_id: str, session_id: str = "", agent_name: str = "", expiration: int = 60*10) -> tuple[str | None, str | None]:
         if not user_id:
             return None, "Empty user ID."
 
@@ -705,19 +716,24 @@ class McpService:
             return None, "Invalid MCP service."
 
         service = cls._global_instance
-
         if not service._redis:
             return None, "Invalid redis connection."
         
         #-------------------------------------------------
 
-        user_secret = f"{int(datetime.now().timestamp())}-{secrets.token_urlsafe(32)}"
+        user_secret = secrets.token_urlsafe(32)
+
+        payload = {
+            "user_id"   : user_id,
+            "session_id": session_id,
+            "agent_name": agent_name
+        }
 
         try:
             await service._redis.set(
                 name    = service._temporary_mcp_url_keyprefix + user_secret,
-                value   = user_id,
-                ex      = 60 * 10
+                value   = json.dumps(payload, ensure_ascii=False, separators=(',', ':')),
+                ex      = expiration
             )
         except Exception as e:
             return None, str(e)

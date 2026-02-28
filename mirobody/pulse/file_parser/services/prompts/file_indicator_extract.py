@@ -104,42 +104,75 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 4. **Units**: Extract exact unit from value field, empty string if none
 5. **Language**: Adapt `original_indicator`, `notes`, `reference_range` to user's language ({language}); keep `value` in original text
 6. **Precision**: Preserve exact numerical values as shown in the report
+7. **Privacy Protection**: Do NOT extract the following personal identifiable information (PII):
+   - ID number (身份证号)
+   - Phone number
+   - Detailed address (only keep city/district level if needed)
+   - Patient ID / Medical record number
+   - Only extract: name, age, gender, and medical-related dates
 
 ---
 
 ## Examples:
 
-### Laboratory Report (zh-cn) - Extract ALL items:
-```
-Input: Complete Blood Count report with multiple items
-Output: Extract EVERY indicator, for example:
-- {{"original_indicator": "白细胞计数", "value": "15.5 ×10⁹/L", "reference_range": "4.0-10.0 ×10⁹/L", "unit": "×10⁹/L", "detection_method": "laboratory", "status": "high", "notes": "偏高"}}
-- {{"original_indicator": "红细胞计数", "value": "4.5 ×10¹²/L", "reference_range": "4.0-5.5 ×10¹²/L", "unit": "×10¹²/L", "detection_method": "laboratory", "status": "normal", "notes": ""}}
-- {{"original_indicator": "血红蛋白", "value": "140 g/L", "reference_range": "120-160 g/L", "unit": "g/L", "detection_method": "laboratory", "status": "normal", "notes": ""}}
-... (extract ALL items from report)
-```
-
-### Imaging Report (zh-cn):
-```
-Input: CT chest report
-Output: Extract each finding:
-- {{"original_indicator": "肺部", "value": "双肺纹理清晰，未见明显实质性病变", "reference_range": "", "unit": "", "detection_method": "Imaging", "status": "normal", "notes": ""}}
-- {{"original_indicator": "心脏", "value": "心影大小形态正常", "reference_range": "", "unit": "", "detection_method": "Imaging", "status": "normal", "notes": ""}}
+### Complete Medical Report Example (MUST follow this structure):
+```json
+{{
+  "language": "{language}",
+  "content_type": "medical_report",
+  "content_info": {{
+    "content_type_detail": "Complete Blood Count",
+    "content_category": "Laboratory Test",
+    "date_time": "2024-10-30 00:00:00",
+    "subject_info": {{
+      "name": "张三",
+      "details": "Male, 31 years"
+    }},
+    "source": "Huashan Hospital Affiliated to Fudan University",
+    "reference_number": ""
+  }},
+  "indicators": [
+    {{"original_indicator": "白细胞计数", "value": "15.5 ×10⁹/L", "reference_range": "4.0-10.0 ×10⁹/L", "unit": "×10⁹/L", "detection_method": "laboratory", "status": "high", "notes": "偏高"}},
+    {{"original_indicator": "红细胞计数", "value": "4.5 ×10¹²/L", "reference_range": "4.0-5.5 ×10¹²/L", "unit": "×10¹²/L", "detection_method": "laboratory", "status": "normal", "notes": ""}}
+  ],
+  "additional_info": {{
+    "content_summary": "血常规检查",
+    "assessment": "白细胞偏高，建议复查",
+    "recommendations": "",
+    "follow_up": "",
+    "specialist": "",
+    "reviewer": ""
+  }}
+}}
 ```
 
 ### Non-Medical Content (Return Empty):
-```
-Input: Food image / Technical doc / Landscape photo / Business document
-Output: {{"language": "{language}", "content_type": "non_health_related", "content_info": {{"content_type_detail": "Food image", "content_category": "Non-health-related content"}}, "indicators": []}}
+```json
+{{
+  "language": "{language}",
+  "content_type": "non_health_related",
+  "content_info": {{
+    "content_type_detail": "Food image",
+    "content_category": "Non-health-related content"
+  }},
+  "indicators": []
+}}
 ```
 
 ---
 
-## Required Response Fields:
+## Required Response Fields (MUST use exact field names):
 - `language`: User's language code (`{language}`)
 - `content_type`: "medical_report" or "non_health_related"
-- `content_info`: Content metadata (report type, date, patient info, hospital, etc.)
+- `content_info`: Object with these EXACT fields:
+  - `content_type_detail`: Report type (e.g., "Complete Blood Count", "CT", "MRI")
+  - `content_category`: Category (e.g., "Laboratory Test", "Imaging Examination")
+  - `date_time`: Date in YYYY-MM-DD HH:MM:SS format (Priority: Sample Collection > Sample Receipt > Report Date)
+  - `subject_info`: Object with `name` (patient name) and `details` (gender, age combined as string like "Male, 31 years")
+  - `source`: Hospital/facility name
+  - `reference_number`: Examination/record number (if available)
 - `indicators`: Array of ALL extracted indicators (empty array for non-medical content)
+- `additional_info`: Optional object with `content_summary`, `assessment`, `recommendations`, `follow_up`, `specialist`, `reviewer`
 """
 
 
@@ -240,6 +273,13 @@ File Abstract Requirements (no more than 200 words):
 - Main examination items or body parts
 - Key findings or abnormalities (if any)
 - Overall conclusion (normal/abnormal)
+
+Privacy Protection Requirements (Do NOT extract the following PII):
+- ID number (身份证号)
+- Phone number
+- Detailed address (only keep city/district level if needed)
+- Patient ID / Medical record number
+- Only extract: name, age, gender, and medical-related dates
 
 Extraction Requirements:
 - original_indicator: Original indicator name (original language, ≤100 characters, medical indicators only)

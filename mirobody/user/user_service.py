@@ -4,7 +4,7 @@ from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
 
 from .jwt import AbstractTokenValidator
-from .email import MandrillEmailValidator, DummyEmailCodeValidator
+from .email import create_email_validator
 from .apple import AppleTokenValidator
 from .google import GoogleTokenValidator
 from .firebase import FirebaseTokenValidator
@@ -39,6 +39,9 @@ class UserService:
         db_pool         : AsyncConnectionPool | None = None,
         redis           : Redis | None = None,
 
+        email_smtp_host : str = "",
+        email_smtp_port : int = 0,
+        email_smtp_user : str = "",
         email_from      : str = "",
         email_from_name : str = "",
         email_template  : str = "",
@@ -60,19 +63,18 @@ class UserService:
         self._get_jwt_token     = get_jwt_token
         self._qr_login_url      = qr_login_url
 
-        if email_from and email_password and email_template:
-            self._email_validator = MandrillEmailValidator(
-                email_password,
-                email_template,
-                email_from,
-                email_from_name if email_from_name else "Theta Wellness",
-                predefined_codes = email_predefined,
-                redis = redis
-            )
-        else:
-            self._email_validator = DummyEmailCodeValidator(
-                predefined_codes = email_predefined
-            )
+        self._email_validator = create_email_validator(
+            smtp_host       = email_smtp_host,
+            smtp_port       = email_smtp_port,
+            smtp_user       = email_smtp_user if email_smtp_user else email_from,
+            smtp_pass       = email_password,
+            mandrill_api_key= email_password,
+            from_email      = email_from,
+            from_name       = email_from_name if email_from_name else "Theta Wellness",
+            template        = email_template,
+            predefined_codes= email_predefined,
+            redis           = redis
+        )
         
         if apple_client_id and apple_team_id and apple_key_id and apple_private_key:
             self._apple_validator = AppleTokenValidator(
@@ -122,7 +124,7 @@ class UserService:
         if self._apple_validator:
             self.routes.append(Route(f"{uri_prefix}/apple/verify", endpoint=self.apple_verify_handler, methods=["POST", "OPTIONS"]))
 
-        if self._google_validator and self._firebase_validator:
+        if self._google_validator or self._firebase_validator:
             self.routes.append(Route(f"{uri_prefix}/google/verify", endpoint=self.google_verify_handler, methods=["POST", "OPTIONS"]))
 
         if self._qr_login_url:

@@ -28,7 +28,7 @@ FILE_ABSTRACT_PROMPT = """Please generate a detailed abstract and filename for t
 
 4. **Length Control**: Total length recommended between 15-40 characters (excluding extension)
 
-5. **Extension**: Must include correct file extension (e.g., .pdf, .jpg, .png)
+5. **Extension**: MUST use the exact same extension as the original uploaded file. Do NOT change or guess the extension based on content. If the original file is .jpg, the generated file_name must also end with .jpg, even if the content looks like a report.
 
 6. **Good Examples**:
    - "2024-03-15_Blood_Test_Report_Hospital.pdf"
@@ -73,6 +73,12 @@ FILE_ABSTRACT_PROMPT = """Please generate a detailed abstract and filename for t
 3. **Professionalism**: Use appropriate professional terminology, maintain formal tone
 4. **Usefulness**: Highlight information most valuable to user
 5. **Completeness**: Include as much key information as possible within character limit
+6. **Privacy Protection**: Do NOT include the following personal identifiable information (PII) in abstract:
+   - ID number (身份证号)
+   - Phone number
+   - Detailed address (only keep city/district level if needed)
+   - Patient ID / Medical record number
+   - Only include: name, age, gender, and medical-related dates
 
 ## Language Requirements:
 - Language of file_name and file_abstract should be determined by file content

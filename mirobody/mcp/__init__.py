@@ -6,10 +6,14 @@ from .tool import (
     call_tool,
     call_global_tool,
 
+    call_private_tool,
+
     get_global_tool_count,
     get_global_tools,
     get_global_descriptions,
-    get_global_functions
+
+    get_global_functions,
+    get_private_functions
 )
 
 from .resource import (

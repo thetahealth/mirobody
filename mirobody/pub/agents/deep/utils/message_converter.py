@@ -1,6 +1,10 @@
 import logging
 from typing import Dict, Any, AsyncGenerator
 
+from langchain_core.callbacks import AsyncCallbackHandler
+
+from .constants import FINAL_OUTPUT_NODES, MODEL_PRICING
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,11 +22,6 @@ class StreamConverter:
     - Stateless pure functions
     - Complete data pass-through to upper layers
     """
-
-    FINAL_OUTPUT_NODES = {
-        "tools",           # Tools node
-        "model",           # Direct model invocation
-    }
     
     @staticmethod
     async def convert_message_chunk(
@@ -52,7 +51,7 @@ class StreamConverter:
             node_name = node_info.get("node")
             
             # Only process AIMessageChunk for text content from final output nodes
-            if chunk_type == "AIMessageChunk" and node_name in StreamConverter.FINAL_OUTPUT_NODES:
+            if chunk_type == "AIMessageChunk" and node_name in FINAL_OUTPUT_NODES:
                 async for event in StreamConverter._handle_ai_message_chunk(chunk, node_info, trace_id):
                     yield event
             
@@ -169,7 +168,7 @@ class StreamConverter:
             elif stream_type == "updates":
                 for step, step_data in stream_event.items():
                     # Only process model and tools steps
-                    if step not in StreamConverter.FINAL_OUTPUT_NODES:
+                    if step not in FINAL_OUTPUT_NODES:
                         continue
                     
                     # Validate step_data
@@ -308,81 +307,210 @@ class StreamConverter:
     
     @staticmethod
     def create_cost_statistics(
-        input_tokens, 
-        output_tokens, 
+        input_tokens: int,
+        output_tokens: int,
         model_name: str = "unknown",
         cache_read_tokens: int = 0,
         cache_creation_tokens: int = 0
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Any] | None:
         """
-        Create cost statistics (unified format).
-        
+        Create cost statistics with prompt caching support.
+
+        Token breakdown (per Anthropic/OpenRouter API):
+        - input_tokens: Non-cached input tokens (charged at full input rate)
+        - cache_read_tokens: Tokens read from cache (charged at ~10% of input rate)
+        - cache_creation_tokens: Tokens written to cache (charged at ~125% of input rate)
+
         Args:
-            input_tokens: Total input tokens
-            output_tokens: Total output tokens
-            model_name: Model name
+            input_tokens: Non-cached input tokens
+            output_tokens: Output tokens
+            model_name: Model name for pricing lookup
             cache_read_tokens: Tokens read from cache (prompt caching hit)
             cache_creation_tokens: Tokens written to cache (prompt caching miss)
-            
+
         Returns:
-            Cost statistics dictionary
+            Cost statistics dictionary or None on error
         """
         try:
-            # Pricing configuration (USD per million tokens)
-            # Keys are substrings to match against model_name
-            # cache_read is typically 90% cheaper, cache_creation is 25% more expensive
-            PRICING = {
-                "claude-sonnet-4.5": {"input": 3.00, "output": 15.00, "cache_read": 0.30, "cache_creation": 3.75},
-                "claude-haiku-4.5": {"input": 1.00, "output": 5.00, "cache_read": 0.10, "cache_creation": 1.25},
-                "claude-opus-4.5": {"input": 5.00, "output": 25.00, "cache_read": 0.50, "cache_creation": 6.25},
-                "gemini-3-flash": {"input": 0.50, "output": 3.00},
-                "gemini-3-pro": {"input": 2.00, "output": 12.00},
-                "gpt-5-mini": {"input": 0.25, "output": 2.00},
-                "gpt-5.2": {"input": 1.75, "output": 14.00},
-                "deepseek-v3.2": {"input": 0.24, "output": 0.38},
-                "kimi-k2-thinking": {"input": 0.40, "output": 1.75},
-                "kimi-k2": {"input": 0.39, "output": 1.90},
-            }
-            
-            # Always calculate total tokens
-            total_tokens = input_tokens + output_tokens
-            
+            # Detect format:
+            # - OpenAI/OpenRouter: input_tokens includes cache_read_tokens (input >= cache_read)
+            # - Anthropic: input_tokens is non-cached only (input < cache_read typically)
+            is_openai_format = input_tokens >= cache_read_tokens and cache_read_tokens > 0
+
+            if is_openai_format:
+                # OpenAI format: input_tokens already includes cache_read
+                total_input = input_tokens + cache_creation_tokens
+                non_cached_input = input_tokens - cache_read_tokens
+            else:
+                # Anthropic format: input_tokens is non-cached only
+                total_input = input_tokens + cache_read_tokens + cache_creation_tokens
+                non_cached_input = input_tokens
+
+            total_tokens = total_input + output_tokens
+
             # Find matching pricing by substring match (prefer longest key for precision)
             model_name_lower = model_name.lower()
             rates = None
             matched_key = ""
-            for key, pricing in PRICING.items():
+            for key, pricing in MODEL_PRICING.items():
                 if key in model_name_lower and len(key) > len(matched_key):
                     matched_key = key
                     rates = pricing
-            
-            # Calculate cost if model pricing is available
+
+            # Calculate costs
+            total_cost = None
+            cost_saved = None
+
             if rates:
-                # Base cost for non-cached input tokens
-                non_cached_input = input_tokens - cache_read_tokens - cache_creation_tokens
-                input_cost = (max(0, non_cached_input) / 1_000_000) * rates["input"]
-                output_cost = (output_tokens / 1_000_000) * rates["output"]
-                
-                # Add cache costs if applicable
-                cache_read_cost = (cache_read_tokens / 1_000_000) * rates.get("cache_read", rates["input"] * 0.1)
-                cache_creation_cost = (cache_creation_tokens / 1_000_000) * rates.get("cache_creation", rates["input"] * 1.25)
-                
-                total_cost = round(input_cost + output_cost + cache_read_cost + cache_creation_cost, 5)
-            else:
-                total_cost = "unrecognized model"
-            
+                input_rate = rates["input"]
+                output_rate = rates["output"]
+
+                # Cache pricing rules:
+                # - cache_read = input * 0.1 (all models, 90% discount)
+                # - cache_creation = input * 0.25 (Claude only, add 25% premium)
+                cache_read_rate = input_rate * 0.1
+                is_claude = "claude" in matched_key
+                cache_creation_rate = input_rate * 0.25 if is_claude else 0
+
+                # Cost breakdown:
+                # - non_cached_input: Fresh processing → full input rate
+                # - cache_read_tokens: Cache hits → discounted rate (all models)
+                # - cache_creation_tokens: Cache writes → premium rate (Claude only)
+                input_cost = (non_cached_input / 1_000_000) * input_rate
+                output_cost = (output_tokens / 1_000_000) * output_rate
+                cache_read_cost = (cache_read_tokens / 1_000_000) * cache_read_rate
+                cache_creation_cost = (cache_creation_tokens / 1_000_000) * cache_creation_rate
+
+                total_cost = round(input_cost + output_cost + cache_read_cost + cache_creation_cost, 6)
+
+                # Calculate savings: cache_read tokens at discounted rate vs full input rate
+                if cache_read_tokens > 0:
+                    cost_without_cache = (cache_read_tokens / 1_000_000) * input_rate
+                    cost_saved = round(cost_without_cache - cache_read_cost, 6)
+
+            # Build response (all values as strings for stability)
+            content = {
+                "model": model_name,
+                "input_tokens": str(total_input),
+                "output_tokens": str(output_tokens),
+                "total_tokens": str(total_tokens),
+                "total_cost": f"{total_cost:.6f}" if total_cost is not None else "unrecognized model",
+            }
+
+            # Add cache info only if cache was used
+            if cache_read_tokens > 0:
+                content["cache_read_tokens"] = str(cache_read_tokens)
+                if cost_saved is not None and cost_saved > 0:
+                    content["cost_saved"] = f"{cost_saved:.6f}"
+
             return {
                 "type": "costStatistics",
-                "content": {
-                    "model": model_name,
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                    "total_tokens": total_tokens,
-                    "total_cost": total_cost,
-                    "cache_read_tokens": cache_read_tokens,
-                    "cache_creation_tokens": cache_creation_tokens
-                }
+                "content": content
             }
         except Exception as e:
             logger.error(f"Failed to create cost statistics: {e}")
             return None
+
+class TokenUsageCallback(AsyncCallbackHandler):
+    """
+    Callback handler to track token usage across LLM calls.
+
+    Supports multiple providers:
+    - Anthropic (direct API): cache_read_input_tokens, cache_creation_input_tokens
+    - OpenRouter: prompt_tokens_details.cached_tokens
+    - OpenAI: prompt_tokens_details.cached_tokens
+    - Gemini: usage_metadata.input_tokens
+    """
+
+    def __init__(self):
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+        self.cache_read_tokens = 0
+        self.cache_creation_tokens = 0
+
+    async def on_llm_end(self, response, **kwargs):
+        # Track if we've already extracted tokens to avoid double counting
+        tokens_extracted = False
+        cache_extracted = False
+
+        # Debug: log full response structure
+        logger.debug(f"[TokenUsage] llm_output keys: {response.llm_output.keys() if response.llm_output else 'None'}")
+
+        # Method 1: response.llm_output["token_usage"] (OpenAI/OpenRouter format)
+        if response.llm_output and "token_usage" in response.llm_output:
+            usage = response.llm_output["token_usage"]
+            logger.debug(f"[TokenUsage] token_usage: {usage}")
+
+            # Extract cache tokens first (needed for input calculation)
+            cached_tokens = 0
+            if not cache_extracted:
+                # Anthropic format
+                self.cache_read_tokens += usage.get("cache_read_input_tokens", 0)
+                self.cache_creation_tokens += usage.get("cache_creation_input_tokens", 0)
+
+                # OpenRouter/OpenAI format: prompt_tokens_details.cached_tokens
+                prompt_details = usage.get("prompt_tokens_details") or {}
+                if prompt_details:
+                    logger.debug(f"[TokenUsage] prompt_tokens_details: {prompt_details}")
+                    cached_tokens = prompt_details.get("cached_tokens", 0)
+                    if cached_tokens > 0:
+                        self.cache_read_tokens += cached_tokens
+                        cache_extracted = True
+
+                if self.cache_read_tokens > 0 or self.cache_creation_tokens > 0:
+                    cache_extracted = True
+
+            if not tokens_extracted:
+                # OpenAI/OpenRouter: prompt_tokens (may include cached)
+                # Anthropic: input_tokens (non-cached only)
+                # Pass raw value - create_cost_statistics handles both formats
+                prompt_tokens = usage.get("prompt_tokens", 0) or usage.get("input_tokens", 0)
+                self.total_input_tokens += prompt_tokens
+                self.total_output_tokens += usage.get("completion_tokens", 0) or usage.get("output_tokens", 0)
+                tokens_extracted = True
+
+        # Method 2: message.usage_metadata (LangChain standard)
+        for generation in response.generations:
+            for chunk in generation:
+                if not hasattr(chunk, "message"):
+                    continue
+
+                msg = chunk.message
+
+                # usage_metadata (Gemini/Claude/newer LangChain versions)
+                if hasattr(msg, "usage_metadata") and msg.usage_metadata:
+                    metadata = msg.usage_metadata
+                    logger.debug(f"[TokenUsage] usage_metadata: {metadata}")
+
+                    if not tokens_extracted:
+                        self.total_input_tokens += metadata.get("input_tokens", 0)
+                        self.total_output_tokens += metadata.get("output_tokens", 0)
+                        tokens_extracted = True
+
+                    if not cache_extracted:
+                        # Anthropic cache in usage_metadata
+                        self.cache_read_tokens += metadata.get("cache_read_input_tokens", 0)
+                        self.cache_creation_tokens += metadata.get("cache_creation_input_tokens", 0)
+
+                        # input_token_details format (some LangChain versions)
+                        input_details = metadata.get("input_token_details") or {}
+                        if input_details:
+                            logger.debug(f"[TokenUsage] input_token_details: {input_details}")
+                            self.cache_read_tokens += input_details.get("cache_read", 0)
+                            self.cache_creation_tokens += input_details.get("cache_creation", 0)
+
+                        if self.cache_read_tokens > 0 or self.cache_creation_tokens > 0:
+                            cache_extracted = True
+
+                # response_metadata.usage (Anthropic specific, only for cache)
+                if not cache_extracted and hasattr(msg, "response_metadata") and msg.response_metadata:
+                    resp_usage = msg.response_metadata.get("usage", {})
+                    if resp_usage:
+                        logger.debug(f"[TokenUsage] response_metadata.usage: {resp_usage}")
+                        self.cache_read_tokens += resp_usage.get("cache_read_input_tokens", 0)
+                        self.cache_creation_tokens += resp_usage.get("cache_creation_input_tokens", 0)
+
+        logger.info(
+            f"[TokenUsage] input={self.total_input_tokens}, output={self.total_output_tokens}, "
+            f"cache_read={self.cache_read_tokens}, cache_creation={self.cache_creation_tokens}"
+        )

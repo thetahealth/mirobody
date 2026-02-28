@@ -13,6 +13,7 @@ import pdfplumber
 from PIL import Image
 from mirobody.utils.llm import unified_file_extract
 from mirobody.pulse.file_parser.services.prompts.file_abstract_prompt import FILE_ABSTRACT_PROMPT, FALLBACK_ABSTRACT_TEMPLATES
+from mirobody.pulse.file_parser.services.prompts.file_original_text_prompt import FILE_ORIGINAL_TEXT_PROMPT
 
 
 class FileAbstractExtractor:
@@ -483,7 +484,7 @@ class FileAbstractExtractor:
         """
         try:
             # Prepare prompt with file extension hint
-            extension_hint = f"(File extension should be: {file_extension})" if file_extension else ""
+            extension_hint = f"IMPORTANT: The file extension MUST be '{file_extension}'. Do not use any other extension." if file_extension else ""
             prompt = f"""{FILE_ABSTRACT_PROMPT}
 
 File context: {context}
@@ -492,10 +493,12 @@ File context: {context}
 Please return strictly in JSON format, do not include any markdown code block markers or other formatting."""
             
             # Use unified file extract (auto-selects model based on environment)
+            # json_mode=True because we expect JSON output for file abstract extraction
             response = await unified_file_extract(
                 file_path=temp_file_path,
                 prompt=prompt,
-                content_type=content_type
+                content_type=content_type,
+                json_mode=True
             )
                 
             if response and response.strip():
@@ -692,13 +695,24 @@ Please return strictly in JSON format, do not include any markdown code block ma
         """
         try:
             logging.info(f"📄 [Original Text] Starting original text extraction: {filename}, file_type: {file_type}, content_type: {content_type}")
-            if file_type == "pdf" or (content_type and content_type == "application/pdf"):
+            
+            # Determine file type from content_type or filename extension
+            is_pdf = file_type == "pdf" or (content_type and content_type == "application/pdf")
+            is_image = file_type == "image" or (content_type and content_type.startswith("image/"))
+            is_excel = self._is_excel_file(filename, content_type)
+            is_text = self._is_text_file(filename, content_type)
+            
+            if is_pdf:
                 return await self._extract_pdf_original_text(file_content, filename)
-            elif file_type == "image" or (content_type and content_type.startswith("image/")):
+            elif is_image:
                 return await self._extract_image_original_text(file_content, filename)
+            elif is_excel:
+                return await self._extract_excel_original_text(file_content, filename)
+            elif is_text:
+                return await self._extract_text_original_text(file_content, filename)
             else:
                 # For other file types, return empty string
-                logging.info(f"📄 [Original Text] Skipping original text extraction for non-PDF/image file: {filename}, type: {file_type}")
+                logging.info(f"📄 [Original Text] Skipping original text extraction for unsupported file: {filename}, type: {file_type}")
                 return ""
                 
         except Exception as e:
@@ -707,84 +721,56 @@ Please return strictly in JSON format, do not include any markdown code block ma
     
     async def _extract_pdf_original_text(self, file_content: bytes, filename: str) -> str:
         """
-        Extract original text from PDF file
-        First try direct text extraction with pdfplumber, fallback to Gemini/Doubao if failed
-        
+        Extract original text from PDF file using Vision LLM
+
         Args:
             file_content: PDF file binary content
             filename: Original filename
-            
+
         Returns:
             str: Original text content
         """
+        import time
+        start_time = time.time()
+
         try:
             # Create temporary file for PDF processing
             with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_file:
                 temp_file.write(file_content)
                 temp_file_path = temp_file.name
-            
-            try:
-                # Try direct text extraction with pdfplumber first
-                extracted_text = ""
-                
-                try:
-                    logging.info(f"📄 [Original Text] Attempting direct PDF text extraction: {filename}")
-                    
-                    pdf_document = pdfplumber.open(temp_file_path)
-                    total_pages = len(pdf_document.pages)
-                    
-                    # Extract text from all pages
-                    for page_num in range(total_pages):
-                        try:
-                            page = pdf_document.pages[page_num]
-                            page_text = page.extract_text()
-                            if page_text.strip():
-                                extracted_text += f"\n[Page {page_num + 1}]\n{page_text}"
-                        except Exception as e:
-                            logging.warning(f"⚠️ [Original Text] Failed to extract text from page {page_num + 1}: {e}")
-                            continue
-                    
-                    pdf_document.close()
-                    
-                    # Check if we got meaningful text
-                    if extracted_text.strip() and len(extracted_text.strip()) > 50:
-                        logging.info(f"✅ [Original Text] Direct PDF extraction successful: {filename}, extracted {len(extracted_text)} characters")
-                        return extracted_text.strip()
-                    else:
-                        logging.info(f"⚠️ [Original Text] Direct PDF extraction returned insufficient text: {filename}, length: {len(extracted_text)}")
-                except Exception as direct_error:
-                    logging.warning(f"⚠️ [Original Text] Direct PDF extraction failed: {filename}, error: {str(direct_error)}")
 
-                # Fallback to Gemini/Doubao
-                logging.info(f"🔄 [Original Text] Falling back to LLM extraction for PDF: {filename}")
-                
-                prompt = """Please extract and return ALL the original text content from this PDF file.
-Return the complete text exactly as it appears in the document, preserving formatting where possible.
-Do not summarize or modify the content - return the full original text."""
-                
-                # Use unified file extract (auto-selects model based on environment)
+            try:
+                logging.info(f"📄 [Original Text] Extracting PDF text with Vision LLM: {filename}")
+
+                prompt = FILE_ORIGINAL_TEXT_PROMPT
+
+                # Use unified file extract with Vision LLM
                 response = await unified_file_extract(
                     file_path=temp_file_path,
                     prompt=prompt,
-                    content_type="application/pdf"
+                    content_type="application/pdf",
+                    json_mode=False
                 )
-                
+
+                elapsed_time = time.time() - start_time
+
                 if response and response.strip():
-                    logging.info(f"✅ [Original Text] PDF extraction successful: {filename}, extracted {len(response)} characters")
+                    logging.info(f"✅ [Original Text] PDF extraction successful: {filename}, extracted {len(response)} characters, took {elapsed_time:.2f}s")
                     return response.strip()
                 else:
-                    logging.warning(f"⚠️ [Original Text] LLM returned empty response for PDF: {filename}")
+                    logging.warning(f"⚠️ [Original Text] LLM returned empty response for PDF: {filename}, took {elapsed_time:.2f}s")
                     return ""
-                    
+
             finally:
                 # Clean up temporary file
                 try:
                     os.unlink(temp_file_path)
                 except Exception:
                     pass
-                    
+
         except Exception as e:
-            logging.error(f"❌ [Original Text] PDF original text extraction failed: {filename}, error: {e}", stack_info=True)
+            elapsed_time = time.time() - start_time
+            logging.error(f"❌ [Original Text] PDF original text extraction failed: {filename}, error: {e}, took {elapsed_time:.2f}s", stack_info=True)
             return ""
     
     async def _extract_image_original_text(self, file_content: bytes, filename: str) -> str:
@@ -807,21 +793,14 @@ Do not summarize or modify the content - return the full original text."""
             try:
                 logging.info(f"📄 [Original Text] Starting image text extraction with LLM: {filename}")
                 
-                prompt = """Please extract and return ALL text content visible in this image.
-Include all text you can see, including:
-- Main text content
-- Labels, captions, titles
-- Numbers, dates, measurements
-- Any other readable text
-
-Return the complete text exactly as it appears, preserving the order and structure where possible.
-If there is no text in the image, return an empty response."""
+                prompt = FILE_ORIGINAL_TEXT_PROMPT
                 
                 # Use unified file extract (auto-selects model based on environment)
                 response = await unified_file_extract(
                     file_path=temp_file_path,
                     prompt=prompt,
-                    content_type="image/jpeg"
+                    content_type="image/jpeg",
+                    json_mode=False
                 )
                 
                 if response and response.strip():
@@ -840,4 +819,163 @@ If there is no text in the image, return an empty response."""
                     
         except Exception as e:
             logging.error(f"❌ [Original Text] Image original text extraction failed: {filename}, error: {e}", stack_info=True)
+            return ""
+
+    def _is_excel_file(self, filename: str, content_type: str = None) -> bool:
+        """Check if file is an Excel file"""
+        if not filename:
+            return False
+        
+        excel_extensions = [".xlsx", ".xls", ".xlsm", ".xlsb"]
+        filename_lower = filename.lower()
+        has_excel_extension = any(filename_lower.endswith(ext) for ext in excel_extensions)
+        
+        excel_mime_types = [
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-excel",
+            "application/vnd.ms-excel.sheet.macroEnabled.12",
+            "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+        ]
+        has_excel_mime = content_type in excel_mime_types if content_type else False
+        
+        return has_excel_extension or has_excel_mime
+
+    def _is_text_file(self, filename: str, content_type: str = None) -> bool:
+        """Check if file is a text file"""
+        if not filename:
+            return False
+        
+        text_extensions = [".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm", ".log"]
+        filename_lower = filename.lower()
+        has_text_extension = any(filename_lower.endswith(ext) for ext in text_extensions)
+        
+        text_mime_types = [
+            "text/plain",
+            "text/markdown",
+            "text/csv",
+            "application/json",
+            "text/xml",
+            "application/xml",
+            "text/html",
+        ]
+        has_text_mime = content_type in text_mime_types if content_type else False
+        
+        return has_text_extension or has_text_mime
+
+    async def _extract_excel_original_text(self, file_content: bytes, filename: str) -> str:
+        """
+        Extract original text from Excel file
+        
+        Args:
+            file_content: Excel file binary content
+            filename: Original filename
+            
+        Returns:
+            str: Original text content (formatted as markdown table)
+        """
+        import io
+        import time
+        
+        start_time = time.time()
+        
+        try:
+            import pandas as pd
+            
+            logging.info(f"📄 [Original Text] Extracting Excel text: {filename}")
+            
+            # Read Excel file
+            try:
+                df = pd.read_excel(io.BytesIO(file_content), engine="openpyxl")
+            except Exception:
+                # Try with xlrd for older .xls files
+                try:
+                    df = pd.read_excel(io.BytesIO(file_content), engine="xlrd")
+                except Exception as e:
+                    logging.warning(f"⚠️ [Original Text] Failed to read Excel with both engines: {e}")
+                    return ""
+            
+            if df.empty:
+                logging.info(f"ℹ️ [Original Text] Excel file is empty: {filename}")
+                return ""
+            
+            # Convert DataFrame to markdown-like text
+            text_parts = []
+            text_parts.append(f"# Excel File: {filename}")
+            text_parts.append(f"Rows: {len(df)}, Columns: {len(df.columns)}")
+            text_parts.append("")
+            
+            # Add column headers
+            headers = " | ".join(str(col) for col in df.columns)
+            text_parts.append(f"| {headers} |")
+            text_parts.append("|" + "|".join(["---"] * len(df.columns)) + "|")
+            
+            # Add data rows (limit to first 5000 rows to avoid huge text)
+            max_rows = min(len(df), 5000)
+            for idx in range(max_rows):
+                row_values = " | ".join(str(val) if pd.notna(val) else "" for val in df.iloc[idx])
+                text_parts.append(f"| {row_values} |")
+            
+            if len(df) > max_rows:
+                text_parts.append(f"\n... and {len(df) - max_rows} more rows")
+            
+            result = "\n".join(text_parts)
+            elapsed_time = time.time() - start_time
+            
+            logging.info(f"✅ [Original Text] Excel extraction successful: {filename}, {len(result)} chars, took {elapsed_time:.2f}s")
+            return result
+            
+        except ImportError:
+            logging.warning(f"⚠️ [Original Text] pandas not available for Excel extraction: {filename}")
+            return ""
+        except Exception as e:
+            elapsed_time = time.time() - start_time
+            logging.error(f"❌ [Original Text] Excel extraction failed: {filename}, error: {e}, took {elapsed_time:.2f}s")
+            return ""
+
+    async def _extract_text_original_text(self, file_content: bytes, filename: str) -> str:
+        """
+        Extract original text from text file (txt, md, csv, json, etc.)
+        
+        Args:
+            file_content: Text file binary content
+            filename: Original filename
+            
+        Returns:
+            str: Original text content
+        """
+        import time
+        
+        start_time = time.time()
+        
+        try:
+            logging.info(f"📄 [Original Text] Extracting text file: {filename}")
+            
+            # Try different encodings
+            encodings = ["utf-8", "utf-8-sig", "gbk", "gb2312", "latin-1"]
+            text = None
+            
+            for encoding in encodings:
+                try:
+                    text = file_content.decode(encoding)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            
+            if text is None:
+                # Fallback: decode with errors='replace'
+                text = file_content.decode("utf-8", errors="replace")
+            
+            # Limit text length to avoid huge content
+            max_chars = 100000  # 100K chars max
+            if len(text) > max_chars:
+                text = text[:max_chars] + f"\n\n... (truncated, total {len(file_content)} bytes)"
+            
+            elapsed_time = time.time() - start_time
+            logging.info(f"✅ [Original Text] Text extraction successful: {filename}, {len(text)} chars, took {elapsed_time:.2f}s")
+            
+            return text.strip()
+            
+        except Exception as e:
+            elapsed_time = time.time() - start_time
+            logging.error(f"❌ [Original Text] Text extraction failed: {filename}, error: {e}, took {elapsed_time:.2f}s")
             return ""

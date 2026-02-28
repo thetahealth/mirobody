@@ -93,7 +93,7 @@ class ManageService:
             standard_indicators = {indicator.identifier for indicator in StandardIndicator}
 
             # Calculate date one year ago
-            one_year_ago = datetime.now() - timedelta(days=365)
+            one_year_ago = datetime.now() - timedelta(days=60)
 
             # Get statistics data from database
             results = await self.db_service.get_yearly_stats(one_year_ago)
@@ -104,7 +104,6 @@ class ManageService:
                     "sources": {},
                     "overview": {
                         "total_indicators": 0,
-                        "total_users": 0,
                         "total_records": 0,
                         "defined_indicators": 0,
                         "undefined_indicators": 0,
@@ -129,7 +128,6 @@ class ManageService:
                     "source": normalized_source,
                     "original_source": original_source,
                     "indicator": row["indicator"],
-                    "unique_users": row["unique_users"],
                     "total_records": row["total_records"],
                     "latest_time": row["latest_time"],
                     "is_defined_in_constants": is_defined,
@@ -139,7 +137,6 @@ class ManageService:
             # Group by data source
             sources_data = {}
             total_indicators = 0
-            total_users = set()
             total_records = 0
             defined_count = 0
             undefined_count = 0
@@ -152,7 +149,6 @@ class ManageService:
                         "indicators": [],
                         "summary": {
                             "total_indicators": 0,
-                            "total_users": set(),
                             "total_records": 0,
                             "defined_indicators": 0,
                             "undefined_indicators": 0,
@@ -162,7 +158,6 @@ class ManageService:
                 # Add indicator data
                 indicator_data = {
                     "indicator": stat["indicator"],
-                    "user_count": stat["unique_users"],
                     "record_count": stat["total_records"],
                     "latest_time": stat["latest_time"],
                     "is_defined_in_constants": stat["is_defined_in_constants"],
@@ -176,9 +171,6 @@ class ManageService:
                 sources_data[source]["summary"]["total_indicators"] += 1
                 sources_data[source]["summary"]["total_records"] += stat["total_records"]
 
-                # Add users to both source-specific and global sets
-                sources_data[source]["summary"]["total_users"].add(stat["unique_users"])
-
                 if stat["is_defined_in_constants"]:
                     sources_data[source]["summary"]["defined_indicators"] += 1
                     defined_count += 1
@@ -189,18 +181,12 @@ class ManageService:
                 # Global statistics
                 total_indicators += 1
                 total_records += stat["total_records"]
-                total_users.add(f"{source}_{stat['unique_users']}")  # Simple user deduplication
-
-            # Convert user set to number (simplified processing)
-            for source_data in sources_data.values():
-                source_data["summary"]["total_users"] = len(source_data["summary"]["total_users"])
 
             # Build final response
             response_data = {
                 "sources": sources_data,
                 "summary": {
                     "total_indicators": total_indicators,
-                    "total_unique_users": len(total_users),
                     "total_records": total_records,
                     "defined_in_constants": defined_count,
                     "undefined_in_constants": undefined_count,

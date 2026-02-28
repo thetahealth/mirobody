@@ -34,8 +34,12 @@ class AIClientManager:
         # Google Gemini client
         google_api_key = safe_read_cfg("GOOGLE_API_KEY")
         if google_api_key:
-            self._clients["gemini"] = genai.Client(api_key=google_api_key)
-            self._async_clients["gemini"] = genai.Client(api_key=google_api_key).aio
+            try:
+                self._clients["gemini"] = genai.Client(api_key=google_api_key)
+                self._async_clients["gemini"] = genai.Client(api_key=google_api_key).aio
+            except Exception as e:
+                import logging
+                logging.warning(f"Failed to initialize Gemini client, skipping: {e}")
 
         self._initialized = True
 
@@ -121,6 +125,17 @@ class AIClientManager:
             base_url=config["api_base"]
         )
 
+    def is_client_available(self, provider: str) -> bool:
+        """检查指定 provider 的 async client 是否可用"""
+        self._initialize_clients()
+        client_mapping = {
+            "openai": "openai",
+            "gemini": "gemini",
+            "dashscope": "dashscope",
+        }
+        client_key = client_mapping.get(provider)
+        return bool(client_key and client_key in self._async_clients)
+
     def health_check(self) -> Dict[str, bool]:
         """Check health status of all clients"""
         health_status = {}
@@ -178,6 +193,15 @@ gemini_client = None
 
 def init_clients():
     global openai_client, async_openai_client, gemini_client
-    openai_client = _global_clients.openai_client
-    async_openai_client = _global_clients.async_openai_client
-    gemini_client = _global_clients.gemini_client
+    try:
+        openai_client = _global_clients.openai_client
+    except (ValueError, Exception):
+        openai_client = None
+    try:
+        async_openai_client = _global_clients.async_openai_client
+    except (ValueError, Exception):
+        async_openai_client = None
+    try:
+        gemini_client = _global_clients.gemini_client
+    except (ValueError, Exception):
+        gemini_client = None

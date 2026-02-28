@@ -30,8 +30,7 @@ from mirobody.pulse.theta.platform.utils import ThetaDataFormatter, ThetaTimeUti
 from mirobody.utils import execute_query
 from mirobody.utils.config import safe_read_cfg, global_config
 
-# Time conversion constants
-SECONDS_TO_MILLISECONDS = UNIT_CONVERSIONS["ms"]["s"]  # 1000
+SECONDS_TO_MILLISECONDS = UNIT_CONVERSIONS["s"]["ms"]  # 1000
 
 
 class ThetaGarminProvider(BaseThetaProvider):
@@ -69,20 +68,21 @@ class ThetaGarminProvider(BaseThetaProvider):
                     "offset_field": "timestampOffsetInSeconds",
                     "filter_negative": False
                 }
-            }
+            },
+            "special_handler": "_compute_dailies_derived",
         },
         "sleeps": {
             "timestamp_source": "calendarDate",
             "simple_fields": {
                 # Sleep duration mapping - convert seconds to milliseconds (based on actual API response)
-                "durationInSeconds": {"indicator": StandardIndicator.DAILY_SLEEP_DURATION.value.name, "converter": lambda x: x * UNIT_CONVERSIONS["ms"]["s"], "unit": "ms"},
-                "awakeDurationInSeconds": {"indicator": StandardIndicator.DAILY_AWAKE_TIME.value.name, "converter": lambda x: x * UNIT_CONVERSIONS["ms"]["s"], "unit": "ms"},
-                "deepSleepDurationInSeconds": {"indicator": StandardIndicator.DAILY_DEEP_SLEEP.value.name, "converter": lambda x: x * UNIT_CONVERSIONS["ms"]["s"], "unit": "ms"},
-                "lightSleepDurationInSeconds": {"indicator": StandardIndicator.DAILY_LIGHT_SLEEP.value.name, "converter": lambda x: x * UNIT_CONVERSIONS["ms"]["s"], "unit": "ms"},
-                "remSleepInSeconds": {"indicator": StandardIndicator.DAILY_REM_SLEEP.value.name, "converter": lambda x: x * UNIT_CONVERSIONS["ms"]["s"], "unit": "ms"},
+                # Note: durationInSeconds is NOT mapped here as simple_field because its semantic meaning
+                # differs from the standard semantic. Instead, derived indicators are computed in _compute_sleeps_derived.
+                "awakeDurationInSeconds": {"indicator": StandardIndicator.DAILY_AWAKE_TIME.value.name, "converter": lambda x: x * SECONDS_TO_MILLISECONDS, "unit": "ms"},
+                "deepSleepDurationInSeconds": {"indicator": StandardIndicator.DAILY_DEEP_SLEEP.value.name, "converter": lambda x: x * SECONDS_TO_MILLISECONDS, "unit": "ms"},
+                "lightSleepDurationInSeconds": {"indicator": StandardIndicator.DAILY_LIGHT_SLEEP.value.name, "converter": lambda x: x * SECONDS_TO_MILLISECONDS, "unit": "ms"},
+                "remSleepInSeconds": {"indicator": StandardIndicator.DAILY_REM_SLEEP.value.name, "converter": lambda x: x * SECONDS_TO_MILLISECONDS, "unit": "ms"},
             },
-            # Note: SpO2 and respiration data are available as time series in timeOffsetSleepSpo2, not as aggregate values
-            # Note: Nap data is available in naps array, not as a direct field napTimeInSeconds
+            "special_handler": "_compute_sleeps_derived",
         },
         "hrv": {
             "timestamp_source": "calendarDate",
@@ -646,6 +646,10 @@ class ThetaGarminProvider(BaseThetaProvider):
 
             logging.info(f"Processing Garmin data for user: {user_id}, types: {processed_data_types}")
 
+            # Note: dailySleepAvgHeartRate and dailySleepLowestHeartRate require cross-type
+            # computation (dailies HR samples + sleep time window). Since Garmin webhook sends
+            # each data type separately, these are deferred to the aggregator.
+
             # Create final result with all health records
             meta_info = StandardPulseMetaInfo(
                 userId=user_id,
@@ -926,6 +930,106 @@ class ThetaGarminProvider(BaseThetaProvider):
                 except (KeyError, ValueError, TypeError) as e:
                     logging.warning(f"Skipping sleep stage interval: {interval}. Error: {e}")
                     processing_info["skipped_indicators"] += 1
+        return records
+
+    def _compute_dailies_derived(self, item: Dict, processing_info: Dict) -> List[StandardPulseRecord]:
+        """Special handler for dailies: compute derived indicators."""
+        records = []
+        user_timezone = processing_info.get("user_timezone", "UTC")
+
+        # Get base timestamp
+        config = self.GARMIN_DATA_CONFIG["dailies"]
+        timestamp_source = config.get("timestamp_source", "calendarDate")
+        base_timestamp = self._get_base_timestamp(item, timestamp_source)
+
+        # dailyTotalCalories = activeKilocalories + bmrKilocalories
+        active_cal = item.get("activeKilocalories")
+        bmr_cal = item.get("bmrKilocalories")
+        if active_cal is not None and bmr_cal is not None:
+            try:
+                total_calories = float(active_cal) + float(bmr_cal)
+                records.append(StandardPulseRecord(
+                    source=ThetaDataFormatter.format_source_name(self.info.slug),
+                    type=StandardIndicator.DAILY_CALORIES_TOTAL.value.name,
+                    timestamp=base_timestamp,
+                    unit="kcal",
+                    value=total_calories,
+                    timezone=user_timezone,
+                    source_id=processing_info.get("msg_id", ""),
+                ))
+                processing_info["processed_indicators"] += 1
+            except (ValueError, TypeError) as e:
+                logging.warning(f"Failed to compute dailyTotalCalories: {e}")
+                processing_info["skipped_indicators"] += 1
+
+        return records
+
+    def _compute_sleeps_derived(self, item: Dict, processing_info: Dict) -> List[StandardPulseRecord]:
+        """Special handler for sleeps: compute derived indicators."""
+        records = []
+        user_timezone = processing_info.get("user_timezone", "UTC")
+
+        # Get base timestamp
+        config = self.GARMIN_DATA_CONFIG["sleeps"]
+        timestamp_source = config.get("timestamp_source", "calendarDate")
+        base_timestamp = self._get_base_timestamp(item, timestamp_source)
+
+        duration_secs = item.get("durationInSeconds")
+        awake_secs = item.get("awakeDurationInSeconds")
+
+        if duration_secs is None:
+            return records
+
+        try:
+            duration_secs = float(duration_secs)
+            awake_secs = float(awake_secs) if awake_secs is not None else 0.0
+            total_in_bed_secs = duration_secs + awake_secs
+
+            source = ThetaDataFormatter.format_source_name(self.info.slug)
+            msg_id = processing_info.get("msg_id", "")
+
+            # dailySleepDuration = total time in bed (duration + awake), in ms
+            records.append(StandardPulseRecord(
+                source=source,
+                type=StandardIndicator.DAILY_SLEEP_DURATION.value.name,
+                timestamp=base_timestamp,
+                unit="ms",
+                value=total_in_bed_secs * SECONDS_TO_MILLISECONDS,
+                timezone=user_timezone,
+                source_id=msg_id,
+            ))
+            processing_info["processed_indicators"] += 1
+
+            # dailyTotalSleepTime = actual sleep time (durationInSeconds), in ms
+            records.append(StandardPulseRecord(
+                source=source,
+                type=StandardIndicator.DAILY_TOTAL_SLEEP_TIME.value.name,
+                timestamp=base_timestamp,
+                unit="ms",
+                value=duration_secs * SECONDS_TO_MILLISECONDS,
+                timezone=user_timezone,
+                source_id=msg_id,
+            ))
+            processing_info["processed_indicators"] += 1
+
+            # dailySleepEfficiency = actual sleep / total in bed * 100
+            if total_in_bed_secs > 0:
+                efficiency = duration_secs / total_in_bed_secs * 100
+                records.append(StandardPulseRecord(
+                    source=source,
+                    type=StandardIndicator.DAILY_SLEEP_EFFICIENCY.value.name,
+                    timestamp=base_timestamp,
+                    unit="%",
+                    value=round(efficiency, 4),
+                    timezone=user_timezone,
+                    source_id=msg_id,
+                ))
+                processing_info["processed_indicators"] += 1
+
+        except (ValueError, TypeError) as e:
+            logging.warning(f"Failed to compute sleeps derived indicators: {e}")
+            processing_info["skipped_indicators"] += 1
+
         return records
 
     async def _process_single_data_type(

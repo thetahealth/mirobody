@@ -108,17 +108,16 @@ async def process_file_uploads(
             
             # Add file info for database storage
             files_info.append({
-                "filename": result["file_name"],
+                "file_name": result["file_name"],
+                "original_filename": result["file_name"],
                 "type": result["file_category"],
                 "url_thumb": result["url"],
                 "url_full": result["url"],
                 "file_size": result["file_size"],
                 "file_key": result["file_key"],
-                "s3_key": result["file_key"],  # Keep for backward compatibility
                 "processed": False,
                 "raw": "",
                 "file_abstract": "",
-                "file_name": result["file_name"],  # Initialize with original filename
                 "indicators": [],
                 "indicators_count": 0
             })
@@ -131,10 +130,11 @@ async def process_file_uploads(
             
             # Store file data for background processing
             files_data_for_processing.append({
-                "content": result["file_content"],
-                "filename": result["file_name"],
+                "content_bytes": result["file_content"],
+                "file_name": result["file_name"],
+                "original_filename": result["file_name"],
                 "content_type": result["file_type"],
-                "s3_key": result["file_key"]  # Keep s3_key for compatibility but use file_key value
+                "file_key": result["file_key"]
             })
             
             # Update overall type based on first successful file
@@ -339,9 +339,9 @@ async def process_files_async(
 ):
     """
     Asynchronously process all uploaded files to extract indicators
-    
+
     Args:
-        files_data: List of file data dictionaries containing content, filename, content_type, s3_key
+        files_data: List of file data dictionaries containing content_bytes, file_name, content_type, file_key
         user_id: User ID
         msg_id: Message ID
     """
@@ -349,16 +349,16 @@ async def process_files_async(
     async def process_single_file_wrapper(file_data: Dict[str, Any], file_processor: FileProcessor) -> dict:
         """
         Wrapper function to process a single file
-        
+
         Args:
-            file_data: Dictionary with file data (content, filename, content_type, s3_key)
+            file_data: Dictionary with file data (content_bytes, file_name, content_type, file_key)
             file_processor: The FileProcessor instance
-            
+
         Returns:
             dict: Processing result
         """
         try:
-            filename = file_data["filename"]
+            filename = file_data["file_name"]
             logging.info(f"Processing file: {filename}, msg_id: {msg_id}")
             
             # Create a mock UploadFile object for the processor
@@ -381,7 +381,7 @@ async def process_files_async(
             
             mock_file = MockUploadFile(
                 filename=filename,
-                file_content=file_data["content"],
+                file_content=file_data["content_bytes"],
                 content_type=file_data["content_type"]
             )
             
@@ -391,29 +391,37 @@ async def process_files_async(
                 user_id=user_id,
                 message_id=msg_id,
                 query="",
-                file_key=file_data.get("s3_key"),  # Pass the S3 key
+                file_key=file_data.get("file_key"),
                 skip_upload_oss=True,  # Skip upload since already uploaded
             )
             
             if result.get("success"):
                 # Extract indicators from result if available
                 indicators = result.get("indicators", [])
-                
+
                 processed_file_info = {
-                    "filename": filename,
+                    "file_name": filename,
                     "processed": True,
                     "raw": result.get("raw", result.get("content", "")),  # Use 'raw' field name
                     "file_abstract": result.get("file_abstract", ""),  # Add file abstract
-                    "file_name": result.get("file_name", filename),  # Add generated file name, fallback to original
+                    "generated_file_name": result.get("file_name", filename),  # AI generated file name
                     "indicators": indicators,
-                    "indicators_count": len(indicators)  # Add indicators count
+                    "indicators_count": len(indicators),  # Add indicators count
+                    # Add original text fields for th_files columns
+                    "original_text": result.get("original_text", ""),
+                    "text_length": result.get("text_length", 0),
+                    "content_hash": result.get("content_hash", ""),
                 }
             else:
                 processed_file_info = {
-                    "filename": filename,
+                    "file_name": filename,
                     "processed": False,
-                    "file_name": result.get("file_name", filename),  # Add generated file name even on failure
-                    "error": result.get("error", "Processing failed")
+                    "generated_file_name": result.get("file_name", filename),  # AI generated file name even on failure
+                    "error": result.get("error", "Processing failed"),
+                    # Still extract original text fields if available
+                    "original_text": result.get("original_text", ""),
+                    "text_length": result.get("text_length", 0),
+                    "content_hash": result.get("content_hash", ""),
                 }
             
             logging.info(f"Completed processing file: {filename}, success: {result.get('success')}")
@@ -421,9 +429,9 @@ async def process_files_async(
             return processed_file_info
             
         except Exception as file_error:
-            logging.error(f"Error processing file {file_data.get('filename', 'unknown')}: {str(file_error)}", stack_info=True)
+            logging.error(f"Error processing file {file_data.get('file_name', 'unknown')}: {str(file_error)}", stack_info=True)
             return {
-                "filename": file_data.get("filename", "unknown"),
+                "file_name": file_data.get("file_name", "unknown"),
                 "processed": False,
                 "error": str(file_error)
             }
@@ -459,17 +467,21 @@ async def process_files_async(
                 file_key = None
                 # Find file_key from files_data
                 for file_data in files_data:
-                    if file_data.get("filename") == processed_file.get("filename"):
-                        file_key = file_data.get("s3_key") or file_data.get("file_key")
+                    if file_data.get("file_name") == processed_file.get("file_name"):
+                        file_key = file_data.get("file_key")
                         break
                 
-                if file_key and processed_file.get("processed"):
+                if file_key:
+                    # Update th_files with processing results (including original_text even if processing failed)
                     await FileDbService.update_file_processed(
                         file_key=file_key,
                         raw=processed_file.get("raw", ""),
                         file_abstract=processed_file.get("file_abstract", ""),
                         indicators=processed_file.get("indicators", []),
-                        file_name=processed_file.get("file_name"),
+                        file_name=processed_file.get("generated_file_name"),
+                        original_text=processed_file.get("original_text", ""),
+                        text_length=processed_file.get("text_length", 0),
+                        content_hash=processed_file.get("content_hash", ""),
                     )
             
             logging.info(f"Concurrent async processing completed for all files, msg_id: {msg_id}")

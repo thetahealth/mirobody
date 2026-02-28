@@ -78,6 +78,9 @@ class Server:
         email_template  : str = "",
         email_password  : str = "",
         email_predefined: str | bytes | bytearray | dict[str, str] | None = None,
+        email_smtp_host : str = "",
+        email_smtp_port : int = 0,
+        email_smtp_user : str = "",
 
         apple_client_id : str = "",
         apple_team_id   : str = "",
@@ -99,8 +102,8 @@ class Server:
 
         webpage_config          : dict[str, Any] | None = None,
 
-        url_paths_for_user_info_updater  : list[str] | None = None,      # ["url_path"]
-        url_paths_for_request_rate_limiter : dict[str, int] | None = None, # {"url_path": requests_per_minute}
+        url_paths_for_user_info_updater     : list[str] | None = None,      # ["url_path"]
+        url_paths_for_request_rate_limiter  : dict[str, int] | None = None, # {"url_path": requests_per_minute}
     ):
         self._pg_pool = pg_pool
 
@@ -118,9 +121,18 @@ class Server:
                 expires_in  = jwt_expires_in
             )
 
+        #-------------------------------------------------
+
         self._webpage_config = webpage_config
         if not self._webpage_config:
             self._webpage_config = {}
+
+        if not firebase_project_id:
+            if "__FIREBASE_PROJECT_ID__" in self._webpage_config:
+                firebase_project_id = self._webpage_config["__FIREBASE_PROJECT_ID__"]
+                if firebase_project_id and not isinstance(firebase_project_id, str):
+                    firebase_project_id = None
+
         self._webpage_config.update(
             {
                 "__IS_QR_LOGIN_ON__"        : True if qr_login_url else False,
@@ -128,6 +140,8 @@ class Server:
                 "__IS_APPLE_LOGIN_ON__"     : True if apple_client_id else False
             }
         )
+
+        #-------------------------------------------------
 
         os.environ.update([
             ("USER_AGENT", f"{server_name if server_name else "Theta MCP Server"} {server_version if server_version else "1.0.0"}")
@@ -165,6 +179,9 @@ class Server:
             email_template  = email_template,
             email_password  = email_password,
             email_predefined= email_predefined,
+            email_smtp_host = email_smtp_host,
+            email_smtp_port = email_smtp_port,
+            email_smtp_user = email_smtp_user,
 
             # Apple login.
             apple_client_id = apple_client_id,

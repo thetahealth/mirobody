@@ -2,6 +2,24 @@
 Public API Router for Pulse System
 
 Provides user-facing APIs for interacting with the Pulse health data platform
+
+SECTION INDEX (line numbers are approximate):
+    ~28   Request/Response Models (AuthType, LinkProviderRequest, StandardResponse, ProviderInfo, etc.)
+    ~164  Helper: _sort_providers_by_priority()
+    ~204  Helper: handle_redirect()
+    ~229  GET  /providers              — list all available providers
+    ~365  GET  /user/providers         — list user's connected providers
+    ~415  POST /user/providers/link    — link a provider (OAuth/password/custom)
+    ~502  Helper: _generate_oauth_completion_html()
+    ~565  GET  /{platform}/{provider}/callback — OAuth callback handler
+    ~626  POST /user/providers/unlink  — unlink a provider
+    ~701  POST /user/providers/llm-access — update LLM access permission
+    ~754  POST /vital/generate-sign-in-token — generate Vital sign-in token
+    ~828  POST /{platform}/webhook     — universal webhook receiver
+    ~879  POST /{platform}/{provider}/webhook — provider-specific webhook
+    ~930  Helper: get_provider_slug(), get_msg_id()
+    ~959  POST /{platform}/token       — get theta token
+    ~1022 GET  /theta/indicators       — list theta indicators
 """
 
 import json
@@ -52,6 +70,7 @@ class LinkProviderRequest(BaseModel):
     redirect_url: Optional[str] = Field(None, description="Redirect URL for OAuth")
     return_url: Optional[str] = Field(None, description="Frontend return URL after OAuth completes")
     owner_user_id: Optional[str] = Field(None, description="if sharing device,help link")
+
 
 class UnlinkProviderRequest(BaseModel):
     """Disconnect Provider request model"""
@@ -470,7 +489,6 @@ async def link_provider(request: LinkProviderRequest, req: Request, current_user
             credentials["email"] = request.email
         if request.connect_info:
             credentials["connect_info"] = request.connect_info
-
 
         options = {}
         if request.redirect_url:
@@ -929,11 +947,21 @@ async def provider_specific_webhook(platform: str, provider: str, request: Reque
 
 async def get_provider_slug(platform: str, event_data: Dict[str, Any]) -> Optional[str]:
     try:
-        if event_data.get("source") != "":
-            return event_data.get("source")
-        else:
-            # For other platforms, try the nested structure
-            return event_data.get("data", {}).get("source", {}).get("provider")
+        # 顶层 source 字段（某些平台可能直接使用字符串形式）
+        top_level_source = event_data.get("source")
+        if top_level_source and isinstance(top_level_source, str):
+            return top_level_source
+
+        # Vital 平台：data.source.slug
+        source_info = event_data.get("data", {}).get("source", {})
+        if source_info and isinstance(source_info, dict):
+            s = source_info.get("slug")
+            p = source_info.get("provider", s)
+            if s and p and s != p:
+                logging.error(f"{platform} slug not equal provider {s} != {p}")
+            return p
+
+        return None
     except Exception as e:
         logging.error(f"Error extracting provider_slug for platform {platform}: {str(e)}")
         return None

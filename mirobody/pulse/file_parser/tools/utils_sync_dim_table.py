@@ -355,7 +355,7 @@ class DimTableSyncer:
             return results
 
         except Exception as e:
-            logging.info(f"❌ Failed to generate embeddings: {str(e)}", level="error")
+            logging.error(f"❌ Failed to generate embeddings: {str(e)}")
             return {}
 
     async def insert_missing_indicators(
@@ -384,8 +384,8 @@ class DimTableSyncer:
         indicators_list = list(indicators)
         categories = []
 
-        # Batch processing, max 100 indicators per batch
-        classification_batch_size = 100
+        # Batch processing, max 20 indicators per batch (larger batches cause Doubao response truncation)
+        classification_batch_size = 20
         total_batches = (len(indicators_list) + classification_batch_size - 1) // classification_batch_size
 
         logging.info(f"📦 Splitting {len(indicators_list)} indicators into {total_batches} batches for classification")
@@ -400,7 +400,7 @@ class DimTableSyncer:
                 batch_categories = await classifier.classify_indicators_batch(batch_indicators)
 
                 if not batch_categories:
-                    logging.info(f"❌ Batch {batch_num} medical classification generation failed", level="error")
+                    logging.error(f"❌ Batch {batch_num} medical classification generation failed")
                     continue
 
                 if len(batch_categories) != len(batch_indicators):
@@ -419,7 +419,7 @@ class DimTableSyncer:
                 continue
 
         if len(categories) == 0:
-            logging.info("❌ No medical classifications generated", level="error")
+            logging.error("❌ No medical classifications generated")
             return False
     
         if len(categories) != len(indicators_list):
@@ -493,7 +493,7 @@ class DimTableSyncer:
 
                 # Check if embedding generation was successful
                 if not embeddings_map:
-                    logging.info("❌ Embeddings generation failed, terminating insertion", level="warning")
+                    logging.warning("❌ Embeddings generation failed, terminating insertion")
                     return False
 
                 # Validate each indicator has complete embeddings
@@ -845,7 +845,7 @@ class DimTableSyncer:
 
             # Check if any records were successful
             if total_success == 0:
-                logging.info("❌ All batches failed medical classification generation", level="error")
+                logging.error("❌ All batches failed medical classification generation")
                 return {
                     "success": False,
                     "total_found": len(records),
@@ -988,7 +988,7 @@ async def sync_indicators_for_user(
         return result
 
     except Exception as e:
-        logging.info(f"❌ User {user_id} indicators sync failed: {str(e)}", level="error")
+        logging.error(f"❌ User {user_id} indicators sync failed: {str(e)}")
         return {
             "success": False,
             "total_found": 0,
@@ -1059,7 +1059,7 @@ async def update_medical_classifications(
         return result
 
     except Exception as e:
-        logging.info(f"❌ Medical classification field update failed: {str(e)}", level="error")
+        logging.error(f"❌ Medical classification field update failed: {str(e)}")
         return {
             "success": False,
             "total_found": 0,

@@ -134,6 +134,184 @@ class BaseFileHandler(abc.ABC):
         temp_file_path, _ = await self.temp_manager.save_upload_file_to_temp(ctx.file)
         return str(temp_file_path) if temp_file_path else None
 
+    async def _extract_and_save_original_text(
+        self,
+        ctx: FileProcessingContext,
+        temp_file_path: str,
+        file_type: str,
+    ) -> tuple[Optional[str], Optional[str]]:
+        """
+        Extract original text from file with SHA256-based deduplication.
+        
+        Flow:
+        1. Read file content and calculate SHA256 hash
+        2. Check if hash exists in th_file_contents table
+        3. If exists: return cached original_text (skip LLM extraction)
+        4. If not: extract using LLM, save to th_file_contents, return text
+        
+        Args:
+            ctx: File processing context
+            temp_file_path: Path to temporary file
+            file_type: File type ('pdf' or 'image')
+            
+        Returns:
+            Tuple of (original_text, content_hash), or (None, None) if extraction failed
+        """
+        import hashlib
+        
+        try:
+            # Read file content
+            await ctx.file.seek(0)
+            file_content = await ctx.file.read()
+            
+            if not file_content:
+                logging.warning(f"[BaseFileHandler] Empty file content: {ctx.filename}")
+                return None, None
+            
+            # Calculate SHA256 hash
+            content_hash = hashlib.sha256(file_content).hexdigest()
+            
+            # Check th_file_contents for existing entry (direct SQL to avoid holywell dependency)
+            try:
+                from mirobody.utils.db import execute_query
+                
+                rows = await execute_query(
+                    "SELECT original_text FROM th_file_contents WHERE content_hash = :hash LIMIT 1",
+                    params={"hash": content_hash},
+                    query_type="select",
+                    mode="async",
+                )
+                
+                if rows and len(rows) > 0 and rows[0].get("original_text"):
+                    cached_text = rows[0]["original_text"]
+                    logging.info(
+                        f"[BaseFileHandler] Reused cached original text: "
+                        f"hash={content_hash[:16]}..., length={len(cached_text)}"
+                    )
+                    return cached_text, content_hash
+            except Exception as e:
+                logging.warning(f"[BaseFileHandler] Failed to check file_contents cache: {e}")
+                # Continue with extraction even if cache check fails
+            
+            # Extract original text using LLM
+            original_text = await self.abstract_extractor.extract_file_original_text(
+                file_content=file_content,
+                file_type=file_type,
+                filename=ctx.filename,
+                content_type=ctx.content_type,
+            )
+            
+            # Save to th_file_contents for future deduplication (direct SQL)
+            if original_text:
+                try:
+                    from mirobody.utils.db import execute_query
+                    
+                    # Use INSERT ... ON CONFLICT to handle race conditions
+                    await execute_query(
+                        """
+                        INSERT INTO th_file_contents (content_hash, original_text, text_length, file_type)
+                        VALUES (:hash, :text, :length, :file_type)
+                        ON CONFLICT (content_hash) DO NOTHING
+                        """,
+                        params={
+                            "hash": content_hash,
+                            "text": original_text,
+                            "length": len(original_text),
+                            "file_type": file_type,
+                        },
+                        query_type="insert",
+                        mode="async",
+                    )
+                    logging.info(
+                        f"[BaseFileHandler] Extracted and saved original text: "
+                        f"hash={content_hash[:16]}..., length={len(original_text)}"
+                    )
+                except Exception as e:
+                    logging.warning(f"[BaseFileHandler] Failed to save to file_contents: {e}")
+                    # Continue even if save fails - we still have the text
+            
+            return original_text, content_hash
+            
+        except Exception as e:
+            logging.error(
+                f"[BaseFileHandler] Failed to extract original text for {ctx.filename}: {e}",
+                exc_info=True
+            )
+            return None, None
+
+    async def _extract_abstract_from_text(
+        self,
+        original_text: str,
+        filename: str,
+        language: str,
+    ) -> tuple[str, str]:
+        """
+        Generate file abstract and filename from pre-extracted original text.
+        
+        Args:
+            original_text: Pre-extracted text content
+            filename: Original file name
+            language: User language
+            
+        Returns:
+            Tuple of (file_abstract, file_name)
+        """
+        try:
+            from mirobody.utils.llm import async_get_structured_output
+            
+            # Define response schema
+            response_schema = {
+                "type": "object",
+                "properties": {
+                    "file_name": {
+                        "type": "string",
+                        "description": "Generated filename with extension"
+                    },
+                    "file_abstract": {
+                        "type": "string",
+                        "description": "Brief summary of file content (max 150 chars)"
+                    }
+                },
+                "required": ["file_name", "file_abstract"]
+            }
+            
+            prompt = """Based on the document content below, generate:
+1. file_name: A descriptive filename in format: Date_Content_Description.extension
+   - Include date if found (YYYY-MM-DD format)
+   - Keep it concise (15-40 chars excluding extension)
+   - Use the same language as the content
+   
+2. file_abstract: A brief summary (max 150 characters)
+   - Identify document type
+   - Extract key information
+   - Highlight main findings
+
+Return JSON format: {"file_name": "...", "file_abstract": "..."}"""
+
+            messages = [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"Original filename: {filename}\n\nDocument content:\n{original_text[:8000]}"}
+            ]
+            
+            result = await async_get_structured_output(
+                messages=messages,
+                response_format={"type": "json_schema", "json_schema": {"name": "abstract_response", "schema": response_schema}},
+                temperature=0.1,
+                max_tokens=32000
+            )
+            
+            if result and isinstance(result, dict):
+                file_abstract = result.get("file_abstract", "")[:200]
+                file_name = result.get("file_name", "") or filename
+                logging.info(f"✅ Abstract from text: {filename}, abstract_len={len(file_abstract)}")
+                return file_abstract, file_name
+            
+            return "", filename
+            
+        except Exception as e:
+            logging.warning(f"[BaseFileHandler] Failed to extract abstract from text: {e}")
+            return "", filename
+
     async def _extract_abstract(self, ctx: FileProcessingContext, unique_filename: str, language: str) -> tuple[str, str]:
         file_abstract = ""
         file_name = ctx.filename

@@ -1,6 +1,15 @@
-"""Deep Agent Middleware"""
+"""
+Deep Agent Middleware
 
-from .global_files_middleware import GlobalFilesMiddleware
+Design Principles:
+------------------
+Tool-related middleware has been migrated to MCP tools.
+Only non-tool middleware remains here.
 
-__all__ = ["GlobalFilesMiddleware"]
+- File tools: mirobody/pub/tools/file_read_service.py, file_write_service.py
+- Global files utils: mirobody/pub/tools/_global_files_utils.py
+"""
 
+from .prompt_caching import UniversalPromptCachingMiddleware
+
+__all__ = ["UniversalPromptCachingMiddleware"]

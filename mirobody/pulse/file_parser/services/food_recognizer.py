@@ -9,11 +9,11 @@ from typing import Any, Dict
 from mirobody.pulse.file_parser.services.file_uploader import FileUploader
 from mirobody.pulse.file_parser.services.temp_file_manager import TempFileManager
 from mirobody.utils.i18n import t
-from mirobody.utils import execute_query, get_req_ctx, safe_read_cfg
+from mirobody.utils import execute_query, get_req_ctx
 
-from mirobody.utils.llm import doubao_file_extract, gemini_file_extract
+from mirobody.utils.llm import unified_file_extract
 
-from .prompts.food_prompts import FOOD_RECOGNIZE_PROMPT, FOOD_RECOGNIZE_RESPONSE_SCHEMA, SIMPLE_FOOD_RECOGNIZE_PROMPT
+from .prompts.food_prompts import FOOD_RECOGNIZE_PROMPT, FOOD_RECOGNIZE_RESPONSE_SCHEMA
 
 
 
@@ -49,6 +49,7 @@ class FoodImageRecognizer:
         msg_id: str,
         query: str,
         sid: str,
+        language: str,
     ) -> Dict[str, Any]:
         """
         Recognize food in image and extract nutritional information
@@ -65,7 +66,6 @@ class FoodImageRecognizer:
         Returns:
             Dict containing recognition results
         """
-        language = get_req_ctx("language", "en")
         start_time = datetime.now()  # Record start time for task flow
         ret = {
             "full_url": "",
@@ -89,37 +89,25 @@ class FoodImageRecognizer:
             upload_task = asyncio.create_task(
                 self.uploader.upload_content_and_get_url(file_content, filename, content_type)
             )
-            
-            is_aliyun = safe_read_cfg("CLUSTER") == "ALIYUN"
-            if is_aliyun:
-                prompt = SIMPLE_FOOD_RECOGNIZE_PROMPT.format(query=query, language=language)
-                extract_task = asyncio.create_task(
-                    doubao_file_extract(
-                        temp_file_path_str,
-                        prompt,
-                        model="doubao-1-5-ui-tars-250428",
-                    )
-                )
-            else:
-                # Use Gemini for content extraction
-                prompt = FOOD_RECOGNIZE_PROMPT.format(query=query, language=language)
-                from google.genai import types
 
-                config = types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=FOOD_RECOGNIZE_RESPONSE_SCHEMA,
-                    temperature=0.1,
-                )
-                extract_task = asyncio.create_task(
-                    gemini_file_extract(
-                        file_path=temp_file_path_str,
-                        content_type=content_type,
-                        prompt=prompt,
-                        config=config,
-                        model="gemini-2.5-flash",
-                    )
-                )
+            # Use unified_file_extract with auto provider selection
+            # Priority: gemini > openrouter > doubao (based on available API keys)
+            from google.genai import types
 
+            prompt = FOOD_RECOGNIZE_PROMPT.format(query=query, language=language)
+            config = types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=FOOD_RECOGNIZE_RESPONSE_SCHEMA,
+                temperature=0.1,
+            )
+            extract_task = asyncio.create_task(
+                unified_file_extract(
+                    file_path=temp_file_path_str,
+                    prompt=prompt,
+                    content_type=content_type,
+                    config=config,
+                )
+            )
 
             # Wait for both tasks to complete
             full_url, llm_ret = await asyncio.gather(upload_task, extract_task)

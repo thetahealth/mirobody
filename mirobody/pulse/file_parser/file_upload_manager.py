@@ -1,6 +1,35 @@
 """
 WebSocket file upload manager
 Supports file upload through WebSocket with real-time progress synchronization
+
+SECTION INDEX (line numbers are approximate):
+    ~27   MemoryUploadFile             — in-memory UploadFile shim
+    ~64   WebSocketFileUploadManager   — main orchestrator class
+    ~82     connect()                  — establish WebSocket connection
+    ~120    disconnect()               — clean up connection state
+    ~135    send_message()             — send JSON message to client
+    ~191    handle_upload_start()      — initialize file upload session
+    ~307    handle_file_chunk()        — receive and buffer file chunks
+    ~445    start_file_processing()    — kick off processing after upload
+    ~475    process_files_async()      — main file processing pipeline
+    ~667    update_genetic_processing_complete()
+    ~680  ---- Helper Methods for process_files_async ----
+    ~682    _save_files_to_database()
+    ~813    _normalize_raw_data()
+    ~828    _calculate_progress_allocation()
+    ~851    _create_progress_callback()
+    ~887    _prepare_background_files_data()
+    ~907    _start_async_background_tasks()
+    ~934    _send_final_completion_status()
+    ~1010   _start_embedding_update_task()
+    ~1048   _build_return_info_for_failed()
+    ~1127 ---- End Helper Methods ----
+    ~1129   _build_return_info()       — build response info for completed files
+    ~1326   update_progress()          — send progress update to client
+    ~1368   delete_failed_message_record()
+    ~1377   handle_upload_end()        — finalize upload session
+    ~1430   handle_ping()              — WebSocket keepalive
+    ~1445   get_upload_status()        — query upload status
 """
 
 import asyncio
@@ -747,6 +776,9 @@ class WebSocketFileUploadManager:
                     "file_size": file_entry.get("file_size", file_entry.get("size", 0)),
                     "raw": file_entry.get("raw", ""),
                     "file_abstract": file_entry.get("file_abstract", ""),
+                    "original_text": file_entry.get("original_text", ""),  # Original text for rerank
+                    "text_length": file_entry.get("text_length", 0),  # Text length for rerank strategy
+                    "content_hash": file_entry.get("content_hash", ""),  # SHA256 hash for deduplication
                     "indicators": file_entry.get("indicators", []),
                     "indicators_count": file_entry.get("indicators_count", 0),
                     "processed": is_success,
@@ -1242,6 +1274,9 @@ class WebSocketFileUploadManager:
                         "file_name": file_name,
                         "file_size": file_size,
                         "file_key": result.get("file_key", ""),
+                        "original_text": result.get("original_text", ""),
+                        "text_length": result.get("text_length", 0),
+                        "content_hash": result.get("content_hash", ""),
                         "success": True,
                     }
                     files_array.append(file_entry)
