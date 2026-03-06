@@ -201,11 +201,17 @@ class DeepAgent():
         2. PatchToolCallsMiddleware - Tool call fixes
         3. UniversalPromptCachingMiddleware - Prompt caching for supported models
         """
-        from deepagents.middleware.summarization import SummarizationMiddleware, _compute_summarization_defaults
+        from deepagents.middleware.summarization import SummarizationMiddleware
         from deepagents.middleware.patch_tool_calls import PatchToolCallsMiddleware
 
+        try:
+            from deepagents.middleware.summarization import compute_summarization_defaults
+        except ImportError:
+            # Backward compatibility with older deepagents releases.
+            from deepagents.middleware.summarization import _compute_summarization_defaults as compute_summarization_defaults
+
         # Compute summarization defaults based on model profile
-        summarization_defaults = _compute_summarization_defaults(llm_client)
+        summarization_defaults = compute_summarization_defaults(llm_client)
 
         summarization_middleware = SummarizationMiddleware(
             model=llm_client,

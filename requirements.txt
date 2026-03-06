@@ -55,7 +55,7 @@ langchain-google-genai>=4.1.2
 langchain-google-vertexai
 langchain_community
 
-deepagents>=0.4.3
+deepagents>=0.4.5
 jinja2
 
 # Tools and so forth.
