@@ -164,8 +164,11 @@ class HTTPChatAdapter(ChatProtocolAdapter):
                 question_msg_id = saved_msg_id
             params.question_id = question_msg_id
             
-            # Compress messages (CPU-bound, cannot be parallelized with I/O)
-            compressed_messages = compress_messages(params.agent, messages, 4000)
+            # Keep full same-session history for Gemini 3 providers used by Ambodi.
+            if params.agent == "Ambodi" and params.provider in {"gemini-3-pro", "gemini-3.1-pro-openrouter"}:
+                compressed_messages = messages
+            else:
+                compressed_messages = compress_messages(params.agent, messages, 4000)
             
             # Log for chat extraction (fire-and-forget via base class)
             await self.log_chat_extraction(params, params.user_id, params.question_id)

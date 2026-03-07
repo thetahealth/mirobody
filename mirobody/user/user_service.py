@@ -1,7 +1,6 @@
 import jwt, logging, secrets, urllib.parse
 
 from psycopg_pool import AsyncConnectionPool
-from redis.asyncio import Redis
 
 from .jwt import AbstractTokenValidator
 from .email import create_email_validator
@@ -25,6 +24,7 @@ from ..utils import (
     Response,
     Route
 )
+from ..utils.redis_compat import AsyncRedisClient
 
 #-----------------------------------------------------------------------------
 
@@ -37,7 +37,7 @@ class UserService:
         routes          : list | None = None,
         
         db_pool         : AsyncConnectionPool | None = None,
-        redis           : Redis | None = None,
+        redis           : AsyncRedisClient | None = None,
 
         email_smtp_host : str = "",
         email_smtp_port : int = 0,

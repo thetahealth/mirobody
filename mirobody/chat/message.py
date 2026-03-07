@@ -10,10 +10,10 @@ import uuid
 
 from datetime import datetime
 from typing import Any
-from redis.asyncio import Redis
 
 from ..utils import execute_query
 from ..utils.config import global_config
+from ..utils.redis_compat import AsyncRedisClient
 
 #-----------------------------------------------------------------------------
 
@@ -376,7 +376,7 @@ def compress_messages(agent, messages: list[dict[str, Any]], max_tokens: int = 4
                 compressed_messages.append(
                     {
                         "role": msg.get("role", "unknown"),
-                        "content": f"{timestamp}{msg.get("content", "")}",
+                        "content": f"{timestamp}{msg.get('content', '')}",
                     }
                 )
                 current_tokens += tokens
@@ -399,7 +399,7 @@ def compress_messages(agent, messages: list[dict[str, Any]], max_tokens: int = 4
     else:
         # If limit not exceeded, keep only role and content fields
         compressed_messages = [
-            {"role": msg.get("role", "unknown"), "content": f"{timestamp}{msg.get("content", "")}"} for msg in agent_messages
+            {"role": msg.get("role", "unknown"), "content": f"{timestamp}{msg.get('content', '')}"} for msg in agent_messages
         ]
 
     return compressed_messages
@@ -662,7 +662,7 @@ async def query_external_chat_history(user_id: str):
 
 #-----------------------------------------------------------------------------
 
-_redis_client: Redis = None
+_redis_client: AsyncRedisClient = None
 
 async def chat_list_setter_hollywell(user_id: str, msg_id: str, question: str):
     global _redis_client
