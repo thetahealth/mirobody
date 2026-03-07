@@ -4,7 +4,6 @@ ruamel.yaml<0.18.0
 cryptography
 
 # Data.
-redis
 psycopg[binary]
 psycopg[pool]
 sqlalchemy

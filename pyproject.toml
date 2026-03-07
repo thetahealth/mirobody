@@ -26,7 +26,6 @@ dependencies = [
     "python-dotenv",
     "ruamel.yaml<0.18.0",
     "cryptography",
-    "redis",
     "psycopg[binary]",
     "psycopg[pool]",
     "sqlalchemy",

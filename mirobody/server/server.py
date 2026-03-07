@@ -2,7 +2,6 @@ import logging, os
 
 from typing import Any, Callable
 from psycopg_pool import AsyncConnectionPool
-from redis.asyncio import Redis
 
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
@@ -22,6 +21,7 @@ from ..user import (
 )
 from ..mcp import McpService
 from ..chat import ChatService
+from ..utils.redis_compat import AsyncRedisClient
 
 #-----------------------------------------------------------------------------
 
@@ -48,7 +48,7 @@ class Server:
         gen_jwt_claims_func : Callable[[str, str], dict] | None = None,
 
         pg_pool         : AsyncConnectionPool[Any] | None = None,
-        redis           : Redis | None = None,
+        redis           : AsyncRedisClient | None = None,
 
         # The following parameters can be generated via
         #   config.get_mcp_options().
@@ -108,7 +108,7 @@ class Server:
         self._pg_pool = pg_pool
 
         self._redis = redis
-        logging.info(f"Server is running in {"Redis" if self._redis else "local memory"} mode.")
+        logging.info(f"Server is running in {'Redis' if self._redis else 'local memory'} mode.")
 
         self._jwt_token_validator = jwt_token_validator \
             if jwt_token_validator \
@@ -145,7 +145,7 @@ class Server:
         #-------------------------------------------------
 
         os.environ.update([
-            ("USER_AGENT", f"{server_name if server_name else "Theta MCP Server"} {server_version if server_version else "1.0.0"}")
+            ("USER_AGENT", f"{server_name if server_name else 'Theta MCP Server'} {server_version if server_version else '1.0.0'}")
         ])
 
         #-------------------------------------------------
