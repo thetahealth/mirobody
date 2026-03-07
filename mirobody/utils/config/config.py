@@ -646,7 +646,7 @@ class Config:
     def print(self):
         print(f"Configuration loaded from {self._yaml_filenames}:")
         print("----------------------------------------------------------")
-        print(f"env             : {os.environ.get("ENV", "").strip().lower()}")
+        print(f"env             : {os.environ.get('ENV', '').strip().lower()}")
         print(f"debug           : {self.log.level <= logging.DEBUG}")
 
         self.log.print()
@@ -697,7 +697,7 @@ class Config:
             default_url = f"http://localhost:{self.http.port}" if self.http.port != 80 else "http://localhost"
             print(f"\nNow you can open {BOLD}{GREEN}{mcp_public_url if mcp_public_url else default_url}{RESET} in browser, and then\n  login with the following:")
             print("------------------------------------------------")
-            print(f"{"EMAIL":<25} | VERIFICATION CODE")
+            print(f"{'EMAIL':<25} | VERIFICATION CODE")
             print("------------------------------------------------")
 
             i = 0
@@ -706,7 +706,7 @@ class Config:
             for email, verification_code in codes.items():
                 if i >= 10 and i < n-1:
                     if not printed_dots:
-                        print(f"{"...":<25} | ...")
+                        print(f"{'...':<25} | ...")
                         printed_dots = True
                 else:
                     print(f"{BOLD}{GREEN}{email:<25}{RESET} | {BOLD}{GREEN}{verification_code}{RESET}")

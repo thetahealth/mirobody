@@ -3,12 +3,12 @@ import time, uuid
 from typing import Callable, Any
 
 from psycopg_pool import AsyncConnectionPool
-from redis.asyncio import Redis
 
 from starlette.responses import Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..user import JwtTokenValidator
+from ..utils.redis_compat import AsyncRedisClient
 
 #-----------------------------------------------------------------------------
 
@@ -180,7 +180,7 @@ class RequestRateLimiterMiddleware(BaseHTTPMiddleware):
         app,
         dispatch = None,
         url_paths   : dict[str, int] | None = None,
-        redis_client: Redis | None = None
+        redis_client: AsyncRedisClient | None = None
     ):
         self._url_paths = url_paths if isinstance(url_paths, dict) else None
         self._redis_client = redis_client

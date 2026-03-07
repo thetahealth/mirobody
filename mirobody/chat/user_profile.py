@@ -5,12 +5,11 @@ import uuid
 from typing import List, Dict, Optional, Any, Tuple
 from datetime import datetime, date
 
-import redis.asyncio
-
 from ..utils.truncate import _split
 from ..utils import execute_query
 from ..utils.llm import async_get_text_completion
 from ..utils.config import safe_read_cfg, global_config
+from ..utils.redis_compat import AsyncRedisClient
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +26,7 @@ PROFILE_LOCK_RETRY_INTERVAL_SECONDS = 2  # Retry interval when waiting for lock
 
 _profile_redis_client = None
 
-async def _get_profile_redis_client() -> Optional[redis.asyncio.Redis]:
+async def _get_profile_redis_client() -> Optional[AsyncRedisClient]:
     """
     Get Redis client for profile lock management
     

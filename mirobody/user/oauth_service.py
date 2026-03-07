@@ -1,9 +1,9 @@
 import base64, logging, secrets, time, urllib.parse
 
 from typing import Callable
-from redis.asyncio import Redis
 
 from .jwt import AbstractTokenValidator
+from ..utils.redis_compat import AsyncRedisClient
 
 from ..utils import (
     json_response,
@@ -60,7 +60,7 @@ class OAuthService:
         routes          : list | None = None,
         web_server_url  : str = "",
         mcp_server_url  : str = "",
-        redis           : Redis | None = None
+        redis           : AsyncRedisClient | None = None
     ):
         self._token_validator   = token_validator
         self._get_jwt_token     = get_jwt_token
@@ -103,7 +103,7 @@ class OAuthService:
     #-------------------------------------------------------------------------
 
     async def metadata_handler(self, request: Request) -> Response:
-        url_prefix = f"{"http" if request.url.hostname == "localhost" else "https"}://{request.url.hostname}"
+        url_prefix = f"{'http' if request.url.hostname == 'localhost' else 'https'}://{request.url.hostname}"
         metadata = {
             "issuer": url_prefix,
             "authorization_endpoint": f"{url_prefix}/oauth/authorize",
@@ -234,7 +234,7 @@ class OAuthService:
         payload, err = self._token_validator.verify_token(token)
         
         if request.method == "GET":
-            url_prefix = f"{"http" if request.url.hostname == "localhost" else "https"}://{request.url.hostname}"
+            url_prefix = f"{'http' if request.url.hostname == 'localhost' else 'https'}://{request.url.hostname}"
 
             if err:
                 # Invalid jwt token, redirect to the login url.

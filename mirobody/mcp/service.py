@@ -1,7 +1,6 @@
 import json, logging, secrets, urllib
 
 from psycopg_pool import AsyncConnectionPool
-from redis.asyncio import Redis
 from datetime import datetime
 
 from starlette.requests import Request
@@ -21,6 +20,7 @@ from ..utils import (
 
     global_config
 )
+from ..utils.redis_compat import AsyncRedisClient
 
 from ..user import (
     check_relationship,
@@ -76,7 +76,7 @@ class McpService:
         private_resource_dirs   : list[str] = [],
 
         db_pool                 : AsyncConnectionPool[Any] | None = None,
-        redis                   : Redis | None = None,
+        redis                   : AsyncRedisClient | None = None,
 
         **kwargs
     ):
@@ -235,7 +235,7 @@ class McpService:
 
         method = jsonrpc["method"]
 
-        url_prefix = f"{"http" if request.url.hostname == "localhost" else "https"}://{request.url.hostname}"
+        url_prefix = f"{'http' if request.url.hostname == 'localhost' else 'https'}://{request.url.hostname}"
 
         #-------------------------------------------------
 
@@ -563,7 +563,7 @@ class McpService:
 
             resource = self._resource_map[uri]
             if "text" in resource:
-                current_server = f"{"http" if request.url.hostname == "localhost" else "https"}://{request.url.hostname}"
+                current_server = f"{'http' if request.url.hostname == 'localhost' else 'https'}://{request.url.hostname}"
                 resource["text"] = resource["text"] \
                     .replace("{{WEB_SERVER_URL}}", current_server) \
                     .replace("{{MCP_SERVER_URL}}", current_server) \
@@ -701,7 +701,7 @@ class McpService:
 
         #-------------------------------------------------
 
-        url_prefix = f"{"http" if request.url.hostname == "localhost" else "https"}://{request.url.hostname}"
+        url_prefix = f"{'http' if request.url.hostname == 'localhost' else 'https'}://{request.url.hostname}"
 
         return json_response_with_code(data={"url": f"{url_prefix}/mcp/{user_secret}"}, request=request)
 

@@ -3,16 +3,17 @@ Distributed lock manager for Theta Pull tasks
 """
 
 import logging, uuid
-import redis.asyncio
 
 from datetime import datetime
 from typing import Optional
+
+from ...utils.redis_compat import AsyncRedisClient
 
 #-----------------------------------------------------------------------------
 
 _global_redis_client = None
 
-async def get_redis_client() -> redis.asyncio.Redis | None:
+async def get_redis_client() -> AsyncRedisClient | None:
     global _global_redis_client
 
     if not _global_redis_client:
