@@ -1,7 +1,11 @@
 import logging
 from typing import Dict, Optional, List
 
+from .constants import DEFAULT_LOCAL_UPLOAD_PATH
+
 logger = logging.getLogger(__name__)
+
+LOCAL_STORAGE_BASE_PATH_KEY = "LOCAL_STORAGE_BASE_PATH"
 
 #-----------------------------------------------------------------------------
 
@@ -120,12 +124,12 @@ class StorageConfigManager:
             Configuration dictionary with base_path and proxy_url
         """
         from mirobody.utils.config import safe_read_cfg
+
+        base_path = DEFAULT_LOCAL_UPLOAD_PATH
         
         try:
-            # Fixed base path for local storage
-            base_path = "./.theta/mcp/upload/"
-            
-            # Get proxy URL from DATA_PUBLIC_URL if available
+            base_path = safe_read_cfg(LOCAL_STORAGE_BASE_PATH_KEY) or base_path
+
             data_public_url = safe_read_cfg("MCP_PUBLIC_URL")
             proxy_url = f"{data_public_url.rstrip('/')}/files" if data_public_url else ""
             
@@ -378,4 +382,3 @@ class StorageConfigManager:
         self._available_storages = None
 
 #-----------------------------------------------------------------------------
-

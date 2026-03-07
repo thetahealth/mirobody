@@ -1,6 +1,8 @@
-import mandrill, redis, redis.asyncio, secrets, smtplib, time
+import mandrill, secrets, smtplib, time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+from ..utils.redis_compat import AsyncRedisClient
 
 #-----------------------------------------------------------------------------
 
@@ -39,7 +41,7 @@ class MandrillEmailValidator(AbstractEmailCodeValidator):
             sending_interval: int = 60,
             expires_in      : int = 10*60,
             predefined_codes: dict[str, str] | None = None,
-            redis           : redis.asyncio.Redis | None = None
+            redis           : AsyncRedisClient | None = None
         ):
 
         self._mandrill_client = None
@@ -241,7 +243,7 @@ class SMTPEmailValidator(AbstractEmailCodeValidator):
             sending_interval: int = 60,
             expires_in      : int = 10*60,
             predefined_codes: dict[str, str] | None = None,
-            redis           : redis.asyncio.Redis | None = None
+            redis           : AsyncRedisClient | None = None
         ):
 
         self._smtp_host     = smtp_host
@@ -461,7 +463,7 @@ def create_email_validator(
     
     # Other options
     predefined_codes: dict[str, str] | None = None,
-    redis           : redis.asyncio.Redis | None = None
+    redis           : AsyncRedisClient | None = None
 ) -> AbstractEmailCodeValidator:
     """
     Factory function to create the appropriate email validator based on configuration.

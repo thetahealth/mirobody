@@ -16,14 +16,14 @@ from typing import Any, Dict, List, Optional
 from ...utils.utils_files.utils_s3 import aupload_image_with_thumbnail
 from ...utils.utils_files.utils_oss import AliOSS
 from ...utils.config import safe_read_cfg
+from ...utils.config.storage.constants import DEFAULT_LOCAL_CHARTS_PATH
 
 # Environment configuration
 ENV = os.getenv("ENV", "localdb")
 IS_ALIYUN = os.getenv("CLUSTER", "").upper() == "ALIYUN"
 
-# Chart storage directory (unified standard path)
-# All environments use: ./.theta/mcp/charts
-CHARTS_DIR = Path("./.theta/mcp/charts")
+# Chart storage directory.
+CHARTS_DIR = Path(safe_read_cfg("LOCAL_CHARTS_DIR") or DEFAULT_LOCAL_CHARTS_PATH)
 
 
 class ChartService:

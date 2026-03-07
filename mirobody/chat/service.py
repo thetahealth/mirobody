@@ -1,7 +1,6 @@
 import aiohttp, datetime, json, logging, secrets, time
 
 from psycopg_pool import AsyncConnectionPool
-from redis.asyncio import Redis
 
 from .agent import (
     load_agents_from_directories,
@@ -48,6 +47,7 @@ from ..utils import (
     StreamingResponse,
     Route
 )
+from ..utils.redis_compat import AsyncRedisClient
 
 from .memory import (
     AbstractMemoryClient,
@@ -65,7 +65,7 @@ class ChatService:
         routes          : list | None = None,
 
         db_pool         : AsyncConnectionPool | None = None,
-        redis           : Redis | None = None,
+        redis           : AsyncRedisClient | None = None,
 
         mcp_server_url  : str = "",
 

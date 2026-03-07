@@ -6,6 +6,7 @@ from typing import IO, Optional, Dict, Any
 from datetime import datetime
 
 from .abstract import AbstractStorage
+from .constants import DEFAULT_LOCAL_UPLOAD_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ class LocalStorage(AbstractStorage):
     
     def __init__(
         self,
-        base_path           : str = "./.theta/mcp/upload/",
+        base_path           : str = DEFAULT_LOCAL_UPLOAD_PATH,
         prefix              : str = "",
         proxy_url           : str = "",
         **kwargs  # Accept and ignore other AbstractStorage parameters
@@ -310,4 +311,3 @@ class LocalStorage(AbstractStorage):
             return None
 
 #-----------------------------------------------------------------------------
-

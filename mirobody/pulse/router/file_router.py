@@ -422,19 +422,21 @@ async def upload_files(
     request: Request,
     files: List[UploadFile] = File(..., description="Files to upload (PDF, images, documents, etc.)"),
     user_id: str = Depends(verify_token),
-    folder: Optional[str] = Query(None, description="Custom folder prefix for uploaded files, defaults to 'uploads'")
+    folder: Optional[str] = Query(None, description="Custom folder prefix for uploaded files, defaults to 'uploads'"),
+    purpose: str = Query("chat", description="Upload purpose: chat for multimodal chat files, report for background parsing")
 ) -> FileUploadResponse:
     """
-    Upload multiple files directly to S3
-    
-    This endpoint uploads multiple files directly to S3 without storing metadata in database.
-    Supports various file formats including PDF, images, and documents.
-    Uses the universal upload_files_to_storage service for cross-project compatibility.
+    Upload multiple files directly to storage.
+
+    Default purpose is `chat`: upload and return file metadata for `/api/chat`
+    multimodal usage without immediate parsing. Set `purpose=report` to also
+    persist metadata and trigger background parsing.
     
     Args:
         files: List of files to upload
         user_id: User authentication data
         folder_prefix: Custom folder prefix for uploaded files (optional, defaults to 'uploads')
+        purpose: Upload purpose. `chat` for multimodal chat attachments, `report` for report parsing.
         
     Returns:
         FileUploadResponse: Standard response with code, msg, and data fields.
@@ -444,14 +446,21 @@ async def upload_files(
     """
     # Get Redis client from global app state (shared across all requests)
     redis_client = getattr(request.app.state, 'redis', None)
-    
-    # Use the universal upload service
-    result = await upload_files_to_storage(
-        files=files,
-        user_id=user_id,
-        folder_prefix=folder,
-        redis_client=redis_client
-    )
+
+    ctx = {
+        "connection_type": "http",
+        "endpoint": "/files/upload",
+        "upload_purpose": purpose,
+    }
+
+    with set_req_ctx(ctx):
+        # Use the universal upload service
+        result = await upload_files_to_storage(
+            files=files,
+            user_id=user_id,
+            folder_prefix=folder,
+            redis_client=redis_client
+        )
     
     # Convert result to FastAPI response format
     return FileUploadResponse(
@@ -891,4 +900,3 @@ async def handle_websocket_upload_files(websocket: WebSocket, user_id: str, mess
             "message": f"Upload and analysis failed: {str(e)}",
             "timestamp": datetime.now().isoformat()
         }))
-

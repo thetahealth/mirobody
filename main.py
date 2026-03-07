@@ -1,8 +1,11 @@
 import asyncio, sys
 
 from mirobody.server import Server
+from mirobody.utils.db_redis_compat import apply_db_redis_overrides
 
 #-----------------------------------------------------------------------------
+
+apply_db_redis_overrides()
 
 async def main():
     yaml_filenames: list[str] = []
