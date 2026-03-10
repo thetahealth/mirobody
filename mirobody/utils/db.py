@@ -14,6 +14,7 @@ async def execute_query(
     db_config   : str = "",
     fieldList   : list | None = None,
     trace_id    : str = "",
+    log_sql     : bool = True,
     **kargs
 ):
     # Check SQL statement.
@@ -101,10 +102,11 @@ async def execute_query(
         if trace_id:
             extra["trace_id"] = trace_id
 
-        logged_query = " ".join(query.split())
-        if len(logged_query) > 512:
-            logged_query = logged_query[:512] + "..."
-        logging.info(logged_query, extra=extra, stacklevel=2)
+        if log_sql:
+            logged_query = " ".join(query.split())
+            if len(logged_query) > 512:
+                logged_query = logged_query[:512] + "..."
+            logging.info(logged_query, extra=extra, stacklevel=2)
 
         return ret
 
