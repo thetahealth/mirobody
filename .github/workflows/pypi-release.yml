@@ -18,10 +18,6 @@ on:
         options:
           - 'true'
           - 'false'
-      version_suffix:
-        description: 'Version suffix (optional, e.g., dev1, test2)'
-        required: false
-        default: 'test'
       target_branch:
         description: 'Display current running branch (for reference only, select branch on Actions page)'
         required: false
@@ -68,17 +64,11 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/}
           echo "🎯 Running on tag: $VERSION"
         else
-          # If manually triggered, generate test version number
+          # If manually triggered, generate PEP 440 compliant test version
+          # Format: 0.0.0.devYYYYMMDDHHMMSS (dev number must be pure digits)
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
           TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          VERSION_SUFFIX="${{ github.event.inputs.version_suffix }}"
-
-          if [ -n "$VERSION_SUFFIX" ]; then
-            VERSION="0.0.0.dev${TIMESTAMP}.${BRANCH_NAME}.${VERSION_SUFFIX}"
-          else
-            VERSION="0.0.0.dev${TIMESTAMP}.${BRANCH_NAME}.${SHORT_SHA}"
-          fi
+          VERSION="0.0.0.dev${TIMESTAMP}"
 
           echo "🧪 Manual test trigger on branch: $BRANCH_NAME"
           echo "📦 Test version: $VERSION"
