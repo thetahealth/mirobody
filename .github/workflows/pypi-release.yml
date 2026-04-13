@@ -1,11 +1,13 @@
 name: PyPI Release
 
-# Trigger conditions: push tag or manual trigger
+# Trigger conditions: push tag, create release on GitHub, or manual trigger
 on:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
       - '[0-9]+.[0-9]+.[0-9]+-*'  # Support pre-release versions like 1.0.0-beta1
+  release:
+    types: [created]  # Trigger when release is created on github.com
   workflow_dispatch:  # Allow manual trigger
     inputs:
       test_mode:
@@ -16,10 +18,6 @@ on:
         options:
           - 'true'
           - 'false'
-      version_suffix:
-        description: 'Version suffix (optional, e.g., dev1, test2)'
-        required: false
-        default: 'test'
       target_branch:
         description: 'Display current running branch (for reference only, select branch on Actions page)'
         required: false
@@ -28,6 +26,8 @@ on:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
     - uses: actions/checkout@v4
@@ -57,22 +57,20 @@ jobs:
     # Get version from tag or use test version
     - name: Set version from tag or manual trigger
       run: |
-        if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-          # If it's a tag, use tag name as version
+        if [[ "$GITHUB_EVENT_NAME" == "release" ]]; then
+          # If triggered by release creation on github.com
+          VERSION="${{ github.event.release.tag_name }}"
+          echo "🎯 Running on release: $VERSION"
+        elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          # If it's a tag push, use tag name as version
           VERSION=${GITHUB_REF#refs/tags/}
           echo "🎯 Running on tag: $VERSION"
         else
-          # If manually triggered, generate test version number
+          # If manually triggered, generate PEP 440 compliant test version
+          # Format: 0.0.0.devYYYYMMDDHHMMSS (dev number must be pure digits)
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
           TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          VERSION_SUFFIX="${{ github.event.inputs.version_suffix }}"
-
-          if [ -n "$VERSION_SUFFIX" ]; then
-            VERSION="0.0.0.dev${TIMESTAMP}.${BRANCH_NAME}.${VERSION_SUFFIX}"
-          else
-            VERSION="0.0.0.dev${TIMESTAMP}.${BRANCH_NAME}.${SHORT_SHA}"
-          fi
+          VERSION="0.0.0.dev${TIMESTAMP}"
 
           echo "🧪 Manual test trigger on branch: $BRANCH_NAME"
           echo "📦 Test version: $VERSION"
@@ -111,9 +109,9 @@ jobs:
         twine upload --repository testpypi dist/* || echo "TestPyPI upload failed (may already exist)"
       continue-on-error: true
 
-    # Upload to PyPI (only for official tags, and not in test mode)
+    # Upload to PyPI (only for official tags or release events, and not in test mode)
     - name: Publish to PyPI
-      if: startsWith(github.ref, 'refs/tags/') && github.event.inputs.test_mode != 'true'
+      if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'release') && github.event.inputs.test_mode != 'true'
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
@@ -122,164 +120,13 @@ jobs:
         twine upload --repository pypi dist/*
       continue-on-error: true
 
-    # Generate intelligent Release Notes
-    - name: Generate Release Notes
-      id: release_notes
-      run: |
-        # Get previous tag (if exists)
-        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-        CURRENT_TAG=${{ env.VERSION }}
-
-        echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> $GITHUB_ENV
-        echo "CURRENT_TAG=$CURRENT_TAG" >> $GITHUB_ENV
-
-        # Create release notes file
-        cat > release_notes.md << 'EOF'
-        ## 🚀 What's New in v${{ env.VERSION }}
-
-        EOF
-
-        # Get tag message (if it's an annotated tag)
-        TAG_MESSAGE=$(git tag -l --format='%(contents)' $CURRENT_TAG 2>/dev/null | head -n 10)
-        if [ ! -z "$TAG_MESSAGE" ]; then
-          echo "### 📝 Release Message" >> release_notes.md
-          echo "$TAG_MESSAGE" >> release_notes.md
-          echo "" >> release_notes.md
-        fi
-
-        # Generate change list (based on commits)
-        if [ ! -z "$PREVIOUS_TAG" ]; then
-          echo "### 📋 Changes Since $PREVIOUS_TAG" >> release_notes.md
-          echo "" >> release_notes.md
-
-          # Categorize commits by type
-          echo "#### 🆕 New Features" >> release_notes.md
-          git log --oneline --grep="feat:" --grep="feature:" --grep="add:" --grep="新增" --grep="功能" $PREVIOUS_TAG..HEAD | sed 's/^/- /' >> release_notes.md || echo "- No new features" >> release_notes.md
-          echo "" >> release_notes.md
-
-          echo "#### 🐛 Bug Fixes" >> release_notes.md
-          git log --oneline --grep="fix:" --grep="bug:" --grep="修复" --grep="bugfix" $PREVIOUS_TAG..HEAD | sed 's/^/- /' >> release_notes.md || echo "- No bug fixes" >> release_notes.md
-          echo "" >> release_notes.md
-
-          echo "#### 🔧 Improvements" >> release_notes.md
-          git log --oneline --grep="improve:" --grep="update:" --grep="优化" --grep="改进" $PREVIOUS_TAG..HEAD | sed 's/^/- /' >> release_notes.md || echo "- No improvements" >> release_notes.md
-          echo "" >> release_notes.md
-
-          echo "#### 📚 Documentation" >> release_notes.md
-          git log --oneline --grep="docs:" --grep="doc:" --grep="文档" $PREVIOUS_TAG..HEAD | sed 's/^/- /' >> release_notes.md || echo "- No documentation changes" >> release_notes.md
-          echo "" >> release_notes.md
-
-          echo "#### 🔨 Other Changes" >> release_notes.md
-          git log --oneline --invert-grep --grep="feat:" --grep="fix:" --grep="docs:" --grep="improve:" --grep="update:" --grep="功能" --grep="修复" --grep="文档" --grep="优化" $PREVIOUS_TAG..HEAD | sed 's/^/- /' >> release_notes.md || echo "- No other changes" >> release_notes.md
-          echo "" >> release_notes.md
-
-          # Get related PR information
-          echo "#### 🔗 Related Pull Requests" >> release_notes.md
-
-          # Get PRs merged in this release
-          PR_NUMBERS=$(git log --oneline --merges $PREVIOUS_TAG..HEAD | grep -o "#[0-9]\+" | sort -u | head -10)
-
-          if [ ! -z "$PR_NUMBERS" ]; then
-            echo "$PR_NUMBERS" | while read pr_num; do
-              # Use GitHub CLI to get PR details (if available)
-              if command -v gh >/dev/null 2>&1; then
-                PR_TITLE=$(gh pr view "${pr_num/\#/}" --json title -q '.title' 2>/dev/null || echo "")
-                PR_URL="https://github.com/${{ github.repository }}/pull/${pr_num/\#/}"
-                if [ ! -z "$PR_TITLE" ]; then
-                  echo "- [$PR_TITLE]($PR_URL) $pr_num" >> release_notes.md
-                else
-                  echo "- $pr_num" >> release_notes.md
-                fi
-              else
-                PR_URL="https://github.com/${{ github.repository }}/pull/${pr_num/\#/}"
-                echo "- [$pr_num]($PR_URL)" >> release_notes.md
-              fi
-            done
-          else
-            echo "- No pull requests merged" >> release_notes.md
-          fi
-          echo "" >> release_notes.md
-
-          # Get contributor information
-          echo "#### 👥 Contributors" >> release_notes.md
-          CONTRIBUTORS=$(git log --format='%an <%ae>' $PREVIOUS_TAG..HEAD | sort -u | head -10)
-          if [ ! -z "$CONTRIBUTORS" ]; then
-            echo "$CONTRIBUTORS" | while read contributor; do
-              echo "- $contributor" >> release_notes.md
-            done
-          else
-            echo "- No contributors found" >> release_notes.md
-          fi
-          echo "" >> release_notes.md
-
-          # Statistics
-          COMMIT_COUNT=$(git rev-list --count $PREVIOUS_TAG..HEAD)
-          FILES_CHANGED=$(git diff --name-only $PREVIOUS_TAG..HEAD | wc -l)
-
-          echo "#### 📊 Release Statistics" >> release_notes.md
-          echo "- **Commits**: $COMMIT_COUNT" >> release_notes.md
-          echo "- **Files Changed**: $FILES_CHANGED" >> release_notes.md
-          echo "- **Period**: $(git log -1 --format='%ai' $PREVIOUS_TAG) → $(git log -1 --format='%ai' HEAD)" >> release_notes.md
-          echo "" >> release_notes.md
-
-        else
-          echo "### 🎉 First Release" >> release_notes.md
-          echo "This is the initial release of Mirobody package." >> release_notes.md
-          echo "" >> release_notes.md
-
-          # Show recent commits
-          echo "#### 📋 Recent Changes" >> release_notes.md
-          git log --oneline -n 10 | sed 's/^/- /' >> release_notes.md
-        fi
-
-        # Add installation instructions
-        cat >> release_notes.md << 'EOF'
-
-        ## 📦 Installation
-
-        ### From TestPyPI:
-        ```bash
-        pip install -i https://test.pypi.org/simple/ mirobody==${{ env.VERSION }}
-        ```
-
-        ### From PyPI:
-        ```bash
-        pip install mirobody==${{ env.VERSION }}
-        ```
-
-        ### From GitHub Release:
-        ```bash
-        pip install https://github.com/${{ github.repository }}/releases/download/${{ env.VERSION }}/mirobody-${{ env.VERSION }}-py3-none-any.whl
-        ```
-
-        ### From Source:
-        ```bash
-        git clone https://github.com/${{ github.repository }}.git
-        cd mirobody
-        pip install .
-        ```
-
-        ## 🔍 Package Details
-
-        - **Version**: ${{ env.VERSION }}
-        - **Release Date**: $(date '+%Y-%m-%d %H:%M:%S UTC')
-        - **Commit**: ${{ github.sha }}
-        - **Python Support**: 3.8+
-        - **Platforms**: Linux, macOS, Windows
-
-        EOF
-
-        # Output generated content for debugging
-        echo "Generated release notes:"
-        cat release_notes.md
-
-    # Create GitHub Release (only for tags, and not in test mode)
-    - name: Create GitHub Release
-      if: startsWith(github.ref, 'refs/tags/') && github.event.inputs.test_mode != 'true'
+    # Create or update GitHub Release (upload build artifacts)
+    - name: Upload to GitHub Release
+      if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'release') && github.event.inputs.test_mode != 'true'
       uses: softprops/action-gh-release@v1
       with:
         files: dist/*
-        body_path: release_notes.md
+        generate_release_notes: true
         draft: false
         prerelease: ${{ contains(env.VERSION, 'a') || contains(env.VERSION, 'b') || contains(env.VERSION, 'rc') || contains(env.VERSION, 'dev') }}
         tag_name: ${{ env.VERSION }}
