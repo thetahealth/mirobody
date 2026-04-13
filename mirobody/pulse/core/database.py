@@ -593,48 +593,8 @@ class ManageDatabaseService(CacheableDatabaseService):
         Returns:
             Dict mapping source to aggregated statistics {source: {record_count, last_sync_time}}
         """
-        cache_key = f"user_provider_stats_{user_id}"
-
-        # Try to get from cache first
-        cached_result = self._get_cache(cache_key)
-        if cached_result is not None:
-            return cached_result
-
-        try:
-            query = """
-            SELECT 
-                source,
-                COUNT(*) as record_count,
-                MAX(time) as last_sync_time
-            FROM series_data 
-            where user_id =:user_id
-            GROUP BY source
-            order by source desc
-            """
-
-            params = {"user_id": user_id}
-            raw_results = await self.execute_query(query, params)
-
-            # Convert to dict for easy lookup
-            stats_dict = {}
-            for row in raw_results:
-                source = row.get("source")
-                parts = source.split(".")
-                source = ".".join(parts[:2])
-                if source == "resmed" and "theta.theta_resmed" not in stats_dict:
-                    source = "theta.theta_resmed"
-                if source:
-                    stats_dict[source] = {
-                        "record_count": row.get("record_count", 0),
-                        "last_sync_time": row.get("last_sync_time")
-                    }
-                if source == "vital.apple_health_kit" and "apple_health" not in stats_dict:
-                    stats_dict["apple_health"] = stats_dict[source]
-
-            # Cache the result for 5 minutes
-            self._set_cache(cache_key, stats_dict)
-            return stats_dict
-
-        except Exception as e:
-            logging.error(f"Error getting cached user provider stats for user {user_id}: {str(e)}")
-            return {}
+        # TODO: Migrate to daily_summary table once available.
+        # The original query scans all series_data rows for the user (~750K+ rows),
+        # causing 15-17s response times. Returning empty dict until daily_summary
+        # provides pre-aggregated per-user source stats.
+        return {}

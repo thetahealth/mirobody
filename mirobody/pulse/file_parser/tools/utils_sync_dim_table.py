@@ -6,16 +6,17 @@ Based on the implementation pattern of utils_update_embeddings.py
 """
 
 import asyncio
-import sys
 import logging
-from datetime import datetime
+import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Set
 
 from mirobody.pulse.file_parser.tools.indicator_classifier.sort_dim import MedicalIndicatorClassifier
 from mirobody.utils import execute_query
-from mirobody.utils.utils_embedding import get_default_embedding_service
+from mirobody.utils.config import safe_read_cfg
+from mirobody.utils.utils_embedding import create_embedding_service, get_default_embedding_service
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -326,6 +327,47 @@ class DimTableSyncer:
                 if i < len(all_embeddings):
                     text_to_embedding[text] = all_embeddings[i]
 
+            # Generate dim embedding (for embedding_gemini or embedding_qwen column)
+            dim_provider = safe_read_cfg("DIM_EMBEDDING_PROVIDER", "gemini").lower()
+            dim_text_to_embedding = {}
+
+            standard_texts_set = {}
+            for indicator_map in indicators:
+                indicator = indicator_map.get("input_indicator", "")
+                mappings = indicator_mappings[indicator]
+                std_text = mappings.get("standard") or mappings.get("original")
+                if std_text:
+                    standard_texts_set[std_text] = None
+            standard_texts = list(standard_texts_set)
+
+            if standard_texts:
+                try:
+                    dim_service = None
+                    if dim_provider == "qwen":
+                        dashscope_key = safe_read_cfg("DASHSCOPE_API_KEY", "")
+                        if dashscope_key:
+                            dim_service = create_embedding_service("dashscope", api_key=dashscope_key, dimensions=1024)
+                        else:
+                            logging.warning("⚠️ DASHSCOPE_API_KEY not configured, skipping Qwen dim embeddings")
+                    elif dim_provider == "gemini":
+                        google_key = safe_read_cfg("GOOGLE_API_KEY", "")
+                        if google_key:
+                            dim_service = create_embedding_service("gemini", api_key=google_key, dimensions=1024)
+                        else:
+                            logging.warning("⚠️ GOOGLE_API_KEY not configured, skipping Gemini dim embeddings")
+
+                    if dim_service:
+                        dim_embeddings = await dim_service.get_texts_embeddings(standard_texts)
+                        if dim_embeddings and len(dim_embeddings) == len(standard_texts):
+                            for i, text in enumerate(standard_texts):
+                                if dim_embeddings[i]:
+                                    dim_text_to_embedding[text] = dim_embeddings[i]
+                            logging.info(f"   ✅ Generated {len(dim_text_to_embedding)} {dim_provider} dim embeddings")
+                        else:
+                            logging.warning(f"⚠️ {dim_provider} dim embedding generation returned incomplete results, skipping")
+                except Exception as e:
+                    logging.warning(f"⚠️ Failed to generate {dim_provider} dim embeddings (non-fatal): {str(e)}")
+
             # Assemble results for each indicator
             results = {}
             for indicator_map in indicators:
@@ -345,10 +387,16 @@ class DimTableSyncer:
                     logging.error(f"❌ Indicator '{indicator}' has missing embeddings: original={bool(original_emb)}, standard={bool(standard_emb)}, category={bool(category_emb)}")
                     return {}
 
+                # Dim embedding for standard text (provider-dependent column)
+                std_text = mappings.get("standard") or mappings.get("original")
+                dim_emb = dim_text_to_embedding.get(std_text) if std_text else None
+
                 results[indicator] = {
                     "original": original_emb,
                     "standard": standard_emb,
                     "category": category_emb,
+                    "qwen": dim_emb if dim_provider == "qwen" else None,
+                    "gemini": dim_emb if dim_provider == "gemini" else None,
                 }
 
             logging.info(f"✅ Successfully generated complete embeddings for {len(results)} indicators")
@@ -381,7 +429,8 @@ class DimTableSyncer:
 
         # Generate medical classifications for new indicators (batch processing to avoid >1000 limit)
         classifier = MedicalIndicatorClassifier()
-        indicators_list = list(indicators)
+        # Filter out None and empty strings to prevent downstream .strip() failures
+        indicators_list = [ind for ind in indicators if ind]
         categories = []
 
         # Batch processing, max 20 indicators per batch (larger batches cause Doubao response truncation)
@@ -450,6 +499,13 @@ class DimTableSyncer:
         if generate_embeddings:
             logging.info("🔄 Starting embeddings generation, will terminate insertion on failure")
 
+            # Build full indicator -> classification mapping for quick lookup
+            all_categories_by_indicator = {
+                c.get("input_indicator", "").strip(): c
+                for c in categories
+                if c.get("input_indicator", "").strip()
+            }
+
             # If too many indicators, batch generate embeddings to avoid memory and API limits
             if len(indicators_list) > 200:
                 logging.info(f"📦 Large number of indicators ({len(indicators_list)}), using batch embeddings generation")
@@ -461,27 +517,16 @@ class DimTableSyncer:
                     batch_indicators = indicators_list[i : i + embedding_batch_size]
                     logging.info(f"   🔄 Generating batch {i // embedding_batch_size + 1} embeddings: {len(batch_indicators)} indicators")
 
-                    batch_embeddings = await self.generate_embeddings_for_indicators(batch_categories)
+                    # Only pass classifications for this batch's indicators
+                    batch_indicator_set = set(batch_indicators)
+                    batch_cats = [all_categories_by_indicator[ind] for ind in batch_indicators if ind in all_categories_by_indicator]
+
+                    batch_embeddings = await self.generate_embeddings_for_indicators(batch_cats)
 
                     # Check if embedding generation was successful
                     if not batch_embeddings:
                         logging.warning(f"❌ Batch {i // embedding_batch_size + 1} embedding generation failed, skipping insertion")
                         continue
-
-                    # Validate each indicator has complete embeddings
-                    for indicator in batch_indicators:
-                        if indicator not in batch_embeddings:
-                            logging.warning(f"❌ Indicator '{indicator}' embedding generation failed, skipping insertion")
-                            continue
-
-                        embeddings = batch_embeddings[indicator]
-                        if (
-                            not embeddings.get("original")
-                            or not embeddings.get("standard")
-                            or not embeddings.get("category")
-                        ):
-                            logging.warning(f"❌ Indicator '{indicator}' embedding incomplete, skipping insertion")
-                            continue
 
                     embeddings_map.update(batch_embeddings)
 
@@ -489,7 +534,7 @@ class DimTableSyncer:
                     if i + embedding_batch_size < len(indicators_list):
                         await asyncio.sleep(1)
             else:
-                embeddings_map = await self.generate_embeddings_for_indicators(batch_categories)
+                embeddings_map = await self.generate_embeddings_for_indicators(categories)
 
                 # Check if embedding generation was successful
                 if not embeddings_map:
@@ -561,6 +606,8 @@ class DimTableSyncer:
                         "orig_emb": format_vector(embeddings.get("original")),
                         "stand_emb": format_vector(embeddings.get("standard")),
                         "cat_emb": format_vector(embeddings.get("category")),
+                        "qwen_emb": format_vector(embeddings.get("qwen")),
+                        "gemini_emb": format_vector(embeddings.get("gemini")),
                         # Add new medical classification fields
                         "diagnosis_recommended_organ": medical_classification.get("diagnosis_recommended_organ", ""),
                         "diagnosis_recommended_system": medical_classification.get("diagnosis_recommended_system", ""),
@@ -581,17 +628,19 @@ class DimTableSyncer:
 
                     if batch_params:
                         insert_query = """
-                        INSERT INTO th_series_dim 
-                        (original_indicator, standard_indicator, category_group, category, 
+                        INSERT INTO th_series_dim
+                        (original_indicator, standard_indicator, category_group, category,
                          original_indicator_embedding, standard_indicator_embedding, category_embedding,
+                         embedding_qwen, embedding_gemini,
                          diagnosis_recommended_organ, diagnosis_recommended_system, diagnosis_recommended_disease,
                          department, symptom, updated_at)
-                        VALUES 
+                        VALUES
                         (:original_indicator, :indicator_description, :category_group, :category,
                          :orig_emb, :stand_emb, :cat_emb,
+                         :qwen_emb, :gemini_emb,
                          :diagnosis_recommended_organ, :diagnosis_recommended_system, :diagnosis_recommended_disease,
                          :department, :symptom, :updated_at)
-                        ON CONFLICT (original_indicator) 
+                        ON CONFLICT (original_indicator)
                         DO NOTHING
                         """
 
@@ -757,6 +806,8 @@ class DimTableSyncer:
                                 "orig_emb": format_vector(embeddings.get("original")),
                                 "stand_emb": format_vector(embeddings.get("standard")),
                                 "cat_emb": format_vector(embeddings.get("category")),
+                                "qwen_emb": format_vector(embeddings.get("qwen")),
+                                "gemini_emb": format_vector(embeddings.get("gemini")),
                                 "department": classification.get("department_classification", ""),
                                 "symptom": classification.get("related_symptoms", ""),
                                 "updated_at": datetime.now(),
@@ -766,8 +817,8 @@ class DimTableSyncer:
                         # Execute batch update
                         if generate_embeddings and embeddings_map:
                             update_query = """
-                                UPDATE th_series_dim 
-                                SET 
+                                UPDATE th_series_dim
+                                SET
                                     diagnosis_recommended_organ = :diagnosis_recommended_organ,
                                     diagnosis_recommended_system = :diagnosis_recommended_system,
                                     diagnosis_recommended_disease = :diagnosis_recommended_disease,
@@ -775,6 +826,8 @@ class DimTableSyncer:
                                     standard_indicator_embedding = :stand_emb,
                                     category_embedding = :cat_emb,
                                     original_indicator_embedding = :orig_emb,
+                                    embedding_qwen = :qwen_emb,
+                                    embedding_gemini = :gemini_emb,
                                     department = :department,
                                     symptom = :symptom,
                                     updated_at = :updated_at
@@ -934,6 +987,123 @@ class DimTableSyncer:
 
         return result
 
+    async def backfill_dim_embeddings(
+        self, batch_size: int = 100, limit: int = None
+    ) -> Dict[str, Any]:
+        """
+        Backfill missing embedding_qwen / embedding_gemini for existing dim records.
+        Only generates the dim-provider embedding — skips classification and other embeddings.
+
+        Args:
+            batch_size: Batch processing size
+            limit: Max records to process
+
+        Returns:
+            Dict[str, Any]: Backfill result statistics
+        """
+        dim_provider = safe_read_cfg("DIM_EMBEDDING_PROVIDER", "gemini").lower()
+        col_name = f"embedding_{dim_provider}"
+
+        logging.info(f"🚀 Starting backfill for {col_name} (provider={dim_provider})")
+
+        # Find records where the target column is NULL
+        query = f"""
+            SELECT id, original_indicator, standard_indicator
+            FROM th_series_dim
+            WHERE {col_name} IS NULL
+            ORDER BY id
+        """
+        if limit:
+            query += f" LIMIT {limit}"
+
+        try:
+            records = await execute_query(query)
+            if not records:
+                logging.info(f"✅ No records need {col_name} backfill")
+                return {"success": True, "total_found": 0, "total_updated": 0, "failed": 0}
+
+            logging.info(f"📋 Found {len(records)} records missing {col_name}")
+
+            # Create the dim embedding service
+            dim_service = None
+            if dim_provider == "qwen":
+                dashscope_key = safe_read_cfg("DASHSCOPE_API_KEY", "")
+                if dashscope_key:
+                    dim_service = create_embedding_service("dashscope", api_key=dashscope_key, dimensions=1024)
+                else:
+                    logging.error("❌ DASHSCOPE_API_KEY not configured, cannot backfill qwen embeddings")
+                    return {"success": False, "total_found": len(records), "total_updated": 0, "failed": len(records)}
+            elif dim_provider == "gemini":
+                google_key = safe_read_cfg("GOOGLE_API_KEY", "")
+                if google_key:
+                    dim_service = create_embedding_service("gemini", api_key=google_key, dimensions=1024)
+                else:
+                    logging.error("❌ GOOGLE_API_KEY not configured, cannot backfill gemini embeddings")
+                    return {"success": False, "total_found": len(records), "total_updated": 0, "failed": len(records)}
+            else:
+                logging.error(f"❌ Unsupported DIM_EMBEDDING_PROVIDER: {dim_provider}")
+                return {"success": False, "total_found": len(records), "total_updated": 0, "failed": len(records)}
+
+            total_updated = 0
+            total_failed = 0
+
+            for i in range(0, len(records), batch_size):
+                batch = records[i : i + batch_size]
+                # Use standard_indicator if available, else original_indicator
+                texts = [
+                    (r["standard_indicator"] or r["original_indicator"]).strip()
+                    for r in batch
+                ]
+
+                try:
+                    embeddings = await dim_service.get_texts_embeddings(texts)
+                    if not embeddings or len(embeddings) != len(texts):
+                        logging.warning(f"⚠️ Batch {i // batch_size + 1} embedding count mismatch, skipping")
+                        total_failed += len(batch)
+                        continue
+
+                    # Build update params
+                    update_params = []
+                    for j, record in enumerate(batch):
+                        if embeddings[j]:
+                            vec_str = "[" + ",".join(str(x) for x in embeddings[j]) + "]"
+                            update_params.append({
+                                "record_id": record["id"],
+                                "dim_emb": vec_str,
+                                "updated_at": datetime.now(),
+                            })
+
+                    if update_params:
+                        update_query = f"""
+                            UPDATE th_series_dim
+                            SET {col_name} = :dim_emb,
+                                updated_at = :updated_at
+                            WHERE id = :record_id
+                        """
+                        await execute_query(update_query, update_params)
+                        total_updated += len(update_params)
+                        logging.info(f"   ✅ Batch {i // batch_size + 1}: updated {len(update_params)} records")
+
+                except Exception as e:
+                    logging.error(f"❌ Batch {i // batch_size + 1} failed: {str(e)}")
+                    total_failed += len(batch)
+
+                # Avoid API rate limits
+                if i + batch_size < len(records):
+                    await asyncio.sleep(0.5)
+
+            logging.info(f"🎉 Backfill completed: {total_updated} updated, {total_failed} failed out of {len(records)}")
+            return {
+                "success": total_failed == 0,
+                "total_found": len(records),
+                "total_updated": total_updated,
+                "failed": total_failed,
+            }
+
+        except Exception as e:
+            logging.error(f"❌ Backfill {col_name} failed: {str(e)}", stack_info=True)
+            return {"success": False, "total_found": 0, "total_updated": 0, "failed": 0, "error": str(e)}
+
     @classmethod
     async def cleanup(cls):
         """Clean up shared resources"""
@@ -1060,6 +1230,36 @@ async def update_medical_classifications(
 
     except Exception as e:
         logging.error(f"❌ Medical classification field update failed: {str(e)}")
+        return {
+            "success": False,
+            "total_found": 0,
+            "total_updated": 0,
+            "failed": 0,
+            "error": str(e),
+        }
+    finally:
+        await DimTableSyncer.cleanup()
+
+
+async def backfill_dim_embeddings(
+    batch_size: int = 100, limit: int = None
+) -> Dict[str, Any]:
+    """
+    Backfill missing embedding_qwen / embedding_gemini for all dim records.
+    Reads DIM_EMBEDDING_PROVIDER config to determine which column to fill.
+
+    Args:
+        batch_size: Batch processing size
+        limit: Max records to process
+
+    Returns:
+        Dict[str, Any]: Backfill result
+    """
+    try:
+        syncer = await DimTableSyncer.create_syncer()
+        return await syncer.backfill_dim_embeddings(batch_size=batch_size, limit=limit)
+    except Exception as e:
+        logging.error(f"❌ Dim embeddings backfill failed: {str(e)}", stack_info=True)
         return {
             "success": False,
             "total_found": 0,

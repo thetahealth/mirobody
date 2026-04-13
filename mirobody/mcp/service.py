@@ -1,6 +1,7 @@
 import json, logging, secrets, urllib
 
 from psycopg_pool import AsyncConnectionPool
+from redis.asyncio import Redis
 from datetime import datetime
 
 from starlette.requests import Request
@@ -20,7 +21,6 @@ from ..utils import (
 
     global_config
 )
-from ..utils.redis_compat import AsyncRedisClient
 
 from ..user import (
     check_relationship,
@@ -76,7 +76,7 @@ class McpService:
         private_resource_dirs   : list[str] = [],
 
         db_pool                 : AsyncConnectionPool[Any] | None = None,
-        redis                   : AsyncRedisClient | None = None,
+        redis                   : Redis | None = None,
 
         **kwargs
     ):
@@ -101,13 +101,6 @@ class McpService:
 
         self._resource_map, self._resources = load_resources_from_directories(resource_dirs)
         self._resources_count = len(self._resources)
-
-        # for key in self._resource_map:
-        #     if "text" in self._resource_map[key]:
-        #         self._resource_map[key]["text"] = self._resource_map[key]["text"] \
-        #             .replace("{{WEB_SERVER_URL}}", self._web_server_url) \
-        #             .replace("{{MCP_SERVER_URL}}", self._mcp_server_url) \
-        #             .replace("{{DATA_SERVER_URL}}", self._data_server_url)
 
         #----------------------------------------------
 
@@ -166,9 +159,9 @@ class McpService:
         elif request.method == "OPTIONS":
             # Return straightly.
             return Response(
-                content="200 ok",
-                status_code=200,
-                headers={
+                content     = "200 ok",
+                status_code = 200,
+                headers     = {
                     "Access-Control-Allow-Origin": "*",
                     "Access-Control-Allow-Methods": "*",
                     "Access-Control-Allow-Headers": "*"
@@ -177,9 +170,9 @@ class McpService:
 
         else:
             return Response(
-                content="405 Method Not Allowed",
-                status_code=405,
-                headers={
+                content     = "405 Method Not Allowed",
+                status_code = 405,
+                headers     = {
                     "Access-Control-Allow-Origin": "*"
                 }
             )
@@ -198,14 +191,12 @@ class McpService:
             print()
 
             return jsonrpc_error(
-                id=None,
-                code=CODE_PARSE_ERROR,
-                msg="Invalid request body",
-                method="",
-                request=request
+                id      = None,
+                code    = CODE_PARSE_ERROR,
+                msg     = "Invalid request body",
+                method  = "",
+                request = request
             )
-
-        logging.info(f"mcp_handler received request {jsonrpc} headers: {request.headers}")
 
         # According to the MCP specification,
         #   the ID field should always be there.
@@ -215,27 +206,27 @@ class McpService:
 
         if not isinstance(jsonrpc, dict):
             return jsonrpc_error(
-                id=id,
-                code=CODE_INVALID_REQUEST,
-                msg="Invalid request body",
-                method="",
-                request=request
+                id      = id,
+                code    = CODE_INVALID_REQUEST,
+                msg     = "Invalid request body",
+                method  = "",
+                request = request
             )
 
         if "method" not in jsonrpc or \
             not isinstance(jsonrpc["method"], str) or \
             len(jsonrpc["method"]) == 0:
             return jsonrpc_error(
-                id=id,
-                code=CODE_INVALID_REQUEST,
-                msg="Invalid MCP method",
-                method="",
-                request=request
+                id      = id,
+                code    = CODE_INVALID_REQUEST,
+                msg     = "Invalid MCP method",
+                method  = "",
+                request = request
             )
 
         method = jsonrpc["method"]
 
-        url_prefix = f"{'http' if request.url.hostname == 'localhost' else 'https'}://{request.url.hostname}"
+        url_prefix = f"{"http" if request.url.hostname == "localhost" else "https"}://{request.url.hostname}"
 
         #-------------------------------------------------
 
@@ -293,41 +284,41 @@ class McpService:
                     tools = [tool for tool in (tools if tools else self._tool_descriptions) if tool.get("name") not in disallowed_tools]
 
                 return jsonrpc_result(
-                    id=id,
-                    result={
+                    id      = id,
+                    result  = {
                         "tools": tools
                     },
-                    method=method,
-                    request=request
+                    method  = method,
+                    request = request
                 )
 
             return jsonrpc_result(
-                id=id,
-                result={
+                id      = id,
+                result  = {
                     "tools": self._tool_descriptions
                 },
-                method=method,
-                request=request
+                method  = method,
+                request = request
             )
 
         elif method == "prompts/list":
             return jsonrpc_result(
-                id=id,
-                result={
+                id      = id,
+                result  = {
                     "prompts": []
                 },
-                method=method,
-                request=request
+                method  = method,
+                request = request
             )
 
         elif method == "resources/list":
             return jsonrpc_result(
-                id=id,
-                result={
+                id      = id,
+                result  = {
                     "resources": self._resources
                 },
-                method=method,
-                request=request
+                method  = method,
+                request = request
             )
 
         #-------------------------------------------------
@@ -336,22 +327,21 @@ class McpService:
 
             if "params" not in jsonrpc or not isinstance(jsonrpc["params"], dict):
                 return jsonrpc_error(
-                    id=jsonrpc["id"],
-                    code=CODE_INVALID_PARAMS,
-                    msg="Empty parameter",
-                    method="tools/call",
-                    request=request
+                    id      = jsonrpc["id"],
+                    code    = CODE_INVALID_PARAMS,
+                    msg     = "Empty parameter",
+                    method  = "tools/call",
+                    request = request
                 )
             params = jsonrpc["params"]
-            logging.debug(json.dumps(params, ensure_ascii=False))
 
             if "name" not in params or not isinstance(params["name"], str) or len(params["name"]) == 0:
                 return jsonrpc_error(
-                    id=jsonrpc["id"],
-                    code=CODE_INVALID_PARAMS,
-                    msg="Empty parameter name",
-                    method="tools/call",
-                    request=request
+                    id      = jsonrpc["id"],
+                    code    = CODE_INVALID_PARAMS,
+                    msg     = "Empty parameter name",
+                    method  = "tools/call",
+                    request = request
                 )
 
             if not self._callable or \
@@ -359,18 +349,17 @@ class McpService:
                 params["name"] not in self._callable or \
                 not self._callable[params["name"]]:
                 return jsonrpc_error(
-                    id=jsonrpc["id"],
-                    code=CODE_INVALID_PARAMS,
-                    msg="Unsupported parameter name",
-                    method="tools/call",
-                    request=request
+                    id      = jsonrpc["id"],
+                    code    = CODE_INVALID_PARAMS,
+                    msg     = "Unsupported parameter name",
+                    method  = "tools/call",
+                    request = request
                 )
 
             #---------------------------------------------
 
             tool = self._callable[params["name"]]
             jwt_token = get_jwt_token(request)
-            logging.debug(f"jwt_token: {jwt_token}")
 
             if tool["auth"] and not user_id and jwt_token and self._token_validator:
                 payload, err = self._token_validator.verify_token(jwt_token)
@@ -408,15 +397,11 @@ class McpService:
                     "state"         : state,
                 }
 
-                authorization_url = f"""{url_prefix}/mcplogin?oauth_params={
-                urllib.parse.quote(
-                    urllib.parse.urlencode(oauth_params)
-                )
-                }"""
+                authorization_url = f"""{url_prefix}/mcplogin?oauth_params={urllib.parse.quote(urllib.parse.urlencode(oauth_params))}"""
 
                 return jsonrpc_result(
-                    id=jsonrpc["id"],
-                    result={
+                    id      = jsonrpc["id"],
+                    result  = {
                         "content": [
                             {
                                 "type": "text",
@@ -452,8 +437,8 @@ class McpService:
                             }
                         ]
                     },
-                    method="tools/call",
-                    request=request
+                    method  = "tools/call",
+                    request = request
                 )
 
             #---------------------------------------------
@@ -471,8 +456,8 @@ class McpService:
             if isinstance(result, dict):
                 if "redirect_to_upload" in result:
                     return jsonrpc_result(
-                        id=jsonrpc["id"],
-                        result={
+                        id      = jsonrpc["id"],
+                        result  = {
                             "content": [
                                 {
                                     "type": "text",
@@ -490,8 +475,8 @@ class McpService:
                                 }
                             ]
                         },
-                        method=params["name"],
-                        request=request
+                        method  = params["name"],
+                        request = request
                     )
 
                 if "success" in result and isinstance(result["success"], bool):
@@ -519,10 +504,10 @@ class McpService:
                     result["structuredContent"] = {"data": data}
 
             return jsonrpc_result(
-                id=jsonrpc["id"],
-                result=result,
-                method=params["name"],
-                request=request
+                id      = jsonrpc["id"],
+                result  = result,
+                method  = params["name"],
+                request = request
             )
 
         #-------------------------------------------------
@@ -530,40 +515,40 @@ class McpService:
         elif method == "resources/read":
             if "params" not in jsonrpc or not isinstance(jsonrpc["params"], dict):
                 return jsonrpc_error(
-                    id=jsonrpc["id"],
-                    code=CODE_INVALID_PARAMS,
-                    msg="Empty parameter",
-                    method="resources/read",
-                    request=request
+                    id      = jsonrpc["id"],
+                    code    = CODE_INVALID_PARAMS,
+                    msg     = "Empty parameter",
+                    method  = "resources/read",
+                    request = request
                 )
             params = jsonrpc["params"]
 
             if "uri" not in params or not isinstance(params["uri"], str) or len(params["uri"]) == 0:
                 return jsonrpc_error(
-                    id=jsonrpc["id"],
-                    code=CODE_INVALID_PARAMS,
-                    msg="Empty parameter uri",
-                    method="resources/read",
-                    request=request
+                    id      = jsonrpc["id"],
+                    code    = CODE_INVALID_PARAMS,
+                    msg     = "Empty parameter uri",
+                    method  = "resources/read",
+                    request = request
                 )
 
             uri = params["uri"]
             if uri not in self._resource_map:
                 return jsonrpc_result(
-                    id=id,
-                    result={
+                    id      = id,
+                    result  = {
                         "contents": [],
                         "_meta": {
                             "error": f"Unknown resource: {uri}"
                         }
                     },
-                    method=method,
-                    request=request
+                    method  = method,
+                    request = request
                 )
 
             resource = self._resource_map[uri]
             if "text" in resource:
-                current_server = f"{'http' if request.url.hostname == 'localhost' else 'https'}://{request.url.hostname}"
+                current_server = f"{"http" if request.url.hostname == "localhost" else "https"}://{request.url.hostname}"
                 resource["text"] = resource["text"] \
                     .replace("{{WEB_SERVER_URL}}", current_server) \
                     .replace("{{MCP_SERVER_URL}}", current_server) \
@@ -576,22 +561,22 @@ class McpService:
                 resource["text"] = resource["text"].replace("{{JWT_TOKEN}}", jwt_token)
 
             return jsonrpc_result(
-                id=id,
-                result={
+                id      = id,
+                result  = {
                     "contents": [
                         resource,
                     ]
                 },
-                method=method,
-                request=request
+                method  = method,
+                request = request
             )
 
         #-------------------------------------------------
 
         elif method == "initialize":
             return jsonrpc_result(
-                id=id,
-                result={
+                id      = id,
+                result  = {
                     "protocolVersion": self._protocol_version,
                     "capabilities": {
                         "prompts": {},
@@ -605,33 +590,33 @@ class McpService:
                         "version": self._version
                     }
                 },
-                method=method,
-                request=request
+                method  = method,
+                request = request
             )
 
         elif method == "notifications/initialized":
             return json_response(
-                content="",
-                status_code=200,
-                request=request
+                content     = "",
+                status_code = 200,
+                request     = request
             )
 
         elif method == "ping":
             return jsonrpc_result(
-                id=id,
-                result={},
-                method=method,
-                request=request
+                id      = id,
+                result  = {},
+                method  = method,
+                request = request
             )
 
         #-------------------------------------------------
 
         else:
             return jsonrpc_error(
-                id=id,
-                code=CODE_METHOD_NOT_FOUND,
-                msg="MCP method not found",
-                request=request
+                id      = id,
+                code    = CODE_METHOD_NOT_FOUND,
+                msg     = "MCP method not found",
+                request = request
             )
 
     #-----------------------------------------------------
@@ -701,7 +686,7 @@ class McpService:
 
         #-------------------------------------------------
 
-        url_prefix = f"{'http' if request.url.hostname == 'localhost' else 'https'}://{request.url.hostname}"
+        url_prefix = f"{"http" if request.url.hostname == "localhost" else "https"}://{request.url.hostname}"
 
         return json_response_with_code(data={"url": f"{url_prefix}/mcp/{user_secret}"}, request=request)
 

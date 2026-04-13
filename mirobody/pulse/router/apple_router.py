@@ -11,7 +11,8 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, Header, Request, status
 from fastapi.responses import JSONResponse
 
-from ..apple.models import AppleHealthRequest
+from ..apple.models import AppleHealthRequest, AppleHealthStatisticsRequest
+from ..apple.statistics_service import process_apple_health_statistics
 from ..manager import platform_manager
 from ...utils.utils_auth import verify_token
 
@@ -216,6 +217,80 @@ async def process_apple_health_data(
                 "message": f"Processing failed: {str(e)}",
                 "msg": f"Processing failed: {str(e)}"
             }
+        )
+
+
+@router.post("/statistics")
+async def process_apple_health_statistics_data(
+        request: Request,
+        current_user: str = Depends(verify_token),
+        content_encoding: Optional[str] = Header(None, alias="content-encoding"),
+        content_type: Optional[str] = Header(None, alias="content-type"),
+) -> JSONResponse:
+    """
+    Process Apple Health pre-aggregated statistics data (TH-154)
+
+    Accepts client-computed statistics (sum, average, min, max, mostRecent)
+    and writes them directly to th_series_data as summary indicators.
+
+    Request body format:
+    {
+        "metaInfo": {
+            "timezone": "Asia/Shanghai"
+        },
+        "statistics": [
+            {
+                "type": "STEPS",
+                "dateFrom": 1710691200000,
+                "dateTo": 1710777600000,
+                "timezone": "Asia/Shanghai",
+                "grouping": "day",
+                "sum": 8523.0,
+                "average": null,
+                "minimum": null,
+                "maximum": null,
+                "mostRecent": null,
+                "unit": "COUNT",
+                "unitSymbol": "count"
+            }
+        ]
+    }
+    """
+    try:
+        raw_data = await _process_request_data(request, content_encoding, content_type)
+
+        try:
+            validated_data = AppleHealthStatisticsRequest(**raw_data)
+        except Exception as e:
+            logging.error(f"Statistics data validation failed: {str(e)}")
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"code": 1, "data": None, "msg": f"Invalid request data: {str(e)}"},
+            )
+
+        logging.info(
+            f"Statistics request: user={current_user}, "
+            f"statistics_count={len(validated_data.statistics)}, "
+            f"default_tz={validated_data.metaInfo.timezone}"
+        )
+
+        accepted = await process_apple_health_statistics(validated_data, current_user)
+
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"code": 0, "data": {"accepted": accepted}, "msg": "ok"},
+        )
+
+    except ValueError as e:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"code": 1, "data": None, "msg": f"Request data parsing failed: {str(e)}"},
+        )
+    except Exception as e:
+        logging.error(f"Statistics processing error: {str(e)}", stack_info=True)
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"code": 1, "data": None, "msg": f"Processing failed: {str(e)}"},
         )
 
 

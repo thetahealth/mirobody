@@ -21,6 +21,7 @@ from .file_processors import (
     # VisionProcessor,
     VisionProviderConfig,
     gemini_file_extract,
+    gemini_multi_file_extract,
     doubao_file_extract,
     unified_file_extract,
 )
@@ -39,13 +40,13 @@ from .utils import (
     async_get_structured_output,
     async_get_text_completion,
     async_get_openai_tts,
-    build_function_call_message,
-    build_function_result_message,
-    calculate_token_estimate,
-    extract_function_calls_from_response,
     get_openai_chat,
-    merge_streaming_content,
-    validate_messages,
+)
+
+# LLM provider config
+from .hipaa_policy import (
+    export_to_env,
+    get_azure_deployment,
 )
 
 # Version info
@@ -72,21 +73,19 @@ __all__ = [
     # "VisionProcessor",  # Vision processor
     "VisionProviderConfig",  # Vision provider config (query available providers)
     "gemini_file_extract",  # Gemini file extraction
+    "gemini_multi_file_extract",  # Gemini multi-file extraction
     "doubao_file_extract",  # Doubao file extraction
     "unified_file_extract",  # 🔥 Unified file extraction entry (auto-select model)
     # === Utility functions ===
-    "validate_messages",  # Message validation
-    "extract_function_calls_from_response",  # Extract function calls
-    "merge_streaming_content",  # Merge streaming content
-    "calculate_token_estimate",  # Token estimation
-    "build_function_call_message",  # Build function call message
-    "build_function_result_message",  # Build function result message
     "get_openai_chat",  # Get OpenAI chat
     "async_get_openai_tts",  # Get OpenAI TTS
     "async_get_openai_structured_output",  # Get OpenAI structured output
     "async_get_doubao_structured_output",  # Get Doubao structured output
     "async_get_structured_output",  # 🔥 Unified structured output (auto-select provider)
     "async_get_text_completion",  # 🔥 Unified text generation (auto-select provider)
+    # === LLM provider config ===
+    "export_to_env",  # Bridge config center → SDK env vars (call at startup)
+    "get_azure_deployment",  # Azure deployment name resolution
 ]
 
 

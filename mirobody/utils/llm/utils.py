@@ -12,18 +12,6 @@ from typing import Dict, List, Optional
 
 from .config import AIConfig
 
-# 从 archived.py introduce old funcs for (back compatible)
-from .archived import (
-    format_openai_messages,
-    get_volcengine_chat,
-    validate_messages,
-    extract_function_calls_from_response,
-    merge_streaming_content,
-    calculate_token_estimate,
-    build_function_call_message,
-    build_function_result_message,
-)
-
 #-----------------------------------------------------------------------------
 
 PROJECT_DIR = os.getenv("PROJECT_PATH") or os.path.abspath(
@@ -387,6 +375,18 @@ async def async_get_structured_output(
                 }
                 if max_tokens_value:
                     gemini_config_params["max_output_tokens"] = max_tokens_value
+                # Extract schema from OpenAI-style response_format and pass as response_json_schema
+                # Gemini does not support additionalProperties in protobuf — strip it recursively
+                if response_format and response_format.get("type") == "json_schema":
+                    schema = response_format.get("json_schema", {}).get("schema")
+                    if schema:
+                        def _strip_additional_props(obj):
+                            if isinstance(obj, dict):
+                                return {k: _strip_additional_props(v) for k, v in obj.items() if k != "additionalProperties"}
+                            if isinstance(obj, list):
+                                return [_strip_additional_props(i) for i in obj]
+                            return obj
+                        gemini_config_params["response_json_schema"] = _strip_additional_props(schema)
                 config = types.GenerateContentConfig(**gemini_config_params)
                 prompt = "\n".join([
                     f"{msg['role']}: {msg['content']}"

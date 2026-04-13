@@ -45,18 +45,19 @@ class AggregateDatabaseService:
             INSERT INTO th_series_data (
                 user_id, indicator, value, start_time, end_time,
                 source, task_id, comment, source_table, source_table_id, indicator_id,
-                deleted
+                fhir_id, deleted
             ) VALUES (
                 :user_id, :indicator, :value, :start_time, :end_time,
                 :source, :task_id, :comment, :source_table, :source_table_id, :indicator_id,
-                0
+                :fhir_id, 0
             )
-            ON CONFLICT (user_id, indicator, start_time, end_time) 
+            ON CONFLICT (user_id, indicator, start_time, end_time)
             DO UPDATE SET
                 value = EXCLUDED.value,
                 comment = EXCLUDED.comment,
                 source = EXCLUDED.source,
                 task_id = EXCLUDED.task_id,
+                fhir_id = COALESCE(EXCLUDED.fhir_id, th_series_data.fhir_id),
                 update_time = CURRENT_TIMESTAMP
             """
 

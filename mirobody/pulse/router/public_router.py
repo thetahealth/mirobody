@@ -1007,9 +1007,11 @@ async def get_theta_token(platform: str, request: ThetaTokenRequest):
             logging.error(f"Provider {provider_slug} not found")
             return ErrorResponse(code=404, msg=f"Provider {provider_slug} not found")
 
+
         await provider._validate_credentials(user_id, certification)
         user = get_theta_user_service()
-        app_user_id = await user.find_or_create_user_by_provider_id(provider_slug, user_id, "America/Los_Angeles")
+        from mirobody.utils.config import get_default_timezone
+        app_user_id = await user.find_or_create_user_by_provider_id(provider_slug, user_id, get_default_timezone())
         token = await user.generate_token(app_user_id)
 
         # 5. Build response data
@@ -1033,8 +1035,11 @@ async def get_theta_token(platform: str, request: ThetaTokenRequest):
         logging.error(f"Validation error in get_theta_token: {str(e)}")
         return ErrorResponse(code=400, msg=str(e))
     except Exception as e:
-        logging.error(f"Unexpected error in get_theta_token: {str(e)}")
-        return ErrorResponse(code=500, msg=f"Internal error: {str(e)}")
+        logging.error(
+            f"Unexpected error in get_theta_token: {type(e).__name__}: {str(e)}",
+            exc_info=True,
+        )
+        return ErrorResponse(code=500, msg=f"Internal error: {type(e).__name__}: {str(e)}")
 
 
 @router.get("/theta/indicators", response_model=Union[StandardResponse, ErrorResponse])

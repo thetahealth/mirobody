@@ -19,7 +19,8 @@ from typing import TYPE_CHECKING, Any, Optional
 from cachetools import TTLCache
 
 from deepagents.backends.protocol import (
-    BackendProtocol,
+    ExecuteResponse,
+    SandboxBackendProtocol,
     FileInfo,
     FileUploadResponse,
     FileDownloadResponse,
@@ -54,14 +55,18 @@ _ASYNC_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
 )
 atexit.register(_ASYNC_EXECUTOR.shutdown, wait=False)
 
-class PostgresBackend(BackendProtocol):
+class PostgresBackend(SandboxBackendProtocol):
     """PostgreSQL backend with sync-first design (like FilesystemBackend).
 
     All public methods are synchronous. Async database operations are
     encapsulated in PostgresLangGraphStore. The only async operations
     remaining are file parsing and external file downloads.
+
+    Implements SandboxBackendProtocol: file operations are handled directly
+    via PostgreSQL, while execute() is delegated to an optional sandbox
+    backend (e.g. E2BSandboxBackend).
     """
-    
+
     def __init__(
         self,
         session_id: str,
@@ -69,31 +74,144 @@ class PostgresBackend(BackendProtocol):
         store: "PostgresLangGraphStore",
         file_parser: Optional["FileParser"] = None,
         cache_ttl: int = 600,
+        sandbox_backend: Optional[Any] = None,
     ):
         """
         Initialize PostgresBackend.
-        
+
         Args:
             session_id: Session ID for namespace isolation
             user_id: User ID for namespace isolation
             store: PostgresLangGraphStore instance
             file_parser: FileParser instance for intelligent parsing
             cache_ttl: Cache TTL in seconds (default: 300 = 5 minutes)
-            cache_maxsize: Maximum cache entries (default: 100)
+            sandbox_backend: Optional sandbox backend for code execution
+                (e.g. E2BSandboxBackend). If None, execute() returns an error.
         """
         self.session_id = session_id
         self.user_id = user_id
         self.namespace = f"{user_id}-{session_id}"
         self.store = store
         self.file_parser = file_parser
-        
+        self._sandbox = sandbox_backend
+
         # Use global cache for cross-session cache hits
         # Cache key includes (session_id, user_id, file_path) for multi-user isolation
         self._file_cache = _GLOBAL_FILE_CACHE
         self._cache_ttl = cache_ttl
-        
-        logger.info(f"PostgresBackend initialized: namespace={self.namespace}")
+
+        logger.info(
+            f"PostgresBackend initialized: namespace={self.namespace}, "
+            f"sandbox={'yes' if sandbox_backend else 'no'}"
+        )
     
+    # ==================== SandboxBackendProtocol: execute ====================
+
+    @property
+    def id(self) -> str:
+        """Unique identifier for this backend instance."""
+        if self._sandbox:
+            return self._sandbox.id
+        return f"pg-{self.namespace}"
+
+    def execute(
+        self,
+        command: str,
+        *,
+        timeout: int | None = None,
+    ) -> ExecuteResponse:
+        """Execute a shell command via the sandbox backend.
+
+        Delegates to the injected sandbox backend (e.g. E2BSandboxBackend).
+        If no sandbox is configured, returns an error response.
+        """
+        if self._sandbox is None:
+            return ExecuteResponse(
+                output=(
+                    "Error: No execution backend configured. "
+                    "Set E2B_API_KEY environment variable to enable code execution."
+                ),
+                exit_code=1,
+                truncated=False,
+            )
+        return self._sandbox.execute(command, timeout=timeout)
+
+    async def aexecute(
+        self,
+        command: str,
+        *,
+        timeout: int | None = None,
+    ) -> ExecuteResponse:
+        """Async execute — syncs workspace files to sandbox, then delegates.
+
+        Files created via write_file() live in PostgreSQL. Before executing,
+        we sync all text files from the workspace into the sandbox filesystem
+        so that commands like `python3 /script.py` can find them.
+        """
+        if self._sandbox is None:
+            return ExecuteResponse(
+                output=(
+                    "Error: No execution backend configured. "
+                    "Set E2B_API_KEY environment variable to enable code execution."
+                ),
+                exit_code=1,
+                truncated=False,
+            )
+
+        # Sync workspace files to sandbox before execution
+        await self._sync_workspace_to_sandbox()
+
+        return await self._sandbox.aexecute(command, timeout=timeout)
+
+    async def _sync_workspace_to_sandbox(self) -> None:
+        """Sync text files from PostgreSQL workspace into the E2B sandbox.
+
+        Only syncs files that have text content (not binary/reference files).
+        This ensures scripts written via write_file() are available for execute().
+        """
+        if self._sandbox is None:
+            return
+
+        try:
+            items = await self.store.search((self.session_id, self.user_id))
+            files_to_upload: list[tuple[str, bytes]] = []
+
+            for item in items:
+                file_path = item.key
+                file_data = item.value
+                if not file_data:
+                    continue
+
+                # Sync text content files (scripts, code, etc.)
+                content_lines = file_data.get("content", [])
+                if content_lines:
+                    text = "\n".join(content_lines)
+                    files_to_upload.append((file_path, text.encode("utf-8")))
+
+            if files_to_upload:
+                await self._sandbox.aupload_files(files_to_upload)
+                logger.debug(
+                    f"Synced {len(files_to_upload)} file(s) to sandbox: "
+                    f"{[f[0] for f in files_to_upload]}"
+                )
+        except Exception as e:
+            logger.warning(f"Failed to sync workspace to sandbox: {e}", exc_info=True)
+
+    # ==================== Internal Helpers ====================
+
+    @staticmethod
+    def _normalize_path(file_path: str) -> str:
+        """Normalize file path to always start with '/'.
+
+        LLMs may call write_file with paths like 'script.py' (no leading slash).
+        All file operations must use consistent path format for correct lookup.
+        """
+        if not file_path:
+            return "/"
+        if not file_path.startswith("/"):
+            file_path = "/" + file_path
+        return file_path
+
     def _match_glob(self, file_path: str, glob_pattern: str) -> bool:
         """Match file path against glob pattern (*, ?, [seq], [!seq]).
 
@@ -259,10 +377,12 @@ class PostgresBackend(BackendProtocol):
         # Attempt 2: Refresh URL via file_key
         if file_key:
             try:
-                from .middleware.global_files_middleware import _get_file_info_from_file_key
+                from ...tools.files_utils import get_file_info_from_file_key
+
 
                 logger.info(f"🔄 URL expired, refreshing from file_key: {file_key}")
-                file_info = await _get_file_info_from_file_key(file_key)
+                file_info = await get_file_info_from_file_key(file_key)
+
 
                 if file_info and file_info.get("url"):
                     new_url = file_info["url"]
@@ -386,10 +506,11 @@ class PostgresBackend(BackendProtocol):
                 `is_dir=True`.
         """
         try:
+            path = self._normalize_path(path)
             items = await self.store.search((self.session_id, self.user_id))
             results = []
             for item in items:
-                file_path = item.key
+                file_path = self._normalize_path(item.key)
                 if not file_path.startswith(path):
                     continue
                 file_data = item.value
@@ -422,6 +543,7 @@ class PostgresBackend(BackendProtocol):
         if limit is None:
             limit = 2000
 
+        file_path = self._normalize_path(file_path)
         file_data = await self._get_file_data_async(file_path)
         if not file_data:
             # Provide helpful error with available files
@@ -496,6 +618,7 @@ class PostgresBackend(BackendProtocol):
             `WriteResult` with path on success, or error message if the file
                 already exists or write fails. External storage sets `files_update=None`.
         """
+        file_path = self._normalize_path(file_path)
         existing = await self._get_file_data_async(file_path)
         if existing is not None:
             return WriteResult(error=f"Cannot write to {file_path} because it already exists. Read and then make an edit, or write to a new path.")
@@ -525,6 +648,7 @@ class PostgresBackend(BackendProtocol):
                 message if file not found or replacement fails. External storage sets
                 `files_update=None`.
         """
+        file_path = self._normalize_path(file_path)
         file_data = await self._get_file_data_async(file_path)
         if file_data is None:
             return EditResult(error=f"Error: File '{file_path}' not found")
@@ -596,10 +720,11 @@ class PostgresBackend(BackendProtocol):
             return f"Invalid regex pattern: {str(e)}"
 
         try:
+            search_path = self._normalize_path(search_path)
             items = await self.store.search((self.session_id, self.user_id))
             matches: list[GrepMatch] = []
             for item in items:
-                fp = item.key
+                fp = self._normalize_path(item.key)
                 if not fp.startswith(search_path) or not self._match_glob(fp, glob_pattern):
                     continue
                 file_data = item.value
@@ -626,10 +751,11 @@ class PostgresBackend(BackendProtocol):
                 contains `path`, `is_dir`, `size`, and `modified_at` fields.
         """
         try:
+            path = self._normalize_path(path)
             items = await self.store.search((self.session_id, self.user_id))
             results = []
             for item in items:
-                fp = item.key
+                fp = self._normalize_path(item.key)
                 if not fp.startswith(path) or not self._match_glob(fp, pattern):
                     continue
                 file_data = item.value
@@ -790,6 +916,7 @@ def create_postgres_backend(
     file_parser=None,
     cache_ttl: int = 300,
     cache_maxsize: int = 100,
+    sandbox_backend=None,
 ):
     """
     Create a PostgresBackend instance with automatic FileParser initialization.
@@ -800,6 +927,8 @@ def create_postgres_backend(
         file_parser: FileParser instance (optional, auto-created if None)
         cache_ttl: Cache TTL in seconds (default: 300)
         cache_maxsize: Maximum cache entries (default: 100)
+        sandbox_backend: Optional sandbox backend for code execution
+            (e.g. E2BSandboxBackend). If None, execute() will be unavailable.
 
     Returns:
         PostgresBackend instance
@@ -819,4 +948,5 @@ def create_postgres_backend(
         store=store,
         file_parser=file_parser,
         cache_ttl=cache_ttl,
+        sandbox_backend=sandbox_backend,
     )

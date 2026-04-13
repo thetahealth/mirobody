@@ -44,6 +44,26 @@ CREATE INDEX IF NOT EXISTS idx_th_sessions_user_id ON th_sessions(user_id);
 ALTER TABLE th_sessions ADD COLUMN IF NOT EXISTS category VARCHAR(50);
 
 
+CREATE TABLE IF NOT EXISTS fhir_indicators (
+	id bigserial NOT NULL,
+	indicator_standard varchar(255) NULL,
+	code varchar(255) NULL,
+	full_name text NULL,
+	short_name text NULL,
+	description text NULL,
+	"system" text NULL,
+	interpretation text NULL,
+	unit text NULL,
+	llm_description text NULL,
+	"rank" int4 DEFAULT 0 NULL,
+	llm_unit text NULL,
+	embedding_gemini vector(1024) NULL,
+	CONSTRAINT fhir_indicators_indicator_standard_code_unique UNIQUE (indicator_standard, code),
+	CONSTRAINT fhir_indicators_pkey PRIMARY KEY (id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fhir_indicators_source_code ON fhir_indicators USING btree (indicator_standard, code);
+
+
 CREATE TABLE IF NOT EXISTS series_data (
     user_id character varying not null,
     indicator character varying not null,

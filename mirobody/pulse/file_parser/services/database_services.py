@@ -505,7 +505,44 @@ class FileParserDatabaseService:
         except Exception as e:
             logging.error(f"Batch save indicator dimensions failed: {len(dim_params)} records", stack_info=True)
             return 0
-    
+
+    @staticmethod
+    async def _sync_dim_and_embeddings_background(user_id: str = None):
+        """Background task: sync new indicators to th_series_dim and backfill embeddings.
+
+        After dim sync completes, triggers user profile generation if user_id is provided.
+        This ensures the profile query (which JOINs th_series_dim) finds the new indicators.
+        """
+        try:
+            from mirobody.pulse.file_parser.tools.utils_sync_dim_table import (
+                sync_all_missing_indicators,
+                backfill_dim_embeddings,
+            )
+            from mirobody.utils.config import safe_read_cfg
+            import os
+
+            enable = safe_read_cfg("ENABLE_INDICATOR_EXTRACTION") or os.environ.get("ENABLE_INDICATOR_EXTRACTION", 0)
+            if not int(enable):
+                logging.info("Skipping dim sync - indicator extraction is disabled")
+                return
+
+            logging.info("🔄 Background dim sync + embedding backfill started")
+            await sync_all_missing_indicators(generate_embeddings=True)
+            await backfill_dim_embeddings()
+            logging.info("✅ Background dim sync + embedding backfill completed")
+
+            # Trigger user profile generation after dim sync is done
+            if user_id:
+                try:
+                    from mirobody.chat.user_profile import UserProfileService
+                    result = await UserProfileService.create_user_profile(user_id)
+                    logging.info(f"✅ User profile generation triggered after dim sync: user_id={user_id}, status={result.get('status')}")
+                except Exception as profile_err:
+                    logging.warning(f"User profile generation failed after dim sync: user_id={user_id}, error={profile_err}")
+
+        except Exception as e:
+            logging.error(f"❌ Background dim sync failed: {e}", stack_info=True)
+
     @staticmethod
     def generate_source_table_id(msg_id: str, file_key: str) -> str:
         """
@@ -618,6 +655,11 @@ class FileParserDatabaseService:
                 await FileParserDatabaseService._save_to_series_data(db_params)
 
             logging.info(f"🚀 Write complete: {len(db_params)} records, user_id: {user_id}")
+
+            # Trigger dim table sync + embedding backfill in background (non-blocking)
+            # Pass user_id so profile generation runs after dim sync completes
+            if db_params:
+                asyncio.create_task(FileParserDatabaseService._sync_dim_and_embeddings_background(user_id=user_id))
 
             return len(db_params)
 
@@ -1100,9 +1142,9 @@ class FileParserDatabaseService:
                 WHERE user_id = :user_id
                 
             ) AS data_distribution
-            WHERE category IS NOT NULL 
+            WHERE category IS NOT NULL
               AND TRIM(category) != ''
-              and record_count>0
+              AND record_count > 0
             ORDER BY 3 DESC, 2 DESC
             """
 

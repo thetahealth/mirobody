@@ -1,4 +1,6 @@
 
+import logging
+import os
 from typing import Any, Dict
 
 from google import genai
@@ -6,6 +8,8 @@ from openai import AsyncOpenAI, OpenAI
 
 from .config import AIConfig
 from ...utils import safe_read_cfg
+
+logger = logging.getLogger(__name__)
 
 class AIClientManager:
     """AI client manager"""
@@ -117,6 +121,32 @@ class AIClientManager:
         """Get async Gemini client"""
         return self.get_async_client("gemini")
 
+    def get_vertex_gemini_client(self) -> genai.Client:
+        """Get Vertex AI Gemini client.
+
+        Requires export_to_env() called at startup, which sets:
+          GOOGLE_GENAI_USE_VERTEXAI=true  (auto-selects Vertex backend)
+          GOOGLE_CLOUD_PROJECT            (GCP project)
+          GOOGLE_CLOUD_LOCATION           (GCP region)
+
+        The google-genai SDK reads these env vars natively.
+        """
+        if "vertex_gemini" not in self._clients:
+            if not os.environ.get("GOOGLE_CLOUD_PROJECT"):
+                raise ValueError(
+                    "GOOGLE_CLOUD_PROJECT not set. "
+                    "Configure GCP_PROJECT in YAML and call export_to_env() at startup."
+                )
+            self._clients["vertex_gemini"] = genai.Client()
+        return self._clients["vertex_gemini"]
+
+    def get_async_vertex_gemini_client(self):
+        """Get async Vertex AI Gemini client."""
+        if "vertex_gemini" not in self._async_clients:
+            client = self.get_vertex_gemini_client()
+            self._async_clients["vertex_gemini"] = client.aio
+        return self._async_clients["vertex_gemini"]
+
     def get_async_openrouter_client(self) -> AsyncOpenAI:
         """Get async OpenRouter client (OpenAI-compatible)"""
         config = AIConfig.get_provider_config("openrouter")
@@ -158,6 +188,27 @@ client_manager = AIClientManager()
 def get_ai_client(provider: str) -> OpenAI:
     """Get AI client"""
     return client_manager.get_ai_client(provider)
+
+
+def get_azure_chat_model(deployment: str):
+    """Create a LangChain ChatOpenAI model using Azure v1 endpoint + WIF auth.
+
+    Uses /openai/v1/ endpoint — no api_version needed.
+    Reads AZURE_OPENAI_ENDPOINT from env (set by export_to_env() at startup).
+    """
+    from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+    from langchain_openai import ChatOpenAI
+
+    credential = DefaultAzureCredential()
+    token_provider = get_bearer_token_provider(
+        credential, "https://cognitiveservices.azure.com/.default"
+    )
+    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
+    return ChatOpenAI(
+        model=deployment,
+        base_url=f"{endpoint}/openai/v1/",
+        api_key=token_provider,
+    )
 
 
 # Global client objects (lazy initialization)

@@ -32,6 +32,23 @@ class AggregationType(Enum):
     VARIANCE = "variance"  # Variance
     MEDIAN = "median"  # 50th percentile
     P95 = "p95"  # 95th percentile
+    # Time-based aggregations
+    TIME_OF_MAX = "time_of_max"  # Time when max value occurred (HH:MM)
+    TIME_OF_MIN = "time_of_min"  # Time when min value occurred (HH:MM)
+    # Threshold-based aggregations — each threshold is explicitly declared.
+    # Implementation reuses parameterized functions: pct_below(threshold), pct_above(threshold), tir(lower, upper).
+    # To add a new threshold, add an enum here + add to the indicator's aggregation_methods list.
+    PCT_BELOW_70 = "pct_below_70"  # % of readings < 70 (blood glucose TBR)
+    PCT_ABOVE_140 = "pct_above_140"  # % of readings > 140 (blood glucose TAR, tighter threshold)
+    PCT_ABOVE_180 = "pct_above_180"  # % of readings > 180 (blood glucose TAR)
+    TIR_70_140 = "tir_70_140"  # % of readings in [70, 140] (blood glucose TIR, tighter threshold)
+    TIR_70_180 = "tir_70_180"  # % of readings in [70, 180] (blood glucose TIR)
+    # Event detection aggregations
+    HYPO_EVENT_COUNT = "hypo_event_count"  # Hypoglycemic episode count (<70 for >=15min)
+    HYPO_EVENT_TIMES = "hypo_event_times"  # Hypoglycemic episode start times (JSON array)
+    HYPO_EVENT_DETAILS = "hypo_event_details"  # Hypoglycemic episodes with start/end/duration (JSON array)
+    # Rolling window aggregations
+    GMI_14D = "gmi_14d"  # Glucose Management Indicator from 14-day raw CGM data (%)
 
 
 @dataclass

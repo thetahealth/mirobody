@@ -118,7 +118,12 @@ class UniversalPromptCachingMiddleware(AgentMiddleware):
             else ""
         )
 
-        # Check for native Anthropic client
+        # Check for Google Vertex AI FIRST (including Anthropic models via Vertex)
+        # Vertex AI does NOT support cache_control parameter
+        if "vertexai" in module_name or "model_garden" in module_name:
+            return "google-vertexai"
+
+        # Check for native Anthropic client (direct API only)
         if "anthropic" in model_class or "anthropic" in module_name:
             if "openai" not in model_class and "openai" not in module_name:
                 return "anthropic"
@@ -193,6 +198,14 @@ class UniversalPromptCachingMiddleware(AgentMiddleware):
         # OpenRouter with Claude/Gemini - use message content blocks
         if client_type == "openai" and is_openrouter:
             return CacheStrategy.MESSAGE_CONTENT, model_config
+
+        # Google Vertex AI (including Claude via Vertex) - no cache_control support
+        if client_type == "google-vertexai":
+            logger.debug(
+                f"Model '{model_name}' using Google Vertex AI, "
+                "cache_control not supported"
+            )
+            return CacheStrategy.NONE, None
 
         # Native Google GenAI - relies on implicit caching
         # Explicit caching requires separate CachedContent API which is

@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 from mirobody.pulse.base import LinkRequest, Platform, ProviderInfo, UserProvider
 from mirobody.pulse.core import ProviderStatus
 from mirobody.pulse.core.scheduler import scheduler
+from mirobody.pulse.data_upload.models.requests import FormatDataContext, FormatDataInput
 from mirobody.pulse.data_upload.services.upload_health import StandardHealthService
 from mirobody.pulse.theta.platform.database_service import ThetaDatabaseService
 from mirobody.utils.config import Config
@@ -36,6 +37,10 @@ class ThetaPlatform(Platform):
     def supports_registration(self) -> bool:
         """Whether provider registration is supported (Theta supports)"""
         return True
+
+    def get_provider(self, provider_slug: str) -> Optional[BaseThetaProvider]:
+        """Narrowed return type — ThetaPlatform only registers BaseThetaProvider."""
+        return self._providers.get(provider_slug)  # type: ignore[return-value]
 
     def register_provider(self, provider: BaseThetaProvider) -> None:
         super().register_provider(provider)
@@ -241,7 +246,9 @@ class ThetaPlatform(Platform):
 
             for saved_data in saved_data_list:
                 try:
-                    standard_pulse_data = await provider.format_data(saved_data)
+                    ctx = await provider.build_format_context(saved_data)
+                    fmt_input = FormatDataInput(context=ctx, payload=saved_data)
+                    standard_pulse_data = await provider.format_data_v2(fmt_input)
                     if not standard_pulse_data or not standard_pulse_data.healthData:
                         logging.info(f"No data formatted by theta provider {provider_slug}")
                         continue
@@ -461,12 +468,38 @@ class ThetaPlatform(Platform):
             raise ValueError(f"Record with ID {webhook_id} not found for provider {provider}")
         
         # Extract raw_data field (original webhook data)
-        original_data = raw_data_result.get("raw_data", {})
-        
-        # Call provider's format_data method to get formatted result
-        # IMPORTANT: Pass the raw_data field, not the entire database record!
+        original_data = raw_data_result.get("raw_data") or {}
+
+        # Resolve theta_user_id: try DB column first, then raw_data JSON, then legacy user_id column
+        theta_user_id = (
+            raw_data_result.get("theta_user_id")
+            or original_data.get("theta_user_id")
+            or original_data.get("user_id")
+            or raw_data_result.get("user_id")
+            or ""
+        )
+        # Ensure it's a string
+        theta_user_id = str(theta_user_id) if theta_user_id else ""
+
+        # Ensure original_data carries theta_user_id for legacy providers
+        if theta_user_id:
+            original_data.setdefault("theta_user_id", theta_user_id)
+            original_data.setdefault("user_id", theta_user_id)
+
+        # Resolve msg_id similarly
+        msg_id = raw_data_result.get("msg_id") or original_data.get("msg_id") or ""
+
+        user_timezone = await provider_instance._get_user_timezone(theta_user_id) if theta_user_id else "UTC"
+        ctx = FormatDataContext(
+            theta_user_id=theta_user_id,
+            external_user_id=raw_data_result.get("external_user_id") or "",
+            user_timezone=user_timezone,
+            msg_id=msg_id,
+        )
+
         try:
-            formatted_pulse_data = await provider_instance.format_data(original_data)
+            fmt_input = FormatDataInput(context=ctx, payload=original_data)
+            formatted_pulse_data = await provider_instance.format_data_v2(fmt_input)
             
             # Convert StandardPulseData to dict for JSON serialization
             # Use model_dump() or dict() to safely convert Pydantic models
@@ -516,6 +549,7 @@ class ThetaPlatform(Platform):
             "formatted_data": formatted_data,  # The formatted StandardPulseData
             "event_type": provider,
             "msg_id": raw_data_result.get("msg_id", ""),
-            "user_id": raw_data_result.get("theta_user_id", ""),
+            "theta_user_id": theta_user_id,
+            "external_user_id": raw_data_result.get("external_user_id", ""),
             "error": error_msg,
         }

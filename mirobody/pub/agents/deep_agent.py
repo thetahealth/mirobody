@@ -42,7 +42,8 @@ class DeepAgent():
     ):
         self.user_info = UserInfo(user_id=user_id, user_name=user_name or "User")
         self.token = token
-        self.timezone = timezone or "America/Los_Angeles"
+        from mirobody.utils.config import get_default_timezone
+        self.timezone = timezone or get_default_timezone()
         self.allowed_tools = allowed_tools 
         self.disallowed_tools = disallowed_tools or []
         self.prompt_templates = prompt_templates
@@ -201,14 +202,8 @@ class DeepAgent():
         2. PatchToolCallsMiddleware - Tool call fixes
         3. UniversalPromptCachingMiddleware - Prompt caching for supported models
         """
-        from deepagents.middleware.summarization import SummarizationMiddleware
+        from deepagents.middleware.summarization import SummarizationMiddleware, compute_summarization_defaults
         from deepagents.middleware.patch_tool_calls import PatchToolCallsMiddleware
-
-        try:
-            from deepagents.middleware.summarization import compute_summarization_defaults
-        except ImportError:
-            # Backward compatibility with older deepagents releases.
-            from deepagents.middleware.summarization import _compute_summarization_defaults as compute_summarization_defaults
 
         # Compute summarization defaults based on model profile
         summarization_defaults = compute_summarization_defaults(llm_client)
@@ -490,29 +485,20 @@ class DeepAgent():
     
     #-------------------------------------------------------------------------
     
-    @staticmethod
-    def load_llm_clients(llm_client_config: dict[str, Any]) -> dict[str, Any]:
+    @classmethod
+    def load_llm_clients(cls, llm_client_config: dict[str, Any]) -> dict[str, Any]:
+        class_name = cls.__name__
+
         if not llm_client_config or len(llm_client_config) == 0:
-            logger.warning("No LLM providers configured in PROVIDERS_DEEP section")
+            logger.warning(f"No LLM providers configured for {class_name}")
             return {}
-        
-        common_keys = ["GOOGLE_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY"]
-        has_any_key = any(
-            os.environ.get(key) or safe_read_cfg(key)
-            for key in common_keys
-        )
-        
-        if not has_any_key:
-            logger.warning(f"No API keys found. Please set at least one: {', '.join(common_keys)}")
-        
+
         llm_clients = {}
         failed = []
-        
+
         for provider_name, provider_kwargs in llm_client_config.items():
-            logger.debug(f"Initializing provider '{provider_name}'...")
-            
             if not provider_kwargs or not isinstance(provider_kwargs, dict):
-                logger.warning(f"Invalid config for '{provider_name}': not a dictionary")
+                logger.warning(f"[{class_name}] Invalid config for '{provider_name}': not a dictionary")
                 failed.append((provider_name, "Invalid format"))
                 continue
 
@@ -520,75 +506,117 @@ class DeepAgent():
                 config = dict(provider_kwargs)
                 model = config.get("model", "unknown")
                 llm_type = config.get("llm_type", "openai")
-                logger.debug(f"  Model: {model}, Type: {llm_type}")
-                
-                api_key_name = config.get("api_key")
-                actual_api_key = None
-                
-                if api_key_name and isinstance(api_key_name, str):
-                    logger.debug(f"  Looking for API key: {api_key_name}")
-                    actual_api_key = os.environ.get(api_key_name) or safe_read_cfg(api_key_name)
-                    
-                    if actual_api_key:
-                        config["api_key"] = actual_api_key
-                        logger.debug(f"  API key resolved")
-                    else:
-                        logger.warning(f"  {api_key_name} not found - creating placeholder for frontend visibility")
-                
+
+                # Log config (sanitized)
+                safe_config = {k: v for k, v in config.items() if k != "api_key"}
+                logger.info(f"[{class_name}] Loading '{provider_name}': {safe_config}")
+
                 if not model or model == "unknown":
-                    logger.warning(f"Provider '{provider_name}' skipped: missing 'model' field")
+                    logger.warning(f"[{class_name}] Skipped '{provider_name}': missing 'model' field")
                     failed.append((provider_name, "Missing 'model'"))
                     continue
-                
-                if not actual_api_key and api_key_name:
-                    class PlaceholderClient:
-                        def __init__(self, model_name, missing_key, provider_name):
-                            object.__setattr__(self, '_model_name', model_name)
-                            object.__setattr__(self, '_missing_key', missing_key)
-                            object.__setattr__(self, '_provider_name', provider_name)
-                            object.__setattr__(self, 'model_name', model_name)
-                            object.__setattr__(self, 'model', model_name)
-                        
-                        def __getattribute__(self, name):
-                            if name in ('_model_name', '_missing_key', '_provider_name', 'model_name', 'model'):
-                                return object.__getattribute__(self, name)
-                            
-                            missing_key = object.__getattribute__(self, '_missing_key')
-                            provider_name = object.__getattribute__(self, '_provider_name')
-                            
-                            missing_key_msg = f"Missing {missing_key}. Get API key from provider and set in .env or environment"
-                            raise AttributeError(missing_key_msg)
-                    
-                    llm_clients[provider_name] = PlaceholderClient(model, api_key_name, provider_name)
-                    logger.info(f"Created placeholder for '{provider_name}': {model} (missing {api_key_name})")
-                    continue
-                
+
+                # Resolve project field if present
+                project_name = config.get("project")
+                if project_name and isinstance(project_name, str):
+                    actual_project = os.environ.get(project_name) or safe_read_cfg(project_name)
+                    if actual_project:
+                        config["project"] = actual_project
+
+                # Resolve base_url from environment variable
+                base_url_ref = config.get("base_url")
+                if base_url_ref and isinstance(base_url_ref, str):
+                    actual_base_url = os.environ.get(base_url_ref) or safe_read_cfg(base_url_ref)
+                    if actual_base_url:
+                        config["base_url"] = actual_base_url
+
+                # Handle api_key resolution
+                api_key_name = config.get("api_key")
+                if api_key_name and isinstance(api_key_name, str):
+                    actual_api_key = os.environ.get(api_key_name) or safe_read_cfg(api_key_name)
+
+                    if actual_api_key:
+                        config["api_key"] = actual_api_key
+                    else:
+                        logger.warning(f"[{class_name}] API key '{api_key_name}' not found - creating placeholder for '{provider_name}'")
+
+                        class PlaceholderClient:
+                            def __init__(self, model_name, missing_key, provider_name):
+                                object.__setattr__(self, '_model_name', model_name)
+                                object.__setattr__(self, '_missing_key', missing_key)
+                                object.__setattr__(self, '_provider_name', provider_name)
+                                object.__setattr__(self, 'model_name', model_name)
+                                object.__setattr__(self, 'model', model_name)
+
+                            def __getattribute__(self, name):
+                                if name in ('_model_name', '_missing_key', '_provider_name', 'model_name', 'model'):
+                                    return object.__getattribute__(self, name)
+
+                                missing_key = object.__getattribute__(self, '_missing_key')
+                                missing_key_msg = f"Missing {missing_key}. Get API key from provider and set in .env or environment"
+                                raise AttributeError(missing_key_msg)
+
+                        llm_clients[provider_name] = PlaceholderClient(model, api_key_name, provider_name)
+                        continue
+                else:
+                    logger.info(f"[{class_name}] No api_key in config for '{provider_name}' - using default auth (ADC/environment)")
+
+                # Handle Azure WIF auth: use token_provider as api_key, build v1 base_url
+                auth_type = config.pop("auth_type", None)
+                if auth_type == "azure_wif":
+                    try:
+                        from azure.identity import get_bearer_token_provider
+                        if os.environ.get("AZURE_FEDERATED_TOKEN_FILE"):
+                            from azure.identity import WorkloadIdentityCredential
+                            credential = WorkloadIdentityCredential(
+                                tenant_id=os.environ["AZURE_TENANT_ID"],
+                                client_id=os.environ["AZURE_CLIENT_ID"],
+                                token_file_path=os.environ["AZURE_FEDERATED_TOKEN_FILE"],
+                            )
+                        token_provider = get_bearer_token_provider(
+                            credential, "https://cognitiveservices.azure.com/.default"
+                        )
+                        config["api_key"] = token_provider
+                        # Build v1 base_url: {endpoint}/openai/v1/
+                        base_url = config.get("base_url", "")
+                        if base_url and "/openai/v1" not in base_url:
+                            config["base_url"] = f"{base_url.rstrip('/')}/openai/v1/"
+                        logger.info(f"[{class_name}] Azure WIF (v1 endpoint) injected for '{provider_name}'")
+                    except Exception as e:
+                        logger.error(f"[{class_name}] Azure WIF auth failed for '{provider_name}': {e}")
+                        failed.append((provider_name, f"Azure auth: {e}"))
+                        continue
+
+                # Build init_chat_model kwargs
                 model_provider = llm_type
-                init_kwargs = {k: v for k, v in config.items() if k not in ["model", "llm_type"]}
-                
+                init_kwargs = {k: v for k, v in config.items() if k not in ["model", "llm_type", "response_with_tools"]}
+
+                # Log call parameters
+                logger.info(f"[{class_name}] Calling init_chat_model('{provider_name}'): model={model}, provider={model_provider}, kwargs={init_kwargs}")
+
                 try:
                     client = init_chat_model(model=model, model_provider=model_provider, **init_kwargs)
                     llm_clients[provider_name] = client
-                    logger.info(f"Successfully initialized '{provider_name}': {model_provider}/{model}")
+                    logger.info(f"[{class_name}] ✓ Initialized '{provider_name}': {model_provider}/{model}")
                 except Exception as e:
-                    logger.error(f"Failed to load '{provider_name}': {str(e)}")
-                    failed.append((provider_name, str(e)))
+                    logger.error(f"[{class_name}] ✗ Failed '{provider_name}': provider={model_provider}, model={model}, error={type(e).__name__}: {e}", exc_info=True)
+                    failed.append((provider_name, f"{type(e).__name__}: {str(e)}"))
             except Exception as outer_e:
-                logger.error(f"Unexpected error loading provider '{provider_name}': {str(outer_e)}")
-                failed.append((provider_name, str(outer_e)))
-        
+                logger.error(f"[{class_name}] Unexpected error for '{provider_name}': {outer_e}", exc_info=True)
+                failed.append((provider_name, f"Unexpected: {str(outer_e)}"))
+
+        # Summary
         loaded = len(llm_clients)
         total = len(llm_client_config)
-        
-        logger.info(f"\nDeepAgent Providers: {loaded}/{total} loaded")
+
         if loaded > 0:
-            logger.info(f"Available: {', '.join(llm_clients.keys())}")
+            logger.info(f"[{class_name}] Loaded {loaded}/{total} providers: {', '.join(llm_clients.keys())}")
+
         if failed:
-            logger.warning(f"Failed: {len(failed)}/{total}")
-            for name, reason in failed[:3]:
-                logger.warning(f"  - {name}: {reason}")
-        
+            for name, reason in failed:
+                logger.warning(f"[{class_name}] Failed '{name}': {reason}")
+
         if loaded == 0:
-            logger.warning("WARNING: No LLM providers loaded. Check API keys and config.yaml PROVIDERS_DEEP section.")
-        
+            logger.warning(f"[{class_name}] No providers loaded (0/{total}) - agent may be disabled intentionally")
+
         return llm_clients

@@ -16,14 +16,30 @@ from mirobody.pulse.file_parser.services.database_services import FileParserData
 
 def get_default_provider() -> tuple[str, str]:
     """
-    Get default LLM provider based on environment.
-    
+    Get default LLM provider based on config or available API keys.
+
+    Priority:
+      1. Explicit FILE_ANALYSIS_PROVIDER config
+      2. Auto-select based on available API keys (openai > openrouter > gemini > volcengine > dashscope)
+      3. Fallback to "openai"
+
     Returns:
         Tuple of (provider_name, display_name)
     """
-    is_aliyun = safe_read_cfg("CLUSTER") == "ALIYUN"
-    if is_aliyun:
-        return "doubao-lite", "Doubao"
+    from mirobody.utils.llm.config import AIConfig
+
+    configured = safe_read_cfg("FILE_ANALYSIS_PROVIDER", "")
+    if configured:
+        if AIConfig.validate_provider(configured):
+            provider_info = AIConfig.get_provider_by_priority_name(configured)
+            description = provider_info.get("description", configured) if provider_info else configured
+            return configured, description
+        logging.warning(f"Unknown FILE_ANALYSIS_PROVIDER: {configured}, falling back to auto-select")
+
+    provider_info = AIConfig.get_available_provider()
+    if provider_info:
+        return provider_info["name"], provider_info.get("description", provider_info["name"])
+
     return "openai", "OpenAI"
 
 

@@ -595,14 +595,13 @@ async def delete_files_from_message(
         }
 
 
-async def delete_file_from_storage(file_key: str, is_aliyun: bool = False) -> bool:
+async def delete_file_from_storage(file_key: str) -> bool:
     """
     Delete a file from storage using unified storage client
-    
+
     Args:
         file_key: The storage key of the file
-        is_aliyun: Deprecated parameter, kept for compatibility
-    
+
     Returns:
         bool: True if deletion successful, False otherwise
     """

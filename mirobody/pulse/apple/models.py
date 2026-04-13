@@ -213,3 +213,57 @@ class AppleHealthRequest(BaseModel):
     request_id: Optional[str] = Field(None, description="Request ID")
     metaInfo: MetaInfo = Field(..., description="Metadata information")
     healthData: List[AppleHealthRecord] = Field(..., description="Health data records")
+
+
+# ==================== Statistics Models ====================
+
+
+class StatisticsMetaInfo(BaseModel):
+    """Metadata for statistics request"""
+
+    userId: Optional[str] = Field(None, description="User ID (ignored, extracted from token)")
+    timezone: str = Field(default="UTC", description="Default timezone for statistics")
+
+
+class AppleHealthStatistic(BaseModel):
+    """A single Apple Health statistic record (pre-aggregated by client)"""
+
+    type: Union[FlutterHealthTypeEnum, str] = Field(..., description="Health data type (e.g., STEPS, HEART_RATE)")
+    dateFrom: int = Field(..., description="Start timestamp in milliseconds")
+    dateTo: int = Field(..., description="End timestamp in milliseconds")
+    timezone: Optional[str] = Field(None, description="Timezone for this statistic (overrides metaInfo)")
+    grouping: str = Field(..., description="Time grouping: hour, day, week, month")
+    sum: Optional[float] = Field(None, description="Sum/total value")
+    average: Optional[float] = Field(None, description="Average value")
+    minimum: Optional[float] = Field(None, description="Minimum value")
+    maximum: Optional[float] = Field(None, description="Maximum value")
+    mostRecent: Optional[float] = Field(None, description="Most recent value")
+    unit: Optional[str] = Field(None, description="Unit type (e.g., COUNT, BEATS_PER_MINUTE)")
+    unitSymbol: Optional[str] = Field(None, description="Unit symbol (e.g., count, bpm)")
+
+    @field_validator("type")
+    @classmethod
+    def validate_type(cls, v: Union[FlutterHealthTypeEnum, str]) -> str:
+        """Validate health data type, lenient mode: accept all types"""
+        if isinstance(v, FlutterHealthTypeEnum):
+            return v.value
+        elif isinstance(v, str):
+            return v
+        else:
+            raise ValueError(f"Invalid type format: {v}")
+
+    @field_validator("grouping")
+    @classmethod
+    def validate_grouping(cls, v: str) -> str:
+        """Validate grouping is one of the supported values"""
+        allowed = {"hour", "day", "week", "month"}
+        if v not in allowed:
+            raise ValueError(f"Invalid grouping: {v!r}, expected one of {allowed}")
+        return v
+
+
+class AppleHealthStatisticsRequest(BaseModel):
+    """Apple Health statistics request"""
+
+    metaInfo: StatisticsMetaInfo = Field(..., description="Metadata information")
+    statistics: List[AppleHealthStatistic] = Field(..., description="Statistics records")

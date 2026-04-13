@@ -14,10 +14,10 @@ from typing import Any, Dict, List, Literal, Optional
 from typing_extensions import TypedDict
 
 from .files_utils import (
+    WRITE_TODOS_TOOL_DESCRIPTION,
     func_description,
     get_backend,
     validate_user_info,
-    WRITE_TODOS_TOOL_DESCRIPTION,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,13 +64,49 @@ class TodoService:
         self.version = "1.0.0"
         logger.info("TodoService initialized")
 
-    def _validate_todos(self, todos: List[Dict[str, Any]]) -> tuple[bool, str, List[Todo]]:
+    def _coerce_json_value(self, value: Any, max_depth: int = 3) -> tuple[Any, bool]:
+        """
+        Best-effort JSON coercion for tool inputs that may be string-encoded multiple times.
+
+        Returns:
+            Tuple of (coerced_value, had_parse_error)
+        """
+        current = value
+
+        for _ in range(max_depth):
+            if not isinstance(current, str):
+                return current, False
+
+            candidate = current.strip()
+            if not candidate:
+                return candidate, True
+
+            try:
+                current = json.loads(candidate)
+                continue
+            except (json.JSONDecodeError, TypeError):
+                if len(candidate) >= 2 and candidate[0] == candidate[-1] and candidate[0] in {'"', "'"}:
+                    current = candidate[1:-1]
+                    continue
+                return candidate, True
+
+        return current, False
+
+    def _validate_todos(self, todos: Any) -> tuple[bool, str, List[Todo]]:
         """
         Validate and normalize todo list structure.
 
         Returns:
             Tuple of (is_valid, error_message, validated_todos)
         """
+        todos, parse_error = self._coerce_json_value(todos)
+
+        if isinstance(todos, dict) and "todos" in todos:
+            todos, nested_parse_error = self._coerce_json_value(todos["todos"])
+            parse_error = parse_error or nested_parse_error
+
+        if parse_error and not isinstance(todos, list):
+            return False, "todos must be a list (received unparseable string)", []
         if not isinstance(todos, list):
             return False, "todos must be a list", []
 

@@ -11,7 +11,6 @@ import time
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlencode
 
 import aiohttp
 
@@ -21,14 +20,16 @@ from mirobody.pulse.core.indicators_info import StandardIndicator
 from mirobody.pulse.core.push_service import push_service
 from mirobody.pulse.core.units import UNIT_CONVERSIONS
 from mirobody.pulse.data_upload.models.requests import (
+    FormatDataInput,
     StandardPulseData,
     StandardPulseMetaInfo,
     StandardPulseRecord,
 )
 from mirobody.pulse.theta.platform.base import BaseThetaProvider
+from mirobody.pulse.theta.platform.oauth2 import ThetaOAuth2Client
 from mirobody.pulse.theta.platform.utils import ThetaDataFormatter, ThetaTimeUtils
 from mirobody.utils import execute_query
-from mirobody.utils.config import safe_read_cfg, global_config
+from mirobody.utils.config import safe_read_cfg
 
 
 class ThetaWhoopProvider(BaseThetaProvider):
@@ -64,12 +65,6 @@ class ThetaWhoopProvider(BaseThetaProvider):
                 or "offline read:recovery read:sleep read:cycles read:profile read:workout read:body_measurement"
         )
 
-        # OAuth temp TTL (seconds)
-        try:
-            self.oauth_temp_ttl = int(safe_read_cfg("OAUTH_TEMP_TTL_SECONDS") or 900)
-        except Exception:
-            self.oauth_temp_ttl = 900
-
         # Data pull configuration
         try:
             self.max_detail_records = int(safe_read_cfg("WHOOP_MAX_DETAIL_RECORDS") or 50)
@@ -85,6 +80,18 @@ class ThetaWhoopProvider(BaseThetaProvider):
             self.request_timeout = int(safe_read_cfg("WHOOP_REQUEST_TIMEOUT") or 30)
         except (ValueError, TypeError):
             self.request_timeout = 30
+
+        # OAuth2 client (encapsulates auth URL, token exchange, refresh)
+        self.oauth = ThetaOAuth2Client(
+            client_id=self.client_id or "",
+            client_secret=self.client_secret or "",
+            redirect_url=self.redirect_url or "",
+            auth_url=self.auth_url,
+            token_url=self.token_url,
+            scopes=self.scopes,
+            request_timeout=self.request_timeout,
+            refresh_extra_params={"scope": self.scopes},  # Whoop requires scope on refresh
+        )
 
         if not self.client_id or not self.client_secret:
             logging.error("Whoop OAuth credentials not configured. Please set WHOOP_CLIENT_ID and WHOOP_CLIENT_SECRET")
@@ -193,232 +200,42 @@ class ThetaWhoopProvider(BaseThetaProvider):
         )
 
     async def link(self, request: Any) -> Dict[str, Any]:
-        """
-        Link Whoop OAuth2 Provider - Stage 1: Generate OAuth2 authorization URL
-        
-        This method initiates the OAuth2 flow by generating an authorization URL
-        that the user needs to visit to grant permission. After user authorization,
-        the callback will be handled by the separate callback() method.
-        
-        Args:
-            request: Link request containing user_id and options (redirect_url)
-            
-        Returns:
-            Dict containing 'link_web_url' for user authorization
-            
-        Raises:
-            RuntimeError: If OAuth2 configuration is invalid or URL generation fails
-        """
+        """Link Whoop OAuth2 Provider - generate OAuth2 authorization URL."""
         user_id = request.user_id
         options = request.options or {}
 
         try:
-            # Generate OAuth2 authorization URL (Stage 1 of OAuth2 flow)
             logging.info(f"Generating OAuth2 authorization URL for user: {user_id}")
-            return await self._generate_authorization_url(user_id, options)
-
+            return await self.oauth.generate_authorization_url(user_id, options)
         except Exception as e:
             logging.error(f"Error linking Whoop provider: {str(e)}")
             raise RuntimeError(str(e))
 
-    async def _generate_authorization_url(self, user_id: str, options: Dict[str, Any]) -> Dict[str, Any]:
-        """Stage 1: Generate OAuth2 authorization URL with robust redirect handling and debug logs"""
-        try:
-            if not self.client_id or not self.client_secret:
-                raise ValueError("Missing WHOOP_CLIENT_ID or WHOOP_CLIENT_SECRET configuration")
-
-            redirect_uri = self.redirect_url
-            if not redirect_uri:
-                raise ValueError("Missing WHOOP_REDIRECT_URL configuration")
-
-            # Create state embedding return_url and store mapping in Redis
-            origin_return_url = options.get("return_url") or ""
-            # encode light wrapper as JSON then url-encode into state
-            state_payload = {"s": str(uuid.uuid4()), "r": origin_return_url}
-            state = urlencode(state_payload)
-            try:
-                cfg = global_config()
-                redis_config = cfg.get_redis()
-                redis_client = await redis_config.get_async_client()
-                await redis_client.setex(f"oauth2:state:{state}", self.oauth_temp_ttl, user_id or "")
-                await redis_client.setex(f"oauth2:redir:{state}", self.oauth_temp_ttl, redirect_uri)
-                await redis_client.aclose()
-            except Exception as e:
-                logging.warning(f"Failed to write oauth2 temp data to Redis: {str(e)}")
-
-            params = {
-                "client_id": self.client_id,
-                "response_type": "code",
-                "redirect_uri": redirect_uri,
-                "scope": self.scopes,
-                "state": state,
-            }
-            authorization_url = f"{self.auth_url}?{urlencode(params)}"
-
-            # Concise debug logs for OAuth stage 1 (no sensitive info)
-            scopes_count = len((self.scopes or "").split())
-            logging.info(f"[WHOOP][OAUTH2][STAGE1] auth_url prepared; scopes={scopes_count}")
-            logging.info(f"Generated Whoop OAuth2 authorization URL for user {user_id}")
-            return {"link_web_url": authorization_url}
-
-        except Exception as e:
-            logging.error(f"Error generating Whoop authorization URL: {str(e)}")
-            raise
-
     async def callback(self, code: str, state: str) -> Dict[str, Any]:
-        """
-        Handle OAuth2 callback - Stage 2: Exchange authorization code for tokens
-        
-        This method processes the OAuth2 callback from Whoop, exchanges the authorization
-        code for access tokens, and saves the credentials to the database.
-        The user_id is retrieved from Redis cache using the state parameter as the key.
-        
-        Args:
-            code: Authorization code received from Whoop callback
-            state: State parameter received from Whoop callback
-            
-        Returns:
-            Dict containing provider_slug, access_token (truncated), and stage info
-            
-        Raises:
-            RuntimeError: If token exchange fails or credentials cannot be saved
-        """
+        """Handle OAuth2 callback - exchange authorization code for tokens."""
         try:
             logging.info("Processing OAuth2 callback")
-            return await self._handle_oauth2_callback(None, code, state)
-        except Exception as e:
-            logging.error(f"Error in OAuth2 callback: {str(e)}")
-            raise RuntimeError(str(e))
-
-    async def _handle_oauth2_callback(self, user_id: str, code: str, state: Optional[str]) -> Dict[str, Any]:
-        """Stage 2: Exchange authorization code for access token"""
-        try:
-            # Read state and redirect_uri from Redis
-            cached_user_id = None
-            redirect_uri = None
-            return_url = None
-            try:
-                cfg = global_config()
-                redis_config = cfg.get_redis()
-                redis_client = await redis_config.get_async_client()
-                if state:
-                    cached_user_id = await redis_client.get(f"oauth2:state:{state}")
-                    redirect_uri = await redis_client.get(f"oauth2:redir:{state}")
-                    await redis_client.delete(f"oauth2:state:{state}")
-                    await redis_client.delete(f"oauth2:redir:{state}")
-                await redis_client.aclose()
-                if isinstance(cached_user_id, bytes):
-                    cached_user_id = cached_user_id.decode("utf-8")
-                if isinstance(redirect_uri, bytes):
-                    redirect_uri = redirect_uri.decode("utf-8")
-                # parse return_url from encoded state
-                try:
-                    from urllib.parse import parse_qs
-                    parsed = parse_qs(state or "")
-                    r_values = parsed.get("r")
-                    if r_values:
-                        return_url = r_values[0]
-                except Exception:
-                    return_url = None
-            except Exception as e:
-                logging.warning(f"Failed to read oauth2 temp data from Redis: {str(e)}")
-
-            # Always rely on Redis-stored user_id
-            user_id = cached_user_id or user_id
-            if not user_id:
-                raise ValueError("Missing user_id for OAuth2 callback")
-            if not redirect_uri:
-                raise ValueError("Missing redirect_uri for OAuth2 token exchange")
-
-            # Concise debug logs for OAuth stage 2 (do not log state/code)
-            logging.info("[WHOOP][OAUTH2][STAGE2] callback received")
-
-            # Exchange code for tokens using client_secret_post
-            # Whoop requires client_secret_post (confirmed by API error message)
-            headers = {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "application/json",
-            }
-            data = {
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": redirect_uri,
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
-            }
-
-            # Debug: log credential info (safely)
-            logging.info(f"[WHOOP][OAUTH2][STAGE2] Using token auth method: client_secret_post")
-            logging.info(f"[WHOOP][OAUTH2][STAGE2] client_id length: {len(self.client_id) if self.client_id else 0}")
-            logging.info(f"[WHOOP][OAUTH2][STAGE2] client_secret length: {len(self.client_secret) if self.client_secret else 0}")
-            # Minimal request log (no secrets or URLs)
-            safe_client_id = (self.client_id[:6] + "*") if self.client_id else ""
-            logging.info(f"[WHOOP][OAUTH2][STAGE2] token request prepared; grant=authorization_code, client={safe_client_id}")
-
-            async with aiohttp.ClientSession() as session:
-                start_ts = time.time()
-                async with session.post(self.token_url, data=data, headers=headers, timeout=aiohttp.ClientTimeout(total=self.request_timeout)) as resp:
-                    elapsed_ms = int((time.time() - start_ts) * 1000)
-                    raw_text = await resp.text()
-                    # Minimal response log
-                    logging.info(f"[WHOOP][OAUTH2][STAGE2] token response; status={resp.status}, elapsed_ms={elapsed_ms}")
-                    if resp.status != 200:
-                        raise RuntimeError(f"Failed to get access token: {resp.status} - {raw_text}")
-                    try:
-                        token_json = json.loads(raw_text)
-                    except Exception:
-                        raise RuntimeError("Token endpoint returned non-JSON body")
-
-            access_token = token_json.get("access_token")
-            refresh_token = token_json.get("refresh_token")
-            expires_in = token_json.get("expires_in")  # seconds until expiration
-            expires_at = None
-
-            if not access_token:
-                raise RuntimeError("Invalid token response from Whoop: missing access_token")
-
-            if not refresh_token:
-                # Be compatible with servers that don't return refresh_token
-                logging.warning("[WHOOP][OAUTH2][STAGE2] Token response missing refresh_token; proceeding without refresh capability")
-                refresh_token = ""
-
-            # Calculate expires_at timestamp if expires_in is provided
-            if expires_in:
-                try:
-                    expires_at = int(time.time()) + int(expires_in)
-                    logging.info(f"[WHOOP][OAUTH2][STAGE2] Token expires in {expires_in} seconds (at timestamp {expires_at})")
-                except Exception as e:
-                    logging.warning(f"[WHOOP][OAUTH2][STAGE2] Failed to calculate expires_at: {str(e)}")
-                    expires_at = None
-
-            # Save OAuth2 credentials to database using OAuth2 method
-            success = await self.db_service.save_oauth2_credentials(
-                user_id, self.info.slug, access_token, refresh_token, expires_at
+            result = await self.oauth.exchange_code_for_tokens(
+                code, state, self.db_service, self.info.slug
             )
-            if not success:
-                raise RuntimeError("Failed to save OAuth2 credentials")
 
-            logging.info(f"Successfully linked Whoop provider for user {user_id}")
-
-            # Construct credentials payload and trigger immediate pull using unified path
+            # Trigger immediate pull using unified path
             creds_payload: Dict[str, Any] = {
-                "user_id": user_id,
-                "access_token": access_token,
-                "refresh_token": refresh_token,
+                "user_id": result["user_id"],
+                "access_token": result["access_token"],
+                "refresh_token": result.get("refresh_token", ""),
             }
             asyncio.create_task(self._pull_and_push_for_user(creds_payload))
 
             return {
                 "provider_slug": self.info.slug,
-                "access_token": access_token[:20] + "...",
+                "access_token": result["access_token"][:20] + "...",
                 "stage": "completed",
-                # Echo return_url out to router for 302 redirect
-                "return_url": return_url,
+                "return_url": result.get("return_url"),
             }
-
         except Exception as e:
-            logging.error(f"Error handling Whoop OAuth2 callback: {str(e)}")
-            raise
+            logging.error(f"Error in OAuth2 callback: {str(e)}")
+            raise RuntimeError(str(e))
 
     async def unlink(self, user_id: str) -> Dict[str, Any]:
         """
@@ -443,46 +260,59 @@ class ThetaWhoopProvider(BaseThetaProvider):
             logging.error(f"Failed to unlink Whoop provider: {str(e)}")
             raise RuntimeError(f"Failed to unlink provider: {str(e)}")
 
-    async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:
+    def _extract_external_user_id(self, saved_data: Dict[str, Any]) -> str:
+        """Extract Whoop numeric user ID from data records."""
+        data_items = saved_data.get("data", [])
+        if isinstance(data_items, list) and data_items:
+            return str(data_items[0].get("user_id", ""))
+        elif isinstance(data_items, dict):
+            return str(data_items.get("user_id", ""))
+        return ""
+
+    async def format_data_v2(self, fmt_input: FormatDataInput) -> StandardPulseData:
         """Format Whoop raw data to StandardPulseData format"""
         start_time = time.time()
+        ctx = fmt_input.context
 
         try:
             request_id = self.generate_request_id()
-            user_id = raw_data.get("user_id", "")
-            data_content = raw_data.get("data", {})
-            data_type = raw_data.get("data_type", "unknown")
 
-            logging.info(f"Processing Whoop data for user: {user_id}, type: {data_type}, records: {len(data_content) if isinstance(data_content, list) else 1}")
+            data_content = fmt_input.payload.get("data", {})
+            data_type = fmt_input.payload.get("data_type", "unknown")
 
-            if not user_id:
-                logging.error("No user_id found in Whoop data")
+            logging.info(f"Processing Whoop data for user: {ctx.theta_user_id}, type: {data_type}, records: {len(data_content) if isinstance(data_content, list) else 1}")
+
+            if not ctx.theta_user_id:
+                logging.error("No theta_user_id found in Whoop format context")
                 return self._create_empty_response(request_id, "")
 
-            # Get user timezone
-            user_timezone = await self._get_user_timezone(user_id)
-            logging.info(f"Using timezone {user_timezone} for user {user_id}")
+            logging.info(f"Using timezone {ctx.user_timezone} for user {ctx.theta_user_id}")
 
-            # Initialize processing_info with user_timezone
+            # Initialize processing_info
             processing_info = {
                 "provider": "theta_whoop",
                 "start_time": start_time,
                 "processed_indicators": 0,
                 "skipped_indicators": 0,
                 "errors": [],
-                "msg_id": raw_data.get("msg_id", ""),  # Extract msg_id for source_id
-                "user_timezone": user_timezone,  # Add user timezone to processing_info
+                "msg_id": ctx.msg_id or "",
+                "user_timezone": ctx.user_timezone,
             }
 
             if not data_content:
-                logging.info("No data content found in Whoop data")
-                return self._create_empty_response(request_id, user_id)
+                logging.info("No data content found in Whoop payload")
+                return self._create_empty_response(request_id, ctx.theta_user_id)
 
             # Ensure data_content is a list
             if not isinstance(data_content, list):
                 data_content = [data_content]
 
-            meta_info = StandardPulseMetaInfo(userId=user_id, requestId=request_id, source="theta", timezone=user_timezone)
+            meta_info = StandardPulseMetaInfo(
+                userId=ctx.theta_user_id,
+                requestId=request_id,
+                source="theta",
+                timezone=ctx.user_timezone,
+            )
 
             health_records: List[StandardPulseRecord] = []
 
@@ -513,7 +343,7 @@ class ThetaWhoopProvider(BaseThetaProvider):
                 processingInfo=processing_info,
             )
 
-            logging.info(f"Formatted {len(health_records)} Whoop data records for user {user_id}")
+            logging.info(f"Formatted {len(health_records)} Whoop data records for user {ctx.theta_user_id}")
             return result
 
         except Exception as e:
@@ -524,7 +354,7 @@ class ThetaWhoopProvider(BaseThetaProvider):
             })
             logging.error(f"Error formatting Whoop data: {str(e)}")
             request_id = self.generate_request_id()
-            return self._create_empty_response(request_id, raw_data.get("user_id", ""))
+            return self._create_empty_response(request_id, ctx.theta_user_id)
 
     def _process_sleep_data(self, data: List[Dict], processing_info: Dict) -> List[StandardPulseRecord]:
         """Process Whoop sleep data using the mapping configuration.
@@ -1110,55 +940,6 @@ class ThetaWhoopProvider(BaseThetaProvider):
             logging.error(f"Error in Whoop data pull: {str(e)}")
             return []
 
-    async def _refresh_access_token(self, session: aiohttp.ClientSession, refresh_token: str) -> Optional[Dict[str, Any]]:
-        try:
-            # Use client_secret_post for refresh token
-            headers = {
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "application/json",
-            }
-            data = {
-                "grant_type": "refresh_token",
-                "refresh_token": refresh_token,
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
-                "scope": self.scopes,
-            }
-            logging.info("[WHOOP][OAUTH2][REFRESH] Using token auth method: client_secret_post")
-            # Minimal refresh request log
-            safe_client_id = (self.client_id[:6] + "*") if self.client_id else ""
-            logging.info(f"[WHOOP][OAUTH2][REFRESH] token request prepared; client={safe_client_id}")
-            async with session.post(self.token_url, data=data, headers=headers, timeout=aiohttp.ClientTimeout(total=self.request_timeout)) as resp:
-                raw_text = await resp.text()
-                logging.info(f"[WHOOP][OAUTH2][REFRESH] token response; status={resp.status}")
-
-                if resp.status != 200:
-                    # Log detailed error information
-                    if resp.status == 400:
-                        logging.error(f"[WHOOP][OAUTH2][REFRESH] Bad request (400) - likely refresh token expired or invalid: {raw_text}")
-                    elif resp.status == 401:
-                        logging.error(f"[WHOOP][OAUTH2][REFRESH] Unauthorized (401) - refresh token expired or client credentials invalid: {raw_text}")
-                    elif resp.status == 403:
-                        logging.error(f"[WHOOP][OAUTH2][REFRESH] Forbidden (403) - insufficient permissions: {raw_text}")
-                    else:
-                        logging.error(f"[WHOOP][OAUTH2][REFRESH] HTTP {resp.status} error: {raw_text}")
-                    return None
-
-                try:
-                    token_data = json.loads(raw_text)
-                    logging.info("[WHOOP][OAUTH2][REFRESH] Successfully refreshed access token")
-                    return token_data
-                except json.JSONDecodeError as e:
-                    logging.error(f"[WHOOP][OAUTH2][REFRESH] Failed to parse token response as JSON: {str(e)}, response: {raw_text}")
-                    return None
-
-        except aiohttp.ClientError as e:
-            logging.error(f"[WHOOP][OAUTH2][REFRESH] Network error during token refresh: {str(e)}")
-            return None
-        except Exception as e:
-            logging.error(f"[WHOOP][OAUTH2][REFRESH] Unexpected error during token refresh: {str(e)}")
-            return None
-
     async def _handle_whoop_auth_failure(self, user_id: str, error_details: str) -> None:
         """Handle Whoop authentication failure by cleaning up invalid credentials."""
         try:
@@ -1178,91 +959,11 @@ class ThetaWhoopProvider(BaseThetaProvider):
             logging.error(f"Error handling Whoop auth failure for user {user_id}: {str(e)}")
 
     async def get_valid_access_token(self, user_id: str) -> Optional[str]:
-        """
-        Get a valid access token for the user, refreshing if necessary
-        
-        Args:
-            user_id: User ID
-            
-        Returns:
-            Valid access token or None if unable to get/refresh
-        """
-        try:
-            # Get stored credentials
-            credentials = await self.db_service.get_user_credentials(user_id, self.info.slug, self.info.auth_type)
-            if not credentials:
-                logging.error(f"No credentials found for user {user_id}")
-                return None
-
-            access_token = credentials.get("access_token")
-            refresh_token = credentials.get("refresh_token")
-            expires_at = credentials.get("expires_at")
-
-            if not access_token:
-                logging.error(f"No access token found for user {user_id}")
-                return None
-
-            # Check if token is expired
-            current_time = int(time.time())
-
-            # Convert expires_at to timestamp if it's a datetime object
-            if expires_at:
-                if isinstance(expires_at, datetime):
-                    expires_at = int(expires_at.timestamp())
-                else:
-                    expires_at = int(expires_at)
-
-            if expires_at and current_time < expires_at:
-                # Token is still valid
-                logging.info(f"Access token still valid for user {user_id}, expires in {expires_at - current_time} seconds")
-                return access_token
-
-            # Token is expired or no expiry info, try to refresh
-            if not refresh_token:
-                logging.error(f"No refresh token available for user {user_id}")
-                return None
-
-            logging.info(f"Access token expired for user {user_id}, attempting refresh")
-
-            # Refresh the token
-            async with aiohttp.ClientSession() as session:
-                refreshed = await self._refresh_access_token(session, refresh_token)
-
-            if not refreshed or "access_token" not in refreshed:
-                logging.error(f"Failed to refresh token for user {user_id}")
-                # Handle authentication failure - clean up invalid credentials
-                await self._handle_whoop_auth_failure(user_id, "Refresh token failed or expired")
-                return None
-
-            # Extract new tokens and expiry
-            new_access_token = refreshed["access_token"]
-            new_refresh_token = refreshed.get("refresh_token", refresh_token)  # Use old refresh token if not provided
-            expires_in = refreshed.get("expires_in")
-
-            # Calculate new expires_at
-            new_expires_at = None
-            if expires_in:
-                try:
-                    new_expires_at = int(time.time()) + int(expires_in)
-                    logging.info(f"New token expires in {expires_in} seconds (at timestamp {new_expires_at})")
-                except Exception as e:
-                    logging.warning(f"Failed to calculate expires_at: {str(e)}")
-
-            # Save updated credentials
-            save_success = await self.db_service.save_oauth2_credentials(
-                user_id, self.info.slug, new_access_token, new_refresh_token, new_expires_at
-            )
-
-            if not save_success:
-                logging.error(f"Failed to save refreshed credentials for user {user_id}")
-                # Still return the new token even if save failed
-
-            logging.info(f"Successfully refreshed token for user {user_id}")
-            return new_access_token
-
-        except Exception as e:
-            logging.error(f"Error getting valid access token for user {user_id}: {str(e)}")
-            return None
+        """Get a valid access token for the user, refreshing if necessary."""
+        token = await self.oauth.get_valid_access_token(user_id, self.info.slug, self.db_service)
+        if not token:
+            await self._handle_whoop_auth_failure(user_id, "Token refresh failed or no valid credentials")
+        return token
 
     async def _fetch_paginated_data(
             self,
@@ -1421,11 +1122,11 @@ class ThetaWhoopProvider(BaseThetaProvider):
             if not isinstance(raw_data, (dict, list)):
                 return []
 
-            # Extract user_id from raw_data (temporarily used as theta_user_id and external_user_id)
-            user_id = raw_data.get("user_id", "")
+            theta_user_id = self._extract_theta_user_id(raw_data)
+            external_user_id = self._extract_external_user_id(raw_data)
 
             # Generate a simple msg_id using timestamp
-            msg_id = f"whoop_{user_id}_{int(time.time())}" if user_id else f"whoop_{int(time.time())}"
+            msg_id = f"whoop_{theta_user_id}_{int(time.time())}" if theta_user_id else f"whoop_{int(time.time())}"
 
             insert_sql = (
                 "INSERT INTO health_data_whoop "
@@ -1436,8 +1137,8 @@ class ThetaWhoopProvider(BaseThetaProvider):
                 "is_del": False,
                 "msg_id": msg_id,
                 "raw_data": json.dumps(raw_data, ensure_ascii=False),
-                "theta_user_id": user_id,
-                "external_user_id": user_id,
+                "theta_user_id": theta_user_id,
+                "external_user_id": external_user_id,
             }
             await execute_query(query=insert_sql, params=params)
 
@@ -1490,7 +1191,10 @@ class ThetaWhoopProvider(BaseThetaProvider):
             error_count = 0
             for raw_data in raw_data_list:
                 try:
-                    raw_data["user_id"] = user_id
+                    # Inject system user ID (from credentials DB).
+                    # No need to inject external user ID — _extract_external_user_id
+                    # override reads it from data[0]["user_id"] at every call site.
+                    raw_data["theta_user_id"] = user_id
                     msg_id = str(uuid.uuid4())
                     push_success = await push_service.push_data(
                         platform="theta",

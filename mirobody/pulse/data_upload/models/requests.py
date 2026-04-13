@@ -7,6 +7,25 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
 
+# ==================== FormatData Input Models ====================
+# Structured input for format_data(), separating pre-resolved context
+# from raw vendor payload so format_data can be a pure transformation.
+
+
+class FormatDataContext(BaseModel):
+    """Pre-resolved context for format_data() — no DB calls needed inside."""
+    theta_user_id: Optional[str] = Field(default="", description="Internal platform user ID")
+    external_user_id: Optional[str] = Field(None, description="Vendor-side user ID (Garmin userId, Whoop numeric ID, Vital user_id)")
+    user_timezone: str = Field(default="UTC", description="Pre-resolved user timezone")
+    msg_id: Optional[str] = Field(None, description="Message/request tracking ID")
+
+
+class FormatDataInput(BaseModel):
+    """Structured input for format_data_v2(), replacing raw Dict[str, Any]."""
+    context: FormatDataContext
+    payload: Dict[str, Any] = Field(..., description="Original vendor data, untouched")
+
+
 class VitalHealthRecord(BaseModel):
     """Vital health record"""
 

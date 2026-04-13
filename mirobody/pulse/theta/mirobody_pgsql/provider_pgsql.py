@@ -14,7 +14,7 @@ import psycopg
 from mirobody.pulse.base import ProviderInfo
 from mirobody.pulse.core import LinkType, ProviderStatus
 from mirobody.pulse.core.models import ConnectInfoField
-from mirobody.pulse.data_upload.models.requests import StandardPulseData
+from mirobody.pulse.data_upload.models.requests import FormatDataInput, StandardPulseData
 from mirobody.pulse.theta.platform.base import BaseThetaProvider
 from mirobody.utils.config import safe_read_cfg
 
@@ -177,10 +177,10 @@ class ThetaPgsqlProvider(BaseThetaProvider):
 
     # ===== Required abstract methods (no-op implementations) =====
 
-    async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:
+    async def format_data_v2(self, fmt_input: FormatDataInput) -> StandardPulseData:
         """Not used - configuration only"""
         request_id = self.generate_request_id()
-        user_id = raw_data.get("user_id", "")
+        user_id = fmt_input.context.theta_user_id
         return self._create_empty_response(request_id, user_id)
 
     async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:

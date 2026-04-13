@@ -4,8 +4,6 @@ Unified storage layer for file operations
 This module provides a unified interface for different storage backends:
 - AWS S3
 - Aliyun OSS
-- MinIO (default fallback)
-
 Usage:
     from mirobody.utils.config.storage import get_storage_client
     
@@ -30,8 +28,6 @@ Usage:
 from .abstract import AbstractStorage
 from .aws import AwsStorage
 from .aliyun import AliyunStorage
-from .minio import MinioStorage
-
 # Import configuration and factory
 from .config_manager import StorageConfigManager
 from .factory import StorageFactory, get_storage_client
@@ -45,8 +41,7 @@ __all__ = [
     "AbstractStorage",
     "AwsStorage",
     "AliyunStorage",
-    "MinioStorage",
-    
+
     # Configuration and factory
     "StorageConfigManager",
     "StorageFactory",

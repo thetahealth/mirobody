@@ -8,199 +8,17 @@ import logging
 
 from typing import Any, Dict, List, Optional, Union
 
-from ...utils.data import DataConverter
-from ...utils.db import execute_query
+from mirobody.utils.data import DataConverter
+from mirobody.utils import execute_query
 
 
 class GeneticService():
     """Genetic data service"""
 
-    # Constants
-    MAX_NEARBY_VARIANTS_PER_QUERY = 20
-    DEFAULT_NEARBY_RANGE = 1000000  # 1M base pairs
-
     def __init__(self):
         self.name = "Genetic Service"
         self.version = "1.0.0"
         self.data_converter = DataConverter()
-
-    def _build_rsid_conditions(
-        self, rsid: Union[str, List[str]], params: Dict[str, Any]
-    ) -> str:
-        """
-        Build SQL conditions for rsid parameter.
-        
-        Args:
-            rsid: Variant identifier(s), supports single string or string list
-            params: Parameter dictionary to update
-            
-        Returns:
-            SQL condition string
-        """
-        # Handle comma-separated string
-        if isinstance(rsid, str) and "," in rsid:
-            rsid_list = [r.strip() for r in rsid.split(",") if r.strip()]
-            placeholders = [f":rsid_{i}" for i in range(len(rsid_list))]
-            for i, r in enumerate(rsid_list):
-                params[f"rsid_{i}"] = r
-            return f" AND rsid IN ({', '.join(placeholders)})"
-        
-        # Handle list
-        elif isinstance(rsid, list):
-            if len(rsid) == 1:
-                params["rsid"] = rsid[0]
-                return " AND rsid = :rsid"
-            else:
-                placeholders = [f":rsid_{i}" for i in range(len(rsid))]
-                for i, r in enumerate(rsid):
-                    params[f"rsid_{i}"] = r
-                return f" AND rsid IN ({', '.join(placeholders)})"
-        
-        # Single rsid
-        else:
-            params["rsid"] = rsid
-            return " AND rsid = :rsid"
-
-    def _format_compact_record(
-        self, record: Dict[str, Any], distance: Optional[int] = None, query_rsid: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Format record into compact format.
-        
-        Args:
-            record: Original record
-            distance: Distance from query position (for nearby variants)
-            query_rsid: Query rsid (for nearby variants)
-            
-        Returns:
-            Compact formatted record
-        """
-        compact_record = {
-            "r": record.get("rsid"),
-            "c": record.get("chromosome"),
-            "p": record.get("position"),
-            "g": record.get("genotype"),
-        }
-        
-        if distance is not None:
-            compact_record["d"] = distance
-        if query_rsid is not None:
-            compact_record["q"] = query_rsid
-            
-        # Keep only non-null values
-        return {k: v for k, v in compact_record.items() if v is not None}
-
-    async def _query_nearby_variants(
-        self,
-        user_id: str,
-        queried_positions: Dict[str, List[int]],
-        queried_rsids: set,
-        nearby_range: int,
-        limit: int,
-        result: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """
-        Query nearby variants for all queried positions in a single optimized query.
-        
-        Args:
-            user_id: User identifier
-            queried_positions: Dictionary of chromosome -> positions
-            queried_rsids: Set of already queried rsids to exclude
-            nearby_range: Search range in base pairs
-            limit: Maximum results per variant
-            result: Original query results
-            
-        Returns:
-            List of nearby variants in compact format
-        """
-        if not queried_positions:
-            return []
-        
-        nearby_results = []
-        nearby_limit = min(self.MAX_NEARBY_VARIANTS_PER_QUERY, limit)
-        
-        # Build optimized query using UNION ALL for multiple positions
-        union_queries = []
-        union_params = {"user_id": user_id, "nearby_limit": nearby_limit}
-        param_index = 0
-        
-        for chr_key, positions in queried_positions.items():
-            for pos in positions:
-                # Create unique parameter names for each position
-                chr_param = f"chr_{param_index}"
-                min_pos_param = f"min_pos_{param_index}"
-                max_pos_param = f"max_pos_{param_index}"
-                target_pos_param = f"target_pos_{param_index}"
-                
-                union_params[chr_param] = chr_key
-                union_params[min_pos_param] = pos - nearby_range
-                union_params[max_pos_param] = pos + nearby_range
-                union_params[target_pos_param] = pos
-                
-                # Build exclude clause
-                exclude_clause = ""
-                if queried_rsids:
-                    exclude_rsids_list = list(queried_rsids)
-                    exclude_params = [f"exclude_{param_index}_{i}" for i in range(len(exclude_rsids_list))]
-                    for i, rsid in enumerate(exclude_rsids_list):
-                        union_params[f"exclude_{param_index}_{i}"] = rsid
-                    exclude_clause = f"AND rsid NOT IN ({', '.join([':' + p for p in exclude_params])})"
-                
-                union_queries.append(f"""
-                    SELECT 
-                        rsid, chromosome, position, genotype,
-                        ABS(position - :{target_pos_param}) as distance,
-                        :{target_pos_param} as query_position,
-                        :{chr_param} as query_chromosome
-                    FROM th_series_data_genetic
-                    WHERE user_id = :user_id 
-                      AND is_deleted = false
-                      AND chromosome = :{chr_param}
-                      AND position BETWEEN :{min_pos_param} AND :{max_pos_param}
-                      {exclude_clause}
-                """)
-                
-                param_index += 1
-        
-        # Combine all queries with UNION ALL and apply global ordering and limit
-        if union_queries:
-            combined_sql = f"""
-                SELECT * FROM (
-                    {' UNION ALL '.join(union_queries)}
-                ) AS combined
-                ORDER BY query_chromosome, query_position, distance
-                LIMIT :nearby_limit
-            """
-            
-            nearby_data = await execute_query(
-                combined_sql,
-                union_params,
-                mode="async",
-                query_type="select",
-            )
-            
-            if nearby_data:
-                nearby_converted = await self.data_converter.convert_list(nearby_data)
-                
-                # Format results
-                for nearby_record in nearby_converted:
-                    # Find the corresponding query rsid
-                    query_pos = nearby_record.get("query_position")
-                    query_chr = nearby_record.get("query_chromosome")
-                    query_rsid = next(
-                        (r.get("rsid") for r in result 
-                         if r.get("position") == query_pos and r.get("chromosome") == query_chr),
-                        None
-                    )
-                    
-                    compact_record = self._format_compact_record(
-                        nearby_record,
-                        distance=nearby_record.get("distance"),
-                        query_rsid=query_rsid
-                    )
-                    nearby_results.append(compact_record)
-        
-        return nearby_results
 
     async def get_genetic_data(
         self,
@@ -211,8 +29,9 @@ class GeneticService():
         genotype: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
+        # reason: Optional[str] = None,
         include_nearby: bool = True,
-        nearby_range: Optional[int] = None,
+        nearby_range: int = 1000000,  # Default search range: 1M base pairs before and after
     ) -> Dict[str, Any]:
         """
         Retrieve variant information by rsid, with optional lookup of nearby related variants.
@@ -234,16 +53,6 @@ class GeneticService():
         try:
             # Get user ID from user_info
             user_id = user_info.get("user_id")
-            if not user_id:
-                return {
-                    "success": False,
-                    "error": "User ID is required",
-                    "data": None,
-                }
-            
-            # Set default nearby range
-            if nearby_range is None:
-                nearby_range = self.DEFAULT_NEARBY_RANGE
 
             # Build basic query
             sql = """
@@ -256,8 +65,29 @@ class GeneticService():
             # Build parameter dictionary
             params = {"user_id": user_id}
 
-            # Handle rsid parameter using helper method
-            sql += self._build_rsid_conditions(rsid, params)
+            # Handle rsid parameter (supports list or comma-separated string)
+            if isinstance(rsid, str) and "," in rsid:
+                # Handle comma-separated string
+                rsid_list = [r.strip() for r in rsid.split(",") if r.strip()]
+                placeholders = [f":rsid_{i}" for i in range(len(rsid_list))]
+                sql += f" AND rsid IN ({', '.join(placeholders)})"
+                for i, r in enumerate(rsid_list):
+                    params[f"rsid_{i}"] = r
+            elif isinstance(rsid, list):
+                if len(rsid) == 1:
+                    # If only one element, use equals operator directly
+                    sql += " AND rsid = :rsid"
+                    params["rsid"] = rsid[0]
+                else:
+                    # Use IN operator to support multiple rsids
+                    placeholders = [f":rsid_{i}" for i in range(len(rsid))]
+                    sql += f" AND rsid IN ({', '.join(placeholders)})"
+                    for i, r in enumerate(rsid):
+                        params[f"rsid_{i}"] = r
+            else:
+                # Single rsid
+                sql += " AND rsid = :rsid"
+                params["rsid"] = rsid
 
             if chromosome:
                 sql += " AND chromosome = :chromosome"
@@ -278,7 +108,7 @@ class GeneticService():
             params["offset"] = offset
 
             # Execute query
-            result = await execute_query(sql, params, mode="async", query_type="select")
+            result = await execute_query(sql, params)
 
             # Debug logging
             logging.info(f"Query results type: {type(result)}, length: {len(result) if result else 0}")
@@ -286,29 +116,93 @@ class GeneticService():
             # Data conversion
             result = await self.data_converter.convert_list(result)
 
-            # Convert to compact format using helper method
-            compact_result = [self._format_compact_record(record) for record in result]
+            # Convert to compact format
+            compact_result = []
+            for record in result:
+                compact_record = {
+                    "r": record.get("rsid"),  # rsid
+                    "c": record.get("chromosome"),  # chromosome
+                    "p": record.get("position"),  # position
+                    "g": record.get("genotype"),  # genotype
+                }
+                # Keep only non-null values
+                compact_record = {k: v for k, v in compact_record.items() if v is not None}
+                compact_result.append(compact_record)
 
-            # Collect queried variant information (optimized)
+            # Collect queried variant information
             queried_positions = {}
-            queried_rsids = {record.get("rsid") for record in result if record.get("rsid")}
-            
+            queried_rsids = set()
             for record in result:
                 if record.get("chromosome") and record.get("position"):
                     chr_key = record["chromosome"]
-                    queried_positions.setdefault(chr_key, []).append(record["position"])
+                    if chr_key not in queried_positions:
+                        queried_positions[chr_key] = []
+                    queried_positions[chr_key].append(record["position"])
+                    queried_rsids.add(record.get("rsid"))
 
-            # Query nearby variants using optimized single-query approach
+            # If need to include nearby variants and have query results
             nearby_results = []
             if include_nearby and queried_positions:
-                nearby_results = await self._query_nearby_variants(
-                    user_id=user_id,
-                    queried_positions=queried_positions,
-                    queried_rsids=queried_rsids,
-                    nearby_range=nearby_range,
-                    limit=limit,
-                    result=result,
-                )
+                for chr_key, positions in queried_positions.items():
+                    for pos in positions:
+                        # Build SQL to query nearby variants
+                        nearby_sql = """
+                        SELECT id, user_id, rsid, chromosome, position, genotype, 
+                               create_time, update_time
+                        FROM th_series_data_genetic
+                        WHERE user_id = :user_id 
+                          AND is_deleted = false
+                          AND chromosome = :chromosome
+                          AND position BETWEEN :min_pos AND :max_pos
+                          AND rsid NOT IN :exclude_rsids
+                        ORDER BY ABS(position - :target_pos)
+                        LIMIT :nearby_limit
+                        """
+
+                        nearby_params = {
+                            "user_id": user_id,
+                            "chromosome": chr_key,
+                            "min_pos": pos - nearby_range,
+                            "max_pos": pos + nearby_range,
+                            "target_pos": pos,
+                            "exclude_rsids": tuple(queried_rsids) if queried_rsids else ("",),
+                            "nearby_limit": min(20, limit),  # Return at most 20 nearby variants per variant
+                        }
+
+                        # Use raw SQL to avoid parameterized IN clause issues
+                        exclude_rsids_str = ", ".join([f"'{rsid}'" for rsid in queried_rsids])
+                        nearby_sql_final = nearby_sql.replace(
+                            ":exclude_rsids", f"({exclude_rsids_str if exclude_rsids_str else ''})"
+                        )
+
+                        nearby_data = await execute_query(
+                            nearby_sql_final,
+                            {k: v for k, v in nearby_params.items() if k != "exclude_rsids"},
+                        )
+
+                        if nearby_data:
+                            nearby_converted = await self.data_converter.convert_list(nearby_data)
+                            # Add distance information for nearby variants and simplify data structure
+                            for nearby_record in nearby_converted:
+                                distance = abs(nearby_record.get("position", 0) - pos)
+                                query_rsid = [
+                                    r.get("rsid")
+                                    for r in result
+                                    if r.get("position") == pos and r.get("chromosome") == chr_key
+                                ][0]
+
+                                # Create more compact record format
+                                compact_record = {
+                                    "r": nearby_record.get("rsid"),  # rsid
+                                    "c": nearby_record.get("chromosome"),  # chromosome
+                                    "p": nearby_record.get("position"),  # position
+                                    "g": nearby_record.get("genotype"),  # genotype
+                                    "d": distance,  # distance
+                                    "q": query_rsid,  # query rsid
+                                }
+                                # Keep only non-null values
+                                compact_record = {k: v for k, v in compact_record.items() if v is not None}
+                                nearby_results.append(compact_record)
 
             logging.info(f"Query completed, returning {len(result)} genetic records, {len(nearby_results)} nearby variants")
 
@@ -322,11 +216,6 @@ class GeneticService():
                     "data": "No genetic data available for the requested variant(s). Please upload your genetic test results from services like 23andMe, AncestryDNA, or medical genetic testing to access personalized genetic insights.",
                     "limit": limit,
                     "offset": offset,
-                    "upload_suggestion": {
-                        "message": "No genetic data available for analysis. To get personalized genetic insights and understand your genetic variations, please upload your genetic test results.",
-                        "upload_url": "https://localhost:18080/drive",
-                        "instructions": "Upload your genetic test results from services like 23andMe, AncestryDNA, or medical genetic testing to enable comprehensive genetic analysis and health risk assessment.",
-                    },
                     "redirect_to_upload": True,
                 }
 
@@ -360,7 +249,7 @@ class GeneticService():
             return response_data
 
         except Exception as e:
-            logging.error(str(e), stack_info=True)
+            logging.error(str(e), exc_info=True)
 
             return {
                 "success": False,

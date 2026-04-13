@@ -263,48 +263,64 @@ class MedicalIndicatorClassifier:
             logging.error(f"⚠️ LLM single batch diagnosis API call failed: {traceback.format_exc()}", stack_info=True)
             return {}
 
-    def _parse_structured_output_result(self, content: dict, indicators: List[str]) -> Dict[str, dict]:
-        """Parse structured output result"""
+    def _parse_structured_output_result(self, content, indicators: List[str]) -> Dict[str, dict]:
+        """Parse structured output result — handles both doubao {results:[]} and gemini [] formats"""
         logging.info(f"🔍 Starting to parse structured output result, expecting {len(indicators)} indicators...")
 
+        # Field name aliases: different LLMs may use different key names
+        ORGAN_KEYS = ["recommended_organ", "Primary related organ", "organ"]
+        SYSTEM_KEYS = ["recommended_system", "Physiological system", "system"]
+        DISEASE_KEYS = ["recommended_disease", "Possibly related diseases", "disease"]
+        DESC_KEYS = ["indicator_description", "Description", "description"]
+        INDICATOR_KEYS = ["indicator", "Indicator", "Indicator Name", "name"]
+
+        def _get_field(item: dict, keys: list) -> str:
+            for k in keys:
+                v = item.get(k, "")
+                if v:
+                    return str(v).strip()
+            return ""
+
         try:
-            results = {}
-            if "results" in content and isinstance(content["results"], list):
-                parsed_count = 0
-                for item in content["results"]:
-                    indicator_name = item.get("indicator", "").strip()
-                    if indicator_name:
-                        # Check if all required fields have values
-                        recommended_organ = item.get("recommended_organ", "").strip()
-                        recommended_system = item.get("recommended_system", "").strip()
-                        recommended_disease = item.get("recommended_disease", "").strip()
-                        indicator_description = item.get("indicator_description", "").strip()
-
-                        # Only add to results if all three fields have values
-                        if recommended_organ and recommended_system and recommended_disease:
-                            results[indicator_name] = {
-                                "recommended_organ": recommended_organ,
-                                "recommended_system": recommended_system,
-                                "recommended_disease": recommended_disease,
-                                "indicator_description": indicator_description,
-                            }
-                            parsed_count += 1
-
-                logging.info(f"✅ Successfully parsed {parsed_count} indicator results")
-
-                # Display parsed indicator names
-                parsed_indicators = list(results.keys())
-                logging.info(f"🔍 Parsed indicators: {', '.join(parsed_indicators[:10])}{'...' if len(parsed_indicators) > 10 else ''}")
-
-                # Check for missing indicators
-                missing_indicators = [ind for ind in indicators if ind not in results]
-                if missing_indicators:
-                    logging.warning(f"⚠️ Missing results for {len(missing_indicators)} indicators:")
-                    logging.info(f"   Missing indicators: {', '.join(missing_indicators[:5])}{'...' if len(missing_indicators) > 5 else ''}")
-
+            # Normalize to list: handle {"results": [...]} or direct [...]
+            if isinstance(content, list):
+                items = content
+            elif isinstance(content, dict) and "results" in content and isinstance(content["results"], list):
+                items = content["results"]
             else:
-                logging.error("❌ Structured output format incorrect, missing 'results' field or wrong format")
-                results = {}
+                logging.error("❌ Structured output format incorrect, cannot find items list")
+                return {}
+
+            results = {}
+            parsed_count = 0
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                indicator_name = _get_field(item, INDICATOR_KEYS)
+                if not indicator_name:
+                    continue
+
+                recommended_organ = _get_field(item, ORGAN_KEYS)
+                recommended_system = _get_field(item, SYSTEM_KEYS)
+                recommended_disease = _get_field(item, DISEASE_KEYS)
+                indicator_description = _get_field(item, DESC_KEYS)
+
+                if recommended_organ and recommended_system and recommended_disease:
+                    results[indicator_name] = {
+                        "recommended_organ": recommended_organ,
+                        "recommended_system": recommended_system,
+                        "recommended_disease": recommended_disease,
+                        "indicator_description": indicator_description,
+                    }
+                    parsed_count += 1
+
+            logging.info(f"✅ Successfully parsed {parsed_count} indicator results")
+            parsed_indicators = list(results.keys())
+            logging.info(f"🔍 Parsed indicators: {', '.join(parsed_indicators[:10])}{'...' if len(parsed_indicators) > 10 else ''}")
+
+            missing_indicators = [ind for ind in indicators if ind not in results]
+            if missing_indicators:
+                logging.warning(f"⚠️ Missing results for {len(missing_indicators)} indicators: {', '.join(missing_indicators[:5])}{'...' if len(missing_indicators) > 5 else ''}")
 
             logging.info(f"🎉 Finally returning {len(results)} results")
             return results

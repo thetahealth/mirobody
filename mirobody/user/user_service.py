@@ -1,12 +1,14 @@
 import jwt, logging, secrets, urllib.parse
 
 from psycopg_pool import AsyncConnectionPool
+from redis.asyncio import Redis
 
 from .jwt import AbstractTokenValidator
 from .email import create_email_validator
 from .apple import AppleTokenValidator
 from .google import GoogleTokenValidator
 from .firebase import FirebaseTokenValidator
+from .webauthn import WebAuthnService
 
 from .user import (
     add_or_get_user,
@@ -24,7 +26,6 @@ from ..utils import (
     Response,
     Route
 )
-from ..utils.redis_compat import AsyncRedisClient
 
 #-----------------------------------------------------------------------------
 
@@ -37,7 +38,7 @@ class UserService:
         routes          : list | None = None,
         
         db_pool         : AsyncConnectionPool | None = None,
-        redis           : AsyncRedisClient | None = None,
+        redis           : Redis | None = None,
 
         email_smtp_host : str = "",
         email_smtp_port : int = 0,
@@ -57,7 +58,13 @@ class UserService:
         google_client_id    : str = "",
         firebase_project_id : str = "",
 
-        qr_login_url    : str = ""
+        qr_login_url    : str = "",
+
+        # WebAuthn (AAL2).
+        webauthn_rp_id      : str = "",
+        webauthn_rp_name    : str = "",
+        webauthn_origin     : str = "",
+        webauthn_mfa_ticket_ttl : int = 300,
     ):
         self._token_validator   = token_validator
         self._get_jwt_token     = get_jwt_token
@@ -107,6 +114,19 @@ class UserService:
         else:
             # Use local memory when no redis connection is available.
             self._qr_states = {}
+
+        # WebAuthn service (enabled only when rp_id is configured).
+        self._webauthn_service = WebAuthnService(
+            token_validator = token_validator,
+            uri_prefix      = uri_prefix,
+            routes          = routes,
+            db_pool         = db_pool,
+            redis           = redis,
+            rp_id           = webauthn_rp_id,
+            rp_name         = webauthn_rp_name,
+            origin          = webauthn_origin,
+            mfa_ticket_ttl  = webauthn_mfa_ticket_ttl,
+        ) if webauthn_rp_id else None
 
          #-------------------------------------------------
 
@@ -183,16 +203,7 @@ class UserService:
 
         #-------------------------------------------------
 
-        access_token, refresh_token, err = await self._token_validator.generate_tokens(str(id), email)
-        if err:
-            return json_response_with_code(-5, err, request=request)
-        
-        #-------------------------------------------------
-
-        return json_response_with_code(
-            data    = self._generate_verification_response(access_token, refresh_token, user_id=id, email=email),
-            request = request
-        )
+        return await self._generate_auth_response(id, email, "email", request)
 
     #-------------------------------------------------------------------------
 
@@ -317,14 +328,7 @@ class UserService:
 
             #---------------------------------------------
 
-            access_token, refresh_token, err = await self._token_validator.generate_tokens(str(id), email, "apple")
-            if err:
-                return json_response_with_code(-9, err, request=request)
-            
-            return json_response_with_code(
-                data    = self._generate_verification_response(access_token, refresh_token, user_id=id, email=email),
-                request = request
-            )
+            return await self._generate_auth_response(id, email, "apple", request)
 
         except Exception as e:
             return json_response_with_code(-10, str(e), request=request)
@@ -396,16 +400,7 @@ class UserService:
             
             #-------------------------------------------------
 
-            access_token, refresh_token, err = await self._token_validator.generate_tokens(str(id), verified_email, "google")
-            if err:
-                return json_response_with_code(-5, err, request=request)
-            
-            #-------------------------------------------------
-            
-            return json_response_with_code(
-                data    = self._generate_verification_response(access_token, refresh_token, user_id=id, email=verified_email),
-                request = request
-            )
+            return await self._generate_auth_response(id, verified_email, "google", request)
 
         except Exception as e:
             return json_response_with_code(-6, str(e), request=request)
@@ -545,6 +540,52 @@ class UserService:
         #-------------------------------------------------
         
         return json_response_with_code(data={"accessToken": jwt_token}, request=request)
+
+    #-------------------------------------------------------------------------
+
+    async def _generate_auth_response(
+        self,
+        user_id: int,
+        email: str,
+        auth_method: str = "",
+        request: Request | None = None,
+    ) -> Response:
+        """Generate final auth response, with MFA challenge if required."""
+        # Check if WebAuthn MFA is required.
+        if self._webauthn_service:
+            mfa_challenge = await self._webauthn_service.check_mfa_required(user_id, email)
+            if mfa_challenge:
+                # Include a fallback AAL1 token so frontend can degrade gracefully
+                # if user cancels WebAuthn (e.g. Touch ID dismissed).
+                fallback_token, _, _ = await self._token_validator.generate_tokens(
+                    str(user_id), email, auth_method,
+                    gen_claims_func=lambda uid, em: {"aal": 1},
+                )
+                if fallback_token:
+                    mfa_challenge["fallback_token"] = fallback_token
+                return json_response_with_code(data=mfa_challenge, request=request)
+
+        # No MFA required — issue AAL1 token directly.
+        aal_level = 1 if self._webauthn_service else None
+
+        access_token, refresh_token, err = await self._token_validator.generate_tokens(
+            str(user_id),
+            email,
+            auth_method,
+            gen_claims_func=(lambda uid, em: {"aal": aal_level}) if aal_level else None,
+        )
+        if err:
+            return json_response_with_code(-100, err, request=request)
+
+        result = self._generate_verification_response(
+            access_token, refresh_token, user_id=user_id, email=email
+        )
+
+        # Tell frontend WebAuthn is not yet registered for this user.
+        if self._webauthn_service:
+            result["webauthn_registered"] = False
+
+        return json_response_with_code(data=result, request=request)
 
     #-------------------------------------------------------------------------
 

@@ -115,11 +115,12 @@ async def get_session_summaries(
         # Format summaries with timezone conversion
         format_start = time.time()
         formatted_summaries = []
-        timezone = get_req_ctx("timezone", "America/Los_Angeles")
+        from mirobody.utils.config import get_default_timezone
+        timezone = get_req_ctx("timezone", get_default_timezone())
         try:
             user_tz = pytz.timezone(timezone)
         except pytz.exceptions.UnknownTimeZoneError:
-            user_tz = pytz.timezone("America/Los_Angeles")
+            user_tz = pytz.timezone(get_default_timezone())
         
         for summary in result:
             created_at = summary.get("created_at")

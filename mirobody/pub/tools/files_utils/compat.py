@@ -29,7 +29,10 @@ from deepagents.middleware.filesystem import (
     EDIT_FILE_TOOL_DESCRIPTION,
     WRITE_FILE_TOOL_DESCRIPTION,
     GLOB_TOOL_DESCRIPTION,
-    GREP_TOOL_DESCRIPTION
+    GREP_TOOL_DESCRIPTION,
+
+    # execute tool description (base)
+    EXECUTE_TOOL_DESCRIPTION as _BASE_EXECUTE_TOOL_DESCRIPTION,
 )
 
 from langchain.agents.middleware.todo import (
@@ -146,6 +149,35 @@ Args:
 """
 
 # =============================================================================
+# Code Execution Tool Description (adapted from deepagents EXECUTE_TOOL_DESCRIPTION)
+# =============================================================================
+
+# Start from the deepagents base description, then append mirobody-specific
+# Args matching the MCP tool signature (command, timeout).
+EXECUTE_TOOL_DESCRIPTION = _BASE_EXECUTE_TOOL_DESCRIPTION + """
+Important - How file execution works in this environment:
+  - Files created via write_file are locally, NOT directly on disk.
+  - Before each execute call, all workspace files are automatically synced to the sandbox filesystem.
+  - This means: write_file first, then execute — the file will be available at the same path in the sandbox.
+  - Sync is one-way (PostgreSQL → local). Files created by execute inside the sandbox are NOT synced back.
+  - To retrieve output files created by execute, either print the content in the command itself (e.g., cat output.txt), or include the output in stdout.
+
+Recommended workflow:
+  1. Use write_file to create scripts/data files (e.g., write_file("/analysis.py", code))
+  2. Use execute to run them (e.g., execute(command="python3 /analysis.py"))
+  3. Read results from stdout, or use execute(command="cat /output.csv") for generated files
+
+Additional notes:
+  - Common data analysis libraries (pandas, numpy, matplotlib, scipy, etc.) are pre-installed.
+  - You can install additional packages: execute(command="pip install <package> && python3 /script.py")
+  - For inline code, use: execute(command="python3 -c 'print(2+2)'")
+
+Args:
+    command: Shell command to execute in the sandbox environment (e.g., "python3 -c 'print(1+1)'" or "python3 /script.py").
+    timeout: Maximum execution time in seconds (1-120). Default: 60.
+"""
+
+# =============================================================================
 # Feature Flags
 # =============================================================================
 
@@ -185,6 +217,8 @@ __all__ = [
     # Global files descriptions (mirobody)
     "LIST_GLOBAL_FILES_DESCRIPTION",
     "FETCH_REMOTE_FILES_DESCRIPTION",
+    # Code execution description
+    "EXECUTE_TOOL_DESCRIPTION",
     # System prompts
     "FILESYSTEM_SYSTEM_PROMPT",
     "EXECUTION_SYSTEM_PROMPT",

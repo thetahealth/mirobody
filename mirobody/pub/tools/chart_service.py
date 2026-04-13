@@ -9,21 +9,14 @@ import base64
 import json
 import logging
 import os
-import time
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 
-from ...utils.utils_files.utils_s3 import aupload_image_with_thumbnail
-from ...utils.utils_files.utils_oss import AliOSS
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from ...utils.config.storage import get_storage_client
+from ...utils.utils_files.utils_s3 import create_thumbnail
 from ...utils.config import safe_read_cfg
 from ...utils.config.storage.constants import DEFAULT_LOCAL_CHARTS_PATH
-
-# Environment configuration
-ENV = os.getenv("ENV", "localdb")
-IS_ALIYUN = os.getenv("CLUSTER", "").upper() == "ALIYUN"
-
-# Chart storage directory.
-CHARTS_DIR = Path(safe_read_cfg("LOCAL_CHARTS_DIR") or DEFAULT_LOCAL_CHARTS_PATH)
 
 
 class ChartService:
@@ -39,7 +32,7 @@ class ChartService:
         self.version = "3.0.0"
 
         # Chart storage directory (unified standard path)
-        self.charts_dir = CHARTS_DIR
+        self.charts_dir = Path(safe_read_cfg("LOCAL_CHARTS_DIR") or DEFAULT_LOCAL_CHARTS_PATH)
         self.use_local_fallback = False  # Flag indicating if using local fallback
 
         # Try to create directory, fall back if permission denied
@@ -47,7 +40,7 @@ class ChartService:
             self.charts_dir.mkdir(parents=True, exist_ok=True)
         except (OSError, PermissionError) as e:
             # Fall back to local directory for development
-            logging.warning(f"Cannot create {CHARTS_DIR}, using fallback: {e}")
+            logging.warning(f"Cannot create {self.charts_dir}, using fallback: {e}")
             self.charts_dir = Path(__file__).parent / "generated_charts"
             self.charts_dir.mkdir(parents=True, exist_ok=True)
             self.use_local_fallback = True  # Mark as using fallback
@@ -55,11 +48,8 @@ class ChartService:
         # Node.js rendering script path
         self.render_script = Path(__file__).parent / "render-chart.js"
 
-        # Initialize OSS (Aliyun environments only)
-        self.oss = AliOSS() if IS_ALIYUN else None
-
         logging.info(
-            f"Chart Service initialized, env={ENV},"
+            f"Chart Service initialized,"
             f"charts_dir={self.charts_dir}, use_local_fallback={self.use_local_fallback}, "
             f"render_script={self.render_script}"
         )
@@ -259,50 +249,42 @@ class ChartService:
             }
 
     async def _upload_chart(self, image_data: bytes, filename: str) -> str:
-        """Upload chart to cloud storage or save locally"""
+        """Upload chart and its thumbnail to cloud storage or save locally"""
         try:
             s3_key = f"charts/{filename}"
+            thumb_key = f"thumb_charts/{filename}"
 
             # Step 1: Save locally first (in any environment, as backup)
             filepath = self.charts_dir / filename
             filepath.write_bytes(image_data)
             logging.info(f"Chart saved locally: {filepath}")
 
-            # Step 2: Decide whether to upload to cloud storage based on environment
-            if ENV == "localdb" or ENV == "local":
-                # Local development environment: save locally only, no cloud upload
-                # Use MCP_PUBLIC_URL to build complete URL
-                base_url = safe_read_cfg("MCP_PUBLIC_URL", "http://localhost:18080")
-                image_url = f"{base_url}/charts/{filename}"
-                logging.info(f"Local env, using local URL: {image_url}")
+            # Step 2: Generate thumbnail
+            thumbnail_data = create_thumbnail(image_data, max_size=(200, 200), format="PNG")
 
-            elif IS_ALIYUN and self.oss:
-                # Aliyun: upload to OSS (expires in 6 months = 180 * 24 * 3600 = 15552000 seconds)
-                upload_result = self.oss.upload_file(
-                    file_data=image_data,
-                    file_name=filename,
-                    directory="charts",
+            # Step 3: Upload original and thumbnail in parallel
+            storage = get_storage_client()
+            (image_url, error), (_, thumb_error) = await asyncio.gather(
+                storage.put(
+                    key=s3_key,
+                    content=image_data,
                     content_type="image/png",
-                    expires=15552000
-                )
-
-                if not upload_result.get("success"):
-                    raise Exception(f"OSS upload failed: {upload_result.get('error')}")
-
-                image_url = upload_result["url"]
-                logging.info(f"Chart uploaded to OSS: {s3_key}")
-
-            else:
-                # AWS: upload to S3 (expires in 6 months = 180 * 24 * 3600 = 15552000 seconds)
-                image_url = await aupload_image_with_thumbnail(
-                    image_data=image_data,
-                    original_key=s3_key,
+                    expires=15552000,  # 6 months
+                ),
+                storage.put(
+                    key=thumb_key,
+                    content=thumbnail_data,
                     content_type="image/png",
-                    expires_in=15552000
-                )
+                    expires=15552000,
+                ),
+            )
 
-                logging.info(f"Chart uploaded to S3: {s3_key}")
+            if error:
+                raise Exception(f"Storage upload failed: {error}")
+            if thumb_error:
+                logging.warning(f"Thumbnail upload failed (non-fatal): {thumb_error}")
 
+            logging.info(f"Chart uploaded via {type(storage).__name__}: {s3_key}, thumb: {thumb_key}")
             return image_url
 
         except Exception as e:

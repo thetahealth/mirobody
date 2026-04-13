@@ -3,6 +3,50 @@ import aiohttp, json
 from collections import defaultdict
 from datetime import datetime, timezone
 from enum import StrEnum
+from typing import Annotated
+
+ISOTimestamp = Annotated[str, "ISO 8601 datetime string, e.g. '2026-03-09T12:00:00+08:00'"]
+
+
+def _normalize_iso_timestamp(value: str | None, *, end_of_day: bool = False) -> str | None:
+    """Normalize a date/datetime string to full ISO 8601 format with timezone.
+
+    Accepts formats like '2026-01-01', '2026-01-01 13:00', or a full ISO string.
+    For date-only inputs, returns start-of-day (T00:00:00) or end-of-day (T23:59:59)
+    based on the *end_of_day* flag.  Missing timezone defaults to the local timezone.
+    """
+    if not value or not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value:
+        return None
+
+    def _ensure_tz(dt: datetime) -> datetime:
+        if dt.tzinfo is None:
+            dt = dt.astimezone()          # attach local timezone
+        return dt
+
+    # Already a full ISO timestamp (contains 'T').
+    if "T" in value:
+        try:
+            dt = datetime.fromisoformat(value)
+            return _ensure_tz(dt).isoformat(timespec="seconds")
+        except ValueError:
+            return value                  # unparseable — pass through
+
+    # Try parsing common short formats.
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            dt = datetime.strptime(value, fmt)
+            if fmt == "%Y-%m-%d" and end_of_day:
+                dt = dt.replace(hour=23, minute=59, second=59)
+            return _ensure_tz(dt).isoformat(timespec="seconds")
+        except ValueError:
+            continue
+
+    # Unrecognised format — pass through and let the API validate.
+    return value
+
 
 #-----------------------------------------------------------------------------
 
@@ -27,11 +71,11 @@ class AbstractMemoryClient:
 
     async def add(self, user_id: str, content: str) -> tuple[str | None, str | None]:
         """Add memory content for a user. Returns: (request_id, error_message)"""
-        ...
+        raise NotImplementedError
 
     async def get_request_status(self, request_id: str) -> tuple[str | None, str | None]:
         """Get the status of a memory request. Returns: (status, error_message)"""
-        ...
+        raise NotImplementedError
 
     async def get(
         self,
@@ -39,42 +83,45 @@ class AbstractMemoryClient:
         memory_type : MemoryType | None = None,
         page        : int | None = None,
         page_size   : int | None = None,
-        start_time  : str | None = None,
-        end_time    : str | None = None
+        start_time  : ISOTimestamp | None = None,
+        end_time    : ISOTimestamp | None = None
     ) -> tuple[list | None, str | None]:
         """Retrieve memories for a user with optional filters. Returns: (memories_list, error_message)"""
-        ...
+        raise NotImplementedError
 
     async def search(
         self,
         user_id     : str,
         query       : str,
         memory_types: list[MemoryType] | None = None,
-        start_time  : str | None = None,
-        end_time    : str | None = None,
+        start_time  : ISOTimestamp | None = None,
+        end_time    : ISOTimestamp | None = None,
         top_k       : int | None = None,
         radius      : float | None = None
     ) -> tuple[list | None, str | None]:
         """Search memories using a query string. Returns: (results_list, error_message)"""
-        ...
+        raise NotImplementedError
 
     async def delete(self, memory_id: str) -> str | None:
         """Delete a memory by ID. Returns: error_message (None if successful)"""
-        ...
+        raise NotImplementedError
 
     async def get_profile(self, user_id: str) -> tuple[dict | None, str | None]:
         """Get user's profile. Returns: (user_profile, error_message)"""
-        ...
+        raise NotImplementedError
 
 #-----------------------------------------------------------------------------
 
 class DummyMemoryClient(AbstractMemoryClient):
-    async def add(self, user_id, content):                          return "", None
-    async def get_request_status(self, request_id):                 return "unknown", None
-    async def get(self, user_id, **kw):                             return [], None
-    async def search(self, user_id, query, **kw):                   return [], None
-    async def delete(self, memory_id):                              return None
-    async def get_profile(self, user_id):                           return {}, None
+    def __init__(self):
+        super().__init__()
+
+    async def add(self, user_id: str, content: str):            return "", None
+    async def get_request_status(self, request_id: str):        return "unknown", None
+    async def get(self, user_id: str, **kwargs):                return [], None
+    async def search(self, user_id: str, query: str, **kwargs): return [], None
+    async def delete(self, memory_id: str):                     return None
+    async def get_profile(self, user_id: str):                  return {}, None
 
 #-----------------------------------------------------------------------------
 
@@ -82,8 +129,11 @@ class EverMemOSClient(AbstractMemoryClient):
     def __init__(self, api_key: str):
         super().__init__()
 
-        self._api_key: str | None = None
-        self._session: aiohttp.ClientSession | None = None
+        self._api_key       : str | None = None
+        self._remote_host   : str | None = None
+        self._headers       : dict | None = None
+        self._timeout       : aiohttp.ClientTimeout | None = None
+        self._session       : aiohttp.ClientSession | None = None
 
         if api_key and isinstance(api_key, str):
             self._api_key = api_key.strip()
@@ -118,7 +168,7 @@ class EverMemOSClient(AbstractMemoryClient):
 
     #-------------------------------------------------------------------------
 
-    async def add(self, user_id: str, content: str) -> tuple[str | None, str | None]:
+    async def add(self, user_id: str, content: str, iso_timestamp: ISOTimestamp | None = None, flush: bool = True) -> tuple[str | None, str | None]:
         if not self._api_key:
             return None, "Invalid EverMemOS api key."
         if not user_id or not isinstance(user_id, str):
@@ -141,10 +191,10 @@ class EverMemOSClient(AbstractMemoryClient):
 
         payload = {
             "message_id"    : f"{user_id}_{int(now.timestamp()*1e9):x}",
-            "create_time"   : now.isoformat(timespec="seconds"),
+            "create_time"   : _normalize_iso_timestamp(iso_timestamp) or now.isoformat(timespec="seconds"),
             "sender"        : user_id,
             "content"       : content,
-            "flush"         : True,
+            "flush"         : flush,
         }
 
         #-------------------------------------------------
@@ -215,8 +265,8 @@ class EverMemOSClient(AbstractMemoryClient):
         memory_type : MemoryType | None = None,
         page        : int | None = None,
         page_size   : int | None = None,
-        start_time  : str | None = None,
-        end_time    : str | None = None,
+        start_time  : ISOTimestamp | None = None,
+        end_time    : ISOTimestamp | None = None,
     ) -> tuple[list | None, str | None]:
         if not self._api_key:
             return None, "Invalid EverMemOS api key."
@@ -235,21 +285,19 @@ class EverMemOSClient(AbstractMemoryClient):
             "user_id": user_id
         }
 
-        if page is not None and page > 1:
+        if page is not None and page >= 1:
             payload["page"] = page
 
         if page_size is not None and 1 <= page_size <= 100:
             payload["page_size"] = page_size
 
-        if start_time and isinstance(start_time, str):
-            start_time = start_time.strip()
-            if start_time:
-                payload["start_time"] = start_time
+        _st = _normalize_iso_timestamp(start_time, end_of_day=False)
+        if _st:
+            payload["start_time"] = _st
 
-        if end_time and isinstance(end_time, str):
-            end_time = end_time.strip()
-            if end_time:
-                payload["end_time"] = end_time
+        _et = _normalize_iso_timestamp(end_time, end_of_day=True)
+        if _et:
+            payload["end_time"] = _et
 
         if memory_type:
             payload["memory_type"] = memory_type
@@ -283,8 +331,8 @@ class EverMemOSClient(AbstractMemoryClient):
         user_id     : str,
         query       : str,
         memory_types: list[MemoryType] | None = None,
-        start_time  : str | None = None,
-        end_time    : str | None = None,
+        start_time  : ISOTimestamp | None = None,
+        end_time    : ISOTimestamp | None = None,
         top_k       : int | None = None,
         radius      : float | None = None
     ) -> tuple[list | None, str | None]:
@@ -313,19 +361,18 @@ class EverMemOSClient(AbstractMemoryClient):
         }
 
         if memory_types:
+            # TODO: API only supports PROFILE and EPISODIC for search.
             filtered = [k for k in memory_types if k in (MemoryType.PROFILE, MemoryType.EPISODIC)]
             if filtered:
                 payload["memory_types"] = filtered
 
-        if start_time and isinstance(start_time, str):
-            start_time = start_time.strip()
-            if start_time:
-                payload["start_time"] = start_time
+        _st = _normalize_iso_timestamp(start_time, end_of_day=False)
+        if _st:
+            payload["start_time"] = _st
 
-        if end_time and isinstance(end_time, str):
-            end_time = end_time.strip()
-            if end_time:
-                payload["end_time"] = end_time
+        _et = _normalize_iso_timestamp(end_time, end_of_day=True)
+        if _et:
+            payload["end_time"] = _et
 
         if radius is not None and 0 < radius <= 1:
             payload["radius"] = radius
@@ -404,6 +451,14 @@ class EverMemOSClient(AbstractMemoryClient):
 
     #-------------------------------------------------------------------------
 
+    def _collect_memory_items(self, items, key_field):
+        """Collect unique descriptions from a list of dicts, grouped by key_field."""
+        result = defaultdict(set)
+        for item in items:
+            if isinstance(item, dict) and isinstance(item.get(key_field), str) and isinstance(item.get("description"), str):
+                result[item[key_field]].add(item["description"])
+        return result
+
     async def get_profile(self, user_id: str) -> tuple[dict | None, str | None]:
         if not self._api_key:
             return None, "Invalid EverMemOS api key."
@@ -442,14 +497,6 @@ class EverMemOSClient(AbstractMemoryClient):
 
                 memories = data.get("result", {}).get("memories", [])
 
-                def _collect(items, key_field):
-                    """Collect unique descriptions from a list of dicts, grouped by key_field."""
-                    result = defaultdict(set)
-                    for item in items:
-                        if isinstance(item, dict) and isinstance(item.get(key_field), str) and isinstance(item.get("description"), str):
-                            result[item[key_field]].add(item["description"])
-                    return result
-
                 explicit_info = defaultdict(set)
                 implicit_traits = defaultdict(set)
 
@@ -462,9 +509,9 @@ class EverMemOSClient(AbstractMemoryClient):
                         pd = profile.get("profile_data")
                         if not isinstance(pd, dict):
                             continue
-                        for k, v in _collect(pd.get("explicit_info", []), "category").items():
+                        for k, v in self._collect_memory_items(pd.get("explicit_info", []), "category").items():
                             explicit_info[k] |= v
-                        for k, v in _collect(pd.get("implicit_traits", []), "trait").items():
+                        for k, v in self._collect_memory_items(pd.get("implicit_traits", []), "trait").items():
                             implicit_traits[k] |= v
 
                 return {
@@ -474,5 +521,50 @@ class EverMemOSClient(AbstractMemoryClient):
 
         except Exception as e:
             return None, str(e)
+
+#-----------------------------------------------------------------------------
+
+_global_memory_client: AbstractMemoryClient | None = None
+
+
+def _init_global_memory_client_if_not_exist():
+    global _global_memory_client
+    from mirobody.utils import global_config
+
+    evermemos_api_key = global_config().get_str("EVERMEMOS_API_KEY")
+    if evermemos_api_key:
+        _global_memory_client = EverMemOSClient(evermemos_api_key)
+        return
+
+    _global_memory_client = DummyMemoryClient()
+
+
+async def add_memory(user_id: str, content: str) -> tuple[str | None, str | None]:
+    global _global_memory_client
+    if not _global_memory_client:
+        _init_global_memory_client_if_not_exist()
+
+    return await _global_memory_client.add(user_id=user_id, content=content)
+
+
+async def search_memory(
+    user_id: str,
+    query: str,
+    start_time: ISOTimestamp | None = None,
+    end_time: ISOTimestamp | None = None
+) -> tuple[list | None, str | None]:
+    global _global_memory_client
+    if not _global_memory_client:
+        _init_global_memory_client_if_not_exist()
+
+    return await _global_memory_client.search(user_id=user_id, query=query, start_time=start_time, end_time=end_time)
+
+
+async def get_profile(user_id: str) -> tuple[dict | None, str | None]:
+    global _global_memory_client
+    if not _global_memory_client:
+        _init_global_memory_client_if_not_exist()
+
+    return await _global_memory_client.get_profile(user_id=user_id)
 
 #-----------------------------------------------------------------------------

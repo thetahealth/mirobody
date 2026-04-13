@@ -310,6 +310,9 @@ class AliOSS:
                 detected_content_type = self._get_content_type(file_name)
                 headers["Content-Type"] = detected_content_type
 
+            # Set Content-Disposition to inline so browsers preview instead of download
+            headers["Content-Disposition"] = "inline"
+
             # Prepare metadata
             if metadata:
                 for k, v in metadata.items():

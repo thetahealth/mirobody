@@ -113,6 +113,28 @@ async def endpoint(current_user: str = Depends(verify_token)):
 # GOOD: result = await async_function()
 ```
 
+### Imports — prefer top-level, avoid lazy import unless necessary
+Always use top-level imports. Lazy imports (inside functions) hide import errors until runtime and bypass startup validation. A wrong relative path in a lazy import won't be caught until that code path executes, which may not happen during testing.
+
+**Only use lazy import when**:
+1. Breaking a circular dependency (document which cycle it breaks)
+2. Optional heavy dependency that may not be installed (e.g. `pandas`)
+
+```python
+# BAD: lazy import hides path errors
+def process():
+    from ..core.fhir_mapping import get_fhir_id  # wrong path won't be caught at startup
+    return get_fhir_id(indicator)
+
+# GOOD: top-level import, fails fast at startup if path is wrong
+from ...core.fhir_mapping import get_fhir_id
+
+def process():
+    return get_fhir_id(indicator)
+```
+
+**Incident**: TH-126 introduced `from ..core.fhir_mapping` (wrong: resolves to `data_upload/core/`) as a lazy import inside `_prepare_summary_record()`. The bug was never caught because tests only exercised the SERIES path, not SUMMARY. A top-level import would have failed immediately at startup.
+
 ### Sleep data uses 18:00-18:00 time window
 Sleep data uses previous-day 18:00 to current-day 18:00, NOT 00:00-24:00. This affects `data_begin` calculation in SQL. See `core/aggregate_indicator/` for implementation details.
 

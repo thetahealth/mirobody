@@ -326,6 +326,17 @@ def parse_function(function: FunctionType, private: bool = False) -> tuple[dict,
 #-----------------------------------------------------------------------------
 
 def load_tools_from_class(klass, module_name: str, private: bool = False) -> dict:
+    # If the class defines a _enabled() static method, call it to check
+    # whether this service should be registered (e.g. API key availability).
+    if hasattr(klass, "_enabled") and callable(klass._enabled):
+        try:
+            if not klass._enabled():
+                logging.info(f"Skipping disabled tool class: {klass.__name__}")
+                return {}
+        except Exception as e:
+            logging.warning(f"Error checking _enabled for {klass.__name__}: {e}")
+            return {}
+
     try:
         functions = inspect.getmembers(klass, predicate=inspect.isfunction)
     except Exception as e:

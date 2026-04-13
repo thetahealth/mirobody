@@ -48,7 +48,7 @@ class IndicatorInfo:
     aggregation_methods: Optional[List[str]] = None  # For aggregate_indicator module
     """
     Aggregation methods for converting series data to summary data.
-    
+
     Supported methods:
         - 'avg': Average value
         - 'max': Maximum value
@@ -61,13 +61,13 @@ class IndicatorInfo:
         - 'variance': Variance
         - 'median': Median value
         - 'p95': 95th percentile
-    
+
     Examples:
         - ['avg', 'max', 'min']: For heart rate, blood pressure
         - ['total']: For steps, distance, calories
         - ['last']: For weight, body mass (take latest measurement)
         - None or []: No aggregation
-    
+
     Generated target indicators follow pattern: daily{Method}{Indicator}
     E.g., heartRates + ['avg'] → dailyAvgHeartRates
     """
@@ -254,7 +254,15 @@ class StandardIndicator(Enum):
         description="Glucose concentration in blood",
         description_zh="血液中的葡萄糖浓度",
         data_type=HealthDataType.SERIES,
-        aggregation_methods=['avg', 'max', 'min', 'last'],  # Daily blood glucose stats
+        aggregation_methods=[
+            'avg', 'max', 'min', 'last', 'stddev',  # W2.6: stddev for CV calculation
+            # CGM derived indicators
+            'time_of_max', 'time_of_min',
+            'tir_70_180', 'pct_below_70', 'pct_above_180',
+            'tir_70_140', 'pct_above_140',
+            'hypo_event_count', 'hypo_event_times', 'hypo_event_details',
+            'gmi_14d',
+        ],
     )
     BLOOD_OXYGEN = IndicatorInfo(
         category=Categories.VITAL_SIGNS.value,
@@ -434,6 +442,7 @@ class StandardIndicator(Enum):
         description="Total cycling distance",
         description_zh="骑行总距离",
         data_type=HealthDataType.SERIES,
+        aggregation_methods=['total'],  # W2.1: daily total cycling distance
     )
     CYCLING_DURATION = IndicatorInfo(
         category=Categories.ACTIVITY.value,
@@ -633,6 +642,7 @@ class StandardIndicator(Enum):
         description="Daily water intake",
         description_zh="每日饮水量",
         data_type=HealthDataType.SERIES,
+        aggregation_methods=['total'],  # W2.1: daily total water intake
     )
     DISTANCE = IndicatorInfo(
         category=Categories.ACTIVITY.value,
@@ -850,6 +860,7 @@ class StandardIndicator(Enum):
         description="Number of floors climbed",
         description_zh="爬升的楼层数",
         data_type=HealthDataType.SERIES,
+        aggregation_methods=['total'],  # W2.1: daily total floors climbed
     )
     FLOORS_CLIMBED_DURATION = IndicatorInfo(
         category=Categories.ACTIVITY.value,
@@ -877,7 +888,7 @@ class StandardIndicator(Enum):
         description="Number of heartbeats per minute",
         description_zh="每分钟心跳次数",
         data_type=HealthDataType.SERIES,
-        aggregation_methods=['avg', 'max', 'min'],  # Daily avg/max/min heart rate
+        aggregation_methods=['avg', 'max', 'min', 'morning_hr_jump', 'nighttime_resting_hr'],  # W2.7: morning jump + nighttime resting
     )
     HEART_RATE_MAX = IndicatorInfo(
         category=Categories.VITAL_SIGNS.value,
@@ -932,6 +943,7 @@ class StandardIndicator(Enum):
         description="Heart rate at rest",
         description_zh="静息状态下的心率",
         data_type=HealthDataType.SERIES,
+        aggregation_methods=['avg', 'min'],
     )
     DAILY_HEART_RATE_RESTING = IndicatorInfo(
         category=Categories.VITAL_SIGNS.value,
@@ -1504,6 +1516,7 @@ class StandardIndicator(Enum):
         description="Number of disturbances and awakenings during sleep",
         description_zh="睡眠期间的干扰和觉醒次数",
         data_type=HealthDataType.SERIES,
+        aggregation_methods=['total'],  # W2.1: daily total disturbances
     )
     SLEEP_DURATION = IndicatorInfo(
         category=Categories.SLEEP.value,
@@ -1522,6 +1535,7 @@ class StandardIndicator(Enum):
         description="Percentage of actual sleep time relative to time in bed",
         description_zh="实际睡眠时间占在床时间的百分比",
         data_type=HealthDataType.SERIES,
+        aggregation_methods=['avg'],  # W2.1: daily average sleep efficiency
     )
     SLEEP_IN_BED = IndicatorInfo(
         category=Categories.SLEEP.value,
@@ -1531,6 +1545,7 @@ class StandardIndicator(Enum):
         description="Total time in bed",
         description_zh="在床上的总时间",
         data_type=HealthDataType.SERIES,
+        aggregation_methods=['total', 'sleep_onset_latency'],  # W2.1: daily total; W2.7: onset latency
     )
     SLEEP_LATENCY = IndicatorInfo(
         category=Categories.SLEEP.value,
@@ -1594,6 +1609,7 @@ class StandardIndicator(Enum):
         description="Walking speed",
         description_zh="步行速度",
         data_type=HealthDataType.SERIES,
+        aggregation_methods=['avg', 'max'],  # W2.1: daily avg/max walking speed
     )
     STEPS = IndicatorInfo(
         category=Categories.ACTIVITY.value,
@@ -1820,6 +1836,7 @@ class StandardIndicator(Enum):
         description="Total actual sleep time",
         description_zh="实际睡眠的总时间",
         data_type=HealthDataType.SERIES,
+        aggregation_methods=['total'],  # W2.1: daily total sleep time
     )
     TOTAL_SLEEP_TIME = IndicatorInfo(
         category=Categories.SLEEP.value,
@@ -1911,6 +1928,7 @@ class StandardIndicator(Enum):
         description="Heart rate during walking",
         description_zh="步行时的心率",
         data_type=HealthDataType.SERIES,
+        aggregation_methods=['avg'],
     )
     DAILY_WALKING_HEART_RATE = IndicatorInfo(
         category=Categories.VITAL_SIGNS.value,
@@ -2843,6 +2861,35 @@ class StandardIndicator(Enum):
         data_type=HealthDataType.SUMMARY,
     )
 
+    # Activity Time Indicators
+    SEDENTARY_TIME = IndicatorInfo(
+        category=Categories.ACTIVITY.value,
+        standard_unit="min",
+        name="sedentaryTime",
+        name_zh="久坐时间",
+        description="Total sedentary time during the day",
+        description_zh="一天中的久坐时间",
+        data_type=HealthDataType.SUMMARY,
+    )
+    RESTING_TIME = IndicatorInfo(
+        category=Categories.ACTIVITY.value,
+        standard_unit="min",
+        name="restingTime",
+        name_zh="休息时间",
+        description="Total resting time during the day",
+        description_zh="一天中的休息时间",
+        data_type=HealthDataType.SUMMARY,
+    )
+    DAILY_ACTIVITY_SCORE = IndicatorInfo(
+        category=Categories.ACTIVITY.value,
+        standard_unit="score",
+        name="dailyActivityScore",
+        name_zh="每日活动评分",
+        description="Daily activity score (0-100)",
+        description_zh="每日活动综合评分",
+        data_type=HealthDataType.SUMMARY,
+    )
+
     @property
     def identifier(self) -> str:
         """Return the string identifier for backward compatibility."""
@@ -2864,6 +2911,23 @@ VALID_INDICATORS: Set[str] = {indicator.identifier for indicator in StandardIndi
 _INDICATOR_LOOKUP = {
     indicator.value.name: indicator.value for indicator in StandardIndicator
 }
+
+# Case-insensitive lookup: lowercase → canonical name (W1.4)
+_INDICATOR_NAME_NORMALIZE = {
+    indicator.value.name.lower(): indicator.value.name
+    for indicator in StandardIndicator if indicator.value.name
+}
+
+
+def normalize_indicator_name(raw_name: str) -> str:
+    """Normalize indicator name to canonical case from StandardIndicator.
+
+    Case-insensitive match: 'bloodglucoses' → 'bloodGlucoses'.
+    Unrecognized names are returned as-is.
+    """
+    if not raw_name:
+        return raw_name
+    return _INDICATOR_NAME_NORMALIZE.get(raw_name.lower(), raw_name)
 
 
 def is_summary_indicator(indicator: str) -> bool:

@@ -1,6 +1,7 @@
 import aiohttp, datetime, json, logging, secrets, time
 
 from psycopg_pool import AsyncConnectionPool
+from redis.asyncio import Redis
 
 from .agent import (
     load_agents_from_directories,
@@ -47,7 +48,6 @@ from ..utils import (
     StreamingResponse,
     Route
 )
-from ..utils.redis_compat import AsyncRedisClient
 
 from .memory import (
     AbstractMemoryClient,
@@ -65,7 +65,7 @@ class ChatService:
         routes          : list | None = None,
 
         db_pool         : AsyncConnectionPool | None = None,
-        redis           : AsyncRedisClient | None = None,
+        redis           : Redis | None = None,
 
         mcp_server_url  : str = "",
 
@@ -342,6 +342,7 @@ class ChatService:
             return json_response_with_code(-3, "Empty question.", request=request)
 
         if self._memory and \
+            ("scene" not in params) and \
             (not isinstance(params.get("query_user_id"), str) or params["query_user_id"] == params["user_id"]):
             await self._memory.add(params["user_id"], params["question"])
 
@@ -361,7 +362,8 @@ class ChatService:
                 logging.warning(err, extra={"user": user_id})
             else:
                 if "timezone" not in params:
-                    params["timezone"] = user_info.timezone if user_info.timezone else "America/Los_Angeles"
+                    from mirobody.utils.config import get_default_timezone
+                    params["timezone"] = user_info.timezone if user_info.timezone else get_default_timezone()
                 if "language" not in params:
                     params["language"] = user_info.language if user_info.language else "en"
 

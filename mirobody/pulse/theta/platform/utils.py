@@ -9,7 +9,8 @@ import json
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
+from zoneinfo import ZoneInfo
 
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
@@ -139,6 +140,87 @@ class ThetaTimeUtils:
         except Exception as e:
             logging.error(f"Error parsing datetime string '{time_str}': {str(e)}")
             return datetime.now(timezone.utc)
+
+    @staticmethod
+    def convert_timezone_offset_to_name(timezone_offset: Union[int, str, None]) -> str:
+        """Convert timezone offset (seconds) to timezone name"""
+        if timezone_offset is None:
+            return "UTC"
+
+        TIMEZONE_MAPPING = {
+            28800: "Asia/Shanghai", 32400: "Asia/Tokyo", 19800: "Asia/Kolkata",
+            25200: "Asia/Bangkok", 21600: "Asia/Dhaka", 14400: "Asia/Dubai",
+            10800: "Asia/Riyadh", 0: "UTC", 3600: "Europe/London",
+            7200: "Europe/Berlin", -18000: "America/New_York",
+            -21600: "America/Chicago", -25200: "America/Denver",
+            -28800: "America/Los_Angeles", -14400: "America/Halifax",
+            -10800: "America/Sao_Paulo", 36000: "Australia/Sydney",
+            43200: "Pacific/Auckland",
+        }
+
+        if isinstance(timezone_offset, str):
+            if timezone_offset in set(TIMEZONE_MAPPING.values()):
+                return timezone_offset
+            return "UTC"
+
+        if timezone_offset in TIMEZONE_MAPPING:
+            return TIMEZONE_MAPPING[timezone_offset]
+
+        return "UTC"
+
+    @staticmethod
+    def parse_timestamp_with_smart_timezone(
+        timestamp_str: str,
+        effective_timezone: str
+    ) -> int:
+        """
+        Smart parse timestamp string to UTC millisecond timestamp.
+
+        Three core logic branches:
+        1. Non-UTC timezone in timestamp → use directly
+        2. Virtual date boundary (00:00:00) or pure date → use effective_timezone
+        3. Real time point with UTC/no timezone → treat as UTC
+
+        This solves the problem where vendor APIs return date-only strings
+        (e.g., Oura "day": "2026-03-06") that should be interpreted in the
+        user's local timezone, not the server's local timezone.
+        """
+        try:
+            if "T" in timestamp_str:
+                dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+            else:
+                dt = datetime.strptime(timestamp_str, "%Y-%m-%d")
+
+            if dt.tzinfo:
+                offset_seconds = int(dt.tzinfo.utcoffset(dt).total_seconds())
+            else:
+                offset_seconds = 0
+
+            # Logic 1: Non-UTC timezone → use directly
+            if offset_seconds != 0:
+                dt_utc = dt.astimezone(ZoneInfo("UTC"))
+                return int(dt_utc.timestamp() * 1000)
+
+            # Logic 2: Virtual date boundary (00:00:00) or pure date → use effective_timezone
+            is_virtual_date_boundary = (dt.hour == 0 and dt.minute == 0 and dt.second == 0)
+            if is_virtual_date_boundary:
+                dt_naive = dt.replace(tzinfo=None)
+                dt_with_tz = dt_naive.replace(tzinfo=ZoneInfo(effective_timezone))
+                dt_utc = dt_with_tz.astimezone(ZoneInfo("UTC"))
+                return int(dt_utc.timestamp() * 1000)
+
+            # Logic 3: Real time point with UTC/no timezone → treat as UTC
+            if dt.tzinfo:
+                dt_utc = dt.astimezone(ZoneInfo("UTC"))
+            else:
+                dt_utc = dt.replace(tzinfo=ZoneInfo("UTC"))
+            return int(dt_utc.timestamp() * 1000)
+
+        except Exception as e:
+            logging.error(
+                f"Error parsing timestamp {timestamp_str} with timezone {effective_timezone}: {e}"
+            )
+            return int(time.time() * 1000)
 
     @staticmethod
     def is_token_expired(expires_at: Optional[int]) -> bool:

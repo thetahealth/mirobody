@@ -8,6 +8,7 @@ import logging
 from typing import Any, AsyncGenerator
 
 from .agent import get_global_agent
+from mirobody.utils.config import get_default_timezone
 
 #-----------------------------------------------------------------------------
 
@@ -77,7 +78,7 @@ class UnifiedChatService:
             "user_id"               : query_user_id,
             "session_id"            : kwargs.get("session_id", "") or kwargs.get("trace_id", ""),
             "language"              : kwargs.get("language", "en"),
-            "timezone"              : kwargs.get("timezone", "America/Los_Angeles"),
+            "timezone"              : kwargs.get("timezone") or get_default_timezone(),
             "token"                 : kwargs.get("token", ""),
             # Chat.
             "question"              : kwargs.get("content", ""),

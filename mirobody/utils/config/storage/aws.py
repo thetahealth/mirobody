@@ -52,7 +52,7 @@ class AwsStorage(AbstractStorage):
         self.session = aioboto3.Session(**session_params)
         self._client_params = {}
         
-        # Add endpoint URL if provided (for MinIO compatibility)
+        # Add endpoint URL if provided (for S3-compatible services)
         if self.endpoint:
             self._client_params["endpoint_url"] = self.endpoint
 

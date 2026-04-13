@@ -82,6 +82,11 @@ Mirobody is built for **Personal Intelligence**, not just local storage. We beli
 Initialize your environment in seconds:
 
 ```bash
+# This repo uses Git LFS for some binary assets (e.g. mirobody/res/*.bin).
+# Install it once before cloning, otherwise those files will be empty pointers:
+#   macOS:  brew install git-lfs && git lfs install
+#   Ubuntu: sudo apt install git-lfs && git lfs install
+
 git clone https://github.com/thetahealth/mirobody.git
 cd mirobody
 ./deploy.sh

@@ -53,6 +53,12 @@ async def setup_platform_system_async(config_file_path=None, providers: Optional
             logging.error(f"Error registering provider {provider.info.slug}: {str(e)}")
             continue
 
+    # 6. Initialize FHIR mapping (optional, config-driven)
+    from .core.fhir_mapping import FhirMapping
+    fhir_mapping = await FhirMapping.initialize()
+    if fhir_mapping:
+        logging.info(f"  - FHIR mapping initialized")
+
     logging.info("Platform system setup completed:")
     logging.info(f"  - Theta platform loaded {len(theta_providers)} providers")
     logging.info(f"  - Apple Health platform initialized with built-in providers")

@@ -334,7 +334,7 @@ Authorization: Bearer <token>
 - Receive file data
 - Validate file type and size
 - Generate unique file identifier
-- Upload to object storage (S3/OSS/MinIO)
+- Upload to object storage (S3/OSS)
 
 #### 2. File Type Recognition (30-35%)
 

@@ -98,9 +98,7 @@ class Config:
         self.private_mcp_resource_dirs  = self.get_dirs("PRIVATE_MCP_RESOURCE_DIRS", [])
         self.private_agent_dirs         = self.get_dirs("PRIVATE_AGENT_DIRS", [])
 
-        self.web_server_url = self.get_str("MCP_FRONTEND_URL")
         self.mcp_server_url = self.get_str("MCP_PUBLIC_URL")
-        self.data_server_url= self.get_str("DATA_PUBLIC_URL")
 
         self.api_keys = self.get_api_keys()
 
@@ -333,21 +331,22 @@ class Config:
     def get_api_keys(self) -> dict[str, str]:
         results = {}
 
+        for key, value in self._raw.items():
+            if key.endswith("_API_KEY") and value and isinstance(value, str):
+                results[key] = value
+                os.environ.setdefault(key, value)
+
         for key in [
-            "EVERMEMOS_API_KEY",
-            "OPENROUTER_API_KEY",
-            "NEBULA_API_KEY",
-            "OPENAI_API_KEY",
-            "GOOGLE_API_KEY",
-            "GOOGLE_CLOUD_API_KEY",
-            "ANTHROPIC_API_KEY",
-            "MIROTHINKER_API_KEY",
-            "E2B_API_KEY",
-            "FAL_KEY",
-            "JINA_API_KEY"
+            "AZURE_TENANT_ID",
+            "AZURE_CLIENT_ID",
+            "AZURE_FEDERATED_TOKEN_FILE",
+
+            "GOOGLE_CLOUD_PROJECT",
+            "GOOGLE_CLOUD_LOCATION",
+            "GOOGLE_GENAI_USE_VERTEXAI",
         ]:
             value = self.get_str(key)
-            if value and isinstance(value, str):
+            if value:
                 results[key] = value
                 os.environ.setdefault(key, value)
 
@@ -362,10 +361,6 @@ class Config:
 
             "private_tool_dirs"     : self.private_mcp_tool_dirs,
             "private_resource_dirs" : self.private_mcp_resource_dirs,
-
-            "web_server_url"    : self.web_server_url,
-            "mcp_server_url"    : self.mcp_server_url,
-            "data_server_url"   : self.data_server_url
         }
 
 
@@ -430,25 +425,34 @@ class Config:
                     if not isinstance(s, str):
                         continue
 
-                    k = ""
-                    v = s
+                    # Parse path@suffix format (e.g., "path/to/prompt.jinja@orchestrator")
+                    file_path = s
+                    explicit_key = ""
+                    if "@" in s:
+                        parts = s.rsplit("@", 1)
+                        if len(parts) == 2:
+                            file_path = parts[0].strip()
+                            explicit_key = parts[1].strip()
 
-                    if os.path.isfile(s):
+                    k = ""
+                    v = file_path
+
+                    if os.path.isfile(file_path):
                         try:
-                            with open(s, "r") as f:
+                            with open(file_path, "r") as f:
                                 v = f.read()
-                            k = os.path.basename(s).removesuffix(".jinja").strip()
+                            k = explicit_key or os.path.basename(file_path).removesuffix(".jinja").strip()
                         except Exception as e:
                             logging.warning(str(e), exc_info=True)
-                            v = s
+                            v = file_path
 
                     elif dist and dist.is_dir():
                         try:
-                            v = dist.joinpath(s).read_text(encoding="utf-8")
-                            k = os.path.basename(s).removesuffix(".jinja").strip()
+                            v = dist.joinpath(file_path).read_text(encoding="utf-8")
+                            k = explicit_key or os.path.basename(file_path).removesuffix(".jinja").strip()
                         except Exception as e:
                             logging.warning(str(e), exc_info=True)
-                            v = s
+                            v = file_path
 
                     if not k:
                         i = i + 1
@@ -539,6 +543,14 @@ class Config:
         return {
             "wechat_mp_appid"   : self.get_str("WECHAT_MP_APPID"),
             "wechat_mp_secret"  : self.get_str("WECHAT_MP_SECRET")
+        }
+
+    def get_webauthn_options(self) -> dict:
+        return {
+            "webauthn_rp_id"            : self.get_str("WEBAUTHN_RP_ID"),
+            "webauthn_rp_name"          : self.get_str("WEBAUTHN_RP_NAME"),
+            "webauthn_origin"           : self.get_str("WEBAUTHN_ORIGIN"),
+            "webauthn_mfa_ticket_ttl"   : self.get_int("WEBAUTHN_MFA_TICKET_TTL", 300),
         }
 
     def get_firebase_options(self) -> dict[str, str]:
@@ -646,7 +658,7 @@ class Config:
     def print(self):
         print(f"Configuration loaded from {self._yaml_filenames}:")
         print("----------------------------------------------------------")
-        print(f"env             : {os.environ.get('ENV', '').strip().lower()}")
+        print(f"env             : {os.environ.get("ENV", "").strip().lower()}")
         print(f"debug           : {self.log.level <= logging.DEBUG}")
 
         self.log.print()
@@ -657,12 +669,8 @@ class Config:
 
         if self.jwt_key:
             print(f"jwt             : {Config.to_masked_str(self.jwt_key)}")
-        if self.web_server_url:
-            print(f"web             : {self.web_server_url}")
         if self.mcp_server_url:
             print(f"mcp             : {self.mcp_server_url}")
-        if self.data_server_url:
-            print(f"data            : {self.data_server_url}")
         if self.mcp_tool_dirs:
             print(f"tools           : {self.mcp_tool_dirs}")
         if self.private_mcp_tool_dirs:
@@ -679,7 +687,7 @@ class Config:
         if self.api_keys:
             print()
             for key in self.api_keys:
-                print(f"{key.lower():<18}: {Config.to_masked_str(self.api_keys[key].lower())}")
+                print(f"{key.lower():<32}: {Config.to_masked_str(self.api_keys[key].lower())}")
 
         print("----------------------------------------------------------")
 
@@ -697,7 +705,7 @@ class Config:
             default_url = f"http://localhost:{self.http.port}" if self.http.port != 80 else "http://localhost"
             print(f"\nNow you can open {BOLD}{GREEN}{mcp_public_url if mcp_public_url else default_url}{RESET} in browser, and then\n  login with the following:")
             print("------------------------------------------------")
-            print(f"{'EMAIL':<25} | VERIFICATION CODE")
+            print(f"{"EMAIL":<25} | VERIFICATION CODE")
             print("------------------------------------------------")
 
             i = 0
@@ -706,7 +714,7 @@ class Config:
             for email, verification_code in codes.items():
                 if i >= 10 and i < n-1:
                     if not printed_dots:
-                        print(f"{'...':<25} | ...")
+                        print(f"{"...":<25} | ...")
                         printed_dots = True
                 else:
                     print(f"{BOLD}{GREEN}{email:<25}{RESET} | {BOLD}{GREEN}{verification_code}{RESET}")
@@ -962,6 +970,11 @@ def safe_read_cfg(key: str, default: str = "") -> str:
     if not _global_config:
         return ""
 
-    return _global_config.get_str(key, default)
+    return _global_config.get_str(key, default).strip()
+
+
+def get_default_timezone() -> str:
+    tz = safe_read_cfg("DEFAULT_TIMEZONE") or safe_read_cfg("_DEFAULT_TIMEZONE")
+    return tz if tz else "America/Los_Angeles"
 
 #-----------------------------------------------------------------------------

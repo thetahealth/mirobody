@@ -1,0 +1,366 @@
+{
+  "test_id": "theta_oura_sleep_001",
+  "description": "Oura sleep data with duration, stages, HRV, heart rate, and respiratory rate",
+  "provider_class": "mirobody.pulse.theta.mirobody_oura.provider_oura.ThetaOuraProvider",
+  "platform": "theta",
+  "mock_context": {},
+  "input": {
+    "data_type": "sleep",
+    "data": [
+      {
+        "id": "00000000-0000-0000-0000-000000000001",
+        "type": "long_sleep",
+        "bedtime_start": "2026-03-06T23:15:00.000+08:00",
+        "bedtime_end": "2026-03-07T07:30:00.000+08:00",
+        "total_sleep_duration": 27000,
+        "time_in_bed": 29700,
+        "awake_time": 1800,
+        "deep_sleep_duration": 5400,
+        "light_sleep_duration": 12600,
+        "rem_sleep_duration": 7200,
+        "efficiency": 91,
+        "latency": 480,
+        "average_heart_rate": 58.5,
+        "lowest_heart_rate": 48,
+        "average_hrv": 42.3,
+        "average_breath": 15.2,
+        "restless_periods": 6,
+        "temperature_delta": -0.15,
+        "day": "2026-03-07",
+        "timestamp": "2026-03-06T23:15:00.000+08:00"
+      }
+    ],
+    "timestamp": 1772943600000
+  },
+  "expected": {
+    "success": true,
+    "health_data_count": 14,
+    "required_indicators": [
+      "dailyTotalSleepTime",
+      "sleepAnalysis_InBed",
+      "sleepAnalysis_Awake",
+      "sleepAnalysis_Asleep(Deep)",
+      "sleepAnalysis_Asleep(Core)",
+      "sleepAnalysis_Asleep(REM)",
+      "sleepEfficiency",
+      "sleepLatency",
+      "dailyHeartRateAvg",
+      "dailyHeartRateMin",
+      "hrvRMSSD",
+      "respiratoryRates",
+      "sleepDisturbances",
+      "temperatureDelta"
+    ],
+    "value_checks": [
+      {
+        "index": 0,
+        "field": "type",
+        "expected": "dailyTotalSleepTime"
+      },
+      {
+        "index": 0,
+        "field": "value",
+        "expected": 27000
+      },
+      {
+        "index": 0,
+        "field": "unit",
+        "expected": "s"
+      },
+      {
+        "index": 1,
+        "field": "type",
+        "expected": "sleepAnalysis_InBed"
+      },
+      {
+        "index": 1,
+        "field": "value",
+        "expected": 29700
+      },
+      {
+        "index": 1,
+        "field": "unit",
+        "expected": "s"
+      },
+      {
+        "index": 2,
+        "field": "type",
+        "expected": "sleepAnalysis_Awake"
+      },
+      {
+        "index": 2,
+        "field": "value",
+        "expected": 1800
+      },
+      {
+        "index": 3,
+        "field": "type",
+        "expected": "sleepAnalysis_Asleep(Deep)"
+      },
+      {
+        "index": 3,
+        "field": "value",
+        "expected": 5400
+      },
+      {
+        "index": 4,
+        "field": "type",
+        "expected": "sleepAnalysis_Asleep(Core)"
+      },
+      {
+        "index": 4,
+        "field": "value",
+        "expected": 12600
+      },
+      {
+        "index": 5,
+        "field": "type",
+        "expected": "sleepAnalysis_Asleep(REM)"
+      },
+      {
+        "index": 5,
+        "field": "value",
+        "expected": 7200
+      },
+      {
+        "index": 6,
+        "field": "type",
+        "expected": "sleepEfficiency"
+      },
+      {
+        "index": 6,
+        "field": "value",
+        "expected": 91
+      },
+      {
+        "index": 7,
+        "field": "type",
+        "expected": "sleepLatency"
+      },
+      {
+        "index": 7,
+        "field": "value",
+        "expected": 480
+      },
+      {
+        "index": 10,
+        "field": "type",
+        "expected": "hrvRMSSD"
+      },
+      {
+        "index": 10,
+        "field": "value",
+        "expected": 42.3
+      },
+      {
+        "index": 13,
+        "field": "type",
+        "expected": "temperatureDelta"
+      },
+      {
+        "index": 13,
+        "field": "value",
+        "expected": -0.15
+      }
+    ],
+    "snapshot": {
+      "metaInfo": {
+        "userId": "test_user_oura_001",
+        "source": "theta",
+        "timezone": "Asia/Shanghai",
+        "taskId": null
+      },
+      "healthData": [
+        {
+          "source": "theta.theta_oura",
+          "type": "dailyTotalSleepTime",
+          "unit": "s",
+          "value": 27000.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "sleepAnalysis_InBed",
+          "unit": "s",
+          "value": 29700.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "sleepAnalysis_Awake",
+          "unit": "s",
+          "value": 1800.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "sleepAnalysis_Asleep(Deep)",
+          "unit": "s",
+          "value": 5400.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "sleepAnalysis_Asleep(Core)",
+          "unit": "s",
+          "value": 12600.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "sleepAnalysis_Asleep(REM)",
+          "unit": "s",
+          "value": 7200.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "sleepEfficiency",
+          "unit": "%",
+          "value": 91.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "sleepLatency",
+          "unit": "seconds",
+          "value": 480.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "dailyHeartRateAvg",
+          "unit": "bpm",
+          "value": 58.5,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "dailyHeartRateMin",
+          "unit": "bpm",
+          "value": 48.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "hrvRMSSD",
+          "unit": "ms",
+          "value": 42.3,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "respiratoryRates",
+          "unit": "count/min",
+          "value": 15.2,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "sleepDisturbances",
+          "unit": "count",
+          "value": 6.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "temperatureDelta",
+          "unit": "°C",
+          "value": -0.15,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_sleep",
+          "task_id": null,
+          "comment": null
+        }
+      ],
+      "batchInfo": null,
+      "processingInfo": {
+        "provider": "theta_oura",
+        "data_type": "sleep",
+        "raw_count": 1,
+        "mapped_count": 14,
+        "msg_id": "test_msg_oura_sleep"
+      }
+    }
+  },
+  "patch_targets": [
+    "mirobody.pulse.theta.platform.base.ThetaDatabaseService",
+    "mirobody.pulse.theta.platform.base.ThetaUserService",
+    {
+      "target": "mirobody.utils.config.safe_read_cfg",
+      "return_value": ""
+    }
+  ],
+  "context": {
+    "theta_user_id": "test_user_oura_001",
+    "user_timezone": "Asia/Shanghai",
+    "msg_id": "test_msg_oura_sleep"
+  }
+}

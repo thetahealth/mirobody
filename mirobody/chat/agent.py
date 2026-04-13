@@ -13,8 +13,8 @@ class AbstractAgent:
 
     async def generate_response(self, *args: Any, **kwargs: Any) -> AsyncGenerator[dict[str, Any], None]: ...
 
-    @staticmethod
-    def load_llm_clients(llm_client_config: dict[str, Any]) -> dict[str, Any]: ...
+    @classmethod
+    def load_llm_clients(cls, llm_client_config: dict[str, Any]) -> dict[str, Any]: ...
 
 #-----------------------------------------------------------------------------
 
@@ -44,7 +44,10 @@ def load_agents_from_module(module: ModuleType, module_name: str, config: Config
             continue
 
         try:
-            functions = inspect.getmembers(klass, predicate=inspect.isfunction)
+            functions = inspect.getmembers(
+                klass,
+                predicate=lambda m: inspect.isfunction(m) or inspect.ismethod(m)
+            )
         except Exception as e:
             logging.warning(f"Error getting agent functions: {e}")
             continue

@@ -43,6 +43,7 @@ tools/
 ├── __init__.py                      # This documentation
 ├── file_read_service.py             # FileReadService (ls, read_file, glob, grep, ...)
 ├── file_write_service.py            # FileWriteService (write_file, edit_file)
+├── code_service.py                 # CodeService (execute) — only loaded when E2B_API_KEY is set
 ├── todo_service.py                  # TodoService (write_todos)
 ├── chart_service.py                 # ChartService
 ├── _chart_service_schema_loader.py  # Helper (underscore prefix → not loaded)

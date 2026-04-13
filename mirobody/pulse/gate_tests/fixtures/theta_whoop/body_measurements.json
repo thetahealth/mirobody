@@ -1,0 +1,140 @@
+{
+  "test_id": "theta_whoop_body_measurements_001",
+  "description": "Whoop body_measurements data",
+  "provider_class": "mirobody.pulse.theta.mirobody_whoop.provider_whoop.ThetaWhoopProvider",
+  "platform": "theta",
+  "mock_context": {},
+  "input": {
+    "data": [
+      {
+        "height_meter": 1.7,
+        "max_heart_rate": 182,
+        "weight_kilogram": 70.0
+      }
+    ],
+    "msg_id": "test_msg_0009",
+    "user_id": "test_user_005",
+    "data_type": "body_measurements",
+    "timestamp": 1768574416892
+  },
+  "expected": {
+    "success": true,
+    "health_data_count": 3,
+    "required_indicators": [
+      "bodyMasss",
+      "heights",
+      "maxHeartRateProfile"
+    ],
+    "value_checks": [
+      {
+        "index": 0,
+        "field": "type",
+        "expected": "heights"
+      },
+      {
+        "index": 0,
+        "field": "value",
+        "expected": 1.7
+      },
+      {
+        "index": 0,
+        "field": "unit",
+        "expected": "m"
+      },
+      {
+        "index": 1,
+        "field": "type",
+        "expected": "bodyMasss"
+      },
+      {
+        "index": 1,
+        "field": "value",
+        "expected": 70.0
+      },
+      {
+        "index": 1,
+        "field": "unit",
+        "expected": "kg"
+      },
+      {
+        "index": 2,
+        "field": "type",
+        "expected": "maxHeartRateProfile"
+      },
+      {
+        "index": 2,
+        "field": "value",
+        "expected": 182.0
+      }
+    ],
+    "snapshot": {
+      "metaInfo": {
+        "userId": "test_user_005",
+        "source": "theta",
+        "timezone": "Asia/Shanghai",
+        "taskId": null
+      },
+      "healthData": [
+        {
+          "source": "theta.theta_whoop",
+          "type": "heights",
+          "unit": "m",
+          "value": 1.7,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_0009",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_whoop",
+          "type": "bodyMasss",
+          "unit": "kg",
+          "value": 70.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_0009",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_whoop",
+          "type": "maxHeartRateProfile",
+          "unit": "count/min",
+          "value": 182.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_0009",
+          "task_id": null,
+          "comment": null
+        }
+      ],
+      "batchInfo": null,
+      "processingInfo": {
+        "provider": "theta_whoop",
+        "processed_indicators": 3,
+        "skipped_indicators": 0,
+        "errors": [],
+        "msg_id": "test_msg_0009",
+        "user_timezone": "Asia/Shanghai",
+        "total_records": 3
+      }
+    }
+  },
+  "patch_targets": [
+    "mirobody.pulse.theta.platform.base.ThetaDatabaseService",
+    "mirobody.pulse.theta.platform.base.ThetaUserService",
+    {
+      "target": "mirobody.utils.config.safe_read_cfg",
+      "return_value": ""
+    }
+  ],
+  "context": {
+    "theta_user_id": "test_user_005",
+    "user_timezone": "Asia/Shanghai",
+    "msg_id": "test_msg_0009"
+  }
+}

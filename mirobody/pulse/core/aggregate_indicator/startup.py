@@ -7,10 +7,12 @@ Integrates with the unified scheduler system.
 import logging
 
 from .task import AggregateIndicatorTask
+from .derived_task import DerivedCalculationTask
 from ..scheduler import scheduler
 
-# Global task instance
+# Global task instances
 _aggregate_task = None
+_derived_task = None
 
 
 async def start_aggregate_indicator_scheduler(run_integration_test: bool = False):
@@ -49,6 +51,13 @@ async def start_aggregate_indicator_scheduler(run_integration_test: bool = False
     scheduler.register_task(_aggregate_task)
 
     logging.info("Aggregate indicator task registered successfully")
+
+    # Register derived indicator task (TH-174 W2.2)
+    global _derived_task
+    if _derived_task is None:
+        _derived_task = DerivedCalculationTask()
+        scheduler.register_task(_derived_task)
+        logging.info("Derived indicator task registered successfully")
 
 
 async def stop_aggregate_indicator_scheduler():

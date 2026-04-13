@@ -1,12 +1,12 @@
 import abc
-import uuid
+import asyncio
 import logging
-
+import uuid
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional, Union
-from datetime import datetime
+from typing import Any, Callable, Dict, Optional, Set
 
 from fastapi import UploadFile
+
 from mirobody.utils.i18n import t
 from mirobody.utils.req_ctx import get_req_ctx
 
@@ -54,6 +54,8 @@ class BaseFileHandler(abc.ABC):
         self.db_service = db_service
         self.indicator_extractor = indicator_extractor
         self.abstract_extractor = abstract_extractor
+        # Strong references to background tasks to prevent GC before completion
+        self._background_tasks: Set[asyncio.Task] = set()
 
     async def process(self, ctx: FileProcessingContext) -> Dict[str, Any]:
         """Template method for file processing"""
@@ -72,7 +74,17 @@ class BaseFileHandler(abc.ABC):
             
             # 4. Core processing (Specific to file type)
             result_data = await self._process_content(ctx, temp_file_path, unique_filename, full_url, language)
-            
+
+            # 4.5. Auto-start background indicator extraction for any handler that returns original_text
+            original_text = result_data.get("original_text")
+            if original_text and original_text.strip() and self.indicator_extractor:
+                self._start_background_indicator_extraction(
+                    original_text=original_text,
+                    user_id=int(ctx.target_user_id),
+                    file_name=ctx.filename,
+                    file_key=unique_filename,
+                )
+
             # 5. Abstract extraction (Common step, but check if already extracted)
             if "file_abstract" in result_data and result_data["file_abstract"]:
                 file_abstract = result_data["file_abstract"]
@@ -428,4 +440,170 @@ Return JSON format: {"file_name": "...", "file_abstract": "..."}"""
             "raw": f"Processing failed: {ctx.filename}",
             "file_key": file_key or "",  # Include file_key even on failure
         }
+
+    # ── Shared indicator extraction methods (used by pdf, image, text, etc.) ──
+
+    def _start_background_indicator_extraction(
+        self,
+        original_text: str,
+        user_id: int,
+        file_name: str,
+        file_key: str,
+    ):
+        """Start background indicator extraction with GC-safe task reference."""
+        task = asyncio.create_task(
+            self._async_extract_indicators(
+                original_text=original_text,
+                user_id=user_id,
+                file_name=file_name,
+                file_key=file_key,
+            )
+        )
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        logging.info(
+            f"📤 {self.get_type_name()} upload completed, "
+            f"background indicator extraction started: {file_key}"
+        )
+
+    async def _async_extract_indicators(
+        self,
+        original_text: str,
+        user_id: int,
+        file_name: str,
+        file_key: str,
+    ):
+        """Background task: extract indicators from text and update th_files."""
+        file_type = self.get_type_name()
+        try:
+            logging.info(f"🔄 Starting async indicator extraction for {file_type}: {file_key}")
+
+            indicators = []
+            llm_ret = {}
+            formatted_raw = original_text
+
+            try:
+                from mirobody.pulse.file_parser.services.content_formatter import ContentFormatter
+
+                (indicators, llm_ret) = await self.indicator_extractor.extract_indicators_from_text(
+                    original_text=original_text,
+                    user_id=user_id,
+                    ocr_db_id=0,
+                    source_table="th_files",
+                    file_name=file_name,
+                    file_key=file_key,
+                    save_to_db=True,
+                )
+                logging.info(
+                    f"✅ Async indicator extraction completed for {file_type}: {file_key}, "
+                    f"count: {len(indicators) if indicators else 0}"
+                )
+
+                # Format content
+                if isinstance(llm_ret, dict) and "formatted_content" in llm_ret:
+                    formatted_raw = llm_ret["formatted_content"]
+                elif indicators and llm_ret:
+                    try:
+                        formatted_raw = ContentFormatter.format_parsed_content(
+                            file_results=[{"type": file_type, "raw": original_text}],
+                            file_names=[file_key],
+                            llm_responses=[llm_ret],
+                            indicators_list=[indicators],
+                        )
+                    except Exception:
+                        formatted_raw = original_text
+            except Exception as e:
+                logging.warning(f"⚠️ Async indicator extraction failed for {file_type}: {file_key}, error: {e}")
+
+            # Update th_files with indicator results
+            await self._update_file_indicators(
+                file_key=file_key,
+                formatted_raw=formatted_raw,
+                indicators_count=len(indicators) if indicators else 0,
+            )
+
+            logging.info(f"✅ Async indicator extraction completed for {file_type}: {file_key}")
+
+        except Exception as e:
+            logging.error(f"❌ Async indicator extraction failed for {file_type} {file_key}: {e}", exc_info=True)
+
+    async def _save_original_text_to_db(
+        self,
+        file_key: str,
+        original_text: str,
+        text_length: int,
+        content_hash: str,
+    ):
+        """Save original_text to th_files table by file_key."""
+        try:
+            from mirobody.utils.db import execute_query
+
+            sql = """
+                UPDATE th_files
+                SET original_text = :original_text,
+                    text_length = :text_length,
+                    content_hash = :content_hash,
+                    updated_at = NOW()
+                WHERE file_key = :file_key
+            """
+
+            await execute_query(
+                sql,
+                params={
+                    "file_key": file_key,
+                    "original_text": original_text,
+                    "text_length": text_length,
+                    "content_hash": content_hash,
+                },
+                query_type="update",
+                mode="async",
+            )
+
+        except Exception as e:
+            logging.warning(f"⚠️ Failed to save original text to th_files: {file_key}, error: {e}")
+
+    async def _update_file_indicators(
+        self,
+        file_key: str,
+        formatted_raw: str,
+        indicators_count: int,
+    ):
+        """Update th_files with indicator extraction results."""
+        try:
+            from mirobody.utils.db import execute_query
+
+            sql = """
+                UPDATE th_files
+                SET file_content = jsonb_set(
+                    jsonb_set(
+                        jsonb_set(
+                            COALESCE(file_content, CAST('{}' AS jsonb)),
+                            '{raw}',
+                            to_jsonb(CAST(:raw AS text))
+                        ),
+                        '{indicators_count}',
+                        to_jsonb(CAST(:indicators_count AS integer))
+                    ),
+                    '{processed}',
+                    to_jsonb(true)
+                ),
+                updated_at = NOW()
+                WHERE file_key = :file_key
+            """
+
+            await execute_query(
+                sql,
+                params={
+                    "file_key": file_key,
+                    "raw": formatted_raw,
+                    "indicators_count": indicators_count,
+                },
+                query_type="update",
+                mode="async",
+            )
+
+            logging.info(f"✅ Updated th_files indicators: {file_key}")
+
+        except Exception as e:
+            logging.warning(f"⚠️ Failed to update file indicators: {e}")
 

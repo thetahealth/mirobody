@@ -61,6 +61,8 @@ from .compat import (
     # Global files descriptions (mirobody)
     LIST_GLOBAL_FILES_DESCRIPTION,
     FETCH_REMOTE_FILES_DESCRIPTION,
+    # Code execution description
+    EXECUTE_TOOL_DESCRIPTION,
     # System prompts
     FILESYSTEM_SYSTEM_PROMPT,
     EXECUTION_SYSTEM_PROMPT,
@@ -107,6 +109,8 @@ __all__ = [
     # Global files descriptions (mirobody)
     "LIST_GLOBAL_FILES_DESCRIPTION",
     "FETCH_REMOTE_FILES_DESCRIPTION",
+    # Code execution description
+    "EXECUTE_TOOL_DESCRIPTION",
     # System prompts
     "FILESYSTEM_SYSTEM_PROMPT",
     "EXECUTION_SYSTEM_PROMPT",

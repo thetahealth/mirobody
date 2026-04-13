@@ -3,7 +3,7 @@ from typing import IO, Optional, Dict, Any
 #-----------------------------------------------------------------------------
 
 class AbstractStorage:
-    """Abstract base class for all storage backends (S3, OSS, MinIO)"""
+    """Abstract base class for all storage backends (S3, OSS)"""
     
     def __init__(
         self,

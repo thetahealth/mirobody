@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Dict, Any, AsyncGenerator
 
@@ -44,8 +45,14 @@ class StreamConverter:
             Unified format event dictionary with type: reply or thinking
         """
         try:
+            # Skip summarization-internal model calls — they are not user-facing output.
+            # SummarizationMiddleware marks these runs with lc_source="summarization" in
+            # the config metadata, which LangGraph propagates into stream event metadata.
+            if metadata.get('lc_source') == 'summarization':
+                return
+
             chunk_type = type(chunk).__name__
-            
+
             # Extract metadata information
             node_info = StreamConverter._extract_metadata_info(metadata)
             node_name = node_info.get("node")
@@ -218,7 +225,12 @@ class StreamConverter:
                                             "type": "queryTitle",
                                             "content": tool_name,
                                             "tool_id": tool_id,
-                                            "args": tool_args,
+                                        }
+                                        # Emit queryArguments separately, bound by tool_id
+                                        yield {
+                                            "type": "queryArguments",
+                                            "content": json.dumps(tool_args, ensure_ascii=False),
+                                            "tool_id": tool_id,
                                         }
                     
                     # Step "tools": Extract ToolMessage results

@@ -86,7 +86,8 @@ def get_timezone(data):
     for name in timezone_name_list:
         if name in data:
             return data[name]
-    return "America/Los_Angeles"
+    from ...utils.config import get_default_timezone
+    return get_default_timezone()
 
 
 def get_timezone_without_default(data):
@@ -163,8 +164,11 @@ async def lifespan(app: FastAPI):
         from mirobody.pulse.theta.platform.startup import stop_theta_pull_scheduler
         from ..core.aggregate_indicator.startup import stop_aggregate_indicator_scheduler
 
+        from ..core.monitor.startup import stop_monitor_collector
+
         await stop_theta_pull_scheduler()
         await stop_aggregate_indicator_scheduler()
+        await stop_monitor_collector()
     except Exception as e:
         logging.error(f"Failed to stop schedulers: {str(e)}")
 
@@ -182,3 +186,19 @@ async def init():
     except Exception as e:
         logging.error(f"Failed to start aggregate indicator scheduler: {str(e)}")
         raise  # Re-raise to prevent service from starting if tests fail
+
+    # Start monitor collector tasks (TH-141)
+    try:
+        from ..core.monitor.startup import start_monitor_collector
+        await start_monitor_collector()
+        logging.info("Monitor collector tasks started")
+    except Exception as e:
+        logging.error(f"Failed to start monitor collector tasks: {str(e)}")
+
+    # Start insight engine task (Phase 4)
+    try:
+        from ..core.insight.startup import start_insight_engine
+        await start_insight_engine()
+        logging.info("Insight engine task started")
+    except Exception as e:
+        logging.error(f"Failed to start insight engine task: {str(e)}")

@@ -29,6 +29,7 @@ class AliyunStorage(AbstractStorage):
         self._oss2 = None
         self._auth = None
         self._bucket = None
+        self._cdn_bucket = None  # Bucket instance using custom domain for signed URLs
         self._endpoint_url = None
         self._initialized = False
     
@@ -50,14 +51,25 @@ class AliyunStorage(AbstractStorage):
             protocol = "https"
             self._endpoint_url = f"{protocol}://{self.endpoint}"
             
-            # Create Auth instance (V2 signature for proper response-header override support)
+            # Use V2 signature (AuthV2)
+            # Content-Disposition is set to inline during upload (in put() method),
+            # so we don't rely on response-content-disposition override in signed URLs.
             self._auth = oss2.AuthV2(self.access_key_id, self.secret_access_key)
             
-            # Create Bucket instance
+            # Create Bucket instance for API operations (upload, delete, etc.)
             self._bucket = oss2.Bucket(self._auth, self._endpoint_url, self.bucket)
-            
+
+            # If custom domain (cdn) is configured, create a CNAME bucket for signed URLs.
+            # Custom domain bypasses OSS's x-oss-force-download restriction.
+            if self.cdn:
+                cdn_url = self.cdn if self.cdn.startswith("http") else f"https://{self.cdn}"
+                self._cdn_bucket = oss2.Bucket(self._auth, cdn_url, self.bucket, is_cname=True)
+                logger.info(f"CDN bucket initialized with custom domain: {self.cdn}")
+            else:
+                self._cdn_bucket = self._bucket
+
             self._initialized = True
-            logger.info(f"Aliyun OSS client initialized: bucket={self.bucket}, endpoint={self.endpoint}")
+            logger.info(f"Aliyun OSS client initialized: bucket={self.bucket}, endpoint={self.endpoint}, cdn={self.cdn or 'none'}")
         except Exception as e:
             logger.error(f"Failed to initialize Aliyun OSS client: {str(e)}", exc_info=True)
             raise
@@ -86,6 +98,9 @@ class AliyunStorage(AbstractStorage):
             else:
                 # Auto-detect content type from filename
                 headers["Content-Type"] = self.get_content_type_from_filename(key)
+
+            # Set Content-Disposition to inline so browsers preview instead of download
+            headers["Content-Disposition"] = "inline"
             
             # Add metadata
             if metadata:
@@ -112,14 +127,25 @@ class AliyunStorage(AbstractStorage):
                 )
             else:
                 return None, "Unsupported content type"
-            
-            # Generate signed URL
-            response_headers = {"response-content-disposition": "inline"}
+
+            # Force update object metadata to ensure Content-Disposition is stored.
+            # put_object headers may not reliably persist Content-Disposition,
+            # so we use update_object_meta with REPLACE directive as a guarantee.
+            meta_headers = {
+                "Content-Type": headers.get("Content-Type", "application/octet-stream"),
+                "Content-Disposition": "inline",
+            }
+            await loop.run_in_executor(
+                None,
+                partial(self._bucket.update_object_meta, object_key, meta_headers)
+            )
+
+            # Generate signed URL via custom domain (bypasses x-oss-force-download)
             url = await loop.run_in_executor(
                 None,
-                partial(self._bucket.sign_url, "GET", object_key, expires, params=response_headers)
+                partial(self._cdn_bucket.sign_url, "GET", object_key, expires)
             )
-            
+
             logger.info(f"File uploaded to OSS successfully: {object_key}")
             
             return url, None
@@ -148,13 +174,12 @@ class AliyunStorage(AbstractStorage):
             
             content = result.read()
             
-            # Generate signed URL
-            response_headers = {"response-content-disposition": "inline"}
+            # Generate signed URL via custom domain
             url = await loop.run_in_executor(
                 None,
-                partial(self._bucket.sign_url, "GET", object_key, 7200, params=response_headers)
+                partial(self._cdn_bucket.sign_url, "GET", object_key, 7200)
             )
-            
+
             return content, url
             
         except Exception as e:
@@ -200,15 +225,10 @@ class AliyunStorage(AbstractStorage):
             object_key = self._build_object_key(key)
             
             loop = asyncio.get_event_loop()
-            response_headers = {"response-content-disposition": "inline"}
-            # Note: Do NOT add response-content-type here.
-            # OSS V2 signature does not support overriding content-type via signed URL params
-            # (causes "Can not override response header on content-type" error).
-            # Content-Type is already set correctly during upload via put() headers.
-            
+            # Generate signed URL via custom domain
             url = await loop.run_in_executor(
                 None,
-                partial(self._bucket.sign_url, "GET", object_key, expires, params=response_headers)
+                partial(self._cdn_bucket.sign_url, "GET", object_key, expires)
             )
             
             return url

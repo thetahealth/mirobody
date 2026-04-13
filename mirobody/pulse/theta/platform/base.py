@@ -12,7 +12,12 @@ from mirobody.pulse.base import Provider
 from mirobody.pulse.core import LinkType
 from mirobody.pulse.core.push_service import push_service
 from mirobody.pulse.core.user import ThetaUserService
-from mirobody.pulse.data_upload.models.requests import StandardPulseData, StandardPulseMetaInfo
+from mirobody.pulse.data_upload.models.requests import (
+    FormatDataContext,
+    FormatDataInput,
+    StandardPulseData,
+    StandardPulseMetaInfo,
+)
 from mirobody.pulse.theta.platform.database_service import ThetaDatabaseService
 from mirobody.utils import execute_query
 
@@ -153,8 +158,92 @@ class BaseThetaProvider(Provider):
             logging.warning(f"Failed to get user timezone for user {user_id}: {str(e)}, using default UTC")
             return "UTC"
 
+    def _extract_theta_user_id(self, saved_data: Dict[str, Any]) -> str:
+        """Extract internal system user ID from saved data.
+
+        Tries 'theta_user_id' (Theta convention) then 'app_user_id'
+        (Vital convention). Does NOT fall back to 'user_id' because
+        'user_id' means external/vendor user ID by convention.
+        """
+        return saved_data.get("theta_user_id", saved_data.get("app_user_id", ""))
+
+    def _extract_external_user_id(self, saved_data: Dict[str, Any]) -> str:
+        """Extract vendor-side user ID from saved data.
+
+        Default: reads top-level 'user_id' which by convention is the
+        external/vendor user ID. Returns '' if absent.
+        Override per provider when external ID lives deeper in the payload
+        (e.g., Whoop reads from data[0]["user_id"] for webhook path).
+        """
+        return saved_data.get("user_id", "")
+
+    def _extract_msg_id(self, saved_data: Dict[str, Any]) -> str:
+        """Extract message/request tracking ID from saved data."""
+        return saved_data.get("msg_id", "")
+
+    @staticmethod
+    def _extract_nested_value(data: dict, field_path: str):
+        """Navigate nested dict by dot-separated path: 'a.b.c' → data['a']['b']['c']"""
+        value = data
+        for key in field_path.split("."):
+            if isinstance(value, dict):
+                value = value.get(key)
+            else:
+                return None
+        return value
+
+    async def build_format_context(self, saved_data: Dict[str, Any]) -> FormatDataContext:
+        """Build pre-resolved context from saved raw data.
+
+        Extracts identity fields via overridable hooks, resolves timezone
+        from DB, and returns a complete FormatDataContext.  Caller
+        (Platform.post_data) passes the result inside FormatDataInput so
+        that format_data_v2 needs no DB access.
+        """
+        theta_user_id = self._extract_theta_user_id(saved_data)
+        external_user_id = self._extract_external_user_id(saved_data)
+        msg_id = self._extract_msg_id(saved_data)
+        user_timezone = await self._get_user_timezone(theta_user_id)
+        return FormatDataContext(
+            theta_user_id=theta_user_id,
+            external_user_id=external_user_id,
+            user_timezone=user_timezone,
+            msg_id=msg_id,
+        )
+
     async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:
-        raise NotImplementedError("Subclasses must implement format_data method")
+        """Legacy entry — builds context from raw_data, then forwards to format_data_v2.
+
+        Only forwards if the subclass has overridden format_data_v2.
+        Otherwise raises NotImplementedError to avoid infinite recursion.
+        """
+        if type(self).format_data_v2 is BaseThetaProvider.format_data_v2:
+            raise NotImplementedError(
+                f"{type(self).__name__} must implement format_data_v2 or format_data"
+            )
+        ctx = await self.build_format_context(raw_data)
+        fmt_input = FormatDataInput(context=ctx, payload=raw_data)
+        return await self.format_data_v2(fmt_input)
+
+    async def format_data_v2(self, fmt_input: FormatDataInput) -> StandardPulseData:
+        """New entry — caller pre-builds FormatDataInput with resolved context.
+
+        Subclasses that override format_data() (legacy) instead of format_data_v2()
+        are handled gracefully: we fall back to calling format_data(payload).
+        """
+        # Check if the subclass has its own format_data (not the base-class forwarder)
+        if type(self).format_data is not BaseThetaProvider.format_data:
+            # Legacy provider: has custom format_data(), call it with payload
+            # Inject context fields into payload so legacy code can find user_id etc.
+            legacy_data = {**fmt_input.payload}
+            if fmt_input.context:
+                legacy_data.setdefault("user_id", fmt_input.context.theta_user_id or "")
+                legacy_data.setdefault("theta_user_id", fmt_input.context.theta_user_id or "")
+                legacy_data.setdefault("msg_id", fmt_input.context.msg_id or "")
+            return await self.format_data(legacy_data)
+        raise NotImplementedError(
+            f"{type(self).__name__} must implement format_data_v2 or format_data"
+        )
 
     def generate_request_id(self) -> str:
         """Generate request ID"""
@@ -247,8 +336,8 @@ class BaseThetaProvider(Provider):
             # 2. Process each data record
             for raw_data in raw_data_list:
                 try:
-                    # Add user ID to raw data
-                    raw_data["user_id"] = user_id
+                    # Inject system user ID with canonical key
+                    raw_data["theta_user_id"] = user_id
 
                     # Check if already processed
                     if await self.is_data_already_processed(raw_data):

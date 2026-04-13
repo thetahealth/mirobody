@@ -14,7 +14,9 @@ PROVIDER_EXECUTION_INTERVALS = {
     "theta_renpho": 24.0,  # Renpho: execute once every 24 hours
     "theta_vital": 6.0,  # Vital: execute once every 6 hours
     "theta_cgm": 1.0,  # CGM: execute once every 1 hour
-    "theta_whoop": 24.0,  # Whoop: execute once every 1 hour
+    "theta_whoop": 24.0,  # Whoop: execute once every 24 hours
+    # Oura: pull every 5 min. Rate limit 5000 req/5min, 3 endpoints/user → supports ~1500 users
+    "theta_oura": 5 / 60,
     "default": 1.0,  # Default: execute once every 1 hour
 }
 
@@ -23,7 +25,8 @@ PROVIDER_LOCK_DURATIONS = {
     "theta_renpho": 23.5,  # Renpho: lock for 23.5 hours
     "theta_vital": 5.5,  # Vital: lock for 5.5 hours
     "theta_cgm": 0.5,  # CGM: lock for 0.5 hours
-    "theta_whoop": 23.5,  # Whoop: lock for 0.5 hours
+    "theta_whoop": 23.5,  # Whoop: lock for 23.5 hours
+    "theta_oura": 4 / 60,  # Oura: lock for 4 min (< 5 min interval)
     "default": 0.5,  # Default: lock for 0.5 hours
 }
 
@@ -70,8 +73,8 @@ class ThetaProviderPullTask(PullTask):
 
         logging.info(
             f"Initialized pull task for {self.provider_slug}: "
-            f"execution_interval={execution_interval}h, "
-            f"lock_duration={lock_duration}h, "
+            f"execution_interval={execution_interval:.2f}h, "
+            f"lock_duration={lock_duration:.2f}h, "
             f"schedule_type={schedule_type.value}"
         )
 

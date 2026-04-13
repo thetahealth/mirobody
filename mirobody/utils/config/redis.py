@@ -1,17 +1,5 @@
-from __future__ import annotations
-
 import logging
-
-from ..redis_compat import (
-    AsyncConnectionPool,
-    AsyncRedisClient,
-    SyncConnectionPool,
-    SyncRedisClient,
-    log_missing_redis_dependency,
-    redis_asyncio_module,
-    redis_available,
-    redis_module,
-)
+import redis, redis.asyncio
 
 #-----------------------------------------------------------------------------
 
@@ -50,12 +38,8 @@ class RedisConfig:
     # redis.Redis handles connection pooling automatically, thus
     #   use getAioClient() or getClient() as possible as you can.
 
-    async def get_async_client(self) -> AsyncRedisClient | None:
-        if not redis_available():
-            log_missing_redis_dependency()
-            return None
-
-        client = redis_asyncio_module.Redis(
+    async def get_async_client(self) -> redis.asyncio.Redis | None:
+        client = await redis.asyncio.Redis(
             host                = self.host,
             port                = self.port,
             db                  = self.database,
@@ -83,12 +67,8 @@ class RedisConfig:
         return client
 
 
-    def get_client(self) -> SyncRedisClient | None:
-        if not redis_available():
-            log_missing_redis_dependency()
-            return None
-
-        client = redis_module.Redis(
+    def get_client(self) -> redis.Redis | None:
+        client = redis.Redis(
             host                = self.host,
             port                = self.port,
             db                  = self.database,
@@ -112,13 +92,9 @@ class RedisConfig:
 
     #-----------------------------------------------------
 
-    def get_async_pool(self) -> AsyncConnectionPool | None:
-        if not redis_available():
-            log_missing_redis_dependency()
-            return None
-
-        return redis_asyncio_module.ConnectionPool(
-            connection_class    = redis_asyncio_module.SSLConnection if self.ssl else redis_asyncio_module.Connection,
+    def get_async_pool(self) -> redis.asyncio.ConnectionPool:
+        return redis.asyncio.ConnectionPool(
+            connection_class    = redis.asyncio.SSLConnection if self.ssl else redis.asyncio.Connection,
             host                = self.host,
             port                = self.port,
             db                  = self.database,
@@ -129,13 +105,9 @@ class RedisConfig:
             socket_timeout      = self.timeout,
         )
 
-    def get_pool(self) -> SyncConnectionPool | None:
-        if not redis_available():
-            log_missing_redis_dependency()
-            return None
-
-        return redis_module.ConnectionPool(
-            connection_class    = redis_module.SSLConnection if self.ssl else redis_module.Connection,
+    def get_pool(self) -> redis.ConnectionPool:
+        return redis.ConnectionPool(
+            connection_class    = redis.SSLConnection if self.ssl else redis.Connection,
             host                = self.host,
             port                = self.port,
             db                  = self.database,

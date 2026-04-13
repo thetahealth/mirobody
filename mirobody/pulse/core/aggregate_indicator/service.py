@@ -8,10 +8,13 @@ No longer manages locks, timestamps, or stats caching - these are handled by Tas
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from .aggregators import SQLAggregator, AggregatorProtocol
 from .database_service import AggregateDatabaseService
+from .rule_generator import get_rules_by_source_indicator
+from ..fhir_mapping import get_fhir_id, FhirMapping
+from ..indicators_info import StandardIndicator
 
 
 class AggregateIndicatorService:
@@ -99,6 +102,11 @@ class AggregateIndicatorService:
             # Business logic: Calculate aggregations
             all_summaries = await self.aggregator.calculate_batch_aggregations(tasks)
 
+            # Register missing FHIR indicators BEFORE saving, then backfill fhir_id
+            if all_summaries:
+                await self._register_missing_fhir_indicators()
+                self._backfill_fhir_ids(all_summaries)
+
             # Business logic: Save to database
             if all_summaries:
                 save_success = await self.db_service.batch_save_summary_data(
@@ -136,6 +144,58 @@ class AggregateIndicatorService:
             logging.error(f"[AggregateIndicator] Error during processing: {e}")
             return {"status": "error", "error": str(e)}
 
+    @staticmethod
+    def _backfill_fhir_ids(summaries: List[Dict[str, Any]]):
+        """Re-fill fhir_id on summaries that were None (cache was updated by register_missing)."""
+        backfilled = 0
+        for summary in summaries:
+            if summary.get("fhir_id") is None:
+                fhir_id = get_fhir_id(summary.get("indicator", ""))
+                if fhir_id:
+                    summary["fhir_id"] = fhir_id
+                    backfilled += 1
+        if backfilled:
+            logging.info(f"[FhirMapping] Backfilled {backfilled} fhir_ids before save")
+
+    async def _register_missing_fhir_indicators(self):
+        """Register any pending FHIR indicators (auto_register mode only)."""
+        try:
+            instance = FhirMapping.get_instance()
+            if instance is None or not instance.get_pending():
+                return
+
+            # Build indicator_info_map covering both source and aggregated indicator names
+            info_map = {}
+            for ind in StandardIndicator:
+                info = ind.value
+                if not info.name:
+                    continue
+                source_info = {
+                    "short_name": info.name_zh or info.name,
+                    "description": info.description or "",
+                    "unit": info.standard_unit or "",
+                }
+                # Map source indicator name (e.g. "heartRates")
+                info_map[info.name] = source_info
+
+                # Map all aggregated indicator names (e.g. "dailyAvgHeartRates")
+                rules = get_rules_by_source_indicator(info.name)
+                for rule in rules:
+                    # Get unit from aggregator (uses HHMM in comments)
+                    raw_unit = self.aggregator._get_aggregation_unit(info.name, rule.aggregation_type) if hasattr(self.aggregator, '_get_aggregation_unit') else source_info['unit']
+                    # For fhir_indicators, use standard HH:MM format (not HHMM)
+                    fhir_unit = raw_unit.replace('HHMM', 'HH:MM')
+                    agg_info = {
+                        "short_name": f"{source_info['short_name']}({rule.aggregation_type})" if info.name_zh else rule.target_indicator,
+                        "description": f"{info.description or info.name} - {rule.aggregation_type} aggregation",
+                        "unit": fhir_unit,
+                    }
+                    info_map[rule.target_indicator] = agg_info
+
+            await instance.register_missing(info_map)
+        except Exception as e:
+            logging.warning(f"[AggregateIndicator] FHIR registration skipped: {e}")
+
     async def recalculate_date_range(
             self,
             start_date: datetime,
@@ -166,6 +226,11 @@ class AggregateIndicatorService:
             end_date=end_date,
             user_id=user_id
         )
+
+        # Register missing FHIR indicators BEFORE saving, then backfill fhir_id
+        if all_summaries:
+            await self._register_missing_fhir_indicators()
+            self._backfill_fhir_ids(all_summaries)
 
         # Save summaries
         if all_summaries:

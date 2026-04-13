@@ -6,8 +6,6 @@ from .config_manager import StorageConfigManager
 from .local import LocalStorage
 from .aws import AwsStorage
 from .aliyun import AliyunStorage
-from .minio import MinioStorage
-
 logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
@@ -32,7 +30,7 @@ class StorageFactory:
         
         Args:
             config_manager: Configuration manager (creates new one if None)
-            force_type: Force specific storage type ('aws', 'aliyun', 'minio')
+            force_type: Force specific storage type ('aws', 'aliyun')
             
         Returns:
             Storage instance
@@ -80,8 +78,6 @@ class StorageFactory:
                 instance = AwsStorage(**config)
             elif storage_type == "aliyun":
                 instance = AliyunStorage(**config)
-            elif storage_type == "minio":
-                instance = MinioStorage(**config)
             else:
                 logger.error(f"Unknown storage type: {storage_type}, using local storage")
                 instance = LocalStorage(**config_manager.get_storage_config("local"))
@@ -126,7 +122,7 @@ class StorageFactory:
         Switch to different storage backend
         
         Args:
-            storage_type: Storage type to switch to ('local', 'aws', 'aliyun', 'minio')
+            storage_type: Storage type to switch to ('local', 'aws', 'aliyun')
             
         Returns:
             New storage instance

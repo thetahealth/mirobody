@@ -316,7 +316,8 @@ class FileDbService:
             Dict with files list and total count
         """
         try:
-            timezone = get_req_ctx("timezone", "America/Los_Angeles")
+            from mirobody.utils.config import get_default_timezone
+            timezone = get_req_ctx("timezone", get_default_timezone())
             
             # Build WHERE clause
             # user_id = current user (who uploaded)

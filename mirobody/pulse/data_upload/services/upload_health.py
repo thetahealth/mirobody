@@ -2,6 +2,7 @@
 Standard Health data service
 """
 
+import json
 import logging
 import time
 
@@ -12,7 +13,9 @@ from zoneinfo import ZoneInfo
 from .base import BaseHealthService
 from ..models.requests import StandardPulseData
 from ..repositories.health_data import HealthDataRepository
-from ...core.indicators_info import is_summary_indicator, is_series_indicator
+from ...core.indicators_info import is_summary_indicator, is_series_indicator, normalize_indicator_name
+from ...core.fhir_mapping import get_fhir_id
+from ...core.value_range_validator import ValueRangeValidator
 from ...core.user import ThetaUserService
 from ....utils import execute_query
 
@@ -32,7 +35,13 @@ class StandardHealthService(BaseHealthService):
 
     def __init__(self, repository: HealthDataRepository = None):
         self.user_service = ThetaUserService()
+        self._value_validator = ValueRangeValidator()
         super().__init__(repository)
+
+    async def _ensure_validator_loaded(self):
+        """Lazy-load validation rules from DB on first use."""
+        if not self._value_validator.is_loaded:
+            await self._value_validator.load()
 
     def get_service_name(self) -> str:
         """Get service name"""
@@ -79,6 +88,8 @@ class StandardHealthService(BaseHealthService):
             bool: Whether processing succeeded
         """
         try:
+            await self._ensure_validator_loaded()
+
             user_id = current_user
             health_data = standard_data.healthData
             logging.info(f"Starting to process data, user_id: {user_id}, count: {len(health_data)}")
@@ -153,7 +164,7 @@ class StandardHealthService(BaseHealthService):
     async def _prepare_common_record_data(self, record: Dict[str, Any], user_id: str, user_timezone: str = None) -> Dict[str, Any]:
         try:
             source = record.get("source", "UNKNOWN")
-            indicator = record.get("type")
+            indicator = normalize_indicator_name(record.get("type", ""))
             timestamp = record.get("timestamp")
             unit = record.get("unit", "")
             value = record.get("value", 0)
@@ -178,6 +189,12 @@ class StandardHealthService(BaseHealthService):
                 )
             except:
                 normalized_value = value
+
+            # W1.1 (TH-132): Validate value against indicator-specific rules
+            vr = self._value_validator.validate(indicator, normalized_value)
+            if not vr.is_valid:
+                task_id = "filtered_out_of_range"
+                logging.info(f"[ValidRange] {vr.reason}, source={source}")
 
             record_time = datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc).replace(tzinfo=None)
             return {
@@ -228,6 +245,11 @@ class StandardHealthService(BaseHealthService):
             else:
                 final_comment = system_comment
 
+            # Lookup fhir_id from cache (read-only, no DB call)
+            fhir_id = get_fhir_id(common_data.get("indicator", ""))
+
+            fhir_mapping_info = json.dumps({"unit": common_data.get("unit", "")})
+
             return {
                 **common_data,
                 "start_time": start_time,
@@ -235,7 +257,9 @@ class StandardHealthService(BaseHealthService):
                 "source_table": "",  # Source table name
                 "source_table_id": common_data.get("source_id", ""),
                 "comment": final_comment,
-                "indicator_id": f"",
+                "indicator_id": "",
+                "fhir_id": fhir_id,
+                "fhir_mapping_info": fhir_mapping_info,
             }
 
         except Exception as e:
@@ -286,15 +310,15 @@ class StandardHealthService(BaseHealthService):
         try:
             query = """
             INSERT INTO th_series_data (
-                user_id, indicator, value, start_time, end_time, source_table, 
+                user_id, indicator, value, start_time, end_time, source_table,
                 source_table_id, comment, indicator_id, source, task_id,
-                create_time, update_time, deleted
+                fhir_id, fhir_mapping_info, create_time, update_time, deleted
             ) VALUES (
                 :user_id, :indicator, :value, :start_time, :end_time, :source_table,
                 :source_table_id, :comment, :indicator_id, :source, :task_id,
-                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0
+                :fhir_id, :fhir_mapping_info, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0
             )
-            ON CONFLICT (user_id, indicator, start_time, end_time) 
+            ON CONFLICT (user_id, indicator, start_time, end_time)
             DO UPDATE SET
                 value = EXCLUDED.value,
                 source_table = EXCLUDED.source_table,
@@ -302,6 +326,8 @@ class StandardHealthService(BaseHealthService):
                 comment = EXCLUDED.comment,
                 source = EXCLUDED.source,
                 task_id = EXCLUDED.task_id,
+                fhir_id = COALESCE(EXCLUDED.fhir_id, th_series_data.fhir_id),
+                fhir_mapping_info = EXCLUDED.fhir_mapping_info,
                 update_time = CURRENT_TIMESTAMP
             """
 

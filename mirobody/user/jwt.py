@@ -17,12 +17,13 @@ class AbstractTokenValidator:
 
     async def generate_tokens(
         self,
-        user_id         : str, 
+        user_id         : str,
         email           : str,
         auth_method     : str = "",
         client_id       : str = "",
         scope           : str = "",
-        gen_claims_func : Callable[[str, str], dict] | None = None
+        gen_claims_func : Callable[[str, str], dict] | None = None,
+        expires_in      : int = 0,
     ) -> tuple[
         str,        # Access token.
         str,        # Refresh token.
@@ -42,8 +43,8 @@ class AbstractTokenValidator:
             extra_claims["client_id"] = client_id
         if scope:
             extra_claims["scope"] = scope
-        
-        access_token = self.generate_token(user_id, extra_claims)
+
+        access_token = self.generate_token(user_id, extra_claims, expires_in)
 
         #-------------------------------------------------
 
@@ -57,7 +58,8 @@ class AbstractTokenValidator:
         if scope:
             extra_claims["scope"] = scope
 
-        refresh_token = self.generate_token(user_id, extra_claims, self.get_expires_in()*2)
+        refresh_expires = (expires_in * 2) if expires_in > 60 else self.get_expires_in() * 2
+        refresh_token = self.generate_token(user_id, extra_claims, refresh_expires)
 
         #-------------------------------------------------
 
@@ -173,7 +175,52 @@ class JwtTokenValidator(AbstractTokenValidator):
             return None, f"Failed to decode JWT token: {str(e)}"
     
     #-----------------------------------------------------
-    
+
+    def verify_token_allow_expired(self, token: str, max_age: int = 86400) -> tuple[dict | None, str | None]:
+        """Verify token signature but allow expired tokens (up to max_age seconds).
+
+        Used for session re-auth where the token has expired due to idle timeout
+        but the user can still re-authenticate via WebAuthn within a grace period.
+        """
+        if not self._key:
+            return None, "Invalid JWT key"
+
+        if not token or not isinstance(token, str):
+            return None, "Invalid JWT token"
+
+        while token.startswith("Bearer "):
+            token = token[7:]
+
+        if not token:
+            return None, "Empty JWT token"
+
+        try:
+            payload = jwt.decode(
+                jwt=token,
+                key=self._key,
+                algorithms=self._algorithms,
+                options={
+                    "verify_signature": True,
+                    "verify_exp": False,
+                    "verify_orig_iat": False,
+                    "verify_aud": False,
+                    "verify_iss": False,
+                },
+            )
+
+            # Enforce max staleness to prevent reuse of very old tokens.
+            exp = payload.get("exp", 0)
+            now = int(time.time())
+            if exp and (now - exp) > max_age:
+                return None, "Token expired beyond max re-auth age"
+
+            return payload, None
+
+        except Exception as e:
+            return None, f"Failed to decode JWT token: {str(e)}"
+
+    #-----------------------------------------------------
+
     def generate_token(self, subject: str, extra: dict | None = None, expires_in: int = 0) -> str:
         now = int(time.time()) - 60
 

@@ -21,6 +21,7 @@ from mirobody.pulse.core.indicators_info import StandardIndicator
 from mirobody.pulse.core.push_service import push_service
 from mirobody.pulse.core.units import UNIT_CONVERSIONS
 from mirobody.pulse.data_upload.models.requests import (
+    FormatDataInput,
     StandardPulseData,
     StandardPulseMetaInfo,
     StandardPulseRecord,
@@ -583,52 +584,45 @@ class ThetaGarminProvider(BaseThetaProvider):
             logging.error(f"Failed to remove from database: {str(db_error)}")
             raise RuntimeError(f"Failed to unlink provider: {api_error_message or 'Unknown error'}")
 
-    async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:
+    async def format_data_v2(self, fmt_input: FormatDataInput) -> StandardPulseData:
         """
         Format Garmin raw data to StandardPulseData format
 
         Args:
-            raw_data: Raw data split by user, with theta_user_id included
-            Format: {
-                'data_type': [list of items],
-                'theta_user_id': 'theta_xxx'
-            }
+            fmt_input: Structured input with pre-resolved context and raw payload
 
         Returns:
             StandardPulseData: Standardized pulse data format
         """
         start_time = time.time()
+        ctx = fmt_input.context
 
         try:
             # Generate request ID
             request_id = self.generate_request_id()
 
-            # Extract theta_user_id (required in new format)
-            user_id = raw_data.get("theta_user_id", "")
-            if not user_id:
-                logging.error("No theta_user_id found in raw_data")
+            if not ctx.theta_user_id:
+                logging.error("No theta_user_id found in format context")
                 return self._create_empty_response(request_id, "")
 
-            # Get user timezone
-            user_timezone = await self._get_user_timezone(user_id)
-            logging.info(f"Using timezone {user_timezone} for user {user_id}")
+            logging.info(f"Using timezone {ctx.user_timezone} for user {ctx.theta_user_id}")
 
-            # Initialize processing_info with user_timezone
+            # Initialize processing_info
             processing_info = {
                 "provider": "theta_garmin",
                 "start_time": start_time,
                 "processed_indicators": 0,
                 "skipped_indicators": 0,
                 "errors": [],
-                "msg_id": raw_data.get("msg_id", ""),  # Extract msg_id for source_id
-                "user_timezone": user_timezone,  # Add user timezone to processing_info
+                "msg_id": ctx.msg_id or "",
+                "user_timezone": ctx.user_timezone,
             }
 
             # Process all data types in a single loop
             all_health_records = []
             processed_data_types = []
 
-            for key, value in raw_data.items():
+            for key, value in fmt_input.payload.items():
                 if key not in ["theta_user_id", "msg_id"] and isinstance(value, list) and value:
                     processed_data_types.append(key)
                     try:
@@ -641,10 +635,10 @@ class ThetaGarminProvider(BaseThetaProvider):
                         processing_info["errors"].append(f"Failed to process {key}: {str(e)}")
 
             if not processed_data_types:
-                logging.info("No valid data content found in raw_data")
-                return self._create_empty_response(request_id, user_id)
+                logging.info("No valid data content found in payload")
+                return self._create_empty_response(request_id, ctx.theta_user_id)
 
-            logging.info(f"Processing Garmin data for user: {user_id}, types: {processed_data_types}")
+            logging.info(f"Processing Garmin data for user: {ctx.theta_user_id}, types: {processed_data_types}")
 
             # Note: dailySleepAvgHeartRate and dailySleepLowestHeartRate require cross-type
             # computation (dailies HR samples + sleep time window). Since Garmin webhook sends
@@ -652,10 +646,10 @@ class ThetaGarminProvider(BaseThetaProvider):
 
             # Create final result with all health records
             meta_info = StandardPulseMetaInfo(
-                userId=user_id,
+                userId=ctx.theta_user_id,
                 requestId=request_id,
                 source="theta",
-                timezone=user_timezone
+                timezone=ctx.user_timezone,
             )
 
             final_result = StandardPulseData(
@@ -664,7 +658,7 @@ class ThetaGarminProvider(BaseThetaProvider):
                 processingInfo=processing_info,
             )
 
-            logging.info(f"Formatted total {len(all_health_records)} Garmin data records for user {user_id}")
+            logging.info(f"Formatted total {len(all_health_records)} Garmin data records for user {ctx.theta_user_id}")
             return final_result
 
         except Exception as e:
@@ -675,7 +669,7 @@ class ThetaGarminProvider(BaseThetaProvider):
             })
             logging.error(f"Error formatting Garmin data: {str(e)}")
             request_id = self.generate_request_id()
-            return self._create_empty_response(request_id, raw_data.get("theta_user_id", ""))
+            return self._create_empty_response(request_id, ctx.theta_user_id)
 
     def _process_sleep_data(self, data: List[Dict], processing_info: Dict) -> List[StandardPulseRecord]:
         records: List[StandardPulseRecord] = []
@@ -1287,7 +1281,7 @@ class ThetaGarminProvider(BaseThetaProvider):
     def _detect_data_format(self, raw_data: Dict[str, Any]) -> str:
         is_active_pull_format = (
                 "data" in raw_data and
-                "user_id" in raw_data and
+                "theta_user_id" in raw_data and
                 "data_type" in raw_data and
                 isinstance(raw_data.get("data"), list)
         )
@@ -1376,12 +1370,16 @@ class ThetaGarminProvider(BaseThetaProvider):
                 logging.error(f"Error processing deregistration for {external_user_id}: {str(e)}")
 
     def _split_active_pull_data_by_user_id(self, raw_data: Dict[str, Any]) -> Tuple[Dict[str, Dict[str, List[Dict]]], Set[str]]:
-        """
+        """Split active-pull format data by user.
+
+        In active-pull format, theta_user_id is pre-injected by
+        _pull_and_push_for_user and used directly as the grouping key
+        (identity mapping in save_raw_data_to_db).
 
         Args:
             raw_data: {
                 "data": [...],
-                "user_id": "1",
+                "theta_user_id": "system_user_1",
                 "data_type": "sleeps",
                 "api_url": "...",
                 "timestamp": 1757738143556
@@ -1389,13 +1387,13 @@ class ThetaGarminProvider(BaseThetaProvider):
 
         Returns:
             Tuple of:
-            - user_data_map: {external_user_id: {data_type: [items...]}}
-            - external_user_ids: Set of external user IDs
+            - user_data_map: {theta_user_id: {data_type: [items...]}}
+            - user_ids: Set of theta user IDs
         """
-        user_data_map = {}  # {external_user_id: {data_type: [items...]}}
+        user_data_map = {}
         external_user_ids = set()
 
-        external_user_id = str(raw_data["user_id"])
+        external_user_id = str(raw_data["theta_user_id"])
         data_type = raw_data["data_type"]
         data_list = raw_data["data"]
 

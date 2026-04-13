@@ -9,7 +9,9 @@ import logging
 from typing import List, Optional
 
 from .models import AggregationRule
+from .naming import build_indicator_name
 from ..indicators_info import StandardIndicator, HealthDataType
+
 
 # Global custom rules registry
 _CUSTOM_RULES: List[AggregationRule] = []
@@ -82,21 +84,8 @@ def generate_rules_from_indicators() -> List[AggregationRule]:
         source_name = indicator_info.name
 
         for method in aggregation_methods:
-            # Generate target indicator name using camelCase convention
-            # Pattern: daily{Method}{SourceName}
-            # Examples: dailyAvgHeartRates, dailyTotalSteps, dailyLastBodyMasss
-
-            # Capitalize method name
-            if method in ['total', 'sum']:
-                method_capitalized = 'Total'  # Both map to 'Total'
-            else:
-                method_capitalized = method.capitalize()
-
-            # Capitalize first letter of source name
-            source_capitalized = source_name[0].upper() + source_name[1:] if source_name else ''
-
-            # Build target name
-            target_name = f"daily{method_capitalized}{source_capitalized}"
+            # Generate target indicator name using shared naming utility
+            target_name = build_indicator_name("day", method, source_name)
 
             # Create rule
             rule = AggregationRule(

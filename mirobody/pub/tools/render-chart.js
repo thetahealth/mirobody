@@ -13,40 +13,21 @@
 const fs = require('fs');
 const path = require('path');
 
-// 🔧 Module loading logic
-const IS_ALIYUN = (process.env.CLUSTER || '').toUpperCase() === 'ALIYUN';
+// Module loading — search all known paths in order
+const MODULE_NAME = '@antv/gpt-vis-ssr';
+const SEARCH_PATHS = [
+  '/app/node_modules/' + MODULE_NAME,
+  '/app/mirobody/node_modules/' + MODULE_NAME,
+  '/usr/lib/node_modules/' + MODULE_NAME,
+  '/usr/local/lib/node_modules/' + MODULE_NAME,
+];
 
 let render;
 try {
-  if (IS_ALIYUN) {
-    // Aliyun: local installation first (avoid global version conflicts)
-    if (fs.existsSync('/app/node_modules/@antv/gpt-vis-ssr')) {
-      render = require('/app/node_modules/@antv/gpt-vis-ssr').render;
-    } else if (fs.existsSync('/app/mirobody/node_modules/@antv/gpt-vis-ssr')) {
-      render = require('/app/mirobody/node_modules/@antv/gpt-vis-ssr').render;
-    } else if (fs.existsSync('/usr/lib/node_modules/@antv/gpt-vis-ssr')) {
-      render = require('/usr/lib/node_modules/@antv/gpt-vis-ssr').render;
-    } else if (fs.existsSync('/usr/local/lib/node_modules/@antv/gpt-vis-ssr')) {
-      render = require('/usr/local/lib/node_modules/@antv/gpt-vis-ssr').render;
-    } else {
-      render = require('@antv/gpt-vis-ssr').render;
-    }
-  } else {
-    // AWS/Default: global installation first (original logic)
-    if (fs.existsSync('/usr/lib/node_modules/@antv/gpt-vis-ssr')) {
-      render = require('/usr/lib/node_modules/@antv/gpt-vis-ssr').render;
-    } else if (fs.existsSync('/usr/local/lib/node_modules/@antv/gpt-vis-ssr')) {
-      render = require('/usr/local/lib/node_modules/@antv/gpt-vis-ssr').render;
-    } else if (fs.existsSync('/app/node_modules/@antv/gpt-vis-ssr')) {
-      render = require('/app/node_modules/@antv/gpt-vis-ssr').render;
-    } else if (fs.existsSync('/app/mirobody/node_modules/@antv/gpt-vis-ssr')) {
-      render = require('/app/mirobody/node_modules/@antv/gpt-vis-ssr').render;
-    } else {
-      render = require('@antv/gpt-vis-ssr').render;
-    }
-  }
+  const found = SEARCH_PATHS.find(p => fs.existsSync(p));
+  render = found ? require(found).render : require(MODULE_NAME).render;
 } catch (error) {
-  console.error('❌ Failed to load @antv/gpt-vis-ssr module');
+  console.error('Failed to load @antv/gpt-vis-ssr module');
   console.error('Please ensure:');
   console.error('  1. npm install -g @antv/gpt-vis-ssr (for Docker)');
   console.error('  2. npm install in project root (for local development)');

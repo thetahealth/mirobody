@@ -40,14 +40,13 @@ from datetime import datetime
 from typing import Dict, List
 
 from fastapi import WebSocket
-from mirobody.utils import get_req_ctx, safe_read_cfg
+from mirobody.utils import get_req_ctx
 from mirobody.pulse.file_parser.file_processor import FileProcessor
 
 from mirobody.pulse.file_parser.services.async_file_processor import AsyncFileProcessor
 from mirobody.pulse.file_parser.services.database_services import FileParserDatabaseService
 from mirobody.pulse.file_parser.services.file_db_service import FileDbService
 from mirobody.pulse.file_parser.services.db_utils import get_mime_type
-from mirobody.pulse.file_parser.tools.utils_sync_dim_table import sync_all_missing_indicators
 from mirobody.pulse.file_parser.handlers.genetic import GeneticHandler
 
 from ...chat.user_profile import UserProfileService
@@ -1051,14 +1050,8 @@ class WebSocketFileUploadManager:
 
             async def update_embedding_task():
                 try:
-                    # Only sync indicators if indicator extraction is enabled
-                    enable_indicator_extraction = safe_read_cfg("ENABLE_INDICATOR_EXTRACTION") or "0"
-                    is_aliyun = safe_read_cfg("CLUSTER") == "ALIYUN"
-
-                    if int(enable_indicator_extraction) or is_aliyun:
-                        await sync_all_missing_indicators(generate_embeddings=True)
-                    else:
-                        logging.info("Skipping sync_all_missing_indicators - indicator extraction is disabled")
+                    # Dim sync + embedding backfill is now handled automatically by
+                    # FileParserDatabaseService.save_indicators_to_db(), no need to call here.
 
                     # Start user profile creation
                     owner_user_id = query_user_id if query_user_id else user_id

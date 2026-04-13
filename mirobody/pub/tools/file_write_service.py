@@ -15,6 +15,8 @@ Note:
       - write_file
       - edit_file
     ```
+
+    For code execution (execute tool), see code_service.py.
 """
 
 import logging
@@ -105,3 +107,4 @@ class FileWriteService:
         except Exception as e:
             logger.error(f"edit_file failed for {file_path}: {e}")
             return f"Error: {e}"
+

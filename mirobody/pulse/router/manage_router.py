@@ -717,3 +717,331 @@ async def get_theta_providers(
             msg="Failed to get theta providers",
             detail=str(e)
         )
+
+
+# ===== Data Health Monitoring (W3.1 / W3.2, TH-141) =====
+
+
+@router.get("/pulse/monitor/ingestion", response_model=Union[StandardResponse, ErrorResponse])
+async def get_ingestion_stats(
+    period: int = Query(24, description="Lookback period in hours (default 24)"),
+    platform: Optional[str] = Query(None, description="Filter by platform (optional)"),
+    authorized: bool = Depends(verify_manage_key),
+):
+    """
+    W3.1 ingestion monitoring API.
+
+    Reads pre-computed platform_hourly_profile for fast response.
+    Returns by-platform summary and hourly trend.
+    """
+    try:
+        from ..core.monitor.query_service import MonitorQueryService
+        service = MonitorQueryService()
+        data = await service.get_ingestion_stats(period_hours=period, platform=platform)
+        return StandardResponse(data=data)
+    except Exception as e:
+        logging.error(f"Ingestion stats query failed: {str(e)}")
+        return ErrorResponse(code=500, detail=f"Ingestion stats query failed: {str(e)}")
+
+
+@router.get("/pulse/data-quality", response_model=Union[StandardResponse, ErrorResponse])
+async def get_data_quality(
+    date: Optional[str] = Query(None, description="Date to analyze (YYYY-MM-DD, default=yesterday)"),
+    indicator: Optional[str] = Query(None, description="Specific indicator (optional, default=all)"),
+    authorized: bool = Depends(verify_manage_key),
+):
+    """
+    W3.2 data quality monitoring API.
+
+    Reads pre-computed indicator_daily_profile for <100ms response.
+    Returns value distribution, anomaly detection, and cross-source comparison.
+    """
+    try:
+        from ..core.monitor.query_service import MonitorQueryService
+        service = MonitorQueryService()
+        data = await service.get_data_quality(target_date=date, indicator=indicator)
+        return StandardResponse(data=data)
+    except Exception as e:
+        logging.error(f"Data quality query failed: {str(e)}")
+        return ErrorResponse(code=500, detail=f"Data quality query failed: {str(e)}")
+
+
+@router.post("/pulse/monitor/backfill", response_model=Union[StandardResponse, ErrorResponse])
+async def trigger_backfill(
+    hourly_days: int = Query(7, description="Days to backfill for hourly stats"),
+    daily_days: int = Query(30, description="Days to backfill for daily profiles"),
+    authorized: bool = Depends(verify_manage_key),
+):
+    """
+    Trigger historical data backfill for report tables.
+
+    WARNING: This is a long-running operation. Hourly backfill (7 days = 168 hours)
+    can take several minutes.
+    """
+    try:
+        from ..core.monitor.collector_service import MonitorCollectorService
+        service = MonitorCollectorService()
+
+        hourly_result = await service.backfill_hourly(days=hourly_days)
+        daily_result = await service.backfill_daily(days=daily_days)
+
+        return StandardResponse(
+            data={
+                "hourly_backfill": hourly_result,
+                "daily_backfill": daily_result,
+            }
+        )
+    except Exception as e:
+        logging.error(f"Backfill failed: {str(e)}")
+        return ErrorResponse(code=500, detail=f"Backfill failed: {str(e)}")
+
+
+@router.get("/pulse/monitor/aggregation", response_model=Union[StandardResponse, ErrorResponse])
+async def get_aggregation_status(
+    authorized: bool = Depends(verify_manage_key),
+):
+    """
+    W3.3 aggregation pipeline monitoring API (TH-158).
+
+    Returns task status, last execution stats, and monitor collector status.
+    """
+    try:
+        from ..core.aggregate_indicator.startup import get_aggregate_task_full_status
+        from ..core.monitor.startup import get_hourly_task_full_status, get_daily_task_full_status
+
+        agg_status = await get_aggregate_task_full_status()
+        hourly_status = await get_hourly_task_full_status()
+        daily_status = await get_daily_task_full_status()
+
+        return StandardResponse(
+            data={
+                "aggregate_indicator": agg_status,
+                "monitor_hourly_collector": hourly_status,
+                "monitor_daily_profile": daily_status,
+            }
+        )
+    except Exception as e:
+        logging.error(f"Aggregation status query failed: {str(e)}")
+        return ErrorResponse(code=500, detail=f"Aggregation status query failed: {str(e)}")
+
+
+@router.get("/pulse/monitor/trends", response_model=Union[StandardResponse, ErrorResponse])
+async def get_trends_and_alerts(
+    authorized: bool = Depends(verify_manage_key),
+):
+    """
+    W3.8 trends and alerts API (TH-159).
+
+    Returns week-over-week ingestion trends and active alerts
+    (provider silent, filter rate spike, aggregation stuck).
+    """
+    try:
+        from ..core.monitor.query_service import MonitorQueryService
+        service = MonitorQueryService()
+        data = await service.get_trends_and_alerts()
+        return StandardResponse(data=data)
+    except Exception as e:
+        logging.error(f"Trends query failed: {str(e)}")
+        return ErrorResponse(code=500, detail=f"Trends query failed: {str(e)}")
+
+
+@router.get("/pulse/monitor/sources", response_model=Union[StandardResponse, ErrorResponse])
+async def get_source_status(
+    authorized: bool = Depends(verify_manage_key),
+):
+    """
+    Source-level monitoring API (TH-157 W3.6).
+
+    Returns per-source health status: last active time, daily average,
+    active/warning/stopped classification.
+    """
+    try:
+        from ..core.monitor.query_service import MonitorQueryService
+        service = MonitorQueryService()
+        data = await service.get_source_status()
+        return StandardResponse(data=data)
+    except Exception as e:
+        logging.error(f"Source status query failed: {str(e)}")
+        return ErrorResponse(code=500, detail=f"Source status query failed: {str(e)}")
+
+
+@router.get("/pulse/monitor/source-detail", response_model=Union[StandardResponse, ErrorResponse])
+async def get_source_detail(
+    source: str = Query(..., description="Source name (e.g. vital.garmin)"),
+    days: int = Query(7, description="Lookback days"),
+    authorized: bool = Depends(verify_manage_key),
+):
+    """
+    Source detail API: hourly trend + indicator breakdown for a single source.
+    """
+    try:
+        from ..core.monitor.query_service import MonitorQueryService
+        service = MonitorQueryService()
+        data = await service.get_source_detail(source=source, days=days)
+        return StandardResponse(data=data)
+    except Exception as e:
+        logging.error(f"Source detail query failed: {str(e)}")
+        return ErrorResponse(code=500, detail=f"Source detail query failed: {str(e)}")
+
+
+@router.get("/pulse/monitor/aggregation-coverage", response_model=Union[StandardResponse, ErrorResponse])
+async def get_aggregation_coverage(
+    days: int = Query(90, description="Lookback days for data scan"),
+    authorized: bool = Depends(verify_manage_key),
+):
+    """
+    Aggregation coverage report (W2.8 TH-175).
+    Cross-references StandardIndicator config with actual DB data.
+    """
+    try:
+        from ..core.monitor.coverage_service import CoverageService
+        service = CoverageService()
+        data = await service.get_coverage_report(lookback_days=days)
+        return StandardResponse(data=data)
+    except Exception as e:
+        logging.error(f"Coverage report failed: {str(e)}")
+        return ErrorResponse(code=500, detail=f"Coverage report failed: {str(e)}")
+
+
+@router.get("/pulse/monitor/derived-trend", response_model=Union[StandardResponse, ErrorResponse])
+async def get_derived_trend(
+    indicator: str = Query(..., description="Derived indicator name (e.g. derivedHrRange)"),
+    days: int = Query(30, description="Lookback days"),
+    authorized: bool = Depends(verify_manage_key),
+):
+    """
+    Derived indicator daily production trend (W3.9 TH-179).
+    Returns per-day record count from indicator_daily_profile.
+    """
+    try:
+        from ..core.monitor.coverage_service import CoverageService
+        service = CoverageService()
+        data = await service.get_derived_trend(indicator=indicator, days=days)
+        return StandardResponse(data=data)
+    except Exception as e:
+        logging.error(f"Derived trend query failed: {str(e)}")
+        return ErrorResponse(code=500, detail=f"Derived trend query failed: {str(e)}")
+
+
+@router.get("/pulse/monitor/user-profile", response_model=Union[StandardResponse, ErrorResponse])
+async def get_user_profile(
+    user_id: str = Query(..., description="User ID"),
+    days: int = Query(14, description="Lookback days for density calculation"),
+    authorized: bool = Depends(verify_manage_key),
+):
+    """
+    User data profile (W3.4 TH-181).
+    Returns indicator coverage, data density, and analyzability assessment.
+    """
+    try:
+        from ..core.monitor.user_profile_service import UserProfileService
+        service = UserProfileService()
+        data = await service.get_user_profile(user_id=user_id, days=days)
+        return StandardResponse(data=data)
+    except Exception as e:
+        logging.error(f"User profile query failed: {str(e)}")
+        return ErrorResponse(code=500, detail=f"User profile query failed: {str(e)}")
+
+
+# ===== Insight Engine =====
+
+@router.post("/pulse/insight/run", response_model=Union[StandardResponse, ErrorResponse])
+async def run_insight_engine(
+    user_id: Optional[str] = Query(None, description="Specific user ID (optional, default: all demo users)"),
+    target_date: Optional[str] = Query(None, description="Start date YYYY-MM-DD (optional, default: yesterday)"),
+    end_date: Optional[str] = Query(None, description="End date for simulation range (optional, single day if omitted)"),
+    skip_llm: bool = Query(False, description="Skip Layer 2 LLM calls (faster for simulation)"),
+    authorized: bool = Depends(verify_manage_key),
+):
+    """
+    Run insight engine for a specific user or all demo users.
+    If end_date is provided, slides day by day from target_date to end_date.
+    """
+    try:
+        from ..core.insight.engine_task import InsightEnginePullTask
+        task = InsightEnginePullTask()
+        result = await task.execute(
+            user_id=user_id,
+            target_date_str=target_date,
+            end_date_str=end_date,
+            skip_llm=skip_llm,
+        )
+        return StandardResponse(data={
+            "success": result,
+            "user_id": user_id,
+            "target_date": target_date,
+            "end_date": end_date,
+            "skip_llm": skip_llm,
+        })
+    except Exception as e:
+        logging.error(f"Insight engine run failed: {str(e)}")
+        return ErrorResponse(code=500, detail=f"Insight engine run failed: {str(e)}")
+
+
+@router.post("/pulse/insight/eval", response_model=Union[StandardResponse, ErrorResponse])
+async def eval_insight(
+    user_id: str = Query(..., description="User ID"),
+    target_date: str = Query(..., description="Target date YYYY-MM-DD"),
+    recipe_name: Optional[str] = Query(None, description="Specific recipe (optional, evals all if omitted)"),
+    authorized: bool = Depends(verify_manage_key),
+):
+    """
+    Run EvalAgent on insights for a specific user+date, comparing against event.* ground truth.
+    """
+    try:
+        from datetime import date, timedelta
+        from ..core.insight.database_service import InsightDatabaseService
+        from ..core.insight.eval_agent import EvalAgent
+
+        db = InsightDatabaseService()
+        agent = EvalAgent()
+        td = date.fromisoformat(target_date)
+
+        # Get insights to evaluate
+        from ..core.database import execute_query
+        sql = """
+            SELECT id, user_id, target_date, recipe_name, recipe_version,
+                   severity, observation, hypothesis, touch_message,
+                   indicators_detail
+            FROM user_behavior_insight
+            WHERE user_id = :user_id AND target_date = :target_date
+        """
+        params = {"user_id": user_id, "target_date": target_date}
+        if recipe_name:
+            sql += " AND recipe_name = :recipe_name"
+            params["recipe_name"] = recipe_name
+
+        insights = await execute_query(sql, params, query_type="select")
+        if not insights:
+            return ErrorResponse(code=404, detail="No insights found for this user+date")
+
+        # Get events within ±7 days
+        events = await db.get_user_events(user_id, td - timedelta(days=7), td + timedelta(days=7))
+
+        # Evaluate each insight
+        results = []
+        for insight in insights:
+            eval_result = await agent.evaluate(insight, events)
+            if eval_result:
+                # Write score back to DB
+                await db.update_benchmark_score(
+                    insight["id"],
+                    eval_result.get("match_score", 0),
+                    eval_result,
+                )
+                results.append({
+                    "recipe": insight["recipe_name"],
+                    "eval": eval_result,
+                })
+
+        return StandardResponse(data={
+            "user_id": user_id,
+            "target_date": target_date,
+            "insights_evaluated": len(results),
+            "events_in_window": len(events),
+            "results": results,
+        })
+    except Exception as e:
+        logging.error(f"Insight eval failed: {str(e)}", exc_info=True)
+        return ErrorResponse(code=500, detail=f"Insight eval failed: {str(e)}")
+

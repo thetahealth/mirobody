@@ -14,6 +14,7 @@ import asyncio, json, logging, uuid
 
 from typing import AsyncGenerator, Dict, Any
 
+from mirobody.utils import safe_read_cfg
 from .base import (
     CHUNK_TYPE_ENUMS,
 
@@ -164,11 +165,8 @@ class HTTPChatAdapter(ChatProtocolAdapter):
                 question_msg_id = saved_msg_id
             params.question_id = question_msg_id
             
-            # Keep full same-session history for Gemini 3 providers used by Ambodi.
-            if params.agent == "Ambodi" and params.provider in {"gemini-3-pro", "gemini-3.1-pro-openrouter"}:
-                compressed_messages = messages
-            else:
-                compressed_messages = compress_messages(params.agent, messages, 4000)
+            # Compress messages (CPU-bound, cannot be parallelized with I/O)
+            compressed_messages = compress_messages(params.agent, messages, 4000)
             
             # Log for chat extraction (fire-and-forget via base class)
             await self.log_chat_extraction(params, params.user_id, params.question_id)
@@ -394,8 +392,8 @@ class HTTPChatAdapter(ChatProtocolAdapter):
         
         asyncio.create_task(_background_processor())
         
-        HEARTBEAT_INTERVAL = 10
-        HEARTBEAT_COUNTER_THRESHOLD = 3
+        HEARTBEAT_INTERVAL = int(safe_read_cfg("HEARTBEAT_INTERVAL", "10"))
+        HEARTBEAT_COUNTER_THRESHOLD = int(safe_read_cfg("HEARTBEAT_COUNTER_THRESHOLD", "3"))
         heartbeat_counter = 0
         try:
             while True:
@@ -408,16 +406,19 @@ class HTTPChatAdapter(ChatProtocolAdapter):
                     if chunk is None:
                         break
 
+                    heartbeat_counter = 0
+
                     chunk_type = chunk.get("type", "")
                     if chunk_type == "error":
                         logging.error(json.dumps(chunk, ensure_ascii=False))
                     if chunk_type not in CHUNK_TYPE_ENUMS.non_streaming_types:
                         yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+                    
 
                 except asyncio.TimeoutError:
                     logging.debug(f"heartbeat_counter: {heartbeat_counter}")
                     heartbeat_counter += 1
-                    if heartbeat_counter >= HEARTBEAT_COUNTER_THRESHOLD:
+                    if heartbeat_counter > HEARTBEAT_COUNTER_THRESHOLD:
                         heartbeat_counter = 0
 
                         yield f"data: {json.dumps({'type': 'heartbeat', 'content': ''}, ensure_ascii=False)}\n\n"

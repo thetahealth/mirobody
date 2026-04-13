@@ -26,7 +26,9 @@ References:
 """
 
 from .deep_agent import DeepAgent
+from .mix_agent import MixAgent
 
 __all__ = [
     "DeepAgent",
+    "MixAgent",
 ]

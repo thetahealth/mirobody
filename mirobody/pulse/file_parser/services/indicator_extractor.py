@@ -74,8 +74,7 @@ class IndicatorExtractor:
         try:
             # Check if indicator extraction is enabled
             enable_indicator_extraction = safe_read_cfg("ENABLE_INDICATOR_EXTRACTION") or os.environ.get("ENABLE_INDICATOR_EXTRACTION", 0)
-            is_aliyun = safe_read_cfg("CLUSTER") == "ALIYUN"
-            if not int(enable_indicator_extraction) and not is_aliyun:
+            if not int(enable_indicator_extraction):
                 logging.info(f"Indicator extraction disabled, skipping: {file_name}")
                 if progress_callback:
                     language = get_req_ctx("language", "en")

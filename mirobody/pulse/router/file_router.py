@@ -75,7 +75,7 @@ my_data_service = MyDataService()
 @router.get("/files/{file_path:path}", tags=["files"])
 async def serve_storage_file(file_path: str):
     """
-    Proxy files from storage (MinIO/S3/OSS) through backend.
+    Proxy files from storage (S3/OSS) through backend.
     
     This endpoint provides a unified URL for file access that works both
     in browser and inside Docker containers.
@@ -422,21 +422,19 @@ async def upload_files(
     request: Request,
     files: List[UploadFile] = File(..., description="Files to upload (PDF, images, documents, etc.)"),
     user_id: str = Depends(verify_token),
-    folder: Optional[str] = Query(None, description="Custom folder prefix for uploaded files, defaults to 'uploads'"),
-    purpose: str = Query("chat", description="Upload purpose: chat for multimodal chat files, report for background parsing")
+    folder: Optional[str] = Query(None, description="Custom folder prefix for uploaded files, defaults to 'uploads'")
 ) -> FileUploadResponse:
     """
-    Upload multiple files directly to storage.
-
-    Default purpose is `chat`: upload and return file metadata for `/api/chat`
-    multimodal usage without immediate parsing. Set `purpose=report` to also
-    persist metadata and trigger background parsing.
+    Upload multiple files directly to S3
+    
+    This endpoint uploads multiple files directly to S3 without storing metadata in database.
+    Supports various file formats including PDF, images, and documents.
+    Uses the universal upload_files_to_storage service for cross-project compatibility.
     
     Args:
         files: List of files to upload
         user_id: User authentication data
         folder_prefix: Custom folder prefix for uploaded files (optional, defaults to 'uploads')
-        purpose: Upload purpose. `chat` for multimodal chat attachments, `report` for report parsing.
         
     Returns:
         FileUploadResponse: Standard response with code, msg, and data fields.
@@ -446,21 +444,14 @@ async def upload_files(
     """
     # Get Redis client from global app state (shared across all requests)
     redis_client = getattr(request.app.state, 'redis', None)
-
-    ctx = {
-        "connection_type": "http",
-        "endpoint": "/files/upload",
-        "upload_purpose": purpose,
-    }
-
-    with set_req_ctx(ctx):
-        # Use the universal upload service
-        result = await upload_files_to_storage(
-            files=files,
-            user_id=user_id,
-            folder_prefix=folder,
-            redis_client=redis_client
-        )
+    
+    # Use the universal upload service
+    result = await upload_files_to_storage(
+        files=files,
+        user_id=user_id,
+        folder_prefix=folder,
+        redis_client=redis_client
+    )
     
     # Convert result to FastAPI response format
     return FileUploadResponse(
@@ -836,11 +827,8 @@ async def handle_websocket_upload_files(websocket: WebSocket, user_id: str, mess
         
         # Perform LLM analysis
         try:
-            from mirobody.pulse.file_parser.services.file_llm_analyzer import analyze_files_with_extraction
-            from mirobody.utils.config import safe_read_cfg
-            
-            is_aliyun = safe_read_cfg("CLUSTER") == "ALIYUN"
-            analysis_provider = "doubao-lite" if is_aliyun else "openai"
+            from mirobody.pulse.file_parser.services.file_llm_analyzer import analyze_files_with_extraction, get_default_provider
+            analysis_provider, _ = get_default_provider()
             
             # Send analysis progress
             for i, file_data in enumerate(upload_result["files_data_for_processing"]):
@@ -900,3 +888,4 @@ async def handle_websocket_upload_files(websocket: WebSocket, user_id: str, mess
             "message": f"Upload and analysis failed: {str(e)}",
             "timestamp": datetime.now().isoformat()
         }))
+

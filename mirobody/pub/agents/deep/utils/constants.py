@@ -5,7 +5,7 @@ Centralizes shared constants used across multiple files to eliminate duplication
 """
 
 # File type mapping: extension -> type name
-# Used by backend.py, global_files_middleware.py, file_handler.py
+# Used by backend.py, files_utils.py, file_handler.py
 FILE_TYPE_MAP: dict[str, str] = {
     '.pdf': 'PDF',
     '.docx': 'DOCX',
@@ -99,31 +99,40 @@ MODEL_PRICING: dict[str, dict[str, float]] = {
     "claude-opus-4.5": {"input": 5.00, "output": 25.00},
     "claude-opus-4.6": {"input": 5.00, "output": 25.00},
     "claude-sonnet-4.5": {"input": 3.00, "output": 15.00},
-    "claude-sonnet-4.6": {"input": 3.00, "output": 15.00},
+    "claude-sonnet-4.6": {"input": 5.00, "output": 25.00},
     "claude-haiku-4.5": {"input": 1.00, "output": 5.00},
 
     # OpenAI GPT-5 series (automatic caching, no cache_creation cost)
     # https://platform.openai.com/docs/pricing
+    "gpt-5.4": {"input": 2.5, "output": 15.00},
     "gpt-5.2": {"input": 1.75, "output": 14.00},
     "gpt-5.1": {"input": 1.25, "output": 10.00},
-    "gpt-5": {"input": 1.25, "output": 10.00},
     "gpt-5-mini": {"input": 0.25, "output": 2.00},
     "gpt-5-nano": {"input": 0.05, "output": 0.40},
 
     # DeepSeek - https://www.deepseek.com/pricing
-    "deepseek-v3.2": {"input": 0.28, "output": 0.42},
+    "deepseek-v3.2": {"input": 0.25, "output": 0.4},
 
     # Google Gemini - https://cloud.google.com/vertex-ai/generative-ai/pricing
     "gemini-3-flash": {"input": 0.50, "output": 3.00},
-    "gemini-3-pro": {"input": 2.00, "output": 12.00},
+    "gemini-3.1-flash": {"input": 0.50, "output": 3.00},
+    "gemini-3.1-pro": {"input": 2.00, "output": 12.00},
+    "gemini-3.1-flash-lite": {"input": 0.25, "output": 1.50},
 
     # Moonshot Kimi - https://platform.moonshot.ai/pricing
-    "kimi-k2": {"input": 0.60, "output": 2.50},
-    "kimi-k2.5": {"input": 0.60, "output": 3.00},
+    "kimi-k2.5": {"input": 0.45, "output": 2.20},
 
     # Alibaba Qwen - https://openrouter.ai/qwen/qwen-plus
     "qwen-plus": {"input": 0.40, "output": 1.20},
     "qwen-max": {"input": 1.60, "output": 6.40},
+    "qwen3.5-plus": {"input": 0.26, "output": 1.56},
+    "qwen3.5-flash": {"input": 0.10, "output": 0.40},
+
+    # minimax https://openrouter.ai/minimax/minimax-m2.5
+    "minimax-m2.5": {"input": 0.16, "output": 1.10},
+
+    # ByteDance Doubao/Seed - https://openrouter.ai/bytedance-seed/seed-2.0-lite
+    "doubao-seed-2-0-lite-260215": {"input": 0.25, "output": 2.00},
 }
 
 # Stream processing node names

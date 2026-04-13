@@ -2,6 +2,7 @@ import logging, os
 
 from typing import Any, Callable
 from psycopg_pool import AsyncConnectionPool
+from redis.asyncio import Redis
 
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
@@ -21,9 +22,8 @@ from ..user import (
 )
 from ..mcp import McpService
 from ..chat import ChatService
-from ..utils.config import safe_read_cfg
+
 from ..utils.config.storage.constants import DEFAULT_LOCAL_CHARTS_PATH
-from ..utils.redis_compat import AsyncRedisClient
 
 #-----------------------------------------------------------------------------
 
@@ -50,7 +50,7 @@ class Server:
         gen_jwt_claims_func : Callable[[str, str], dict] | None = None,
 
         pg_pool         : AsyncConnectionPool[Any] | None = None,
-        redis           : AsyncRedisClient | None = None,
+        redis           : Redis | None = None,
 
         # The following parameters can be generated via
         #   config.get_mcp_options().
@@ -61,9 +61,7 @@ class Server:
         private_tool_dirs       : list[str] = [],
         private_resource_dirs   : list[str] = [],
 
-        web_server_url  : str = "",
         mcp_server_url  : str = "",
-        data_server_url : str = "",
 
         # The following parameters can be generated via
         #   config.get_agent_options().
@@ -94,6 +92,14 @@ class Server:
 
         qr_login_url            : str = "",
 
+        # The following parameters can be generated via
+        #   config.get_webauthn_options().
+
+        webauthn_rp_id          : str = "",
+        webauthn_rp_name        : str = "",
+        webauthn_origin         : str = "",
+        webauthn_mfa_ticket_ttl : int = 300,
+
         firebase_project_id     : str = "",
         firebase_api_key        : str = "",
         firebase_auth_domain    : str = "",
@@ -106,11 +112,15 @@ class Server:
 
         url_paths_for_user_info_updater     : list[str] | None = None,      # ["url_path"]
         url_paths_for_request_rate_limiter  : dict[str, int] | None = None, # {"url_path": requests_per_minute}
+
+        local_chart_dir         : str = "",
+
+        **kwargs
     ):
         self._pg_pool = pg_pool
 
         self._redis = redis
-        logging.info(f"Server is running in {'Redis' if self._redis else 'local memory'} mode.")
+        logging.info(f"Server is running in {"Redis" if self._redis else "local memory"} mode.")
 
         self._jwt_token_validator = jwt_token_validator \
             if jwt_token_validator \
@@ -144,10 +154,13 @@ class Server:
         if "__IS_APPLE_LOGIN_ON__" not in self._webpage_config:
             self._webpage_config["__IS_APPLE_LOGIN_ON__"] = True if apple_client_id else False
 
+        if "__IS_WEBAUTHN_ON__" not in self._webpage_config:
+            self._webpage_config["__IS_WEBAUTHN_ON__"] = True if webauthn_rp_id else False
+
         #-------------------------------------------------
 
         os.environ.update([
-            ("USER_AGENT", f"{server_name if server_name else 'Theta MCP Server'} {server_version if server_version else '1.0.0'}")
+            ("USER_AGENT", f"{server_name if server_name else "Theta MCP Server"} {server_version if server_version else "1.0.0"}")
         ])
 
         #-------------------------------------------------
@@ -160,9 +173,6 @@ class Server:
 
             uri_prefix      = uri_prefix,
             routes          = self._routes,
-
-            web_server_url  = web_server_url,
-            mcp_server_url  = mcp_server_url,
 
             redis           = self._redis
         )
@@ -198,7 +208,13 @@ class Server:
             firebase_project_id = firebase_project_id,
 
             # QR code login.
-            qr_login_url    = qr_login_url
+            qr_login_url    = qr_login_url,
+
+            # WebAuthn (AAL2).
+            webauthn_rp_id      = webauthn_rp_id,
+            webauthn_rp_name    = webauthn_rp_name,
+            webauthn_origin     = webauthn_origin,
+            webauthn_mfa_ticket_ttl = webauthn_mfa_ticket_ttl,
         )
 
         self._mcp_service = McpService(
@@ -215,10 +231,6 @@ class Server:
 
             private_tool_dirs       = private_tool_dirs,
             private_resource_dirs   = private_resource_dirs,
-
-            web_server_url  = web_server_url,
-            mcp_server_url  = mcp_server_url,
-            data_server_url = data_server_url,
 
             db_pool         = self._pg_pool,
             redis           = self._redis
@@ -243,7 +255,7 @@ class Server:
         self._routes.append(Route(f"{uri_prefix}/api/health", endpoint=self.health_check_handler, methods=["GET"]))
 
         # Add static file serving for chart images.
-        charts_dir = safe_read_cfg("LOCAL_CHARTS_DIR") or DEFAULT_LOCAL_CHARTS_PATH
+        charts_dir = local_chart_dir or DEFAULT_LOCAL_CHARTS_PATH
         if os.path.exists(charts_dir):
             self._routes.append(Mount("/charts", app=StaticFiles(directory=charts_dir)))
             logging.info(f"Chart static files enabled: {charts_dir}")
@@ -480,6 +492,8 @@ class Server:
 
             url_paths_for_request_rate_limiter  = config.get_dict("REQUEST_RATE_LIMITER"),
             url_paths_for_user_info_updater     = config.get_list("USER_INFO_UPDATER"),
+
+            local_chart_dir = config.get_str("LOCAL_CHARTS_DIR"),
 
             **config.get_mcp_options(),
             **config.get_agent_options(),

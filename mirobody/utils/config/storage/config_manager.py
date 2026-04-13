@@ -5,15 +5,13 @@ from .constants import DEFAULT_LOCAL_UPLOAD_PATH
 
 logger = logging.getLogger(__name__)
 
-LOCAL_STORAGE_BASE_PATH_KEY = "LOCAL_STORAGE_BASE_PATH"
-
 #-----------------------------------------------------------------------------
 
 class StorageConfigManager:
     """Unified configuration manager for storage backends"""
     
     # Storage type priority order (cloud storage first, local as fallback)
-    PRIORITY_ORDER = ["aws", "aliyun", "minio", "local"]
+    PRIORITY_ORDER = ["aws", "aliyun", "local"]
     
     def __init__(self):
         self._config_cache: Dict[str, Optional[Dict]] = {}
@@ -48,11 +46,6 @@ class StorageConfigManager:
             available.append("aliyun")
             logger.info("Aliyun OSS configuration detected")
         
-        # Check MinIO
-        if self._has_minio_config():
-            available.append("minio")
-            logger.info("MinIO configuration detected")
-        
         # Local storage is always available as fallback
         if "local" not in available:
             available.append("local")
@@ -76,7 +69,7 @@ class StorageConfigManager:
         Get configuration for specified storage type
         
         Args:
-            storage_type: Storage type ('local', 'aws', 'aliyun', 'minio')
+            storage_type: Storage type ('local', 'aws', 'aliyun')
             
         Returns:
             Configuration dictionary or None if not available
@@ -92,9 +85,6 @@ class StorageConfigManager:
             config = self._get_aws_config()
         elif storage_type == "aliyun":
             config = self._get_aliyun_config()
-        elif storage_type == "minio":
-            config = self._get_minio_config()
-        
         self._config_cache[storage_type] = config
         return config
     
@@ -124,12 +114,11 @@ class StorageConfigManager:
             Configuration dictionary with base_path and proxy_url
         """
         from mirobody.utils.config import safe_read_cfg
-
-        base_path = DEFAULT_LOCAL_UPLOAD_PATH
         
         try:
-            base_path = safe_read_cfg(LOCAL_STORAGE_BASE_PATH_KEY) or base_path
-
+            base_path = safe_read_cfg("LOCAL_STORAGE_BASE_PATH") or DEFAULT_LOCAL_UPLOAD_PATH
+            
+            # Get proxy URL from DATA_PUBLIC_URL if available
             data_public_url = safe_read_cfg("MCP_PUBLIC_URL")
             proxy_url = f"{data_public_url.rstrip('/')}/files" if data_public_url else ""
             
@@ -245,115 +234,7 @@ class StorageConfigManager:
             return None
     
     #-----------------------------------------------------
-    # MinIO Configuration
-    #-----------------------------------------------------
-    
-    def _has_minio_config(self) -> bool:
-        """
-        Check if MinIO configuration exists
-        
-        Note: safe_read_cfg checks environment variables first, then config file
-        """
-        from mirobody.utils.config import safe_read_cfg
-        
-        try:
-            endpoint = safe_read_cfg("MINIO_ENDPOINT")
-            access_key = safe_read_cfg("MINIO_ACCESS_KEY")
-            secret_key = safe_read_cfg("MINIO_SECRET_KEY")
-            bucket = safe_read_cfg("MINIO_BUCKET")
-            
-            return bool(endpoint and access_key and secret_key and bucket)
-        except Exception:
-            return False
-    
-    def _get_minio_config(self) -> Dict:
-        """
-        Get MinIO configuration
-        
-        Priority (handled by safe_read_cfg):
-        1. Environment variables
-        2. Config file
-        3. Default configuration (localhost:9000)
-        """
-        from mirobody.utils.config import safe_read_cfg
-        
-        try:
-            # safe_read_cfg auto-checks env vars first, then config file
-            endpoint = safe_read_cfg("MINIO_ENDPOINT")
-            public_url = safe_read_cfg("MINIO_PUBLIC_URL")
-            access_key = safe_read_cfg("MINIO_ACCESS_KEY")
-            secret_key = safe_read_cfg("MINIO_SECRET_KEY")
-            bucket = safe_read_cfg("MINIO_BUCKET")
-            prefix = safe_read_cfg("MINIO_PREFIX")
-            region = safe_read_cfg("MINIO_REGION") or "us-east-1"
-            public_str = safe_read_cfg("MINIO_PUBLIC") or "true"
-            public = public_str.lower() in ("true", "1", "yes")
-            
-            # Proxy URL: backend proxy endpoint for unified access
-            # Can be set via MINIO_PROXY_URL or derived from DATA_PUBLIC_URL
-            proxy_url = safe_read_cfg("MINIO_PROXY_URL")
-            if not proxy_url:
-                # Auto-derive from DATA_PUBLIC_URL if available
-                data_public_url = safe_read_cfg("DATA_PUBLIC_URL")
-                if data_public_url:
-                    proxy_url = f"{data_public_url.rstrip('/')}/files"
-            
-            # If config exists, use it
-            if all([endpoint, access_key, secret_key, bucket]):
-                final_public_url = public_url or endpoint
-                
-                logger.info(f"Using MinIO: endpoint={endpoint}, public_url={final_public_url}, proxy_url={proxy_url}, bucket={bucket}, public={public}")
-                return {
-                    "access_key_id": access_key,
-                    "secret_access_key": secret_key,
-                    "region": region,
-                    "bucket": bucket,
-                    "prefix": prefix or "",
-                    "cdn": "",
-                    "endpoint": endpoint,
-                    "public_url": final_public_url,
-                    "proxy_url": proxy_url or "",
-                    "public": public
-                }
-            
-            # Fallback to default MinIO configuration
-            default_endpoint = "http://localhost:9000"
-            default_proxy_url = safe_read_cfg("DATA_PUBLIC_URL")
-            if default_proxy_url:
-                default_proxy_url = f"{default_proxy_url.rstrip('/')}/files"
-            
-            logger.info("No MinIO config found, using default (localhost:9000)")
-            return {
-                "access_key_id": "minioadmin",
-                "secret_access_key": "minioadmin",
-                "region": "us-east-1",
-                "bucket": "default",
-                "prefix": "",
-                "cdn": "",
-                "endpoint": default_endpoint,
-                "public_url": default_endpoint,
-                "proxy_url": default_proxy_url or "",
-                "public": True
-            }
-            
-        except Exception as e:
-            logger.warning(f"Failed to load MinIO config, using defaults: {str(e)}")
-            # Return default config even on error
-            return {
-                "access_key_id": "minioadmin",
-                "secret_access_key": "minioadmin",
-                "region": "us-east-1",
-                "bucket": "default",
-                "prefix": "",
-                "cdn": "",
-                "endpoint": "http://localhost:9000",
-                "public_url": "http://localhost:9000",
-                "proxy_url": "",
-                "public": True
-            }
-    
-    #-----------------------------------------------------
-    
+
     def get_primary_storage(self) -> tuple[str, Dict]:
         """
         Get primary storage type and configuration based on priority
@@ -382,3 +263,4 @@ class StorageConfigManager:
         self._available_storages = None
 
 #-----------------------------------------------------------------------------
+
