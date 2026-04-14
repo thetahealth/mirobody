@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 import logging
 import redis, redis.asyncio
+
+from .redis_compat import RedisCompat
 
 #-----------------------------------------------------------------------------
 
@@ -59,7 +63,7 @@ class RedisConfig:
 
                 logging.error(f"Failed to ping Redis server '{self.host}:{self.port}' asynchronously.")
                 return None
-            
+
         except Exception as e:
             logging.error(str(e), extra={"host": self.host, "port": self.port})
             return None
@@ -117,5 +121,11 @@ class RedisConfig:
             decode_responses    = True,
             socket_timeout      = self.timeout,
         )
+
+    #-----------------------------------------------------
+
+    def get_async_compact_client(self) -> RedisCompat:
+        """Return an in-memory RedisCompat instance (no real Redis needed)."""
+        return RedisCompat()
 
 #-----------------------------------------------------------------------------
