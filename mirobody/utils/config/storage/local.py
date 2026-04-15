@@ -1,12 +1,11 @@
-import os
 import asyncio
 import logging
+
 from pathlib import Path
 from typing import IO, Optional, Dict, Any
 from datetime import datetime
 
 from .abstract import AbstractStorage
-from .constants import DEFAULT_LOCAL_UPLOAD_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +21,9 @@ class LocalStorage(AbstractStorage):
     
     def __init__(
         self,
-        base_path           : str = DEFAULT_LOCAL_UPLOAD_PATH,
-        prefix              : str = "",
-        proxy_url           : str = "",
+        base_path   : str = "",
+        prefix      : str = "",
+        proxy_url   : str = "",
         **kwargs  # Accept and ignore other AbstractStorage parameters
     ):
         """
@@ -35,16 +34,23 @@ class LocalStorage(AbstractStorage):
             prefix: Key prefix for all objects
             proxy_url: Backend proxy URL for file access (e.g., http://localhost:18080/files)
         """
+
+        if not base_path or not proxy_url:
+            from ..config import global_config
+            config = global_config()
+            if config:
+                if not base_path:
+                    base_path = config.get_str("LOCAL_STORAGE_BASE_PATH")
+                if not proxy_url:
+                    data_public_url = config.get_str("MCP_PUBLIC_URL")
+                    proxy_url = f"{data_public_url.rstrip('/')}/files" if data_public_url else ""
+
+        if not base_path:
+            from .constants import DEFAULT_LOCAL_UPLOAD_PATH
+            base_path = DEFAULT_LOCAL_UPLOAD_PATH
+
         # Initialize parent with minimal parameters
-        super().__init__(
-            access_key_id="",
-            secret_access_key="",
-            region="",
-            bucket="",
-            prefix=prefix,
-            cdn="",
-            endpoint=""
-        )
+        super().__init__(prefix=prefix)
         
         self.base_path = Path(base_path)
         self.proxy_url = proxy_url.strip() if proxy_url else ""
@@ -123,7 +129,7 @@ class LocalStorage(AbstractStorage):
             file_path.parent.mkdir(parents=True, exist_ok=True)
             
             # Write content to file
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             
             if isinstance(content, bytes):
                 # Write bytes directly
@@ -171,130 +177,129 @@ class LocalStorage(AbstractStorage):
     async def get(self, key: str) -> tuple[bytes | None, str | None]:
         """
         Get file from local storage
-        
+
         Args:
             key: File key/path
-            
+
         Returns:
-            Tuple of (file_content, url)
+            (content, error). Returns (None, error) on failure.
         """
         try:
             file_path = self._get_file_path(key)
-            
+
             if not file_path.exists():
                 logger.warning(f"File not found: {file_path}")
-                return None, None
-            
+                return None, f"File not found: {key}"
+
             # Read file content
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             content = await loop.run_in_executor(
                 None,
                 lambda: file_path.read_bytes()
             )
-            
-            # Generate URL
-            url = self._build_url(key)
-            
-            return content, url
-            
+
+            return content, None
+
         except Exception as e:
-            logger.error(f"Failed to read file from local storage: {str(e)}", exc_info=True)
-            return None, None
+            error_msg = f"Failed to read file from local storage: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return None, error_msg
     
     #-----------------------------------------------------
 
-    async def delete(self, key: str) -> tuple[bool, str | None]:
+    async def delete(self, key: str) -> str | None:
         """
         Delete file from local storage
-        
+
         Args:
             key: File key/path
-            
+
         Returns:
-            Tuple of (success, error_message)
+            Error message string, or None on success.
         """
         try:
             file_path = self._get_file_path(key)
-            
+
             if not file_path.exists():
                 logger.warning(f"File not found for deletion: {file_path}")
-                return True, None  # Consider non-existent file as successfully deleted
-            
+                return None  # Consider non-existent file as successfully deleted
+
             # Delete file
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(
                 None,
                 lambda: file_path.unlink()
             )
-            
+
             logger.info(f"File deleted from local storage: {file_path}")
-            
-            return True, None
-            
+
+            return None
+
         except Exception as e:
             error_msg = f"Failed to delete file from local storage: {str(e)}"
             logger.error(error_msg, exc_info=True)
-            return False, error_msg
+            return error_msg
 
     #-----------------------------------------------------
 
     async def generate_signed_url(
-        self, 
-        key: str, 
+        self,
+        key: str,
         expires: int = 7200,
         content_type: str | None = None
-    ) -> str | None:
+    ) -> tuple[str | None, str | None]:
         """
         Generate URL for local file access
-        
+
         Note: Local storage doesn't use signed URLs. Returns proxy URL directly.
-        
+
         Args:
             key: File key/path
             expires: Not used for local storage
             content_type: Not used for local storage
-            
+
         Returns:
-            File access URL
+            (signed_url, error). If successful, error is None.
         """
         try:
             file_path = self._get_file_path(key)
-            
+
             if not file_path.exists():
                 logger.warning(f"File not found: {file_path}")
-                return None
-            
-            return self._build_url(key)
-            
+                return None, f"File not found: {key}"
+
+            return self._build_url(key), None
+
         except Exception as e:
-            logger.error(f"Failed to generate URL for local file: {str(e)}", exc_info=True)
-            return None
+            error_msg = f"Failed to generate URL for local file: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return None, error_msg
 
     #-----------------------------------------------------
 
-    async def get_file_info(self, key: str) -> Dict[str, Any] | None:
+    async def get_file_info(self, key: str) -> tuple[Dict[str, Any] | None, str | None]:
         """
         Get file metadata from local storage
-        
+
         Args:
             key: File key/path
-            
+
         Returns:
-            Dictionary containing file info
+            (file_info, error). If successful, error is None.
         """
         try:
             file_path = self._get_file_path(key)
-            
+
             if not file_path.exists():
                 logger.warning(f"File not found: {file_path}")
-                return None
-            
-            loop = asyncio.get_event_loop()
-            
+                return None, f"File not found: {key}"
+
+            loop = asyncio.get_running_loop()
+
             def get_stat():
                 stat = file_path.stat()
                 content_type = self.get_content_type_from_filename(file_path.name)
-                
+
                 return {
                     "success": True,
                     "size": stat.st_size,
@@ -303,11 +308,12 @@ class LocalStorage(AbstractStorage):
                     "created": datetime.fromtimestamp(stat.st_ctime),
                     "path": str(file_path)
                 }
-            
-            return await loop.run_in_executor(None, get_stat)
-            
+
+            return await loop.run_in_executor(None, get_stat), None
+
         except Exception as e:
-            logger.error(f"Failed to get file info from local storage: {str(e)}", exc_info=True)
-            return None
+            error_msg = f"Failed to get file info from local storage: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return None, error_msg
 
 #-----------------------------------------------------------------------------

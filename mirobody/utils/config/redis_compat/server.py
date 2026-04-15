@@ -17,7 +17,7 @@ from .pubsub import PubSub, Subscriber
 
 
 class RedisCompatServer:
-    def __init__(self, host: str = "127.0.0.1", port: int = 6389):
+    def __init__(self, host: str = "127.0.0.1", port: int = 6379):
         self.host = host
         self.port = port
         self.store = MemoryStore()

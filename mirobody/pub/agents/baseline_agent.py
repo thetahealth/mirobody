@@ -462,20 +462,6 @@ class GeminiClient(AbstractClient):
 
         # Get file info for native Gemini file access
         file_infos = kwargs.get("file_infos", [])
-        files_data = kwargs.get("files_data", [])
-
-        content_b64_map = {}
-        if files_data:
-            for file_data in files_data:
-                content_b64 = file_data.get("content_b64")
-                if not content_b64:
-                    continue
-                file_key = file_data.get("file_key")
-                file_name = file_data.get("file_name") or file_data.get("filename")
-                if file_key:
-                    content_b64_map[file_key] = content_b64
-                if file_name:
-                    content_b64_map[file_name] = content_b64
 
         # Inject files into the last user message for Gemini native access
         # Gemini only supports: HTTPS URLs, gs:// (Cloud Storage), YouTube URLs, or File API URIs
@@ -488,10 +474,13 @@ class GeminiClient(AbstractClient):
                     file_parts = []
                     for f in file_infos:
                         url = f.get("url")
-                        file_key = f.get("file_key")
-                        file_name = f.get("file_name", "")
                         mime_type = f.get("mime_type", "")
-
+                        if not url:
+                            continue
+                        # Only use URLs that Gemini supports (HTTPS, gs://, youtube)
+                        if not (url.startswith("https://") or url.startswith("gs://")):
+                            logging.warning(f"⚠️ Skipping unsupported URL for Gemini: {url[:50]}...")
+                            continue
                         # Determine type from MIME type
                         if mime_type.startswith("image/"):
                             part_type = "image"
@@ -501,30 +490,7 @@ class GeminiClient(AbstractClient):
                             part_type = "audio"
                         else:
                             part_type = "document"  # PDF, docx, etc.
-
-                        if url and (url.startswith("https://") or url.startswith("gs://")):
-                            file_parts.append({"type": part_type, "uri": url, "mime_type": mime_type})
-                            continue
-
-                        content_b64 = content_b64_map.get(file_key) or content_b64_map.get(file_name)
-                        if content_b64:
-                            # Inference from Gemini Interactions multimodal schema:
-                            # when public URLs are unavailable, inline base64 is accepted with `data`.
-                            file_parts.append({"type": part_type, "data": content_b64, "mime_type": mime_type})
-                            logging.info(
-                                "📎 Injected inline Gemini file content for %s (%s)",
-                                file_name or file_key or "unknown",
-                                mime_type or "application/octet-stream",
-                            )
-                            continue
-
-                        if url:
-                            logging.warning(f"⚠️ Skipping unsupported URL for Gemini: {url[:50]}...")
-                        else:
-                            logging.warning(
-                                "⚠️ Skipping Gemini file without URL/content: %s",
-                                file_name or file_key or "unknown",
-                            )
+                        file_parts.append({"type": part_type, "uri": url, "mime_type": mime_type})
                     if file_parts:
                         input_turns[i]["content"] = [
                             {"type": "text", "text": original_content},
@@ -1338,7 +1304,6 @@ If the user made an assumption (e.g., time or location), respond according to th
                 user_id         = self._user_id,
                 session_id      = kwargs.get("session_id", ""),
                 file_infos      = file_infos,  # Pass file info for Gemini native access
-                files_data      = kwargs.get("files_data"),
                 tools           = self._tools,  # Pass pre-filtered tool names
                 redis           = self._redis,
             ):

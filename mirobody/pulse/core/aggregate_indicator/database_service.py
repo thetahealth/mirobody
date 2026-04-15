@@ -48,7 +48,7 @@ class AggregateDatabaseService:
                 fhir_id, deleted
             ) VALUES (
                 :user_id, :indicator, :value, :start_time, :end_time,
-                :source, :task_id, :comment, :source_table, :source_table_id, :indicator_id,
+                :source, :task_id, encrypt_content(:comment), :source_table, :source_table_id, :indicator_id,
                 :fhir_id, 0
             )
             ON CONFLICT (user_id, indicator, start_time, end_time)

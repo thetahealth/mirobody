@@ -1074,7 +1074,7 @@ class UserProfileGenerator:
             Tuple of (profile, scenario_zh): Existing health profile in Markdown format and previous scenario, or (None, None) if not found
         """
         sql = """
-        select common_part, scenario_zh
+        select decrypt_content(common_part_encrypted) as common_part, scenario_zh
         from health_user_profile_by_system
         where user_id = :user_id
         and is_deleted = false
@@ -1801,7 +1801,7 @@ class UserProfileService:
             scenario_zh, scenario_en, scenario_image_url, or None if not found
         """
         sql = """
-        select version, last_execute_doc_id, common_part, 
+        select version, last_execute_doc_id, decrypt_content(common_part_encrypted) as common_part,
                scenario_zh, scenario_en, scenario_image_url
         from health_user_profile_by_system
         where user_id = :user_id
@@ -1843,7 +1843,7 @@ class UserProfileService:
             or None if not found (user has only one or no profile versions)
         """
         sql = """
-        select version, common_part
+        select version, decrypt_content(common_part_encrypted) as common_part
         from health_user_profile_by_system
         where user_id = :user_id
         and is_deleted = false
@@ -1920,8 +1920,8 @@ class UserProfileService:
         """
         sql = """
         insert into health_user_profile_by_system
-        (user_id, version, name, last_execute_doc_id, common_part, scenario_zh, scenario_en, scenario_image_url, action_type, is_deleted)
-        values (:user_id, :version, :name, :last_execute_doc_id, :common_part, :scenario_zh, :scenario_en, :scenario_image_url, :action_type, :is_deleted)
+        (user_id, version, name, last_execute_doc_id, common_part_encrypted, scenario_zh, scenario_en, scenario_image_url, action_type, is_deleted)
+        values (:user_id, :version, :name, :last_execute_doc_id, encrypt_content(:common_part), :scenario_zh, :scenario_en, :scenario_image_url, :action_type, :is_deleted)
         returning id
         """
         

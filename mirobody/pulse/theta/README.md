@@ -103,5 +103,5 @@ If your provider pulls data periodically, implement `pull_from_vendor_api`.
 
 ## 🧩 Reference
 
-- **Base Class**: [`mirobody/pulse/theta/platform/base.py`](mirobody/pulse/theta/platform/base.py)
-- **Example**: [`mirobody/pulse/theta/mirobody_pgsql/provider_pgsql.py`](mirobody/pulse/theta/mirobody_pgsql/provider_pgsql.py)
+- **Base Class**: [`mirobody/pulse/theta/platform/base.py`](platform/base.py)
+- **Example**: [`mirobody/pulse/theta/mirobody_pgsql/provider_pgsql.py`](mirobody_pgsql/provider_pgsql.py)

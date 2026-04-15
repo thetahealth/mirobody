@@ -119,7 +119,11 @@ class BaseFileHandler(abc.ABC):
             from mirobody.utils.config.storage import get_storage_client
             try:
                 storage = get_storage_client()
-                full_url = await storage.generate_signed_url(unique_filename, content_type=ctx.content_type) or ""
+                full_url, err = await storage.generate_signed_url(unique_filename, content_type=ctx.content_type)
+                if err:
+                    logging.warning(err)
+
+                full_url = full_url or ""
                 logging.info(f"Skipping OSS upload, using existing file: {unique_filename}")
                 return full_url
             except Exception as url_error:
@@ -188,7 +192,7 @@ class BaseFileHandler(abc.ABC):
                 from mirobody.utils.db import execute_query
                 
                 rows = await execute_query(
-                    "SELECT original_text FROM th_file_contents WHERE content_hash = :hash LIMIT 1",
+                    "SELECT decrypt_content(original_text) as original_text FROM th_file_contents WHERE content_hash = :hash LIMIT 1",
                     params={"hash": content_hash},
                     query_type="select",
                     mode="async",
@@ -222,7 +226,7 @@ class BaseFileHandler(abc.ABC):
                     await execute_query(
                         """
                         INSERT INTO th_file_contents (content_hash, original_text, text_length, file_type)
-                        VALUES (:hash, :text, :length, :file_type)
+                        VALUES (:hash, encrypt_content(:text), :length, :file_type)
                         ON CONFLICT (content_hash) DO NOTHING
                         """,
                         params={
@@ -540,7 +544,7 @@ Return JSON format: {"file_name": "...", "file_abstract": "..."}"""
 
             sql = """
                 UPDATE th_files
-                SET original_text = :original_text,
+                SET original_text = encrypt_content(:original_text),
                     text_length = :text_length,
                     content_hash = :content_hash,
                     updated_at = NOW()

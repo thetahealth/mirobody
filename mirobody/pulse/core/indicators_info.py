@@ -272,7 +272,7 @@ class StandardIndicator(Enum):
         description="Oxygen saturation level in blood",
         description_zh="血液中氧气饱和度",
         data_type=HealthDataType.SERIES,
-        aggregation_methods=['avg', 'min'],  # Daily avg/min oxygen saturation
+        aggregation_methods=['avg', 'min', 'max'],  # Daily avg/min/max oxygen saturation
     )
     BLOOD_PRESSURE_DIASTOLIC = IndicatorInfo(
         category=Categories.VITAL_SIGNS.value,
@@ -943,7 +943,7 @@ class StandardIndicator(Enum):
         description="Heart rate at rest",
         description_zh="静息状态下的心率",
         data_type=HealthDataType.SERIES,
-        aggregation_methods=['avg', 'min'],
+        aggregation_methods=['avg', 'min', 'max'],
     )
     DAILY_HEART_RATE_RESTING = IndicatorInfo(
         category=Categories.VITAL_SIGNS.value,
@@ -1928,7 +1928,7 @@ class StandardIndicator(Enum):
         description="Heart rate during walking",
         description_zh="步行时的心率",
         data_type=HealthDataType.SERIES,
-        aggregation_methods=['avg'],
+        aggregation_methods=['avg', 'min', 'max'],
     )
     DAILY_WALKING_HEART_RATE = IndicatorInfo(
         category=Categories.VITAL_SIGNS.value,
@@ -2946,6 +2946,7 @@ def is_summary_indicator(indicator: str) -> bool:
         return std_indicator.value.data_type == HealthDataType.SUMMARY or std_indicator.value.data_type == HealthDataType.MIX
 
     return False
+
 
 def is_series_indicator(indicator: str) -> bool:
     """

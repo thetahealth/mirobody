@@ -8,9 +8,9 @@ dynamic = ["version"]
 authors = [
     {name = "Theta AI Team", email = "developer@thetahealth.ai"},
 ]
-description = "Mirobody is a Python package for processing and analyzing health data."
+description = "Self-hosted data platform that bridges your personal data with the latest AI capabilities."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 keywords = ["health", "wellness", "data processing", "AI", "LLM"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -20,16 +20,19 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-
 dependencies = [
+    # Configuration.
     "setuptools",
     "python-dotenv",
     "ruamel.yaml<0.18.0",
     "cryptography",
+    # Data.
+    "redis",
     "psycopg[binary]",
     "psycopg[pool]",
     "sqlalchemy",
     "pandas",
+    # HTTP.
     "aiohttp",
     "starlette",
     "fastapi",
@@ -37,55 +40,65 @@ dependencies = [
     "pydantic",
     "pyjwt",
     "pytz",
+    "webauthn>=2.0.0",
+    # Storage.
     "aioboto3",
-    "cachetools",
+    # File.
     "pypdf>=5.1.0",
     "pypdfium2>=4.30.0",
     "pdfplumber~=0.11.7",
+    "cachetools~=6.2.4",
     "Pillow>=11.1.0,<12.0.0",
     "tinytag>=1.6.0",
     "mutagen~=1.47.0",
     "rarfile~=4.0",
     "py7zr~=0.22.0",
     "openpyxl~=3.1.5",
+    # Email.
     "mandrill",
+    # LLM.
+    "azure-identity>=1.15.0",
     "openai>=2.11.0",
-    "openai-agents",
-    "google-genai",
-    "volcengine-python-sdk[ark]~=3.0.1",
+    "openai-agents==0.7.0",
+    "google-genai>=1.55.0",
     "langchain",
     "langchain-openai",
     "langchain-anthropic",
     "langchain-google-genai>=4.1.2",
     "langchain-google-vertexai",
     "langchain_community",
-    "deepagents",
+    "deepagents>=0.4.5",
+    "e2b-code-interpreter>=1.0.0",
     "jinja2",
-    "dashscope",
+    # Legacy.
     "aiofiles~=24.1.0",
-    "oss2",
     "pycryptodome>=3.20.0",
     "requests-oauthlib",
     "tiktoken>=0.9.0",
+    "defusedxml",
 ]
+
+[project.optional-dependencies]
+cn = ["oss2", "volcengine-python-sdk[ark]~=3.0.1", "dashscope"]
+fin = ["yfinance"]
 
 [project.urls]
 "Homepage" = "https://github.com/thetahealth/mirobody"
 "Bug Reports" = "https://github.com/thetahealth/mirobody/issues"
 "Source" = "https://github.com/thetahealth/mirobody"
 
-[tool.setuptools]
-packages = ["mirobody"]
-include-package-data = true
+[tool.setuptools.packages.find]
+include = ["mirobody", "mirobody.*"]
 
 [tool.setuptools.package-data]
-mirobody = [
+"mirobody" = [
     "**/*.md",
     "**/*.sql",
     "**/*.json",
     "**/*.yaml",
     "**/*.jinja",
     "**/*.so",
+    "**/*.bin",
     "**/*.html",
     "**/*.htm",
     "**/*.js",
@@ -96,6 +109,7 @@ mirobody = [
     "**/*.svg",
     "**/*.ico",
 ]
+"mirobody.pub.htdoc.__.auth" = ["handler", "iframe"]
 
 [tool.setuptools.dynamic]
 version = {attr = "mirobody.__version__"}

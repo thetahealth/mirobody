@@ -315,7 +315,7 @@ class StandardHealthService(BaseHealthService):
                 fhir_id, fhir_mapping_info, create_time, update_time, deleted
             ) VALUES (
                 :user_id, :indicator, :value, :start_time, :end_time, :source_table,
-                :source_table_id, :comment, :indicator_id, :source, :task_id,
+                :source_table_id, encrypt_content(:comment), :indicator_id, :source, :task_id,
                 :fhir_id, :fhir_mapping_info, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0
             )
             ON CONFLICT (user_id, indicator, start_time, end_time)

@@ -1,0 +1,72 @@
+Third-Party Data Licenses
+=========================
+
+The file `mirobody/res/concept_graph.bin` is a derived binary that encodes
+relationships (bridges and sibling groups) between FHIR integer IDs.  These
+relationships were computed from the following third-party datasets.  Use of
+this file is subject to the license terms of each source listed below.
+
+
+1. UMLS Metathesaurus
+---------------------
+Provider  : U.S. National Library of Medicine (NLM)
+License   : UMLS Metathesaurus License Agreement
+            https://uts.nlm.nih.gov/uts/license
+Scope     : MRREL relationship data used to build cross-vocabulary bridges
+            (SNOMED <-> LOINC, SNOMED <-> RxNorm) and CUI-based sibling groups.
+Note      : A free UMLS account is required.  The license covers original data
+            AND derivative works.
+
+
+2. SNOMED CT (US Edition)
+-------------------------
+Provider  : SNOMED International / NLM (US Edition distributor)
+License   : SNOMED CT Affiliate License
+            https://www.snomed.org/get-snomed
+Scope     : IS-A hierarchy used for SNOMED sibling groups; concept codes used
+            in bridge mappings (ICD, MRREL, Jaccard).
+Note      : Use in production requires an affiliate license or membership
+            through a national release center.
+
+
+3. LOINC
+--------
+Provider  : Regenstrief Institute
+License   : LOINC License (free, requires attribution)
+            https://loinc.org/kb/license/
+Scope     : LoincTableCore, Part hierarchy, and LNC-ZH-CN used for LOINC
+            sibling groups and bridge mappings.
+Attribution: This product includes all or a portion of the LOINC(R) table,
+            LOINC panels and forms file, LOINC document ontology file,
+            and/or LOINC hierarchies file, or is derived from one or more of
+            the foregoing, subject to a license from Regenstrief Institute,
+            Inc. LOINC is a registered United States trademark of Regenstrief
+            Institute, Inc.
+
+
+4. RxNorm
+---------
+Provider  : U.S. National Library of Medicine (NLM)
+License   : Public domain (no restrictions)
+            https://www.nlm.nih.gov/research/umls/rxnorm/docs/termsofservice.html
+Scope     : RXNCONSO and RXNREL used for RxNorm sibling groups and bridge
+            mappings to SNOMED/LOINC.
+
+
+5. ICD-10-CM
+------------
+Provider  : U.S. Centers for Medicare & Medicaid Services (CMS) / WHO
+License   : ICD-10-CM is in the public domain in the United States.
+            International use of ICD-10 is subject to WHO terms.
+            https://www.who.int/standards/classifications/classification-of-diseases/licensing
+Scope     : ICD-to-SNOMED mappings used for transitive bridge building.
+
+
+6. NHSA Drug Catalog (medicine_data.json)
+-----------------------------------------
+Provider  : National Healthcare Security Administration
+Source    : https://github.com/badman200/medicine
+License   : Government public information; no formal license specified.
+Scope     : Optional input for enriching RxNorm sibling groups with Chinese
+            drug names (via --nhsa-catalog flag during pipeline build).
+Note      : Not bundled in the binary; used only at build time when provided.

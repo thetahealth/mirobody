@@ -143,4 +143,4 @@ class EchoAgent:
 ## 🧩 Reference
 
 For the logic behind agent loading, see:
-[`mirobody/chat/agent.py`](mirobody/chat/agent.py)
+[`mirobody/chat/agent.py`](../../chat/agent.py)

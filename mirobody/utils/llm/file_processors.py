@@ -18,7 +18,9 @@ import pypdfium2 as pdfium
 from google.genai import types
 from openai import AsyncOpenAI
 from PIL import Image
-from volcenginesdkarkruntime import AsyncArk
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from volcenginesdkarkruntime import AsyncArk
 
 from mirobody.utils.config import safe_read_cfg
 
@@ -340,7 +342,7 @@ def _read_and_optimize_image(image_path: str) -> Tuple[str, dict]:
 async def _openai_compatible_process_pdf(
     pdf_path: str,
     prompt: str,
-    client: Union[AsyncOpenAI, AsyncArk],
+    client: Union[AsyncOpenAI, "AsyncArk"],
     model: str,
     provider: str,
     max_concurrency: int = 5,
@@ -393,7 +395,7 @@ async def _openai_compatible_process_pdf(
 async def _openai_compatible_process_image(
     image_path: str,
     prompt: str,
-    client: Union[AsyncOpenAI, AsyncArk],
+    client: Union[AsyncOpenAI, "AsyncArk"],
     model: str,
     provider: str,
     json_mode: bool = True
@@ -428,7 +430,7 @@ async def _openai_compatible_file_extract(
     local_file_path: str,
     prompt: str,
     model: str,
-    client: Union[AsyncOpenAI, AsyncArk],
+    client: Union[AsyncOpenAI, "AsyncArk"],
     provider: str,
     response_schema: Optional[Any] = None,
     json_mode: bool = True
@@ -679,8 +681,9 @@ def _get_qwen_client() -> AsyncOpenAI:
     )
 
 
-def _get_doubao_client() -> AsyncArk:
+def _get_doubao_client() -> "AsyncArk":
     """Get Doubao client."""
+    from volcenginesdkarkruntime import AsyncArk
     config = AIConfig.get_provider_config("volcengine")
     return AsyncArk(api_key=config["api_key"], base_url=config["api_base"])
 
@@ -693,7 +696,7 @@ async def doubao_file_extract(
     local_file_path: str,
     prompt: str = "Please extract all test indicators from this report and return the result in JSON format",
     model: str = "doubao-1-5-ui-tars-250428",
-    client: Optional[AsyncArk] = None,
+    client: Optional["AsyncArk"] = None,
     json_mode: bool = True
 ) -> str:
     """Doubao file extraction, supports PDF and image files."""

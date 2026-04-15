@@ -18,23 +18,13 @@ We love new ideas! Please open an issue to discuss your feature idea before impl
 1.  **Fork the Repository**
     Click the "Fork" button on the top right of the repository page.
 
-2.  **Install Git LFS**
-    Some binary assets in this repo (e.g. `mirobody/res/*.bin`) are stored via [Git LFS](https://git-lfs.com). You must install it **before** cloning, otherwise you'll get tiny pointer files instead of the real content.
-    ```bash
-    # macOS:    brew install git-lfs
-    # Ubuntu:   sudo apt install git-lfs
-    # Then once per machine:
-    git lfs install
-    ```
-    > **Note for external contributors:** GitHub LFS bandwidth/storage is billed against the *upstream* repository's quota, and forks do not inherit that quota. If your PR adds or modifies LFS-tracked files, the push from your fork may fail. In that case, please open an issue first so a maintainer can help land the binary asset.
-
-3.  **Clone Your Fork**
+2.  **Clone Your Fork**
     ```bash
     git clone https://github.com/YOUR_USERNAME/mirobody.git
     cd mirobody
     ```
 
-4.  **Create a Branch**
+3.  **Create a Branch**
     Create a new branch for your feature or fix:
     ```bash
     git checkout -b feature/my-new-feature
@@ -42,17 +32,17 @@ We love new ideas! Please open an issue to discuss your feature idea before impl
     git checkout -b fix/bug-fix-name
     ```
 
-5.  **Make Changes**
+4.  **Make Changes**
     - Follow the existing code style.
     - Write clear and concise commit messages.
 
-6.  **Test Your Changes**
+5.  **Test Your Changes**
     Ensure your changes don't break existing functionality. Run the deployment script locally to verify:
     ```bash
     ./deploy.sh
     ```
 
-7.  **Push and Pull Request**
+6.  **Push and Pull Request**
     Push your branch to your fork:
     ```bash
     git push origin feature/my-new-feature

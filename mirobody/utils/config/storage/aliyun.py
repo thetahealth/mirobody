@@ -1,7 +1,7 @@
 import asyncio
 import logging
-import traceback
-from typing import IO, Optional, Dict, Any
+
+from typing import IO, Dict, Any
 from functools import partial
 
 from .abstract import AbstractStorage
@@ -15,16 +15,52 @@ class AliyunStorage(AbstractStorage):
     
     def __init__(
         self,
-        access_key_id       : str,
-        secret_access_key   : str,
-        region              : str,
-        bucket              : str,
+        access_key_id       : str = "",
+        secret_access_key   : str = "",
+        region              : str = "",
+        bucket              : str = "",
         prefix              : str = "",
         cdn                 : str = "",
-        endpoint            : str = ""
+        endpoint            : str = "",
+        storage_name        : str = ""
     ):
+        if not access_key_id or \
+            not secret_access_key or \
+            not endpoint or \
+            not bucket:
+
+            from ..config import global_config
+            config = global_config()
+            if config:
+                storage_name = storage_name.strip()
+                if storage_name:
+                    storage_name = "_" + storage_name
+
+                if not access_key_id:
+                    access_key_id = config.get_str(f"ALI_OSS_ACCESS_KEY{storage_name}")
+                if not secret_access_key:
+                    secret_access_key = config.get_str(f"ALI_OSS_SECRET_KEY{storage_name}")
+                if not endpoint:
+                    endpoint = config.get_str(f"ALI_OSS_ENDPOINT{storage_name}")
+                if not bucket:
+                    bucket = config.get_str(f"ALI_OSS_BUCKET_NAME{storage_name}")
+                if not prefix:
+                    prefix = config.get_str(f"ALI_OSS_PREFIX{storage_name}")
+                if not cdn:
+                    cdn = config.get_str(f"ALI_OSS_DOMAIN{storage_name}")
+
         super().__init__(access_key_id, secret_access_key, region, bucket, prefix, cdn, endpoint)
-        
+
+        # Validate required fields
+        missing = [k for k, v in {
+            "access_key_id": self.access_key_id,
+            "secret_access_key": self.secret_access_key,
+            "endpoint": self.endpoint,
+            "bucket": self.bucket,
+        }.items() if not v]
+        if missing:
+            raise ValueError(f"AliyunStorage missing required config: {', '.join(missing)}")
+
         # Lazy import and initialization
         self._oss2 = None
         self._auth = None
@@ -80,8 +116,8 @@ class AliyunStorage(AbstractStorage):
         self, 
         key: str, 
         content: bytes | IO,
-        content_type: Optional[str] = None,
-        metadata: Optional[Dict[str, str]] = None,
+        content_type: str | None = None,
+        metadata: Dict[str, str] | None = None,
         expires: int = 7200
     ) -> tuple[str | None, str | None]:
         """Upload file to Aliyun OSS"""
@@ -108,7 +144,7 @@ class AliyunStorage(AbstractStorage):
                     headers[f"x-oss-meta-{k}"] = str(v)
             
             # Execute upload in thread pool (oss2 is synchronous)
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             
             if isinstance(content, bytes):
                 result = await loop.run_in_executor(
@@ -158,100 +194,96 @@ class AliyunStorage(AbstractStorage):
     #-----------------------------------------------------
 
     async def get(self, key: str) -> tuple[bytes | None, str | None]:
-        """Get file from Aliyun OSS and generate signed URL"""
+        """Get file from Aliyun OSS"""
         try:
             self._ensure_initialized()
-            
+
             object_key = self._build_object_key(key)
-            
-            loop = asyncio.get_event_loop()
-            
+
+            loop = asyncio.get_running_loop()
+
             # Get file content
             result = await loop.run_in_executor(
                 None,
                 partial(self._bucket.get_object, object_key)
             )
-            
-            content = result.read()
-            
-            # Generate signed URL via custom domain
-            url = await loop.run_in_executor(
-                None,
-                partial(self._cdn_bucket.sign_url, "GET", object_key, 7200)
-            )
 
-            return content, url
-            
+            content = result.read()
+
+            return content, None
+
         except Exception as e:
-            logger.error(f"Failed to get file from OSS: {str(e)}", exc_info=True)
-            return None, None
+            error_msg = f"Failed to get file from OSS: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return None, error_msg
     
     #-----------------------------------------------------
 
-    async def delete(self, key: str) -> tuple[bool, str | None]:
+    async def delete(self, key: str) -> str | None:
         """Delete file from Aliyun OSS"""
         try:
             self._ensure_initialized()
-            
+
             object_key = self._build_object_key(key)
-            
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
+
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(
                 None,
                 partial(self._bucket.delete_object, object_key)
             )
-            
+
             logger.info(f"File deleted from OSS successfully: {object_key}")
-            
-            return True, None
-            
+
+            return None
+
         except Exception as e:
             error_msg = f"Failed to delete from OSS: {str(e)}"
             logger.error(error_msg, exc_info=True)
-            return False, error_msg
+            return error_msg
 
     #-----------------------------------------------------
 
     async def generate_signed_url(
-        self, 
-        key: str, 
+        self,
+        key: str,
         expires: int = 7200,
         content_type: str | None = None
-    ) -> str | None:
+    ) -> tuple[str | None, str | None]:
         """Generate signed URL for OSS file"""
         try:
             self._ensure_initialized()
-            
+
             object_key = self._build_object_key(key)
-            
-            loop = asyncio.get_event_loop()
+
+            loop = asyncio.get_running_loop()
             # Generate signed URL via custom domain
             url = await loop.run_in_executor(
                 None,
                 partial(self._cdn_bucket.sign_url, "GET", object_key, expires)
             )
-            
-            return url
-            
+
+            return url, None
+
         except Exception as e:
-            logger.error(f"Failed to generate signed URL: {str(e)}", exc_info=True)
-            return None
+            error_msg = f"Failed to generate signed URL: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return None, error_msg
 
     #-----------------------------------------------------
 
-    async def get_file_info(self, key: str) -> Dict[str, Any] | None:
+    async def get_file_info(self, key: str) -> tuple[Dict[str, Any] | None, str | None]:
         """Get file metadata from Aliyun OSS"""
         try:
             self._ensure_initialized()
-            
+
             object_key = self._build_object_key(key)
-            
-            loop = asyncio.get_event_loop()
+
+            loop = asyncio.get_running_loop()
             file_info = await loop.run_in_executor(
                 None,
                 partial(self._bucket.get_object_meta, object_key)
             )
-            
+
             return {
                 "success": True,
                 "size": file_info.content_length,
@@ -260,14 +292,15 @@ class AliyunStorage(AbstractStorage):
                 "etag": file_info.etag,
                 "request_id": file_info.request_id,
                 "metadata": {
-                    k.replace("x-oss-meta-", ""): v 
-                    for k, v in file_info.headers.items() 
+                    k.replace("x-oss-meta-", ""): v
+                    for k, v in file_info.headers.items()
                     if k.startswith("x-oss-meta-")
                 }
-            }
-            
+            }, None
+
         except Exception as e:
-            logger.error(f"Failed to get file info from OSS: {str(e)}", exc_info=True)
-            return None
+            error_msg = f"Failed to get file info from OSS: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return None, error_msg
 
 #-----------------------------------------------------------------------------

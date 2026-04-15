@@ -557,12 +557,22 @@ class UserService:
             if mfa_challenge:
                 # Include a fallback AAL1 token so frontend can degrade gracefully
                 # if user cancels WebAuthn (e.g. Touch ID dismissed).
-                fallback_token, _, _ = await self._token_validator.generate_tokens(
+                fallback_token, fallback_refresh, _ = await self._token_validator.generate_tokens(
                     str(user_id), email, auth_method,
                     gen_claims_func=lambda uid, em: {"aal": 1},
                 )
                 if fallback_token:
                     mfa_challenge["fallback_token"] = fallback_token
+                    # TODO: Remove backward-compat token fields below once Flutter
+                    # handles "status": "mfa_required" and uses fallback_token directly.
+                    mfa_challenge["access_token"] = fallback_token
+                    mfa_challenge["token_type"] = "Bearer"
+                    mfa_challenge["expires_in"] = (
+                        self._token_validator.get_expires_in()
+                        if self._token_validator else 60 * 60 * 24 * 7
+                    )
+                    if fallback_refresh:
+                        mfa_challenge["refresh_token"] = fallback_refresh
                 return json_response_with_code(data=mfa_challenge, request=request)
 
         # No MFA required — issue AAL1 token directly.

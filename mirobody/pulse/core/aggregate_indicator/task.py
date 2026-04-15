@@ -18,7 +18,7 @@ class AggregateIndicatorTask(PullTask):
     Aggregate Indicator task implementation
     
     Inherits from PullTask to integrate with the unified scheduler system.
-    Executes every 5 minutes to calculate aggregations from series_data.
+    Executes every 4 minutes to calculate aggregations from series_data.
     """
 
     def __init__(self):
@@ -28,9 +28,9 @@ class AggregateIndicatorTask(PullTask):
         super().__init__(
             provider_slug="aggregate_indicator",
             schedule_type=ScheduleType.INTERVAL,
-            interval_minutes=6,  # Check every 6 minutes
-            execution_interval_hours=6 / 60,  # Execute every 6 minutes (0.1 hours)
-            lock_duration_hours=18 / 60  # Lock for 10 minutes (0.3 hours)
+            interval_minutes=4,  # Check every 4 minutes
+            execution_interval_hours=4 / 60,  # Execute every 4 minutes
+            lock_duration_hours=12 / 60  # Lock for 12 minutes
         )
 
         self.service = AggregateIndicatorService()
@@ -113,7 +113,7 @@ class AggregateIndicatorTask(PullTask):
         full_status.update({
             "task_name": "Aggregate Indicator Calculation",
             "description": "Calculate summary indicators from series data",
-            "execution_frequency": "Every 6 minutes",
+            "execution_frequency": "Every 4 minutes",
         })
 
         return full_status

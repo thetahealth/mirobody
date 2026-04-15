@@ -109,7 +109,11 @@ async def get_file_info_from_file_key(file_key: str) -> Optional[Dict[str, Any]]
 
         # Generate signed URL
         storage = get_storage_client()
-        url = await storage.generate_signed_url(file_key) or ""
+        url, err = await storage.generate_signed_url(file_key)
+        if err:
+            logger.warning(err)
+
+        url = url or ""
         file_info["url"] = url
 
         return file_info

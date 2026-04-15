@@ -9,7 +9,7 @@ from .server import RedisCompatServer
 def main():
     parser = argparse.ArgumentParser(description="RedisCompat server")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=6389)
+    parser.add_argument("--port", type=int, default=6379)
     args = parser.parse_args()
 
     server = RedisCompatServer(host=args.host, port=args.port)

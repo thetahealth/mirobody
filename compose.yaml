@@ -47,8 +47,16 @@ services:
         cd /app/ &&
         npm install --omit=dev &&
         source /root/venv/bin/activate &&
-        pip install --upgrade pip &&
-        pip install -r requirements.txt &&
+        HASH_FILE=/root/venv/lib/python3.12/site-packages/.deps_hash &&
+        PYPROJ_HASH=$$(md5sum pyproject.toml requirements.txt | md5sum | awk '{print $$1}') &&
+        if [ \"$$PYPROJ_HASH\" != \"$$(cat \"$$HASH_FILE\" 2>/dev/null)\" ]; then
+          echo '>> deps changed, installing...' &&
+          pip install --upgrade pip &&
+          pip install -r requirements.txt &&
+          echo \"$$PYPROJ_HASH\" > \"$$HASH_FILE\";
+        else
+          echo '>> deps unchanged, skip install';
+        fi &&
         python -m main
       "
     volumes:

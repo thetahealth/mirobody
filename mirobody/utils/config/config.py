@@ -3,6 +3,7 @@ import aiohttp, base64, dotenv, importlib, importlib.resources, importlib.metada
 from ruamel.yaml import YAML
 from typing import Any
 
+from ... import __version__
 from .encrypt import AbstractEncrypter, FernetEncrypter
 from .log import LogConfig
 from .http import HttpConfig
@@ -79,7 +80,7 @@ class Config:
 
         self.http = HttpConfig(
             name        = self.get_str("HTTP_SERVER_NAME"),
-            version     = self.get_str("HTTP_SERVER_VERSION"),
+            version     = self.get_str("HTTP_SERVER_VERSION") or __version__,
             host        = self.get_str("HTTP_HOST"),
             port        = self.get_int("HTTP_PORT"),
             uri_prefix  = self.get_str("HTTP_URI_PREFIX"),

@@ -166,7 +166,8 @@ class FileParser:
 
         where_clause = f"{lookup_type} = :lookup_key"
         query = f"""
-            SELECT original_text, file_type, file_name, text_length, content_hash, updated_at
+            SELECT decrypt_content(original_text) as original_text, file_type,
+                   decrypt_content(file_name) as file_name, text_length, content_hash, updated_at
             FROM th_files
             WHERE {where_clause} AND is_del = false
               AND original_text IS NOT NULL AND original_text != ''

@@ -610,12 +610,13 @@ async def delete_file_from_storage(file_key: str) -> bool:
         storage = get_storage_client()
         
         # Use unified storage client
-        success, error = await storage.delete(file_key)
-        
-        if not success:
-            logging.warning(f"Failed to delete file {file_key}: {error}")
-        
-        return success
+        err = await storage.delete(file_key)
+
+        if err:
+            logging.warning(f"Failed to delete file {file_key}: {err}")
+            return False
+
+        return True
         
     except Exception as e:
         logging.error(f"Error deleting file from storage: {str(e)}", stack_info=True)

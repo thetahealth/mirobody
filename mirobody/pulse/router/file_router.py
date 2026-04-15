@@ -101,7 +101,9 @@ async def serve_storage_file(file_path: str):
         storage = get_storage_client()
         
         # Get file from storage
-        content, url = await storage.get(file_path)
+        content, err = await storage.get(file_path)
+        if err:
+            logging.warning(err)
         
         if content is None:
             logging.warning(f"File not found in storage: {file_path}")

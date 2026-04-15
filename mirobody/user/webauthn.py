@@ -54,9 +54,19 @@ def _aal2_claims(session_start: int | None = None) -> dict:
 _TRANSPORT_MAP = {t.value: t for t in AuthenticatorTransport}
 
 def _to_transport_enums(transports: list[str] | None) -> list[AuthenticatorTransport]:
+    # Product decision: no cross-device passkey (web is demo, mobile uses
+    # the native app). Strip "hybrid" so Chrome/Safari never surface the CDA
+    # QR prompt and authentication stays on-device (Touch ID / Face ID /
+    # Windows Hello). AAL2 compliance is unaffected — transports is only a
+    # UX hint, not a security claim.
     if not transports:
-        return []
-    return [_TRANSPORT_MAP[t] for t in transports if t in _TRANSPORT_MAP]
+        return [AuthenticatorTransport.INTERNAL]
+    enums = [
+        _TRANSPORT_MAP[t]
+        for t in transports
+        if t in _TRANSPORT_MAP and t != "hybrid"
+    ]
+    return enums or [AuthenticatorTransport.INTERNAL]
 
 #-----------------------------------------------------------------------------
 

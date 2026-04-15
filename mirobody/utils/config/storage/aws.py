@@ -1,6 +1,6 @@
 import logging
-import traceback
-from typing import IO, Optional, Dict, Any
+
+from typing import Any, BinaryIO  # noqa: F401 – BinaryIO used in type hints
 
 from .abstract import AbstractStorage
 
@@ -20,90 +20,129 @@ class AwsStorage(AbstractStorage):
         prefix              : str = "",
         cdn                 : str = "",
         endpoint            : str = "",
-        config              : any = None,
         storage_name        : str = ""
     ):
+        if not access_key_id or \
+            not secret_access_key or \
+            not region or \
+            not bucket:
+
+            from ..config import global_config
+            config = global_config()
+            if config:
+                storage_name = storage_name.strip()
+                if storage_name:
+                    storage_name = "_" + storage_name
+
+                if not access_key_id:
+                    access_key_id = config.get_str(f"S3_KEY{storage_name}")
+                if not secret_access_key:
+                    secret_access_key = config.get_str(f"S3_TOKEN{storage_name}")
+                if not region:
+                    region = config.get_str(f"S3_REGION{storage_name}")
+                if not bucket:
+                    bucket = config.get_str(f"S3_BUCKET{storage_name}")
+                if not prefix:
+                    prefix = config.get_str(f"S3_PREFIX{storage_name}")
+                if not cdn:
+                    cdn = config.get_str(f"S3_CDN{storage_name}")
+
         super().__init__(access_key_id, secret_access_key, region, bucket, prefix, cdn, endpoint)
-        
-        # Support legacy config parameter
-        if config and hasattr(config, "get_str") and callable(config.get_str):
-            if not self.access_key_id:
-                self.access_key_id = config.get_str(f"S3_KEY{storage_name}")
-            if not self.secret_access_key:
-                self.secret_access_key = config.get_str(f"S3_TOKEN{storage_name}")
-            if not self.region:
-                self.region = config.get_str(f"S3_REGION{storage_name}")
-            if not self.bucket:
-                self.bucket = config.get_str(f"S3_BUCKET{storage_name}")
-            if not self.prefix:
-                self.prefix = config.get_str(f"S3_PREFIX{storage_name}")
-            if not self.cdn:
-                self.cdn = config.get_str(f"S3_CDN{storage_name}")
-        
-        # Initialize aioboto3 session
+
+        # Validate required fields
+        missing = [k for k, v in {
+            "access_key_id": self.access_key_id,
+            "secret_access_key": self.secret_access_key,
+            "region": self.region,
+            "bucket": self.bucket,
+        }.items() if not v]
+        if missing:
+            raise ValueError(f"AwsStorage missing required config: {', '.join(missing)}")
+
+        # Lazy initialization
+        self._client = None
+        self._client_ctx = None
+        self._initialized = False
+
+    #-----------------------------------------------------
+
+    async def _ensure_initialized(self):
+        """Ensure aioboto3 client is initialized and reused across operations"""
+        if self._initialized:
+            return
+
         import aioboto3
-        
-        session_params = {
-            "aws_access_key_id": self.access_key_id,
-            "aws_secret_access_key": self.secret_access_key,
-            "region_name": self.region
-        }
-        
-        self.session = aioboto3.Session(**session_params)
-        self._client_params = {}
-        
-        # Add endpoint URL if provided (for S3-compatible services)
+        session = aioboto3.Session(
+            aws_access_key_id=self.access_key_id,
+            aws_secret_access_key=self.secret_access_key,
+            region_name=self.region
+        )
+
+        client_params = {}
         if self.endpoint:
-            self._client_params["endpoint_url"] = self.endpoint
+            client_params["endpoint_url"] = self.endpoint
+
+        self._client_ctx = session.client("s3", **client_params)
+        self._client = await self._client_ctx.__aenter__()
+        self._initialized = True
+        logger.info(f"AWS S3 client initialized: bucket={self.bucket}, region={self.region}")
+
+    async def close(self):
+        """Close the persistent S3 client"""
+        if self._client_ctx:
+            await self._client_ctx.__aexit__(None, None, None)
+            self._client = None
+            self._client_ctx = None
+            self._initialized = False
 
     #-----------------------------------------------------
 
     async def put(
         self, 
         key: str, 
-        content: bytes | IO,
-        content_type: Optional[str] = None,
-        metadata: Optional[Dict[str, str]] = None,
+        content: bytes | BinaryIO,
+        content_type: str | None = None,
+        metadata: dict[str, str] | None = None,
         expires: int = 7200
     ) -> tuple[str | None, str | None]:
         """Upload file to AWS S3"""
         try:
+            await self._ensure_initialized()
+
             # Build full object key with prefix
             object_key = self._build_object_key(key)
-            
+
             # Prepare put_object parameters
             put_params = {
                 "Body": content,
                 "Bucket": self.bucket,
                 "Key": object_key
             }
-            
+
             # Add content type
             if content_type:
                 put_params["ContentType"] = content_type
             else:
                 put_params["ContentType"] = self.get_content_type_from_filename(key)
-            
+
             # Add metadata
             if metadata:
                 put_params["Metadata"] = metadata
-        
-            
-            async with self.session.client("s3", **self._client_params) as client:
-                # Upload file
-                await client.put_object(**put_params)
-                
-                # Generate signed URL
-                url = await client.generate_presigned_url(
-                    "get_object",
-                    Params={
-                        "Bucket": self.bucket,
-                        "Key": object_key,
-                        "ResponseContentDisposition": "inline",
-                        "ResponseContentType": put_params["ContentType"]
-                    },
-                    ExpiresIn=expires
-                )
+
+            # Upload file
+            await self._client.put_object(**put_params)
+
+            # Generate signed URL
+            url = await self._client.generate_presigned_url(
+                "get_object",
+                Params={
+                    "Bucket": self.bucket,
+                    "Key": object_key,
+                    "ResponseContentDisposition": "inline",
+                    "ResponseContentType": put_params["ContentType"]
+                },
+                ExpiresIn=expires
+            )
             
             logger.info(f"File uploaded to S3 successfully: {object_key}")
             
@@ -117,98 +156,91 @@ class AwsStorage(AbstractStorage):
     #-----------------------------------------------------
 
     async def get(self, key: str) -> tuple[bytes | None, str | None]:
-        """Get file from AWS S3 and generate signed URL"""
+        """Get file from AWS S3"""
         try:
+            await self._ensure_initialized()
+
             object_key = self._build_object_key(key)
-            
-            async with self.session.client("s3", **self._client_params) as client:
-                # Get file content
-                response = await client.get_object(Bucket=self.bucket, Key=object_key)
-                
-                async with response["Body"] as stream:
-                    file_content = await stream.read()
-                
-                # Generate signed URL
-                url = await client.generate_presigned_url(
-                    "get_object",
-                    Params={
-                        "Bucket": self.bucket,
-                        "Key": object_key,
-                        "ResponseContentDisposition": "inline"
-                    },
-                    ExpiresIn=7200
-                )
-                
-                return file_content, url
+
+            response = await self._client.get_object(Bucket=self.bucket, Key=object_key)
+
+            async with response["Body"] as stream:
+                file_content = await stream.read()
+
+            return file_content, None
 
         except Exception as e:
-            logger.error(f"Failed to get file from S3: {str(e)}, object_key: {object_key}, bucket: {self.bucket}", exc_info=True)
-            return None, None
+            error_msg = f"Failed to get file from S3: {str(e)}, object_key: {self._build_object_key(key)}, bucket: {self.bucket}"
+            logger.error(error_msg, exc_info=True)
+            return None, error_msg
     
     #-----------------------------------------------------
 
-    async def delete(self, key: str) -> tuple[bool, str | None]:
+    async def delete(self, key: str) -> str | None:
         """Delete file from AWS S3"""
         try:
+            await self._ensure_initialized()
+
             object_key = self._build_object_key(key)
-            
-            async with self.session.client("s3", **self._client_params) as client:
-                response = await client.delete_object(Bucket=self.bucket, Key=object_key)
-            
+
+            await self._client.delete_object(Bucket=self.bucket, Key=object_key)
+
             logger.info(f"File deleted from S3 successfully: {object_key}")
-            
-            return True, None
-        
+
+            return None
+
         except Exception as e:
             error_msg = f"Failed to delete from S3: {str(e)}"
             logger.error(error_msg, exc_info=True)
-            return False, error_msg
+            return error_msg
 
     #-----------------------------------------------------
 
     async def generate_signed_url(
-        self, 
-        key: str, 
+        self,
+        key: str,
         expires: int = 7200,
         content_type: str | None = None
-    ) -> str | None:
+    ) -> tuple[str | None, str | None]:
         """Generate signed URL for S3 file"""
         try:
+            await self._ensure_initialized()
+
             object_key = self._build_object_key(key)
-            
-            async with self.session.client("s3", **self._client_params) as client:
-                params = {
-                    "Bucket": self.bucket,
-                    "Key": object_key,
-                    "ResponseContentDisposition": "inline"
-                }
-                
-                # Add content type if provided for proper browser rendering
-                if content_type:
-                    params["ResponseContentType"] = content_type
-                
-                url = await client.generate_presigned_url(
-                    "get_object",
-                    Params=params,
-                    ExpiresIn=expires
-                )
-                
-                return url
-        
+
+            params = {
+                "Bucket": self.bucket,
+                "Key": object_key,
+                "ResponseContentDisposition": "inline"
+            }
+
+            if content_type:
+                params["ResponseContentType"] = content_type
+
+            url = await self._client.generate_presigned_url(
+                "get_object",
+                Params=params,
+                ExpiresIn=expires
+            )
+
+            return url, None
+
         except Exception as e:
-            logger.error(f"Failed to generate signed URL: {str(e)}", exc_info=True)
-            return None
+            error_msg = f"Failed to generate signed URL: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return None, error_msg
 
     #-----------------------------------------------------
 
-    async def get_file_info(self, key: str) -> Dict[str, Any] | None:
+    async def get_file_info(self, key: str) -> tuple[dict[str, Any] | None, str | None]:
         """Get file metadata from AWS S3"""
         try:
+            await self._ensure_initialized()
+
             object_key = self._build_object_key(key)
-            
-            async with self.session.client("s3", **self._client_params) as client:
-                response = await client.head_object(Bucket=self.bucket, Key=object_key)
-            
+
+            response = await self._client.head_object(Bucket=self.bucket, Key=object_key)
+
             return {
                 "success": True,
                 "size": response.get("ContentLength"),
@@ -216,10 +248,11 @@ class AwsStorage(AbstractStorage):
                 "last_modified": response.get("LastModified"),
                 "etag": response.get("ETag"),
                 "metadata": response.get("Metadata", {})
-            }
-        
+            }, None
+
         except Exception as e:
-            logger.error(f"Failed to get file info from S3: {str(e)}", exc_info=True)
-            return None
+            error_msg = f"Failed to get file info from S3: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            return None, error_msg
 
 #-----------------------------------------------------------------------------

@@ -14,6 +14,7 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from .middlewares import JwtMiddleware, UserInfoUpdaterMiddleware, RequestRateLimiterMiddleware
 
+from .. import __version__
 from ..user import (
     AbstractTokenValidator,
     JwtTokenValidator,
@@ -32,7 +33,7 @@ class Server:
         self,
 
         server_name     : str = "",
-        server_version  : str = "",
+        server_version  : str = __version__,
 
         uri_prefix      : str = "",
         htdoc           : str = "",
@@ -160,7 +161,7 @@ class Server:
         #-------------------------------------------------
 
         os.environ.update([
-            ("USER_AGENT", f"{server_name if server_name else "Theta MCP Server"} {server_version if server_version else "1.0.0"}")
+            ("USER_AGENT", f"{server_name if server_name else "Theta MCP Server"} {server_version if server_version else __version__}")
         ])
 
         #-------------------------------------------------

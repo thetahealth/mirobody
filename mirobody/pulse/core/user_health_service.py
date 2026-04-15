@@ -210,7 +210,7 @@ class UserHealthDataService:
             t1.end_time,
             t1.source,
             t1.source_table,
-            t1.comment,
+            decrypt_content(t1.comment) as comment,
             t1.create_time,
             t1.update_time,
             t2.standard_indicator,

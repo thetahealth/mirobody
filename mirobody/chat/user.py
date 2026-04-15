@@ -37,7 +37,7 @@ async def fetch_system_user_profile(user_id: str):
 
         last_doc_id = -1
 
-        sql = "select * from health_user_profile_by_system where user_id= :user_id and is_deleted=false order by version desc limit 1"
+        sql = "select *, decrypt_content(common_part_encrypted) as common_part from health_user_profile_by_system where user_id= :user_id and is_deleted=false order by version desc limit 1"
         result = await execute_query(sql, params=dict(user_id=user_id))
 
         if result:

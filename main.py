@@ -1,6 +1,4 @@
-import asyncio, sys
-
-from mirobody.server import Server
+import sys
 
 #-----------------------------------------------------------------------------
 
@@ -11,11 +9,16 @@ async def main():
     else:
         print(f"Usage: python {sys.argv[0]} [config_files]\n")
 
-    await Server.start(yaml_filenames)
+    # TODO: Create your own FastAPI routers.
+    fastapi_routers = []
+
+    from mirobody.server import Server
+    await Server.start(yaml_files=yaml_filenames, fastapi_routers=fastapi_routers)
 
 #-----------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    import asyncio
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 

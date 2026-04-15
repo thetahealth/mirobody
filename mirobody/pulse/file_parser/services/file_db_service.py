@@ -76,9 +76,9 @@ class FileDbService:
                     original_text, text_length, content_hash,
                     is_del, created_at, updated_at
                 ) VALUES (
-                    :user_id, :query_user_id, :file_name, :file_type, :file_key,
-                    CAST(:file_content AS jsonb), :scene, :created_source, :created_source_id,
-                    :original_text, :text_length, :content_hash,
+                    :user_id, :query_user_id, encrypt_content(:file_name), :file_type, :file_key,
+                    encrypt_content(:file_content), :scene, :created_source, :created_source_id,
+                    encrypt_content(:original_text), :text_length, :content_hash,
                     false, now(), now()
                 )
                 ON CONFLICT (file_key) DO UPDATE SET
@@ -232,8 +232,10 @@ class FileDbService:
         """
         try:
             sql = """
-                SELECT id, user_id, query_user_id, file_name, file_type, file_key,
-                       file_content, scene, created_source, created_source_id,
+                SELECT id, user_id, query_user_id,
+                       decrypt_content(file_name) as file_name, file_type, file_key,
+                       decrypt_content(file_content) as file_content,
+                       scene, created_source, created_source_id,
                        is_del, created_at, updated_at
                 FROM th_files
                 WHERE file_key = :file_key AND is_del = false
@@ -272,8 +274,10 @@ class FileDbService:
         """
         try:
             sql = """
-                SELECT id, user_id, query_user_id, file_name, file_type, file_key,
-                       file_content, scene, created_source, created_source_id,
+                SELECT id, user_id, query_user_id,
+                       decrypt_content(file_name) as file_name, file_type, file_key,
+                       decrypt_content(file_content) as file_content,
+                       scene, created_source, created_source_id,
                        is_del, created_at, updated_at
                 FROM th_files
                 WHERE id = :file_id AND is_del = false
@@ -366,8 +370,10 @@ class FileDbService:
             
             # Query files
             list_sql = f"""
-                SELECT id, user_id, query_user_id, file_name, file_type, file_key,
-                       file_content, scene, created_source, created_source_id,
+                SELECT id, user_id, query_user_id,
+                       decrypt_content(file_name) as file_name, file_type, file_key,
+                       decrypt_content(file_content) as file_content,
+                       scene, created_source, created_source_id,
                        created_at, updated_at
                 FROM th_files
                 WHERE {where_clause}
@@ -492,11 +498,13 @@ class FileDbService:
         """
         try:
             sql = """
-                SELECT id, user_id, query_user_id, file_name, file_type, file_key,
-                       file_content, scene, created_source, created_source_id,
+                SELECT id, user_id, query_user_id,
+                       decrypt_content(file_name) as file_name, file_type, file_key,
+                       decrypt_content(file_content) as file_content,
+                       scene, created_source, created_source_id,
                        created_at, updated_at
                 FROM th_files
-                WHERE user_id = :user_id 
+                WHERE user_id = :user_id
                   AND created_source = :created_source
                   AND is_del = false
             """
@@ -560,15 +568,15 @@ class FileDbService:
             if update_file_name:
                 sql = """
                     UPDATE th_files
-                    SET file_content = CAST(:file_content AS jsonb),
-                        file_name = :file_name,
+                    SET file_content = encrypt_content(:file_content),
+                        file_name = encrypt_content(:file_name),
                         updated_at = now()
                     WHERE file_key = :file_key AND is_del = false
                 """
             else:
                 sql = """
                     UPDATE th_files
-                    SET file_content = CAST(:file_content AS jsonb),
+                    SET file_content = encrypt_content(:file_content),
                         updated_at = now()
                     WHERE file_key = :file_key AND is_del = false
                 """
@@ -621,8 +629,14 @@ class FileDbService:
             True if successful
         """
         try:
-            # Update file_content JSON fields
-            content_updates = {
+            # Fetch current file to get decrypted file_content for merging
+            current = await FileDbService.get_file_by_key(file_key)
+            if not current:
+                logging.warning(f"File not found for update: file_key={file_key}")
+                return False
+
+            current_content = current.get("file_content", {})
+            current_content.update({
                 "raw": raw,
                 "file_abstract": file_abstract,
                 "indicators": indicators or [],
@@ -632,55 +646,50 @@ class FileDbService:
                 "status": "completed",
                 "error": "",
                 "progress": 100,
-            }
-            
+            })
             if file_name:
-                content_updates["generated_file_name"] = file_name
-            
-            # Build SQL to update both file_content JSON and standalone columns
+                current_content["generated_file_name"] = file_name
+
+            # Build UPDATE with encrypted file_content (and file_name if provided)
             sql_parts = [
                 "UPDATE th_files SET",
-                "file_content = COALESCE(file_content, CAST('{}' AS jsonb)) || CAST(:content_updates AS jsonb)",
+                "file_content = encrypt_content(:file_content)",
             ]
             params: Dict[str, Any] = {
                 "file_key": file_key,
-                "content_updates": safe_json_dumps(content_updates),
+                "file_content": safe_json_dumps(current_content),
             }
-            
-            # Update file_name column if provided
+
             if file_name:
-                sql_parts.append(", file_name = :file_name")
+                sql_parts.append(", file_name = encrypt_content(:file_name)")
                 params["file_name"] = file_name
-            
-            # Update original_text column if provided
+
             if original_text:
-                sql_parts.append(", original_text = :original_text")
+                sql_parts.append(", original_text = encrypt_content(:original_text)")
                 params["original_text"] = original_text
-            
-            # Update text_length column if provided
+
             if text_length > 0:
                 sql_parts.append(", text_length = :text_length")
                 params["text_length"] = text_length
-            
-            # Update content_hash column if provided
+
             if content_hash:
                 sql_parts.append(", content_hash = :content_hash")
                 params["content_hash"] = content_hash
-            
+
             sql_parts.append(", updated_at = now()")
             sql_parts.append("WHERE file_key = :file_key AND is_del = false")
-            
+
             sql = " ".join(sql_parts)
-            
-            result = await execute_query(
+
+            await execute_query(
                 query=sql,
                 params=params,
                 query_type="update",
                 mode="async"
             )
-            
+
             return True
-            
+
         except Exception as e:
             logging.error(f"Failed to update file processed: {file_key}, error: {e}")
             return False
@@ -934,12 +943,14 @@ class FileDbService:
             from mirobody.utils.config.storage import get_storage_client
             
             storage = get_storage_client()
-            url = await storage.generate_signed_url(
+            url, err = await storage.generate_signed_url(
                 key=file_key,
                 expires=24 * 3600,  # 24 hours
                 content_type=content_type,
             )
-            
+            if err:
+                logging.warning(err)
+
             return url or ""
             
         except Exception as e:

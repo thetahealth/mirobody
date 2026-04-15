@@ -461,7 +461,7 @@ class FileParserDatabaseService:
 
         await execute_query(
             query="""INSERT INTO th_series_data (user_id, indicator, value, start_time, end_time, source_table, source_table_id, comment) 
-               VALUES (:user_id, :indicator, :value, :start_time, :end_time, :source_table, :source_table_id, :comment)
+               VALUES (:user_id, :indicator, :value, :start_time, :end_time, :source_table, :source_table_id, encrypt_content(:comment))
                ON CONFLICT DO NOTHING""",
             fieldList=db_params,
         )
@@ -811,12 +811,15 @@ class FileParserDatabaseService:
             logging.debug(f"Using {storage_type} storage for URL regeneration, key: {file_key}")
             
             # Generate signed URL with 24 hours expiration
-            url = await storage.generate_signed_url(
-                key=file_key, 
-                expires=24 * 3600, 
+            url, err = await storage.generate_signed_url(
+                key=file_key,
+                expires=24 * 3600,
                 content_type=content_type
             )
-            
+            if err:
+                logging.warning(f"URL generation returned empty for key '{file_key}': {err}")
+                return ""
+
             if url:
                 return url
             else:

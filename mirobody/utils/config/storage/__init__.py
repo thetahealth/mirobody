@@ -1,49 +1,7 @@
-"""
-Unified storage layer for file operations
+# Register storage backends so AbstractStorage.__subclasses__() can find them
+from .aws import AwsStorage as AwsStorage
+from .aliyun import AliyunStorage as AliyunStorage
 
-This module provides a unified interface for different storage backends:
-- AWS S3
-- Aliyun OSS
-Usage:
-    from mirobody.utils.config.storage import get_storage_client
-    
-    # Get storage client (lazy initialization)
-    storage = get_storage_client()
-    
-    # Upload file
-    url, error = await storage.put(
-        key="uploads/file.pdf",
-        content=file_bytes,
-        content_type="application/pdf"
-    )
-    
-    # Download file
-    content, url = await storage.get(key="uploads/file.pdf")
-    
-    # Delete file
-    success, error = await storage.delete(key="uploads/file.pdf")
-"""
+from .factory import get_storage_client
 
-# Import all storage classes
-from .abstract import AbstractStorage
-from .aws import AwsStorage
-from .aliyun import AliyunStorage
-# Import configuration and factory
-from .config_manager import StorageConfigManager
-from .factory import StorageFactory, get_storage_client
-
-#-----------------------------------------------------------------------------
-# Export all
-#-----------------------------------------------------------------------------
-
-__all__ = [
-    # Storage classes
-    "AbstractStorage",
-    "AwsStorage",
-    "AliyunStorage",
-
-    # Configuration and factory
-    "StorageConfigManager",
-    "StorageFactory",
-    "get_storage_client",
-]
+__all__ = ["get_storage_client"]

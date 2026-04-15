@@ -41,12 +41,12 @@ class TextHandler(BaseFileHandler):
             
             # Check th_file_contents cache first
             rows = await execute_query(
-                "SELECT original_text FROM th_file_contents WHERE content_hash = :hash LIMIT 1",
+                "SELECT decrypt_content(original_text) as original_text FROM th_file_contents WHERE content_hash = :hash LIMIT 1",
                 params={"hash": content_hash},
                 query_type="select",
                 mode="async",
             )
-            
+
             if rows and len(rows) > 0 and rows[0].get("original_text"):
                 original_text = rows[0]["original_text"]
                 logging.info(f"✅ Text file reused cached original text: hash={content_hash[:16]}..., length={len(original_text)}")
@@ -55,7 +55,7 @@ class TextHandler(BaseFileHandler):
                 await execute_query(
                     """
                     INSERT INTO th_file_contents (content_hash, original_text, text_length, file_type)
-                    VALUES (:hash, :text, :length, :file_type)
+                    VALUES (:hash, encrypt_content(:text), :length, :file_type)
                     ON CONFLICT (content_hash) DO NOTHING
                     """,
                     params={
