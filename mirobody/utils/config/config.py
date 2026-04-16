@@ -7,6 +7,7 @@ from ... import __version__
 from .encrypt import AbstractEncrypter, FernetEncrypter
 from .log import LogConfig
 from .http import HttpConfig
+from .llm import LLMConfig, LLMProvider, _OPENAI_COMPAT
 from .postgresql import PostgreSQLConfig
 from .redis import RedisConfig
 from .storage.abstract import AbstractStorage
@@ -28,7 +29,7 @@ class Config:
         yaml_filenames: str | list[str | io.StringIO] | None = None,
         encrypter: AbstractEncrypter | None = None
     ):
-        if isinstance(yaml_filenames, str|io.StringIO):
+        if isinstance(yaml_filenames, str | io.StringIO):
             self._yaml_filenames = [yaml_filenames]
         elif isinstance(yaml_filenames, list):
             self._yaml_filenames = yaml_filenames
@@ -41,6 +42,7 @@ class Config:
 
         self._postgresqls = {}
         self._redises = {}
+        self._llms: dict[LLMProvider, LLMConfig] = {}
 
         self._agent_options = {}
 
@@ -70,6 +72,7 @@ class Config:
         # Clear cached configuration objects to ensure they use updated _raw values
         self._postgresqls = {}
         self._redises = {}
+        self._llms = {}
 
         self.log = LogConfig(
             name        = self.get_str("LOG_NAME"),
@@ -622,6 +625,54 @@ class Config:
 
         self._redises[upper_key] = redis_config
         return redis_config
+
+    #-----------------------------------------------------
+
+    def get_llm(self, provider: LLMProvider) -> LLMConfig:
+        if provider in self._llms:
+            return self._llms[provider]
+
+        if provider in _OPENAI_COMPAT:
+            api_key_env, default_base_url = _OPENAI_COMPAT[provider]
+            llm_config = LLMConfig(
+                provider = provider,
+                api_key  = self.get_str(api_key_env),
+                base_url = default_base_url,
+            )
+        elif provider == LLMProvider.ANTHROPIC:
+            llm_config = LLMConfig(
+                provider = provider,
+                api_key  = self.get_str("ANTHROPIC_API_KEY"),
+            )
+        elif provider == LLMProvider.GEMINI:
+            llm_config = LLMConfig(
+                provider           = provider,
+                api_key            = self.get_str("GOOGLE_API_KEY"),
+                gemini_api_version = self.get_str("GEMINI_API_VERSION") or "v1beta",
+            )
+        elif provider == LLMProvider.VERTEX_AI:
+            llm_config = LLMConfig(
+                provider     = provider,
+                gcp_project  = self.get_str("GCP_PROJECT"),
+                gcp_location = self.get_str("GCP_LOCATION") or "us-east5",
+            )
+        elif provider == LLMProvider.AZURE:
+            azure_cfg = self.get_dict("AZURE_OPENAI") or {}
+            llm_config = LLMConfig(
+                provider    = provider,
+                endpoint    = azure_cfg.get("endpoint", ""),
+                api_version = azure_cfg.get("api_version", "2024-12-01-preview"),
+            )
+        elif provider == LLMProvider.BEDROCK:
+            llm_config = LLMConfig(
+                provider   = provider,
+                aws_region = self.get_str("AWS_REGION") or "us-east-1",
+            )
+        else:
+            raise ValueError(f"Unsupported LLM provider: {provider!r}")
+
+        self._llms[provider] = llm_config
+        return llm_config
 
     #-----------------------------------------------------
 

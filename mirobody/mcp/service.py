@@ -269,8 +269,8 @@ class McpService:
                 config = global_config()
                 suffix = agent_name.strip().upper()
 
-                allowed_tools   = config.get(f"ALLOWED_TOOLS_{suffix}", [])
-                disallowed_tools= config.get(f"DISALLOWED_TOOLS_{suffix}", [])
+                allowed_tools   = set(config.get_list(f"ALLOWED_TOOLS_{suffix}", []))
+                disallowed_tools= set(config.get_list(f"DISALLOWED_TOOLS_{suffix}", []))
 
                 # Apply filtering
                 if allowed_tools:

@@ -322,9 +322,104 @@ Then reference them in YAML or let the system auto-detect them if they match the
 
 ## 🏥 LLM Provider Configuration
 
-All LLM traffic routes through HIPAA-compliant providers:
-- **Chat / Embedding** → Azure OpenAI (WIF auth)
-- **File processing** → GCP Vertex Gemini
+LLM clients are managed via `LLMConfig`, following the same pattern as `PostgreSQLConfig` / `RedisConfig`:
+
+```python
+from mirobody.utils.config import global_config, LLMProvider
+
+cfg = global_config()
+llm = cfg.get_llm(LLMProvider.OPENAI)
+client = llm.get_async_client()   # → AsyncOpenAI
+```
+
+### Supported Providers
+
+#### OpenAI-compatible (API key + base URL)
+
+These providers all return `OpenAI` / `AsyncOpenAI` clients:
+
+| Provider | Enum | Config Key | Base URL |
+| --- | --- | --- | --- |
+| OpenAI | `OPENAI` | `OPENAI_API_KEY` | `https://api.openai.com/v1` |
+| OpenRouter | `OPENROUTER` | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` |
+| DashScope (Qwen) | `DASHSCOPE` | `DASHSCOPE_API_KEY` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| Volcengine (Doubao) | `VOLCENGINE` | `VOLCENGINE_API_KEY` | `https://ark.cn-beijing.volces.com/api/v3` |
+| DeepSeek | `DEEPSEEK` | `DEEPSEEK_API_KEY` | `https://api.deepseek.com/v1` |
+| Zhipu (GLM) | `ZHIPU` | `ZHIPU_API_KEY` | `https://open.bigmodel.cn/api/paas/v4` |
+| Moonshot (Kimi) | `MOONSHOT` | `MOONSHOT_API_KEY` | `https://api.moonshot.cn/v1` |
+
+```yaml
+# config.{env}.yaml — just add the API key
+OPENAI_API_KEY: "sk-..."
+DEEPSEEK_API_KEY: "sk-..."
+```
+
+#### Anthropic (Claude)
+
+Returns `Anthropic` / `AsyncAnthropic` clients.
+
+| Config Key |
+| --- |
+| `ANTHROPIC_API_KEY` |
+
+#### Gemini (Google, API key)
+
+Returns `google.genai.Client` / async client.
+
+| Config Key | Description | Default |
+| --- | --- | --- |
+| `GOOGLE_API_KEY` | API key | *(required)* |
+| `GEMINI_API_VERSION` | REST API version (`v1` or `v1beta`) | `v1beta` |
+
+`v1beta` includes all features (Interactions API, Semantic Retriever, Tuned Models). `v1` is the stable subset — sufficient for `generateContent` and `embedContent`.
+
+#### Cloud Providers (no API key — credential-based auth)
+
+| Provider | Enum | Auth | Returns |
+| --- | --- | --- | --- |
+| Vertex AI (GCP) | `VERTEX_AI` | Application Default Credentials | `google.genai.Client` |
+| Azure OpenAI | `AZURE` | Workload Identity Federation | `AzureOpenAI` / `AsyncAzureOpenAI` |
+| AWS Bedrock | `BEDROCK` | IAM role / env credentials | `boto3` / `aioboto3` bedrock-runtime client |
+
+### HTTP Client (`get_aiohttp_session`)
+
+All providers support `get_aiohttp_session()`, which returns an `aiohttp.ClientSession` with `base_url` and auth headers pre-configured. Useful for lightweight REST calls (e.g., embeddings) where the full SDK is unnecessary.
+
+```python
+from mirobody.utils.config import global_config, LLMProvider
+
+cfg = global_config()
+
+# Gemini embedding
+llm = cfg.get_llm(LLMProvider.GEMINI)
+async with llm.get_aiohttp_session() as session:
+    async with session.post("/models/gemini-embedding-001:batchEmbedContents", json=payload) as resp:
+        data = await resp.json()
+
+# DashScope (Qwen) embedding — OpenAI-compatible
+llm = cfg.get_llm(LLMProvider.DASHSCOPE)
+async with llm.get_aiohttp_session() as session:
+    async with session.post("/embeddings", json={
+        "model": "text-embedding-v4",
+        "input": texts,
+    }) as resp:
+        data = await resp.json()
+
+# Vertex AI — ADC token auto-refreshed
+llm = cfg.get_llm(LLMProvider.VERTEX_AI)
+async with llm.get_aiohttp_session() as session:
+    async with session.post("/publishers/google/models/gemini-embedding-001:predict", json=payload) as resp:
+        data = await resp.json()
+```
+
+Auth headers per provider:
+
+| Provider | Header |
+| --- | --- |
+| OpenAI-compatible (7 providers) | `Authorization: Bearer {api_key}` |
+| Anthropic | `x-api-key: {api_key}` |
+| Gemini | `x-goog-api-key: {api_key}` |
+| Vertex AI | `Authorization: Bearer {oauth2_token}` (ADC) |
 
 ### Azure OpenAI
 
@@ -399,6 +494,38 @@ Vertex AI uses **Application Default Credentials (ADC)** — no API key is neede
 - **EKS / GKE**: Workload Identity Federation auto-injects credentials.
 - **Local development**: `gcloud auth application-default login`
 - **Service account**: `export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"`
+
+### AWS Bedrock
+
+AWS Bedrock provides a unified `Converse` API for multiple model providers (Claude, Llama, Nova, Mistral, etc.).
+
+| Variable | Description | Required | Default |
+| -------- | ----------- | -------- | ------- |
+| `AWS_REGION` | AWS region for Bedrock | No | `us-east-1` |
+
+```yaml
+AWS_REGION: us-east-1
+```
+
+#### Authentication
+
+Bedrock uses **IAM credentials** — no API key is needed.
+
+- **EKS**: IAM Roles for Service Accounts (IRSA) auto-injects credentials.
+- **Local development**: `aws configure` or `export AWS_PROFILE=...`
+- **Service account**: `export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...`
+
+#### Usage
+
+```python
+llm = cfg.get_llm(LLMProvider.BEDROCK)
+client = llm.get_client()
+
+response = client.converse(
+    modelId="anthropic.claude-sonnet-4-20250514-v1:0",
+    messages=[{"role": "user", "content": [{"text": "Hello"}]}],
+)
+```
 
 ## 🧪 Testing
 

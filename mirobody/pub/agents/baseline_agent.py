@@ -436,7 +436,7 @@ class GeminiClient(AbstractClient):
         gcp_location= os.environ.get("GOOGLE_CLOUD_LOCATION")
 
         use_vertexai= os.environ.get("GOOGLE_GENAI_USE_VERTEXAI")
-        if gcp_project and gcp_location and use_vertexai and use_vertexai.lower() == "true":
+        if gcp_project and gcp_location and use_vertexai and use_vertexai.lower() in ("true", "1"):
             use_vertexai = True
         else:
             use_vertexai = False

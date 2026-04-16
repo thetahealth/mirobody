@@ -81,26 +81,24 @@ async def load_global_tools(
                 # This prevents errors from extra parameters (like 'context' that LangGraph might pass)
                 if inspect.iscoroutinefunction(original_func):
                     def create_async_filter_wrapper(f):
+                        # Capture signature once at creation time, not per invocation
+                        try:
+                            valid_params = set(inspect.signature(f).parameters.keys())
+                        except (ValueError, TypeError):
+                            valid_params = set()
                         async def wrapper(**kwargs):
-                            # Get valid parameters for the wrapped function
-                            try:
-                                valid_params = set(inspect.signature(f).parameters.keys())
-                            except (ValueError, TypeError):
-                                valid_params = set()
-                            # Filter kwargs to only include valid parameters
                             filtered_kwargs = {k: v for k, v in kwargs.items() if k in valid_params or not valid_params}
                             return await f(**filtered_kwargs)
                         return wrapper
                     tool_func = create_async_filter_wrapper(tool_func)
                 else:
                     def create_sync_filter_wrapper(f):
+                        # Capture signature once at creation time, not per invocation
+                        try:
+                            valid_params = set(inspect.signature(f).parameters.keys())
+                        except (ValueError, TypeError):
+                            valid_params = set()
                         def wrapper(**kwargs):
-                            # Get valid parameters for the wrapped function
-                            try:
-                                valid_params = set(inspect.signature(f).parameters.keys())
-                            except (ValueError, TypeError):
-                                valid_params = set()
-                            # Filter kwargs to only include valid parameters
                             filtered_kwargs = {k: v for k, v in kwargs.items() if k in valid_params or not valid_params}
                             return f(**filtered_kwargs)
                         return wrapper

@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 
 from mirobody.utils import execute_query
 
-from .search import gemini_embedding
+from mirobody.utils.embedding import text_embedding
 
 log = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ async def map_term(
             raise ValueError(f"Invalid systems: {invalid}. Valid: {VALID_SYSTEMS}")
 
     # Embed the input term
-    embeddings = await gemini_embedding([term.strip()])
+    embeddings = await text_embedding([term.strip()])
     vector_str = "[" + ",".join(map(str, embeddings[0])) + "]"
 
     # Build query

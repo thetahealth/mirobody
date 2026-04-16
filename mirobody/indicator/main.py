@@ -6,6 +6,7 @@ Subcommands:
     merge    — Merge siblings + bridges into concepts.csv + concept_graph.bin.
     search   — Search concepts by keywords (requires DB).
     mapping  — Map free-text term to LOINC / RxNorm / SNOMED CT codes.
+    embed    — Batch-fill embedding_gemini for th_series_dim / fhir_indicators.
     test     — Verify concepts.csv against known test cases.
 
 Usage:
@@ -42,6 +43,7 @@ from .health.bridge import cmd_bridge
 from .health.merge import cmd_merge
 from .search import cmd_search
 from .mapping import cmd_mapping
+from .embed import cmd_embed
 from .health.test import cmd_test
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -166,6 +168,16 @@ def main() -> None:
         help="Minimum similarity score 0-1 (default: 0.0)",
     )
 
+    # ── embed ─────────────────────────────────────────────────────────
+    p_embed = sub.add_parser(
+        "embed",
+        help="Batch-fill embedding_gemini for th_series_dim / fhir_indicators",
+    )
+    p_embed.add_argument(
+        "target", choices=["series", "fhir", "all"], default="all", nargs="?",
+        help="Which table to embed (default: all)",
+    )
+
     # ── test ──────────────────────────────────────────────────────────
     p_test = sub.add_parser(
         "test",
@@ -195,6 +207,8 @@ def main() -> None:
         asyncio.run(_run_async(cmd_search(args)))
     elif args.command == "mapping":
         asyncio.run(_run_async(cmd_mapping(args)))
+    elif args.command == "embed":
+        asyncio.run(_run_async(cmd_embed(args)))
     elif args.command == "test":
         cmd_test(args)
 

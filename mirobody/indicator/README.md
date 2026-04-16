@@ -18,6 +18,7 @@ indicator/
   concept_graph.py       # ConceptGraphBuilder ABC + ConceptGraph (load/save/query)
   search.py              # DomainAdapter ABC + domain-agnostic search engine
   mapping.py             # Free-text → LOINC/RxNorm/SNOMED via embeddings
+  embed.py               # Batch-fill embedding_gemini for DB tables
   main.py                # CLI entry point
 ```
 
@@ -278,7 +279,19 @@ Output columns: `name`, `snomed_codes`, `loinc_codes`, `loinc_bridged`, `rxnorm_
    - Bridges: half-edge storage (src < dst), expanded at load time
    - Siblings: per-group members + reverse index for O(1) lookup
 
-### 2.4 Verify (optional)
+### 2.4 Batch-fill embeddings
+
+After importing new indicators into `fhir_indicators` or `th_series_dim`, run `embed` to compute Gemini embeddings for rows that don't have one yet:
+
+```bash
+python -m mirobody.indicator embed          # both tables
+python -m mirobody.indicator embed series   # th_series_dim only
+python -m mirobody.indicator embed fhir     # fhir_indicators only
+```
+
+Processes rows in batches of 100, skipping rows where `embedding_gemini` is already set. For `fhir_indicators`, only rows with a non-NULL `llm_description` are embedded.
+
+### 2.5 Verify (optional)
 
 ```bash
 python -m mirobody.indicator test
@@ -286,12 +299,13 @@ python -m mirobody.indicator test
 
 Checks `concepts.csv` against known medical codes defined in `test.py` (e.g. LOINC DXA codes, HbA1c, etc.).
 
-### 2.5 All-in-one
+### 2.6 All-in-one
 
 ```bash
 python -m mirobody.indicator siblings [--nhsa-catalog ~/ref/medicine_data.json]
 python -m mirobody.indicator bridge
 python -m mirobody.indicator merge
+python -m mirobody.indicator embed
 python -m mirobody.indicator test
 ```
 

@@ -6,13 +6,13 @@ graph expansion to a DomainAdapter, then merges and ranks results.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
 from argparse import Namespace
 
 from .concept_graph import ConceptGraph
+from mirobody.utils.embedding import text_embedding
 
 log = logging.getLogger(__name__)
 
@@ -55,44 +55,6 @@ class DomainAdapter:
         ...
 
 
-# ─── Embedding helpers ───────────────────────────────────────────────
-
-_GEMINI_MAX_RETRIES = 3
-_GEMINI_RETRY_BACKOFF = (1, 2, 4)  # seconds
-
-
-async def gemini_embedding(texts: list[str]) -> list[list[float]]:
-    """Call Gemini embedding API (1024-dim) with retry on transient errors."""
-    import aiohttp
-
-    api_key = os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        raise RuntimeError("GOOGLE_API_KEY not configured")
-
-    model = "gemini-embedding-001"
-    base_url = "https://generativelanguage.googleapis.com/v1beta"
-    requests = [
-        {"model": f"models/{model}", "content": {"parts": [{"text": t}]}, "output_dimensionality": 1024}
-        for t in texts
-    ]
-    url = f"{base_url}/models/{model}:batchEmbedContents"
-    headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
-
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-        for attempt in range(_GEMINI_MAX_RETRIES):
-            async with session.post(url, headers=headers, json={"requests": requests}) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return [item["values"] for item in data["embeddings"]]
-                body = await resp.text()
-                if resp.status in (429, 503) and attempt < _GEMINI_MAX_RETRIES - 1:
-                    wait = _GEMINI_RETRY_BACKOFF[attempt]
-                    log.warning(f"Gemini API {resp.status}, retry in {wait}s (attempt {attempt + 1})")
-                    await asyncio.sleep(wait)
-                    continue
-                raise RuntimeError(f"Gemini API error: {resp.status}, {body}")
-
-
 # ─── Search engine ─────────────────────────────────────────────────
 
 async def _resolve_user_id(identifier: str) -> str:
@@ -123,7 +85,7 @@ async def _search(
 
     # 1. Compute keyword embeddings
     queries = [" ".join(keywords)] + keywords if len(keywords) > 1 else keywords
-    query_embeddings = await gemini_embedding(queries)
+    query_embeddings = await text_embedding(queries)
 
     # 2. Vector recall via adapter
     primary_scores, secondary_indicators = await adapter.search(
