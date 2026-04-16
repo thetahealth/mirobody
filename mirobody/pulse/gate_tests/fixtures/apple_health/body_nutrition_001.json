@@ -1,0 +1,255 @@
+{
+  "test_id": "apple_health_body_nutrition_001",
+  "description": "Apple Health body measurements and nutrition data",
+  "provider_class": "mirobody.pulse.apple.provider.AppleHealthProvider",
+  "platform": "apple",
+  "mock_context": {},
+  "input": {
+    "user_id": "test_user_001",
+    "request_id": "test_req_003",
+    "meta_info": {
+      "timezone": "America/Los_Angeles",
+      "taskId": "test_task_003",
+      "directly_from_watch": false
+    },
+    "health_data": [
+      {
+        "uuid": "00000000-0000-0000-0000-000000000020",
+        "sourceId": "com.apple.health",
+        "type": "WEIGHT",
+        "dateFrom": 1736942400000,
+        "dateTo": 1736942400000,
+        "timezone": "America/Los_Angeles",
+        "value": {
+          "numericValue": 70.0
+        },
+        "unitSymbol": "kg"
+      },
+      {
+        "uuid": "00000000-0000-0000-0000-000000000021",
+        "sourceId": "com.apple.health",
+        "type": "HEIGHT",
+        "dateFrom": 1736942400000,
+        "dateTo": 1736942400000,
+        "timezone": "America/Los_Angeles",
+        "value": {
+          "numericValue": 1.7
+        },
+        "unitSymbol": "m"
+      },
+      {
+        "uuid": "00000000-0000-0000-0000-000000000022",
+        "sourceId": "com.apple.health",
+        "type": "BODY_MASS_INDEX",
+        "dateFrom": 1736942400000,
+        "dateTo": 1736942400000,
+        "timezone": "America/Los_Angeles",
+        "value": {
+          "numericValue": 24.2
+        },
+        "unitSymbol": "kg/m²"
+      },
+      {
+        "uuid": "00000000-0000-0000-0000-000000000023",
+        "sourceId": "com.apple.health",
+        "type": "BODY_FAT_PERCENTAGE",
+        "dateFrom": 1736942400000,
+        "dateTo": 1736942400000,
+        "timezone": "America/Los_Angeles",
+        "value": {
+          "numericValue": 18.5
+        },
+        "unitSymbol": "%"
+      },
+      {
+        "uuid": "00000000-0000-0000-0000-000000000024",
+        "sourceId": "com.apple.health",
+        "type": "DIETARY_PROTEIN_CONSUMED",
+        "dateFrom": 1736942400000,
+        "dateTo": 1736942400000,
+        "timezone": "America/Los_Angeles",
+        "value": {
+          "numericValue": 45
+        },
+        "unitSymbol": "g"
+      },
+      {
+        "uuid": "00000000-0000-0000-0000-000000000025",
+        "sourceId": "com.apple.health",
+        "type": "DIETARY_ENERGY_CONSUMED",
+        "dateFrom": 1736942400000,
+        "dateTo": 1736942400000,
+        "timezone": "America/Los_Angeles",
+        "value": {
+          "numericValue": 500
+        },
+        "unitSymbol": "kcal"
+      }
+    ]
+  },
+  "expected": {
+    "success": true,
+    "health_data_count": 6,
+    "required_indicators": [
+      "bodyMasss",
+      "heights",
+      "bmis",
+      "proteins"
+    ],
+    "value_checks": [
+      {
+        "index": 0,
+        "field": "type",
+        "expected": "bodyMasss"
+      },
+      {
+        "index": 0,
+        "field": "value",
+        "expected": 70.0
+      },
+      {
+        "index": 0,
+        "field": "startTime",
+        "expected": 1736942400000
+      },
+      {
+        "index": 1,
+        "field": "type",
+        "expected": "heights"
+      },
+      {
+        "index": 1,
+        "field": "value",
+        "expected": 1.7
+      },
+      {
+        "index": 2,
+        "field": "type",
+        "expected": "bmis"
+      },
+      {
+        "index": 2,
+        "field": "value",
+        "expected": 24.2
+      },
+      {
+        "index": 3,
+        "field": "type",
+        "expected": "bodyFatPercentages"
+      },
+      {
+        "index": 3,
+        "field": "value",
+        "expected": 18.5
+      },
+      {
+        "index": 4,
+        "field": "type",
+        "expected": "proteins"
+      },
+      {
+        "index": 4,
+        "field": "value",
+        "expected": 45.0
+      },
+      {
+        "index": 5,
+        "field": "type",
+        "expected": "energyes"
+      },
+      {
+        "index": 5,
+        "field": "value",
+        "expected": 500.0
+      }
+    ],
+    "snapshot": {
+      "metaInfo": {
+        "userId": "test_user_001",
+        "source": "apple_health",
+        "timezone": "America/Los_Angeles",
+        "taskId": "test_task_003"
+      },
+      "healthData": [
+        {
+          "source": "apple_health",
+          "type": "bodyMasss",
+          "unit": "kg",
+          "value": 70.0,
+          "timezone": "America/Los_Angeles",
+          "startTime": 1736942400000,
+          "endTime": 1736942400000,
+          "source_id": "com.apple.health",
+          "task_id": "test_task_003",
+          "comment": null
+        },
+        {
+          "source": "apple_health",
+          "type": "heights",
+          "unit": "m",
+          "value": 1.7,
+          "timezone": "America/Los_Angeles",
+          "startTime": 1736942400000,
+          "endTime": 1736942400000,
+          "source_id": "com.apple.health",
+          "task_id": "test_task_003",
+          "comment": null
+        },
+        {
+          "source": "apple_health",
+          "type": "bmis",
+          "unit": "kg/m²",
+          "value": 24.2,
+          "timezone": "America/Los_Angeles",
+          "startTime": 1736942400000,
+          "endTime": 1736942400000,
+          "source_id": "com.apple.health",
+          "task_id": "test_task_003",
+          "comment": null
+        },
+        {
+          "source": "apple_health",
+          "type": "bodyFatPercentages",
+          "unit": "%",
+          "value": 18.5,
+          "timezone": "America/Los_Angeles",
+          "startTime": 1736942400000,
+          "endTime": 1736942400000,
+          "source_id": "com.apple.health",
+          "task_id": "test_task_003",
+          "comment": null
+        },
+        {
+          "source": "apple_health",
+          "type": "proteins",
+          "unit": "g",
+          "value": 45.0,
+          "timezone": "America/Los_Angeles",
+          "startTime": 1736942400000,
+          "endTime": 1736942400000,
+          "source_id": "com.apple.health",
+          "task_id": "test_task_003",
+          "comment": null
+        },
+        {
+          "source": "apple_health",
+          "type": "energyes",
+          "unit": "kcal",
+          "value": 500.0,
+          "timezone": "America/Los_Angeles",
+          "startTime": 1736942400000,
+          "endTime": 1736942400000,
+          "source_id": "com.apple.health",
+          "task_id": "test_task_003",
+          "comment": null
+        }
+      ],
+      "batchInfo": null,
+      "processingInfo": null
+    }
+  },
+  "patch_targets": [],
+  "init_kwargs": {
+    "platform": "__mock__"
+  }
+}

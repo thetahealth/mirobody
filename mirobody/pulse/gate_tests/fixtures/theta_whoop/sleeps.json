@@ -1,0 +1,294 @@
+{
+  "test_id": "theta_whoop_sleeps_001",
+  "description": "Whoop sleeps data",
+  "provider_class": "mirobody.pulse.theta.mirobody_whoop.provider_whoop.ThetaWhoopProvider",
+  "platform": "theta",
+  "mock_context": {},
+  "input": {
+    "data": [
+      {
+        "id": "00000000-0000-0000-0000-000000000002",
+        "end": "2026-01-14T16:40:57.820Z",
+        "nap": false,
+        "score": {
+          "sleep_needed": {
+            "baseline_milli": 26699704,
+            "need_from_recent_nap_milli": 0,
+            "need_from_sleep_debt_milli": 7668000,
+            "need_from_recent_strain_milli": 2039462
+          },
+          "stage_summary": {
+            "disturbance_count": 9,
+            "sleep_cycle_count": 4,
+            "total_awake_time_milli": 995180,
+            "total_in_bed_time_milli": 26731050,
+            "total_no_data_time_milli": 0,
+            "total_rem_sleep_time_milli": 7519410,
+            "total_light_sleep_time_milli": 12574270,
+            "total_slow_wave_sleep_time_milli": 5642190
+          },
+          "respiratory_rate": 17.167969,
+          "sleep_efficiency_percentage": 96.72943,
+          "sleep_consistency_percentage": 0.0,
+          "sleep_performance_percentage": 81.0
+        },
+        "start": "2026-01-14T09:15:26.770Z",
+        "v1_id": null,
+        "user_id": 99900001,
+        "cycle_id": 90000000009,
+        "created_at": "2026-01-15T04:33:34.635Z",
+        "updated_at": "2026-01-15T04:33:34.635Z",
+        "score_state": "SCORED",
+        "timezone_offset": "-08:00"
+      }
+    ],
+    "msg_id": "test_msg_0012",
+    "user_id": "test_user_005",
+    "data_type": "sleeps",
+    "timestamp": 1768574416892
+  },
+  "expected": {
+    "success": true,
+    "health_data_count": 10,
+    "required_indicators": [
+      "respiratoryRates",
+      "sleepAnalysis_Asleep(Core)",
+      "sleepAnalysis_Asleep(Deep)"
+    ],
+    "value_checks": [
+      {
+        "index": 0,
+        "field": "type",
+        "expected": "sleepAnalysis_InBed"
+      },
+      {
+        "index": 0,
+        "field": "value",
+        "expected": 26731050.0
+      },
+      {
+        "index": 0,
+        "field": "unit",
+        "expected": "ms"
+      },
+      {
+        "index": 1,
+        "field": "type",
+        "expected": "sleepAnalysis_Awake"
+      },
+      {
+        "index": 1,
+        "field": "value",
+        "expected": 995180.0
+      },
+      {
+        "index": 2,
+        "field": "type",
+        "expected": "sleepAnalysis_Asleep(Core)"
+      },
+      {
+        "index": 2,
+        "field": "value",
+        "expected": 12574270.0
+      },
+      {
+        "index": 3,
+        "field": "type",
+        "expected": "sleepAnalysis_Asleep(Deep)"
+      },
+      {
+        "index": 3,
+        "field": "value",
+        "expected": 5642190.0
+      },
+      {
+        "index": 4,
+        "field": "type",
+        "expected": "sleepAnalysis_Asleep(REM)"
+      },
+      {
+        "index": 4,
+        "field": "value",
+        "expected": 7519410.0
+      },
+      {
+        "index": 5,
+        "field": "value",
+        "expected": 96.72943
+      },
+      {
+        "index": 6,
+        "field": "type",
+        "expected": "respiratoryRates"
+      },
+      {
+        "index": 6,
+        "field": "value",
+        "expected": 17.167969
+      },
+      {
+        "index": 9,
+        "field": "type",
+        "expected": "sleepDisturbances"
+      },
+      {
+        "index": 9,
+        "field": "value",
+        "expected": 9.0
+      }
+    ],
+    "snapshot": {
+      "metaInfo": {
+        "userId": "test_user_005",
+        "source": "theta",
+        "timezone": "Asia/Shanghai",
+        "taskId": null
+      },
+      "healthData": [
+        {
+          "source": "theta.theta_whoop",
+          "type": "sleepAnalysis_InBed",
+          "unit": "ms",
+          "value": 26731050.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_0012",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_whoop",
+          "type": "sleepAnalysis_Awake",
+          "unit": "ms",
+          "value": 995180.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_0012",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_whoop",
+          "type": "sleepAnalysis_Asleep(Core)",
+          "unit": "ms",
+          "value": 12574270.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_0012",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_whoop",
+          "type": "sleepAnalysis_Asleep(Deep)",
+          "unit": "ms",
+          "value": 5642190.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_0012",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_whoop",
+          "type": "sleepAnalysis_Asleep(REM)",
+          "unit": "ms",
+          "value": 7519410.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_0012",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_whoop",
+          "type": "sleepEfficiency",
+          "unit": "%",
+          "value": 96.72943,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_0012",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_whoop",
+          "type": "respiratoryRates",
+          "unit": "count/min",
+          "value": 17.167969,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_0012",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_whoop",
+          "type": "sleepPerformance",
+          "unit": "%",
+          "value": 81.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_0012",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_whoop",
+          "type": "sleepConsistency",
+          "unit": "%",
+          "value": 0.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_0012",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_whoop",
+          "type": "sleepDisturbances",
+          "unit": "count",
+          "value": 9.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_0012",
+          "task_id": null,
+          "comment": null
+        }
+      ],
+      "batchInfo": null,
+      "processingInfo": {
+        "provider": "theta_whoop",
+        "processed_indicators": 10,
+        "skipped_indicators": 0,
+        "errors": [],
+        "msg_id": "test_msg_0012",
+        "user_timezone": "Asia/Shanghai",
+        "total_records": 10
+      }
+    }
+  },
+  "patch_targets": [
+    "mirobody.pulse.theta.platform.base.ThetaDatabaseService",
+    "mirobody.pulse.theta.platform.base.ThetaUserService",
+    {
+      "target": "mirobody.utils.config.safe_read_cfg",
+      "return_value": ""
+    }
+  ],
+  "context": {
+    "theta_user_id": "test_user_005",
+    "user_timezone": "Asia/Shanghai",
+    "msg_id": "test_msg_0012"
+  }
+}

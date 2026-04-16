@@ -1,0 +1,117 @@
+{
+  "test_id": "theta_oura_personal_info_001",
+  "description": "Oura personal info with weight and height",
+  "provider_class": "mirobody.pulse.theta.mirobody_oura.provider_oura.ThetaOuraProvider",
+  "platform": "theta",
+  "mock_context": {},
+  "input": {
+    "data_type": "personal_info",
+    "data": [
+      {
+        "id": "ae456cf22286c0ae51509912-1-0fa81405e",
+        "age": 34,
+        "email": null,
+        "height": 1.7,
+        "weight": 60.0,
+        "biological_sex": "male",
+        "timestamp": "2026-03-06T12:00:00.000+08:00"
+      }
+    ],
+    "timestamp": 1772942400000
+  },
+  "expected": {
+    "success": true,
+    "health_data_count": 2,
+    "required_indicators": [
+      "bodyMasss",
+      "heights"
+    ],
+    "value_checks": [
+      {
+        "index": 0,
+        "field": "type",
+        "expected": "bodyMasss"
+      },
+      {
+        "index": 0,
+        "field": "value",
+        "expected": 60.0
+      },
+      {
+        "index": 0,
+        "field": "unit",
+        "expected": "kg"
+      },
+      {
+        "index": 1,
+        "field": "type",
+        "expected": "heights"
+      },
+      {
+        "index": 1,
+        "field": "value",
+        "expected": 1.7
+      },
+      {
+        "index": 1,
+        "field": "unit",
+        "expected": "m"
+      }
+    ],
+    "snapshot": {
+      "metaInfo": {
+        "userId": "test_user_oura_001",
+        "source": "theta",
+        "timezone": "Asia/Shanghai",
+        "taskId": null
+      },
+      "healthData": [
+        {
+          "source": "theta.theta_oura",
+          "type": "bodyMasss",
+          "unit": "kg",
+          "value": 60.0,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_personal",
+          "task_id": null,
+          "comment": null
+        },
+        {
+          "source": "theta.theta_oura",
+          "type": "heights",
+          "unit": "m",
+          "value": 1.7,
+          "timezone": "Asia/Shanghai",
+          "startTime": null,
+          "endTime": null,
+          "source_id": "test_msg_oura_personal",
+          "task_id": null,
+          "comment": null
+        }
+      ],
+      "batchInfo": null,
+      "processingInfo": {
+        "provider": "theta_oura",
+        "data_type": "personal_info",
+        "raw_count": 1,
+        "mapped_count": 2,
+        "msg_id": "test_msg_oura_personal"
+      }
+    }
+  },
+  "patch_targets": [
+    "mirobody.pulse.theta.platform.base.ThetaDatabaseService",
+    "mirobody.pulse.theta.platform.base.ThetaUserService",
+    {
+      "target": "mirobody.utils.config.safe_read_cfg",
+      "return_value": ""
+    }
+  ],
+  "context": {
+    "theta_user_id": "test_user_oura_001",
+    "user_timezone": "Asia/Shanghai",
+    "msg_id": "test_msg_oura_personal"
+  }
+}
