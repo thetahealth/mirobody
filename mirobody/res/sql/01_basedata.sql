@@ -114,26 +114,12 @@ CREATE TABLE IF NOT EXISTS th_series_dim (
     standard_indicator character varying(200),
     category_group character varying(200),
     category character varying(200),
-    original_indicator_embedding vector,
-    standard_indicator_embedding vector,
-    category_embedding vector,
     updated_at timestamp without time zone,
     unit character varying,
     deleted boolean not null default false,
     create_time timestamp with time zone not null default CURRENT_TIMESTAMP,
     update_time timestamp with time zone not null default CURRENT_TIMESTAMP,
-    diagnosis_recommended_organ character varying(200),
-    diagnosis_recommended_system character varying(200),
-    diagnosis_recommended_disease text,
-    department text,
-    symptom text
 );
-
-COMMENT ON COLUMN th_series_dim.diagnosis_recommended_organ IS 'AI-recommended primary organ related to this health indicator';
-COMMENT ON COLUMN th_series_dim.diagnosis_recommended_system IS 'AI-recommended body system related to this health indicator';
-COMMENT ON COLUMN th_series_dim.diagnosis_recommended_disease IS 'AI-recommended possible diseases related to this health indicator (comma-separated)';
-COMMENT ON COLUMN th_series_dim.department IS 'AI-recommended medical departments for this health indicator (comma-separated)';
-COMMENT ON COLUMN th_series_dim.symptom IS 'AI-identified symptoms related to this health indicator (comma-separated)';
 
 --  Add embedding_gemini field for Gemini 1024-dimension vector search (used by indicator_service_v3)
 ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS embedding_gemini vector(1024);
@@ -276,8 +262,8 @@ CREATE OR REPLACE VIEW v_th_series_data
             WHEN t2.category IS NULL THEN t1.indicator
             ELSE t2.category
         END AS category,
-    t2.original_indicator_embedding,
-    t2.standard_indicator_embedding,
+    -- t2.original_indicator_embedding,
+    -- t2.standard_indicator_embedding,
     t2.category_embedding,
     t2.unit,
     t2.diagnosis_recommended_organ,

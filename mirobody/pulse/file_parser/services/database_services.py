@@ -527,7 +527,7 @@ class FileParserDatabaseService:
                 return
 
             logging.info("🔄 Background dim sync + embedding backfill started")
-            await sync_all_missing_indicators(generate_embeddings=True)
+            await sync_all_missing_indicators()
             await backfill_dim_embeddings()
             logging.info("✅ Background dim sync + embedding backfill completed")
 

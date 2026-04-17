@@ -2,1161 +2,538 @@
 """
 Dimension Table Sync Tool
 Fetches indicators from th_series_data table, inserts new records if they don't exist in th_series_dim dimension table.
-Based on the implementation pattern of utils_update_embeddings.py
 """
 
 import asyncio
 import logging
-import sys
 import time
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
-from mirobody.pulse.file_parser.tools.indicator_classifier.sort_dim import MedicalIndicatorClassifier
 from mirobody.utils import execute_query
 from mirobody.utils.config import safe_read_cfg
-from mirobody.utils.utils_embedding import create_embedding_service, get_default_embedding_service
-
-# Add project root to path
-project_root = Path(__file__).parent.parent.parent
-sys.path.append(str(project_root))
+from mirobody.utils.embedding import text_embedding
+from mirobody.utils.llm import async_get_structured_output
 
 
-class DimTableSyncer:
-    """Dimension table synchronizer"""
+def _format_vector(embedding: Optional[List[float]]) -> Optional[str]:
+    """Format embedding as PostgreSQL vector literal: [v1,v2,v3,...]."""
+    if not embedding:
+        return None
+    return "[" + ",".join(str(x) for x in embedding) + "]"
 
-    # Class-level shared embedding service
-    _shared_embedding_service = None
-    _initialization_lock = None
 
-    def __init__(self):
-        """Initialize dimension table syncer"""
-        pass
+# ── Indicator description generation ─────────────────────────────────
 
-    @classmethod
-    async def get_embedding_service(cls):
-        """Get shared embedding service (singleton pattern)"""
-        if cls._shared_embedding_service is None:
-            if cls._initialization_lock is None:
-                cls._initialization_lock = asyncio.Lock()
+_DESC_SYSTEM_PROMPT = (
+    "You are a professional Chinese medical examination expert. "
+    "For each medical indicator, write a 2-3 sentence Chinese description of what it "
+    "measures, its clinical significance, and typical abnormal ranges. "
+    "CRITICAL: keep the indicator names exactly as given — do not translate or modify them. "
+    "DO NOT repeat the indicator name at the start of the description."
+)
 
-            async with cls._initialization_lock:
-                # Double-checked locking pattern
-                if cls._shared_embedding_service is None:
-                    logging.info("🔧 Initializing shared embedding service...")
-                    cls._shared_embedding_service = await get_default_embedding_service()
-                    if not cls._shared_embedding_service:
-                        raise Exception("Failed to initialize embedding service")
-                    logging.info("✅ Shared embedding service initialized successfully")
+_DESC_USER_PROMPT = """Write a description for each of the following medical indicators:
 
-        return cls._shared_embedding_service
+Indicator List:
+{indicators_text}
 
-    async def initialize(self):
-        """Initialize embedding service"""
-        await self.get_embedding_service()
+For each indicator, return:
+- The indicator name, EXACTLY as provided (no translation, no modification)
+- A 2-3 sentence Chinese description of what it measures, its clinical significance, and typical abnormal ranges.
 
-    def categorize_indicator(self, indicator: str) -> str:
-        """
-        Intelligently categorize indicator, return category name
+IMPORTANT: Return all {indicator_count} indicators."""
 
-        Args:
-            indicator: Indicator name
-
-        Returns:
-            str: Category name
-        """
-        indicator_lower = indicator.lower()
-
-        # Blood-related indicators
-        if any(
-            keyword in indicator_lower
-            for keyword in [
-                "blood",
-                "hemoglobin",
-                "hematocrit",
-                "platelet",
-                "white blood cell",
-                "red blood cell",
-                "neutrophil",
-                "lymphocyte",
-                "monocyte",
-                "glucose",
-                "cholesterol",
-                "triglyceride",
-                "bilirubin",
-                "creatinine",
-                "uric acid",
-                "albumin",
-                "protein",
-            ]
-        ):
-            return "Blood Test"
-
-        # Cardiovascular-related indicators
-        elif any(
-            keyword in indicator_lower
-            for keyword in [
-                "heart",
-                "ecg",
-                "arrhythmia",
-                "bradycardia",
-                "tachycardia",
-                "heart_rate",
-                "hrv",
-                "ventricular",
-                "atrial",
-                "cardiac",
-            ]
-        ):
-            return "Cardiovascular"
-
-        # Sleep-related indicators
-        elif any(
-            keyword in indicator_lower
-            for keyword in [
-                "sleep",
-                "rem",
-                "langchain",
-                "awake",
-                "sleep_duration",
-                "sleep_start",
-                "sleep_end",
-            ]
-        ):
-            return "Sleep"
-
-        # Physical activity-related indicators
-        elif any(
-            keyword in indicator_lower
-            for keyword in [
-                "steps",
-                "exercise",
-                "walking",
-                "cycling",
-                "vo2",
-                "floors",
-                "distance",
-                "speed",
-            ]
-        ):
-            return "Physical Activity"
-
-        # Liver function-related indicators
-        elif any(
-            keyword in indicator_lower
-            for keyword in [
-                "alanine",
-                "aspartate",
-                "alt",
-                "ast",
-                "alkaline",
-                "gamma",
-                "liver",
-            ]
-        ):
-            return "Liver Function"
-
-        # Kidney function-related indicators
-        elif any(keyword in indicator_lower for keyword in ["creatinine", "urea", "kidney", "renal"]):
-            return "Kidney Function"
-
-        # Glucose metabolism-related indicators
-        elif any(keyword in indicator_lower for keyword in ["7days_average_blood_glucose", "time_in_range", "glucose"]):
-            return "Glucose Metabolism"
-
-        # Default category
-        else:
-            return "Other"
-
-    @property
-    async def embedding_service(self):
-        """Property accessor for embedding service"""
-        return await self.get_embedding_service()
-
-    async def get_missing_indicators(
-        self,
-        user_id: str = None,
-        start_time: datetime = None,
-        end_time: datetime = None,
-        limit: int = None,
-    ) -> Set[str]:
-        """
-        Get indicators from th_series_data table that don't exist in th_series_dim dimension table
-
-        Args:
-            user_id: User ID, optional
-            start_time: Start time, optional
-            end_time: End time, optional
-            limit: Limit the number of indicators returned, optional
-
-        Returns:
-            Set[str]: Set of indicators not in dimension table
-        """
-        logging.info("🔍 Querying missing indicators...")
-
-        # Build base query
-        base_query = """
-        SELECT DISTINCT sd.indicator
-        FROM th_series_data sd
-        LEFT JOIN th_series_dim dim ON sd.indicator = dim.original_indicator
-        WHERE dim.original_indicator IS NULL
-        """
-
-        params = {}
-        conditions = []
-
-        # Add user filter condition
-        if user_id:
-            conditions.append("sd.user_id = :user_id")
-            params["user_id"] = user_id
-
-        # Add time range filter conditions (using correct time field names)
-        if start_time:
-            conditions.append("sd.start_time >= :start_time")
-            params["start_time"] = start_time
-
-        if end_time:
-            conditions.append("sd.end_time <= :end_time")
-            params["end_time"] = end_time
-
-        # Concatenate conditions
-        if conditions:
-            base_query += " AND " + " AND ".join(conditions)
-
-        # Add sorting and limit
-        base_query += " ORDER BY sd.indicator"
-        if limit:
-            base_query += f" LIMIT {limit}"
-
-        try:
-            results = await execute_query(base_query, params)
-
-            missing_indicators = {row["indicator"] for row in results} if results else set()
-
-            logging.info(f"📋 Found {len(missing_indicators)} missing indicators")
-            if len(missing_indicators) > 0:
-                logging.info(f"   Examples: {list(missing_indicators)[:5]}")
-
-            return missing_indicators
-
-        except Exception as e:
-            logging.error(f"❌ Failed to query missing indicators: {str(e)}")
-            return set()
-
-    async def generate_embeddings_for_indicators(
-        self, indicators: List[Dict[str, Any]]
-    ) -> Dict[str, Dict[str, List[float]]]:
-        """
-        Efficiently generate embeddings for indicator list (with deduplication optimization)
-
-        Args:
-            indicators: List of indicator names
-
-        Returns:
-            Dict[str, Dict[str, List[float]]]: Indicator to embeddings mapping
-                Format: {indicator_name: {"original": [...], "standard": [...], "category": [...]}}
-        """
-        if not indicators:
-            return {}
-
-        logging.info(f"🔄 Generating embeddings for {len(indicators)} indicators (with deduplication)...")
-
-        try:
-            # Collect unique texts and mappings
-            unique_texts = set()  # Deduplicated text set
-            indicator_mappings = {}  # Text mapping for each indicator
-
-            # Step 1: Collect all unique texts
-            for indicator_map in indicators:
-                indicator = indicator_map.get("input_indicator", "")
-                indicator_mappings[indicator] = {
-                    "original": None,
-                    "standard": None,
-                    "category": None,
+_DESC_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "indicator_description",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "indicator": {
+                                "type": "string",
+                                "description": "Indicator name exactly as provided in input.",
+                            },
+                            "indicator_description": {
+                                "type": "string",
+                                "description": "2-3 sentence Chinese description. DO NOT start with or repeat the indicator name.",
+                            },
+                        },
+                        "required": ["indicator", "indicator_description"],
+                        "additionalProperties": False,
+                    },
                 }
+            },
+            "required": ["results"],
+            "additionalProperties": False,
+        },
+    },
+}
 
-                # Original text
-                original_text = str(indicator).strip()
-                if original_text and original_text != "nan":
-                    unique_texts.add(original_text)
-                    indicator_mappings[indicator]["original"] = original_text
 
-                # Standard text (currently same as original, but handle separately if different)
-                standard_text = str(indicator_map.get("indicator_description", "")).strip()
-                if standard_text and standard_text != "nan" and standard_text != original_text:
-                    unique_texts.add(standard_text)
-                    indicator_mappings[indicator]["standard"] = standard_text
-                elif original_text:
-                    indicator_mappings[indicator]["standard"] = original_text  # Reuse original
+async def _generate_indicator_descriptions(
+    indicators: List[str],
+) -> List[Dict[str, str]]:
+    """LLM-generate a Chinese description for each indicator.
 
-                # Category text
-                category_text = self.categorize_indicator(indicator_map.get("input_indicator", ""))
-                if category_text and category_text != "nan":
-                    unique_texts.add(category_text)
-                    indicator_mappings[indicator]["category"] = category_text
+    Returns: list of {"input_indicator": str, "indicator_description": str}.
+    Indicators missing from the LLM response are dropped silently — caller
+    compares sizes if strict accounting is needed.
+    Raises on empty / malformed LLM response.
+    """
+    valid = [ind.strip() for ind in indicators if ind and ind.strip()]
+    if not valid:
+        return []
 
-            unique_texts_list = list(unique_texts)
+    indicators_text = "\n".join(f"{i + 1}. {ind}" for i, ind in enumerate(valid))
+    user_prompt = _DESC_USER_PROMPT.format(
+        indicators_text=indicators_text,
+        indicator_count=len(valid),
+    )
+    messages = [
+        {"role": "system", "content": _DESC_SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt + "\n\nPlease return the result in JSON format."},
+    ]
 
-            if not unique_texts_list:
-                logging.info("   ❌ No valid texts to process")
-                return {}
+    content = await async_get_structured_output(
+        messages=messages,
+        response_format=_DESC_SCHEMA,
+        temperature=0.1,
+        max_tokens=8000,
+    )
+    if not content:
+        raise RuntimeError("LLM returned empty content for indicator descriptions")
 
-            # Batch get embeddings
-            try:
-                all_embeddings = await (await self.embedding_service).get_texts_embeddings(unique_texts_list)
-            except Exception as e:
-                logging.error(f"❌ Failed to call embedding service: {str(e)}")
-                return {}
+    # Normalize to list: different providers may wrap in {"results": [...]}.
+    if isinstance(content, dict) and isinstance(content.get("results"), list):
+        items = content["results"]
+    elif isinstance(content, list):
+        items = content
+    else:
+        raise RuntimeError(f"Unexpected LLM response shape: {type(content).__name__}")
 
-            if not all_embeddings or len(all_embeddings) != len(unique_texts_list):
-                logging.error(f"❌ Failed to generate embeddings, expected {len(unique_texts_list)}, got {len(all_embeddings) if all_embeddings else 0}")
-                return {}
+    # Defensive key aliases in case a provider renames fields.
+    _INDICATOR_KEYS = ["indicator", "Indicator", "Indicator Name", "name"]
+    _DESC_KEYS = ["indicator_description", "Description", "description"]
 
-            # Validate embedding validity
-            for i, embedding in enumerate(all_embeddings):
-                if not embedding or not isinstance(embedding, list) or len(embedding) == 0:
-                    logging.error(f"❌ Embedding {i + 1} is invalid or empty")
-                    return {}
+    def _pick(item: dict, keys: List[str]) -> str:
+        for k in keys:
+            v = item.get(k)
+            if v:
+                return str(v).strip()
+        return ""
 
-            logging.info(f"   ✅ Successfully obtained {len(all_embeddings)} valid unique embeddings")
+    results = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        ind = _pick(item, _INDICATOR_KEYS)
+        desc = _pick(item, _DESC_KEYS)
+        if ind and desc:
+            results.append({"input_indicator": ind, "indicator_description": desc})
 
-            # Build text to embedding mapping
-            text_to_embedding = {}
-            for i, text in enumerate(unique_texts_list):
-                if i < len(all_embeddings):
-                    text_to_embedding[text] = all_embeddings[i]
+    return results
 
-            # Generate dim embedding (for embedding_gemini or embedding_qwen column)
-            dim_provider = safe_read_cfg("DIM_EMBEDDING_PROVIDER", "gemini").lower()
-            dim_text_to_embedding = {}
 
-            standard_texts_set = {}
-            for indicator_map in indicators:
-                indicator = indicator_map.get("input_indicator", "")
-                mappings = indicator_mappings[indicator]
-                std_text = mappings.get("standard") or mappings.get("original")
-                if std_text:
-                    standard_texts_set[std_text] = None
-            standard_texts = list(standard_texts_set)
+# ── Core implementation ──────────────────────────────────────────────
 
-            if standard_texts:
-                try:
-                    dim_service = None
-                    if dim_provider == "qwen":
-                        dashscope_key = safe_read_cfg("DASHSCOPE_API_KEY", "")
-                        if dashscope_key:
-                            dim_service = create_embedding_service("dashscope", api_key=dashscope_key, dimensions=1024)
-                        else:
-                            logging.warning("⚠️ DASHSCOPE_API_KEY not configured, skipping Qwen dim embeddings")
-                    elif dim_provider == "gemini":
-                        google_key = safe_read_cfg("GOOGLE_API_KEY", "")
-                        if google_key:
-                            dim_service = create_embedding_service("gemini", api_key=google_key, dimensions=1024)
-                        else:
-                            logging.warning("⚠️ GOOGLE_API_KEY not configured, skipping Gemini dim embeddings")
+async def _get_missing_indicators(
+    user_id: str = None,
+    start_time: datetime = None,
+    end_time: datetime = None,
+    limit: int = None,
+) -> Set[str]:
+    """Return indicators present in th_series_data but missing from th_series_dim.
 
-                    if dim_service:
-                        dim_embeddings = await dim_service.get_texts_embeddings(standard_texts)
-                        if dim_embeddings and len(dim_embeddings) == len(standard_texts):
-                            for i, text in enumerate(standard_texts):
-                                if dim_embeddings[i]:
-                                    dim_text_to_embedding[text] = dim_embeddings[i]
-                            logging.info(f"   ✅ Generated {len(dim_text_to_embedding)} {dim_provider} dim embeddings")
-                        else:
-                            logging.warning(f"⚠️ {dim_provider} dim embedding generation returned incomplete results, skipping")
-                except Exception as e:
-                    logging.warning(f"⚠️ Failed to generate {dim_provider} dim embeddings (non-fatal): {str(e)}")
+    Raises on query failure — callers must distinguish "no missing data"
+    from "query errored out".
+    """
+    logging.info("🔍 Querying missing indicators...")
 
-            # Assemble results for each indicator
-            results = {}
-            for indicator_map in indicators:
-                indicator = indicator_map.get("input_indicator", "")
-                mappings = indicator_mappings[indicator]
+    base_query = """
+    SELECT DISTINCT sd.indicator
+    FROM th_series_data sd
+    LEFT JOIN th_series_dim dim ON sd.indicator = dim.original_indicator
+    WHERE dim.original_indicator IS NULL
+    """
 
-                original_emb = text_to_embedding.get(mappings["original"])
-                standard_emb = (
-                    text_to_embedding.get(mappings["standard"])
-                    if mappings["standard"] != mappings["original"]
-                    else text_to_embedding.get(mappings["original"])
-                )
-                category_emb = text_to_embedding.get(mappings["category"])
+    params: Dict[str, Any] = {}
+    conditions = []
 
-                # Validate each embedding exists and is valid
-                if not original_emb or not standard_emb or not category_emb:
-                    logging.error(f"❌ Indicator '{indicator}' has missing embeddings: original={bool(original_emb)}, standard={bool(standard_emb)}, category={bool(category_emb)}")
-                    return {}
+    if user_id:
+        conditions.append("sd.user_id = :user_id")
+        params["user_id"] = user_id
+    if start_time:
+        conditions.append("sd.start_time >= :start_time")
+        params["start_time"] = start_time
+    if end_time:
+        conditions.append("sd.end_time <= :end_time")
+        params["end_time"] = end_time
 
-                # Dim embedding for standard text (provider-dependent column)
-                std_text = mappings.get("standard") or mappings.get("original")
-                dim_emb = dim_text_to_embedding.get(std_text) if std_text else None
+    if conditions:
+        base_query += " AND " + " AND ".join(conditions)
 
-                results[indicator] = {
-                    "original": original_emb,
-                    "standard": standard_emb,
-                    "category": category_emb,
-                    "qwen": dim_emb if dim_provider == "qwen" else None,
-                    "gemini": dim_emb if dim_provider == "gemini" else None,
-                }
+    if limit:
+        base_query += f" ORDER BY sd.indicator LIMIT {limit}"
 
-            logging.info(f"✅ Successfully generated complete embeddings for {len(results)} indicators")
-            return results
+    results = await execute_query(base_query, params)
+    missing_indicators = {row["indicator"] for row in results} if results else set()
 
-        except Exception as e:
-            logging.error(f"❌ Failed to generate embeddings: {str(e)}")
-            return {}
+    logging.info(f"📋 Found {len(missing_indicators)} missing indicators")
+    if missing_indicators:
+        logging.info(f"   Examples: {list(missing_indicators)[:5]}")
 
-    async def insert_missing_indicators(
-        self,
-        indicators: Set[str],
-        generate_embeddings: bool = True,
-        batch_size: int = 50,
-    ) -> bool:
-        """
-        Batch insert missing indicators into dimension table
+    return missing_indicators
 
-        Args:
-            indicators: Set of indicators to insert
-            generate_embeddings: Whether to generate embeddings
-            batch_size: Batch processing size
 
-        Returns:
-            bool: Whether insertion was successful
-        """
-        if not indicators:
-            logging.info("✅ No indicators to insert")
-            return True
+async def _classify_and_embed(
+    indicators: List[str],
+    description_batch_size: int = 20,
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Generate descriptions + embeddings for a list of raw indicator strings.
 
-        # Generate medical classifications for new indicators (batch processing to avoid >1000 limit)
-        classifier = MedicalIndicatorClassifier()
-        # Filter out None and empty strings to prevent downstream .strip() failures
-        indicators_list = [ind for ind in indicators if ind]
-        categories = []
+    Returns: indicator -> {"description": {...}, "embedding": [...]}
+    Indicators that fail either stage are dropped from the result; callers
+    compare the result size to the input size to compute failures.
+    """
+    indicators = [ind for ind in indicators if ind]
+    if not indicators:
+        return {}
 
-        # Batch processing, max 20 indicators per batch (larger batches cause Doubao response truncation)
-        classification_batch_size = 20
-        total_batches = (len(indicators_list) + classification_batch_size - 1) // classification_batch_size
+    # Step 1: generate descriptions in sub-batches (larger batches cause response truncation)
+    descriptions: List[Dict[str, Any]] = []
+    total_batches = (len(indicators) + description_batch_size - 1) // description_batch_size
 
-        logging.info(f"📦 Splitting {len(indicators_list)} indicators into {total_batches} batches for classification")
+    logging.info(
+        f"📦 Describing {len(indicators)} indicators in {total_batches} batch(es) of ≤{description_batch_size}"
+    )
 
-        for i in range(0, len(indicators_list), classification_batch_size):
-            batch_indicators = indicators_list[i : i + classification_batch_size]
-            batch_num = i // classification_batch_size + 1
-            t0 = time.time()
-            logging.info(f"🔄 Processing batch {batch_num}/{total_batches} classification: {len(batch_indicators)} indicators")
-
-            try:
-                batch_categories = await classifier.classify_indicators_batch(batch_indicators)
-
-                if not batch_categories:
-                    logging.error(f"❌ Batch {batch_num} medical classification generation failed")
-                    continue
-
-                if len(batch_categories) != len(batch_indicators):
-                    logging.warning(f"⚠️ Batch {batch_num} classification result count mismatch, expected {len(batch_indicators)}, got {len(batch_categories)}")
-
-                categories.extend(batch_categories)
-                t1 = time.time()
-                logging.info(f"✅ Batch {batch_num} completed, got {len(batch_categories)} classification results, cost: {t1 - t0} seconds")
-
-                # Add short delay between batches to avoid API limits
-                if i + classification_batch_size < len(indicators_list):
-                    await asyncio.sleep(0.5)
-
-            except Exception as e:
-                logging.error(f"❌ Batch {batch_num} medical classification processing failed: {str(e)}")
-                continue
-
-        if len(categories) == 0:
-            logging.error("❌ No medical classifications generated")
-            return False
-    
-        if len(categories) != len(indicators_list):
-            # Find indicators without classification
-            categories_list = [category.get("input_indicator", "") for category in categories]
-            missing_indicators = set(indicators_list) - set(categories_list)
-            logging.warning(f"⚠️ Medical classification: expected {len(indicators_list)}, got {len(categories)}, some indicators may be unclassified: {missing_indicators}")
-
-        logging.info(f"🔍 Generated {len(categories)} medical classifications")
-        logging.info(f"   Examples: {categories[:3]}")
-
-        # Create indicator to classification mapping - match by input_indicator field
-        indicator_to_classification = {}
-
-        # Build mapping based on input_indicator field from results
-        for category_result in categories:
-            input_indicator = category_result.get("input_indicator", "").strip()
-            if input_indicator:
-                indicator_to_classification[input_indicator] = category_result
-
-        logging.info(f"📊 Successfully built {len(indicator_to_classification)} indicator to classification mappings")
-        logging.info(f"   ✅ With classification results: {len(categories)}")
-        logging.info(f"   📝 Using default values: {len(indicators_list) - len(categories)}")
-        logging.info(f"💾 Starting to insert {len(indicators_list)} indicators into dimension table...")
-
-        # Generate embeddings if needed (optimization: batch generation to avoid processing too many at once)
-        embeddings_map = {}
-        if generate_embeddings:
-            logging.info("🔄 Starting embeddings generation, will terminate insertion on failure")
-
-            # Build full indicator -> classification mapping for quick lookup
-            all_categories_by_indicator = {
-                c.get("input_indicator", "").strip(): c
-                for c in categories
-                if c.get("input_indicator", "").strip()
-            }
-
-            # If too many indicators, batch generate embeddings to avoid memory and API limits
-            if len(indicators_list) > 200:
-                logging.info(f"📦 Large number of indicators ({len(indicators_list)}), using batch embeddings generation")
-                embeddings_map = {}
-
-                # Batch generate embeddings
-                embedding_batch_size = 100
-                for i in range(0, len(indicators_list), embedding_batch_size):
-                    batch_indicators = indicators_list[i : i + embedding_batch_size]
-                    logging.info(f"   🔄 Generating batch {i // embedding_batch_size + 1} embeddings: {len(batch_indicators)} indicators")
-
-                    # Only pass classifications for this batch's indicators
-                    batch_indicator_set = set(batch_indicators)
-                    batch_cats = [all_categories_by_indicator[ind] for ind in batch_indicators if ind in all_categories_by_indicator]
-
-                    batch_embeddings = await self.generate_embeddings_for_indicators(batch_cats)
-
-                    # Check if embedding generation was successful
-                    if not batch_embeddings:
-                        logging.warning(f"❌ Batch {i // embedding_batch_size + 1} embedding generation failed, skipping insertion")
-                        continue
-
-                    embeddings_map.update(batch_embeddings)
-
-                    # Avoid API limits
-                    if i + embedding_batch_size < len(indicators_list):
-                        await asyncio.sleep(1)
-            else:
-                embeddings_map = await self.generate_embeddings_for_indicators(categories)
-
-                # Check if embedding generation was successful
-                if not embeddings_map:
-                    logging.warning("❌ Embeddings generation failed, terminating insertion")
-                    return False
-
-                # Validate each indicator has complete embeddings
-                for indicator in indicators_list:
-                    if indicator not in embeddings_map:
-                        logging.warning(f"❌ Indicator '{indicator}' embedding generation failed, skipping insertion")
-                        continue
-
-                    embeddings = embeddings_map[indicator]
-                    if (
-                        not embeddings.get("original")
-                        or not embeddings.get("standard")
-                        or not embeddings.get("category")
-                    ):
-                        logging.warning(f"❌ Indicator '{indicator}' embedding incomplete, skipping insertion")
-                        continue
-
-            logging.info(f"✅ Embeddings generation successful for all {len(indicators_list)} indicators")
-
+    for i in range(0, len(indicators), description_batch_size):
+        batch_indicators = indicators[i : i + description_batch_size]
+        batch_num = i // description_batch_size + 1
+        t0 = time.time()
         try:
-            success_count = 0
-
-            # Batch processing
-            for i in range(0, len(indicators_list), batch_size):
-                batch_indicators = indicators_list[i : i + batch_size]
-
-                # Prepare batch insert parameters
-                batch_params = []
-                for indicator in batch_indicators:
-                    embeddings = embeddings_map.get(indicator, {}) if generate_embeddings else {}
-                    
-                    # Validate embedding completeness if embeddings are required
-                    if generate_embeddings:
-                        # Check if indicator exists in embeddings_map
-                        if indicator not in embeddings_map:
-                            logging.warning(f"⚠️ Indicator '{indicator}' embedding generation failed, skipping insertion")
-                            continue
-                        
-                        # Check if all required embeddings exist
-                        if (
-                            not embeddings.get("original")
-                            or not embeddings.get("standard")
-                            or not embeddings.get("category")
-                        ):
-                            logging.warning(f"⚠️ Indicator '{indicator}' has incomplete embeddings, skipping insertion")
-                            continue
-                    
-                    category_name = self.categorize_indicator(indicator)
-
-                    # Get medical classification info
-                    medical_classification = indicator_to_classification.get(indicator, {})
-
-                    # Format embeddings as PostgreSQL vector format
-                    def format_vector(embedding_list):
-                        if not embedding_list:
-                            return None
-                        # PostgreSQL vector format: [val1,val2,val3,...] (no spaces)
-                        return "[" + ",".join(str(x) for x in embedding_list) + "]"
-
-                    params = {
-                        "original_indicator": indicator,
-                        "standard_indicator": indicator,  # Default: use original name as standard name
-                        "category_group": category_name,  # Use intelligent classification result
-                        "category": category_name,  # Use intelligent classification result
-                        "orig_emb": format_vector(embeddings.get("original")),
-                        "stand_emb": format_vector(embeddings.get("standard")),
-                        "cat_emb": format_vector(embeddings.get("category")),
-                        "qwen_emb": format_vector(embeddings.get("qwen")),
-                        "gemini_emb": format_vector(embeddings.get("gemini")),
-                        # Add new medical classification fields
-                        "diagnosis_recommended_organ": medical_classification.get("diagnosis_recommended_organ", ""),
-                        "diagnosis_recommended_system": medical_classification.get("diagnosis_recommended_system", ""),
-                        "diagnosis_recommended_disease": medical_classification.get(
-                            "diagnosis_recommended_disease", ""
-                        ),
-                        "indicator_description": medical_classification.get("indicator_description", ""),
-                        "department": medical_classification.get("department_classification", ""),
-                        "symptom": medical_classification.get("related_symptoms", ""),
-                        "updated_at": datetime.now(),
-                    }
-                    batch_params.append(params)
-
-                # Execute batch insert
-                if generate_embeddings and embeddings_map:
-                    # Batch insert with embeddings
-                    logging.info(f"🔄 Batch inserting {len(batch_params)} indicators with embeddings")
-
-                    if batch_params:
-                        insert_query = """
-                        INSERT INTO th_series_dim
-                        (original_indicator, standard_indicator, category_group, category,
-                         original_indicator_embedding, standard_indicator_embedding, category_embedding,
-                         embedding_qwen, embedding_gemini,
-                         diagnosis_recommended_organ, diagnosis_recommended_system, diagnosis_recommended_disease,
-                         department, symptom, updated_at)
-                        VALUES
-                        (:original_indicator, :indicator_description, :category_group, :category,
-                         :orig_emb, :stand_emb, :cat_emb,
-                         :qwen_emb, :gemini_emb,
-                         :diagnosis_recommended_organ, :diagnosis_recommended_system, :diagnosis_recommended_disease,
-                         :department, :symptom, :updated_at)
-                        ON CONFLICT (original_indicator)
-                        DO NOTHING
-                        """
-
-                        await execute_query(insert_query, batch_params)
-                    else:
-                        logging.warning("⚠️ All indicators in current batch skipped due to incomplete embeddings, no SQL insert needed")
-                else:
-                    # Batch insert without embeddings
-                    logging.info(f"🔄 Batch inserting {len(batch_params)} indicators without embeddings")
-
-                    if batch_params:
-                        insert_query = """
-                        INSERT INTO th_series_dim 
-                        (original_indicator, standard_indicator, category_group, category,
-                         diagnosis_recommended_organ, diagnosis_recommended_system, diagnosis_recommended_disease,
-                         department, symptom, updated_at)
-                        VALUES 
-                        (:original_indicator, :indicator_description, :category_group, :category,
-                         :diagnosis_recommended_organ, :diagnosis_recommended_system, :diagnosis_recommended_disease,
-                         :department, :symptom, :updated_at)
-                        ON CONFLICT (original_indicator) 
-                        DO NOTHING
-                        """
-
-                        await execute_query(insert_query, batch_params)
-                    else:
-                        logging.warning("⚠️ All indicators in current batch skipped, no SQL insert needed")
-
-                success_count += len(batch_params)
-
-            logging.info(f"✅ Successfully inserted {success_count} indicators into dimension table")
-            return True
-
+            batch_descriptions = await _generate_indicator_descriptions(batch_indicators)
         except Exception as e:
-            logging.error(f"❌ Failed to insert indicators into dimension table: {str(e)}, error type: {type(e).__name__}")
-            # Note: Don't output traceback to avoid leaking embedding vector data in logs
-            return False
+            logging.error(f"❌ Description batch {batch_num} raised: {e}")
+            continue
 
-    async def update_missing_medical_classifications(
-        self, batch_size: int = 50, limit: int = None, generate_embeddings: bool = True
-    ) -> Dict[str, Any]:
-        """
-        Update records in dimension table with missing medical classification fields
+        if not batch_descriptions:
+            logging.error(f"❌ Description batch {batch_num} returned empty")
+            continue
 
-        Check records where diagnosis_recommended_organ field is null,
-        use classifier to get medical classification info and update corresponding fields
+        if len(batch_descriptions) != len(batch_indicators):
+            logging.warning(
+                f"⚠️ Description batch {batch_num} count mismatch: "
+                f"expected {len(batch_indicators)}, got {len(batch_descriptions)}"
+            )
 
-        Args:
-            batch_size: Batch processing size
-            limit: Limit the number of records to process
-
-        Returns:
-            Dict[str, Any]: Update result statistics
-        """
-        logging.info("🚀 Starting to update missing medical classification fields in dimension table")
-
-        # 1. Query records that need updating
-        query = """
-            SELECT id, original_indicator
-            FROM th_series_dim
-            WHERE diagnosis_recommended_organ IS NULL 
-               OR diagnosis_recommended_organ = ''
-               OR original_indicator_embedding is NULL
-            ORDER BY id desc
-        """
-
-        if limit:
-            query += f" LIMIT {limit}"
-
-        try:
-            records = await execute_query(query)
-
-            if not records:
-                logging.info("✅ No records need medical classification update")
-                return {
-                    "success": True,
-                    "total_found": 0,
-                    "total_updated": 0,
-                    "failed": 0,
-                }
-
-            logging.info(f"📋 Found {len(records)} records that need medical classification update")
-
-            logging.info(f"🔍 Preparing full pipeline processing for {len(records)} records (classification + embedding + database update)")
-
-            classifier = MedicalIndicatorClassifier()
-
-            classification_batch_size = 50
-            max_concurrent = 10
-            total_batches = (len(records) + classification_batch_size - 1) // classification_batch_size
-
-            logging.info(f"📦 Splitting {len(records)} records into {total_batches} batches for concurrent full pipeline processing, max concurrency: {max_concurrent}")
-
-            # Create semaphore to control concurrency
-            semaphore = asyncio.Semaphore(max_concurrent)
-            
-            async def process_batch_complete(batch_records: list, batch_num: int):
-                async with semaphore:
-                    batch_start_time = time.time()
-                    batch_indicators = [record["original_indicator"] for record in batch_records]
-                    
-                    logging.info(f"🔄 Starting batch {batch_num}/{total_batches} full pipeline: {len(batch_indicators)} indicators")
-                    
-                    try:
-                        # Step 1: Classification
-                        t0 = time.time()
-                        batch_categories = await classifier.classify_indicators_batch(batch_indicators)
-
-                        if not batch_categories:
-                            logging.error(f"❌ Batch {batch_num} medical classification generation failed")
-                            return {"success": 0, "failed": len(batch_records), "error": "Classification failed"}
-
-                        if len(batch_categories) != len(batch_indicators):
-                            logging.warning(f"⚠️ Batch {batch_num} classification result count mismatch, expected {len(batch_indicators)}, got {len(batch_categories)}")
-
-                        t1 = time.time()
-                        logging.info(f"   ✅ Batch {batch_num} classification completed, got {len(batch_categories)} results, cost: {t1 - t0:.2f}s")
-
-                        # Step 2: Generate embeddings (if needed)
-                        embeddings_map = {}
-                        if generate_embeddings:
-                            t0 = time.time()
-                            embeddings_map = await self.generate_embeddings_for_indicators(batch_categories)
-                            
-                            if not embeddings_map:
-                                logging.error(f"❌ Batch {batch_num} embedding generation failed")
-                                return {"success": 0, "failed": len(batch_records), "error": "Embedding generation failed"}
-                            
-                            t1 = time.time()
-                            logging.info(f"   ✅ Batch {batch_num} embedding generation completed, cost: {t1 - t0:.2f}s")
-
-                        # Step 3: Create indicator to classification mapping
-                        indicator_to_classification = {}
-                        for category_result in batch_categories:
-                            input_indicator = category_result.get("input_indicator", "").strip()
-                            if input_indicator:
-                                indicator_to_classification[input_indicator] = category_result
-
-                        # Step 4: Update database
-                        t0 = time.time()
-                        batch_params = []
-                        for record in batch_records:
-                            embeddings = embeddings_map.get(record["original_indicator"], {}) if generate_embeddings else {}
-                            indicator = record["original_indicator"]
-                            record_id = record["id"]
-
-                            # Get corresponding medical classification info
-                            classification = indicator_to_classification.get(indicator, {})
-
-                            # Format embeddings as PostgreSQL vector format
-                            def format_vector(embedding_list):
-                                if not embedding_list:
-                                    return None
-                                return "[" + ",".join(str(x) for x in embedding_list) + "]"
-
-                            # Prepare update parameters
-                            params = {
-                                "record_id": record_id,
-                                "diagnosis_recommended_organ": classification.get("diagnosis_recommended_organ", ""),
-                                "diagnosis_recommended_system": classification.get("diagnosis_recommended_system", ""),
-                                "diagnosis_recommended_disease": classification.get("diagnosis_recommended_disease", ""),
-                                "indicator_description": classification.get("indicator_description", ""),
-                                "orig_emb": format_vector(embeddings.get("original")),
-                                "stand_emb": format_vector(embeddings.get("standard")),
-                                "cat_emb": format_vector(embeddings.get("category")),
-                                "qwen_emb": format_vector(embeddings.get("qwen")),
-                                "gemini_emb": format_vector(embeddings.get("gemini")),
-                                "department": classification.get("department_classification", ""),
-                                "symptom": classification.get("related_symptoms", ""),
-                                "updated_at": datetime.now(),
-                            }
-                            batch_params.append(params)
-
-                        # Execute batch update
-                        if generate_embeddings and embeddings_map:
-                            update_query = """
-                                UPDATE th_series_dim
-                                SET
-                                    diagnosis_recommended_organ = :diagnosis_recommended_organ,
-                                    diagnosis_recommended_system = :diagnosis_recommended_system,
-                                    diagnosis_recommended_disease = :diagnosis_recommended_disease,
-                                    standard_indicator = :indicator_description,
-                                    standard_indicator_embedding = :stand_emb,
-                                    category_embedding = :cat_emb,
-                                    original_indicator_embedding = :orig_emb,
-                                    embedding_qwen = :qwen_emb,
-                                    embedding_gemini = :gemini_emb,
-                                    department = :department,
-                                    symptom = :symptom,
-                                    updated_at = :updated_at
-                                WHERE id = :record_id
-                            """
-                        else:
-                            update_query = """
-                                UPDATE th_series_dim 
-                                SET 
-                                    diagnosis_recommended_organ = :diagnosis_recommended_organ,
-                                    diagnosis_recommended_system = :diagnosis_recommended_system,
-                                    diagnosis_recommended_disease = :diagnosis_recommended_disease,
-                                    standard_indicator = :indicator_description,
-                                    department = :department,
-                                    symptom = :symptom,
-                                    updated_at = :updated_at
-                                WHERE id = :record_id
-                            """
-
-                        await execute_query(update_query, batch_params)
-                        
-                        t1 = time.time()
-                        batch_total_time = time.time() - batch_start_time
-                        logging.info(f"   ✅ Batch {batch_num} database update completed, cost: {t1 - t0:.2f}s")
-                        logging.info(f"🎉 Batch {batch_num} full pipeline processing completed: {len(batch_records)} records, total time: {batch_total_time:.2f}s")
-                        
-                        return {"success": len(batch_records), "failed": 0}
-
-                    except Exception as e:
-                        batch_total_time = time.time() - batch_start_time
-                        logging.error(f"❌ Batch {batch_num} full pipeline processing failed: {str(e)}, time: {batch_total_time:.2f}s")
-                        return {"success": 0, "failed": len(batch_records), "error": str(e)}
-
-            # Create all batch tasks (based on records not indicators)
-            tasks = []
-            for i in range(0, len(records), classification_batch_size):
-                batch_records = records[i : i + classification_batch_size]
-                batch_num = i // classification_batch_size + 1
-                tasks.append(process_batch_complete(batch_records, batch_num))
-
-            # Execute all batches concurrently
-            logging.info(f"🚀 Starting concurrent execution of {len(tasks)} full pipeline batch tasks")
-            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            # Aggregate results
-            total_success = 0
-            total_failed = 0
-            successful_batches = 0
-            failed_batches = 0
-            
-            for i, result in enumerate(batch_results):
-                if isinstance(result, Exception):
-                    logging.error(f"❌ Batch {i+1} task execution exception: {str(result)}")
-                    failed_batches += 1
-                    # Estimate failed count
-                    batch_size_actual = min(classification_batch_size, len(records) - i * classification_batch_size)
-                    total_failed += batch_size_actual
-                elif not result or result.get("success", 0) == 0:
-                    failed_batches += 1
-                    total_failed += result.get("failed", 0) if result else classification_batch_size
-                else:
-                    successful_batches += 1
-                    total_success += result.get("success", 0)
-                    total_failed += result.get("failed", 0)
-
-            logging.info(f"📊 Concurrent full pipeline processing completed: successful batches {successful_batches}, failed batches {failed_batches}")
-            logging.info(f"📊 Record statistics: successfully updated {total_success}, failed {total_failed}")
-
-            # Check if any records were successful
-            if total_success == 0:
-                logging.error("❌ All batches failed medical classification generation")
-                return {
-                    "success": False,
-                    "total_found": len(records),
-                    "total_updated": 0,
-                    "failed": len(records),
-                }
-
-            # Full pipeline processing completed, output final statistics
-            logging.info("🎉 Full pipeline medical classification field update completed!")
-            logging.info(f"  - Total records found: {len(records)}")
-            logging.info(f"  - Successfully updated: {total_success}")
-            logging.info(f"  - Failed to update: {total_failed}")
-            logging.info(f"  - Success rate: {total_success / len(records) * 100:.1f}%")
-
-            return {
-                "success": total_failed == 0,
-                "total_found": len(records),
-                "total_updated": total_success,
-                "failed": total_failed,
-            }
-
-        except Exception as e:
-            logging.error(f"❌ Failed to update medical classification fields: {str(e)}", stack_info=True)
-            return {
-                "success": False,
-                "total_found": 0,
-                "total_updated": 0,
-                "failed": 0,
-                "error": str(e),
-            }
-
-    async def sync_indicators_from_series_data(
-        self,
-        user_id: str = None,
-        start_time: datetime = None,
-        end_time: datetime = None,
-        generate_embeddings: bool = True,
-        batch_size: int = 50,
-        limit: int = None,
-    ) -> Dict[str, Any]:
-        """
-        Sync indicators from th_series_data table to dimension table
-
-        Args:
-            user_id: User ID, optional
-            start_time: Start time, optional
-            end_time: End time, optional
-            generate_embeddings: Whether to generate embeddings
-            batch_size: Batch processing size
-            limit: Limit the number of indicators to process
-
-        Returns:
-            Dict[str, Any]: Sync result statistics
-        """
-        logging.info("🚀 Starting to sync indicators from th_series_data to dimension table")
-        logging.info(f"📊 Parameters: user_id={user_id}, time_range={start_time} to {end_time}")
-        logging.info(f"🔧 Config: generate_embeddings={generate_embeddings}, batch_size={batch_size}, limit={limit}")
-
-        # 1. Get missing indicators
-        missing_indicators = await self.get_missing_indicators(
-            user_id=user_id, start_time=start_time, end_time=end_time, limit=limit
+        descriptions.extend(batch_descriptions)
+        logging.info(
+            f"✅ Batch {batch_num}/{total_batches} described {len(batch_descriptions)} indicators "
+            f"in {time.time() - t0:.2f}s"
         )
 
-        if not missing_indicators:
-            logging.info("✅ No indicators need to be synced")
-            return {"success": True, "total_found": 0, "total_inserted": 0, "failed": 0}
+    if not descriptions:
+        raise RuntimeError("Description produced no results for any batch")
 
-        # 2. Insert missing indicators
-        insert_success = await self.insert_missing_indicators(
-            indicators=missing_indicators,
-            generate_embeddings=generate_embeddings,
-            batch_size=batch_size,
-        )
+    indicator_to_description: Dict[str, Dict[str, Any]] = {
+        d.get("input_indicator", "").strip(): d
+        for d in descriptions
+        if d.get("input_indicator", "").strip()
+    }
 
-        result = {
-            "success": insert_success,
-            "total_found": len(missing_indicators),
-            "total_inserted": len(missing_indicators) if insert_success else 0,
-            "failed": 0 if insert_success else len(missing_indicators),
+    # Step 2: pick text per indicator (prefer standard description, fall back to name)
+    # and embed — text_embedding handles dedup + batching internally
+    embed_targets: List[tuple] = []  # [(indicator, text), ...]
+    for indicator, d in indicator_to_description.items():
+        standard = str(d.get("indicator_description", "")).strip()
+        if standard and standard != "nan":
+            embed_targets.append((indicator, standard))
+        elif indicator != "nan":
+            embed_targets.append((indicator, indicator))
+
+    if not embed_targets:
+        raise RuntimeError("No valid texts to embed")
+
+    dim_provider = safe_read_cfg("DIM_EMBEDDING_PROVIDER", "gemini").lower()
+    embeddings = await text_embedding([t for _, t in embed_targets], provider=dim_provider)
+
+    # Step 3: combine into final result
+    results: Dict[str, Dict[str, Any]] = {}
+    for (indicator, _), emb in zip(embed_targets, embeddings):
+        if not emb:
+            logging.warning(f"⚠️ Indicator '{indicator}' missing embedding, dropped")
+            continue
+        results[indicator] = {
+            "description": indicator_to_description[indicator],
+            "embedding": emb,
         }
 
-        if insert_success:
-            logging.info(f"🎉 Sync completed! Processed {len(missing_indicators)} indicators")
+    logging.info(
+        f"✅ Pipeline completed for {len(results)}/{len(indicators)} indicators "
+        f"(described={len(indicator_to_description)})"
+    )
+    return results
+
+
+async def _insert_missing_indicators(
+    indicators: Set[str],
+    batch_size: int = 50,
+) -> Dict[str, int]:
+    """Classify, embed, and batch-insert indicators into th_series_dim.
+
+    Returns {"inserted": N, "failed": M} where N + M == len(indicators after filtering empties).
+    Raises on unrecoverable pipeline errors.
+    """
+    indicators_list = [ind for ind in indicators if ind]
+    if not indicators_list:
+        logging.info("✅ No indicators to insert")
+        return {"inserted": 0, "failed": 0}
+
+    pipeline_results = await _classify_and_embed(indicators_list)
+
+    logging.info(f"💾 Inserting {len(pipeline_results)}/{len(indicators_list)} indicators into dimension table")
+
+    dim_col = f"embedding_{safe_read_cfg('DIM_EMBEDDING_PROVIDER', 'gemini').lower()}"
+    insert_query = f"""
+    INSERT INTO th_series_dim
+    (original_indicator, standard_indicator, {dim_col}, updated_at)
+    VALUES
+    (:original_indicator, :indicator_description, :dim_emb, :updated_at)
+    ON CONFLICT (original_indicator)
+    DO NOTHING
+    """
+
+    processed = list(pipeline_results.keys())
+    inserted = 0
+
+    for i in range(0, len(processed), batch_size):
+        batch = processed[i : i + batch_size]
+        batch_params = []
+        for indicator in batch:
+            entry = pipeline_results[indicator]
+            description = entry["description"]
+            batch_params.append({
+                "original_indicator": indicator,
+                "indicator_description": description.get("indicator_description", ""),
+                "dim_emb": _format_vector(entry["embedding"]),
+                "updated_at": datetime.now(),
+            })
+
+        logging.info(f"🔄 Batch inserting {len(batch_params)} indicators")
+        await execute_query(insert_query, batch_params)
+        inserted += len(batch_params)
+
+    failed = len(indicators_list) - inserted
+    logging.info(f"✅ Insert phase complete: {inserted} submitted, {failed} dropped before insert")
+    return {"inserted": inserted, "failed": failed}
+
+
+async def _update_missing_medical_classifications(
+    batch_size: int = 50, limit: int = None
+) -> Dict[str, Any]:
+    """
+    Update records in dimension table with missing embeddings / standard_indicator.
+
+    Checks records where the configured dim embedding column is null, runs the
+    classifier + embedding pipeline, and refreshes standard_indicator + embedding.
+    Raises on unrecoverable errors; caller wraps.
+    """
+    logging.info("🚀 Starting to update dimension table records missing embeddings")
+
+    dim_provider = safe_read_cfg("DIM_EMBEDDING_PROVIDER", "gemini").lower()
+    dim_col = f"embedding_{dim_provider}"
+    query = f"""
+        SELECT id, original_indicator
+        FROM th_series_dim
+        WHERE {dim_col} IS NULL
+    """
+    if limit:
+        query += f" ORDER BY id desc LIMIT {limit}"
+
+    records = await execute_query(query)
+
+    if not records:
+        logging.info("✅ No records need medical classification update")
+        return {"success": True, "total_found": 0, "total_updated": 0, "failed": 0}
+
+    logging.info(f"📋 Found {len(records)} records that need medical classification update")
+
+    max_concurrent = 10
+    total_batches = (len(records) + batch_size - 1) // batch_size
+    semaphore = asyncio.Semaphore(max_concurrent)
+
+    update_query = f"""
+        UPDATE th_series_dim
+        SET
+            standard_indicator = :indicator_description,
+            {dim_col} = :dim_emb,
+            updated_at = :updated_at
+        WHERE id = :record_id
+    """
+
+    logging.info(
+        f"📦 Splitting {len(records)} records into {total_batches} batches, max concurrency {max_concurrent}"
+    )
+
+    async def process_batch(batch_records: list, batch_num: int) -> Dict[str, int]:
+        async with semaphore:
+            t_start = time.time()
+            batch_indicators = [r["original_indicator"] for r in batch_records]
+            logging.info(f"🔄 Batch {batch_num}/{total_batches} start: {len(batch_indicators)} indicators")
+
+            try:
+                pipeline_results = await _classify_and_embed(batch_indicators)
+            except Exception as e:
+                logging.error(f"❌ Batch {batch_num} classify/embed failed: {e}")
+                return {"success": 0, "failed": len(batch_records)}
+
+            batch_params = []
+            for record in batch_records:
+                entry = pipeline_results.get(record["original_indicator"])
+                if not entry:
+                    continue
+                description = entry["description"]
+                batch_params.append({
+                    "record_id": record["id"],
+                    "indicator_description": description.get("indicator_description", ""),
+                    "dim_emb": _format_vector(entry["embedding"]),
+                    "updated_at": datetime.now(),
+                })
+
+            if not batch_params:
+                logging.warning(f"⚠️ Batch {batch_num}: no records survived pipeline")
+                return {"success": 0, "failed": len(batch_records)}
+
+            try:
+                await execute_query(update_query, batch_params)
+            except Exception as e:
+                logging.error(f"❌ Batch {batch_num} DB update failed: {e}")
+                return {"success": 0, "failed": len(batch_records)}
+
+            success = len(batch_params)
+            failed = len(batch_records) - success
+            logging.info(
+                f"🎉 Batch {batch_num} done: {success} updated, {failed} skipped, "
+                f"total time {time.time() - t_start:.2f}s"
+            )
+            return {"success": success, "failed": failed}
+
+    tasks = []
+    for i in range(0, len(records), batch_size):
+        batch_records = records[i : i + batch_size]
+        batch_num = i // batch_size + 1
+        tasks.append(process_batch(batch_records, batch_num))
+
+    logging.info(f"🚀 Launching {len(tasks)} concurrent batch tasks")
+    batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    total_success = 0
+    total_failed = 0
+    successful_batches = 0
+    failed_batches = 0
+
+    for idx, result in enumerate(batch_results):
+        if isinstance(result, Exception):
+            batch_len = min(batch_size, len(records) - idx * batch_size)
+            logging.error(f"❌ Batch {idx + 1} task raised: {result}")
+            total_failed += batch_len
+            failed_batches += 1
+            continue
+        total_success += result["success"]
+        total_failed += result["failed"]
+        if result["success"] > 0:
+            successful_batches += 1
         else:
-            logging.info("❌ Sync failed!")
+            failed_batches += 1
 
-        return result
+    logging.info(f"📊 Batch stats: {successful_batches} successful, {failed_batches} failed")
+    logging.info(f"📊 Record stats: {total_success} updated, {total_failed} failed")
 
-    async def backfill_dim_embeddings(
-        self, batch_size: int = 100, limit: int = None
-    ) -> Dict[str, Any]:
-        """
-        Backfill missing embedding_qwen / embedding_gemini for existing dim records.
-        Only generates the dim-provider embedding — skips classification and other embeddings.
+    if total_success:
+        logging.info(
+            f"🎉 Update completed — success rate: {total_success / len(records) * 100:.1f}% "
+            f"({total_success}/{len(records)})"
+        )
+    else:
+        logging.error("❌ All batches failed medical classification generation")
 
-        Args:
-            batch_size: Batch processing size
-            limit: Max records to process
-
-        Returns:
-            Dict[str, Any]: Backfill result statistics
-        """
-        dim_provider = safe_read_cfg("DIM_EMBEDDING_PROVIDER", "gemini").lower()
-        col_name = f"embedding_{dim_provider}"
-
-        logging.info(f"🚀 Starting backfill for {col_name} (provider={dim_provider})")
-
-        # Find records where the target column is NULL
-        query = f"""
-            SELECT id, original_indicator, standard_indicator
-            FROM th_series_dim
-            WHERE {col_name} IS NULL
-            ORDER BY id
-        """
-        if limit:
-            query += f" LIMIT {limit}"
-
-        try:
-            records = await execute_query(query)
-            if not records:
-                logging.info(f"✅ No records need {col_name} backfill")
-                return {"success": True, "total_found": 0, "total_updated": 0, "failed": 0}
-
-            logging.info(f"📋 Found {len(records)} records missing {col_name}")
-
-            # Create the dim embedding service
-            dim_service = None
-            if dim_provider == "qwen":
-                dashscope_key = safe_read_cfg("DASHSCOPE_API_KEY", "")
-                if dashscope_key:
-                    dim_service = create_embedding_service("dashscope", api_key=dashscope_key, dimensions=1024)
-                else:
-                    logging.error("❌ DASHSCOPE_API_KEY not configured, cannot backfill qwen embeddings")
-                    return {"success": False, "total_found": len(records), "total_updated": 0, "failed": len(records)}
-            elif dim_provider == "gemini":
-                google_key = safe_read_cfg("GOOGLE_API_KEY", "")
-                if google_key:
-                    dim_service = create_embedding_service("gemini", api_key=google_key, dimensions=1024)
-                else:
-                    logging.error("❌ GOOGLE_API_KEY not configured, cannot backfill gemini embeddings")
-                    return {"success": False, "total_found": len(records), "total_updated": 0, "failed": len(records)}
-            else:
-                logging.error(f"❌ Unsupported DIM_EMBEDDING_PROVIDER: {dim_provider}")
-                return {"success": False, "total_found": len(records), "total_updated": 0, "failed": len(records)}
-
-            total_updated = 0
-            total_failed = 0
-
-            for i in range(0, len(records), batch_size):
-                batch = records[i : i + batch_size]
-                # Use standard_indicator if available, else original_indicator
-                texts = [
-                    (r["standard_indicator"] or r["original_indicator"]).strip()
-                    for r in batch
-                ]
-
-                try:
-                    embeddings = await dim_service.get_texts_embeddings(texts)
-                    if not embeddings or len(embeddings) != len(texts):
-                        logging.warning(f"⚠️ Batch {i // batch_size + 1} embedding count mismatch, skipping")
-                        total_failed += len(batch)
-                        continue
-
-                    # Build update params
-                    update_params = []
-                    for j, record in enumerate(batch):
-                        if embeddings[j]:
-                            vec_str = "[" + ",".join(str(x) for x in embeddings[j]) + "]"
-                            update_params.append({
-                                "record_id": record["id"],
-                                "dim_emb": vec_str,
-                                "updated_at": datetime.now(),
-                            })
-
-                    if update_params:
-                        update_query = f"""
-                            UPDATE th_series_dim
-                            SET {col_name} = :dim_emb,
-                                updated_at = :updated_at
-                            WHERE id = :record_id
-                        """
-                        await execute_query(update_query, update_params)
-                        total_updated += len(update_params)
-                        logging.info(f"   ✅ Batch {i // batch_size + 1}: updated {len(update_params)} records")
-
-                except Exception as e:
-                    logging.error(f"❌ Batch {i // batch_size + 1} failed: {str(e)}")
-                    total_failed += len(batch)
-
-                # Avoid API rate limits
-                if i + batch_size < len(records):
-                    await asyncio.sleep(0.5)
-
-            logging.info(f"🎉 Backfill completed: {total_updated} updated, {total_failed} failed out of {len(records)}")
-            return {
-                "success": total_failed == 0,
-                "total_found": len(records),
-                "total_updated": total_updated,
-                "failed": total_failed,
-            }
-
-        except Exception as e:
-            logging.error(f"❌ Backfill {col_name} failed: {str(e)}", stack_info=True)
-            return {"success": False, "total_found": 0, "total_updated": 0, "failed": 0, "error": str(e)}
-
-    @classmethod
-    async def cleanup(cls):
-        """Clean up shared resources"""
-        if cls._shared_embedding_service:
-            logging.info("🧹 Cleaning up embedding service resources...")
-            cls._shared_embedding_service = None
-            logging.info("✅ Resource cleanup completed")
-
-    @classmethod
-    async def create_syncer(cls):
-        """Factory method to create initialized syncer"""
-        syncer = cls()
-        await syncer.initialize()
-        return syncer
+    return {
+        "success": total_failed == 0,
+        "total_found": len(records),
+        "total_updated": total_success,
+        "failed": total_failed,
+    }
 
 
-# Convenience functions
+async def _sync_indicators_from_series_data(
+    user_id: str = None,
+    start_time: datetime = None,
+    end_time: datetime = None,
+    batch_size: int = 50,
+    limit: int = None,
+) -> Dict[str, Any]:
+    """Discover missing indicators from th_series_data and insert them into th_series_dim."""
+    logging.info("🚀 Starting to sync indicators from th_series_data to dimension table")
+    logging.info(f"📊 Parameters: user_id={user_id}, time_range={start_time} to {end_time}")
+    logging.info(f"🔧 Config: batch_size={batch_size}, limit={limit}")
+
+    missing_indicators = await _get_missing_indicators(
+        user_id=user_id, start_time=start_time, end_time=end_time, limit=limit
+    )
+
+    if not missing_indicators:
+        logging.info("✅ No indicators need to be synced")
+        return {"success": True, "total_found": 0, "total_inserted": 0, "failed": 0}
+
+    insert_result = await _insert_missing_indicators(
+        indicators=missing_indicators,
+        batch_size=batch_size,
+    )
+
+    inserted = insert_result["inserted"]
+    failed = insert_result["failed"]
+    total_found = len(missing_indicators)
+
+    if failed == 0:
+        logging.info(f"🎉 Sync completed! Inserted {inserted}/{total_found} indicators")
+    else:
+        logging.warning(f"⚠️ Sync partial: inserted {inserted}/{total_found}, failed {failed}")
+
+    return {
+        "success": failed == 0,
+        "total_found": total_found,
+        "total_inserted": inserted,
+        "failed": failed,
+    }
+
+
+# ── Public entry points ──────────────────────────────────────────────
+
 async def sync_indicators_for_user(
     user_id: str,
     start_time: datetime,
     end_time: datetime,
-    generate_embeddings: bool = True,
     batch_size: int = 50,
     limit: int = None,
 ) -> Dict[str, Any]:
-    """
-    Sync indicators within specified time range for a specific user
-
-    Args:
-        user_id: User ID
-        start_time: Start time
-        end_time: End time
-        generate_embeddings: Whether to generate embeddings
-        batch_size: Batch processing size
-        limit: Limit the number of indicators to process
-
-    Returns:
-        Dict[str, Any]: Sync result
-    """
+    """Sync indicators within a time range for a specific user."""
     try:
-        syncer = await DimTableSyncer.create_syncer()
-
-        result = await syncer.sync_indicators_from_series_data(
+        return await _sync_indicators_from_series_data(
             user_id=user_id,
             start_time=start_time,
             end_time=end_time,
-            generate_embeddings=generate_embeddings,
             batch_size=batch_size,
             limit=limit,
         )
-
-        return result
-
     except Exception as e:
         logging.error(f"❌ User {user_id} indicators sync failed: {str(e)}")
         return {
@@ -1166,33 +543,14 @@ async def sync_indicators_for_user(
             "failed": 0,
             "error": str(e),
         }
-    finally:
-        await DimTableSyncer.cleanup()
 
 
 async def sync_all_missing_indicators(
-    generate_embeddings: bool = True, batch_size: int = 50, limit: int = None
+    batch_size: int = 50, limit: int = None
 ) -> Dict[str, Any]:
-    """
-    Sync all missing indicators (no user or time restrictions)
-
-    Args:
-        generate_embeddings: Whether to generate embeddings
-        batch_size: Batch processing size
-        limit: Limit the number of indicators to process
-
-    Returns:
-        Dict[str, Any]: Sync result
-    """
+    """Sync all missing indicators (no user or time restrictions)."""
     try:
-        syncer = await DimTableSyncer.create_syncer()
-
-        result = await syncer.sync_indicators_from_series_data(
-            generate_embeddings=generate_embeddings, batch_size=batch_size, limit=limit
-        )
-
-        return result
-
+        return await _sync_indicators_from_series_data(batch_size=batch_size, limit=limit)
     except Exception as e:
         logging.error(f"❌ Full indicators sync failed: {str(e)}", stack_info=True)
         return {
@@ -1202,34 +560,16 @@ async def sync_all_missing_indicators(
             "failed": 0,
             "error": str(e),
         }
-    finally:
-        await DimTableSyncer.cleanup()
 
 
 async def update_medical_classifications(
-    batch_size: int = 50, limit: int = None, generate_embeddings: bool = True
+    batch_size: int = 50, limit: int = None
 ) -> Dict[str, Any]:
-    """
-    Update missing medical classification fields in dimension table
-
-    Args:
-        batch_size: Batch processing size
-        limit: Limit the number of records to process
-
-    Returns:
-        Dict[str, Any]: Update result
-    """
+    """Update missing medical classification fields in dimension table."""
     try:
-        syncer = await DimTableSyncer.create_syncer()
-
-        result = await syncer.update_missing_medical_classifications(
-            batch_size=batch_size, limit=limit, generate_embeddings=generate_embeddings
-        )
-
-        return result
-
+        return await _update_missing_medical_classifications(batch_size=batch_size, limit=limit)
     except Exception as e:
-        logging.error(f"❌ Medical classification field update failed: {str(e)}")
+        logging.error(f"❌ Medical classification field update failed: {str(e)}", stack_info=True)
         return {
             "success": False,
             "total_found": 0,
@@ -1237,35 +577,82 @@ async def update_medical_classifications(
             "failed": 0,
             "error": str(e),
         }
-    finally:
-        await DimTableSyncer.cleanup()
 
 
 async def backfill_dim_embeddings(
     batch_size: int = 100, limit: int = None
 ) -> Dict[str, Any]:
     """
-    Backfill missing embedding_qwen / embedding_gemini for all dim records.
+    Backfill missing embedding_qwen / embedding_gemini for existing dim records.
     Reads DIM_EMBEDDING_PROVIDER config to determine which column to fill.
-
-    Args:
-        batch_size: Batch processing size
-        limit: Max records to process
-
-    Returns:
-        Dict[str, Any]: Backfill result
     """
+    dim_provider = safe_read_cfg("DIM_EMBEDDING_PROVIDER", "gemini").lower()
+    col_name = f"embedding_{dim_provider}"
+
+    logging.info(f"🚀 Starting backfill for {col_name} (provider={dim_provider})")
+
+    query = f"""
+        SELECT id, original_indicator, standard_indicator
+        FROM th_series_dim
+        WHERE {col_name} IS NULL
+    """
+    if limit:
+        query += f" ORDER BY id LIMIT {limit}"
+
     try:
-        syncer = await DimTableSyncer.create_syncer()
-        return await syncer.backfill_dim_embeddings(batch_size=batch_size, limit=limit)
-    except Exception as e:
-        logging.error(f"❌ Dim embeddings backfill failed: {str(e)}", stack_info=True)
+        records = await execute_query(query)
+        if not records:
+            logging.info(f"✅ No records need {col_name} backfill")
+            return {"success": True, "total_found": 0, "total_updated": 0, "failed": 0}
+
+        logging.info(f"📋 Found {len(records)} records missing {col_name}")
+
+        update_query = f"""
+            UPDATE th_series_dim
+            SET {col_name} = :dim_emb,
+                updated_at = :updated_at
+            WHERE id = :record_id
+        """
+
+        total_updated = 0
+        total_failed = 0
+
+        for i in range(0, len(records), batch_size):
+            batch = records[i : i + batch_size]
+            texts = [
+                ((r["standard_indicator"] or r["original_indicator"]) or "").strip()
+                for r in batch
+            ]
+
+            try:
+                embeddings = await text_embedding(texts, provider=dim_provider)
+
+                update_params = []
+                for j, record in enumerate(batch):
+                    if embeddings[j]:
+                        update_params.append({
+                            "record_id": record["id"],
+                            "dim_emb": _format_vector(embeddings[j]),
+                            "updated_at": datetime.now(),
+                        })
+
+                if update_params:
+                    await execute_query(update_query, update_params)
+                    total_updated += len(update_params)
+                    logging.info(f"   ✅ Batch {i // batch_size + 1}: updated {len(update_params)} records")
+
+            except Exception as e:
+                logging.error(f"❌ Batch {i // batch_size + 1} failed: {str(e)}")
+                total_failed += len(batch)
+
+        logging.info(f"🎉 Backfill completed: {total_updated} updated, {total_failed} failed out of {len(records)}")
         return {
-            "success": False,
-            "total_found": 0,
-            "total_updated": 0,
-            "failed": 0,
-            "error": str(e),
+            "success": total_failed == 0,
+            "total_found": len(records),
+            "total_updated": total_updated,
+            "failed": total_failed,
         }
-    finally:
-        await DimTableSyncer.cleanup()
+
+    except Exception as e:
+        logging.error(f"❌ Backfill {col_name} failed: {str(e)}", stack_info=True)
+        return {"success": False, "total_found": 0, "total_updated": 0, "failed": 0, "error": str(e)}

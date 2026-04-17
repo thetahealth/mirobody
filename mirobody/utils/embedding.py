@@ -103,10 +103,13 @@ async def text_embedding(texts: list[str], provider: str = "gemini") -> list[lis
         raise ValueError(f"unknown embedding provider: {provider!r} (available: {', '.join(_EMB_PROVIDERS)})")
     llm, url, batch_limit, make_body, parse = factory()
 
+    # Dedup before hitting the API; map back by text at the end.
+    unique_texts: list[str] = list(dict.fromkeys(clean_texts))
+
     embedded: list[list[float]] = []
     async with llm.get_aiohttp_session(timeout=aiohttp.ClientTimeout(total=30)) as session:
-        for i in range(0, len(clean_texts), batch_limit):
-            body = make_body(clean_texts[i : i + batch_limit])
+        for i in range(0, len(unique_texts), batch_limit):
+            body = make_body(unique_texts[i : i + batch_limit])
             for attempt in range(_EMB_MAX_RETRIES):
                 async with session.post(url, json=body) as resp:
                     if resp.status == 200:
@@ -120,6 +123,12 @@ async def text_embedding(texts: list[str], provider: str = "gemini") -> list[lis
                         continue
                     raise RuntimeError(f"{provider} embedding API error: {resp.status}, {resp_body}")
 
-    for idx, emb in zip(valid_indices, embedded):
-        results[idx] = emb
+    if len(embedded) != len(unique_texts):
+        raise RuntimeError(
+            f"{provider} returned {len(embedded)} embeddings for {len(unique_texts)} unique texts"
+        )
+
+    text_to_embedding = dict(zip(unique_texts, embedded))
+    for idx, text in zip(valid_indices, clean_texts):
+        results[idx] = text_to_embedding[text]
     return results
