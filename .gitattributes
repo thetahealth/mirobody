@@ -1,1 +1,2 @@
 mirobody/res/*.bin filter=lfs diff=lfs merge=lfs -text
+mirobody/res/taxonomy.bin filter=lfs diff=lfs merge=lfs -text

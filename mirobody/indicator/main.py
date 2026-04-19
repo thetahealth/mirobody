@@ -41,6 +41,7 @@ from argparse import ArgumentParser
 from .health.siblings import cmd_siblings
 from .health.bridge import cmd_bridge
 from .health.merge import cmd_merge
+from .health.taxonomy import cmd_taxonomy
 from .search import cmd_search
 from .mapping import cmd_mapping
 from .embed import cmd_embed
@@ -178,6 +179,23 @@ def main() -> None:
         help="Which table to embed (default: all)",
     )
 
+    # ── taxonomy ──────────────────────────────────────────────────────
+    p_tax = sub.add_parser(
+        "taxonomy",
+        help="Build a taxonomy binary (currently: body systems → taxonomy.bin)",
+    )
+    p_tax.add_argument(
+        "-o", "--output",
+        default=_default_output,
+        help=f"Output directory for CSV caches (default: {_default_output})",
+    )
+    p_tax.add_argument("--snomed-dir", default=None, help="SNOMED CT release dir")
+    p_tax.add_argument("--umls-dir", default=None, help="UMLS release dir")
+    p_tax.add_argument(
+        "--bin-output", default=None,
+        help="Output path for the .bin file (default: mirobody/res/taxonomy.bin)",
+    )
+
     # ── test ──────────────────────────────────────────────────────────
     p_test = sub.add_parser(
         "test",
@@ -209,6 +227,8 @@ def main() -> None:
         asyncio.run(_run_async(cmd_mapping(args)))
     elif args.command == "embed":
         asyncio.run(_run_async(cmd_embed(args)))
+    elif args.command == "taxonomy":
+        asyncio.run(_run_async(cmd_taxonomy(args)))
     elif args.command == "test":
         cmd_test(args)
 
