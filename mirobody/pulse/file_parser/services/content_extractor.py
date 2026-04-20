@@ -13,7 +13,6 @@ from typing import Dict, List
 from mirobody.utils.i18n import t
 from mirobody.utils.llm import unified_file_extract
 from mirobody.utils.req_ctx import get_req_ctx
-# from mirobody.utils.utils_asr import asr_paraformer_with_urls
 
 DEFAULT_PROMPT = "Extract the content from the file, return only the file content in markdown format, do not return any other information"
 

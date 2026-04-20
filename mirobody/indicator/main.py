@@ -42,6 +42,8 @@ from .health.siblings import cmd_siblings
 from .health.bridge import cmd_bridge
 from .health.merge import cmd_merge
 from .health.taxonomy import cmd_taxonomy
+from .health.embeddings_db import cmd_embeddings_db
+from .health.embeddings_ref import cmd_embeddings_ref
 from .search import cmd_search
 from .mapping import cmd_mapping
 from .embed import cmd_embed
@@ -69,6 +71,7 @@ def _resolve_ref_defaults(args, ref_dir: str) -> None:
         "loinc_dir":  "Loinc_*",
         "umls_dir":   "umls-*",
         "rxnorm_dir": "RxNorm_full_*",
+        "dicom_dir":  "dicom",
     }
     for attr, pattern in _patterns.items():
         if hasattr(args, attr) and getattr(args, attr) is None:
@@ -196,6 +199,36 @@ def main() -> None:
         help="Output path for the .bin file (default: mirobody/res/taxonomy.bin)",
     )
 
+    # ── embeddings ────────────────────────────────────────────────────
+    p_emb_export = sub.add_parser(
+        "embeddings",
+        help="Export fhir embeddings/code-index to res/ (fp16, L2-normalised). "
+             "Default source is the fhir_indicators DB table; use --from-ref "
+             "to bootstrap from ~/ref (for empty-DB users).",
+    )
+    p_emb_export.add_argument(
+        "-o", "--output", default=_default_output,
+        help=f"Intermediate build-cache dir (partials, progress) (default: {_default_output})",
+    )
+    p_emb_export.add_argument(
+        "--res-dir", default=None,
+        help="Final output dir for fhir_code_index.csv.gz + fhir_embedding*.npy "
+             "(default: mirobody/res)",
+    )
+    src_group = p_emb_export.add_mutually_exclusive_group()
+    src_group.add_argument(
+        "--from-db", action="store_true",
+        help="Build from the fhir_indicators table (default)",
+    )
+    src_group.add_argument(
+        "--from-ref", action="store_true",
+        help="Build from ~/ref source files + Gemini embedding API",
+    )
+    p_emb_export.add_argument("--snomed-dir", default=None, help="SNOMED CT release dir (ref path)")
+    p_emb_export.add_argument("--loinc-dir",  default=None, help="LOINC release dir (ref path)")
+    p_emb_export.add_argument("--rxnorm-dir", default=None, help="RxNorm release dir (ref path)")
+    p_emb_export.add_argument("--dicom-dir",  default=None, help="DICOM PS3.16 dir containing part16.xml (ref path)")
+
     # ── test ──────────────────────────────────────────────────────────
     p_test = sub.add_parser(
         "test",
@@ -229,6 +262,11 @@ def main() -> None:
         asyncio.run(_run_async(cmd_embed(args)))
     elif args.command == "taxonomy":
         asyncio.run(_run_async(cmd_taxonomy(args)))
+    elif args.command == "embeddings":
+        if args.from_ref:
+            asyncio.run(_run_async(cmd_embeddings_ref(args)))
+        else:
+            asyncio.run(_run_async(cmd_embeddings_db(args)))
     elif args.command == "test":
         cmd_test(args)
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from typing import Literal
 
 import aiohttp
 
@@ -76,13 +77,21 @@ def _qwen():
 
 # ── Public API ───────────────────────────────────────────────────────
 
-async def text_embedding(texts: list[str], provider: str = "gemini") -> list[list[float] | None]:
+async def text_embedding(
+    texts: list[str],
+    provider: Literal["gemini", "qwen"] | None = None,
+) -> list[list[float] | None]:
     """Compute 1024-dim embeddings via *provider*.
 
     Supported providers: ``"gemini"`` (auto Vertex AI), ``"qwen"``.
+    When *provider* is ``None``, reads config key ``EMBEDDING_PROVIDER`` (default: ``"gemini"``).
     Long input lists are chunked per provider batch limit.
     Invalid entries (non-str / blank) yield ``None`` at the same index.
     """
+    if provider is None:
+        from .config import safe_read_cfg
+        provider = safe_read_cfg("EMBEDDING_PROVIDER", "gemini")
+
     if isinstance(texts, str):
         texts = [texts]
 

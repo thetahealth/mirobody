@@ -125,8 +125,15 @@ CREATE TABLE IF NOT EXISTS th_series_dim (
 ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS embedding_gemini vector(1024);
 COMMENT ON COLUMN th_series_dim.embedding_gemini IS 'Gemini embedding (1024 dimensions) for semantic search';
 
-CREATE INDEX IF NOT EXISTS idx_th_series_dim_embedding_gemini 
+CREATE INDEX IF NOT EXISTS idx_th_series_dim_embedding_gemini
     ON th_series_dim USING hnsw (embedding_gemini vector_cosine_ops);
+
+--  Add embedding_qwen field for Qwen 1024-dimension vector search (selected via DIM_EMBEDDING_PROVIDER=qwen)
+ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS embedding_qwen vector(1024);
+COMMENT ON COLUMN th_series_dim.embedding_qwen IS 'Qwen embedding (1024 dimensions) for semantic search';
+
+CREATE INDEX IF NOT EXISTS idx_th_series_dim_embedding_qwen
+    ON th_series_dim USING hnsw (embedding_qwen vector_cosine_ops);
 
 
 

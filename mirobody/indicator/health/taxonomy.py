@@ -208,12 +208,26 @@ def _parse_loinc_snomed_bridge(umls_dir: str) -> dict[int, list[int]]:
 # ── fhir_indicators lookup ─────────────────────────────────────────
 
 
-async def _fetch_fhir_indicators() -> list[tuple[int, str, str]]:
+async def _fetch_fhir_indicators(cache_path: str) -> list[tuple[int, str, str]]:
+    if os.path.isfile(cache_path):
+        out: list[tuple[int, str, str]] = []
+        with open(cache_path, "r", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                out.append((int(row["id"]), row["indicator_standard"], row["code"]))
+        log.info("fhir_indicators loaded from cache: %d rows ← %s", len(out), cache_path)
+        return out
+
     from mirobody.utils import execute_query
     rows = await execute_query(
         "SELECT id, indicator_standard, code FROM fhir_indicators WHERE code IS NOT NULL"
     )
-    return [(r["id"], r.get("indicator_standard") or "", r.get("code") or "") for r in rows]
+    out = [(r["id"], r.get("indicator_standard") or "", r.get("code") or "") for r in rows]
+    with open(cache_path, "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["id", "indicator_standard", "code"])
+        w.writerows(out)
+    log.info("fhir_indicators cached: %d rows → %s", len(out), cache_path)
+    return out
 
 
 def _code_to_int(code: str) -> int | None:
@@ -349,8 +363,9 @@ async def cmd_taxonomy(args: Namespace) -> None:
     if not args.umls_dir or not os.path.isdir(args.umls_dir):
         raise SystemExit(f"--umls-dir required (got: {args.umls_dir!r})")
 
-    indicators = await _fetch_fhir_indicators()
-    log.info("Loaded %d fhir_indicators from DB", len(indicators))
+    indicators = await _fetch_fhir_indicators(
+        os.path.join(args.output, "_fhir_indicators.csv")
+    )
 
     builder = HealthTaxonomyBuilder(
         snomed_dir=args.snomed_dir,

@@ -7,7 +7,7 @@ from datetime import datetime, date
 
 import redis.asyncio
 
-from ..utils.truncate import _split
+from ..utils.truncate import split_by_tokens
 from ..utils import execute_query
 from ..utils.llm import async_get_text_completion
 from ..utils.config import safe_read_cfg, global_config
@@ -1380,10 +1380,10 @@ class UserProfileGenerator:
                 ]
                 
                 # Process in chunks
-                context_list = _split(
-                    [dict(content=f"{e}") for e in indicator_text_list], 
-                    lambda _: "{content}", 
-                    max_tokens=MAX_TOKENS
+                context_list = split_by_tokens(
+                    [dict(content=f"{e}") for e in indicator_text_list],
+                    "{content}",
+                    max_tokens=MAX_TOKENS,
                 )
                 logger.info(f"context chunks length: {len(context_list)}")
             else:
