@@ -185,9 +185,7 @@ stop_containers_by_ports() {
 docker compose -f ${DOCKER_COMPOSE_FILE} down
 stop_containers_by_ports 18080 18082 18089
 
-docker compose -f ${DOCKER_COMPOSE_FILE} up -d --remove-orphans pg
-docker compose -f ${DOCKER_COMPOSE_FILE} up -d --remove-orphans redis
-docker compose -f ${DOCKER_COMPOSE_FILE} up -d --remove-orphans mirobody
+docker compose -f ${DOCKER_COMPOSE_FILE} up -d --remove-orphans
 docker compose -f ${DOCKER_COMPOSE_FILE} logs -f
 
 #-----------------------------------------------------------------------------

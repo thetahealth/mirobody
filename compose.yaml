@@ -38,7 +38,7 @@ services:
       mirobody_network:
         ipv4_address: 10.108.0.9
 
-  mirobody:
+  mirobody: &mirobody_base
     image: mirobody
     ports:
       - "18080:18080"
@@ -79,6 +79,27 @@ services:
     depends_on:
       - pg
       - redis
+
+  mirobody_worker:
+    <<: *mirobody_base
+    # Worker process: consumes mirobody task queues (IndicatorSync, ProfileRefresh).
+    # Inherits image / volumes / env from `mirobody` via YAML anchor;
+    # depends_on mirobody so deps install (npm + pip) happens once there
+    # before the worker tries to import.
+    ports: []
+    command: >
+      /bin/bash -c "
+        cd /app/ &&
+        source /root/venv/bin/activate &&
+        python -m main_worker
+      "
+    networks:
+      mirobody_network:
+        ipv4_address: 10.108.0.11
+    depends_on:
+      - pg
+      - redis
+      - mirobody
 
 networks:
   mirobody_network:

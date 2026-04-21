@@ -15,7 +15,7 @@ def register_all_recipes():
     recipes = [
         InsightRecipe(
             name="multi_signal_deterioration",
-            version="1.1.0",
+            version="1.3.0",
             display_name="多指标同步恶化",
             category=RecipeCategory.ANOMALY,
             required_categories=["heartRate"],
@@ -28,7 +28,7 @@ def register_all_recipes():
         ),
         InsightRecipe(
             name="single_sustained_anomaly",
-            version="1.1.0",
+            version="1.3.0",
             display_name="单指标持续异常",
             category=RecipeCategory.ANOMALY,
             required_categories=[],
@@ -41,7 +41,7 @@ def register_all_recipes():
         ),
         InsightRecipe(
             name="long_term_trend",
-            version="1.1.0",
+            version="1.3.0",
             display_name="长期趋势",
             category=RecipeCategory.TREND,
             required_categories=[],
@@ -54,7 +54,7 @@ def register_all_recipes():
         ),
         InsightRecipe(
             name="recovery_trend",
-            version="1.1.0",
+            version="1.3.0",
             display_name="恢复趋势",
             category=RecipeCategory.RECOVERY,
             required_categories=["heartRate"],
@@ -66,7 +66,7 @@ def register_all_recipes():
         ),
         InsightRecipe(
             name="weekday_weekend_pattern",
-            version="1.1.0",
+            version="1.3.0",
             display_name="周末-工作日差异",
             category=RecipeCategory.PATTERN,
             required_categories=["steps"],
@@ -78,7 +78,7 @@ def register_all_recipes():
         ),
         InsightRecipe(
             name="glucose_control",
-            version="1.1.0",
+            version="1.3.0",
             display_name="血糖控制波动",
             category=RecipeCategory.ANOMALY,
             required_categories=["bloodGlucose"],

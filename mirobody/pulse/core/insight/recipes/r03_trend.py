@@ -10,21 +10,49 @@ from datetime import date, timedelta
 
 from ..models import DailyValues, IndicatorDeviation, InsightDetection, Severity, UserProfile
 
-# Minimum meaningful weekly change per category (tightened v1.1)
+# Minimum meaningful weekly change per category (tightened v1.3)
 # Values below these are normal fluctuation, not real trends
 MIN_WEEKLY_CHANGE = {
-    "heartRate": 1.0,       # was 0.5 — RHR varies naturally ±1/week
-    "sleepDeep": 1.0,       # was 0.5 — deep sleep % varies a lot
-    "bloodGlucose": 0.15,   # was 0.1 — FBG fluctuates ±0.1 normally
-    "weight": 0.5,          # was 0.2 — weight fluctuates ±0.5kg from water
-    "bmi": 0.2,             # was 0.1 — follows weight
-    "bodyFat": 0.5,         # was 0.3
-    "bpSystolic": 2.0,      # was 1.0 — BP varies naturally
-    "steps": 1000,          # was 500 — daily step count highly variable
-    "hrv": 2.0,             # was 1.0 — HRV naturally variable
+    "heartRate": 1.5,       # was 1.0 — RHR varies naturally, 1.5/week = 6 total is meaningful
+    "sleepDeep": 1.5,       # was 1.0
+    "bloodGlucose": 0.2,    # was 0.15
+    "weight": 0.8,          # was 0.5 — need ~3kg/month to be meaningful
+    "bmi": 0.3,             # was 0.2
+    "bodyFat": 0.8,         # was 0.5
+    "bpSystolic": 2.5,      # was 2.0
+    "steps": 1500,          # was 1000
+    "hrv": 3.0,             # was 2.0 — HRV highly variable, need larger trend
+}
+
+# Minimum TOTAL change over TREND_WEEKS to trigger (v1.3)
+# Even if weekly slope is significant, total change must exceed this
+MIN_TOTAL_CHANGE = {
+    "heartRate": 6.0,       # 6 bpm over 4 weeks
+    "sleepDeep": 5.0,       # 5% over 4 weeks
+    "bloodGlucose": 0.5,    # 0.5 mmol/L over 4 weeks
+    "weight": 3.0,          # 3 kg over 4 weeks
+    "bmi": 1.0,             # 1 point over 4 weeks
+    "bodyFat": 3.0,         # 3% over 4 weeks
+    "bpSystolic": 8.0,      # 8 mmHg over 4 weeks
+    "steps": 4000,          # 4000 steps over 4 weeks
+    "hrv": 10.0,            # 10ms over 4 weeks
 }
 
 TREND_WEEKS = 4
+
+# Direction that indicates worsening (only trigger on these)
+# Omitted categories trigger on both directions
+WORSENING_DIRECTION = {
+    "heartRate": "up",       # rising RHR = stress/illness
+    "hrv": "down",           # falling HRV = worse recovery
+    "sleepDeep": "down",     # less deep sleep = worse
+    "steps": "down",         # less activity = worse
+    "activeCalories": "down",
+    "bpSystolic": "up",      # rising BP = worse
+    "bpDiastolic": "up",
+    "bloodGlucose": "up",    # rising glucose = worse
+    # weight, bmi, bodyFat: both directions can be concerning, no filter
+}
 
 
 def detect(profile: UserProfile, daily_values: DailyValues) -> InsightDetection:
@@ -67,9 +95,22 @@ def detect(profile: UserProfile, daily_values: DailyValues) -> InsightDetection:
 
         slope = numerator / denominator  # change per week
 
-        # Check if slope exceeds minimum meaningful change
+        # Check if slope exceeds minimum meaningful weekly change
         min_change = MIN_WEEKLY_CHANGE.get(category, 0)
         if abs(slope) < min_change:
+            continue
+
+        # Only trigger on worsening direction (skip improving trends)
+        worsen_dir = WORSENING_DIRECTION.get(category)
+        if worsen_dir:
+            actual_dir = "up" if slope > 0 else "down"
+            if actual_dir != worsen_dir:
+                continue
+
+        # Check if total change exceeds minimum absolute threshold (v1.3)
+        total_change = abs(slope * TREND_WEEKS)
+        min_total = MIN_TOTAL_CHANGE.get(category, 0)
+        if min_total > 0 and total_change < min_total:
             continue
 
         # Significance: total change over TREND_WEEKS relative to baseline std

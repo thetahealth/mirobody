@@ -1145,5 +1145,108 @@ async def get_theta_indicators():
         logging.error(f"Unexpected error in get_theta_indicators: {str(e)}")
         return ErrorResponse(code=500, msg=f"Failed to get indicators information: {str(e)}")
 
+# =============================================================================
+# Insight API — User-facing insight queries
+# =============================================================================
+
+
+@router.get("/user/insights", response_model=Union[StandardResponse, ErrorResponse])
+async def get_user_insights(
+    limit: int = Query(20, ge=1, le=100, description="Results per page"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+    severity: Optional[str] = Query(None, description="Filter: mild/moderate/severe"),
+    recipe: Optional[str] = Query(None, description="Filter by recipe name"),
+    current_user: str = Depends(verify_token),
+):
+    """
+    Get health insights for the current user.
+
+    Returns paginated list of AI-generated health insights with observations,
+    hypotheses, and actionable touch messages.
+    """
+    try:
+        from ..core.insight.database_service import InsightDatabaseService
+
+        db = InsightDatabaseService()
+        rows, total = await db.get_user_insights(
+            user_id=current_user,
+            limit=limit,
+            offset=offset,
+            severity=severity,
+            recipe_name=recipe,
+        )
+
+        insights = []
+        for row in rows:
+            indicators = row.get("indicators_detail")
+            if isinstance(indicators, str):
+                import json as _json
+                try:
+                    indicators = _json.loads(indicators)
+                except Exception:
+                    pass
+
+            insights.append({
+                "id": row.get("id"),
+                "date": str(row.get("target_date")),
+                "recipe": row.get("recipe_name"),
+                "severity": row.get("severity"),
+                "observation": row.get("observation"),
+                "hypothesis": row.get("hypothesis"),
+                "touch_message": row.get("touch_message"),
+                "indicators": indicators,
+                "tags": row.get("user_tags"),
+                "created_at": str(row.get("created_at")) if row.get("created_at") else None,
+            })
+
+        return StandardResponse(data={
+            "insights": insights,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        })
+    except Exception as e:
+        logging.error(f"Failed to get user insights: {e}")
+        return ErrorResponse(code=500, msg=f"Failed to get insights: {str(e)}")
+
+
+@router.post("/user/insights/{insight_id}/feedback", response_model=Union[StandardResponse, ErrorResponse])
+async def submit_insight_feedback(
+    insight_id: int,
+    feedback_type: str = Query(..., description="confirmed or denied"),
+    reason: Optional[str] = Query(None, description="Optional reason"),
+    current_user: str = Depends(verify_token),
+):
+    """
+    Submit user feedback on an insight (confirmed/denied).
+
+    This feedback is used to improve future insight quality.
+    """
+    if feedback_type not in ("confirmed", "denied"):
+        return ErrorResponse(code=400, msg="feedback_type must be 'confirmed' or 'denied'")
+
+    try:
+        import json as _json
+        from ..core.database import execute_query
+
+        feedback = _json.dumps({"type": feedback_type, "reason": reason})
+
+        sql = """
+            UPDATE user_behavior_insight
+            SET user_feedback = :feedback
+            WHERE id = :id AND user_id = :user_id
+        """
+        await execute_query(sql, {
+            "id": insight_id,
+            "user_id": current_user,
+            "feedback": feedback,
+        }, query_type="dml")
+
+        return StandardResponse(data={"insight_id": insight_id, "feedback_type": feedback_type})
+    except Exception as e:
+        logging.error(f"Failed to submit insight feedback: {e}")
+        return ErrorResponse(code=500, msg=f"Failed to submit feedback: {str(e)}")
+
+
 # Export router
 # pulse_public_router = router

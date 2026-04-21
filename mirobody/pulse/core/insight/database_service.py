@@ -202,6 +202,54 @@ class InsightDatabaseService:
         }
         await execute_query(sql, params, query_type="dml")
 
+    async def get_user_insights(
+        self,
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0,
+        severity: Optional[str] = None,
+        recipe_name: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """Get insights for a user with pagination.
+
+        Args:
+            user_id: User ID
+            limit: Max results per page
+            offset: Pagination offset
+            severity: Optional filter by severity
+            recipe_name: Optional filter by recipe
+
+        Returns:
+            Tuple of (insight list, total count)
+        """
+        conditions = ["user_id = :user_id"]
+        params: Dict[str, Any] = {"user_id": user_id, "limit": limit, "offset": offset}
+
+        if severity:
+            conditions.append("severity = :severity")
+            params["severity"] = severity
+        if recipe_name:
+            conditions.append("recipe_name = :recipe_name")
+            params["recipe_name"] = recipe_name
+
+        where = " AND ".join(conditions)
+
+        count_sql = f"SELECT COUNT(*) as cnt FROM user_behavior_insight WHERE {where}"
+        count_rows = await execute_query(count_sql, params, query_type="select")
+        total = count_rows[0]["cnt"] if count_rows else 0
+
+        sql = f"""
+            SELECT id, user_id, target_date, recipe_name, recipe_version,
+                   severity, observation, hypothesis, touch_message,
+                   indicators_detail, user_tags, created_at
+            FROM user_behavior_insight
+            WHERE {where}
+            ORDER BY target_date DESC, created_at DESC
+            LIMIT :limit OFFSET :offset
+        """
+        rows = await execute_query(sql, params, query_type="select")
+        return rows, total
+
     async def get_unscored_insights(self, limit: int = 1000) -> List[Dict[str, Any]]:
         """Get insights that haven't been benchmarked yet.
 
@@ -279,6 +327,59 @@ class InsightDatabaseService:
             ORDER BY start_time
         """
         return await execute_query(sql, params, query_type="select")
+
+    # =========================================================================
+    # User Health Profile (from health_user_profile_by_system)
+    # =========================================================================
+
+    async def get_user_health_profile(self, user_id: str) -> Optional[str]:
+        """Get the latest user health profile (decrypted).
+
+        Tries both column names: common_part (production) and
+        common_part_encrypted with decrypt_content (test environment).
+
+        Returns:
+            Profile text, or None if not available.
+        """
+        # Try encrypted column with SQL-level decrypt_content()
+        # This works because the DB connection has app.encryption_key set via connection options
+        try:
+            sql = """
+                SELECT decrypt_content(common_part_encrypted) as profile
+                FROM health_user_profile_by_system
+                WHERE user_id = :user_id AND is_deleted = false
+                ORDER BY version DESC LIMIT 1
+            """
+            rows = await execute_query(sql, {"user_id": user_id}, query_type="select")
+            if rows and rows[0].get("profile"):
+                profile = rows[0]["profile"]
+                if not profile.startswith("gAAAA"):
+                    logging.info(f"[InsightDB] Loaded profile for user {user_id}: {len(profile)} chars")
+                    return profile
+                else:
+                    logging.warning(f"[InsightDB] decrypt_content returned ciphertext for user {user_id}")
+            else:
+                logging.warning(f"[InsightDB] No profile rows or empty profile for user {user_id}, rows={bool(rows)}")
+        except Exception as e:
+            logging.error(f"[InsightDB] Encrypted profile query failed for user {user_id}: {e}")
+
+        # Try plain column (production)
+        try:
+            sql = """
+                SELECT common_part as profile
+                FROM health_user_profile_by_system
+                WHERE user_id = :user_id AND is_deleted = false
+                ORDER BY version DESC LIMIT 1
+            """
+            rows = await execute_query(sql, {"user_id": user_id}, query_type="select")
+            if rows and rows[0].get("profile"):
+                logging.info(f"[InsightDB] Loaded plain profile for user {user_id}")
+                return rows[0]["profile"]
+        except Exception:
+            pass
+
+        logging.warning(f"[InsightDB] No profile found for user {user_id}")
+        return None
 
     # =========================================================================
     # Past Insights (feedback loop)

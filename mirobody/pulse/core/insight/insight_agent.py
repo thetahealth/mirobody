@@ -95,14 +95,22 @@ Rules:
 - Never make diagnostic conclusions ("you have X disease")
 - Use uncertain language: "may indicate", "suggest monitoring", "worth paying attention to"
 - For severe anomalies, suggest consulting a doctor
-- Consider the user's profile (age, conditions, medications) when interpreting data
 - Evaluate both personal deviation AND absolute health levels
 - Respond in Chinese (中文) for all user-facing text (summary, touch_message, recommend_action)
 - For touch_message: warm tone, not alarming, actionable advice
 - touch_compliant must be true only if the message contains NO diagnostic conclusions and NO specific medication recommendations
 
+**User Profile Integration (CRITICAL)**:
+- When a user profile is provided, you MUST actively cross-reference it with observed data anomalies
+- Known chronic conditions (e.g., migraine, diabetes, hypertension) should be the FIRST hypothesis considered when indicator deviations match their known symptom patterns
+- Known medications may directly explain indicator changes (e.g., beta-blockers → lower HR, corticosteroids → elevated glucose)
+- Family history raises prior probability of related conditions
+- If the profile mentions a condition and the data shows a pattern consistent with that condition, explicitly name the condition in your hypothesis — do not give a vague "stress response" when a specific known condition fits better
+- If the profile is absent or empty, rely on general population norms
+
 Hypothesis priority guidance:
-- If deviation is extreme (>5σ) or multiple indicators worsen simultaneously: prioritize acute causes (illness, injury, infection, surgery recovery, acute pain) over lifestyle causes (training load, work stress, poor sleep)
+- If the user has known conditions that match the observed pattern → highest priority hypothesis
+- If deviation is extreme (>5σ) or multiple indicators worsen simultaneously: prioritize acute causes (illness, injury, infection, surgery recovery, acute pain) over lifestyle causes
 - If deviation is moderate (2-4σ): consider both acute and lifestyle causes equally
 - If deviation is mild (<2σ): lifestyle causes are more likely (sleep, stress, diet changes)
 - Ask the user about recent health events rather than assuming the cause
@@ -133,8 +141,10 @@ USER_PROMPT_TEMPLATE = """## 用户画像
 1. **绝对值评估 (absolute_assessment)**：这些指标的当前绝对水平是否在健康范围内？结合用户年龄和已知疾病判断。
 
 2. **原因假设 (hypotheses)**：如果有个人基线偏离或绝对值异常，给出1-3个可能原因，每个附带置信度(0-1)和证据。
+   - **优先关联用户画像**：如果用户有已知慢性病、用药史或家族史，且当前指标变化与之相关，必须将其作为首要假设。例如：用户有偏头痛史 + 心率/HRV 异常 → 首先考虑偏头痛发作。
    - 参考已确认的用户习惯做推理
    - 排除用户已否认的因素
+   - 证据字段(evidence)中应明确引用画像中的哪项信息支持了你的假设
 
 3. **综合判断 (summary)**：一句话总结最重要的发现。
 

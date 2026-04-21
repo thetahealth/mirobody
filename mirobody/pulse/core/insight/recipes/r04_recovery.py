@@ -42,32 +42,44 @@ def detect(profile: UserProfile, daily_values: DailyValues) -> InsightDetection:
         return InsightDetection(triggered=False)
 
     # Check if values are declining from peak toward baseline
-    # Walk FORWARD from peak to target, counting consecutive days where sigma decreases
-    recovery_days = 0
-    prev_sigma = None
-    current_val = None
-
+    # Use sliding window comparison: recent 5 days avg sigma vs earlier 5 days avg sigma
+    all_sigmas = []  # (date, sigma, value) from peak to target
     d = peak_date
     while d <= target:
         val = value_map.get(d)
         if val is not None:
-            current_sigma = abs(val - baseline.mean) / baseline.std
-            if prev_sigma is not None:
-                if current_sigma < prev_sigma:
-                    recovery_days += 1
-                else:
-                    recovery_days = 0
-            prev_sigma = current_sigma
-            current_val = val
+            sigma = abs(val - baseline.mean) / baseline.std
+            all_sigmas.append((d, sigma, val))
         d += timedelta(days=1)
 
-    if recovery_days < MIN_RECOVERY_DAYS or current_val is None:
+    if len(all_sigmas) < MIN_RECOVERY_DAYS * 2:
         return InsightDetection(triggered=False)
 
-    current_sigma = abs(current_val - baseline.mean) / baseline.std
+    # Compare recent window vs earlier window
+    window = MIN_RECOVERY_DAYS
+    recent_sigmas = [s for _, s, _ in all_sigmas[-window:]]
+    earlier_sigmas = [s for _, s, _ in all_sigmas[-(window * 2):-window]]
 
-    # Only report if still somewhat elevated but clearly declining
-    # Or if just recovered (current_sigma < 1.0 but had a big peak)
+    if not recent_sigmas or not earlier_sigmas:
+        return InsightDetection(triggered=False)
+
+    recent_avg = sum(recent_sigmas) / len(recent_sigmas)
+    earlier_avg = sum(earlier_sigmas) / len(earlier_sigmas)
+    current_val = all_sigmas[-1][2]
+    current_sigma = all_sigmas[-1][1]
+
+    # Recovery = recent window clearly lower than earlier window (>20% reduction)
+    if recent_avg >= earlier_avg * 0.8:
+        return InsightDetection(triggered=False)
+
+    recovery_days = len(all_sigmas) - all_sigmas.index(max(all_sigmas, key=lambda x: x[1]))
+
+    # Minimum absolute drop from peak (v1.3: filter trivial recoveries like 2bpm)
+    absolute_drop = abs(peak_val - current_val)
+    if absolute_drop < baseline.std * 2:  # must drop at least 2σ in absolute terms
+        return InsightDetection(triggered=False)
+
+    # Only report if had a meaningful peak and still somewhat elevated
     if current_sigma < 0.5 and peak_sigma < 3.0:
         return InsightDetection(triggered=False)
 

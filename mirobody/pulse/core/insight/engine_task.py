@@ -186,12 +186,19 @@ class InsightEnginePullTask(PullTask):
                     x[1].severity.value if x[1].severity else "", 0), reverse=True)
                 primary_detection = detections[0][1]
 
+            # Read user health profile and extract key fields
+            raw_profile = await self.db.get_user_health_profile(user_id)
+            user_health_profile = _extract_profile_summary(raw_profile) if raw_profile else None
+
+            # Read past insights with user feedback
+            past_insights = await self._load_past_insights(user_id)
+
             agent_result = await self.insight_agent.analyze(
                 detection=primary_detection,
                 profile=profile,
                 daily_values=daily_values,
-                user_health_profile=None,  # TODO: read from health_user_profile_by_system
-                past_insights=None,  # TODO: read from DB
+                user_health_profile=user_health_profile,
+                past_insights=past_insights,
             )
         except Exception as e:
             logging.error(f"[InsightEngine] InsightAgent failed for user {user_id}: {e}")
@@ -204,8 +211,13 @@ class InsightEnginePullTask(PullTask):
         touch_message = agent_result.get("touch_message") if agent_result else None
         touch_compliant = agent_result.get("touch_compliant") if agent_result else None
 
-        # Step 8: Save all detections with Layer 2+3 results
+        # Step 8: Save detections with Layer 2+3 results
+        # R02 (single_sustained_anomaly) is demoted to supporting evidence only —
+        # it participates in Layer 2 context but does not produce standalone insights.
+        DEMOTED_RECIPES = {"single_sustained_anomaly"}
         for recipe, detection in detections:
+            if recipe.name in DEMOTED_RECIPES:
+                continue
             try:
                 await self._save_detection(
                     user_id, target_date, recipe, detection, profile,
@@ -218,14 +230,16 @@ class InsightEnginePullTask(PullTask):
             except Exception as e:
                 logging.error(f"[InsightEngine] Save failed for {recipe.name}: {e}")
 
-        # If no Layer 1 detections but Layer 2 has absolute-value insights, save as standalone
-        if not detections and hypothesis:
+        # If no Layer 1 detections but Layer 2 found notable absolute-value issues, save as standalone
+        # Only save if severity is moderate+ (skip "everything is stable" noise)
+        abs_severity = agent_result.get("severity", "mild") if agent_result else "mild"
+        if not detections and hypothesis and abs_severity in ("moderate", "severe"):
             try:
                 from .models import InsightDetection, Severity
                 abs_detection = InsightDetection(
                     triggered=True,
-                    severity=Severity(hypothesis_detail.get("severity", "mild")) if hypothesis_detail else Severity.MILD,
-                    observation_text=hypothesis_detail.get("absolute_assessment", hypothesis) if hypothesis_detail else hypothesis,
+                    severity=Severity(agent_result.get("severity", "mild")) if agent_result else Severity.MILD,
+                    observation_text=agent_result.get("absolute_assessment", hypothesis) if agent_result else hypothesis,
                     deviations=[],
                 )
                 from .models import InsightRecipe, RecipeCategory
@@ -240,6 +254,8 @@ class InsightEnginePullTask(PullTask):
                     user_id, target_date, abs_recipe, abs_detection, profile,
                     hypothesis=hypothesis,
                     hypothesis_confidence=hypothesis_confidence,
+                    touch_message=touch_message,
+                    touch_compliant=touch_compliant,
                 )
                 insights_count += 1
             except Exception as e:
@@ -287,6 +303,8 @@ class InsightEnginePullTask(PullTask):
 
                 detection = recipe.detect(profile, daily_values)
                 if detection and detection.triggered:
+                    if recipe.name in ("single_sustained_anomaly",):
+                        continue  # demoted: supporting evidence only
                     await self._save_detection(
                         user_id, target_date, recipe, detection, profile
                     )
@@ -351,6 +369,42 @@ class InsightEnginePullTask(PullTask):
             f"hypothesis={'yes' if hypothesis else 'no'}"
         )
 
+    async def _load_past_insights(self, user_id: str) -> Optional[List]:
+        """Load past insights with user feedback, convert to PastInsight objects."""
+        try:
+            rows = await self.db.get_past_insights_with_feedback(user_id, limit=20)
+            if not rows:
+                return None
+
+            from .models import FeedbackType, PastInsight
+            import json
+
+            result = []
+            for row in rows:
+                feedback = row.get("user_feedback")
+                if isinstance(feedback, str):
+                    feedback = json.loads(feedback)
+                if not isinstance(feedback, dict):
+                    continue
+
+                fb_type = feedback.get("type", "").lower()
+                if fb_type not in ("confirmed", "denied"):
+                    continue
+
+                result.append(PastInsight(
+                    recipe_name=row.get("recipe_name", ""),
+                    target_date=row.get("target_date"),
+                    observation=row.get("observation", ""),
+                    hypothesis=row.get("hypothesis"),
+                    feedback_type=FeedbackType(fb_type),
+                    feedback_reason=feedback.get("reason"),
+                    created_at=row.get("created_at"),
+                ))
+            return result if result else None
+        except Exception as e:
+            logging.error(f"[InsightEngine] Failed to load past insights for {user_id}: {e}")
+            return None
+
     async def get_task_info(self) -> Dict:
         full_status = await self.get_full_status()
         full_status.update({
@@ -358,3 +412,68 @@ class InsightEnginePullTask(PullTask):
             "description": "Run insight detection recipes for demo users",
         })
         return full_status
+
+
+def _extract_profile_summary(raw_profile: str) -> Optional[str]:
+    """Extract key health fields from full profile JSON.
+
+    Reduces ~4000 chars to ~300 chars, keeping only what matters for insight.
+    Drops: personality, education, marital_status, coping_mechanisms, etc.
+    """
+    try:
+        import json
+        p = json.loads(raw_profile) if isinstance(raw_profile, str) else raw_profile
+    except (json.JSONDecodeError, TypeError):
+        return raw_profile[:500] if raw_profile else None
+
+    parts = []
+
+    # Demographics (age + gender + occupation)
+    d = p.get("demographics", {})
+    if d:
+        age = d.get("age", "")
+        gender = d.get("gender", "")
+        occupation = d.get("occupation", "")
+        parts.append(f"{age}岁 {gender}，{occupation}" if age else "")
+
+    h = p.get("health_profile", {})
+    if not h:
+        return "; ".join(p for p in parts if p) or None
+
+    # Chronic conditions + medications (most critical)
+    for c in h.get("chronic_conditions", []):
+        diag = c.get("diagnosis", "")
+        meds = ", ".join(m.get("medication_name", "") for m in c.get("medications", []))
+        symptoms = c.get("symptom_description", "")
+        entry = f"慢性病: {diag}"
+        if meds:
+            entry += f"（用药: {meds}）"
+        if symptoms:
+            entry += f"，症状: {symptoms[:60]}"
+        parts.append(entry)
+
+    # Family history
+    for f in h.get("family_history", []):
+        parts.append(f"家族史: {f.get('relative', '')} {f.get('condition', '')}")
+
+    # Allergies
+    allergies = h.get("allergies_and_intolerances", [])
+    if allergies:
+        parts.append(f"过敏: {', '.join(allergies)}")
+
+    # Lifestyle key items
+    ls = h.get("lifestyle", {})
+    if ls.get("sleep_pattern_narrative"):
+        parts.append(f"睡眠: {ls['sleep_pattern_narrative'][:80]}")
+    if ls.get("physical_activity"):
+        parts.append(f"运动: {ls['physical_activity'][:60]}")
+    diet = ls.get("diet_narrative", "")
+    if "caffein" in diet.lower() or "咖啡" in diet:
+        parts.append("注意: 咖啡因依赖")
+
+    # Past medical history
+    for pmh in h.get("past_medical_history", []):
+        parts.append(f"既往: {pmh.get('diagnosis', '')} (age {pmh.get('age_at_diagnosis', '?')})")
+
+    summary = "; ".join(p for p in parts if p)
+    return summary if summary else None

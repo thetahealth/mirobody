@@ -102,6 +102,11 @@ Scoring guidelines:
 - is_true_positive: True if match_score >= 0.5
 - is_false_positive: True if no events within window OR match_score < 0.3
 
+Important evaluation principles:
+- Acute health events (surgery, injury, infection, hospitalization) commonly cause stress responses in multiple indicators: elevated heart rate, elevated blood glucose, reduced HRV, disrupted sleep. An insight detecting these stress-related changes IS a valid detection of the acute event, even if the insight doesn't name the specific event type.
+- Non-health events (device changes, hardware installation, tracking pauses) should NOT be considered valid matches for physiological insights. If the only nearby events are device/tracking related, the insight is likely a false positive.
+- A blood glucose elevation near a surgery/injury event should be scored as partially related (0.4-0.6) due to stress hyperglycemia, not as unrelated (0).
+
 Respond in Chinese for the feedback field."""
 
 USER_PROMPT_TEMPLATE = """## 洞察（系统产出）

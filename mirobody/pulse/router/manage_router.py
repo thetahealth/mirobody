@@ -1045,3 +1045,56 @@ async def eval_insight(
         logging.error(f"Insight eval failed: {str(e)}", exc_info=True)
         return ErrorResponse(code=500, detail=f"Insight eval failed: {str(e)}")
 
+
+@router.get("/pulse/insight/list", response_model=Union[StandardResponse, ErrorResponse])
+async def list_user_insights(
+    user_id: str = Query(..., description="User ID"),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    severity: Optional[str] = Query(None),
+    recipe: Optional[str] = Query(None),
+    authorized: bool = Depends(verify_manage_key),
+):
+    """List insights for a user (manage endpoint for testing)."""
+    try:
+        from ..core.insight.database_service import InsightDatabaseService
+
+        db = InsightDatabaseService()
+        rows, total = await db.get_user_insights(
+            user_id=user_id, limit=limit, offset=offset,
+            severity=severity, recipe_name=recipe,
+        )
+
+        insights = []
+        for row in rows:
+            indicators = row.get("indicators_detail")
+            if isinstance(indicators, str):
+                import json
+                try:
+                    indicators = json.loads(indicators)
+                except Exception:
+                    pass
+
+            insights.append({
+                "id": row.get("id"),
+                "date": str(row.get("target_date")),
+                "recipe": row.get("recipe_name"),
+                "severity": row.get("severity"),
+                "observation": row.get("observation"),
+                "hypothesis": row.get("hypothesis"),
+                "touch_message": row.get("touch_message"),
+                "indicators": indicators,
+                "created_at": str(row.get("created_at")) if row.get("created_at") else None,
+            })
+
+        return StandardResponse(data={
+            "user_id": user_id,
+            "insights": insights,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        })
+    except Exception as e:
+        logging.error(f"List insights failed: {e}")
+        return ErrorResponse(code=500, detail=f"List insights failed: {str(e)}")
+
