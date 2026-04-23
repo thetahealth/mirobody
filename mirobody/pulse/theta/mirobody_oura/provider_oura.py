@@ -135,8 +135,8 @@ class ThetaOuraProvider(BaseThetaProvider):
                 "spo2_percentage.average": StandardIndicator.BLOOD_OXYGEN,
             },
             "daily_stress": {
-                "stress_high": StandardIndicator.STRESS_LEVEL,
-                "recovery_high": StandardIndicator.RECOVERY_TIME,
+                "stress_high": StandardIndicator.STRESS_HIGH_DURATION,
+                "recovery_high": StandardIndicator.RECOVERY_HIGH_DURATION,
             },
             "vo2_max": {
                 "vo2_max": StandardIndicator.VO2_MAX,
@@ -526,12 +526,19 @@ class ThetaOuraProvider(BaseThetaProvider):
             except Exception:
                 pass
 
+        # Indicators that need seconds→minutes conversion (Oura API returns seconds)
+        SECONDS_TO_MINUTES = {"stressHighDuration", "recoveryHighDuration"}
+
         for field_path, entry in mapping.items():
             value = self._extract_nested_value(item, field_path)
             if value is None:
                 continue
 
             indicator_name, unit = self._resolve_mapping_entry(entry)
+
+            # Convert seconds to minutes for duration indicators
+            if indicator_name in SECONDS_TO_MINUTES and isinstance(value, (int, float)):
+                value = round(value / 60, 1)
 
             records.append(StandardPulseRecord(
                 source=ThetaDataFormatter.format_source_name(self.info.slug),

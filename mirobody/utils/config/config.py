@@ -97,6 +97,7 @@ class Config:
         self.mcp_tool_dirs      = self.get_dirs("MCP_TOOL_DIRS", [])
         self.mcp_resource_dirs  = self.get_dirs("MCP_RESOURCE_DIRS", [])
         self.agent_dirs         = self.get_dirs("AGENT_DIRS", [])
+        self.task_dirs          = self.get_dirs("TASK_DIRS", [])
 
         self.private_mcp_tool_dirs      = self.get_dirs("PRIVATE_MCP_TOOL_DIRS", [])
         self.private_mcp_resource_dirs  = self.get_dirs("PRIVATE_MCP_RESOURCE_DIRS", [])
@@ -735,6 +736,8 @@ class Config:
             print(f"agents          : {self.agent_dirs}")
         if self.private_agent_dirs:
             print(f"private agents  : {self.private_agent_dirs}")
+        if self.task_dirs:
+            print(f"tasks           : {self.task_dirs}")
 
         if self.api_keys:
             print()

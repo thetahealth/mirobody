@@ -927,6 +927,7 @@ async def get_derived_trend(
 async def get_user_profile(
     user_id: str = Query(..., description="User ID"),
     days: int = Query(14, description="Lookback days for density calculation"),
+    as_of: Optional[str] = Query(None, description="Reference date YYYY-MM-DD (default: today)"),
     authorized: bool = Depends(verify_manage_key),
 ):
     """
@@ -936,7 +937,7 @@ async def get_user_profile(
     try:
         from ..core.monitor.user_profile_service import UserProfileService
         service = UserProfileService()
-        data = await service.get_user_profile(user_id=user_id, days=days)
+        data = await service.get_user_profile(user_id=user_id, days=days, as_of=as_of)
         return StandardResponse(data=data)
     except Exception as e:
         logging.error(f"User profile query failed: {str(e)}")
@@ -1048,14 +1049,14 @@ async def eval_insight(
 
 @router.get("/pulse/insight/list", response_model=Union[StandardResponse, ErrorResponse])
 async def list_user_insights(
-    user_id: str = Query(..., description="User ID"),
+    user_id: Optional[str] = Query(None, description="User ID (optional, all users if omitted)"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     severity: Optional[str] = Query(None),
     recipe: Optional[str] = Query(None),
     authorized: bool = Depends(verify_manage_key),
 ):
-    """List insights for a user (manage endpoint for testing)."""
+    """List insights, optionally filtered by user (manage endpoint)."""
     try:
         from ..core.insight.database_service import InsightDatabaseService
 
@@ -1077,6 +1078,7 @@ async def list_user_insights(
 
             insights.append({
                 "id": row.get("id"),
+                "user_id": row.get("user_id"),
                 "date": str(row.get("target_date")),
                 "recipe": row.get("recipe_name"),
                 "severity": row.get("severity"),
@@ -1088,7 +1090,7 @@ async def list_user_insights(
             })
 
         return StandardResponse(data={
-            "user_id": user_id,
+            "user_id": user_id or "all",
             "insights": insights,
             "total": total,
             "limit": limit,
@@ -1097,4 +1099,28 @@ async def list_user_insights(
     except Exception as e:
         logging.error(f"List insights failed: {e}")
         return ErrorResponse(code=500, detail=f"List insights failed: {str(e)}")
+
+
+@router.post("/pulse/insight/feedback/{insight_id}", response_model=Union[StandardResponse, ErrorResponse])
+async def submit_insight_feedback_manage(
+    insight_id: int,
+    feedback_type: str = Query(..., description="confirmed or denied"),
+    reason: Optional[str] = Query(None),
+    authorized: bool = Depends(verify_manage_key),
+):
+    """Submit feedback on an insight (manage endpoint for testing)."""
+    if feedback_type not in ("confirmed", "denied"):
+        return ErrorResponse(code=400, detail="feedback_type must be 'confirmed' or 'denied'")
+    try:
+        import json
+        from ..core.database import execute_query
+        feedback = json.dumps({"type": feedback_type, "reason": reason})
+        await execute_query(
+            "UPDATE user_behavior_insight SET user_feedback = :feedback WHERE id = :id",
+            {"id": insight_id, "feedback": feedback},
+            query_type="dml",
+        )
+        return StandardResponse(data={"insight_id": insight_id, "feedback_type": feedback_type})
+    except Exception as e:
+        return ErrorResponse(code=500, detail=f"Feedback failed: {str(e)}")
 

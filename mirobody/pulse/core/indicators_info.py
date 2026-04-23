@@ -1810,6 +1810,24 @@ class StandardIndicator(Enum):
         description_zh="身体压力水平评分",
         data_type=HealthDataType.MIX,  # MIX type: writes to both series_data and th_series_data
     )
+    STRESS_HIGH_DURATION = IndicatorInfo(
+        category=Categories.PERFORMANCE.value,
+        standard_unit="min",
+        name="stressHighDuration",
+        name_zh="高压力时长",
+        description="Duration of high stress state per day (Oura daily_stress.stress_high, seconds→minutes)",
+        description_zh="每日高压力状态持续时长（分钟）",
+        data_type=HealthDataType.SUMMARY,
+    )
+    RECOVERY_HIGH_DURATION = IndicatorInfo(
+        category=Categories.PERFORMANCE.value,
+        standard_unit="min",
+        name="recoveryHighDuration",
+        name_zh="高恢复时长",
+        description="Duration of high recovery state per day (Oura daily_stress.recovery_high, seconds→minutes)",
+        description_zh="每日高恢复状态持续时长（分钟）",
+        data_type=HealthDataType.SUMMARY,
+    )
     SUBCUTANEOUS_FAT = IndicatorInfo(
         category=Categories.BODY_COMPOSITION.value,
         standard_unit="%",

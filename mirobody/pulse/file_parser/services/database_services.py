@@ -620,9 +620,9 @@ class FileParserDatabaseService:
             logging.info(f"🚀 Write complete: {len(db_params)} records, user_id: {user_id}")
 
             if db_params:
-                # TODO: wire up producer-side task instances so we can enqueue:
-                #   await indicator_sync.add_task("")
-                #   await profile_refresh.add_task(str(user_id))
+                # TODO: wire up producer-side enqueue:
+                #   await IndicatorSyncTask.enqueue("")
+                #   await ProfileRefreshTask.enqueue(str(user_id))
                 pass
 
             return len(db_params)

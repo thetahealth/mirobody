@@ -86,7 +86,7 @@ class UserProfileService:
     """Real-time user data profile from th_series_data."""
 
     async def get_user_profile(
-        self, user_id: str, days: int = 14
+        self, user_id: str, days: int = 14, as_of: str = None
     ) -> Dict[str, Any]:
         """
         Generate complete user data profile.
@@ -99,7 +99,7 @@ class UserProfileService:
             Dict with indicators, density, and analyzability assessment.
         """
         # Query th_series_data for this user
-        raw_indicators = await self._query_user_indicators(user_id, days)
+        raw_indicators = await self._query_user_indicators(user_id, days, as_of)
 
         # Build indicator list with classification
         indicators = []
@@ -157,27 +157,38 @@ class UserProfileService:
             "analyzability": analyzable,
         }
 
-    async def _query_user_indicators(self, user_id: str, days: int) -> List[Dict]:
+    async def _query_user_indicators(self, user_id: str, days: int, as_of: str = None) -> List[Dict]:
         """Query th_series_data for user's indicator stats."""
-        query = """
+        # as_of: reference date (default: today). Useful for viewing historical data.
+        if as_of:
+            date_filter = "start_time::date <= CAST(:as_of AS date) AND start_time::date > CAST(:as_of AS date) - CAST(:days AS integer)"
+            days_since = "(CAST(:as_of AS date) - MAX(start_time::date))"
+        else:
+            date_filter = "start_time >= NOW() - CAST(:days AS integer) * INTERVAL '1 day'"
+            days_since = "(CURRENT_DATE - MAX(start_time::date))"
+
+        query = f"""
             SELECT indicator,
                    ARRAY_AGG(DISTINCT source) as sources,
                    COUNT(DISTINCT start_time::date) as days_with_data,
                    COUNT(*) as total_records,
                    MAX(start_time::date) as latest_date,
-                   (CURRENT_DATE - MAX(start_time::date)) as days_since_last,
+                   {days_since} as days_since_last,
                    ROUND(MIN(value::numeric)::numeric, 2) as min_val,
                    ROUND(MAX(value::numeric)::numeric, 2) as max_val,
                    ROUND(AVG(value::numeric)::numeric, 2) as mean_val
             FROM th_series_data
             WHERE user_id = :user_id
               AND deleted = 0
-              AND start_time >= NOW() - CAST(:days AS integer) * INTERVAL '1 day'
+              AND {date_filter}
               AND value ~ '^-?[0-9]+\\.?[0-9]*$'
             GROUP BY indicator
             ORDER BY days_with_data DESC, total_records DESC
         """
-        return await execute_query(query, {"user_id": user_id, "days": days})
+        params = {"user_id": user_id, "days": days}
+        if as_of:
+            params["as_of"] = as_of
+        return await execute_query(query, params)
 
     @staticmethod
     def _classify_density(days_with_data: int, lookback: int) -> str:

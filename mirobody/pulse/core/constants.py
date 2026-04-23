@@ -184,6 +184,7 @@ class CommonConfig:
     # Unsupported providers (general configuration)
     UNSUPPORTED_PROVIDERS: Set[str] = {
         # "whoop_v2",
+        "oura",
         "dexcom_v3",
         "my_fitness_pal_v2",
         "map_my_fitness",

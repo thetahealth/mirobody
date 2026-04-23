@@ -27,9 +27,9 @@ class InsightEnginePullTask(PullTask):
         super().__init__(
             provider_slug="insight_engine",
             schedule_type=ScheduleType.INTERVAL,
-            interval_minutes=360,        # every 6 hours
-            execution_interval_hours=6.0,
-            lock_duration_hours=2.0,
+            interval_minutes=1440,       # every 24 hours
+            execution_interval_hours=24.0,
+            lock_duration_hours=4.0,
         )
         self.db = InsightDatabaseService()
         self.engine = BaselineEngine()
@@ -75,7 +75,7 @@ class InsightEnginePullTask(PullTask):
             if user_id:
                 user_ids = [user_id]
             else:
-                user_ids = await self.db.get_demo_user_ids()
+                user_ids = await self.db.get_active_user_ids()
 
             total_days = (end_date - start_date).days + 1
             logging.info(
@@ -148,6 +148,11 @@ class InsightEnginePullTask(PullTask):
         if not daily_values:
             return 0
 
+        # Step 3.5: Freshness check — skip if latest data is >7 days before target_date
+        latest_data_date = max(d for vals in daily_values.values() for d, _ in vals)
+        if (target_date - latest_data_date).days > 7:
+            return 0
+
         # Step 4: Compute baseline + profile
         profile = self.engine.compute(user_id, target_date, user_indicators, daily_values)
         if not profile.available_categories:
@@ -177,31 +182,30 @@ class InsightEnginePullTask(PullTask):
                 logging.error(f"[InsightEngine] Recipe {recipe.name} failed for user {user_id}: {e}")
                 continue
 
-        # Step 7: Layer 2+3 — InsightAgent (runs once per user)
+        # Step 7: Layer 2+3 — InsightAgent (only if L1 detected something)
         agent_result = None
-        try:
-            primary_detection = None
-            if detections:
+        if detections:
+            try:
                 detections.sort(key=lambda x: {"severe": 3, "moderate": 2, "mild": 1}.get(
                     x[1].severity.value if x[1].severity else "", 0), reverse=True)
                 primary_detection = detections[0][1]
 
-            # Read user health profile and extract key fields
-            raw_profile = await self.db.get_user_health_profile(user_id)
-            user_health_profile = _extract_profile_summary(raw_profile) if raw_profile else None
+                # Read user health profile and extract key fields
+                raw_profile = await self.db.get_user_health_profile(user_id)
+                user_health_profile = _extract_profile_summary(raw_profile) if raw_profile else None
 
-            # Read past insights with user feedback
-            past_insights = await self._load_past_insights(user_id)
+                # Read past insights with user feedback
+                past_insights = await self._load_past_insights(user_id)
 
-            agent_result = await self.insight_agent.analyze(
-                detection=primary_detection,
-                profile=profile,
-                daily_values=daily_values,
-                user_health_profile=user_health_profile,
-                past_insights=past_insights,
-            )
-        except Exception as e:
-            logging.error(f"[InsightEngine] InsightAgent failed for user {user_id}: {e}")
+                agent_result = await self.insight_agent.analyze(
+                    detection=primary_detection,
+                    profile=profile,
+                    daily_values=daily_values,
+                    user_health_profile=user_health_profile,
+                    past_insights=past_insights,
+                )
+            except Exception as e:
+                logging.error(f"[InsightEngine] InsightAgent failed for user {user_id}: {e}")
 
         # Extract Layer 2+3 fields from agent result
         hypothesis = agent_result.get("summary") if agent_result else None
@@ -230,37 +234,6 @@ class InsightEnginePullTask(PullTask):
             except Exception as e:
                 logging.error(f"[InsightEngine] Save failed for {recipe.name}: {e}")
 
-        # If no Layer 1 detections but Layer 2 found notable absolute-value issues, save as standalone
-        # Only save if severity is moderate+ (skip "everything is stable" noise)
-        abs_severity = agent_result.get("severity", "mild") if agent_result else "mild"
-        if not detections and hypothesis and abs_severity in ("moderate", "severe"):
-            try:
-                from .models import InsightDetection, Severity
-                abs_detection = InsightDetection(
-                    triggered=True,
-                    severity=Severity(agent_result.get("severity", "mild")) if agent_result else Severity.MILD,
-                    observation_text=agent_result.get("absolute_assessment", hypothesis) if agent_result else hypothesis,
-                    deviations=[],
-                )
-                from .models import InsightRecipe, RecipeCategory
-                abs_recipe = InsightRecipe(
-                    name="absolute_value_assessment",
-                    version="1.0.0",
-                    display_name="绝对值健康评估",
-                    category=RecipeCategory.ANOMALY,
-                    required_categories=[],
-                )
-                await self._save_detection(
-                    user_id, target_date, abs_recipe, abs_detection, profile,
-                    hypothesis=hypothesis,
-                    hypothesis_confidence=hypothesis_confidence,
-                    touch_message=touch_message,
-                    touch_compliant=touch_compliant,
-                )
-                insights_count += 1
-            except Exception as e:
-                logging.error(f"[InsightEngine] Absolute value save failed: {e}")
-
         return insights_count
 
     async def _process_user_layer1_only(self, user_id: str, target_date: date) -> int:
@@ -280,6 +253,11 @@ class InsightEnginePullTask(PullTask):
             user_id, indicator_names, target_date, lookback_days=90
         )
         if not daily_values:
+            return 0
+
+        # Freshness check — skip if latest data is >7 days before target_date
+        latest_data_date = max(d for vals in daily_values.values() for d, _ in vals)
+        if (target_date - latest_data_date).days > 7:
             return 0
 
         profile = self.engine.compute(user_id, target_date, user_indicators, daily_values)

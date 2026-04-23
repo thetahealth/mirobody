@@ -24,6 +24,23 @@ class InsightDatabaseService:
     # User & Data Queries
     # =========================================================================
 
+    async def get_active_user_ids(self, recent_days: int = 7) -> List[str]:
+        """Get user IDs that have recent data (within recent_days).
+
+        Returns:
+            List of user_id strings with fresh wearable data
+        """
+        sql = """
+            SELECT DISTINCT user_id::text as user_id
+            FROM th_series_data
+            WHERE deleted = 0
+              AND indicator NOT LIKE 'event.%%'
+              AND start_time >= NOW() - CAST(:days AS integer) * INTERVAL '1 day'
+            ORDER BY user_id
+        """
+        rows = await execute_query(sql, {"days": recent_days}, query_type="select")
+        return [r["user_id"] for r in rows]
+
     async def get_demo_user_ids(self) -> List[str]:
         """Get all demo user IDs.
 
@@ -204,16 +221,16 @@ class InsightDatabaseService:
 
     async def get_user_insights(
         self,
-        user_id: str,
+        user_id: Optional[str] = None,
         limit: int = 20,
         offset: int = 0,
         severity: Optional[str] = None,
         recipe_name: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
-        """Get insights for a user with pagination.
+        """Get insights with pagination, optionally filtered by user.
 
         Args:
-            user_id: User ID
+            user_id: User ID (optional, all users if None)
             limit: Max results per page
             offset: Pagination offset
             severity: Optional filter by severity
@@ -222,8 +239,12 @@ class InsightDatabaseService:
         Returns:
             Tuple of (insight list, total count)
         """
-        conditions = ["user_id = :user_id"]
-        params: Dict[str, Any] = {"user_id": user_id, "limit": limit, "offset": offset}
+        conditions: List[str] = []
+        params: Dict[str, Any] = {"limit": limit, "offset": offset}
+
+        if user_id:
+            conditions.append("user_id = :user_id")
+            params["user_id"] = user_id
 
         if severity:
             conditions.append("severity = :severity")
@@ -232,7 +253,7 @@ class InsightDatabaseService:
             conditions.append("recipe_name = :recipe_name")
             params["recipe_name"] = recipe_name
 
-        where = " AND ".join(conditions)
+        where = (" AND ".join(conditions)) if conditions else "1=1"
 
         count_sql = f"SELECT COUNT(*) as cnt FROM user_behavior_insight WHERE {where}"
         count_rows = await execute_query(count_sql, params, query_type="select")

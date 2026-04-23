@@ -14,206 +14,229 @@ from typing import Dict, List, Optional, Set
 
 # Category -> list of possible actual indicator names, ordered by preference.
 # First match wins.
+# Priority order:
+#   1. SQLAggregator output (dailyAvg*, dailyTotal*, dailyLast* — active, supports .source suffix)
+#   2. Demo/synthetic names (RestingHeartRate-RHR, etc.)
+#   3. Raw indicator names (heartRates, steps — may need aggregation)
+#   4. Holywell stage2 (daily_stats_* — DEPRECATED, no longer producing new data)
+#
+# Suffix matching: resolve_indicator() supports prefix match, so
+# "dailyAvgHeartRates" will match "dailyAvgHeartRates.apple_health" in user data.
+
 INDICATOR_ALIASES: Dict[str, List[str]] = {
     # =========================================================================
     # Heart Rate
     # =========================================================================
     "heartRate": [
-        # demo users
-        "RestingHeartRate-RHR",
-        "DailyAverageHeartRate",
-        # real users (holywell stage2)
-        "daily_stats_restingHeartRatesAvg",
-        "daily_stats_heartRatesAvg",
-        # real users (SQLAggregator)
-        "dailyAvgRestingHeartRates",
-        "dailyAvgHeartRates",
-        # raw
-        "restingHeartRates",
-        "heartRates",
+        "dailyAvgRestingHeartRates",       # SQLAggregator
+        "dailyAvgHeartRates",              # SQLAggregator
+        "RestingHeartRate-RHR",            # demo/synthetic
+        "DailyAverageHeartRate",           # demo/synthetic
+        "restingHeartRates",               # raw
+        "heartRates",                      # raw
+        "daily_stats_restingHeartRatesAvg", # holywell (deprecated)
+        "daily_stats_heartRatesAvg",       # holywell (deprecated)
     ],
     "heartRateExercise": [
-        "AverageHeartRateDuringExercise",
-        "MaxHeartRateDuringExercise",
-        "daily_stats_walkingHeartRatesAvg",
-        "dailyAvgWalkingHeartRates",
-        "walkingHeartRates",
+        "dailyAvgWalkingHeartRates",       # SQLAggregator
+        "AverageHeartRateDuringExercise",   # demo
+        "MaxHeartRateDuringExercise",       # demo
+        "walkingHeartRates",               # raw
+        "daily_stats_walkingHeartRatesAvg", # holywell (deprecated)
     ],
 
     # =========================================================================
     # Sleep
     # =========================================================================
     "sleepDeep": [
-        "DeepSleepPercentage",
-        "DeepSleepDuration",
-        "daily_stats_sleepAnalysis_Asleep(Deep)Sum",
-        "dailyTotalSleepAnalysis_Asleep(Deep)",
-        "sleepAnalysis_Asleep(Deep)",
+        "dailyTotalSleepAnalysis_Asleep(Deep)",  # SQLAggregator (prefix matches .apple_health etc.)
+        "DeepSleepPercentage",                    # demo
+        "DeepSleepDuration",                      # demo
+        "sleepAnalysis_Asleep(Deep)",              # raw
+        "daily_stats_sleepAnalysis_Asleep(Deep)Sum", # holywell (deprecated)
     ],
     "sleepTotal": [
-        "DailySleepDuration",
-        "daily_stats_sleepAnalysis_Asleep(Total)Sum",
-        "dailyTotalSleepAnalysis_Asleep(Total)",
-        "sleepAnalysis_Asleep(Total)",
-        "sleepAnalysis_InBed",
+        "dailyTotalSleepAnalysis_Asleep(Total)",  # SQLAggregator
+        "dailyTotalSleepAnalysis_InBed",           # SQLAggregator
+        "DailySleepDuration",                      # demo
+        "sleepAnalysis_Asleep(Total)",              # raw
+        "sleepAnalysis_InBed",                     # raw
+        "daily_stats_sleepAnalysis_Asleep(Total)Sum", # holywell (deprecated)
     ],
     "sleepLight": [
-        "LightSleepPercentage",
-        "LightSleepDuration",
-        "daily_stats_sleepAnalysis_Asleep(Core)Sum",
-        "sleepAnalysis_Asleep(Core)",
+        "dailyTotalSleepAnalysis_Asleep(Core)",   # SQLAggregator
+        "LightSleepPercentage",                    # demo
+        "LightSleepDuration",                      # demo
+        "sleepAnalysis_Asleep(Core)",               # raw
+        "daily_stats_sleepAnalysis_Asleep(Core)Sum", # holywell (deprecated)
     ],
     "sleepRem": [
-        "REMSleepPercentage",
-        "REMSleepDuration",
-        "daily_stats_sleepAnalysis_Asleep(REM)Sum",
-        "sleepAnalysis_Asleep(REM)",
+        "dailyTotalSleepAnalysis_Asleep(REM)",    # SQLAggregator
+        "REMSleepPercentage",                      # demo
+        "REMSleepDuration",                        # demo
+        "sleepAnalysis_Asleep(REM)",                # raw
+        "daily_stats_sleepAnalysis_Asleep(REM)Sum", # holywell (deprecated)
+    ],
+    "sleepAwake": [
+        "dailyTotalSleepAnalysis_Awake",           # SQLAggregator
+        "sleepAnalysis_Awake",                     # raw
     ],
     "sleepEfficiency": [
-        "SleepEfficiency",
-        "derivedSleepEfficiency",
+        "dailyAvgSleepEfficiency",                 # SQLAggregator
+        "SleepEfficiency",                         # demo
+        "derivedSleepEfficiency",                  # derived
     ],
 
     # =========================================================================
     # Steps & Activity
     # =========================================================================
     "steps": [
-        "DailyStepCount",
-        "daily_stats_stepsSum",
-        "dailyTotalSteps",
-        "steps",
+        "dailyTotalSteps",                         # SQLAggregator
+        "DailyStepCount",                          # demo
+        "steps",                                   # raw
+        "daily_stats_stepsSum",                    # holywell (deprecated)
     ],
     "exerciseDuration": [
-        "DailyExerciseDuration",
-        "daily_stats_exerciseMinutesSum",
-        "dailyTotalExerciseMinutes",
-        "exerciseMinutes",
+        "dailyTotalExerciseMinutes",               # SQLAggregator
+        "DailyExerciseDuration",                   # demo
+        "exerciseMinutes",                         # raw
+        "daily_stats_exerciseMinutesSum",           # holywell (deprecated)
     ],
     "activeCalories": [
-        "ActiveCalories",
-        "ActivityEnergyExpenditure-AEE",
-        "activeCalories",
+        "ActiveCalories",                          # demo
+        "ActivityEnergyExpenditure-AEE",            # demo
+        "activeCalories",                          # raw
     ],
     "distance": [
-        "DailyDistance",
-        "daily_stats_walkingRunningDistancesSum",
-        "dailyTotalWalkingRunningDistances",
+        "dailyTotalWalkingRunningDistances",        # SQLAggregator
+        "DailyDistance",                            # demo
+        "daily_stats_walkingRunningDistancesSum",   # holywell (deprecated)
     ],
 
     # =========================================================================
     # HRV
     # =========================================================================
     "hrv": [
-        "HeartRateVariability-HRV",
-        "HRV-RMSSD",
-        "daily_stats_hrvDatasAvg",
-        "dailyAvgHrvDatas",
-        "hrvRMSSD",
-        "hrvDatas",
+        "dailyAvgHrvDatas",                        # SQLAggregator
+        "HeartRateVariability-HRV",                 # demo
+        "HRV-RMSSD",                               # demo
+        "hrvRMSSD",                                # raw
+        "hrvDatas",                                # raw
+        "daily_stats_hrvDatasAvg",                 # holywell (deprecated)
     ],
 
     # =========================================================================
     # Blood Glucose
     # =========================================================================
     "bloodGlucose": [
-        "FastingBloodGlucose-FBG",
-        "bloodGlucoses",
-        "dailyAvgBloodGlucoses",
+        "dailyAvgBloodGlucoses",                   # SQLAggregator
+        "FastingBloodGlucose-FBG",                  # demo
+        "bloodGlucoses",                           # raw
+        "daily_stats_bloodGlucosesAvg",            # holywell (deprecated)
     ],
     "hba1c": [
-        "EstimatedHbA1c-eA1C",
+        "EstimatedHbA1c-eA1C",                     # demo
     ],
     "glucoseTAR": [
-        "GlucoseAboveRange-TAR",
-        "dailyTarBloodGlucoses",
+        "dailyTir70180BloodGlucoses",              # SQLAggregator (TIR 70-180)
+        "GlucoseAboveRange-TAR",                    # demo
     ],
     "glucoseTBR": [
-        "GlucoseBelowRange-TBR",
-        "dailyTbrBloodGlucoses",
+        "dailyPctBelow70BloodGlucoses",            # SQLAggregator
+        "GlucoseBelowRange-TBR",                    # demo
     ],
 
     # =========================================================================
     # Blood Pressure
     # =========================================================================
     "bpSystolic": [
-        "24-HourAverageSystolicBP",
-        "DaytimeAverageSystolicBP",
-        "daily_stats_bloodPressureSystolicsAvg",
-        "bloodPressureSystolics",
-        "systolicPressures",
+        "dailyAvgSystolicPressures",               # SQLAggregator
+        "dailyMaxSystolicPressures",               # SQLAggregator
+        "24-HourAverageSystolicBP",                 # demo
+        "DaytimeAverageSystolicBP",                 # demo
+        "systolicPressures",                       # raw
+        "bloodPressureSystolics",                  # raw
+        "daily_stats_systolicPressuresAvg",        # holywell (deprecated)
+        "daily_stats_bloodPressureSystolicsAvg",   # holywell (deprecated, old naming)
     ],
     "bpDiastolic": [
-        "24-HourAverageDiastolicBP",
-        "DaytimeAverageDiastolicBP",
-        "daily_stats_bloodPressureDiastolicsAvg",
-        "bloodPressureDiastolics",
-        "diastolicPressures",
+        "dailyAvgDiastolicPressures",              # SQLAggregator
+        "dailyMaxDiastolicPressures",              # SQLAggregator
+        "24-HourAverageDiastolicBP",                # demo
+        "DaytimeAverageDiastolicBP",                # demo
+        "diastolicPressures",                      # raw
+        "bloodPressureDiastolics",                 # raw
+        "daily_stats_diastolicPressuresAvg",       # holywell (deprecated)
+        "daily_stats_bloodPressureDiastolicsAvg",  # holywell (deprecated, old naming)
     ],
 
     # =========================================================================
     # Stress & Recovery
     # =========================================================================
     "stress": [
-        "DailyStressScore",
-        "stressLevel",
+        "DailyStressScore",                        # demo
+        "stressLevel",                             # raw
     ],
     "bodyBattery": [
-        "BodyBattery",
+        "BodyBattery",                             # demo
     ],
 
     # =========================================================================
     # SpO2 & Respiratory
     # =========================================================================
     "spo2": [
-        "DailyMinSpO2",
-        "daily_stats_oxygenSaturationsAvg",
-        "dailyAvgOxygenSaturations",
-        "oxygenSaturations",
+        "dailyAvgOxygenSaturations",               # SQLAggregator
+        "dailyMinOxygenSaturations",               # SQLAggregator
+        "DailyMinSpO2",                             # demo
+        "oxygenSaturations",                       # raw
+        "daily_stats_oxygenSaturationsAvg",        # holywell (deprecated)
     ],
     "respiratoryRate": [
-        "AverageRespiratoryRate",
-        "daily_stats_respiratoryRatesAvg",
-        "dailyAvgRespiratoryRates",
-        "respiratoryRates",
+        "dailyAvgRespiratoryRates",                # SQLAggregator
+        "AverageRespiratoryRate",                    # demo
+        "respiratoryRates",                        # raw
+        "daily_stats_respiratoryRatesAvg",         # holywell (deprecated)
     ],
 
     # =========================================================================
     # Body Composition
     # =========================================================================
     "weight": [
-        "BodyWeight",
-        "bodyMasss",
-        "weight",
+        "dailyLastBodyMasss",                      # SQLAggregator
+        "BodyWeight",                              # demo
+        "bodyMasss",                               # raw
+        "weight",                                  # raw
+        "daily_stats_bodyMasssLast",               # holywell (deprecated)
     ],
     "bmi": [
-        "BodyMassIndex-BMI",
-        "dailyLastBmis",
+        "dailyLastBmis",                           # SQLAggregator
+        "BodyMassIndex-BMI",                        # demo
     ],
     "bodyFat": [
-        "BodyFatPercentage-BFP",
-        "bodyFatPercentages",
+        "BodyFatPercentage-BFP",                    # demo
+        "bodyFatPercentages",                      # raw
     ],
     "visceralFat": [
-        "VisceralFatLevel-VFL",
-        "visceralFat",
+        "VisceralFatLevel-VFL",                     # demo
+        "visceralFat",                             # raw
     ],
 
     # =========================================================================
     # Cardiorespiratory Fitness
     # =========================================================================
     "crf": [
-        "CardiorespiratoryFitness-CRF",
-        "vo2Maxs",
+        "vo2Maxs",                                 # raw
+        "CardiorespiratoryFitness-CRF",             # demo
     ],
 
     # =========================================================================
     # Temperature
     # =========================================================================
     "temperature": [
-        "BasalBodyTemperature-BBT",
-        "bodyTemperatures",
-        "wristTemperatures",
-        "temperatureDelta",
+        "BasalBodyTemperature-BBT",                 # demo
+        "bodyTemperatures",                        # raw
+        "wristTemperatures",                       # raw
+        "temperatureDelta",                        # raw
     ],
 }
 
@@ -227,17 +250,26 @@ for _cat, _names in INDICATOR_ALIASES.items():
 def resolve_indicator(category: str, user_indicators: Set[str]) -> Optional[str]:
     """Find the actual indicator name for a category from the user's available indicators.
 
+    Supports both exact match and prefix match for source-suffixed indicators.
+    e.g. alias "dailyTotalSteps" matches "dailyTotalSteps.apple_health" in user data.
+    Exact match is preferred over prefix match.
+
     Args:
         category: Abstract category key, e.g. "heartRate"
         user_indicators: Set of actual indicator names the user has in th_series_data
 
     Returns:
-        First matching indicator name, or None if no match
+        First matching indicator name (exact or suffixed), or None if no match
     """
     aliases = INDICATOR_ALIASES.get(category, [])
     for alias in aliases:
+        # Exact match first
         if alias in user_indicators:
             return alias
+        # Prefix match: alias.{source} (e.g. dailyTotalSteps.apple_health)
+        for ui in user_indicators:
+            if ui.startswith(alias + "."):
+                return ui
     return None
 
 

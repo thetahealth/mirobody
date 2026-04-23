@@ -109,7 +109,7 @@ class HealthIndicatorService:
             ehr_query = """
             SELECT
                 efr.th_data_id,
-                tm.content
+                decrypt_content(tm.content) AS content
             FROM ehr_file_records efr
             INNER JOIN th_messages tm ON efr.message_id = tm.id
             WHERE efr.th_data_id = ANY(:data_ids)

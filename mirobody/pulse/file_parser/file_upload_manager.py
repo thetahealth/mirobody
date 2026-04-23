@@ -268,7 +268,7 @@ class WebSocketFileUploadManager:
                     await self.send_message(
                         connection_id,
                         {
-                            "type": "upload_start",
+                            "type": "upload_start_confirmed",
                             "messageId": message_id,
                             "sessionId": session_id,
                             "status": existing_session.get("status", "uploading"),
@@ -307,7 +307,7 @@ class WebSocketFileUploadManager:
             await self.send_message(
                 connection_id,
                 {
-                    "type": "upload_start",
+                    "type": "upload_start_confirmed",
                     "messageId": message_id,
                     "sessionId": session_id,
                     "status": "uploading",

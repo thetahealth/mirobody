@@ -77,6 +77,12 @@ def _qwen():
 
 # ── Public API ───────────────────────────────────────────────────────
 
+# Snapshot of provider names registered above. Callers that need to validate
+# untrusted provider inputs (e.g. before interpolating into a SQL column name)
+# should check against this instead of hardcoding their own allowlist.
+EMBEDDING_PROVIDERS: frozenset[str] = frozenset(_EMB_PROVIDERS)
+
+
 async def text_embedding(
     texts: list[str],
     provider: Literal["gemini", "qwen"] | None = None,

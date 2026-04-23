@@ -6,6 +6,7 @@
 
 [![Demos](https://img.shields.io/badge/Live%20Demos-mirobody.ai-blue)](https://mirobody.ai)
 [![Theta Wellness](https://img.shields.io/badge/Theta%20Wellness-thetahealth.ai-green)](https://www.thetahealth.ai/)
+[![PyPI Downloads](https://img.shields.io/pepy/dt/mirobody?label=PyPI%20Downloads&color=orange)](https://pepy.tech/projects/mirobody)
 
 *Self-hosted data platform that bridges your personal data with the latest AI capabilities*
 
@@ -115,7 +116,7 @@ A lightweight agent for direct LLM conversations without tool access. Ideal for:
 | **LLM Clients** | `mirobody/utils/llm/` | Multi-provider adapter (OpenAI, Gemini, Azure OpenAI, Volcengine, Dashscope), HIPAA-compliant routing |
 | **MCP Server** | `mirobody/mcp/` | JSON-RPC 2.0 tool/resource server, local + HTTP remote access |
 | **Tools** | `mirobody/pub/tools/` | Built-in tools: file ops, charts, code execution ([E2B](https://e2b.dev) sandbox), memory |
-| **Embeddings** | `mirobody/utils/utils_embedding.py` | text-embedding-3-small via OpenAI/Azure, pgvector semantic search |
+| **Embeddings** | `mirobody/utils/embedding.py` | Provider-agnostic 1024-dim embeddings (Gemini / Qwen), pgvector semantic search |
 | **Prompt Templates** | `prompts/` | Jinja2 system prompts with dynamic context injection (user timezone, tools, health profile) |
 | **Skills** | `skills/` | Claude Agent Skills (SKILL.md + metadata.json), auto-discovery |
 
