@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/thetahealth-mirobody-badge.png)](https://mseep.ai/app/thetahealth-mirobody)
+
 <div align="center">
 
 # 🚀 Mirobody
