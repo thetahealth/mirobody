@@ -83,16 +83,17 @@ class SQLAggregator:
             'count': 'count',
         }
 
-    async def get_trigger_tasks(self, since_timestamp: int) -> List[CalculationTask]:
+    async def get_trigger_tasks(self, since_timestamp: float) -> List[CalculationTask]:
         """
         Get trigger tasks based on time range
-        
+
         Uses UNION to separate sleep data and normal data processing.
         Returns CalculationTask objects with data_begin (starting time point).
-        
+
         Args:
-            since_timestamp: Unix timestamp (seconds) to fetch updates after
-            
+            since_timestamp: Unix timestamp (float seconds, sub-second
+                precision retained) to fetch updates after
+
         Returns:
             List of CalculationTask objects
         """
@@ -230,72 +231,65 @@ class SQLAggregator:
             self,
             start_date: datetime,
             end_date: datetime,
-            user_id: str
+            user_id: Optional[str]
     ) -> List[Dict[str, Any]]:
         """
-        Calculate aggregations for a single user over a time range
-        
-        This method handles historical data processing for a single user:
-        1. If time range > 30 days, split by 30-day chunks and recurse
-        2. If time range <= 30 days, execute direct aggregation for the entire range
-        
-        Args:
-            start_date: Start date for aggregation
-            end_date: End date for aggregation
-            user_id: Single user ID to process
-            
-        Returns:
-            List of summary record dicts ready for database insertion
+        Calculate aggregations over a time range.
+
+        When user_id is provided, processes that single user.
+        When user_id is None, processes all users whose series_data falls in the range.
+
+        Splits ranges > 30 days into chunks and recurses.
         """
-        # Calculate the number of days in the range
         days_diff = (end_date - start_date).days + 1
-        
+
         if days_diff > self.MAX_DAYS_PER_MONTH:
-            # Split into 30-day chunks and recurse
             return await self._process_30_day_chunks(start_date, end_date, user_id)
         else:
-            # Process the entire range directly
             return await self._process_single_user_range(start_date, end_date, user_id)
 
     async def _process_30_day_chunks(
             self,
             start_date: datetime,
             end_date: datetime,
-            user_id: str
+            user_id: Optional[str]
     ) -> List[Dict[str, Any]]:
         """Process time range by splitting into 30-day chunks"""
-        
+
         all_summaries = []
         current_start = start_date
-        
+        user_label = user_id or "all users"
+
         while current_start <= end_date:
             # Calculate chunk end (30 days later or end_date, whichever is earlier)
             chunk_end = min(current_start + timedelta(days=self.MAX_DAYS_PER_MONTH - 1), end_date)
-            
-            logging.info(f"Processing 30-day chunk: {current_start.strftime('%Y-%m-%d')} to {chunk_end.strftime('%Y-%m-%d')} for user {user_id}")
-            
+
+            logging.info(f"Processing 30-day chunk: {current_start.strftime('%Y-%m-%d')} to {chunk_end.strftime('%Y-%m-%d')} for {user_label}")
+
             # Recursively call calculate_time_range_aggregations for this chunk
             chunk_summaries = await self.calculate_time_range_aggregations(current_start, chunk_end, user_id)
             all_summaries.extend(chunk_summaries)
-            
+
             # Move to next chunk
             current_start = chunk_end + timedelta(days=1)
-        
+
         return all_summaries
 
     async def _process_single_user_range(
             self,
             start_date: datetime,
             end_date: datetime,
-            user_id: str
+            user_id: Optional[str]
     ) -> List[Dict[str, Any]]:
-        """Process a single user's data over a time range (≤30 days)"""
-        
-        # Get all tasks for this user and date range
+        """Process data over a time range (≤30 days).
+
+        user_id=None means all users; otherwise a single user.
+        """
+
         tasks = await self._get_tasks_for_user_date_range(start_date, end_date, user_id)
-        
+
         if not tasks:
-            logging.debug(f"No tasks found for user {user_id} from {start_date} to {end_date}")
+            logging.debug(f"No tasks found for {user_id or 'all users'} from {start_date} to {end_date}")
             return []
         
         # Use calculate_batch_aggregations to handle the tasks
@@ -306,18 +300,21 @@ class SQLAggregator:
             self,
             start_date: datetime,
             end_date: datetime,
-            user_id: str
+            user_id: Optional[str]
     ) -> List[CalculationTask]:
-        """Get tasks for a specific user and date range"""
-        
+        """Get tasks for a date range.
+
+        user_id=None means all users; otherwise filter to that user.
+        """
+
         try:
-            # Build query to get all data for the user in the date range
-            # Use UNION to separate sleep data and normal data
-            # Convert to UTC for efficient index usage
+            # Build query to get all data in the date range.
+            # user_id filter is only applied when user_id is not None.
+            # Use UNION to separate sleep data and normal data.
             # Note: time field is stored as UTC timestamp, we explicitly specify 'UTC' first
             query = """
             -- Sleep data query: data_begin_utc is 18:00 in user's local time, converted to UTC (naive)
-            SELECT 
+            SELECT
                 user_id,
                 indicator,
                 timezone,
@@ -325,7 +322,7 @@ class SQLAggregator:
                 MIN(update_time) as min_update_time,
                 MAX(update_time) as max_update_time
             FROM series_data
-            WHERE user_id = :user_id
+            WHERE (:user_id IS NULL OR user_id = :user_id)
               AND time >= :start_date
               AND time <= :end_date
               AND LOWER(indicator) LIKE '%sleep%'
@@ -343,25 +340,25 @@ class SQLAggregator:
                 MIN(update_time) as min_update_time,
                 MAX(update_time) as max_update_time
             FROM series_data
-            WHERE user_id = :user_id
+            WHERE (:user_id IS NULL OR user_id = :user_id)
               AND time >= :start_date
               AND time <= :end_date
               AND LOWER(indicator) NOT LIKE '%sleep%'
               AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
             GROUP BY user_id, indicator, timezone, data_begin_utc
-            
+
             ORDER BY min_update_time ASC
             """
-            
+
             params = {
                 "user_id": user_id,
                 "start_date": start_date,
                 "end_date": end_date,
             }
-            
+
             result = await execute_query(query, params)
-            
-            logging.info(f"Fetched {len(result)} grouped series_data records for user {user_id} from {start_date.date()} to {end_date.date()}")
+
+            logging.info(f"Fetched {len(result)} grouped series_data records for {user_id or 'all users'} from {start_date.date()} to {end_date.date()}")
             
             # Convert to CalculationTask objects
             tasks = []

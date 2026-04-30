@@ -188,7 +188,7 @@ class GeneticDataLoader:
         try:
             await execute_query(
                 query=insert_sql,
-                fieldList=batch,
+                params=batch,
             )
             return True
         except Exception as e:

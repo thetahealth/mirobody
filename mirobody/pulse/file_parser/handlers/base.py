@@ -194,8 +194,6 @@ class BaseFileHandler(abc.ABC):
                 rows = await execute_query(
                     "SELECT decrypt_content(original_text) as original_text FROM th_file_contents WHERE content_hash = :hash LIMIT 1",
                     params={"hash": content_hash},
-                    query_type="select",
-                    mode="async",
                 )
                 
                 if rows and len(rows) > 0 and rows[0].get("original_text"):
@@ -235,8 +233,6 @@ class BaseFileHandler(abc.ABC):
                             "length": len(original_text),
                             "file_type": file_type,
                         },
-                        query_type="insert",
-                        mode="async",
                     )
                     logging.info(
                         f"[BaseFileHandler] Extracted and saved original text: "
@@ -559,8 +555,6 @@ Return JSON format: {"file_name": "...", "file_abstract": "..."}"""
                     "text_length": text_length,
                     "content_hash": content_hash,
                 },
-                query_type="update",
-                mode="async",
             )
 
         except Exception as e:
@@ -602,8 +596,6 @@ Return JSON format: {"file_name": "...", "file_abstract": "..."}"""
                     "raw": formatted_raw,
                     "indicators_count": indicators_count,
                 },
-                query_type="update",
-                mode="async",
             )
 
             logging.info(f"✅ Updated th_files indicators: {file_key}")

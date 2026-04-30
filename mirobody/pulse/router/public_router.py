@@ -1240,7 +1240,7 @@ async def submit_insight_feedback(
             "id": insight_id,
             "user_id": current_user,
             "feedback": feedback,
-        }, query_type="dml")
+        })
 
         return StandardResponse(data={"insight_id": insight_id, "feedback_type": feedback_type})
     except Exception as e:

@@ -135,14 +135,12 @@ class ThetaUserService:
         result = await execute_query(
             query=create_query,
             params=create_params,
-            query_type="insert"
         )
 
         if result:
-            # result is a dictionary, directly get ID
-            if "id" in result:
-                raw_id = result["id"]
-                user_id = str(raw_id)
+            row = result[0]
+            if "id" in row:
+                user_id = str(row["id"])
                 logging.info(f"Successfully created user: {email}, user_id: {user_id}")
 
                 return user_id

@@ -118,7 +118,7 @@ async def get_query_user_id(
         and status = 'authorized'
         """
         params = {"query_user_id": query_user_id, "user_id": user_id}
-        result = await execute_query(query, params, query_type="select")
+        result = await execute_query(query, params)
         if result:
             db_permissions = result[0].get("permission", {})
 
@@ -181,7 +181,7 @@ async def get_user_language(user_id: str) -> str:
         sql = """SELECT lang FROM health_app_user WHERE id = :user_id"""
 
         result = await execute_query(
-            sql, params={"user_id": user_id_int}, query_type="select", mode="async"
+            sql, params={"user_id": user_id_int}
         )
 
         if result and result[0].get("lang"):

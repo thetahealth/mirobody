@@ -205,7 +205,7 @@ class LLMConfig:
 
     def _build_gemini(self, *, sync: bool) -> GenaiClient | AsyncGenaiClient:
         from google import genai
-        client = genai.Client(api_key=self.api_key)
+        client = genai.Client(api_key=self.api_key, vertexai=False)
         return client if sync else client.aio
 
     def _build_vertex_ai(self, *, sync: bool) -> GenaiClient | AsyncGenaiClient:

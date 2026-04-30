@@ -23,13 +23,17 @@ from .recipes import register_all_recipes
 class InsightEnginePullTask(PullTask):
     """Runs insight detection for demo users."""
 
+    # Self-healing scheduler tuning (TH-330)
+    LOOKBACK_CAP_DAYS = 7        # max days to backfill on long outage
+    STATS_TTL_SECONDS = 30 * 86400  # keep last_target_date for 30 days
+
     def __init__(self):
         super().__init__(
             provider_slug="insight_engine",
             schedule_type=ScheduleType.INTERVAL,
-            interval_minutes=1440,       # every 24 hours
-            execution_interval_hours=24.0,
-            lock_duration_hours=4.0,
+            interval_minutes=360,         # check every 6 hours
+            execution_interval_hours=6.0,
+            lock_duration_hours=2.0,
         )
         self.db = InsightDatabaseService()
         self.engine = BaselineEngine()
@@ -56,20 +60,61 @@ class InsightEnginePullTask(PullTask):
             end_date_str: End date for simulation range (YYYY-MM-DD). If provided,
                           slides day by day from target_date_str to end_date_str.
             skip_llm: If True, only run Layer 1 (no LLM calls). Faster for simulation.
+
+        Scheduled path (no explicit target_date_str):
+            - Reads last_target_date from task_stats.
+            - Skips when yesterday was already processed (today_done).
+            - Otherwise backfills [last_target+1, yesterday], capped at
+              LOOKBACK_CAP_DAYS days.
+
+        Explicit path (target_date_str provided, e.g. /pulse/insight/run):
+            - Bypasses gating logic entirely.
+            - Honors target_date_str / end_date_str as given.
+            - Does NOT update last_target_date (avoid mixing manual back-fills
+              with the scheduler's pointer).
         """
         self._ensure_recipes()
 
+        # Distinguish scheduled vs explicit invocation
+        explicit_call = target_date_str is not None
+
         try:
             # Parse dates
-            if target_date_str:
+            if explicit_call:
                 start_date = date.fromisoformat(target_date_str)
+                end_date = (
+                    date.fromisoformat(end_date_str) if end_date_str else start_date
+                )
             else:
-                start_date = date.today() - timedelta(days=1)
+                # Scheduled path: gating + pointer.
+                # 6h interval gives 4 chances per day to recover from a missed
+                # run; the today_done check makes all but the first a no-op.
+                now_beijing = datetime.utcnow() + timedelta(hours=8)
+                yesterday = now_beijing.date() - timedelta(days=1)
 
-            if end_date_str:
-                end_date = date.fromisoformat(end_date_str)
-            else:
-                end_date = start_date  # single day
+                last_stats = await self.get_task_stats() or {}
+                last_target_str = last_stats.get("last_target_date")
+                last_target = (
+                    date.fromisoformat(last_target_str) if last_target_str else None
+                )
+
+                # Skip if yesterday already processed
+                if last_target == yesterday:
+                    logging.info(
+                        f"[InsightEngine] Skip: last_target={last_target} "
+                        f"already covers yesterday"
+                    )
+                    return True
+
+                # Compute backfill range
+                if last_target and last_target < yesterday:
+                    start_date = max(
+                        last_target + timedelta(days=1),
+                        yesterday - timedelta(days=self.LOOKBACK_CAP_DAYS),
+                    )
+                else:
+                    start_date = yesterday
+                end_date = yesterday
 
             # Get users
             if user_id:
@@ -118,7 +163,12 @@ class InsightEnginePullTask(PullTask):
                 "total_insights": total_insights,
                 "skip_llm": skip_llm,
             }
-            await self.save_task_stats(stats)
+            # Only the scheduled path advances the pointer. Explicit calls
+            # (manual /pulse/insight/run with target_date) shouldn't shift the
+            # scheduler's notion of "where we are".
+            if not explicit_call:
+                stats["last_target_date"] = str(end_date)
+            await self.save_task_stats(stats, ttl=self.STATS_TTL_SECONDS)
             return True
 
         except Exception as e:

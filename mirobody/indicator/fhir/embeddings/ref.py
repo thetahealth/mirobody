@@ -1,35 +1,49 @@
-"""Bootstrap fhir_code_index + fhir_embeddings from ~/ref source files.
+"""Bootstrap the offline bundle from ~/ref source files (no DB needed).
 
-For users with an empty fhir_indicators table (e.g. fresh GitHub clones).
-Enumerates (standard, code, text) triples from SNOMED / LOINC / RxNorm raw
-files, calls Gemini embedding in resumable batches.
+Used when ``fhir_indicators`` is empty / does not exist (fresh GitHub
+clone, fresh deployment). Enumerates ``(system, code, text)`` triples
+from SNOMED / LOINC / RxNorm / DCM raw files, calls Gemini embedding in
+resumable batches, and writes:
 
-Output schema matches the DB path (see embeddings.py), but the data is
-NOT interchangeable:
-  • text source differs (raw English descriptions vs DB's llm_description)
-    → numerically different vectors, slightly different recall
-  • id namespace differs (synthetic row index vs fhir_indicators.id)
-    → a user who picks this path can never mix in DB-derived artifacts
+  fhir_embeddings.npy   structured (N,)
+                        dtype = [('fhir_id','i8'),('emb','f2',(1024,))]
+                        ``fhir_id`` is canonical packed via
+                        :func:`code_to_fhir_id`.
 
-Two phases; Phase 2 is checkpoint-resumable (500k+ API calls, will be
-interrupted at least once in practice):
+  fhir_meta.csv.gz      row-aligned to ``fhir_embeddings.npy``;
+                        cols: ``name`` (filled inline from ~/ref —
+                        :mod:`names` parsers), ``code_str`` (original
+                        string for DCM hash rows; empty otherwise).
+                        No post-step ``code-names`` needed for ref mode.
+
+**No** ``fhir_id_map.npy`` is produced — there is no DB pk to bridge.
+This is the **terminal mode** layout: consumers will use canonical ids
+directly. Upstream **must** populate ``th_series_data.fhir_id`` with
+canonical values (``code_to_fhir_id(system, code)``) for the local
+search path to find anything.
+
+Layout note: ``SYSTEMS`` in :mod:`common` is **append-only** — the
+enum index is bit-packed into every ``canonical`` value. Reordering or
+deleting an entry breaks every previously-written ``fhir_id``.
+
+Two phases; Phase 2 is checkpoint-resumable (500k+ Gemini calls — will
+be interrupted at least once in practice):
 
   Phase 1 (fast, deterministic, no API):
     parse ~/ref → out/fhir_ref_texts.csv
-                + res/fhir_code_index.csv.gz
-                + res/fhir_embedding_ids.npy
+                  cols: canonical, standard, code, text, name
+                  (CSV column "standard" kept for artifact compatibility)
 
   Phase 2 (slow, resumable):
-    out/fhir_ref_texts.csv → out/fhir_embeddings.npy.partial (memmap fp32)
+    out/fhir_ref_texts.csv → out/fhir_embeddings.npy.partial (fp32 memmap)
                            + out/fhir_embeddings.progress.json
-    on completion: finalize → res/fhir_embeddings.npy (fp16, L2-normalised)
+    on completion: finalize → res/fhir_embeddings.npy + res/fhir_meta.csv.gz
 """
 
 from __future__ import annotations
 
 import csv
 import glob
-import gzip
 import hashlib
 import json
 import logging
@@ -42,11 +56,25 @@ from xml.etree import ElementTree as ET
 
 import numpy as np
 
-from .common import EMBEDDING_DIM, STANDARD_TO_CODE
+from ..common import EMBEDDING_DIM, SYSTEMS, SYSTEM_TO_CODE, code_to_fhir_id
+from .local import (
+    EMB_DTYPE,
+    EMB_PATH,
+    META_PATH,
+    RES_DIR,
+    atomic_swap_keep_backup,
+    open_gz_text_write,
+    tmp_path,
+)
+from .names import load_name_sources
 
 log = logging.getLogger(__name__)
 
 _EMBED_BATCH = 256  # rows per Gemini call + checkpoint granularity
+
+# Systems whose codes go through blake2b in code_to_int — original
+# strings must be persisted in fhir_meta.csv.gz for round-trip.
+_HASH_SYSTEMS = frozenset({"DCM", "THETA"})
 
 # SNOMED RF2 description typeIds
 _SNOMED_FSN = "900000000000003001"
@@ -111,7 +139,7 @@ def _iter_loinc(loinc_dir: str) -> Iterator[tuple[str, str]]:
     Empty axes are omitted. Skip prefixes (LP/LA/MTHU/LG) + non-lab CLASS
     filters match the existing pipeline (common.py).
     """
-    from .common import TARGET_SYSTEMS, load_loinc_skip_codes
+    from ..common import TARGET_SYSTEMS, load_loinc_skip_codes
 
     core_csv = os.path.join(loinc_dir, "LoincTable", "LoincTableCore.csv")
     full_csv = os.path.join(loinc_dir, "LoincTable", "Loinc.csv")
@@ -160,7 +188,7 @@ def _iter_rxnorm(rxnorm_dir: str) -> Iterator[tuple[str, str]]:
     plus brand tradenames joined via RXNREL tradename_of (matches the
     existing siblings pipeline).
     """
-    from .common import read_rrf
+    from ..common import read_rrf
 
     try:
         import polars as pl
@@ -208,6 +236,34 @@ def _iter_rxnorm(rxnorm_dir: str) -> Iterator[tuple[str, str]]:
 def _dicom_cell_text(td: ET.Element) -> str:
     """Flatten text inside a DocBook <td>, collapsing whitespace."""
     return re.sub(r"\s+", " ", "".join(td.itertext())).strip()
+
+
+def _iter_dcm_terminology(part16_xml: str) -> Iterator[tuple[str, str]]:
+    """Yield ``(code, canonical_name)`` from DICOM Annex D ``table_D-1``
+    (DICOM Controlled Terminology Definitions).
+
+    Authoritative master list — one canonical name per code, contrast
+    with :func:`_iter_dicom_cid_rows` which yields per-CID context-
+    specific phrasings (the same code can recur across multiple CIDs
+    with slightly different meanings).
+    """
+    tree = ET.parse(part16_xml)
+    q_table = f"{{{_DOCBOOK_NS}}}table"
+    q_tr = f"{{{_DOCBOOK_NS}}}tr"
+    q_td = f"{{{_DOCBOOK_NS}}}td"
+    q_xml_id = f"{{{_XML_NS}}}id"
+
+    for table in tree.getroot().iter(q_table):
+        if table.get(q_xml_id, "") != "table_D-1":
+            continue
+        for tr in table.iter(q_tr):
+            tds = tr.findall(q_td)
+            if len(tds) < 2:
+                continue
+            code = _dicom_cell_text(tds[0])
+            name = _dicom_cell_text(tds[1])
+            if code and name:
+                yield code, name
 
 
 def _iter_dicom_cid_rows(part16_xml: str) -> Iterator[tuple[str, str, str, str]]:
@@ -301,14 +357,20 @@ def _write_dcm_sct_bridge(dicom_dir: str, out_path: str) -> int:
 # ─── Phase 1 ────────────────────────────────────────────────────────
 
 
-def _phase1_enumerate(args: Namespace, out_dir: str, res_dir: str) -> int:
-    """Parse ~/ref, write fhir_ref_texts.csv + Group 1 artifacts.
+def _phase1_enumerate(args: Namespace, out_dir: str) -> int:
+    """Parse ~/ref, write the intermediate texts file.
 
-    Returns the total row count N (same for all three output files).
+    Layout: cols = canonical, standard (enum int — column name kept for
+    artifact compatibility), code, text, name — one row per concept,
+    ordered by source then by code. ``canonical`` is the final fhir_id
+    used in the structured npy; ``name`` is the display string (looked
+    up via :mod:`names` while we have the source files in hand — saves
+    a second parse later). Computing both here means Phase 2 doesn't
+    need to know about :func:`code_to_fhir_id` nor revisit ~/ref.
+
+    Returns N (total rows enumerated).
     """
     texts_path = os.path.join(out_dir, "fhir_ref_texts.csv")
-    code_path = os.path.join(res_dir, "fhir_code_index.csv.gz")
-    ids_path = os.path.join(res_dir, "fhir_embedding_ids.npy")
 
     sources: list[tuple[str, Iterator[tuple[str, str]]]] = []
     if args.snomed_dir and os.path.isdir(args.snomed_dir):
@@ -325,31 +387,33 @@ def _phase1_enumerate(args: Namespace, out_dir: str, res_dir: str) -> int:
             "--rxnorm-dir / --dicom-dir or set MIROBODY_REF_DIR."
         )
 
-    row_idx = 0
-    with open(texts_path, "w", encoding="utf-8", newline="") as ft, \
-         gzip.open(code_path, "wt", encoding="utf-8", newline="") as fc:
+    # Display-name dicts per vocab — keyed by SYSTEMS enum int. DCM
+    # has no curated name source, so its rows get name="" (same as in
+    # the db-mode pipeline). Parsing the source files twice (once here
+    # for embedding text, once in load_name_sources for display) costs
+    # ~30s extra; cheap relative to phase 2.
+    name_sources = load_name_sources(args)
+
+    n = 0
+    with open(texts_path, "w", encoding="utf-8", newline="") as ft:
         wt = csv.writer(ft)
-        wc = csv.writer(fc)
-        wt.writerow(["row_idx", "standard", "code", "text"])
-        wc.writerow(["standard", "code", "id"])
-        for std_name, it in sources:
-            std_code = STANDARD_TO_CODE[std_name]
+        wt.writerow(["canonical", "standard", "code", "text", "name"])
+        for sys_name, it in sources:
+            sys_int = SYSTEM_TO_CODE[sys_name]
+            nd = name_sources.get(sys_int, {})
             cnt = 0
             for code, text in it:
-                wt.writerow([row_idx, std_code, code, text])
-                wc.writerow([std_code, code, row_idx])
-                row_idx += 1
+                canonical = code_to_fhir_id(sys_int, code)
+                wt.writerow([canonical, sys_int, code, text, nd.get(code, "")])
+                n += 1
                 cnt += 1
-            log.info("  %s: %s rows", std_name, f"{cnt:,}")
+            log.info("  %s: %s rows", sys_name, f"{cnt:,}")
 
-    np.save(ids_path, np.arange(row_idx, dtype=np.int64))
     log.info(
-        "Phase 1 done: N=%s → %s (%.1f MB), %s, %s",
-        f"{row_idx:,}",
-        texts_path, os.path.getsize(texts_path) / 1e6,
-        code_path, ids_path,
+        "Phase 1 done: N=%s → %s (%.1f MB)",
+        f"{n:,}", texts_path, os.path.getsize(texts_path) / 1e6,
     )
-    return row_idx
+    return n
 
 
 def _file_md5(path: str) -> str:
@@ -363,14 +427,24 @@ def _file_md5(path: str) -> str:
 # ─── Phase 2 ────────────────────────────────────────────────────────
 
 
-async def _phase2_embed(args: Namespace, out_dir: str, res_dir: str, n_rows: int) -> None:
-    """Resumable Gemini embedding over out/fhir_ref_texts.csv."""
+async def _phase2_embed(
+    args: Namespace, out_dir: str, emb_path: str, meta_path: str, n_rows: int,
+) -> None:
+    """Resumable Gemini embedding over ``out/fhir_ref_texts.csv``.
+
+    Partial state lives in *out_dir*:
+      fhir_embeddings.npy.partial   fp32 memmap (n_rows, EMBEDDING_DIM)
+      fhir_embeddings.progress.json {texts_md5, n_rows, last_completed}
+
+    Canonical fhir_ids and per-row systems are re-derived from the
+    texts CSV at finalize time, so the partial only needs to track the
+    embeddings themselves.
+    """
     from mirobody.utils.embedding import text_embedding
 
     texts_path = os.path.join(out_dir, "fhir_ref_texts.csv")
     partial_path = os.path.join(out_dir, "fhir_embeddings.npy.partial")
     progress_path = os.path.join(out_dir, "fhir_embeddings.progress.json")
-    final_path = os.path.join(res_dir, "fhir_embeddings.npy")
 
     texts_md5 = _file_md5(texts_path)
     resume_from = 0
@@ -387,14 +461,18 @@ async def _phase2_embed(args: Namespace, out_dir: str, res_dir: str, n_rows: int
             resume_from = 0
 
     # Pre-allocate memmap (stays fp32 during embed; cast+normalise at finalize)
-    mm = np.memmap(partial_path, dtype=np.float32, mode="r+" if os.path.isfile(partial_path) else "w+",
-                   shape=(n_rows, EMBEDDING_DIM))
+    mm = np.memmap(
+        partial_path,
+        dtype=np.float32,
+        mode="r+" if os.path.isfile(partial_path) else "w+",
+        shape=(n_rows, EMBEDDING_DIM),
+    )
 
-    # Stream texts, skipping already-done prefix
+    # Stream texts, skipping already-done prefix.
     buf_idx: list[int] = []
     buf_text: list[str] = []
 
-    async def flush():
+    async def flush() -> None:
         if not buf_text:
             return
         embs = await text_embedding(buf_text, provider="gemini")
@@ -419,32 +497,78 @@ async def _phase2_embed(args: Namespace, out_dir: str, res_dir: str, n_rows: int
         buf_idx.clear()
         buf_text.clear()
 
+    # Phase 2 also walks in row-position order, matching the CSV's
+    # in-file order — finalize relies on this alignment.
     with open(texts_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        for row in reader:
-            idx = int(row["row_idx"])
-            if idx < resume_from:
+        for r, row in enumerate(reader):
+            if r < resume_from:
                 continue
-            buf_idx.append(idx)
+            buf_idx.append(r)
             buf_text.append(row["text"])
             if len(buf_text) >= _EMBED_BATCH:
                 await flush()
     await flush()
 
-    # Finalize: L2-normalise, cast to fp16, write res/fhir_embeddings.npy
-    log.info("finalizing: normalising + casting fp32 → fp16 (%s rows)", f"{n_rows:,}")
-    arr = np.asarray(mm[:])  # read whole thing (≈2 GB fp32; OK in RAM)
-    norms = np.linalg.norm(arr, axis=1, keepdims=True)
+    # Finalize: combine partial fp32 embs with canonicals from texts CSV,
+    # write structured npy + meta.csv.gz. Read texts once more to recover
+    # canonical/system/code per row (cheaper than another disk schema).
+    # Note: the CSV column header is "standard" (artifact compatibility).
+    log.info(
+        "finalising: L2-normalise + cast fp32→fp16 + structured-merge (%s rows)",
+        f"{n_rows:,}",
+    )
+    arr_f32 = np.asarray(mm[:])
+    norms = np.linalg.norm(arr_f32, axis=1, keepdims=True)
     norms[norms == 0] = 1.0
-    arr /= norms
-    np.save(final_path, arr.astype(np.float16))
+    arr_f32 /= norms
+
+    canonicals = np.empty(n_rows, dtype=np.int64)
+    names: list[str] = [""] * n_rows
+    hash_codes: dict[int, str] = {}
+    with open(texts_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for r, row in enumerate(reader):
+            if r >= n_rows:
+                raise RuntimeError(
+                    f"texts file has more rows ({r + 1}) than expected N={n_rows}"
+                )
+            canonicals[r] = int(row["canonical"])
+            names[r] = row.get("name", "")
+            sys_name = SYSTEMS[int(row["standard"])]
+            if sys_name in _HASH_SYSTEMS:
+                hash_codes[r] = row["code"]
+    if r + 1 != n_rows:
+        raise RuntimeError(
+            f"texts file has {r + 1} rows, expected N={n_rows}"
+        )
+
+    # Backup-before-swap: rebuilding this file costs hundreds of
+    # thousands of Gemini calls, so we keep the previous version as .bak.
+    emb_tmp = tmp_path(emb_path)
+    out = np.lib.format.open_memmap(
+        emb_tmp, mode="w+", dtype=EMB_DTYPE, shape=(n_rows,))
+    out["fhir_id"] = canonicals
+    out["emb"] = arr_f32.astype(np.float16)
+    out.flush()
+    del out
+    atomic_swap_keep_backup(emb_tmp, emb_path)
+
+    meta_tmp = tmp_path(meta_path)
+    with open_gz_text_write(meta_tmp) as f:
+        w = csv.writer(f)
+        w.writerow(["name", "code_str"])
+        for r in range(n_rows):
+            w.writerow([names[r], hash_codes.get(r, "")])
+    os.replace(meta_tmp, meta_path)
 
     del mm
     os.remove(partial_path)
     os.remove(progress_path)
     log.info(
-        "Phase 2 done: %s (%.1f MB)",
-        final_path, os.path.getsize(final_path) / 1e6,
+        "Phase 2 done: %s (%.1f MB), %s (%.1f MB)",
+        emb_path, os.path.getsize(emb_path) / 1e6,
+        meta_path, os.path.getsize(meta_path) / 1e6,
     )
 
 
@@ -452,24 +576,25 @@ async def _phase2_embed(args: Namespace, out_dir: str, res_dir: str, n_rows: int
 
 
 async def cmd_embeddings_ref(args: Namespace) -> None:
-    out_dir = args.output or os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "out"
-    )
-    res_dir = args.res_dir or os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "..", "res"
-    )
+    out_dir = args.output or os.path.normpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "out"
+    ))
+    res_dir = args.res_dir or RES_DIR
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(res_dir, exist_ok=True)
 
+    emb_path = os.path.join(res_dir, os.path.basename(EMB_PATH))
+    meta_path = os.path.join(res_dir, os.path.basename(META_PATH))
+
     # Phase 1 is cheap and deterministic — always re-run (also refreshes
     # texts_md5 for Phase 2's stale-checkpoint detection).
-    n = _phase1_enumerate(args, out_dir, res_dir)
+    n = _phase1_enumerate(args, out_dir)
 
-    # Side artifact: DCM ↔ SCT co-occurrence bridge (requires part16.xml)
+    # Side artifact: DCM ↔ SCT co-occurrence bridge (requires part16.xml).
     if getattr(args, "dicom_dir", None) and os.path.isdir(args.dicom_dir):
         _write_dcm_sct_bridge(
             args.dicom_dir,
             os.path.join(res_dir, "fhir_dcm_sct_bridge.csv"),
         )
 
-    await _phase2_embed(args, out_dir, res_dir, n)
+    await _phase2_embed(args, out_dir, emb_path, meta_path, n)

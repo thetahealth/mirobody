@@ -418,25 +418,9 @@ async def create_virtual_user(
                 status_code=500
             )
 
-        # Handle different possible result structures - similar to invitation service
-        if isinstance(user_result, dict):
-            virtual_user_id = str(user_result["id"])
-            virtual_user_name = user_result["name"]
-        elif isinstance(user_result, (list, tuple)) and len(user_result) > 0:
-            # If result is wrapped in a list/tuple, access first element
-            first_result = user_result[0]
-            if isinstance(first_result, dict):
-                virtual_user_id = str(first_result["id"])
-                virtual_user_name = first_result["name"]
-            else:
-                # If it's a tuple (id, name)
-                virtual_user_id = str(first_result[0])
-                virtual_user_name = first_result[1]
-        else:
-            return JSONResponse(
-                content={"code": -1, "msg": "Invalid database result format"},
-                status_code=500
-            )
+        row = user_result[0]
+        virtual_user_id = str(row["id"])
+        virtual_user_name = row["name"]
 
         # Get current user's email for the relationship
         current_user_query = """

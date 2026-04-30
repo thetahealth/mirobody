@@ -45,12 +45,13 @@ class MonitorQueryService:
         if platform:
             params["platform"] = platform
 
-        # By-platform aggregation
+        # By-platform aggregation.
+        # unique_users / unique_indicators are hourly snapshots: summing them
+        # over N hours double-counts any user/indicator seen in multiple hours.
+        # Fetch true distinct counts from series_data in a separate query.
         summary_query = f"""
             SELECT platform,
                    SUM(records_ingested)  AS total_records,
-                   SUM(unique_users)      AS total_users,
-                   SUM(unique_indicators) AS total_indicators,
                    SUM(filtered_count)    AS total_filtered,
                    COUNT(DISTINCT source) AS source_count
             FROM platform_hourly_profile
@@ -58,6 +59,22 @@ class MonitorQueryService:
               {platform_filter}
             GROUP BY platform
             ORDER BY total_records DESC
+        """
+
+        # Platform resolution uses the same filter as the summary query.
+        # Distinct users/indicators must come from series_data (platform is
+        # derived from source via the same mapping as platform_hourly_profile).
+        distinct_query = f"""
+            SELECT p.platform,
+                   COUNT(DISTINCT s.user_id)  AS total_users,
+                   COUNT(DISTINCT s.indicator) AS total_indicators
+            FROM series_data s
+            JOIN (SELECT DISTINCT source, platform
+                  FROM platform_hourly_profile
+                  WHERE stat_hour >= :cutoff {platform_filter}) p
+              ON s.source = p.source
+            WHERE s.update_time >= :cutoff
+            GROUP BY p.platform
         """
 
         # Hourly trend
@@ -75,10 +92,15 @@ class MonitorQueryService:
 
         try:
             summary_rows = await execute_query(summary_query, params)
+            distinct_rows = await execute_query(distinct_query, params)
             trend_rows = await execute_query(trend_query, params)
         except Exception as e:
             logging.error(f"[MonitorQuery] ingestion query failed: {e}")
             return {"error": str(e)}
+
+        distinct_by_platform = {
+            r["platform"]: r for r in distinct_rows
+        }
 
         by_platform = []
         grand_total = 0
@@ -88,11 +110,12 @@ class MonitorQueryService:
             filtered = row["total_filtered"] or 0
             grand_total += total
             grand_filtered += filtered
+            dist = distinct_by_platform.get(row["platform"], {})
             by_platform.append({
                 "platform": row["platform"],
                 "total_records": total,
-                "total_users": row["total_users"] or 0,
-                "total_indicators": row["total_indicators"] or 0,
+                "total_users": dist.get("total_users", 0) or 0,
+                "total_indicators": dist.get("total_indicators", 0) or 0,
                 "total_filtered": filtered,
                 "exclusion_rate": round(filtered / total * 100, 2) if total > 0 else 0,
                 "source_count": row["source_count"] or 0,
@@ -274,11 +297,18 @@ class MonitorQueryService:
                 COALESCE(SUM(CASE WHEN stat_hour >= :this_start THEN records_ingested END), 0) AS this_week,
                 COALESCE(SUM(CASE WHEN stat_hour >= :prev_start AND stat_hour < :prev_end THEN records_ingested END), 0) AS prev_week,
                 COALESCE(SUM(CASE WHEN stat_hour >= :this_start THEN filtered_count END), 0) AS this_filtered,
-                COALESCE(SUM(CASE WHEN stat_hour >= :prev_start AND stat_hour < :prev_end THEN filtered_count END), 0) AS prev_filtered,
-                COALESCE(SUM(CASE WHEN stat_hour >= :this_start THEN unique_users END), 0) AS this_users,
-                COALESCE(SUM(CASE WHEN stat_hour >= :prev_start AND stat_hour < :prev_end THEN unique_users END), 0) AS prev_users
+                COALESCE(SUM(CASE WHEN stat_hour >= :prev_start AND stat_hour < :prev_end THEN filtered_count END), 0) AS prev_filtered
             FROM platform_hourly_profile
             WHERE stat_hour >= :prev_start
+        """
+        # unique_users is an hourly snapshot; summing it over weeks double-counts.
+        # Fetch true distinct users from series_data for each window.
+        users_query = """
+            SELECT
+                COUNT(DISTINCT user_id) FILTER (WHERE update_time >= :this_start) AS this_users,
+                COUNT(DISTINCT user_id) FILTER (WHERE update_time >= :prev_start AND update_time < :prev_end) AS prev_users
+            FROM series_data
+            WHERE update_time >= :prev_start
         """
         params = {
             "this_start": this_week_start,
@@ -288,17 +318,19 @@ class MonitorQueryService:
 
         try:
             rows = await execute_query(wow_query, params)
+            users_rows = await execute_query(users_query, params)
         except Exception as e:
             logging.error(f"[MonitorQuery] trend query failed: {e}")
             return {"error": str(e)}
 
         row = rows[0] if rows else {}
+        users_row = users_rows[0] if users_rows else {}
         this_w = row.get("this_week", 0) or 0
         prev_w = row.get("prev_week", 0) or 0
         this_f = row.get("this_filtered", 0) or 0
         prev_f = row.get("prev_filtered", 0) or 0
-        this_u = row.get("this_users", 0) or 0
-        prev_u = row.get("prev_users", 0) or 0
+        this_u = users_row.get("this_users", 0) or 0
+        prev_u = users_row.get("prev_users", 0) or 0
 
         def pct_change(cur: int, prev: int) -> Optional[float]:
             if prev == 0:
@@ -396,12 +428,12 @@ class MonitorQueryService:
         and whether the source appears to have stopped sending data.
         """
         now = datetime.utcnow()
+        cutoff = now - timedelta(days=7)
 
         query = """
             SELECT source, platform,
                    MAX(stat_hour) AS last_active,
                    SUM(records_ingested) AS total_7d,
-                   SUM(unique_users) AS total_users_7d,
                    SUM(unique_indicators) AS total_indicators_7d,
                    SUM(filtered_count) AS total_filtered_7d,
                    COUNT(DISTINCT stat_hour::date) AS active_days,
@@ -411,11 +443,24 @@ class MonitorQueryService:
             GROUP BY source, platform
             ORDER BY total_7d DESC
         """
+
+        # platform_hourly_profile stores hourly unique_users as an integer, so
+        # SUM(unique_users) over 7d double-counts any user active in multiple
+        # hours. Fetch true distinct-user counts from series_data directly.
+        users_query = """
+            SELECT source, COUNT(DISTINCT user_id) AS users_7d
+            FROM series_data
+            WHERE update_time >= :cutoff
+            GROUP BY source
+        """
         try:
-            rows = await execute_query(query, {"cutoff": now - timedelta(days=7)})
+            rows = await execute_query(query, {"cutoff": cutoff})
+            users_rows = await execute_query(users_query, {"cutoff": cutoff})
         except Exception as e:
             logging.error(f"[MonitorQuery] source status query failed: {e}")
             return {"error": str(e)}
+
+        users_by_source = {r["source"]: r["users_7d"] for r in users_rows}
 
         sources = []
         for row in rows:
@@ -450,7 +495,7 @@ class MonitorQueryService:
                 "hours_since_last": hours_since,
                 "total_records_7d": total,
                 "avg_daily": int(row["avg_daily"] or 0),
-                "total_users_7d": row["total_users_7d"] or 0,
+                "total_users_7d": users_by_source.get(row["source"], 0),
                 "total_indicators_7d": row["total_indicators_7d"] or 0,
                 "total_filtered_7d": filtered,
                 "exclusion_rate_7d": round(filtered / total * 100, 2) if total > 0 else 0,

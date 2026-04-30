@@ -1,4 +1,4 @@
-"""Health taxonomy: map fhir_indicators to user-facing categories (body systems,
+"""FHIR taxonomy: map fhir_indicators to user-facing categories (body systems,
 demographics, vitals, lifestyle, etc.) for the FHIR API server's directory view.
 
 Pipeline:
@@ -11,7 +11,7 @@ Pipeline:
        SNOMED_CT: direct ancestry lookup (+ finding-site fallback)
        LOINC:     via CUI bridge → SNOMED → ancestry / finding site
        other:     unassigned (skipped)
-  5. Delegate serialisation to the base TaxonomyBuilder → taxonomy.bin
+  5. Delegate serialisation to the base TaxonomyBuilder → fhir_taxonomy.bin
 """
 
 from __future__ import annotations
@@ -27,6 +27,11 @@ from collections import defaultdict
 from ..taxonomy import Label, TaxonomyBuilder
 
 log = logging.getLogger(__name__)
+
+# Output filename for the FHIR-domain taxonomy binary. Lives under
+# ``mirobody/res/`` at runtime; uses the ``fhir_`` content prefix
+# (matches ``fhir_embeddings.npy`` / ``fhir_concept_graph.bin`` / etc.).
+FHIR_TAXONOMY_BIN = "fhir_taxonomy.bin"
 
 # SNOMED relationship type IDs
 _IS_A = 116680003
@@ -256,7 +261,7 @@ def _resolve_snomed(
 # ── Builder subclass ────────────────────────────────────────────────
 
 
-class HealthTaxonomyBuilder(TaxonomyBuilder):
+class FhirTaxonomyBuilder(TaxonomyBuilder):
     def __init__(
         self,
         snomed_dir: str,
@@ -367,13 +372,14 @@ async def cmd_taxonomy(args: Namespace) -> None:
         os.path.join(args.output, "_fhir_indicators.csv")
     )
 
-    builder = HealthTaxonomyBuilder(
+    builder = FhirTaxonomyBuilder(
         snomed_dir=args.snomed_dir,
         umls_dir=args.umls_dir,
         indicators=indicators,
     )
     dest = args.bin_output or os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "..", "res", "taxonomy.bin"
+        os.path.dirname(os.path.abspath(__file__)),
+        "..", "..", "res", FHIR_TAXONOMY_BIN,
     )
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     await asyncio.to_thread(builder.build, args.output, dest)

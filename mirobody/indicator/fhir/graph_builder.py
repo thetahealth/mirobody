@@ -1,4 +1,4 @@
-"""Health-domain graph builder: bridge + sibling CSVs → concept graph binary.
+"""FHIR-vocabulary graph builder: bridge + sibling CSVs → concept graph binary.
 
 Reads the CSV files produced by bridge.py and siblings.py, resolves
 code → fhir_id, and returns bridges/siblings for ConceptGraphBuilder.
@@ -16,6 +16,14 @@ from collections.abc import Iterator
 from ..concept_graph import ConceptGraphBuilder
 
 log = logging.getLogger(__name__)
+
+# Output filename for the FHIR-vocabulary concept graph binary. Lives
+# under ``mirobody/res/`` at runtime; uses the ``fhir_`` content prefix
+# (matches ``fhir_embeddings.npy`` / ``fhir_id_map.npy`` /
+# ``fhir_meta.csv.gz`` — the file's contents are FHIR concept relations
+# indexed by fhir_id). Other domains (e.g. finance) name their graphs
+# after their own content scheme.
+FHIR_GRAPH_BIN = "fhir_concept_graph.bin"
 
 # Bridge files: (filename, columns, max_codes)
 _BRIDGE_FILES = [
@@ -44,7 +52,9 @@ def _csv_field_size_limit(limit: int = 1 << 20) -> Iterator[None]:
         csv.field_size_limit(old)
 
 
-class HealthGraphBuilder(ConceptGraphBuilder):
+class FhirGraphBuilder(ConceptGraphBuilder):
+    DEFAULT_BIN_NAME = FHIR_GRAPH_BIN
+
     """Build concept graph from FHIR bridge + sibling CSVs."""
 
     def __init__(self) -> None:

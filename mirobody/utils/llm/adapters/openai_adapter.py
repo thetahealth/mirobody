@@ -28,14 +28,14 @@ class OpenAIAdapter(BaseModelAdapter):
             # Set default parameters
             kwargs = self.set_default_parameters(kwargs)
 
-            # Get client
-            client = client_manager.get_openai_client()
+            # Get client (async — sync client inside async would block the event loop)
+            client = client_manager.get_async_openai_client()
 
             # Build request parameters
             request_data = {"model": self.model, "messages": self.format_messages(messages), **kwargs}
 
             # Call API
-            response = client.chat.completions.create(**request_data)
+            response = await client.chat.completions.create(**request_data)
 
             # Log usage
             self.log_usage({"total_tokens": response.usage.total_tokens}, time.time() - t_start)
@@ -75,21 +75,21 @@ class OpenAIAdapter(BaseModelAdapter):
             kwargs = self.set_default_parameters(kwargs)
             kwargs["stream"] = True
 
-            # Get client
-            client = client_manager.get_openai_client()
+            # Get client (async — sync stream iteration inside async would block the event loop)
+            client = client_manager.get_async_openai_client()
 
             # Build request parameters
             request_data = {"model": self.model, "messages": self.format_messages(messages), **kwargs}
 
             # Stream call
-            stream = client.chat.completions.create(**request_data)
+            stream = await client.chat.completions.create(**request_data)
 
             buffer = ""
             BUFFER_SIZE = 8
             function_call_buffer = {"name": "", "arguments": ""}
             collecting_function_call = False
 
-            for chunk in stream:
+            async for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta:
                     delta = chunk.choices[0].delta
                     

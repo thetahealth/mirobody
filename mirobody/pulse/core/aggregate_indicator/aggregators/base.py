@@ -21,19 +21,20 @@ class AggregatorProtocol(Protocol):
 
     async def get_trigger_tasks(
             self,
-            since_timestamp: int,
+            since_timestamp: float,
             user_id: Optional[str] = None
     ) -> List[CalculationTask]:
         """
         Get trigger tasks based on time range
-        
+
         This replaces the previous get_updated_series_data functionality.
         Returns CalculationTask objects ready for aggregation.
-        
+
         Args:
-            since_timestamp: Unix timestamp (seconds) to fetch updates after
+            since_timestamp: Unix timestamp (float seconds, sub-second
+                precision retained) to fetch updates after
             user_id: Optional user ID filter (None = all users)
-            
+
         Returns:
             List of CalculationTask objects
         """

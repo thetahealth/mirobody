@@ -444,8 +444,7 @@ class FileParserDatabaseService:
                 },
             )
 
-            # Get returned ID
-            record_id = result.get("id")
+            record_id = result[0].get("id") if result else None
             logging.info(f"File content saved to database, record ID: {record_id}")
             return record_id
 
@@ -463,7 +462,7 @@ class FileParserDatabaseService:
             query="""INSERT INTO th_series_data (user_id, indicator, value, start_time, end_time, source_table, source_table_id, comment) 
                VALUES (:user_id, :indicator, :value, :start_time, :end_time, :source_table, :source_table_id, encrypt_content(:comment))
                ON CONFLICT DO NOTHING""",
-            fieldList=db_params,
+            params=db_params,
         )
         logging.info(f"✅ {len(db_params)} indicator data saved to th_series_data")
         return len(db_params)
@@ -497,7 +496,7 @@ class FileParserDatabaseService:
             WHERE th_series_dim.updated_at < EXCLUDED.updated_at
             """
 
-            await execute_query(query=insert_query, fieldList=batch_params)
+            await execute_query(query=insert_query, params=batch_params)
 
             logging.info(f"✅ {len(batch_params)} indicator dimensions batch saved to th_series_dim")
             return len(batch_params)

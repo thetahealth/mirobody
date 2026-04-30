@@ -1023,7 +1023,7 @@ def global_config(*args, **kargs) -> Config | None:
 def safe_read_cfg(key: str, default: str = "") -> str:
     global _global_config
     if not _global_config:
-        return ""
+        return default
 
     return _global_config.get_str(key, default).strip()
 

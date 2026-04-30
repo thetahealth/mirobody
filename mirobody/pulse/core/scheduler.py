@@ -239,14 +239,14 @@ class PullTask:
     
     # ==================== Cache Service Interface ====================
     
-    async def get_last_execution_timestamp(self) -> Optional[int]:
+    async def get_last_execution_timestamp(self) -> Optional[float]:
         """
         Get last execution timestamp for incremental processing
-        
+
         Calls distributed_lock's timestamp service.
-        
+
         Returns:
-            Unix timestamp or None
+            Unix timestamp (float, sub-second precision) or None
         """
         if not pull_task_lock_manager:
             logging.warning(
@@ -278,15 +278,15 @@ class PullTask:
             self.provider_slug
         )
     
-    async def update_last_execution_timestamp(self, timestamp: int) -> bool:
+    async def update_last_execution_timestamp(self, timestamp: float) -> bool:
         """
         Update last execution timestamp
-        
+
         Calls distributed_lock's timestamp service.
-        
+
         Args:
-            timestamp: Unix timestamp
-            
+            timestamp: Unix timestamp as float (sub-second precision retained)
+
         Returns:
             True if successful
         """

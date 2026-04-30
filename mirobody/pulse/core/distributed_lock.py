@@ -150,32 +150,37 @@ class PullTaskLockManager:
             return False
 
     async def get_last_execution_timestamp(
-        self, 
+        self,
         provider_slug: str
-    ) -> Optional[int]:
+    ) -> Optional[float]:
         """
         Get last execution timestamp for incremental processing
-        
+
         Args:
             provider_slug: Task identifier (e.g., "aggregate_indicator")
-            
+
         Returns:
-            Unix timestamp or None if not set
+            Unix timestamp (float, seconds with sub-second precision) or
+            None if not set. Float preserves millisecond precision so SQL
+            cursors do not silently roll back when source rows share the
+            same integer second.
         """
         redis_client = await get_redis_client()
         if redis_client is None:
             logging.warning(f"Redis not available for {provider_slug}")
             return None
-        
+
         try:
             key = self._get_timestamp_key(provider_slug)
             timestamp_str = await redis_client.get(key)
-            
+
             if timestamp_str:
                 # Handle bytes returned from Redis
                 if isinstance(timestamp_str, bytes):
                     timestamp_str = timestamp_str.decode('utf-8')
-                return int(timestamp_str)
+                # float() also parses pre-existing integer strings, so
+                # legacy integer-second values are read seamlessly.
+                return float(timestamp_str)
             return None
             
         except Exception as e:
@@ -217,15 +222,15 @@ class PullTaskLockManager:
     async def update_last_execution_timestamp(
         self,
         provider_slug: str,
-        timestamp: int
+        timestamp: float
     ) -> bool:
         """
         Update last execution timestamp
-        
+
         Args:
             provider_slug: Task identifier
-            timestamp: Unix timestamp
-            
+            timestamp: Unix timestamp as float (sub-second precision retained)
+
         Returns:
             True if successful
         """

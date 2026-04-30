@@ -273,7 +273,7 @@ def merge_siblings(out_dir: str, loinc_dir: str = "") -> None:
 # ─── CLI subcommand ──────────────────────────────────────────────────
 
 async def cmd_merge(args: Namespace) -> None:
-    """Subcommand: merge — merge siblings + bridge into concepts.csv + concept_graph.bin."""
+    """Subcommand: merge — merge siblings + bridge into concepts.csv + fhir_concept_graph.bin."""
     out_dir = args.output
     os.makedirs(out_dir, exist_ok=True)
 
@@ -282,9 +282,9 @@ async def cmd_merge(args: Namespace) -> None:
     merge_siblings(out_dir, loinc_dir=loinc_dir)
 
     # Sync fhir_id cache from DB (if not already cached)
-    from .graph_builder import HealthGraphBuilder, sync_fhir_ids
+    from .graph_builder import FhirGraphBuilder, sync_fhir_ids
 
     await sync_fhir_ids(out_dir)
 
     # Build graph and save binary
-    HealthGraphBuilder().build(out_dir)
+    FhirGraphBuilder().build(out_dir)

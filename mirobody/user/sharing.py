@@ -341,8 +341,6 @@ class SharingService:
                     "target_user_id": user_id,
                     "nickname": reverse_nickname
                 },
-                query_type="insert",
-                mode="async"
             )
 
             return {"code": 0, "msg": "Invitation sent successfully"}
@@ -360,8 +358,6 @@ class SharingService:
                    WHERE owner_user_id = :current_user_id
                      AND member_user_id = :query_user_id;""",
                 params={"current_user_id": current_user_id, "query_user_id": query_user_id},
-                query_type="delete",
-                mode="async"
             )
 
             if not result:
@@ -647,7 +643,7 @@ class SharingService:
                                   WHERE share_id = :share_id RETURNING owner_user_id, member_user_id;"""
                 params = {
                     "permissions": json.dumps(permission),
-                    "share_id": int(share_id)
+                    "share_id": share_id
                 }
             elif owner_user_id and query_user_id:
                 # Fallback to old method for backward compatibility
@@ -673,9 +669,9 @@ class SharingService:
             if not result:
                 return {"code": -4, "msg": "Invitation record not found"}
 
-            # Extract owner_user_id and member_user_id from result
-            actual_owner_id = str(result.get("owner_user_id") or owner_user_id)
-            actual_member_id = str(result.get("member_user_id") or query_user_id)
+            row = result[0]
+            actual_owner_id = str(row.get("owner_user_id") or owner_user_id)
+            actual_member_id = str(row.get("member_user_id") or query_user_id)
 
             logging.debug(f"authorize_invitation: owner={actual_owner_id}, member={actual_member_id}")
 
@@ -1191,7 +1187,7 @@ async def remove_shared_by_me(
                    FROM th_share_relationship
                    WHERE share_id = :share_id
                      AND owner_user_id = :current_user_id;""",
-                params={"share_id": int(request.share_id), "current_user_id": current_user_id},
+                params={"share_id": request.share_id, "current_user_id": current_user_id},
             )
             if not check_result or not check_result[0]:
                 return {"code": -1, "msg": "Share not found or unauthorized"}
@@ -1203,7 +1199,7 @@ async def remove_shared_by_me(
                    FROM th_share_relationship
                    WHERE share_id = :share_id
                      AND owner_user_id = :current_user_id;""",
-                params={"share_id": int(request.share_id), "current_user_id": current_user_id},
+                params={"share_id": request.share_id, "current_user_id": current_user_id},
             )
         elif request.query_user_id:
             # Fallback to old method for backward compatibility
@@ -1266,7 +1262,7 @@ async def remove_shared_with_me(
                    FROM th_share_relationship
                    WHERE share_id = :share_id
                      AND member_user_id = :current_user_id;""",
-                params={"share_id": int(request.share_id), "current_user_id": current_user_id},
+                params={"share_id": request.share_id, "current_user_id": current_user_id},
             )
             if not check_result or not check_result[0]:
                 return {"code": -1, "msg": "Share not found or unauthorized"}
@@ -1278,7 +1274,7 @@ async def remove_shared_with_me(
                    FROM th_share_relationship
                    WHERE share_id = :share_id
                      AND member_user_id = :current_user_id;""",
-                params={"share_id": int(request.share_id), "current_user_id": current_user_id},
+                params={"share_id": request.share_id, "current_user_id": current_user_id},
             )
         elif request.owner_user_id:
             # Fallback to old method for backward compatibility
@@ -1990,7 +1986,7 @@ async def _resolve_user_id_from_share(
 
         check_result = await execute_query(
             query,
-            params={"share_id": int(share_id), "current_user_id": current_user_id},
+            params={"share_id": share_id, "current_user_id": current_user_id},
         )
         if not check_result or not check_result[0]:
             return None, {"code": -1, "msg": "Share not found or unauthorized"}
@@ -2019,7 +2015,7 @@ async def _resolve_bidirectional_share(
             """SELECT owner_user_id, member_user_id
                FROM th_share_relationship
                WHERE share_id = :share_id;""",
-            params={"share_id": int(share_id)},
+            params={"share_id": share_id},
         )
         if not check_result or not check_result[0]:
             return None, {"code": -1, "msg": "Share not found"}

@@ -127,9 +127,6 @@ class TaxonomyBuilder:
 
 # ── Query ────────────────────────────────────────────────────────────
 
-TAXONOMY_BIN = "taxonomy.bin"
-_BUNDLED_TAXONOMY = os.path.join(os.path.dirname(__file__), "..", "res", TAXONOMY_BIN)
-
 
 class Taxonomy:
     """Query-time taxonomy loaded from a pre-built binary."""
@@ -144,14 +141,15 @@ class Taxonomy:
         self._fhir_off: dict[int, tuple[int, int]] = {}
 
     @classmethod
-    def get(cls, file_path: str | None = None) -> "Taxonomy":
-        if file_path is None:
-            file_path = os.path.realpath(_BUNDLED_TAXONOMY)
-        elif not os.path.isfile(file_path):
-            log.warning("Taxonomy binary not found: %s, falling back to bundled", file_path)
-            file_path = os.path.realpath(_BUNDLED_TAXONOMY)
-
+    def get(cls, file_path: str) -> "Taxonomy":
+        """Load and cache the taxonomy at *file_path*. Same path returns
+        the same instance; missing file is a config error, not silently
+        recoverable. Caller (the domain that owns this binary) decides
+        the path — the framework has no implicit "bundled default"."""
+        file_path = os.path.realpath(file_path)
         if file_path not in cls._cache:
+            if not os.path.isfile(file_path):
+                raise FileNotFoundError(f"Taxonomy binary not found: {file_path}")
             tax = cls()
             tax._load_bin(file_path)
             cls._cache[file_path] = tax

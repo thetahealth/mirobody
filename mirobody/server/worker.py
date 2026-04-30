@@ -24,9 +24,14 @@ from ..utils import Config
 
 class Worker:
     @staticmethod
-    async def start(yaml_files: list[str] = []) -> None:
-        # Load configuration via YAML (same pattern as Server.start).
-        config = await Config.init(yaml_filenames=yaml_files)
+    async def start(
+        yaml_files: list[str] = [],
+        config: Config | None = None,
+    ) -> None:
+        # Load configuration via YAML (same pattern as Server.start), unless
+        # the caller already built a Config instance and passed it in.
+        if config is None:
+            config = await Config.init(yaml_filenames=yaml_files)
         config.print()
 
         logging.info("Worker runner starting")

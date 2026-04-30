@@ -155,10 +155,8 @@ async def create_message(
             "scene": "app",
             "reference_task_id": reference_task_id
         },
-        query_type="insert",
-        mode="async",
     )
-    return record.get("id")
+    return record[0].get("id") if record else None
 
 #-----------------------------------------------------------------------------
 
@@ -231,11 +229,10 @@ async def get_last_message(user_id: str, query_user_id: str = None, session_id: 
     if query_user_id is None:
         query_user_id = user_id
     
-    if session_id:
-        session_phrase = f"and session_id = '{session_id}'"
-    else:
-        session_phrase = ""
-    
+    # session_id comes from the HTTP request (client-controlled) — must be a
+    # bind param, never f-string interpolated, to prevent SQL injection.
+    session_phrase = "and session_id = :session_id" if session_id else ""
+
     messages = []
     try:
         if not include_all:
@@ -243,13 +240,16 @@ async def get_last_message(user_id: str, query_user_id: str = None, session_id: 
                 select id, role, agent, decrypt_content(content) as content, reference_task_id, created_at from th_messages where user_id = :user_id and query_user_id = :query_user_id and scene = :scene and is_del = false {session_phrase} order by created_at desc limit 15
             """
             params = {"user_id": user_id, "query_user_id": query_user_id, "scene": scene}
-            rows = await execute_query(sql, params)
         else:
             sql = f"""
                 select id, role, agent, decrypt_content(content) as content, reference_task_id, created_at from th_messages where user_id = :user_id and scene = :scene and is_del = false {session_phrase} order by created_at desc limit 15
             """
             params = {"user_id": user_id, "scene": scene}
-            rows = await execute_query(sql, params)
+
+        if session_id:
+            params["session_id"] = session_id
+
+        rows = await execute_query(sql, params)
 
         for i in range(len(rows) - 1, -1, -1):
             m = rows[i]
@@ -462,10 +462,8 @@ async def create_new_question(
             "scene": scene,
             "created_at": created_at
         },
-        query_type="insert",
-        mode="async",
     )
-    return record.get("id")
+    return record[0].get("id") if record else None
 
 #-----------------------------------------------------------------------------
 

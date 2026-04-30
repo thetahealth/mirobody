@@ -87,7 +87,7 @@ class BaseModelAdapter(ABC):
     def handle_error(self, error: Exception, context: str = "") -> Dict[str, Any]:
         """Unified error handling"""
         error_msg = f"{self.provider} {context} error: {type(error).__name__}: {str(error)}"
-        logging.error(error_msg, stack_info=True)
+        logging.error(error_msg, stack_info=True, exc_info=True)
         return {"content": "", "function_calls": None, "error": error_msg}
 
     def supports_function_calling(self) -> bool:

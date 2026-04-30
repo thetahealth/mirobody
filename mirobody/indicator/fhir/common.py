@@ -18,12 +18,14 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-# ─── Standard enum ──────────────────────────────────────────────────
+# ─── Code system enum ───────────────────────────────────────────────
 
-# Enum mapping for fhir_indicators.indicator_standard. Append-only: the
-# index is persisted in fhir_code_index.csv.gz and in packed fhir_id values,
-# so never reorder or delete entries.
-STANDARDS: tuple[str, ...] = (
+# Enum mapping for the DB column ``fhir_indicators.indicator_standard``
+# (the column keeps the legacy name; in code we use FHIR's ``system``
+# vocabulary, matching ``Coding.system``). Append-only: the index is
+# persisted in fhir_code_index.csv.gz and in packed fhir_id values, so
+# never reorder or delete entries.
+SYSTEMS: tuple[str, ...] = (
     "SNOMED_CT",
     "LOINC",
     "RXNORM",
@@ -31,11 +33,47 @@ STANDARDS: tuple[str, ...] = (
     "DCM",
     "THETA",
 )
-STANDARD_TO_CODE: dict[str, int] = {s: i for i, s in enumerate(STANDARDS)}
+SYSTEM_TO_CODE: dict[str, int] = {s: i for i, s in enumerate(SYSTEMS)}
 
 # Gemini text-embedding-004 / -qwen output dimensionality. Shared by
 # the DB and ~/ref embedding export paths so artifacts stay compatible.
 EMBEDDING_DIM = 1024
+
+
+# ─── Embedding provider → fhir_indicators column ────────────────────
+
+# fhir_indicators uses model-version-specific column names (qwen3,
+# gemma3) — diverges from th_series_dim's family-only convention
+# (embedding_qwen). Both columns already exist with HNSW indexes, so
+# rename isn't free; we map explicitly here instead.
+FHIR_EMBEDDING_COLUMN: dict[str, str] = {
+    "gemini": "embedding_gemini",
+    "qwen": "embedding_qwen3",
+}
+
+
+def resolve_fhir_embedding_column() -> tuple[str, str]:
+    """Resolve ``DIM_EMBEDDING_PROVIDER`` to ``(provider, fhir_indicators column)``.
+
+    Validates against both :data:`FHIR_EMBEDDING_COLUMN` and the
+    embedding-API provider registry, since the column name is
+    interpolated into SQL.
+    """
+    from mirobody.utils.config import safe_read_cfg
+    from mirobody.utils.embedding import EMBEDDING_PROVIDERS
+
+    provider = safe_read_cfg("DIM_EMBEDDING_PROVIDER", "gemini").lower()
+    if provider not in EMBEDDING_PROVIDERS:
+        raise ValueError(
+            f"DIM_EMBEDDING_PROVIDER invalid: {provider!r} "
+            f"(available: {sorted(EMBEDDING_PROVIDERS)})"
+        )
+    if provider not in FHIR_EMBEDDING_COLUMN:
+        raise ValueError(
+            f"no fhir_indicators column mapped for provider {provider!r}; "
+            f"add to FHIR_EMBEDDING_COLUMN in fhir/common.py"
+        )
+    return provider, FHIR_EMBEDDING_COLUMN[provider]
 
 
 # ─── CSV helpers ──────────────────────────────────────────────────────
@@ -52,89 +90,88 @@ def csv_field_size_limit(limit: int = 1 << 20) -> Iterator[None]:
 
 # ─── Code ↔ int conversion helpers ───────────────────────────────────
 
-def code_to_int(code: str, standard: str = "") -> int:
-    """Convert a vocabulary code string to int for faster hashing/comparison.
+def code_to_int(code: str, system: str = "") -> int:
+    """Convert a vocabulary code string to int.
 
-    THETA/DCM codes may be non-numeric, so they go through a 60-bit blake2b
-    digest (one-way: :func:`int_to_code` can't recover the original string).
-    All other vocabs parse decimally; LOINC's dash is stripped.
+    DCM and THETA go through a 60-bit blake2b digest (one-way: original
+    string must be looked up in the meta sidecar via :func:`int_to_code`
+    raising). All other vocabs parse decimally; LOINC's dash is stripped.
     """
-    if standard in ("THETA", "DCM"):
-        # Top 60 bits of an 8-byte digest → stays within the _CODE_BITS
-        # budget used by code_to_fhir_id below.
+    if system in ("THETA", "DCM"):
+        # 8-byte digest >> 4 → top 60 bits, fits the _CODE_BITS budget.
         return int.from_bytes(
             hashlib.blake2b(code.encode(), digest_size=8).digest(), "big"
         ) >> 4
-    if standard == "LOINC" or "-" in code:
+    if system == "LOINC" or "-" in code:
         return int(code.replace("-", ""))
     return int(code)
 
 
-def int_to_code(n: int, standard: str = "") -> str:
-    """Convert int back to code string.
+def int_to_code(n: int, system: str = "") -> str:
+    """Inverse of :func:`code_to_int` for non-hashed systems.
 
-    THETA/DCM are not supported: :func:`code_to_int` uses a one-way hash,
-    so recovering the original string requires a separate reverse map
-    that hasn't been built yet.
+    Raises ``NotImplementedError`` for THETA/DCM — those went through
+    a one-way blake2b digest, the original string lives in the meta
+    sidecar.
     """
-    if standard in ("THETA", "DCM"):
+    if system in ("THETA", "DCM"):
         raise NotImplementedError(
-            f"int_to_code for {standard!r} is not supported: "
+            f"int_to_code for {system!r} is not supported: "
             f"code_to_int uses a one-way blake2b hash"
         )
-    if standard == "LOINC":
+    if system == "LOINC":
         s = str(n)
         return s[:-1] + "-" + s[-1]
     return str(n)
 
 
-# ─── (standard, code) ↔ bigint fhir_id packing ──────────────────────
+# ─── (system, code) ↔ bigint fhir_id packing ────────────────────────
 
-# Layout: [3-bit standard | 60-bit code], total 63 bits → fits in signed
+# Layout: [3-bit system | 60-bit code], total 63 bits → fits in signed
 # int64 / PG bigint positive range. Chosen so th_series_data.fhir_id
-# (bigint) can hold (standard, code) directly without a schema change.
+# (bigint) can hold (system, code) directly without a schema change.
 #
 # Budget rationale:
 #   - code: SNOMED spec caps SCTID at 18 decimal digits (<10^18 < 2^60)
-#   - standard: 3 bits = 8 vocabs; currently 6 used (SNOMED/LOINC/RXNORM/
+#   - system: 3 bits = 8 vocabs; currently 6 used (SNOMED/LOINC/RXNORM/
 #     CVX/DCM/THETA), leaving 2 slots before a layout change is needed
 #
 # Changing either constant is a breaking change: historical fhir_id
 # values become unparseable.
-_STD_BITS = 3
+_SYS_BITS = 3
 _CODE_BITS = 60
 _CODE_MASK = (1 << _CODE_BITS) - 1
 
 
-def code_to_fhir_id(standard: str | int, code: str) -> int:
-    """Pack ``(standard, code_str)`` into a single bigint fhir_id.
+def code_to_fhir_id(system: str | int, code: str) -> int:
+    """Pack ``(system, code_str)`` into a single bigint fhir_id.
 
-    ``standard`` accepts either the name (``"LOINC"``) or its enum int,
+    ``system`` accepts either the name (``"LOINC"``) or its enum int,
     so rows loaded directly from ``fhir_code_index.csv.gz`` (where the
     column is the int form) can be passed through unchanged.
     """
-    if isinstance(standard, str):
-        std = STANDARD_TO_CODE[standard]
-        std_name = standard
+    if isinstance(system, str):
+        sys_int = SYSTEM_TO_CODE[system]
+        sys_name = system
     else:
-        std = standard
-        std_name = STANDARDS[std]  # IndexError if out of range
-    if std >> _STD_BITS:
+        sys_int = system
+        sys_name = SYSTEMS[sys_int]  # IndexError if out of range
+    if sys_int >> _SYS_BITS:
         raise ValueError(
-            f"standard enum {std} ({std_name!r}) exceeds {_STD_BITS}-bit budget"
+            f"system enum {sys_int} ({sys_name!r}) exceeds {_SYS_BITS}-bit budget"
         )
-    n = code_to_int(code, std_name)
+    n = code_to_int(code, sys_name)
     if n >> _CODE_BITS:
         raise ValueError(
             f"code {code!r} (int {n}) exceeds {_CODE_BITS}-bit budget"
         )
-    return (std << _CODE_BITS) | n
+    return (sys_int << _CODE_BITS) | n
 
 
 def fhir_id_to_code(fhir_id: int) -> tuple[str, str]:
     """Inverse of :func:`code_to_fhir_id`."""
-    standard = STANDARDS[fhir_id >> _CODE_BITS]
-    return standard, int_to_code(fhir_id & _CODE_MASK, standard)
+    system = SYSTEMS[fhir_id >> _CODE_BITS]
+    return system, int_to_code(fhir_id & _CODE_MASK, system)
 
 
 # ─── Legacy DB fhir_id remap ────────────────────────────────────────
@@ -147,10 +184,11 @@ def fhir_id_to_code(fhir_id: int) -> tuple[str, str]:
 def load_fhir_id_map(path: str) -> dict[int, int]:
     """Load packed-fhir-id → ``fhir_indicators.id`` from ``fhir_code_index.csv[.gz]``.
 
-    Expects columns ``standard`` (enum int), ``code`` (vocab string, LOINC
-    may contain a dash), ``id`` (DB fhir_indicators.id). This is exactly
-    the artifact produced by ``embeddings-db`` / ``embeddings-ref``. ``.gz``
-    is detected by extension.
+    Expects columns ``standard`` (enum int — column name kept for artifact
+    compatibility), ``code`` (vocab string, LOINC may contain a dash),
+    ``id`` (DB fhir_indicators.id). This is exactly the artifact produced
+    by ``embeddings-db`` / ``embeddings-ref``. ``.gz`` is detected by
+    extension.
     """
     opener = gzip.open if path.endswith(".gz") else open
     id_map: dict[int, int] = {}
@@ -162,11 +200,11 @@ def load_fhir_id_map(path: str) -> dict[int, int]:
 
 
 def resolve_fhir_id(
-    standard: str,
+    system: str,
     code: str,
     id_map: dict[int, int] | None = None,
 ) -> int | None:
-    """Return a single int id for ``(standard, code)``.
+    """Return a single int id for ``(system, code)``.
 
     - ``id_map`` is None → packed bigint from :func:`code_to_fhir_id`
       (never None)
@@ -176,12 +214,12 @@ def resolve_fhir_id(
       lack entries for newly-seen codes, so missing is expected, not error.
     """
     if id_map is None:
-        return code_to_fhir_id(standard, code)
+        return code_to_fhir_id(system, code)
     # Fast path: id_map entries come from a validated DB export, so the
     # overflow guards in code_to_fhir_id are unnecessary here.
-    std = STANDARD_TO_CODE[standard]
-    n = code_to_int(code, standard)
-    return id_map.get((std << _CODE_BITS) | n)
+    sys_int = SYSTEM_TO_CODE[system]
+    n = code_to_int(code, system)
+    return id_map.get((sys_int << _CODE_BITS) | n)
 
 
 # ─── Target vocabulary config ───────────────────────────────────────

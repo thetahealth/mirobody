@@ -505,12 +505,53 @@ class GeminiClient(AbstractClient):
 
         user_id = kwargs.get("user_id", "")
         session_id = kwargs.get("session_id", "")
+        tool_names = kwargs.get("tools", [])
 
         #-------------------------------------------------
 
         if not self._redis:
             self._redis = kwargs.get("redis")
 
+        if use_vertexai:
+            async for chunk in self._ainvoke_vertex(
+                gcp_project         = gcp_project,
+                gcp_location        = gcp_location,
+                input_turns         = input_turns,
+                system_instruction  = system_instruction,
+                tool_names          = tool_names,
+                user_id             = user_id,
+                session_id          = session_id,
+            ):
+                yield chunk
+        else:
+            async for chunk in self._ainvoke_interactions(
+                input_turns         = input_turns,
+                system_instruction  = system_instruction,
+                tool_names          = tool_names,
+                user_id             = user_id,
+                session_id          = session_id,
+            ):
+                yield chunk
+
+    #-----------------------------------------------------
+
+    async def _ainvoke_interactions(
+        self,
+        *,
+        input_turns         : list,
+        system_instruction  : str,
+        tool_names          : list[str],
+        user_id             : str,
+        session_id          : str,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """AI Studio path via Interactions API (stateful, supports MCP)."""
+        logging.info(f"GeminiClient: AI Studio / Interactions path, model={self._model}, tools={len(tool_names) if tool_names else 0}")
+
+        # Key intentionally scopes by user_id only (no session_id): we want the
+        # stateful interaction chain to persist across sessions for the same user.
+        # Known limitation: concurrent requests from the same user race on this key
+        # and may fork/interleave the server-side chain. Acceptable while the UX
+        # serializes requests per user (one in-flight reply at a time).
         _redis_key = f"gemini:interaction:{self._model}:{user_id}" if user_id else ""
         previous_interaction_id = None
         if _redis_key and self._redis:
@@ -519,22 +560,21 @@ class GeminiClient(AbstractClient):
             except Exception as e:
                 logging.warning(str(e))
 
+        # Keep full history so we can rebuild the request if the cached interaction
+        # is stale on the server side and we need to fall back to a stateless call.
+        original_input_turns = input_turns
         if previous_interaction_id and input_turns:
             for i in range(len(input_turns) - 1, -1, -1):
                 if input_turns[i].get("role") == "user":
                     input_turns = [input_turns[i]]
                     break
 
-        # Build tools using base class method (prioritizes MCP)
-        # Gemini Interactions API uses OpenAI-like flat format: {"type": "function", "name": ..., ...}
-        tool_names = kwargs.get("tools", [])
+        # Interactions API uses OpenAI-like flat format: {"type": "function", "name": ..., ...}
         tools = await self._build_tools(user_id, tool_names, tool_format="gemini")
 
         # Fallback tools without MCP, for when MCP causes malformed_function_call
         tools_set = set(tool_names) if tool_names else set()
         tools_fallback = [f for f in get_global_functions(style="") if f.get("name") in tools_set]
-
-        #-------------------------------------------------
 
         # Initialize token counters
         input_tokens = 0
@@ -547,20 +587,12 @@ class GeminiClient(AbstractClient):
         retries = 0
         max_retries = 2
         retry_hint = ""
+        stale_interaction_recovered = False
 
-        # Create genai client with extended timeout for interactions
-        if use_vertexai:
-            client = genai.Client(
-                vertexai    = True,
-                project     = gcp_project,
-                location    = gcp_location,
-                http_options= {"timeout": self._http_timeout}
-            )
-        else:
-            client = genai.Client(
-                api_key     = self._api_key,
-                http_options= {"timeout": self._http_timeout}
-            )
+        client = genai.Client(
+            api_key     = self._api_key,
+            http_options= {"timeout": self._http_timeout}
+        )
 
         while True:
             try:
@@ -644,7 +676,7 @@ class GeminiClient(AbstractClient):
                                     function_call_result_text = json.dumps(function_call_result, ensure_ascii=False)
                                     yield {"type": "queryDetail", "content": function_call_result_text, "tool_id": function_call_id}
                                 except Exception as e:
-                                    logging.warning(str(e))
+                                    logging.warning(str(e), exc_info=True)
 
                                 # Store function call info for continuation
                                 function_call_info = {
@@ -701,7 +733,35 @@ class GeminiClient(AbstractClient):
                     break
 
             except Exception as e:
-                if "malformed_function_call" in str(e) and retries < max_retries:
+                err_str = str(e)
+                err_lower = err_str.lower()
+
+                # Recover from stale previous_interaction_id (server-side expired/unknown).
+                # Only safe before any function-call continuation (steps == 0), and only once.
+                is_stale_interaction = (
+                    steps == 0
+                    and previous_interaction_id
+                    and not stale_interaction_recovered
+                    and (
+                        "previous_interaction_id" in err_lower
+                        or ("interaction" in err_lower and any(
+                            k in err_lower for k in ("not found", "not_found", "invalid", "expired", "does not exist")
+                        ))
+                    )
+                )
+                if is_stale_interaction:
+                    logging.warning(f"stale previous_interaction_id, clearing redis and retrying stateless: {err_str}")
+                    if _redis_key and self._redis:
+                        try:
+                            await self._redis.delete(_redis_key)
+                        except Exception:
+                            pass
+                    previous_interaction_id = None
+                    input_turns = original_input_turns
+                    stale_interaction_recovered = True
+                    continue
+
+                if "malformed_function_call" in err_str and retries < max_retries:
                     retries += 1
                     retry_hint = "\n\nIMPORTANT: Your previous response contained a malformed function call with invalid JSON. You MUST produce strictly valid JSON for all function calls."
                     if retries == 1 and tools:
@@ -713,8 +773,8 @@ class GeminiClient(AbstractClient):
                         tools = None
                         logging.warning(f"malformed_function_call: dropping all tools, retry {retries}/{max_retries}")
                     continue
-                logging.error(str(e), exc_info=True, stack_info=True)
-                yield {"type": "error", "content": str(e)}
+                logging.error(err_str, exc_info=True, stack_info=True)
+                yield {"type": "error", "content": err_str}
                 break
 
         # Yield final cost statistics
@@ -734,7 +794,195 @@ class GeminiClient(AbstractClient):
             try:
                 await self._redis.set(_redis_key, interaction_id, ex=12*60*60)
             except Exception as e:
-                logging.warning(str(e))
+                logging.warning(str(e), exc_info=True)
+
+    #-----------------------------------------------------
+
+    async def _ainvoke_vertex(
+        self,
+        *,
+        gcp_project         : str,
+        gcp_location        : str,
+        input_turns         : list,
+        system_instruction  : str,
+        tool_names          : list[str],
+        user_id             : str,
+        session_id          : str,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Vertex AI path via models.generate_content_stream — Interactions API is not GA on Vertex."""
+        from google.genai import types
+
+        logging.info(f"GeminiClient: Vertex AI path, model={self._model}, project={gcp_project}, location={gcp_location}, tools={len(tool_names) if tool_names else 0}")
+
+        client = genai.Client(
+            vertexai    = True,
+            project     = gcp_project,
+            location    = gcp_location,
+            http_options= {"timeout": self._http_timeout},
+        )
+
+        # Convert input_turns -> list[types.Content]
+        contents: list[types.Content] = []
+        for turn in input_turns:
+            role = turn.get("role") or "user"
+            raw  = turn.get("content", "")
+            parts: list[types.Part] = []
+            if isinstance(raw, str):
+                if raw:
+                    parts.append(types.Part.from_text(text=raw))
+            elif isinstance(raw, list):
+                for item in raw:
+                    if not isinstance(item, dict):
+                        continue
+                    item_type = item.get("type")
+                    if item_type == "text":
+                        text = item.get("text", "")
+                        if text:
+                            parts.append(types.Part.from_text(text=text))
+                    elif item_type in ("image", "video", "audio", "document") and item.get("uri"):
+                        parts.append(types.Part.from_uri(
+                            file_uri  = item["uri"],
+                            mime_type = item.get("mime_type", ""),
+                        ))
+            if parts:
+                contents.append(types.Content(role=role, parts=parts))
+
+        # Build tools using gemini-flat declarations (no MCP on this path)
+        tools_config = None
+        if tool_names:
+            tools_set = set(tool_names)
+            declarations = [
+                types.FunctionDeclaration(
+                    name                  = f["name"],
+                    description           = f.get("description", ""),
+                    parameters_json_schema= f.get("parameters"),
+                )
+                for f in get_global_functions(style="gemini")
+                if f.get("name") in tools_set
+            ]
+            if declarations:
+                tools_config = [types.Tool(function_declarations=declarations)]
+
+        config = types.GenerateContentConfig(
+            system_instruction        = system_instruction or None,
+            tools                     = tools_config,
+            temperature               = self._llm_temperature,
+            automatic_function_calling= types.AutomaticFunctionCallingConfig(disable=True) if tools_config else None,
+        )
+
+        input_tokens   = 0
+        output_tokens  = 0
+        thought_tokens = 0
+        total_tokens   = 0
+        steps          = 0
+
+        cached_text = io.StringIO()
+
+        try:
+            while True:
+                try:
+                    stream = await client.aio.models.generate_content_stream(
+                        model    = self._model,
+                        contents = contents,
+                        config   = config,
+                    )
+
+                    assistant_parts: list[types.Part] = []
+                    pending_calls: list[tuple[str, str, dict]] = []  # (id, name, args)
+
+                    async for chunk in stream:
+                        usage = getattr(chunk, "usage_metadata", None)
+                        if usage:
+                            input_tokens   = getattr(usage, "prompt_token_count", 0) or 0
+                            output_tokens  = getattr(usage, "candidates_token_count", 0) or 0
+                            thought_tokens = getattr(usage, "thoughts_token_count", 0) or 0
+                            total_tokens   = getattr(usage, "total_token_count", 0) or 0
+
+                        if not chunk.candidates:
+                            continue
+
+                        for cand in chunk.candidates:
+                            if not cand.content or not cand.content.parts:
+                                continue
+                            for part in cand.content.parts:
+                                # Thought parts: keep for context continuity but don't yield
+                                if getattr(part, "thought", False):
+                                    assistant_parts.append(part)
+                                    continue
+
+                                if part.text:
+                                    cached_text.write(part.text)
+                                    if cached_text.tell() >= self._min_chunk_size:
+                                        yield {"type": "reply", "content": cached_text.getvalue()}
+                                        cached_text.seek(0)
+                                        cached_text.truncate(0)
+                                    assistant_parts.append(part)
+
+                                elif part.function_call:
+                                    # Flush any buffered text first to preserve order
+                                    if cached_text.tell() > 0:
+                                        yield {"type": "reply", "content": cached_text.getvalue()}
+                                        cached_text.seek(0)
+                                        cached_text.truncate(0)
+
+                                    fc = part.function_call
+                                    fc_id   = fc.id or fc.name or ""
+                                    fc_name = fc.name or ""
+                                    fc_args = dict(fc.args) if fc.args else {}
+                                    yield {"type": "queryTitle", "content": fc_name, "tool_id": fc_id}
+                                    yield {"type": "queryArguments", "content": json.dumps(fc_args, ensure_ascii=False), "tool_id": fc_id}
+                                    pending_calls.append((fc_id, fc_name, fc_args))
+                                    assistant_parts.append(part)
+
+                    # Flush trailing text
+                    if cached_text.tell() > 0:
+                        yield {"type": "reply", "content": cached_text.getvalue()}
+                        cached_text.seek(0)
+                        cached_text.truncate(0)
+
+                    if not pending_calls:
+                        break
+
+                    steps += 1
+                    if steps > self._max_steps:
+                        yield {"type": "error", "content": "Too many steps."}
+                        break
+
+                    # Append model turn (text + function calls) and the function responses
+                    contents.append(types.Content(role="model", parts=assistant_parts))
+
+                    response_parts: list[types.Part] = []
+                    for fc_id, fc_name, fc_args in pending_calls:
+                        fc_result = await call_global_tool(fc_name, fc_args, user_id, session_id)
+                        try:
+                            yield {"type": "queryDetail", "content": json.dumps(fc_result, ensure_ascii=False), "tool_id": fc_id}
+                        except Exception as e:
+                            logging.warning(str(e), exc_info=True)
+
+                        sanitized = GeminiClient._sanitize_for_gemini(fc_result)
+                        response_parts.append(types.Part.from_function_response(
+                            name     = fc_name,
+                            response = {"result": sanitized},
+                        ))
+
+                    contents.append(types.Content(role="user", parts=response_parts))
+
+                except Exception as e:
+                    logging.error(str(e), exc_info=True, stack_info=True)
+                    yield {"type": "error", "content": str(e)}
+                    break
+
+            content_stats = {
+                "model"         : self._model,
+                "input_tokens"  : input_tokens,
+                "output_tokens" : output_tokens,
+                "thought_tokens": thought_tokens,
+                "total_tokens"  : total_tokens,
+            }
+            content_stats["total_cost"] = (input_tokens * self._input_price + (thought_tokens + output_tokens) * self._output_price) / 1e6
+            yield {"type": "costStatistics", "content": content_stats}
+        finally:
+            cached_text.close()
 
 #-----------------------------------------------------------------------------
 

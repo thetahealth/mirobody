@@ -111,21 +111,13 @@ class FileDbService:
             }
             
             result = await execute_query(query=sql, params=params)
-            
+
             if result:
-                # execute_query returns a dict directly for INSERT RETURNING
-                if isinstance(result, dict):
-                    file_id = result.get("id")
-                    if file_id:
-                        logging.info(f"File inserted: id={file_id}, file_key={file_key}")
-                        return file_id
-                # Handle list result (for compatibility)
-                elif isinstance(result, list) and len(result) > 0:
-                    file_id = result[0].get("id") if isinstance(result[0], dict) else None
-                    if file_id:
-                        logging.info(f"File inserted: id={file_id}, file_key={file_key}")
-                        return file_id
-            
+                file_id = result[0].get("id")
+                if file_id:
+                    logging.info(f"File inserted: id={file_id}, file_key={file_key}")
+                    return file_id
+
             logging.warning(f"No id returned for file: file_key={file_key}")
             return None
             
@@ -684,8 +676,6 @@ class FileDbService:
             await execute_query(
                 query=sql,
                 params=params,
-                query_type="update",
-                mode="async"
             )
 
             return True

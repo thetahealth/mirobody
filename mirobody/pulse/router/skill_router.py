@@ -96,7 +96,7 @@ async def create_skill(
         if not result:
             raise HTTPException(status_code=500, detail="Failed to create skill")
         
-        created = result
+        created = result[0]
         
         logging.info(f"User {user_id} created skill: {request.name} (id={created['id']})")
         

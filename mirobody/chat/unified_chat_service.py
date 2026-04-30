@@ -86,6 +86,7 @@ class UnifiedChatService:
             "file_list"             : file_list or [],
             "files_data"            : files_data,  # Downloaded file content (avoids re-download)
             # LLM.
+            "agent"                 : agent,
             "provider"              : kwargs.get("provider", ""),
             "prompt_name"           : prompt_name,
             "tools"                 : kwargs.get("tools", None),

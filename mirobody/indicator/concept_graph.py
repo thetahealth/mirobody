@@ -18,11 +18,8 @@ from collections import defaultdict
 
 log = logging.getLogger(__name__)
 
-GRAPH_BIN = "concept_graph.bin"
 GRAPH_MAGIC = b"CGPH"
 GRAPH_VERSION = 1
-
-_BUNDLED_GRAPH = os.path.join(os.path.dirname(__file__), "..", "res", GRAPH_BIN)
 
 
 # ── Builder ──────────────────────────────────────────────────────────
@@ -32,8 +29,15 @@ class ConceptGraphBuilder:
     """Build-time graph: populate data then serialise to binary.
 
     Subclass and override ``load_bridges()`` / ``load_siblings()``,
-    then call ``build(out_dir)`` which handles the rest.
+    then call ``build(out_dir)`` which handles the rest. Subclasses set
+    ``DEFAULT_BIN_NAME`` so callers can ``build(out_dir)`` without
+    naming the output file every time — the binary's name is a
+    domain-specific concern (e.g. ``fhir_concept_graph.bin``), not a
+    framework default.
     """
+
+    # Subclass must override; framework has no opinion on filename.
+    DEFAULT_BIN_NAME: str = ""
 
     def __init__(self) -> None:
         self.bridges: dict[int, set[int]] = {}
@@ -74,12 +78,18 @@ class ConceptGraphBuilder:
             src_dir: Directory containing domain source data (passed to
                      ``load_bridges`` and ``load_siblings``).
             dest_path: Output binary path.  Defaults to
-                       ``src_dir/GRAPH_BIN`` if not provided.
+                       ``src_dir/<DEFAULT_BIN_NAME>`` if the subclass
+                       sets that class attribute.
         """
         if not os.path.isdir(src_dir):
             raise FileNotFoundError(f"Source data directory does not exist: {src_dir}")
         if dest_path is None:
-            dest_path = os.path.join(src_dir, GRAPH_BIN)
+            if not self.DEFAULT_BIN_NAME:
+                raise ValueError(
+                    f"{type(self).__name__} has no DEFAULT_BIN_NAME; "
+                    f"pass dest_path explicitly"
+                )
+            dest_path = os.path.join(src_dir, self.DEFAULT_BIN_NAME)
 
         self.bridges = self.load_bridges(src_dir)
         self.siblings = self.load_siblings(src_dir)
@@ -143,19 +153,23 @@ class ConceptGraph:
         self._sib_grp_size: array = array('I')
 
     @classmethod
-    def get(cls, file_path: str | None = None) -> ConceptGraph:
-        if file_path is None:
-            file_path = os.path.realpath(_BUNDLED_GRAPH)
-        elif not os.path.isfile(file_path):
-            log.warning("Graph binary not found: %s, falling back to bundled", file_path)
-            file_path = os.path.realpath(_BUNDLED_GRAPH)
+    def get(cls, file_path: str) -> ConceptGraph:
+        """Load and cache the graph at *file_path*.
 
+        Path-keyed cache: same path returns the same instance, different
+        paths get separate ones (so e.g. fhir and finance graphs can
+        coexist). The framework has no implicit "bundled default" —
+        each domain owns its own binary; the missing file is a config
+        error, not something to silently paper over.
+        """
+        file_path = os.path.realpath(file_path)
         if file_path not in cls._cache:
+            if not os.path.isfile(file_path):
+                raise FileNotFoundError(f"Graph binary not found: {file_path}")
             graph = cls()
             graph._load_bin(file_path)
             cls._cache[file_path] = graph
             log.info("Graph loaded: %s", graph.stats())
-
         return cls._cache[file_path]
 
     # ── Binary loading ─────────────────────────────────────────────

@@ -10,6 +10,7 @@ import json
 import logging
 import time
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from typing import Any, Dict, List, Optional
 
 import aiohttp
@@ -44,23 +45,33 @@ class ThetaOuraProvider(BaseThetaProvider):
     # e.g. curl -H "Authorization: Bearer test" https://api.ouraring.com/v2/sandbox/usercollection/sleep
     SANDBOX_API_PREFIX = "/v2/sandbox/usercollection"
 
-    # Endpoints configuration
+    # Endpoints configuration.
+    #
+    # time_strategy declares where each data_type's record timestamp comes from:
+    #   - "item_timestamp": take item["timestamp"] / item["bedtime_start"]
+    #     (event-style records with their own time field)
+    #   - "item_day":       take item["day"] (YYYY-MM-DD), interpreted at user
+    #     local 00:00 (daily summary aggregations)
+    #   - "sync_day_start": profile data without time field; use the sync
+    #     timestamp anchored to user-local 00:00, so a single user yields at
+    #     most one row per day under the (user, indicator, source, time)
+    #     unique constraint.
     API_ENDPOINTS = [
-        {"path": "/v2/usercollection/personal_info", "data_type": "personal_info", "paginated": False},
-        {"path": "/v2/usercollection/sleep", "data_type": "sleep", "paginated": True},
-        {"path": "/v2/usercollection/daily_sleep", "data_type": "daily_sleep", "paginated": True},
-        {"path": "/v2/usercollection/daily_activity", "data_type": "daily_activity", "paginated": True},
-        {"path": "/v2/usercollection/daily_readiness", "data_type": "daily_readiness", "paginated": True},
-        {"path": "/v2/usercollection/heartrate", "data_type": "heartrate", "paginated": False},
-        {"path": "/v2/usercollection/daily_spo2", "data_type": "daily_spo2", "paginated": True},
-        {"path": "/v2/usercollection/daily_stress", "data_type": "daily_stress", "paginated": True},
+        {"path": "/v2/usercollection/personal_info", "data_type": "personal_info", "paginated": False, "time_strategy": "sync_day_start"},
+        {"path": "/v2/usercollection/sleep", "data_type": "sleep", "paginated": True, "time_strategy": "item_timestamp"},
+        {"path": "/v2/usercollection/daily_sleep", "data_type": "daily_sleep", "paginated": True, "time_strategy": "item_day"},
+        {"path": "/v2/usercollection/daily_activity", "data_type": "daily_activity", "paginated": True, "time_strategy": "item_day"},
+        {"path": "/v2/usercollection/daily_readiness", "data_type": "daily_readiness", "paginated": True, "time_strategy": "item_day"},
+        {"path": "/v2/usercollection/heartrate", "data_type": "heartrate", "paginated": False, "time_strategy": "item_timestamp"},
+        {"path": "/v2/usercollection/daily_spo2", "data_type": "daily_spo2", "paginated": True, "time_strategy": "item_day"},
+        {"path": "/v2/usercollection/daily_stress", "data_type": "daily_stress", "paginated": True, "time_strategy": "item_day"},
         # Disabled: returns 401 — likely requires Oura Membership ($5.99/mo) subscription
-        # {"path": "/v2/usercollection/daily_resilience", "data_type": "daily_resilience", "paginated": True},
-        # {"path": "/v2/usercollection/daily_cardiovascular_age", "data_type": "daily_cardiovascular_age", "paginated": True},
-        {"path": "/v2/usercollection/vo2_max", "data_type": "vo2_max", "paginated": True},
-        {"path": "/v2/usercollection/workout", "data_type": "workout", "paginated": True},
-        {"path": "/v2/usercollection/session", "data_type": "session", "paginated": True},
-        {"path": "/v2/usercollection/sleep_time", "data_type": "sleep_time", "paginated": True},
+        # {"path": "/v2/usercollection/daily_resilience", "data_type": "daily_resilience", "paginated": True, "time_strategy": "item_day"},
+        # {"path": "/v2/usercollection/daily_cardiovascular_age", "data_type": "daily_cardiovascular_age", "paginated": True, "time_strategy": "item_day"},
+        {"path": "/v2/usercollection/vo2_max", "data_type": "vo2_max", "paginated": True, "time_strategy": "item_day"},
+        {"path": "/v2/usercollection/workout", "data_type": "workout", "paginated": True, "time_strategy": "item_timestamp"},
+        {"path": "/v2/usercollection/session", "data_type": "session", "paginated": True, "time_strategy": "item_timestamp"},
+        {"path": "/v2/usercollection/sleep_time", "data_type": "sleep_time", "paginated": True, "time_strategy": "item_day"},
     ]
 
     def __init__(self):
@@ -425,6 +436,7 @@ class ThetaOuraProvider(BaseThetaProvider):
         payload = fmt_input.payload
         data_type = payload.get("data_type", "unknown")
         data_items = payload.get("data", [])
+        sync_timestamp_ms = payload.get("timestamp")
 
         request_id = self.generate_request_id()
 
@@ -451,7 +463,9 @@ class ThetaOuraProvider(BaseThetaProvider):
             processing_info["mapped_count"] = len(records)
         else:
             for item in data_items:
-                item_records = self._process_data_item(item, data_type, ctx, mapping)
+                item_records = self._process_data_item(
+                    item, data_type, ctx, mapping, sync_timestamp_ms
+                )
                 records.extend(item_records)
                 processing_info["mapped_count"] += len(item_records)
 
@@ -485,38 +499,66 @@ class ThetaOuraProvider(BaseThetaProvider):
         # bare StandardIndicator
         return entry.value.name, entry.value.standard_unit
 
+    def _get_time_strategy(self, data_type: str) -> str:
+        """Look up time_strategy declared in API_ENDPOINTS for a data_type."""
+        for endpoint in self.API_ENDPOINTS:
+            if endpoint["data_type"] == data_type:
+                return endpoint.get("time_strategy", "item_timestamp")
+        return "item_timestamp"
+
+    def _resolve_item_timestamp(
+        self, item: Dict[str, Any], data_type: str,
+        user_tz: str, sync_timestamp_ms: Optional[int]
+    ) -> int:
+        """Resolve an item's record timestamp using the data_type's declared
+        time_strategy. Returns 0 to signal "skip this item" — never invents a
+        time value, so callers can rely on the falsy check.
+        """
+        strategy = self._get_time_strategy(data_type)
+
+        if strategy == "sync_day_start":
+            # Profile data has no time field. Anchor at user-local 00:00 of
+            # the sync moment, so the (user, indicator, source, time) unique
+            # constraint dedups repeated syncs to one row per day.
+            if not sync_timestamp_ms:
+                return 0
+            try:
+                tz = ZoneInfo(user_tz)
+                sync_dt = datetime.fromtimestamp(sync_timestamp_ms / 1000, tz=tz)
+                day_start = sync_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+                return int(day_start.timestamp() * 1000)
+            except Exception as e:
+                logging.error(f"Oura sync_day_start resolve failed for tz={user_tz}: {e}")
+                return 0
+
+        if strategy == "item_day":
+            time_str = item.get("day", "")
+        else:  # item_timestamp
+            time_str = item.get("timestamp") or item.get("bedtime_start") or ""
+
+        if not time_str:
+            return 0
+        return ThetaTimeUtils.parse_timestamp_with_smart_timezone(time_str, user_tz)
+
     def _process_data_item(
         self, item: Dict[str, Any], data_type: str,
-        ctx: Any, mapping: Dict
+        ctx: Any, mapping: Dict,
+        sync_timestamp_ms: Optional[int] = None
     ) -> List[StandardPulseRecord]:
         """Process a single data item using indicator mapping"""
         records = []
 
-        # Extract timestamp source based on data_type:
-        # - Daily summary types have a "day" field ("2026-03-06") representing user's local date
-        # - Sleep has "bedtime_start" with precise timezone-aware timestamp
-        # - Other types fall back to "timestamp"
-        DAILY_DATA_TYPES = {
-            "daily_activity", "daily_sleep", "daily_readiness", "daily_spo2",
-            "daily_stress", "daily_resilience", "daily_cardiovascular_age",
-            "sleep_time", "vo2_max",
-        }
-        if data_type in DAILY_DATA_TYPES:
-            time_str = item.get("day") or item.get("timestamp") or ""
-        else:
-            time_str = item.get("timestamp") or item.get("bedtime_start") or item.get("day") or ""
         user_tz = ctx.user_timezone or "UTC"
-        timestamp = ThetaTimeUtils.parse_timestamp_with_smart_timezone(time_str, user_tz)
+        timestamp = self._resolve_item_timestamp(item, data_type, user_tz, sync_timestamp_ms)
         if not timestamp:
             return records
 
         # For daily summary data, compute explicit startTime/endTime in user's local timezone
-        # so downstream doesn't fall back to UTC-based record_time date extraction
+        # so downstream doesn't fall back to UTC-based record_time date extraction.
         start_time_ms = None
         end_time_ms = None
-        if data_type in DAILY_DATA_TYPES:
+        if self._get_time_strategy(data_type) == "item_day":
             try:
-                from zoneinfo import ZoneInfo
                 tz = ZoneInfo(user_tz)
                 local_dt = datetime.fromtimestamp(timestamp / 1000, tz=tz)
                 day_start = local_dt.replace(hour=0, minute=0, second=0, microsecond=0)

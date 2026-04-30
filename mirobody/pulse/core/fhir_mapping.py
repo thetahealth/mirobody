@@ -225,7 +225,7 @@ class FhirMapping:
             "llm_unit": unit,
         }
         result = await execute_query(query, params)
-        if result and len(result) > 0:
+        if result:
             return result[0].get("id")
         return None
 

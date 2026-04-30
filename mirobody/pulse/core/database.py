@@ -134,7 +134,7 @@ class BaseDatabaseService(ABC):
                 query += f" RETURNING {returning}"
 
             result = await self.execute_query(query, data)
-            return result[0] if result else None
+            return result[0] if returning and result else None
 
         except Exception as e:
             logging.error(f"Database insert failed: {str(e)}")

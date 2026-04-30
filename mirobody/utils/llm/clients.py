@@ -35,12 +35,14 @@ class AIClientManager:
             self._clients["openai"] = OpenAI(api_key=openai_api_key)
             self._async_clients["openai"] = AsyncOpenAI(api_key=openai_api_key)
 
-        # Google Gemini client
+        # Google Gemini client — lock to AI Studio backend; without vertexai=False,
+        # GOOGLE_GENAI_USE_VERTEXAI=true in env reroutes requests to aiplatform with
+        # API-key auth, which Vertex rejects (401 UNAUTHENTICATED).
         google_api_key = safe_read_cfg("GOOGLE_API_KEY")
         if google_api_key:
             try:
-                self._clients["gemini"] = genai.Client(api_key=google_api_key)
-                self._async_clients["gemini"] = genai.Client(api_key=google_api_key).aio
+                self._clients["gemini"] = genai.Client(api_key=google_api_key, vertexai=False)
+                self._async_clients["gemini"] = genai.Client(api_key=google_api_key, vertexai=False).aio
             except Exception as e:
                 import logging
                 logging.warning(f"Failed to initialize Gemini client, skipping: {e}")
@@ -113,12 +115,20 @@ class AIClientManager:
         """Get async DashScope client"""
         return self.get_async_client("dashscope")
 
+    @staticmethod
+    def _use_vertex() -> bool:
+        return os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "0").lower() in ("true", "1")
+
     def get_gemini_client(self) -> genai.Client:
-        """Get Gemini client"""
+        """Get Gemini client (auto-routes to Vertex when GOOGLE_GENAI_USE_VERTEXAI=true)."""
+        if self._use_vertex():
+            return self.get_vertex_gemini_client()
         return self.get_client("gemini")
 
     def get_async_gemini_client(self):
-        """Get async Gemini client"""
+        """Get async Gemini client (auto-routes to Vertex when GOOGLE_GENAI_USE_VERTEXAI=true)."""
+        if self._use_vertex():
+            return self.get_async_vertex_gemini_client()
         return self.get_async_client("gemini")
 
     def get_vertex_gemini_client(self) -> genai.Client:

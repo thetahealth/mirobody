@@ -1,5 +1,3 @@
-[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/thetahealth-mirobody-badge.png)](https://mseep.ai/app/thetahealth-mirobody)
-
 <div align="center">
 
 # 🚀 Mirobody
@@ -190,7 +188,7 @@ A lightweight agent for direct LLM conversations without tool access. Ideal for:
 
 - **Docker & Docker Compose**: Ensure these are installed and running.
 - **Git**: To clone the repository.
-- **Git LFS**: Required to pull binary data files (e.g. `concept_graph.bin`). Install via `apt install git-lfs` (Linux) or `brew install git-lfs` (macOS). Git for Windows includes it by default. Run `git lfs install` once after installing.
+- **Git LFS**: Required to pull binary data files (e.g. `fhir_concept_graph.bin`). Install via `apt install git-lfs` (Linux) or `brew install git-lfs` (macOS). Git for Windows includes it by default. Run `git lfs install` once after installing.
 
 ### 1. Deploy via Docker
 

@@ -8,13 +8,21 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from argparse import Namespace
+from dataclasses import asdict, dataclass
 
-from .concept_graph import ConceptGraph
 from mirobody.utils.embedding import text_embedding
 
 log = logging.getLogger(__name__)
+
+
+@dataclass
+class ResolveResult:
+    """One match from `resolve()` — free text → standard code."""
+    system: str      # e.g. "LOINC", "SNOMED_CT", "RXNORM"
+    code: str        # e.g. "2345-7", "73211009"
+    name: str        # human-readable description (empty if meta absent)
+    score: float     # cosine similarity (0-1, higher = better)
 
 
 class DomainAdapter:
@@ -28,10 +36,10 @@ class DomainAdapter:
             cls._registry[cls.domain] = cls
 
     @classmethod
-    def get(cls, domain: str) -> DomainAdapter:
+    def get(cls, domain: str, **kwargs) -> DomainAdapter:
         if domain not in cls._registry:
             raise ValueError(f"unknown domain: {domain}")
-        return cls._registry[domain]()
+        return cls._registry[domain](**kwargs)
 
     async def search(
         self,
@@ -54,6 +62,39 @@ class DomainAdapter:
         """Fetch indicators by IDs."""
         ...
 
+    async def expand(self, top_ids: list[int]) -> list[int]:
+        """Optional graph expansion of top-K vector hits before fetching.
+
+        Default implementation is identity (no expansion). Domains with
+        a concept graph (e.g. ``FhirAdapter``) override this to pull
+        in bridge / sibling neighbors so a query for one code surfaces
+        related codes the user may actually have data for.
+        """
+        return top_ids
+
+    async def resolve(
+        self,
+        term: str,
+        top_k: int,
+        *,
+        systems: list[str] | None = None,
+    ) -> list[ResolveResult]:
+        """Global text→canonical-code resolution.
+
+        Unlike ``search`` (which is user-scoped and returns indicators
+        the user owns), ``resolve`` runs against the full standard
+        vocabulary and is independent of any user. Useful for ETL /
+        terminology-mapping pipelines.
+
+        ``top_k`` is per-system: results contain up to ``top_k`` matches
+        from each code system. Final list is sorted by score descending,
+        so the caller can compare across systems and judge by score.
+
+        Not all domains implement this — domains without a canonical
+        code system can leave it unimplemented.
+        """
+        ...
+
 
 # ─── Search engine ─────────────────────────────────────────────────
 
@@ -67,7 +108,7 @@ async def _resolve_user_id(identifier: str) -> str:
     return identifier
 
 
-async def _search(
+async def search(
     adapter: DomainAdapter,
     keywords: list[str],
     user_id: str,
@@ -98,20 +139,9 @@ async def _search(
 
     ranked = sorted(primary_scores.items(), key=lambda x: x[1], reverse=True)
 
-    # 3. Expand via graph, then fetch from DB
+    # 3. Expand via adapter (domain-specific graph or identity), then fetch
     top_ids = [fid for fid, _ in ranked[:top_k]]
-    from mirobody.utils import safe_read_cfg
-    from .concept_graph import GRAPH_BIN
-    graph_dir = safe_read_cfg("FHIR_INDICATORS_DIR")
-    graph = ConceptGraph.get(os.path.join(graph_dir, GRAPH_BIN)) if graph_dir else None
-
-    if graph and top_ids:
-        expanded: set[int] = set(top_ids)
-        for fid in top_ids:
-            expanded.update(graph.bridge_neighbors(fid) | graph.sibling_neighbors(fid))
-        fetch_ids = list(expanded)
-    else:
-        fetch_ids = top_ids
+    fetch_ids = await adapter.expand(top_ids)
 
     indicators = await adapter.fetch(
         user_id    = user_id,
@@ -148,10 +178,12 @@ async def _search(
 
 async def cmd_search(args: Namespace) -> None:
     """Subcommand: search — search concepts by keywords."""
-    import mirobody.indicator.health.search  # noqa: F401 — register adapter
+    from .fhir.search import FhirAdapter
+    from mirobody.utils import safe_read_cfg
 
-    adapter = DomainAdapter.get(getattr(args, "domain", "health"))
-    results = await _search(
+    bundle_dir = safe_read_cfg("FHIR_INDICATORS_DIR")
+    adapter = FhirAdapter(bundle_dir=bundle_dir)
+    results = await search(
         adapter    = adapter,
         user_id    = args.user_id,
         keywords   = args.keywords,
@@ -159,3 +191,92 @@ async def cmd_search(args: Namespace) -> None:
         end_time   = args.end_time,
     )
     print(json.dumps(results, ensure_ascii=False, indent=2, default=str))
+
+
+async def cmd_resolve(args: Namespace) -> None:
+    """Subcommand: resolve — map terms to standard medical codes.
+
+    Single term, no --output  → pretty JSON list on stdout (legacy shape).
+    Otherwise                 → JSON Lines (one ``{"term":..., "results":[...]}``
+                                per line). With --output, results append to the
+                                file and the run is resumable: terms already
+                                present are skipped on re-run. tqdm prints to
+                                stderr, with the bar's "completed" count seeded
+                                from the existing output so overall progress
+                                reflects the full job.
+    """
+    import sys
+    from pathlib import Path
+    from .fhir.search import FhirAdapter
+    from mirobody.utils import safe_read_cfg
+
+    # Resolve terms source: positional XOR --input.
+    if args.input:
+        if args.terms:
+            log.error("cannot pass both positional terms and --input")
+            sys.exit(2)
+        with open(args.input, encoding="utf-8") as f:
+            terms = [line.rstrip("\n") for line in f]
+            terms = [t for t in terms if t.strip()]
+    else:
+        if not args.terms:
+            log.error("must pass terms positionally or via --input")
+            sys.exit(2)
+        terms = list(args.terms)
+
+    bundle_dir = safe_read_cfg("FHIR_INDICATORS_DIR")
+    adapter = FhirAdapter(bundle_dir=bundle_dir)
+
+    # Legacy shape preserved for ad-hoc single-term lookups.
+    if len(terms) == 1 and not args.output:
+        results = await adapter.resolve(
+            term    = terms[0],
+            top_k   = args.top_k,
+            systems = args.systems,
+        )
+        print(json.dumps([asdict(r) for r in results], ensure_ascii=False, indent=2))
+        return
+
+    # Resume: scan existing output for already-completed terms.
+    done: set[str] = set()
+    if args.output and Path(args.output).exists():
+        with open(args.output, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    done.add(json.loads(line)["term"])
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    continue
+        if done:
+            log.info(f"resume: {len(done)} terms already in {args.output}")
+
+    remaining = [t for t in terms if t not in done]
+    if not remaining:
+        log.info(f"all {len(terms)} terms already resolved, nothing to do")
+        return
+
+    out_fp = (
+        open(args.output, "a", encoding="utf-8") if args.output else sys.stdout
+    )
+
+    from tqdm import tqdm
+    chunk = 256
+    pbar = tqdm(
+        total=len(terms), initial=len(done), desc="resolve", unit="term",
+    )
+    try:
+        for i in range(0, len(remaining), chunk):
+            batch = remaining[i : i + chunk]
+            batch_results = await adapter.resolve_many(
+                batch, top_k=args.top_k, systems=args.systems,
+            )
+            for term, results in zip(batch, batch_results):
+                out_fp.write(json.dumps(
+                    {"term": term, "results": [asdict(r) for r in results]},
+                    ensure_ascii=False,
+                ) + "\n")
+            out_fp.flush()
+            pbar.update(len(batch))
+    finally:
+        pbar.close()
+        if out_fp is not sys.stdout:
+            out_fp.close()

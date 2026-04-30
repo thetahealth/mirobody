@@ -52,16 +52,17 @@ class AggregateIndicatorService:
 
     async def process_incremental(
         self,
-        last_timestamp: Optional[int] = None,
+        last_timestamp: Optional[float] = None,
         user_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Main incremental processing function - Pure business logic
-        
+
         Args:
-            last_timestamp: Last processing timestamp (provided by Task layer)
+            last_timestamp: Last processing timestamp (float, seconds with
+                sub-second precision; provided by Task layer)
             user_id: Optional user ID filter (None = all users)
-            
+
         Returns:
             Dict with processing results:
             {
@@ -70,7 +71,7 @@ class AggregateIndicatorService:
                 "summaries_created": int,
                 "users_affected": int,
                 "execution_time_ms": float,
-                "new_timestamp": int  # For Task to update cache
+                "new_timestamp": float  # For Task to update cache
             }
         """
         start_time = time.time()
@@ -78,7 +79,7 @@ class AggregateIndicatorService:
         try:
             # Determine mode and fallback timestamp if needed
             if last_timestamp is None:
-                last_timestamp = int(time.time()) - 86400
+                last_timestamp = time.time() - 86400
                 mode = "cold_start"
             else:
                 mode = "normal"
@@ -116,9 +117,13 @@ class AggregateIndicatorService:
                     logging.error("[AggregateIndicator] Failed to save data")
                     return {"status": "save_failed", "mode": mode}
 
-            # Calculate new timestamp for Task to cache
+            # Calculate new timestamp for Task to cache.
+            # Keep sub-second precision: series_data.update_time is
+            # millisecond-precise, and truncating the cursor to an int
+            # second would roll it backwards within the same second,
+            # causing the next run to re-process the same batch.
             new_timestamp = max(
-                int(task.update_time.timestamp()) for task in tasks
+                task.update_time.timestamp() for task in tasks
             )
 
             # Calculate execution time
@@ -215,6 +220,20 @@ class AggregateIndicatorService:
         Returns:
             Dict with processing results
         """
+        # Guard against unbounded all-users backfills. 30 days is the
+        # chunk size used internally by calculate_time_range_aggregations;
+        # beyond this the DB load grows linearly with active user count.
+        if user_id is None:
+            days_span = (end_date - start_date).days + 1
+            if days_span > 30:
+                return {
+                    "status": "error",
+                    "error": (
+                        f"Range {days_span} days exceeds 30-day limit for "
+                        f"all-users backfill. Narrow the range or pass user_id."
+                    ),
+                }
+
         logging.info(
             f"Starting historical recalculation: {start_date.isoformat()} to {end_date.isoformat()}, "
             f"user={user_id or 'all'}"

@@ -38,7 +38,7 @@ class InsightDatabaseService:
               AND start_time >= NOW() - CAST(:days AS integer) * INTERVAL '1 day'
             ORDER BY user_id
         """
-        rows = await execute_query(sql, {"days": recent_days}, query_type="select")
+        rows = await execute_query(sql, {"days": recent_days})
         return [r["user_id"] for r in rows]
 
     async def get_demo_user_ids(self) -> List[str]:
@@ -53,7 +53,7 @@ class InsightDatabaseService:
             WHERE email LIKE 'user%demo' AND is_del = FALSE
             ORDER BY id
         """
-        rows = await execute_query(sql, query_type="select")
+        rows = await execute_query(sql)
         return [r["user_id"] for r in rows]
 
     async def get_user_indicators(self, user_id: str) -> Set[str]:
@@ -72,7 +72,7 @@ class InsightDatabaseService:
               AND deleted = 0
               AND indicator NOT LIKE 'event.%'
         """
-        rows = await execute_query(sql, {"user_id": user_id}, query_type="select")
+        rows = await execute_query(sql, {"user_id": user_id})
         return {r["indicator"] for r in rows}
 
     async def get_daily_values(
@@ -110,7 +110,6 @@ class InsightDatabaseService:
         rows = await execute_query(
             sql,
             {"user_id": user_id, "start_date": str(start_date), "target_date": str(target_date)},
-            query_type="select",
         )
 
         result: Dict[str, List[Tuple[date, float]]] = {}
@@ -151,7 +150,7 @@ class InsightDatabaseService:
             "recipe_name": recipe_name,
             "cooldown_start": str(cooldown_start),
             "target_date": str(target_date),
-        }, query_type="select")
+        })
         return rows[0]["cnt"] > 0 if rows else False
 
     # =========================================================================
@@ -217,7 +216,7 @@ class InsightDatabaseService:
             "baseline_snapshot": json.dumps(baseline_snapshot) if baseline_snapshot else None,
             "user_tags": json.dumps(user_tags) if user_tags else None,
         }
-        await execute_query(sql, params, query_type="dml")
+        await execute_query(sql, params)
 
     async def get_user_insights(
         self,
@@ -256,7 +255,7 @@ class InsightDatabaseService:
         where = (" AND ".join(conditions)) if conditions else "1=1"
 
         count_sql = f"SELECT COUNT(*) as cnt FROM user_behavior_insight WHERE {where}"
-        count_rows = await execute_query(count_sql, params, query_type="select")
+        count_rows = await execute_query(count_sql, params)
         total = count_rows[0]["cnt"] if count_rows else 0
 
         sql = f"""
@@ -268,7 +267,7 @@ class InsightDatabaseService:
             ORDER BY target_date DESC, created_at DESC
             LIMIT :limit OFFSET :offset
         """
-        rows = await execute_query(sql, params, query_type="select")
+        rows = await execute_query(sql, params)
         return rows, total
 
     async def get_unscored_insights(self, limit: int = 1000) -> List[Dict[str, Any]]:
@@ -285,7 +284,7 @@ class InsightDatabaseService:
             ORDER BY created_at DESC
             LIMIT :limit
         """
-        return await execute_query(sql, {"limit": limit}, query_type="select")
+        return await execute_query(sql, {"limit": limit})
 
     async def update_benchmark_score(
         self,
@@ -305,7 +304,7 @@ class InsightDatabaseService:
             "score": benchmark_score,
             "detail": json.dumps(benchmark_detail) if benchmark_detail else None,
         }
-        await execute_query(sql, params, query_type="dml")
+        await execute_query(sql, params)
 
     # =========================================================================
     # Event.* Ground Truth (for benchmark)
@@ -347,7 +346,7 @@ class InsightDatabaseService:
             WHERE {where}
             ORDER BY start_time
         """
-        return await execute_query(sql, params, query_type="select")
+        return await execute_query(sql, params)
 
     # =========================================================================
     # User Health Profile (from health_user_profile_by_system)
@@ -371,7 +370,7 @@ class InsightDatabaseService:
                 WHERE user_id = :user_id AND is_deleted = false
                 ORDER BY version DESC LIMIT 1
             """
-            rows = await execute_query(sql, {"user_id": user_id}, query_type="select")
+            rows = await execute_query(sql, {"user_id": user_id})
             if rows and rows[0].get("profile"):
                 profile = rows[0]["profile"]
                 if not profile.startswith("gAAAA"):
@@ -392,7 +391,7 @@ class InsightDatabaseService:
                 WHERE user_id = :user_id AND is_deleted = false
                 ORDER BY version DESC LIMIT 1
             """
-            rows = await execute_query(sql, {"user_id": user_id}, query_type="select")
+            rows = await execute_query(sql, {"user_id": user_id})
             if rows and rows[0].get("profile"):
                 logging.info(f"[InsightDB] Loaded plain profile for user {user_id}")
                 return rows[0]["profile"]
@@ -426,4 +425,4 @@ class InsightDatabaseService:
             ORDER BY target_date DESC
             LIMIT :limit
         """
-        return await execute_query(sql, {"user_id": user_id, "limit": limit}, query_type="select")
+        return await execute_query(sql, {"user_id": user_id, "limit": limit})

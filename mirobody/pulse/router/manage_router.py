@@ -1012,7 +1012,7 @@ async def eval_insight(
             sql += " AND recipe_name = :recipe_name"
             params["recipe_name"] = recipe_name
 
-        insights = await execute_query(sql, params, query_type="select")
+        insights = await execute_query(sql, params)
         if not insights:
             return ErrorResponse(code=404, detail="No insights found for this user+date")
 
@@ -1118,7 +1118,6 @@ async def submit_insight_feedback_manage(
         await execute_query(
             "UPDATE user_behavior_insight SET user_feedback = :feedback WHERE id = :id",
             {"id": insight_id, "feedback": feedback},
-            query_type="dml",
         )
         return StandardResponse(data={"insight_id": insight_id, "feedback_type": feedback_type})
     except Exception as e:

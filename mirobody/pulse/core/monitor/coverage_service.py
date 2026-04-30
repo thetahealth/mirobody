@@ -122,7 +122,10 @@ class CoverageService:
         return {
             row["indicator"]: {
                 "row_count": row["row_count"] or 0,
-                "user_count": row["source_count"] or 0,
+                # Distinct source count (NOT user count). The legacy field
+                # name "user_count" was misleading and is being phased out
+                # in favor of "source_count" (TH-334).
+                "source_count": row["source_count"] or 0,
                 "filtered_count": row["filtered_count"] or 0,
             }
             for row in rows
@@ -181,19 +184,27 @@ class CoverageService:
                     if base_name == target:
                         agg_output[agg_ind] = agg_info
 
+            # source_count is the distinct source (apple_health/vital.oura/...) count.
+            # source_users / agg_total_users are kept for backward compatibility
+            # but mirror source_count / agg_total_sources respectively. Drop them
+            # in a follow-up release once frontend has migrated. (TH-334)
+            source_count = source_info.get("source_count", 0)
+            agg_total_sources = max(
+                (v["source_count"] for v in agg_output.values()), default=0
+            )
             matrix.append({
                 "indicator": indicator,
                 "has_config": bool(methods),
                 "aggregation_methods": methods,
                 "has_source_data": has_source,
                 "source_rows": source_info.get("row_count", 0),
-                "source_users": source_info.get("user_count", 0),
+                "source_count": source_count,
+                "source_users": source_count,  # deprecated, will be removed
                 "has_agg_output": bool(agg_output),
                 "agg_targets": list(agg_output.keys()),
                 "agg_total_rows": sum(v["row_count"] for v in agg_output.values()),
-                "agg_total_users": max(
-                    (v["user_count"] for v in agg_output.values()), default=0
-                ),
+                "agg_total_sources": agg_total_sources,
+                "agg_total_users": agg_total_sources,  # deprecated
             })
 
         # Sort: configured first, then by source data volume
@@ -249,7 +260,8 @@ class CoverageService:
             {
                 "indicator": m["indicator"],
                 "source_rows": m["source_rows"],
-                "source_users": m["source_users"],
+                "source_count": m["source_count"],
+                "source_users": m["source_count"],  # deprecated, kept for compat (TH-334)
             }
             for m in matrix
             if m["has_source_data"] and not m["has_config"]

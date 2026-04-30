@@ -66,11 +66,13 @@ class HealthIndicatorService:
             if not keyword_list:
                 return {"success": False, "error": "At least one keyword must be provided."}
 
-            from mirobody.indicator.search import _search
-            from mirobody.indicator.health.search import HealthAdapter
+            from mirobody.indicator.search import search
+            from mirobody.indicator.fhir.search import FhirAdapter
+            from mirobody.utils import safe_read_cfg
 
-            adapter = HealthAdapter()
-            indicators = await _search(
+            bundle_dir = safe_read_cfg("FHIR_INDICATORS_DIR")
+            adapter = FhirAdapter(bundle_dir=bundle_dir)
+            indicators = await search(
                 adapter    = adapter,
                 user_id    = user_id,
                 keywords   = keyword_list,
@@ -79,7 +81,7 @@ class HealthIndicatorService:
             )
 
             if indicators:
-                _drop = {"id", "score", "standard", "code", "description"}
+                _drop = {"id", "score", "system", "code", "description"}
                 indicators = [{k: v for k, v in ind.items() if k not in _drop} for ind in indicators]
 
             return {

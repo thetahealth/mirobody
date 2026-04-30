@@ -3,9 +3,9 @@
 Subcommands:
     siblings — Build sibling groups (_siblings_*.csv).
     bridge   — Build cross-vocabulary bridge files (_bridges_*.csv).
-    merge    — Merge siblings + bridges into concepts.csv + concept_graph.bin.
+    merge    — Merge siblings + bridges into concepts.csv + fhir_concept_graph.bin.
     search   — Search concepts by keywords (requires DB).
-    mapping  — Map free-text term to LOINC / RxNorm / SNOMED CT codes.
+    resolve  — Resolve free-text term to LOINC / RxNorm / SNOMED CT codes.
     embed    — Batch-fill embedding_gemini for th_series_dim / fhir_indicators.
     test     — Verify concepts.csv against known test cases.
 
@@ -14,7 +14,7 @@ Usage:
     python -m mirobody.indicator bridge   -o out/ --umls-dir  ~/ref/umls-...
     python -m mirobody.indicator merge    -o out/
     python -m mirobody.indicator search   -o out/ <user_id> <keywords...>
-    python -m mirobody.indicator mapping  "blood glucose"
+    python -m mirobody.indicator resolve  "blood glucose"
 
 Required external data (default location: ~/ref/):
   UMLS Metathesaurus   — https://www.nlm.nih.gov/research/umls/licensedcontent/umlsknowledgesources.html
@@ -38,16 +38,19 @@ import logging
 import os
 from argparse import ArgumentParser
 
-from .health.siblings import cmd_siblings
-from .health.bridge import cmd_bridge
-from .health.merge import cmd_merge
-from .health.taxonomy import cmd_taxonomy
-from .health.embeddings_db import cmd_embeddings_db
-from .health.embeddings_ref import cmd_embeddings_ref
-from .search import cmd_search
-from .mapping import cmd_mapping
+from .fhir.siblings import cmd_siblings
+from .fhir.bridge import cmd_bridge
+from .fhir.merge import cmd_merge
+from .fhir.taxonomy import cmd_taxonomy
+from .fhir.embeddings import (
+    cmd_code_names,
+    cmd_embeddings_db,
+    cmd_embeddings_ref,
+    cmd_id_map,
+)
+from .search import cmd_search, cmd_resolve
 from .embed import cmd_embed
-from .health.test import cmd_test
+from .fhir.test import cmd_test
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -129,7 +132,7 @@ def main() -> None:
     # ── merge ─────────────────────────────────────────────────────────
     p_merge = sub.add_parser(
         "merge",
-        help="Merge siblings + bridge files into concepts.csv + concept_graph.bin",
+        help="Merge siblings + bridge files into concepts.csv + fhir_concept_graph.bin",
     )
     p_merge.add_argument(
         "-o", "--output",
@@ -153,23 +156,36 @@ def main() -> None:
     p_search.add_argument("--start-time", default=None, help="Start date filter (YYYY-MM-DD)")
     p_search.add_argument("--end-time", default=None, help="End date filter (YYYY-MM-DD)")
 
-    # ── mapping ───────────────────────────────────────────────────────
-    p_map = sub.add_parser(
-        "mapping",
-        help="Map a free-text term to LOINC / RxNorm / SNOMED CT codes",
+    # ── resolve ───────────────────────────────────────────────────────
+    p_resolve = sub.add_parser(
+        "resolve",
+        help="Resolve a free-text term to LOINC / RxNorm / SNOMED CT codes",
     )
-    p_map.add_argument("term", help="Clinical term to map (e.g. 'blood glucose', 'metformin')")
-    p_map.add_argument(
+    p_resolve.add_argument(
+        "terms", nargs="*",
+        help="Clinical term(s) to resolve (e.g. 'blood glucose' 'metformin'). "
+             "Use --input to read terms from a file instead — avoids ARG_MAX "
+             "limits for large batches.",
+    )
+    p_resolve.add_argument(
+        "-i", "--input", metavar="FILE",
+        help="Read terms one-per-line from FILE. Mutually exclusive with positional terms.",
+    )
+    p_resolve.add_argument(
+        "-o", "--output", metavar="FILE",
+        help="Append JSON Lines results to FILE. Enables resume: terms whose "
+             "results already exist in FILE are skipped on re-run. Without "
+             "--output, results stream to stdout (no resume).",
+    )
+    p_resolve.add_argument(
         "-s", "--systems", nargs="+",
-        help="Filter to specific systems (LOINC, SNOMED_CT, RXNORM)",
+        help="Filter to specific systems "
+             "(SNOMED_CT, LOINC, RXNORM, CVX, DCM, THETA). "
+             "Default: all systems, top_k per system.",
     )
-    p_map.add_argument(
+    p_resolve.add_argument(
         "-k", "--top-k", type=int, default=5,
-        help="Number of results (default: 5)",
-    )
-    p_map.add_argument(
-        "-t", "--threshold", type=float, default=0.0,
-        help="Minimum similarity score 0-1 (default: 0.0)",
+        help="Number of results per code system (default: 5)",
     )
 
     # ── embed ─────────────────────────────────────────────────────────
@@ -185,7 +201,7 @@ def main() -> None:
     # ── taxonomy ──────────────────────────────────────────────────────
     p_tax = sub.add_parser(
         "taxonomy",
-        help="Build a taxonomy binary (currently: body systems → taxonomy.bin)",
+        help="Build a taxonomy binary (currently: body systems → fhir_taxonomy.bin)",
     )
     p_tax.add_argument(
         "-o", "--output",
@@ -196,15 +212,16 @@ def main() -> None:
     p_tax.add_argument("--umls-dir", default=None, help="UMLS release dir")
     p_tax.add_argument(
         "--bin-output", default=None,
-        help="Output path for the .bin file (default: mirobody/res/taxonomy.bin)",
+        help="Output path for the .bin file (default: mirobody/res/fhir_taxonomy.bin)",
     )
 
     # ── embeddings ────────────────────────────────────────────────────
     p_emb_export = sub.add_parser(
         "embeddings",
-        help="Export fhir embeddings/code-index to res/ (fp16, L2-normalised). "
-             "Default source is the fhir_indicators DB table; use --from-ref "
-             "to bootstrap from ~/ref (for empty-DB users).",
+        help="Export fhir_embeddings.npy + fhir_meta.csv.gz "
+             "(+ fhir_id_map.npy in --from-db mode) to res/. Default source "
+             "is the fhir_indicators DB table; use --from-ref to bootstrap "
+             "from ~/ref (for fresh deployments).",
     )
     p_emb_export.add_argument(
         "-o", "--output", default=_default_output,
@@ -212,8 +229,8 @@ def main() -> None:
     )
     p_emb_export.add_argument(
         "--res-dir", default=None,
-        help="Final output dir for fhir_code_index.csv.gz + fhir_embedding*.npy "
-             "(default: mirobody/res)",
+        help="Final output dir for fhir_embeddings.npy / fhir_meta.csv.gz / "
+             "fhir_id_map.npy (default: mirobody/res)",
     )
     src_group = p_emb_export.add_mutually_exclusive_group()
     src_group.add_argument(
@@ -228,6 +245,35 @@ def main() -> None:
     p_emb_export.add_argument("--loinc-dir",  default=None, help="LOINC release dir (ref path)")
     p_emb_export.add_argument("--rxnorm-dir", default=None, help="RxNorm release dir (ref path)")
     p_emb_export.add_argument("--dicom-dir",  default=None, help="DICOM PS3.16 dir containing part16.xml (ref path)")
+
+    # ── id-map ────────────────────────────────────────────────────────
+    p_id_map = sub.add_parser(
+        "id-map",
+        help="Build fhir_id_map.npy (canonical ↔ fhir_indicators.id) "
+             "without re-running the slow embedding export. Recovery "
+             "path for users whose embeddings already exist but lack "
+             "the sidecar.",
+    )
+    p_id_map.add_argument(
+        "--res-dir", default=None,
+        help="Output dir (default: mirobody/res)",
+    )
+
+    # ── code-names ────────────────────────────────────────────────────
+    p_names = sub.add_parser(
+        "code-names",
+        help="Fill the `name` column of fhir_meta.csv.gz from ~/ref "
+             "LOINC/SNOMED/RxNorm/CVX source files. Post-step for "
+             "`embeddings --from-db` (`--from-ref` already fills inline).",
+    )
+    p_names.add_argument(
+        "--res-dir", default=None,
+        help="Output dir (default: mirobody/res)",
+    )
+    p_names.add_argument("--snomed-dir", default=None, help="SNOMED CT release dir")
+    p_names.add_argument("--loinc-dir",  default=None, help="LOINC release dir")
+    p_names.add_argument("--rxnorm-dir", default=None, help="RxNorm release dir")
+    p_names.add_argument("--dicom-dir",  default=None, help="DICOM PS3.16 dir containing part16.xml")
 
     # ── test ──────────────────────────────────────────────────────────
     p_test = sub.add_parser(
@@ -256,8 +302,8 @@ def main() -> None:
         asyncio.run(_run_async(cmd_merge(args)))
     elif args.command == "search":
         asyncio.run(_run_async(cmd_search(args)))
-    elif args.command == "mapping":
-        asyncio.run(_run_async(cmd_mapping(args)))
+    elif args.command == "resolve":
+        asyncio.run(_run_async(cmd_resolve(args)))
     elif args.command == "embed":
         asyncio.run(_run_async(cmd_embed(args)))
     elif args.command == "taxonomy":
@@ -267,6 +313,10 @@ def main() -> None:
             asyncio.run(_run_async(cmd_embeddings_ref(args)))
         else:
             asyncio.run(_run_async(cmd_embeddings_db(args)))
+    elif args.command == "id-map":
+        asyncio.run(_run_async(cmd_id_map(args)))
+    elif args.command == "code-names":
+        asyncio.run(_run_async(cmd_code_names(args)))
     elif args.command == "test":
         cmd_test(args)
 

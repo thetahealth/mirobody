@@ -43,8 +43,6 @@ class TextHandler(BaseFileHandler):
             rows = await execute_query(
                 "SELECT decrypt_content(original_text) as original_text FROM th_file_contents WHERE content_hash = :hash LIMIT 1",
                 params={"hash": content_hash},
-                query_type="select",
-                mode="async",
             )
 
             if rows and len(rows) > 0 and rows[0].get("original_text"):
@@ -64,8 +62,6 @@ class TextHandler(BaseFileHandler):
                         "length": len(original_text),
                         "file_type": "text",
                     },
-                    query_type="insert",
-                    mode="async",
                 )
                 logging.info(f"✅ Text file original text saved to cache: hash={content_hash[:16]}..., length={len(original_text)}")
         except Exception as e:
