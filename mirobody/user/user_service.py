@@ -1,4 +1,4 @@
-import jwt, logging, secrets, urllib.parse
+import jwt, logging
 
 from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
@@ -8,19 +8,23 @@ from .email import create_email_validator
 from .apple import AppleTokenValidator
 from .google import GoogleTokenValidator
 from .firebase import FirebaseTokenValidator
+from .wechat import WeChatOpenValidator
 from .webauthn import WebAuthnService
 
 from .user import (
     add_or_get_user,
     del_user,
-    get_user_via_apple_subject
+    get_user_via_apple_subject,
+    update_user_name,
 )
+
+from .auth_wechat import find_or_create_wechat_user
+
+from .account_merge import merge_accounts
 
 from ..utils import (
     json_response_with_code,
     json_response,
-
-    get_jwt_token,
 
     Request,
     Response,
@@ -58,7 +62,8 @@ class UserService:
         google_client_id    : str = "",
         firebase_project_id : str = "",
 
-        qr_login_url    : str = "",
+        wechat_open_appid   : str = "",
+        wechat_open_secret  : str = "",
 
         # WebAuthn (AAL2).
         webauthn_rp_id      : str = "",
@@ -66,9 +71,7 @@ class UserService:
         webauthn_origin     : str = "",
         webauthn_mfa_ticket_ttl : int = 300,
     ):
-        self._token_validator   = token_validator
-        self._get_jwt_token     = get_jwt_token
-        self._qr_login_url      = qr_login_url
+        self._token_validator = token_validator
 
         self._email_validator = create_email_validator(
             smtp_host       = email_smtp_host,
@@ -104,16 +107,15 @@ class UserService:
         else:
             self._firebase_validator = None
 
+        if wechat_open_appid and wechat_open_secret:
+            self._wechat_open_validator = WeChatOpenValidator(wechat_open_appid, wechat_open_secret)
+        else:
+            self._wechat_open_validator = None
+
          #-------------------------------------------------
 
         self._db_pool = db_pool
-
-        self._redis = redis
-        if self._redis:
-            self._qr_state_keyprefix = "mirobody:user:qr:state:"
-        else:
-            # Use local memory when no redis connection is available.
-            self._qr_states = {}
+        self._redis   = redis
 
         # WebAuthn service (enabled only when rp_id is configured).
         self._webauthn_service = WebAuthnService(
@@ -137,9 +139,10 @@ class UserService:
 
         self.routes.append(Route(f"{uri_prefix}/email/login", endpoint=self.email_login_handler, methods=["POST", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/email/verify", endpoint=self.email_verify_handler, methods=["POST", "OPTIONS"]))
-        self.routes.append(Route(f"{uri_prefix}/email/register", endpoint=self.email_register_handler, methods=["POST", "OPTIONS"]))
+        self.routes.append(Route(f"{uri_prefix}/email/bind", endpoint=self.email_bind_handler, methods=["POST", "OPTIONS"]))
 
         self.routes.append(Route(f"{uri_prefix}/user/del", endpoint=self.user_unregister_handler, methods=["POST", "OPTIONS"]))
+        self.routes.append(Route(f"{uri_prefix}/user/update_name", endpoint=self.user_update_name_handler, methods=["POST", "OPTIONS"]))
 
         if self._apple_validator:
             self.routes.append(Route(f"{uri_prefix}/apple/verify", endpoint=self.apple_verify_handler, methods=["POST", "OPTIONS"]))
@@ -147,10 +150,8 @@ class UserService:
         if self._google_validator or self._firebase_validator:
             self.routes.append(Route(f"{uri_prefix}/google/verify", endpoint=self.google_verify_handler, methods=["POST", "OPTIONS"]))
 
-        if self._qr_login_url:
-            self.routes.append(Route(f"{uri_prefix}/qr/login", endpoint=self.qr_login_handler, methods=["GET", "POST", "OPTIONS"]))
-            self.routes.append(Route(f"{uri_prefix}/qr/verify", endpoint=self.qr_verify_handler, methods=["POST", "OPTIONS"]))
-            self.routes.append(Route(f"{uri_prefix}/qr/check", endpoint=self.qr_check_handler, methods=["POST", "OPTIONS"]))
+        if self._wechat_open_validator:
+            self.routes.append(Route(f"{uri_prefix}/wechat/verify", endpoint=self.wechat_verify_handler, methods=["POST", "OPTIONS"]))
 
     #-------------------------------------------------------------------------
 
@@ -207,34 +208,107 @@ class UserService:
 
     #-------------------------------------------------------------------------
 
-    async def email_register_handler(self, request: Request) -> Response:
+    async def email_bind_handler(self, request: Request) -> Response:
+        """
+        Bind a real email to the currently-authenticated user.
+
+        Primary use case: a WeChat-only user (whose health_app_user.email is
+        the synthesized `wx_<openid>@wechat.local`) verifies a real email and
+        promotes that to be their canonical email.
+
+        If the verified email already belongs to a different active user, the
+        two accounts are merged: the email-side account wins, the WeChat-side
+        account's data (including its auth_wechat row) is moved over and the
+        WeChat-side health_app_user row is soft-deleted.
+        """
         if request.method == "OPTIONS":
             return json_response_with_code(disable_log=True)
 
+        if not self._email_validator:
+            return json_response_with_code(-1, "Invalid email validator.", request=request)
+
+        if not request.state.user_id or \
+            not isinstance(request.state.user_id, int) or \
+            request.state.user_id <= 0:
+
+            return json_response(status_code=401, request=request)
+
+        current_user_id = request.state.user_id
+
+        try:
+            data = await request.json()
+            email = data.get("email")
+            code  = data.get("code")
+
+            if not email or not code:
+                return json_response_with_code(-2, "Email and code are required.", request=request)
+
+            err = await self._email_validator.verify(email, code)
+            if err:
+                return json_response_with_code(-3, err, request=request)
+
+        except Exception as e:
+            return json_response_with_code(-4, str(e), request=request)
+
         #-------------------------------------------------
 
-        token = self._get_jwt_token(request)
+        lower_email = email.strip().lower()
 
-        payload, err = self._token_validator.verify_token(token)
-        if err:
-            return json_response_with_code(-1, err, request=request)
-        
+        try:
+            async with self._db_pool.connection() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "SELECT id FROM health_app_user WHERE email=%s AND is_del=FALSE LIMIT 1;",
+                        [lower_email]
+                    )
+                    await conn.commit()
+
+                    row = await cur.fetchone()
+                    existing_owner = row[0] if row else 0
+
+        except Exception as e:
+            return json_response_with_code(-5, str(e), request=request)
+
         #-------------------------------------------------
-        # Generate a Mirobody JWT token.
 
-        email = payload.get("email")
-        if not email:
-            return json_response_with_code(-2, "No email found", request=request)
-        
-        id, name, err = await add_or_get_user(self._db_pool, email)
-        if err:
-            return json_response_with_code(-3, err, request=request)
-        
-        access_token, refresh_token, err = await self._token_validator.generate_tokens(str(id), email)
-        if err:
-            return json_response_with_code(-4, err, request=request)
+        if existing_owner == current_user_id:
+            # Already bound to me — nothing to do, just refresh token.
+            return await self._generate_auth_response(current_user_id, lower_email, "email_bind", request)
 
-        return json_response_with_code(data={"token": access_token}, request=request)
+        if existing_owner and existing_owner != current_user_id:
+            # Conflict: the verified email belongs to another live user.
+            # Merge current_user (losing) into existing_owner (winning).
+            affected, err = await merge_accounts(
+                self._db_pool,
+                losing_user_id  = current_user_id,
+                winning_user_id = existing_owner,
+                reason          = "wechat_email_link",
+            )
+            if err:
+                logging.error(
+                    f"merge_accounts failed: losing={current_user_id} winning={existing_owner}: {err}",
+                    extra={"affected": affected}
+                )
+                return json_response_with_code(-6, err, request=request)
+
+            return await self._generate_auth_response(existing_owner, lower_email, "email_bind", request)
+
+        #-------------------------------------------------
+        # No conflict: simply rewrite the current user's email column.
+
+        try:
+            async with self._db_pool.connection() as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(
+                        "UPDATE health_app_user SET email=%s, update_at=CURRENT_TIMESTAMP WHERE id=%s;",
+                        [lower_email, current_user_id]
+                    )
+                    await conn.commit()
+
+        except Exception as e:
+            return json_response_with_code(-7, str(e), request=request)
+
+        return await self._generate_auth_response(current_user_id, lower_email, "email_bind", request)
 
     #-------------------------------------------------------------------------
 
@@ -257,8 +331,49 @@ class UserService:
         err = del_user(self._db_pool, user_id)
         if err:
             return json_response_with_code(-1, err, request=request)
-        
+
         return json_response_with_code(request=request)
+
+    #-------------------------------------------------------------------------
+
+    async def user_update_name_handler(self, request: Request) -> Response:
+        """Update the current user's display name (health_app_user.name).
+
+        Used primarily by WeChat-only users to overwrite the placeholder
+        nickname pulled from /sns/userinfo (or "WeChat User" when userinfo
+        was unavailable). Email/Google users can also use it.
+        """
+        if request.method == "OPTIONS":
+            return json_response_with_code(disable_log=True)
+
+        if not request.state.user_id or \
+            not isinstance(request.state.user_id, int) or \
+            request.state.user_id <= 0:
+
+            return json_response(status_code=401, request=request)
+
+        user_id = request.state.user_id
+
+        try:
+            data = await request.json()
+        except Exception as e:
+            return json_response_with_code(-1, f"Invalid JSON: {e}", request=request)
+
+        name = data.get("name") if isinstance(data, dict) else None
+        if not isinstance(name, str):
+            return json_response_with_code(-2, "name is required.", request=request)
+
+        name = name.strip()
+        if not name:
+            return json_response_with_code(-3, "name cannot be empty.", request=request)
+        if len(name) > 100:
+            return json_response_with_code(-4, "name too long (max 100).", request=request)
+
+        err = await update_user_name(self._db_pool, user_id, name)
+        if err:
+            return json_response_with_code(-5, err, request=request)
+
+        return json_response_with_code(data={"name": name}, request=request)
 
     #-------------------------------------------------------------------------
 
@@ -407,139 +522,62 @@ class UserService:
 
     #-------------------------------------------------------------------------
 
-    async def qr_login_handler(self, request: Request) -> Response:
+    async def wechat_verify_handler(self, request: Request) -> Response:
+        """
+        WeChat Open Platform - Website App QR login.
+
+        Frontend owns the redirect_uri (`<frontend>/auth/wechat/callback`) and
+        posts the returned `code` here. We exchange it for an `openid`, then
+        look up the user via the `auth_wechat` identity table. First-time
+        WeChat logins create a health_app_user row with a synthesized
+        `wx_<openid>@wechat.local` virtual email plus an auth_wechat row.
+
+        The legacy `health_app_user.wechat_openid` column is no longer
+        written; pre-migration data lives there as read-only history and is
+        backfilled into auth_wechat by the schema migration.
+        """
         if request.method == "OPTIONS":
             return json_response_with_code(disable_log=True)
-        
-        state = secrets.token_urlsafe(32)
-        
-        #-------------------------------------------------
 
-        if self._redis:
-            try:
-                await self._redis.set(self._qr_state_keyprefix + state, "", 10 * 60)
-            
-            except Exception as e:
-                logging.warning(str(e))
+        if not self._wechat_open_validator:
+            return json_response_with_code(-1, "WeChat login not configured.", request=request)
 
-                return json_response_with_code(-1, str(e), request=request)
+        try:
+            request_json = await request.json()
 
-        else:
-            self._qr_states[state] = ""
+            code = request_json.get("code")
+            if not code:
+                return json_response_with_code(-2, "WeChat authorization code is required.", request=request)
 
-        check_url = urllib.parse.quote_plus(
-            f"https://{request.url.hostname}/qr/verify?state={state}"
-        )
+            #---------------------------------------------
 
-        return json_response_with_code(data={"qrCode": f"{self._qr_login_url}?check={check_url}"})
+            info, err = await self._wechat_open_validator.exchange_code(code)
+            if err:
+                return json_response_with_code(-3, err, request=request)
 
-    #-------------------------------------------------------------------------
+            openid  = info.get("openid")
+            unionid = info.get("unionid")
+            if not openid:
+                return json_response_with_code(-4, "WeChat response missing openid.", request=request)
 
-    async def qr_verify_handler(self, request: Request) -> Response:
-        if request.method == "OPTIONS":
-            return json_response_with_code(disable_log=True)
-        
-        state = request.query_params["state"]
-        if not state:
-            return json_response_with_code(-1, "No state found.", request=request)
-        
-        #-------------------------------------------------
-        # Get 3rd JWT token.
+            #---------------------------------------------
+            # Resolve openid -> (user_id, email). The helper handles both
+            # the returning-user lookup and the first-time create_user +
+            # create_wechat_identity dance, shared with the holywell-side
+            # WeChat QR gateway (backend_py/mcp_server/wechat_gateway.py).
 
-        jwt_token = request.headers.get("Authorization")
-        if jwt_token and isinstance(jwt_token, str):
-            while jwt_token.startswith("Bearer "):
-                jwt_token = jwt_token[7:]
+            user_id, email, err = await find_or_create_wechat_user(
+                self._db_pool, openid, unionid,
+            )
+            if err:
+                return json_response_with_code(-5, err, request=request)
+            if not user_id:
+                return json_response_with_code(-6, "Empty user ID.", request=request)
 
-        if not jwt_token:
-            return json_response_with_code(-2, "Invalid JWT token.", request=request)
-        
-        #-------------------------------------------------
-        # Check the 3rd JWT token.
+            return await self._generate_auth_response(user_id, email, "wechat", request)
 
-        payload, err = self._token_validator.verify_token(token=jwt_token)
-        if err:
-            return json_response_with_code(-3, err, request=request)
-        
-        if not isinstance(payload, dict) or "email" not in payload:
-            return json_response_with_code(-4, "Invalid JWT payload.", request=request)
-        
-        #-------------------------------------------------
-        # Generate a Mirobody JWT token.
-
-        email   = payload.get("email")
-        name    = email.split("@")[0].strip()
-
-        id, err = await add_or_get_user(self._db_pool, email, name)
-        if err:
-            return json_response_with_code(-5, err, request=request)
-        
-        access_token, refresh_token, err = await self._token_validator.generate_tokens(str(id), email)
-        if err:
-            return json_response_with_code(-6, err, request=request)
-        
-        #-------------------------------------------------
-        # Save the Mirobody JWT token.
-        
-        if self._redis:
-            try:
-                await self._redis.set(self._qr_state_keyprefix + state, access_token, 10 * 60)
-
-            except Exception as e:
-                logging.warning(str(e))
-
-                return json_response_with_code(-7, str(e), request=request)
-
-        else:
-            self._qr_states[state] = access_token
-
-        #-------------------------------------------------
-
-        return json_response_with_code()
-
-    #-------------------------------------------------------------------------
-
-    async def qr_check_handler(self, request: Request) -> Response:
-        if request.method == "OPTIONS":
-            return json_response_with_code(disable_log=True)
-        
-        state = request.query_params["state"]
-        if not state:
-            return json_response_with_code(-1, "No state found.", request=request)
-        
-        #-------------------------------------------------
-
-        if self._redis:
-            try:
-                jwt_token = await self._redis.get(self._qr_state_keyprefix + state)
-
-            except Exception as e:
-                logging.warning(str(e))
-
-                jwt_token = None
-
-        else:
-            jwt_token = self._qr_states.get(state)
-
-        #-------------------------------------------------
-
-        if not jwt_token:
-            return json_response_with_code(-2, "Authentication not started.", request=request, disable_log=True)
-        
-        else:
-            if self._redis:
-                try:
-                    await self._redis.delete(self._qr_state_keyprefix + state)
-
-                except Exception as e:
-                    logging.warning(str(e))
-
-            else:
-                del self._qr_states[state]
-
-        #-------------------------------------------------
-        
-        return json_response_with_code(data={"accessToken": jwt_token}, request=request)
+        except Exception as e:
+            return json_response_with_code(-10, str(e), request=request)
 
     #-------------------------------------------------------------------------
 

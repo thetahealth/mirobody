@@ -27,8 +27,8 @@ class CreateSkillRequest(BaseModel):
     """Request body for creating a new skill"""
     name: str = Field(..., min_length=1, max_length=255, description="Skill name")
     summary: str = Field(..., min_length=1, description="Brief description of the skill")
-    when_to_use: List[str] = Field(..., min_items=1, description="Scenarios where this skill should be used")
-    when_not_to_use: List[str] = Field(..., min_items=1, description="Scenarios where this skill should NOT be used")
+    when_to_use: List[str] = Field(..., min_length=1, description="Scenarios where this skill should be used")
+    when_not_to_use: List[str] = Field(..., min_length=1, description="Scenarios where this skill should NOT be used")
     tags: List[str] = Field(default=[], description="Tags for categorization")
     skill_md: str = Field(..., min_length=1, description="Skill document in Markdown format")
 

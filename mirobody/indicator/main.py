@@ -6,8 +6,15 @@ Subcommands:
     merge    — Merge siblings + bridges into concepts.csv + fhir_concept_graph.bin.
     search   — Search concepts by keywords (requires DB).
     resolve  — Resolve free-text term to LOINC / RxNorm / SNOMED CT codes.
+    normalize — Parse free-text 'value + unit' string into (comparator, value, UCUM unit).
+    inspect  — Show concept-graph bridges/siblings for a (SYSTEM, CODE) node.
+    loinc-skip — Build fhir_loinc_skip.npy mask (PHENX/SURVEY/DOC + DEPRECATED/DISCOURAGED excluded from resolve).
+    loinc-rank — Build fhir_loinc_rank_bonus.npy soft-bonus (top-100 LOINCs +0.020, tail less; derived from COMMON_TEST_RANK).
+    loinc-alias — Build fhir_alias_index.pkl multilingual lexical alias → row index (from LinguisticVariants + main RELATEDNAMES2).
     embed    — Batch-fill embedding_gemini for th_series_dim / fhir_indicators.
-    test     — Verify concepts.csv against known test cases.
+
+Build artifacts can be verified with:
+    pytest tests/indicator/fhir/ --out-dir out/
 
 Usage:
     python -m mirobody.indicator siblings -o out/ --loinc-dir ~/ref/Loinc_...
@@ -15,6 +22,8 @@ Usage:
     python -m mirobody.indicator merge    -o out/
     python -m mirobody.indicator search   -o out/ <user_id> <keywords...>
     python -m mirobody.indicator resolve  "blood glucose"
+    python -m mirobody.indicator normalize "90次每分钟" "<5.6 mg/dL"
+    python -m mirobody.indicator inspect  LOINC 65583-7
 
 Required external data (default location: ~/ref/):
   UMLS Metathesaurus   — https://www.nlm.nih.gov/research/umls/licensedcontent/umlsknowledgesources.html
@@ -42,15 +51,20 @@ from .fhir.siblings import cmd_siblings
 from .fhir.bridge import cmd_bridge
 from .fhir.merge import cmd_merge
 from .fhir.taxonomy import cmd_taxonomy
-from .fhir.embeddings import (
-    cmd_code_names,
-    cmd_embeddings_db,
-    cmd_embeddings_ref,
-    cmd_id_map,
-)
-from .search import cmd_search, cmd_resolve
+from .fhir.embeddings.db import cmd_embeddings_db, cmd_id_map
+from .fhir.embeddings.dose import cmd_dose_index
+from .fhir.embeddings.names import cmd_code_names
+from .fhir.embeddings.ref import cmd_embeddings_ref
+from .fhir.embeddings.alias import cmd_loinc_alias
+from .fhir.embeddings.analyte_digit import cmd_analyte_digit
+from .fhir.embeddings.lexicon import cmd_loinc_lexicon
+from .fhir.embeddings.rank import cmd_loinc_rank
+from .fhir.embeddings.skip import cmd_loinc_skip
+from .fhir.common import SYSTEMS as _SYSTEMS
+from .fhir.inspect import cmd_inspect
+from .search import cmd_search
+from .resolve import cmd_resolve
 from .embed import cmd_embed
-from .fhir.test import cmd_test
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -66,6 +80,36 @@ def _find_latest_dir(base: str, pattern: str) -> str:
 
 
 # ─── CLI ─────────────────────────────────────────────────────────────
+
+def cmd_normalize(args) -> None:
+    """Parse 'value + unit' strings and emit JSON lines.
+
+    No DB / config required — pure local computation against the
+    :mod:`.fhir.units` token tables.
+    """
+    import json
+
+    from .fhir.units import parse_value_unit, unit_family
+
+    terms = list(args.terms)
+    if args.input:
+        with open(args.input, encoding="utf-8") as f:
+            terms.extend(line.strip() for line in f if line.strip())
+    if not terms:
+        log.error("No terms provided. Pass positional terms or use --input.")
+        return
+
+    for t in terms:
+        r = parse_value_unit(t)
+        out = {
+            "input": t,
+            "comparator": r.comparator,
+            "value": r.value,
+            "unit": r.unit,
+            "family": unit_family(r.unit) if r.unit else None,
+        }
+        print(json.dumps(out, ensure_ascii=False))
+
 
 def _resolve_ref_defaults(args, ref_dir: str) -> None:
     """Fill in None-valued reference directory args from --ref-dir."""
@@ -164,17 +208,23 @@ def main() -> None:
     p_resolve.add_argument(
         "terms", nargs="*",
         help="Clinical term(s) to resolve (e.g. 'blood glucose' 'metformin'). "
-             "Use --input to read terms from a file instead — avoids ARG_MAX "
-             "limits for large batches.",
+             "Optional value via ``term=value`` syntax: ``glucose=150 mg/dL`` "
+             "biases toward quantitative LOINC variants, ``glucose=++`` "
+             "biases toward ordinal — disambiguates analytes with both. "
+             "Use --input to read records from a file instead (same syntax) "
+             "— avoids ARG_MAX limits for large batches.",
     )
     p_resolve.add_argument(
         "-i", "--input", metavar="FILE",
-        help="Read terms one-per-line from FILE. Mutually exclusive with positional terms.",
+        help="Read records one-per-line from FILE. Each line is ``term`` or "
+             "``term=value`` (same syntax as positional). Mutually exclusive "
+             "with positional terms.",
     )
     p_resolve.add_argument(
         "-o", "--output", metavar="FILE",
-        help="Append JSON Lines results to FILE. Enables resume: terms whose "
-             "results already exist in FILE are skipped on re-run. Without "
+        help="Append JSON Lines results to FILE. Enables resume: records whose "
+             "(term, value) pair already appears in FILE are skipped on re-run "
+             "— same term with different values runs as separate jobs. Without "
              "--output, results stream to stdout (no resume).",
     )
     p_resolve.add_argument(
@@ -187,6 +237,43 @@ def main() -> None:
         "-k", "--top-k", type=int, default=5,
         help="Number of results per code system (default: 5)",
     )
+
+    # ── normalize ─────────────────────────────────────────────────────
+    p_norm = sub.add_parser(
+        "normalize",
+        help="Parse free-text 'value + unit' strings via "
+             "mirobody.indicator.fhir.units. Emits one JSON line per input.",
+    )
+    p_norm.add_argument(
+        "terms", nargs="*",
+        help="Strings to parse, e.g. '90次每分钟', '<5.6 mg/dL', 'mmol/L'. "
+             "Use --input for batch from file.",
+    )
+    p_norm.add_argument(
+        "-i", "--input", metavar="FILE",
+        help="Read one term per line from FILE (mutually exclusive with positional terms).",
+    )
+
+    # ── inspect ───────────────────────────────────────────────────────
+    p_inspect = sub.add_parser(
+        "inspect",
+        help="Show concept-graph bridges/siblings for a (SYSTEM, CODE) node",
+    )
+    p_inspect.add_argument(
+        "system",
+        help=f"Code system: one of {', '.join(_SYSTEMS)}",
+    )
+    p_inspect.add_argument("code", help="Code string (LOINC may include the dash, e.g. 65583-7)")
+    p_inspect.add_argument(
+        "--bundle-dir", default=None,
+        help="Override the FHIR bundle dir (default: pip-bundled mirobody/res)",
+    )
+    p_inspect.add_argument(
+        "--loinc-dir", default=None,
+        help="LOINC release dir; required to display the 6 LOINC axes "
+             "(auto-resolved from --ref-dir if available)",
+    )
+    p_inspect.add_argument("--json", action="store_true", help="Emit JSON instead of pretty text")
 
     # ── embed ─────────────────────────────────────────────────────────
     p_embed = sub.add_parser(
@@ -262,9 +349,11 @@ def main() -> None:
     # ── code-names ────────────────────────────────────────────────────
     p_names = sub.add_parser(
         "code-names",
-        help="Fill the `name` column of fhir_meta.csv.gz from ~/ref "
-             "LOINC/SNOMED/RxNorm/CVX source files. Post-step for "
-             "`embeddings --from-db` (`--from-ref` already fills inline).",
+        help="Recovery path: fill the `name` column of an existing "
+             "fhir_meta.csv.gz from ~/ref LOINC/SNOMED/RxNorm/CVX "
+             "source files. Both `embeddings` modes already do this "
+             "inline when ~/ref is available; use this only to repair "
+             "a bundle produced without ~/ref.",
     )
     p_names.add_argument(
         "--res-dir", default=None,
@@ -275,15 +364,136 @@ def main() -> None:
     p_names.add_argument("--rxnorm-dir", default=None, help="RxNorm release dir")
     p_names.add_argument("--dicom-dir",  default=None, help="DICOM PS3.16 dir containing part16.xml")
 
-    # ── test ──────────────────────────────────────────────────────────
-    p_test = sub.add_parser(
-        "test",
-        help="Verify concepts.csv against known test cases",
+    # ── loinc-skip ────────────────────────────────────────────────────
+    p_skip = sub.add_parser(
+        "loinc-skip",
+        help="Build fhir_loinc_skip.npy: row-aligned bool mask marking "
+             "LOINC codes that resolve should exclude — non-clinical classes "
+             "(PHENX/SURVEY/DOC/admin) and superseded statuses "
+             "(DEPRECATED/DISCOURAGED). Derived from fhir_meta + "
+             "LoincTableCore.csv; no embedding rebuild needed.",
     )
-    p_test.add_argument(
-        "-o", "--output",
-        default=_default_output,
-        help=f"Output directory (default: {_default_output})",
+    p_skip.add_argument(
+        "--res-dir", default=None,
+        help="Output dir (default: mirobody/res)",
+    )
+    p_skip.add_argument("--loinc-dir", default=None, help="LOINC release dir")
+
+    # ── loinc-rank ────────────────────────────────────────────────────
+    p_rank = sub.add_parser(
+        "loinc-rank",
+        help="Build fhir_loinc_rank_bonus.npy: row-aligned float32 bonus "
+             "applied to LOINC cosines during resolve, derived from the "
+             "COMMON_TEST_RANK column in LoincTable/Loinc.csv. Acts as a "
+             "soft tie-breaker — top-100 LOINCs get +0.020, longer tail "
+             "gets less. Rebuild after each LOINC release.",
+    )
+    p_rank.add_argument(
+        "--res-dir", default=None,
+        help="Output dir (default: mirobody/res)",
+    )
+    p_rank.add_argument("--loinc-dir", default=None, help="LOINC release dir")
+
+    # ── dose-index ────────────────────────────────────────────────────
+    p_dose = sub.add_parser(
+        "dose-index",
+        help="Build fhir_dose_index.npz: corpus-row → (value, UCUM unit) "
+             "pairs scanned from each row's display name. Resolver "
+             "applies a small cosine bonus when query dose set intersects "
+             "row dose set — catches "
+             "post-75g-glucose / post-100g-glucose / drug-strength variants "
+             "that flat cosine can't distinguish. Rebuild after each meta "
+             "refresh or any change to the units scanner's coverage.",
+    )
+    p_dose.add_argument(
+        "--res-dir", default=None,
+        help="Output dir (default: mirobody/res)",
+    )
+
+    # ── loinc-alias ───────────────────────────────────────────────────
+    p_alias = sub.add_parser(
+        "loinc-alias",
+        help="Build fhir_alias_index.pkl: multilingual lexical alias → "
+             "corpus-row inverted index from LoincTable/Loinc.csv + "
+             "AccessoryFiles/LinguisticVariants/*. Applied as a resolve-"
+             "time cosine bonus when query substrings match an alias. "
+             "Catches abbreviations and language synonyms the embedding "
+             "underweights (Glu, 肌酐, HPV 11). Rebuild after each LOINC "
+             "release.",
+    )
+    p_alias.add_argument(
+        "--res-dir", default=None,
+        help="Output dir (default: mirobody/res)",
+    )
+    p_alias.add_argument("--loinc-dir", default=None, help="LOINC release dir")
+
+    # ── loinc-lexicon ─────────────────────────────────────────────────
+    p_lexicon = sub.add_parser(
+        "loinc-lexicon",
+        help="Build aliases/{lang}.tsv inside fhir_loinc_bundle.tar.gz: "
+             "per-language CN→canonical-EN mapping for the query-side "
+             "augmentation that bridges Latin-binomial gaps in the "
+             "multilingual embedding (出芽短梗霉 → Aureobasidium pullulans). "
+             "Drops pairs the embedding already knows (cosine ≥ 0.70), "
+             "strips LOINC-jargon noise, merges curated colloquial / "
+             "acronym overlays from _curated_aliases.py. Also writes a "
+             "loose mirobody/res/aliases_src/{lang}.tsv for git review.",
+    )
+    p_lexicon.add_argument(
+        "--res-dir", default=None,
+        help="Output dir (default: mirobody/res)",
+    )
+    p_lexicon.add_argument("--loinc-dir", default=None, help="LOINC release dir")
+    p_lexicon.add_argument(
+        "--lang", default="zh",
+        help="Language code matching a LOINC LinguisticVariant file "
+             "(zh / ja / ko / de / es / fr / pt / ru / ...). Default: zh.",
+    )
+    p_lexicon.add_argument(
+        "--cosine-threshold", type=float, default=0.70,
+        help="Drop pairs with src↔dst cosine ≥ THRESHOLD — the model "
+             "already bridges those; the augmentation adds nothing. "
+             "Default: 0.70.",
+    )
+    p_lexicon.add_argument(
+        "--mrconso", default=None,
+        help="Path to UMLS MRCONSO.RRF. Required for languages without "
+             "a LOINC LinguisticVariant CSV (e.g. ja). Walks MeSH/MedDRA "
+             "JPN↔ENG via CUI to derive (src, dst) pairs.",
+    )
+
+    # ── analyte-digit ─────────────────────────────────────────────────
+    p_analyte = sub.add_parser(
+        "analyte-digit",
+        help="Build analyte_digit.tsv inside fhir_loinc_bundle.tar.gz: "
+             "chemical-name → numeric-subtype alias table mined from "
+             "LOINC RELATEDNAMES2 and SNOMED CT (substance|product) "
+             "synonyms. Used by the resolver's digit-aware family "
+             "rerank to align Vit B1 / IGF-1 / Vit K2 style queries "
+             "against LOINC rows that carry the chemical form "
+             "(Thiamine, Insulin-like growth factor-I, Phytonadione). "
+             "Curated overlay analyte_digit_curated.tsv survives "
+             "rebuilds. Also writes a loose mirobody/res/"
+             "analyte_digit_src/analyte_digit.tsv for git review.",
+    )
+    p_analyte.add_argument(
+        "--res-dir", default=None,
+        help="Output dir (default: mirobody/res)",
+    )
+    p_analyte.add_argument(
+        "--loinc-dir", default=None,
+        help="LOINC release dir (uses {dir}/LoincTable/Loinc.csv). "
+             "Either --loinc-dir or --snomed-dir must be passed.",
+    )
+    p_analyte.add_argument(
+        "--snomed-dir", default=None,
+        help="SNOMED CT release dir (uses {dir}/Snapshot/Terminology/"
+             "sct2_Description_Snapshot-en_*.txt). Either --loinc-dir "
+             "or --snomed-dir must be passed.",
+    )
+    p_analyte.add_argument(
+        "--verbose", "-v", action="store_true",
+        help="Print the final entries to stdout after the build.",
     )
 
     args = parser.parse_args()
@@ -304,6 +514,10 @@ def main() -> None:
         asyncio.run(_run_async(cmd_search(args)))
     elif args.command == "resolve":
         asyncio.run(_run_async(cmd_resolve(args)))
+    elif args.command == "normalize":
+        cmd_normalize(args)
+    elif args.command == "inspect":
+        cmd_inspect(args)
     elif args.command == "embed":
         asyncio.run(_run_async(cmd_embed(args)))
     elif args.command == "taxonomy":
@@ -315,10 +529,20 @@ def main() -> None:
             asyncio.run(_run_async(cmd_embeddings_db(args)))
     elif args.command == "id-map":
         asyncio.run(_run_async(cmd_id_map(args)))
+    elif args.command == "loinc-skip":
+        asyncio.run(_run_async(cmd_loinc_skip(args)))
+    elif args.command == "loinc-rank":
+        asyncio.run(_run_async(cmd_loinc_rank(args)))
+    elif args.command == "loinc-alias":
+        asyncio.run(_run_async(cmd_loinc_alias(args)))
+    elif args.command == "loinc-lexicon":
+        asyncio.run(_run_async(cmd_loinc_lexicon(args)))
+    elif args.command == "analyte-digit":
+        cmd_analyte_digit(args)
+    elif args.command == "dose-index":
+        asyncio.run(_run_async(cmd_dose_index(args)))
     elif args.command == "code-names":
         asyncio.run(_run_async(cmd_code_names(args)))
-    elif args.command == "test":
-        cmd_test(args)
 
 
 if __name__ == "__main__":

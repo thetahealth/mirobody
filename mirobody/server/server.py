@@ -91,7 +91,8 @@ class Server:
 
         google_client_id        : str = "",
 
-        qr_login_url            : str = "",
+        wechat_open_appid       : str = "",
+        wechat_open_secret      : str = "",
 
         # The following parameters can be generated via
         #   config.get_webauthn_options().
@@ -146,14 +147,17 @@ class Server:
                 if firebase_project_id and not isinstance(firebase_project_id, str):
                     firebase_project_id = None
 
-        if "__IS_QR_LOGIN_ON__" not in self._webpage_config:
-            self._webpage_config["__IS_QR_LOGIN_ON__"] = True if qr_login_url else False
-
         if "__IS_GOOGLE_LOGIN_ON__" not in self._webpage_config:
             self._webpage_config["__IS_GOOGLE_LOGIN_ON__"] = True if google_client_id or firebase_project_id else False
 
         if "__IS_APPLE_LOGIN_ON__" not in self._webpage_config:
             self._webpage_config["__IS_APPLE_LOGIN_ON__"] = True if apple_client_id else False
+
+        if "__IS_WECHAT_LOGIN_ON__" not in self._webpage_config:
+            self._webpage_config["__IS_WECHAT_LOGIN_ON__"] = True if wechat_open_appid and wechat_open_secret else False
+
+        if wechat_open_appid and wechat_open_secret and "__WECHAT_APP_ID__" not in self._webpage_config:
+            self._webpage_config["__WECHAT_APP_ID__"] = wechat_open_appid
 
         if "__IS_WEBAUTHN_ON__" not in self._webpage_config:
             self._webpage_config["__IS_WEBAUTHN_ON__"] = True if webauthn_rp_id else False
@@ -208,8 +212,9 @@ class Server:
             google_client_id    = google_client_id,
             firebase_project_id = firebase_project_id,
 
-            # QR code login.
-            qr_login_url    = qr_login_url,
+            # WeChat Open Platform login (Website App, scope=snsapi_login).
+            wechat_open_appid   = wechat_open_appid,
+            wechat_open_secret  = wechat_open_secret,
 
             # WebAuthn (AAL2).
             webauthn_rp_id      = webauthn_rp_id,
@@ -503,7 +508,7 @@ class Server:
             **config.get_email_options(),
             **config.get_apple_options(),
             **config.get_google_options(),
-            **config.get_qr_options(),
+            **config.get_wechat_open_options(),
             **config.get_firebase_options()
         )
 

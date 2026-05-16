@@ -568,33 +568,14 @@ Return JSON format: {"file_name": "...", "file_abstract": "..."}"""
     ):
         """Update th_files with indicator extraction results."""
         try:
-            from mirobody.utils.db import execute_query
+            from mirobody.pulse.file_parser.services.file_db_service import FileDbService
 
-            sql = """
-                UPDATE th_files
-                SET file_content = jsonb_set(
-                    jsonb_set(
-                        jsonb_set(
-                            COALESCE(file_content, CAST('{}' AS jsonb)),
-                            '{raw}',
-                            to_jsonb(CAST(:raw AS text))
-                        ),
-                        '{indicators_count}',
-                        to_jsonb(CAST(:indicators_count AS integer))
-                    ),
-                    '{processed}',
-                    to_jsonb(true)
-                ),
-                updated_at = NOW()
-                WHERE file_key = :file_key
-            """
-
-            await execute_query(
-                sql,
-                params={
-                    "file_key": file_key,
+            await FileDbService.update_file_content(
+                file_key=file_key,
+                updates={
                     "raw": formatted_raw,
                     "indicators_count": indicators_count,
+                    "processed": True,
                 },
             )
 

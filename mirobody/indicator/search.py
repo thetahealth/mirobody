@@ -2,6 +2,10 @@
 
 The search command computes keyword embeddings, delegates vector recall and
 graph expansion to a DomainAdapter, then merges and ranks results.
+
+The ``DomainAdapter`` abstraction (with ``search``/``fetch``/``expand``/
+``resolve`` methods) and the ``ResolveResult`` dataclass live here. The
+``resolve`` CLI front-end lives in :mod:`mirobody.indicator.resolve`.
 """
 
 from __future__ import annotations
@@ -9,7 +13,7 @@ from __future__ import annotations
 import json
 import logging
 from argparse import Namespace
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 from mirobody.utils.embedding import text_embedding
 
@@ -178,7 +182,7 @@ async def search(
 
 async def cmd_search(args: Namespace) -> None:
     """Subcommand: search — search concepts by keywords."""
-    from .fhir.search import FhirAdapter
+    from .fhir.adapter import FhirAdapter
     from mirobody.utils import safe_read_cfg
 
     bundle_dir = safe_read_cfg("FHIR_INDICATORS_DIR")
@@ -191,92 +195,3 @@ async def cmd_search(args: Namespace) -> None:
         end_time   = args.end_time,
     )
     print(json.dumps(results, ensure_ascii=False, indent=2, default=str))
-
-
-async def cmd_resolve(args: Namespace) -> None:
-    """Subcommand: resolve — map terms to standard medical codes.
-
-    Single term, no --output  → pretty JSON list on stdout (legacy shape).
-    Otherwise                 → JSON Lines (one ``{"term":..., "results":[...]}``
-                                per line). With --output, results append to the
-                                file and the run is resumable: terms already
-                                present are skipped on re-run. tqdm prints to
-                                stderr, with the bar's "completed" count seeded
-                                from the existing output so overall progress
-                                reflects the full job.
-    """
-    import sys
-    from pathlib import Path
-    from .fhir.search import FhirAdapter
-    from mirobody.utils import safe_read_cfg
-
-    # Resolve terms source: positional XOR --input.
-    if args.input:
-        if args.terms:
-            log.error("cannot pass both positional terms and --input")
-            sys.exit(2)
-        with open(args.input, encoding="utf-8") as f:
-            terms = [line.rstrip("\n") for line in f]
-            terms = [t for t in terms if t.strip()]
-    else:
-        if not args.terms:
-            log.error("must pass terms positionally or via --input")
-            sys.exit(2)
-        terms = list(args.terms)
-
-    bundle_dir = safe_read_cfg("FHIR_INDICATORS_DIR")
-    adapter = FhirAdapter(bundle_dir=bundle_dir)
-
-    # Legacy shape preserved for ad-hoc single-term lookups.
-    if len(terms) == 1 and not args.output:
-        results = await adapter.resolve(
-            term    = terms[0],
-            top_k   = args.top_k,
-            systems = args.systems,
-        )
-        print(json.dumps([asdict(r) for r in results], ensure_ascii=False, indent=2))
-        return
-
-    # Resume: scan existing output for already-completed terms.
-    done: set[str] = set()
-    if args.output and Path(args.output).exists():
-        with open(args.output, encoding="utf-8") as f:
-            for line in f:
-                try:
-                    done.add(json.loads(line)["term"])
-                except (json.JSONDecodeError, KeyError, TypeError):
-                    continue
-        if done:
-            log.info(f"resume: {len(done)} terms already in {args.output}")
-
-    remaining = [t for t in terms if t not in done]
-    if not remaining:
-        log.info(f"all {len(terms)} terms already resolved, nothing to do")
-        return
-
-    out_fp = (
-        open(args.output, "a", encoding="utf-8") if args.output else sys.stdout
-    )
-
-    from tqdm import tqdm
-    chunk = 256
-    pbar = tqdm(
-        total=len(terms), initial=len(done), desc="resolve", unit="term",
-    )
-    try:
-        for i in range(0, len(remaining), chunk):
-            batch = remaining[i : i + chunk]
-            batch_results = await adapter.resolve_many(
-                batch, top_k=args.top_k, systems=args.systems,
-            )
-            for term, results in zip(batch, batch_results):
-                out_fp.write(json.dumps(
-                    {"term": term, "results": [asdict(r) for r in results]},
-                    ensure_ascii=False,
-                ) + "\n")
-            out_fp.flush()
-            pbar.update(len(batch))
-    finally:
-        pbar.close()
-        if out_fp is not sys.stdout:
-            out_fp.close()

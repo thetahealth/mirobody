@@ -539,15 +539,15 @@ class Config:
         }
 
 
+    def get_wechat_open_options(self) -> dict[str, str]:
+        return {
+            "wechat_open_appid"  : self.get_str("WECHAT_OPEN_APPID"),
+            "wechat_open_secret" : self.get_str("WECHAT_OPEN_SECRET"),
+        }
+
     def get_qr_options(self) -> dict[str, str]:
         return {
             "qr_login_url"  : self.get_str("QR_LOGIN_URL")
-        }
-
-    def get_wechat_mp_options(self) -> dict[str, str]:
-        return {
-            "wechat_mp_appid"   : self.get_str("WECHAT_MP_APPID"),
-            "wechat_mp_secret"  : self.get_str("WECHAT_MP_SECRET")
         }
 
     def get_webauthn_options(self) -> dict:

@@ -7,7 +7,22 @@ from ..utils.utils_user import get_query_user_id
 
 #-----------------------------------------------------------------------------
 
-async def create_session(user_id: str, query_user_id: str) -> dict:
+async def create_session(
+    user_id: str,
+    query_user_id: str,
+    session_id: str | None = None,
+) -> dict:
+    """
+    Create a row in th_sessions.
+
+    `session_id` is optional. When omitted the function behaves as before
+    (mints a uuid4). When supplied — e.g. by a client that needs to
+    encode pane/group metadata directly into the id (cdm compare mode) —
+    the supplied id is used verbatim, after a safety check rejects
+    obvious abuse (too long / unsupported chars). Other callers that
+    don't send the param continue to get backend-minted uuids, so this
+    is a backward-compatible parameter addition.
+    """
     try:
         query_user_validation = await get_query_user_id(user_id=query_user_id, query_user_id=user_id, permission=["chat"])
         if not query_user_validation.get("success"):
@@ -16,10 +31,24 @@ async def create_session(user_id: str, query_user_id: str) -> dict:
                 "msg"   : query_user_validation.get("error"),
                 "data"  : {}
             }
-        
+
         #-------------------------------------------------
 
-        session_id = str(uuid.uuid4())
+        # Validate client-supplied session_id against th_sessions.session_id
+        # (varchar(100)) so we never push a value the column would truncate.
+        # Character whitelist matches what mirobody normally generates
+        # (uuids) plus the underscore/hyphen the cdm codec uses.
+        if session_id:
+            import re
+            if len(session_id) > 100 or not re.fullmatch(r"[A-Za-z0-9_\-]+", session_id):
+                return {
+                    "code"  : -3,
+                    "msg"   : "Invalid session_id format",
+                    "data"  : {},
+                }
+        else:
+            session_id = str(uuid.uuid4())
+
         created_at = datetime.now()
         
         session_sql = """

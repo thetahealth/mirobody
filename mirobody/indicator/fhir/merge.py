@@ -281,10 +281,9 @@ async def cmd_merge(args: Namespace) -> None:
     log.info(f"merge: out_dir={out_dir}, loinc_dir={loinc_dir}")
     merge_siblings(out_dir, loinc_dir=loinc_dir)
 
-    # Sync fhir_id cache from DB (if not already cached)
-    from .graph_builder import FhirGraphBuilder, sync_fhir_ids
+    # Build graph and save binary. Node keys are canonical fhir_ids
+    # derived purely from (system, code) — no DB hop, so retired/inactive
+    # SNOMED variants stay in sibling groups for query-expansion recall.
+    from .graph_builder import FhirGraphBuilder
 
-    await sync_fhir_ids(out_dir)
-
-    # Build graph and save binary
     FhirGraphBuilder().build(out_dir)

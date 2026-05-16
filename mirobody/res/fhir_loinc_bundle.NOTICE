@@ -1,0 +1,37 @@
+This bundle (fhir_loinc_bundle.tar.gz) contains data derived from LOINC®
+(Logical Observation Identifiers Names and Codes), copyright © 1995
+Regenstrief Institute, Inc. and the Logical Observation Identifiers
+Names and Codes (LOINC) Committee.
+
+LOINC® is a registered trademark of Regenstrief Institute, Inc.
+This material is available at no cost under the LOINC license,
+which permits commercial and non-commercial redistribution provided
+the LOINC copyright statement is reproduced in full.
+
+Bundle members and their LOINC sources:
+
+  loinc_axis.csv          — derived from LoincTableCore.csv, filtered
+                            to STATUS=ACTIVE and reduced to columns
+                            LOINC_NUM, COMPONENT, PROPERTY, TIME_ASPCT,
+                            SYSTEM, SCALE_TYP, METHOD_TYP, STATUS,
+                            LONG_COMMON_NAME.
+  loinc_skip.txt          — LOINC codes excluded from resolve (non-
+                            clinical CLASS / PHENX / DOC / SURVEY,
+                            DEPRECATED / DISCOURAGED STATUS).
+  loinc_demote.txt        — LOINC codes soft-demoted in sort
+                            (LABORDERS.ONTOLOGY abstract codes,
+                            TRIAL STATUS).
+  loinc_rank_bonus.npy    — row-aligned float32 tie-breaker cosine
+                            bonus, derived from LoincTable/Loinc.csv
+                            COMMON_TEST_RANK column.
+  loinc_alias_index.npz   — multilingual lexical alias → corpus-row
+                            inverted index, derived from
+                            LoincTable/Loinc.csv (COMPONENT,
+                            RELATEDNAMES2, SHORTNAME, DisplayName,
+                            CONSUMER_NAME) and all AccessoryFiles/
+                            LinguisticVariants/*.csv.
+
+Source: LOINC release 2.82 or later (LoincTable/, LoincTableCore/,
+AccessoryFiles/).
+
+Full LOINC license: https://loinc.org/license/

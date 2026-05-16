@@ -19,7 +19,12 @@ from collections import defaultdict
 log = logging.getLogger(__name__)
 
 GRAPH_MAGIC = b"CGPH"
-GRAPH_VERSION = 1
+# v2: node IDs widened from 32-bit ('I') to 64-bit ('Q') so the FHIR
+# graph can key by canonical packed fhir_ids (sys<<60 | code) which
+# exceed the 32-bit range for any non-SNOMED system. Counts/offsets
+# stay 32-bit. No backward read for v1 — the file is a build artifact,
+# rebuild on schema change.
+GRAPH_VERSION = 2
 
 
 # ── Builder ──────────────────────────────────────────────────────────
@@ -100,9 +105,9 @@ class ConceptGraphBuilder:
 
         Format (v2):
           header:  magic(4) + version(H) + n_bridge(I) + n_siblings(I)
-          bridges: per entry: src(I) + n_dst(I) + dst_ids(I*n)
+          bridges: per entry: src(Q) + n_dst(I) + dst_ids(Q*n)
                    Only stores edges where src < dst to halve size.
-          siblings: per group: n_ids(H) + ids(I*n)
+          siblings: per group: n_ids(H) + ids(Q*n)
         """
         buf = bytearray()
         header_fmt = "<4sHII"
@@ -113,11 +118,11 @@ class ConceptGraphBuilder:
         for src in sorted(self.bridges):
             dst_ids = sorted(n for n in self.bridges[src] if n > src)
             if dst_ids:
-                buf.extend(struct.pack(f"<II{len(dst_ids)}I", src, len(dst_ids), *dst_ids))
+                buf.extend(struct.pack(f"<QI{len(dst_ids)}Q", src, len(dst_ids), *dst_ids))
                 n_bridge_entries += 1
 
         for group in self.siblings:
-            buf.extend(struct.pack(f"<H{len(group)}I", len(group), *group))
+            buf.extend(struct.pack(f"<H{len(group)}Q", len(group), *group))
 
         struct.pack_into(header_fmt, buf, 0,
                          GRAPH_MAGIC, GRAPH_VERSION,
@@ -141,13 +146,16 @@ class ConceptGraph:
     _cache: dict[str, ConceptGraph] = {}
 
     def __init__(self) -> None:
-        self._bridge_keys: array = array('I')
+        # ID-bearing arrays are 64-bit ('Q') to fit canonical packed
+        # fhir_ids (sys<<60 | code). Offset/cursor arrays stay 32-bit
+        # ('I') — total edge/group counts won't exceed 2^32.
+        self._bridge_keys: array = array('Q')
         self._bridge_off: array = array('I')
-        self._bridge_data: array = array('I')
-        
-        self._sib_data: array = array('I')
+        self._bridge_data: array = array('Q')
+
+        self._sib_data: array = array('Q')
         self._sib_off: array = array('I')
-        self._sib_idx_keys: array = array('I')
+        self._sib_idx_keys: array = array('Q')
         self._sib_idx_off: array = array('I')
         self._sib_idx_data: array = array('I')
         self._sib_grp_size: array = array('I')
@@ -202,10 +210,10 @@ class ConceptGraph:
         degree: dict[int, int] = defaultdict(int)
         scan_pos = pos
         for _ in range(n_bridge):
-            src, n_dst = struct.unpack_from("<II", data, pos)
-            pos += 8
-            dst_ids = struct.unpack_from(f"<{n_dst}I", data, pos)
-            pos += n_dst * 4
+            src, n_dst = struct.unpack_from("<QI", data, pos)
+            pos += 12
+            dst_ids = struct.unpack_from(f"<{n_dst}Q", data, pos)
+            pos += n_dst * 8
             for dst in dst_ids:
                 degree[src] += 1
                 degree[dst] += 1
@@ -213,7 +221,7 @@ class ConceptGraph:
         sib_start = pos
 
         sorted_nodes = sorted(degree)
-        bridge_keys = array('I', sorted_nodes)
+        bridge_keys = array('Q', sorted_nodes)
         bridge_off = array('I')
         node_pos_map: dict[int, int] = {}
         total = 0
@@ -222,15 +230,15 @@ class ConceptGraph:
             bridge_off.append(total)
             total += degree[nid]
         bridge_off.append(total)
-        bridge_data = array('I', bytes(total * 4))
+        bridge_data = array('Q', bytes(total * 8))
         cursor = array('I', bridge_off[:-1])
 
         pos = scan_pos
         for _ in range(n_bridge):
-            src, n_dst = struct.unpack_from("<II", data, pos)
-            pos += 8
-            dst_ids = struct.unpack_from(f"<{n_dst}I", data, pos)
-            pos += n_dst * 4
+            src, n_dst = struct.unpack_from("<QI", data, pos)
+            pos += 12
+            dst_ids = struct.unpack_from(f"<{n_dst}Q", data, pos)
+            pos += n_dst * 8
             src_idx = node_pos_map[src]
             for dst in dst_ids:
                 dst_idx = node_pos_map[dst]
@@ -245,14 +253,14 @@ class ConceptGraph:
         return sib_start
 
     def _load_siblings(self, data: bytes, pos: int, n_siblings: int) -> None:
-        sib_data = array('I')
+        sib_data = array('Q')
         sib_off = array('I')
         sib_member_count: dict[int, int] = defaultdict(int)
         for gi in range(n_siblings):
             (n_ids,) = struct.unpack_from("<H", data, pos)
             pos += 2
-            ids = struct.unpack_from(f"<{n_ids}I", data, pos)
-            pos += n_ids * 4
+            ids = struct.unpack_from(f"<{n_ids}Q", data, pos)
+            pos += n_ids * 8
             sib_off.append(len(sib_data))
             sib_data.extend(ids)
             for nid in ids:
@@ -262,7 +270,7 @@ class ConceptGraph:
         self._sib_off = sib_off
 
         sorted_sib_ids = sorted(sib_member_count)
-        sib_idx_keys = array('I', sorted_sib_ids)
+        sib_idx_keys = array('Q', sorted_sib_ids)
         sib_idx_off = array('I')
         sib_id_pos: dict[int, int] = {}
         total = 0

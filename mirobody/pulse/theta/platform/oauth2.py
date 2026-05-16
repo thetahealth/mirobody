@@ -16,6 +16,7 @@ import json
 import logging
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode, parse_qs
 
@@ -23,6 +24,41 @@ import aiohttp
 
 from mirobody.pulse.core import LinkType
 from mirobody.utils.config import safe_read_cfg, global_config
+
+
+def _to_epoch_seconds(value: Any) -> int:
+    """Normalise an `expires_at` value to epoch seconds.
+
+    The credentials table stores `expires_at` as TIMESTAMP, so the DB driver
+    returns a `datetime`; legacy code paths sometimes still hand us an `int`
+    or a numeric/ISO string. This guarantees we can do `time.time() < x`
+    arithmetic regardless of source. Returns 0 (treat as expired) on any
+    parse failure.
+    """
+    if value is None:
+        return 0
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, datetime):
+        # Naive datetimes are assumed UTC (matches how we save them).
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return int(value.timestamp())
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return 0
+        try:
+            return int(float(s))
+        except ValueError:
+            try:
+                dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return int(dt.timestamp())
+            except ValueError:
+                return 0
+    return 0
 
 
 class ThetaOAuth2Client:
@@ -213,7 +249,9 @@ class ThetaOAuth2Client:
 
         access_token = creds.get("access_token")
         refresh_token = creds.get("refresh_token")
-        expires_at = creds.get("expires_at", 0)
+        # `expires_at` may come back as a datetime when the DB column is
+        # TIMESTAMP, which would trip `expires_at - 300` below. Normalise.
+        expires_at = _to_epoch_seconds(creds.get("expires_at"))
 
         # Check expiry with 5 min buffer
         if expires_at and time.time() < expires_at - 300:

@@ -23,18 +23,18 @@ async def _embed_table(
 ) -> int:
     """Embed rows missing the configured provider's embedding column.
 
-    Provider comes from ``DIM_EMBEDDING_PROVIDER``. th_series_dim uses
-    the family-only naming (``embedding_<provider>``); fhir_indicators
-    uses model-version-specific names (e.g. ``embedding_qwen3``) via
-    :data:`FHIR_EMBEDDING_COLUMN`.
+    Provider comes from ``EMBEDDING_PROVIDER`` (default ``gemini``).
+    th_series_dim uses the family-only naming (``embedding_<provider>``);
+    fhir_indicators uses model-version-specific names (e.g.
+    ``embedding_qwen3``) via :data:`FHIR_EMBEDDING_COLUMN`.
     """
     from mirobody.utils import Config
     from mirobody.utils.config import safe_read_cfg
 
-    provider = safe_read_cfg("DIM_EMBEDDING_PROVIDER", "gemini").lower()
+    provider = safe_read_cfg("EMBEDDING_PROVIDER", "gemini").lower()
     if provider not in EMBEDDING_PROVIDERS:
         raise ValueError(
-            f"DIM_EMBEDDING_PROVIDER invalid: {provider!r} "
+            f"EMBEDDING_PROVIDER invalid: {provider!r} "
             f"(available: {sorted(EMBEDDING_PROVIDERS)})"
         )
     if table == "th_series_dim":
@@ -82,7 +82,7 @@ async def _embed_table(
 async def cmd_embed(args: Namespace) -> None:
     """Subcommand: embed — batch-fill the configured provider's embedding column.
 
-    Provider is read from ``DIM_EMBEDDING_PROVIDER`` (default ``gemini``).
+    Provider is read from ``EMBEDDING_PROVIDER`` (default ``gemini``).
     """
     target = args.target
 

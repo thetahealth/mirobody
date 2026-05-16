@@ -164,6 +164,18 @@ class HTTPChatAdapter(ChatProtocolAdapter):
             if saved_msg_id:
                 question_msg_id = saved_msg_id
             params.question_id = question_msg_id
+
+            # Kick off summary generation in parallel with the assistant
+            # stream. Since the title is derived from the user's question
+            # only, we don't need to wait for the response to finish — the
+            # sidebar title shows up seconds earlier this way.
+            if saved_msg_id:
+                asyncio.create_task(
+                    self._generate_summary_if_missing(
+                        user_id=params.user_id,
+                        session_id=params.session_id,
+                    )
+                )
             
             # Compress messages (CPU-bound, cannot be parallelized with I/O)
             compressed_messages = compress_messages(params.agent, messages, 4000)
@@ -233,8 +245,8 @@ class HTTPChatAdapter(ChatProtocolAdapter):
         return files_data if files_data else None
     
     async def _save_question_if_needed(
-        self, 
-        params: ChatStreamRequest, 
+        self,
+        params: ChatStreamRequest,
     ) -> str | None:
         """
         Save user question if provided.
@@ -242,9 +254,32 @@ class HTTPChatAdapter(ChatProtocolAdapter):
         """
         if not params.question:
             return None
-        
+
         return await self.save_user_question(params, params.user_id)
-    
+
+    async def _generate_summary_if_missing(self, user_id: str, session_id: str) -> None:
+        """Fire-and-forget summary generation; skip if session already has one."""
+        try:
+            check_sql = """
+                SELECT summary FROM th_sessions
+                WHERE session_id = :session_id AND user_id = :user_id
+                LIMIT 1
+            """
+            result = await execute_query(
+                check_sql,
+                params={"session_id": session_id, "user_id": user_id},
+            )
+            if result and (not result[0].get("summary") or result[0].get("summary") == "New Session"):
+                from ..summary import generate_and_save_summary
+                await generate_and_save_summary(
+                    user_id=user_id,
+                    session_id=session_id,
+                    provider=None,
+                )
+                logging.info("✅ Summary generated (session=%s)", session_id)
+        except Exception as summary_error:
+            logging.error("❌ Summary generation error: %s", summary_error, exc_info=True)
+
     async def stream_output(
         self,
         chunks: AsyncGenerator[Dict[str, Any], None],
@@ -340,38 +375,6 @@ class HTTPChatAdapter(ChatProtocolAdapter):
                             question_msg_id=context['msg_id']
                         )
                         logging.info("✅ Response saved to database (reply_id=%s)", reply_id)
-                        
-                        # Generate summary in background (fire-and-forget, don't block 'end')
-                        async def _generate_summary_background():
-                            try:
-                                check_sql = """
-                                    SELECT summary FROM th_sessions 
-                                    WHERE session_id = :session_id AND user_id = :user_id
-                                    LIMIT 1
-                                """
-                                result = await execute_query(
-                                    check_sql,
-                                    params={
-                                        "session_id": context['session_id'],
-                                        "user_id": context['user_id']
-                                    },
-                                )
-                                
-                                if result and (not result[0].get("summary") or result[0].get("summary") == "New Session"):
-                                    from ..summary import generate_and_save_summary
-                                    await generate_and_save_summary(
-                                        user_id=context['user_id'],
-                                        session_id=context['session_id'],
-                                        provider = None
-                                        # provider=params.provider or "auto" # don't explicitly import provider let system choose itself for summary
-                                    )
-                                    logging.info("✅ Summary generated (session=%s)", context['session_id'])
-                            except Exception as summary_error:
-                                logging.error("❌ Summary generation error: %s", summary_error, exc_info=True)
-                        
-                        # Fire-and-forget summary generation
-                        asyncio.create_task(_generate_summary_background())
-                        
                     except Exception as save_error:
                         logging.error("❌ Failed to save response: %s", save_error, exc_info=True)
                         # Even if save fails, send 'end' to avoid frontend hanging

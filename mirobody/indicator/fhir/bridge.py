@@ -302,6 +302,49 @@ def build_bridge(
 
 # ─── Jaccard similarity bridge ──────────────────────────────────────
 
+# Token normalization applied symmetrically to SNOMED and LOINC names
+# before Jaccard intersection. Two categories:
+#
+# 1. Common plurals — SNOMED uses singular ("cell"), LOINC long names
+#    use plural ("cells"). Without collapsing, names that differ only
+#    in number score 0 overlap. The list is hand-picked to avoid
+#    over-merging (e.g. ``classes`` stays distinct from ``class``).
+#
+# 2. LOINC short-form abbreviations (Ab, Ag, IgG, ...) that LOINC long
+#    names use but SNOMED FSNs spell out. Expanding to the full term
+#    on both sides keeps the intersection symmetric.
+#
+# Map targets are canonical forms; multiple sources can fold to the
+# same target (``ab`` and ``abs`` both → ``antibody``).
+_TOKEN_NORMALIZE: dict[str, str] = {
+    # ── Common plurals ──
+    "cells":       "cell",
+    "antibodies":  "antibody",
+    "antigens":    "antigen",
+    "receptors":   "receptor",
+    "molecules":   "molecule",
+    "channels":    "channel",
+    "factors":     "factor",
+    "hormones":    "hormone",
+    "enzymes":     "enzyme",
+    "proteins":    "protein",
+    "peptides":    "peptide",
+    "cytokines":   "cytokine",
+    "markers":     "marker",
+    "panels":      "panel",
+    # ── LOINC short-forms → spelled-out ──
+    "ab":          "antibody",
+    "abs":         "antibody",
+    "ag":          "antigen",
+    "ags":         "antigen",
+    "igg":         "immunoglobulin_g",
+    "igm":         "immunoglobulin_m",
+    "iga":         "immunoglobulin_a",
+    "ige":         "immunoglobulin_e",
+    "igd":         "immunoglobulin_d",
+}
+
+
 def build_jaccard_bridge(
     out_dir: str,
     loinc_dir: str = "",
@@ -334,7 +377,10 @@ def build_jaccard_bridge(
     }
 
     def _tokenize(name: str) -> set[str]:
-        tokens = set(re.findall(r'[a-z0-9]+', name.lower()))
+        tokens = {
+            _TOKEN_NORMALIZE.get(t, t)
+            for t in re.findall(r'[a-z0-9]+', name.lower())
+        }
         return tokens - _stop_words
 
     # Load SNOMED siblings: name → (tokens, codes)

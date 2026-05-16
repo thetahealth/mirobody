@@ -14,7 +14,6 @@ resumable batches, and writes:
                         cols: ``name`` (filled inline from ~/ref —
                         :mod:`names` parsers), ``code_str`` (original
                         string for DCM hash rows; empty otherwise).
-                        No post-step ``code-names`` needed for ref mode.
 
 **No** ``fhir_id_map.npy`` is produced — there is no DB pk to bridge.
 This is the **terminal mode** layout: consumers will use canonical ids
@@ -58,9 +57,9 @@ import numpy as np
 
 from ..common import EMBEDDING_DIM, SYSTEMS, SYSTEM_TO_CODE, code_to_fhir_id
 from .local import (
+    EMB_BASENAME,
     EMB_DTYPE,
-    EMB_PATH,
-    META_PATH,
+    META_BASENAME,
     RES_DIR,
     atomic_swap_keep_backup,
     open_gz_text_write,
@@ -583,8 +582,8 @@ async def cmd_embeddings_ref(args: Namespace) -> None:
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(res_dir, exist_ok=True)
 
-    emb_path = os.path.join(res_dir, os.path.basename(EMB_PATH))
-    meta_path = os.path.join(res_dir, os.path.basename(META_PATH))
+    emb_path = os.path.join(res_dir, EMB_BASENAME)
+    meta_path = os.path.join(res_dir, META_BASENAME)
 
     # Phase 1 is cheap and deterministic — always re-run (also refreshes
     # texts_md5 for Phase 2's stale-checkpoint detection).

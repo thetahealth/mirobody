@@ -1941,4 +1941,4 @@ class UserProfileService:
             },
         )
         
-        return result.get("id")
+        return result[0]["id"] if result else None

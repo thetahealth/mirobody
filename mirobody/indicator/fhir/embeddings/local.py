@@ -29,6 +29,7 @@ import gzip
 import io
 import logging
 import os
+import re
 
 import numpy as np
 
@@ -41,54 +42,27 @@ log = logging.getLogger(__name__)
 RES_DIR = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "res")
 )
-# gemini's emb npy keeps the unprefixed name so existing deployments
-# (and their virtual-disk mounts) don't need a rename. Other providers
-# get a sibling ``fhir_embeddings_<provider>.npy`` — see ``emb_basename``.
-EMB_PATH = os.path.join(RES_DIR, "fhir_embeddings.npy")
-META_PATH = os.path.join(RES_DIR, "fhir_meta.csv.gz")
-ID_MAP_PATH = os.path.join(RES_DIR, "fhir_id_map.npy")
-
-
-def emb_basename() -> str:
-    """Emb npy basename for the active ``DIM_EMBEDDING_PROVIDER``.
-
-    gemini → ``fhir_embeddings.npy`` (default; back-compat — keeps
-    existing disk mounts working without rename). Other providers →
-    ``fhir_embeddings_<provider>.npy``, sitting alongside.
-
-    ``fhir_meta.csv.gz`` and ``fhir_id_map.npy`` are *not* provider-tagged:
-    they are row-aligned to whichever emb npy was just exported, so a
-    fresh export overwrites them. Switching provider therefore requires
-    re-exporting both providers' emb npys against the same fhir_indicators
-    snapshot to keep all bundles consistent.
-    """
-    from ..common import resolve_fhir_embedding_column
-    provider, _ = resolve_fhir_embedding_column()
-    return (
-        "fhir_embeddings.npy"
-        if provider == "gemini"
-        else f"fhir_embeddings_{provider}.npy"
-    )
+# One bundle per deployment — provider is fixed by config at build
+# time, so file layout doesn't carry it. Switching provider means
+# regenerating all three artifacts together.
+EMB_BASENAME = "fhir_embeddings.npy"
+META_BASENAME = "fhir_meta.csv.gz"
+ID_MAP_BASENAME = "fhir_id_map.npy"
 
 # Container deployments mount the 1.4 GB fhir_embeddings.npy on a
 # virtual disk to keep it out of pip / git. The application layer
 # (services / CLI entrypoints) reads its own config and passes the
-# resolved path here via ``bundle_dir``. The active embedding provider
-# (which selects the emb npy *file*) is read from config inside
-# :func:`emb_basename`.
+# resolved path here via ``bundle_dir``.
 
 EMB_DTYPE = np.dtype([("fhir_id", "<i8"), ("emb", "<f2", (EMBEDDING_DIM,))])
 # fhir_id_map.npy stores db_pk per row, row-aligned with fhir_embeddings.npy.
 # canonical lives in arr['fhir_id'] so storing it again would be redundant.
 ID_MAP_DTYPE = np.dtype("<i8")
 
-# Cache key = (bundle_dir, provider): different providers share a dir
-# but live in different files, so they get separate entries and don't
-# stomp on each other's mmap views. Within the same (dir, provider) the
-# cache is a true singleton (~200 MB Python heap each, plus a shared
-# mmap).
-_caches: dict[tuple[str, str], dict] = {}
-_meta_loaded: set[tuple[str, str]] = set()
+# Cache key = bundle_dir. Within the same dir the cache is a true
+# singleton (~200 MB Python heap, plus a shared mmap).
+_caches: dict[str, dict] = {}
+_meta_loaded: set[str] = set()
 
 
 @contextlib.contextmanager
@@ -146,15 +120,12 @@ def load(
     load_meta: bool = True,
     bundle_dir: str | None = None,
 ) -> dict | None:
-    """Lazy-load the local bundle. Returns None if the active provider's
-    emb npy is absent.
+    """Lazy-load the local bundle. Returns None if the emb npy is absent.
 
     *bundle_dir*: explicit override (e.g. test fixture, version pin, or
     app config like ``FHIR_INDICATORS_DIR`` resolved by the caller). If
-    None, uses ``RES_DIR``. If given but the directory lacks the active
-    provider's emb npy (see :func:`emb_basename`), log a warning and fall
-    back to ``RES_DIR``. Caches are keyed on ``(resolved_path, basename)``
-    so multiple providers can co-exist without fighting over one slot.
+    None, uses ``RES_DIR``. If given but the directory lacks the emb
+    npy, log a warning and fall back to ``RES_DIR``.
 
     With ``load_meta=False``, ``names`` and ``code_strs`` stay ``None`` —
     saves ~50 MB of Python heap for callers that only need embeddings +
@@ -177,41 +148,38 @@ def load(
                           or load_meta=False
       has_id_map        : bool — whether the sidecar was loaded
     """
-    anchor = emb_basename()
-    resolved = _resolve_bundle_dir(bundle_dir, anchor)
-    cache_key = (resolved, anchor)
-    if cache_key not in _caches:
-        cache = _load_base(resolved, anchor)
+    resolved = _resolve_bundle_dir(bundle_dir)
+    if resolved not in _caches:
+        cache = _load_base(resolved)
         if cache is None:
             return None
-        _caches[cache_key] = cache
-    cache = _caches[cache_key]
-    if load_meta and cache_key not in _meta_loaded:
-        _meta_loaded.add(cache_key)
+        _caches[resolved] = cache
+    cache = _caches[resolved]
+    if load_meta and resolved not in _meta_loaded:
+        _meta_loaded.add(resolved)
         _ensure_meta(cache)
     return cache
 
 
-def _resolve_bundle_dir(override: str | None, anchor: str) -> str:
-    """If *override* is given and contains *anchor* (the active provider's
-    emb basename), use it; otherwise log a warning and fall back to
-    ``RES_DIR`` (pip-bundled). Caller is responsible for sourcing
-    *override* from app config.
+def _resolve_bundle_dir(override: str | None) -> str:
+    """If *override* is given and contains the emb npy, use it;
+    otherwise log a warning and fall back to ``RES_DIR`` (pip-bundled).
+    Caller is responsible for sourcing *override* from app config.
     """
     if override:
-        if os.path.isfile(os.path.join(override, anchor)):
+        if os.path.isfile(os.path.join(override, EMB_BASENAME)):
             return override
         log.warning(
             "bundle_dir %s does not contain %s; falling back to %s",
-            override, anchor, RES_DIR,
+            override, EMB_BASENAME, RES_DIR,
         )
     return RES_DIR
 
 
-def _load_base(bundle_dir: str, anchor: str) -> dict | None:
+def _load_base(bundle_dir: str) -> dict | None:
     """Load embeddings npy + id_map sidecar; no meta."""
-    emb_path = os.path.join(bundle_dir, anchor)
-    id_map_path = os.path.join(bundle_dir, os.path.basename(ID_MAP_PATH))
+    emb_path = os.path.join(bundle_dir, EMB_BASENAME)
+    id_map_path = os.path.join(bundle_dir, ID_MAP_BASENAME)
 
     if not os.path.isfile(emb_path):
         log.info("local fhir bundle not found at %s; using DB path", bundle_dir)
@@ -282,11 +250,228 @@ def _load_base(bundle_dir: str, anchor: str) -> dict | None:
         "names": None,
         "code_strs": None,
         "has_id_map": has_id_map,
+        "loinc_skip_mask": None,
+        "loinc_demote_mask": None,
+        "loinc_rank_bonus": None,
+        "loinc_ratio_code_mask": None,
+        "alias_index": None,
+        "dose_index": None,
+        "snomed_body_structure_mask": None,
         "_bundle_dir": bundle_dir,
     }
-    log.info("loaded local fhir bundle (base) from %s: N=%d, id_map=%s",
-             bundle_dir, n, "yes" if has_id_map else "no")
+    _load_loinc_skip(cache)
+    _load_loinc_demote(cache)
+    _load_loinc_rank(cache)
+    _load_alias_index(cache)
+    _load_dose_index(cache)
+    _load_snomed_body_structure(cache)
+    log.info(
+        "loaded local fhir bundle (base) from %s: N=%d, id_map=%s, "
+        "loinc_skip=%s, loinc_demote=%s, loinc_rank=%s, alias_index=%s, "
+        "dose_index=%s, snomed_bs=%s",
+        bundle_dir, n, "yes" if has_id_map else "no",
+        "yes" if cache["loinc_skip_mask"] is not None else "no",
+        "yes" if cache["loinc_demote_mask"] is not None else "no",
+        "yes" if cache["loinc_rank_bonus"] is not None else "no",
+        f"{len(cache['alias_index'])} aliases" if cache["alias_index"] else "no",
+        f"{len(cache['dose_index'])} dose-keys" if cache["dose_index"] else "no",
+        f"{int(cache['snomed_body_structure_mask'].sum())} rows"
+        if cache["snomed_body_structure_mask"] is not None else "no",
+    )
     return cache
+
+
+def _load_loinc_code_mask(cache: dict, member: str, *, kind: str) -> None:
+    """Read a member of LOINC codes (one per line) from the bundle and set
+    ``cache[f"loinc_{kind}_mask"]`` to bool[N].
+
+    Shared implementation for ``loinc_skip.txt`` and ``loinc_demote.txt`` —
+    both have the same code-list format. *kind* is the cache-key suffix
+    (``skip`` or ``demote``).
+    """
+    from .bundle import BUNDLE_BASENAME, read_member
+    bundle_path = os.path.join(cache["_bundle_dir"], BUNDLE_BASENAME)
+    raw = read_member(member, bundle_path=bundle_path)
+    if raw is None:
+        return
+    codes = [c for c in (line.strip() for line in raw.decode("utf-8").splitlines()) if c]
+    if not codes:
+        return
+    from ..common import _CODE_BITS, _CODE_MASK, SYSTEM_TO_CODE, code_to_int
+    canonical = cache["canonical"]
+    sys_arr = ((canonical >> _CODE_BITS) & 0x7).astype(np.int8)
+    loinc_idx = SYSTEM_TO_CODE["LOINC"]
+    code_ints = np.fromiter(
+        (code_to_int(c, "LOINC") for c in codes),
+        dtype=np.int64, count=len(codes),
+    )
+    code_int_arr = canonical & _CODE_MASK
+    mask = (sys_arr == loinc_idx) & np.isin(code_int_arr, code_ints)
+    cache[f"loinc_{kind}_mask"] = mask
+    log.info(
+        "loaded loinc %s mask from bundle %s: %d / %d rows %s (%d codes)",
+        kind, member, int(mask.sum()), int(cache["arr"].shape[0]),
+        "masked" if kind == "skip" else "demoted", len(codes),
+    )
+
+
+def _load_loinc_skip(cache: dict) -> None:
+    """Read ``loinc_skip.txt`` from the bundle → bool[N] mask (True =
+    exclude). Sets ``cache["loinc_skip_mask"]``."""
+    _load_loinc_code_mask(cache, "loinc_skip.txt", kind="skip")
+
+
+def _load_loinc_demote(cache: dict) -> None:
+    """Read ``loinc_demote.txt`` from the bundle → bool[N] mask (True =
+    demote in rank-by-cosine; demoted rows are NOT excluded, they
+    only fall behind non-demoted peers in the sort). Sets
+    ``cache["loinc_demote_mask"]``."""
+    _load_loinc_code_mask(cache, "loinc_demote.txt", kind="demote")
+
+
+def _load_snomed_body_structure(cache: dict) -> None:
+    """Read ``snomed_body_structure.txt`` from the SNOMED CT bundle →
+    bool[N] mask, True on rows whose canonical (system, code) is a
+    SNOMED concept inside the ``123037004 |Body structure|`` subtree.
+
+    Used by :func:`_snomed_picks_topk` in the resolve pipeline as an
+    anatomy-bias filter: when a query's top-K full-SNOMED window has
+    enough body-structure rows to imply an anatomy intent, the picker
+    restricts to this mask. Pure body-structure subtree membership,
+    derived upstream from active is_a edges in the SNOMED Snapshot —
+    one runtime lookup, no per-query FSN-suffix parsing.
+
+    Returns silently when the SNOMED bundle is absent (e.g. stripped
+    deployment that doesn't carry SNOMED data).
+    """
+    from .bundle import SNOMED_BUNDLE_BASENAME, read_snomed_member
+    bundle_path = os.path.join(cache["_bundle_dir"], SNOMED_BUNDLE_BASENAME)
+    raw = read_snomed_member("snomed_body_structure.txt", bundle_path=bundle_path)
+    if raw is None:
+        return
+    codes = [c for c in (line.strip() for line in raw.decode("utf-8").splitlines()) if c]
+    if not codes:
+        return
+    from ..common import _CODE_BITS, _CODE_MASK, SYSTEM_TO_CODE, code_to_int
+    canonical = cache["canonical"]
+    sys_arr = ((canonical >> _CODE_BITS) & 0x7).astype(np.int8)
+    snomed_idx = SYSTEM_TO_CODE.get("SNOMED_CT")
+    if snomed_idx is None:
+        return
+    code_ints = np.fromiter(
+        (code_to_int(c, "SNOMED_CT") for c in codes),
+        dtype=np.int64, count=len(codes),
+    )
+    code_int_arr = canonical & _CODE_MASK
+    mask = (sys_arr == snomed_idx) & np.isin(code_int_arr, code_ints)
+    cache["snomed_body_structure_mask"] = mask
+    log.info(
+        "loaded snomed body-structure mask from bundle: %d / %d rows tagged "
+        "(%d concept IDs in subtree)",
+        int(mask.sum()), int(cache["arr"].shape[0]), len(codes),
+    )
+
+
+def _load_loinc_rank(cache: dict) -> None:
+    """Read ``loinc_rank_bonus.npy`` from the bundle → float32[N] cosine
+    bonus (0.0 for non-LOINC and unranked LOINC rows). Sets
+    ``cache["loinc_rank_bonus"]``. Silently skipped when the member is
+    absent — resolve works without rank tie-breaking."""
+    from .bundle import BUNDLE_BASENAME, read_member
+    import io as _io
+    n = int(cache["arr"].shape[0])
+    bundle_path = os.path.join(cache["_bundle_dir"], BUNDLE_BASENAME)
+    raw = read_member("loinc_rank_bonus.npy", bundle_path=bundle_path)
+    if raw is None:
+        return
+    try:
+        a = np.load(_io.BytesIO(raw))
+        if a.dtype != np.float32 or a.shape != (n,):
+            log.warning(
+                "loinc_rank_bonus.npy has dtype %s shape %s, expected "
+                "float32 shape (%d,); ignoring", a.dtype, a.shape, n,
+            )
+            return
+        cache["loinc_rank_bonus"] = a
+        log.info(
+            "loaded loinc_rank_bonus from bundle: %d / %d rows ranked",
+            int((a > 0).sum()), n,
+        )
+    except Exception:
+        log.exception("failed to load loinc_rank_bonus.npy from bundle")
+
+
+def _load_dose_index(cache: dict) -> None:
+    """Read ``fhir_dose_index.npz`` from the bundle and build a
+    ``{(value, unit): np.ndarray of row indices}`` lookup in
+    ``cache["dose_index"]``. Silently skipped when the member is absent
+    — resolve falls back to behavior without dose-match.
+
+    Storage is parallel arrays (row_idx / value / unit_id / unit_table —
+    see :mod:`.dose`); the runtime form is dict-of-arrays keyed by the
+    canonical ``(value, ucum_unit)`` tuple, which is what the resolver
+    actually intersects against per-query dose sets.
+    """
+    from .bundle import BUNDLE_BASENAME, read_member
+    import io as _io
+    bundle_path = os.path.join(cache["_bundle_dir"], BUNDLE_BASENAME)
+    raw = read_member("fhir_dose_index.npz", bundle_path=bundle_path)
+    if raw is None:
+        return
+    try:
+        with np.load(_io.BytesIO(raw), allow_pickle=False) as z:
+            row_idx = z["row_idx"]
+            value = z["value"]
+            unit_id = z["unit_id"]
+            unit_table = z["unit_table"]
+        # Group row indices by (value, unit) tuple. dict-of-arrays
+        # rather than dict-of-lists so the bonus application is a
+        # vectorized scores_all[b, idx] += w.
+        keys: dict[tuple[float, str], list[int]] = {}
+        for i in range(row_idx.shape[0]):
+            unit = str(unit_table[int(unit_id[i])])
+            key = (float(value[i]), unit)
+            keys.setdefault(key, []).append(int(row_idx[i]))
+        index: dict[tuple[float, str], np.ndarray] = {
+            k: np.asarray(v, dtype=np.int32) for k, v in keys.items()
+        }
+        cache["dose_index"] = index
+        log.info(
+            "loaded fhir_dose_index from bundle: %d unique (value, unit) keys, %d total hits",
+            len(index), int(row_idx.shape[0]),
+        )
+    except Exception:
+        log.exception("failed to load fhir_dose_index.npz from bundle")
+
+
+def _load_alias_index(cache: dict) -> None:
+    """Read ``loinc_alias_index.npz`` from the bundle and reconstruct the
+    alias → corpus-rows dict in ``cache["alias_index"]``. The npz holds
+    three arrays (``aliases`` object, ``offsets`` int32, ``rows``
+    int32) — see :mod:`.alias`. Silently skipped when the member is
+    absent — resolve falls back to embedding-only scoring."""
+    from .bundle import BUNDLE_BASENAME, read_member
+    import io as _io
+    bundle_path = os.path.join(cache["_bundle_dir"], BUNDLE_BASENAME)
+    raw = read_member("loinc_alias_index.npz", bundle_path=bundle_path)
+    if raw is None:
+        return
+    try:
+        with np.load(_io.BytesIO(raw), allow_pickle=True) as z:
+            aliases = z["aliases"]
+            offsets = z["offsets"]
+            rows = z["rows"]
+        idx: dict[str, list[int]] = {
+            str(a): rows[offsets[i]:offsets[i + 1]].tolist()
+            for i, a in enumerate(aliases)
+        }
+        cache["alias_index"] = idx
+        log.info(
+            "loaded loinc_alias_index from bundle: %d aliases",
+            len(idx),
+        )
+    except Exception:
+        log.exception("failed to load loinc_alias_index.npz from bundle")
 
 
 def _ensure_meta(cache: dict) -> None:
@@ -294,7 +479,7 @@ def _ensure_meta(cache: dict) -> None:
     in cache['_bundle_dir']. Mutates *cache* in place. Idempotency is the
     caller's responsibility — ``load()`` dedups via the ``_meta_loaded``
     set so we don't track per-cache state here."""
-    meta_path = os.path.join(cache["_bundle_dir"], os.path.basename(META_PATH))
+    meta_path = os.path.join(cache["_bundle_dir"], META_BASENAME)
     if not os.path.isfile(meta_path):
         return
     n = int(cache["arr"].shape[0])
@@ -320,5 +505,99 @@ def _ensure_meta(cache: dict) -> None:
         cache["names"] = ns
         cache["code_strs"] = cs
         log.info("loaded fhir meta sidecar: N=%d", n)
+        _augment_demote_with_names(cache)
+        _compute_ratio_code_mask(cache)
     except Exception:
         log.exception("failed to load %s", meta_path)
+
+
+# A LOINC display name is treated as a "ratio/index code" iff it carries
+# one of these signals:
+#
+# - Explicit ratio markers: ``\bRatio\b`` (free or in ``[Mass Ratio]`` /
+#   ``[Molar Ratio]``) or ``\bIndex\b`` (AHI, ODI, BMI percentile, …).
+# - Analyte/analyte slash ``X/Y`` outside ``[...]`` — analyte ratios
+#   look like ``Lipoprotein.beta/total Lipoprotein`` or
+#   ``CD4/CD8 [Ratio]``. We exclude bracket-enclosed slashes which are
+#   unit forms (``[Mass/volume]``, ``[Mass/time]``) — those mean "the
+#   value is measured in mass-per-volume", not "this is a ratio of
+#   two analytes". The ``(?<!\[)`` lookbehind catches the bracket case.
+# - ``Mass fraction`` / ``Number fraction`` / ``Pure number fraction``
+#   — LOINC's value-as-fraction PROPERTY indicators, semantically
+#   ratios.
+#
+# INR-style codes (``38875-1 INR in Platelet poor plasma by Coagulation
+# assay``) don't carry an explicit ``Ratio`` token in the LongCommon
+# Name and will NOT match — that's fine, INR resolves correctly via
+# embedding + alias index already (no bonus needed).
+_RATIO_CODE_NAME_RE = re.compile(
+    r"\bratio\b"
+    r"|\bindex\b"
+    r"|(?<!\[)\b[A-Za-z][\w.]{1,30}/[A-Za-z][\w.]{1,30}\b"
+    r"|\b(?:mass|number|pure number) fraction\b",
+    re.IGNORECASE,
+)
+
+
+def _compute_ratio_code_mask(cache: dict) -> None:
+    """Build a bool[N] mask flagging LOINC rows whose name looks like a
+    ratio / index / fraction code. Used by the resolve-time ratio guard
+    (:class:`FhirAdapter._resolve_local_batch`) to boost ratio-named
+    candidates when the query explicitly asks for a ratio/index.
+    """
+    from ..common import SYSTEM_TO_CODE, _CODE_BITS
+    names = cache.get("names")
+    if not names:
+        return
+    canonical = cache["canonical"]
+    sys_arr = ((canonical >> _CODE_BITS) & 0x7).astype(np.int8)
+    is_loinc = sys_arr == SYSTEM_TO_CODE["LOINC"]
+    mask = np.zeros(len(names), dtype=bool)
+    for r in np.flatnonzero(is_loinc):
+        nm = names[r]
+        if nm and _RATIO_CODE_NAME_RE.search(nm):
+            mask[r] = True
+    cache["loinc_ratio_code_mask"] = mask
+    log.info(
+        "computed loinc ratio code mask: %d / %d LOINC rows flagged",
+        int(mask.sum()), int(is_loinc.sum()),
+    )
+
+
+def _augment_demote_with_names(cache: dict) -> None:
+    """OR hand-curated name-pattern matches into ``loinc_demote_mask``.
+
+    Tarball-driven demote (status / class) runs at base load. Name-
+    pattern demote needs ``cache['names']`` which is meta-sidecar lazy,
+    so it piggybacks on :func:`_ensure_meta`. Idempotency: re-OR with
+    the same patterns is a no-op since the existing mask already
+    covers the matches.
+    """
+    from ..common import (
+        SYSTEM_TO_CODE, _CODE_BITS, _HAND_DEMOTE_NAME_PATTERNS,
+    )
+    if not _HAND_DEMOTE_NAME_PATTERNS:
+        return
+    names = cache.get("names")
+    if not names:
+        return
+    canonical = cache["canonical"]
+    sys_arr = ((canonical >> _CODE_BITS) & 0x7).astype(np.int8)
+    is_loinc = sys_arr == SYSTEM_TO_CODE["LOINC"]
+    add = np.zeros(len(names), dtype=bool)
+    # Only scan LOINC rows — non-LOINC names can't be demoted (the
+    # demote mask is LOINC-scoped) and the test on names[r] is the
+    # expensive part of the loop.
+    for r in np.flatnonzero(is_loinc):
+        nm = names[r]
+        if nm and any(p.search(nm) for p in _HAND_DEMOTE_NAME_PATTERNS):
+            add[r] = True
+    existing = cache.get("loinc_demote_mask")
+    if existing is None:
+        cache["loinc_demote_mask"] = add
+    else:
+        cache["loinc_demote_mask"] = existing | add
+    log.info(
+        "hand-demote: %d LOINC rows added from %d name pattern(s)",
+        int(add.sum()), len(_HAND_DEMOTE_NAME_PATTERNS),
+    )

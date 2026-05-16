@@ -93,45 +93,63 @@ If there is no text or minimal text in the image, provide a detailed description
 # - cache_read = input * 0.1 (all models, 90% discount)
 # - cache_creation = input * 1.25 (Claude only, 25% premium)
 #
+# Source of truth: openrouter.ai (refreshed 2026-05-09).
+# For models openrouter doesn't carry (e.g. gemini-3.1-flash, doubao-seed-2-0-lite-260215),
+# the closest analog or provider-direct rate is used — see per-key comments.
+#
+# Lookup is substring + longest-key match (see message_converter.create_cost_statistics).
+# When adding new entries, ensure the key is unique enough that the substring matcher
+# can't accidentally collide with another entry's longer name.
+#
 MODEL_PRICING: dict[str, dict[str, float]] = {
     # Claude series (has cache_creation cost)
-    # https://openrouter.ai/anthropic/claude-sonnet-4.5/providers ! 125% create cache 
+    # https://openrouter.ai/anthropic
     "claude-opus-4.5": {"input": 5.00, "output": 25.00},
     "claude-opus-4.6": {"input": 5.00, "output": 25.00},
     "claude-sonnet-4.5": {"input": 3.00, "output": 15.00},
-    "claude-sonnet-4.6": {"input": 5.00, "output": 25.00},
+    "claude-sonnet-4.6": {"input": 3.00, "output": 15.00},
     "claude-haiku-4.5": {"input": 1.00, "output": 5.00},
 
     # OpenAI GPT-5 series (automatic caching, no cache_creation cost)
-    # https://platform.openai.com/docs/pricing
-    "gpt-5.4": {"input": 2.5, "output": 15.00},
+    # https://openrouter.ai/openai
+    "gpt-5.4": {"input": 2.50, "output": 15.00},
     "gpt-5.2": {"input": 1.75, "output": 14.00},
     "gpt-5.1": {"input": 1.25, "output": 10.00},
     "gpt-5-mini": {"input": 0.25, "output": 2.00},
     "gpt-5-nano": {"input": 0.05, "output": 0.40},
 
-    # DeepSeek - https://www.deepseek.com/pricing
-    "deepseek-v3.2": {"input": 0.25, "output": 0.4},
+    # DeepSeek - https://openrouter.ai/deepseek
+    "deepseek-v3.2": {"input": 0.252, "output": 0.378},
+    "deepseek-v4-flash": {"input": 0.14, "output": 0.28},
+    "deepseek-v4-pro": {"input": 0.435, "output": 0.87},
 
-    # Google Gemini - https://cloud.google.com/vertex-ai/generative-ai/pricing
+    # Google Gemini - https://openrouter.ai/google
+    # gemini-3.1-flash not yet on openrouter; using gemini-3-flash rate as best estimate.
     "gemini-3-flash": {"input": 0.50, "output": 3.00},
     "gemini-3.1-flash": {"input": 0.50, "output": 3.00},
     "gemini-3.1-pro": {"input": 2.00, "output": 12.00},
     "gemini-3.1-flash-lite": {"input": 0.25, "output": 1.50},
 
-    # Moonshot Kimi - https://platform.moonshot.ai/pricing
-    "kimi-k2.5": {"input": 0.45, "output": 2.20},
+    # Moonshot Kimi - https://openrouter.ai/moonshotai
+    "kimi-k2.5": {"input": 0.44, "output": 2.00},
+    "kimi-k2.6": {"input": 0.75, "output": 3.50},
 
-    # Alibaba Qwen - https://openrouter.ai/qwen/qwen-plus
-    "qwen-plus": {"input": 0.40, "output": 1.20},
-    "qwen-max": {"input": 1.60, "output": 6.40},
-    "qwen3.5-plus": {"input": 0.26, "output": 1.56},
-    "qwen3.5-flash": {"input": 0.10, "output": 0.40},
+    # Alibaba Qwen - https://openrouter.ai/qwen
+    "qwen-plus": {"input": 0.26, "output": 0.78},
+    "qwen-max": {"input": 1.04, "output": 4.16},
+    "qwen3.5-plus": {"input": 0.40, "output": 2.40},
+    "qwen3.5-flash": {"input": 0.065, "output": 0.26},
+    "qwen3.6-plus": {"input": 0.325, "output": 1.95},
 
-    # minimax https://openrouter.ai/minimax/minimax-m2.5
-    "minimax-m2.5": {"input": 0.16, "output": 1.10},
+    # MiniMax - https://openrouter.ai/minimax
+    # dashscope id "MiniMax/MiniMax-M2.7" lowercases to "minimax/minimax-m2.7" — matched via "minimax-m2.7".
+    "minimax-m2.5": {"input": 0.15, "output": 1.15},
+    "minimax-m2.7": {"input": 0.299, "output": 1.20},
 
-    # ByteDance Doubao/Seed - https://openrouter.ai/bytedance-seed/seed-2.0-lite
+    # ByteDance Doubao/Seed
+    # openrouter does not carry the exact volcengine model id "doubao-seed-2-0-lite-260215";
+    # falling back to openrouter's analog "Seed-2.0-Lite" rate. Replace with volcengine console
+    # rate if direct billing diverges materially.
     "doubao-seed-2-0-lite-260215": {"input": 0.25, "output": 2.00},
 }
 

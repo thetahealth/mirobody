@@ -1,20 +1,14 @@
-"""Display-name parsers for ~/ref source files + post-step CLI.
+"""Display-name parsers for ~/ref source files.
 
-Two distinct uses:
+Both ``embeddings`` modes (db / ref) call :func:`load_name_sources` and
+:func:`_fill_meta_names` inline to populate the ``name`` column, so the
+``code-names`` subcommand is a recovery path — only needed when a bundle
+arrives with an empty ``name`` column (e.g. produced on a machine
+without ``~/ref``) and the user later wants to fill it.
 
-  1. Helpers (``_load_loinc_names`` / ``_load_snomed_names`` /
-     ``_load_rxnorm_names`` / ``_load_cvx_names`` / ``_load_dcm_names``)
-     — return ``{code: display_name}`` dicts. Used by :mod:`ref` to
-     inline-fill the meta ``name`` column while it has the source files
-     in hand, and by :func:`cmd_code_names` for the post-step on
-     db-mode bundles.
-
-  2. ``code-names`` subcommand — reads the structured ``fhir_embeddings.npy``
-     to recover ``(system, code)`` per row, looks up display names from
-     ~/ref, and rewrites ``fhir_meta.csv.gz`` with the ``name`` column
-     filled (preserving ``code_str``). DCM rows look up by the original
-     code stored in ``code_str`` (the int form is one-way hashed); THETA
-     rows are skipped — user-defined codes have no canonical name source.
+DCM rows look up by the original code stored in ``code_str`` (the int
+form is one-way hashed); THETA rows are skipped — user-defined codes
+have no canonical name source.
 """
 
 from __future__ import annotations
@@ -35,7 +29,7 @@ from ..common import (
     csv_field_size_limit,
     int_to_code,
 )
-from .local import EMB_DTYPE, META_PATH, RES_DIR, emb_basename, open_gz_text_write, tmp_path
+from .local import EMB_BASENAME, EMB_DTYPE, META_BASENAME, RES_DIR, open_gz_text_write, tmp_path
 
 log = logging.getLogger(__name__)
 
@@ -197,22 +191,16 @@ def load_name_sources(args: Namespace) -> dict[int, dict[str, str]]:
 # ─── Subcommand ─────────────────────────────────────────────────────
 
 
-async def cmd_code_names(args: Namespace) -> None:
-    """Subcommand: code-names — fill the ``name`` column of fhir_meta.csv.gz.
+def _fill_meta_names(
+    emb_path: str, meta_path: str, sources: dict[int, dict[str, str]],
+) -> None:
+    """Rewrite *meta_path* with the ``name`` column filled from *sources*.
 
-    Reads ``fhir_embeddings.npy`` to recover canonical fhir_id per row,
-    decodes ``(system, code)``, looks up display names from the ~/ref
-    source dirs, and rewrites ``fhir_meta.csv.gz`` preserving the
-    existing ``code_str`` column. Rows for DCM/THETA (no name source)
-    keep ``name`` empty.
+    Reads canonical fhir_ids from *emb_path*, decodes ``(system, code)``,
+    looks up the display name in *sources*, and writes a new meta gz
+    preserving the existing ``code_str`` column. Rows for vocabs absent
+    from *sources* (e.g. THETA) keep ``name`` empty.
     """
-    res_dir = args.res_dir or RES_DIR
-    emb_path = os.path.join(res_dir, emb_basename())
-    meta_path = os.path.join(res_dir, os.path.basename(META_PATH))
-
-    if not os.path.isfile(emb_path):
-        raise FileNotFoundError(f"{emb_path} missing; run `embeddings` first")
-
     arr = np.load(emb_path, mmap_mode="r")
     if arr.dtype != EMB_DTYPE:
         raise ValueError(
@@ -221,7 +209,6 @@ async def cmd_code_names(args: Namespace) -> None:
         )
     n_rows = int(arr.shape[0])
 
-    # Preserve existing code_str column from meta (if any).
     code_strs: list[str] = [""] * n_rows
     if os.path.isfile(meta_path):
         with gzip.open(meta_path, "rt", encoding="utf-8", newline="") as f:
@@ -230,13 +217,6 @@ async def cmd_code_names(args: Namespace) -> None:
                 if i >= n_rows:
                     break
                 code_strs[i] = row.get("code_str", "")
-
-    sources = load_name_sources(args)
-    if not sources:
-        raise SystemExit(
-            "no name source dirs provided; pass --snomed-dir / --loinc-dir / "
-            "--rxnorm-dir or set MIROBODY_REF_DIR"
-        )
 
     canonical = arr["fhir_id"]
     names: list[str] = [""] * n_rows
@@ -247,7 +227,7 @@ async def cmd_code_names(args: Namespace) -> None:
         sys_int = fid >> _CODE_BITS
         nd = sources.get(sys_int)
         if nd is None:
-            continue  # vocab without source dir (e.g. THETA)
+            continue
         sys_name = SYSTEMS[sys_int]
         if sys_name in ("DCM", "THETA"):
             # Hash row: int_to_code can't reverse, original code lives
@@ -281,3 +261,27 @@ async def cmd_code_names(args: Namespace) -> None:
     os.replace(tmp, meta_path)
     log.info("wrote %s (%d rows, %.1f MB)",
              meta_path, n_rows, os.path.getsize(meta_path) / 1e6)
+
+
+async def cmd_code_names(args: Namespace) -> None:
+    """Subcommand: code-names — recovery path that fills the ``name``
+    column of an existing ``fhir_meta.csv.gz``.
+
+    Both ``embeddings`` modes already do this inline when ``~/ref`` is
+    available; use this only to repair a bundle whose ``name`` column
+    was left empty (e.g. produced on a machine without ``~/ref``).
+    """
+    res_dir = args.res_dir or RES_DIR
+    emb_path = os.path.join(res_dir, EMB_BASENAME)
+    meta_path = os.path.join(res_dir, META_BASENAME)
+
+    if not os.path.isfile(emb_path):
+        raise FileNotFoundError(f"{emb_path} missing; run `embeddings` first")
+
+    sources = load_name_sources(args)
+    if not sources:
+        raise SystemExit(
+            "no name source dirs provided; pass --snomed-dir / --loinc-dir / "
+            "--rxnorm-dir or set MIROBODY_REF_DIR"
+        )
+    _fill_meta_names(emb_path, meta_path, sources)

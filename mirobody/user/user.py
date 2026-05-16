@@ -8,7 +8,8 @@ async def add_or_get_user(
     db_pool         : AsyncConnectionPool,
     email           : str,
     name            : str | None = None,
-    apple_subject   : str | None = None
+    apple_subject   : str | None = None,
+    wechat_openid   : str | None = None,
 ) -> tuple[
     int,        # User ID.
     str | None  # Error message.
@@ -16,10 +17,10 @@ async def add_or_get_user(
     lower_email = email.strip().lower()
     if not lower_email:
         return 0, "Invalid email."
-    
+
     if name is None or (isinstance(name, str) and name.strip() == ""):
         name = lower_email.split("@")[0]
-    
+
     if not db_pool:
         return 0, "Invalid database connection."
 
@@ -43,17 +44,25 @@ async def add_or_get_user(
                         )
                         await conn.commit()
 
+                    if wechat_openid:
+                        await cur.execute(
+                            "UPDATE health_app_user SET wechat_openid=%s WHERE id=%s;",
+                            [wechat_openid, user_id]
+                        )
+                        await conn.commit()
+
                     # Return existing user ID.
                     return user_id, None
-                
+
                 #-------------------------------------
 
                 if not apple_subject:
                     apple_subject = None
 
                 await cur.execute(
-                    "INSERT INTO health_app_user (is_del,email,name,apple_sub) VALUES (FALSE,%s,%s,%s) RETURNING id;",
-                    [lower_email, name, apple_subject]
+                    "INSERT INTO health_app_user (is_del,email,name,apple_sub,wechat_openid)"
+                    " VALUES (FALSE,%s,%s,%s,%s) RETURNING id;",
+                    [lower_email, name, apple_subject, wechat_openid]
                 )
                 await conn.commit()
 
@@ -63,7 +72,9 @@ async def add_or_get_user(
                     return row[0], None
 
     except Exception as e:
-        logging.error(str(e), extra={"email": email, "apple": apple_subject})
+        logging.error(str(e), extra={
+            "email": email, "apple": apple_subject, "wechat_openid": wechat_openid
+        })
 
         return 0, str(e)
 
@@ -102,6 +113,42 @@ async def get_user_via_apple_subject(
 
     except Exception as e:
         logging.error(str(e), extra={"apple": apple_subject})
+
+        return 0, "", str(e)
+
+#-----------------------------------------------------------------------------
+
+async def get_user_via_wechat_openid(
+    db_pool         : AsyncConnectionPool,
+    wechat_openid   : str
+) -> tuple[
+    int,        # User ID.
+    str,        # Email.
+    str | None  # Error message.
+]:
+    if not wechat_openid:
+        return 0, "", "Invalid WeChat openid."
+
+    if not db_pool:
+        return 0, "", "Invalid database connection."
+
+    try:
+        async with db_pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT id,email FROM health_app_user WHERE wechat_openid=%s AND is_del=FALSE LIMIT 1;",
+                    [wechat_openid]
+                )
+                await conn.commit()
+
+                row = await cur.fetchone()
+                if not row:
+                    return 0, "", "Not found."
+
+                return row[0], row[1], None
+
+    except Exception as e:
+        logging.error(str(e), extra={"wechat_openid": wechat_openid})
 
         return 0, "", str(e)
 
@@ -177,6 +224,41 @@ async def check_relationship(
     #-----------------------------------------------------
     
     return "Not allowed."
+
+#-----------------------------------------------------------------------------
+
+async def update_user_name(
+    db_pool : AsyncConnectionPool,
+    user_id : int,
+    name    : str,
+) -> str | None:
+    """Update health_app_user.name for the given user. Returns error string
+    on failure, None on success. Caller is responsible for trimming / length
+    validation."""
+    if user_id <= 0:
+        return "Invalid user ID."
+
+    if not isinstance(name, str) or not name:
+        return "Invalid name."
+
+    if not db_pool:
+        return "Invalid database connection."
+
+    try:
+        async with db_pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "UPDATE health_app_user"
+                    "   SET name=%s, update_at=CURRENT_TIMESTAMP"
+                    " WHERE id=%s AND is_del=FALSE;",
+                    [name, user_id]
+                )
+                await conn.commit()
+    except Exception as e:
+        logging.error(str(e), extra={"user_id": user_id})
+        return str(e)
+
+    return None
 
 #-----------------------------------------------------------------------------
 

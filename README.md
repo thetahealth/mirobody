@@ -572,7 +572,7 @@ Mirobody includes integration tests for file operations, code execution, MCP pro
 
 ```bash
 # Prerequisites: running server + demo account configured
-pip install pytest httpx
+pip install -e ".[test]"
 
 # Quick tests (no LLM costs, no E2B required)
 pytest tests/ -v -m "not slow"

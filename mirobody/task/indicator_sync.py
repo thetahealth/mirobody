@@ -304,13 +304,13 @@ class IndicatorSyncTask(BaseRedisTask):
         candidate set into memory; the next sweep picks up the rest
         (`ORDER BY dim.id` makes progress deterministic).
 
-        Provider selected by `DIM_EMBEDDING_PROVIDER`. Per-batch embedding
-        errors are logged and skipped; the loop continues.
+        Provider selected by `EMBEDDING_PROVIDER` (default `gemini`).
+        Per-batch embedding errors are logged and skipped; the loop continues.
         """
-        dim_provider = safe_read_cfg("DIM_EMBEDDING_PROVIDER", "gemini").lower()
+        dim_provider = safe_read_cfg("EMBEDDING_PROVIDER", "gemini").lower()
         if dim_provider not in EMBEDDING_PROVIDERS:
             raise ValueError(
-                f"DIM_EMBEDDING_PROVIDER invalid: {dim_provider!r} "
+                f"EMBEDDING_PROVIDER invalid: {dim_provider!r} "
                 f"(available: {sorted(EMBEDDING_PROVIDERS)})"
             )
         col_name = f"embedding_{dim_provider}"

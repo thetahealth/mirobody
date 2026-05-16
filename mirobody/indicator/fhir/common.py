@@ -7,6 +7,7 @@ import csv
 import gzip
 import hashlib
 import logging
+import re
 
 from collections import defaultdict
 from collections.abc import Iterator
@@ -53,19 +54,20 @@ FHIR_EMBEDDING_COLUMN: dict[str, str] = {
 
 
 def resolve_fhir_embedding_column() -> tuple[str, str]:
-    """Resolve ``DIM_EMBEDDING_PROVIDER`` to ``(provider, fhir_indicators column)``.
+    """Resolve ``EMBEDDING_PROVIDER`` to ``(provider, fhir_indicators column)``.
 
-    Validates against both :data:`FHIR_EMBEDDING_COLUMN` and the
-    embedding-API provider registry, since the column name is
-    interpolated into SQL.
+    Read from a single config key — ``EMBEDDING_PROVIDER`` (default
+    ``gemini``). Validated against both :data:`FHIR_EMBEDDING_COLUMN` and the
+    embedding-API provider registry, since the column name is interpolated
+    into SQL.
     """
     from mirobody.utils.config import safe_read_cfg
     from mirobody.utils.embedding import EMBEDDING_PROVIDERS
 
-    provider = safe_read_cfg("DIM_EMBEDDING_PROVIDER", "gemini").lower()
+    provider = safe_read_cfg("EMBEDDING_PROVIDER", "gemini").lower()
     if provider not in EMBEDDING_PROVIDERS:
         raise ValueError(
-            f"DIM_EMBEDDING_PROVIDER invalid: {provider!r} "
+            f"EMBEDDING_PROVIDER invalid: {provider!r} "
             f"(available: {sorted(EMBEDDING_PROVIDERS)})"
         )
     if provider not in FHIR_EMBEDDING_COLUMN:
@@ -250,16 +252,69 @@ _SKIP_CLASS_PREFIXES = (
     "DOCUMENT.", "ADMIN", "PANEL.ADMIN",
     "PUBLICHEALTH",
 )
+# DEPRECATED is superseded outright; DISCOURAGED has a MAP_TO replacement
+# and LOINC explicitly tells callers not to use it for new submissions.
+# TRIAL stays in — those are provisional codes that may become ACTIVE.
+_SKIP_STATUSES = {"DEPRECATED", "DISCOURAGED"}
+
+# TRIAL codes (incl. all 2.5k LABORDERS.ONTOLOGY abstract placeholders
+# like 108689-1 "Urea nitrogen [Measurement]") rank as soft-demote rather
+# than skip: empirically (loinc-mapping-verify v3, 19 of 64 Partials) they
+# outrank ACTIVE peers for BUN/CRP/TG/LDH/T4/FSH/TIBC etc when raw cosine
+# is close, because their "[Measurement]" names trigger generic-analyte
+# matches. Keep them findable when no ACTIVE alternative exists; demote
+# globally otherwise.
+_DEMOTE_STATUSES = {"TRIAL"}
+_DEMOTE_CLASSES = {"LABORDERS.ONTOLOGY"}
+
+# Hand-curated demote patterns over LOINC display names. Apply
+# RUNTIME (see ``_augment_demote_with_names`` in
+# :mod:`mirobody.indicator.fhir.embeddings.local`) on top of the
+# tarball-shipped status/class-driven mask. Use this layer for codes
+# that LOINC still flags STATUS=ACTIVE but are clinically obsolete or
+# superseded by a same-vocabulary modern peer that should win top-1.
+#
+# Demote (not skip): historical data still surfaces when a query
+# explicitly invokes the obsolete method (``antigen``) and no modern
+# peer competes.
+_HAND_DEMOTE_NAME_PATTERNS: tuple["re.Pattern[str]", ...] = (
+    # HPV antigen tests. Cervical HPV detection is uniformly DNA/RNA
+    # probe in modern practice; the LOINC 17xxx ``HPV NN Ag [Presence]``
+    # codes are 1990s serology kept ACTIVE for legacy interoperability.
+    # Without demote, queries whose Ag code embeds slightly closer than
+    # the DNA peer (HPV 11/16/33/35/43/44/51/...) returned a mix of
+    # methodologies for what should be a uniform column shape. The
+    # 61xxx / 95xxx DNA family now wins whenever it exists; Ag survives
+    # only when the type has no DNA code at all (e.g. rare types LOINC
+    # never molecularized).
+    re.compile(r"\bHuman papilloma virus \d+ Ag \["),
+)
 
 
 def load_loinc_skip_codes(loinc_core_csv: str) -> set[str]:
-    """Return LOINC code strings that should be excluded (non-lab/non-clinical)."""
+    """Return LOINC code strings that should be excluded (non-lab/non-clinical
+    classes, plus superseded statuses)."""
     import polars as pl
-    ct_df = pl.read_csv(loinc_core_csv, columns=["LOINC_NUM", "CLASS", "CLASSTYPE"])
+    ct_df = pl.read_csv(
+        loinc_core_csv, columns=["LOINC_NUM", "CLASS", "CLASSTYPE", "STATUS"],
+    )
     is_skip = pl.col("CLASSTYPE").cast(str).is_in(list(_SKIP_CLASSTYPES))
     for prefix in _SKIP_CLASS_PREFIXES:
         is_skip = is_skip | pl.col("CLASS").str.starts_with(prefix)
+    is_skip = is_skip | pl.col("STATUS").is_in(list(_SKIP_STATUSES))
     return set(ct_df.filter(is_skip)["LOINC_NUM"].to_list())
+
+
+def load_loinc_demote_codes(loinc_core_csv: str) -> set[str]:
+    """Return LOINC codes that should rank behind any non-demoted peer
+    (TRIAL status or LABORDERS.ONTOLOGY abstract placeholders)."""
+    import polars as pl
+    ct_df = pl.read_csv(
+        loinc_core_csv, columns=["LOINC_NUM", "CLASS", "STATUS"],
+    )
+    is_demote = pl.col("STATUS").is_in(list(_DEMOTE_STATUSES))
+    is_demote = is_demote | pl.col("CLASS").is_in(list(_DEMOTE_CLASSES))
+    return set(ct_df.filter(is_demote)["LOINC_NUM"].to_list())
 
 
 # ─── RRF reader ──────────────────────────────────────────────────────

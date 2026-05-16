@@ -1,0 +1,39 @@
+This bundle (fhir_snomed_ct_bundle.tar.gz) contains data derived from
+SNOMED Clinical Terms® (SNOMED CT®), copyright © 2002-2026
+International Health Terminology Standards Development Organisation
+(SNOMED International). All rights reserved.
+
+SNOMED® and SNOMED CT® are registered trademarks of SNOMED International.
+
+Use of SNOMED CT (and any derivative work containing SNOMED CT concept
+identifiers) requires a current SNOMED CT Affiliate License from
+SNOMED International or its designated National Release Centre. In the
+United States, the SNOMED CT US Edition is distributed by the National
+Library of Medicine (NLM); the Affiliate License is free of charge for
+use within US healthcare contexts.
+
+Redistribution of this bundle does NOT grant any SNOMED CT license to
+downstream recipients. Recipients are responsible for obtaining their
+own Affiliate License before installing or using this bundle.
+
+Bundle members and their SNOMED CT sources:
+
+  snomed_body_structure.txt — Active concept identifiers reachable
+                              from 123037004 |Body structure| via
+                              active is_a relationships (typeId
+                              116680003). Derived from Snapshot/
+                              Terminology/sct2_Concept_Snapshot and
+                              sct2_Relationship_Snapshot. One numeric
+                              concept identifier per line, sorted
+                              ascending. Used by the resolver to mask
+                              SNOMED corpus rows to the Body structure
+                              hierarchy for anatomy-aware site picks.
+
+Source: SNOMED CT US Edition, release 2026-03-01
+(SnomedCT_ManagedServiceUS_PRODUCTION_US1000124_20260301T120000Z) or
+later. Equivalent International Edition releases produce the same
+Body structure subtree because the hierarchy is part of the
+International core; the US module adds extensions outside it.
+
+Full SNOMED CT Affiliate License: https://www.snomed.org/snomed-ct/get-snomed
+NLM SNOMED CT US Edition: https://www.nlm.nih.gov/healthit/snomedct/

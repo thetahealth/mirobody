@@ -256,25 +256,26 @@ class SharingService:
 
             owner_user_email = owner_info[0]["email"]
 
-            # Check if user exists
-            existing_user = await execute_query(
-                "SELECT id, name FROM health_app_user WHERE email=:email AND is_del=FALSE;",
-                params={"email": lower_email},
+            # Atomic find-or-create: avoids check-then-act race with concurrent
+            # share invitations against the same new email.
+            default_nickname = nickname if nickname else lower_email.split("@")[0]
+            user_row = await execute_query(
+                """WITH ins AS (
+                       INSERT INTO health_app_user (email, name, is_del)
+                       VALUES (:email, :name, false)
+                       ON CONFLICT (email) WHERE (is_del = false) DO NOTHING
+                       RETURNING id
+                   )
+                   SELECT id FROM ins
+                   UNION ALL
+                   SELECT id FROM health_app_user
+                       WHERE email = :email AND is_del = false
+                   LIMIT 1;""",
+                params={"email": lower_email, "name": default_nickname},
             )
-
-            if existing_user:
-                member_user_id = str(existing_user[0]["id"])
-            else:
-                # Create new user
-                default_nickname = nickname if nickname else lower_email.split("@")[0]
-                new_user = await execute_query(
-                    """INSERT INTO health_app_user (email, name, is_del)
-                       VALUES (:email, :name, false) RETURNING id;""",
-                    params={"email": lower_email, "name": default_nickname},
-                )
-                if not new_user:
-                    return {"code": -2, "msg": "Failed to create user"}
-                member_user_id = str(new_user["id"])
+            if not user_row:
+                return {"code": -2, "msg": "Failed to create user"}
+            member_user_id = str(user_row[0]["id"])
 
             # Check if relationship already exists
             existing_rel = await execute_query(
@@ -826,7 +827,7 @@ class SharingService:
                 )
                 if not new_user:
                     return {"code": -2, "msg": "Failed to create user"}
-                owner_user_id = str(new_user["id"])
+                owner_user_id = str(new_user[0]["id"])
 
             # Check if relationship already exists
             existing_rel = await execute_query(

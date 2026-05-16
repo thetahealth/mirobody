@@ -5,9 +5,14 @@ Manages AI model configurations, provides validation and retrieval interfaces,
 supports dynamic configuration loading, and auto-selects providers based on available API keys.
 """
 
+import os
 from typing import Any, Dict, List, Optional
 
 from mirobody.utils.config import safe_read_cfg
+
+
+def _vertex_ai_enabled() -> bool:
+    return os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "0").lower() in ("true", "1")
 
 
 class AIConfig:
@@ -49,7 +54,10 @@ class AIConfig:
         {
             "name": "gemini",
             "api_key_env": "GOOGLE_API_KEY",
+            # default_model is resolved at read time via _resolve_provider();
+            # Vertex AI backend doesn't yet serve gemini-3-flash-preview.
             "default_model": "gemini-3-flash-preview",
+            "vertex_default_model": "gemini-2.5-flash",
             "description": "Google Gemini",
         },
         {
@@ -182,7 +190,14 @@ class AIConfig:
         return {provider: f"{config['type']} - {config['model']}" for provider, config in cls._CONFIG.items()}
 
     # ========== Auto-select provider methods ==========
-    
+
+    @staticmethod
+    def _resolve_provider(provider: Dict[str, Any]) -> Dict[str, Any]:
+        """Return a copy of the priority entry with default_model resolved against current env."""
+        if provider["name"] == "gemini" and _vertex_ai_enabled():
+            return {**provider, "default_model": provider["vertex_default_model"]}
+        return provider
+
     @classmethod
     def get_available_provider(cls) -> Optional[Dict[str, Any]]:
         """
@@ -197,9 +212,9 @@ class AIConfig:
         for provider in cls._DEFAULT_PROVIDER_PRIORITY:
             api_key = safe_read_cfg(provider["api_key_env"])
             if api_key:
-                return provider
+                return cls._resolve_provider(provider)
         return None
-    
+
     @classmethod
     def get_available_provider_name(cls) -> Optional[str]:
         """
@@ -224,7 +239,7 @@ class AIConfig:
         """
         for provider in cls._DEFAULT_PROVIDER_PRIORITY:
             if provider["name"] == name:
-                return provider
+                return cls._resolve_provider(provider)
         return None
     
     @classmethod

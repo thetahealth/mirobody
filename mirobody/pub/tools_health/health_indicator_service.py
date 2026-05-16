@@ -67,7 +67,7 @@ class HealthIndicatorService:
                 return {"success": False, "error": "At least one keyword must be provided."}
 
             from mirobody.indicator.search import search
-            from mirobody.indicator.fhir.search import FhirAdapter
+            from mirobody.indicator.fhir.adapter import FhirAdapter
             from mirobody.utils import safe_read_cfg
 
             bundle_dir = safe_read_cfg("FHIR_INDICATORS_DIR")

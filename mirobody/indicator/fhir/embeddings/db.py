@@ -18,9 +18,10 @@ Used when there is an existing populated ``fhir_indicators`` table and
                         to terminal mode.
 
   fhir_meta.csv.gz      row-aligned to ``fhir_embeddings.npy``;
-                        cols: ``name`` (empty here — run ``code-names``
-                        to fill from ~/ref), ``code_str`` (original
-                        string for hash rows DCM/THETA, empty otherwise).
+                        cols: ``name`` (filled inline from ~/ref source
+                        dirs when available — left empty otherwise),
+                        ``code_str`` (original string for hash rows
+                        DCM/THETA, empty otherwise).
 
 Layout note: ``SYSTEMS`` in :mod:`common` is **append-only** — its
 index is bit-packed into every ``canonical`` value. Reordering or
@@ -47,13 +48,13 @@ from ..common import (
     resolve_fhir_embedding_column,
 )
 from .local import (
+    EMB_BASENAME,
     EMB_DTYPE,
+    ID_MAP_BASENAME,
     ID_MAP_DTYPE,
-    ID_MAP_PATH,
-    META_PATH,
+    META_BASENAME,
     RES_DIR,
     atomic_swap_keep_backup,
-    emb_basename,
     open_gz_text_write,
     tmp_path,
 )
@@ -94,7 +95,7 @@ async def build_id_map(out_path: str, emb_path: str | None = None) -> int:
     ``embeddings`` (or ``migrate_fhir_id``) has produced the npy.
     """
     if emb_path is None:
-        emb_path = os.path.join(RES_DIR, emb_basename())
+        emb_path = os.path.join(RES_DIR, EMB_BASENAME)
     if not os.path.isfile(emb_path):
         raise SystemExit(
             f"missing {emb_path}; run `embeddings` first so id_map has "
@@ -167,7 +168,7 @@ async def cmd_id_map(args: Namespace) -> None:
     """
     res_dir = args.res_dir or RES_DIR
     os.makedirs(res_dir, exist_ok=True)
-    out_path = os.path.join(res_dir, os.path.basename(ID_MAP_PATH))
+    out_path = os.path.join(res_dir, ID_MAP_BASENAME)
     n = await build_id_map(out_path)
     log.info("id-map: %d entries → %s (%.1f MB)",
              n, out_path, os.path.getsize(out_path) / 1e6)
@@ -181,7 +182,7 @@ async def _export_embeddings_and_meta(
     compute canonical fhir_id, write structured npy + meta.csv.gz + id_map.npy.
 
     Provider is selected via :func:`resolve_fhir_embedding_column`
-    (``DIM_EMBEDDING_PROVIDER``, default gemini).
+    (``EMBEDDING_PROVIDER``, default gemini).
 
     On first run: pre-allocates fp32 emb memmap + canonical memmap +
     db_pk memmap + hash-codes JSON in *out_dir*. Streams via id-paginated
@@ -349,7 +350,8 @@ async def _export_embeddings_and_meta(
     del out
     atomic_swap_keep_backup(emb_tmp, emb_path)
 
-    # Meta: name column intentionally empty (run code-names to fill).
+    # Meta: name column left empty here; cmd_embeddings_db fills it
+    # inline from ~/ref when source dirs are available.
     meta_tmp = tmp_path(meta_path)
     with open_gz_text_write(meta_tmp) as f:
         w = csv.writer(f)
@@ -371,6 +373,8 @@ async def _export_embeddings_and_meta(
 
 
 async def cmd_embeddings_db(args: Namespace) -> None:
+    from .names import _fill_meta_names, load_name_sources
+
     out_dir = args.output or os.path.normpath(os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "out"
     ))
@@ -378,9 +382,9 @@ async def cmd_embeddings_db(args: Namespace) -> None:
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(res_dir, exist_ok=True)
 
-    emb_path = os.path.join(res_dir, emb_basename())
-    id_map_path = os.path.join(res_dir, os.path.basename(ID_MAP_PATH))
-    meta_path = os.path.join(res_dir, os.path.basename(META_PATH))
+    emb_path = os.path.join(res_dir, EMB_BASENAME)
+    id_map_path = os.path.join(res_dir, ID_MAP_BASENAME)
+    meta_path = os.path.join(res_dir, META_BASENAME)
 
     # All three artifacts are produced in one streaming pass: each fetched
     # fhir_indicators row contributes its embedding (→ npy), canonical
@@ -398,9 +402,18 @@ async def cmd_embeddings_db(args: Namespace) -> None:
         "wrote %s (%d rows, %.1f MB)",
         id_map_path, n_embs, os.path.getsize(id_map_path) / 1e6,
     )
-    log.info(
-        "wrote %s (%.1f MB) — name column empty; run `code-names` to populate",
-        meta_path, os.path.getsize(meta_path) / 1e6,
-    )
+
+    # Inline name fill from ~/ref. Skip with a warning when no source dirs
+    # resolve — bundle is still valid, just lacks human-readable names;
+    # `code-names` can repair it later if ~/ref becomes available.
+    sources = load_name_sources(args)
+    if sources:
+        _fill_meta_names(emb_path, meta_path, sources)
+    else:
+        log.warning(
+            "wrote %s (%.1f MB) — name column empty (no ~/ref source "
+            "dirs resolved; run `code-names` later to backfill)",
+            meta_path, os.path.getsize(meta_path) / 1e6,
+        )
 
 #-----------------------------------------------------------------------------

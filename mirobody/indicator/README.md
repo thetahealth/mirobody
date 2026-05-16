@@ -15,6 +15,10 @@ indicator/
     common.py            # SYSTEMS, code_to_fhir_id, RRF reader, shared types
     test.py              # Verify output against known test cases
     locales/             # Locale plugins for local drug/vaccine names
+    units/               # Free-text unit string → canonical UCUM + LOINC PROPERTY family
+      normalize.py       # normalize_unit, parse_value_unit, ParsedQuantity
+      families.py        # UCUM_FAMILY (~310) + AMBIGUOUS_UNITS + unit_family / unit_families
+      tokens.py          # MORPHEMES + ALIASES data (~600 multilingual tokens)
     embeddings/          # Offline embedding bundle (mirobody/res/fhir_*)
       db.py              # Producer: from fhir_indicators DB (compat mode)
       ref.py             # Producer: from ~/ref + Gemini API (terminal mode)
@@ -69,6 +73,54 @@ batch = await adapter.resolve_many(
 
 Sweet spot batch size is **~100** — the no-waste intersection of both providers' embedding `batch_limit` (gemini=100, qwen=10). Cosine matmul cost scales sub-linearly with batch size (BLAS GEMM efficiency), so going larger still helps but pays a `(B × N × 4B)` score matrix in RAM.
 
+## Unit normalization
+
+`fhir/units/` parses free-text "value + unit" strings into structured `ParsedQuantity(comparator, value, canonical_ucum)` and looks up the corresponding LOINC PROPERTY family. Designed for ingesting clinical and wearable data where the same indicator gets written different ways across languages, locales, and devices. Pure local computation — no DB, no embedding API.
+
+```python
+from mirobody.indicator.fhir.units import (
+    normalize_unit, parse_value_unit, unit_family, unit_families,
+)
+
+normalize_unit("毫摩尔每升")          # → "mmol/L"
+normalize_unit("Millimol pro Liter") # → "mmol/L"
+normalize_unit("MG/DL")              # → "mg/dL"
+
+q = parse_value_unit("90次每分钟")
+# ParsedQuantity(comparator="", value=90.0, unit="/min")
+
+unit_family("mmol/L")    # → "SCnc"   (primary LOINC PROPERTY)
+unit_families("%")       # → frozenset({"MFr", "NFr", "AFr", "VFr", ...})  (ambiguous)
+```
+
+| Layer | Purpose | Examples |
+|---|---|---|
+| **morpheme** (`tokens.MORPHEMES`) | atomic tokens the tokenizer concatenates left-to-right | `Millimol` + `pro` + `Liter` → `mmol/L`; adding a new prefix (`Femtomol → fmol`) auto-composes with all stems |
+| **alias** (`tokens.ALIASES`) | full-string mappings for irreducible compounds | `mmHg → mm[Hg]`, `毫米汞柱 → mm[Hg]`, `10⁹/L → 10*9/L`, `eGFR → mL/min/{1.73_m2}` |
+| **family** (`families.UCUM_FAMILY`) | canonical UCUM → LOINC PROPERTY (`MCnc`, `SCnc`, `NRat`, `Pres`, ...) | covers 98%+ of LOINC `EXAMPLE_UCUM_UNITS` |
+
+**Languages covered**: en, zh-CN, zh-TW, ja, ko, ru, de, fr, es. Adding a new language is a single dict literal under `tokens.py` — the tokenizer is language-agnostic (longest-match-first across a global token table).
+
+**Edge cases handled**:
+
+- Comparators (`<5.6`, `>=180 mmHg`, `≤5.6`, `~5.6`, double-char `<=`/`>=`)
+- Unicode normalization (`°C`, `µg/L`, `10⁹/L`, full-width `ｍｇ／ｄＬ`)
+- UCUM annotation strip (`ug/g{creat}` → `ug/g`; `{copies}/mL` → `/mL`) while preserving canonical annotation forms (`mL/min/{1.73_m2}` round-trips)
+- Value-anywhere parsing (`每分钟90次` Chinese SVO order, `mg/dL 90` unit-before-value)
+- European decimal comma (`5,6 mmol/L`)
+- Wearable count "units" via UCUM annotation form (`600步` → `(0, 600, {steps})`, family `Num`)
+- Imperial units (`ft` / `lb` / `oz` / `gallon` etc., normalized to bracketed UCUM `[ft_us]` / `[lb_av]` / ...)
+- Ambiguity API: `unit_family("%")` returns the primary (`MFr`); `unit_families("%")` returns all 9 fraction-type PROPERTYs
+
+**CLI**:
+
+```bash
+python -m mirobody.indicator normalize "90次每分钟" "<5.6 mg/dL" "600步"
+# {"input": "90次每分钟", "comparator": "", "value": 90.0,  "unit": "/min",    "family": "NRat"}
+# {"input": "<5.6 mg/dL", "comparator": "<", "value": 5.6,  "unit": "mg/dL",   "family": "MCnc"}
+# {"input": "600步",      "comparator": "", "value": 600.0, "unit": "{steps}", "family": "Num"}
+```
+
 ## Concept graph
 
 `concept_graph.py` defines two roles:
@@ -110,9 +162,8 @@ class MyDomainBuilder(ConceptGraphBuilder):
 ### Typical pipeline usage
 
 ```python
-from .fhir.graph_builder import FhirGraphBuilder, sync_fhir_ids
+from .fhir.graph_builder import FhirGraphBuilder
 
-await sync_fhir_ids(out_dir)           # domain-specific pre-step
 builder = FhirGraphBuilder()
 builder.build(out_dir)                  # writes <out_dir>/fhir_concept_graph.bin
 ```
@@ -312,13 +363,12 @@ Output columns: `name`, `snomed_codes`, `loinc_codes`, `loinc_bridged`, `rxnorm_
 
 **Phase 2 -- `fhir_concept_graph.bin`:**
 
-1. Sync `code -> fhir_id` mapping from DB (`fhir_indicators` table) into `_fhir_id_codes.csv` cache.
-2. Stream bridge CSVs, resolve codes to fhir_ids, build bidirectional adjacency. Jaccard bridges capped at 150 codes/row.
-3. Stream sibling CSVs, resolve codes to fhir_ids, store as flat groups.
-4. Serialize to zlib-compressed binary:
-   - Header: magic (`CGPH`) + version (1) + counts
-   - Bridges: half-edge storage (src < dst), expanded at load time
-   - Siblings: per-group members + reverse index for O(1) lookup
+1. Stream bridge CSVs, encode codes as canonical packed fhir_ids via `code_to_fhir_id(system, code)`, build bidirectional adjacency. Jaccard bridges capped at 150 codes/row.
+2. Stream sibling CSVs, encode codes as canonical packed fhir_ids, store as flat groups. Retired/inactive codes are retained for query-expansion recall — graph topology is decoupled from corpus membership.
+3. Serialize to zlib-compressed binary:
+   - Header: magic (`CGPH`) + version (2) + counts
+   - Bridges: half-edge storage (src < dst), expanded at load time. IDs are 64-bit.
+   - Siblings: per-group members + reverse index for O(1) lookup. IDs are 64-bit.
 
 ### 2.4 Batch-fill embeddings
 
@@ -357,7 +407,6 @@ After running all three steps, the output directory contains:
 ```
 concepts.csv                  # Final merged concept table
 fhir_concept_graph.bin        # Binary graph for runtime search
-_fhir_id_codes.csv            # code -> fhir_id cache
 _siblings_*.csv               # Intermediate sibling groups
 _bridges_*.csv                # Intermediate bridge files
 _bridged_snomed.csv           # SNOMED codes with bridges
@@ -505,9 +554,14 @@ python -m mirobody.indicator resolve "metformin" --systems LOINC RXNORM --top-k 
 # re-running skips terms already present in the output file.
 python -m mirobody.indicator resolve "blood glucose" "metformin" "chest x-ray"
 python -m mirobody.indicator resolve --input terms.txt --output results.jsonl -k 1 -s LOINC SNOMED_CT
+
+# Unit normalization: free-text "value + unit" → (comparator, value, canonical UCUM, family)
+# Pure local — no DB, no embedding API. See "Unit normalization" section above.
+python -m mirobody.indicator normalize "90次每分钟" "<5.6 mg/dL" "600步"
+python -m mirobody.indicator normalize --input units.txt
 ```
 
-`search` requires DB access (for FHIR vector recall) and a built `fhir_concept_graph.bin`. `resolve` runs offline if the embedding bundle is mounted (see Step 3); otherwise it falls back to pgvector on `fhir_indicators`.
+`search` requires DB access (for FHIR vector recall) and a built `fhir_concept_graph.bin`. `resolve` runs offline if the embedding bundle is mounted (see Step 3); otherwise it falls back to pgvector on `fhir_indicators`. `normalize` is fully offline — only reads the in-package `tokens.py` / `families.py`.
 
 ## Runtime
 

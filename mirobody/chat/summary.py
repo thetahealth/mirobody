@@ -16,27 +16,25 @@ from ..utils.llm import async_get_text_completion
 #-----------------------------------------------------------------------------
 
 async def generate_summary(conversation_text: str, provider: Optional[str] = None) -> str:
-    """
-    Generate a summary for the conversation.
-    
-    Args:
-        conversation_text: The conversation text to summarize
-        provider: LLM provider to use (e.g., "gemini", "openai", "openrouter"). 
-                  If None, auto-selects based on available API keys.
-    """
+    """Generate a topic title from the user's question only."""
     try:
         if len(conversation_text.strip()) < 5:
             return conversation_text.strip()
 
-        prompt = f"""Based on this conversation, generate a concise topic summary (max 50 characters in Chinese or English).
-                Only output the summary text, no explanations or quotes. You shall mainly focus on the user's request.
-                Please note that the conversation may contain multiple messages from different users. You shall mainly focus on the user's request.
-                The summary should be in the same language as the user's question.
-                
+        prompt = f"""Write a short topic title for the user's question in this conversation.
+
+                Rules:
+                - Title the USER'S QUESTION ONLY. Do NOT include the assistant's
+                  answer, diagnosis, conclusion, numbers, or interpretation.
+                - If multiple user turns appear, anchor on the first non-trivial one.
+                - Max 50 characters.
+                - Same language as the user's question.
+                - Output only the title text — no quotes, no explanations, no prefixes.
+
                 Conversation:
                 {conversation_text[:1000]}
 
-                Summary:"""
+                Title:"""
         result = await async_get_text_completion(
             messages=[{"role": "user", "content": prompt}],
             provider=provider,
@@ -79,25 +77,52 @@ async def generate_and_save_summary(user_id: str, session_id: str, provider: Opt
             logging.warning(f"No messages found for session {session_id}")
             return None
 
+        # We only feed user turns into the summarizer so the LLM can't
+        # accidentally lift the assistant's answer/diagnosis into the
+        # title. In compare mode every pane sees the same user question,
+        # so this keeps sibling sessions' summaries aligned (see
+        # cdm/backendbug.log §2).
         conversation_text = ""
         for msg in messages[:10]:
             role = msg.get("role", "")
+            if role != "user":
+                continue
             content = msg.get("content", "")
-            
+
             if isinstance(content, str):
                 try:
                     content_obj = json.loads(content)
                     if isinstance(content_obj, list):
                         content = "".join([
-                            block.get("content", "") 
-                            for block in content_obj 
+                            block.get("content", "")
+                            for block in content_obj
                             if block.get("type") == "reply"
                         ])
                 except:
                     pass
-            
-            role_label = "User" if role == "user" else "Assistant"
-            conversation_text += f"{role_label}: {content}\n\n"
+
+            conversation_text += f"User: {content}\n\n"
+
+        # Fallback: if for some reason there were no user-role rows (very old
+        # legacy sessions sometimes mis-tag), fall back to the original mixed
+        # behaviour so we still produce some title rather than empty string.
+        if not conversation_text.strip():
+            for msg in messages[:10]:
+                role = msg.get("role", "")
+                content = msg.get("content", "")
+                if isinstance(content, str):
+                    try:
+                        content_obj = json.loads(content)
+                        if isinstance(content_obj, list):
+                            content = "".join([
+                                block.get("content", "")
+                                for block in content_obj
+                                if block.get("type") == "reply"
+                            ])
+                    except:
+                        pass
+                role_label = "User" if role == "user" else "Assistant"
+                conversation_text += f"{role_label}: {content}\n\n"
         
         summary = await generate_summary(conversation_text.strip(), provider=provider)
 

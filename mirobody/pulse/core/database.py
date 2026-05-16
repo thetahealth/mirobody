@@ -39,7 +39,7 @@ class BaseDatabaseService(ABC):
     ) -> List[Dict[str, Any]]:
         try:
             result = await execute_query(
-                query=query, params=params or {}, db_config=db_config or self.db_config
+                query=query, params=params or {}, db_config=db_config or self.db_config or ""
             )
             return result or []
         except Exception as e:
