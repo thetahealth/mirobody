@@ -207,8 +207,16 @@ class PostgreSQLConfig:
     #-----------------------------------------------------
 
     def get_async_engine(self) -> sqlalchemy.ext.asyncio.AsyncEngine:
+        url = sqlalchemy.URL.create(
+            drivername = "postgresql+psycopg",
+            username   = self.user,
+            password   = self.password,
+            host       = self.host,
+            port       = self.port,
+            database   = self.database,
+        )
         async_engine = sqlalchemy.ext.asyncio.create_async_engine(
-            f"postgresql+psycopg://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
+            url,
             connect_args= {
                 "options": f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}",
             },
@@ -223,8 +231,16 @@ class PostgreSQLConfig:
 
 
     def get_engine(self) -> sqlalchemy.Engine:
+        url = sqlalchemy.URL.create(
+            drivername = "postgresql+psycopg",
+            username   = self.user,
+            password   = self.password,
+            host       = self.host,
+            port       = self.port,
+            database   = self.database,
+        )
         engine = sqlalchemy.create_engine(
-            f"postgresql+psycopg://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
+            url,
             connect_args= {
                 "options": f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}"
             },
