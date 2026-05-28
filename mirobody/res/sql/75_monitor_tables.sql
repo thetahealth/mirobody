@@ -46,3 +46,8 @@ CREATE TABLE IF NOT EXISTS indicator_daily_profile (
 
 CREATE INDEX IF NOT EXISTS idx_idp_stat_date ON indicator_daily_profile (stat_date DESC);
 CREATE INDEX IF NOT EXISTS idx_idp_indicator ON indicator_daily_profile (indicator, stat_date DESC);
+
+ALTER TABLE indicator_daily_profile
+    ADD COLUMN IF NOT EXISTS p25 double precision,
+    ADD COLUMN IF NOT EXISTS median_val double precision,
+    ADD COLUMN IF NOT EXISTS p75 double precision;

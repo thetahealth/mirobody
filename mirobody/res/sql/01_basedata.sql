@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS th_series_dim (
     unit character varying,
     deleted boolean not null default false,
     create_time timestamp with time zone not null default CURRENT_TIMESTAMP,
-    update_time timestamp with time zone not null default CURRENT_TIMESTAMP,
+    update_time timestamp with time zone not null default CURRENT_TIMESTAMP
 );
 
 --  Add embedding_gemini field for Gemini 1024-dimension vector search (used by indicator_service_v3)
@@ -252,47 +252,5 @@ ON CONFLICT (source) DO UPDATE SET
     is_active = COALESCE(EXCLUDED.is_active, TRUE),
     updated_at = CURRENT_TIMESTAMP;
 
-
-DROP VIEW IF EXISTS v_th_series_data;
-CREATE OR REPLACE VIEW v_th_series_data
- AS
- SELECT
-        CASE
-            WHEN t2.standard_indicator IS NULL THEN t1.indicator
-            ELSE t2.standard_indicator
-        END AS standard_indicator,
-        CASE
-            WHEN t2.category_group IS NULL THEN 'other'::character varying
-            ELSE t2.category_group
-        END AS category_group,
-        CASE
-            WHEN t2.category IS NULL THEN t1.indicator
-            ELSE t2.category
-        END AS category,
-    -- t2.original_indicator_embedding,
-    -- t2.standard_indicator_embedding,
-    t2.category_embedding,
-    t2.unit,
-    t2.diagnosis_recommended_organ,
-    t2.diagnosis_recommended_system,
-    t2.diagnosis_recommended_disease,
-    t2.department,
-    t2.symptom,
-    t1.id,
-    t1.user_id,
-    t1.indicator,
-    t1.value,
-    t1.start_time,
-    t1.end_time,
-    t1.source_table,
-    t1.source_table_id,
-    t1.comment,
-    t1.indicator_id,
-    t1.deleted,
-    t1.create_time,
-    t1.update_time,
-    t1.source
-   FROM th_series_data t1
-     LEFT JOIN th_series_dim t2 ON t1.indicator::text = t2.original_indicator::text;
 
 set check_function_bodies = off;

@@ -468,9 +468,11 @@ class Server:
                             statements = f.read()
                             try:
                                 await cur.execute(statements)
+                                await conn.commit()
                                 logging.info(f"SQL file {filename} executed successfully.")
                             except Exception as e:
                                 logging.error(str(e), exc_info=True, extra={"sql_filename": filename})
+                                await conn.rollback()
 
                     logging.info("SQL files initialization completed.")
 
