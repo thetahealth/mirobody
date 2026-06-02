@@ -176,6 +176,9 @@ CREATE INDEX IF NOT EXISTS ix_theta_ai_health_user_profile_by_system_version
     (version ASC NULLS LAST)
     TABLESPACE pg_default;
 
+ALTER TABLE health_user_profile_by_system
+ADD COLUMN IF NOT EXISTS common_part_encrypted text NULL;
+
 
 CREATE TABLE IF NOT EXISTS th_task_flow
 (
