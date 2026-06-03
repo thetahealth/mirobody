@@ -467,6 +467,92 @@ async def create_new_question(
 
 #-----------------------------------------------------------------------------
 
+async def _refresh_file_urls_in_content(content_json_obj: Any) -> None:
+    """
+    Re-sign expired storage URLs in-place for chat-history payloads.
+
+    th_messages.content captures the signed URL at write time, but signed
+    URLs expire (S3 default ~24h). file_key is durable, so on the read path
+    we re-derive a fresh URL from it. Two content shapes carry files:
+
+      - User upload bubble (dict with `files: [...]`): refresh each entry's
+        url_full / url_thumb / file_url, then rebuild the top-level
+        url_thumb / url_full arrays the frontend may read instead of files[*].
+      - Assistant chart bubble (list of chunks with `{type: "image"}`):
+        the chunk content holds a dict (or JSON-encoded dict) carrying
+        file_key / thumbnail_key — re-sign and write the URL back.
+    """
+    if not content_json_obj:
+        return
+
+    from ..pulse.file_parser.services.database_services import FileParserDatabaseService
+    from ..pulse.file_parser.services.db_utils import get_mime_type
+
+    async def _sign(file_key: str, file_name: str = "") -> str:
+        if not file_key:
+            return ""
+        content_type = get_mime_type(file_name) if file_name else "application/octet-stream"
+        return await FileParserDatabaseService.regenerate_file_url(
+            file_key, file_name, content_type
+        )
+
+    if isinstance(content_json_obj, dict) and content_json_obj.get("files"):
+        files = content_json_obj.get("files") or []
+        new_thumbs: list[str] = []
+        new_fulls: list[str] = []
+        for file_info in files:
+            if not isinstance(file_info, dict):
+                continue
+            file_key = file_info.get("file_key", "")
+            file_name = (
+                file_info.get("file_name")
+                or file_info.get("filename")
+                or file_info.get("original_filename")
+                or ""
+            )
+            new_url = await _sign(file_key, file_name)
+            if new_url:
+                file_info["url_full"] = new_url
+                file_info["url_thumb"] = new_url
+                file_info["file_url"] = new_url
+            new_thumbs.append(file_info.get("url_thumb", "") or "")
+            new_fulls.append(file_info.get("url_full", "") or "")
+        if "url_thumb" in content_json_obj:
+            content_json_obj["url_thumb"] = new_thumbs
+        if "url_full" in content_json_obj:
+            content_json_obj["url_full"] = new_fulls
+        return
+
+    if isinstance(content_json_obj, list):
+        for chunk in content_json_obj:
+            if not isinstance(chunk, dict) or chunk.get("type") != "image":
+                continue
+            raw = chunk.get("content")
+            data: Any = None
+            was_string = False
+            if isinstance(raw, str):
+                try:
+                    data = json.loads(raw)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                was_string = True
+            elif isinstance(raw, dict):
+                data = raw
+            if not isinstance(data, dict):
+                continue
+            file_key = data.get("file_key") or data.get("thumbnail_key")
+            if not file_key:
+                continue
+            file_name = data.get("filename") or data.get("file_name") or ""
+            new_url = await _sign(file_key, file_name)
+            if not new_url:
+                continue
+            data["url"] = new_url
+            if was_string:
+                chunk["content"] = json.dumps(data, ensure_ascii=False)
+
+#-----------------------------------------------------------------------------
+
 async def get_chat_history(user_id: str, session_id: str, filter_message_type: bool = False) -> list[dict[str, Any]]:
     """Load chat history for given session from database"""
     history = []
@@ -510,26 +596,10 @@ async def get_chat_history(user_id: str, session_id: str, filter_message_type: b
                     except Exception as e:
                         logging.error(f"Error parsing content: {str(e)}")
                 
-                # Regenerate file URLs if content contains files
-                if isinstance(content_json_obj, dict) and content_json_obj.get("files"):
-                    try:
-                        from ..pulse.file_parser.services.database_services import FileParserDatabaseService
-                        from ..pulse.file_parser.services.db_utils import get_mime_type
-                        files = content_json_obj.get("files", [])
-                        for file_info in files:
-                            if isinstance(file_info, dict):
-                                file_key = file_info.get("file_key", "")
-                                if file_key:
-                                    file_name = file_info.get("file_name") or file_info.get("filename") or file_info.get("original_filename") or ""
-                                    content_type = get_mime_type(file_name)
-                                    new_url = await FileParserDatabaseService.regenerate_file_url(
-                                        file_key, file_name, content_type
-                                    )
-                                    if new_url:
-                                        file_info["url_full"] = new_url
-                                        file_info["url_thumb"] = new_url
-                    except Exception as e:
-                        logging.error(f"Error regenerating file URLs: {str(e)}")
+                try:
+                    await _refresh_file_urls_in_content(content_json_obj)
+                except Exception as e:
+                    logging.error(f"Error regenerating file URLs: {str(e)}")
 
                 message = {
                     "role": msg.get("role", "assistant"),

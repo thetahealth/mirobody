@@ -1,13 +1,10 @@
-"""
-Deep Agent Middleware
+"""DeepAgent middleware sub-package.
 
-Design Principles:
-------------------
-Tool-related middleware has been migrated to MCP tools.
-Only non-tool middleware remains here.
-
-- File tools: mirobody/pub/tools/file_read_service.py, file_write_service.py
-- Global files utils: mirobody/pub/tools/_global_files_utils.py
+`UniversalPromptCachingMiddleware` is the only Mirobody-specific middleware
+shipped with DeepAgent. The rest of the stack (TodoListMiddleware,
+FilesystemMiddleware, SummarizationMiddleware, PatchToolCallsMiddleware) is
+pulled directly from the upstream `deepagents` and `langchain` packages
+and assembled in `deep_agent.DeepAgent._create_middlewares`.
 """
 
 from .prompt_caching import UniversalPromptCachingMiddleware

@@ -9,6 +9,8 @@ import logging
 import os
 from typing import Any, Optional, Tuple
 
+from ..deep.parser import FileParser, guess_mime
+
 logger = logging.getLogger(__name__)
 
 # Default session_id for MCP tools when not provided
@@ -45,6 +47,7 @@ async def register_files_to_workspace(
     file_list: list[dict[str, Any]],
     backend: Any,
     files_data: list[dict[str, Any]] | None = None,
+    path_prefix: str = "/uploads",
 ) -> Tuple[list[str], str]:
     """
     Register files to workspace for lazy loading on read.
@@ -101,6 +104,7 @@ async def register_files_to_workspace(
         logger.debug("files_data is None or empty")
 
     registered_paths = []
+    _file_parser = FileParser()
 
     for file_info in file_list:
         try:
@@ -113,8 +117,10 @@ async def register_files_to_workspace(
                 logger.warning(f"Skipping file with missing name: {file_info}")
                 continue
 
-            # Create workspace file path
-            file_path = f"/uploads/{file_name}"
+            # Create workspace file path. ``path_prefix`` is "" when writing
+            # directly into a CompositeBackend uploads-scope child (which sees
+            # paths with the /uploads/ prefix already stripped).
+            file_path = f"{path_prefix}/{file_name}" if path_prefix else f"/{file_name}"
 
             # Check if we have pre-downloaded content (prefer pre-encoded b64)
             file_content = None
@@ -138,40 +144,46 @@ async def register_files_to_workspace(
             else:
                 logger.debug(f"   ❌ NOT found in content maps")
 
-            if file_content_b64 or file_content:
-                # Use pre-encoded base64 if available, otherwise encode now
-                if file_content_b64:
-                    raw_content = file_content_b64
-                    content_size = len(base64.b64decode(file_content_b64))
-                else:
-                    raw_content = base64.b64encode(file_content).decode('utf-8')
-                    content_size = len(file_content)
+            # Resolve raw bytes (binary never lands in Postgres — it is offloaded
+            # to object storage; only extracted text is kept inline for grep).
+            raw_bytes = None
+            if file_content_b64:
+                try:
+                    raw_bytes = base64.b64decode(file_content_b64)
+                except Exception:
+                    raw_bytes = None
+            elif file_content:
+                raw_bytes = file_content
 
-                file_data = {
-                    "raw_content": raw_content,
-                    "file_type": file_type,
-                    "file_key": file_key,
-                    "lazy_load": True,
-                    "parsed": False,
-                    "content": [],  # Empty - will be filled after parsing
-                }
-                logger.info(f"📝 Registered file with content: {file_path} ({content_size} bytes)")
-            elif file_url:
-                # Store FILE_URL: reference for lazy downloading AND parsing
-                file_data = {
-                    "content": [f"FILE_URL:{file_url}"],
-                    "file_type": file_type,
-                    "file_key": file_key,
-                    "lazy_load": True,
-                    "parsed": False,
-                }
-                logger.info(f"📝 Registered file for lazy download: {file_path} -> {file_url}")
-            else:
-                logger.warning(f"Skipping file with no content or URL: {file_name}")
+            if raw_bytes is None and not file_key and not file_url:
+                logger.warning(f"Skipping file with no content/URL/key: {file_name}")
                 continue
 
-            # Write file data to workspace (async call - persist to database)
-            await backend._put_file_data_async(file_path, file_data, persist=True)
+            # Extract best-effort text + classify mime; multimodal files
+            # (pdf/image/...) are surfaced to the model as multimodal blocks on read.
+            parsed_text = ""
+            mime = guess_mime(file_name)
+            if raw_bytes is not None:
+                prepared = await _file_parser.prepare(raw_bytes, file_name, file_key=file_key or None)
+                parsed_text = prepared.parsed_text
+                mime = prepared.mime_type
+            elif file_key:
+                cached = await _file_parser.get_cached_file_by_key(file_key)
+                if cached:
+                    parsed_text = cached.get("content", "") or ""
+
+            err = await backend.aupload_parsed(
+                path=file_path,
+                raw_bytes=raw_bytes,
+                parsed_text=parsed_text,
+                mime_type=mime,
+                file_key=file_key or None,
+                source="user_upload",
+            )
+            if err:
+                logger.warning(f"Failed to register {file_path}: {err}")
+                continue
+            logger.info(f"📝 Registered {file_path} (multimodal={prepared.is_multimodal if raw_bytes is not None else False})")
             registered_paths.append(file_path)
 
         except Exception as e:

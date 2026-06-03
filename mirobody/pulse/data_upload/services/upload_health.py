@@ -181,7 +181,7 @@ class StandardHealthService(BaseHealthService):
 
             try:
                 _v = float(value)
-                normalized_value, _ = self.normalize_health_data_unit(
+                normalized_value, normalized_unit = self.normalize_health_data_unit(
                     indicator,
                     _v,
                     unit,
@@ -189,6 +189,7 @@ class StandardHealthService(BaseHealthService):
                 )
             except:
                 normalized_value = value
+                normalized_unit = unit
 
             # W1.1 (TH-132): Validate value against indicator-specific rules
             vr = self._value_validator.validate(indicator, normalized_value)
@@ -204,7 +205,7 @@ class StandardHealthService(BaseHealthService):
                 "value": str(normalized_value),
                 "timestamp": timestamp,
                 "record_time": record_time,
-                "unit": unit,
+                "unit": normalized_unit,
                 "timezone": timezone_info,
                 "source_id": source_id,
                 "task_id": task_id,
@@ -369,54 +370,33 @@ class StandardHealthService(BaseHealthService):
     def _calculate_summary_time_range_from_common(self, common_data: Dict[str, Any]) -> tuple:
         try:
             indicator = common_data["indicator"]
+            user_timezone = common_data["timezone"]
             start_time_ms = common_data.get("original_start_time_ms")
             end_time_ms = common_data.get("original_end_time_ms")
-            user_timezone = common_data["timezone"]
-            if start_time_ms is not None and end_time_ms is not None:
-                start_time_utc = datetime.fromtimestamp(start_time_ms / 1000, tz=timezone.utc)
-                end_time_utc = datetime.fromtimestamp(end_time_ms / 1000, tz=timezone.utc)
-                if user_timezone == "UTC":
-                    start_time_local = start_time_utc.replace(tzinfo=None)
-                    end_time_local = end_time_utc.replace(tzinfo=None)
-                    logging.info(f"Using explicit time range for {indicator}: UTC timezone, keeping UTC time {start_time_local} to {end_time_local}")
-                    return start_time_local, end_time_local
 
-                # Convert to user's local timezone
-                # th_series_data stores start_time/end_time as timestamp without time zone, representing user's local time
-                try:
-                    user_tz = ZoneInfo(user_timezone)
-                    start_time = start_time_utc.astimezone(user_tz).replace(tzinfo=None)
-                    end_time = end_time_utc.astimezone(user_tz).replace(tzinfo=None)
-                    return start_time, end_time
-                except Exception as e:
-                    logging.warning(f"Failed to convert timezone {user_timezone}, using UTC: {str(e)}")
-                    start_time = start_time_utc.replace(tzinfo=None)
-                    end_time = end_time_utc.replace(tzinfo=None)
-                    return start_time, end_time
+            # Fallback: providers that don't carry an explicit time range are
+            # treated as point-in-time samples — use the record timestamp for
+            # both bounds. This routes every record through the timezone
+            # conversion below, so th_series_data.start_time always reflects
+            # the user's local wall clock (not UTC). (TH-403)
+            if start_time_ms is None:
+                start_time_ms = common_data["timestamp"]
+            if end_time_ms is None:
+                end_time_ms = common_data["timestamp"]
 
-            base_time = common_data["record_time"]
-            indicator_lower = indicator.lower()
+            start_time_utc = datetime.fromtimestamp(start_time_ms / 1000, tz=timezone.utc)
+            end_time_utc = datetime.fromtimestamp(end_time_ms / 1000, tz=timezone.utc)
 
-            if "daily" in indicator_lower:
-                start_time = base_time.replace(hour=0, minute=0, second=0, microsecond=0)
-                end_time = base_time.replace(hour=23, minute=59, second=59, microsecond=999999)
-                logging.info(f"Using daily fallback logic for {indicator}: {start_time} to {end_time}")
-            elif "weekly" in indicator_lower:
-                days_since_monday = base_time.weekday()
-                start_time = (base_time - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0,
-                                                                                     microsecond=0)
-                end_time = (start_time + timedelta(days=6)).replace(hour=23, minute=59, second=59, microsecond=999999)
-                logging.info(f"Using weekly fallback logic for {indicator}: {start_time} to {end_time}")
-            elif "hourly" in indicator_lower:
-                start_time = base_time.replace(minute=0, second=0, microsecond=0)
-                end_time = base_time.replace(minute=59, second=59, microsecond=999999)
-                logging.info(f"Using hourly fallback logic for {indicator}: {start_time} to {end_time}")
-            else:
-                start_time = base_time
-                end_time = base_time
-                logging.info(f"Using timestamp as point time for {indicator}: {start_time}")
+            if user_timezone == "UTC":
+                return start_time_utc.replace(tzinfo=None), end_time_utc.replace(tzinfo=None)
 
-            return start_time, end_time
+            try:
+                user_tz = ZoneInfo(user_timezone)
+                return (start_time_utc.astimezone(user_tz).replace(tzinfo=None),
+                        end_time_utc.astimezone(user_tz).replace(tzinfo=None))
+            except Exception as e:
+                logging.warning(f"Failed to convert timezone {user_timezone}, using UTC: {str(e)}")
+                return start_time_utc.replace(tzinfo=None), end_time_utc.replace(tzinfo=None)
 
         except Exception as e:
             logging.error(f"Error calculating summary time range: {str(e)}", stack_info=True)

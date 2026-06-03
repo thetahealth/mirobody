@@ -94,6 +94,35 @@ _FIELD_SEP_RE = re.compile(r"\|")
 _MIN_SPAN_LEN: int = 2
 
 
+# Single-character Han element names are complete, specific analytes
+# (铬 Chromium, 钙 Calcium, 硒 Selenium, …) yet embed too generically in
+# isolation to clear _MIN_SPAN_LEN — and as a ``·``-child they are easily
+# buried by a parent that is itself a valid LOINC analyte: ``碳水化合物
+# 代谢·铬`` resolves to ``Carbohydrates [Identifier] in Urine`` because
+# the parent ``碳水化合物`` (Carbohydrate) dominates the only surviving
+# (full-string) span. Emitting the canonical English element name as a
+# child span gives the element a strong, parent-independent framing that
+# wins max-pool. This is deliberately NOT a lexicon alias: the shipped
+# alias bonus path ignores 1-char candidates, and the substring-based
+# query augment would fire ``钙``→Calcium inside ``降钙素`` (Calcitonin),
+# ``铁`` inside ``铁蛋白`` (Ferritin), ``钠`` inside ``利钠肽`` (BNP).
+# Here the char is already the isolated ``·``-split child, so no
+# compound-word collision is possible.
+_CN_ELEMENT_EN: dict[str, str] = {
+    "铬": "Chromium", "钙": "Calcium", "铁": "Iron", "锌": "Zinc",
+    "硒": "Selenium", "碘": "Iodine", "磷": "Phosphorus", "钾": "Potassium",
+    "钠": "Sodium", "镁": "Magnesium", "铜": "Copper", "锰": "Manganese",
+    "钴": "Cobalt", "钼": "Molybdenum", "汞": "Mercury", "铅": "Lead",
+    "砷": "Arsenic", "镉": "Cadmium", "铝": "Aluminum", "镍": "Nickel",
+    "锂": "Lithium", "钒": "Vanadium", "锶": "Strontium", "钡": "Barium",
+    "铊": "Thallium", "铍": "Beryllium", "锑": "Antimony", "铋": "Bismuth",
+    "铂": "Platinum", "硅": "Silicon", "硼": "Boron", "氟": "Fluoride",
+    "溴": "Bromide", "银": "Silver", "金": "Gold", "钛": "Titanium",
+    "钨": "Tungsten", "镓": "Gallium", "锗": "Germanium", "铷": "Rubidium",
+    "铯": "Cesium", "碲": "Tellurium",
+}
+
+
 def generate_anchor_spans(query: str) -> list[str]:
     """Return candidate anchor spans for *query*, full string first.
 
@@ -148,6 +177,16 @@ def generate_anchor_spans(query: str) -> list[str]:
             if p.strip()
         ]
         if len(parts) >= 2:
-            _add(parts[-1])
+            child = parts[-1]
+            _add(child)
+            # Bridge a single-char element child to its English name. A
+            # bare ``Chromium`` span embeds too generically to beat a
+            # competing parent analyte; appending the element name to the
+            # FULL query keeps the lab-test context that anchors the
+            # specimen/measurement while injecting the element signal that
+            # the buried 1-char child could not carry on its own.
+            en = _CN_ELEMENT_EN.get(child)
+            if en is not None:
+                _add(f"{query} {en}")
 
     return spans

@@ -209,7 +209,16 @@ def load_axis_centroids(cache: dict) -> dict | None:
     loinc_sys = SYSTEM_TO_CODE["LOINC"]
 
     # 1. Load LOINC code → axis values map from the bundle.
+    #
+    # ``code_to_axes`` only carries the centroid-bearing axes (in
+    # :data:`_RANK_AXES`) — COMPONENT is too high-cardinality (~50 k
+    # values) to centroid, so it's dropped here. ``code_to_component``
+    # carries the COMPONENT axis value separately for the hybrid-output
+    # consumer (cf. ``_build_hybrid_axes`` in :mod:`.pipeline`), which
+    # needs per-row COMPONENT names but never builds a centroid matrix
+    # for them.
     code_to_axes: dict[str, dict[str, str]] = {}
+    code_to_component: dict[str, str] = {}
     member = _LOINC_AXIS_MEMBER if path.endswith((".tar.gz", ".tgz")) else None
     with _open_axis_text(path, member=member) as f:
         for row in csv.DictReader(f):
@@ -223,10 +232,14 @@ def load_axis_centroids(cache: dict) -> dict | None:
                     axes_dict[axis] = v
             if axes_dict:
                 code_to_axes[code] = axes_dict
+            comp = (row.get("COMPONENT") or "").strip()
+            if comp:
+                code_to_component[code] = comp
 
     # 2. Join with the cache: for each LOINC corpus row, look up its axis tuple.
     # Iterate canonical once; non-LOINC rows are left with row_axes[r] = None.
     row_axes: list[dict[str, str] | None] = [None] * n_rows
+    row_components: list[str | None] = [None] * n_rows
     n_with_axes = 0
     for r in range(n_rows):
         cid = int(canonical[r])
@@ -240,6 +253,9 @@ def load_axis_centroids(cache: dict) -> dict | None:
         if axes:
             row_axes[r] = axes
             n_with_axes += 1
+        comp = code_to_component.get(code)
+        if comp:
+            row_components[r] = comp
     log.info(
         "axis centroids: %d/%d corpus rows have LOINC axis data",
         n_with_axes, n_rows,
@@ -308,6 +324,11 @@ def load_axis_centroids(cache: dict) -> dict | None:
         "values": values,
         "row_value_idx": row_value_idx,
         "axis_names": list(centroids.keys()),
+        # Per-LOINC-row COMPONENT axis value (high-cardinality, no
+        # centroid). Used by hybrid axis output (:mod:`.pipeline`'s
+        # ``_build_hybrid_axes``); ``None`` for non-LOINC rows or rows
+        # whose COMPONENT column is blank.
+        "row_components": row_components,
     }
     cache["_axis_centroids"] = out
     return out
@@ -559,6 +580,39 @@ def _class_gate_res() -> dict[str, "object"]:
     return {k: _compile_marker_pattern(v) for k, v in CLASS_KEYWORD_GATES.items()}
 
 
+# Multilingual narrative-history markers that DISABLE every CLASS gate
+# when present. These queries (``过敏史 / 病史 / family history /
+# anamnesis``) are clinical-narrative document concepts, not lab
+# measurements — the LOINC right answer lives in the HX / DOC /
+# survey CLASSes (e.g. 10155-0 ``History of allergies, reported``,
+# CLASS=HX.MEDS), NOT in ALLERGY / MICRO. Without this carve-out the
+# ALLERGY hard-lock masks every history-narrative row when the query
+# happens to contain ``过敏``, returning empty.
+#
+# ``史`` alone is the CJK signal: all benchmark indicators carrying
+# it (个人史 / 家族史 / 既往史 / 过敏史 / 用药史 / 现病史 / 手术史 /
+# 社会史) are narrative concepts. Latin uses the multi-word forms
+# (``past medical`` / ``history of``) to avoid spurious match on
+# ``hxA1c`` etc. — bare ``history`` would over-match.
+_CLASS_GATE_DISABLERS: list[str] = [
+    # CJK
+    "史", "既往", "现病", "现病史", "病史", "家族史", "用药史", "手术史",
+    # Latin (multi-word to avoid spurious hits)
+    "history of", "past medical", "medical record", "anamnesis",
+    "antécédent", "antecedente", "Anamnese",
+    # Korean / Japanese
+    "병력", "기왕력", "既往歴", "現病歴",
+    # Russian
+    "анамнез",
+]
+
+
+@lru_cache(maxsize=1)
+def _class_gate_disabler_re() -> "object":
+    from .specificity import _compile_marker_pattern
+    return _compile_marker_pattern(_CLASS_GATE_DISABLERS)
+
+
 def _earliest_gate_class(query_text: str, gates: dict) -> str | None:
     """Return the gated CLASS whose keyword appears EARLIEST in
     *query_text*. ``None`` if no gate keyword matches.
@@ -574,7 +628,15 @@ def _earliest_gate_class(query_text: str, gates: dict) -> str | None:
     :func:`.analyte_concept.query_analyte_concept` — CLASS context
     earlier-wins, analyte type later-wins — both reflecting "outer
     context → inner specifics" Chinese parse order.
+
+    Narrative-history disabler: queries carrying any
+    :data:`_CLASS_GATE_DISABLERS` marker (``史`` /
+    ``past medical`` / ``anamnesis`` …) bypass every CLASS gate
+    unconditionally — these are document/section concepts living in
+    LOINC's HX / DOC / survey classes, NOT lab classes.
     """
+    if _class_gate_disabler_re().search(query_text):
+        return None
     best_class = None
     best_pos: int | None = None
     for cls, rx in gates.items():
@@ -661,13 +723,32 @@ def apply_deterministic_class_filter(
         live_loinc = loinc_rows[np.isfinite(sims[b, loinc_rows])]
         if live_loinc.size == 0:
             continue
-        k = min(_TOPK_PROBE, live_loinc.size)
-        # argpartition for an unsorted top-K — sufficient for set
-        # membership; sorting saves us nothing here.
-        topk_row_idx = live_loinc[
-            np.argpartition(-sims[b, live_loinc], k - 1)[:k]
-        ]
-        if not match_row[topk_row_idx].any():
-            continue
+        # ALLERGY hard-lock: skip the top-K probe escape. Clinical rule
+        # is unambiguous — when a query carries 过敏 / allergen /
+        # atopic, the answer is in the LOINC ALLERGY class (IgE /
+        # allergen panels). Drug-allergen queries like ``过敏,左氧氟沙星``
+        # frequently have their ``Levofloxacin IgE Ab`` row outside the
+        # cosine top-10 because ``levoFLOXacin Susceptibility`` (MICRO)
+        # and ``levoFLOXacin Tox`` (DRUG/TOX) rows crowd in; the top-K
+        # probe would otherwise let those wrong-CLASS rows win. The
+        # only fallback retained is "ALLERGY pool entirely empty within
+        # the live cosine window" (e.g. keep_mask already zeroed every
+        # ALLERGY row) — there the mask would produce an empty result
+        # and we let cosine route freely. The MICRO gate keeps the
+        # top-K probe escape (legitimate cases like ``粪便·阿米巴``
+        # where cosine puts the right microscopy code at top despite
+        # the parasitology-class spread).
+        if winner == "ALLERGY":
+            if not match_row[live_loinc].any():
+                continue
+        else:
+            k = min(_TOPK_PROBE, live_loinc.size)
+            # argpartition for an unsorted top-K — sufficient for set
+            # membership; sorting saves us nothing here.
+            topk_row_idx = live_loinc[
+                np.argpartition(-sims[b, live_loinc], k - 1)[:k]
+            ]
+            if not match_row[topk_row_idx].any():
+                continue
         non_match_loinc = is_loinc & (ridx_class != cls_idx)
         sims[b, non_match_loinc] = -np.inf

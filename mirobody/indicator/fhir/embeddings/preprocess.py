@@ -232,7 +232,7 @@ def _zh_alias_data() -> tuple[dict[str, str], "re.Pattern | None"]:
     is a tie-breaker, not enough to cross a 0.1+ cosine gap. Appending
     the canonical Latin form to the embedding input shifts the cosine
     itself toward the right cluster — same mechanism as the
-    ``source|name_en|abbrev`` multi-field input that works empirically.
+    ``source|indicator`` multi-field input that works empirically.
 
     Loaded from ``aliases/{lang}.tsv`` members in ``fhir_loinc_bundle
     .tar.gz`` — one TSV per language, unioned at load time. See

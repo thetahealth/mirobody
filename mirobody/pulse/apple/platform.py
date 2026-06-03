@@ -2,6 +2,7 @@
 Apple Health platform implementation
 """
 
+import asyncio
 import logging
 
 from typing import Any, Dict, List
@@ -14,6 +15,8 @@ from ..core import (
     UserProvider,
     ProviderStatus
 )
+from ..core.aggregate_indicator.service import AggregateIndicatorService
+from ..core.distributed_lock import pull_task_lock_manager
 from ..data_upload.services import VitalHealthService
 
 
@@ -102,6 +105,13 @@ class AppleHealthPlatform(Platform):
                 logging.info(f"Apple platform processed {len(standard_data.healthData)} records for user {user_id}, "
                     f"success: {success}")
 
+                # Fire-and-forget: kick incremental aggregation so the frontend
+                # sees fresh th_series_data without waiting for the 4-min
+                # scheduled AggregateIndicatorTask. Errors are swallowed in the
+                # background task; the scheduled task is the safety net.
+                if success:
+                    asyncio.create_task(self._trigger_aggregation_after_ingest(user_id))
+
                 return success
 
             except Exception as e:
@@ -111,6 +121,60 @@ class AppleHealthPlatform(Platform):
         except Exception as e:
             logging.error(f"Error in post_data for provider {provider_slug}: {str(e)}", stack_info=True)
             return False
+
+    async def _trigger_aggregation_after_ingest(self, user_id: str) -> None:
+        """Run an incremental aggregation in the background after an apple_health ingest.
+
+        Runs all-users incremental aggregation to keep the call path simple;
+        the distributed lock inside AggregateIndicatorService de-duplicates
+        concurrent ingest bursts. Any failure here is logged and swallowed —
+        AggregateIndicatorTask (every 4 min) will catch up.
+        """
+        # --- DEBOUNCE (DISABLED) -----------------------------------------------
+        # Re-enable when concurrent uploads from many users cause the
+        # distributed lock to back up. Keying by 'all' because we currently
+        # run a global incremental; switch the key to user_id if this method
+        # is later changed to per-user aggregation.
+        #
+        # from ..utils.utils_redis import redis_client
+        # debounce_key = "agg:debounce:apple_health:all"
+        # if redis_client is not None:
+        #     acquired = await redis_client.set(debounce_key, "1", ex=5, nx=True)
+        #     if not acquired:
+        #         logging.info("[AppleHealth] Post-ingest aggregation debounced")
+        #         return
+        # -----------------------------------------------------------------------
+
+        try:
+            service = AggregateIndicatorService()
+            # Reuse AggregateIndicatorTask's cursor so we run an actual
+            # incremental delta. Without this, process_incremental falls
+            # back to a 24h cold_start scan (see service.py: last_timestamp
+            # is None branch), which on dev volume costs ~150s instead of
+            # the <2s a normal incremental cycle takes.
+            # We deliberately do NOT update the cursor here; the scheduled
+            # AggregateIndicatorTask owns it. Re-running the same window
+            # is idempotent (ON CONFLICT DO UPDATE on th_series_data).
+            last_ts = await pull_task_lock_manager.get_last_execution_timestamp(
+                "aggregate_indicator"
+            )
+            result = await service.process_incremental(
+                last_timestamp=last_ts,
+                user_id=None,
+            )
+            logging.info(
+                f"[AppleHealth] Post-ingest aggregation triggered for user {user_id}: "
+                f"status={result.get('status')}, "
+                f"summaries={result.get('summaries_created', 0)}, "
+                f"users_affected={result.get('users_affected', 0)}, "
+                f"time_ms={result.get('execution_time_ms', 0):.1f}, "
+                f"cursor={last_ts}"
+            )
+        except Exception as e:
+            logging.warning(
+                f"[AppleHealth] Post-ingest aggregation failed (ignored, "
+                f"scheduled task will catch up): {e}"
+            )
 
     async def update_llm_access(self, user_id: str, provider_slug: str, llm_access: int) -> Dict[str, Any]:
         """

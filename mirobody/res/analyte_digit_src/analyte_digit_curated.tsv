@@ -1,0 +1,75 @@
+# analyte_digit_curated.tsv — manual overlay for the auto-mined alias
+# table. The build (`mirobody indicator analyte-digit`) never touches
+# this file; entries here survive every refresh.
+#
+# Format (tab-separated, no header):
+#   <canonical_name>  <digit>  <family>  [optional_note]
+#
+# - canonical_name : lowercase, regex-matched verbatim against LOINC
+#                    display names (case-insensitive, \b-anchored)
+# - digit          : the numeric subtype the canonical name implicitly
+#                    represents (B1 → 1, K2 → 2, IGF-2 → 2)
+# - family         : single-letter family tag (B / K / D / A / IGF /
+#                    IGFBP) — informational, helps reviewers group rows
+#
+# Add an entry when:
+#   1. LOINC's `RELATEDNAMES2` and SNOMED CT synonyms both omit the
+#      numeric-shortname alias (LOINC sometimes uses historical names
+#      that don't map cleanly: `Vit H` for Biotin = B7, `Vit M` for
+#      Folate = B9).
+#   2. The subtype has no LOINC code at all but you want queries to
+#      null-out rather than fall to a cosine-close sibling (Menaquinone
+#      = K2 — LOINC has K1 Phytonadione and K3 Menadione only).
+#   3. A colloquial chemical name appears in queries that the auto
+#      sources don't list.
+#
+# folate / folic acid → 9 (B9): LOINC's `RELATEDNAMES2` for Folate
+# lists `Vit M; Vitamin M` (deprecated nomenclature) but not `Vit B9`.
+# SNOMED has no `B9` synonym for Folate either.
+folate	9	B
+folic acid	9	B
+pteroylglutamate	9	B
+pteroylglutamic acid	9	B
+# menaquinone / menatetrenone → 2 (K2): LOINC has no measurement code
+# for K2 — only K1 (Phytonadione) and K3 (Menadione). Including K2
+# here means a query `Vitamin K2` against the K1 Phytonadione cosine
+# top-1 fails the digit check (the augmented Phytonadione row carries
+# digit 1, not 2) and nulls correctly.
+menaquinone	2	K
+menatetrenone	2	K
+# nicotinic acid / nicotinamide → 3 (B3): SNOMED maps these as
+# separate substance concepts from Niacin but doesn't include the
+# `Vit B3` synonym on them. LOINC mining picks them up via Niacin's
+# RELATEDNAMES2 but only under the Niacin canonical. Listing them
+# here covers LOINC rows whose display name uses the alternate
+# chemical form (e.g., specialty assays).
+nicotinic acid	3	B
+nicotinamide	3	B
+# pantothenic acid → 5 (B5): SNOMED has it, but only the FSN form;
+# LOINC uses `Pantothenate` (the carboxylate form) for the assay
+# concept. Listed here so LOINC rows naming the acid form also pick
+# up the alias.
+pantothenic acid	5	B
+# methylcobalamin / aquacobalamin → 12 (B12): LOINC mining captures
+# Hydroxocobalamin via RELATEDNAMES2 but methylcobalamin's LOINC
+# rows (when present) sometimes lack the `Vit B12` related-name.
+# Cobalamins (the LOINC COMPONENT for B12) covers most queries, but
+# specialty assays for the active methyl form benefit from this
+# explicit alias.
+methylcobalamin	12	B
+aquacobalamin	12	B
+# phylloquinone → 1 (K1): synonym for Phytonadione. LOINC's
+# `RELATEDNAMES2` for Phytonadione lists it, so it's auto-picked, but
+# kept here as documentation in case a future LOINC release re-axes
+# the family.
+phylloquinone	1	K
+# cv2 → 5 (CRMP-5): paraneoplastic-antibody analyte. LOINC names the
+# row `CV2 IgG Ab` (the antigen historical name) but clinical queries
+# use the modern protein name `CRMP-5` / `Collapsin response mediator
+# protein 5`. Without this alias the cosine-correct CV2 row carries
+# only the auto-extracted digit 2 (from `CV2`), so a query `CRMP-5`
+# (q_digit=5) hits the digit-aware null-out guard and returns empty.
+# Mapping CV2 → 5 lets the CV2 row's augmented digits cover both
+# views: 2 (the historical CV2 antigen number) and 5 (the CRMP family
+# member number). Family tag `CRMP` is informational.
+cv2	5	CRMP

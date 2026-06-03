@@ -11,11 +11,47 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+import pytz
+
 from .....utils import execute_query
 from ..models import CalculationTask
 from ..rule_generator import get_rules_by_source_indicator
+from .source_id_priority import APPLE_SOURCES, build_apple_priority_case
 from ...indicators_info import StandardIndicator, HealthDataType
 from ...fhir_mapping import get_fhir_id
+
+
+def to_local_day_range(data_begin_utc: datetime, timezone: str) -> Tuple[datetime, datetime]:
+    """Convert a UTC day-begin instant to the user's local calendar-day boundaries.
+
+    th_series_data.start_time/end_time store the user's local-timezone naive
+    datetime, so a daily aggregate must be anchored at the local date's
+    00:00:00 - 23:59:59 regardless of the UTC instant the window started at
+    (00:00 for normal indicators, 18:00 for sleep indicators).
+
+    Args:
+        data_begin_utc: Window start as a UTC instant (naive or aware).
+        timezone: User's IANA timezone (e.g. 'America/Los_Angeles').
+
+    Returns:
+        (local 00:00:00, local 23:59:59) as naive datetimes. Falls back to the
+        raw UTC instant and +24h on timezone errors.
+    """
+    if data_begin_utc.tzinfo is not None:
+        day_start_utc = data_begin_utc.replace(tzinfo=None)
+    else:
+        day_start_utc = data_begin_utc
+
+    try:
+        tz = pytz.timezone(timezone)
+        day_start_local = pytz.utc.localize(day_start_utc).astimezone(tz).replace(tzinfo=None)
+        local_date = day_start_local.date()
+        day_start = datetime(local_date.year, local_date.month, local_date.day, 0, 0, 0)
+        day_end = datetime(local_date.year, local_date.month, local_date.day, 23, 59, 59)
+        return day_start, day_end
+    except Exception as e:
+        logging.error(f"Error converting timezone {timezone}: {e}")
+        return day_start_utc, day_start_utc + timedelta(hours=24)
 
 
 class SQLAggregator:
@@ -691,14 +727,90 @@ class SQLAggregator:
         # Build query
         # IMPORTANT: Direct UTC time comparison - allows index usage!
         # day_start/day_end are UTC times, can directly compare with time column (UTC)
+        #
+        # Source-id-level de-duplication (TH-422):
+        # For aggregator-hub sources like apple_health, the same physiological
+        # event can be recorded by multiple source_ids (Apple Watch UUID, Oura,
+        # Whoop, Pillow ...). The chosen_source_id CTE picks one source_id per
+        # (user, indicator, source) by priority; the outer query keeps only
+        # that source_id's rows for those sources.
+        #
+        # For NON-aggregator-hub sources (theta.*, vital.*, etc), multiple
+        # source_ids per (user, indicator) usually represent time-sliced
+        # incremental pulls (e.g. whoop_879_<timestamp>), NOT duplicate data.
+        # Filtering them would lose data, so those sources skip the JOIN
+        # entirely (the UNION ALL non-hub branch).
+        #
+        # PERFORMANCE NOTES (TH-422 hotfix after initial regression):
+        #
+        # 1. `WITH chosen_source_id AS MATERIALIZED (...)`: PG 12+ inlines
+        #    CTEs by default, which here turned the CTE into a correlated
+        #    subquery that ran once per outer row of series_data — 700+x
+        #    slowdown (165s vs 232ms on a 1-user/3-indicator/24h test).
+        #    Forcing MATERIALIZED keeps the CTE as a one-shot temp result.
+        #
+        # 2. UNION ALL split + INNER JOIN instead of `OR EXISTS`: lets the
+        #    planner use a Merge/Hash join (apple branch) and an index scan
+        #    (non-apple branch) rather than a correlated subplan. Measured
+        #    2.5x faster than MATERIALIZED-only on a 5-user/8-indicator/24h
+        #    batch (460ms vs 1144ms).
+        #
+        # 3. `c.source_id = sd.source_id` (`=`, not `IS NOT DISTINCT FROM`):
+        #    Apple-hub source rows always have a non-NULL source_id (set by
+        #    AppleProvider with `record.sourceId or "unknown"` fallback), so
+        #    `=` is safe AND lets PG pick a hash/merge join (IS NOT DISTINCT
+        #    FROM forces nested loop).
+        priority_case_expr = build_apple_priority_case("source", "source_id")
+        apple_sources_in = ",".join(f"'{s}'" for s in APPLE_SOURCES)
+        # Inner subquery uses `sd.` table alias to disambiguate against the
+        # JOINed CTE. Build the prefixed version of user_filter explicitly
+        # rather than via string replace — `user_filter` contains `:user_ids`
+        # which would be corrupted by a naive replace("user_id", "sd.user_id").
+        sd_user_filter = "sd.user_id = ANY(:user_ids)"
         query = f"""
+        WITH chosen_source_id AS MATERIALIZED (
+            SELECT DISTINCT ON (user_id, indicator, source)
+                   user_id, indicator, source, source_id
+            FROM series_data
+            WHERE {user_filter}
+              AND indicator = ANY(:indicators)
+              AND time >= :day_start
+              AND time < :day_end
+              AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+              AND source IN ({apple_sources_in})
+            ORDER BY user_id, indicator, source,
+                     ({priority_case_expr}) ASC,
+                     source_id ASC NULLS LAST
+        )
         SELECT {', '.join(agg_clauses)}
-        FROM series_data
-        WHERE {user_filter}
-          AND indicator = ANY(:indicators)
-          AND time >= :day_start
-          AND time < :day_end
-          AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+        FROM (
+            -- Aggregator-hub sources: only the chosen source_id's rows.
+            SELECT sd.user_id, sd.indicator, sd.source, sd.value, sd.time
+            FROM series_data sd
+            INNER JOIN chosen_source_id c
+              ON c.user_id = sd.user_id
+             AND c.indicator = sd.indicator
+             AND c.source = sd.source
+             AND c.source_id = sd.source_id
+            WHERE {sd_user_filter}
+              AND sd.indicator = ANY(:indicators)
+              AND sd.time >= :day_start
+              AND sd.time < :day_end
+              AND (sd.task_id IS NULL OR sd.task_id != 'filtered_out_of_range')
+              AND sd.source IN ({apple_sources_in})
+
+            UNION ALL
+
+            -- Non-hub sources: preserve all rows (multi source_id is incremental).
+            SELECT user_id, indicator, source, value, time
+            FROM series_data
+            WHERE {user_filter}
+              AND indicator = ANY(:indicators)
+              AND time >= :day_start
+              AND time < :day_end
+              AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+              AND source NOT IN ({apple_sources_in})
+        ) AS series_data
         GROUP BY user_id, indicator, source
         ORDER BY user_id, indicator, source
         """
@@ -1069,11 +1181,17 @@ class SQLAggregator:
         if not tasks:
             return []
 
+        # query_start/query_end: UTC window for querying series_data (whose `time`
+        # column is UTC). Handlers rely on these being UTC instants.
         if data_begin_utc.tzinfo is not None:
-            day_start = data_begin_utc.replace(tzinfo=None)
+            query_start = data_begin_utc.replace(tzinfo=None)
         else:
-            day_start = data_begin_utc
-        day_end = day_start + timedelta(hours=24)
+            query_start = data_begin_utc
+        query_end = query_start + timedelta(hours=24)
+
+        # store_start/store_end: user's local calendar-day boundaries for
+        # th_series_data storage (00:00:00 - 23:59:59), matching the standard path.
+        store_start, store_end = to_local_day_range(data_begin_utc, tasks[0].timezone)
 
         summaries = []
 
@@ -1081,15 +1199,15 @@ class SQLAggregator:
             try:
                 if task.aggregation_type == 'sleep_onset_latency':
                     result = await self._execute_sleep_onset_latency(
-                        user_id, day_start, day_end
+                        user_id, query_start, query_end
                     )
                 elif task.aggregation_type == 'morning_hr_jump':
                     result = await self._execute_morning_hr_jump(
-                        user_id, day_start, day_end
+                        user_id, query_start, query_end
                     )
                 elif task.aggregation_type == 'nighttime_resting_hr':
                     result = await self._execute_nighttime_resting_hr(
-                        user_id, day_start, day_end
+                        user_id, query_start, query_end
                     )
                 else:
                     continue
@@ -1111,12 +1229,12 @@ class SQLAggregator:
                     "user_id": user_id,
                     "indicator": f"{target_indicator}.{source}" if source != 'derived' else target_indicator,
                     "value": value_str,
-                    "start_time": day_start,
-                    "end_time": day_end,
+                    "start_time": store_start,
+                    "end_time": store_end,
                     "source": source,
                     "task_id": "aggregate_indicator",
                     "comment": f"Source/{source}/Unit/{unit}/Aggregated/{task.aggregation_type}{fhir_info}",
-                    "source_table": "",
+                    "source_table": "series_data",
                     "source_table_id": "",
                     "indicator_id": "",
                     "fhir_id": fhir_id,
@@ -1125,7 +1243,7 @@ class SQLAggregator:
             except Exception as e:
                 logging.warning(
                     f"[SQLAggregator] Custom derived {task.aggregation_type} failed "
-                    f"for user={user_id}, day={day_start}: {e}"
+                    f"for user={user_id}, day={query_start}: {e}"
                 )
 
         return summaries
@@ -1427,42 +1545,18 @@ class SQLAggregator:
             return []
         
         timezone = tasks[0].timezone
-        
-        # Calculate time boundaries: data_begin_utc to data_begin_utc+24h (in UTC)
-        # Remove timezone info if present (PostgreSQL may return timezone-aware datetime)
+
+        # Naive UTC window-begin, used as the reference instant when converting
+        # time-based aggregation values (time_of_max/min, hypo events) to local.
         if data_begin_utc.tzinfo is not None:
             day_start_utc = data_begin_utc.replace(tzinfo=None)
         else:
             day_start_utc = data_begin_utc
-        day_end_utc = day_start_utc + timedelta(hours=24)
-        
-        # Convert UTC times to user's local time for th_series_data storage
-        # This ensures start_time/end_time represent the user's local date (00:00-23:59:59)
-        import pytz
-        
-        # Use pytz for timezone conversion (more compatible)
-        try:
-            tz = pytz.timezone(timezone)
-            # Convert UTC to local time
-            day_start_local = pytz.utc.localize(day_start_utc).astimezone(tz).replace(tzinfo=None)
-            day_end_local = pytz.utc.localize(day_end_utc).astimezone(tz).replace(tzinfo=None)
-            
-            # For th_series_data, we want to store the local date's 00:00-23:59:59
-            # Regardless of whether it's sleep data (18:00-18:00) or normal data (00:00-24:00)
-            local_date = day_start_local.date()
-            day_start = datetime(local_date.year, local_date.month, local_date.day, 0, 0, 0)
-            day_end = datetime(local_date.year, local_date.month, local_date.day, 23, 59, 59)
-            
-            logging.debug(
-                f"Timezone conversion: UTC [{day_start_utc} - {day_end_utc}] "
-                f"-> Local {timezone} [{day_start_local} - {day_end_local}] "
-                f"-> Stored [{day_start} - {day_end}]"
-            )
-        except Exception as e:
-            logging.error(f"Error converting timezone {timezone}: {e}")
-            # Fallback: use UTC times
-            day_start = day_start_utc
-            day_end = day_end_utc
+
+        # Convert the UTC window-begin to the user's local calendar-day boundaries
+        # (00:00:00 - 23:59:59) for th_series_data storage. This holds regardless
+        # of whether it's sleep data (18:00-18:00) or normal data (00:00-24:00).
+        day_start, day_end = to_local_day_range(data_begin_utc, timezone)
 
         # Create mapping: (user_id, indicator, source) -> aggregation results
         results_by_user_indicator_source = {}

@@ -1,34 +1,25 @@
-"""
-Mirobody Agents Module
+"""Mirobody built-in agents.
 
-Design Principles:
-------------------
-1. Tools are injected from upstream MCP tools (mirobody/pub/tools/)
-2. Agents do not load tools directly; middleware only injects system prompts
-3. File operations are provided by file_read_service.py and file_write_service.py
+| Agent      | Runtime mechanism                                          | Prompts                                |
+|------------|------------------------------------------------------------|----------------------------------------|
+| `BaseAgent`| Provider's own agent loop drives tools (server-side MCP)   | `pub/prompts/base/theta_health.jinja`  |
+| `DeepAgent`| LangChain `create_agent` + `deepagents` middleware stack   | `pub/prompts/deep/*.jinja`             |
+| `MixAgent` | Two-phase: orchestrator (`tool_choice='any'`) → responder  | `pub/prompts/mix/{orchestrator,responder}.jinja` |
 
-Agent Types:
-------------
-- DeepAgent: General-purpose deep conversation agent for complex task handling
-- MixAgent: Hybrid tool agent with dynamic tool loading support
+All prompts live under `mirobody/pub/prompts/<agent>/` as Jinja templates
+and are wired into agents via `PROMPTS_<AGENT>` config keys in `config.yaml`
+(see `mirobody.utils.config.config` for the loader).
 
-Tool Loading Flow:
-------------------
-1. MCP Server scans tools/ directory on startup
-2. Tool service classes (e.g., FileReadService) are auto-discovered and registered
-3. When agent is created, tools are already injected via MCP framework
-4. Middleware only injects system prompts for corresponding tools
-
-References:
------------
-- Tool directory: mirobody/pub/tools/
-- Tool loading: mirobody/server/mcp_tools.py
+For tool-sourcing details (native middleware tools vs MCP tools, blocklist
+behaviour) see each agent's docstring and `deep/tool_loader._NATIVE_TOOL_BLOCKLIST`.
 """
 
+from .base_agent import BaseAgent
 from .deep_agent import DeepAgent
 from .mix_agent import MixAgent
 
 __all__ = [
+    "BaseAgent",
     "DeepAgent",
     "MixAgent",
 ]

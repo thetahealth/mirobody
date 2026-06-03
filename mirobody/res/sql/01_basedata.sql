@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS th_sessions (
 CREATE INDEX IF NOT EXISTS idx_th_sessions_user_id ON th_sessions(user_id);
 
 ALTER TABLE th_sessions ADD COLUMN IF NOT EXISTS category VARCHAR(50);
+ALTER TABLE th_sessions ADD COLUMN IF NOT EXISTS preview VARCHAR(200);  -- conversation preview snippet (matches test/prod)
 
 
 CREATE TABLE IF NOT EXISTS fhir_indicators (
@@ -58,10 +59,13 @@ CREATE TABLE IF NOT EXISTS fhir_indicators (
 	"rank" int4 DEFAULT 0 NULL,
 	llm_unit text NULL,
 	embedding_gemini vector(1024) NULL,
+	embedding_qwen3 vector(1024) NULL,            -- only column search needs for EMBEDDING_PROVIDER=qwen (_search_fhir_db); matches test/prod
 	CONSTRAINT fhir_indicators_indicator_standard_code_unique UNIQUE (indicator_standard, code),
 	CONSTRAINT fhir_indicators_pkey PRIMARY KEY (id)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_fhir_indicators_source_code ON fhir_indicators USING btree (indicator_standard, code);
+CREATE INDEX IF NOT EXISTS idx_fhir_indicators_embedding_qwen3
+    ON fhir_indicators USING hnsw (embedding_qwen3 vector_cosine_ops);
 
 
 CREATE TABLE IF NOT EXISTS series_data (
@@ -70,7 +74,7 @@ CREATE TABLE IF NOT EXISTS series_data (
     source character varying,
     time timestamp without time zone not null,
     value text not null,
-    create_time timestamp with time zone not null default now(),
+    create_time timestamp without time zone not null default now(),  -- matches test/prod (no tz)
     update_time timestamp with time zone not null default now(),
     timezone character varying(50),
     task_id character varying(200),
@@ -134,6 +138,8 @@ COMMENT ON COLUMN th_series_dim.embedding_qwen IS 'Qwen embedding (1024 dimensio
 
 CREATE INDEX IF NOT EXISTS idx_th_series_dim_embedding_qwen
     ON th_series_dim USING hnsw (embedding_qwen vector_cosine_ops);
+
+ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS department text NULL;
 
 
 

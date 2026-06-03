@@ -57,6 +57,8 @@ from .fhir.embeddings.names import cmd_code_names
 from .fhir.embeddings.ref import cmd_embeddings_ref
 from .fhir.embeddings.alias import cmd_loinc_alias
 from .fhir.embeddings.analyte_digit import cmd_analyte_digit
+from .fhir.embeddings.axes import cmd_loinc_axis_emb, cmd_loinc_axis_vocab
+from .fhir.embeddings.snomed_axes import cmd_snomed_axis_aliases
 from .fhir.embeddings.lexicon import cmd_loinc_lexicon
 from .fhir.embeddings.rank import cmd_loinc_rank
 from .fhir.embeddings.skip import cmd_loinc_skip
@@ -236,6 +238,16 @@ def main() -> None:
     p_resolve.add_argument(
         "-k", "--top-k", type=int, default=5,
         help="Number of results per code system (default: 5)",
+    )
+    p_resolve.add_argument(
+        "-a", "--axes", action="store_true",
+        help="Emit per-axis hybrid output on the LOINC top-1 pick — "
+             "COMPONENT / PROPERTY / TIME_ASPCT / SYSTEM / SCALE_TYP / METHOD_TYP, "
+             "each as ``(system, code, name)``. SYSTEM falls back to SNOMED "
+             "``body structure`` when the LOINC pick's SYSTEM-axis cosine is "
+             "below 0.55 (e.g. ``心包液检验·红细胞沉降率`` where LOINC has no "
+             "Pericardial-fluid ESR code). Other axes stay on LOINC. See "
+             "docs/health_indicator_resolving.md page 9.",
     )
 
     # ── normalize ─────────────────────────────────────────────────────
@@ -431,29 +443,25 @@ def main() -> None:
     p_lexicon = sub.add_parser(
         "loinc-lexicon",
         help="Build aliases/{lang}.tsv inside fhir_loinc_bundle.tar.gz: "
-             "per-language CN→canonical-EN mapping for the query-side "
-             "augmentation that bridges Latin-binomial gaps in the "
-             "multilingual embedding (出芽短梗霉 → Aureobasidium pullulans). "
-             "Drops pairs the embedding already knows (cosine ≥ 0.70), "
-             "strips LOINC-jargon noise, merges curated colloquial / "
-             "acronym overlays from _curated_aliases.py. Also writes a "
-             "loose mirobody/res/aliases_src/{lang}.tsv for git review.",
+             "per-language src→canonical-EN mapping for the query-side "
+             "augmentation that bridges multilingual embedding gaps "
+             "(出芽短梗霉 → Aureobasidium pullulans; 1秒率 → FEV1/FVC). "
+             "Deterministic: merges LOINC LinguisticVariant (all CLASSes) "
+             "with mirobody/res/aliases_src/{lang}_curated.tsv (curated "
+             "wins on key collisions). Direction strictly foreign→EN — "
+             "ASCII-only keys are rejected. Also writes a loose "
+             "mirobody/res/aliases_src/{lang}.tsv for git review.",
     )
     p_lexicon.add_argument(
         "--res-dir", default=None,
-        help="Output dir (default: mirobody/res)",
+        help="Output dir (default: mirobody/res). Also where the "
+             "curated input ``aliases_src/{lang}_curated.tsv`` is read.",
     )
     p_lexicon.add_argument("--loinc-dir", default=None, help="LOINC release dir")
     p_lexicon.add_argument(
         "--lang", default="zh",
         help="Language code matching a LOINC LinguisticVariant file "
              "(zh / ja / ko / de / es / fr / pt / ru / ...). Default: zh.",
-    )
-    p_lexicon.add_argument(
-        "--cosine-threshold", type=float, default=0.70,
-        help="Drop pairs with src↔dst cosine ≥ THRESHOLD — the model "
-             "already bridges those; the augmentation adds nothing. "
-             "Default: 0.70.",
     )
     p_lexicon.add_argument(
         "--mrconso", default=None,
@@ -496,6 +504,79 @@ def main() -> None:
         help="Print the final entries to stdout after the build.",
     )
 
+    # ── loinc-axis-vocab ──────────────────────────────────────────────
+    p_axis_vocab = sub.add_parser(
+        "loinc-axis-vocab",
+        help="Build per-axis LOINC Part vocabularies from LOINC source: "
+             "writes mirobody/res/loinc_axes/<AXIS>.tsv (one TSV per "
+             "axis with `part_name`/`count`/`translations` — comma-"
+             "joined multilingual blob from all 22 LinguisticVariant "
+             "locales) and re-generates mirobody/indicator/fhir/"
+             "loinc_lookups.py (8 controlled-vocab dicts: SCALE / "
+             "PROPERTY / TIME / RAD_*). Pure local computation, no DB "
+             "or network. Feeds the `loinc-axis-emb` step.",
+    )
+    p_axis_vocab.add_argument(
+        "--res-dir", default=None,
+        help="Output dir for the TSVs (default: mirobody/res). "
+             "loinc_lookups.py is always written next to the package.",
+    )
+    p_axis_vocab.add_argument(
+        "--loinc-dir", default=None,
+        help="LOINC release dir (auto-resolved from --ref-dir).",
+    )
+
+    # ── loinc-axis-emb ────────────────────────────────────────────────
+    p_axis_emb = sub.add_parser(
+        "loinc-axis-emb",
+        help="Embed per-axis LOINC Part vocabularies: reads "
+             "mirobody/res/loinc_axes/<AXIS>.tsv (produced by "
+             "`loinc-axis-vocab`) and writes <AXIS>.npy (fp16 (N, 1024) "
+             "L2-normalized, row-aligned to the TSV). Per-row input is "
+             "`part_name,translations` so the embedder sees every "
+             "LinguisticVariant locale captured upstream. Uses the "
+             "SQLite embedding cache so re-runs after edits to the TSV "
+             "only re-hit the API for changed rows.",
+    )
+    p_axis_emb.add_argument(
+        "--res-dir", default=None,
+        help="Output dir (default: mirobody/res). Reads <res-dir>/"
+             "loinc_axes/*.tsv and writes the .npy siblings next to them.",
+    )
+    p_axis_emb.add_argument(
+        "--axis", action="append", default=None,
+        help="Limit to a specific axis name (e.g. SCALE_TYP). "
+             "Repeatable. Default: all *.tsv files under loinc_axes/.",
+    )
+    p_axis_emb.add_argument(
+        "--provider", default=None,
+        help="Embedding provider override (gemini / qwen). Default: "
+             "config key EMBEDDING_PROVIDER (falls back to gemini).",
+    )
+
+    # ── snomed-axis-aliases ───────────────────────────────────────────
+    p_snomed_aliases = sub.add_parser(
+        "snomed-axis-aliases",
+        help="Build per-language SNOMED CT alias TSVs from UMLS MRCONSO: "
+             "writes mirobody/res/snomed_axes/aliases/{lang}.tsv "
+             "(header `concept_id\\talias`) for ja/ko/fr/es/ru/de. "
+             "Two-pass scan over MRCONSO.RRF: pass 1 builds the CUI↔SCTID "
+             "bridge from SNOMEDCT_US/VET (SUPPRESS-clean); pass 2 emits "
+             "translations from any SAB whose row shares a bridged CUI. "
+             "Empty per-language tables are skipped — zh.tsv is not "
+             "written under current UMLS (LAT=CHI rows almost never "
+             "share CUIs with SNOMED concepts).",
+    )
+    p_snomed_aliases.add_argument(
+        "--res-dir", default=None,
+        help="Output dir root (default: mirobody/res). Writes under "
+             "<res-dir>/snomed_axes/aliases/.",
+    )
+    p_snomed_aliases.add_argument(
+        "--umls-dir", default=None,
+        help="UMLS release dir (auto-resolved from --ref-dir).",
+    )
+
     args = parser.parse_args()
     _resolve_ref_defaults(args, args.ref_dir)
 
@@ -536,13 +617,19 @@ def main() -> None:
     elif args.command == "loinc-alias":
         asyncio.run(_run_async(cmd_loinc_alias(args)))
     elif args.command == "loinc-lexicon":
-        asyncio.run(_run_async(cmd_loinc_lexicon(args)))
+        cmd_loinc_lexicon(args)
     elif args.command == "analyte-digit":
         cmd_analyte_digit(args)
     elif args.command == "dose-index":
         asyncio.run(_run_async(cmd_dose_index(args)))
     elif args.command == "code-names":
         asyncio.run(_run_async(cmd_code_names(args)))
+    elif args.command == "loinc-axis-vocab":
+        cmd_loinc_axis_vocab(args)
+    elif args.command == "loinc-axis-emb":
+        asyncio.run(_run_async(cmd_loinc_axis_emb(args)))
+    elif args.command == "snomed-axis-aliases":
+        cmd_snomed_axis_aliases(args)
 
 
 if __name__ == "__main__":

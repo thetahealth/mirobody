@@ -197,17 +197,66 @@ _SECTION_HEADER_PHRASES: frozenset[str] = frozenset({
     "comments", "comment", "narrative",
     "follow up", "follow-up", "followup",
     "addendum", "remarks",
+    # Imaging / examination report sections (also typed as last
+    # segments in radiology / DXA / endoscopy / electrophysiology
+    # reports — "CT,影像表现", "电生理,检查所见", "病理,病理诊断" all
+    # name what the report itself records, not a measured analyte).
+    "examination findings", "exam findings", "study findings",
+    "imaging findings", "radiology findings",
+    "examination results", "study results",
+    "abnormal results", "abnormal findings",
+    "health guidance", "diagnosis",
+    "history of present illness", "chief complaint",
     # Simplified Chinese
     "讨论", "诊断意见", "诊断印象", "印象",
     "随访", "总结", "概要", "评论", "建议", "结论",
-    "备注", "意见", "补充",
+    "备注", "意见", "补充", "诊断",
+    "影像表现", "影像所见", "检查所见", "检查结果", "所见",
+    "异常结果", "异常结果的解释和建议",
+    "健康指导", "检查或治疗的建议",
+    "主诉", "现病史", "病理诊断",
+    # Generic-imaging / general-examination section headings — the
+    # last segment names the modality of an imaging report, not a
+    # specific measurement (``[门诊报告] 辅助检查·影像学检查`` falls onto
+    # ``MR Axilla - left`` without this routing).
+    "影像学检查", "影像学", "辅助检查", "实验室检查",
+    "心电图检查", "超声检查", "CT 检查", "MRI 检查",
+    # Clinical-report section headers — generic section labels that
+    # appear as the last segment of multi-segment indicators in
+    # outpatient / ED / inpatient report templates. Each of these has
+    # a concrete LOINC concept-row target included in
+    # :data:`_SECTION_HEADER_NAME_PATTERN`; only phrases with a clean
+    # pool target belong here. Phrases like ``医疗决策 / 急诊治疗 /
+    # 操作 / 治疗计划 / 出院计划 / 出院指导`` were tried and removed —
+    # LOINC has no concept row for them and routing into the pool
+    # only drops the working specialty-prefixed Note matches in
+    # favor of NEMSIS / Emergency-response narratives.
+    "体格检查", "系统回顾", "系统性回顾",
+    "评估总结", "评估和计划", "评估计划", "评估/计划",
+    "患者活动问题清单", "问题清单",
+    "出院诊断", "就诊诊断", "出院医嘱",
+    "用药指导",
+    # CN 既往史 / 社会史 / 家族史 sub-section leaves — the multi-
+    # segment indicator ``社会史·职业 / 既往史·预防接种史 / 家族史`` ends
+    # on a section-concept leaf. Without routing here, cosine drifts
+    # to over-specific Narrative variants (``Family history of Cancer``
+    # / ``History of Childhood diseases`` / ``History of Outpatient
+    # visits``) regardless of the right generic concept.
+    "家族史", "既往史", "既往病史", "现病史简述",
+    "个人史", "社会史", "手术史", "输血史", "过敏史",
+    "预防接种史", "用药史", "饮食习惯", "婚姻状况",
+    "职业", "喝酒史", "抽烟史",
     # Traditional Chinese
     "討論", "診斷意見", "診斷印象", "隨訪", "總結", "概要", "結論", "備註",
+    "診斷", "影像表現", "影像所見", "檢查所見", "檢查結果",
+    "主訴", "現病史", "病理診斷",
     # Japanese
     "考察", "所見", "結論", "経過", "経過観察", "追跡",
     "コメント", "フォローアップ", "ディスカッション",
+    "画像所見", "検査所見", "検査結果", "主訴", "現病歴",
     # Korean
     "토론", "결론", "요약", "추적", "추적관찰", "코멘트",
+    "영상소견", "검사소견", "검사결과", "주소", "현병력",
 })
 
 # Separator alphabet for splitting query into source-prefix vs the
@@ -216,6 +265,9 @@ _SECTION_HEADER_PHRASES: frozenset[str] = frozenset({
 # them verbatim from upstream catalog CSV). Mirrors the analyte-side
 # LAST-wins logic in :func:`.analyte_concept.query_analyte_concept`.
 _INDICATOR_SEPARATOR_RE = re.compile(r"[,，|·・]")
+
+
+_TRAILING_ORDINAL_RE = re.compile(r"[0-9０-９一二三四五六七八九十]+$")
 
 
 def _last_indicator_segment(term: str) -> str:
@@ -230,10 +282,20 @@ def _last_indicator_segment(term: str) -> str:
 
 
 def _is_section_header_term(term: str) -> bool:
-    """Last-segment exact-match against multilingual section-header
-    phrases. See :data:`_SECTION_HEADER_PHRASES` for the whitelist.
+    """Last-segment match against multilingual section-header phrases
+    in :data:`_SECTION_HEADER_PHRASES`. Two passes:
+      1. Exact match — fast path.
+      2. After stripping a trailing ordinal (``补充意见1`` → ``补充意见``,
+         ``Note 2`` → ``Note``). Catches enumerated section headers
+         that source CSVs emit when a single section appears multiple
+         times in the report (``补充意见1`` / ``补充意见2`` /
+         ``addendum 1`` / ``addendum 2``).
     """
-    return _last_indicator_segment(term) in _SECTION_HEADER_PHRASES
+    seg = _last_indicator_segment(term)
+    if seg in _SECTION_HEADER_PHRASES:
+        return True
+    stripped = _TRAILING_ORDINAL_RE.sub("", seg).strip()
+    return bool(stripped) and stripped in _SECTION_HEADER_PHRASES
 
 
 # ── Section-header candidate pool (corpus-side, one-shot) ───────────
@@ -264,7 +326,42 @@ _SECTION_HEADER_NAME_PATTERN = re.compile(
     r"section [Ss]et|section ID|"
     # Single-word DCM heading codes.
     r"^(Impression|Findings|Conclusion|Discussion|Addendum|"
-    r"Recommendation|Comments?|Remarks?|Summary)s?$",
+    r"Recommendation|Comments?|Remarks?|Summary)s?$|"
+    # Concrete section-concept LOINC rows that don't carry the
+    # ``Narrative`` marker but ARE genuine report sections — clinical
+    # report queries like ``辅助检查·实验室检查 / 实验室检查 / 影像学检查
+    # / 评估总结 / 患者活动问题清单`` route through ``_is_section_header_term``
+    # but the right answer (``Laboratory report`` / ``Diagnostic imaging
+    # study`` / ``Evaluation + Plan note`` / ``Problem list``) was
+    # filtered out by the narrow Narrative-only pool. Include them as
+    # eligible section candidates.
+    r"^Laboratory report$|"
+    r"^Clinical pathology Laboratory report$|"
+    r"^Laboratory studies\b|"
+    r"^Laboratory data\b|"
+    r"^Laboratory results?\b|"
+    r"^Relevant diagnostic tests\b|"
+    r"^Interpretation and review of laboratory results$|"
+    r"^Diagnostic imaging study\b|"
+    r"^Imaging study set\b|"
+    r"^Imaging report\b|"
+    r"^Problem list\b|"
+    r"^Plan of care( note)?$|"
+    r"^Hospital course note$|"
+    r"^Evaluation \+ Plan note$|"
+    r"^Assessment and plan( note)?$|"
+    r"^Vital signs note$|"
+    r"^Past medical history\b|"
+    r"^Past surgical history\b|"
+    r"^Hospital discharge studies summary\b|"
+    # ``History of <X>`` rows (CLASS=H&P.HX, PROPERTY=Hx) — section
+    # concepts for past illness / surgical / immunization / medication /
+    # tobacco / alcohol / occupation / outpatient-visits / family-member
+    # diseases. Some don't carry the ``Narrative`` marker (``History of
+    # Immunization note`` / ``History of family member diseases note``)
+    # so the bare-anchor lift is required to surface them.
+    r"^History of [A-Za-z]|"
+    r"^Family history\b",
 )
 
 

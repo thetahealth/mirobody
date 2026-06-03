@@ -15,6 +15,18 @@ from langchain_core.tools import StructuredTool
 
 logger = logging.getLogger(__name__)
 
+# Tool names reserved by the native deepagents harness. The DeepAgent gets these
+# from middleware, so a same-named global MCP tool (from any source) would shadow
+# or collide with the native one — filter them out here:
+#   - FilesystemMiddleware provides ls/read_file/write_file/edit_file/glob/grep
+#     over the CompositeBackend (multimodal read for pdf/image/...).
+#   - TodoListMiddleware provides write_todos.
+# BaseAgent still sees provider-MCP tools via its own path.
+_NATIVE_TOOL_BLOCKLIST = frozenset({
+    "ls", "read_file", "write_file", "edit_file", "glob", "grep",  # FilesystemMiddleware
+    "write_todos",                                                  # TodoListMiddleware
+})
+
 
 async def load_global_tools(
     user_id: str,
@@ -65,10 +77,14 @@ async def load_global_tools(
                 
                 if allowed_tools and tool_name not in allowed_tools:
                     continue
-                
+
                 if disallowed_tools and tool_name in disallowed_tools:
                     continue
-                
+
+                if tool_name in _NATIVE_TOOL_BLOCKLIST:
+                    logger.debug(f"Tool {tool_name} blocked — provided by native deepagents middleware")
+                    continue
+
                 # Get original function for async check (before partial wrapping)
                 original_func = tool_func
                 
@@ -158,39 +174,3 @@ async def load_global_tools(
     tool_names_str = ", ".join(tool_names)
     logger.info(f"Loaded {len(langchain_tools)} global tools, tool names: {tool_names_str}")
     return langchain_tools
-
-
-# async def load_mcp_tools(user_id: str, token: str) -> list[StructuredTool]:
-#     """
-#     Load user-specific MCP tools.
-    
-#     Args:
-#         user_id: User ID for tool loading
-#         token: JWT token for authentication
-        
-#     Returns:
-#         List of LangChain StructuredTool instances
-#     """
-#     langchain_tools = []
-    
-#     try:
-#         from ....chat.mcp_loader import load_user_mcp_tools
-        
-#         logger.info(f"Loading user MCP tools for user_id: {user_id}")
-#         user_mcp_tools = await load_user_mcp_tools(
-#             user_id=user_id,
-#             jwt_token=token
-#         )
-        
-#         if user_mcp_tools:
-#             langchain_tools.extend(user_mcp_tools)
-#             logger.info(f"Added {len(user_mcp_tools)} user MCP tools to DeepAgent")
-#             tool_names = [tool.name for tool in user_mcp_tools]
-#             tool_names_str = ", ".join(tool_names)
-#             logger.info(f"Loaded {len(user_mcp_tools)} user MCP tools, tool names: {tool_names_str}")
-#         else:
-#             logger.info("No user MCP tools configured or loaded")
-#     except Exception as e:
-#         logger.error(f"Failed to load user MCP tools: {e}", exc_info=True)
-    
-#     return langchain_tools

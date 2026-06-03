@@ -82,7 +82,18 @@ FAMILIES: dict[str, dict[str, object]] = {
     # ("维生素 B12") consistently false-positive into this pool when
     # the embedding sees "Vitamin B12" verbatim in the candidate.
     "intake_recall": {
-        "name_re": re.compile(r"\bintake\s+\d+\s*hours?\b", re.IGNORECASE),
+        # ``intake N hour Estimated/Measured`` (timed dietary survey) plus
+        # the un-timed ``X intake Estimated/Measured`` IO-balance rows
+        # (``Protein intake Estimated`` 9079-5, ``Calcium intake
+        # Measured`` 9046-4, ``Fluid intake Estimated`` 8984-7 — all
+        # ``^Patient`` SYSTEM, IO_IN class). Both are self-reported intake
+        # concepts, never specimen measurements, so a body-composition /
+        # lab query with no intake marker should never land on them.
+        "name_re": re.compile(
+            r"\bintake\s+\d+\s*hours?\b"
+            r"|\bintake\s+(?:Estimated|Measured)\b",
+            re.IGNORECASE,
+        ),
         "markers": [
             "intake", "dietary", "diet", "food recall", "FFQ", "food frequency",
             "摄入", "膳食", "饮食", "回顾",
@@ -93,6 +104,27 @@ FAMILIES: dict[str, dict[str, object]] = {
             "Aufnahme", "Ernährung", "Verzehr",
             "apport", "alimentaire", "régime",
             "потребление", "приём", "питание",
+        ],
+    },
+
+    # ── clinician-set treatment targets / goal values ──────────────
+    # ~30 LOINC rows ("25-Hydroxyvitamin D goal", "LDL goal",
+    # "Systolic blood pressure goal", "INR goal", ...). These are
+    # not lab measurements — they are target values the care team
+    # set for a patient and want them to reach. Lab archetype queries
+    # ("25-羟基维生素D") false-positive into this pool when the
+    # embedder weighs the analyte name strongly enough that the
+    # ``goal`` suffix gets diluted.
+    "treatment_goal": {
+        "name_re": re.compile(r"\bgoal(\s+\[|\s+in\s|$)"),
+        "markers": [
+            "goal", "target", "desired",
+            "目标", "目標", "目的", "靶",
+            "목표",
+            "objetivo", "meta",
+            "Ziel",
+            "objectif", "cible",
+            "цель", "целевой",
         ],
     },
 
@@ -439,6 +471,158 @@ FAMILIES: dict[str, dict[str, object]] = {
         ],
     },
 
+    # ── mass-ratio / ratio PROPERTY rows ───────────────────────────
+    # 1043 LOINC rows whose PROPERTY=MRto / Ratio surface in LCN as
+    # ``[Mass Ratio]`` / ``[Ratio]`` — pair-of-analyte ratios
+    # (Apo B/Apo A-I, Lipoprotein.beta/Lipoprotein.alpha, X/Creatinine
+    # excretion, Aldosterone/Renin, ...). Single-analyte queries
+    # (``A型脂蛋白`` Lp(a), ``醛固酮``) cosine-match a ratio code
+    # whenever the EntLen-/EntMass-specific variants are demoted and
+    # the next-best cosine pick is the ratio — the ``/`` glyph adds
+    # no embedding penalty and the COMPONENT prefix (``Lipoprotein.
+    # alpha``) matches verbatim. Default to non-ratio when the query
+    # carries no ratio marker; explicit pair queries (``LDL/HDL``,
+    # ``Apo B/A-I 比值``, ``aldosterone to renin ratio``) license the
+    # family via marker keywords / the ``/``-between-analyte regex.
+    "mass_ratio": {
+        # Two LCN patterns flag pair-of-analyte rows:
+        #
+        # 1. ``[Mass Ratio]`` — PROPERTY=MRto explicit bracket. Catches
+        #    legitimate ratios with single-letter analyte suffixes
+        #    (``Apolipoprotein B/Apolipoprotein A-I [Mass Ratio]``)
+        #    that the pair-COMPONENT regex would miss. Deliberately
+        #    NOT the bare ``[Ratio]`` since 38 LCNs use ``[Ratio]``
+        #    as a dimensionless-index unit on a single COMPONENT
+        #    (Body mass index, Platelet distribution width,
+        #    Fractional excretion of X, Lymphocyte proliferation
+        #    stimulated by X, Ab avidity ratios) — those aren't
+        #    pair-form and demoting them when the user asks for the
+        #    indicator itself is a regression.
+        #
+        # 2. ``<word3+>/<word3+>`` at the COMPONENT position — catches
+        #    the ~3700 PROPERTY=Fraction rows (NFr / MFr / AFr / VFr /
+        #    CFr / SFr / *.DF) whose LCN is ``Cells.X/Cells.Y in
+        #    Specimen`` style without an explicit ratio bracket, plus
+        #    PROPERTY=Ratio pair rows with multi-char analyte names
+        #    on both sides. Restricted to the pre-``[`` head so unit
+        #    denominators (``[Mass/volume]`` / ``[Mass/time]``) don't
+        #    trigger; requires ≥3 alphanum chars on each side of ``/``
+        #    to skip subtype letters (``Calcium channel P/Q type``)
+        #    and short unit symbols. Same semantics as Ratio (pair-
+        #    of-analyte expression) so markers license both together.
+        "name_re": re.compile(
+            r"\[Mass\s+Ratio\]"
+            r"|^[^[]*?\b[A-Za-z][\w.+-]{2,}\s*/\s*[A-Za-z][\w.+-]{2,}\b",
+            re.IGNORECASE,
+        ),
+        "markers": [
+            # Ratio markers — explicit
+            "ratio", "ratios",
+            "比值", "比率", "比例", "对比",
+            "比值", "比率", "比例", "對比",
+            # CN suffix-style ratio markers: in clinical naming, a
+            # bare ``比`` / ``率`` / ``指数`` / ``相对`` suffix
+            # frequently denotes a ratio (``A/G 比``, ``1秒率``,
+            # ``相对指数``, ``利用率``). Over-licensing risk is
+            # bounded — worst case the family doesn't demote, falling
+            # back to plain cosine which is the pre-mass_ratio
+            # behavior.
+            "比", "率", "指数", "相对",
+            "比", "率", "指數", "相對",
+            "比率",                                  # JA
+            "비율", "비례",                           # KO
+            "Verhältnis", "Quotient", "Index",
+            "rapport", "indice",
+            "razón", "cociente", "proporción", "índice",
+            "отношение", "соотношение", "коэффициент", "индекс",
+            # Fraction markers — same pair-of-analyte semantics
+            "fraction", "fractional", "percentage", "percent",
+            "百分", "百分比", "比重", "分数", "饱和度", "饱和率",
+            "百分比", "比重", "飽和度", "飽和率",
+            "分画", "分率",                          # JA
+            "분율", "분획", "비중",                   # KO
+            "Anteil", "Fraktion", "Prozent", "Sättigung",
+            "pourcentage", "saturation",
+            "fracción", "porcentaje", "saturación",
+            "доля", "процент", "насыщение",
+        ],
+        # ``/``-between-multi-character-analyte license. Constrained
+        # to ≥2 CJK chars or ≥3 Latin letters on each side to avoid
+        # licensing unit-denominator patterns like ``mg/dL`` /
+        # ``mEq/L`` / ``kPa/s``. Catches ``LA/DGLA``, ``Apo B/Apo A-I``,
+        # ``亚油酸/二高 γ- 亚麻酸``, ``LDL/HDL`` (LDL=3, HDL=3 — passes).
+        "marker_res": [
+            r"[一-鿿]{2,}\s*[/／]\s*[一-鿿]{2,}",
+            r"\b[A-Za-z][\w-]{2,}\s*/\s*[A-Za-z][\w-]{2,}\b",
+        ],
+    },
+
+    # ── particle-size (Entitic length) measurement ─────────────────
+    # 6 LOINC rows whose PROPERTY=EntLen surface in LCN as
+    # ``[Entitic length]`` — particle / cell *size* measurements
+    # (LDL subparticle, platelet mean diameter, RBC distribution
+    # width, ...). When a query says ``颗粒数 / particle number``
+    # the cosine routinely picks 17782-4 ``Lipoprotein.beta.subparticle
+    # [Entitic length]`` over the count variant 54434-6 ``[Moles/
+    # volume]`` because both rows share the same COMPONENT and the
+    # encoder can't reliably bridge ``数`` ↔ ``Moles/volume`` while
+    # heavily anchoring on ``Lipoprotein.beta.subparticle``. The
+    # length variant is the specific / less-common request; default
+    # to count by demoting EntLen rows unless the query explicitly
+    # asks for size / length / diameter.
+    "particle_length": {
+        "name_re": re.compile(r"\[Entitic\s+length\]", re.IGNORECASE),
+        "markers": [
+            "length", "size", "diameter", "width",
+            "长度", "大小", "直径", "宽度", "粒径",
+            "長度", "大小", "直徑", "寬度", "粒徑",
+            "サイズ", "直径", "粒径",
+            "크기", "직경", "지름",
+            "tamaño", "diámetro", "longitud",
+            "Größe", "Durchmesser", "Länge",
+            "taille", "diamètre", "longueur",
+            "размер", "диаметр", "длина",
+        ],
+    },
+
+    # ── coagulation mixing-study methodology ───────────────────────
+    # 70 LOINC rows whose METHOD_TYP carries ``factor substitution``
+    # (with / without ``1:1`` / ``1:4`` dilution, ``immediately after``
+    # / ``NH post incubation``, optional ``normal plasma`` addition
+    # phrasing). These are mixing-study variants of standard coagulation
+    # times — PT / aPTT / Thrombin time / Reptilase time / Russell
+    # viper venom time. In clinical workflow, mixing studies are
+    # ordered when a screening PT/aPTT is prolonged and follow-up
+    # discrimination between factor deficiency vs inhibitor is
+    # needed; the bare screening ``凝血酶原时间`` / ``PT`` query is
+    # the everyday plain PT (5902-2). Without this demote, the 1H-
+    # post-incubation variant (96261-3) sneaks into top-1 because the
+    # ``Prothrombin time (PT)`` LCN prefix is identical to the
+    # plain code's and the cosine gap is razor-thin.
+    "factor_substitution": {
+        "name_re": re.compile(
+            r"\bfactor\s+substitution\b"
+            r"|\bmixing\s+study\b",
+            re.IGNORECASE,
+        ),
+        "markers": [
+            "factor substitution", "mixing study", "mixing test",
+            "incubation", "1:1 mix", "1:4 mix", "normal plasma",
+            "纠正试验", "纠正实验", "纠正",
+            "糾正試驗", "糾正實驗",
+            "因子代替", "因子替代",
+            "混合试验", "混合实验",
+            "混合試驗", "混合實驗",
+            "混合研究",
+            "クロスミキシング", "混合試験",      # JA
+            "교차혼합", "혼합검사",                 # KO
+            "estudio de mezcla", "prueba de mezcla",
+            "Plasmatauschversuch", "Mischversuch",
+            "épreuve de correction", "test de mélange",
+            "коррекция", "смешивание",
+        ],
+    },
+
     # ── unspecified-challenge placeholder ──────────────────────────
     # LOINC display-name placeholder ``XXX challenge`` (capital-X
     # exact) marks codes whose challenge agent is intentionally
@@ -455,6 +639,57 @@ FAMILIES: dict[str, dict[str, object]] = {
     "xxx_challenge": {
         "name_re": re.compile(r"\bXXX\s+challenge\b"),
         "markers": ["XXX"],
+    },
+
+    # ── Detection-limit / high-sensitivity assay variants ──────────
+    # 36 LOINC rows with ``by Detection limit <= N <unit>`` (Microalbumin
+    # ≤ 3.0 mg/L, Thyrotropin ≤ 0.05/0.005 mIU/L, PSA ≤ 0.01 ng/mL,
+    # Testosterone ≤ 1.0 ng/dL, Troponin I ≤ 0.01 ng/mL) plus viral-load
+    # NAA rows (HCV / HBV / HIV RNA) with ``detection limit = N copies/mL``.
+    # These are SPECIFIC high-sensitivity / ultra-sensitive assay variants;
+    # plain analyte queries (``24小时白蛋白定量``, ``PSA``, ``TSH``) want
+    # the canonical-sensitivity row, not the low-detection-limit one.
+    # Cosine drifts when the analyte name (``Microalbumin`` for
+    # ``白蛋白``) co-occurs with high cosine on its own.
+    "detection_limit": {
+        "name_re": re.compile(
+            r"by\s+(?:.+?\s+)?detection\s+limit\b"
+            # All Microalbumin rows — Microalbumin IS the low-DL Albumin
+            # assay name. Plain ``白蛋白`` / ``Albumin`` queries clinically
+            # mean the standard Albumin assay; Microalbumin is for the
+            # microalbuminuria range and clinicians explicitly mark it
+            # with 微量 / micro- / hs- / 高敏 / 检测下限. Default-demote
+            # the entire Microalbumin family; the marker list below
+            # licenses it back when the query carries explicit intent.
+            r"|\bMicroalbumin\b",
+            re.IGNORECASE,
+        ),
+        "markers": [
+            # English
+            "detection limit", "DL <=", "DL <", "DL = ",
+            "ultra-sensitive", "ultrasensitive", "ultra sensitive",
+            "high-sensitivity", "high sensitivity", "highly sensitive",
+            "hsTroponin", "hs-Troponin", "hs-Trop",
+            "hs-cTn", "hs-PSA", "hs-TSH", "uPSA",
+            # Microalbumin — the only analyte where ``microalbumin`` IS
+            # the canonical clinical term (gold-standard low-DL urine
+            # albumin). Including the marker so 微量白蛋白 / microalbumin
+            # queries pass through the family unscathed.
+            "microalbumin", "micro-albumin", "micro albumin",
+            # CN — high-sens / 超敏 / 微量 license the DL variant
+            "微量白蛋白", "尿微量白蛋白",
+            "超敏", "高敏", "超敏感", "高敏感",
+            "高敏肌钙蛋白", "超敏肌钙蛋白",
+            "超敏C反应蛋白", "高敏C反应蛋白",
+            "检测下限", "檢測下限", "检测限", "檢測限",
+            # JA / KR
+            "高感度", "超高感度", "검출한계", "초고감도",
+            # Romance / Germanic
+            "alta sensibilidad", "alta sensitividad",
+            "hochsensitiv", "Nachweisgrenze",
+            "haute sensibilité", "limite de détection",
+            "высокочувствительный", "предел обнаружения",
+        ],
     },
 
     # ── Long-tail `--<qualifier>` catchall ─────────────────────────
@@ -615,13 +850,31 @@ def query_licensed_families(query_text: str) -> set[str]:
     Consumed by the filter pipeline (``mirobody.indicator.fhir.
     resolve.pipeline._LOINC_FILTERS``) to gate hard-drop family masks
     by per-query license markers. Empty string returns the empty set.
+
+    Bridge to ``challenge_time.query_time_intervals``: bare-CJK time
+    tokens (``2小时血糖``, ``半小时胰岛素``) are recognized only by the
+    challenge-time scanner, not by ``challenge_test.marker_res`` which
+    matches PARENTHESIZED forms like ``(2小时)`` only. Without this
+    bridge, ``_challenge_time_keep`` strict-keeps the ``--2 hours...``
+    rows for the query while ``any_dash`` (catchall, union markers)
+    independently drops every ``--``-bearing row, AND-merging to an
+    empty keep mask. Bridging here keeps the two filters consistent:
+    if the query carries time, it licenses both ``challenge_test`` and
+    (via the family-union) ``any_dash``. Specimen-duration suppression
+    (``24小时尿``, ``小时粪``, …) is honored inside
+    ``query_time_intervals`` so this bridge inherits it for free.
     """
     if not query_text:
         return set()
-    return {
+    from .challenge_time import query_time_intervals
+    licensed = {
         key for key, rx in _QUERY_RES.items()
         if rx.search(query_text)
     }
+    if query_time_intervals(query_text):
+        licensed.add("challenge_test")
+        licensed.add("any_dash")
+    return licensed
 
 
 def specificity_penalty(

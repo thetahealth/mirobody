@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from volcenginesdkarkruntime import AsyncArk
 
 from mirobody.utils.config import safe_read_cfg
+from mirobody.utils.file_types import IMAGE_EXTENSIONS  # noqa: F401
 
 from .clients import client_manager
 from .config import AIConfig
@@ -31,8 +32,6 @@ from .config import AIConfig
 # =============================================================================
 # Constants
 # =============================================================================
-
-IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp'}
 
 # Provider-specific extra parameters for API calls (no thinking to improve latency )
 PROVIDER_EXTRA_PARAMS: Dict[str, Dict[str, Any]] = {

@@ -619,10 +619,16 @@ class FileParserDatabaseService:
             logging.info(f"🚀 Write complete: {len(db_params)} records, user_id: {user_id}")
 
             if db_params:
-                # TODO: wire up producer-side enqueue:
-                #   await IndicatorSyncTask.enqueue("")
-                #   await ProfileRefreshTask.enqueue(str(user_id))
-                pass
+                # Signal the worker to materialize th_series_dim + backfill
+                # embeddings (embedding_<EMBEDDING_PROVIDER>), then refresh the
+                # user profile. Both enqueues are coalescing + self-guarded, so a
+                # Redis hiccup never fails the ingest write above.
+                try:
+                    from mirobody.task import IndicatorSyncTask, ProfileRefreshTask
+                    await IndicatorSyncTask.enqueue("")
+                    await ProfileRefreshTask.enqueue(str(user_id))
+                except Exception as e:
+                    logging.warning(f"Failed to enqueue indicator-sync/profile-refresh signals: {e}")
 
             return len(db_params)
 
@@ -1052,131 +1058,74 @@ class FileParserDatabaseService:
 
     @staticmethod
     async def get_user_data_distribution(user_id: str) -> Dict[str, Any]:
-        """
-        Get user data distribution
+        """Return aggregate counts of the user's processed health data.
 
-        Args:
-            user_id: User ID
-
-        Returns:
-            Dictionary containing data distribution information
-
-        Raises:
-            Exception: Thrown when query fails
+        Frontend (web Home DataBar / Drive "Clean data" panel) consumes only
+        ``total_records`` and ``total_categories``. The per-bucket
+        ``distribution`` list has no consumer and is returned empty.
         """
         try:
-            # Ensure user_id is string type
             user_id = str(user_id)
 
             logging.info(f"Getting user data distribution: user_id={user_id}")
 
-            # Build query SQL - split departments by comma and calculate count for each department, null values go to "Other"
+            # Aggregate counts from th_series_data + th_series_data_genetic.
+            # Categories are derived from th_series_dim.department, with 'Other'
+            # for rows whose indicator has no department mapping and 'genetic'
+            # if the user has any genetic records.
             query = """
-            SELECT * FROM (
-                -- Handle null department data
-                SELECT 
-                    'Other' as category,
-                    MAX(update_time) as last_update_time,
-                    COUNT(1) as record_count
-                FROM v_th_series_data
-                WHERE user_id = :user_id
-                  AND (department IS NULL OR TRIM(department) = '')
-                
-                UNION ALL
-                
-                -- Handle non-empty department data using LATERAL split
-                SELECT 
-                    TRIM(dept_expanded.dept) as category,
-                    MAX(v.update_time) as last_update_time,
-                    COUNT(1) as record_count
-                FROM v_th_series_data v
-                CROSS JOIN LATERAL unnest(string_to_array(v.department, ',')) AS dept_expanded(dept)
-                WHERE v.user_id = :user_id
-                  AND v.department IS NOT NULL 
-                  AND TRIM(v.department) != ''
-                  AND TRIM(dept_expanded.dept) != ''
-                GROUP BY TRIM(dept_expanded.dept)
-                
-                UNION ALL
-                
-                -- Handle genetic data
-                SELECT 
-                    'genetic' as category,
-                    MAX(update_time) as last_update_time,
-                    COUNT(1) as record_count
-                FROM th_series_data_genetic
-                WHERE user_id = :user_id
-                
-            ) AS data_distribution
-            WHERE category IS NOT NULL
-              AND TRIM(category) != ''
-              AND record_count > 0
-            ORDER BY 3 DESC, 2 DESC
+            SELECT
+                (
+                    SELECT COUNT(1) FROM th_series_data
+                    WHERE user_id = :user_id AND deleted = 0
+                ) + (
+                    SELECT COUNT(1) FROM th_series_data_genetic
+                    WHERE user_id = :user_id AND is_deleted = false
+                ) AS total_records,
+                (
+                    SELECT COUNT(DISTINCT cat) FROM (
+                        SELECT TRIM(d.dept) AS cat
+                        FROM th_series_data t1
+                        JOIN th_series_dim t2 ON t1.indicator = t2.original_indicator
+                        CROSS JOIN LATERAL unnest(string_to_array(t2.department, ',')) AS d(dept)
+                        WHERE t1.user_id = :user_id
+                          AND t2.department IS NOT NULL
+                          AND TRIM(t2.department) <> ''
+                          AND TRIM(d.dept) <> ''
+                        UNION
+                        SELECT 'Other' WHERE EXISTS (
+                            SELECT 1 FROM th_series_data t1
+                            LEFT JOIN th_series_dim t2 ON t1.indicator = t2.original_indicator
+                            WHERE t1.user_id = :user_id
+                              AND (t2.department IS NULL OR TRIM(t2.department) = '')
+                        )
+                        UNION
+                        SELECT 'genetic' WHERE EXISTS (
+                            SELECT 1 FROM th_series_data_genetic WHERE user_id = :user_id
+                        )
+                    ) cats
+                ) AS total_categories
             """
 
-            params = {"user_id": user_id}
+            results = await execute_query(query=query, params={"user_id": user_id})
 
-
-            # Execute query
-            results = await execute_query(
-                query=query,
-                params=params,
-            )
-
-            # Process results
-            distribution_data = []
-
-            for row in results:
-                if isinstance(row, dict):
-                    item = {
-                        "category": row["category"],
-                        "last_update_time": row["last_update_time"].isoformat() if row["last_update_time"] else None,
-                        "record_count": row["record_count"],
-                    }
-                else:
-                    # Handle tuple format
-                    item = {
-                        "category": row[0],
-                        "last_update_time": row[1].isoformat() if row[1] else None,
-                        "record_count": row[2],
-                    }
-
-                distribution_data.append(item)
-
-            # Get actual total records from th_series_data and th_series_data_genetic tables
-            # This should NOT be the sum of category counts to avoid double-counting when records have multiple departments
-            total_records_query = """
-            SELECT 
-                (SELECT COUNT(1) FROM th_series_data WHERE user_id = :user_id AND deleted = 0) +
-                (SELECT COUNT(1) FROM th_series_data_genetic WHERE user_id = :user_id AND is_deleted = false)
-                AS total_records
-            """
-
-            # logging.info(f"total_records_query: {total_records_query}")
-            
-            total_records_result = await execute_query(
-                query=total_records_query,
-                params={"user_id": user_id},
-            )
-            
-            # logging.info(f"total_records_result: {total_records_result}")
-
-            # Get total records from the query result
-            if total_records_result and len(total_records_result) > 0:
-                if isinstance(total_records_result[0], dict):
-                    total_records = total_records_result[0]["total_records"] or 0
-                else:
-                    total_records = total_records_result[0][0] or 0
+            if results:
+                row = results[0] if isinstance(results[0], dict) else dict(results[0])
+                total_records = row.get("total_records") or 0
+                total_categories = row.get("total_categories") or 0
             else:
                 total_records = 0
+                total_categories = 0
 
-            logging.info(f"Query completed: user={user_id}, categories={len(distribution_data)}, total_records={total_records}")
+            logging.info(
+                f"Query completed: user={user_id}, total_categories={total_categories}, total_records={total_records}"
+            )
 
             return {
                 "user_id": user_id,
-                "total_categories": len(distribution_data),
+                "total_categories": total_categories,
                 "total_records": total_records,
-                "distribution": distribution_data,
+                "distribution": [],
             }
 
         except Exception as e:

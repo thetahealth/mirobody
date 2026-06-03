@@ -50,7 +50,8 @@ class HourlyCollectorTask(PullTask):
             return True
 
         except Exception as e:
-            logging.error(f"[HourlyCollectorTask] Execution error: {e}")
+            logging.error(f"[HourlyCollectorTask] Execution error: {e}", exc_info=True)
+            self._capture_error(e)
             return False
 
     async def get_task_info(self) -> Dict:
@@ -99,7 +100,8 @@ class DailyProfileTask(PullTask):
             return True
 
         except Exception as e:
-            logging.error(f"[DailyProfileTask] Execution error: {e}")
+            logging.error(f"[DailyProfileTask] Execution error: {e}", exc_info=True)
+            self._capture_error(e)
             return False
 
     async def get_task_info(self) -> Dict:

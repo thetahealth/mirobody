@@ -21,12 +21,40 @@ log = logging.getLogger(__name__)
 
 
 @dataclass
+class AxisCode:
+    """One axis-value pick inside a hybrid axis-output ResolveResult.
+
+    LOINC axes carry the Part name in ``name`` and leave ``code`` empty
+    (Part codes like ``LP14635-4`` are not surfaced — the FHIR-shaped
+    consumer only needs the human-readable Part name). SNOMED / UCUM
+    axes carry the canonical code + concept name. The ``system`` field
+    discriminates: ``"LOINC"`` / ``"SNOMED_CT"`` / ``"UCUM"``.
+
+    ``score`` is the cosine the pick won on (0–1, higher = better).
+    Populated by the per-axis-vocab resolver (``resolve_axes_many``);
+    the legacy centroid-based ``emit_axes`` path leaves it at 0.0.
+    """
+    system: str
+    code: str
+    name: str
+    score: float = 0.0
+
+
+@dataclass
 class ResolveResult:
     """One match from `resolve()` — free text → standard code."""
     system: str      # e.g. "LOINC", "SNOMED_CT", "RXNORM"
     code: str        # e.g. "2345-7", "73211009"
     name: str        # human-readable description (empty if meta absent)
     score: float     # cosine similarity (0-1, higher = better)
+    # Optional hybrid-output per-axis tuple (see ``docs/health_indicator_resolving.md``
+    # page 9). Populated only when the caller passes ``emit_axes=True`` to
+    # ``resolve_many`` AND this result is the LOINC top-1 pick. Keyed by LOINC
+    # axis name (``COMPONENT`` / ``PROPERTY`` / ``TIME_ASPCT`` / ``SYSTEM`` /
+    # ``SCALE_TYP`` / ``METHOD_TYP``). ``SYSTEM`` may be a SNOMED ``body
+    # structure`` concept when LOINC's SYSTEM-axis confidence falls under the
+    # gate threshold (Phase 1 hybrid axis output).
+    axes: dict[str, AxisCode] | None = None
 
 
 class DomainAdapter:

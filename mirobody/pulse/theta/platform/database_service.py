@@ -182,27 +182,17 @@ class ThetaDatabaseService:
         """
         Unified save for PASSWORD / OAUTH1 / OAUTH2 credentials with strong type check by provider.
         Backward compatible entry; old wrappers should delegate here.
-        
+
         Logic:
-        - Always soft delete existing record (if any) and create new one
-        - New record will have reconnect=0, create_at=now, is_del=FALSE
-        - This ensures: only one active record, clean state
+        - Soft-delete the existing active row (if any) AND insert the new row in a
+          single data-modifying CTE — both run inside the same statement / transaction.
+          If anything in the statement fails, PostgreSQL rolls back the whole CTE,
+          so we never end up with "old row soft-deleted but new row not inserted"
+          which would silently drop the user's credentials.
         """
-        # 1. Soft delete existing record if any
-        delete_query = """
-        UPDATE health_user_provider
-        SET is_del = TRUE, update_at = CURRENT_TIMESTAMP
-        WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
-        """
-
-        await execute_query(
-            query=delete_query,
-            params={"user_id": app_user_id, "provider": provider_slug},
-        )
-
-        # 2. Insert new record
-        # Build dynamic insert based on link_type
-        # Always set reconnect=0 for new records (ensures clean state after reconnection)
+        # Build dynamic field list based on link_type.
+        # reconnect=0 is forced so a successful save always clears any prior
+        # "needs reconnect" flag, mirroring the OAuth callback's clean-state contract.
         fields = ["user_id", "provider", "llm_access", "is_del", "reconnect", "create_at", "update_at"]
         values = [":user_id", ":provider", ":llm_access", ":is_del", ":reconnect", "CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP"]
         params = {"user_id": app_user_id, "provider": provider_slug, "llm_access": 1, "is_del": False, "reconnect": 0}
@@ -256,12 +246,22 @@ class ThetaDatabaseService:
             # Store as JSON string, PostgreSQL will convert to jsonb automatically if column type is jsonb
             params["connect_info"] = json.dumps(credentials.connect_info)
 
-        insert_query = f"""
+        # Atomic soft-delete + insert via data-modifying CTE.
+        # The CTE's UPDATE may match 0 rows (first link) — that's fine, the INSERT
+        # still runs. Both statements share the same transaction; either both
+        # commit or both roll back.
+        atomic_query = f"""
+        WITH deactivated AS (
+            UPDATE health_user_provider
+            SET is_del = TRUE, update_at = CURRENT_TIMESTAMP
+            WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
+            RETURNING 1
+        )
         INSERT INTO health_user_provider ({', '.join(fields)})
         VALUES ({', '.join(values)})
         """
 
-        await execute_query(query=insert_query, params=params)
+        await execute_query(query=atomic_query, params=params)
 
         logging.info(f"Successfully saved theta provider for user {app_user_id}, provider {provider_slug}, link_type={link_type}")
         return True

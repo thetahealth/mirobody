@@ -1,15 +1,12 @@
 import logging
 from typing import Any, AsyncGenerator, Optional
 
-from langchain.agents import create_agent
-from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool
 
-from .deep.utils import StreamConverter, TokenUsageCallback
+from .utils import StreamConverter, TokenUsageCallback
 from .deep_agent import DeepAgent
 from .mix import MixMixin
-from .mix.middleware import GenerateAnswerMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -24,15 +21,13 @@ class MixAgent(DeepAgent, MixMixin):
     - Phase 2 (Responder) generates response with collected context
     - Reuses DeepAgent's core methods
 
+    Phase 1 (orchestrator) runs all tools; Phase 2 (responder) is pure
+    generation and is never bound to tools.
+
     Class attributes:
-    - PHASE2_BIND_TOOLS_MODE: Phase 2 tool binding mode
-        - "none": Don't bind tools (default)
-        - "used": Only bind tools used in Phase 1
-        - "all": Bind all tools
     - _all_llm_clients: Internal storage for all LLM clients (including @orchestrator/@responder)
     """
 
-    PHASE2_BIND_TOOLS_MODE = "none"  # "none" | "used" | "all"
     _all_llm_clients: dict[str, dict[str, Any]] = {}  # {agent_name: {provider_name: client}}
     _group_responder_map: dict[str, dict[str, list[str]]] = {}  # {agent_name: {group_name: [responder_names]}}
 
@@ -46,7 +41,6 @@ class MixAgent(DeepAgent, MixMixin):
         prompt_dir: str | None = None,
         **kwargs
     ):
-        # Call parent init
         super().__init__(
             user_id=user_id,
             user_name=user_name,
@@ -55,17 +49,13 @@ class MixAgent(DeepAgent, MixMixin):
             prompt_templates=prompt_templates,
             **kwargs
         )
-        self.agent_identifier = self.__class__.__name__.replace("Agent", "")
-        self.prompt_dir = prompt_dir  # Custom prompt directory (for subclass override)
+        # `agent_identifier` ("Mix") is set by DeepAgent.__init__ from the
+        # class name; no need to re-derive here.
+        self.prompt_dir = prompt_dir  # custom prompt directory (subclass override)
 
-        # Extract @responder providers from loaded LLM clients
         responder_providers, responder_configs = self._extract_responder_providers()
+        group_responder_map = MixAgent._group_responder_map.get(self.agent_identifier, {})
 
-        # Get group -> responder names mapping for this agent
-        agent_name = self.agent_identifier
-        group_responder_map = MixAgent._group_responder_map.get(agent_name, {})
-
-        # Initialize MixMixin with prompt_templates from DeepAgent
         self._init_mix_mixin(
             responder_providers=responder_providers,
             responder_configs=responder_configs,
@@ -120,37 +110,58 @@ class MixAgent(DeepAgent, MixMixin):
         logger.info(f"Extracted {len(providers)} @responder providers: {list(providers.keys())}")
         return providers, configs
 
-    # === Middleware Creation ===
-
-    def _get_basic_middlewares(self, llm_client: Any, backend: Any) -> list[AgentMiddleware]:
-        """Get basic middleware stack (reuses parent method)."""
-        return DeepAgent._create_middlewares(llm_client, backend)
-
-    def _create_middleware_stack(
-        self, llm_client: Any, backend: Any
-    ) -> list[AgentMiddleware]:
-        """
-        Create middleware stack (two-phase, with GenerateAnswerMiddleware).
-
-        Stack order: [GenerateAnswer] + [Summarization, PatchToolCalls, PromptCaching]
-        """
-        basic_middlewares = self._get_basic_middlewares(llm_client, backend)
-        stack = [GenerateAnswerMiddleware()] + basic_middlewares
-        return stack
-
     def _create_phase1_agent(
         self, llm_client: Any, system_prompt: str,
-        middleware: list[AgentMiddleware], tools: list[BaseTool]
+        backend: Any, tools: list[BaseTool], permissions: list | None = None,
     ) -> Any:
-        """Create Phase 1 Agent."""
-        agent = create_agent(
-            llm_client,
-            system_prompt=system_prompt,
-            tools=tools,
-            middleware=middleware,
-        ).with_config({"recursion_limit": self.recursion_limit})
+        """Create Phase 1 (orchestrator) Agent.
 
-        return agent
+        Built on upstream `deepagents.create_deep_agent` so Phase 1 inherits
+        the full deepagents stack (Todo + Filesystem + SubAgent + Summarization
+        + caching + PatchToolCalls) plus our `UniversalPromptCachingMiddleware`.
+
+        Passing `response_format=OrchestratorManifest` makes LangChain's
+        `create_agent` guarantee the model produces an
+        `OrchestratorManifest`-shaped final output. Concretely
+        (see `langchain/agents/factory.py` ~lines 1190-1250):
+
+        - For models whose profile declares native structured-output support
+          (OpenAI GPT-5, Anthropic Claude, Gemini 3.x with tool calling)
+          LangChain picks `ProviderStrategy` and uses the model's native JSON-
+          schema / strict-tool mode. `tool_choice` is NOT forced.
+        - For models without that profile flag (older Gemini, etc.) LangChain
+          falls back to `ToolStrategy` and sets `tool_choice="any"` so every
+          turn must emit a tool call.
+
+        Either way, Phase 1 cannot wander off into free-text answers — the
+        loop ends naturally when LangChain parses the model's output into
+        `state.structured_response` (which `mixin._stream_agent` watches for).
+        """
+        from deepagents import create_deep_agent
+        from .deep.middleware import UniversalPromptCachingMiddleware
+        from .mix.models import OrchestratorManifest
+
+        middleware: list[Any] = []
+        try:
+            from langchain_quickjs import CodeInterpreterMiddleware
+            middleware.append(CodeInterpreterMiddleware())
+        except Exception as exc:
+            logger.warning(f"code interpreter middleware unavailable: {exc}")
+        middleware.append(
+            UniversalPromptCachingMiddleware(ttl="5m", unsupported_model_behavior="ignore")
+        )
+
+        kwargs: dict[str, Any] = dict(
+            model=llm_client,
+            tools=tools,
+            system_prompt=system_prompt,
+            backend=backend,
+            response_format=OrchestratorManifest,
+            middleware=middleware,
+        )
+        if permissions is not None:
+            kwargs["permissions"] = permissions
+        return create_deep_agent(**kwargs).with_config({"recursion_limit": self.recursion_limit})
 
     # === Main Entry Point ===
 
@@ -165,21 +176,12 @@ class MixAgent(DeepAgent, MixMixin):
         provider: str | Any | None = None,
         prompt_name: str = "",
         tools: Optional[list[BaseTool]] = None,
-        query_user_id: str | None = None,
         chat_context: Any = None,
         **kwargs
     ) -> AsyncGenerator[dict[str, Any], None]:
-        """
-        Generate response (two-phase model fusion, static tools).
-
-        Phase 1 (Orchestrator): Data collection -> Phase 2 (Responder): Response generation
-        """
-        # Parameter validation
+        """Generate response: Phase 1 (Orchestrator) collects → Phase 2 (Responder) composes."""
         if not messages:
             yield {"type": "error", "content": "Empty message"}
-            return
-        if not isinstance(messages, list):
-            yield {"type": "error", "content": "Invalid messages format"}
             return
         if not user_id:
             yield {"type": "error", "content": "User ID required"}
@@ -195,22 +197,8 @@ class MixAgent(DeepAgent, MixMixin):
             if fallback_msg:
                 yield {"type": "thinking", "content": fallback_msg}
 
-            # === Create Backend (reuse parent method) ===
-            backend = await self._create_backend(session_id, user_id)
-
-            # === File upload (use unified utility function) ===
-            if files_data:
-                from .utils import handle_file_upload
-                uploaded_paths, file_reminder = await handle_file_upload(
-                    file_list=file_list,
-                    files_data=files_data,
-                    backend=backend,
-                )
-                if uploaded_paths:
-                    logger.info(f"Uploaded {len(uploaded_paths)} files to workspace")
-                    if file_reminder and not any(isinstance(m, BaseMessage) for m in messages):
-                        messages = list(messages)
-                        messages.append({"role": "user", "content": file_reminder})
+            # === Build Backend (CompositeBackend; auto-mounts /uploads + /library) ===
+            backend, permissions = await self._build_backend(session_id, user_id, file_list)
 
             # === Load tools (static, reuse parent method) ===
             loaded_tools = tools if tools is not None else await self._load_tools(user_id, session_id)
@@ -221,40 +209,33 @@ class MixAgent(DeepAgent, MixMixin):
             system_prompt = await self._build_system_prompt(base_prompt, language, user_id, loaded_tools)
 
             # === Create Phase 1 Agent ===
-            middleware = self._create_middleware_stack(llm_client, backend)
-            phase1_agent = self._create_phase1_agent(llm_client, system_prompt, middleware, loaded_tools)
+            phase1_agent = self._create_phase1_agent(llm_client, system_prompt, backend, loaded_tools, permissions)
 
             # === Phase 1: Data Collection ===
             logger.info("Phase 1: Data Collection")
             phase1_tokens = TokenUsageCallback()
-            phase1_config = {
-                "recursion_limit": self.recursion_limit,
-                "callbacks": [phase1_tokens],
-                "configurable": {"user_info": {"user_id": user_id, "token": self.token, "success": True}}
-            }
+            phase1_config = self._create_stream_config(user_id, phase1_tokens)
 
             collected_messages: list[BaseMessage] = []
             has_tools = False
-            ai_partial_content = ""
             chart_context: list[dict[str, str]] = []
+            manifest_note = ""
+            manifest_rounds = 0
 
             async for event in self._stream_agent(
                 phase1_agent, messages, phase1_config,
                 chat_context=chat_context,
                 collect_tool_context=True,
-                stop_on_generate_answer=True,
             ):
                 if event.get("type") == "_metadata":
                     collected_messages = event.get("collected_messages", [])
                     has_tools = event.get("has_tools", False)
-                    ai_partial_content = event.get("ai_partial_content", "")
                     chart_context = event.get("chart_context", [])
+                    manifest_note = event.get("manifest_note", "")
+                    manifest_rounds = event.get("manifest_rounds", 0)
                     continue
 
-                if event.get("type", "") == "queryTitle" and event.get("content", "") == "generate_answer":
-                    yield {"type": "thinking", "content": "\n---\n"}  # Split thinking
-                else:
-                    yield event
+                yield event
 
             # Phase 1 cost statistics
             phase1_cost = StreamConverter.create_cost_statistics(
@@ -271,7 +252,8 @@ class MixAgent(DeepAgent, MixMixin):
             # Build Phase 2 system prompt (with chart placeholders, no user_id for privacy)
             phase2_prompt = await self._build_phase2_prompt(
                 has_tools, language, chart_context=chart_context,
-                prompt_dir=self.prompt_dir
+                prompt_dir=self.prompt_dir,
+                orchestrator_note=manifest_note,
             )
 
             # Build Phase 2 messages
@@ -279,11 +261,10 @@ class MixAgent(DeepAgent, MixMixin):
             phase2_collected: list[BaseMessage] = []
 
             if has_tools:
-                # Has tool calls: filter failed results, intermediate tools, and generate_answer
+                # Has tool calls: filter failed results and intermediate tools
+                # (generate_answer no longer exists; OrchestratorManifest is hidden
+                # by LangChain in state.structured_response, not as a ToolMessage)
                 phase2_collected = self._filter_tool_messages(collected_messages)
-            elif ai_partial_content:
-                # No tool calls (quick answer): inject Phase 1 thinking as assistant context
-                phase2_messages.append({"role": "assistant", "content": ai_partial_content})
 
             # Phase 2 streaming output
             phase2_input_tokens = 0
@@ -299,8 +280,6 @@ class MixAgent(DeepAgent, MixMixin):
             async for event in self._stream_phase2_response(
                 has_tools, phase2_prompt, phase2_messages,
                 phase2_collected, chart_context,
-                bind_tools_mode=self.PHASE2_BIND_TOOLS_MODE,
-                all_tools=loaded_tools if self.PHASE2_BIND_TOOLS_MODE != "none" else None,
                 group=selected_group,
             ):
                 if event.get("type") == "_cost_metadata":

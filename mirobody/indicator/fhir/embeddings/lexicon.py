@@ -1,19 +1,22 @@
 """Per-language CN-→canonical-EN lexicons inside ``fhir_loinc_bundle.tar.gz``.
 
-The embedding model bridges common-language ↔ Latin well for common
-medical vocabulary (creatinine, hemoglobin, insulin) but fails on
-specialist Latin binomial names that rarely co-occur in pretraining
-text — e.g. 出芽短梗霉 ↔ *Aureobasidium pullulans*, the species name
-that LOINC writes in its English COMPONENT but no Qwen/Gemini bridge
-recovers from the literal CJK calque. The query-side augmentation
-appends the canonical Latin form to such queries before embedding;
-this module owns the dict it appends from.
+The embedding model bridges common-language ↔ Latin well for some of
+medical vocabulary but fails unpredictably on specialist Latin binomial
+names that rarely co-occur in pretraining text — e.g. 出芽短梗霉 ↔
+*Aureobasidium pullulans*, the species name that LOINC writes in its
+English COMPONENT but no Qwen/Gemini bridge recovers from the literal
+CJK calque. Subtle sibling-cosine confusions (FEV1/FVC vs FEV1/FEV
+total at ~0.002 cosine gap) further mean we can't trust the embedder
+on bare CJK queries. The query-side augmentation appends the canonical
+LOINC English form to such queries before embedding; this module owns
+the dict it appends from.
 
-Bundle layout::
+Bundle layout — one TSV per language, no overlay carve-out::
 
-    aliases/zh.tsv     auto-derived from LOINC zhCN5LinguisticVariant.csv
-    aliases/ja.tsv     auto-derived from jaJP3LinguisticVariant.csv (future)
-    aliases/ko.tsv     etc.
+    aliases/zh.tsv     deterministic union of LOINC zhCN5 + curated
+    aliases/ja.tsv     UMLS MRCONSO MSHJPN/MDRJPN derivation + curated
+    aliases/ko.tsv     LOINC koKR13 + curated
+    aliases/de.tsv …   LOINC {lang}LinguisticVariant + curated
 
 Each TSV has two tab-separated columns, no header, UTF-8:
 
@@ -21,62 +24,85 @@ Each TSV has two tab-separated columns, no header, UTF-8:
 
 …where ``src`` is a non-English clinical token (Chinese, Japanese, …)
 and ``dst`` is the canonical LOINC English (often a Latin binomial, or
-"<full name> <ACRONYM>" for lab abbreviations).
+"<full name> <ACRONYM>" for lab abbreviations). The augment direction
+is strictly **foreign → English**: ASCII-only keys are rejected at
+build time so the runtime regex never lifts EN-only queries.
 
 Why TSV and not JSON: per-line diffs in git survive added/removed
 entries cleanly, and ``cat aliases/zh.tsv | grep 烟曲霉`` is the
 fastest way to spot-check provenance during development.
 
-Build (re)generates each file from the corresponding LOINC
-LinguisticVariant CSV plus the per-language curated overlay in
-:mod:`._curated_aliases`. The build path is:
+The build is **deterministic** — no embedding-cosine step. Two
+versioned inputs feed the merge, both authoritative across embedding
+providers / model versions:
+
+  - ``{loinc_dir}/AccessoryFiles/LinguisticVariants/{lang}…CSV`` —
+    LOINC's official per-language translation table.
+  - ``mirobody/res/aliases_src/{lang}_curated.tsv`` — hand-edited
+    colloquial / abbreviation entries that LOINC's literal translation
+    doesn't emit (绿脓杆菌 vs LOINC's 铜绿假单胞菌; FEV1/FVC for 1秒率).
+
+Build pipeline (per language, all stages pure-string-rule):
 
   1. Read LOINC main ``Loinc.csv`` + ``{lang}LinguisticVariant.csv``.
-  2. Filter to active rows in ``MICRO`` / ``ALLERGY`` / ``DRUG/TOX``
-     classes — categories where Qwen/Gemini lack reliable bridges. CHEM
-     / HEM / general clinical chemistry are well-covered by the
-     embedding alone; auto-deriving them adds noise without precision
-     wins.
-  3. For each row, dot-segment both COMPONENT fields and strip a
-     trailing-axis token (抗体 / DNA / IgG / 总计 / … on the CN side; the
-     corresponding Ab / DNA / IgG / total on the EN side). The
-     remainder is the species/analyte phrase.
+     **All active rows, all CLASSes** — embedding noise from auto-
+     covered concepts has zero cost once the cosine filter is gone, and
+     covering CHEM/HEM/PULM removes the per-class blind spots that the
+     prior MICRO/ALLERGY/DRUG/TOX-only path produced.
+  2. **COMPONENT pass** — for each row, dot-segment both COMPONENT
+     fields and strip a trailing-axis token (抗体 / DNA / IgG / 总计 / …
+     on the CN side; Ab / DNA / IgG / total on the EN side). The
+     remainder is the species/analyte phrase. Shape filter requires
+     pure-script keys (the per-language script regex), so mixed-
+     script entries like ``Alpha 酮戊二酸`` are rejected here — keeping
+     ``Alpha`` as an augment key would mis-bridge English queries.
+  3. **RELATEDNAMES2 pass** (non-Latin-script langs only: zh/ko/ru) —
+     recover the pure-script aliases LOINC ships in RELATEDNAMES2 for
+     mixed-script COMPONENT segments. For ``Alpha 酮戊二酸`` segment,
+     RN2 carries ``2-酮戊二酸; α-酮戊二酸; α酮戊二酸; α-酮戊二酸根; …``
+     which all strip to the pure-CJK core ``酮戊二酸`` → emit pair
+     against the EN segment ``Alpha ketoglutarate``. Matching is by
+     core-substring containment (≥3 script chars), not by RN2 group
+     position — RN2's whitespace-group boundaries aren't consistently
+     axis-aligned across rows.
   4. Keep only no-whitespace CN phrases of 2–8 CJK chars and English
      phrases of ≤ 5 tokens. Aggregate by CN phrase; keep when one EN
-     covers ≥ 55% of the occurrences (or single attestation for 3+
-     char CN — Latin binomials are reliable even at df=1).
+     covers ≥ 55% of the occurrences (deterministic alphabetical tie-
+     break on equal counts), or single attestation for 3+ char CN —
+     Latin binomials are reliable even at df=1.
   5. Derive 2-3 CJK-char genus suffixes from accumulated species
      entries (链球菌 → Streptococcus, 葡萄球菌 → Staphylococcus).
-  6. Embed (CN, EN) pairs in batches, compute cosine, drop pairs with
-     cosine ≥ 0.70 — those are already in the model's pretrained
-     repertoire and add nothing.
-  7. Filter LOINC-jargon noise (X多个未知种 = ``spp.`` calque, bare
+  6. Filter LOINC-jargon noise (X多个未知种 = ``spp.`` calque, bare
      "X型" axis modifiers, 2-char genus-suffix fragments that are
      suffixes of longer species names) by pattern.
-  8. Merge the per-language curated overlay (colloquial clinical
-     names that LOINC zhCN's literal Latin transliteration doesn't
-     emit — 绿脓杆菌 / 铜绿假单胞菌 — plus lab-test acronyms).
-
-The build is async because step 6 hits the embedding API; expect ~3
-minutes for one language. Reruns hit the embedding sqlite cache so
-they're near-instant.
+  7. Merge the per-language curated TSV — curated entries override
+     auto on key collisions. Curated is also the only path for
+     entries LOINC zhCN never carries (FEV1/FVC for 1秒率).
+  8. zh-only: mirror every Simplified key to its Traditional form so
+     a query in either script hits the same EN canonical.
+  9. Direction check: drop identity pairs (src casefold == dst) — no
+     embedding-augment signal there. For non-Latin-script langs
+     (zh/ja/ko/ru/ar/el/uk), additionally reject ASCII-only keys to
+     catch curated-input tagging mistakes. Latin-script langs allow
+     ASCII-only keys (German ``Glukose`` → English ``Glucose``).
 """
 
 from __future__ import annotations
 
 import argparse
-import asyncio
-import csv
-import io
 import logging
 import os
 import re
 from collections import Counter, defaultdict
-from pathlib import Path
 
-import numpy as np
-
-from .bundle import BUNDLE_BASENAME, BUNDLE_PATH, list_members, read_member, write_member
+from .bundle import (
+    BUNDLE_BASENAME,
+    BUNDLE_PATH,
+    list_members,
+    read_member,
+    remove_member,
+    write_member,
+)
 from .local import RES_DIR
 
 log = logging.getLogger(__name__)
@@ -95,23 +121,6 @@ def _member_name(lang: str) -> str:
 
 def _is_aliases_member(name: str) -> bool:
     return name.startswith(_MEMBER_PREFIX) and name.endswith(_MEMBER_SUFFIX)
-
-
-_CURATED_SUFFIX = "_curated"
-
-
-def _is_curated_member(name: str) -> bool:
-    """True iff *name* is a hand-curated overlay (``aliases/{lang}_curated.tsv``).
-
-    The curated overlay is the authoritative manual layer — it overrides
-    the auto-derived ``aliases/{lang}.tsv`` for any duplicate key. See
-    :func:`load_all_aliases` for the load-order policy that enforces
-    this.
-    """
-    if not _is_aliases_member(name):
-        return False
-    stem = name[len(_MEMBER_PREFIX) : -len(_MEMBER_SUFFIX)]
-    return stem.endswith(_CURATED_SUFFIX)
 
 
 # ── (De)serialization ─────────────────────────────────────────────────
@@ -150,18 +159,8 @@ def load_all_aliases(bundle_path: str | None = None) -> dict[str, str]:
     """Read every ``aliases/*.tsv`` member from the bundle, union into
     one dict. Empty when the bundle is absent or has no aliases members.
 
-    Load order: **auto-derived members first, curated overlays last.**
-    The auto-derive pipeline rebuilds ``aliases/{lang}.tsv`` from the
-    LOINC LinguisticVariant CSV on every refresh — same key can flip to
-    a different English canonical between releases. The hand-curated
-    ``aliases/{lang}_curated.tsv`` is the authoritative manual layer
-    (bypasses the cosine filter, covers CLASS-es the auto-derive skips,
-    encodes domain judgment that LOINC doesn't represent). Loading
-    curated last makes ``dict.update`` give it the final word on any
-    duplicate key — without this ordering, an auto-derived entry that
-    happens to share a key with a curated one silently overrides the
-    human-audited canonical.
-
+    Curated entries are merged into ``aliases/{lang}.tsv`` at build time
+    (see module docstring) — no overlay carve-out at load time.
     Cross-language key collisions (one CJK term in zh.tsv vs ja.tsv,
     say) are vanishingly rare and resolve via tar-member iteration
     order — non-deterministic but inconsequential at the observed
@@ -169,8 +168,6 @@ def load_all_aliases(bundle_path: str | None = None) -> dict[str, str]:
     """
     path = bundle_path or BUNDLE_PATH
     members = [n for n in list_members(bundle_path=path) if _is_aliases_member(n)]
-    # Non-curated first, curated last — see docstring.
-    members.sort(key=_is_curated_member)
     out: dict[str, str] = {}
     for name in members:
         raw = read_member(name, bundle_path=path)
@@ -193,13 +190,6 @@ def list_aliases_languages(bundle_path: str | None = None) -> list[str]:
 
 
 # ── Build pipeline ────────────────────────────────────────────────────
-
-
-# LOINC CLASS prefixes to keep when deriving the lexicon. Other classes
-# (CHEM / HEM / SURVEY / DOC / …) are skipped: the embedding already
-# bridges general clinical chemistry well, and the rest is questionnaire
-# / administrative vocabulary that doesn't belong here.
-_KEEP_CLASSES = frozenset({"MICRO", "ALLERGY", "DRUG/TOX"})
 
 
 # Axis suffixes to strip from each dot-segment, leaving the bare
@@ -352,6 +342,137 @@ def _passes_src_shape(s: str, lang: str) -> bool:
     return p is not None and p.match(s) is not None
 
 
+# Per-language "core script" regex for RELATEDNAMES2 mining (see
+# :func:`_mine_rn2_pairs`). Only non-Latin-script langs are listed:
+# de/fr/es/pt write COMPONENT in pure Latin, so there's no mixed-script
+# alias-recovery opportunity in their RN2.
+_CORE_SCRIPT_BY_LANG: dict[str, re.Pattern] = {
+    "zh": re.compile(r"[一-鿿]+"),
+    "ko": re.compile(r"[가-힯]+"),
+    "ru": re.compile(r"[А-Яа-яЁё]+"),
+}
+
+# Minimum length of the COMPONENT-segment core script substring required
+# to trust an RN2-mined alias. Two-char cores like ``抗体`` (antibody) or
+# ``抗原`` (antigen) are too generic — they'd mis-bridge any 抗体 query
+# to the specific compound the row encodes. Three-char minimum keeps
+# Greek-prefix compounds (``酮戊二酸`` — 4 chars) and excludes the
+# generic axis-modifier 2-char fragments.
+_RN2_MIN_CORE = 3
+
+
+# ── Positional-isomer mining (Greek prefix + optional digit) ──────────
+
+
+# LOINC zhCN writes positional isomers as mixed-script COMPONENTs:
+# ``Beta 丙氨酸`` (Beta alanine), ``Alpha 1 微球蛋白`` (Alpha-1 microglobulin),
+# ``Alpha 酮戊二酸`` (Alpha ketoglutarate). The user-side colloquial form
+# uses Greek letters (``β-丙氨酸``, ``α1-微球蛋白``). Without a position-
+# aware bridge, naive bare-CJK extraction would emit ``丙氨酸 → Beta
+# alanine`` (because the Beta row's RN2 attests ``丙氨酸`` many times,
+# overpowering the un-prefixed ``Alanine`` row's single attestation in
+# majority vote) — a silent bug that pushes plain-``丙氨酸`` queries to
+# the wrong isomer. The positional pipeline (parallel in spirit to
+# :mod:`.analyte_digit` which bridges ``Vit B1 → Thiamine``) emits
+# explicit position-marked keys instead.
+_GREEK_WORD_TO_LETTER: dict[str, str] = {
+    "Alpha": "α",
+    "Beta":  "β",
+    "Gamma": "γ",
+    "Delta": "δ",
+}
+
+# Matches ``<GreekWord>[\s|-]+[<digit>[\s|-]+]<rest>``. LOINC uses
+# both styles inconsistently across its English COMPONENT column:
+# ``Beta alanine`` (space), ``Beta-2-Microglobulin`` (dashes),
+# ``Alpha 1 antitrypsin`` (mixed). The zhCN translations mirror these.
+# Both sides (zh COMPONENT and en COMPONENT) must independently match
+# with identical greek+digit before we trust the row as positional —
+# guards against zhCN translation glitches where the prefix is on one
+# side but not the other.
+_POSITION_DETECT_RE = re.compile(
+    r"^(Alpha|Beta|Gamma|Delta)[\s\-]+(?:(\d+)[\s\-]+)?(.+)$"
+)
+
+
+def _detect_position_row(
+    zh_seg: str, en_seg: str, src_tail: frozenset,
+) -> tuple[str, "str | None", str, str] | None:
+    """Return ``(greek_word, digit_or_None, zh_base, en_canonical)`` if
+    *zh_seg* + *en_seg* form a positional-isomer pair, else ``None``.
+
+    Both sides must carry the same Greek word and same digit (or both
+    no digit). The zh base must contain at least 2 contiguous CJK chars
+    after tail-axis stripping (``抗原`` / ``抗体`` / etc.) — otherwise it's
+    an empty-translation glitch or a generic-axis-only segment. The EN
+    canonical is the full *en_seg* (preserves LOINC's separator style:
+    ``Beta-2-Microglobulin`` stays dashed; ``Beta alanine`` stays
+    spaced) after tail-axis stripping.
+    """
+    m_zh = _POSITION_DETECT_RE.match(zh_seg)
+    m_en = _POSITION_DETECT_RE.match(en_seg)
+    if not (m_zh and m_en):
+        return None
+    if m_zh.group(1) != m_en.group(1):
+        return None
+    if (m_zh.group(2) or "") != (m_en.group(2) or ""):
+        return None
+    zh_base = _strip_tail((m_zh.group(3) or "").strip(), src_tail)
+    en_canonical = _strip_tail(en_seg.strip(), _EN_TAIL_AXES)
+    if not zh_base or not en_canonical:
+        return None
+    if not re.search(r"[一-鿿]{2,}", zh_base):
+        return None
+    return (m_zh.group(1), m_zh.group(2), zh_base, en_canonical)
+
+
+# Separator variants between prefix-and-digit, digit-and-base, or
+# prefix-and-base. Empty / dash / space all appear in real user queries.
+_POSITION_SEPS = ("", "-", " ")
+
+
+def _position_marked_aliases(
+    greek_word: str, digit: "str | None", zh_base: str,
+) -> list[str]:
+    """All position-marked alias keys for a row. Covers Greek-letter
+    (lowercase) + ``Alpha``/``alpha`` word forms × separator variants.
+
+    No-digit row (``greek_word=Beta``, ``zh_base=丙氨酸``):
+
+        β丙氨酸, β-丙氨酸, β 丙氨酸,
+        Beta丙氨酸, Beta-丙氨酸, Beta 丙氨酸,
+        beta丙氨酸, beta-丙氨酸, beta 丙氨酸
+
+    Digit row (``greek_word=Alpha``, ``digit=1``, ``zh_base=微球蛋白``):
+    3 prefix forms × 3 sep1 × 3 sep2 = 27 variants (deduped).
+
+    Uppercase Greek letters (``Α``, ``Β``) and single-Latin-letter
+    shorthand (``A-``, ``B-``) deliberately omitted — they collide
+    visually with Latin and would require NFKC normalization to be
+    safe.
+    """
+    letter = _GREEK_WORD_TO_LETTER[greek_word]
+    prefixes = (letter, greek_word, greek_word.lower())
+    out: list[str] = []
+    seen: set[str] = set()
+    if digit:
+        for p in prefixes:
+            for s1 in _POSITION_SEPS:
+                for s2 in _POSITION_SEPS:
+                    k = f"{p}{s1}{digit}{s2}{zh_base}"
+                    if k not in seen:
+                        seen.add(k)
+                        out.append(k)
+    else:
+        for p in prefixes:
+            for s in _POSITION_SEPS:
+                k = f"{p}{s}{zh_base}"
+                if k not in seen:
+                    seen.add(k)
+                    out.append(k)
+    return out
+
+
 def _strip_tail(seg: str, tail: frozenset[str]) -> str:
     toks = seg.split()
     while toks and toks[-1] in tail:
@@ -360,7 +481,26 @@ def _strip_tail(seg: str, tail: frozenset[str]) -> str:
 
 
 def _dot_segments(s: str) -> list[str]:
-    return [seg.strip() for seg in s.split(".") if seg.strip()]
+    """Split a LOINC COMPONENT into per-analyte segments.
+
+    Splits on ``.`` (axis-modifier separator: ``X.subtype.spec``),
+    ``/`` (ratio numerator/denominator: ``X/Y``), AND ``^``
+    (LOINC's sub-modifier separator: ``Substance^Challenge^
+    Adjustment^DivisorSubstance`` within the COMPONENT axis — e.g.
+    ``Alpha-1-Fetoprotein^^adjusted for weight`` or
+    ``Alpha cortolone^2D post dose dexamethasone``).
+
+    Without splitting on ``^``, the merge would emit composite
+    entries like ``Alpha 1胎儿球蛋白^^经过针对体重而调整的 →
+    Alpha-1-Fetoprotein^^adjusted for weight`` that no clinical
+    query ever uses (the ``^`` glyph doesn't appear in CN clinical
+    text) AND would inflate the alias dict by pairing wrong sub-
+    parts when the auto-mining heuristic falls back to substring
+    matching (``型抗体`` ↔ ``HIV 1+2 Ab+HIV1 p24`` style noise).
+    Splitting on all three separators yields per-axis-segment
+    aliases that match real query text.
+    """
+    return [seg.strip() for seg in re.split(r"[./^]", s) if seg.strip()]
 
 
 # Patterns for LOINC-jargon noise that survives axis-stripping. The
@@ -413,31 +553,169 @@ _TWO_CHAR_ALLOWLIST = frozenset({
 })
 
 
+def _mine_rn2_pairs(
+    joined,
+    lang: str,
+    src_tail: frozenset,
+    pass1_keys: "set[str] | None" = None,
+) -> list[tuple[str, str]]:
+    """Mine analyte aliases from LOINC LinguisticVariant ``RELATEDNAMES2``
+    for mixed-script COMPONENT segments. Two sub-paths depending on
+    segment shape:
+
+    **Positional rows** (zh only — Greek-prefix convention is specific
+    to LOINC zhCN): COMPONENT like ``Beta 丙氨酸`` / ``Alpha 1 微球蛋白``
+    where both sides start with ``Alpha|Beta|Gamma|Delta``. Emits
+    position-MARKED variants (``β-丙氨酸``, ``Beta-丙氨酸``,
+    ``α1-微球蛋白``, …) keyed against the EN canonical of THIS row.
+    Bare-CJK base is NOT emitted here — it'd collide with the
+    un-prefixed sibling LOINC row's canonical (``丙氨酸 → Alanine``
+    from row 20636-7 vs ``丙氨酸 → Beta alanine`` from row 1932-3;
+    naive bare-CJK mining picks the wrong one via majority vote since
+    each positional row's RN2 carries many ``丙氨酸``-containing tokens).
+    After all rows are processed, the bare CJK is emitted ONCE per base
+    if and only if the base has exactly one positional canonical AND
+    Pass 1 didn't already bridge it (``酮戊二酸`` is OK because LOINC
+    has no un-prefixed canonical and only the Alpha form exists).
+
+    **Non-positional mixed-script rows** (any lang with a
+    :data:`_CORE_SCRIPT_BY_LANG` entry): COMPONENT like ``Anti-XX 抗体``
+    where the mixed-script doesn't follow the positional pattern.
+    Extracts the core-script run from each RN2 token and emits if it
+    passes the per-language shape filter.
+
+    Latin-script langs (de/fr/es/...) skip this entirely — their
+    LOINC COMPONENTs are pure-Latin so there's no mixed-script
+    recovery opportunity, and the core-script regex isn't defined
+    for them. ``ja`` uses UMLS MRCONSO (different code path) and
+    likewise doesn't invoke this.
+    """
+    core_re = _CORE_SCRIPT_BY_LANG.get(lang)
+    if core_re is None:
+        return []
+    pass1_keys = pass1_keys or set()
+    out: list[tuple[str, str]] = []
+    # Track positional rows for the post-pass bare-CJK singleton
+    # emission step.
+    positional_base_canonicals: dict[str, set[str]] = defaultdict(set)
+
+    for row in joined.iter_rows(named=True):
+        rn2 = row.get("_RN2") or ""
+        src_full = (row["_LING"] or "").strip()
+        dst_full = (row["COMPONENT"] or "").strip()
+        src_segs = _dot_segments(src_full)
+        dst_segs = _dot_segments(dst_full)
+        # RN2 uses both ``;`` and whitespace as token separators —
+        # group boundaries (space) and intra-group separators (``;``)
+        # both flatten to one token bag. We don't rely on group order
+        # because it's inconsistent across rows; instead we filter by
+        # core-substring containment.
+        tokens = [t for t in re.split(r"[;\s]+", rn2) if t] if rn2 else []
+        for i in range(min(len(src_segs), len(dst_segs))):
+            src_seg = src_segs[i]
+            dst_seg = dst_segs[i]
+
+            # Positional-row path (zh only).
+            if lang == "zh":
+                pos = _detect_position_row(src_seg, dst_seg, src_tail)
+                if pos is not None:
+                    greek_word, digit, zh_base, en_canonical = pos
+                    if len(en_canonical.split()) > 5:
+                        continue
+                    for alias in _position_marked_aliases(greek_word, digit, zh_base):
+                        if 2 <= len(alias) <= 24:
+                            out.append((alias, en_canonical))
+                    positional_base_canonicals[zh_base].add(en_canonical)
+                    continue  # Skip non-positional pass for this segment.
+
+            # Non-positional mixed-script path.
+            if not tokens:
+                continue
+            if not re.search(r"[A-Za-z0-9]", src_seg):
+                continue  # Pure-script — main pass handles it.
+            cores = core_re.findall(src_seg)
+            if not cores:
+                continue
+            core = max(cores, key=len)
+            if len(core) < _RN2_MIN_CORE:
+                continue
+            d = _strip_tail(dst_seg, _EN_TAIL_AXES)
+            if not d or not re.search(r"[A-Za-z]{3,}", d) or len(d.split()) > 5:
+                continue
+            for tok in tokens:
+                if core not in tok:
+                    continue
+                # Extract the script run containing core (handles
+                # mixed-script tokens like ``Alpha 酮戊二酸根`` → ``酮戊二酸根``).
+                cand = next(
+                    (m for m in core_re.findall(tok) if core in m),
+                    None,
+                )
+                if cand is None:
+                    continue
+                cand = _strip_tail(cand, src_tail)
+                if _passes_src_shape(cand, lang):
+                    out.append((cand, d))
+
+    # Bare-CJK emission for positional singletons. Two guards: (1) Pass
+    # 1 didn't already bridge this base (don't override the canonical
+    # un-prefixed LOINC row); (2) only one EN canonical attests this
+    # base across all positional rows (no Greek competition).
+    n_singleton = 0
+    for zh_base, canonicals in positional_base_canonicals.items():
+        if zh_base in pass1_keys:
+            continue
+        if len(canonicals) != 1:
+            continue
+        out.append((zh_base, next(iter(canonicals))))
+        n_singleton += 1
+    if n_singleton:
+        log.info(
+            "lexicon build [%s]: %d positional bare-CJK singletons emitted",
+            lang, n_singleton,
+        )
+
+    return out
+
+
 def _derive_pairs_from_loinc(loinc_csv: str, ling_csv: str, lang: str) -> dict[str, str]:
     """Stage 1: aggregate (src, dst) pairs from LOINC main + per-
     language linguistic variant, axis-stripped and shape-filtered.
+
+    All active LOINC rows are considered — no CLASS gate. The earlier
+    MICRO/ALLERGY/DRUG/TOX-only filter assumed Gemini bridged CHEM /
+    HEM / PULM reliably; in practice it doesn't (FEV1/FVC vs FEV1/FEV
+    total siblings cosine within 0.002 even with a curated alias) so
+    every class gets a chance to contribute auto-derived bridges.
+
+    Two-pass mining:
+
+      - Pass 1 walks dot-segmented COMPONENT and aligns segments to
+        the EN COMPONENT — the existing path for pure-script entries.
+      - Pass 2 (:func:`_mine_rn2_pairs`) recovers pure-script analyte
+        aliases from RELATEDNAMES2 for mixed-script COMPONENT segments
+        (``Alpha 酮戊二酸 → Alpha ketoglutarate`` via the ``α-酮戊二酸``
+        alias in RN2). Skipped for Latin-script langs.
     """
     import polars as pl
     en = pl.read_csv(
         loinc_csv,
-        columns=["LOINC_NUM", "COMPONENT", "CLASS", "STATUS"],
+        columns=["LOINC_NUM", "COMPONENT", "STATUS"],
         infer_schema=False,
-    ).filter(
-        (pl.col("STATUS") == "ACTIVE")
-        & (pl.col("CLASS").is_in(list(_KEEP_CLASSES)))
-    )
+    ).filter(pl.col("STATUS") == "ACTIVE")
     zh = pl.read_csv(
         ling_csv,
-        columns=["LOINC_NUM", "COMPONENT"],
+        columns=["LOINC_NUM", "COMPONENT", "RELATEDNAMES2"],
         infer_schema=False,
-    ).rename({"COMPONENT": "_LING"})
+    ).rename({"COMPONENT": "_LING", "RELATEDNAMES2": "_RN2"})
     joined = en.join(zh, on="LOINC_NUM", how="inner").filter(
         pl.col("_LING").is_not_null() & pl.col("COMPONENT").is_not_null()
     )
-    log.info("lexicon build [%s]: %d active rows in %s", lang, joined.height, _KEEP_CLASSES)
+    log.info("lexicon build [%s]: %d active rows (all CLASSes)", lang, joined.height)
 
     src_tail = _TAIL_AXES_BY_LANG.get(lang, frozenset())
     pairs: list[tuple[str, str]] = []
+    pass1_keys: set[str] = set()
     for row in joined.iter_rows(named=True):
         src_full = row["_LING"].strip()
         dst_full = row["COMPONENT"].strip()
@@ -455,6 +733,19 @@ def _derive_pairs_from_loinc(loinc_csv: str, ling_csv: str, lang: str) -> dict[s
             if len(d.split()) > 5:
                 continue
             pairs.append((s, d))
+            pass1_keys.add(s)
+    n_main = len(pairs)
+
+    # Pass 2: RELATEDNAMES2 mining for mixed-script COMPONENT segments.
+    # ``pass1_keys`` lets the positional pipeline skip bare-CJK emission
+    # for bases that Pass 1 already canonicalized — see the docstring on
+    # :func:`_mine_rn2_pairs` for the ``丙氨酸`` example.
+    rn2_pairs = _mine_rn2_pairs(joined, lang, src_tail, pass1_keys=pass1_keys)
+    pairs.extend(rn2_pairs)
+    log.info(
+        "lexicon build [%s]: %d pairs from COMPONENT + %d from RELATEDNAMES2",
+        lang, n_main, len(rn2_pairs),
+    )
 
     agg: dict[str, Counter] = defaultdict(Counter)
     for s, d in pairs:
@@ -462,7 +753,12 @@ def _derive_pairs_from_loinc(loinc_csv: str, ling_csv: str, lang: str) -> dict[s
     out: dict[str, str] = {}
     for s, ctr in agg.items():
         total = sum(ctr.values())
-        top_d, top_n = ctr.most_common(1)[0]
+        # Deterministic majority vote: sort by (-count, alphabetical
+        # EN) so ties resolve the same way regardless of insertion
+        # order. Counter.most_common preserves insertion order on ties,
+        # which would make the output depend on LOINC row order.
+        ranked = sorted(ctr.items(), key=lambda kv: (-kv[1], kv[0]))
+        top_d, top_n = ranked[0]
         # ≥ 2 attestations require 55% majority; single attestation OK
         # for 3+ CJK char keys (Latin binomial alignment is reliable
         # at df=1 — only multi-attestation noise needs the majority
@@ -478,10 +774,22 @@ def _derive_genus_aliases(lex: dict[str, str]) -> dict[str, str]:
     ``烟曲霉 → Aspergillus fumigatus`` + ``黄曲霉 → Aspergillus flavus``
     +  ``黑曲霉 → Aspergillus niger`` lets us derive ``曲霉 → Aspergillus``
     by majority vote on the shared CJK suffix.
+
+    Skips entries whose ``dst`` starts with a Greek position prefix
+    (``Alpha``/``Beta``/``Gamma``/``Delta``) — the first-word genus
+    heuristic was designed for Latin binomials (``Genus species``) where
+    ``dst.split()[0]`` is a meaningful taxon. For positional-isomer
+    compounds (``Alpha-1-Acid glycoprotein``, ``Beta alanine``,
+    ``Gamma aminobutyrate``) it returns the position prefix, which is
+    semantically wrong as a genus name. Without this guard, ``Alpha-1-酸性糖蛋白``
+    would seed ``糖蛋白 → Alpha-1-Acid`` (truncated, missing the actual
+    analyte).
     """
     suf_genus: dict[str, Counter] = defaultdict(Counter)
     for src, dst in lex.items():
         if len(src) < 4:
+            continue
+        if _POSITION_DETECT_RE.match(dst):
             continue
         words = dst.split()
         if len(words) < 2 or not words[0][0].isupper():
@@ -496,34 +804,6 @@ def _derive_genus_aliases(lex: dict[str, str]) -> dict[str, str]:
         if total >= 3 and top_n / total >= 0.7:
             derived[suf] = top_g
     return derived
-
-
-async def _filter_by_cosine(lex: dict[str, str], threshold: float = 0.70) -> dict[str, str]:
-    """Stage 3: drop entries where the embedding model already bridges
-    ``src ↔ dst`` (cosine ≥ *threshold*). The augmentation only helps
-    when the bridge is genuinely weak; high-cosine pairs would just
-    dilute the embedding with redundant English tokens.
-    """
-    from mirobody.utils.embedding import text_embedding
-    items = list(lex.items())
-    if not items:
-        return {}
-    srcs = [s for s, _ in items]
-    dsts = [d for _, d in items]
-    log.info("lexicon build: embedding %d src + %d dst pairs (cached)", len(srcs), len(dsts))
-    src_emb = await text_embedding(srcs, provider="gemini", cache=True)
-    dst_emb = await text_embedding(dsts, provider="gemini", cache=True)
-    sa = np.asarray(src_emb, dtype=np.float32)
-    da = np.asarray(dst_emb, dtype=np.float32)
-    sa /= np.linalg.norm(sa, axis=1, keepdims=True) + 1e-9
-    da /= np.linalg.norm(da, axis=1, keepdims=True) + 1e-9
-    cos = (sa * da).sum(axis=1)
-    kept = {srcs[i]: dsts[i] for i in range(len(items)) if cos[i] < threshold}
-    log.info(
-        "lexicon build: cosine<%.2f kept %d / %d (dropped %d the model already knows)",
-        threshold, len(kept), len(items), len(items) - len(kept),
-    )
-    return kept
 
 
 def _strip_noise(lex: dict[str, str]) -> dict[str, str]:
@@ -699,19 +979,90 @@ def _looks_specialty(en: str) -> bool:
     return False
 
 
-async def build_lexicon(
+def _load_curated_input(res_dir: str, lang: str) -> dict[str, str]:
+    """Read ``aliases_src/{lang}_curated.tsv`` — the hand-edited source-
+    of-truth for entries that supplement (or override) the auto-derive
+    layer. Returns ``{}`` when the file is missing.
+
+    Comments (``#`` prefix) and blank lines are stripped by
+    :func:`_decode_tsv`. This is the only input besides the LOINC
+    LinguisticVariant CSV — keeping it on disk under ``aliases_src/``
+    means ``git diff`` surfaces every curated change for review.
+    """
+    path = os.path.join(res_dir, "aliases_src", f"{lang}_curated.tsv")
+    if not os.path.isfile(path):
+        return {}
+    with open(path, "rb") as f:
+        raw = f.read()
+    out = _decode_tsv(raw)
+    log.info("curated input [%s]: %d entries from %s", lang, len(out), path)
+    return out
+
+
+# Languages written in a non-Latin script — augment keys MUST contain a
+# non-ASCII codepoint, because an ASCII-only key here means an EN-leak
+# (e.g. ``EBV\tEpstein Barr virus`` mistakenly in ``zh_curated.tsv``).
+# Latin-script langs (de/fr/es/pt/it/nl/cs/pl/tr/…) legitimately have
+# ASCII-only keys for words like ``Calcium`` or ``Formule``; those get
+# caught by the identity-pair check instead.
+_NON_LATIN_SCRIPT_LANGS = frozenset({"ar", "el", "ja", "ko", "ru", "uk", "zh"})
+
+
+def _enforce_direction(lex: dict[str, str], lang: str) -> dict[str, str]:
+    """Direction filter — drop pairs that fail the foreign→EN contract.
+
+    Two rules, applied universally:
+
+    1. **Identity drop** — pairs where ``src.casefold() == dst.casefold()``
+       contribute no signal at augment time (Gemini already bridges
+       ``Calcium → Calcium`` without help). Without the old cosine
+       filter these auto-derived no-ops would inflate the TSV;
+       dropping them is a deterministic equivalent that doesn't depend
+       on any embedding provider.
+
+    2. **Script drop** (non-Latin-script langs only) — keys with no
+       non-ASCII codepoint can't have come from a non-Latin source
+       script and must be a tagging mistake in the curated input.
+       Reject with a WARN so it surfaces in the build log.
+
+    Latin-script langs skip rule (2) — German ``Glukose`` legitimately
+    maps to English ``Glucose`` with no umlauts, and the per-language
+    shape regex already requires the right Latin subset.
+    """
+    bad_identity = {k for k, v in lex.items() if k.casefold() == v.casefold()}
+    bad_ascii: set[str] = set()
+    if lang in _NON_LATIN_SCRIPT_LANGS:
+        bad_ascii = {
+            k for k in lex
+            if k not in bad_identity and all(ord(c) < 128 for c in k)
+        }
+        if bad_ascii:
+            log.warning(
+                "[%s] dropping %d ASCII-only key(s) (non-Latin-script lang "
+                "expects non-ASCII source): %s",
+                lang, len(bad_ascii), sorted(bad_ascii)[:8],
+            )
+    drop = bad_identity | bad_ascii
+    if bad_identity:
+        log.info(
+            "[%s] dropped %d identity pair(s) (src ≈ dst, augment no-op)",
+            lang, len(bad_identity),
+        )
+    return {k: v for k, v in lex.items() if k not in drop}
+
+
+def build_lexicon(
     loinc_dir: str,
     lang: str,
-    cosine_threshold: float = 0.70,
+    res_dir: str,
     *,
     mrconso_path: str | None = None,
 ) -> dict[str, str]:
     """Full lexicon build for one language. See module docstring for
-    the per-stage rationale.
+    the per-stage rationale. Deterministic — no embedding-API calls.
 
     For languages in :data:`_UMLS_FALLBACK_LANGS` (currently ``ja``),
     sources from UMLS MRCONSO instead of a LOINC LinguisticVariant CSV.
-    Pass *mrconso_path* explicitly or set the env var or pass via CLI.
     """
     if lang in _UMLS_FALLBACK_LANGS:
         if mrconso_path is None or not os.path.isfile(mrconso_path):
@@ -734,33 +1085,36 @@ async def build_lexicon(
                 f"no LinguisticVariant CSV for lang={lang!r} in {loinc_dir}"
             )
         base = _derive_pairs_from_loinc(loinc_csv, ling_csv, lang)
-    # Merge derived genus aliases into the species lexicon BEFORE the
-    # cosine filter — the genus derivation works off species-level
-    # pairs, then we score everything together.
+    # Genus derivation runs on auto pairs only (curated entries are
+    # already authoritative endpoints; we don't want curated 2-3-char
+    # additions accidentally minting derived genus rules).
     for k, v in _derive_genus_aliases(base).items():
         base.setdefault(k, v)
     log.info("lexicon build [%s]: %d raw pairs (species + derived genus)", lang, len(base))
 
-    filtered = await _filter_by_cosine(base, threshold=cosine_threshold)
-    cleaned = _strip_noise(filtered)
+    cleaned = _strip_noise(base)
 
-    # Script-variant expansion: for zh, mirror every Simplified key to
-    # its Traditional form so a query in either script hits the same EN
-    # canonical. Cheap (~1ms via zhconv) and avoids maintaining a second
-    # zh-Hant.tsv member that's 99% redundant with zh.tsv.
-    if lang == "zh":
-        cleaned = _expand_zh_traditional(cleaned)
-
+    # Curated merge — curated wins on key collisions. ``dict.update``
+    # gives the second arg the final word, so we update the AUTO dict
+    # with curated entries.
+    curated = _load_curated_input(res_dir, lang)
+    overlap = len(set(cleaned) & set(curated))
+    merged = dict(cleaned)
+    merged.update(curated)
     log.info(
-        "lexicon build [%s]: final %d auto-derived entries (Trad-expanded if zh)",
-        lang, len(cleaned),
+        "lexicon build [%s]: auto=%d + curated=%d (overlap=%d) → %d merged",
+        lang, len(cleaned), len(curated), overlap, len(merged),
     )
-    # Curated layer is stored separately in ``aliases/{lang}_curated.tsv``
-    # — a bundle member that this build never touches, so manual
-    # additions survive every refresh. ``load_all_aliases`` unions all
-    # ``aliases/*.tsv`` members at runtime, so callers see one merged
-    # dict regardless of how many TSVs back it.
-    return cleaned
+
+    # Script-variant expansion: for zh, mirror every Simplified key
+    # (auto + curated) to its Traditional form. Cheap (~1ms via zhconv)
+    # and avoids maintaining a second zh-Hant.tsv member.
+    if lang == "zh":
+        merged = _expand_zh_traditional(merged)
+
+    merged = _enforce_direction(merged, lang)
+    log.info("lexicon build [%s]: final %d entries", lang, len(merged))
+    return merged
 
 
 def _expand_zh_traditional(lex: dict[str, str]) -> dict[str, str]:
@@ -796,13 +1150,17 @@ def _expand_zh_traditional(lex: dict[str, str]) -> dict[str, str]:
 # ── CLI handler ───────────────────────────────────────────────────────
 
 
-async def cmd_loinc_lexicon(args: argparse.Namespace) -> None:
+def cmd_loinc_lexicon(args: argparse.Namespace) -> None:
     """Subcommand: ``loinc-lexicon`` — build & write ``aliases/{lang}.tsv``
     into ``fhir_loinc_bundle.tar.gz`` AND keep a loose copy at
     ``mirobody/res/aliases_src/{lang}.tsv`` for git-diff review.
 
     LOINC LinguisticVariant path for zh / ko / de / etc.; UMLS MRCONSO
     fallback for languages without a LOINC translation (currently ja).
+
+    Synchronous: the build is pure string-rule, no embedding API calls.
+    Purges any stale ``aliases/{lang}_curated.tsv`` bundle member after
+    writing — curated entries now live in the merged main TSV.
     """
     res_dir = args.res_dir or RES_DIR
     bundle_path = os.path.join(res_dir, BUNDLE_BASENAME)
@@ -813,8 +1171,8 @@ async def cmd_loinc_lexicon(args: argparse.Namespace) -> None:
             "needs LoincTable/Loinc.csv and AccessoryFiles/LinguisticVariants/"
         )
 
-    lex = await build_lexicon(
-        args.loinc_dir, args.lang, args.cosine_threshold,
+    lex = build_lexicon(
+        args.loinc_dir, args.lang, res_dir,
         mrconso_path=args.mrconso,
     )
     payload = _encode_tsv(lex)
@@ -830,3 +1188,11 @@ async def cmd_loinc_lexicon(args: argparse.Namespace) -> None:
 
     # Bundle member for production loading.
     write_member(_member_name(args.lang), payload, bundle_path=bundle_path)
+
+    # Purge any stale curated-overlay member — its content is now baked
+    # into the merged main TSV. No-op when the member doesn't exist
+    # (first build for a new language, or already removed).
+    stale = f"{_MEMBER_PREFIX}{args.lang}_curated{_MEMBER_SUFFIX}"
+    if remove_member(stale, bundle_path=bundle_path):
+        log.info("purged stale bundle member %s (now merged into %s)",
+                 stale, _member_name(args.lang))

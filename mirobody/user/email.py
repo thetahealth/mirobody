@@ -85,13 +85,33 @@ class MandrillEmailValidator(AbstractEmailCodeValidator):
 
         if not self._mandrill_client:
             return "Invalid email client."
-        
+
+        #-------------------------------------------------
+
+        if service and isinstance(service, str):
+            lower_email_with_service = lower_email + ":" + service
+        else:
+            lower_email_with_service = lower_email
+
+        actual_expires_in = self._expires_in
+        if isinstance(expires_in, int) and expires_in > 0:
+            actual_expires_in = expires_in
+
+        # Skip if still in the sending cooldown window.
+        if self._redis:
+            if await self._redis.exists(self._limit_keyprefix + lower_email_with_service):
+                return None
+        else:
+            existing = self._codes.get(lower_email_with_service)
+            if existing and existing["cold_down"] > time.time():
+                return None
+
         #-------------------------------------------------
 
         code = str(secrets.randbelow(1000000)).zfill(6)
-        
+
         formatted_code = "".join([f"<span>{digit}</span>" for digit in code])
-        
+
         result = self._mandrill_client.messages.send_template(
             template_name   = self._template,
             template_content= [
@@ -124,17 +144,8 @@ class MandrillEmailValidator(AbstractEmailCodeValidator):
             },
             send_async      = False
         )
-        
+
         #-------------------------------------------------
-
-        if service and isinstance(service, str):
-            lower_email_with_service = lower_email + ":" + service
-        else:
-            lower_email_with_service = lower_email
-
-        actual_expires_in = self._expires_in
-        if isinstance(expires_in, int) and expires_in > 0:
-            actual_expires_in = expires_in
 
         if result and len(result) > 0 and result[0].get("status") in ["sent", "queued"]:
             if self._redis:
@@ -312,7 +323,27 @@ class SMTPEmailValidator(AbstractEmailCodeValidator):
 
         if not self._smtp_host or not self._smtp_user or not self._smtp_pass:
             return "Invalid SMTP configuration."
-        
+
+        #-------------------------------------------------
+
+        if service and isinstance(service, str):
+            lower_email_with_service = lower_email + ":" + service
+        else:
+            lower_email_with_service = lower_email
+
+        actual_expires_in = self._expires_in
+        if isinstance(expires_in, int) and expires_in > 0:
+            actual_expires_in = expires_in
+
+        # Skip if still in the sending cooldown window.
+        if self._redis:
+            if await self._redis.exists(self._limit_keyprefix + lower_email_with_service):
+                return None
+        else:
+            existing = self._codes.get(lower_email_with_service)
+            if existing and existing["cold_down"] > time.time():
+                return None
+
         #-------------------------------------------------
 
         code = str(secrets.randbelow(1000000)).zfill(6)
@@ -344,17 +375,8 @@ class SMTPEmailValidator(AbstractEmailCodeValidator):
 
         except Exception as e:
             return f"Failed to send email: {str(e)}"
-        
+
         #-------------------------------------------------
-
-        if service and isinstance(service, str):
-            lower_email_with_service = lower_email + ":" + service
-        else:
-            lower_email_with_service = lower_email
-
-        actual_expires_in = self._expires_in
-        if isinstance(expires_in, int) and expires_in > 0:
-            actual_expires_in = expires_in
 
         # Store the code
         if self._redis:

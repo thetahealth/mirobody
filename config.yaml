@@ -5,15 +5,26 @@
 
 #-----------------------------------------------------------------------------
 # Logging Configuration.
+#
+# By default, logs go to console only (stdout).
+# To enable file logging, set LOG_NAME and LOG_DIR in your config.{env}.yaml:
+#   LOG_NAME: mirobody
+#   LOG_DIR: ./logs
+# Log files are created as {date}_{name}_{time}.log in LOG_DIR.
 
-# Set LOG_NAME to an empty string to disable file logging.
 # LOG_NAME: ''
-
 # LOG_DIR: ''
 
 # Log level (case insensitive):
 #   'debug', 'info', 'warning', 'error', or 'critical/fatal'.
 LOG_LEVEL: DEBUG
+
+#-----------------------------------------------------------------------------
+# Timezone Configuration.
+
+# Default timezone for users who haven't set their timezone.
+# Examples: "Asia/Shanghai", "America/New_York", "Europe/London", "UTC"
+DEFAULT_TIMEZONE: America/Los_Angeles
 
 #-----------------------------------------------------------------------------
 # HTTP Server Configuration.
@@ -114,9 +125,12 @@ PG_MAX_CONNECTION: 20
 # EMAIL_TEMPLATE: ''
 # EMAIL_SMTP_PASS: ''
 
-# Predefined email addresses and verification codes for testing purposes.
-# EMAIL_PREDEFINE_CODES:
-#   someone@example.com: '123456'
+# Predefined email addresses and verification codes for testing/demo purposes.
+# Uncomment to enable instant demo login (password: the verification code).
+EMAIL_PREDEFINE_CODES:
+  demo1@mirobody.ai: '777777'
+  demo2@mirobody.ai: '777777'
+  demo3@mirobody.ai: '777777'
 
 #-----------------------------------------------------------------------------
 # OAuth.
@@ -189,7 +203,6 @@ JWT_SCOPE: "mcp:read mcp:write"
 MCP_TOOL_DIRS:
   - mirobody/pub/tools
   - mirobody/pub/tools_health
-  - tools
 MCP_RESOURCE_DIRS:
   - mirobody/pub/resources
   - resources
@@ -203,9 +216,20 @@ SKILL_DIRS:
   - mirobody/pub/skills
   - skills
 
+# LLM provider API keys. Get one (or more) from the provider you intend to use:
+#   GOOGLE_API_KEY     -> https://aistudio.google.com/apikey
+#   OPENAI_API_KEY     -> https://platform.openai.com/api-keys
+#   OPENROUTER_API_KEY -> https://openrouter.ai/keys   (one key, many models)
 GOOGLE_API_KEY: ""
 OPENAI_API_KEY: ""
 OPENROUTER_API_KEY: ""
+
+# DashScope (OpenAI-compatible) API key. Set this to use DashScope-hosted models
+# as LLM / embedding / vision providers via the OpenAI-compatible endpoint
+# (https://dashscope.aliyuncs.com/compatible-mode/v1). See the commented
+# `dashscope` example under PROVIDERS_DEEP below for the provider shape.
+#   Get a key -> https://dashscope.console.aliyun.com/apiKey
+DASHSCOPE_API_KEY: ""
 
 #---------------------------------------------------------
 
@@ -214,43 +238,41 @@ ALLOWED_TOOLS_DEEP:
 DISALLOWED_TOOLS_DEEP:
 
 PROMPTS_DEEP:
-  - pub/agents/deep/prompts/theta_health.jinja
-  - pub/agents/deep/prompts/theta_health_simple.jinja
+  - pub/prompts/deep/theta_health.jinja
+  - pub/prompts/deep/theta_health_simple.jinja
 
 PROVIDERS_DEEP:
-  gemini-3-pro:
+  gemini-3.5-flash:
     llm_type: google-genai
     api_key: GOOGLE_API_KEY
-    model: gemini-3-pro-preview
+    model: gemini-3.5-flash
     temperature: 1.0
-    max_tokens: 60000
-  gemini-3-flash:
-    llm_type: google-genai
-    api_key: GOOGLE_API_KEY
-    model: gemini-3-flash-preview
-    temperature: 1.0
-    max_tokens: 60000
-  gpt-5-mini:
+  gpt-5.4:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
-    model: openai/gpt-5-mini
+    model: openai/gpt-5.4
     temperature: 0.1
-    max_completion_tokens: 60000
   claude-sonnet:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
     model: anthropic/claude-sonnet-4.6
     temperature: 0.1
-    max_completion_tokens: 60000
-  deepseek-v3.2:
+  deepseek:
     llm_type: openai # Uses OpenAI-compatible API via OpenRouter
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
-    model: deepseek/deepseek-v3.2
+    model: deepseek/deepseek-v4-flash
     temperature: 0.1
-    max_completion_tokens: 60000
+  # Example: a DashScope-hosted model via its OpenAI-compatible endpoint.
+  # Uncomment and set DASHSCOPE_API_KEY above to enable.
+  # dashscope:
+  #   llm_type: openai
+  #   api_key: DASHSCOPE_API_KEY
+  #   base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  #   model: qwen-plus
+  #   temperature: 0.1
 
 #---------------------------------------------------------
 
@@ -262,7 +284,38 @@ PROMPTS_RTC:
 
 #---------------------------------------------------------
 
-PROVIDERS_BASELINE:
+ALLOWED_TOOLS_MIX:
+
+DISALLOWED_TOOLS_MIX:
+
+# Phase 1 (Orchestrator): Tool orchestration and data collection prompts (internal use)
+PROMPTS_MIX:
+  - pub/prompts/mix/orchestrator.jinja@orchestrator
+  - pub/prompts/mix/responder.jinja@responder
+
+
+PROVIDERS_MIX:
+  # Phase 1 (Orchestrator): Tool orchestration and data collection
+  claude&gemini:
+    claude-sonnet@orchestrator:
+      llm_type: openai
+      api_key: OPENROUTER_API_KEY
+      base_url: https://openrouter.ai/api/v1
+      model: anthropic/claude-sonnet-4.6
+      temperature: 0.1
+    # Phase 2 (Responder): same model whether or not Phase 1 used tools.
+    # Omitting response_with_tools makes this a flexible responder used for
+    # both cases (see mix/mixin.py _get_responder selection logic).
+    gemini-3.5-flash@responder:
+      llm_type: google-genai
+      api_key: GOOGLE_API_KEY
+      model: gemini-3.5-flash
+      temperature: 1.0
+      include_thoughts: true
+      thinking_level: medium
+#---------------------------------------------------------
+
+PROVIDERS_BASE:
   gemini-2.5-flash:
     api_key: GOOGLE_API_KEY
     model: gemini-2.5-flash
@@ -275,13 +328,13 @@ PROVIDERS_BASELINE:
     output_price: 0.4
   miro-thinker:
     api_key: MIROTHINKER_API_KEY
-    model: miro-thinker
+    model: mirothinker-1-7-deepresearch
 
-ALLOWED_TOOLS_BASELINE:
+ALLOWED_TOOLS_BASE:
 
-DISALLOWED_TOOLS_BASELINE:
+DISALLOWED_TOOLS_BASE:
 
-PROMPTS_BASELINE:
+PROMPTS_BASE:
 
 #-----------------------------------------------------------------------------
 # Third-Party Platform Integrations (Health Devices and Services).
@@ -329,6 +382,7 @@ DATABASE_DECRYPTION_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
 #-----------------------------------------------------------------------------
 # Optional API Keys for Extended Functionality.
 
+
 # DashScope API Key (OPTIONAL)
 # Used for Alibaba Cloud DashScope service (audio transcription).
 # Leave empty if not using ASR (Automatic Speech Recognition) features.
@@ -341,6 +395,16 @@ DATABASE_DECRYPTION_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
 # Jina API Key (OPTIONAL)
 # JINA_API_KEY: ''
 
+# Embedding provider for th_series_dim vector recall column.
+# Supported: gemini, qwen. Default: gemini
+# DIM_EMBEDDING_PROVIDER: gemini
+
+# File analysis LLM provider override (optional).
+# Leave empty for auto-selection based on available API keys.
+# Supported: openai, volcengine, gemini, openrouter, dashscope, doubao-lite
+# Default(no config): auto-select (priority: openai > openrouter > gemini > volcengine > dashscope)
+# FILE_ANALYSIS_PROVIDER: ''
+
 #-----------------------------------------------------------------------------
 # File Processing Configuration.
 
@@ -348,5 +412,10 @@ DATABASE_DECRYPTION_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
 #   0 = disabled (skip extraction)
 #   1 = enabled (extract indicators)
 ENABLE_INDICATOR_EXTRACTION: 1
+EMBEDDING_PROVIDER: gemini
 
+# Vision model for image/PDF parsing (unified_file_extract). The vision provider
+# auto-selects 'gemini' when GOOGLE_API_KEY is set; this overrides its default
+# (gemini-3-flash-preview). Key name = <PROVIDER>_VISION_MODEL, provider='gemini'.
+GEMINI_VISION_MODEL: gemini-3.5-flash
 #-----------------------------------------------------------------------------

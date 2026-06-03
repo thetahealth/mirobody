@@ -59,9 +59,13 @@ class HealthIndicatorService:
             if not user_id or not isinstance(user_id, str):
                 return {"success": False, "error": "Authorization required."}
 
+            # qwen and other LLMs may send keywords as None or a comma string;
+            # normalize so iteration never crashes (qwen frequently passes None).
             if isinstance(keywords, str):
                 keywords = [k.strip() for k in keywords.split(",") if k.strip()]
-            keyword_list = list(dict.fromkeys(k.strip() for k in keywords if isinstance(k, str) and k.strip()))
+            keyword_list = list(dict.fromkeys(
+                k.strip() for k in (keywords or []) if isinstance(k, str) and k.strip()
+            ))
 
             if not keyword_list:
                 return {"success": False, "error": "At least one keyword must be provided."}
@@ -107,41 +111,10 @@ class HealthIndicatorService:
         file_key_map = {}
 
         try:
-            # Strategy 1: Get file_key from EHR file records
-            ehr_query = """
-            SELECT
-                efr.th_data_id,
-                decrypt_content(tm.content) AS content
-            FROM ehr_file_records efr
-            INNER JOIN th_messages tm ON efr.message_id = tm.id
-            WHERE efr.th_data_id = ANY(:data_ids)
-              AND tm.content IS NOT NULL
-            """
-
-            ehr_result = await execute_query(ehr_query, {"data_ids": data_ids})
-
-            if ehr_result:
-                for row in ehr_result:
-                    th_data_id = row["th_data_id"]
-                    content = row["content"]
-
-                    try:
-                        if isinstance(content, str):
-                            content_json = json.loads(content)
-                        else:
-                            content_json = content
-
-                        if isinstance(content_json, dict) and "files" in content_json:
-                            files = content_json["files"]
-                            if isinstance(files, list) and len(files) > 0:
-                                file_key = files[0].get("file_key")
-                                if file_key:
-                                    file_key_map[th_data_id] = file_key
-                    except Exception as e:
-                        logging.warning(f"Failed to parse content JSON for th_data_id {th_data_id}: {str(e)}")
-
-            # Strategy 2: Get file_key from th_files source_table_id
-            remaining_ids = [data_id for data_id in data_ids if data_id not in file_key_map]
+            # Get file_key from th_series_data.source_table_id (source_table='th_files').
+            # The legacy EHR-file-records lookup was removed: ehr_file_records does
+            # not exist in mirobody.
+            remaining_ids = list(data_ids)
 
             if remaining_ids:
                 th_files_query = """
@@ -196,24 +169,22 @@ class HealthIndicatorService:
             }
             time_clause = self._build_time_clause(
                 params, start_time, end_time,
-                "COALESCE(c.start_time, tsd.start_time)",
+                "tsd.start_time",
             )
 
             sql = f"""
             SELECT * FROM (
                 SELECT
                     tsd.id,
-                    COALESCE(c.indicator, tsd.indicator) AS indicator,
-                    COALESCE(c.value, tsd.value) AS value,
+                    tsd.indicator AS indicator,
+                    tsd.value AS value,
                     tsd.fhir_mapping_info AS info,
-                    COALESCE(c.start_time, tsd.start_time) AS start_time,
+                    tsd.start_time AS start_time,
                     ROW_NUMBER() OVER (
                         PARTITION BY tsd.indicator
-                        ORDER BY COALESCE(c.start_time, tsd.start_time) DESC
+                        ORDER BY tsd.start_time DESC
                     ) AS rn
                 FROM th_series_data tsd
-                LEFT JOIN th_series_data_user_correct c
-                    ON c.id = tsd.id AND (c.deleted IS NULL OR c.deleted = 0)
                 WHERE tsd.user_id = :user_id
                   AND tsd.indicator = ANY(:indicator_names)
                   AND tsd.deleted = 0
@@ -268,6 +239,15 @@ class HealthIndicatorService:
             user_id = user_info.get("user_id")
             if not user_id or not isinstance(user_id, str):
                 return {"success": False, "error": "Authorization required."}
+
+            # LLMs (e.g. qwen) may send limit as None/0/str; the SQL `rn <= :limit`
+            # then becomes `rn <= NULL` and drops every row. Coerce to a default.
+            try:
+                limit = int(limit)
+            except (TypeError, ValueError):
+                limit = 100
+            if limit <= 0:
+                limit = 100
 
             if isinstance(indicators, list):
                 indicator_names = indicators

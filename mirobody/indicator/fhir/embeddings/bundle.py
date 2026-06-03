@@ -13,8 +13,7 @@ resolver needs:
     ├── loinc_rank_bonus.npy         # row-aligned float32 cosine bonus
     ├── loinc_alias_index.npz        # multilingual lexical alias index
     ├── fhir_dose_index.npz          # (value, UCUM unit) → corpus rows
-    ├── aliases/{lang}.tsv           # per-language src→canonical-EN
-    └── aliases/{lang}_curated.tsv   # manually curated overlay per lang
+    └── aliases/{lang}.tsv           # per-language src→canonical-EN
 
 Built by ``benchmarks/build_loinc_bundle.py`` (axis + skip + demote)
 followed by the ``loinc-rank``, ``loinc-alias``, ``dose-index``,
@@ -25,10 +24,11 @@ readers always see a consistent state.
 ``aliases/*.tsv`` are loaded as a single merged dict by
 :func:`.lexicon.load_all_aliases` and consumed by
 :func:`.preprocess.augment_zh_aliases` (the function is multilingual
-despite the legacy CN-only name in the docstring). The auto-derived
-``{lang}.tsv`` files are rebuilt by ``loinc-lexicon --lang X``;
-``{lang}_curated.tsv`` is hand-edited and the build never touches it,
-so manual additions survive every refresh.
+despite the legacy CN-only name in the docstring). Each ``{lang}.tsv``
+is the deterministic union of LOINC LinguisticVariant-derived pairs and
+the hand-edited ``mirobody/res/aliases_src/{lang}_curated.tsv`` source
+file (curated entries win on key collisions); rebuilt in full by
+``loinc-lexicon --lang X``.
 
 The SNOMED CT bundle ships separately because its Affiliate License
 obligations are scoped per artifact — see ``fhir_snomed_ct_bundle.NOTICE``:
@@ -174,6 +174,57 @@ def write_member(
         log.info("wrote %r (%d bytes) into %s", name, len(data), path)
     except Exception:
         # Best-effort cleanup of the temp tarball on failure.
+        if os.path.isfile(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+        raise
+
+
+def remove_member(name: str, *, bundle_path: str | None = None) -> bool:
+    """Drop *name* from the bundle if present; return True if removed.
+
+    Same atomic-rewrite pattern as :func:`write_member` — tar gzip isn't
+    seekable, so we copy through every other member into a tempfile and
+    rename-replace. No-op (returns False) when the bundle doesn't exist
+    or the named member isn't present.
+    """
+    path = bundle_path or BUNDLE_PATH
+    if not os.path.isfile(path):
+        return False
+    parent = os.path.dirname(path) or "."
+    fd, tmp_path = tempfile.mkstemp(prefix=".bundle-", suffix=".tar.gz", dir=parent)
+    os.close(fd)
+    removed = False
+    try:
+        existing: list[tuple[tarfile.TarInfo, bytes]] = []
+        with tarfile.open(path, "r:gz") as inp:
+            for m in inp.getmembers():
+                if m.name == name:
+                    removed = True
+                    continue
+                if m.isfile():
+                    f = inp.extractfile(m)
+                    existing.append((m, f.read() if f is not None else b""))
+                else:
+                    existing.append((m, b""))
+        if not removed:
+            os.remove(tmp_path)
+            return False
+        with tarfile.open(tmp_path, "w:gz") as out:
+            for m, content in existing:
+                ti = tarfile.TarInfo(name=m.name)
+                ti.size = len(content)
+                ti.mtime = m.mtime
+                ti.mode = m.mode
+                ti.type = m.type
+                out.addfile(ti, io.BytesIO(content) if content else None)
+        os.chmod(tmp_path, 0o644)
+        os.replace(tmp_path, path)
+        log.info("removed %r from %s", name, path)
+        return True
+    except Exception:
         if os.path.isfile(tmp_path):
             try:
                 os.remove(tmp_path)

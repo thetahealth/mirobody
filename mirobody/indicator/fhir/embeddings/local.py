@@ -257,6 +257,8 @@ def _load_base(bundle_dir: str) -> dict | None:
         "alias_index": None,
         "dose_index": None,
         "snomed_body_structure_mask": None,
+        "snomed_anatomy_mask": None,
+        "snomed_procedure_mask": None,
         "_bundle_dir": bundle_dir,
     }
     _load_loinc_skip(cache)
@@ -265,10 +267,22 @@ def _load_base(bundle_dir: str) -> dict | None:
     _load_alias_index(cache)
     _load_dose_index(cache)
     _load_snomed_body_structure(cache)
+    # Hybrid axis output Phase 1 — per-axis SNOMED candidate masks derived
+    # from ``mirobody/res/snomed_axes/<tag>.tsv``. anatomy ← body_structure
+    # ∪ specimen feeds the SYSTEM axis fallback (clean of morphologic
+    # abnormality + cell contamination); procedure feeds the METHOD axis
+    # fallback (Phase 2 consumer). See docs page 10 for the tag → axis
+    # routing rationale.
+    _load_snomed_axes_mask(
+        cache, ["body_structure", "specimen"], cache_key="snomed_anatomy_mask",
+    )
+    _load_snomed_axes_mask(
+        cache, ["procedure"], cache_key="snomed_procedure_mask",
+    )
     log.info(
         "loaded local fhir bundle (base) from %s: N=%d, id_map=%s, "
         "loinc_skip=%s, loinc_demote=%s, loinc_rank=%s, alias_index=%s, "
-        "dose_index=%s, snomed_bs=%s",
+        "dose_index=%s, snomed_bs=%s, snomed_anatomy=%s, snomed_procedure=%s",
         bundle_dir, n, "yes" if has_id_map else "no",
         "yes" if cache["loinc_skip_mask"] is not None else "no",
         "yes" if cache["loinc_demote_mask"] is not None else "no",
@@ -277,6 +291,10 @@ def _load_base(bundle_dir: str) -> dict | None:
         f"{len(cache['dose_index'])} dose-keys" if cache["dose_index"] else "no",
         f"{int(cache['snomed_body_structure_mask'].sum())} rows"
         if cache["snomed_body_structure_mask"] is not None else "no",
+        f"{int(cache['snomed_anatomy_mask'].sum())} rows"
+        if cache["snomed_anatomy_mask"] is not None else "no",
+        f"{int(cache['snomed_procedure_mask'].sum())} rows"
+        if cache["snomed_procedure_mask"] is not None else "no",
     )
     return cache
 
@@ -369,6 +387,57 @@ def _load_snomed_body_structure(cache: dict) -> None:
         "loaded snomed body-structure mask from bundle: %d / %d rows tagged "
         "(%d concept IDs in subtree)",
         int(mask.sum()), int(cache["arr"].shape[0]), len(codes),
+    )
+
+
+def _load_snomed_axes_mask(
+    cache: dict, tags: list[str], *, cache_key: str,
+) -> None:
+    """Union of one or more ``mirobody/res/snomed_axes/<tag>.tsv`` concept
+    lists → ``cache[cache_key]`` bool[N] mask.
+
+    Each TSV has a header (``concept_id\\tfsn``) followed by SCTIDs of
+    every SNOMED concept whose FSN carries that semantic tag — built by
+    ``benchmarks/extract_snomed_ct.py --axes-dir``. The mask flags only
+    the corpus rows whose canonical (system, code) is SNOMED_CT AND
+    whose code appears in the union of the requested tag files.
+
+    Silently no-ops when any TSV is missing — deployments that don't
+    ship the ``snomed_axes/`` source data fall back to the legacy
+    ``snomed_body_structure_mask`` instead of crashing.
+    """
+    axes_dir = os.path.join(RES_DIR, "snomed_axes")
+    sct_ids: list[str] = []
+    for tag in tags:
+        path = os.path.join(axes_dir, f"{tag}.tsv")
+        if not os.path.isfile(path):
+            log.debug("snomed_axes mask %s: missing %s, skipping", cache_key, path)
+            return
+        with open(path, encoding="utf-8") as f:
+            next(f, None)        # header
+            for line in f:
+                cid = line.split("\t", 1)[0].strip()
+                if cid:
+                    sct_ids.append(cid)
+    if not sct_ids:
+        return
+    from ..common import _CODE_BITS, _CODE_MASK, SYSTEM_TO_CODE, code_to_int
+    snomed_idx = SYSTEM_TO_CODE.get("SNOMED_CT")
+    if snomed_idx is None:
+        return
+    canonical = cache["canonical"]
+    sys_arr = ((canonical >> _CODE_BITS) & 0x7).astype(np.int8)
+    code_ints = np.fromiter(
+        (code_to_int(c, "SNOMED_CT") for c in sct_ids),
+        dtype=np.int64, count=len(sct_ids),
+    )
+    code_int_arr = canonical & _CODE_MASK
+    mask = (sys_arr == snomed_idx) & np.isin(code_int_arr, code_ints)
+    cache[cache_key] = mask
+    log.info(
+        "loaded %s from snomed_axes/%s: %d / %d rows tagged (%d concept IDs)",
+        cache_key, "+".join(tags), int(mask.sum()),
+        int(cache["arr"].shape[0]), len(sct_ids),
     )
 
 

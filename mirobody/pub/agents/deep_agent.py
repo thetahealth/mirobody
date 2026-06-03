@@ -12,13 +12,17 @@ from ...chat.agent import get_llm_client_by_name
 from ...utils.log import get_req_ctx
 from ...utils.config import safe_read_cfg
 
-from .deep.utils import StreamConverter, TokenUsageCallback
-from .deep.backend import create_postgres_backend
-from .deep.prompt_builder import build_system_prompt
+from .utils import (
+    StreamConverter,
+    TokenUsageCallback,
+    build_system_prompt,
+    DeepAgentError,
+    ConfigError,
+)
 from .deep.middleware import UniversalPromptCachingMiddleware
-from .deep.errors import DeepAgentError, ConfigError
-from langchain.agents.middleware import AgentMiddleware
-from langchain.agents import create_agent
+
+# DeepAgent's default LLM provider when none is specified by the caller.
+_DEFAULT_PROVIDER_DEEP = "gemini-3.5-flash"
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -27,8 +31,32 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class _PlaceholderClient:
+    """Stand-in `init_chat_model` client used when an API key is missing.
+
+    Holds the model name (so `getattr(client, "model_name")` works for
+    diagnostics) but raises `AttributeError` with a helpful message on any
+    other attribute access — including the `invoke` lookup in
+    `DeepAgent._init_llm_client`.
+    """
+
+    def __init__(self, model_name: str, missing_key: str, provider_name: str):
+        object.__setattr__(self, "_missing_key", missing_key)
+        object.__setattr__(self, "_provider_name", provider_name)
+        object.__setattr__(self, "model_name", model_name)
+        object.__setattr__(self, "model", model_name)
+
+    def __getattribute__(self, name):
+        if name in ("model_name", "model", "_missing_key", "_provider_name"):
+            return object.__getattribute__(self, name)
+        missing_key = object.__getattribute__(self, "_missing_key")
+        raise AttributeError(
+            f"Missing {missing_key}. Get API key from provider and set in .env or environment"
+        )
+
+
 class DeepAgent():
-    
+
     def __init__(
         self,
         user_id: str | None = None,
@@ -38,17 +66,18 @@ class DeepAgent():
         allowed_tools: list[str] | None = None,
         disallowed_tools: list[str] | None = None,
         prompt_templates: dict[str, str] = None,
-        **kargs
+        **kwargs
     ):
         self.user_info = UserInfo(user_id=user_id, user_name=user_name or "User")
         self.token = token
         from mirobody.utils.config import get_default_timezone
         self.timezone = timezone or get_default_timezone()
-        self.allowed_tools = allowed_tools 
+        self.allowed_tools = allowed_tools
         self.disallowed_tools = disallowed_tools or []
         self.prompt_templates = prompt_templates
         self.agent_name = "Theta"
-        self.default_provider = safe_read_cfg("DEFAULT_PROVIDER_DEEP") or "gemini-3-flash"
+        self.agent_identifier = self.__class__.__name__.removesuffix("Agent")
+        self.default_provider = safe_read_cfg("DEFAULT_PROVIDER_DEEP") or _DEFAULT_PROVIDER_DEEP
         self.file_parse_cache_ttl = int(safe_read_cfg("FILE_CACHE_TTL") or 300)
         self.file_parse_cache_maxsize = int(safe_read_cfg("FILE_CACHE_MAXSIZE") or 100)
         self.recursion_limit = int(safe_read_cfg("RECURSION_LIMIT") or 100)
@@ -173,58 +202,60 @@ class DeepAgent():
                 user_message=f"Failed to build the agent's system prompt. Details: {str(e)}"
             )
     
-    async def _create_backend(self, session_id: str, user_id: str) -> Any:
-        """Create PostgreSQL backend with auto-initialized FileParser."""
+    async def _build_backend(
+        self, session_id: str, user_id: str, file_list: list[dict[str, Any]] | None = None,
+    ) -> tuple[Any, list | None]:
+        """Build the deepagents virtual filesystem.
+
+        With a ``user_id``: a 5-mount ``CompositeBackend`` over the scope-based
+        ``deep_agent_workspace`` table (deepagents-native fs tools operate on it):
+
+          default        → workspace (scope='workspace', session=cur)  scratch, rw
+          /memories/...  → memory    (scope='memory',    session='')   cross-session, rw
+          /uploads/...   → uploads   (scope='uploads',   session=cur)  this request's files, ro
+          /library/...   → library   (scope='library',   session='')   file history, ro
+
+        ``/uploads/`` and ``/library/`` are auto-populated from ``th_files`` via
+        ``register_blob`` (pointers — no byte copy; parsed text inlined for grep,
+        bytes surfaced multimodally on read). Anonymous calls fall back to
+        ``StateBackend``. Returns ``(backend, permissions)``.
+        """
+        if not user_id:
+            from deepagents.backends import StateBackend
+            return StateBackend(), None
+
+        from deepagents.backends import CompositeBackend
+        from deepagents.middleware.filesystem import FilesystemPermission
+        from .deep.backend import PgFilesystemBackend
+
+        workspace = PgFilesystemBackend(user_id=user_id, session_id=session_id or "", scope="workspace")
+        memory = PgFilesystemBackend(user_id=user_id, session_id="", scope="memory")
+        uploads = PgFilesystemBackend(user_id=user_id, session_id=session_id or "", scope="uploads")
+        library = PgFilesystemBackend(user_id=user_id, session_id="", scope="library")
+        charts = PgFilesystemBackend(user_id=user_id, session_id=session_id or "", scope="charts")
+
+        # Mirror this request's uploads first, then history (excluding those keys).
         try:
-            backend = create_postgres_backend(
-                session_id=session_id,
-                user_id=user_id,
-                cache_ttl=self.file_parse_cache_ttl,
-                cache_maxsize=self.file_parse_cache_maxsize,
-            )
-            logger.info(f"Created backend for session: {session_id}")
-            return backend
-        except Exception as e:
-            logger.error(f"Backend creation failed: {str(e)}")
-            raise DeepAgentError(f"Backend creation failed: {str(e)}")
+            session_keys = await _sync_session_uploads(uploads, user_id=user_id, file_list=file_list)
+            await _sync_user_library(library, user_id=user_id, exclude_file_keys=session_keys)
+        except Exception as exc:
+            logger.warning(f"upload/library mirroring failed: {exc}", exc_info=True)
 
-    @staticmethod
-    def _create_middlewares(
-        llm_client: Any,
-        backend: Any,
-        **kwargs
-    ) -> Any:
-        """
-        Create the agent instance with middleware stack.
-
-        Middleware stack (in order):
-        1. SummarizationMiddleware - Long context summarization
-        2. PatchToolCallsMiddleware - Tool call fixes
-        3. UniversalPromptCachingMiddleware - Prompt caching for supported models
-        """
-        from deepagents.middleware.summarization import SummarizationMiddleware, compute_summarization_defaults
-        from deepagents.middleware.patch_tool_calls import PatchToolCallsMiddleware
-
-        # Compute summarization defaults based on model profile
-        summarization_defaults = compute_summarization_defaults(llm_client)
-
-        summarization_middleware = SummarizationMiddleware(
-            model=llm_client,
-            backend=backend,
-            trigger=summarization_defaults["trigger"],
-            keep=summarization_defaults["keep"],
-            trim_tokens_to_summarize=None,
-            truncate_args_settings=summarization_defaults["truncate_args_settings"],
+        backend = CompositeBackend(
+            default=workspace,
+            routes={
+                "/memories/": memory,
+                "/uploads/": uploads,
+                "/library/": library,
+                "/charts/": charts,
+            },
         )
-
-        # Build middleware stack
-        middleware_stack: list[AgentMiddleware] = [
-            summarization_middleware,
-            PatchToolCallsMiddleware(),
-            UniversalPromptCachingMiddleware(ttl="5m", unsupported_model_behavior="ignore"),
+        permissions = [
+            FilesystemPermission(operations=["write"], paths=["/uploads/**"], mode="deny"),
+            FilesystemPermission(operations=["write"], paths=["/library/**"], mode="deny"),
         ]
+        return backend, permissions
 
-        return middleware_stack
 
     def _create_stream_config(self, user_id: str, token_counter: Any) -> dict:
         user_info = {
@@ -257,8 +288,7 @@ class DeepAgent():
         Returns:
             Tuple of (llm_client, model_name, fallback_msg, tools, system_prompt)
         """
-        agent_class_name = self.__class__.__name__.replace("Agent", "")
-        llm_client, model_name, fallback_used, fallback_msg = await self._init_llm_client(provider, agent_class_name)
+        llm_client, model_name, fallback_used, fallback_msg = await self._init_llm_client(provider, self.agent_identifier)
 
         loaded_tools = tools if tools is not None else await self._load_tools(user_id, session_id)
 
@@ -285,39 +315,40 @@ class DeepAgent():
             Tuple of (agent, backend, messages)
         """
         try:
-            backend = await self._create_backend(session_id, user_id)
+            # Build the deepagents virtual filesystem (CompositeBackend). User
+            # uploads + history are auto-mounted at /uploads/ and /library/ via
+            # register_blob — the agent reads them with the native read_file tool
+            # (multimodal for pdf/image/…). No custom file MCP tools, no E2B.
+            backend, permissions = await self._build_backend(session_id, user_id, file_list)
 
-            # Handle file uploads if present
-            if files_data:
-                from .utils import handle_file_upload
-                _, file_reminder = await handle_file_upload(
-                    file_list=file_list,
-                    files_data=files_data,
-                    backend=backend,
-                )
-                if file_reminder:
-                    if isinstance(messages, list) and len(messages) >= 1:
-                        messages = list(messages)  # Make a copy to avoid mutating original
-                        messages.insert(-1, {"role": "user", "content": file_reminder})
-                    else:
-                        messages = [{"role": "user", "content": file_reminder}]
+            from deepagents import create_deep_agent
 
-            # non tool-related middles allowed
-            middleware_stack = self._create_middlewares(llm_client, backend)
+            # In-process JS/TS interpreter (langchain-quickjs). Adds an `eval`
+            # tool — a persistent REPL — replacing the E2B remote sandbox for
+            # compute. Caching middleware runs last so its decision wins.
+            middleware: list[Any] = []
+            try:
+                from langchain_quickjs import CodeInterpreterMiddleware
+                middleware.append(CodeInterpreterMiddleware())
+            except Exception as exc:
+                logger.warning(f"code interpreter middleware unavailable: {exc}")
+            middleware.append(
+                UniversalPromptCachingMiddleware(ttl="5m", unsupported_model_behavior="ignore")
+            )
 
-            # using native deepagents middleware instead 
-            # from deepagents.middleware import FilesystemMiddleware
-            # from langchain.agents.middleware import TodoListMiddleware
-            # middleware_stack.extend(TodoListMiddleware())
-            # file_middleware = FilesystemMiddleware(backend=backend)
-            # middleware_stack.extend(file_middleware)
-
-            agent = create_agent(
-                llm_client,
-                system_prompt=system_prompt,
+            agent_kwargs: dict[str, Any] = dict(
+                model=llm_client,
                 tools=tools,
-                middleware=middleware_stack
-            ).with_config({"recursion_limit": 1000})
+                system_prompt=system_prompt,
+                backend=backend,
+                middleware=middleware,
+            )
+            if permissions is not None:
+                agent_kwargs["permissions"] = permissions
+
+            agent = create_deep_agent(**agent_kwargs).with_config(
+                {"recursion_limit": self.recursion_limit}
+            )
 
             logger.info(f"Agent built successfully for session: {session_id}")
             return agent, backend, messages
@@ -399,33 +430,23 @@ class DeepAgent():
         provider: str | Any | None = None,
         prompt_name: str = "",
         tools: Optional[list[BaseTool]] = None,
-        **kargs
+        **kwargs
     ) -> AsyncGenerator[dict[str, Any], None]:
 
         if not messages:
-            logger.warning("Empty messages received")
             yield {"type": "error", "content": "Empty message"}
             return
 
-        if not isinstance(messages, list):
-            logger.warning(f"Invalid messages type: {type(messages)}")
-            yield {"type": "error", "content": "Invalid messages format"}
-            return
-
-        if not user_id or not isinstance(user_id, str):
-            logger.warning("Invalid or missing user_id")
+        if not user_id:
             yield {"type": "error", "content": "User ID is required"}
             return
 
         logger.info(f"DeepAgent request: session={session_id}, provider={provider}, messages={len(messages)}")
 
         try:
-            # Use files_data from kargs if provided (HTTP layer override)
-            effective_files_data = kargs.get('files_data', files_data)
-            if effective_files_data:
-                logger.info(f"Processing {len(effective_files_data)} files")
+            if files_data:
+                logger.info(f"Processing {len(files_data)} files")
 
-            # Phase 1: Prepare LLM, tools, and system prompt
             llm_client, model_name, fallback_msg, loaded_tools, system_prompt = await self._prepare_context(
                 user_id=user_id,
                 session_id=session_id,
@@ -438,7 +459,6 @@ class DeepAgent():
             if fallback_msg:
                 yield {"type": "thinking", "content": fallback_msg}
 
-            # Phase 2: Build agent with backend and file handling
             agent, backend, final_messages = await self._build_agent(
                 session_id=session_id,
                 user_id=user_id,
@@ -447,10 +467,9 @@ class DeepAgent():
                 tools=loaded_tools,
                 messages=messages,
                 file_list=file_list,
-                files_data=effective_files_data,
+                files_data=files_data,
             )
 
-            # Phase 3: Stream response
             token_counter = TokenUsageCallback()
             stream_config = self._create_stream_config(user_id, token_counter)
 
@@ -461,7 +480,6 @@ class DeepAgent():
             ):
                 yield event
 
-            # Yield token statistics after streaming completes
             if token_counter.total_input_tokens > 0 or token_counter.total_output_tokens > 0:
                 yield StreamConverter.create_cost_statistics(
                     token_counter.total_input_tokens,
@@ -471,17 +489,13 @@ class DeepAgent():
                     cache_creation_tokens=token_counter.cache_creation_tokens,
                 )
 
-        except DeepAgentError as e:
-            logger.error(f"DeepAgent error: {str(e)}")
-            yield {"type": "error", "content": str(e)}
-
-        except ValueError as e:
-            logger.error(f"DeepAgent value error: {str(e)}")
+        except (DeepAgentError, ValueError) as e:
+            logger.error(f"DeepAgent error: {e}")
             yield {"type": "error", "content": str(e)}
 
         except Exception as e:
-            logger.error(f"Unexpected error: {str(e)}", stack_info=True)
-            yield {"type": "error", "content": f"Unexpected error: {str(e)}\n\nCheck logs for details."}
+            logger.error(f"Unexpected error: {e}", stack_info=True)
+            yield {"type": "error", "content": f"Unexpected error: {e}\n\nCheck logs for details."}
     
     #-------------------------------------------------------------------------
     
@@ -539,24 +553,7 @@ class DeepAgent():
                         config["api_key"] = actual_api_key
                     else:
                         logger.warning(f"[{class_name}] API key '{api_key_name}' not found - creating placeholder for '{provider_name}'")
-
-                        class PlaceholderClient:
-                            def __init__(self, model_name, missing_key, provider_name):
-                                object.__setattr__(self, '_model_name', model_name)
-                                object.__setattr__(self, '_missing_key', missing_key)
-                                object.__setattr__(self, '_provider_name', provider_name)
-                                object.__setattr__(self, 'model_name', model_name)
-                                object.__setattr__(self, 'model', model_name)
-
-                            def __getattribute__(self, name):
-                                if name in ('_model_name', '_missing_key', '_provider_name', 'model_name', 'model'):
-                                    return object.__getattribute__(self, name)
-
-                                missing_key = object.__getattribute__(self, '_missing_key')
-                                missing_key_msg = f"Missing {missing_key}. Get API key from provider and set in .env or environment"
-                                raise AttributeError(missing_key_msg)
-
-                        llm_clients[provider_name] = PlaceholderClient(model, api_key_name, provider_name)
+                        llm_clients[provider_name] = _PlaceholderClient(model, api_key_name, provider_name)
                         continue
                 else:
                     logger.info(f"[{class_name}] No api_key in config for '{provider_name}' - using default auth (ADC/environment)")
@@ -620,3 +617,137 @@ class DeepAgent():
             logger.warning(f"[{class_name}] No providers loaded (0/{total}) - agent may be disabled intentionally")
 
         return llm_clients
+
+
+# ── uploads / library mirroring (th_files -> deepagents filesystem) ──────────
+# Pointers only: register_blob stores object_storage_key (= th_files.file_key)
+# + inlined parsed text; raw bytes stay in object storage and are surfaced
+# multimodally on read. No byte duplication into Postgres.
+
+_MAX_SESSION_UPLOAD_POINTERS = 50
+_MAX_USER_LIBRARY_POINTERS = 200
+
+
+def _safe_basename(file_name: str) -> str | None:
+    """Flatten a th_files name to a path-safe basename (no separators/leading dots)."""
+    safe = str(file_name or "").replace("/", "_").replace("\\", "_").lstrip(".")
+    return safe or None
+
+
+async def _sync_session_uploads(uploads_backend, *, user_id: str, file_list) -> set:
+    """Mirror this request's attached files into /uploads/ (read-only).
+
+    Uses the request ``file_list`` (file_key + file_name); enriches each with the
+    th_files parse cache (decrypted original_text / content_hash / size). Returns
+    the set of file_keys registered, for exclusion from /library/.
+    """
+    from ...utils.db import execute_query
+    from .deep.parser import guess_mime
+
+    items = [f for f in (file_list or []) if isinstance(f, dict) and f.get("file_key")]
+    if not items:
+        return set()
+    keys = [str(f["file_key"]) for f in items][:_MAX_SESSION_UPLOAD_POINTERS]
+
+    rowmap: dict[str, dict] = {}
+    try:
+        in_clause = ", ".join(f":k{i}" for i in range(len(keys)))
+        params = {f"k{i}": k for i, k in enumerate(keys)}
+        params["uid"] = str(user_id)
+        rows = await execute_query(
+            query=f"""
+            SELECT file_key, decrypt_content(file_name) as file_name, file_type,
+                   content_hash, decrypt_content(original_text) as original_text, text_length
+            FROM th_files
+            WHERE user_id = :uid AND file_key IN ({in_clause}) AND is_del = false
+            """,
+            params=params,
+        )
+        for r in (rows or []):
+            rowmap[str(r.get("file_key"))] = dict(r)
+    except Exception as exc:
+        logger.warning(f"sync_session_uploads query failed: {exc}")
+
+    registered: set = set()
+    for f in items:
+        key = str(f["file_key"])
+        row = rowmap.get(key, {})
+        name = _safe_basename(f.get("file_name") or row.get("file_name") or key)
+        if not name:
+            continue
+        try:
+            err = await uploads_backend.register_blob(
+                path=f"/{name}",
+                object_storage_key=key,
+                content_hash=str(row.get("content_hash") or ""),
+                content_size=int(row.get("text_length") or 0),
+                mime_type=guess_mime(name),
+                parsed_text=(row.get("original_text") or None),
+                file_key=key,
+                source="user_upload",
+            )
+            if err is None:
+                registered.add(key)
+        except Exception:
+            logger.warning(f"sync_session_uploads register failed for {name}", exc_info=True)
+
+    logger.info(f"sync_session_uploads: user={user_id} registered={len(registered)}/{len(items)}")
+    return registered
+
+
+async def _sync_user_library(library_backend, *, user_id: str, exclude_file_keys: set) -> None:
+    """Mirror the user's parsed file history (excluding this request's keys) into /library/ (read-only)."""
+    from ...utils.db import execute_query
+    from .deep.parser import guess_mime
+
+    params: dict[str, Any] = {"uid": str(user_id), "limit": _MAX_USER_LIBRARY_POINTERS}
+    exclusion = ""
+    if exclude_file_keys:
+        ph = ", ".join(f":ex{i}" for i in range(len(exclude_file_keys)))
+        exclusion = f"AND file_key NOT IN ({ph})"
+        for i, k in enumerate(exclude_file_keys):
+            params[f"ex{i}"] = str(k)
+
+    try:
+        rows = await execute_query(
+            query=f"""
+            SELECT file_key, decrypt_content(file_name) as file_name, file_type,
+                   content_hash, decrypt_content(original_text) as original_text, text_length
+            FROM th_files
+            WHERE user_id = :uid AND is_del = false
+              AND original_text IS NOT NULL AND original_text <> ''
+              {exclusion}
+            ORDER BY created_at DESC LIMIT :limit
+            """,
+            params=params,
+        )
+    except Exception as exc:
+        logger.warning(f"sync_user_library query failed: {exc}")
+        return
+
+    seen: set = set()
+    count = 0
+    for r in (rows or []):
+        key = str(r.get("file_key") or "")
+        base = _safe_basename(r.get("file_name") or key)
+        if not base:
+            continue
+        name = base if base not in seen else f"{base}__thf_{key[:8]}"
+        seen.add(name)
+        try:
+            err = await library_backend.register_blob(
+                path=f"/{name}",
+                object_storage_key=key,
+                content_hash=str(r.get("content_hash") or ""),
+                content_size=int(r.get("text_length") or 0),
+                mime_type=guess_mime(name),
+                parsed_text=(r.get("original_text") or None),
+                file_key=key,
+                source="user_upload",
+            )
+            if err is None:
+                count += 1
+        except Exception:
+            logger.warning(f"sync_user_library register failed for {base}", exc_info=True)
+
+    logger.info(f"sync_user_library: user={user_id} registered={count}")

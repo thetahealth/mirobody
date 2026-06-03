@@ -94,7 +94,8 @@ class AggregateIndicatorTask(PullTask):
                 return False
 
         except Exception as e:
-            logging.error(f"[AggregateIndicatorTask] Execution error: {e}")
+            logging.error(f"[AggregateIndicatorTask] Execution error: {e}", exc_info=True)
+            self._capture_error(e)
             return False
 
     async def get_task_info(self) -> Dict:

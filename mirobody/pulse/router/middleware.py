@@ -202,3 +202,13 @@ async def init():
         logging.info("Insight engine task started")
     except Exception as e:
         logging.error(f"Failed to start insight engine task: {str(e)}")
+
+    # Start standard indicator registry task — publishes in-code
+    # StandardIndicator enum + derived aggregation rules to
+    # theta_ai.standard_indicators_device once a day.
+    try:
+        from ..core.std_indicator_registry.startup import start_std_indicator_registry
+        await start_std_indicator_registry()
+        logging.info("Std indicator registry task started")
+    except Exception as e:
+        logging.error(f"Failed to start std indicator registry task: {str(e)}")

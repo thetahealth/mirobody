@@ -172,7 +172,8 @@ class InsightEnginePullTask(PullTask):
             return True
 
         except Exception as e:
-            logging.error(f"[InsightEngine] Execution error: {e}")
+            logging.error(f"[InsightEngine] Execution error: {e}", exc_info=True)
+            self._capture_error(e)
             return False
 
     async def _process_user(self, user_id: str, target_date: date) -> int:

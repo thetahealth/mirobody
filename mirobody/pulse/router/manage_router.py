@@ -1123,3 +1123,52 @@ async def submit_insight_feedback_manage(
     except Exception as e:
         return ErrorResponse(code=500, detail=f"Feedback failed: {str(e)}")
 
+
+# ===== Standard Indicator Registry (catalog publisher) =====
+
+
+@router.get("/pulse/std-indicators/status", response_model=Union[StandardResponse, ErrorResponse])
+async def get_std_indicator_registry_status(authorized: bool = Depends(verify_manage_key)):
+    """
+    Status of the standard indicator registry task.
+
+    Returns scheduler info, last run, cached stats (last upsert counts),
+    and lock status — same shape as other task status endpoints.
+    """
+    try:
+        from ..core.std_indicator_registry.startup import get_std_indicator_registry_full_status
+        status = await get_std_indicator_registry_full_status()
+        return StandardResponse(data=status)
+    except Exception as e:
+        logging.error(f"Std indicator registry status failed: {str(e)}")
+        return ErrorResponse(code=500, detail=f"Status query failed: {str(e)}")
+
+
+@router.post("/pulse/std-indicators/trigger", response_model=Union[StandardResponse, ErrorResponse])
+async def trigger_std_indicator_registry(
+    force: bool = Query(False, description="Force-trigger ignoring the 2400h interval gate"),
+    authorized: bool = Depends(verify_manage_key),
+):
+    """
+    Manually trigger the standard indicator registry task.
+
+    The task is normally on a 2400h (~100d) interval — effectively manual-
+    only — so `force=true` is the typical invocation. Idempotent: upserts
+    by `id` into theta_ai.standard_indicators_device.
+    """
+    try:
+        from ..core.scheduler import scheduler
+        result = await scheduler.trigger_task("register_standard_indicators", force=force)
+        if result:
+            return StandardResponse(data={"triggered": True, "force": force})
+        return ErrorResponse(
+            code=400,
+            detail=(
+                "Trigger returned False. Either the interval gate blocked it "
+                "(retry with force=true) or the task is not registered."
+            ),
+        )
+    except Exception as e:
+        logging.error(f"Std indicator registry trigger failed: {str(e)}")
+        return ErrorResponse(code=500, detail=f"Trigger failed: {str(e)}")
+

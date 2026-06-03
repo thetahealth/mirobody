@@ -14,7 +14,7 @@ The loader scans this directory with the following rules:
 1. DIRECTORY SCANNING
    - Only scans the ROOT directory (os.scandir)
    - Subdirectories are SKIPPED (entry.is_dir() → skip)
-   - Subdirectories are safe for utilities (e.g., files_utils/)
+   - Subdirectories are safe for assets/helpers (e.g., chart_schema/)
 
 2. FILE FILTERING
    - Only .py files are loaded (entry.name.lower().endswith(".py"))
@@ -23,7 +23,7 @@ The loader scans this directory with the following rules:
 
 3. CLASS FILTERING (load_tools_from_module)
    - Only classes ending with "Service" are registered as tool providers
-   - Example: FileReadService ✓, FileHelper ✗
+   - Example: ChartService ✓, ChartHelper ✗
    - Abstract and builtin classes are skipped
 
 4. METHOD FILTERING (load_tools_from_class)
@@ -41,18 +41,16 @@ DIRECTORY STRUCTURE
 
 tools/
 ├── __init__.py                      # This documentation
-├── file_read_service.py             # FileReadService (ls, read_file, glob, grep, ...)
-├── file_write_service.py            # FileWriteService (write_file, edit_file)
-├── code_service.py                 # CodeService (execute) — only loaded when E2B_API_KEY is set
-├── todo_service.py                  # TodoService (write_todos)
-├── chart_service.py                 # ChartService
+├── chart_service.py                 # ChartService (chart rendering)
 ├── _chart_service_schema_loader.py  # Helper (underscore prefix → not loaded)
-└── files_utils/                     # Shared utilities (subdirectory → not scanned)
-    ├── __init__.py
-    ├── backend.py
-    ├── compat.py
-    ├── eviction.py
-    └── global_files.py
+├── chart_schema/                    # Chart JSON schemas (subdirectory → not scanned)
+├── memory_service.py                # MemoryService (search_user_memories, ...)
+└── render-chart.js                  # Chart renderer (Node) used by ChartService
+
+Note: filesystem / todo tools (ls, read_file, write_file, edit_file, glob,
+grep, write_todos) are NOT MCP tools here — the DeepAgent gets them natively
+from the deepagents FilesystemMiddleware / TodoListMiddleware, backed by the
+PgFilesystemBackend in mirobody/pub/agents/deep/backend.py.
 
 =============================================================================
 EXAMPLE: Adding a New Tool
@@ -62,7 +60,6 @@ EXAMPLE: Adding a New Tool
 # new_service.py (in tools/ root, no underscore prefix)
 
 from typing import Any, Dict, Optional
-from .files_utils import validate_user_info, func_description
 
 class NewService:  # Must end with "Service"
 
@@ -73,7 +70,7 @@ class NewService:  # Must end with "Service"
         self,
         param1: str,
         user_info: Optional[Dict[str, Any]] = None,  # Auto-injected
-    ) -> str:
+    ) -> Dict[str, Any]:
         \"\"\"
         Tool description (parsed from docstring).
 
@@ -83,11 +80,11 @@ class NewService:  # Must end with "Service"
         Returns:
             Result description.
         \"\"\"
-        is_valid, user_id, error = validate_user_info(user_info)
-        if not is_valid:
-            return f"Error: {error}"
+        user_id = (user_info or {}).get("user_id")
+        if not user_id or not isinstance(user_id, str):
+            return {"success": False, "error": "Authorization required."}
 
-        return f"Result for {param1}"
+        return {"success": True, "result": f"Result for {param1}"}
 
     def _helper_method(self):  # Underscore prefix → not exposed as tool
         pass

@@ -257,6 +257,52 @@ class PullTaskLockManager:
             )
             return False
 
+    def _get_last_run_key(self, provider_slug: str) -> str:
+        """Get Redis key for last successful execution wall-clock time."""
+        return f"pull_task:last_run:{provider_slug}"
+
+    async def get_last_run(self, provider_slug: str) -> Optional[datetime]:
+        """Read the persisted PullTask.last_run for a provider.
+
+        Returns None if redis is unavailable, the key is unset, or the
+        stored value is unparseable — caller should treat that as "no
+        prior run on record" and let normal scheduling apply. (TH-416)
+        """
+        redis_client = await get_redis_client()
+        if redis_client is None:
+            return None
+        try:
+            raw = await redis_client.get(self._get_last_run_key(provider_slug))
+            if not raw:
+                return None
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8")
+            return datetime.fromisoformat(raw)
+        except Exception as e:
+            logging.warning(f"Failed to read last_run for {provider_slug}: {e}")
+            return None
+
+    async def set_last_run(self, provider_slug: str, ts: datetime) -> bool:
+        """Persist PullTask.last_run so it survives service restarts. (TH-416)
+
+        Uses a 7-day TTL: long enough that even the slowest task
+        (renpho/whoop at 24h) gets multiple writes before expiry, but
+        bounded so stopped tasks don't keep stale keys forever.
+        """
+        redis_client = await get_redis_client()
+        if redis_client is None:
+            return False
+        try:
+            await redis_client.set(
+                self._get_last_run_key(provider_slug),
+                ts.isoformat(),
+                ex=604800,  # 7 days
+            )
+            return True
+        except Exception as e:
+            logging.warning(f"Failed to persist last_run for {provider_slug}: {e}")
+            return False
+
     async def get_lock_status(self, provider_slug: str) -> dict:
         """
         Get lock status information

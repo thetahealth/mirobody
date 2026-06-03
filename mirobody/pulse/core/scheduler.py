@@ -60,6 +60,11 @@ class PullTask:
         self.error_count = 0
         self.success_count = 0
         self.last_error: Optional[str] = None
+        # Subclass-captured exception detail (TH-331). Subclasses that swallow
+        # exceptions internally (try-except + return False) should call
+        # self._capture_error(e) so the scheduler can surface a real traceback
+        # in last_error instead of the generic "Task execution returned False".
+        self.last_internal_error: Optional[str] = None
         self.current_execution_id: Optional[str] = None
 
         # Calculate initial run time
@@ -68,6 +73,23 @@ class PullTask:
     async def execute(self) -> bool:
         """Execute pull task"""
         raise NotImplementedError("Subclasses must implement execute method")
+
+    def _capture_error(self, e: BaseException) -> None:
+        """Record an exception with full traceback for diagnostic visibility.
+
+        Subclasses that catch exceptions internally and return False should call
+        this in their except block. The scheduler will then prefer this detailed
+        message over the generic fallback when populating ``last_error``.
+
+        Truncates to 4096 chars to keep the field bounded for Redis / status
+        endpoints.
+        """
+        import traceback
+        try:
+            msg = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+        except Exception:
+            msg = f"{type(e).__name__}: {e}"
+        self.last_internal_error = msg[:4096]
 
     def should_run(self) -> bool:
         """Check if should run based on schedule type and execution interval"""
@@ -138,6 +160,17 @@ class PullTask:
 
         self.is_running = True
         self.last_run = datetime.now()
+        # TH-416: persist last_run so a service restart doesn't reset the
+        # execution window of long-interval tasks (renpho/whoop @ 24h, etc.)
+        if pull_task_lock_manager:
+            try:
+                await pull_task_lock_manager.set_last_run(
+                    self.provider_slug, self.last_run
+                )
+            except Exception as e:
+                logging.warning(
+                    f"Failed to persist last_run for {self.provider_slug}: {e}"
+                )
 
         try:
             success = await self.execute()
@@ -145,10 +178,16 @@ class PullTask:
             if success:
                 self.success_count += 1
                 self.last_error = None
+                self.last_internal_error = None
                 logging.info(f"Task {self.provider_slug} completed successfully")
             else:
                 self.error_count += 1
-                self.last_error = "Task execution returned False"
+                # Prefer the subclass-captured traceback (set via _capture_error)
+                # over the generic fallback. See TH-331.
+                self.last_error = (
+                    self.last_internal_error
+                    or "Task execution returned False"
+                )
                 logging.error(f"Task {self.provider_slug} failed")
 
             self._calculate_next_run()
@@ -156,8 +195,12 @@ class PullTask:
 
         except Exception as e:
             self.error_count += 1
-            self.last_error = str(e)
-            logging.error(f"Task {self.provider_slug} execution error: {str(e)}")
+            self._capture_error(e)
+            self.last_error = self.last_internal_error or str(e)
+            logging.error(
+                f"Task {self.provider_slug} execution error: {str(e)}",
+                exc_info=True,
+            )
             self._calculate_next_run()
             return False
         finally:
@@ -458,6 +501,26 @@ class Scheduler:
 
         self.running = True
         logging.info("Starting scheduler...")
+
+        # TH-416: restore each task's last_run from redis before scheduling,
+        # so a service restart doesn't reset long-interval tasks
+        # (renpho/whoop @ 24h) to execute immediately.
+        if pull_task_lock_manager:
+            for task in self.tasks.values():
+                try:
+                    persisted = await pull_task_lock_manager.get_last_run(
+                        task.provider_slug
+                    )
+                    if persisted is not None:
+                        task.last_run = persisted
+                        logging.info(
+                            f"Restored last_run for {task.provider_slug}: "
+                            f"{persisted.isoformat()}"
+                        )
+                except Exception as e:
+                    logging.warning(
+                        f"Failed to restore last_run for {task.provider_slug}: {e}"
+                    )
 
         # Start scheduler as a background task to avoid blocking startup
         self._scheduler_task = asyncio.create_task(self._run_scheduler())

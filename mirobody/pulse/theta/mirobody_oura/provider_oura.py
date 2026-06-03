@@ -243,9 +243,11 @@ class ThetaOuraProvider(BaseThetaProvider):
             return False
 
         try:
-            access_token = credentials.get("access_token")
-            if not access_token:
-                access_token = await self.get_valid_access_token(user_id)
+            # Always go through get_valid_access_token: it consults expires_at
+            # and refreshes on the fly when needed. The previous `if not access_token`
+            # guard only triggered for missing tokens — expired-but-present tokens
+            # silently slipped through and hit Oura with a dead Bearer header.
+            access_token = await self.get_valid_access_token(user_id)
             if not access_token:
                 logging.error(f"No valid access token for Oura user {user_id}")
                 return False

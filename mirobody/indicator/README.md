@@ -73,6 +73,88 @@ batch = await adapter.resolve_many(
 
 Sweet spot batch size is **~100** — the no-waste intersection of both providers' embedding `batch_limit` (gemini=100, qwen=10). Cosine matmul cost scales sub-linearly with batch size (BLAS GEMM efficiency), so going larger still helps but pays a `(B × N × 4B)` score matrix in RAM.
 
+### Ranking layers
+
+Beyond raw cosine, `resolve` filters and re-ranks candidates in several layers. When a wrong top-1 needs fixing, identify which layer should have caught it — different callers exercise different layers.
+
+| Layer | File | Effect | Gating |
+|---|---|---|---|
+| `loinc_skip_mask` | `common.py` (`_SKIP_CLASSTYPES`, `_SKIP_CLASS_PREFIXES`, `_SKIP_STATUSES`) | hard drop: surveys / docs / admin / deprecated / discouraged | unconditional |
+| `loinc_demote_mask` | `common.py` (`_DEMOTE_STATUSES`, `_DEMOTE_CLASSES`, `_HAND_DEMOTE_NAME_PATTERNS`) | -2.0 cosine penalty in `FhirAdapter._gsort` (any non-demoted peer wins) | unconditional |
+| `FAMILIES` | `resolve/specificity.py` → `_LOINC_FILTERS` | per-family hard drop in v2 CLI pipeline (intake-recall, treatment-goal, challenge-test, baseline, trough/peak, posture, dialysis, ...) | per-family query-side license tokens (`摄入 / 目标 / pre / post / ...`) — a query that licenses a family doesn't drop its members |
+| `_nonspecific_specimen_keep` | `resolve/pipeline.py` | drops `SYSTEM=XXX` (in Specimen) LOINC rows when a same-COMPONENT non-XXX peer exists (~2,300 rows) | query-side license (`样品 / specimen / food / supplement / 补充剂 / ...`) |
+| `_SYSTEM_PREFERENCE` tier | `resolve/pipeline.py` (stages 2 & 4 of `_loinc_picks_topk`) | within-family AND cross-specimen rerank prefers `Ser/Plas > Bld > Plas > Ser > Bld.cap > ...` for same analyte | none — corpus structure only (specimen variants exist for the same analyte) |
+| `_component_nonlab_mask` / `_component_ratio_mask` | `embeddings/axes.py` | drops non-lab (`X intake`, `X goal`) and ratio (`X/Y`, fractional excretion, clearance) COMPONENT vocab rows at the axis-vocab argmax — prevents wrong anchor selection | query-side license (`_QUERY_WANTS_NONLAB_RE`, `_QUERY_WANTS_RATIO_RE`) |
+
+Three caller paths exercise different subsets:
+
+- **`FhirAdapter.resolve_many`** (library / pgvector callers): runs `skip` + `demote` only. Demote is unconditional — calibrated for lab-results callers (体检报告). Order-entry callers (医嘱) where `LDL goal` etc. is a valid answer would need the `_HAND_DEMOTE_NAME_PATTERNS` patterns migrated to query-license gating; not done yet because no such caller exists.
+- **CLI `resolve` v2 path**: runs `skip` + every `_LOINC_FILTERS` entry. Filter gating is query-content-driven (more flexible than a binary report-type flag), so the same pipeline serves all caller intents.
+- **CLI `resolve --axes` axes path**: runs the two COMPONENT-vocab masks at axis argmax, then `_lookup_loinc_codes` filters survivors by anchored COMPONENT. When ``--axes`` is set, the v2 CLI path also runs in parallel and `_merge_axes_and_legacy` (in `mirobody.indicator.resolve`) arbitrates between them.
+
+#### Axes-vs-legacy arbitration (`--axes` mode)
+
+When `resolve --axes` is invoked, both the axes-vocab pipeline and the v2 CLI pipeline run on the same query. `_merge_axes_and_legacy` picks the winner via three sequential rules:
+
+1. **Alias-locked axes COMPONENT** — if some alias key in the query (from `aliases/<lang>.tsv` in the LOINC bundle) maps to a target that **exactly equals** the axes COMPONENT name (case-insensitive), and that name appears in the axes top pick's LCN, and the legacy top's LCN does NOT contain that name, axes wins regardless of score. Catches ``β-葡萄糖醛酸苷酶`` → axes anchors on ``Beta glucuronidase`` (alias 1:1 map confirms) while legacy's cosine drifts onto ``Glucose in Stool`` because the embedder sees ``粪便`` + ``葡萄糖`` together. Exact-match (not substring) is critical — a substring rule would have falsely locked ``维生素 → Vitamin`` against axes COMPONENT ``Vitamin A/Retinol binding protein``, ``Glucose standard deviation``, etc.
+
+2. **Close-tie → legacy** — when `|axes_score - legacy_score| < 0.001`, legacy wins. At this scale the two pipelines agree the top candidate is in a tight cosine cluster and legacy's deeper rerank stack (specificity / family / digit / scale / system-tier) is the more reliable arbitrator. Catches ``肺吸虫 IgG`` where axes 0.7410 / legacy 0.7408 disagree on genus and legacy hits the right Paragonimus code. Threshold is narrow on purpose — a wider 0.005 would falsely flip ``用力肺活量`` (axes FVC 0.7593 / legacy ``FVC percent change`` 0.7545) to the wrong sibling.
+
+3. **Score arbitration** — default `max(axes_score, legacy_score)`. Both scores live in the same query × LongCommonName cosine space, so direct comparison is meaningful.
+
+**Empty-legacy rule** (overrides everything): when legacy returns no LOINC result, the merged pick is also empty. Legacy emptiness signals "no confident match" from its 10+ filter stages and should not be auto-filled with axes's best-guess — e.g. ``HPV-23 / HPV-46 / HPV-83 / HPV-8`` where LOINC has no specific code, axes-pipeline picks a different-numbered HPV variant by closest cosine.
+
+#### Status taxonomy
+
+LOINC's own `STATUS` column drives the skip vs. demote split. Trusting STATUS is intentional: LOINC documents what each value means.
+
+| Status | Treatment | Why |
+|---|---|---|
+| `DEPRECATED` | hard drop (`_deprecated_drop_mask`) | LOINC ships a same-concept successor — always reachable |
+| `DISCOURAGED` | hard drop (`_SKIP_STATUSES`) | LOINC ships a `MAP_TO` replacement |
+| `TRIAL` | soft demote (`_DEMOTE_STATUSES`) | provisional; surfaces only when no ACTIVE peer exists |
+| `LABORDERS.ONTOLOGY` (CLASS) | soft demote (`_DEMOTE_CLASSES`) | abstract `[Measurement]` placeholders that drag generic queries |
+
+`TRIAL` and the ontology placeholders use soft demote so that if no non-demoted peer exists in the family, they still surface — the "fall back to deprecated/trial when nothing else fits" semantics.
+
+#### Specimen preference
+
+LOINC ships many SYSTEM-generic codes (`SYSTEM=XXX`, displayed as `in Specimen`) alongside specimen-specific peers (`in Serum or Plasma`, `in Blood`, `in Urine`, ...). For lab queries the canonical answer is almost always the specific specimen; the generic-Specimen form is the right pick only when LOINC literally ships no specific peer (HPV DNA, Vit A / E mass/mass, CD8/Lymph in Specimen).
+
+`_nonspecific_specimen_keep` enforces this in the v2 CLI pipeline:
+
+- Corpus mask: LOINC rows where `SYSTEM=XXX` AND a same-COMPONENT peer with a non-XXX SYSTEM exists (~2,300 rows). Built once via `load_axis_centroids`'s `row_components` + `row_value_idx['SYSTEM']`.
+- License gating: queries carrying `样品 / 标本 / specimen / food / supplement / 补充剂 / ...` bypass the filter — food / supplement callers that genuinely want generic XXX get it.
+- COMPONENTs with NO non-XXX peer (HPV DNA, Vit A / E, CD8/Lymph in Specimen) are not in the mask — those XXX codes ARE the canonical form.
+
+Catches misses like `钙 → 87477-6 Calcium in Specimen` (now `17861-6 Calcium in Ser/Plas`), `维生素D3 → 87671-4 Mass/mass in Specimen` (now `33958-0 in Ser/Plas`), and the lymphocyte panel `CD3+CD4+ cells in Specimen` (now `in Blood`).
+
+#### Specimen tier (`_SYSTEM_PREFERENCE`)
+
+Within an analyte family, surviving cosine candidates are reranked by specimen tier so the clinically canonical specimen wins even when cosine puts a less-common variant ahead. `_SYSTEM_PREFERENCE` ordering:
+
+```
+Ser/Plas > Bld > Plas > Ser > Bld.cap > BldA > BldV > Bld.dot > BldC
+```
+
+Tuple position = preference tier (lower wins). SYSTEM values not in the tuple get tier `-1` and don't affect the sort — rare specimens (Body fld, Tiss, ...) ride cosine + scale alone.
+
+Two stages consume the tier:
+
+1. **Stage 2 (within-family rerank)** — when matching rows share `loinc_family_key` (or family-prefix anchor), sort by `(scale_tier, system_tier, -cosine)`. Picks the canonical specimen variant within one family.
+2. **Stage 4 (cross-specimen rerank)** — strip the trailing `in <specimen> [by <method>]` from `loinc_family_key` to get a bare analyte key. If a row in `topN_picks` has the same bare key AND a strictly better system tier than the current pick, swap it in. Required because `loinc_family_key` keeps the specimen in the family key (`calcium in blood` vs `calcium in serum or plasma` are distinct families), so without stage 4 the tier preference can't cross between them.
+
+Bare-key match (not prefix) for stage 4 prevents `beef ige ab` ≠ `beef igg ab` false positives — different antibody classes are different analytes, not specimen variants.
+
+Catches `钙 in Blood → 2000-8 Calcium in Ser/Plas`, `维生素D3 Mass/mass in Specimen → 33958-0 in Ser/Plas`, `Folate in Blood → 2284-8 in Ser/Plas`. Analytes with no Ser/Plas variant in LOINC (HbA1c, Lead, Hb, Hct) stay in `Bld` — those families have no tier-0 slot, so tier-1 `Bld` wins on its own merit.
+
+#### Tiebreakers
+
+When multiple codes survive every filter and rerank stage:
+
+1. **`common_test_rank`** — LOINC-published per-code observation frequency (lower rank = more common; 0 = never observed in real labs, pushed to back).
+2. **LOINC code** alphabetically — deterministic final tiebreak.
+
 ## Unit normalization
 
 `fhir/units/` parses free-text "value + unit" strings into structured `ParsedQuantity(comparator, value, canonical_ucum)` and looks up the corresponding LOINC PROPERTY family. Designed for ingesting clinical and wearable data where the same indicator gets written different ways across languages, locales, and devices. Pure local computation — no DB, no embedding API.

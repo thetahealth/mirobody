@@ -288,6 +288,20 @@ _HAND_DEMOTE_NAME_PATTERNS: tuple["re.Pattern[str]", ...] = (
     # only when the type has no DNA code at all (e.g. rare types LOINC
     # never molecularized).
     re.compile(r"\bHuman papilloma virus \d+ Ag \["),
+    # Clinician-set treatment targets — LDL goal, Vit D goal, INR goal,
+    # BP goal, etc. (CLASS=CLIN, COMPONENT ends in ``goal``). These are
+    # values the clinician wants the patient to reach, not measurements,
+    # but their long name embeds close to the measurement peer
+    # (``25-Hydroxyvitamin D3+D2 goal`` vs the measurement 62292-8).
+    # 26 codes match in current bundle; 8 are already skipped via
+    # CLASSTYPE=4, the remaining 18 demote behind their measurement peer.
+    re.compile(r"\bgoal(\s+\[|\s+in\s|$)"),
+    # Dietary intake estimates — 24-hour recall of consumption, not a
+    # blood/serum measurement. 104 codes (CLASS=NUTRITION&DIETETICS,
+    # IO_IN_*); without demote ``维生素B2/B7/B9`` queries pick the
+    # ``Vitamin B9 (Folate) intake 24 hour Estimated`` form over
+    # ``Folate [Mass/volume] in Blood`` (1989-3 / 2282-2).
+    re.compile(r"\bintake \d+ hour Estimated\b"),
 )
 
 

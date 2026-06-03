@@ -18,11 +18,11 @@ from typing import Any, AsyncGenerator
 from zoneinfo import ZoneInfo
 
 from jinja2 import Environment
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_core.tools import BaseTool
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage, convert_to_messages
 
 from ....utils import get_req_ctx
-from ..deep.utils import StreamConverter, TokenUsageCallback
+from ..utils import StreamConverter, TokenUsageCallback
+from .models import OrchestratorManifest
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,6 @@ class MixMixin:
         "ls", "grep", "glob",
         "fetch_remote_files",
         "write_todos",
-        "generate_answer",
     }
 
     def _init_mix_mixin(
@@ -390,6 +389,7 @@ class MixMixin:
         language: str = "en",
         chart_context: list[dict[str, str]] | None = None,
         prompt_dir: str | None = None,
+        orchestrator_note: str = "",
     ) -> str:
         """
         Build Phase 2 system prompt.
@@ -407,7 +407,7 @@ class MixMixin:
         Prompt Resolution Order:
             1. self._prompt_templates["responder"] (from PROMPTS_MIX config)
             2. prompt_dir + "responder.jinja" (if prompt_dir provided)
-            3. Default path: mirobody/pub/agents/mix/prompts/responder.jinja
+            3. Default: mirobody/pub/prompts/mix/responder.jinja (package resource)
         """
         base_prompt = ""
 
@@ -415,19 +415,25 @@ class MixMixin:
         if self._prompt_templates and "responder" in self._prompt_templates:
             base_prompt = self._prompt_templates["responder"]
             logger.debug("Using responder prompt from prompt_templates")
-        else:
-            # Priority 2/3: Load from file
-            template_name = "responder.jinja"
-            if prompt_dir:
-                template_path = os.path.join(prompt_dir, template_name)
-            else:
-                template_path = os.path.join(os.path.dirname(__file__), "prompts", template_name)
-
+        elif prompt_dir:
+            # Priority 2: filesystem override
+            template_path = os.path.join(prompt_dir, "responder.jinja")
             try:
                 with open(template_path, "r", encoding="utf-8") as f:
                     base_prompt = f.read()
             except FileNotFoundError:
                 logger.warning(f"Prompt template not found: {template_path}, using empty prompt")
+        else:
+            # Priority 3: bundled package resource (centralized prompts dir)
+            import importlib.resources
+            try:
+                base_prompt = (
+                    importlib.resources.files("mirobody")
+                    .joinpath("pub/prompts/mix/responder.jinja")
+                    .read_text(encoding="utf-8")
+                )
+            except FileNotFoundError:
+                logger.warning("Bundled mix/responder.jinja not found, using empty prompt")
 
         current_time = datetime.now(ZoneInfo(self.timezone)).strftime(
             "%A, %B %d, %Y, at %I:00 %p %Z (UTC%z)"
@@ -442,6 +448,7 @@ class MixMixin:
                 language=language,
                 has_tools=has_tools,
                 available_charts=chart_context or [],
+                orchestrator_note=orchestrator_note,
             )
         except Exception as e:
             logger.warning(f"Failed to render Phase 2 prompt template: {e}")
@@ -458,7 +465,6 @@ class MixMixin:
         config: dict,
         chat_context: Any = None,
         collect_tool_context: bool = False,
-        stop_on_generate_answer: bool = False,
         skip_tool_names: set[str] | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
@@ -473,7 +479,6 @@ class MixMixin:
 
         Args:
             collect_tool_context: Collect tool messages (AIMessage + ToolMessage)
-            stop_on_generate_answer: Stop after generate_answer
             skip_tool_names: Tool names to skip (don't show, don't collect)
 
         Yields:
@@ -482,11 +487,9 @@ class MixMixin:
         # Collection state
         collected_messages: list[BaseMessage] = []  # Raw LangChain messages
         pending_tool_ids: set[str] = set()
-        generate_answer_triggered = False
+        manifest_captured = False
+        captured_manifest: OrchestratorManifest | None = None
         has_tools = False
-
-        # Collect AI output content (for Phase 2 context when no tools)
-        ai_content_parts: list[str] = []
 
         # Collect chart info (Phase 2 uses placeholders to reference)
         chart_context: list[dict[str, str]] = []
@@ -511,6 +514,15 @@ class MixMixin:
                         continue
                     if not step_data or not isinstance(step_data, dict):
                         continue
+
+                    # Phase 1 ends when LangChain parses the LLM's
+                    # OrchestratorManifest tool call into a structured response.
+                    # Capture it; we still drain any remaining messages this step.
+                    sr = step_data.get("structured_response")
+                    if sr is not None and isinstance(sr, OrchestratorManifest):
+                        captured_manifest = sr
+                        manifest_captured = True
+
                     if "messages" not in step_data or not step_data["messages"]:
                         continue
 
@@ -522,9 +534,12 @@ class MixMixin:
                             if msg.content:
                                 content = msg.content if isinstance(msg.content, str) else str(msg.content)
 
-                            # Phase 1 AI content always output as thinking
-                            if content and not generate_answer_triggered:
-                                yield {"type": "thinking", "content": content}
+                            # With response_format=OrchestratorManifest, Phase 1
+                            # is forced into tool calls and any `content` here is
+                            # JSON-fragment noise from structured-output streaming.
+                            # Discard — mirrors theta-smart base.py stream_text=False
+                            # behaviour (real reasoning arrives via separate channels,
+                            # not AIMessage.content).
 
                             # Process tool calls
                             if msg.tool_calls:
@@ -544,15 +559,6 @@ class MixMixin:
                                     tool_name = tc.get("name", "")
                                     tool_id = tc.get("id", "")
 
-                                    # Detect generate_answer
-                                    if stop_on_generate_answer and tool_name == "generate_answer":
-                                        generate_answer_triggered = True
-                                        logger.info(f"generate_answer triggered, pending tools: {len(pending_tool_ids)}")
-                                        yield {"type": "queryTitle", "content": tool_name, "tool_id": tool_id}
-                                        if not pending_tool_ids:
-                                            break
-                                        continue
-
                                     has_tools = True
                                     if collect_tool_context:
                                         pending_tool_ids.add(tool_id)
@@ -566,10 +572,6 @@ class MixMixin:
                                         content="",  # Don't pass content, Phase 2 only needs tool_calls
                                         tool_calls=filtered_calls,
                                     ))
-                            else:
-                                # No tool calls: collect content for Phase 2
-                                if content:
-                                    ai_content_parts.append(content)
 
                         # === Process ToolMessage (tool result) ===
                         elif isinstance(msg, ToolMessage):
@@ -611,11 +613,11 @@ class MixMixin:
                                     collected_messages.append(msg)
 
                     # Check if should exit
-                    if generate_answer_triggered and not pending_tool_ids:
+                    if manifest_captured and not pending_tool_ids:
                         break
 
                 # Outer loop also check exit condition
-                if generate_answer_triggered and not pending_tool_ids:
+                if manifest_captured and not pending_tool_ids:
                     break
 
         except Exception as e:
@@ -627,14 +629,14 @@ class MixMixin:
 
         # Return collected metadata
         if collect_tool_context:
-            ai_partial_content = "".join(ai_content_parts)
-
             yield {
                 "type": "_metadata",
                 "collected_messages": collected_messages,  # Raw LangChain messages
-                "ai_partial_content": ai_partial_content,
+                "ai_partial_content": "",  # phase 1 cannot emit free text any more
                 "has_tools": has_tools,
                 "chart_context": chart_context,
+                "manifest_note": captured_manifest.note if captured_manifest else "",
+                "manifest_rounds": captured_manifest.tool_rounds if captured_manifest else 0,
             }
 
     def _extract_chart_info(self, tool_content: str, index: int) -> dict[str, Any] | None:
@@ -921,8 +923,6 @@ class MixMixin:
         user_messages: list[dict[str, Any]],
         collected_messages: list[BaseMessage],
         chart_context: list[dict[str, str]],
-        bind_tools_mode: str = "none",
-        all_tools: list[BaseTool] | None = None,
         group: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
@@ -942,8 +942,6 @@ class MixMixin:
             user_messages: User history messages (dict format)
             collected_messages: Phase 1 collected LangChain messages (AIMessage + ToolMessage)
             chart_context: Chart info list [{id, title, event}, ...]
-            bind_tools_mode: Tool binding mode ("none"/"used"/"all")
-            all_tools: All available tools list (when bind_tools_mode != "none")
             group: Provider group name for selecting the correct responder
 
         Yields:
@@ -971,33 +969,19 @@ class MixMixin:
         # Detect if responder is Gemini — use direct streaming to bypass LangChain adapter issues
         _use_direct_gemini = isinstance(model_name, str) and model_name.startswith("gemini")
 
-        # Handle tool binding (only for LangChain path)
-        if not _use_direct_gemini:
-            if bind_tools_mode == "all" and all_tools:
-                llm = llm.bind_tools(all_tools)
-                logger.info(f"Phase 2: Bound {len(all_tools)} tools (all)")
-            elif bind_tools_mode == "used" and all_tools and collected_messages:
-                used_tool_names: set[str] = set()
-                for msg in collected_messages:
-                    if isinstance(msg, AIMessage) and msg.tool_calls:
-                        for tc in msg.tool_calls:
-                            used_tool_names.add(tc.get("name", ""))
-                used_tools = [t for t in all_tools if t.name in used_tool_names]
-                if used_tools:
-                    llm = llm.bind_tools(used_tools)
-                    logger.info(f"Phase 2: Bound {len(used_tools)} tools (used: {used_tool_names})")
+        # Phase 2 is a pure responder: Phase 1 (orchestrator) already executed all
+        # tools, so the responder LLM is never bound to tools.
 
         # Build message list
         messages: list[BaseMessage] = [SystemMessage(content=system_prompt)]
 
-        # Add user history messages
-        for msg in user_messages:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            if role == "user":
-                messages.append(HumanMessage(content=content))
-            elif role == "assistant":
-                messages.append(AIMessage(content=content))
+        # Add user history. Items may be plain dicts ({"role","content"}) or
+        # LangChain BaseMessage objects — convert_to_messages normalizes both
+        # uniformly, so we don't hand-wrap per type (which broke on BaseMessage
+        # inputs via .get()). Keep only human/ai turns (system prompt is above).
+        for m in convert_to_messages(user_messages):
+            if isinstance(m, (HumanMessage, AIMessage)):
+                messages.append(m)
 
         # Prepare Phase 1 collected messages based on streaming strategy
         if collected_messages:
@@ -1030,7 +1014,7 @@ class MixMixin:
             if hasattr(m, 'additional_kwargs') and m.additional_kwargs:
                 extra += f", additional_kwargs={list(m.additional_kwargs.keys())}"
             msg_summary.append(f"[{i}]{m_type}({m_len}ch{extra})")
-        logger.info(f"Phase 2: Starting stream, model={model_name}, direct_gemini={_use_direct_gemini}, messages={len(messages)}, bind_tools={bind_tools_mode}")
+        logger.info(f"Phase 2: Starting stream, model={model_name}, direct_gemini={_use_direct_gemini}, messages={len(messages)}")
         logger.info(f"Phase 2: Message details: {', '.join(msg_summary)}")
 
         if hasattr(llm, 'model_kwargs') and llm.model_kwargs:

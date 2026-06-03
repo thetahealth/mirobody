@@ -1,0 +1,957 @@
+# ── Microbe & virus colloquial names (clinical CN vs LOINC literal) ─
+# Bare 虫卵 (worm egg) lacks the 寄生虫 (parasite) token, so the embedder
+# read it as a visible object and picked `Macroscopic observation in
+# Stool` instead of `Ova and parasites identified in Stool` (where the
+# 寄生虫卵 sibling correctly lands). 血吸虫卵 keyed longer-first so the
+# bare-虫卵 catch doesn't drag it off its species leaf (Schistosoma).
+虫卵	Ova and parasites Parasite ova
+血吸虫卵	Schistosoma ova
+水痘带状疱疹病毒	Varicella zoster virus VZV
+呼吸道合胞病毒	Respiratory syncytial virus RSV
+丁型肝炎病毒	Hepatitis D virus HDV
+丙型肝炎病毒	Hepatitis C virus HCV
+乙型流感病毒	Influenza B virus
+乙型肝炎病毒	Hepatitis B virus HBV
+单纯疱疹病毒	Herpes simplex virus HSV
+卡氏肺孢子虫	Pneumocystis jirovecii
+戊型肝炎病毒	Hepatitis E virus HEV
+甲型流感病毒	Influenza A virus
+甲型肝炎病毒	Hepatitis A virus HAV
+绿脓假单胞菌	Pseudomonas aeruginosa
+副流感病毒	Parainfluenza virus
+嗜热放线菌	Thermophilic Actinomycetes
+嗜肺军团菌	Legionella pneumophila
+巨细胞病毒	Cytomegalovirus CMV
+新型隐球菌	Cryptococcus neoformans
+柯萨奇病毒	Coxsackievirus
+白色念珠菌	Candida albicans
+组织胞浆菌	Histoplasma
+肺炎支原体	Mycoplasma pneumoniae
+腮腺炎病毒	Mumps virus
+解脲支原体	Ureaplasma urealyticum
+解脲脲原体	Ureaplasma urealyticum
+EB病毒	Epstein Barr virus EBV
+假丝酵母	Candida
+寨卡病毒	Zika virus
+枯草杆菌	Bacillus subtilis
+球孢子菌	Coccidioides
+登革病毒	Dengue virus
+白念珠菌	Candida albicans
+结核杆菌	Mycobacterium tuberculosis
+绿脓杆菌	Pseudomonas aeruginosa
+肠道病毒	Enterovirus
+肺孢子菌	Pneumocystis
+诺如病毒	Norovirus
+轮状病毒	Rotavirus
+风疹病毒	Rubella virus
+麻疹病毒	Measles virus
+麻风杆菌	Mycobacterium leprae
+丝衣霉	Byssochlamys
+弓形体	Toxoplasma gondii
+弓形虫	Toxoplasma gondii
+念珠菌	Candida
+曲霉菌	Aspergillus
+根霉菌	Rhizopus
+毛霉菌	Mucor
+腺病毒	Adenovirus
+隐球菌	Cryptococcus
+根霉	Rhizopus
+毛霉	Mucor
+水痘	Varicella zoster
+
+# ── Clinical lab acronyms (full name + abbreviation) ─────────────
+β-人绒毛膜促性腺激素	Beta human chorionic gonadotropin beta-hCG
+平均红细胞血红蛋白浓度	Mean corpuscular hemoglobin concentration MCHC
+平均红细胞血红蛋白量	Mean corpuscular hemoglobin MCH
+抗中性粒细胞胞浆抗体	Antineutrophil cytoplasmic antibody ANCA
+活化部分凝血活酶时间	Activated partial thromboplastin time aPTT
+游离三碘甲状腺原氨酸	Free triiodothyronine FT3
+游离前列腺特异性抗原	Free prostate specific antigen fPSA
+甲状腺过氧化物酶抗体	Thyroid peroxidase antibody TPOAb
+神经元特异性烯醇化酶	Neuron specific enolase NSE
+# `前体` / `前驱体` / `前驅體` / `激素原` are generic precursor / prohormone
+# morphemes — `胃泌素释放肽前体`(ProGRP) needs `Gastrin releasing
+# polypeptide prohormone` (96461-9, distinct from plain GRP 2329-1);
+# `胰岛素原` needs `Proinsulin`; `降钙素原` needs `Procalcitonin`. The
+# generic morpheme entry bridges any `X前体 → X prohormone` pair so
+# new sibling pairs in future LOINC releases inherit the augment.
+前体	prohormone precursor proprotein pro
+前驱体	prohormone precursor proprotein pro
+前驅體	prohormone precursor proprotein pro
+激素原	prohormone precursor proprotein pro
+# Bare `胃泌素释放肽` (no leading `促`) is the standard CN clinical form;
+# LOINC's zhCN translation only carries the `促`-prefixed variant so
+# the bare form fails to auto-alias — bridge explicitly so the
+# `前体` augment composes onto the right base concept.
+胃泌素释放肽	Gastrin releasing polypeptide GRP
+胃液素釋放肽	Gastrin releasing polypeptide GRP
+# `血管性血友病因子` / `血管性血友病因子` is the standard CN clinical
+# name for "von Willebrand factor". Without the bridge, the
+# embedding's lexical similarity to ``Coagulation factor VIII`` (both
+# coag-family) wins over the correct ``von Willebrand factor`` Ag
+# code (41867-3 / 5709-1) — factor names alone are too thin a signal.
+血管性血友病因子	von Willebrand factor vWF VWF
+血管性血友病因子抗原	von Willebrand factor Ag vWF Ag VWF Antigen
+# `单不饱和脂肪酸` / `多不饱和脂肪酸` / `饱和脂肪酸` — the auto-derive
+# layer collapses all three to ``Fatty acid omega-3 & omega-6`` via
+# the lone ``脂肪酸 → Fatty acid omega-3 & omega-6`` alias, leaving
+# the encoder unable to tell mono / poly / saturated apart. The
+# explicit phrase aliases route each to its canonical LOINC component
+# (35176-7 / 35177-5 / no-LOINC). Both simplified and traditional CN.
+单不饱和脂肪酸	Monounsaturated fatty acids MUFA
+單不飽和脂肪酸	Monounsaturated fatty acids MUFA
+多不饱和脂肪酸	Polyunsaturated fatty acids PUFA
+多不飽和脂肪酸	Polyunsaturated fatty acids PUFA
+饱和脂肪酸	Saturated fatty acids SFA
+飽和脂肪酸	Saturated fatty acids SFA
+# `每小时` (per hour) is a TIME_ASPCT=1H marker — `每小时尿钙排泄`
+# wants 53124-4 ``Calcium [Moles/time] in 1 hour Urine`` not 6874-2
+# ``in 24 hour Urine``. Without an explicit per-hour token in the
+# augment the source-prefix ``24小时尿液检测`` drags cosine onto
+# 24H-variant codes. Generic morpheme so any ``每小时X排泄`` /
+# ``每小时X定量`` lifts to the 1H sibling.
+每小时	per hour 1 hour hourly
+每小時	per hour 1 hour hourly
+N端B型钠尿肽前体	N-terminal pro-BNP NT-proBNP
+人绒毛膜促性腺激素	Human chorionic gonadotropin hCG
+低密度脂蛋白胆固醇	Low density lipoprotein cholesterol LDL-C
+天冬氨酸氨基转移酶	Aspartate aminotransferase AST
+细胞角蛋白19片段	Cytokeratin 19 fragment CYFRA21-1
+高密度脂蛋白胆固醇	High density lipoprotein cholesterol HDL-C
+γ-谷氨酰转肽酶	Gamma glutamyl transferase GGT
+三碘甲状腺原氨酸	Triiodothyronine T3
+丙氨酸氨基转移酶	Alanine aminotransferase ALT
+估算肾小球滤过率	Estimated glomerular filtration rate eGFR
+促肾上腺皮质激素	Adrenocorticotropic hormone ACTH
+前列腺特异性抗原	Prostate specific antigen PSA
+天门冬氨酸转氨酶	Aspartate aminotransferase AST
+抗双链DNA抗体	Anti dsDNA antibody
+甲状腺球蛋白抗体	Thyroglobulin antibody TgAb
+糖类抗原15-3	Cancer antigen 15-3 CA15-3
+糖类抗原19-9	Cancer antigen 19-9 CA19-9
+糖类抗原72-4	Cancer antigen 72-4 CA72-4
+胰岛素样生长因子	Insulin-like growth factor IGF
+25羟维生素D	25-hydroxyvitamin D 25(OH)D
+一氧化碳弥散量	Diffusing capacity for carbon monoxide DLCO
+国际标准化比值	International normalized ratio INR
+尿白蛋白肌酐比	Urine albumin creatinine ratio ACR
+平均红细胞体积	Mean corpuscular volume MCV
+心肌损伤标志物	Cardiac injury markers
+极低密度脂蛋白	Very low density lipoprotein VLDL
+糖类抗原125	Cancer antigen 125 CA125
+糖类抗原242	Cancer antigen 242 CA242
+红细胞分布宽度	Red cell distribution width RDW
+肌酸激酶同工酶	Creatine kinase MB CK-MB
+计算机断层扫描	Computed tomography CT
+超敏C反应蛋白	High sensitivity C reactive protein hs-CRP
+高敏C反应蛋白	High sensitivity C reactive protein hs-CRP
+鳞状细胞癌抗原	Squamous cell carcinoma antigen SCC
+丙氨酸转氨酶	Alanine aminotransferase ALT
+促甲状腺激素	Thyroid stimulating hormone TSH
+免疫球蛋白A	Immunoglobulin A IgA
+免疫球蛋白E	Immunoglobulin E IgE
+免疫球蛋白G	Immunoglobulin G IgG
+免疫球蛋白M	Immunoglobulin M IgM
+凝血酶原时间	Prothrombin time PT
+嗜碱性粒细胞	Basophil
+嗜酸性粒细胞	Eosinophil
+尿微量白蛋白	Microalbumin
+游离甲状腺素	Free thyroxine FT4
+甲状旁腺激素	Parathyroid hormone PTH
+甲状腺球蛋白	Thyroglobulin Tg
+糖化血红蛋白	Hemoglobin A1c HbA1c
+红细胞沉降率	Erythrocyte sedimentation rate ESR
+维生素B12	Vitamin B12
+谷氨酰转肽酶	Gamma glutamyl transferase GGT
+载脂蛋白A1	Apolipoprotein A1 ApoA1
+高敏肌钙蛋白	High sensitivity troponin hs-cTn
+B型钠尿肽	B-type natriuretic peptide BNP
+C反应蛋白	C reactive protein CRP
+D-二聚体	D dimer
+中性粒细胞	Neutrophil
+乳酸脱氢酶	Lactate dehydrogenase LDH
+凝血酶时间	Thrombin time TT
+卵泡刺激素	Follicle stimulating hormone FSH
+用力肺活量	Forced vital capacity FVC
+白细胞计数	Leukocyte count WBC
+直接胆红素	Direct bilirubin DBIL
+结合胆红素	Conjugated bilirubin direct DBIL
+碱性磷酸酶	Alkaline phosphatase ALP
+磁共振成像	Magnetic resonance imaging MRI
+类风湿因子	Rheumatoid factor RF
+糖化白蛋白	Glycated albumin
+红细胞压积	Hematocrit HCT
+红细胞计数	Erythrocyte count RBC
+纤维蛋白原	Fibrinogen FIB
+网织红细胞	Reticulocyte
+肌酐清除率	Creatinine clearance
+肌钙蛋白I	Troponin I TnI
+肌钙蛋白T	Troponin T TnT
+血小板计数	Platelet count PLT
+谷丙转氨酶	Alanine aminotransferase ALT
+谷草转氨酶	Aspartate aminotransferase AST
+载脂蛋白B	Apolipoprotein B ApoB
+间接胆红素	Indirect bilirubin IBIL
+黄体生成素	Luteinizing hormone LH
+D二聚体	D dimer
+凝血四项	Coagulation panel
+前白蛋白	Prealbumin PA
+动脉血气	Arterial blood gas ABG
+单核细胞	Monocyte
+大便常规	Stool routine examination
+总胆固醇	Total cholesterol TC
+总胆红素	Total bilirubin TBIL
+抗核抗体	Antinuclear antibody ANA
+淋巴细胞	Lymphocyte
+甘油三酯	Triglycerides TG
+生长激素	Growth hormone GH
+甲状腺素	Thyroxine T4
+甲胎蛋白	Alpha fetoprotein AFP
+癌胚抗原	Carcinoembryonic antigen CEA
+空腹血糖	Fasting plasma glucose FPG
+肌红蛋白	Myoglobin MYO
+肌酸激酶	Creatine kinase CK
+肌钙蛋白	Troponin
+胱抑素C	Cystatin C
+脂蛋白a	Lipoprotein a Lp(a)
+血尿素氮	Blood urea nitrogen BUN
+血气分析	Blood gas analysis
+血脂全套	Lipid panel
+血脂四项	Lipid panel
+诊断印象	Impression
+诊断意见	Impression
+转铁蛋白	Transferrin
+降钙素原	Procalcitonin PCT
+随机血糖	Random glucose
+风湿三项	Rheumatoid panel
+餐后血糖	Postprandial glucose
+1秒率	Forced expiratory volume in 1 second/Forced vital capacity ratio
+一秒率	Forced expiratory volume in 1 second/Forced vital capacity ratio
+催乳素	Prolactin PRL
+尿常规	Urinalysis UA
+尿素氮	Blood urea nitrogen BUN
+心电图	Electrocardiogram ECG EKG
+心肌酶	Cardiac enzymes
+总蛋白	Total protein TP
+残气量	Residual volume RV
+泌乳素	Prolactin PRL
+球蛋白	Globulin GLB
+电解质	Electrolytes
+白球比	Albumin globulin ratio A/G
+白蛋白	Albumin ALB
+皮质醇	Cortisol
+磁共振	Magnetic resonance imaging MRI
+粪常规	Stool routine examination
+肝功能	Liver function panel LFT
+肺总量	Total lung capacity TLC
+肺活量	Vital capacity VC
+肾功能	Renal function panel
+胰岛素	Insulin
+脑钠肽	B-type natriuretic peptide BNP
+葡萄糖	Glucose
+血常规	Complete blood count CBC
+血清铁	Serum iron Fe
+醛固酮	Aldosterone
+铁蛋白	Ferritin
+雌二醇	Estradiol E2
+C肽	C peptide
+印象	Impression
+叶酸	Folate
+备注	Comments
+孕酮	Progesterone PROG
+尿酸	Uric acid UA
+建议	Recommendation
+彩超	Color Doppler ultrasound
+总结	Summary
+意见	Recommendation
+核磁	Magnetic resonance imaging MRI
+睾酮	Testosterone TES
+结论	Conclusion
+肌酐	Creatinine CRE
+肝功	Liver function panel LFT
+肾功	Renal function panel
+肾素	Renin
+胸片	Chest radiograph CXR
+血沉	Erythrocyte sedimentation rate ESR
+讨论	Discussion
+超声	Ultrasound US
+随访	Follow-up
+氯	Chloride Cl
+磷	Phosphate P
+钙	Calcium Ca
+钠	Sodium Na
+钾	Potassium K
+镁	Magnesium Mg
+# ── Element-character analytes (CN term shares a char with an element
+#    but refers to a distinct compound — embedding alone gets pulled
+#    toward the element's LOINC code by character overlap). ─────────
+高铁血红蛋白	Methemoglobin MetHb
+钙卫蛋白	Calprotectin
+骨钙素	Osteocalcin BGP
+铁调素	Hepcidin
+铁	Iron Fe
+
+# ── Immunoglobulin (Pattern B fix, 2026-05-26) ─────────────────────
+# Auto-mined `免疫球蛋白 → Time Rh immune globulin given` (zh.tsv:11888)
+# was pulling every Ig-related query onto the Rh-prophylaxis time
+# observation row. Override with the generic Ig token so `免疫球蛋白
+# (尿)IgA/G/M` and friends route to the IgA/IgG/IgM-in-Urine family
+# instead. Longer keys (`免疫球蛋白A` etc.) win on longest-match for
+# the bare-class variants; this one catches the embedded `免疫球蛋白`
+# substring inside compounds like `免疫球蛋白(尿)IgA`.
+免疫球蛋白	Immunoglobulin Ig
+
+# ── Urine organic-acid analytes with character-collision drift
+#    (Pattern C, 2026-05-26) ────────────────────────────────────────
+# Without these the picker falls onto generic `10972-8 Organic acids`
+# or `14295-0 Organic acids/Creatinine` because the bare CN terms have
+# no direct LOINC lexical bridge.
+油酸	Oleate C18:1w9
+反丁烯二酸	Fumarate
+# NGAL = neutrophil gelatinase-associated lipocalin = Lipocalin 2 in
+# urine (kidney-injury biomarker). LOINC 56935-0 / 105019-3 /
+# 71700-9. The long CN expansion has no direct LOINC match without
+# the canonical-English bridge.
+中性粒细胞明胶酶相关脂质运载蛋白	Neutrophil gelatinase-associated lipocalin NGAL Lipocalin 2
+
+# ── Urine organic acid look-alike disambiguation (Pattern A/D,
+#    2026-05-26) ─────────────────────────────────────────────────────
+# Keto-acid (氧代/酮) vs hydroxy-acid (羟基) is a different functional
+# group; chain-length confusions (丁/戊/己) and pyruvate vs lactate
+# are common cosine traps for organic-acid panels.
+# 2-Oxoisocaproate = leucine keto-acid (caproate = C6, iso = 4-methyl
+# branching). Picker drifts to 2-Oxoisovalerate (valine keto, C5) on
+# the bare alias because both are 2-Oxo iso-branched acids; needs the
+# leucine anchor word to lift the right row out of the cluster.
+2-氧代异己酸	2-Oxoisocaproate 4-methyl-2-oxopentanoate alpha-ketoisocaproate leucine keto-acid
+# 3-羟基（β）丁酸 carries an infix (β) parenthetical not handled by
+# the longest-match scanner — register both forms so the simplified
+# query bridges regardless of whether the user typed the bracket.
+3-羟基丁酸	Beta hydroxybutyrate 3-hydroxybutyrate BHB
+3-羟基（β）丁酸	Beta hydroxybutyrate 3-hydroxybutyrate BHB
+3-羟基(β)丁酸	Beta hydroxybutyrate 3-hydroxybutyrate BHB
+4-羟基苯丙酮酸	4-Hydroxyphenylpyruvate 4-HPP
+# Succinylacetone (4,6-dioxoheptanoate) — picker drifts to Succinate
+# on bare alias because Succinate/Cr is lexically closer to the
+# query `丁二酰丙酮/肌酐比`. Add longer bridge with the IUPAC name.
+丁二酰丙酮	Succinylacetone 4,6-dioxoheptanoate Succinylacetone
+己二酸	Adipate adipic acid
+反丁烯二酸	Fumarate
+# Plain `Prostaglandin D2` — without this the picker latched onto
+# `Prostaglandin F2 alpha` via shared `Prostaglandin` token and
+# CN char overlap.
+前列腺素D2	Prostaglandin D2 PGD2
+# 尿胆原 (urobilinogen) ≠ 尿胆红素 (bilirubin); the picker drifted
+# to bilirubin via shared 尿胆 prefix. Different bile metabolites.
+# `尿胆元` is a variant form (元/原 used interchangeably for 素原);
+# same analyte, different glyph.
+尿胆原	Urobilinogen
+尿胆元	Urobilinogen
+# 透明管型 → hyaline casts (NOT renal-tubular casts). Bare canonical
+# form — adding method qualifiers (``by Microscopy``) flipped cosine
+# onto the by-Automated-count variant which is worse method-fit; the
+# bare alias picks ``[#/area] in Urine sediment`` (88966-7) which is
+# clinically equivalent and methodless.
+透明管型	Hyaline casts
+# Crystal hydrate form (simplified-CN variant; zh.tsv had only the
+# traditional 草酸鈣一水合物 form, so the simplified ``草酸盐一水合物``
+# query wasn't bridging).
+草酸盐一水合物	Calcium oxalate monohydrate crystals
+# Pathologic casts in urine sediment — `镜检病理管型` was picking the
+# generic `Casts` family because the qualifier ``病理`` didn't bridge.
+# Include `in Urine sediment by Light microscopy` to anchor 101248-3
+# (the by-microscopy variant) since `镜检` means by-microscopy.
+病理管型	Pathologic casts in Urine sediment Light microscopy
+
+# ── Helicobacter pylori tests (urea breath / urease) ──────────
+# `13C-尿素呼气试验` was matching `Hepatitis C virus IgG` and `尿素酶A`
+# was matching `Influenza A virus N2 Ab` — both pure lexical-noise
+# false-positives. The bridge tokens here align the Chinese H pylori
+# vocabulary with the LOINC ``urea breath test`` / ``urease`` names.
+碳13尿素呼气试验	Helicobacter pylori urea breath test
+碳14尿素呼气试验	Helicobacter pylori urea breath test
+13C-尿素呼气试验	Helicobacter pylori urea breath test
+14C-尿素呼气试验	Helicobacter pylori urea breath test
+13C尿素呼气试验	Helicobacter pylori urea breath test
+14C尿素呼气试验	Helicobacter pylori urea breath test
+尿素呼气试验	Helicobacter pylori urea breath test
+呼气试验	Helicobacter pylori urea breath test
+尿素酶	Helicobacter pylori urease
+尿素酶A	Helicobacter pylori urease subunit A
+尿素酶抗体	Helicobacter pylori urease antibody
+幽门螺旋杆菌	Helicobacter pylori H pylori
+幽门螺杆菌	Helicobacter pylori H pylori
+
+# ── Hepatitis A antibody (suffix variants: 病毒/抗体/IgM/IgG) ─────
+# `甲型肝炎病毒 → Hepatitis A virus HAV` exists above but bare
+# `甲型肝炎` (without ``病毒``) didn't bridge; the IgM query landed
+# on Histoplasma. Bare and ``抗体`` suffix variants now bridge too.
+甲型肝炎	Hepatitis A HAV
+甲肝	Hepatitis A HAV
+甲型肝炎抗体	Hepatitis A virus antibody HAV Ab
+甲肝抗体	Hepatitis A virus antibody HAV Ab
+
+# ── Acylcarnitine species (chemical-specific aliases) ───────
+# `苯乙酰肉碱` was matching `Acetylcarnitine (C2)` via the shared
+# `乙酰肉碱` substring; `十四碳二烯酰肉碱` likewise drifted to
+# `Tetradecanoylcarnitine (C14)` losing the C14:2 dienoyl specificity.
+苯乙酰肉碱	Phenylacetylcarnitine PheC2 phenylacetyl carnitine 2-Phenylacetyl
+十四碳二烯酰肉碱	Tetradecadienoylcarnitine C14:2
+3-甲基戊二酰肉碱	3-Methylglutarylcarnitine C6:DC
+
+# 3-Hydroxyacylcarnitine series — bare `酰基肉碱` only appends a generic
+# `Acylcarnitine`, dropping both the 3-OH (hydroxy) head and the chain
+# length, so `3-羟基十四酰肉碱` / `3-羟基十二烯酰肉碱` went null and
+# `3-羟基十六酰肉碱` drifted onto the C16:1-OH (palmitoleyl, unsaturated)
+# leaf in CSF. Bridge the full CN form; longest-first scan suppresses the
+# auto-mined non-OH `十二烯酰肉碱 → Dodecenoylcarnitine (C12:1)` partial.
+# 十六酰 = hexadecanoyl = palmitoyl (saturated, C16-OH), not C16:1.
+3-羟基十四酰肉碱	3-Hydroxytetradecanoylcarnitine C14-OH
+3-羟基十二烯酰肉碱	3-Hydroxydodecenoylcarnitine C12:1-OH
+3-羟基十六酰肉碱	3-Hydroxypalmitoylcarnitine C16-OH
+
+# ── Cross-family food / vegetable proximity fixes ─────────────
+# Brassica genus members and pseudo-cereals collide on character
+# overlap (Broccoli ↔ Cauliflower share 0 chars in CN but Gemini
+# pulls both into the same Brassica cluster; Quinoa ↔ Amaranth are
+# both pseudo-cereals).
+西兰花	Broccoli
+西蓝花	Broccoli
+藜麦	Quinoa Chenopodium quinoa
+
+# ── Sleep stage discrimination (浅 ↔ Light, 深 ↔ Deep) ────────
+# LOINC has both ``Light sleep duration`` and ``Deep sleep
+# duration``; cosine on bare 浅睡眠/深睡眠 can drift across them.
+浅睡眠	Light sleep N1 N2 stage 1 stage 2 non-REM
+深睡眠	Deep sleep N3 N4 slow wave sleep SWS
+
+# ── Auto-mining noise overrides ──────────────────────────────
+# LOINC linguistic-variant mining occasionally extracts a short
+# generic CN suffix and maps it to a specific multi-component LOINC
+# row (e.g. ``型抗体`` mapped to ``HIV 1+2 Ab+HIV1 p24`` from the
+# combo HIV panel row). These poison the augment for any query that
+# ends with the suffix (``曲霉菌属1型抗体`` gets ``HIV 1+2 Ab`` appended
+# and lands on HIV rows). Override with a benign generic translation.
+型抗体	Antibody type
+型抗體	Antibody type
+
+# Auto-mined noise — short generic CN keys that LOINC linguistic-
+# variant mining accidentally mapped to specific multi-component
+# row names. Each override neutralizes the pollution with a benign
+# generic translation. (Audit ran 2026-05-19: scanned aliases/zh.tsv
+# for 2-3 CJK-char keys mapping to specific-entity values; these are
+# the entries with the highest "wrong-token" risk.)
+脱氢酶	Dehydrogenase
+脫氫酶	Dehydrogenase
+聚合酶	Polymerase
+肝细胞	Hepatocyte liver cell
+肝細胞	Hepatocyte liver cell
+活细胞	Viable cell
+活細胞	Viable cell
+岛细胞	Islet cell
+島細胞	Islet cell
+羧化酶	Carboxylase
+辅因子	Cofactor
+輔因子	Cofactor
+杀菌	Bactericidal
+殺菌	Bactericidal
+三体性	Trisomy
+三體性	Trisomy
+血管紧张素	Angiotensin
+血管緊張素	Angiotensin
+
+# ── Polysomnography / sleep-study terms (CN clinical → LOINC) ──
+# Sleep reports use these terms across event-type × sleep-stage ×
+# body-position × aggregation axes. LOINC has generic codes but no
+# multi-axis specifics; these aliases at least route cosine to the
+# sleep-measurement cluster instead of off-topic rows.
+快速眼动	REM sleep rapid eye movement
+非快速眼动	non-REM NREM
+清醒期	wake awake wakefulness
+睡眠期	sleep
+周期性腿动	periodic leg movement PLM PLMS
+微觉醒	microarousal arousal
+觉醒	arousal awakening
+打鼾	snore snoring
+鼾声	snore snoring
+血氧饱和度	oxygen saturation SpO2 O2 saturation
+氧饱和度	oxygen saturation SpO2 O2 saturation
+血氧饱和度下降	oxygen desaturation
+血氧饱和度下降指数	oxygen desaturation index ODI
+呼吸暂停	apnea
+呼吸浅慢	hypopnea
+呼吸暂停低通气指数	apnea hypopnea index AHI
+呼吸紊乱指数	respiratory disturbance index RDI
+呼吸努力相关微觉醒	respiratory effort-related arousal RERA
+通气不足	hypoventilation
+气流受限	flow limitation
+阻塞性呼吸暂停	obstructive apnea
+中枢性呼吸暂停	central apnea
+混合性呼吸暂停	mixed apnea
+阻塞性	obstructive
+中枢性	central
+混合性	mixed
+仰卧位	supine
+非仰卧位	non-supine
+侧卧位	lateral position
+左侧卧位	left lateral position
+右侧卧位	right lateral position
+俯卧位	prone position
+站立或坐直	upright standing sitting
+睡眠潜伏期	sleep latency sleep onset latency
+睡眠效率	sleep efficiency
+总睡眠时间	total sleep time TST
+熄灯时间	lights off time bedtime
+开灯时间	lights on time wake time
+睡眠开始	sleep onset
+
+# ── T-cell subset markers (lymphocyte MAP panels) ───────────
+# LOINC has no Th1/Th17 specific codes, so these alias to the
+# generic CD4-helper / cytotoxic / regulatory phenotypes; with the
+# alias the cosine at least lands in the lymphocyte panel cluster
+# (CD3+CD4+ / CD3+CD8+ / CD4+CD25+) rather than generic
+# `Lymphocytes/Leukocytes`.
+辅助性T细胞	T helper cells CD3+ CD4+
+辅助性T淋巴细胞	T helper cells CD3+ CD4+
+辅助性 T 细胞	T helper cells CD3+ CD4+
+辅助性 T 淋巴细胞	T helper cells CD3+ CD4+
+细胞毒性T细胞	cytotoxic T cells CD3+ CD8+
+细胞毒性T淋巴细胞	cytotoxic T cells CD3+ CD8+
+细胞毒性 T 细胞	cytotoxic T cells CD3+ CD8+
+细胞毒性 T 淋巴细胞	cytotoxic T cells CD3+ CD8+
+调节性T细胞	regulatory T cells Treg CD4+ CD25+ FOXP3+
+调节性 T 细胞	regulatory T cells Treg CD4+ CD25+ FOXP3+
+自然杀伤细胞	Natural killer cells NK CD3- CD16+ CD56+
+
+# ── Character-collision analyte fixes ────────────────────────
+# Each pair was a wrong pick on _18 spot-check where the Chinese name
+# shares 1-2 chars with a different LOINC analyte, and Gemini's
+# character-level fallback picks the wrong sibling. Curated EN forms
+# pull the query embedding toward the right analyte cluster.
+β-葡萄糖醛酸苷酶	Beta glucuronidase
+β葡萄糖醛酸苷酶	Beta glucuronidase
+葡萄糖醛酸苷酶	Beta glucuronidase
+γ-氨基丁酸	Gamma aminobutyrate GABA
+γ氨基丁酸	Gamma aminobutyrate GABA
+氨基丁酸	Gamma aminobutyrate GABA
+羟脯氨酸	Hydroxyproline
+4-羟脯氨酸	4-Hydroxyproline
+黄蓍胶	Gum Tragacanth
+氨基末端交联肽	Collagen crosslinked N-telopeptide NTx
+N端交联肽	Collagen crosslinked N-telopeptide NTx
+I型胶原N端肽	Collagen crosslinked N-telopeptide NTx
+Z分数	Z-score Z score
+Z评分	Z-score Z score
+长双歧杆菌长亚种	Bifidobacterium longum subspecies longum
+长双歧杆菌	Bifidobacterium longum
+
+# ── Narrative / report-section terms (route to section-header pool) ─
+# Section-header detection in category.py already routes these terms
+# to the narrative pool; these aliases pull the query embedding toward
+# the right narrative LOINC code within the pool (otherwise the pool's
+# cosine drifts onto unrelated "Comment on fetal 22q11.2" etc.).
+影像表现	Imaging Study observation Narrative findings impression
+影像所见	Imaging Study observation Narrative findings
+检查所见	Examination findings Study observation Narrative
+检查结果	Examination results Study observation Narrative
+异常结果	Abnormal findings interpretation Narrative
+健康指导	Health counseling Patient education Preventive medicine
+# ``职业`` / ``治疗史`` aliases — LOINC's section-header pool has the
+# right code (11341-5 ``History of Occupation`` / 67803-7 ``History
+# of Procedure``) but cosine drifts onto ``History of Outpatient
+# visits Narrative`` (11346-4) for both because the ``门诊报告`` source
+# prefix overlaps with ``Outpatient`` more strongly than with the
+# concept tokens. The augment appends the canonical LOINC EN form so
+# cosine shifts toward the right concept.
+职业	Occupation History of Occupation
+治疗史	Procedure History of Procedure Treatment history
+# ── Allergen / H pylori subunit fixes ─────────────────────────
+# ``屋尘螨`` (house dust mite) cosine-collides onto the recombinant
+# component ``Dermatophagoides pteronyssinus native (nDer p) 2 IgE
+# Ab`` (81792-4) when the right answer is generic ``Dermatophagoides
+# sp IgE Ab`` (41271-8). The latter's LOINC tokens (``sp``) don't
+# embed near ``mite`` / ``螨``, so without an alias the picker
+# defaults to the component-marker row that carries the genus name.
+# Augment with ``Dermatophagoides sp`` to shift cosine to the
+# species-generic code.
+屋尘螨	Dermatophagoides sp House dust mite IgE Ab
+# ``山毛榉树`` (Beech / Fagus) cosine-collides onto ``Silver birch
+# native (nBet v) 1 IgE Ab`` (65776-7) because LOINC's ``Beech`` rows
+# (6038-4 American Beech / 112126-8 European beech) don't share
+# tokens with the Chinese phrase. Birch is the wrong tree species.
+山毛榉树	Beech Fagus IgE Ab
+山毛榉	Beech Fagus IgE Ab
+# ``尿素酶A / 尿素酶B`` (H pylori UreA / UreB subunit antibodies)
+# may or may not have a LOINC code (the 2.81 dump shows only generic
+# Hp IgG / IgA / IgM Ab — but absence in our snapshot isn't evidence
+# of absence in LOINC). Leave un-aliased: the picker falls onto the
+# closest generic Hp Ab code (7902-0 / 103617-7) by cosine, which is
+# at least disease-specific. Don't pretend to route to a "panel"
+# concept when LOINC may genuinely add subunit codes upstream.
+
+# ── Anti-Beta-2 glycoprotein 1 antibody (anti-β2-GP1) ────────
+# Query forms use Greek β + Roman I/Arabic 1; LOINC uses ``Beta 2
+# glycoprotein 1``. Multiple normalization paths skip this Roman
+# numeral (no ``型`` suffix), so all surface forms are listed here.
+β2糖蛋白I	Beta-2 glycoprotein 1
+β2糖蛋白Ⅰ	Beta-2 glycoprotein 1
+β2糖蛋白1	Beta-2 glycoprotein 1
+β2-GP1	Beta-2 glycoprotein 1
+抗β2糖蛋白I抗体	Beta-2 glycoprotein 1 antibody
+抗β2糖蛋白Ⅰ抗体	Beta-2 glycoprotein 1 antibody
+抗β2糖蛋白1抗体	Beta-2 glycoprotein 1 antibody
+
+# ── Traditional Chinese variants (zhconv s2t expansion) ────
+水痘帶狀皰疹病毒	Varicella zoster virus VZV
+C型肝炎病毒	Hepatitis C virus HCV
+B型肝炎病毒	Hepatitis B virus HBV
+單純皰疹病毒	Herpes simplex virus HSV
+卡氏肺孢子蟲	Pneumocystis jirovecii
+A型肝炎病毒	Hepatitis A virus HAV
+綠膿假單胞菌	Pseudomonas aeruginosa
+嗜熱放線菌	Thermophilic Actinomycetes
+嗜肺軍團菌	Legionella pneumophila
+巨細胞病毒	Cytomegalovirus CMV
+新型隱球菌	Cryptococcus neoformans
+柯薩奇病毒	Coxsackievirus
+組織胞漿菌	Histoplasma
+肺炎支原體	Mycoplasma pneumoniae
+解脲支原體	Ureaplasma urealyticum
+解脲脲原體	Ureaplasma urealyticum
+假絲酵母	Candida
+枯草桿菌	Bacillus subtilis
+結核桿菌	Mycobacterium tuberculosis
+綠膿桿菌	Pseudomonas aeruginosa
+腸道病毒	Enterovirus
+諾如病毒	Norovirus
+輪狀病毒	Rotavirus
+風疹病毒	Rubella virus
+麻風桿菌	Mycobacterium leprae
+絲衣黴	Byssochlamys
+弓形體	Toxoplasma gondii
+弓形蟲	Toxoplasma gondii
+麴黴菌	Aspergillus
+根黴菌	Rhizopus
+毛黴菌	Mucor
+隱球菌	Cryptococcus
+根黴	Rhizopus
+毛黴	Mucor
+β-人絨毛膜促性腺激素	Beta human chorionic gonadotropin beta-hCG
+平均紅細胞血紅蛋白濃度	Mean corpuscular hemoglobin concentration MCHC
+平均紅細胞血紅蛋白量	Mean corpuscular hemoglobin MCH
+抗中性粒細胞胞漿抗體	Antineutrophil cytoplasmic antibody ANCA
+活化部分凝血活酶時間	Activated partial thromboplastin time aPTT
+游離三碘甲狀腺原氨酸	Free triiodothyronine FT3
+游離前列腺特異性抗原	Free prostate specific antigen fPSA
+甲狀腺過氧化物酶抗體	Thyroid peroxidase antibody TPOAb
+神經元特異性烯醇化酶	Neuron specific enolase NSE
+N端B型鈉尿肽前體	N-terminal pro-BNP NT-proBNP
+人絨毛膜促性腺激素	Human chorionic gonadotropin hCG
+低密度脂蛋白膽固醇	Low density lipoprotein cholesterol LDL-C
+天冬氨酸氨基轉移酶	Aspartate aminotransferase AST
+細胞角蛋白19片段	Cytokeratin 19 fragment CYFRA21-1
+高密度脂蛋白膽固醇	High density lipoprotein cholesterol HDL-C
+γ-穀氨醯轉肽酶	Gamma glutamyl transferase GGT
+三碘甲狀腺原氨酸	Triiodothyronine T3
+丙氨酸氨基轉移酶	Alanine aminotransferase ALT
+估算腎小球濾過率	Estimated glomerular filtration rate eGFR
+促腎上腺皮質激素	Adrenocorticotropic hormone ACTH
+前列腺特異性抗原	Prostate specific antigen PSA
+天門冬氨酸轉氨酶	Aspartate aminotransferase AST
+抗雙鏈DNA抗體	Anti dsDNA antibody
+甲狀腺球蛋白抗體	Thyroglobulin antibody TgAb
+糖類抗原15-3	Cancer antigen 15-3 CA15-3
+糖類抗原19-9	Cancer antigen 19-9 CA19-9
+糖類抗原72-4	Cancer antigen 72-4 CA72-4
+胰島素樣生長因子	Insulin-like growth factor IGF
+25羥維生素D	25-hydroxyvitamin D 25(OH)D
+一氧化碳彌散量	Diffusing capacity for carbon monoxide DLCO
+國際標準化比值	International normalized ratio INR
+平均紅細胞體積	Mean corpuscular volume MCV
+心肌損傷標誌物	Cardiac injury markers
+極低密度脂蛋白	Very low density lipoprotein VLDL
+糖類抗原125	Cancer antigen 125 CA125
+糖類抗原242	Cancer antigen 242 CA242
+紅細胞分布寬度	Red cell distribution width RDW
+計算機斷層掃描	Computed tomography CT
+超敏C反應蛋白	High sensitivity C reactive protein hs-CRP
+高敏C反應蛋白	High sensitivity C reactive protein hs-CRP
+鱗狀細胞癌抗原	Squamous cell carcinoma antigen SCC
+丙氨酸轉氨酶	Alanine aminotransferase ALT
+促甲狀腺激素	Thyroid stimulating hormone TSH
+凝血酶原時間	Prothrombin time PT
+嗜鹼性粒細胞	Basophil
+嗜酸性粒細胞	Eosinophil
+游離甲狀腺素	Free thyroxine FT4
+甲狀旁腺激素	Parathyroid hormone PTH
+甲狀腺球蛋白	Thyroglobulin Tg
+糖化血紅蛋白	Hemoglobin A1c HbA1c
+紅細胞沉降率	Erythrocyte sedimentation rate ESR
+維生素B12	Vitamin B12
+穀氨醯轉肽酶	Gamma glutamyl transferase GGT
+載脂蛋白A1	Apolipoprotein A1 ApoA1
+高敏肌鈣蛋白	High sensitivity troponin hs-cTn
+B型鈉尿肽	B-type natriuretic peptide BNP
+C反應蛋白	C reactive protein CRP
+D-二聚體	D dimer
+中性粒細胞	Neutrophil
+乳酸脫氫酶	Lactate dehydrogenase LDH
+凝血酶時間	Thrombin time TT
+白細胞計數	Leukocyte count WBC
+直接膽紅素	Direct bilirubin DBIL
+鹼性磷酸酶	Alkaline phosphatase ALP
+類風溼因子	Rheumatoid factor RF
+紅細胞壓積	Hematocrit HCT
+紅細胞計數	Erythrocyte count RBC
+纖維蛋白原	Fibrinogen FIB
+網織紅細胞	Reticulocyte
+肌鈣蛋白I	Troponin I TnI
+肌鈣蛋白T	Troponin T TnT
+血小板計數	Platelet count PLT
+谷丙轉氨酶	Alanine aminotransferase ALT
+穀草轉氨酶	Aspartate aminotransferase AST
+載脂蛋白B	Apolipoprotein B ApoB
+間接膽紅素	Indirect bilirubin IBIL
+黃體生成素	Luteinizing hormone LH
+D二聚體	D dimer
+凝血四項	Coagulation panel
+動脈血氣	Arterial blood gas ABG
+單核細胞	Monocyte
+大便常規	Stool routine examination
+總膽固醇	Total cholesterol TC
+總膽紅素	Total bilirubin TBIL
+抗核抗體	Antinuclear antibody ANA
+淋巴細胞	Lymphocyte
+生長激素	Growth hormone GH
+甲狀腺素	Thyroxine T4
+肌紅蛋白	Myoglobin MYO
+肌鈣蛋白	Troponin
+血氣分析	Blood gas analysis
+血脂四項	Lipid panel
+診斷印象	Impression
+診斷意見	Impression
+轉鐵蛋白	Transferrin
+降鈣素原	Procalcitonin PCT
+隨機血糖	Random glucose
+風溼三項	Rheumatoid panel
+餐後血糖	Postprandial glucose
+尿常規	Urinalysis UA
+心電圖	Electrocardiogram ECG EKG
+總蛋白	Total protein TP
+殘氣量	Residual volume RV
+電解質	Electrolytes
+皮質醇	Cortisol
+糞常規	Stool routine examination
+肺總量	Total lung capacity TLC
+腎功能	Renal function panel
+胰島素	Insulin
+腦鈉肽	B-type natriuretic peptide BNP
+血常規	Complete blood count CBC
+血清鐵	Serum iron Fe
+鐵蛋白	Ferritin
+葉酸	Folate
+備註	Comments
+建議	Recommendation
+總結	Summary
+意見	Recommendation
+睪酮	Testosterone TES
+結論	Conclusion
+腎功	Renal function panel
+腎素	Renin
+討論	Discussion
+超聲	Ultrasound US
+隨訪	Follow-up
+鈣	Calcium Ca
+鈉	Sodium Na
+鉀	Potassium K
+鎂	Magnesium Mg
+
+# ── Genova 3540 / similar fatty-acid panels (2026-05-27) ──────────
+# LOINC has absolute and ratio variants for each fatty acid; LOINC
+# zhCN provides bare canonical aliases (亚油酸 → Linoleate) for the
+# common ones but misses several Genova panel terms.
+#
+# Bug fix: the bundled LOINC zhCN extract maps
+#   二十二碳四烯酸 → Docosapentaenate w6
+# which conflates DTA (C22:4, tetra-) with DPA-w6 (C22:5). Override
+# with the correct mapping below — `loinc-lexicon` lets curated win
+# on key collisions.
+二十二碳四烯酸	Docosatetraenoate C22:4w6 adrenic acid
+# DPA (docosapentaenoate, C22:5 n-3) — LOINC 48371-9. Bundled zh.tsv
+# lacks this entry so cosine drifts to Docosatetraenoate (C22:4w6)
+# via shared 二十二碳 prefix.
+二十二碳五烯酸	Docosapentaenoate C22:5 n-3 DPA
+DPA	Docosapentaenoate
+# DGLA (dihomo-gamma-linolenate, C20:3 n-6) — LOINC 48370-1. Bundled
+# zh.tsv has 二十碳三烯酸 → Eicosatrienoate (C20:3w3 isomer) but no
+# 二高(-)γ-亚麻酸 bridge; cosine drifts to Gamma Linolenate (C18:3w6)
+# on the bare GLA-fragment match.
+二高γ-亚麻酸	Dihomogammalinolenate C20:3 n-6 DGLA
+二高-γ-亚麻酸	Dihomogammalinolenate C20:3 n-6 DGLA
+二高 -γ- 亚麻酸	Dihomogammalinolenate C20:3 n-6 DGLA
+二高 γ-亚麻酸	Dihomogammalinolenate C20:3 n-6 DGLA
+DGLA	Dihomogammalinolenate
+# Omega-3 (EPA+DHA) index — LOINC 88998-0. Without this the picker
+# drifts to 48382-6 ω6/ω3 ratio because both queries share the
+# "omega" + ratio/index Chinese tokens. Cover the no-space, dash-
+# only, dash-with-spaces, and bare-number variants found in Genova
+# panel CSVs (e.g. ``欧米伽 - 3 指数``).
+欧米伽-3 指数	Omega-3 EPA+DHA index Eicosapentaenoate Docosahexaenoate Serum Plasma
+欧米伽 - 3 指数	Omega-3 EPA+DHA index Eicosapentaenoate Docosahexaenoate Serum Plasma
+欧米伽 - 3指数	Omega-3 EPA+DHA index Eicosapentaenoate Docosahexaenoate Serum Plasma
+欧米伽3 指数	Omega-3 EPA+DHA index Eicosapentaenoate Docosahexaenoate Serum Plasma
+欧米伽3指数	Omega-3 EPA+DHA index Eicosapentaenoate Docosahexaenoate Serum Plasma
+ω-3 指数	Omega-3 EPA+DHA index Eicosapentaenoate Docosahexaenoate Serum Plasma
+ω - 3 指数	Omega-3 EPA+DHA index Eicosapentaenoate Docosahexaenoate Serum Plasma
+ω3 指数	Omega-3 EPA+DHA index Eicosapentaenoate Docosahexaenoate Serum Plasma
+ω3指数	Omega-3 EPA+DHA index Eicosapentaenoate Docosahexaenoate Serum Plasma
+ω-3指数	Omega-3 EPA+DHA index Eicosapentaenoate Docosahexaenoate Serum Plasma
+Omega-3 指数	Omega-3 EPA+DHA index Eicosapentaenoate Docosahexaenoate Serum Plasma
+Omega - 3 指数	Omega-3 EPA+DHA index Eicosapentaenoate Docosahexaenoate Serum Plasma
+Omega3 指数	Omega-3 EPA+DHA index Eicosapentaenoate Docosahexaenoate Serum Plasma
+# AA/EPA ratio — LOINC 90909-3 ``Arachidonate (C20:4w6)/Eicosapen-
+# taenoate (C20:5w3) [Mass Ratio] in Blood``. Bare ``花生四烯酸 /
+# 二十碳五烯酸`` cosine drifts to Arachidonate alone (35168-4)
+# because the ratio orientation overlay can't override the higher
+# single-analyte cosine without an explicit analyte/analyte bridge.
+花生四烯酸 / 二十碳五烯酸	Arachidonate Eicosapentaenoate AA EPA Mass Ratio Blood
+花生四烯酸/二十碳五烯酸	Arachidonate Eicosapentaenoate AA EPA Mass Ratio Blood
+AA / EPA	Arachidonate Eicosapentaenoate AA EPA Mass Ratio Blood
+AA/EPA	Arachidonate Eicosapentaenoate AA EPA Mass Ratio Blood
+
+# ── 营养·脂肪酸谱 audit (2026-05-27) ───────────────────────────────
+# Fixes 7 wrong-code picks + 1 wrong honest-null in the 3540 panel
+# and 营养·脂肪酸谱 source. Each bridges a CN clinical term that the
+# bundled LOINC zhCN lexicon either misses or maps too loosely, so
+# cosine drifts to a wrong-isomer / wrong-chain / wrong-family code.
+#
+# 反油酸 = trans-Vaccenate (C18:1w7-trans, dairy biohydrogenation
+# marker) — DIFFERENT from 反式油酸 (Elaidic, C18:1w9-trans). Both
+# are trans-monoenes but at different ω-positions; LOINC enumerates
+# Vaccenate (48369-3) but only an ambiguously named ``trans-Octadec-
+# anoate (C18:0)`` 48368-5 for elaidate, so we bridge Vaccenic only.
+反油酸	trans-Vaccenate C18:1w7 Vaccenic
+# 反式-11-十八碳烯酸 = trans-11-octadec-enoic acid = trans-Vaccenate
+# (IUPAC Δ-11 form of C18:1w7-trans). Note upstream English mis-spells
+# this as ``Trans-11-eicosenoic`` (eicos- = C20 not C18); the en field
+# is evaluation-only and not embedded, so the CN bridge is what fires.
+# CN 十八碳烯 also semantically maps to ``Eicosenoate`` via the cosine,
+# so the value mirrors the LOINC LONG name with repetition + matrix.
+反式-11-十八碳烯酸	反油酸 trans-Vaccenate C18:1w7 Moles volume Serum Plasma
+反式 - 11 - 十八碳烯酸	反油酸 trans-Vaccenate C18:1w7 Moles volume Serum Plasma
+# 二十二碳烯酸 (bare monoene C22:1) = Erucic acid. LOINC has 79701-9
+# Erucate Ser/Plas, 75109-9 RBC, 35160-1 Docosenoate; bundled zhCN
+# only ships the longer 二十二碳N烯酸 polyenes (DTA C22:4, DPA C22:5,
+# DHA C22:6) — bare ``二十二碳烯酸`` falls through to cosine which
+# picks 35151-0 Lauroleate (C12:1, wrong chain length) or 81765-0
+# Docosatrienoate (C22:3w9) since ``Docos`` is a shared stem. The
+# augment value mirrors the LOINC LONG name to maximize cosine pull
+# toward the C22:1 leaf and starves the C22:3 sibling.
+二十二碳烯酸	Fatty acids very long chain C22:1n9 Erucate Moles volume Serum Plasma
+二十二碳一烯酸	Fatty acids very long chain C22:1n9 Erucate Moles volume Serum Plasma
+芥酸	Fatty acids very long chain C22:1n9 Erucate
+# 十六碳烯酸（9-顺式） = hexadec-9-enoic acid = palmitoleic acid =
+# C16:1w7 (Δ9 from carboxyl ⇒ ω-7 for C16). Bundled zh.tsv has bare
+# ``十六碳烯酸 → Hexadecenoate`` which is ambiguous between C16:1w7
+# (palmitoleate, 35162-7) and C16:1w9 (hypogeic, 35155-1); the 9-顺式
+# qualifier disambiguates to palmitoleate. Cover full-width and half-
+# width parentheses both — Genova panels use full-width 全角. CN char
+# 十六 maps strongly to ``Hexadec-`` in pretrain corpora so the augment
+# value must repeat the C16:1w7 target tokens to flip cosine top-1.
+十六碳烯酸（9-顺式）	棕榈油酸 Palmitoleate C16:1w7 omega-7 Moles volume Serum Plasma
+十六碳烯酸(9-顺式)	棕榈油酸 Palmitoleate C16:1w7 omega-7 Moles volume Serum Plasma
+十六碳烯酸 9-顺式	棕榈油酸 Palmitoleate C16:1w7 omega-7 Moles volume Serum Plasma
+十六碳-9-烯酸	棕榈油酸 Palmitoleate C16:1w7 omega-7 Moles volume Serum Plasma
+# 总Omega-3 脂肪酸 / 总Omega-6 脂肪酸 — bundled `脂肪酸 → Fatty acid
+# omega-3 & omega-6` is the FA-panel CLASS (multi-component panel),
+# not the ω-3 sum measurement. Cosine + the `多不饱和脂肪酸 → PUFA`
+# adjacency drift to 35177-5 PUFA; the right codes are 35178-3 Omega
+# 3 fatty acids Ser/Plas and 35179-1 Omega 6 fatty acids Ser/Plas.
+总Omega-3脂肪酸	Omega 3 fatty acids w3 Serum Plasma
+总 Omega-3 脂肪酸	Omega 3 fatty acids w3 Serum Plasma
+总omega-3脂肪酸	Omega 3 fatty acids w3 Serum Plasma
+总 omega-3 脂肪酸	Omega 3 fatty acids w3 Serum Plasma
+总Omega-3	Omega 3 fatty acids w3
+总ω-3脂肪酸	Omega 3 fatty acids w3 Serum Plasma
+总ω3脂肪酸	Omega 3 fatty acids w3 Serum Plasma
+总Omega-6脂肪酸	Omega 6 fatty acids w6 Serum Plasma
+总 Omega-6 脂肪酸	Omega 6 fatty acids w6 Serum Plasma
+总omega-6脂肪酸	Omega 6 fatty acids w6 Serum Plasma
+总 omega-6 脂肪酸	Omega 6 fatty acids w6 Serum Plasma
+总Omega-6	Omega 6 fatty acids w6
+总ω-6脂肪酸	Omega 6 fatty acids w6 Serum Plasma
+总ω6脂肪酸	Omega 6 fatty acids w6 Serum Plasma
+# 总脂肪酸 = Total fatty acids (24461-6 Ser/Plas Moles/vol or 2275-6
+# Mass/vol). Without this bridge, cosine drifts to 35177-5 PUFA via
+# the `多不饱和脂肪酸 → PUFA` shadow on the bare 脂肪酸 substring.
+# Note: 总脂肪酸 (4 chars) wins longest-first over 脂肪酸 (3 chars).
+总脂肪酸	Fatty acids Moles volume Serum Plasma
+总 脂肪酸	Fatty acids Moles volume Serum Plasma
+# 花生酸 = Arachidic acid = C20:0 (saturated, NOT the polyunsaturated
+# AA which is 花生四烯酸 = Arachidonate C20:4w6). Bundled has only
+# 二十烷酸 → Arachidate; queries using the colloquial 花生酸 form
+# fall through and cosine drifts to 35179-1 Omega 6 fatty acids (the
+# 花生 stem co-occurs with arachidonate-omega-6 in LOINC text).
+花生酸	Arachidate C20:0 Eicosanoate
+
+# ── Sample-200 audit Fix #18 alias additions (2026-05-29) ─────────────
+# Food panel cross-species / cross-genus picks. Each indicator carries a
+# Latin / scientific equivalent in LOINC but the bare CN colloquial form
+# fails to bridge in zhCN5 auto-mined aliases, so cosine drifts to a
+# lexically-closer wrong species (Lentil → Chick Pea, Halibut → Turbot,
+# Turkey → Chicken via 鸡 substring). Adding the curated bridge lifts
+# the embedding cosine onto the correct LOINC analyte. No-LOINC-bridge
+# entries get a panel-context guard via _CONCEPT_NO_LOINC_QUERY_RE.
+#
+# Format: <CN colloquial>\t<LOINC canonical EN + Latin/synonym tokens>
+# Latin/synonym tokens are space-joined so augment_zh_aliases appends
+# them all to the query — broader cosine pull onto the right cluster.
+
+# Fish (commonly mistaken across species in cosine space)
+大比目鱼	Halibut Hippoglossus hippoglossus
+比目鱼	Halibut Hippoglossus hippoglossus
+
+# Poultry — 火鸡 (turkey) loses to 鸡 (chicken) substring in cosine
+火鸡	Turkey Meleagris gallopavo
+火鸡肉	Turkey meat Meleagris gallopavo
+
+# Legumes — 小扁豆 (lentil) loses to other beans
+小扁豆	Lentils Lens esculenta
+
+# Amino-acid 羟- (hydroxy-) prefix lost in cosine collapse to bare form
+羟赖氨酸	Hydroxylysine
+羟脯氨酸	Hydroxyproline
+羟基赖氨酸	Hydroxylysine
+
+# Vanilla — bare 香草 (without 扁桃酸/酰甘氨酸/二乙胺 suffix) means
+# vanilla bean in food / dessert context. Longer prefixes already
+# bridge to Vanillylmandelate / Vanilloylglycine / Etamivan.
+香草	Vanilla Vanilla planifolia
+
+# Spices commonly under food-IRS panel
+丁香	Clove Syzygium aromaticum Eugenia caryophyllata
+
+# Melon disambiguation — 哈密瓜 / 白兰瓜 / 西瓜 are distinct cucurbits.
+# Auto-mined alias collapses to a generic melon cluster, picker drifts
+# to Watermelon for Cantaloupe queries.
+哈密瓜	Cantaloupe Cucumis melo cantalupensis
+白兰瓜	Honeydew melon Cucumis melo inodorus
+
+# Gum disambiguation — 乳香树胶 (Mastic) vs 阿拉伯胶 (Acacia/Gum Arabic) vs
+# 黄蓍胶 (Tragacanth). The combined indicator "乳香树胶 + 阿拉伯胶"
+# drifts to Tragacanth (different gum entirely).
+乳香树胶	Mastic gum Pistacia lentiscus
+
+# Latex hevein — 橡胶树 (rubber tree) cosine pulls to Brazilian Rubber Tree
+# IgE 7670-3; the food-IRS panel "橡胶树橡胶蛋白" specifically asks for
+# the hevein latex protein. No specific LOINC for Hevein in food panel,
+# but adding the canonical name keeps cosine on Latex family.
+橡胶树橡胶蛋白	Latex Hevein Hevea brasiliensis
+
+# NOTE: 麦醇溶蛋白 (gliadin) `毒性肽 IgG` still mis-picks generic `Wheat
+# IgG Ab` over `Gliadin peptide IgG Ab` — a curated `→ Gliadin peptide`
+# alias does NOT cross it (the IgA sibling already resolves to Gliadin
+# peptide IgA, but the IgG path stays on Wheat regardless of augment).
+# This is a merger / loinc-top-1 ranking issue inside the axes pipeline,
+# not a recall gap — deferred to a PROPERTY/COMPONENT-anchored selection
+# fix. See [[project_resolve_demote_layers]].

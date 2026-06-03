@@ -1,952 +1,937 @@
-"""PostgreSQL Backend: Store files in PostgreSQL with intelligent parsing.
+"""PostgreSQL-backed deepagents BackendProtocol with object-storage offload.
 
-Persistent storage across sessions using PostgresLangGraphStore, with lazy file
-parsing (PDF, DOCX, images) and local caching for performance optimization.
+Scope-based virtual filesystem over a single ``deep_agent_workspace`` table.
+The agent's ``CompositeBackend`` (see ``deep_agent._build_backend``) mounts one
+``PgFilesystemBackend`` per scope; ``scope`` is part of the row key so the mounts
+stay isolated even though they collapse onto only two ``session_id`` values:
+
+    default      -> PgFilesystemBackend(user_id, session_id, scope='workspace')
+    /memories/   -> PgFilesystemBackend(user_id, '',         scope='memory')
+    /uploads/    -> PgFilesystemBackend(user_id, session_id, scope='uploads')   (read-only)
+    /library/    -> PgFilesystemBackend(user_id, '',         scope='library')   (read-only)
+    /charts/     -> PgFilesystemBackend(user_id, session_id, scope='charts')
+
+Storage tier is decided per write in ``_classify_and_store``:
+
+  * **Inline**: utf-8 payload <= ``INLINE_LIMIT_BYTES`` (256 KB). ``content``
+    carries the text; ``object_storage_key`` is NULL.
+  * **Offload**: large utf-8 text or any binary payload. Raw bytes go to object
+    storage via the project's ``AbstractStorage`` (S3 / Aliyun OSS / local);
+    ``object_storage_key`` points at them. ``content`` may carry an extracted
+    text representation so ``read``/``grep`` stay useful without round-trips.
+
+This is the modern deepagents 0.6.7 surface: the async methods return the
+``LsResult`` / ``ReadResult`` / ``WriteResult`` / ``EditResult`` / ``GlobResult``
+/ ``GrepResult`` dataclasses (NOT the deprecated ``*_info`` / ``aread -> str``
+shims removed in 0.7.0).
+
+Modeled on ``openvital/server/openvital/agents/deep/backend/pg_filesystem.py``.
 """
 
-import asyncio
-import atexit
+from __future__ import annotations
+
 import base64
-import concurrent.futures
 import fnmatch
-import io
+import hashlib
 import logging
+import mimetypes
 import re
-import time
-from datetime import datetime
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
-from cachetools import TTLCache
+from datetime import datetime, timezone
+from pathlib import PurePosixPath
+from typing import Any, Literal, Optional
 
 from deepagents.backends.protocol import (
-    ExecuteResponse,
-    SandboxBackendProtocol,
+    BackendProtocol,
+    EditResult,
+    FILE_NOT_FOUND,
+    FileDownloadResponse,
     FileInfo,
     FileUploadResponse,
-    FileDownloadResponse,
-    EditResult,
-    WriteResult,
+    GlobResult,
     GrepMatch,
+    GrepResult,
+    INVALID_PATH,
+    LsResult,
+    ReadResult,
+    WriteResult,
 )
-from deepagents.backends.utils import (
-    format_content_with_line_numbers,
-    check_empty_content,
-    perform_string_replacement,
-)
 
-from .utils import get_file_type
-from ..utils import CACHE_TTL_GLOBAL, CACHE_MAX_FILES, CACHE_MAX_WORKERS
-
-MAX_WAIT_TIME = 15
-
-if TYPE_CHECKING:
-    from .store import PostgresLangGraphStore
-    from .parser import FileParser
+from ....utils.db import execute_query
+from ..utils.coercion import coerce_to_bool, coerce_to_int
 
 logger = logging.getLogger(__name__)
 
-_GLOBAL_FILE_CACHE = TTLCache(maxsize=CACHE_MAX_FILES, ttl=CACHE_TTL_GLOBAL)
+# 256 KB cap — larger payloads (even utf-8 text) go to object storage to avoid
+# bloating PG rows / index pages.
+INLINE_LIMIT_BYTES = 256 * 1024
+_DEFAULT_READ_LIMIT = 2000
+_OSS_KEY_PREFIX = "agent-workspace"
+_TABLE = "deep_agent_workspace"
+# Cap for serving raw bytes back as base64 for a multimodal read. Beyond this we
+# return an error instead of base64-bombing the model context.
+_MAX_MULTIMODAL_BYTES = 24 * 1024 * 1024
 
-# Shared thread pool for running async code in sync context
-# Avoids creating a new ThreadPoolExecutor on each _run_async call
-_ASYNC_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
-    max_workers=CACHE_MAX_WORKERS,
-    thread_name_prefix="pg_backend_async_"
-)
-atexit.register(_ASYNC_EXECUTOR.shutdown, wait=False)
+Scope = Literal["workspace", "memory", "uploads", "library", "charts", "shared"]
+Source = Literal["agent_write", "agent_upload", "user_upload", "tool_generated"]
+_VALID_SCOPES = ("workspace", "memory", "uploads", "library", "charts", "shared")
 
-class PostgresBackend(SandboxBackendProtocol):
-    """PostgreSQL backend with sync-first design (like FilesystemBackend).
 
-    All public methods are synchronous. Async database operations are
-    encapsulated in PostgresLangGraphStore. The only async operations
-    remaining are file parsing and external file downloads.
+def _iso(value: Any) -> str:
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.isoformat()
+    return str(value or "")
 
-    Implements SandboxBackendProtocol: file operations are handled directly
-    via PostgreSQL, while execute() is delegated to an optional sandbox
-    backend (e.g. E2BSandboxBackend).
+
+class PgFilesystemBackend(BackendProtocol):
+    """Postgres-backed ``BackendProtocol`` with object-storage offload.
+
+    Constructed per request (deepagents rebuilds the graph each turn). All DB
+    work goes through the project's async ``execute_query``; large/binary bytes
+    are offloaded through the shared ``AbstractStorage`` client.
     """
 
     def __init__(
         self,
-        session_id: str,
+        *,
         user_id: str,
-        store: "PostgresLangGraphStore",
-        file_parser: Optional["FileParser"] = None,
-        cache_ttl: int = 600,
-        sandbox_backend: Optional[Any] = None,
-    ):
-        """
-        Initialize PostgresBackend.
-
-        Args:
-            session_id: Session ID for namespace isolation
-            user_id: User ID for namespace isolation
-            store: PostgresLangGraphStore instance
-            file_parser: FileParser instance for intelligent parsing
-            cache_ttl: Cache TTL in seconds (default: 300 = 5 minutes)
-            sandbox_backend: Optional sandbox backend for code execution
-                (e.g. E2BSandboxBackend). If None, execute() returns an error.
-        """
-        self.session_id = session_id
-        self.user_id = user_id
-        self.namespace = f"{user_id}-{session_id}"
-        self.store = store
-        self.file_parser = file_parser
-        self._sandbox = sandbox_backend
-
-        # Use global cache for cross-session cache hits
-        # Cache key includes (session_id, user_id, file_path) for multi-user isolation
-        self._file_cache = _GLOBAL_FILE_CACHE
-        self._cache_ttl = cache_ttl
-
-        logger.info(
-            f"PostgresBackend initialized: namespace={self.namespace}, "
-            f"sandbox={'yes' if sandbox_backend else 'no'}"
-        )
-    
-    # ==================== SandboxBackendProtocol: execute ====================
+        session_id: str = "",
+        scope: Scope = "workspace",
+        inline_limit: int = INLINE_LIMIT_BYTES,
+    ) -> None:
+        if not user_id:
+            raise ValueError("PgFilesystemBackend requires a non-empty user_id")
+        if scope not in _VALID_SCOPES:
+            raise ValueError(f"unknown scope: {scope!r}")
+        self._user_id = str(user_id)
+        self._session_id = str(session_id or "")
+        self._scope: Scope = scope
+        self._inline_limit = int(inline_limit)
 
     @property
-    def id(self) -> str:
-        """Unique identifier for this backend instance."""
-        if self._sandbox:
-            return self._sandbox.id
-        return f"pg-{self.namespace}"
+    def user_id(self) -> str:
+        return self._user_id
 
-    def execute(
-        self,
-        command: str,
-        *,
-        timeout: int | None = None,
-    ) -> ExecuteResponse:
-        """Execute a shell command via the sandbox backend.
+    @property
+    def scope(self) -> str:
+        return self._scope
 
-        Delegates to the injected sandbox backend (e.g. E2BSandboxBackend).
-        If no sandbox is configured, returns an error response.
-        """
-        if self._sandbox is None:
-            return ExecuteResponse(
-                output=(
-                    "Error: No execution backend configured. "
-                    "Set E2B_API_KEY environment variable to enable code execution."
-                ),
-                exit_code=1,
-                truncated=False,
-            )
-        return self._sandbox.execute(command, timeout=timeout)
+    # ─── helpers ────────────────────────────────────────────────────────
 
-    async def aexecute(
-        self,
-        command: str,
-        *,
-        timeout: int | None = None,
-    ) -> ExecuteResponse:
-        """Async execute — syncs workspace files to sandbox, then delegates.
-
-        Files created via write_file() live in PostgreSQL. Before executing,
-        we sync all text files from the workspace into the sandbox filesystem
-        so that commands like `python3 /script.py` can find them.
-        """
-        if self._sandbox is None:
-            return ExecuteResponse(
-                output=(
-                    "Error: No execution backend configured. "
-                    "Set E2B_API_KEY environment variable to enable code execution."
-                ),
-                exit_code=1,
-                truncated=False,
-            )
-
-        # Sync workspace files to sandbox before execution
-        await self._sync_workspace_to_sandbox()
-
-        return await self._sandbox.aexecute(command, timeout=timeout)
-
-    async def _sync_workspace_to_sandbox(self) -> None:
-        """Sync text files from PostgreSQL workspace into the E2B sandbox.
-
-        Only syncs files that have text content (not binary/reference files).
-        This ensures scripts written via write_file() are available for execute().
-        """
-        if self._sandbox is None:
-            return
-
-        try:
-            items = await self.store.search((self.session_id, self.user_id))
-            files_to_upload: list[tuple[str, bytes]] = []
-
-            for item in items:
-                file_path = item.key
-                file_data = item.value
-                if not file_data:
-                    continue
-
-                # Sync text content files (scripts, code, etc.)
-                content_lines = file_data.get("content", [])
-                if content_lines:
-                    text = "\n".join(content_lines)
-                    files_to_upload.append((file_path, text.encode("utf-8")))
-
-            if files_to_upload:
-                await self._sandbox.aupload_files(files_to_upload)
-                logger.debug(
-                    f"Synced {len(files_to_upload)} file(s) to sandbox: "
-                    f"{[f[0] for f in files_to_upload]}"
-                )
-        except Exception as e:
-            logger.warning(f"Failed to sync workspace to sandbox: {e}", exc_info=True)
-
-    # ==================== Internal Helpers ====================
+    def _scope_params(self) -> dict[str, Any]:
+        return {
+            "user_id": self._user_id,
+            "session_id": self._session_id,
+            "scope": self._scope,
+        }
 
     @staticmethod
-    def _normalize_path(file_path: str) -> str:
-        """Normalize file path to always start with '/'.
+    def _validate_path(file_path: Any) -> str | None:
+        """Mirror deepagents ``FilesystemBackend(virtual_mode=True)`` semantics.
 
-        LLMs may call write_file with paths like 'script.py' (no leading slash).
-        All file operations must use consistent path format for correct lookup.
+        Rejects non-string / empty / non-absolute paths plus ``..`` / ``~`` /
+        ``//`` so a routed backend can't be traversed out of its mount. Returns
+        the ``INVALID_PATH`` warning constant on rejection (never raises).
         """
-        if not file_path:
-            return "/"
+        if not isinstance(file_path, str) or not file_path:
+            return INVALID_PATH
         if not file_path.startswith("/"):
-            file_path = "/" + file_path
-        return file_path
-
-    def _match_glob(self, file_path: str, glob_pattern: str) -> bool:
-        """Match file path against glob pattern (*, ?, [seq], [!seq]).
-
-        Args:
-            file_path: File path to match
-            glob_pattern: Glob pattern (e.g., "*.txt", "test_*.py")
-
-        Returns:
-            True if path matches pattern
-        """
-        if not glob_pattern or glob_pattern == "*":
-            return True
-        
-        # Extract filename from path for matching
-        filename = Path(file_path).name
-        
-        # Use fnmatch for glob pattern matching
-        return fnmatch.fnmatch(filename, glob_pattern)
-
-    def _format_file_content(self, file_data: dict, offset: int, limit: int) -> str:
-        """
-        Format file content with line numbers.
-        
-        Args:
-            file_data: FileData dict
-            offset: Line offset
-            limit: Line limit
-            
-        Returns:
-            Formatted content string
-        """
-        content_lines = file_data.get("content", [])
-        
-        # Check for empty content
-        if not content_lines:
-            empty_msg = check_empty_content("")
-            if empty_msg:
-                return empty_msg
-        
-        # Apply offset and limit
-        total_lines = len(content_lines)
-        start_idx = offset
-        end_idx = min(start_idx + limit, total_lines)
-        
-        if start_idx >= total_lines:
-            return f"Error: Line offset {offset} exceeds file length ({total_lines} lines)"
-        
-        selected_lines = content_lines[start_idx:end_idx]
-        
-        # Format with line numbers
-        return format_content_with_line_numbers(selected_lines, start_line=start_idx + 1)
-
-    
-    def _get_file_data(self, file_path: str) -> Optional[dict]:
-        """Get file data from cache or database (sync wrapper)."""
-        return asyncio.run(self._get_file_data_async(file_path))
-
-    async def _get_file_data_async(self, file_path: str) -> Optional[dict]:
-        """Get file data from cache or database (async)."""
-        cache_key = (self.session_id, self.user_id, file_path)
-
-        # Check cache first
-        if cache_key in self._file_cache:
-            cached_entry = self._file_cache[cache_key]
-            if time.time() - cached_entry["timestamp"] < self._cache_ttl:
-                logger.debug(f"Cache HIT: {file_path}")
-                return cached_entry["data"]
-            else:
-                logger.debug(f"Cache EXPIRED: {file_path}")
-                del self._file_cache[cache_key]
-
-        # Query database using store.get() (async)
+            return INVALID_PATH
         try:
-            item = await self.store.get((self.session_id, self.user_id), file_path)
-
-            if item and item.value:
-                file_data = item.value
-                logger.debug(f"Database HIT: {file_path}")
-
-                # Cache for future access
-                self._file_cache[cache_key] = {
-                    "data": file_data,
-                    "timestamp": time.time()
-                }
-                return file_data
-
-            logger.debug(f"Database MISS: {file_path}")
-            return None
-
-        except Exception as e:
-            logger.error(f"Failed to get file data for {file_path}: {e}", exc_info=True)
-            return None
-
-    def _put_file_data(self, file_path: str, file_data: dict, persist: bool = False) -> None:
-        """Save file data to cache, optionally persist to database (sync wrapper).
-
-        Args:
-            file_path: File path (used as key)
-            file_data: FileData dict
-            persist: If True, also write to database (for parsed content).
-                     If False, only write to local cache (for raw content).
-        """
-        asyncio.run(self._put_file_data_async(file_path, file_data, persist))
-
-    async def _put_file_data_async(self, file_path: str, file_data: dict, persist: bool = False) -> None:
-        """Save file data to cache, optionally persist to database (async).
-
-        Args:
-            file_path: File path (used as key)
-            file_data: FileData dict
-            persist: If True, also write to database (for parsed content).
-                     If False, only write to local cache (for raw content).
-        """
-        try:
-            cache_key = (self.session_id, self.user_id, file_path)
-
-            # Update timestamps
-            file_data["modified_at"] = datetime.now().isoformat()
-            if "created_at" not in file_data:
-                file_data["created_at"] = datetime.now().isoformat()
-
-            # Update global cache (always)
-            self._file_cache[cache_key] = {
-                "data": file_data,
-                "timestamp": time.time()
-            }
-
-            # Save to PostgreSQL only if persist=True (async)
-            if persist:
-                await self.store.put((self.session_id, self.user_id), file_path, file_data)
-                logger.debug(f"Persisted file data to DB: {file_path}")
-            else:
-                logger.debug(f"Cached file data (memory only): {file_path}")
-
-        except Exception as e:
-            logger.error(f"Failed to save file data for {file_path}: {e}", exc_info=True)
-            raise
-
-    async def _download_reference_file(self, file_data: dict, file_name: str) -> Optional[str]:
-        """Download content for a reference file.
-
-        Returns:
-            Base64 encoded content, or None if download failed
-        """
-        import httpx
-
-        url = file_data.get("url")
-        file_key = file_data.get("file_key")
-
-        # Attempt 1: Use saved URL
-        if url:
-            try:
-                logger.info(f"📥 Downloading reference file from URL: {file_name}")
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.get(url)
-                    response.raise_for_status()
-                    file_bytes = response.content
-                logger.info(f"✅ Downloaded {len(file_bytes)} bytes: {file_name}")
-                return base64.b64encode(file_bytes).decode("utf-8")
-            except Exception as e:
-                logger.warning(f"Failed to download from URL (may be expired): {e}")
-
-        # Attempt 2: Refresh URL via file_key
-        if file_key:
-            try:
-                from ...tools.files_utils import get_file_info_from_file_key
-
-
-                logger.info(f"🔄 URL expired, refreshing from file_key: {file_key}")
-                file_info = await get_file_info_from_file_key(file_key)
-
-
-                if file_info and file_info.get("url"):
-                    new_url = file_info["url"]
-                    async with httpx.AsyncClient(timeout=30.0) as client:
-                        response = await client.get(new_url)
-                        response.raise_for_status()
-                        file_bytes = response.content
-
-                    # Update URL in file_data for future use
-                    file_data["url"] = new_url
-                    logger.info(f"✅ Downloaded {len(file_bytes)} bytes via refreshed URL: {file_name}")
-                    return base64.b64encode(file_bytes).decode("utf-8")
-            except Exception as e:
-                logger.error(f"Failed to download via file_key: {e}")
-
-        logger.error(f"❌ No valid URL or file_key to download: {file_name}")
+            parts = PurePosixPath(file_path.replace("\\", "/")).parts
+        except Exception:
+            return INVALID_PATH
+        if ".." in parts or "~" in parts:
+            return INVALID_PATH
+        if "//" in file_path:
+            return INVALID_PATH
         return None
 
-    async def _parse_file_lazy(self, file_path: str, file_data: dict) -> str:
-        """Parse file with global cache support and intelligent waiting."""
+    @staticmethod
+    def _sha256(payload: bytes) -> str:
+        return hashlib.sha256(payload).hexdigest()
 
-        if not self.file_parser:
-            return "[No file parser available]"
+    def _oss_key_for(self, file_path: str, content_hash: str) -> str:
+        clean = file_path.lstrip("/")
+        slug = self._session_id or "shared"
+        return f"{_OSS_KEY_PREFIX}/{self._user_id}/{self._scope}/{slug}/{content_hash[:8]}/{clean}"
 
-        raw_content_b64 = file_data.get("raw_content", "")
-        file_name = Path(file_path).name
-        if file_name.startswith("/0/") and len(file_name) > 3:
-            file_name = file_name[3:]
+    @staticmethod
+    def _row_to_file_info(row: dict[str, Any]) -> FileInfo:
+        info: FileInfo = {"path": str(row.get("path", ""))}
+        if row.get("content_size") is not None:
+            info["size"] = int(row["content_size"])
+        if row.get("updated_at") is not None:
+            info["modified_at"] = _iso(row["updated_at"])
+        return info
 
-        file_type = file_data.get("file_type", "UNKNOWN")
+    async def _fetch_row(self, file_path: str) -> dict[str, Any] | None:
+        rows = await execute_query(
+            query=f"""
+            SELECT path, content, encoding, content_size, mime_type,
+                   scope, object_storage_key, content_hash, file_key, source,
+                   created_at, updated_at
+            FROM {_TABLE}
+            WHERE user_id = :user_id
+              AND session_id = :session_id
+              AND scope = :scope
+              AND path = :path
+              AND deleted = 0
+            LIMIT 1
+            """,
+            params={**self._scope_params(), "path": file_path},
+        )
+        if isinstance(rows, list) and rows:
+            return dict(rows[0])
+        return None
 
-        # Handle reference files (created by fetch_remote_files)
-        if not raw_content_b64 and file_data.get("is_reference"):
-            file_key = file_data.get("file_key")
-            if file_key:
-                # Query th_files cache by file_key
-                cached_data = await self.file_parser._query_th_files_cache(file_key, lookup_type="file_key")
-                if cached_data:
-                    logger.info(f"🎯 Cache hit via file_key: {file_name}")
-                    return cached_data["content"]
+    async def _fetch_rows_under(self, prefix: str) -> list[dict[str, Any]]:
+        escaped = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        rows = await execute_query(
+            query=rf"""
+            SELECT path, content, encoding, content_size, mime_type,
+                   scope, object_storage_key, content_hash, file_key, source,
+                   created_at, updated_at
+            FROM {_TABLE}
+            WHERE user_id = :user_id
+              AND session_id = :session_id
+              AND scope = :scope
+              AND path LIKE :prefix || '%' ESCAPE '\'
+              AND deleted = 0
+            ORDER BY path ASC
+            """,
+            params={**self._scope_params(), "prefix": escaped},
+        )
+        return [dict(r) for r in rows] if isinstance(rows, list) else []
 
-            raw_content_b64 = await self._download_reference_file(file_data, file_name)
-            if raw_content_b64:
-                file_data["raw_content"] = raw_content_b64
-                file_data["is_reference"] = False  # No longer a reference after download
-            else:
-                return "[Failed to download reference file]"
-
-        if not raw_content_b64:
-            logger.warning(f" ❌ raw_content is empty! file_data={file_data}")
-            return "[No raw content]"
-
-        # OPTIMIZATION: Wait for background processing first (avoid duplicate parsing)
-        # If file was just uploaded, file_processing_service may already be processing it
-        file_key = file_data.get("file_key")
-        if file_key:
-            logger.info(f"⏳ Waiting for background processing: {file_name}")
-            poll_interval = 1  # Check every 1 second
-            for attempt in range(MAX_WAIT_TIME // poll_interval):
-                cached_data = await self.file_parser._query_th_files_cache(file_key, lookup_type="file_key")
-                if cached_data:
-                    wait_time = (attempt + 1) * poll_interval
-                    logger.info(f"✅ Background processing completed: {file_name} (waited {wait_time}s)")
-                    return cached_data["content"]
-                await asyncio.sleep(poll_interval)
-            logger.info(f"⏰ Background processing timeout after {MAX_WAIT_TIME}s, parsing locally: {file_name}")
-        
-        try:
-            # Only import FileParser when needed (lazy load)
-            from .parser import FileParser
-        except ImportError:
-            logger.error("FileParser not available - file parsing disabled")
-            return f"Error: FileParser not available"
-        
-        try:
-            # local files
-            import time
-            import hashlib
-
-            file_bytes = base64.b64decode(raw_content_b64)
-
-            # Check cache by content_hash before parsing
-            content_hash = hashlib.sha256(file_bytes).hexdigest()
-            cached_data = await self.file_parser._query_th_files_cache(content_hash, lookup_type="content_hash")
-            if cached_data:
-                logger.info(f"🎯 Cache hit via content_hash: {file_name} (hash={content_hash[:16]}...)")
-                return cached_data["content"]
-
-            # Cache miss, parse file using FileParser
-            logger.info(f"📄 Lazy-parsing: {file_name} (hash={content_hash[:16]}...)")
-            parse_start = time.time()
-
-            # FileParser handles cache lookup and saving internally
-            parsed_content, parse_method, parse_model = await self.file_parser.parse_file(
-                file_input=io.BytesIO(file_bytes),
-                filename=file_name,
-                file_type=file_type
-            )
-
-            parse_duration_ms = int((time.time() - parse_start) * 1000)
-            logger.info(f"✅ Parsed {file_name}: {len(parsed_content)} chars, {parse_duration_ms}ms ({parse_method})")
-
-            return parsed_content
-
-        except Exception as e:
-            logger.error(f"Parse failed for {file_path}: {e}", exc_info=True)
-            return f"[Parse error: {str(e)}]"
-
-    # ==================== Async Method Overrides ====================
-    # Override BackendProtocol async methods for full async/await chain
-
-    async def als_info(self, path: str = "/") -> list[FileInfo]:
-        """List files and directories in the specified directory (non-recursive).
-
-        Args:
-            path: Absolute directory path to list files from.
-
-        Returns:
-            List of `FileInfo`-like dicts for files and directories directly in the
-                directory. Directories have a trailing `/` in their path and
-                `is_dir=True`.
-        """
-        try:
-            path = self._normalize_path(path)
-            items = await self.store.search((self.session_id, self.user_id))
-            results = []
-            for item in items:
-                file_path = self._normalize_path(item.key)
-                if not file_path.startswith(path):
-                    continue
-                file_data = item.value
-                results.append(FileInfo(
-                    path=file_path,
-                    is_dir=False,
-                    size=len(file_data.get("content", [])),
-                    modified_at=file_data.get("modified_at"),
-                ))
-            # Keep deterministic order by path (matching FilesystemBackend)
-            results.sort(key=lambda x: x.get("path", ""))
-            return results
-        except Exception as e:
-            logger.error(f"Failed to list files in {path}: {e}", exc_info=True)
-            return []
-
-    async def aread(self, file_path: str, offset: int = 0, limit: int = 2000) -> str:
-        """Read file content with line numbers.
-
-        Args:
-            file_path: Absolute or relative file path.
-            offset: Line offset to start reading from (0-indexed).
-            limit: Maximum number of lines to read.
-
-        Returns:
-            Formatted file content with line numbers, or error message.
-        """
-        if offset is None:
-            offset = 0
-        if limit is None:
-            limit = 2000
-
-        file_path = self._normalize_path(file_path)
-        file_data = await self._get_file_data_async(file_path)
-        if not file_data:
-            # Provide helpful error with available files
-            try:
-                items = await self.store.search((self.session_id, self.user_id))
-                files = [item.key for item in items] if items else []
-                if files:
-                    return f"Error: File '{file_path}' not found\n\nAvailable files:\n" + "\n".join(f"  - {f}" for f in files)
-            except Exception:
-                pass
-            return f"Error: File '{file_path}' not found"
-
-        # Lazy parsing on first read (async)
-        if not file_data.get("content"):
-            logger.info(f"Lazy-parsing: {file_path}")
-            parsed_content = await self._parse_file_lazy(file_path, file_data)
-
-            # Update file data with parsed content
-            file_data["content"] = parsed_content.split("\n") if parsed_content else []
-            await self._put_file_data_async(file_path, file_data, persist=True)
-
-            # Re-fetch to ensure we have the latest data
-            file_data = await self._get_file_data_async(file_path)
-            if not file_data or not file_data.get("content"):
-                return parsed_content or "[Parse failed]"
-
-        # Use standard formatting (matching FilesystemBackend)
-        content_lines = file_data.get("content", [])
-
-        # Check empty content
-        if not content_lines:
-            content = "\n".join(content_lines)
-            empty_msg = check_empty_content(content)
-            if empty_msg:
-                return empty_msg
-
-        # Apply offset and limit
-        total_lines = len(content_lines)
-        start_idx = offset
-        end_idx = min(start_idx + limit, total_lines)
-
-        if start_idx >= total_lines:
-            return f"Error: Line offset {offset} exceeds file length ({total_lines} lines)"
-
-        selected_lines = content_lines[start_idx:end_idx]
-
-        # Format with summary header instead of per-line numbers
-        start_line = start_idx + 1
-        end_line = end_idx
-        remaining_lines = total_lines - end_idx
-        is_complete = end_idx >= total_lines
-
-        # Build header with range and status
-        if is_complete:
-            header = f"[Lines {start_line}-{end_line} of {total_lines} total lines, complete]\n\n"
-        else:
-            header = f"[Lines {start_line}-{end_line} of {total_lines} total lines, {remaining_lines} lines remaining]\n\n"
-
-        # Join content without per-line numbering
-        content = "\n".join(selected_lines)
-
-        return header + content
-
-    async def awrite(self, file_path: str, content: str) -> WriteResult:
-        """Create a new file with content.
-
-        Args:
-            file_path: Path where the new file will be created.
-            content: Text content to write to the file.
-
-        Returns:
-            `WriteResult` with path on success, or error message if the file
-                already exists or write fails. External storage sets `files_update=None`.
-        """
-        file_path = self._normalize_path(file_path)
-        existing = await self._get_file_data_async(file_path)
-        if existing is not None:
-            return WriteResult(error=f"Cannot write to {file_path} because it already exists. Read and then make an edit, or write to a new path.")
-
-        file_data = {
-            "content": content.split("\n"),
-            "created_at": datetime.now().isoformat(),
-            "modified_at": datetime.now().isoformat(),
-        }
-
-        await self._put_file_data_async(file_path, file_data, persist=True)
-        return WriteResult(path=file_path, files_update=None)
-
-    async def aedit(self, file_path: str, old_string: str, new_string: str,
-                    replace_all: bool = False) -> EditResult:
-        """Edit a file by replacing string occurrences.
-
-        Args:
-            file_path: Path to the file to edit.
-            old_string: The text to search for and replace.
-            new_string: The replacement text.
-            replace_all: If `True`, replace all occurrences. If `False` (default),
-                replace only if exactly one occurrence exists.
-
-        Returns:
-            `EditResult` with path and occurrence count on success, or error
-                message if file not found or replacement fails. External storage sets
-                `files_update=None`.
-        """
-        file_path = self._normalize_path(file_path)
-        file_data = await self._get_file_data_async(file_path)
-        if file_data is None:
-            return EditResult(error=f"Error: File '{file_path}' not found")
-
-        content_lines = file_data.get("content", [])
-        if not content_lines:
-            return EditResult(error=f"Error: File '{file_path}' is empty")
-
-        # Join lines to full text
-        content = "\n".join(content_lines)
-
-        result = perform_string_replacement(content, old_string, new_string, replace_all)
-
-        if isinstance(result, str):
-            # Error message from perform_string_replacement
-            return EditResult(error=result)
-
-        new_content, occurrences = result
-
-        # Update file data
-        new_file_data = {
-            **file_data,
-            "content": new_content.split("\n") if new_content else [],
-            "modified_at": datetime.now().isoformat(),
-        }
-
-        # Clear raw_content after text edit (text and binary no longer match)
-        if "raw_content" in new_file_data:
-            del new_file_data["raw_content"]
-            new_file_data["metadata"] = new_file_data.get("metadata", {})
-            new_file_data["metadata"]["raw_content_cleared"] = True
-
-        # Mark as edited
-        new_file_data["metadata"] = new_file_data.get("metadata", {})
-        new_file_data["metadata"]["edited_in_session"] = True
-
-        # Save to database and cache (persist edited content)
-        await self._put_file_data_async(file_path, new_file_data, persist=True)
-
-        return EditResult(
-            path=file_path,
-            files_update=None,
-            occurrences=int(occurrences)
+    async def _upsert(
+        self,
+        *,
+        path: str,
+        content: str,
+        encoding: str,
+        content_size: int,
+        mime_type: str | None,
+        object_storage_key: str | None,
+        content_hash: str | None,
+        source: Source,
+        file_key: str | None = None,
+    ) -> None:
+        await execute_query(
+            query=f"""
+            INSERT INTO {_TABLE}
+                (user_id, session_id, scope, path, content, encoding, content_size,
+                 mime_type, object_storage_key, content_hash, file_key, source,
+                 created_at, updated_at, deleted)
+            VALUES
+                (:user_id, :session_id, :scope, :path, :content, :encoding, :size,
+                 :mime, :oss_key, :hash, :file_key, :source,
+                 NOW(), NOW(), 0)
+            ON CONFLICT (user_id, session_id, scope, path) DO UPDATE
+                SET content = EXCLUDED.content,
+                    encoding = EXCLUDED.encoding,
+                    content_size = EXCLUDED.content_size,
+                    mime_type = EXCLUDED.mime_type,
+                    object_storage_key = EXCLUDED.object_storage_key,
+                    content_hash = EXCLUDED.content_hash,
+                    file_key = COALESCE(EXCLUDED.file_key, {_TABLE}.file_key),
+                    source = EXCLUDED.source,
+                    updated_at = NOW(),
+                    deleted = 0
+            """,
+            params={
+                **self._scope_params(),
+                "path": path,
+                "content": content,
+                "encoding": encoding,
+                "size": int(content_size),
+                "mime": mime_type,
+                "oss_key": object_storage_key,
+                "hash": content_hash,
+                "file_key": file_key,
+                "source": source,
+            },
         )
 
+    # ─── object storage (AbstractStorage: S3 / Aliyun OSS / local) ───────
 
-    async def agrep_raw(self, pattern: str, path: Optional[str] = None,
-                        glob: Optional[str] = None) -> list[GrepMatch] | str:
-        """Search for a literal text pattern in files.
+    async def _put_to_storage(self, key: str, payload: bytes, mime_type: str) -> bool:
+        try:
+            from ....utils.config.storage.factory import get_storage_client
+            storage = get_storage_client()
+            _url, err = await storage.put(key, payload, content_type=mime_type)
+            if err:
+                logger.error("storage put failed for %s: %s", key, err)
+                return False
+            return True
+        except Exception:
+            logger.exception("storage put failed for %s", key)
+            return False
 
-        Uses database search with regex pattern matching.
+    async def _get_from_storage(self, key: str) -> bytes | None:
+        try:
+            from ....utils.config.storage.factory import get_storage_client
+            content, err = await get_storage_client().get(key)
+            if err:
+                logger.error("storage get failed for %s: %s", key, err)
+                return None
+            return content
+        except Exception:
+            logger.exception("storage get failed for %s", key)
+            return None
 
-        Args:
-            pattern: Literal string to search for (NOT regex).
-            path: Directory or file path to search in. Defaults to current directory.
-            glob: Optional glob pattern to filter which files to search.
+    async def _lazy_extract_doc_text(
+        self, row: dict[str, Any], file_path: str
+    ) -> str | None:
+        """On-demand text extraction for a text-document (pdf/ppt) whose inline
+        ``content`` is still empty (upload-time parse not finished, or the file
+        was registered by reference).
 
-        Returns:
-            List of GrepMatch dicts containing path, line number, and matched text.
+        Two sources, cheapest first:
+          1. the ``th_files`` parse cache by ``file_key`` — the asynchronous
+             upload parse may have completed since this row was registered;
+          2. the raw bytes in object storage — extract synchronously.
+
+        On success the text is written back to the workspace row so subsequent
+        reads are instant. Returns the extracted text, or ``None`` if nothing
+        could be produced yet.
         """
-        search_path = path or "/"
-        glob_pattern = glob or "*"
-
+        file_key = row.get("file_key")
+        oss_key = row.get("object_storage_key")
+        name = PurePosixPath(file_path).name
         try:
-            # Note: Unlike FilesystemBackend which uses re.escape for literal search,
-            # we use the pattern as-is for regex matching (more flexible for database queries)
-            regex = re.compile(pattern, re.IGNORECASE)
-        except re.error as e:
-            return f"Invalid regex pattern: {str(e)}"
+            from .parser import FileParser
+            parser = FileParser()
 
-        try:
-            search_path = self._normalize_path(search_path)
-            items = await self.store.search((self.session_id, self.user_id))
-            matches: list[GrepMatch] = []
-            for item in items:
-                fp = self._normalize_path(item.key)
-                if not fp.startswith(search_path) or not self._match_glob(fp, glob_pattern):
-                    continue
-                file_data = item.value
-                # Skip reference files without content
-                if file_data.get("is_reference") and not file_data.get("content"):
-                    continue
-                for line_num, line in enumerate(file_data.get("content", []), 1):
-                    if regex.search(line):
-                        matches.append(GrepMatch(path=fp, line=int(line_num), text=str(line)))
-            return matches
+            if file_key:
+                cached = await parser.get_cached_file_by_key(str(file_key))
+                text = (cached or {}).get("content", "") if cached else ""
+                if text and text.strip():
+                    await self._persist_inline_text(file_path, text)
+                    return text
+
+            if oss_key:
+                raw = await self._get_from_storage(str(oss_key))
+                if raw:
+                    prepared = await parser.prepare(raw, name, file_key=file_key or None)
+                    if prepared.parsed_text and prepared.parsed_text.strip():
+                        await self._persist_inline_text(file_path, prepared.parsed_text)
+                        return prepared.parsed_text
         except Exception as e:
-            logger.error(f"Failed to grep: {e}", exc_info=True)
-            return f"Error: {str(e)}"
+            logger.warning(f"lazy doc extract failed for {file_path}: {e}")
+        return None
 
-    async def aglob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
-        """Find files matching a glob pattern.
-
-        Args:
-            pattern: Glob pattern to match files against (e.g., `'*.py'`, `'**/*.txt'`).
-            path: Base directory to search from. Defaults to root (`/`).
-
-        Returns:
-            List of `FileInfo` dicts for matching files, sorted by path. Each dict
-                contains `path`, `is_dir`, `size`, and `modified_at` fields.
-        """
+    async def _persist_inline_text(self, path: str, text: str) -> None:
+        """Cache extracted text back into the workspace row's ``content`` column
+        so later reads skip re-extraction. Best-effort — never raises."""
         try:
-            path = self._normalize_path(path)
-            items = await self.store.search((self.session_id, self.user_id))
-            results = []
-            for item in items:
-                fp = self._normalize_path(item.key)
-                if not fp.startswith(path) or not self._match_glob(fp, pattern):
-                    continue
-                file_data = item.value
-                results.append(FileInfo(
-                    path=fp,
-                    is_dir=False,
-                    size=len(file_data.get("content", [])),
-                    modified_at=file_data.get("modified_at"),
-                ))
-            # Sort results for deterministic order (matching FilesystemBackend)
-            results.sort(key=lambda x: x.get("path", ""))
-            return results
+            await execute_query(
+                query=f"""
+                UPDATE {_TABLE}
+                SET content = :content, content_size = :size, updated_at = NOW()
+                WHERE user_id = :user_id AND session_id = :session_id
+                  AND scope = :scope AND path = :path
+                """,
+                params={**self._scope_params(), "path": path,
+                        "content": text, "size": len(text.encode("utf-8"))},
+            )
         except Exception as e:
-            logger.error(f"Failed to glob: {e}", exc_info=True)
-            return []
+            logger.warning(f"persist inline text failed for {path}: {e}")
 
-    # ==================== Sync Method Wrappers ====================
-    # Sync methods for BackendProtocol compatibility (matching FilesystemBackend interface)
+    async def _classify_and_store(
+        self,
+        *,
+        path: str,
+        payload: bytes,
+        mime_type: str | None,
+        source: Source,
+        parsed_text_override: str | None = None,
+        file_key: str | None = None,
+    ) -> str | None:
+        """Pick inline vs offload, write the row, return an error string or None."""
+        content_hash = self._sha256(payload)
+        size = len(payload)
 
-    def ls_info(self, path: str = "/") -> list[FileInfo]:
-        """List files and directories in the specified directory (non-recursive).
-        """
-        return asyncio.run(self.als_info(path))
+        try:
+            decoded_text: str | None = payload.decode("utf-8")
+        except UnicodeDecodeError:
+            decoded_text = None
 
-    def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> str:
-        """Read file content with line numbers.
-        """
-        return asyncio.run(self.aread(file_path, offset, limit))
+        is_inline_text = decoded_text is not None and size <= self._inline_limit
 
-    def write(self, file_path: str, content: str) -> WriteResult:
-        """Create a new file with content.
-        """
-        return asyncio.run(self.awrite(file_path, content))
+        if is_inline_text:
+            await self._upsert(
+                path=path,
+                content=decoded_text or "",
+                encoding="utf-8",
+                content_size=size,
+                mime_type=mime_type or "text/plain",
+                object_storage_key=None,
+                content_hash=content_hash,
+                source=source,
+                file_key=file_key,
+            )
+            return None
 
-    def edit(self, file_path: str, old_string: str, new_string: str,
-             replace_all: bool = False) -> EditResult:
-        """Edit a file by replacing string occurrences.
-        """
-        return asyncio.run(self.aedit(file_path, old_string, new_string, replace_all))
+        oss_key = self._oss_key_for(path, content_hash)
+        ok = await self._put_to_storage(oss_key, payload, mime_type or "application/octet-stream")
+        if not ok:
+            return "object_storage_write_failed"
 
-    def glob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
-        """Find files matching a glob pattern.
-        """
-        return asyncio.run(self.aglob_info(pattern, path))
+        await self._upsert(
+            path=path,
+            content=parsed_text_override or "",
+            encoding="base64" if decoded_text is None else "utf-8",
+            content_size=size,
+            mime_type=mime_type or "application/octet-stream",
+            object_storage_key=oss_key,
+            content_hash=content_hash,
+            source=source,
+            file_key=file_key,
+        )
+        return None
 
-    def grep_raw(self, pattern: str, path: Optional[str] = None,
-                 glob: Optional[str] = None) -> list[GrepMatch] | str:
-        """Search for a literal text pattern in files.
-        """
-        return asyncio.run(self.agrep_raw(pattern, path, glob))
-    # ==================== File Upload/Download ====================
+    # ─── ls ──────────────────────────────────────────────────────────────
 
-    def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
-        """Upload multiple files to the filesystem.
+    async def als(self, path: str) -> LsResult:
+        path = path or "/"  # qwen may send None instead of the default
+        err = self._validate_path(path)
+        if err:
+            return LsResult(error=err)
+        directory = path if path.endswith("/") or path == "/" else path + "/"
+        rows = await self._fetch_rows_under(directory)
 
-        Args:
-            files: List of (path, content) tuples where content is bytes.
+        seen: dict[str, FileInfo] = {}
+        for row in rows:
+            full = str(row.get("path", ""))
+            tail = full[len(directory):] if directory != "/" else full[1:]
+            if not tail:
+                continue
+            first, sep, _rest = tail.partition("/")
+            if not first:
+                continue
+            child_path = directory + first if directory != "/" else "/" + first
+            if sep:
+                if child_path not in seen:
+                    seen[child_path] = {"path": child_path, "is_dir": True}
+            else:
+                seen[child_path] = self._row_to_file_info(row)
+        return LsResult(entries=sorted(seen.values(), key=lambda e: e["path"]))
 
-        Returns:
-            List of FileUploadResponse objects, one per input file.
-            Response order matches input order.
-        """
-        responses = []
-        for file_path, file_bytes in files:
+    # ─── read ──────────────────────────────────────────────────────────
+
+    async def aread(
+        self, file_path: str, offset: int = 0, limit: int = _DEFAULT_READ_LIMIT
+    ) -> ReadResult:
+        err = self._validate_path(file_path)
+        if err:
+            return ReadResult(error=err)
+        # LLMs frequently send offset/limit as strings or None — coerce so the
+        # slice below never raises a TypeError.
+        offset = coerce_to_int(offset, 0)
+        limit = coerce_to_int(limit, _DEFAULT_READ_LIMIT)
+
+        row = await self._fetch_row(file_path)
+        if not row:
+            return ReadResult(error=FILE_NOT_FOUND)
+
+        encoding = str(row.get("encoding") or "utf-8")
+        oss_key = row.get("object_storage_key")
+        inline_text = str(row.get("content") or "")
+        created = _iso(row.get("created_at"))
+        modified = _iso(row.get("updated_at"))
+
+        # Text-extractable documents (pdf/ppt/pptx) ALWAYS read as their
+        # extracted text — never a `{'type': 'file'}` multimodal block. The text
+        # was extracted (via vision OCR) at upload and lives in the `content`
+        # column. Most providers (qwen/DashScope, deepseek, ...) reject pdf file
+        # blocks with HTTP 400, and the extracted text is what the model needs.
+        # We also drop these extensions from deepagents' multimodal map (see the
+        # module-level patch below) so the read tool renders this as a text block.
+        ext = PurePosixPath(file_path).suffix.lower()
+        if ext in _TEXT_DOC_EXTS:
+            content = inline_text
+            if not content.strip():
+                # Content not ready: the upload-time parse may still be running
+                # (the file was registered by reference before its text was
+                # extracted). Try an on-demand parse so the agent gets the text
+                # rather than concluding the read failed.
+                content = await self._lazy_extract_doc_text(row, file_path) or ""
+            if not content.strip():
+                # Still nothing — surface a RETRYABLE message. Never say "no
+                # content": after a few such replies the model gives up on the
+                # file, when in reality extraction just is not finished yet.
+                name = PurePosixPath(file_path).name
+                return ReadResult(
+                    file_data={"content": (
+                        f"[\"{name}\" is still being processed — its text has not "
+                        f"finished extracting yet. Wait a few seconds and call "
+                        f"read_file(\"{file_path}\") again.]"),
+                        "encoding": "utf-8",
+                        "created_at": created, "modified_at": modified}
+                )
+            if offset or limit != _DEFAULT_READ_LIMIT:
+                lines = content.splitlines()
+                sliced = lines[offset: offset + limit] if limit else lines[offset:]
+                content = "\n".join(sliced)
+            return ReadResult(
+                file_data={"content": content, "encoding": "utf-8",
+                           "created_at": created, "modified_at": modified}
+            )
+
+        # Binary / multimodal file: serve the raw bytes as base64 so the
+        # deepagents read_file tool emits a multimodal content block (image /
+        # audio / video). The `content` column holds extracted text for
+        # grep only — never returned here, or the middleware would ship text as
+        # base64. Offset/limit are ignored for binary (pagination is text-only).
+        if encoding == "base64":
+            if oss_key:
+                raw = await self._get_from_storage(str(oss_key))
+                if raw is None:
+                    return ReadResult(error="object_storage_read_failed")
+                if len(raw) > _MAX_MULTIMODAL_BYTES:
+                    return ReadResult(
+                        error=(
+                            f"file too large to read inline "
+                            f"({len(raw)} bytes > {_MAX_MULTIMODAL_BYTES}); "
+                            f"download or process it with a dedicated tool"
+                        )
+                    )
+                b64 = base64.b64encode(raw).decode("ascii")
+            else:
+                # Binary is NEVER stored inline in Postgres — it always lives in
+                # object storage. A base64 row without an object_storage_key is a
+                # corrupt/legacy record.
+                return ReadResult(error="binary content unavailable (missing object_storage_key)")
+            return ReadResult(
+                file_data={"content": b64, "encoding": "base64",
+                           "created_at": created, "modified_at": modified}
+            )
+
+        # utf-8 text: large text may be offloaded with empty inline content.
+        if oss_key and not inline_text:
+            raw = await self._get_from_storage(str(oss_key))
+            if raw is None:
+                return ReadResult(error="object_storage_read_failed")
+            content = raw.decode("utf-8", errors="replace")
+        else:
+            content = inline_text
+
+        if offset or limit != _DEFAULT_READ_LIMIT:
+            lines = content.splitlines()
+            sliced = lines[offset: offset + limit] if limit else lines[offset:]
+            content = "\n".join(sliced)
+
+        return ReadResult(
+            file_data={"content": content, "encoding": "utf-8",
+                       "created_at": created, "modified_at": modified}
+        )
+
+    # ─── write (create-only, text) ──────────────────────────────────────
+
+    async def awrite(self, file_path: str, content: str) -> WriteResult:
+        err = self._validate_path(file_path)
+        if err:
+            return WriteResult(error=err)
+        existing = await self._fetch_row(file_path)
+        if existing is not None:
+            return WriteResult(
+                error=(
+                    f"File already exists at {file_path!r}; use edit to modify, "
+                    f"or delete first."
+                )
+            )
+        payload = str(content if content is not None else "").encode("utf-8")
+        err_str = await self._classify_and_store(
+            path=file_path,
+            payload=payload,
+            mime_type="text/plain",
+            source="agent_write",
+        )
+        if err_str:
+            return WriteResult(error=err_str)
+        return WriteResult(path=file_path)
+
+    # ─── edit ────────────────────────────────────────────────────────────
+
+    async def aedit(
+        self,
+        file_path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+    ) -> EditResult:
+        err = self._validate_path(file_path)
+        if err:
+            return EditResult(error=err)
+        replace_all = coerce_to_bool(replace_all, False)
+        old_string = "" if old_string is None else str(old_string)
+        new_string = "" if new_string is None else str(new_string)
+        if old_string == new_string:
+            return EditResult(error="new_string must differ from old_string")
+        if old_string == "":
+            return EditResult(error="old_string must be non-empty")
+
+        row = await self._fetch_row(file_path)
+        if not row:
+            return EditResult(error=FILE_NOT_FOUND)
+
+        encoding = str(row.get("encoding") or "utf-8")
+        if encoding != "utf-8":
+            return EditResult(error="edit is only supported on utf-8 files")
+        if row.get("object_storage_key") and not str(row.get("content") or ""):
+            return EditResult(
+                error="edit is not supported on object-storage-offloaded files; rewrite via write_file instead"
+            )
+
+        original = str(row.get("content") or "")
+        occurrences = original.count(old_string)
+        if occurrences == 0:
+            return EditResult(error=f"old_string not found in {file_path!r}")
+        if occurrences > 1 and not replace_all:
+            return EditResult(
+                error=(
+                    f"old_string is not unique in {file_path!r} ({occurrences} occurrences). "
+                    f"Re-call with replace_all=True or pass a longer, unique old_string."
+                )
+            )
+
+        new_content = (
+            original.replace(old_string, new_string)
+            if replace_all
+            else original.replace(old_string, new_string, 1)
+        )
+        err_str = await self._classify_and_store(
+            path=file_path,
+            payload=new_content.encode("utf-8"),
+            mime_type=str(row.get("mime_type") or "text/plain"),
+            source=str(row.get("source") or "agent_write"),  # preserve provenance
+            file_key=row.get("file_key"),
+        )
+        if err_str:
+            return EditResult(error=err_str)
+        return EditResult(path=file_path, occurrences=occurrences if replace_all else 1)
+
+    # ─── glob ────────────────────────────────────────────────────────────
+
+    async def aglob(self, pattern: str, path: str = "/") -> GlobResult:
+        path = path or "/"  # qwen may send None instead of the default
+        err = self._validate_path(path)
+        if err:
+            return GlobResult(error=err)
+        # qwen may send pattern as None/empty — nothing to match, return empty.
+        if not isinstance(pattern, str) or not pattern:
+            return GlobResult(matches=[])
+        base = path if path.endswith("/") or path == "/" else path + "/"
+        rows = await self._fetch_rows_under(base)
+
+        compiled = _compile_glob(pattern, base=base)
+        matched: list[FileInfo] = [
+            self._row_to_file_info(row)
+            for row in rows
+            if compiled.match(str(row.get("path", "")))
+        ]
+        return GlobResult(matches=matched)
+
+    # ─── grep ────────────────────────────────────────────────────────────
+
+    async def agrep(
+        self,
+        pattern: str,
+        path: str | None = None,
+        glob: str | None = None,
+    ) -> GrepResult:
+        scope_path = path or "/"
+        err = self._validate_path(scope_path)
+        if err:
+            return GrepResult(error=err)
+        base = scope_path if scope_path.endswith("/") or scope_path == "/" else scope_path + "/"
+        rows = await self._fetch_rows_under(base)
+
+        needle = str(pattern or "")
+        if not needle:
+            return GrepResult(matches=[])
+        try:
+            regex = re.compile(needle, re.IGNORECASE)
+        except re.error:
+            regex = None  # fall back to substring search
+
+        compiled_glob = _compile_glob(glob, base=base) if glob else None
+        matches: list[GrepMatch] = []
+        for row in rows:
+            full = str(row.get("path", ""))
+            if compiled_glob is not None and not compiled_glob.match(full):
+                continue
+            if str(row.get("encoding") or "utf-8") != "utf-8":
+                continue
+            content = str(row.get("content") or "")
+            if not content:
+                continue
+            for line_no, line in enumerate(content.splitlines(), start=1):
+                hit = regex.search(line) if regex is not None else (needle in line)
+                if hit:
+                    matches.append({"path": full, "line": line_no, "text": line})
+        return GrepResult(matches=matches)
+
+    # ─── upload / download ──────────────────────────────────────────────
+
+    async def aupload_files(
+        self, files: list[tuple[str, bytes]]
+    ) -> list[FileUploadResponse]:
+        responses: list[FileUploadResponse] = []
+        for file_path, payload in files or []:
+            err = self._validate_path(file_path)
+            if err:
+                responses.append(FileUploadResponse(path=file_path, error=err))
+                continue
             try:
-                ext = Path(file_path).suffix
-                file_data = {
-                    "content": [],
-                    "raw_content": base64.b64encode(file_bytes).decode('utf-8'),
-                    "file_type": get_file_type(ext),
-                    "file_extension": ext,
-                    "parsed": False,
-                    "created_at": datetime.now().isoformat(),
-                    "modified_at": datetime.now().isoformat(),
-                    "metadata": {"original_size": len(file_bytes), "encoding": "base64"}
-                }
-                self._put_file_data(file_path, file_data, persist=True)
-                responses.append(FileUploadResponse(path=file_path, error=None))
-            except FileNotFoundError:
-                responses.append(FileUploadResponse(path=file_path, error="file_not_found"))
-            except PermissionError:
-                responses.append(FileUploadResponse(path=file_path, error="permission_denied"))
-            except (ValueError, OSError) as e:
-                # ValueError from path validation, OSError for other errors
-                if isinstance(e, ValueError) or "invalid" in str(e).lower():
-                    responses.append(FileUploadResponse(path=file_path, error="invalid_path"))
-                else:
-                    responses.append(FileUploadResponse(path=file_path, error="invalid_path"))
-            except Exception as e:
-                logger.error(f"Failed to upload {file_path}: {e}", exc_info=True)
-                responses.append(FileUploadResponse(path=file_path, error="invalid_path"))
+                if not isinstance(payload, (bytes, bytearray)):
+                    payload = str(payload or "").encode("utf-8")
+                err_str = await self._classify_and_store(
+                    path=file_path,
+                    payload=bytes(payload),
+                    mime_type=_guess_mime(file_path),
+                    source="agent_upload",
+                )
+                responses.append(FileUploadResponse(path=file_path, error=err_str))
+            except Exception as exc:
+                logger.exception("aupload_files failed for %s", file_path)
+                responses.append(FileUploadResponse(path=file_path, error=str(exc)))
         return responses
 
-    def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
-        """Download multiple files from the filesystem.
-
-        Args:
-            paths: List of file paths to download.
-
-        Returns:
-            List of FileDownloadResponse objects, one per input path.
-        """
-        responses = []
-        for file_path in paths:
-            try:
-                file_data = self._get_file_data(file_path)
-                if file_data is None:
-                    responses.append(FileDownloadResponse(path=file_path, content=None, error="file_not_found"))
+    async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        responses: list[FileDownloadResponse] = []
+        for file_path in paths or []:
+            err = self._validate_path(file_path)
+            if err:
+                responses.append(FileDownloadResponse(path=file_path, content=None, error=err))
+                continue
+            row = await self._fetch_row(file_path)
+            if not row:
+                responses.append(FileDownloadResponse(path=file_path, content=None, error=FILE_NOT_FOUND))
+                continue
+            oss_key = row.get("object_storage_key")
+            if oss_key:
+                raw = await self._get_from_storage(str(oss_key))
+                if raw is None:
+                    responses.append(FileDownloadResponse(path=file_path, content=None, error="object_storage_read_failed"))
                     continue
-
-                raw_b64 = file_data.get("raw_content", "")
-                if raw_b64:
-                    try:
-                        content = base64.b64decode(raw_b64)
-                        responses.append(FileDownloadResponse(path=file_path, content=content, error=None))
-                    except Exception:
-                        responses.append(FileDownloadResponse(path=file_path, content=None, error="invalid_path"))
-                else:
-                    # Fallback to text content
-                    content_str = "\n".join(file_data.get("content", []))
-                    responses.append(FileDownloadResponse(path=file_path, content=content_str.encode('utf-8'), error=None))
-            except FileNotFoundError:
-                responses.append(FileDownloadResponse(path=file_path, content=None, error="file_not_found"))
-            except PermissionError:
-                responses.append(FileDownloadResponse(path=file_path, content=None, error="permission_denied"))
-            except ValueError:
-                responses.append(FileDownloadResponse(path=file_path, content=None, error="invalid_path"))
+                payload = raw
+            else:
+                payload = str(row.get("content") or "").encode("utf-8")
+            responses.append(FileDownloadResponse(path=file_path, content=payload, error=None))
         return responses
 
-    def upload_parsed_files(self, files: list[tuple[str, str, dict[str, Any]]]) -> list[FileUploadResponse]:
-        """Upload already-parsed text files."""
-        responses = []
-        for file_path, parsed_text, metadata in files:
-            try:
-                file_data = {
-                    "content": parsed_text.split("\n"),
-                    "file_key": metadata.get("file_key"),
-                    "content_hash": metadata.get("content_hash"),
-                    "file_type": metadata.get("file_type"),
-                    "file_extension": metadata.get("file_extension"),
-                    "parsed": metadata.get("parsed", True),
-                    **{k: v for k, v in metadata.items()
-                       if k not in ["file_key", "content_hash", "file_type", "file_extension", "parsed"]}
-                }
-                self._put_file_data(file_path, file_data, persist=True)
-                responses.append(FileUploadResponse(path=file_path, error=None))
-            except Exception as e:
-                logger.error(f"Failed to upload parsed {file_path}: {e}", exc_info=True)
-                responses.append(FileUploadResponse(path=file_path, error="invalid_path"))
-        return responses
-        
-        
-        
+    # ─── audit / registration (non-protocol public surface) ─────────────
+
+    async def aupload_parsed(
+        self,
+        *,
+        path: str,
+        raw_bytes: bytes | None,
+        parsed_text: str | None,
+        mime_type: str | None = None,
+        file_key: str | None = None,
+        source: Source = "user_upload",
+    ) -> str | None:
+        """Store an uploaded file: raw bytes offloaded, parsed text kept inline.
+
+        Lets ``read_file``/``grep`` see the extracted text immediately while the
+        original bytes remain downloadable. If ``raw_bytes`` is None, only the
+        parsed text is stored (as an inline utf-8 file).
+        """
+        err = self._validate_path(path)
+        if err:
+            return err
+        if raw_bytes is None:
+            payload = (parsed_text or "").encode("utf-8")
+            return await self._classify_and_store(
+                path=path, payload=payload, mime_type=mime_type or "text/plain",
+                source=source, file_key=file_key,
+            )
+        return await self._classify_and_store(
+            path=path,
+            payload=bytes(raw_bytes),
+            mime_type=mime_type or _guess_mime(path),
+            source=source,
+            parsed_text_override=parsed_text,
+            file_key=file_key,
+        )
+
+    async def register_blob(
+        self,
+        *,
+        path: str,
+        object_storage_key: str,
+        content_hash: str = "",
+        content_size: int = 0,
+        mime_type: str | None = None,
+        parsed_text: str | None = None,
+        file_key: str | None = None,
+        source: Source = "user_upload",
+    ) -> str | None:
+        """Register an existing object-storage object as a workspace row.
+
+        Used to mirror user-uploaded files (already in storage via ``th_files``)
+        into ``/uploads/`` and ``/library/`` WITHOUT duplicating bytes. The agent
+        then reads the parsed text inline and downloads raw bytes on demand.
+
+        Security: ``object_storage_key`` is stored verbatim and ``adownload_files``
+        will fetch it. The CALLER must verify the key belongs to ``self._user_id``
+        (join through ``th_files``) before calling.
+        """
+        err = self._validate_path(path)
+        if err:
+            return err
+        # Text files are read inline (parsed_text). Binary/multimodal files
+        # (pdf/image/audio/video, …) must be encoding='base64' so aread fetches
+        # the OSS bytes and the middleware emits a multimodal block; parsed_text
+        # stays in `content` for grep only.
+        encoding = "utf-8" if _is_text_mime(mime_type, path) else "base64"
+        try:
+            await self._upsert(
+                path=path,
+                content=parsed_text or "",
+                encoding=encoding,
+                content_size=coerce_to_int(content_size, 0),
+                mime_type=mime_type,
+                object_storage_key=str(object_storage_key),
+                content_hash=str(content_hash or ""),
+                source=source,
+                file_key=file_key,
+            )
+            return None
+        except Exception as exc:
+            logger.exception("register_blob failed for %s", path)
+            return str(exc)
+
+
+# Backwards-compatible alias: existing imports reference ``PostgresBackend``.
+PostgresBackend = PgFilesystemBackend
+
 
 def create_postgres_backend(
     session_id: str,
     user_id: str,
-    file_parser=None,
-    cache_ttl: int = 300,
-    cache_maxsize: int = 100,
-    sandbox_backend=None,
-):
+    scope: Scope = "workspace",
+    **_legacy_kwargs: Any,
+) -> PgFilesystemBackend:
+    """Create a single-scope PgFilesystemBackend.
+
+    Used by the file-upload path (``agents/utils/file.py`` → ``handle_file_upload``)
+    and ad-hoc callers. The deep agent itself builds a multi-scope
+    ``CompositeBackend`` directly in ``deep_agent._build_backend``.
+    ``**_legacy_kwargs`` swallows retired parameters (``file_parser``,
+    ``cache_ttl``, ``cache_maxsize``, ``sandbox_backend``) so existing call
+    sites keep working.
     """
-    Create a PostgresBackend instance with automatic FileParser initialization.
+    return PgFilesystemBackend(user_id=user_id, session_id=session_id, scope=scope)
 
-    Args:
-        session_id: Session ID for namespace isolation
-        user_id: User ID for namespace isolation
-        file_parser: FileParser instance (optional, auto-created if None)
-        cache_ttl: Cache TTL in seconds (default: 300)
-        cache_maxsize: Maximum cache entries (default: 100)
-        sandbox_backend: Optional sandbox backend for code execution
-            (e.g. E2BSandboxBackend). If None, execute() will be unavailable.
 
-    Returns:
-        PostgresBackend instance
-    """
-    from .store import PostgresLangGraphStore
-    from .parser import FileParser
+# ─── glob compiler ──────────────────────────────────────────────────────
 
-    # Auto-create FileParser if not provided
-    if file_parser is None:
-        file_parser = FileParser()
 
-    store = PostgresLangGraphStore()
+def _compile_glob(pattern: str | None, *, base: str) -> re.Pattern[str]:
+    base_prefix = "" if base == "/" else base.rstrip("/")
+    if not pattern:
+        pattern = "**/*"
 
-    return PostgresBackend(
-        session_id=session_id,
-        user_id=user_id,
-        store=store,
-        file_parser=file_parser,
-        cache_ttl=cache_ttl,
-        sandbox_backend=sandbox_backend,
-    )
+    regex_parts: list[str] = []
+    i = 0
+    while i < len(pattern):
+        ch = pattern[i]
+        if pattern[i: i + 2] == "**":
+            regex_parts.append(".*")
+            i += 2
+            if i < len(pattern) and pattern[i] == "/":
+                i += 1
+        elif ch == "*":
+            regex_parts.append("[^/]*")
+            i += 1
+        elif ch == "?":
+            regex_parts.append("[^/]")
+            i += 1
+        elif ch == ".":
+            regex_parts.append(r"\.")
+            i += 1
+        elif ch in r"+()|^$":
+            regex_parts.append(re.escape(ch))
+            i += 1
+        elif ch == "[":
+            end = pattern.find("]", i + 1)
+            if end == -1:
+                regex_parts.append(re.escape(ch))
+                i += 1
+            else:
+                regex_parts.append(pattern[i: end + 1])
+                i = end + 1
+        else:
+            regex_parts.append(re.escape(ch))
+            i += 1
+
+    body = "".join(regex_parts)
+    full = f"^{re.escape(base_prefix)}/?{body}$"
+    try:
+        return re.compile(full)
+    except re.error:
+        return re.compile(fnmatch.translate(base_prefix + "/" + (pattern or "")))
+
+
+def _guess_mime(file_path: str) -> str | None:
+    mime, _ = mimetypes.guess_type(file_path)
+    return mime
+
+
+# Extensions deepagents surfaces as multimodal content blocks (must be served as
+# base64 raw bytes, never as text). Mirrors the harness virtual-filesystem docs.
+_MULTIMODAL_EXTS = {
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".heif",          # image
+    ".mp4", ".mpeg", ".mov", ".avi", ".flv", ".mpg", ".webm", ".wmv", ".3gpp",  # video
+    ".wav", ".mp3", ".aiff", ".aac", ".ogg", ".flac",                    # audio
+    ".pdf", ".ppt", ".pptx",                                             # documents
+}
+
+# Document types we reliably extract text from at upload time. They are stored
+# as base64 (object-storage offload) but READ as their extracted text: most
+# providers (qwen/DashScope, deepseek, ...) reject a ``{'type': 'file'}``
+# content block and only images go through the native vision path. Serving the
+# extracted text makes PDF/PPT chat work across every model.
+_TEXT_DOC_EXTS = {".pdf", ".ppt", ".pptx"}
+
+
+# deepagents' read_file middleware picks the multimodal content-block type purely
+# by file extension via ``backends.utils._EXTENSION_TO_FILE_TYPE`` (it maps
+# pdf/ppt/pptx -> "file"). A "file" type forces a ``{'type': 'file'}`` block on
+# read regardless of the encoding our backend declares, and most providers
+# (qwen/DashScope, deepseek, ...) reject file blocks with HTTP 400. Since we
+# always extract pdf/ppt text at upload and serve it as text from ``aread``,
+# drop these extensions from the map so the tool renders a plain text block.
+# Mutating the dict in place (not rebinding) keeps every importer in sync.
+def _patch_deepagents_multimodal_exts() -> None:
+    try:
+        from deepagents.backends import utils as _da_utils
+        for _ext in _TEXT_DOC_EXTS:
+            _da_utils._EXTENSION_TO_FILE_TYPE.pop(_ext, None)
+    except Exception as _e:  # pragma: no cover - defensive
+        logger.warning(f"could not patch deepagents extension map: {_e}")
+
+
+_patch_deepagents_multimodal_exts()
+
+
+def _is_text_mime(mime_type: str | None, path: str = "") -> bool:
+    """True if the file should be read as inline text (not a multimodal blob)."""
+    ext = PurePosixPath(path).suffix.lower() if path else ""
+    if ext in _MULTIMODAL_EXTS:
+        return False
+    if mime_type:
+        m = mime_type.lower()
+        if m.startswith("text/"):
+            return True
+        if m in ("application/json", "application/xml") or m.endswith("+json") or m.endswith("+xml"):
+            return True
+        if m.startswith(("image/", "audio/", "video/", "application/pdf")):
+            return False
+    # Default: treat as text (most agent-written files are text).
+    return True
