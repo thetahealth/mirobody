@@ -1,4 +1,4 @@
--- Mirror of theta_ai.standard_indicators, populated by
+-- Mirror of standard_indicators, populated by
 -- RegisterStandardIndicatorsTask from the in-code StandardIndicator enum
 -- and rule_generator's derived aggregation rules.
 --
@@ -7,7 +7,7 @@
 -- overwritten by auto-registered device/wearable indicators. Schema mirrors
 -- standard_indicators verbatim so a future UNION/merge is trivial.
 
-CREATE TABLE IF NOT EXISTS theta_ai.standard_indicators_device (
+CREATE TABLE IF NOT EXISTS standard_indicators_device (
     id                text PRIMARY KEY
                        CHECK (char_length(id) >= 2 AND char_length(id) <= 60),
     name_en           text NOT NULL,

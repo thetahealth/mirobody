@@ -14,6 +14,7 @@ from redis.asyncio import Redis
 
 from ..utils import execute_query
 from ..utils.config import global_config
+from .history_replay import fold_trace_into_text
 
 #-----------------------------------------------------------------------------
 
@@ -225,6 +226,28 @@ async def save_message(
 
 #-----------------------------------------------------------------------------
 
+async def set_message_rating(user_id: str, message_id: str, rating: int) -> bool:
+    """
+    Set the user's rating on a chat message (th_messages.rating).
+
+    The web client rates an assistant response by its message id (responseId,
+    as returned by get_chat_history). Scoped by user_id so a user can only
+    rate their own messages. Returns True if a row was updated.
+    """
+    sql = """
+        UPDATE th_messages
+        SET rating = :rating
+        WHERE id = :id AND user_id = :user_id
+        RETURNING id
+    """
+    record = await execute_query(
+        sql,
+        params={"id": message_id, "user_id": user_id, "rating": rating},
+    )
+    return bool(record)
+
+#-----------------------------------------------------------------------------
+
 async def get_last_message(user_id: str, query_user_id: str = None, session_id: str = None, include_all=False, db_mode: str = "sync", scene="app") -> list:
     if query_user_id is None:
         query_user_id = user_id
@@ -253,28 +276,38 @@ async def get_last_message(user_id: str, query_user_id: str = None, session_id: 
 
         for i in range(len(rows) - 1, -1, -1):
             m = rows[i]
-            
+
+            element_list: list = []
             try:
                 # TODO: Handle more message types (e.g., food_snap, report)
                 content = ""
-                element_list = []
                 element_list = json.loads(m["content"])
                 for e in element_list:
                     if e.get("type") == "reply":
                         content += e.get("content", "")
+                # R1: fold a one-line tool/file trace into the replayed assistant
+                # text so the next turn knows it already read /uploads/* etc. and
+                # doesn't re-run read_file. Provider-agnostic; result is only an
+                # excerpt, never the full payload. (The legacy/text replay path
+                # consumes `content`; the canonical R3 path rebuilds from
+                # `element_list` instead, so this is harmless when canonical.)
+                if m["role"] == "assistant":
+                    content = fold_trace_into_text(content, element_list)
             except Exception:
                 content = m["content"]
+                element_list = []
             messages.append(
                 dict(
                     role                = m["role"],
                     agent               = m["agent"],
                     content             = content,
+                    element_list        = element_list,   # raw chunks for canonical (R3) replay
                     th_msg_id           = m["id"],
                     reference_task_id   = m["reference_task_id"],
                     created_at          = m["created_at"]
                 )
             )
-            
+
         return messages
     
     except Exception as e:
@@ -358,10 +391,12 @@ def compress_messages(agent, messages: list[dict[str, Any]], max_tokens: int = 4
     # Calculate total token count for all messages
     total_tokens = sum(count_message_tokens(msg) for msg in agent_messages)
 
-    timestamp = ""
-    created_at = msg.get("created_at")
-    if created_at and isinstance(created_at, datetime):
-        timestamp = f"[{created_at.strftime('%Y-%m-%d %H:%M:%S')}] "
+    # R2: do NOT prefix each message with "[timestamp] ". The current time is
+    # already in the system prompt, and prefixing every history line with the
+    # *latest* message's timestamp (the old code reused the loop's trailing `msg`,
+    # so all lines got the same, newest stamp — a bug) made the history segment
+    # change byte-for-byte every turn, defeating prompt caching. Replayed history
+    # is now stable across turns so its prefix can be cached.
 
     # If total tokens exceed limit, keep only the most recent messages
     if total_tokens > max_tokens:
@@ -376,7 +411,7 @@ def compress_messages(agent, messages: list[dict[str, Any]], max_tokens: int = 4
                 compressed_messages.append(
                     {
                         "role": msg.get("role", "unknown"),
-                        "content": f"{timestamp}{msg.get("content", "")}",
+                        "content": msg.get("content", ""),
                     }
                 )
                 current_tokens += tokens
@@ -389,7 +424,7 @@ def compress_messages(agent, messages: list[dict[str, Any]], max_tokens: int = 4
                     compressed_messages.append(
                         {
                             "role": msg.get("role", "unknown"),
-                            "content": f"{timestamp}{truncated_content}",
+                            "content": truncated_content,
                         }
                     )
                 break
@@ -399,7 +434,7 @@ def compress_messages(agent, messages: list[dict[str, Any]], max_tokens: int = 4
     else:
         # If limit not exceeded, keep only role and content fields
         compressed_messages = [
-            {"role": msg.get("role", "unknown"), "content": f"{timestamp}{msg.get("content", "")}"} for msg in agent_messages
+            {"role": msg.get("role", "unknown"), "content": msg.get("content", "")} for msg in agent_messages
         ]
 
     return compressed_messages

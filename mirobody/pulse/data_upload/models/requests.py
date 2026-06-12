@@ -58,6 +58,10 @@ class StandardPulseMetaInfo(BaseModel):
     source: Optional[str] = Field(None, description="Data source")
     timezone: str = Field(default="UTC", description="Timezone")
     taskId: Optional[str] = Field(None, description="Task ID, used to identify data from the same batch")
+    # Data-repair window (epoch ms); only meaningful for a repair batch. Both must be
+    # present for the reconcile to sweep; otherwise the sweep is skipped.
+    windowFrom: Optional[int] = Field(None, description="Repair window start (epoch ms)")
+    windowTo: Optional[int] = Field(None, description="Repair window end (epoch ms)")
 
 
 class StandardPulseRecord(BaseModel):

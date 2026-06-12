@@ -356,6 +356,81 @@ async def test_db_aggregation():
     logger.info("✅ DB aggregation end-to-end: all values validated")
 
 
+def test_hypo_event_empty_skipped():
+    """No hypo event that day -> times/details are skipped, count=0 still written.
+
+    Covers TH-437: empty hypo-event arrays must not produce noise rows in
+    th_series_data, while the count indicator keeps recording 0.
+    """
+    from .aggregators.sql_aggregator import SQLAggregator
+    from .models import CalculationTask
+
+    agg = SQLAggregator()
+    user_id = '212'
+    data_begin_utc = datetime(2025, 12, 12, 16, 0, 0)  # Asia/Shanghai local midnight
+    timezone = 'Asia/Shanghai'
+
+    event_methods = {
+        'hypo_event_count': 'dailyHypoEventCountBloodGlucoses',
+        'hypo_event_times': 'dailyHypoEventTimesBloodGlucoses',
+        'hypo_event_details': 'dailyHypoEventDetailsBloodGlucoses',
+    }
+    tasks = [
+        CalculationTask(
+            user_id=user_id,
+            source_indicator='bloodGlucoses',
+            target_indicator=target,
+            aggregation_type=method,
+            data_begin_utc=data_begin_utc,
+            timezone=timezone,
+            update_time=datetime.now(),
+        )
+        for method, target in event_methods.items()
+    ]
+
+    # Case 1: no event -> count=0, times=[], details=[]
+    empty_row = {
+        'user_id': user_id,
+        'indicator': 'bloodGlucoses',
+        'source': 'apple_health',
+        'hypo_event_count_value': 0,
+        'hypo_event_times_value': '[]',
+        'hypo_event_details_value': '[]',
+    }
+    summaries = agg._convert_to_summary_records([empty_row], tasks, data_begin_utc)
+    produced = {s['indicator']: s['value'] for s in summaries}
+
+    assert 'dailyHypoEventCountBloodGlucoses.apple_health' in produced, \
+        "count=0 record must still be written"
+    assert produced['dailyHypoEventCountBloodGlucoses.apple_health'] == '0'
+    assert 'dailyHypoEventTimesBloodGlucoses.apple_health' not in produced, \
+        "empty times array must be skipped"
+    assert 'dailyHypoEventDetailsBloodGlucoses.apple_health' not in produced, \
+        "empty details array must be skipped"
+    logger.info("  ✓ no-event day: count=0 kept, times/details skipped")
+
+    # Case 2: with event -> all three written
+    event_row = {
+        'user_id': user_id,
+        'indicator': 'bloodGlucoses',
+        'source': 'apple_health',
+        'hypo_event_count_value': 1,
+        'hypo_event_times_value': '["03:00"]',
+        'hypo_event_details_value': '[{"start": "03:00", "end": "03:15", "duration_min": 15}]',
+    }
+    summaries = agg._convert_to_summary_records([event_row], tasks, data_begin_utc)
+    produced = {s['indicator']: s['value'] for s in summaries}
+
+    assert 'dailyHypoEventCountBloodGlucoses.apple_health' in produced
+    assert 'dailyHypoEventTimesBloodGlucoses.apple_health' in produced, \
+        "non-empty times must be written"
+    assert 'dailyHypoEventDetailsBloodGlucoses.apple_health' in produced, \
+        "non-empty details must be written"
+    logger.info("  ✓ event day: all three indicators written")
+
+    logger.info("✅ Hypo-event empty-skip behavior: correct")
+
+
 def run_unit_tests():
     """Run all non-DB unit tests"""
     logger.info("=" * 60)
@@ -368,6 +443,7 @@ def run_unit_tests():
         ("Timezone Conversion", test_timezone_conversion),
         ("Event Method Classification", test_cgm_event_methods_classification),
         ("TIR+TBR+TAR Completeness", test_tir_tbr_tar_sum),
+        ("Hypo Event Empty Skip", test_hypo_event_empty_skipped),
     ]
 
     passed = 0

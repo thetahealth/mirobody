@@ -118,9 +118,14 @@ class UniversalPromptCachingMiddleware(AgentMiddleware):
             else ""
         )
 
-        # Check for Google Vertex AI FIRST (including Anthropic models via Vertex)
-        # Vertex AI does NOT support cache_control parameter
+        # Vertex AI. Anthropic (Claude) models on Vertex DO support prompt
+        # caching: ChatAnthropicVertex translates a top-level `cache_control`
+        # kwarg into a block-level breakpoint on the last message
+        # (langchain_google_vertexai/model_garden.py), exactly like ChatAnthropic.
+        # Only plain Gemini-on-Vertex (ChatVertexAI) lacks the param.
         if "vertexai" in module_name or "model_garden" in module_name:
+            if "anthropic" in model_class:
+                return "anthropic-vertex"
             return "google-vertexai"
 
         # Check for native Anthropic client (direct API only)
@@ -194,6 +199,14 @@ class UniversalPromptCachingMiddleware(AgentMiddleware):
         # Native Anthropic SDK - use model_settings
         if client_type == "anthropic":
             return CacheStrategy.MODEL_SETTINGS, model_config
+
+        # Anthropic (Claude) on Vertex AI — same top-level cache_control kwarg as
+        # native Anthropic. ChatAnthropicVertex pops it and places a breakpoint on
+        # the last message block, caching the full prefix (system + tools + all
+        # messages, including large tool results such as PDF file blocks) across
+        # turns. Falls back to the claude config if the model name is unusual.
+        if client_type == "anthropic-vertex":
+            return CacheStrategy.MODEL_SETTINGS, model_config or MANUAL_CACHE_MODELS["claude"]
 
         # OpenRouter with Claude/Gemini - use message content blocks
         if client_type == "openai" and is_openrouter:
@@ -312,8 +325,18 @@ class UniversalPromptCachingMiddleware(AgentMiddleware):
     ) -> ModelRequest:
         """Apply caching via message content blocks (for OpenRouter).
 
-        Adds cache_control to the last content block of the system message
-        or the first user message if no system message exists.
+        Places two cache breakpoints (Anthropic allows up to 4):
+
+        1. **Static prefix** — last block of the system message (caches the
+           system prompt and, by prefix, the tool schemas).
+        2. **Conversation tail** — last block of the last message. This is what
+           caches the GROWING prefix, including large tool results such as PDF /
+           image file blocks returned by read_file. Without it, re-reading the
+           same document across turns would be re-billed at full input price
+           rather than hitting the 0.1x cache. Mirrors langchain-anthropic's
+           `_apply_cache_control_to_last_eligible_block`.
+
+        Falls back to the first user message when there is no system message.
         """
         cache_control = self._build_cache_control(model_config)
         model_name = self._get_model_name(request.model)
@@ -322,39 +345,35 @@ class UniversalPromptCachingMiddleware(AgentMiddleware):
         new_messages = copy.deepcopy(request.messages)
         system_message = copy.deepcopy(request.system_message) if request.system_message else None
 
+        def _tag_last_block(msg: Any) -> bool:
+            if not hasattr(msg, "content"):
+                return False
+            blocks = self._convert_to_content_blocks(msg.content)
+            if not blocks:
+                return False
+            blocks[-1] = {**blocks[-1], "cache_control": cache_control}
+            msg.content = blocks
+            return True
+
         cache_applied = False
 
-        # Try to apply cache to system message first
-        if system_message:
-            if hasattr(system_message, "content"):
-                content = system_message.content
-                content_blocks = self._convert_to_content_blocks(content)
-
-                if content_blocks:
-                    # Add cache_control to the last block
-                    content_blocks[-1]["cache_control"] = cache_control
-                    system_message.content = content_blocks
-                    cache_applied = True
-                    logger.debug(
-                        f"Applied message_content cache to system message for: {model_name}"
-                    )
-
-        # If no system message, apply to first user message
-        if not cache_applied and new_messages:
+        # Breakpoint 1: static prefix (system message), else the first user message.
+        if system_message and _tag_last_block(system_message):
+            cache_applied = True
+            logger.debug(f"Applied message_content cache to system message for: {model_name}")
+        elif new_messages:
             for msg in new_messages:
-                if hasattr(msg, "type") and msg.type == "human":
-                    if hasattr(msg, "content"):
-                        content = msg.content
-                        content_blocks = self._convert_to_content_blocks(content)
+                if getattr(msg, "type", None) == "human" and _tag_last_block(msg):
+                    cache_applied = True
+                    logger.debug(f"Applied message_content cache to first user message for: {model_name}")
+                    break
 
-                        if content_blocks:
-                            content_blocks[-1]["cache_control"] = cache_control
-                            msg.content = content_blocks
-                            cache_applied = True
-                            logger.debug(
-                                f"Applied message_content cache to first user message for: {model_name}"
-                            )
-                            break
+        # Breakpoint 2: conversation tail (last message) — caches tool results /
+        # PDF blocks across turns. Skip if it is the same object we just tagged.
+        if new_messages and new_messages[-1] is not system_message:
+            if _tag_last_block(new_messages[-1]):
+                cache_applied = True
+                logger.debug(f"Applied message_content cache to last message for: {model_name}")
 
         if not cache_applied:
             logger.warning(

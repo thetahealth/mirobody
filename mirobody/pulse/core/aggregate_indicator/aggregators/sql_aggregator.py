@@ -1591,6 +1591,18 @@ class SQLAggregator:
                 if value is None:
                     continue
 
+                # Skip empty hypo-event arrays: a day with no hypoglycemic episode
+                # carries no information in times/details and would only add noise to
+                # th_series_data. hypo_event_count is a separate task and still records
+                # 0, so "0 events that day" stays queryable.
+                if method in ('hypo_event_times', 'hypo_event_details'):
+                    is_empty_array = (
+                        (isinstance(value, str) and value.strip() in ('', '[]'))
+                        or (isinstance(value, (list, tuple)) and len(value) == 0)
+                    )
+                    if is_empty_array:
+                        continue
+
                 # Convert UTC time strings to local timezone for time-based methods
                 if method in ('time_of_max', 'time_of_min') and isinstance(value, str):
                     value = self._convert_utc_time_to_local(value, timezone, day_start_utc)

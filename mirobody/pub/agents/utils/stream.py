@@ -1,3 +1,4 @@
+import ast
 import json
 import logging
 from typing import Dict, Any, AsyncGenerator
@@ -85,21 +86,28 @@ class StreamConverter:
     
     @staticmethod
     async def convert_message_chunk(
-        chunk: Any, 
+        chunk: Any,
         metadata: Dict[str, Any],
-        trace_id: str = None
+        trace_id: str = None,
+        is_subagent: bool = False,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Convert LangGraph message chunk to unified format.
-        
+
         Only processes AIMessageChunk for text/thinking content.
         Tool calls are handled separately via updates mode.
-        
+
         Args:
             chunk: LangChain AIMessageChunk object
             metadata: Metadata containing langgraph_step, langgraph_node, etc.
             trace_id: Optional trace ID for logging
-            
+            is_subagent: True when the chunk originates from a subagent subgraph
+                (non-empty stream namespace). Subagent text is surfaced as
+                ``thinking`` rather than ``reply`` so a delegated agent's narration
+                streams into the process/thinking channel instead of being glued
+                into the main assistant answer (the subagent's final report still
+                arrives as the ``task`` tool's ``queryDetail``).
+
         Yields:
             Unified format event dictionary with type: reply or thinking
         """
@@ -118,7 +126,9 @@ class StreamConverter:
             
             # Only process AIMessageChunk for text content from final output nodes
             if chunk_type == "AIMessageChunk" and node_name in FINAL_OUTPUT_NODES:
-                async for event in StreamConverter._handle_ai_message_chunk(chunk, node_info, trace_id):
+                async for event in StreamConverter._handle_ai_message_chunk(
+                    chunk, node_info, trace_id, is_subagent=is_subagent
+                ):
                     yield event
             
         except Exception as e:
@@ -126,22 +136,29 @@ class StreamConverter:
     
     @staticmethod
     async def _handle_ai_message_chunk(
-        chunk: Any, 
+        chunk: Any,
         node_info: Dict[str, Any],
-        trace_id: str = None
+        trace_id: str = None,
+        is_subagent: bool = False,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Handle AIMessageChunk - only process text content for real-time streaming.
-        
+
         Tool calls are handled separately via updates mode in deep_agent.py.
+
+        When ``is_subagent`` is True the chunk comes from a delegated subagent
+        subgraph; its text is emitted as ``thinking`` (process channel) instead of
+        ``reply`` so it does not merge into the main assistant answer.
         """
+        # Subagent text streams into the thinking channel; main-agent text is reply.
+        text_event_type = "thinking" if is_subagent else "reply"
         content = getattr(chunk, 'content', '')
         if content:
             # Handle list format from Gemini (e.g., [{'type': 'text', 'text': '...', 'index': 0}])
             if isinstance(content, list):
                 text_parts = []
                 thinking_parts = []
-                
+
                 for block in content:
                     if isinstance(block, dict):
                         block_type = block.get('type')
@@ -150,7 +167,7 @@ class StreamConverter:
                         elif block_type == 'thinking':
                             # Gemini uses 'thinking' field for thinking content
                             thinking_parts.append(block.get('thinking', ''))
-                
+
                 # Output thinking content separately with type="thinking"
                 if thinking_parts:
                     thinking_content = ''.join(thinking_parts)
@@ -160,13 +177,13 @@ class StreamConverter:
                             "content": thinking_content,
                             **node_info
                         }
-                
+
                 content = ''.join(text_parts)
-            
-            # Output regular text content as reply
-            if content: 
+
+            # Regular text: reply for main agent, thinking for a subagent.
+            if content:
                 yield {
-                    "type": "reply",
+                    "type": text_event_type,
                     "content": content,
                     **node_info
                 }
@@ -192,20 +209,25 @@ class StreamConverter:
     async def process_stream_event(
         stream_type: str,
         stream_event: Any,
-        trace_id: str = None
+        trace_id: str = None,
+        namespace: Any = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Process a single stream event from LangGraph agent.astream().
-        
+
         Handles both "messages" and "updates" stream modes:
         - messages: Real-time token-by-token text streaming
         - updates: Tool calls and tool results (complete messages)
-        
+
         Args:
             stream_type: Either "messages" or "updates"
             stream_event: The event data from LangGraph stream
             trace_id: Optional trace ID for logging
-            
+            namespace: LangGraph subgraph namespace tuple (from astream
+                ``subgraphs=True``). Empty/None means the main agent; a non-empty
+                tuple means a subagent subgraph, whose message text is surfaced as
+                ``thinking`` instead of ``reply``.
+
         Yields:
             Unified format event dictionaries with types:
             - reply, thinking (from messages mode)
@@ -213,7 +235,10 @@ class StreamConverter:
             - queryDetail, image (tool results)
         """
         from langchain_core.messages import AIMessage, ToolMessage
-        
+
+        # Non-empty namespace => event came from a subagent subgraph.
+        is_subagent = bool(namespace)
+
         try:
             # Handle text streaming (real-time token-by-token)
             if stream_type == "messages":
@@ -225,8 +250,10 @@ class StreamConverter:
                         f"error: {str(e)}, trace_id={trace_id}"
                     )
                     return
-                
-                async for event in StreamConverter.convert_message_chunk(chunk, chunk_metadata, trace_id=trace_id):
+
+                async for event in StreamConverter.convert_message_chunk(
+                    chunk, chunk_metadata, trace_id=trace_id, is_subagent=is_subagent
+                ):
                     if event:
                         yield event
             
@@ -311,12 +338,12 @@ class StreamConverter:
                                     "content": tool_content,
                                     "tool_id": tool_call_id,
                                 }
-                                
+
                                 # Extract and emit chart data if present
                                 chart_event = StreamConverter.extract_chart_data(tool_content, tool_call_id)
                                 if chart_event:
                                     yield chart_event
-                                    
+
         except Exception as e:
             logger.error(
                 f"Error processing stream event: {str(e)}, "
@@ -327,55 +354,92 @@ class StreamConverter:
             )
     
     @staticmethod
-    def extract_chart_data(tool_content: str, tool_call_id: str) -> Dict[str, Any] | None:
-        """
-        Extract chart data from tool result and return image event.
-        
-        Args:
-            tool_content: Tool result content (JSON string or dict)
-            tool_call_id: Tool call ID
-            
-        Returns:
-            Image event dict if chart data found, None otherwise
-        """
-        import json
-        import ast
-        
-        try:
-            # Parse content to dict
-            tool_res = None
-            if isinstance(tool_content, dict):
-                tool_res = tool_content
-            elif isinstance(tool_content, str):
+    def _coerce_tool_result(tool_content: Any) -> Dict[str, Any] | None:
+        """Best-effort parse of a tool result into a dict (JSON, then Python-literal)."""
+        if isinstance(tool_content, dict):
+            return tool_content
+        if isinstance(tool_content, str):
+            try:
+                parsed = json.loads(tool_content)
+            except (json.JSONDecodeError, TypeError):
                 try:
-                    tool_res = json.loads(tool_content)
-                except (json.JSONDecodeError, TypeError):
-                    try:
-                        tool_res = ast.literal_eval(tool_content)
-                    except (ValueError, SyntaxError):
-                        return None
-            
-            if not isinstance(tool_res, dict):
+                    parsed = ast.literal_eval(tool_content)
+                except (ValueError, SyntaxError):
+                    return None
+            return parsed if isinstance(parsed, dict) else None
+        return None
+
+    @staticmethod
+    def extract_chart_data(tool_content: Any, tool_call_id: str) -> Dict[str, Any] | None:
+        """
+        Turn a ChartService tool result into an ``image`` stream event.
+
+        A server-side chart tool (generate_*_chart) returns ``is_chart=True`` plus a
+        rendered PNG ``url``; this surfaces it as an image event the frontend displays.
+        Used on both the deep/mix path (this StreamConverter) and the BaseAgent path
+        (via :meth:`chart_image_event_from_chunk`).
+
+        Args:
+            tool_content: Tool result content (JSON/literal string or dict)
+            tool_call_id: Tool call ID
+
+        Returns:
+            Image event dict if the result is a successful chart, else None.
+        """
+        try:
+            tool_res = StreamConverter._coerce_tool_result(tool_content)
+            if not tool_res or not (tool_res.get("is_chart") and tool_res.get("success")):
                 return None
-            
-            # Check if it's chart data
-            if tool_res.get("is_chart") and tool_res.get("success"):
-                chart_data = {
-                    "title": tool_res.get("chart_title", ""),
-                    "url": tool_res.get("url", ""),
-                    "filename": tool_res.get("filename", "")
-                }
-                return {
-                    "type": "image",
-                    "content": json.dumps(chart_data, ensure_ascii=False),
-                    "tool_id": tool_call_id
-                }
-            
-            return None
+            # Carry the durable storage keys, not just the (signed, expiring) url:
+            # chat/history re-signs assistant chart bubbles from file_key/thumbnail_key
+            # on reload (see _refresh_* in chat/message.py, commit 781b7921). Without
+            # them an S3 chart url 404s once it expires.
+            chart_data = {
+                "title": tool_res.get("chart_title", ""),
+                "url": tool_res.get("url", ""),
+                "filename": tool_res.get("filename", ""),
+                "file_key": tool_res.get("file_key", ""),
+                "thumbnail_key": tool_res.get("thumbnail_key", ""),
+            }
+            return {
+                "type": "image",
+                "content": json.dumps(chart_data, ensure_ascii=False),
+                "tool_id": tool_call_id,
+            }
         except Exception as e:
             logger.error(f"Failed to extract chart data: {e}", exc_info=True)
             return None
-    
+
+    @staticmethod
+    def chart_image_event_from_chunk(chunk: Any) -> Dict[str, Any] | None:
+        """
+        If ``chunk`` is a ``queryDetail`` stream event carrying a ChartService
+        chart result, return the corresponding ``image`` event; else None.
+
+        Lets a raw provider-chunk stream (e.g. BaseAgent) surface chart PNGs as
+        image events without re-implementing the detection logic.
+        """
+        if not isinstance(chunk, dict) or chunk.get("type") != "queryDetail":
+            return None
+        return StreamConverter.extract_chart_data(chunk.get("content", ""), chunk.get("tool_id", ""))
+
+    @staticmethod
+    def chart_dedup_key(image_event: Dict[str, Any]) -> str:
+        """
+        Stable identity for a chart ``image`` event — its chart URL (unique per
+        render), falling back to ``tool_id``.
+
+        Lets a stream surface each chart at most once even when the tool result
+        echoes more than once (subgraph streaming) or an image is emitted from
+        more than one layer. Returns "" when neither url nor tool_id is present.
+        """
+        try:
+            content = image_event.get("content") or "{}"
+            url = (json.loads(content) if isinstance(content, str) else content).get("url", "")
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            url = ""
+        return url or str(image_event.get("tool_id") or "")
+
     @staticmethod
     def create_cost_statistics(
         input_tokens: int,

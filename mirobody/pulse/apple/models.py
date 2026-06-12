@@ -166,6 +166,11 @@ class MetaInfo(BaseModel):
     timezone: str = Field(default="UTC", description="timezone")
     taskId: Optional[str] = Field(None, description="task id")
     directly_from_watch: Optional[bool] = Field(False, description="Whether the data is directly from watch")
+    # Data-repair window (epoch ms). For a repair batch (taskId starts with "repair-"),
+    # the mark-and-sweep reconcile deletes stale rows ONLY within [windowFrom, windowTo].
+    # If either is missing, the sweep is skipped (the upload is still upserted).
+    windowFrom: Optional[int] = Field(None, description="Repair window start (epoch ms)")
+    windowTo: Optional[int] = Field(None, description="Repair window end (epoch ms)")
 
 
 class AppleHealthRecord(BaseModel):

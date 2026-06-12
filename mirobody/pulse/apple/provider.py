@@ -136,6 +136,8 @@ class AppleHealthProvider(Provider):
                 source="apple_health_watch" if meta_info_data.directly_from_watch else "apple_health",
                 timezone=default_timezone,
                 taskId=meta_info_data.taskId,
+                windowFrom=meta_info_data.windowFrom,
+                windowTo=meta_info_data.windowTo,
             )
 
             return StandardPulseData(metaInfo=meta_info, healthData=all_records)

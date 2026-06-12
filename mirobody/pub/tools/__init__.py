@@ -14,7 +14,7 @@ The loader scans this directory with the following rules:
 1. DIRECTORY SCANNING
    - Only scans the ROOT directory (os.scandir)
    - Subdirectories are SKIPPED (entry.is_dir() → skip)
-   - Subdirectories are safe for assets/helpers (e.g., chart_schema/)
+   - Subdirectories are safe for assets/helpers
 
 2. FILE FILTERING
    - Only .py files are loaded (entry.name.lower().endswith(".py"))
@@ -23,7 +23,7 @@ The loader scans this directory with the following rules:
 
 3. CLASS FILTERING (load_tools_from_module)
    - Only classes ending with "Service" are registered as tool providers
-   - Example: ChartService ✓, ChartHelper ✗
+   - Example: ChartService ✓, MemoryService ✓, ChartHelper ✗
    - Abstract and builtin classes are skipped
 
 4. METHOD FILTERING (load_tools_from_class)
@@ -41,7 +41,7 @@ DIRECTORY STRUCTURE
 
 tools/
 ├── __init__.py                      # This documentation
-├── chart_service.py                 # ChartService (chart rendering)
+├── chart_service.py                 # ChartService (server-side chart→PNG rendering)
 ├── _chart_service_schema_loader.py  # Helper (underscore prefix → not loaded)
 ├── chart_schema/                    # Chart JSON schemas (subdirectory → not scanned)
 ├── memory_service.py                # MemoryService (search_user_memories, ...)
@@ -51,6 +51,29 @@ Note: filesystem / todo tools (ls, read_file, write_file, edit_file, glob,
 grep, write_todos) are NOT MCP tools here — the DeepAgent gets them natively
 from the deepagents FilesystemMiddleware / TodoListMiddleware, backed by the
 PgFilesystemBackend in mirobody/pub/agents/deep/backend.py.
+
+=============================================================================
+CHARTING: TWO PATHS (important)
+=============================================================================
+
+There are two ways to produce charts in this codebase, and they are routed by
+agent on purpose:
+
+1. ChartService MCP tools (generate_*_chart) — the standard "LLM + MCP tool"
+   path. The model calls a tool, ChartService renders a PNG via the Node
+   @antv/gpt-vis-ssr toolchain (render-chart.js), stores it under /charts, and
+   returns `is_chart=True`; StreamConverter.extract_chart_data then emits an
+   `image` event the frontend displays.
+   → Used by BaseAgent.
+
+2. Native ```vis-chart``` blocks — the model writes a fenced vis-chart code
+   block of pure-data JSON (no styling) directly in its reply and the frontend
+   renders it. No tool call, no PNG.
+   → Used by DeepAgent and MixAgent (richer, faster, no Node round-trip).
+
+DeepAgent/MixAgent therefore ALWAYS filter the generate_*_chart tools out of
+their tool set (see `_CHART_SERVICE_TOOLS` in agents/deep_agent.py). Do not
+"fix" this by handing them the chart tools — it is the intended split.
 
 =============================================================================
 EXAMPLE: Adding a New Tool

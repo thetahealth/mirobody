@@ -369,13 +369,27 @@ async def process_files_async(
                     self.file = BytesIO(file_content)
                     self._content = file_content
                     
-                async def read(self):
+                async def read(self, size: int = -1):
+                    # Accept an optional size like starlette's UploadFile.read(size).
+                    # Genetic detection calls read(100); without the param this
+                    # raised TypeError (swallowed), so genetic files were misread
+                    # as plain-text reports on the chat upload path. Always read
+                    # from the start so size=-1 callers still get full content.
                     self.file.seek(0)
-                    return self.file.read()
-                    
-                async def seek(self, offset):
-                    return self.file.seek(offset)
-                    
+                    data = self.file.read()
+                    return data if (size is None or size < 0) else data[:size]
+
+                async def seek(self, offset, whence=0):
+                    # Accept whence like a real file: the genetic handler calls
+                    # seek(0, 2) (seek-to-end) to measure size. Without whence this
+                    # raised TypeError and aborted genetic parsing on the chat path.
+                    return self.file.seek(offset, whence)
+
+                def tell(self):
+                    # Sync, like the genetic handler's `ctx.file.tell()` call after
+                    # seek(0, 2) to read the file size.
+                    return self.file.tell()
+
                 def close(self):
                     self.file.close()
             

@@ -33,7 +33,7 @@
 - [Architecture](#%EF%B8%8F-architecture) — AI & Agent Engine, FHIR & Health Standards, Health Data Pipeline, Infrastructure
 - [Theta Wellness: Our Health Intelligence App](#-theta-wellness-our-health-intelligence-app)
 - [Quick Start](#-quick-start)
-- [Access & Authentication](#-access--authentication)
+- [Access &amp; Authentication](#-access--authentication)
 - [API Reference](#-api-reference)
 - [Documentation](#-documentation)
 
@@ -66,32 +66,37 @@ Mirobody is built for **Personal Intelligence**, not just local storage. We beli
 
 Mirobody provides three agent types for different use cases:
 
-| Agent                   | Description                     | Use Case                                               |
-| ----------------------- | ------------------------------- | ------------------------------------------------------ |
-| **DeepAgent**     | Single-model tool orchestration | Complex queries requiring data retrieval and analysis  |
-| **MixAgent**      | Two-phase model fusion          | Optimized cost/quality balance with specialized models |
-| **BaselineAgent** | Direct LLM conversation         | Simple Q&A without tool calls                          |
+| Agent               | Description                     | Use Case                                               |
+| ------------------- | ------------------------------- | ------------------------------------------------------ |
+| **DeepAgent** | Single-model tool orchestration | Complex queries requiring data retrieval and analysis  |
+| **MixAgent**  | Two-phase model fusion          | Cost/quality balance with specialized models (experimental) |
+| **BaseAgent** | Direct LLM conversation         | Simple Q&A without tool calls                          |
 
 #### DeepAgent
 
 Inspired by [LangChain DeepAgents](https://github.com/langchain-ai/deepagents), DeepAgent is our primary agent for tool-assisted conversations. Key features:
 
 - **Full MCP Tool Support**: All tools are MCP-compliant and configurable via `ALLOWED_TOOLS` / `DISALLOWED_TOOLS`
-- **Multi-Provider**: Supports Google GenAI, OpenAI, Anthropic, and OpenRouter
+- **Multi-Provider**: Supports Google GenAI, OpenAI, Anthropic, OpenRouter, and any OpenAI-compatible endpoint
+- **File workspace**: A PostgreSQL-backed virtual filesystem (`/uploads`, `/library`, `/memories`, `/charts`) lets the agent read uploaded documents (PDF, image, Excel, …) across any provider
 - **Middleware Stack**: Includes prompt caching, tool call patching, and message summarization
+- **Charts (two paths, routed by agent)**:
+  - **DeepAgent / MixAgent** draw charts by emitting fenced ` ```vis-chart ` data blocks (pure-data JSON, no styling) that the frontend renders — no tool call, no PNG round-trip.
+  - **BaseAgent** draws charts via the `ChartService` MCP tools (`generate_*_chart`), the standard "LLM + MCP tool" path: the model calls a tool, ChartService renders a PNG (Node `@antv/gpt-vis-ssr`), stores it under `/charts`, and the stream emits an `image` event. This is filtered out of DeepAgent/MixAgent on purpose (see `_CHART_SERVICE_TOOLS` in `mirobody/pub/agents/deep_agent.py`).
+  - The `/charts` virtual-FS scope and its static-served storage volume (`mirobody_charts` → `/charts`) back the PNG path; a fork can also point its own chart-image tool there.
 
 #### MixAgent
 
 A two-phase model fusion architecture that separates **tool orchestration** from **response generation**:
 
-- **Phase 1 (Orchestrator)**: A capable model (e.g., Claude Sonnet) handles tool calls and data collection
-- **Phase 2 (Responder)**: A cost-effective model (e.g., Gemini Flash) generates the final response with collected context
+- **Phase 1 (Orchestrator)**: A capable model handles tool calls and data collection
+- **Phase 2 (Responder)**: A cost-effective model generates the final response with collected context
 
-This architecture optimizes for both cost and quality by using expensive models only where necessary.
+This architecture optimizes for both cost and quality by using expensive models only where necessary. *MixAgent is currently experimental.*
 
-#### BaselineAgent
+#### BaseAgent
 
-A lightweight agent for direct LLM conversations without tool access. Ideal for:
+A lightweight agent for direct LLM conversations, driven by the provider's own tool-calling loop. Ideal for:
 
 - Simple Q&A scenarios
 - Testing and development
@@ -109,58 +114,58 @@ A lightweight agent for direct LLM conversations without tool access. Ideal for:
 
 ### AI & Agent Engine
 
-| Module | Path | Description |
-|--------|------|-------------|
-| **Chat Service** | `mirobody/chat/` | Session management, conversation history, streaming adapters (HTTP/WebSocket), memory integration |
-| **Agent Implementations** | `mirobody/pub/agents/` | DeepAgent (LangChain), MixAgent (two-phase fusion), BaselineAgent |
-| **LLM Clients** | `mirobody/utils/llm/` | Multi-provider adapter (OpenAI, Gemini, Azure OpenAI, Volcengine, Dashscope), HIPAA-compliant routing |
-| **MCP Server** | `mirobody/mcp/` | JSON-RPC 2.0 tool/resource server, local + HTTP remote access |
-| **Tools** | `mirobody/pub/tools/` | Built-in tools: file ops, charts, code execution ([E2B](https://e2b.dev) sandbox), memory |
-| **Embeddings** | `mirobody/utils/embedding.py` | Provider-agnostic 1024-dim embeddings (Gemini / Qwen), pgvector semantic search |
-| **Prompt Templates** | `prompts/` | Jinja2 system prompts with dynamic context injection (user timezone, tools, health profile) |
-| **Skills** | `skills/` | Claude Agent Skills (SKILL.md + metadata.json), auto-discovery |
+| Module                          | Path                            | Description                                                                                           |
+| ------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Chat Service**          | `mirobody/chat/`              | Session management, conversation history, streaming adapters (HTTP/WebSocket), memory integration     |
+| **Agent Implementations** | `mirobody/pub/agents/`        | DeepAgent (LangChain), MixAgent (two-phase fusion), BaseAgent                                     |
+| **LLM Clients**           | `mirobody/utils/llm/`         | Multi-provider adapter (OpenAI, Gemini, Azure OpenAI, DashScope, any OpenAI-compatible), HIPAA-compliant routing |
+| **MCP Server**            | `mirobody/mcp/`               | JSON-RPC 2.0 tool/resource server, local + HTTP remote access                                         |
+| **Tools**                 | `mirobody/pub/tools/`         | Built-in tools: file ops, charts (BaseAgent), code execution ([E2B](https://e2b.dev) sandbox), memory                |
+| **Embeddings**            | `mirobody/utils/embedding.py` | Provider-agnostic 1024-dim embeddings (Gemini / Qwen), pgvector semantic search                  |
+| **Prompt Templates**      | `prompts/`                    | Jinja2 system prompts with dynamic context injection (user timezone, tools, health profile)           |
+| **Skills**                | `skills/`                     | Claude Agent Skills (SKILL.md + metadata.json), auto-discovery                                        |
 
 ### FHIR & Health Standards
 
-| Module | Path | Description |
-|--------|------|-------------|
-| **FHIR Mapping** | `mirobody/pulse/core/fhir_mapping.py` | In-memory cache of indicator → FHIR code, optional auto-registration of new codes |
-| **Indicator Registry** | `mirobody/pulse/core/indicators_info.py` | 400+ `StandardIndicator` enum, multi-source (Vital, Apple Health, Garmin, Whoop, Renpho) |
-| **Unit Conversion** | `mirobody/pulse/core/units.py` | Bidirectional conversion: kg/lbs, °C/°F, mg·dL⁻¹/mmol·L⁻¹, mmHg/kPa, etc. |
-| **Indicator Search** | `mirobody/indicator/` | Embedding-based free-text → indicator code, concept graph expansion (LOINC / SNOMED CT / RxNorm bridges) |
-| **Medical Code Mapping** | `health_tools/` | SNOMED-CT code mapping, health indicator classification |
+| Module                         | Path                                       | Description                                                                                               |
+| ------------------------------ | ------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| **FHIR Mapping**         | `mirobody/pulse/core/fhir_mapping.py`    | In-memory cache of indicator → FHIR code, optional auto-registration of new codes                        |
+| **Indicator Registry**   | `mirobody/pulse/core/indicators_info.py` | 400+`StandardIndicator` enum, multi-source (Vital, Apple Health, Garmin, Whoop, Renpho)                 |
+| **Unit Conversion**      | `mirobody/pulse/core/units.py`           | Bidirectional conversion: kg/lbs, °C/°F, mg·dL⁻¹/mmol·L⁻¹, mmHg/kPa, etc.                         |
+| **Indicator Search**     | `mirobody/indicator/`                    | Embedding-based free-text → indicator code, concept graph expansion (LOINC / SNOMED CT / RxNorm bridges) |
+| **Medical Code Mapping** | `health_tools/`                          | SNOMED-CT code mapping, health indicator classification                                                   |
 
 ### Health Data Pipeline (Pulse)
 
-| Module | Path | Description |
-|--------|------|-------------|
-| **Platform Manager** | `mirobody/pulse/` | Platform–Provider plugin architecture, data normalization to `StandardPulseData` |
-| **Theta Platform** | `mirobody/pulse/theta/` | Direct device integrations: Garmin, Whoop, Oura, Renpho, PostgreSQL |
-| **Apple Health** | `mirobody/pulse/apple/` | Apple Health import, CDA (Clinical Document Architecture) processing |
-| **Data Upload** | `mirobody/pulse/data_upload/` | `StandardPulseData` → `th_series_data` write pipeline |
-| **File Parser** | `mirobody/pulse/file_parser/` | Multi-format: PDF, CSV, Excel, audio, image, genetic data; LLM-powered indicator extraction |
-| **Aggregation** | `mirobody/pulse/core/aggregate_indicator/` | Series → daily summaries, derived metrics, sleep 18:00–18:00 window |
-| **Health Insights** | `mirobody/pulse/core/insight/` | AI-powered trend detection, anomaly analysis, pattern recipes (multi-signal, recovery, glucose) |
+| Module                     | Path                                         | Description                                                                                     |
+| -------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Platform Manager** | `mirobody/pulse/`                          | Platform–Provider plugin architecture, data normalization to `StandardPulseData`             |
+| **Theta Platform**   | `mirobody/pulse/theta/`                    | Direct device integrations: Garmin, Whoop, Oura, Renpho, PostgreSQL                             |
+| **Apple Health**     | `mirobody/pulse/apple/`                    | Apple Health import, CDA (Clinical Document Architecture) processing                            |
+| **Data Upload**      | `mirobody/pulse/data_upload/`              | `StandardPulseData` → `th_series_data` write pipeline                                      |
+| **File Parser**      | `mirobody/pulse/file_parser/`              | Multi-format: PDF, CSV, Excel, audio, image, genetic data; LLM-powered indicator extraction     |
+| **Aggregation**      | `mirobody/pulse/core/aggregate_indicator/` | Series → daily summaries, derived metrics, sleep 18:00–18:00 window                           |
+| **Health Insights**  | `mirobody/pulse/core/insight/`             | AI-powered trend detection, anomaly analysis, pattern recipes (multi-signal, recovery, glucose) |
 
 ### Infrastructure
 
-| Module | Path | Description |
-|--------|------|-------------|
-| **Configuration** | `mirobody/utils/config/` | YAML + env var layered config, Fernet encryption, multi-storage backend (Local / S3 / Aliyun OSS) |
-| **Auth & User** | `mirobody/user/` | JWT, OAuth (Google / Apple), WebAuthn / FIDO2, email verification |
-| **Server** | `mirobody/server/` | Starlette ASGI, JWT middleware, rate limiting |
-| **Database** | `mirobody/utils/db.py` | Async PostgreSQL (psycopg), Redis cache/session store |
+| Module                  | Path                       | Description                                                                                       |
+| ----------------------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
+| **Configuration** | `mirobody/utils/config/` | YAML + env var layered config, Fernet encryption, multi-storage backend (Local / S3 / OSS-compatible) |
+| **Auth & User**   | `mirobody/user/`         | JWT, OAuth (Google / Apple), WebAuthn / FIDO2, email verification                                 |
+| **Server**        | `mirobody/server/`       | Starlette ASGI, JWT middleware, rate limiting                                                     |
+| **Database**      | `mirobody/utils/db.py`   | Async PostgreSQL (psycopg), Redis cache/session store                                             |
 
 ### Extension Points (Root Directories)
 
-| Directory | Purpose |
-|-----------|---------|
-| `tools/` | Drop-in Python tools — auto-discovered as MCP tools |
-| `skills/` | Claude Agent Skills (SKILL.md + metadata.json) |
-| `agents/` | Custom agent implementations |
-| `providers/` | Custom Theta data providers |
-| `prompts/` | Jinja2 prompt templates |
-| `resources/` | Static resources (HTML, JSON) exposed via MCP |
+| Directory      | Purpose                                              |
+| -------------- | ---------------------------------------------------- |
+| `tools/`     | Drop-in Python tools — auto-discovered as MCP tools |
+| `skills/`    | Claude Agent Skills (SKILL.md + metadata.json)       |
+| `agents/`    | Custom agent implementations                         |
+| `providers/` | Custom Theta data providers                          |
+| `prompts/`   | Jinja2 prompt templates                              |
+| `resources/` | Static resources (HTML, JSON) exposed via MCP        |
 
 ---
 
@@ -199,6 +204,7 @@ cd mirobody
 ```
 
 This script will:
+
 - Generate a secure `.env` file.
 - Create a default configuration file (`config.localdb.yaml`).
 - Build the Docker image.
@@ -215,7 +221,7 @@ Then open `http://localhost:18080` in your web browser.
 >   - **👉 See [CONFIG](mirobody/utils/config/README.md) for a detailed configuration guide.**
 >   - **👉 See [DATABASE](mirobody/pulse/core/README.md) for database schema and initialization details.**
 > - **Tip**: Check `EMAIL_PREDEFINE_CODES` for predefined email accounts and verification codes used for user login.
-> - **🌍 Timezone**: Set `DEFAULT_TIMEZONE` in `config.{env}.yaml` to match your region (e.g., `Asia/Shanghai` for China). Defaults to `America/Los_Angeles`. See [CONFIG](mirobody/utils/config/README.md#-timezone) for details.
+> - **🌍 Timezone**: Set `DEFAULT_TIMEZONE` in `config.{env}.yaml` to match your region (e.g., `America/New_York`, `Europe/London`, `Asia/Tokyo`). Defaults to `America/Los_Angeles`. See [CONFIG](mirobody/utils/config/README.md#-timezone) for details.
 > - **LLM Setup**: `OPENROUTER_API_KEY` is required for the Deep agent.
 > - **Auth Setup**: To enable **Google/Apple OAuth** or **Email Verification**, set the respective variables in `config.{env}.yaml`.
 > - All API keys will be encrypted automatically once Mirobody loads them using the `CONFIG_ENCRYPTION_KEY` value.
@@ -225,6 +231,7 @@ Then open `http://localhost:18080` in your web browser.
 If you prefer to run the Mirobody agent code locally (for debugging or development) while keeping the database and cache in Docker:
 
 **1. Start Backing Services**
+
 ```bash
 docker compose up -d pg redis
 ```
@@ -232,8 +239,9 @@ docker compose up -d pg redis
 **2. Environment Setup**
 
 Prerequisites:
+
 - **Python**: 3.10 or higher
-- **Node.js**: 18.0.0 or higher (for chart renderer)
+- **Node.js**: 18.0.0 or higher (for the BaseAgent `ChartService` PNG renderer; DeepAgent/MixAgent's ` ```vis-chart ` path needs no Node)
 
 ```bash
 # Create and activate virtual environment
@@ -249,11 +257,12 @@ pip install -e .
 # pip install -e .[cn]    # China region (Aliyun OSS, Volcengine, Dashscope)
 # pip install -e .[fin]   # Financial data (yfinance)
 
-# Install Node.js dependencies (for chart rendering)
+# Install Node.js dependencies (for the ChartService chart renderer)
 npm install --omit=dev
 ```
 
 **3. Configuration**
+
 ```bash
 # Create .env
 echo "ENV=localdb" > .env
@@ -262,6 +271,7 @@ echo "CONFIG_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> .env
 ```
 
 Then add your API keys in `config.localdb.yaml`:
+
 ```yaml
 # OpenRouter API key (Required for Deep Agent)
 OPENROUTER_API_KEY: 'sk-or-...'
@@ -274,6 +284,7 @@ GOOGLE_API_KEY: '...'
 > **Note:** Sensitive keys are automatically encrypted by the system using the `CONFIG_ENCRYPTION_KEY` found in your `.env` file.
 
 **4. Run the Application**
+
 ```bash
 python -m main
 ```
@@ -599,15 +610,15 @@ Tests cover:
 
 ## 📚 Documentation
 
-| Topic | Location |
-|-------|----------|
-| Agent Development | [mirobody/pub/agents/README.md](mirobody/pub/agents/README.md) |
-| Tool Development | [mirobody/pub/tools/README.md](mirobody/pub/tools/README.md) |
-| Provider Development | [mirobody/pulse/theta/README.md](mirobody/pulse/theta/README.md) |
-| Configuration Guide | [mirobody/utils/config/README.md](mirobody/utils/config/README.md) |
-| Health Indicators & Database | [mirobody/pulse/core/README.md](mirobody/pulse/core/README.md) |
-| Health Indicator Search | [mirobody/indicator/README.md](mirobody/indicator/README.md) |
-| Pulse Data Engine | [mirobody/pulse/README.md](mirobody/pulse/README.md) |
+| Topic                        | Location                                                        |
+| ---------------------------- | --------------------------------------------------------------- |
+| Agent Development            | [mirobody/pub/agents/README.md](mirobody/pub/agents/README.md)     |
+| Tool Development             | [mirobody/pub/tools/README.md](mirobody/pub/tools/README.md)       |
+| Provider Development         | [mirobody/pulse/theta/README.md](mirobody/pulse/theta/README.md)   |
+| Configuration Guide          | [mirobody/utils/config/README.md](mirobody/utils/config/README.md) |
+| Health Indicators & Database | [mirobody/pulse/core/README.md](mirobody/pulse/core/README.md)     |
+| Health Indicator Search      | [mirobody/indicator/README.md](mirobody/indicator/README.md)       |
+| Pulse Data Engine            | [mirobody/pulse/README.md](mirobody/pulse/README.md)               |
 
 ---
 

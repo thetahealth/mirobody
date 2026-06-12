@@ -17,12 +17,14 @@ class MixAgent(DeepAgent, MixMixin):
 
     Features:
     - Static tool loading (inherits from DeepAgent)
-    - Phase 1 (Orchestrator) collects/visuallizes data via tools
-    - Phase 2 (Responder) generates response with collected context
+    - Phase 1 (Orchestrator) collects AND processes data via tools
+      (gathering + computing/shaping it into clean, chart-ready form)
+    - Phase 2 (Responder) presents the result: prose reply + charts
     - Reuses DeepAgent's core methods
 
-    Phase 1 (orchestrator) runs all tools; Phase 2 (responder) is pure
-    generation and is never bound to tools.
+    Phase 1 (orchestrator) runs all tools and never writes the reply;
+    Phase 2 (responder) is pure presentation/generation — it draws the
+    charts and composes the answer, and is never bound to tools.
 
     Class attributes:
     - _all_llm_clients: Internal storage for all LLM clients (including @orchestrator/@responder)
@@ -120,24 +122,30 @@ class MixAgent(DeepAgent, MixMixin):
         the full deepagents stack (Todo + Filesystem + SubAgent + Summarization
         + caching + PatchToolCalls) plus our `UniversalPromptCachingMiddleware`.
 
-        Passing `response_format=OrchestratorManifest` makes LangChain's
-        `create_agent` guarantee the model produces an
-        `OrchestratorManifest`-shaped final output. Concretely
-        (see `langchain/agents/factory.py` ~lines 1190-1250):
+        We wrap the schema in an explicit `ToolStrategy(OrchestratorManifest)`
+        rather than passing the bare schema. This is deliberate and load-bearing
+        (see `langchain/agents/factory.py` ~lines 1219-1277):
 
-        - For models whose profile declares native structured-output support
-          (OpenAI GPT-5, Anthropic Claude, Gemini 3.x with tool calling)
-          LangChain picks `ProviderStrategy` and uses the model's native JSON-
-          schema / strict-tool mode. `tool_choice` is NOT forced.
-        - For models without that profile flag (older Gemini, etc.) LangChain
-          falls back to `ToolStrategy` and sets `tool_choice="any"` so every
-          turn must emit a tool call.
+        - A bare schema is treated as `AutoStrategy`: for models whose profile
+          declares native structured-output support (OpenAI GPT-5, Anthropic
+          Claude, Gemini 3.x with tools) LangChain picks `ProviderStrategy` and
+          binds tools WITHOUT `tool_choice` — so the model is free to emit
+          free text or jump straight to the manifest without collecting data.
+        - An explicit `ToolStrategy` is preserved as-is for every model, and
+          because the manifest registers as a structured-output tool LangChain
+          forces `tool_choice="any"` (factory.py:1271). Every Phase 1 turn must
+          therefore emit a tool call — either a real data-collection tool or the
+          manifest. Uniform across Claude / Gemini / OpenAI; no per-model branch.
 
-        Either way, Phase 1 cannot wander off into free-text answers — the
-        loop ends naturally when LangChain parses the model's output into
+        Phase 1 thus never wanders into free-text answers, and the loop ends
+        when LangChain parses the manifest tool call into
         `state.structured_response` (which `mixin._stream_agent` watches for).
+        A model that needs no data can emit the manifest on turn 1
+        (`has_tools=False`) — this implicitly handles intent classification:
+        no separate router is needed, and Phase 2 then replies as pure chat.
         """
         from deepagents import create_deep_agent
+        from langchain.agents.structured_output import ToolStrategy
         from .deep.middleware import UniversalPromptCachingMiddleware
         from .mix.models import OrchestratorManifest
 
@@ -156,7 +164,7 @@ class MixAgent(DeepAgent, MixMixin):
             tools=tools,
             system_prompt=system_prompt,
             backend=backend,
-            response_format=OrchestratorManifest,
+            response_format=ToolStrategy(OrchestratorManifest),
             middleware=middleware,
         )
         if permissions is not None:
@@ -218,7 +226,6 @@ class MixAgent(DeepAgent, MixMixin):
 
             collected_messages: list[BaseMessage] = []
             has_tools = False
-            chart_context: list[dict[str, str]] = []
             manifest_note = ""
             manifest_rounds = 0
 
@@ -230,7 +237,6 @@ class MixAgent(DeepAgent, MixMixin):
                 if event.get("type") == "_metadata":
                     collected_messages = event.get("collected_messages", [])
                     has_tools = event.get("has_tools", False)
-                    chart_context = event.get("chart_context", [])
                     manifest_note = event.get("manifest_note", "")
                     manifest_rounds = event.get("manifest_rounds", 0)
                     continue
@@ -247,11 +253,11 @@ class MixAgent(DeepAgent, MixMixin):
             )
 
             # === Phase 2: Response Generation ===
-            logger.info(f"Phase 2: Response Generation (messages={len(collected_messages)}, charts={len(chart_context)}, has_tools={has_tools})")
+            logger.info(f"Phase 2: Response Generation (messages={len(collected_messages)}, has_tools={has_tools})")
 
-            # Build Phase 2 system prompt (with chart placeholders, no user_id for privacy)
+            # Build Phase 2 system prompt (no user_id for privacy)
             phase2_prompt = await self._build_phase2_prompt(
-                has_tools, language, chart_context=chart_context,
+                has_tools, language,
                 prompt_dir=self.prompt_dir,
                 orchestrator_note=manifest_note,
             )
@@ -279,7 +285,7 @@ class MixAgent(DeepAgent, MixMixin):
 
             async for event in self._stream_phase2_response(
                 has_tools, phase2_prompt, phase2_messages,
-                phase2_collected, chart_context,
+                phase2_collected,
                 group=selected_group,
             ):
                 if event.get("type") == "_cost_metadata":

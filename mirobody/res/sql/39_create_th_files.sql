@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS th_files
     user_id           varchar(50)   NOT NULL,
     query_user_id     varchar(50),
     file_name         varchar(255),
-    file_type         varchar(50),
+    file_type         varchar(255),  -- holds the MIME type; long ones (xlsx/docx/pptx) exceed 50
     file_key          varchar(255)  NOT NULL,
     file_content      text          NOT NULL DEFAULT '{}'::jsonb,  -- encrypted JSON metadata (encrypt_content); matches test/prod schema
     scene             varchar(20),  -- food/report/medicine/journal/web/others ...

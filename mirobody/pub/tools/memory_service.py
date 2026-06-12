@@ -83,7 +83,7 @@ class MemoryService:
     ) -> Dict[str, Any]:
         """
         Get user's memory-based profile: preferences, habits, and personal traits extracted from past conversations.
-        This is NOT the health profile — use get_user_health_profile for that.
+        This is NOT the health profile — that is provided natively in the system prompt.
 
         Args:
             no args needed.

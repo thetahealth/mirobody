@@ -1154,7 +1154,7 @@ async def trigger_std_indicator_registry(
 
     The task is normally on a 2400h (~100d) interval — effectively manual-
     only — so `force=true` is the typical invocation. Idempotent: upserts
-    by `id` into theta_ai.standard_indicators_device.
+    by `id` into standard_indicators_device.
     """
     try:
         from ..core.scheduler import scheduler

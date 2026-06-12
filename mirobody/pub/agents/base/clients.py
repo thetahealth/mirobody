@@ -1,5 +1,6 @@
 import aiohttp, asyncio, datetime, io, json, logging, os, re, redis.asyncio
 
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 from typing import Any, AsyncGenerator, Literal
 
@@ -421,6 +422,108 @@ class GeminiClient(AbstractClient):
             return [GeminiClient._sanitize_for_gemini(v) for v in obj] if obj else None
         return obj
 
+    @staticmethod
+    def _turns_to_steps(input_turns: list) -> list:
+        """Convert the internal turn-list ([{role, content}]) into the step-list
+        ([{type, content}]) the Interactions API expects.
+
+        A user/model turn becomes a user_input/model_output step; any
+        function_result item nested in a turn's content is promoted to its own
+        top-level function_result step (it is a step, not a content item).
+        """
+        steps: list = []
+        for turn in input_turns:
+            role    = turn.get("role") or "user"
+            content = turn.get("content", "")
+
+            if isinstance(content, str):
+                items = [{"type": "text", "text": content}] if content else []
+            elif isinstance(content, list):
+                items = content
+            else:
+                items = []
+
+            regular: list = []
+            for item in items:
+                if isinstance(item, dict) and item.get("type") == "function_result":
+                    steps.append({
+                        "type":    "function_result",
+                        "call_id": item.get("call_id", ""),
+                        "name":    item.get("name", ""),
+                        "result":  item.get("result"),
+                    })
+                else:
+                    regular.append(item)
+
+            if regular:
+                steps.append({
+                    "type":    "user_input" if role == "user" else "model_output",
+                    "content": regular,
+                })
+
+        return steps
+
+    @staticmethod
+    async def _adapt_steps_stream(stream):
+        """Translate the step.* SSE events into the flat content.* event
+        vocabulary the consumer loop below is written against.
+
+        Local function calls are read from interaction.completed (where their
+        arguments are guaranteed complete) and re-emitted as function_call deltas
+        just before the complete event, so the loop executes the call during the
+        stream and continues at completion.
+        """
+        async for event in stream:
+            event_type = getattr(event, "event_type", None)
+
+            if event_type == "interaction.created":
+                interaction = getattr(event, "interaction", None)
+                yield SimpleNamespace(
+                    event_type  = "interaction.start",
+                    interaction = SimpleNamespace(id=getattr(interaction, "id", None)),
+                )
+
+            elif event_type == "step.start":
+                # Server-executed tool steps surface here with complete payloads.
+                step  = getattr(event, "step", None)
+                stype = getattr(step, "type", None)
+                if stype == "mcp_server_tool_call":
+                    yield SimpleNamespace(event_type="content.delta", delta=SimpleNamespace(
+                        type      = "mcp_server_tool_call",
+                        name      = getattr(step, "name", ""),
+                        id        = getattr(step, "id", ""),
+                        arguments = getattr(step, "arguments", {}) or {},
+                    ))
+                elif stype == "mcp_server_tool_result":
+                    yield SimpleNamespace(event_type="content.delta", delta=SimpleNamespace(
+                        type    = "mcp_server_tool_result",
+                        result  = getattr(step, "result", ""),
+                        call_id = getattr(step, "call_id", ""),
+                    ))
+
+            elif event_type == "step.delta":
+                delta = getattr(event, "delta", None)
+                if delta is not None and getattr(delta, "type", None) == "text":
+                    yield SimpleNamespace(event_type="content.delta", delta=SimpleNamespace(
+                        type = "text",
+                        text = getattr(delta, "text", ""),
+                    ))
+
+            elif event_type == "interaction.completed":
+                interaction = getattr(event, "interaction", None)
+                for step in (getattr(interaction, "steps", None) or []):
+                    if getattr(step, "type", None) == "function_call":
+                        yield SimpleNamespace(event_type="content.delta", delta=SimpleNamespace(
+                            type      = "function_call",
+                            name      = getattr(step, "name", ""),
+                            id        = getattr(step, "id", ""),
+                            arguments = getattr(step, "arguments", {}) or {},
+                        ))
+                yield SimpleNamespace(event_type="interaction.complete", interaction=interaction)
+
+            elif event_type == "error":
+                yield event
+
     #-----------------------------------------------------
 
     async def ainvoke(self, **kwargs) -> AsyncGenerator[dict[str, Any], None]:
@@ -592,7 +695,7 @@ class GeminiClient(AbstractClient):
                 # Create interaction with streaming
                 create_kwargs = {
                     "model": self._model,
-                    "input": input_turns,
+                    "input": GeminiClient._turns_to_steps(input_turns),
                     "stream": True,
                 }
 
@@ -606,7 +709,9 @@ class GeminiClient(AbstractClient):
                 if previous_interaction_id:
                     create_kwargs["previous_interaction_id"] = previous_interaction_id
 
-                stream = await client.aio.interactions.create(**create_kwargs)
+                stream = GeminiClient._adapt_steps_stream(
+                    await client.aio.interactions.create(**create_kwargs)
+                )
 
                 should_continue = False
                 function_call_info = None
@@ -1764,7 +1869,7 @@ class NebulaClient(OpenAIChatClient):
 #-----------------------------------------------------------------------------
 
 class DashScopeClient(OpenAIChatClient):
-    """Aliyun 百炼 (DashScope) MCP gateway client.
+    """Aliyun DashScope MCP gateway client.
 
     OpenAI-compatible Chat Completions endpoint.  Provider-side MCP
     gateway integration is in beta; for now this client routes through
@@ -1796,7 +1901,7 @@ class DashScopeClient(OpenAIChatClient):
 #-----------------------------------------------------------------------------
 
 class DoubaoClient(OpenAIChatClient):
-    """字节方舟 (Doubao via Volcengine Ark) client.
+    """Doubao via Volcengine Ark client.
 
     OpenAI-compatible Chat Completions endpoint.  Provider-side MCP
     gateway integration is in beta; for now this client routes through

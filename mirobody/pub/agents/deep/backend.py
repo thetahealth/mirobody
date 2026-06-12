@@ -99,6 +99,7 @@ class PgFilesystemBackend(BackendProtocol):
         session_id: str = "",
         scope: Scope = "workspace",
         inline_limit: int = INLINE_LIMIT_BYTES,
+        supports_file_block: bool = False,
     ) -> None:
         if not user_id:
             raise ValueError("PgFilesystemBackend requires a non-empty user_id")
@@ -108,6 +109,12 @@ class PgFilesystemBackend(BackendProtocol):
         self._session_id = str(session_id or "")
         self._scope: Scope = scope
         self._inline_limit = int(inline_limit)
+        # When True, the bound model accepts a native `{'type': 'file'}` content
+        # block (Claude / Gemini …), so pdf/ppt are served as raw base64 bytes
+        # (preserving tables/figures/layout) rather than flattened to extracted
+        # text. When False (qwen/deepseek/… reject file blocks), they read as the
+        # upload-time extracted text. See aread's _TEXT_DOC_EXTS branch.
+        self._supports_file_block = bool(supports_file_block)
 
     @property
     def user_id(self) -> str:
@@ -166,10 +173,17 @@ class PgFilesystemBackend(BackendProtocol):
             info["modified_at"] = _iso(row["updated_at"])
         return info
 
+    def _content_read_expr(self) -> str:
+        # Memory scope is encrypted at rest; decrypt on read. Other scopes plaintext.
+        return "decrypt_content(content) AS content" if self._scope == "memory" else "content"
+
+    def _content_write_value(self) -> str:
+        return "encrypt_content(:content)" if self._scope == "memory" else ":content"
+
     async def _fetch_row(self, file_path: str) -> dict[str, Any] | None:
         rows = await execute_query(
             query=f"""
-            SELECT path, content, encoding, content_size, mime_type,
+            SELECT path, {self._content_read_expr()}, encoding, content_size, mime_type,
                    scope, object_storage_key, content_hash, file_key, source,
                    created_at, updated_at
             FROM {_TABLE}
@@ -190,7 +204,7 @@ class PgFilesystemBackend(BackendProtocol):
         escaped = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         rows = await execute_query(
             query=rf"""
-            SELECT path, content, encoding, content_size, mime_type,
+            SELECT path, {self._content_read_expr()}, encoding, content_size, mime_type,
                    scope, object_storage_key, content_hash, file_key, source,
                    created_at, updated_at
             FROM {_TABLE}
@@ -225,7 +239,7 @@ class PgFilesystemBackend(BackendProtocol):
                  mime_type, object_storage_key, content_hash, file_key, source,
                  created_at, updated_at, deleted)
             VALUES
-                (:user_id, :session_id, :scope, :path, :content, :encoding, :size,
+                (:user_id, :session_id, :scope, :path, {self._content_write_value()}, :encoding, :size,
                  :mime, :oss_key, :hash, :file_key, :source,
                  NOW(), NOW(), 0)
             ON CONFLICT (user_id, session_id, scope, path) DO UPDATE
@@ -442,32 +456,39 @@ class PgFilesystemBackend(BackendProtocol):
         created = _iso(row.get("created_at"))
         modified = _iso(row.get("updated_at"))
 
-        # Text-extractable documents (pdf/ppt/pptx) ALWAYS read as their
-        # extracted text — never a `{'type': 'file'}` multimodal block. The text
-        # was extracted (via vision OCR) at upload and lives in the `content`
-        # column. Most providers (qwen/DashScope, deepseek, ...) reject pdf file
-        # blocks with HTTP 400, and the extracted text is what the model needs.
-        # We also drop these extensions from deepagents' multimodal map (see the
-        # module-level patch below) so the read tool renders this as a text block.
+        # Text-extractable documents (pdf/ppt/pptx/excel): rendering is capability-aware.
+        #  * PDF on a file-block-capable model (Claude/Gemini/GPT/…): fall through
+        #    to the base64 branch below so the model gets the NATIVE file block —
+        #    preserving tables, figures, layout, scanned pages (what vision models
+        #    are best at, and what matters for lab reports / scanned medical docs).
+        #  * everything else here (ppt/pptx and Excel — no provider accepts these
+        #    as file blocks — and PDF on text-only models like qwen/deepseek that
+        #    reject `{'type':'file'}` with HTTP 400): serve the upload-time
+        #    extracted text. We drop these extensions from deepagents' multimodal
+        #    map (module-level patch below) so a text payload renders as a plain
+        #    text block while a base64 payload still falls back to a "file" block.
         ext = PurePosixPath(file_path).suffix.lower()
-        if ext in _TEXT_DOC_EXTS:
+        serve_native_pdf = ext == ".pdf" and self._supports_file_block
+        if ext in _TEXT_DOC_EXTS and not serve_native_pdf:
             content = inline_text
             if not content.strip():
-                # Content not ready: the upload-time parse may still be running
-                # (the file was registered by reference before its text was
-                # extracted). Try an on-demand parse so the agent gets the text
-                # rather than concluding the read failed.
+                # Inline text not present (the file was registered by reference
+                # before its text was extracted). Extract on-demand NOW, fetching
+                # the bytes from object storage and running the parser
+                # synchronously — so the read returns the text in this call rather
+                # than asking the model to poll.
                 content = await self._lazy_extract_doc_text(row, file_path) or ""
             if not content.strip():
-                # Still nothing — surface a RETRYABLE message. Never say "no
-                # content": after a few such replies the model gives up on the
-                # file, when in reality extraction just is not finished yet.
+                # Synchronous extraction produced nothing — retrying would not
+                # help (it is not a timing issue). Report a clear, terminal
+                # outcome so the model stops re-reading and tells the user.
                 name = PurePosixPath(file_path).name
                 return ReadResult(
                     file_data={"content": (
-                        f"[\"{name}\" is still being processed — its text has not "
-                        f"finished extracting yet. Wait a few seconds and call "
-                        f"read_file(\"{file_path}\") again.]"),
+                        f"[\"{name}\" could not be read as text — text extraction "
+                        f"returned nothing (it may be an empty, corrupt, or "
+                        f"unsupported document). Do not retry read_file on it; "
+                        f"tell the user the file could not be processed.]"),
                         "encoding": "utf-8",
                         "created_at": created, "modified_at": modified}
                 )
@@ -896,8 +917,14 @@ _MULTIMODAL_EXTS = {
 # as base64 (object-storage offload) but READ as their extracted text: most
 # providers (qwen/DashScope, deepseek, ...) reject a ``{'type': 'file'}``
 # content block and only images go through the native vision path. Serving the
-# extracted text makes PDF/PPT chat work across every model.
-_TEXT_DOC_EXTS = {".pdf", ".ppt", ".pptx"}
+# extracted text makes PDF/PPT/Excel chat work across every model.
+#
+# Excel (.xlsx/.xls/...) matters here: no provider accepts a spreadsheet as a
+# native file block, and its bytes are a ZIP the model cannot decode. Without
+# this entry ``aread`` would serve raw base64 and the model could not parse it.
+# The upload-time parser turns the workbook into a markdown table
+# (``_extract_excel_original_text``), which is what we serve instead.
+_TEXT_DOC_EXTS = {".pdf", ".ppt", ".pptx", ".xlsx", ".xls", ".xlsm", ".xlsb"}
 
 
 # deepagents' read_file middleware picks the multimodal content-block type purely

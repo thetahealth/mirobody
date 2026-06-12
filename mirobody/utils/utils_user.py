@@ -109,15 +109,17 @@ async def get_query_user_id(
         return {"query_user_id": user_id, "success": True, "permissions": permission_dict}
 
     # Check proxy query permissions if query_user_id is provided and different from current user_id
-    if user_id != query_user_id:
+    # Normalise to str: user_id may be int (JWT sub) while query_user_id arrives as a str from
+    # URL params, causing a spurious cross-user branch and a varchar=integer SQL type error.
+    if str(user_id) != str(query_user_id):
         query = """
-        select member_user_id as query_user_id, permissions as permission 
+        select member_user_id as query_user_id, permissions as permission
         from th_share_relationship
         where member_user_id = :query_user_id
         and owner_user_id = :user_id
         and status = 'authorized'
         """
-        params = {"query_user_id": query_user_id, "user_id": user_id}
+        params = {"query_user_id": str(query_user_id), "user_id": str(user_id)}
         result = await execute_query(query, params)
         if result:
             db_permissions = result[0].get("permission", {})

@@ -11,8 +11,117 @@ from ..utils.truncate import split_by_tokens
 from ..utils import execute_query
 from ..utils.llm import async_get_text_completion
 from ..utils.config import safe_read_cfg, global_config
+from .user import fetch_system_user_profile  # decrypted latest profile
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_core_section(common_part: str, maxlen: int) -> str:
+    """Pull the curated, durable '核心摘要 / Core Summary' section out of a profile.
+
+    The profile generator emits this as the FIRST section (see
+    GENERATE_USER_PROFILE_PROMPT). We inject ONLY this section so the system
+    prompt stays short and stable between profile refreshes (prompt-cache
+    friendly) — the volatile lab time-series lives in the detail, which the
+    agent reads on demand from ``/memories/health_profile.md``.
+
+    Returns the core section text (capped at ``maxlen``). Falls back to a
+    plain truncation of the whole profile if the marker isn't found (older
+    profiles generated before this change).
+    """
+    text = str(common_part or "").strip()
+    if not text:
+        return ""
+    # Find the core-summary heading (bilingual; tolerant of '### 0.' numbering).
+    lower = text.lower()
+    start = -1
+    for marker in ("核心摘要", "core summary"):
+        idx = lower.find(marker.lower())
+        if idx != -1:
+            start = idx
+            break
+    if start == -1:
+        return text[:maxlen]  # fallback: legacy profile without a core section
+    # Begin at the heading line, end at the next markdown heading ('### ' / '## ').
+    head_line_start = text.rfind("\n", 0, start) + 1
+    body_start = text.find("\n", start)
+    if body_start == -1:
+        return text[head_line_start:][:maxlen]
+    rest = text[body_start + 1:]
+    end_rel = len(rest)
+    for sep in ("\n## ", "\n### "):
+        i = rest.find(sep)
+        if i != -1:
+            end_rel = min(end_rel, i)
+    section = (text[head_line_start:body_start + 1] + rest[:end_rel]).strip()
+    return section[:maxlen]
+
+
+async def get_health_profile_core(user_id: str, maxlen: int = 2000) -> str | None:
+    """Bounded, decrypted health-profile CORE for system-prompt injection.
+
+    Returns the curated '核心摘要 / Core Summary' section of the latest profile
+    (capped at ``maxlen``), or None when the user has no profile yet. The full
+    detailed profile is mirrored to ``/memories/health_profile.md`` for the
+    agent to read on demand — keeping the injected core short + stable so it
+    stays prompt-cache friendly between profile refreshes.
+    """
+    if not user_id:
+        return None
+    try:
+        row = await fetch_system_user_profile(user_id)
+    except Exception:
+        return None
+    if not row:
+        return None
+    core = _extract_core_section(row.get("common_part") or "", maxlen)
+    return core or None
+
+
+_MEMORY_PROFILE_PATH = "/health_profile.md"
+
+
+async def mirror_profile_to_memories(user_id: str, profile_markdown: str) -> None:
+    """Best-effort: mirror the FULL detailed profile into the agent's encrypted
+    ``/memories/`` filesystem at ``/health_profile.md`` so the agent can read the
+    detail on demand (the bounded core is injected into the prompt separately).
+
+    Writes to the same ``deep_agent_workspace`` row layout the deepagents
+    PgFilesystemBackend uses for the memory scope (``scope='memory'``,
+    ``session_id=''``, content wrapped in ``encrypt_content`` so it is encrypted
+    at rest and decrypts transparently on the agent's read). Failures are logged,
+    never raised — profile creation must not depend on this.
+    """
+    text = str(profile_markdown or "").strip()
+    if not user_id or not text:
+        return
+    try:
+        await execute_query(
+            """
+            INSERT INTO deep_agent_workspace
+                (user_id, session_id, scope, path, content, encoding, content_size,
+                 mime_type, source, created_at, updated_at, deleted)
+            VALUES
+                (:user_id, '', 'memory', :path, encrypt_content(:content), 'utf-8', :size,
+                 'text/markdown', 'tool_generated', NOW(), NOW(), 0)
+            ON CONFLICT (user_id, session_id, scope, path) DO UPDATE
+                SET content = EXCLUDED.content,
+                    content_size = EXCLUDED.content_size,
+                    mime_type = EXCLUDED.mime_type,
+                    source = EXCLUDED.source,
+                    updated_at = NOW(),
+                    deleted = 0
+            """,
+            params={
+                "user_id": str(user_id),
+                "path": _MEMORY_PROFILE_PATH,
+                "content": text,
+                "size": len(text.encode("utf-8")),
+            },
+        )
+        logger.info(f"[profile] mirrored detailed profile to /memories{_MEMORY_PROFILE_PATH} for user {user_id}")
+    except Exception as e:
+        logger.warning(f"[profile] failed to mirror profile to /memories: {e}")
 
 MAX_TOKENS = 10000
 MAX_OUTPUT_TOKENS = 32000  # No limit on profile output length to avoid truncation
@@ -290,6 +399,15 @@ You are a professional health profile analyst. Generate a concise user health pr
 ## Output Structure (Markdown)
 Only output sections that have actual data. Skip sections entirely if no data is available.
 
+### 0. 核心摘要 / Core Summary
+**ALWAYS output this section FIRST.** A short, durable, high-signal snapshot of the user —
+this is the only part injected into the assistant's standing context, so keep it **tight and
+stable** (it should change only when major facts change, not on every routine lab update).
+Include ONLY: basic demographics (sex/age/language), chronic conditions & key past history,
+current medications & allergies, and the **3–6 most clinically significant** current findings
+(notably abnormal values). **Hard limit: ≤ 1500 characters.** Do NOT dump full lab panels or
+time-series here — those belong in the detailed sections below.
+
 ### 1. 用户基础信息 / Basic Information
 Include: gender, age, race/ethnicity, language, blood type, and other basic demographics
 
@@ -510,6 +628,9 @@ You are a professional health profile analyst. Merge the following profile chunk
 
 ## Required Output Structure
 Only output sections that have actual data:
+0. **### 0. 核心摘要 / Core Summary** — ALWAYS first. A tight, durable snapshot (≤ 1500 chars):
+   demographics, chronic conditions & key history, current meds & allergies, and the 3–6 most
+   clinically significant current findings. Do NOT put full lab panels/time-series here.
 1. 用户基础信息 / Basic Information
 2. 生活方式 / Lifestyle
 3. 健康情况 / Health Status (subsections: 用药史, 既往史, 家族史, 免疫接种, 月经周期, 检验指标 - only include subsections with data)
@@ -1514,7 +1635,12 @@ class UserProfileService:
             )
             
             logger.info(f"Successfully created profile {profile_id} version {new_version} for user: {user_id}, last_execute_doc_id: {new_last_execute_doc_id}, action_type: add")
-            
+
+            # Mirror the FULL detailed profile into the agent's encrypted /memories/
+            # so it can read specifics on demand; the bounded Core Summary is what
+            # gets injected into the system prompt. Best-effort — never blocks save.
+            await mirror_profile_to_memories(user_id, profile_without_scenario)
+
             return {
                 "status": "success",
                 "profile_id": profile_id,

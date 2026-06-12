@@ -14,6 +14,8 @@ from ...utils import global_config
 from ...chat import get_llm_client_by_name, detect_language
 from ...mcp import get_global_tools
 
+from .utils import StreamConverter
+
 from .base.clients import (
     OpenAIResponsesClient,
     GeminiClient,
@@ -100,6 +102,27 @@ class BaseAgent():
 
     #-------------------------------------------------------------------------
 
+    @staticmethod
+    def _normalize_messages(messages: list[Any]) -> list[dict[str, Any]]:
+        """BaseAgent works in plain {role, content} dicts; its provider clients and
+        `_trim_to_recent_user_turns` assume that shape. The shared chat adapter only
+        hands canonical LangChain BaseMessage objects to DeepAgent-family agents, but
+        normalize defensively here so a stray BaseMessage can never crash BaseAgent
+        (it degrades to text — BaseAgent never used the structured tool trace)."""
+        from langchain_core.messages import BaseMessage
+        _ROLE = {"human": "user", "ai": "assistant", "tool": "tool", "system": "system"}
+        out: list[dict[str, Any]] = []
+        for m in messages:
+            if isinstance(m, BaseMessage):
+                content = m.content
+                if not isinstance(content, str):
+                    content = str(content)
+                out.append({"role": _ROLE.get(getattr(m, "type", ""), "user"), "content": content})
+            elif isinstance(m, dict):
+                out.append(m)
+            # silently drop anything else (shouldn't happen)
+        return out
+
     def _trim_to_recent_user_turns(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Keep only the last `_user_message_threshold` user turns (and everything after)."""
         seen = 0
@@ -122,6 +145,7 @@ class BaseAgent():
             yield {"type": "error", "content": "Empty message."}
             return
 
+        messages = self._normalize_messages(messages)
         messages = self._trim_to_recent_user_turns(messages)
 
         timezone = kwargs.get("timezone") or _get_default_timezone()
@@ -168,6 +192,13 @@ class BaseAgent():
             yield {"type": "error", "content": f"provider {provider} not found"}
 
         else:
+            # BaseAgent charts via the server-side ChartService MCP tools
+            # (generate_*_chart). When such a tool returns is_chart=True we surface
+            # an explicit `image` event so the frontend renders the PNG — deep/mix
+            # use ```vis-chart``` blocks and never produce these. Each chart is
+            # emitted exactly once (dedup by URL): a tool result can echo more than
+            # once, and a provider may itself emit an image for the same chart.
+            seen_charts: set[str] = set()
             async for chunk in llm_client.ainvoke(
                 question        = question,
                 messages        = messages,
@@ -178,7 +209,30 @@ class BaseAgent():
                 tools           = self._tools,  # Pass pre-filtered tool names
                 redis           = self._redis,
             ):
+                etype = chunk.get("type") if isinstance(chunk, dict) else None
+
+                # An image already in the stream: dedup it, then pass through.
+                if etype == "image":
+                    key = StreamConverter.chart_dedup_key(chunk)
+                    if key and key in seen_charts:
+                        continue
+                    if key:
+                        seen_charts.add(key)
+                    yield chunk
+                    continue
+
                 yield chunk
+
+                # After a tool result, emit the chart image (deduped) if it is one.
+                if etype == "queryDetail":
+                    chart_event = StreamConverter.chart_image_event_from_chunk(chunk)
+                    if chart_event:
+                        key = StreamConverter.chart_dedup_key(chart_event)
+                        if key and key in seen_charts:
+                            continue
+                        if key:
+                            seen_charts.add(key)
+                        yield chart_event
 
     #-------------------------------------------------------------------------
 

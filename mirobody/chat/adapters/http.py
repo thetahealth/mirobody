@@ -22,6 +22,8 @@ from .base import (
 )
 from ..model import ChatStreamRequest
 from ..message import compress_messages
+from ..history_replay import rebuild_canonical_messages, relative_time_hint
+from ..agent import agent_uses_canonical_history
 from ..unified_chat_service import UnifiedChatService
 from ..file import process_files_from_storage
 
@@ -177,14 +179,37 @@ class HTTPChatAdapter(ChatProtocolAdapter):
                     )
                 )
             
-            # Compress messages (CPU-bound, cannot be parallelized with I/O)
-            compressed_messages = compress_messages(params.agent, messages, 4000)
-            
+            # Compress messages (CPU-bound, cannot be parallelized with I/O).
+            # Two replay strategies (see mirobody/chat/history_replay.py):
+            #   canonical (default) — rebuild real AIMessage/ToolMessage pairs from
+            #     the persisted element_list so the agent remembers the tool/file
+            #     trace (no re-reading the same PDF) and the history is cacheable.
+            #   legacy — flatten to {role, content} text (R2-stabilised: no per-turn
+            #     timestamp prefix). Kept for A/B comparison and as a fallback.
+            replay_mode = (safe_read_cfg("CHAT_HISTORY_REPLAY", "canonical") or "canonical").lower()
+            # Canonical (BaseMessage) replay only goes to DeepAgent-family agents
+            # (App/Deep/Mix) that run deepagents' astream — those natively accept
+            # AIMessage/ToolMessage. BaseAgent has dict-only message handling, so it
+            # stays on the legacy text-dict path (R2-stable + R1 trace) to avoid a
+            # crash; behaviour there is unchanged from before this optimization.
+            use_canonical = replay_mode == "canonical" and agent_uses_canonical_history(params.agent)
+            if use_canonical:
+                compressed_messages = rebuild_canonical_messages(messages, agent=params.agent)
+            else:
+                compressed_messages = compress_messages(params.agent, messages, 4000)
+
+            # Temporal continuity on resume: the system prompt already carries the
+            # (hour-rounded) current time, but flat replay drops the gap since the
+            # last turn. Surface it as a one-line note on the CURRENT user turn —
+            # after the cache breakpoint, so the cached history/system prefix is
+            # untouched. `messages` (pre-compress) still carries created_at.
+            time_note = relative_time_hint(messages)
+
             # Log for chat extraction (fire-and-forget via base class)
             await self.log_chat_extraction(params, params.user_id, params.question_id)
 
             input_data = await self.prepare_unified_input(
-                params, params.user_id, compressed_messages,
+                params, params.user_id, compressed_messages, current_turn_note=time_note,
             )
             
             # Stream the response

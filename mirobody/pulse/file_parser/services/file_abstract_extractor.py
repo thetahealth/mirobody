@@ -3,6 +3,7 @@ File Abstract Extractor Service
 Extracts file summaries for different file types, with special handling for PDF files
 """
 
+import asyncio
 import os
 import tempfile
 import logging
@@ -14,6 +15,12 @@ from PIL import Image
 from mirobody.utils.llm import unified_file_extract
 from mirobody.pulse.file_parser.services.prompts.file_abstract_prompt import FILE_ABSTRACT_PROMPT, FALLBACK_ABSTRACT_TEMPLATES
 from mirobody.pulse.file_parser.services.prompts.file_original_text_prompt import FILE_ORIGINAL_TEXT_PROMPT
+
+
+# Minimum stripped chars from a PDF's embedded text layer to accept it as a
+# born-digital extraction (Tier 1) instead of falling back to Vision-LLM OCR.
+# Scanned/image-only PDFs yield ~0 chars here.
+_PDF_TEXT_LAYER_MIN_CHARS = 100
 
 
 class FileAbstractExtractor:
@@ -719,9 +726,36 @@ Please return strictly in JSON format, do not include any markdown code block ma
             logging.error(f"❌ [Original Text] Original text extraction failed for {filename}: {e}", stack_info=True)
             return ""
     
+    def _extract_pdf_text_layer(self, file_content: bytes) -> str:
+        """Tier-1 PDF extraction: the embedded text layer via pdfplumber.
+
+        Free and instant for born-digital PDFs (most lab/portal exports). Returns
+        "" for scanned / image-only PDFs (no extractable text layer), which then
+        fall through to Vision-LLM OCR.
+        """
+        import io
+        parts: list[str] = []
+        try:
+            with pdfplumber.open(io.BytesIO(file_content)) as pdf:
+                for i, page in enumerate(pdf.pages):
+                    try:
+                        page_text = page.extract_text() or ""
+                    except Exception:
+                        page_text = ""
+                    if page_text.strip():
+                        parts.append(f"[Page {i + 1}]\n{page_text}")
+        except Exception as e:
+            logging.warning(f"📄 [Original Text] pdfplumber text-layer extraction failed: {e}")
+            return ""
+        return "\n\n".join(parts)
+
     async def _extract_pdf_original_text(self, file_content: bytes, filename: str) -> str:
         """
-        Extract original text from PDF file using Vision LLM
+        Extract original text from a PDF, two-tier:
+
+        1. Embedded text layer (pdfplumber) — free/instant for born-digital PDFs.
+        2. Vision-LLM OCR — fallback for scanned / image-only PDFs whose text
+           layer is empty or too thin to be a real text layer.
 
         Args:
             file_content: PDF file binary content
@@ -732,6 +766,23 @@ Please return strictly in JSON format, do not include any markdown code block ma
         """
         import time
         start_time = time.time()
+
+        # Tier 1: embedded text layer. Only trust it when it yields a substantial
+        # amount of text — a near-empty result means a scanned PDF, so fall back.
+        # pdfplumber is synchronous and CPU-bound, so run it in a worker thread to
+        # avoid blocking the event loop (and the upload WebSocket) during parsing.
+        text_layer = await asyncio.to_thread(self._extract_pdf_text_layer, file_content)
+        if len(text_layer.strip()) >= _PDF_TEXT_LAYER_MIN_CHARS:
+            logging.info(
+                f"✅ [Original Text] PDF text-layer hit: {filename}, "
+                f"{len(text_layer)} chars, took {time.time() - start_time:.2f}s "
+                f"(skipped Vision LLM)"
+            )
+            return text_layer.strip()
+        logging.info(
+            f"📄 [Original Text] PDF text layer thin ({len(text_layer.strip())} chars) "
+            f"-> Vision LLM OCR: {filename}"
+        )
 
         try:
             # Create temporary file for PDF processing
@@ -880,48 +931,54 @@ Please return strictly in JSON format, do not include any markdown code block ma
         
         try:
             import pandas as pd
-            
+
             logging.info(f"📄 [Original Text] Extracting Excel text: {filename}")
-            
-            # Read Excel file
+
+            # Read ALL sheets (sheet_name=None -> {sheet: DataFrame}); a workbook
+            # often has more than one sheet and reading only the first silently
+            # drops the rest.
             try:
-                df = pd.read_excel(io.BytesIO(file_content), engine="openpyxl")
+                sheets = pd.read_excel(io.BytesIO(file_content), engine="openpyxl", sheet_name=None)
             except Exception:
                 # Try with xlrd for older .xls files
                 try:
-                    df = pd.read_excel(io.BytesIO(file_content), engine="xlrd")
+                    sheets = pd.read_excel(io.BytesIO(file_content), engine="xlrd", sheet_name=None)
                 except Exception as e:
                     logging.warning(f"⚠️ [Original Text] Failed to read Excel with both engines: {e}")
                     return ""
-            
-            if df.empty:
+
+            non_empty = {name: df for name, df in (sheets or {}).items() if not df.empty}
+            if not non_empty:
                 logging.info(f"ℹ️ [Original Text] Excel file is empty: {filename}")
                 return ""
-            
-            # Convert DataFrame to markdown-like text
-            text_parts = []
-            text_parts.append(f"# Excel File: {filename}")
-            text_parts.append(f"Rows: {len(df)}, Columns: {len(df.columns)}")
-            text_parts.append("")
-            
-            # Add column headers
-            headers = " | ".join(str(col) for col in df.columns)
-            text_parts.append(f"| {headers} |")
-            text_parts.append("|" + "|".join(["---"] * len(df.columns)) + "|")
-            
-            # Add data rows (limit to first 5000 rows to avoid huge text)
-            max_rows = min(len(df), 5000)
-            for idx in range(max_rows):
-                row_values = " | ".join(str(val) if pd.notna(val) else "" for val in df.iloc[idx])
-                text_parts.append(f"| {row_values} |")
-            
-            if len(df) > max_rows:
-                text_parts.append(f"\n... and {len(df) - max_rows} more rows")
-            
+
+            # Convert each sheet to a markdown table, sharing a global row budget
+            # so a huge workbook can't blow up the text.
+            text_parts = [f"# Excel File: {filename}", f"Sheets: {len(non_empty)}", ""]
+            rows_budget = 5000
+            for sheet_name, df in non_empty.items():
+                text_parts.append(f"## Sheet: {sheet_name}")
+                text_parts.append(f"Rows: {len(df)}, Columns: {len(df.columns)}")
+                headers = " | ".join(str(col) for col in df.columns)
+                text_parts.append(f"| {headers} |")
+                text_parts.append("|" + "|".join(["---"] * len(df.columns)) + "|")
+
+                max_rows = min(len(df), max(rows_budget, 0))
+                for idx in range(max_rows):
+                    row_values = " | ".join(str(val) if pd.notna(val) else "" for val in df.iloc[idx])
+                    text_parts.append(f"| {row_values} |")
+                rows_budget -= max_rows
+                if len(df) > max_rows:
+                    text_parts.append(f"... and {len(df) - max_rows} more rows")
+                text_parts.append("")
+                if rows_budget <= 0:
+                    text_parts.append("... (remaining sheets truncated)")
+                    break
+
             result = "\n".join(text_parts)
             elapsed_time = time.time() - start_time
-            
-            logging.info(f"✅ [Original Text] Excel extraction successful: {filename}, {len(result)} chars, took {elapsed_time:.2f}s")
+
+            logging.info(f"✅ [Original Text] Excel extraction successful: {filename}, {len(non_empty)} sheet(s), {len(result)} chars, took {elapsed_time:.2f}s")
             return result
             
         except ImportError:

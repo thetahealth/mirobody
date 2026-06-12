@@ -2,7 +2,7 @@
 Standard Indicator Registry Task
 
 Publishes the in-code StandardIndicator enum and the derived aggregation
-rules (from rule_generator) into theta_ai.standard_indicators_device, so
+rules (from rule_generator) into standard_indicators_device, so
 downstream consumers (UI, FHIR mapping, monitoring) have a queryable
 catalog instead of needing to import Python enums.
 
@@ -21,7 +21,7 @@ from ..scheduler import PullTask, ScheduleType
 from ....utils import execute_query
 
 
-TABLE_NAME = "theta_ai.standard_indicators_device"
+TABLE_NAME = "standard_indicators_device"
 
 # Methods whose output unit is not the source indicator's unit. Used to
 # pick a canonical_unit for aggregation rows. Anything not listed inherits
@@ -163,7 +163,7 @@ ON CONFLICT (id) DO UPDATE SET
 class RegisterStandardIndicatorsTask(PullTask):
     """
     Publish StandardIndicator enum + derived aggregation rules into
-    theta_ai.standard_indicators_device. Runs once a day — catalog data
+    standard_indicators_device. Runs once a day — catalog data
     only changes when code is deployed.
     """
 
@@ -230,7 +230,7 @@ class RegisterStandardIndicatorsTask(PullTask):
             "task_name": "Standard Indicator Registry",
             "description": (
                 "Publish in-code StandardIndicator enum and derived "
-                "aggregation rules to theta_ai.standard_indicators_device"
+                "aggregation rules to standard_indicators_device"
             ),
             "execution_frequency": "Manual (2400h / ~100 day interval)",
         })

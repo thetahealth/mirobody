@@ -962,6 +962,7 @@ class StandardIndicator(Enum):
         description="Body height",
         description_zh="身体高度",
         data_type=HealthDataType.SERIES,
+        aggregation_methods=['last'],
     )
     HRV = IndicatorInfo(
         category=Categories.METABOLIC.value,
@@ -1937,6 +1938,7 @@ class StandardIndicator(Enum):
         description="Waist circumference",
         description_zh="腰部围度",
         data_type=HealthDataType.SERIES,
+        aggregation_methods=['last'],
     )
     WALKING_HEART_RATE = IndicatorInfo(
         category=Categories.VITAL_SIGNS.value,
@@ -3014,6 +3016,49 @@ def get_indicator_by_str(indicator: str) -> Optional['StandardIndicator']:
             return std_indicator
     logging.warning(f"indicator {indicator} not found in StandardIndicator")
     return None
+
+
+def get_indicators_in_same_categories(
+    indicator_names: Set[str],
+    data_types: Optional[Set['HealthDataType']] = None,
+) -> Set[str]:
+    """
+    Expand a set of indicator names to all StandardIndicator names sharing their
+    categories.
+
+    Used by the data-repair reconcile to sweep sibling indicators in the same
+    family. Example: a corrected sleep re-upload may only re-confirm
+    `sleepAnalysis_Asleep(Deep)`, but TH-449-style corruption left duplicate rows
+    under sibling stage indicators (`sleepAnalysis_Awake`, `_InBed`, ...). Expanding
+    to the whole SLEEP category lets the sweep remove those siblings while still
+    scoping to the relevant family (categories the batch never touched are excluded).
+
+    Args:
+        indicator_names: indicator names present in the repair batch.
+        data_types: optional filter; only return indicators whose data_type is in
+            this set (e.g. {HealthDataType.SERIES, HealthDataType.MIX} for series_data,
+            {HealthDataType.SUMMARY, HealthDataType.MIX} for th_series_data).
+
+    Returns:
+        Canonical indicator names in the same categories (filtered by data_type).
+        Runtime-generated aggregate indicator names (not in StandardIndicator) are
+        never included, so this never matches derived aggregate rows.
+    """
+    category_names: Set[str] = set()
+    for name in indicator_names:
+        std = get_indicator_by_str(name)
+        if std is not None:
+            category_names.add(std.value.category.name)
+
+    if not category_names:
+        return set()
+
+    result: Set[str] = set()
+    for std in StandardIndicator:
+        if std.value.category.name in category_names:
+            if data_types is None or std.value.data_type in data_types:
+                result.add(std.value.name)
+    return result
 
 
 def get_all_indicators_info() -> Dict[str, Any]:

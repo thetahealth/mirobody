@@ -11,7 +11,6 @@ This mixin can be combined with DeepAgent or other agent base classes.
 import json
 import logging
 import os
-import re
 import uuid
 from datetime import datetime
 from typing import Any, AsyncGenerator
@@ -21,13 +20,18 @@ from jinja2 import Environment
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage, convert_to_messages
 
 from ....utils import get_req_ctx
-from ..utils import StreamConverter, TokenUsageCallback
+from ..utils import TokenUsageCallback
 from .models import OrchestratorManifest
 
 logger = logging.getLogger(__name__)
 
 # Phase 2 auto-retry on empty response (DashScope/Gemini intermittent empty output)
 MAX_PHASE2_RETRIES = 3
+
+# Name of the Phase-1 finish-sentinel tool (LangChain ToolStrategy registers the
+# structured-output schema as a tool under its class name). It terminates Phase 1
+# and is captured via structured_response — never collected as data.
+MANIFEST_TOOL_NAME = OrchestratorManifest.__name__
 
 
 class MixMixin:
@@ -150,6 +154,27 @@ class MixMixin:
         return None, None
 
     # === Phase 1 Message Filtering ===
+
+    @staticmethod
+    def _history_for_phase2(user_messages: list) -> list[BaseMessage]:
+        """Normalize replayed history for the Phase 2 (responder) prompt.
+
+        Items may be plain dicts ({"role","content"}) or LangChain BaseMessage
+        objects — convert_to_messages normalizes both. Keep only human/ai turns
+        (the system prompt is prepended by the caller). Canonical replay yields
+        AIMessages carrying tool_calls whose paired ToolMessages are intentionally
+        dropped here (Phase 2 is the pure responder; Phase 1's freshly collected
+        tool context is appended separately). A kept AIMessage WITH tool_calls but
+        no paired ToolMessage is an orphan tool_use → provider 400, so strip
+        tool_calls from historical AIMessages.
+        """
+        out: list[BaseMessage] = []
+        for m in convert_to_messages(user_messages):
+            if isinstance(m, HumanMessage):
+                out.append(m)
+            elif isinstance(m, AIMessage):
+                out.append(AIMessage(content=m.content or "") if m.tool_calls else m)
+        return out
 
     def _filter_tool_messages(
         self,
@@ -306,88 +331,12 @@ class MixMixin:
 
         return False
 
-    def _prepare_messages_for_gemini(
-        self, collected_messages: list[BaseMessage]
-    ) -> list[BaseMessage]:
-        """
-        Prepare messages for Gemini, ensuring correct AIMessage and ToolMessage order.
-
-        Key modifications (see test_gemini_tool_injection.py):
-        1. AIMessage.content must be empty string "", not None
-        2. Preserves existing signatures but does NOT inject new ones
-           (fake signatures cause Gemini 3.1 Pro to return empty output)
-        3. ToolMessage order must match AIMessage tool_calls order!
-           - Phase 1 tools execute in parallel, return order may differ
-           - Gemini expects strict tool_call -> tool_result pairing order
-        """
-        if not collected_messages:
-            return []
-
-        # Group messages by round: each round = 1 AIMessage + N ToolMessages
-        prepared: list[BaseMessage] = []
-        current_ai_msg: AIMessage | None = None
-        current_tool_call_ids: list[str] = []  # tool_call order in current AIMessage
-        pending_tool_messages: dict[str, ToolMessage] = {}  # tool_call_id -> ToolMessage
-
-        for msg in collected_messages:
-            if isinstance(msg, AIMessage) and msg.tool_calls:
-                # Flush previous round first
-                if current_ai_msg and pending_tool_messages:
-                    self._flush_round(prepared, current_ai_msg, current_tool_call_ids, pending_tool_messages)
-
-                # Start new round
-                current_ai_msg = msg
-                current_tool_call_ids = [tc.get("id", "") for tc in msg.tool_calls if tc.get("id")]
-                pending_tool_messages = {}
-
-            elif isinstance(msg, ToolMessage) and current_ai_msg:
-                # Collect ToolMessage, will reorder later
-                tool_call_id = msg.tool_call_id
-                if tool_call_id:
-                    pending_tool_messages[tool_call_id] = msg
-
-        # Flush last round
-        if current_ai_msg and pending_tool_messages:
-            self._flush_round(prepared, current_ai_msg, current_tool_call_ids, pending_tool_messages)
-
-        logger.debug(f"Prepared {len(prepared)} messages for Gemini (reordered)")
-        return prepared
-
-    def _flush_round(
-        self,
-        prepared: list[BaseMessage],
-        ai_msg: AIMessage,
-        tool_call_ids: list[str],
-        tool_messages: dict[str, ToolMessage],
-    ) -> None:
-        """
-        Process one tool call round: add AIMessage and correctly ordered ToolMessages.
-        """
-        # 1. Process AIMessage — preserve existing kwargs but don't inject signatures
-        new_kwargs = dict(ai_msg.additional_kwargs) if ai_msg.additional_kwargs else {}
-
-        new_ai_msg = AIMessage(
-            content="",  # Must be empty string!
-            tool_calls=ai_msg.tool_calls,
-            additional_kwargs=new_kwargs,
-        )
-        prepared.append(new_ai_msg)
-        logger.debug(f"Added AIMessage with {len(ai_msg.tool_calls)} tool_calls")
-
-        # 2. Add ToolMessages in tool_call order
-        for tool_call_id in tool_call_ids:
-            if tool_call_id in tool_messages:
-                prepared.append(tool_messages[tool_call_id])
-            else:
-                logger.warning(f"Missing ToolMessage for tool_call_id={tool_call_id}")
-
     # === Phase 2 Prompt Building ===
 
     async def _build_phase2_prompt(
         self,
         has_tools: bool,
         language: str = "en",
-        chart_context: list[dict[str, str]] | None = None,
         prompt_dir: str | None = None,
         orchestrator_note: str = "",
     ) -> str:
@@ -397,7 +346,6 @@ class MixMixin:
         Args:
             has_tools: Whether there are tool calls (passed to template for conditional rendering)
             language: Language code
-            chart_context: Chart info list [{id, url, title}, ...]
             prompt_dir: Custom prompt directory (overrides default, for backward compatibility)
 
         Note:
@@ -439,6 +387,13 @@ class MixMixin:
             "%A, %B %d, %Y, at %I:00 %p %Z (UTC%z)"
         )
 
+        # Inject <health_profile> core (same source as Phase-1 orchestrator prompt)
+        from ....chat.user_profile import get_health_profile_core
+        from ....utils.config import safe_read_cfg
+        uid = getattr(getattr(self, "user_info", None), "user_id", "") or ""
+        maxlen = int(safe_read_cfg("DEEP_PROFILE_CORE_MAXLEN") or 2000)
+        health_profile = await get_health_profile_core(uid, maxlen) if uid else None
+
         try:
             template = Environment(enable_async=True).from_string(base_prompt)
             rendered_prompt = await template.render_async(
@@ -447,8 +402,8 @@ class MixMixin:
                 current_time=current_time,
                 language=language,
                 has_tools=has_tools,
-                available_charts=chart_context or [],
                 orchestrator_note=orchestrator_note,
+                health_profile=health_profile,
             )
         except Exception as e:
             logger.warning(f"Failed to render Phase 2 prompt template: {e}")
@@ -490,10 +445,6 @@ class MixMixin:
         manifest_captured = False
         captured_manifest: OrchestratorManifest | None = None
         has_tools = False
-
-        # Collect chart info (Phase 2 uses placeholders to reference)
-        chart_context: list[dict[str, str]] = []
-        chart_index = 0
 
         # Skipped tool IDs (for filtering)
         skipped_tool_ids: set[str] = set()
@@ -543,17 +494,21 @@ class MixMixin:
 
                             # Process tool calls
                             if msg.tool_calls:
-                                # Filter tools to skip
-                                filtered_calls = msg.tool_calls
-                                if skip_tool_names:
-                                    filtered_calls = [
-                                        tc for tc in msg.tool_calls
-                                        if tc.get("name") not in skip_tool_names
-                                    ]
-                                    # Record skipped tool IDs
-                                    for tc in msg.tool_calls:
-                                        if tc.get("name") in skip_tool_names:
-                                            skipped_tool_ids.add(tc.get("id", ""))
+                                # Always drop the OrchestratorManifest finish-sentinel:
+                                # it is the loop terminator (captured via
+                                # structured_response), never data. Counting it would
+                                # set has_tools=True and leak its synthetic result into
+                                # Phase 2 — so a pure greeting (manifest only, no data
+                                # tools) must collect nothing and stay has_tools=False.
+                                effective_skip = set(skip_tool_names or ()) | {MANIFEST_TOOL_NAME}
+                                filtered_calls = [
+                                    tc for tc in msg.tool_calls
+                                    if tc.get("name") not in effective_skip
+                                ]
+                                # Record skipped tool IDs (so paired ToolMessages drop too)
+                                for tc in msg.tool_calls:
+                                    if tc.get("name") in effective_skip:
+                                        skipped_tool_ids.add(tc.get("id", ""))
 
                                 for tc in filtered_calls:
                                     tool_name = tc.get("name", "")
@@ -583,34 +538,14 @@ class MixMixin:
 
                             tool_content = msg.content if isinstance(msg.content, str) else str(msg.content)
 
-                            # Detect chart result and simplify for Phase 2
-                            is_chart = False
-                            if collect_tool_context and tool_content:
-                                chart_info = self._extract_chart_info(tool_content, chart_index)
-                                if chart_info:
-                                    chart_context.append(chart_info)
-                                    chart_index += 1
-                                    is_chart = True
-
                             pending_tool_ids.discard(tool_id)
 
                             # Output tool result
                             yield {"type": "queryDetail", "content": tool_content, "tool_id": tool_id}
 
-                            # Collect message (simplify chart results to save Phase 2 tokens)
+                            # Collect message
                             if collect_tool_context:
-                                if is_chart:
-                                    simplified = json.dumps({
-                                        "chart_id": chart_info["id"],
-                                        "url": chart_info.get("url", ""),
-                                        "chart_title": chart_info["title"],
-                                    }, ensure_ascii=False)
-                                    collected_messages.append(ToolMessage(
-                                        content=simplified,
-                                        tool_call_id=tool_id,
-                                    ))
-                                else:
-                                    collected_messages.append(msg)
+                                collected_messages.append(msg)
 
                     # Check if should exit
                     if manifest_captured and not pending_tool_ids:
@@ -625,7 +560,7 @@ class MixMixin:
             yield {"type": "error", "content": f"Phase 1 error: {e}"}
             return
 
-        logger.info(f"Phase 1 complete: {len(collected_messages)} messages, {len(chart_context)} charts")
+        logger.info(f"Phase 1 complete: {len(collected_messages)} messages")
 
         # Return collected metadata
         if collect_tool_context:
@@ -634,39 +569,9 @@ class MixMixin:
                 "collected_messages": collected_messages,  # Raw LangChain messages
                 "ai_partial_content": "",  # phase 1 cannot emit free text any more
                 "has_tools": has_tools,
-                "chart_context": chart_context,
                 "manifest_note": captured_manifest.note if captured_manifest else "",
                 "manifest_rounds": captured_manifest.tool_rounds if captured_manifest else 0,
             }
-
-    def _extract_chart_info(self, tool_content: str, index: int) -> dict[str, Any] | None:
-        """
-        Extract chart info from tool result (reuses StreamConverter).
-
-        Args:
-            tool_content: Tool output (JSON string or dict)
-            index: Chart index
-
-        Returns:
-            {id, url, title, event} or None
-            - id: For placeholder matching [[CHART:chart_0]]
-            - url: Chart image URL
-            - title: For responder.jinja template display
-            - event: Complete image event, yield directly
-        """
-        # Reuse StreamConverter's chart detection logic
-        chart_event = StreamConverter.extract_chart_data(tool_content, "")
-        if not chart_event:
-            return None
-
-        # Parse content to get title and url (for template), keep complete event
-        chart_data = json.loads(chart_event["content"])
-        return {
-            "id": f"chart_{index}",
-            "url": chart_data.get("url", ""),
-            "title": chart_data.get("title", ""),
-            "event": chart_event,  # Complete event, yield directly
-        }
 
     # === Phase 2 Message Preparation ===
 
@@ -676,7 +581,6 @@ class MixMixin:
         Removes metadata noise while preserving ALL actual data:
         - 'desc' fields in health data (indicator names suffice for the health expert responder)
         - 'success' field (failures already filtered upstream by _filter_tool_messages)
-        - Chart noise fields (filename, file_key, is_chart, message) — keeps chart_id + chart_title + url
         """
         try:
             data = json.loads(raw_content) if isinstance(raw_content, str) else raw_content
@@ -692,9 +596,6 @@ class MixMixin:
             for indicator_data in data["indicators"].values():
                 if isinstance(indicator_data, dict):
                     indicator_data.pop("desc", None)
-
-        if "chart" in tool_name:
-            data = {k: v for k, v in data.items() if k in ("chart_id", "chart_title", "url")}
 
         return json.dumps(data, ensure_ascii=False)
 
@@ -795,124 +696,32 @@ class MixMixin:
 
         return result
 
-    # === Gemini Direct Streaming ===
-
-    async def _gemini_direct_stream(
+    def _build_phase2_messages(
         self,
-        model_name: str,
-        messages: list[BaseMessage],
-        thinking_level: str = "low",
-        max_output_tokens: int = 65536,
-    ) -> AsyncGenerator[dict, None]:
-        """Stream Phase 2 response using the official Google GenAI SDK directly.
+        system_prompt: str,
+        user_messages: list,
+        collected_messages: list[BaseMessage],
+    ) -> list[BaseMessage]:
+        """Build the Phase 2 (responder) message list — model-agnostic.
 
-        Yields dicts: {"type": "text"/"thinking"/"usage", ...}
-        Bypasses LangChain adapter which causes flaky empty responses with Gemini 3/3.1.
+        Uniform pipeline for every provider (no Gemini special case):
+          1. SystemMessage(system_prompt)
+          2. sanitized user history (_history_for_phase2)
+          3. Phase-1 tool context flattened to plain-text AIMessages
+             (_flatten_tool_calls_to_text) — the responder has NO tools, so it
+             must see data, never tool-call format
+          4. restructure to collapse consecutive same-role turns
+             (_restructure_phase2_messages), which some providers reject with
+             empty output
+
+        Once tool-call format is gone, LangChain's ChatGoogleGenerativeAI streams
+        this shape fine via `astream`, so Gemini no longer needs a bypass path.
         """
-        from google.genai import types
-
-        client = self._get_or_create_genai_client()
-        system_instruction, contents = self._lc_messages_to_genai_contents(messages)
-
-        config = types.GenerateContentConfig(
-            system_instruction=system_instruction if system_instruction else None,
-            thinking_config=types.ThinkingConfig(thinking_level=thinking_level),
-            max_output_tokens=max_output_tokens,
-        )
-
-        total_input_tokens = 0
-        total_output_tokens = 0
-
-        stream = await client.aio.models.generate_content_stream(
-            model=model_name,
-            contents=contents,
-            config=config,
-        )
-        async for chunk in stream:
-            if chunk.usage_metadata:
-                total_input_tokens = chunk.usage_metadata.prompt_token_count or 0
-                total_output_tokens = chunk.usage_metadata.candidates_token_count or 0
-
-            if not chunk.candidates:
-                continue
-
-            for candidate in chunk.candidates:
-                if not candidate.content or not candidate.content.parts:
-                    continue
-                for part in candidate.content.parts:
-                    if part.thought and part.text:
-                        yield {"type": "thinking", "thinking": part.text}
-                    elif part.text:
-                        yield {"type": "text", "text": part.text}
-
-        yield {"type": "usage", "input_tokens": total_input_tokens, "output_tokens": total_output_tokens}
-
-    def _get_or_create_genai_client(self):
-        """Get or create a cached Google GenAI client."""
-        if not hasattr(self, '_genai_client') or self._genai_client is None:
-            from google import genai
-
-            from ....utils.config import safe_read_cfg
-            api_key = safe_read_cfg("GOOGLE_API_KEY") or os.environ.get("GOOGLE_API_KEY", "")
-            self._genai_client = genai.Client(api_key=api_key)
-        return self._genai_client
-
-    def _lc_messages_to_genai_contents(
-        self, messages: list[BaseMessage]
-    ) -> tuple[str, list]:
-        """Convert LangChain BaseMessages to Google GenAI Content objects.
-
-        Returns (system_instruction, contents).
-        Multiple consecutive model messages are restructured into user/model turns.
-        """
-        from google.genai import types
-
-        system_instruction = ""
-        user_parts: list[types.Part] = []
-        model_texts: list[str] = []
-
-        for msg in messages:
-            if isinstance(msg, SystemMessage):
-                system_instruction = msg.content if isinstance(msg.content, str) else str(msg.content)
-                continue
-
-            if isinstance(msg, HumanMessage):
-                if isinstance(msg.content, list):
-                    for block in msg.content:
-                        if isinstance(block, dict):
-                            block_type = block.get("type", "")
-                            if block_type == "text":
-                                user_parts.append(types.Part(text=block.get("text", "")))
-                            elif block_type == "image_url":
-                                # Image URL — pass as text reference (GenAI handles URLs natively)
-                                url = block.get("image_url", {}).get("url", "")
-                                if url:
-                                    user_parts.append(types.Part(text=f"[Image: {url}]"))
-                        elif isinstance(block, str):
-                            user_parts.append(types.Part(text=block))
-                elif isinstance(msg.content, str) and msg.content:
-                    user_parts.append(types.Part(text=msg.content))
-            else:
-                # AIMessage, ToolMessage — collect as model text
-                text = msg.content if isinstance(msg.content, str) else str(msg.content)
-                if text:
-                    model_texts.append(text)
-
-        contents: list[types.Content] = []
-        if user_parts:
-            contents.append(types.Content(role="user", parts=user_parts))
-
-        if model_texts:
-            contents.append(types.Content(
-                role="model",
-                parts=[types.Part(text="I found the following health data for your query:")],
-            ))
-            contents.append(types.Content(
-                role="user",
-                parts=[types.Part(text="\n\n".join(model_texts))],
-            ))
-
-        return system_instruction, contents
+        messages: list[BaseMessage] = [SystemMessage(content=system_prompt)]
+        messages.extend(self._history_for_phase2(user_messages))
+        if collected_messages:
+            messages.extend(self._flatten_tool_calls_to_text(collected_messages))
+        return self._restructure_phase2_messages(messages)
 
     # === Phase 2 Streaming ===
 
@@ -922,38 +731,27 @@ class MixMixin:
         system_prompt: str,
         user_messages: list[dict[str, Any]],
         collected_messages: list[BaseMessage],
-        chart_context: list[dict[str, str]],
         group: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
-        Phase 2 streaming output.
+        Phase 2 streaming output — one unified LangChain `astream` path for
+        every responder (Gemini included).
 
-        Automatically selects the best streaming strategy:
-        - Gemini models: Uses Google GenAI SDK directly (bypasses LangChain flaky adapter)
-        - Other models: Uses LangChain astream with message restructuring
-
-        Message preparation:
-        - Gemini direct: Converts to GenAI Content objects with restructured turns
-        - Non-Gemini: Flattens tool calls to plain text + restructures same-role messages
+        Phase 2 is a pure responder: Phase 1 already executed all tools, so the
+        responder LLM is never bound to tools and the collected tool context is
+        flattened to plain text. See `_build_phase2_messages`.
 
         Args:
             has_tools: Whether Phase 1 made tool calls (used to select responder)
             system_prompt: System prompt
             user_messages: User history messages (dict format)
             collected_messages: Phase 1 collected LangChain messages (AIMessage + ToolMessage)
-            chart_context: Chart info list [{id, title, event}, ...]
             group: Provider group name for selecting the correct responder
 
         Yields:
-            reply/thinking/image events, last one is _cost_metadata event
+            reply/thinking events, last one is _cost_metadata event
         """
-        # Build chart ID to event mapping
-        chart_map = {c["id"]: c["event"] for c in chart_context}
-
-        # Placeholder regex: [[CHART:chart_0]] or [[CHART:chart_1]]
-        chart_pattern = re.compile(r'\[\[CHART:(\w+)\]\]')
-
-        # Buffer for detecting cross-chunk placeholders
+        # Buffer for streaming reply text
         buffer = ""
 
         # Get responder LLM based on whether Phase 1 had tool calls (filtered by group)
@@ -966,38 +764,8 @@ class MixMixin:
         config = self._responder_configs.get(provider_name, {})
         model_name = config.get("model", provider_name)
 
-        # Detect if responder is Gemini — use direct streaming to bypass LangChain adapter issues
-        _use_direct_gemini = isinstance(model_name, str) and model_name.startswith("gemini")
-
-        # Phase 2 is a pure responder: Phase 1 (orchestrator) already executed all
-        # tools, so the responder LLM is never bound to tools.
-
-        # Build message list
-        messages: list[BaseMessage] = [SystemMessage(content=system_prompt)]
-
-        # Add user history. Items may be plain dicts ({"role","content"}) or
-        # LangChain BaseMessage objects — convert_to_messages normalizes both
-        # uniformly, so we don't hand-wrap per type (which broke on BaseMessage
-        # inputs via .get()). Keep only human/ai turns (system prompt is above).
-        for m in convert_to_messages(user_messages):
-            if isinstance(m, (HumanMessage, AIMessage)):
-                messages.append(m)
-
-        # Prepare Phase 1 collected messages based on streaming strategy
-        if collected_messages:
-            if _use_direct_gemini:
-                # Gemini direct: flatten tool calls to text (no tool_call format needed)
-                flattened = self._flatten_tool_calls_to_text(collected_messages)
-                messages.extend(flattened)
-            else:
-                # Non-Gemini: also flatten, then restructure to avoid consecutive same-role issues
-                flattened = self._flatten_tool_calls_to_text(collected_messages)
-                messages.extend(flattened)
-
-        # For non-Gemini: restructure to avoid consecutive same-role messages
-        if not _use_direct_gemini:
-            messages = self._restructure_phase2_messages(messages)
-            logger.info(f"Phase 2: Restructured to {len(messages)} msgs (non-Gemini)")
+        # Build message list (model-agnostic: flatten tool calls + restructure)
+        messages = self._build_phase2_messages(system_prompt, user_messages, collected_messages)
 
         # Token statistics
         token_callback = TokenUsageCallback()
@@ -1014,7 +782,7 @@ class MixMixin:
             if hasattr(m, 'additional_kwargs') and m.additional_kwargs:
                 extra += f", additional_kwargs={list(m.additional_kwargs.keys())}"
             msg_summary.append(f"[{i}]{m_type}({m_len}ch{extra})")
-        logger.info(f"Phase 2: Starting stream, model={model_name}, direct_gemini={_use_direct_gemini}, messages={len(messages)}")
+        logger.info(f"Phase 2: Starting stream, model={model_name}, messages={len(messages)}")
         logger.info(f"Phase 2: Message details: {', '.join(msg_summary)}")
 
         if hasattr(llm, 'model_kwargs') and llm.model_kwargs:
@@ -1031,54 +799,35 @@ class MixMixin:
             buffer = ""
 
             try:
-                # Select streaming backend
-                if _use_direct_gemini:
-                    _stream_iter = self._gemini_direct_stream(
-                        model_name=model_name, messages=messages, thinking_level="low",
-                    )
-                else:
-                    _stream_iter = llm.astream(messages, config=stream_config)
-
-                async for chunk in _stream_iter:
+                async for chunk in llm.astream(messages, config=stream_config):
                     _chunk_count += 1
                     text = ""
 
-                    if _use_direct_gemini:
-                        # Gemini direct stream yields dicts
-                        if chunk.get("type") == "usage":
-                            token_callback.total_input_tokens = chunk.get("input_tokens", 0)
-                            token_callback.total_output_tokens = chunk.get("output_tokens", 0)
-                            continue
-                        elif chunk.get("type") == "thinking":
-                            _has_yielded = True
-                            yield {"type": "thinking", "content": chunk["thinking"]}
-                            continue
-                        elif chunk.get("type") == "text":
-                            text = chunk.get("text", "")
-                    else:
-                        # LangChain chunk processing
-                        content = chunk.content
-                        if not content:
-                            _empty_chunk_count += 1
-                            if _empty_chunk_count <= 3:
-                                logger.info(f"Phase 2: Empty chunk #{_chunk_count}, content={repr(content)}")
-                            continue
+                    content = chunk.content
+                    if not content:
+                        _empty_chunk_count += 1
+                        if _empty_chunk_count <= 3:
+                            logger.info(f"Phase 2: Empty chunk #{_chunk_count}, content={repr(content)}")
+                        continue
 
-                        if isinstance(content, list):
-                            for block in content:
-                                if isinstance(block, dict):
-                                    block_type = block.get('type')
-                                    if block_type == 'thinking':
-                                        thinking_text = block.get('thinking', '')
-                                        if thinking_text.strip():
-                                            _has_yielded = True
-                                            yield {"type": "thinking", "content": thinking_text}
-                                    elif block_type == 'text':
-                                        text += block.get('text', '')
-                                elif isinstance(block, str) and block:
-                                    text += block
-                        elif isinstance(content, str):
-                            text = content
+                    # content may be a list of blocks (Anthropic/Gemini thinking +
+                    # text) or a plain string. Thinking blocks stream separately;
+                    # text blocks accumulate into the reply.
+                    if isinstance(content, list):
+                        for block in content:
+                            if isinstance(block, dict):
+                                block_type = block.get('type')
+                                if block_type == 'thinking':
+                                    thinking_text = block.get('thinking', '')
+                                    if thinking_text.strip():
+                                        _has_yielded = True
+                                        yield {"type": "thinking", "content": thinking_text}
+                                elif block_type == 'text':
+                                    text += block.get('text', '')
+                            elif isinstance(block, str) and block:
+                                text += block
+                    elif isinstance(content, str):
+                        text = content
 
                     if not text:
                         continue
@@ -1090,36 +839,9 @@ class MixMixin:
                         )
 
                     buffer += text
-
-                    # Process chart placeholders in buffer
-                    while True:
-                        match = chart_pattern.search(buffer)
-                        if not match:
-                            break
-
-                        pre_text = buffer[:match.start()]
-                        if pre_text:
-                            _has_yielded = True
-                            yield {"type": "reply", "content": pre_text}
-
-                        chart_id = match.group(1)
-                        chart_event = chart_map.get(chart_id)
-                        if chart_event:
-                            _has_yielded = True
-                            yield chart_event
-                            logger.info(f"Phase 2: Emitted chart image, id={chart_id}")
-                        else:
-                            logger.warning(f"Phase 2: Unknown chart id={chart_id}")
-                            yield {"type": "reply", "content": match.group(0)}
-
-                        buffer = buffer[match.end():]
-
-                    # Output safe buffer content (keep possibly incomplete placeholders)
-                    safe_len = len(buffer) - 15
-                    if safe_len > 0:
-                        _has_yielded = True
-                        yield {"type": "reply", "content": buffer[:safe_len]}
-                        buffer = buffer[safe_len:]
+                    _has_yielded = True
+                    yield {"type": "reply", "content": buffer}
+                    buffer = ""
 
             except Exception as e:
                 _elapsed = _time.monotonic() - _phase2_stream_start
@@ -1163,24 +885,7 @@ class MixMixin:
 
         # Output remaining buffer
         if buffer:
-            while True:
-                match = chart_pattern.search(buffer)
-                if not match:
-                    break
-                pre_text = buffer[:match.start()]
-                if pre_text:
-                    yield {"type": "reply", "content": pre_text}
-
-                chart_id = match.group(1)
-                chart_event = chart_map.get(chart_id)
-                if chart_event:
-                    yield chart_event
-                else:
-                    yield {"type": "reply", "content": match.group(0)}
-                buffer = buffer[match.end():]
-
-            if buffer:
-                yield {"type": "reply", "content": buffer}
+            yield {"type": "reply", "content": buffer}
 
         # Return token statistics
         logger.info(

@@ -160,6 +160,37 @@ async def schedule_file_processing_tasks(
 
 #-----------------------------------------------------------------------------
 
+def _detect_batch_scene(files_info: List[Dict[str, Any]]) -> str:
+    """Pick the th_files ``scene`` for a chat upload batch.
+
+    Mirrors the drive upload path (``file_upload_manager``): priority
+    genetic > excel > csv > report. Genetic is detected from the file header
+    (WeGene marker) via the shared ``GeneticHandler.is_genetic_content``;
+    excel/csv from the filename extension. Keeps chat uploads consistent with
+    drive uploads so the same file gets the same scene + downstream handling.
+    """
+    from ..pulse.file_parser.handlers.genetic import GeneticHandler
+
+    has_genetic = has_excel = has_csv = False
+    for fi in files_info:
+        name = (fi.get("file_name") or "").lower()
+        ctype = fi.get("content_type") or fi.get("file_type") or ""
+        head = (fi.get("content_bytes") or b"")[:200]
+        if GeneticHandler.is_genetic_content(head, ctype):
+            has_genetic = True
+        elif name.endswith((".xlsx", ".xls")):
+            has_excel = True
+        elif name.endswith(".csv"):
+            has_csv = True
+    if has_genetic:
+        return "genetic"
+    if has_excel:
+        return "excel"
+    if has_csv:
+        return "csv"
+    return "report"
+
+
 async def process_files_from_storage(
     file_list: List[Dict[str, Any]],
     user_id: str,
@@ -227,11 +258,16 @@ async def process_files_from_storage(
             f"✅ Concurrent download completed: {len(files_info)}/{len(file_list)} files successful"
         )
 
-        # Save files to th_files table (uses same unified structure)
+        # Save files to th_files table (uses same unified structure).
+        # Detect the scene the same way the drive upload path does
+        # (file_upload_manager: genetic > excel > csv > report) so a file
+        # uploaded in chat lands in /drive with the same scene/handling as one
+        # uploaded in the drive page — instead of always "report".
+        scene = _detect_batch_scene(files_info)
         inserted_ids = await FileDbService.insert_files_batch(
             user_id=user_id,
             files_info=files_info,
-            scene="report",
+            scene=scene,
             created_source="web_chat",
             created_source_id=msg_id,
             query_user_id=query_user_id,

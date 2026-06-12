@@ -1,11 +1,14 @@
 """Pydantic models for MixAgent two-phase data flow.
 
-`OrchestratorManifest` is passed to `create_agent` via the `response_format`
-parameter in Phase 1. LangChain's `create_agent` auto-converts a Pydantic
-response_format into an implicit structured-output tool and sets
-`tool_choice="any"`, forcing every Phase 1 model turn to produce a tool
-call (real tool, or this manifest). When the model outputs this manifest,
-LangChain parses it and sets `state.structured_response` — Phase 1 ends.
+`OrchestratorManifest` is passed to `create_agent` in Phase 1 wrapped in an
+explicit `ToolStrategy(OrchestratorManifest)` (see `mix_agent._create_phase1_agent`).
+The explicit ToolStrategy is required: a bare schema would auto-select
+`ProviderStrategy` for Claude/Gemini-3 and bind tools WITHOUT `tool_choice`,
+letting the model skip data collection. With ToolStrategy the manifest registers
+as a structured-output tool and LangChain forces `tool_choice="any"`, so every
+Phase 1 turn must produce a tool call (a real tool, or this manifest) — uniformly
+across providers. When the model outputs this manifest, LangChain parses it and
+sets `state.structured_response` — Phase 1 ends.
 
 Modeled after theta-smart's `HealthV2Manifest` pattern (loops + note).
 The manifest carries only lightweight observability and hint metadata;

@@ -250,6 +250,32 @@ def get_global_agent(agent_name: str, **kwargs) -> AbstractAgent | None:
 
 #-----------------------------------------------------------------------------
 
+def agent_uses_canonical_history(agent_name: str) -> bool:
+    """Whether an agent can consume canonical LangChain BaseMessage history.
+
+    DeepAgent-family agents (DeepAgent / AppAgent / MixAgent) run deepagents'
+    ``create_deep_agent`` + ``astream({"messages": …})``, which natively accepts
+    AIMessage/ToolMessage objects — so they get the structured tool/file trace.
+
+    BaseAgent is a standalone MCP agent with its own provider clients and a
+    dict-only ``_trim_to_recent_user_turns`` (``msg.get("role")``); handing it
+    BaseMessage objects would crash it. Such agents stay on the legacy text-dict
+    replay path. Resolution failures are treated as "not canonical" (safe default).
+    """
+    try:
+        cls = global_agents.get(agent_name)
+        if isinstance(cls, str):  # alias → real class
+            cls = global_agents.get(cls)
+        if cls is None or not inspect.isclass(cls):
+            return False
+        from ..pub.agents.deep_agent import DeepAgent
+        return issubclass(cls, DeepAgent)
+    except Exception as e:
+        logging.warning(f"agent_uses_canonical_history({agent_name}) failed: {e}; defaulting to legacy")
+        return False
+
+#-----------------------------------------------------------------------------
+
 global_llm_clients_for_agents = {}
 global_llm_client_names = None
 global_agents_with_llm_client_names = None

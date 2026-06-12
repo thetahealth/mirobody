@@ -97,22 +97,18 @@ class FileHandlerFactory:
                 self.abstract_extractor
             )
 
-        # 6. Check for Excel (only if excel_processor is available)
+        # 6. Check for Excel. The handler works with the built-in pandas/openpyxl
+        # extraction; an external excel_processor (may be None) only overrides it.
         if ExcelHandler.is_excel_file(filename, content_type):
-            if self.excel_processor is not None:
-                return ExcelHandler(
-                    self.excel_processor,  # Pass specific processor
-                    uploader=self.uploader, 
-                    temp_manager=self.temp_manager, 
-                    content_extractor=self.content_extractor, 
-                    db_service=self.db_service, 
-                    indicator_extractor=self.indicator_extractor,
-                    abstract_extractor=self.abstract_extractor
-                )
-            else:
-                # Excel processor not available, return None to indicate unsupported
-                logging.warning(f"Excel file detected but excel_processor not available: {filename}")
-                return None
+            return ExcelHandler(
+                self.excel_processor,  # optional override; None => built-in extraction
+                uploader=self.uploader,
+                temp_manager=self.temp_manager,
+                content_extractor=self.content_extractor,
+                db_service=self.db_service,
+                indicator_extractor=self.indicator_extractor,
+                abstract_extractor=self.abstract_extractor
+            )
 
         # 7. Check for CSV (only if csv_processor is available)
         if CSVHandler.is_csv_file(filename, content_type):

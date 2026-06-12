@@ -12,6 +12,8 @@ import asyncio, json, logging
 from abc import ABC, abstractmethod
 from typing import Any, AsyncGenerator
 
+from langchain_core.messages import BaseMessage, HumanMessage
+
 from mirobody.chat.unified_chat_service import UnifiedChatService
 
 from ..message import (
@@ -385,12 +387,27 @@ class ChatProtocolAdapter(ABC):
         params: ChatStreamRequest,
         user_id: int,
         messages: list,
+        current_turn_note: str = "",
     ) -> dict[str, Any]:
         """
         Prepare input for UnifiedChatService (common logic)
+
+        current_turn_note: optional text appended to THIS turn's user message
+        (e.g. a resume/time-gap hint). It rides on the new, uncached turn so it
+        never invalidates the cached history/system prefix.
         """
 
-        messages = messages + [dict(role="user", content=params.question)] 
+        # Append the current question (+ optional note). Match the element type of
+        # the replayed history: canonical replay yields LangChain BaseMessage
+        # objects, the legacy path yields {role, content} dicts. (astream coerces
+        # either, but keeping the list homogeneous avoids surprises downstream.)
+        question = params.question
+        if current_turn_note:
+            question = f"{question}\n\n{current_turn_note}" if question else current_turn_note
+        if messages and isinstance(messages[-1], BaseMessage):
+            messages = messages + [HumanMessage(content=question)]
+        else:
+            messages = messages + [dict(role="user", content=question)]
 
         return {
             'user_id': str(user_id),

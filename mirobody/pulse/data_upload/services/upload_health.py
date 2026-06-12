@@ -11,6 +11,7 @@ from typing import Any, Dict, List
 from zoneinfo import ZoneInfo
 
 from .base import BaseHealthService
+from .repair_reconcile import RepairReconciler
 from ..models.requests import StandardPulseData
 from ..repositories.health_data import HealthDataRepository
 from ...core.indicators_info import is_summary_indicator, is_series_indicator, normalize_indicator_name
@@ -104,6 +105,22 @@ class StandardHealthService(BaseHealthService):
             # Batch process data
             summary_success, summary_count = await self._batch_save_summary_records(summary_records)
             series_success, series_count = await self._batch_save_series_records(series_records)
+
+            # Data-repair mark-and-sweep: if this is a repair batch
+            # (metaInfo.taskId = "repair-<uuid>"), remove rows the batch did NOT
+            # re-confirm WITHIN the caller-supplied [windowFrom, windowTo] (epoch ms),
+            # then re-aggregate. If the window is incomplete, the sweep is skipped (only
+            # the upsert applies). No-op for normal incremental uploads. Failures here
+            # are logged, never propagated (the upsert above already succeeded).
+            meta = standard_data.metaInfo
+            await RepairReconciler().reconcile(
+                user_id=user_id,
+                summary_records=summary_records,
+                series_records=series_records,
+                window_from_ms=getattr(meta, "windowFrom", None),
+                window_to_ms=getattr(meta, "windowTo", None),
+                user_timezone=getattr(meta, "timezone", "UTC"),
+            )
 
             t3 = time.time()
 

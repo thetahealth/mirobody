@@ -10,7 +10,7 @@ authors = [
 ]
 description = "Self-hosted data platform that bridges your personal data with the latest AI capabilities."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 keywords = ["health", "wellness", "data processing", "AI", "LLM"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -31,6 +31,7 @@ dependencies = [
     "psycopg[binary]",
     "psycopg[pool]",
     "sqlalchemy",
+    "greenlet",  # required by SQLAlchemy's async engine (greenlet_spawn)
     "pandas",
     # HTTP.
     "aiohttp",
@@ -60,15 +61,26 @@ dependencies = [
     "azure-identity>=1.15.0",
     "openai>=2.11.0",
     "openai-agents==0.7.0",
-    "google-genai>=1.55.0",
+    # Floor at 2.0: the Interactions API server dropped the legacy turn-list
+    # schema (breaking change, May 2026) and now requires the 2.x 'steps' schema,
+    # which only the >=2.0 SDK can send/parse. No upper cap.
+    "google-genai>=2.0.0",
     "langchain",
     "langchain-openai",
     "langchain-anthropic",
-    "langchain-google-genai>=4.1.2",
+    # 4.2.4 relaxed its google-genai cap to <3.0.0 (earlier 4.x pinned <2.0.0,
+    # which would block the google-genai>=2.0 required above).
+    "langchain-google-genai>=4.2.4",
     "langchain-google-vertexai",
+    # Pulled transitively by langchain-google-vertexai (which only floors >=1.97);
+    # 1.157 relaxed its google-genai cap to <3.0.0 — older ones pin <2.0.0 and
+    # would conflict with google-genai>=2.0 above.
+    "google-cloud-aiplatform>=1.157.0",
     "langchain_community",
-    "deepagents>=0.4.5",
-    "e2b-code-interpreter>=1.0.0",
+    # deepagents 0.6.7+ for the modern BackendProtocol surface (Result dataclasses).
+    "deepagents>=0.6.7",
+    # In-process JS/TS interpreter middleware (replaces the E2B remote sandbox).
+    "langchain-quickjs>=0.1.3",
     "jinja2",
     # Legacy.
     "aiofiles~=24.1.0",
@@ -81,6 +93,7 @@ dependencies = [
 [project.optional-dependencies]
 cn = ["oss2", "volcengine-python-sdk[ark]~=3.0.1", "dashscope"]
 fin = ["yfinance"]
+test = ["pytest", "pytest-asyncio", "pytest-sugar"]
 
 [project.urls]
 "Homepage" = "https://github.com/thetahealth/mirobody"
@@ -113,3 +126,6 @@ include = ["mirobody", "mirobody.*"]
 
 [tool.setuptools.dynamic]
 version = {attr = "mirobody.__version__"}
+
+[tool.pytest.ini_options]
+disable_test_id_escaping_and_forfeit_all_rights_to_community_support = true

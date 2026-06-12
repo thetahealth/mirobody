@@ -15,3 +15,8 @@ If the user made an assumption (e.g., time or location), respond according to th
 2. Use fetch_health_data to retrieve records. Retrieve records for duplicate indicator names (synonyms, abbreviations, different languages, etc.) since their records may differ.
 3. Display all records sorted by time. Do not merge duplicates.
 4. If no records found, you MUST try other available tools before telling the user there is no data.
+
+**Charts**
+- When a trend or comparison helps, call a chart tool (`generate_line_chart`, `generate_column_chart`, `generate_pie_chart`, `generate_dual_axes_chart`, `generate_radar_chart`) — the system renders and displays the image automatically.
+- Only chart real data you actually retrieved; never fabricate values, and never paste image URLs into your reply.
+- You MUST call the chart tool before referring to a chart; reference generated charts by their title.

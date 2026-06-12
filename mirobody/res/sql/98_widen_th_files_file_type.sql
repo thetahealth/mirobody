@@ -1,0 +1,12 @@
+-- th_files.file_type stores the file's MIME type, but was sized varchar(50).
+-- Long MIMEs overflow it and the th_files INSERT fails, so the file never lands
+-- in th_files and never shows in the drive list. This hit Office formats whose
+-- MIME exceeds 50 chars, e.g.
+--   application/vnd.openxmlformats-officedocument.spreadsheetml.sheet  (xlsx, 66)
+--   application/vnd.openxmlformats-officedocument.wordprocessingml.document (docx)
+--   application/vnd.openxmlformats-officedocument.presentationml.presentation (pptx)
+-- Both upload paths (drive WS + chat /api/chat) insert via FileDbService, so the
+-- failure affected both. Widen to 255.
+--
+-- Idempotent: ALTER ... TYPE is a no-op when the column is already wide enough.
+ALTER TABLE th_files ALTER COLUMN file_type TYPE varchar(255);

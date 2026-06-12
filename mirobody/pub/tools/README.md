@@ -17,6 +17,12 @@ Mirobody automatically discovers tools in the following locations:
    * **Functions**: Top-level functions are automatically registered.
    * **Classes**: Must end with `Service` (e.g., `FinanceService`) to be registered.
 
+### Conditional Registration (`_enabled`)
+
+A Service may define a static `_enabled() -> bool`; returning `False` **skips the whole class** (none of its methods register). Use it to gate optional integrations on config (e.g. an API key).
+
+> **`MemoryService` is an optional plugin** (EverMind / EverMemOS): it registers `search_user_memories` + `get_user_memory_profile` **only when `EVERMEMOS_API_KEY` is set** — otherwise the tools don't exist, and the product runs fine without it. Docs: <https://docs.evermind.ai/api-reference/memories/search-memories>
+
 ## 📝 Implementation Guide
 
 Your Python code *is* the definition. No separate configuration or JSON schema is needed.
@@ -91,7 +97,7 @@ class StockService:
 
         Args:
             ticker: The stock ticker symbol (e.g., AAPL).
-      
+    
         Returns:
             The current stock price.
         """

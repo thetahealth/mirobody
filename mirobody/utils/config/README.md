@@ -88,6 +88,44 @@ PROVIDERS_DEEP:
     model: gpt-4o
 ```
 
+#### Multimodal capability (`supports_pdf` / `supports_image`)
+
+The agent reads uploaded PDFs and images through its `read_file` tool. Whether a
+model can ingest them **natively** (preserving tables, figures, layout, scanned
+pages) vs. needing pre-extracted text is auto-detected from LangChain's
+normalized [model profile](https://docs.langchain.com/oss/python/langchain/models#model-profiles) —
+so for first-party models (Gemini, OpenAI, Anthropic, Vertex) you configure
+**nothing**.
+
+Declare it only for **OpenAI-compatible endpoints** whose profile is unknown
+(DashScope, Volcengine, OpenRouter-proxied models, …):
+
+```yaml
+PROVIDERS_DEEP:
+  qwen-vl:                     # a vision model on DashScope
+    llm_type: openai
+    api_key: DASHSCOPE_API_KEY
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: qwen-vl-max
+    supports_pdf: true         # read PDFs natively
+    supports_image: true       # read images natively
+  deepseek:                    # a text-only model — omit both
+    llm_type: openai
+    api_key: DASHSCOPE_API_KEY
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: deepseek-v4-flash
+```
+
+| Flag | Effect when `true` | When unset / `false` |
+| --- | --- | --- |
+| `supports_pdf` | PDFs sent as a native file block | PDF served as pre-extracted text (works on any text model) |
+| `supports_image` | images sent as a native image block | image served as a native block only if the model's profile already allows it |
+
+Notes:
+
+- `PPT`/`PPTX` always read as extracted text (no provider accepts them as a file block).
+- Advanced: a raw `profile: { … }` dict of [`ModelProfile`](https://reference.langchain.com/python/langchain_core/language_models/#langchain_core.language_models.ModelProfile) fields is also honored and overrides the friendly flags.
+
 #### MixAgent Configuration
 
 MixAgent uses a two-phase model fusion architecture. Phase 1 (Orchestrator) uses providers with `@orchestrator` suffix for tool orchestration and data collection, while Phase 2 (Responder) uses providers with `@responder` suffix for response generation.

@@ -21,7 +21,8 @@ async def build_system_prompt(
     langchain_tools: list,
     agent_name: str,
     user_name: str,
-    timezone: str = "UTC"
+    timezone: str = "UTC",
+    health_profile: str | None = None,
 ) -> str:
     """
     Build dynamic system prompt with tool descriptions, time, and user info.
@@ -61,6 +62,7 @@ async def build_system_prompt(
             language=language if language else "en",
             tools_description=tools_description,
             user_info={"user_id": user_id},
+            health_profile=health_profile,
         )
     except Exception as e:
         logger.warning(f"Failed to render prompt template: {e}, using base prompt")

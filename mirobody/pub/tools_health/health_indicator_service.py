@@ -217,6 +217,58 @@ class HealthIndicatorService:
 
     #-------------------------------------------------------------------------
 
+    @staticmethod
+    def _normalize_indicator_arg(indicators: Any) -> list[str]:
+        """Normalize the `indicators` arg into a flat list of clean names.
+
+        Tolerates LLM arg quirks (esp. qwen): a JSON-stringified list
+        (`'["Heart Rate"]'`), a list whose elements are themselves JSON-array
+        strings (`['["Heart Rate"]']`), or a comma-separated string. Without
+        this, `indicator = ANY(:names)` compares against a literal `["Heart Rate"]`
+        and matches nothing.
+        """
+        def _expand(item: Any) -> list[str]:
+            if not isinstance(item, str):
+                return []
+            s = item.strip()
+            if not s:
+                return []
+            # JSON-array string → parse and recurse over its elements
+            if s[0] == "[" and s[-1] == "]":
+                try:
+                    parsed = json.loads(s)
+                except (json.JSONDecodeError, ValueError):
+                    return [s]
+                if isinstance(parsed, list):
+                    return [n for el in parsed for n in _expand(el)]
+                if isinstance(parsed, str):
+                    return _expand(parsed)
+                return []
+            return [s]
+
+        if isinstance(indicators, str):
+            items: list[Any] = [indicators]
+        elif isinstance(indicators, list):
+            items = indicators
+        else:
+            return []
+
+        names: list[str] = []
+        for item in items:
+            # plain string → comma-split; JSON-array string → _expand handles it
+            if isinstance(item, str) and item.strip()[:1] != "[":
+                names.extend(part.strip() for part in item.split(",") if part.strip())
+            else:
+                names.extend(_expand(item))
+        # de-dupe preserving order
+        seen: set[str] = set()
+        out: list[str] = []
+        for n in names:
+            if n and n not in seen:
+                seen.add(n)
+                out.append(n)
+        return out
+
     async def fetch_health_data(
         self,
         user_info: dict[str, Any],
@@ -249,23 +301,10 @@ class HealthIndicatorService:
             if limit <= 0:
                 limit = 100
 
-            if isinstance(indicators, list):
-                indicator_names = indicators
-            elif isinstance(indicators, str):
-                indicator_names = indicators.split(",")
-            else:
-                indicator_names = None
-            
-            if not indicator_names:
-                return {"success": False, "error": "Indicator name cannot be empty"}
-            
-            logging.info(f"[FetchIndicator] user={user_id}, indicator={indicator_names}, time={start_time}~{end_time}, limit={limit}")
-            
-            # Clean up indicator names
-            cleaned_names = []
-            for name in indicator_names:
-                if isinstance(name, str) and (name := name.strip()):
-                    cleaned_names.append(name)
+            cleaned_names = self._normalize_indicator_arg(indicators)
+
+            logging.info(f"[FetchIndicator] user={user_id}, indicator={cleaned_names}, time={start_time}~{end_time}, limit={limit}")
+
             if not cleaned_names:
                 return {"success": False, "error": "Indicator name cannot be empty"}
 

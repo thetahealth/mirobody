@@ -31,6 +31,49 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Provider-config keys consumed by us (not forwarded to ``init_chat_model``).
+_NON_INIT_CONFIG_KEYS = {
+    "model", "llm_type", "response_with_tools",
+    "profile", "supports_pdf", "supports_image",
+}
+
+
+def _coerce_flag(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("true", "1", "yes", "on")
+
+
+def _build_profile_override(config: dict[str, Any]) -> dict[str, Any]:
+    """Translate a provider config's multimodal declaration into a ``ModelProfile``
+    fragment merged onto ``model.profile``.
+
+    Friendly, documented surface (booleans on the provider entry):
+
+        supports_pdf:   true   # model accepts a native PDF block (read_file)
+        supports_image: true   # model accepts a native image block
+
+    ``supports_pdf`` sets both ``pdf_inputs`` and ``pdf_tool_message`` (read_file
+    delivers files inside a ToolMessage); ``supports_image`` likewise. An advanced
+    ``profile:`` dict of raw ModelProfile fields is also honoured and takes
+    precedence, for any capability the booleans don't cover. Returns ``{}`` when
+    nothing is declared, so the model's native profile is used unchanged.
+    """
+    override: dict[str, Any] = {}
+    if "supports_pdf" in config:
+        flag = _coerce_flag(config["supports_pdf"])
+        override["pdf_inputs"] = flag
+        override["pdf_tool_message"] = flag
+    if "supports_image" in config:
+        flag = _coerce_flag(config["supports_image"])
+        override["image_inputs"] = flag
+        override["image_tool_message"] = flag
+    raw = config.get("profile")
+    if isinstance(raw, dict):
+        override.update(raw)  # advanced escape hatch wins
+    return override
+
+
 class _PlaceholderClient:
     """Stand-in `init_chat_model` client used when an API key is missing.
 
@@ -53,6 +96,20 @@ class _PlaceholderClient:
         raise AttributeError(
             f"Missing {missing_key}. Get API key from provider and set in .env or environment"
         )
+
+
+# Server-side ChartService MCP tools (generate_*_chart). These render PNG images
+# via the Node @antv/gpt-vis-ssr toolchain — the standard "LLM + MCP tool" charting
+# path used by BaseAgent. DeepAgent/MixAgent deliberately do NOT use them: they emit
+# richer model-native ```vis-chart``` data blocks instead, so the chart tools are
+# always filtered out of the DeepAgent-family tool set (see _load_tools).
+_CHART_SERVICE_TOOLS = frozenset({
+    "generate_pie_chart",
+    "generate_line_chart",
+    "generate_column_chart",
+    "generate_dual_axes_chart",
+    "generate_radar_chart",
+})
 
 
 class DeepAgent():
@@ -127,13 +184,19 @@ class DeepAgent():
         tools = []
         from .deep.tool_loader import load_global_tools
 
+        # DeepAgent/MixAgent chart via native ```vis-chart``` blocks, never the
+        # server-side ChartService tools — always exclude them from this family.
+        disallowed_tools = list(self.disallowed_tools) + [
+            name for name in _CHART_SERVICE_TOOLS if name not in self.disallowed_tools
+        ]
+
         try:
             global_tools = await load_global_tools(
                 user_id=user_id,
                 token=self.token,
                 session_id=session_id,
                 allowed_tools=self.allowed_tools,
-                disallowed_tools=self.disallowed_tools
+                disallowed_tools=disallowed_tools
             )
             tools.extend(global_tools)
             logger.info(f"Loaded {len(global_tools)} global tools")
@@ -182,7 +245,10 @@ class DeepAgent():
         user_id: str,
         tools: list,
     ) -> str:
-        """Build system prompt with tools, time, and user context."""
+        """Build system prompt with tools, time, user context, and health-profile core."""
+        from ...chat.user_profile import get_health_profile_core
+        maxlen = int(safe_read_cfg("DEEP_PROFILE_CORE_MAXLEN") or 2000)
+        health_profile = await get_health_profile_core(user_id, maxlen) if user_id else None
         try:
             system_prompt = await build_system_prompt(
                 base_prompt=base_prompt,
@@ -191,7 +257,8 @@ class DeepAgent():
                 langchain_tools=tools,
                 agent_name=self.agent_name,
                 user_name=self.user_info.user_name,
-                timezone=self.timezone
+                timezone=self.timezone,
+                health_profile=health_profile,
             )
             logger.info("Built system prompt successfully")
             return system_prompt
@@ -204,6 +271,7 @@ class DeepAgent():
     
     async def _build_backend(
         self, session_id: str, user_id: str, file_list: list[dict[str, Any]] | None = None,
+        supports_file_block: bool = False,
     ) -> tuple[Any, list | None]:
         """Build the deepagents virtual filesystem.
 
@@ -228,11 +296,11 @@ class DeepAgent():
         from deepagents.middleware.filesystem import FilesystemPermission
         from .deep.backend import PgFilesystemBackend
 
-        workspace = PgFilesystemBackend(user_id=user_id, session_id=session_id or "", scope="workspace")
-        memory = PgFilesystemBackend(user_id=user_id, session_id="", scope="memory")
-        uploads = PgFilesystemBackend(user_id=user_id, session_id=session_id or "", scope="uploads")
-        library = PgFilesystemBackend(user_id=user_id, session_id="", scope="library")
-        charts = PgFilesystemBackend(user_id=user_id, session_id=session_id or "", scope="charts")
+        workspace = PgFilesystemBackend(user_id=user_id, session_id=session_id or "", scope="workspace", supports_file_block=supports_file_block)
+        memory = PgFilesystemBackend(user_id=user_id, session_id="", scope="memory", supports_file_block=supports_file_block)
+        uploads = PgFilesystemBackend(user_id=user_id, session_id=session_id or "", scope="uploads", supports_file_block=supports_file_block)
+        library = PgFilesystemBackend(user_id=user_id, session_id="", scope="library", supports_file_block=supports_file_block)
+        charts = PgFilesystemBackend(user_id=user_id, session_id=session_id or "", scope="charts", supports_file_block=supports_file_block)
 
         # Mirror this request's uploads first, then history (excluding those keys).
         try:
@@ -297,6 +365,84 @@ class DeepAgent():
 
         return llm_client, model_name, (fallback_msg if fallback_used else None), loaded_tools, system_prompt
 
+    @staticmethod
+    def _ls_provider(client: Any) -> str | None:
+        """Provider key for a chat-model instance (e.g. ``"openai"``, ``"anthropic"``).
+
+        deepagents resolves the harness profile from this value (via the model's
+        ``_get_ls_params``). Best-effort — returns None if it can't be derived.
+        """
+        try:
+            return (client._get_ls_params() or {}).get("ls_provider")
+        except Exception:
+            return None
+
+    def _supports_file_block(self, llm_client: Any) -> bool:
+        """Whether the bound model accepts a native PDF content block.
+
+        Single source of truth is LangChain's normalized ``model.profile``
+        (a ``ModelProfile``, populated by the partner package from models.dev and
+        **overridable per-provider in the PROVIDERS_* config via a ``profile:``
+        merge** — see ``load_llm_clients``). This replaces any hand-maintained
+        provider allow-list: capability now travels with the model.
+
+        ``read_file`` delivers the PDF inside a ``ToolMessage``, so the precise
+        capability is ``pdf_tool_message``. Fall back to ``pdf_inputs`` when the
+        profile omits the tool-message datum (e.g. Gemini reports ``pdf_inputs``
+        but not ``pdf_tool_message``), and to ``False`` when there is no profile
+        at all (e.g. an openai-compatible qwen/deepseek endpoint whose profile is
+        ``None`` — unless the config explicitly overrides it).
+        """
+        profile = getattr(llm_client, "profile", None) or {}
+        supported = profile.get("pdf_tool_message")
+        if supported is None:
+            supported = profile.get("pdf_inputs")
+        supported = bool(supported)
+        logger.info(f"file-block support: pdf={supported} (profile_present={bool(profile)})")
+        return supported
+
+    def _apply_task_subagent_profile(self, llm_client: "BaseChatModel", disable_task: bool) -> None:
+        """Enable/disable the auto-added general-purpose ``task`` subagent.
+
+        deepagents 0.6.7 exposes no ``create_deep_agent`` kwarg for this — the only
+        supported path is the harness profile, resolved per provider from the model
+        instance. ``register_harness_profile`` is an idempotent field-wise merge, so
+        re-registering ``enabled=(not disable_task)`` each build gives deterministic
+        last-write-wins semantics. With no synchronous ``subagents`` ever passed to
+        ``create_deep_agent`` (true across this app), disabling the general-purpose
+        subagent removes the ``task`` tool entirely.
+
+        NOTE: registration is GLOBAL per provider, so this also affects any other
+        ``create_deep_agent`` call sharing the provider (e.g. MixAgent Phase 1).
+        Accepted: ``task`` is only ever the no-op general-purpose self-clone here.
+        """
+        provider = self._ls_provider(llm_client)
+        if not provider:
+            if disable_task:
+                logger.warning(
+                    "Cannot derive ls_provider from model; 'task' subagent cannot "
+                    "be disabled via harness profile"
+                )
+            return
+        try:
+            from deepagents import (
+                GeneralPurposeSubagentProfile,
+                HarnessProfile,
+                register_harness_profile,
+            )
+            register_harness_profile(
+                provider,
+                HarnessProfile(
+                    general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=not disable_task)
+                ),
+            )
+            logger.info(
+                f"general-purpose 'task' subagent "
+                f"{'disabled' if disable_task else 'enabled'} for provider '{provider}'"
+            )
+        except Exception as exc:
+            logger.warning(f"failed to apply task-subagent harness profile: {exc}")
+
     async def _build_agent(
         self,
         session_id: str,
@@ -307,6 +453,7 @@ class DeepAgent():
         messages: list[dict[str, Any]] | list[BaseMessage],
         file_list: list[dict[str, Any]] | None = None,
         files_data: list[dict[str, Any]] | None = None,
+        supports_file_block: bool = False,
     ) -> tuple[Any, "PostgresBackend", list]:
         """
         Build agent with backend and handle file uploads.
@@ -319,7 +466,9 @@ class DeepAgent():
             # uploads + history are auto-mounted at /uploads/ and /library/ via
             # register_blob — the agent reads them with the native read_file tool
             # (multimodal for pdf/image/…). No custom file MCP tools, no E2B.
-            backend, permissions = await self._build_backend(session_id, user_id, file_list)
+            backend, permissions = await self._build_backend(
+                session_id, user_id, file_list, supports_file_block=supports_file_block
+            )
 
             from deepagents import create_deep_agent
 
@@ -334,6 +483,15 @@ class DeepAgent():
                 logger.warning(f"code interpreter middleware unavailable: {exc}")
             middleware.append(
                 UniversalPromptCachingMiddleware(ttl="5m", unsupported_model_behavior="ignore")
+            )
+
+            # Disable the auto-added general-purpose "task" subagent when the
+            # caller disallowed it (DISALLOWED_TOOLS_DEEP contains "task"). The
+            # task tool is only ever the no-op general-purpose self-clone here, and
+            # streaming its subagent run was the source of the "no events until the
+            # subagent finishes" bug. Driven off the existing disallowed_tools plumbing.
+            self._apply_task_subagent_profile(
+                llm_client, disable_task="task" in (self.disallowed_tools or [])
             )
 
             agent_kwargs: dict[str, Any] = dict(
@@ -377,15 +535,28 @@ class DeepAgent():
         skipped_tool_ids: set[str] = set()
 
         try:
-            async for stream_type, stream_event in agent.astream(
+            # subgraphs=True surfaces subagent (subgraph) events — without it the
+            # parent graph only sees a single `task` ToolMessage when the subagent
+            # FINISHES, so nothing streams during a subagent run (the original bug).
+            # With it, each item becomes a (namespace, stream_type, payload) triple;
+            # the subagent's react subgraph reuses node names "model"/"tools", so its
+            # tokens/tool-calls flow through process_stream_event into the existing
+            # reply/queryTitle/queryDetail event types — no frontend change needed.
+            async for stream_item in agent.astream(
                 {"messages": messages},
                 context=chat_context,
                 stream_mode=["messages", "updates"],
+                subgraphs=True,
                 config=config
             ):
+                # subgraphs=True yields 3-tuples; tolerate 2-tuples defensively.
+                if isinstance(stream_item, tuple) and len(stream_item) == 3:
+                    namespace, stream_type, stream_event = stream_item
+                else:
+                    namespace, (stream_type, stream_event) = (), stream_item
                 try:
                     async for event in StreamConverter.process_stream_event(
-                        stream_type, stream_event, trace_id=trace_id
+                        stream_type, stream_event, trace_id=trace_id, namespace=namespace
                     ):
                         if not event:
                             continue
@@ -447,6 +618,19 @@ class DeepAgent():
             if files_data:
                 logger.info(f"Processing {len(files_data)} files")
 
+            # Tell the model exactly which files were attached this turn (and
+            # their /uploads/ paths) so it reads them without an ls round-trip and
+            # never misses one. Transient — appended to the run's messages only,
+            # not the cached system prompt. Matches the incoming list's element
+            # type (BaseMessage vs dict) to avoid mixing forms.
+            reminder = _attachment_reminder(file_list)
+            if reminder:
+                if messages and isinstance(messages[-1], BaseMessage):
+                    from langchain_core.messages import HumanMessage
+                    messages = [*messages, HumanMessage(content=reminder)]
+                else:
+                    messages = [*messages, {"role": "user", "content": reminder}]
+
             llm_client, model_name, fallback_msg, loaded_tools, system_prompt = await self._prepare_context(
                 user_id=user_id,
                 session_id=session_id,
@@ -459,6 +643,8 @@ class DeepAgent():
             if fallback_msg:
                 yield {"type": "thinking", "content": fallback_msg}
 
+            supports_file_block = self._supports_file_block(llm_client)
+
             agent, backend, final_messages = await self._build_agent(
                 session_id=session_id,
                 user_id=user_id,
@@ -468,6 +654,7 @@ class DeepAgent():
                 messages=messages,
                 file_list=file_list,
                 files_data=files_data,
+                supports_file_block=supports_file_block,
             )
 
             token_counter = TokenUsageCallback()
@@ -584,15 +771,29 @@ class DeepAgent():
                         failed.append((provider_name, f"Azure auth: {e}"))
                         continue
 
+                # Optional per-provider multimodal capability declaration. See
+                # _build_profile_override: friendly booleans (supports_pdf /
+                # supports_image) are the documented surface; they fill the
+                # model's normalized LangChain ``profile`` so PDF/image rendering
+                # works on providers whose profile is unknown (e.g. any
+                # OpenAI-compatible endpoint, where the profile is None).
+                profile_override = _build_profile_override(config)
+
                 # Build init_chat_model kwargs
                 model_provider = llm_type
-                init_kwargs = {k: v for k, v in config.items() if k not in ["model", "llm_type", "response_with_tools"]}
+                init_kwargs = {k: v for k, v in config.items() if k not in _NON_INIT_CONFIG_KEYS}
 
                 # Log call parameters
                 logger.info(f"[{class_name}] Calling init_chat_model('{provider_name}'): model={model}, provider={model_provider}, kwargs={init_kwargs}")
 
                 try:
                     client = init_chat_model(model=model, model_provider=model_provider, **init_kwargs)
+                    if profile_override:
+                        try:
+                            client.profile = {**(getattr(client, "profile", None) or {}), **profile_override}
+                            logger.info(f"[{class_name}] '{provider_name}' capability override: {profile_override}")
+                        except Exception as prof_err:
+                            logger.warning(f"[{class_name}] could not apply capability override for '{provider_name}': {prof_err}")
                     llm_clients[provider_name] = client
                     logger.info(f"[{class_name}] ✓ Initialized '{provider_name}': {model_provider}/{model}")
                 except Exception as e:
@@ -626,6 +827,34 @@ class DeepAgent():
 
 _MAX_SESSION_UPLOAD_POINTERS = 50
 _MAX_USER_LIBRARY_POINTERS = 200
+
+# Canonical workspace table name (single source of truth in the backend module).
+from .deep.backend import _TABLE as _WORKSPACE_TABLE  # noqa: E402
+
+
+def _attachment_reminder(file_list: list[dict[str, Any]] | None) -> str | None:
+    """A short note naming the files attached to THIS turn and their /uploads/
+    paths, so the model reads them without first having to ``ls /uploads/`` (and
+    never silently misses an attachment). Returns None when nothing is attached.
+
+    Injected as a transient message (NOT the system prompt — that is cached and
+    must stay stable across turns). Ephemeral: persistence saves the user
+    question + assistant reply separately, not this note.
+    """
+    items = [f for f in (file_list or []) if isinstance(f, dict) and f.get("file_key")]
+    paths: list[str] = []
+    for f in items[:_MAX_SESSION_UPLOAD_POINTERS]:
+        name = _safe_basename(f.get("file_name") or str(f.get("file_key")))
+        if name:
+            paths.append(f"/uploads/{name}")
+    if not paths:
+        return None
+    listing = "\n".join(f"- {p}" for p in paths)
+    return (
+        "[System note: the user attached the following file(s) to THIS message. "
+        "Read the relevant one(s) with read_file before answering:\n"
+        f"{listing}]"
+    )
 
 
 def _safe_basename(file_name: str) -> str | None:
@@ -725,10 +954,37 @@ async def _sync_user_library(library_backend, *, user_id: str, exclude_file_keys
         logger.warning(f"sync_user_library query failed: {exc}")
         return
 
+    # Library rows persist across turns (scope='library', session_id=''), so most
+    # of the history is already mirrored from earlier turns. Fetch what's present
+    # once and skip files whose bytes are unchanged — steady state becomes 0
+    # writes instead of up to _MAX_USER_LIBRARY_POINTERS register_blob upserts on
+    # every chat turn. (A file gains a library row only once its original_text is
+    # extracted, so a newly-parsed file is simply absent here and still registers.)
+    already: dict[str, str] = {}
+    try:
+        erows = await execute_query(
+            query=f"""
+            SELECT file_key, content_hash FROM {_WORKSPACE_TABLE}
+            WHERE user_id = :uid AND scope = 'library' AND session_id = '' AND deleted = 0
+            """,
+            params={"uid": str(user_id)},
+        )
+        for er in (erows or []):
+            fk = er.get("file_key")
+            if fk:
+                already[str(fk)] = str(er.get("content_hash") or "")
+    except Exception as exc:
+        logger.warning(f"sync_user_library existing-rows query failed: {exc}")
+
     seen: set = set()
     count = 0
+    skipped = 0
     for r in (rows or []):
         key = str(r.get("file_key") or "")
+        chash = str(r.get("content_hash") or "")
+        if key and chash and already.get(key) == chash:
+            skipped += 1
+            continue
         base = _safe_basename(r.get("file_name") or key)
         if not base:
             continue
@@ -750,4 +1006,4 @@ async def _sync_user_library(library_backend, *, user_id: str, exclude_file_keys
         except Exception:
             logger.warning(f"sync_user_library register failed for {base}", exc_info=True)
 
-    logger.info(f"sync_user_library: user={user_id} registered={count}")
+    logger.info(f"sync_user_library: user={user_id} registered={count} skipped={skipped}")

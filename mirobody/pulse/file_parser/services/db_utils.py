@@ -285,6 +285,16 @@ def get_simple_file_type(file_type: str) -> str:
     
     if "pdf" in file_type_lower:
         return "pdf"
-    
+
+    # Office spreadsheets — map the long MIME (or extension) to a stable "excel"
+    # so the drive list `type` matches the file's scene and the frontend can pick
+    # the right icon/filter instead of seeing the raw MIME.
+    if ("spreadsheet" in file_type_lower or "excel" in file_type_lower
+            or file_type_lower in ["xlsx", "xls", "xlsm", "xlsb"]):
+        return "excel"
+
+    if "csv" in file_type_lower:
+        return "csv"
+
     return file_type
 
