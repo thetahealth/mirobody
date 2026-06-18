@@ -157,24 +157,16 @@ class McpService:
             pass
 
         elif request.method == "OPTIONS":
-            # Return straightly.
+            # Return straightly. CORS headers are handled by CORSMiddleware.
             return Response(
                 content     = "200 ok",
                 status_code = 200,
-                headers     = {
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                    "Access-Control-Allow-Headers": "*"
-                }
             )
 
         else:
             return Response(
                 content     = "405 Method Not Allowed",
                 status_code = 405,
-                headers     = {
-                    "Access-Control-Allow-Origin": "*"
-                }
             )
 
         #-------------------------------------------------
