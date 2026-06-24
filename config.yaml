@@ -38,11 +38,11 @@ HTTP_SERVER_NAME: mirobody
 HTTP_ROOT: mirobody/pub/htdoc
 
 # HTTP_HEADERS:
-#   Access-Control-Allow-Origin: '*'
+#   Access-Control-Allow-Origin: 'http://localhost:18080'  # CHANGE FOR PRODUCTION
 #   Access-Control-Allow-Credentials: 'true'
-#   Access-Control-Allow-Methods: '*'
-#   Access-Control-Allow-Headers: '*'
-#   Access-Control-Max-Age: '86400'
+#   Access-Control-Allow-Methods: 'GET, POST, PUT, DELETE, OPTIONS'
+#   Access-Control-Allow-Headers: 'Authorization, Content-Type'
+#   Access-Control-Max-Age: '600'
 
 # MCP_FRONTEND_URL: ''
 # MCP_PUBLIC_URL: ''

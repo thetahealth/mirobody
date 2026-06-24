@@ -11,6 +11,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.middleware import Middleware
 
 from starlette.middleware.gzip import GZipMiddleware
+from starlette.middleware.cors import CORSMiddleware
 
 from .middlewares import JwtMiddleware, UserInfoUpdaterMiddleware, RequestRateLimiterMiddleware
 
@@ -116,6 +117,8 @@ class Server:
         url_paths_for_request_rate_limiter  : dict[str, int] | None = None, # {"url_path": requests_per_minute}
 
         local_chart_dir         : str = "",
+
+        http_headers            : dict[str, str] | None = None,
 
         **kwargs
     ):
@@ -316,13 +319,35 @@ class Server:
         self._middlewares = [
             Middleware(GZipMiddleware,
                        minimum_size=10_000),
-            # Middleware(CORSMiddleware,
-            #            allow_origins=['*'],
-            #            allow_methods=['*'],
-            #            allow_headers=['*'],
-            #            allow_credentials=True,
-            #            )
         ]
+
+        # Configure CORS from http_headers config.
+        # Extract CORS-related headers if provided; otherwise use secure defaults.
+        if http_headers:
+            allowed_origin = http_headers.get("Access-Control-Allow-Origin", "")
+            allowed_methods = http_headers.get("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+            allowed_headers = http_headers.get("Access-Control-Allow-Headers", "Authorization, Content-Type")
+            allow_credentials = http_headers.get("Access-Control-Allow-Credentials", "false").lower() == "true"
+            max_age = int(http_headers.get("Access-Control-Max-Age", "600"))
+
+            # Warn if wildcard origin is used with credentials (invalid per CORS spec).
+            if allowed_origin == "*" and allow_credentials:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "CORS: Access-Control-Allow-Origin='*' with Allow-Credentials=true "
+                    "is invalid per the CORS spec and will be rejected by browsers. "
+                    "Set a specific origin instead."
+                )
+
+            self._middlewares.append(
+                Middleware(CORSMiddleware,
+                           allow_origins=[allowed_origin] if allowed_origin else [],
+                           allow_methods=allowed_methods.split(", ") if "," in allowed_methods else [allowed_methods],
+                           allow_headers=allowed_headers.split(", ") if "," in allowed_headers else [allowed_headers],
+                           allow_credentials=allow_credentials,
+                           max_age=max_age,
+                           )
+            )
         if jwt_key:
             self._middlewares.append(
                 Middleware(JwtMiddleware, jwt_key=jwt_key, decode_func=jwt_sub_decode_func)
@@ -502,6 +527,8 @@ class Server:
             url_paths_for_user_info_updater     = config.get_list("USER_INFO_UPDATER"),
 
             local_chart_dir = config.get_str("LOCAL_CHARTS_DIR"),
+
+            http_headers    = config.http.headers or {},
 
             **config.get_mcp_options(),
             **config.get_agent_options(),
