@@ -76,9 +76,9 @@ jobs:
           echo "📦 Test version: $VERSION"
         fi
         echo "VERSION=$VERSION" >> $GITHUB_ENV
+        # mirobody/__init__.py reads MIROBODY_VERSION at build time (see its docstring).
+        echo "MIROBODY_VERSION=$VERSION" >> $GITHUB_ENV
         echo "Setting version to $VERSION"
-        sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" mirobody/__init__.py
-        cat mirobody/__init__.py
 
     # Build Python package
     - name: Build package

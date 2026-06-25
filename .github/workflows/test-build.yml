@@ -39,8 +39,9 @@ jobs:
       run: |
         VERSION="${{ github.event.inputs.test_version || '0.0.0a1' }}"
         echo "VERSION=$VERSION" >> $GITHUB_ENV
+        # mirobody/__init__.py reads MIROBODY_VERSION at build time (see its docstring).
+        echo "MIROBODY_VERSION=$VERSION" >> $GITHUB_ENV
         echo "Testing with version: $VERSION"
-        sed -i "s/__version__ = \".*\"/__version__ = \"$VERSION\"/" mirobody/__init__.py
 
     - name: Build package
       run: |
