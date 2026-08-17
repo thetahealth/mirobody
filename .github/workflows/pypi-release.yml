@@ -121,7 +121,8 @@ jobs:
     # README promises, from a directory that is NOT the source checkout.
     - name: Test package installation
       run: |
-        pip install dist/*.whl
+        WHEEL="$(ls "$PWD"/dist/*.whl)"   # absolute: the checks below run from $RUNNER_TEMP
+        pip install "$WHEEL"
         cd "$RUNNER_TEMP"
         python -c "import mirobody; print(f'Version: {mirobody.__version__}')"
         mirobody resolve "LDL cholesterol" "hemoglobin" "血糖"
@@ -131,31 +132,43 @@ jobs:
         assert r.resolved and r.loinc, f'offline resolve is broken in the wheel: {r}'
         print('offline resolve OK:', r.loinc, r.canonical)
         "
-        # The bare wheel has no langchain, which makes this env the REAL test
-        # of the engine/agent boundary — including the class of break that
-        # import-linter provably cannot see: a module-scope import of
-        # mirobody.agent.chat.* executes agent/__init__, and if that __init__
-        # is eager it drags langchain into an engine import. Exactly this
-        # happened to pulse.file_parser once; keep these imports here.
+        # ① The BARE install must import every module the engine advertises —
+        # resolve, parse, vendors, file extraction — with no [server] extra, so
+        # no FastAPI. `mirobody.utils` is listed first and by name: one dead
+        # `from .auth import verify_token_string` in utils/permissions.py made
+        # the engine's own utils package (hence anything calling execute_query)
+        # unimportable without the extra, and no gate saw it.
         #
-        # It has no FastAPI either (that is the [server] extra), which is the
-        # other half of the test. `mirobody.utils` is listed FIRST and by name:
-        # a single dead `from .auth import verify_token_string` in
-        # utils/permissions.py once made the engine's own utils package — and
-        # so user, task, and everything calling execute_query — unimportable
-        # without the server extra. Nothing here caught it, because this step
-        # was added after the last release and has never actually run.
+        # This step was added after the last release and had never run; when it
+        # first did, it also asserted mirobody.task / mirobody.user here, which
+        # cannot hold — a Redis-backed task queue and a Mandrill mailer really
+        # do need [server]. Those moved to ② rather than being weakened away.
         python -c "
-        import mirobody.utils, mirobody.utils.permissions
-        import mirobody.pulse, mirobody.pulse.file_parser, mirobody.indicator
-        import mirobody.mcp, mirobody.task.profile_refresh, mirobody.user
-        import mirobody.agent.chat.user_profile
         import importlib.util
         assert importlib.util.find_spec('fastapi') is None, (
-            'this gate is vacuous: FastAPI is installed, so it cannot prove the '
+            'gate is vacuous: FastAPI is installed, so this cannot prove the '
             'engine imports without the [server] extra'
         )
-        print('engine imports clean on a bare (langchain-free, FastAPI-free) install')
+        import mirobody.utils, mirobody.utils.permissions
+        import mirobody.pulse, mirobody.pulse.file_parser
+        import mirobody.indicator, mirobody.mcp, mirobody.engine
+        print('engine imports clean on a bare (FastAPI-free) install')
+        "
+        # ② The engine/agent boundary, which needs [server] but must stay
+        # langchain-free. This catches the break import-linter provably cannot
+        # see: a module-scope import of mirobody.agent.chat.* executes
+        # agent/__init__, and if that __init__ is eager it drags langchain into
+        # an engine import. Exactly this happened to pulse.file_parser once.
+        pip install "${WHEEL}[server]"
+        python -c "
+        import importlib.util
+        assert importlib.util.find_spec('langchain_core') is None, (
+            'gate is vacuous: langchain is installed, so this cannot prove the '
+            'agent layer stays out of engine imports'
+        )
+        import mirobody.task.profile_refresh, mirobody.user
+        import mirobody.agent.chat.user_profile
+        print('engine/agent boundary holds on a langchain-free [server] install')
         "
         pip uninstall -y mirobody
 
