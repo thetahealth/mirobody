@@ -1,1 +1,0 @@
-import{r}from"./vendor-antd-BhRA_OaQ.js";const n="(max-width: 768px)";function o(e){const t=window.matchMedia(n);return t.addEventListener("change",e),()=>t.removeEventListener("change",e)}function s(){return window.matchMedia(n).matches}function c(){return r.useSyncExternalStore(o,s,i)}function i(){return!1}export{c as u};
