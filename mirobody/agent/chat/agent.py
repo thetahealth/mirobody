@@ -4,6 +4,7 @@ from types import ModuleType
 from typing import Any, AsyncGenerator, Callable
 
 from ...utils import Config, global_config
+from ...utils.plugin_dirs import import_plugin_module, resolve_plugin_dir
 
 #-----------------------------------------------------------------------------
 
@@ -84,32 +85,13 @@ def load_agents_from_module(module: ModuleType, module_name: str, config: Config
 #-----------------------------------------------------------------------------
 
 def load_agents_from_directory(dir: str, private: bool = False, config: Config = None) -> dict:
-    target_directory = dir.strip()
-    if not target_directory:
-        return {}
-    
-    target_directory = target_directory.removeprefix(os.getcwd())
-    target_directory = target_directory.removeprefix(os.sep)
-    target_directory = target_directory.strip()
+    # `AGENT_DIRS` gets the same treatment as MCP_TOOL_DIRS — a directory
+    # outside the package must work. See utils/plugin_dirs.py.
+    target_directory, module_name_prefix = resolve_plugin_dir(dir)
 
     if not target_directory:
+        logging.warning(f"No agent directory found at {dir!r}")
         return {}
-    
-    #-----------------------------------------------------
-
-    module_name_prefix = target_directory.replace(os.path.sep, ".")
-
-    if not os.path.isdir(target_directory):
-        try:
-            spec = importlib.util.find_spec(module_name_prefix)
-        except Exception:
-            spec = None
-
-        if not spec or not spec.origin:
-            logging.warning(f"No agent found from {module_name_prefix}")
-            return {}
-
-        target_directory = os.path.dirname(spec.origin)
 
     #-----------------------------------------------------
 
@@ -131,13 +113,12 @@ def load_agents_from_directory(dir: str, private: bool = False, config: Config =
             entry.name.startswith("_"):
             continue
 
-        module_name = module_name_prefix + "." + entry.name[0:len(entry.name)-3]
-        logging.info(module_name)
-
         try:
-            imported_module = importlib.import_module(module_name)
+            module_name, imported_module = import_plugin_module(
+                target_directory, module_name_prefix, entry.name
+            )
         except Exception as e:
-            logging.warning(f"Error importing agent module {module_name}: {e}")
+            logging.warning(f"Error importing agent module {entry.name} from {target_directory}: {e}")
             continue
 
         #-------------------------------------------------

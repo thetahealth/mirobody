@@ -81,11 +81,36 @@ class ProviderPlatform(Platform):
             logging.debug(f"No provider files found in {directory}")
             return providers
 
+        # Providers that ship INSIDE this package must be imported by their real
+        # dotted path. The sys.path branch below makes `mirobody_oura` a
+        # TOP-LEVEL package, and a top-level package has no parent — so
+        # `provider_oura.py`'s `from ....utils.tasks import spawn` died with
+        # "attempted relative import beyond top-level package" and the loader
+        # swallowed it as a warning. Garmin, Oura and Whoop all carry that
+        # import: the platform logged "loaded 0 providers" on every boot and
+        # the whole device-integration surface was silently absent. pgsql
+        # survived only because it happens to use absolute imports throughout.
+        #
+        # sys.path is still right for EXTERNAL `PROVIDER_DIRS` — those are not
+        # inside any package and have nothing to be relative to.
+        packaged_dir = Path(__file__).resolve().parent.parent
+        packaged_pkg = __package__.rsplit(".", 1)[0]  # mirobody.pulse.providers
+        is_packaged = directory.resolve() == packaged_dir
+
         for provider_file in provider_files:
             provider_name = provider_file.stem  # e.g., "provider_garmin"
             provider_dir = provider_file.parent.name  # e.g., "mirobody_garmin"
 
             try:
+                if is_packaged:
+                    module = importlib.import_module(
+                        f"{packaged_pkg}.{provider_dir}.{provider_name}"
+                    )
+                    provider = self._provider_from_module(module, provider_file)
+                    if provider:
+                        providers.append(provider)
+                    continue
+
                 module_name = f"{provider_dir}.{provider_name}"
 
                 parent_dir = str(directory)
@@ -107,39 +132,54 @@ class ProviderPlatform(Platform):
                     if add_to_path and parent_dir in sys.path:
                         sys.path.remove(parent_dir)
 
-                # Discovery is by SUBCLASS, not by name. This used to require
-                # `attr_name.startswith("Theta")`, which silently skipped any
-                # provider not named after the retired Theta brand — a trap for
-                # the next contributor, and the reason renaming the classes had
-                # to touch this line. `endswith("Provider")` stays as a cheap
-                # pre-filter; the issubclass test is the authority, and the
-                # `!=` guard keeps the imported base class from matching itself.
-                provider_class = None
-                for attr_name in dir(module):
-                    if attr_name.endswith("Provider"):
-                        attr = getattr(module, attr_name)
-                        if isinstance(attr, type) and issubclass(attr, BasePullProvider) and attr != BasePullProvider:
-                            provider_class = attr
-                            break
-
-                if provider_class is None:
-                    logging.debug(f"No provider class found in {provider_name}, skipping")
-                    continue
-
-                if not hasattr(provider_class, "create_provider"):
-                    logging.warning(f"Provider class {provider_class.__name__} missing create_provider method, skipping")
-                    continue
-
-                provider_instance = provider_class.create_provider(self.config)
-                if provider_instance is not None:
-                    providers.append(provider_instance)
-                    logging.info(f"Loaded provider from {directory}/{provider_dir}/{provider_name}.py")
+                provider = self._provider_from_module(module, provider_file)
+                if provider:
+                    providers.append(provider)
 
             except Exception as e:
                 logging.warning(f"Failed to load provider {provider_name} from {directory}: {e}")
                 continue
 
         return providers
+
+    def _provider_from_module(self, module, provider_file: Path) -> Optional[BasePullProvider]:
+        """The provider instance a loaded module offers, or None.
+
+        Discovery is by SUBCLASS, not by name. This used to require
+        `attr_name.startswith("Theta")`, which silently skipped any provider not
+        named after the retired Theta brand — a trap for the next contributor,
+        and the reason renaming the classes had to touch this line.
+        `endswith("Provider")` stays as a cheap pre-filter; the issubclass test
+        is the authority, and the `!=` guard keeps the imported base class from
+        matching itself.
+
+        Returning None is normal, not a failure: `create_provider` is where a
+        provider declines because its credentials are absent (pgsql without
+        `ENABLE_PGSQL_DEVICE`, Oura without `OURA_CLIENT_ID`).
+        """
+        provider_class = None
+        for attr_name in dir(module):
+            if attr_name.endswith("Provider"):
+                attr = getattr(module, attr_name)
+                if isinstance(attr, type) and issubclass(attr, BasePullProvider) and attr != BasePullProvider:
+                    provider_class = attr
+                    break
+
+        if provider_class is None:
+            logging.debug(f"No provider class found in {provider_file.stem}, skipping")
+            return None
+
+        if not hasattr(provider_class, "create_provider"):
+            logging.warning(f"Provider class {provider_class.__name__} missing create_provider method, skipping")
+            return None
+
+        provider_instance = provider_class.create_provider(self.config)
+        if provider_instance is None:
+            logging.info(f"Provider {provider_class.__name__} declined to start (not configured)")
+            return None
+
+        logging.info(f"Loaded provider from {provider_file}")
+        return provider_instance
 
     def load_providers(self) -> List[BasePullProvider]:
         providers = []

@@ -3,6 +3,8 @@ import importlib, importlib.util, inspect, logging, os
 
 from types import ModuleType, FunctionType
 
+from ..utils.plugin_dirs import import_plugin_module, resolve_plugin_dir
+
 #-----------------------------------------------------------------------------
 
 # Parameter names that mean "who is calling". Only `user_info` is injected from
@@ -454,32 +456,16 @@ def load_tools_from_module(module: ModuleType, module_name: str) -> dict:
 #-----------------------------------------------------------------------------
 
 def load_tools_from_directory(dir: str) -> tuple[dict, list]:
-    target_directory = dir.strip()
+    # `MCP_TOOL_DIRS` is a documented extension point ("add your own directory"),
+    # so a directory OUTSIDE the package has to work. It did not: the old rule
+    # derived the module name from the path string, which only doubles as a
+    # dotted package for paths under CWD spelled exactly that way. See
+    # utils/plugin_dirs.py for what that cost.
+    target_directory, module_name_prefix = resolve_plugin_dir(dir)
+
     if not target_directory:
+        logging.warning(f"No tool directory found at {dir!r}")
         return {}, []
-
-    target_directory = target_directory.removeprefix(os.getcwd())
-    target_directory = target_directory.removeprefix(os.sep)
-    target_directory = target_directory.strip()
-
-    if not target_directory:
-        return {}, []
-
-    #-----------------------------------------------------
-
-    module_name_prefix = target_directory.replace(os.path.sep, ".")
-
-    if not os.path.isdir(target_directory):
-        try:
-            spec = importlib.util.find_spec(module_name_prefix)
-        except Exception:
-            spec = None
-
-        if not spec or not spec.origin:
-            logging.warning(f"No tool found from {module_name_prefix}")
-            return {}, []
-
-        target_directory = os.path.dirname(spec.origin)
 
     #-----------------------------------------------------
 
@@ -502,13 +488,12 @@ def load_tools_from_directory(dir: str) -> tuple[dict, list]:
             entry.name.startswith("_"):
             continue
 
-        module_name = module_name_prefix + "." + entry.name[0:len(entry.name)-3]
-        logging.info(module_name)
-
         try:
-            imported_module = importlib.import_module(module_name)
+            module_name, imported_module = import_plugin_module(
+                target_directory, module_name_prefix, entry.name
+            )
         except Exception as e:
-            logging.warning(f"Error importing tool module {module_name}: {e}")
+            logging.warning(f"Error importing tool module {entry.name} from {target_directory}: {e}")
             continue
 
         #-------------------------------------------------

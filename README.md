@@ -78,7 +78,30 @@ Runnable walkthroughs: [`examples/`](examples/README.md) — five scripts from o
 
 ## ① Collect — every signal, one intake
 
-- **Production device providers behind one plugin contract** — battle-tested providers for **Garmin, Oura, Whoop** plus [300+ devices](mirobody/pulse/providers/README.md) via the pulse platform, and [Apple Health](mirobody/pulse/apple/README.md) import with CDA processing. A provider is a directory: drop it in, and discovery, OAuth and pull scheduling are wired for you.
+- **Production device providers behind one plugin contract** — battle-tested providers for **Garmin, Oura, Whoop** plus [300+ devices](mirobody/pulse/providers/README.md) via the pulse platform. A provider is a directory: drop it in, and discovery, OAuth and pull scheduling are wired for you.
+
+  > **What a self-hosted deployment needs to actually turn these on.** Each
+  > provider is an OAuth client of that vendor, so it stays dormant until you
+  > supply credentials **you** obtained from the vendor's developer program —
+  > `GARMIN_CLIENT_ID`/`SECRET`, `OURA_CLIENT_ID`/`SECRET`,
+  > `WHOOP_CLIENT_ID`/`SECRET` (plus each one's redirect URL) in
+  > `config.{env}.yaml`. Without them the module still loads and logs
+  > `declined to start (not configured)` — which is the honest state, not a
+  > failure. [`mirobody_pgsql/`](mirobody/pulse/providers/mirobody_pgsql/) is
+  > the one you can try immediately: set `ENABLE_PGSQL_DEVICE: 1` and the
+  > platform logs `loaded 1 providers` on the next boot.
+
+- **Apple Health is push-only, and needs an iOS app you build** — the endpoints
+  are here ([`/apple/health`, `/apple/statistics`, `/apple/cda`](mirobody/server/routers/apple_router.py),
+  with [CDA processing](mirobody/pulse/apple/README.md)), but they *receive*
+  data; nothing in this repo can pull from HealthKit. HealthKit is only readable
+  from a signed iOS app, on-device, after the user grants permission per data
+  type — there is no web OAuth flow and no server-to-server API, and Apple Health
+  export archives are not an import path here either. So a self-hosted web
+  deployment shows no "connect Apple Health" button, correctly: the missing
+  piece is an iOS client with the HealthKit entitlement (that is what
+  [Theta Wellness](https://apps.apple.com/us/app/theta-wellness/id6739960903)
+  is), and the API above is what such a client would POST to.
 - **8 file formats parsed with AI** — PDF lab reports, Excel, CSV, images, audio, archives, plain text, and **genetic exports (WeGene)**; LLM-powered indicator extraction ([`pulse/file_parser/`](mirobody/pulse/file_parser/), 13k lines).
 - Ingest pipeline: staged intake → validate → normalize → daily rollups → [AI insights](mirobody/pulse/insight/) that feed back into the record — closing the loop.
 
