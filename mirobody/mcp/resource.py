@@ -2,10 +2,6 @@ import importlib.util, json, logging, os
 
 #-----------------------------------------------------------------------------
 
-global_resources = {}
-
-#-----------------------------------------------------------------------------
-
 def load_resources_from_directory(dir: str) -> tuple[dict, list]:
     target_directory = dir.strip()
     if not target_directory:
@@ -129,18 +125,23 @@ def load_resources_from_directories(dirs: list[str]) -> tuple[dict, list]:
 #-----------------------------------------------------------------------------
 
 def read_resource(resources: dict, uri: str) -> dict | None:
-    if not resources or not isinstance(resources) or \
+    """Look up one loaded resource by URI, as a COPY.
+
+    Callers template per-request values into ``text`` ({{JWT_TOKEN}}, server
+    URLs) while ``resources`` is a shared process-wide cache loaded at startup.
+    Handing back the cached dict let one caller's substitutions persist and be
+    served to the next caller — see the matching note in
+    ``McpService.mcp_handler``'s ``resources/read`` branch.
+    """
+    # `isinstance(resources)` — one argument — stood here and raised TypeError
+    # on every call where `resources` was non-empty, i.e. whenever there was
+    # anything to read.
+    if not resources or not isinstance(resources, dict) or \
         not uri or not isinstance(uri, str):
         return None
-    
-    if uri not in resources:
-        return None
-    
-    return resources[uri]
 
+    resource = resources.get(uri)
+    return dict(resource) if isinstance(resource, dict) else None
 
-def read_global_resource(uri: str) -> dict | None:
-    global global_resources
-    return read_resource(global_resources, uri)
 
 #-----------------------------------------------------------------------------

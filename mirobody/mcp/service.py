@@ -10,6 +10,8 @@ from starlette.routing import Route
 
 from typing import Any
 
+from ..utils.http import META_PROTOCOL_VERSION, request_origin
+
 from ..utils import (
     get_jwt_token,
 
@@ -40,9 +42,64 @@ CODE_INVALID_PARAMS     = -32602
 CODE_INTERNAL_ERROR     = -32603
 
 # Implementation specific errors: -32000 to -32099.
+#
+# 2026-07-28 partitions this range: -32000..-32019 is LEGACY (new codes must not
+# be allocated there, and receivers may assume no meaning), while -32020..-32099
+# is reserved for the specification itself. CODE_AUTH_REQUIRED below predates
+# that policy and stays for compatibility with clients already keyed to it.
+CODE_UNSUPPORTED_PROTOCOL_VERSION = -32022  # spec-defined (2026-07-28)
 
 # Custom application errors: -32768 to -32000.
 CODE_AUTH_REQUIRED      = -32000
+
+#-----------------------------------------------------------------------------
+# Protocol revisions this server implements, newest first. `initialize`
+# negotiates against this list; per-request `_meta` (2026-07-28's stateless
+# model) is validated against it too.
+_LATEST_PROTOCOL_VERSION = "2026-07-28"
+_SUPPORTED_PROTOCOL_VERSIONS = (
+    "2026-07-28",   # stateless: per-request _meta, resultType, MRTR, no session id
+    "2025-11-25",
+    "2025-06-18",
+    "2025-03-26",
+    "2024-11-05",
+)
+
+# Declared once: `initialize` and `server/discover` MUST advertise the same
+# capabilities, and they held separate copies of this dict that could drift.
+# An empty value means "supported, with no optional sub-capabilities" — so no
+# `subscribe`, no `listChanged` on resources, which is what makes
+# resources/subscribe and resources/templates/list correctly method-not-found.
+_CAPABILITIES = {
+    "prompts": {},
+    "resources": {},
+    "tools": {
+        "listChanged": False,
+    },
+}
+
+# 2026-07-28 caching metadata, emitted on the methods the spec marks cacheable.
+# Our tool/resource sets are built once at startup and never change while the
+# process runs (no listChanged notifications), so a client may hold them for a
+# few minutes. `private` because the tool list is filtered per agent and the
+# resources are templated per request — a shared cache must not serve one
+# caller's copy to another.
+_LIST_CACHE_HINT = (300_000, "private")
+
+#-----------------------------------------------------------------------------
+
+def _by_name(items: list | None, key: str = "name") -> list:
+    """Stable ordering for list responses.
+
+    Tools are discovered with `os.scandir`, whose order is filesystem-dependent,
+    so `tools/list` could return the same set in a different order on the next
+    reconnect. 2026-07-28 calls out deterministic ordering explicitly: the tool
+    list sits near the front of the model's context, so a reshuffle invalidates
+    the client's upstream prompt cache for no reason.
+    """
+    if not items:
+        return []
+    return sorted(items, key=lambda item: str(item.get(key, "")) if isinstance(item, dict) else "")
 
 #-----------------------------------------------------------------------------
 
@@ -72,8 +129,6 @@ class McpService:
 
         tool_dirs               : list[str] = [],
         resource_dirs           : list[str] = [],
-        private_tool_dirs       : list[str] = [],
-        private_resource_dirs   : list[str] = [],
 
         db_pool                 : AsyncConnectionPool[Any] | None = None,
         redis                   : Redis | None = None,
@@ -82,7 +137,11 @@ class McpService:
     ):
         self._token_validator   = token_validator
 
-        self._protocol_version  = protocol_version if protocol_version else "2025-06-18"
+        # Newest revision we implement. `initialize` negotiates DOWN to whatever
+        # the client asked for when we also support it (see _negotiate_version);
+        # it used to ignore the client's request entirely and echo this back,
+        # which is a spec violation in every revision.
+        self._protocol_version  = protocol_version if protocol_version else _LATEST_PROTOCOL_VERSION
         self._name              = name if name else "Theta MCP Server"
         self._version           = version if version else "1.0.0"
 
@@ -111,10 +170,6 @@ class McpService:
 
         if not self._tool_descriptions:
             self._tool_descriptions = []
-
-        load_tools_from_directories(private_tool_dirs, private=True)
-
-        #----------------------------------------------
 
         self._tools_count = 0
         self._auth_tools_count = 0
@@ -147,6 +202,45 @@ class McpService:
 
     #-----------------------------------------------------
 
+    @property
+    def _server_info(self) -> dict:
+        return {"name": self._name, "version": self._version}
+
+    def _negotiate_version(self, requested: str | None) -> str:
+        """Pick the revision to speak with this client.
+
+        Return the client's request when we implement it, otherwise our newest.
+        Every MCP revision requires this handshake; the old code returned
+        `self._protocol_version` unconditionally, so a client pinned to
+        2024-11-05 was told the server was speaking a revision it had never
+        agreed to.
+        """
+        if isinstance(requested, str) and requested in _SUPPORTED_PROTOCOL_VERSIONS:
+            return requested
+        return self._protocol_version
+
+    @staticmethod
+    def _request_protocol_version(jsonrpc: dict) -> str | None:
+        """Per-request protocol version from `params._meta` (2026-07-28).
+
+        That revision drops the initialize/initialized handshake and the
+        Mcp-Session-Id header: every request instead carries its own protocol
+        version, client identity and capabilities in `_meta`, so any request can
+        land on any instance behind a load balancer. Reading it here is what
+        lets one server answer both stateless 2026-07-28 clients and older
+        handshake-based ones.
+        """
+        params = jsonrpc.get("params")
+        if not isinstance(params, dict):
+            return None
+        meta = params.get("_meta")
+        if not isinstance(meta, dict):
+            return None
+        value = meta.get(META_PROTOCOL_VERSION)
+        return value if isinstance(value, str) else None
+
+    #-----------------------------------------------------
+
     async def mcp_handler(self, request: Request) -> Response:
         if request.method == "POST":
             # Single HTTP request.
@@ -174,13 +268,20 @@ class McpService:
         body = await request.body()
         try:
             jsonrpc = json.loads(body)
-        except:
-            print()
-            print(f"uri: {request.url.path}?{request.url.query}")
-            for key, value in request.headers.items():
-                print(f"header '{key}': {value}")
-            print(f"body: {body}")
-            print()
+        except Exception:
+            # This used to `print()` the full URL, EVERY request header — including
+            # `Authorization: Bearer …` — and the entire unbounded body to stdout.
+            # Any unauthenticated caller could trigger it by posting invalid JSON,
+            # making it both a bearer-token/PHI leak into the logs and a log-flood
+            # DoS. Log the shape of the failure, never its credentials or content.
+            logging.warning(
+                "MCP: malformed JSON-RPC body",
+                extra={
+                    "path": request.url.path,
+                    "body_bytes": len(body),
+                    "content_type": request.headers.get("content-type", ""),
+                },
+            )
 
             return jsonrpc_error(
                 id      = None,
@@ -190,8 +291,13 @@ class McpService:
                 request = request
             )
 
-        # According to the MCP specification,
-        #   the ID field should always be there.
+        # According to the MCP specification the ID field should always be
+        # there — but a request that omits it is still well-formed JSON, and
+        # every error branch below used to re-index `jsonrpc["id"]` directly.
+        # An unauthenticated POST without "id" therefore raised KeyError from
+        # inside the handler; with FastAPI debug enabled (which follows
+        # LOG_LEVEL, DEBUG by default) that returns a full stack trace to the
+        # caller. Extract once here, use `id` everywhere after.
         id = None
         if "id" in jsonrpc:
             id = jsonrpc["id"]
@@ -218,7 +324,15 @@ class McpService:
 
         method = jsonrpc["method"]
 
-        url_prefix = f"{"http" if request.url.hostname == "localhost" else "https"}://{request.url.hostname}"
+        # The revision THIS request is speaking. 2026-07-28 removed the
+        # initialize/initialized handshake, so there is no session in which to
+        # remember a negotiated version — the client restates it in `_meta` on
+        # every call, and the server has to settle it per request. Handshake-era
+        # clients send no `_meta`; they fall through to our newest supported
+        # revision, exactly as before.
+        negotiated = self._negotiate_version(self._request_protocol_version(jsonrpc))
+
+        url_prefix = request_origin(request)
 
         #-------------------------------------------------
 
@@ -237,21 +351,37 @@ class McpService:
                         user_id     = user_secret_params.get("user_id", "")
                         session_id  = user_secret_params.get("session_id", "")
                         agent_name  = user_secret_params.get("agent_name", "")   
-            except:
-                pass
+            except Exception as e:
+                # An unreadable temp-URL payload means the caller silently ends
+                # up unauthenticated, which is a confusing failure to debug from
+                # the outside. Log the shape — never the secret itself.
+                logging.warning("MCP: temporary URL lookup failed: %s", e)
 
         #-------------------------------------------------
 
-        # tools/list                Discover available tools        Array of tool definitions with schemas
-        # tools/call                Execute a specific tool         Tool execution result
-
-        # resources/list            List available direct resources Array of resource descriptors
-        # resources/templates/list	Discover resource templates     Array of resource template definitions
-        # resources/read            Retrieve resource contents      Resource data with metadata
-        # resources/subscribe       Monitor resource changes        Subscription confirmation
-
-        # prompts/list              Discover available prompts      Array of prompt descriptors
-        # prompts/get               Retrieve prompt details	Full    prompt definition with arguments
+        # What this server answers, and what it deliberately does not. The
+        # previous version of this comment listed the whole MCP method surface
+        # without marking which half was wired, so it read as a support matrix
+        # when it was a spec crib sheet — three of the methods it named fall
+        # through to CODE_METHOD_NOT_FOUND.
+        #
+        #   IMPLEMENTED
+        #     tools/list                 tool definitions with schemas
+        #     tools/call                 execute one tool
+        #     resources/list             resource descriptors
+        #     resources/read             resource contents (templated per user)
+        #     prompts/list               always [] — this server exposes none
+        #     initialize                 handshake revisions only
+        #     server/discover            2026-07-28 stateless discovery
+        #     notifications/initialized, ping
+        #
+        #   NOT IMPLEMENTED — method-not-found is the correct answer, not a gap:
+        #     prompts/get                we advertise zero prompts, so there is
+        #                                nothing any name could resolve to
+        #     resources/subscribe        we do not declare the subscribe
+        #     resources/templates/list   or listChanged capability in
+        #                                `_CAPABILITIES`, so a spec-conforming
+        #                                client never sends these
 
         if method == "tools/list":
             if agent_name and self._tool_descriptions:
@@ -277,18 +407,22 @@ class McpService:
 
                 return jsonrpc_result(
                     id      = id,
+                    protocol_version = negotiated,
                     result  = {
-                        "tools": tools
+                        "tools": _by_name(tools)
                     },
+                    cache_hint = _LIST_CACHE_HINT,
                     method  = method,
                     request = request
                 )
 
             return jsonrpc_result(
                 id      = id,
+                protocol_version = negotiated,
                 result  = {
-                    "tools": self._tool_descriptions
+                    "tools": _by_name(self._tool_descriptions)
                 },
+                cache_hint = _LIST_CACHE_HINT,
                 method  = method,
                 request = request
             )
@@ -296,9 +430,11 @@ class McpService:
         elif method == "prompts/list":
             return jsonrpc_result(
                 id      = id,
+                protocol_version = negotiated,
                 result  = {
                     "prompts": []
                 },
+                cache_hint = _LIST_CACHE_HINT,
                 method  = method,
                 request = request
             )
@@ -306,9 +442,11 @@ class McpService:
         elif method == "resources/list":
             return jsonrpc_result(
                 id      = id,
+                protocol_version = negotiated,
                 result  = {
-                    "resources": self._resources
+                    "resources": _by_name(self._resources, key="uri")
                 },
+                cache_hint = _LIST_CACHE_HINT,
                 method  = method,
                 request = request
             )
@@ -319,7 +457,7 @@ class McpService:
 
             if "params" not in jsonrpc or not isinstance(jsonrpc["params"], dict):
                 return jsonrpc_error(
-                    id      = jsonrpc["id"],
+                    id      = id,
                     code    = CODE_INVALID_PARAMS,
                     msg     = "Empty parameter",
                     method  = "tools/call",
@@ -329,7 +467,7 @@ class McpService:
 
             if "name" not in params or not isinstance(params["name"], str) or len(params["name"]) == 0:
                 return jsonrpc_error(
-                    id      = jsonrpc["id"],
+                    id      = id,
                     code    = CODE_INVALID_PARAMS,
                     msg     = "Empty parameter name",
                     method  = "tools/call",
@@ -341,7 +479,7 @@ class McpService:
                 params["name"] not in self._callable or \
                 not self._callable[params["name"]]:
                 return jsonrpc_error(
-                    id      = jsonrpc["id"],
+                    id      = id,
                     code    = CODE_INVALID_PARAMS,
                     msg     = "Unsupported parameter name",
                     method  = "tools/call",
@@ -371,7 +509,11 @@ class McpService:
                         # Check permanent urls.
                         try:
                             user_id = await self._redis.get(self._mcp_url_keyprefix + user_secret)
-                        except:
+                        except Exception as e:
+                            # Same as above: Redis being down degrades to
+                            # "unauthenticated" rather than an error, so without
+                            # this line an outage looks like a permissions bug.
+                            logging.warning("MCP: permanent URL lookup failed: %s", e)
                             user_id = ""
                     else:
                         user_id = self._mcp_urls.get(user_secret, "")
@@ -392,7 +534,8 @@ class McpService:
                 authorization_url = f"""{url_prefix}/mcplogin?oauth_params={urllib.parse.quote(urllib.parse.urlencode(oauth_params))}"""
 
                 return jsonrpc_result(
-                    id      = jsonrpc["id"],
+                    id      = id,
+                    protocol_version = negotiated,
                     result  = {
                         "content": [
                             {
@@ -448,7 +591,8 @@ class McpService:
             if isinstance(result, dict):
                 if "redirect_to_upload" in result:
                     return jsonrpc_result(
-                        id      = jsonrpc["id"],
+                        id      = id,
+                        protocol_version = negotiated,
                         result  = {
                             "content": [
                                 {
@@ -496,7 +640,8 @@ class McpService:
                     result["structuredContent"] = {"data": data}
 
             return jsonrpc_result(
-                id      = jsonrpc["id"],
+                id      = id,
+                protocol_version = negotiated,
                 result  = result,
                 method  = params["name"],
                 request = request
@@ -507,7 +652,7 @@ class McpService:
         elif method == "resources/read":
             if "params" not in jsonrpc or not isinstance(jsonrpc["params"], dict):
                 return jsonrpc_error(
-                    id      = jsonrpc["id"],
+                    id      = id,
                     code    = CODE_INVALID_PARAMS,
                     msg     = "Empty parameter",
                     method  = "resources/read",
@@ -517,7 +662,7 @@ class McpService:
 
             if "uri" not in params or not isinstance(params["uri"], str) or len(params["uri"]) == 0:
                 return jsonrpc_error(
-                    id      = jsonrpc["id"],
+                    id      = id,
                     code    = CODE_INVALID_PARAMS,
                     msg     = "Empty parameter uri",
                     method  = "resources/read",
@@ -528,6 +673,7 @@ class McpService:
             if uri not in self._resource_map:
                 return jsonrpc_result(
                     id      = id,
+                    protocol_version = negotiated,
                     result  = {
                         "contents": [],
                         "_meta": {
@@ -538,22 +684,27 @@ class McpService:
                     request = request
                 )
 
-            resource = self._resource_map[uri]
+            # Copy before templating. `self._resource_map[uri]` is the SHARED,
+            # process-wide cache loaded once at startup; the placeholders below
+            # — including {{JWT_TOKEN}} — are per-REQUEST values. Templating the
+            # cached dict in place permanently baked the first caller's JWT into
+            # the widget: every later request found no {{JWT_TOKEN}} left to
+            # substitute and was served the first user's token instead. On an
+            # OAuth-protected server carrying personal health data that is a
+            # cross-user credential leak, and it survived until restart.
+            resource = dict(self._resource_map[uri])
             if "text" in resource:
-                current_server = f"{"http" if request.url.hostname == "localhost" else "https"}://{request.url.hostname}"
+                current_server = request_origin(request)
+                jwt_token = get_jwt_token(request) or ""
                 resource["text"] = resource["text"] \
                     .replace("{{WEB_SERVER_URL}}", current_server) \
                     .replace("{{MCP_SERVER_URL}}", current_server) \
-                    .replace("{{DATA_SERVER_URL}}", current_server)
-            if isinstance(resource, dict) and "text" in resource:
-                jwt_token = get_jwt_token(request)
-                if jwt_token is None:
-                    jwt_token = ""
-
-                resource["text"] = resource["text"].replace("{{JWT_TOKEN}}", jwt_token)
+                    .replace("{{DATA_SERVER_URL}}", current_server) \
+                    .replace("{{JWT_TOKEN}}", jwt_token)
 
             return jsonrpc_result(
                 id      = id,
+                protocol_version = negotiated,
                 result  = {
                     "contents": [
                         resource,
@@ -566,22 +717,47 @@ class McpService:
         #-------------------------------------------------
 
         elif method == "initialize":
+            # Negotiate: honour the client's requested revision when we speak it.
+            # 2026-07-28 clients never send this at all — they carry the version
+            # per request in `_meta` — so this branch exists purely for the
+            # handshake-based revisions, which are supported for a year-long
+            # offramp.
+            requested = None
+            if isinstance(jsonrpc.get("params"), dict):
+                requested = jsonrpc["params"].get("protocolVersion")
+
             return jsonrpc_result(
                 id      = id,
+                protocol_version = negotiated,
+                server_info = self._server_info,
                 result  = {
-                    "protocolVersion": self._protocol_version,
-                    "capabilities": {
-                        "prompts": {},
-                        "resources": {},
-                        "tools": {
-                            "listChanged": False
-                        }
-                    },
+                    "protocolVersion": self._negotiate_version(requested),
+                    "capabilities": _CAPABILITIES,
                     "serverInfo": {
                         "name": self._name,
                         "version": self._version
                     }
                 },
+                method  = method,
+                request = request
+            )
+
+        elif method == "server/discover":
+            # 2026-07-28's optional, stateless replacement for `initialize`:
+            # a client MAY ask what the server supports, but is not required to
+            # handshake before calling anything. Advertising the full supported
+            # list (rather than a single version) is what lets a client pick.
+            return jsonrpc_result(
+                id      = id,
+                protocol_version = negotiated,
+                server_info = self._server_info,
+                result  = {
+                    "protocolVersion": self._protocol_version,
+                    "supportedProtocolVersions": list(_SUPPORTED_PROTOCOL_VERSIONS),
+                    "capabilities": _CAPABILITIES,
+                    "serverInfo": self._server_info,
+                },
+                cache_hint = _LIST_CACHE_HINT,
                 method  = method,
                 request = request
             )
@@ -596,6 +772,7 @@ class McpService:
         elif method == "ping":
             return jsonrpc_result(
                 id      = id,
+                protocol_version = negotiated,
                 result  = {},
                 method  = method,
                 request = request
@@ -635,7 +812,10 @@ class McpService:
         try:
             data = await request.json()
             beneficiary_user_id = data.get("user_id", "")
-        except:
+        except Exception as e:
+            # Optional body: a request without one is legitimate, so this is
+            # debug, not a warning.
+            logging.debug("MCP: no JSON body on personal-URL request: %s", e)
             beneficiary_user_id = ""
 
         user_id = payload.get("sub")
@@ -678,7 +858,7 @@ class McpService:
 
         #-------------------------------------------------
 
-        url_prefix = f"{"http" if request.url.hostname == "localhost" else "https"}://{request.url.hostname}"
+        url_prefix = request_origin(request)
 
         return json_response_with_code(data={"url": f"{url_prefix}/mcp/{user_secret}"}, request=request)
 
