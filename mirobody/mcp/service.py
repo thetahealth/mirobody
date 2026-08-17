@@ -241,6 +241,60 @@ class McpService:
 
     #-----------------------------------------------------
 
+    async def _resolve_secret_user(self, user_secret: str) -> str:
+        """User id behind a PERMANENT personal-URL secret, or "".
+
+        tools/call has always resolved this (it must, to authorize); tools/list
+        needs it too now that part of the tool surface is data-gated per user.
+        """
+        if not user_secret:
+            return ""
+        if self._redis:
+            try:
+                return await self._redis.get(self._mcp_url_keyprefix + user_secret) or ""
+            except Exception as e:
+                logging.warning("MCP: permanent URL lookup failed: %s", e)
+                return ""
+        return self._mcp_urls.get(user_secret, "")
+
+    # Tools whose only possible answer without the corresponding data is
+    # "no data": each maps to the EXISTS probe that decides its visibility.
+    _DATA_GATED = {
+        "get_genetic_data":
+            "SELECT 1 FROM th_series_data_genetic"
+            " WHERE user_id = :uid AND is_deleted = false LIMIT 1",
+        "query_health_indicators":
+            "SELECT 1 FROM th_series_data"
+            " WHERE user_id = :uid AND deleted = 0 LIMIT 1",
+    }
+
+    async def _data_gated_tools(self, user_id: str) -> set[str]:
+        """Tool names to HIDE from tools/list for this user.
+
+        A data-reading tool for a user with none of that data can only ever
+        answer "no data" — listing it makes every client carry its schema for
+        nothing. Fails OPEN per probe (nothing hidden) — a DB hiccup must not
+        shrink the tool surface of a user who does have data.
+        """
+        if not user_id:
+            return set()
+
+        from ..utils import execute_query
+
+        hidden: set[str] = set()
+        for name, probe in self._DATA_GATED.items():
+            if name not in self._callable:
+                continue
+            try:
+                rows = await execute_query(probe, {"uid": str(user_id)}, log_sql=False)
+                if not rows:
+                    hidden.add(name)
+            except Exception as e:
+                logging.warning("MCP: data gate check failed for %s: %s", name, e)
+        return hidden
+
+    #-----------------------------------------------------
+
     async def mcp_handler(self, request: Request) -> Response:
         if request.method == "POST":
             # Single HTTP request.
@@ -384,7 +438,22 @@ class McpService:
         #                                client never sends these
 
         if method == "tools/list":
-            if agent_name and self._tool_descriptions:
+            # Data-dependent exposure: get_genetic_data answers from the user's
+            # uploaded genotype file, and most users never upload one. Listing
+            # the tool anyway makes every external MCP client carry its schema
+            # and lets a model call it just to learn "no data" — so when the
+            # caller is identifiable and has no genetic rows, the tool is not
+            # listed at all. Unidentifiable callers (bare /mcp before OAuth)
+            # keep the full list: capability discovery must not require auth.
+            hidden = await self._data_gated_tools(
+                user_id or await self._resolve_secret_user(request.path_params.get("secret", ""))
+            )
+            if hidden:
+                base_tools = [t for t in self._tool_descriptions if t.get("name") not in hidden]
+            else:
+                base_tools = self._tool_descriptions
+
+            if agent_name and base_tools:
                 # Filter tools based on agent configuration
 
                 # Get agent options from config
@@ -397,13 +466,13 @@ class McpService:
                 # Apply filtering
                 if allowed_tools:
                     # Whitelist mode: only include allowed tools
-                    tools = [tool for tool in self._tool_descriptions if tool.get("name") in allowed_tools]
+                    tools = [tool for tool in base_tools if tool.get("name") in allowed_tools]
                 else:
                     tools = []
 
                 # Apply blacklist (higher priority, can override whitelist)
                 if disallowed_tools:
-                    tools = [tool for tool in (tools if tools else self._tool_descriptions) if tool.get("name") not in disallowed_tools]
+                    tools = [tool for tool in (tools if tools else base_tools) if tool.get("name") not in disallowed_tools]
 
                 return jsonrpc_result(
                     id      = id,
@@ -420,7 +489,7 @@ class McpService:
                 id      = id,
                 protocol_version = negotiated,
                 result  = {
-                    "tools": _by_name(self._tool_descriptions)
+                    "tools": _by_name(base_tools)
                 },
                 cache_hint = _LIST_CACHE_HINT,
                 method  = method,

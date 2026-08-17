@@ -30,40 +30,31 @@ class TerminologyService:
 
     async def resolve_indicator(self, names: list[str]) -> dict[str, Any]:
         """
-        Resolve health indicator names to canonical LOINC codes. Offline: no
-        network, no API key, no user data — safe to call for any term.
-
-        Use this whenever an indicator name needs a standard identity: before
-        storing a reading, when comparing values that came from different labs
-        or devices, or when the user writes a test name in another language.
-        Accepts any language and everyday clinical shorthand — "LDL cholesterol",
+        Resolve health indicator names to canonical LOINC codes. Offline, no
+        user data — safe for any term. Any language and clinical shorthand:
         "LDL-C", "低密度脂蛋白胆固醇" and "ヘモグロビン" all resolve.
 
+        Use whenever a name needs a standard identity: storing a reading,
+        comparing values from different labs or devices, or a test name
+        written in another language.
+
         Args:
-            names: Indicator names exactly as they appear on the report or
-                device. Pass the whole batch in one call rather than looping —
-                e.g. ["hemoglobin", "空腹血糖", "HbA1c"].
+            names: Names exactly as printed. Pass the whole batch in one call.
 
         Returns:
-            results: one entry per input name, in order, each with
-                - name: the input, unchanged
-                - resolved: whether a canonical identity was found
-                - loinc: the LOINC code (e.g. "718-7"), empty when unresolved
-                - canonical: the LOINC long common name
-                - candidates: how many corpus rows matched. A large number means
-                  the term was genuinely ambiguous (specimen, method or timing)
-                  and one sensible default was chosen — surface that to the user
-                  when precision matters.
+            results: per input, in order — name (unchanged), resolved, loinc
+                (e.g. "718-7", empty when unresolved), canonical (LOINC long
+                common name), candidates (matched corpus rows; a large number
+                means genuine ambiguity and one sensible default was chosen —
+                surface that when precision matters).
 
         Notes for LLMs:
-            - An unresolved term is an honest "no", never a guess. Do not
-              invent a code for it; report it as unmatched.
-            - Names that describe a PANEL rather than one observation (e.g.
-              "blood pressure", "血圧") deliberately do not resolve — ask for
-              the specific measurement (systolic / diastolic) instead.
-            - Same code from two different names means the same test. This is
-              the reliable way to decide whether two readings are comparable;
-              string equality is not.
+            - Unresolved is an honest "no": report it unmatched, never invent
+              a code.
+            - PANEL names ("blood pressure", "血圧") deliberately do not
+              resolve — ask for the specific measurement (systolic/diastolic).
+            - Same code from two names = same test. That, not string equality,
+              decides whether two readings are comparable.
         """
         if not isinstance(names, list) or not names:
             return {"success": False, "error": "names must be a non-empty list of strings."}
@@ -103,29 +94,18 @@ class TerminologyService:
     async def normalize_unit(self, units: list[str]) -> dict[str, Any]:
         """
         Normalize free-text measurement units to canonical UCUM form. Offline,
-        no user data.
-
-        Lab reports and devices write the same unit many ways — "mg/dL",
-        "MG/DL", "毫摩尔每升", "次每分钟". Normalize before comparing or
-        converting values, otherwise unit strings silently disagree.
+        no user data. The same unit gets written many ways ("mg/dL", "MG/DL",
+        "毫摩尔每升") — normalize before comparing or converting values.
 
         Args:
             units: Unit strings as printed, e.g. ["mg/dL", "毫摩尔每升", "次/分"].
 
         Returns:
-            results: one entry per input, in order, each with
-                - unit: the input, unchanged
-                - ucum: the canonical UCUM unit, empty when unrecognized
-                - family: the LOINC PROPERTY family (e.g. "SCnc" substance
-                  concentration). Two units in the SAME family are convertible;
-                  across families they are not comparable at all.
-
-        Notes for LLMs:
-            - Use `family` as the guard before any unit conversion. Converting
-              across families (e.g. a mass concentration to a count) is a
-              category error, not an arithmetic one.
-            - An empty `ucum` means the string was not recognized — say so
-              rather than assuming a unit.
+            results: per input, in order — unit (unchanged), ucum (canonical
+                form; empty means unrecognized — say so rather than assuming),
+                family (LOINC PROPERTY, e.g. "SCnc"). Units in the SAME family
+                are convertible; converting across families is a category
+                error, not arithmetic.
         """
         if not isinstance(units, list) or not units:
             return {"success": False, "error": "units must be a non-empty list of strings."}

@@ -20,65 +20,46 @@ class GeneticService():
         self.version = "1.0.0"
         self.data_converter = DataConverter()
 
+    # The tool signature used to also take chromosome / position / genotype /
+    # offset. All four "narrow an already-matched set" — with rsid required
+    # they had no realistic use, and every parameter is schema the model must
+    # read on every call. Removed rather than documented better.
     async def get_genetic_data(
         self,
         rsid: Union[str, List[str]],
         user_info: Dict[str, Any],
-        chromosome: Optional[str] = None,
-        position: Optional[int] = None,
-        genotype: Optional[str] = None,
         limit: int = 100,
-        offset: int = 0,
-        # reason: Optional[str] = None,
         include_nearby: bool = True,
         nearby_range: int = 1000000,  # Default search range: 1M base pairs before and after
     ) -> Dict[str, Any]:
         """
-        Look up this user's genotype at specific variants (rsIDs), optionally with
-        nearby variants from the same genomic region.
+        Look up this user's genotype at specific variants (rsIDs), optionally
+        with nearby variants from the same region.
 
-        Use when the user asks about a named variant or gene region they have
-        genotype data for. This reads THEIR uploaded genotype file — it is not a
-        reference database, so a variant absent from the result means it was not
-        in their file, not that it does not exist.
+        Reads THEIR uploaded genotype file, not a reference database. Consumer
+        arrays type a small fraction of the genome, so absent ≠ negative: an
+        rsID missing from the result was not typed, it says nothing about the
+        allele.
 
         Args:
             rsid: dbSNP identifiers, e.g. "rs4988235" or ["rs1801133", "rs429358"].
-                A comma-separated string also works. This is the only required
-                filter; the others narrow an already-matched set.
-            chromosome: Restrict to one chromosome, e.g. "1", "X".
-            position: Restrict to one genomic coordinate.
-            genotype: Restrict to a specific called genotype, e.g. "AG".
+                A comma-separated string also works.
             limit: Max variants returned (default 100).
-            offset: Pagination offset for large regions.
-            include_nearby: Also return variants within `nearby_range` of each hit.
-                Useful for looking at a locus rather than a single position; set
-                false when you only want the exact rsIDs asked for.
-            nearby_range: Half-window in base pairs for `include_nearby`
-                (default 1,000,000 — one megabase either side).
+            include_nearby: Also return variants within `nearby_range` of each
+                hit, capped at 20 per hit. Set false for exact lookups only.
+            nearby_range: Half-window in base pairs (default 1,000,000).
 
         Returns:
             success: whether the lookup completed.
-            data: one entry per matched rsID, each with rsid, chromosome, position
-                and the user's genotype call.
-            nearby: present when include_nearby is set — variants in the same
-                window, capped at 20 per queried variant so a locus request cannot
-                flood the context.
+            data: matched variants — rsid, chromosome, position, genotype call.
+            nearby: neighbours by POSITION only. Proximity is not linkage —
+                do not present them as related to the queried variant's trait.
 
         Notes for LLMs:
-            - **Report genotypes; do not interpret risk.** A genotype is not a
-              diagnosis, a probability, or a recommendation. Most published
-              variant-trait associations are population-level, weakly penetrant,
-              and ancestry-dependent. State what the call is and direct anything
-              clinical to a genetic counsellor.
-            - **Absent ≠ negative.** Consumer genotyping arrays cover a small,
-              non-random fraction of the genome. "rs429358 not found" means the
-              array did not type it, NOT that the user lacks the allele.
-            - `nearby` variants are neighbours by POSITION only. Physical
-              proximity is not linkage, and it is not shared function — do not
-              present them as related to the queried variant's trait.
-            - Genotype strings are unphased unless the source says otherwise: "AG"
-              does not tell you which parent contributed which allele.
+            - Report genotypes; do not interpret risk. Genotype calls are not
+              diagnoses; direct clinical questions to a genetic counsellor.
+            - Genotypes are unphased: "AG" does not say which parent
+              contributed which allele.
         """
         try:
             # Get user ID from user_info
@@ -119,23 +100,10 @@ class GeneticService():
                 sql += " AND rsid = :rsid"
                 params["rsid"] = rsid
 
-            if chromosome:
-                sql += " AND chromosome = :chromosome"
-                params["chromosome"] = chromosome
-
-            if position:
-                sql += " AND position = :position"
-                params["position"] = position
-
-            if genotype:
-                sql += " AND genotype = :genotype"
-                params["genotype"] = genotype
-
             # Add sorting and pagination
             sql += " ORDER BY chromosome, position"
-            sql += " LIMIT :limit OFFSET :offset"
+            sql += " LIMIT :limit"
             params["limit"] = limit
-            params["offset"] = offset
 
             # Execute query
             result = await execute_query(sql, params)
@@ -267,7 +235,6 @@ class GeneticService():
                     "message": "No genetic data found. To access genetic analysis including SNPs, genotypes, chromosomes, and positions, please upload your genetic information first.",
                     "data": "No genetic data available for the requested variant(s). Please upload your genetic test results from services like 23andMe, AncestryDNA, or medical genetic testing to access personalized genetic insights.",
                     "limit": limit,
-                    "offset": offset,
                     "redirect_to_upload": True,
                 }
 
@@ -296,7 +263,6 @@ class GeneticService():
                     },
                 },
                 "limit": limit,
-                "offset": offset,
             }
             return response_data
 
