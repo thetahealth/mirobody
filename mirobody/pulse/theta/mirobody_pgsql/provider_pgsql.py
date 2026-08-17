@@ -14,7 +14,7 @@ import psycopg
 from mirobody.pulse.base import ProviderInfo
 from mirobody.pulse.core import LinkType, ProviderStatus
 from mirobody.pulse.core.models import ConnectInfoField
-from mirobody.pulse.data_upload.models.requests import FormatDataInput, StandardPulseData
+from mirobody.pulse.ingest.models.requests import FormatDataInput, StandardPulseData
 from mirobody.pulse.theta.platform.base import BaseThetaProvider
 from mirobody.utils.config import safe_read_cfg
 

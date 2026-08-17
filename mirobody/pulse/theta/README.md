@@ -9,7 +9,15 @@ Providers can be located in two places:
 1.  **Custom Providers** (Recommended): Place them in the root `providers/` directory.
 2.  **Core Providers** (Public releases): Located in `mirobody/pulse/theta/`.
 
-Each provider gets its own directory following the naming convention: `mirobody_<slug>`.
+Each provider gets its own directory following the naming convention: `mirobody_<slug>`,
+containing at least one `provider_*.py`. That pair is the whole contract — it is
+literally the glob `load_providers()` scans (`mirobody_*/provider_*.py`). The module
+file name does **not** have to match the directory slug: the shipped Garmin provider
+is `mirobody_garmin_connect/provider_garmin.py`.
+
+The directory slug is also what `installed.py` reads to tell `mirobody vendors` which
+catalogue entries have a real provider behind them, so renaming a directory changes
+that listing.
 
 ### Directory Structure
 ```

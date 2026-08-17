@@ -3,8 +3,9 @@ WebSocket file upload manager
 Supports file upload through WebSocket with real-time progress synchronization
 
 SECTION INDEX (line numbers are approximate):
-    ~27   MemoryUploadFile             — in-memory UploadFile shim
-    ~64   WebSocketFileUploadManager   — main orchestrator class
+    ~50   WebSocketFileUploadManager   — main orchestrator class
+    (MemoryUploadFile lives in .memory_upload_file — shared with the
+     chat-attachment path in services/file_processing_service.py)
     ~82     connect()                  — establish WebSocket connection
     ~120    disconnect()               — clean up connection state
     ~135    send_message()             — send JSON message to client
@@ -18,19 +19,17 @@ SECTION INDEX (line numbers are approximate):
     ~813    _normalize_raw_data()
     ~828    _calculate_progress_allocation()
     ~851    _create_progress_callback()
-    ~887    _prepare_background_files_data()
-    ~907    _start_async_background_tasks()
     ~934    _send_final_completion_status()
     ~1010   _start_embedding_update_task()
     ~1048   _build_return_info_for_failed()
     ~1127 ---- End Helper Methods ----
     ~1129   _build_return_info()       — build response info for completed files
     ~1326   update_progress()          — send progress update to client
-    ~1368   delete_failed_message_record()
     ~1377   handle_upload_end()        — finalize upload session
-    ~1430   handle_ping()              — WebSocket keepalive
     ~1445   get_upload_status()        — query upload status
 """
+
+from __future__ import annotations
 
 import asyncio
 import json
@@ -39,54 +38,23 @@ import uuid
 from datetime import datetime
 from typing import Dict, List
 
-from fastapi import WebSocket
+# `fastapi` lives in the [server] extra, but file parsing is advertised engine
+# functionality — a bare `pip install mirobody` must import this module. Every
+# use below is an annotation, so PEP 563 (the __future__ import) keeps them as
+# strings and the real symbol is only needed by type checkers.
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fastapi import WebSocket
 from mirobody.utils import get_req_ctx
 from mirobody.pulse.file_parser.file_processor import FileProcessor
 
-from mirobody.pulse.file_parser.services.async_file_processor import AsyncFileProcessor
 from mirobody.pulse.file_parser.services.database_services import FileParserDatabaseService
 from mirobody.pulse.file_parser.services.file_db_service import FileDbService
 from mirobody.pulse.file_parser.services.db_utils import get_mime_type
 from mirobody.pulse.file_parser.handlers.genetic import GeneticHandler
-
-from ...chat.user_profile import UserProfileService
-
-
-class MemoryUploadFile:
-    """Mimics FastAPI UploadFile for in-memory content"""
-    def __init__(self, content: bytes, filename: str, content_type: str):
-        self.content = content
-        self.filename = filename
-        self.content_type = content_type
-        self._position = 0
-        self.size = len(content)
-        # Dummy file attribute if accessed directly
-        self.file = self
-
-    async def read(self, size: int = -1):
-        if size == -1:
-            result = self.content[self._position :]
-            self._position = len(self.content)
-        else:
-            end_pos = min(self._position + size, len(self.content))
-            result = self.content[self._position : end_pos]
-            self._position = end_pos
-        return result
-
-    async def seek(self, position: int, whence: int = 0):
-        if whence == 0:
-            self._position = max(0, min(position, len(self.content)))
-        elif whence == 1:
-            self._position = max(0, min(self._position + position, len(self.content)))
-        elif whence == 2:
-            self._position = max(0, min(len(self.content) + position, len(self.content)))
-        return self._position
-    
-    def tell(self):
-        return self._position
-
-    async def close(self):
-        pass
+from ...utils.tasks import spawn
+from .memory_upload_file import MemoryUploadFile
 
 
 class WebSocketFileUploadManager:
@@ -151,10 +119,13 @@ class WebSocketFileUploadManager:
             del self.active_connections[connection_id]
             logging.info(f"🔌 WebSocket file upload connection disconnected - connection_id: {connection_id}")
 
-            # Clean up incomplete upload sessions for this connection
+            # Clean up ALL of this connection's sessions, completed included:
+            # get_upload_status is only reachable over this (now closed) socket,
+            # so a completed session kept here is pure leak — it held the
+            # session dict and its results payload forever.
             sessions_to_remove = []
             for message_id, session in self.upload_sessions.items():
-                if session.get("connection_id") == connection_id and session.get("status") != "completed":
+                if session.get("connection_id") == connection_id:
                     sessions_to_remove.append(message_id)
 
             for message_id in sessions_to_remove:
@@ -494,7 +465,7 @@ class WebSocketFileUploadManager:
             logging.info(f"Starting file processing flow, genetic files: {has_genetic_files}")
 
             # Process files asynchronously - pass connection_id for WebSocket, real_user_id for business logic
-            asyncio.create_task(self.process_files_async(connection_id, message_id, uploaded_files, query, query_user_id, has_genetic_files, real_user_id))
+            spawn(self.process_files_async(connection_id, message_id, uploaded_files, query, query_user_id, has_genetic_files, real_user_id))
 
         except Exception as e:
             logging.error(f"Failed to start file processing: {e}", stack_info=True)
@@ -617,9 +588,10 @@ class WebSocketFileUploadManager:
 
             logging.info(f"Processing result statistics: {successful_files}/{total_files} files successful")
 
-            # Start background tasks for file abstract generation
-            files_data_for_background = self._prepare_background_files_data(uploaded_files, results)
-            await self._start_async_background_tasks(files_data_for_background, message_id)
+            # Abstract generation for files the handler didn't cover happens
+            # synchronously in _build_return_info's fallback; the result is
+            # persisted by _save_files_to_database. The old background
+            # re-generation pass duplicated exactly that work.
 
             if successful_files == 0:
                 # Build complete return info even for failed files
@@ -912,53 +884,6 @@ class WebSocketFileUploadManager:
 
         return file_progress_callback
 
-    def _prepare_background_files_data(
-        self,
-        uploaded_files: List[Dict],
-        results: List[Dict],
-    ) -> List[Dict]:
-        """
-        Prepare files data for background processing tasks.
-        Only includes successfully processed files.
-        """
-        files_data = []
-        for i, file_data in enumerate(uploaded_files):
-            if i < len(results) and results[i].get("success", False):
-                files_data.append({
-                    "content": file_data.get("content", b""),
-                    "filename": file_data.get("filename", ""),
-                    "content_type": file_data.get("content_type", ""),
-                    "s3_key": results[i].get("s3_key", results[i].get("file_key", "")),
-                })
-        return files_data
-
-    async def _start_async_background_tasks(
-        self,
-        files_data: List[Dict],
-        message_id: str,
-    ):
-        """
-        Start background tasks for file abstract generation.
-        These tasks run independently and won't affect the main processing flow.
-        """
-        if not files_data:
-            logging.warning(f"⚠️ [Background Tasks] No valid files data for background processing: message_id={message_id}")
-            return
-
-        try:
-            language = get_req_ctx("language", "en")
-
-            logging.info(f"🚀 [Background Tasks] Starting abstract generation task: message_id={message_id}, file_count={len(files_data)}")
-            asyncio.create_task(
-                AsyncFileProcessor.generate_file_abstracts_async(
-                    files_data=files_data,
-                    message_id=message_id,
-                    language=language,
-                )
-            )
-        except Exception as bg_error:
-            logging.error(f"❌ [Background Tasks] Failed to start background tasks: message_id={message_id}, error={str(bg_error)}", stack_info=True)
-
     async def _send_final_completion_status(
         self,
         user_id: str,
@@ -1035,6 +960,14 @@ class WebSocketFileUploadManager:
                 },
             )
 
+        # Release the buffered raw file bytes. Nothing reads them after this
+        # point (the abstract fallback in _build_return_info already ran), and
+        # without this every successful upload kept its full content resident
+        # in upload_sessions for the life of the process — disconnect() only
+        # evicts sessions that are NOT completed.
+        for f in session.get("uploaded_files", []):
+            f["content"] = None
+
     async def _start_embedding_update_task(
         self,
         user_id: str,
@@ -1053,7 +986,16 @@ class WebSocketFileUploadManager:
                     # Dim sync + embedding backfill is now handled automatically by
                     # FileParserDatabaseService.save_indicators_to_db(), no need to call here.
 
-                    # Start user profile creation
+                    # Start user profile creation. Lazy import — this is
+                    # documented seam #4 (see pyproject ignore_imports): the
+                    # profile GENERATOR lives agent-side because it calls the
+                    # LLM. Importing it at module scope would make
+                    # `import mirobody.pulse.file_parser` require langchain on
+                    # a bare engine install; function scope defers that cost
+                    # to the moment a profile is actually (re)built, exactly
+                    # like task/profile_refresh does.
+                    from ...agent.chat.user_profile import UserProfileService
+
                     owner_user_id = query_user_id if query_user_id else user_id
                     await UserProfileService.create_user_profile(owner_user_id)
 
@@ -1061,7 +1003,7 @@ class WebSocketFileUploadManager:
                 except Exception as e:
                     logging.error(f"Embedding update background task failed: {e}", stack_info=True)
 
-            asyncio.create_task(update_embedding_task())
+            spawn(update_embedding_task())
 
             logging.info(f"Embedding update background task started: user_id={user_id}, message_id={message_id}")
         except Exception as e:
@@ -1270,6 +1212,13 @@ class WebSocketFileUploadManager:
                         "original_text": result.get("original_text", ""),
                         "text_length": result.get("text_length", 0),
                         "content_hash": result.get("content_hash", ""),
+                        # Handlers that extract indicators synchronously
+                        # (csv/genetic overrides) return them here; without
+                        # these keys _save_files_to_database always inserted
+                        # indicators: [] on this path while the chat-attachment
+                        # path persisted them.
+                        "indicators": result.get("indicators", []),
+                        "indicators_count": result.get("indicators_count", len(result.get("indicators", []) or [])),
                         "success": True,
                     }
                     files_array.append(file_entry)
@@ -1387,15 +1336,6 @@ class WebSocketFileUploadManager:
         except Exception as e:
             logging.error(f"Failed to update progress: {e}", stack_info=True)
 
-    async def delete_failed_message_record(self, message_id: str):
-        """
-        [DEPRECATED] Delete failed message records from th_messages.
-        
-        This method is no longer needed as file records are stored in th_files table.
-        Use FileDbService.soft_delete_by_source_id() to delete files by source_id.
-        """
-        logging.warning(f"[DEPRECATED] delete_failed_message_record called for message_id={message_id}. This method is no longer needed.")
-
     async def handle_upload_end(self, connection_id: str, message_data: Dict):
         """Handle file upload end"""
         try:
@@ -1447,21 +1387,6 @@ class WebSocketFileUploadManager:
                     "message": f"Failed to handle upload end: {str(e)}",
                 },
             )
-            return False
-
-    async def handle_ping(self, connection_id: str, message_data: Dict):
-        """Handle ping messages (Note: ping is now handled directly in router, this is for backward compatibility)"""
-        try:
-            await self.send_message(
-                connection_id,
-                {
-                    "type": "pong",
-                    "timestamp": datetime.now().isoformat(),
-                },
-            )
-            return True
-        except Exception as e:
-            logging.error(f"Failed to handle ping message: {e}")
             return False
 
     async def get_upload_status(self, connection_id: str, message_id: str) -> Dict:

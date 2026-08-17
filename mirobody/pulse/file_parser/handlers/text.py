@@ -3,7 +3,6 @@ from mirobody.utils.i18n import t
 from mirobody.pulse.file_parser.handlers.base import BaseFileHandler, FileProcessingContext
 import uuid
 import hashlib
-import logging
 
 class TextHandler(BaseFileHandler):
     def get_type_name(self) -> str:
@@ -28,53 +27,34 @@ class TextHandler(BaseFileHandler):
         # Extract text content
         raw_text = await self.content_extractor.extract_from_text_file(temp_file_path)
 
-        if ctx.progress_callback:
-             await ctx.progress_callback(85, t("saving_text_results", language, "file_processor"))
+        # For text files the raw decode IS the original text. The
+        # th_file_contents read/write that used to sit here saved a free decode
+        # and was the third hand-copied version of the cache SQL — dedup for
+        # expensive extraction lives in FileAbstractExtractor now.
+        original_text = raw_text
 
-        # Save to database
-        record_id = await self.db_service.save_raw_text_to_db(ctx.target_user_id, "text", raw_text)
-
-        # Extract original text using unified method (with th_file_contents cache)
-        original_text = raw_text  # For text files, raw content is the original text
-        try:
-            from mirobody.utils.db import execute_query
-            
-            # Check th_file_contents cache first
-            rows = await execute_query(
-                "SELECT decrypt_content(original_text) as original_text FROM th_file_contents WHERE content_hash = :hash LIMIT 1",
-                params={"hash": content_hash},
+        # Generate the abstract from the text we just extracted, like the
+        # pdf/image/excel handlers do. Without a file_abstract in this dict,
+        # process() falls through to _extract_abstract(), which re-decodes the
+        # same bytes into a temp file for a second, redundant LLM round-trip.
+        file_abstract = ""
+        file_name = ctx.filename
+        if original_text and original_text.strip():
+            file_abstract, file_name = await self._extract_abstract_from_text(
+                original_text=original_text,
+                filename=ctx.filename,
+                language=language,
             )
-
-            if rows and len(rows) > 0 and rows[0].get("original_text"):
-                original_text = rows[0]["original_text"]
-                logging.info(f"✅ Text file reused cached original text: hash={content_hash[:16]}..., length={len(original_text)}")
-            elif original_text:
-                # Save to th_file_contents for future deduplication
-                await execute_query(
-                    """
-                    INSERT INTO th_file_contents (content_hash, original_text, text_length, file_type)
-                    VALUES (:hash, encrypt_content(:text), :length, :file_type)
-                    ON CONFLICT (content_hash) DO NOTHING
-                    """,
-                    params={
-                        "hash": content_hash,
-                        "text": original_text,
-                        "length": len(original_text),
-                        "file_type": "text",
-                    },
-                )
-                logging.info(f"✅ Text file original text saved to cache: hash={content_hash[:16]}..., length={len(original_text)}")
-        except Exception as e:
-            logging.warning(f"⚠️ Failed to cache text file original text: {e}")
 
         if ctx.progress_callback:
             await ctx.progress_callback(90, t("text_processing_success", language, "file_processor"))
-            
+
         return {
             "raw": raw_text,
-            "record_id": record_id,
             "original_text": original_text,
             "text_length": len(original_text) if original_text else 0,
             "content_hash": content_hash,
+            "file_abstract": file_abstract,
+            "file_name": file_name,
         }
 

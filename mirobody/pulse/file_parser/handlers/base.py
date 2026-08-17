@@ -1,12 +1,21 @@
+from __future__ import annotations
+
 import abc
 import asyncio
+import hashlib
 import logging
 import uuid
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Set
 
-from fastapi import UploadFile
+# `fastapi` lives in the [server] extra, but file parsing is advertised engine
+# functionality — a bare `pip install mirobody` must import this module. Every
+# use below is an annotation, so PEP 563 (the __future__ import) keeps them as
+# strings and the real symbol is only needed by type checkers.
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from fastapi import UploadFile
 from mirobody.utils.i18n import t
 from mirobody.utils.req_ctx import get_req_ctx
 
@@ -44,14 +53,12 @@ class BaseFileHandler(abc.ABC):
         uploader=None, 
         temp_manager=None, 
         content_extractor=None, 
-        db_service=None, 
         indicator_extractor=None,
         abstract_extractor=None
     ):
         self.uploader = uploader
         self.temp_manager = temp_manager
         self.content_extractor = content_extractor
-        self.db_service = db_service
         self.indicator_extractor = indicator_extractor
         self.abstract_extractor = abstract_extractor
         # Strong references to background tasks to prevent GC before completion
@@ -150,100 +157,41 @@ class BaseFileHandler(abc.ABC):
         temp_file_path, _ = await self.temp_manager.save_upload_file_to_temp(ctx.file)
         return str(temp_file_path) if temp_file_path else None
 
-    async def _extract_and_save_original_text(
+    async def _extract_original_text(
         self,
         ctx: FileProcessingContext,
-        temp_file_path: str,
         file_type: str,
     ) -> tuple[Optional[str], Optional[str]]:
         """
-        Extract original text from file with SHA256-based deduplication.
-        
-        Flow:
-        1. Read file content and calculate SHA256 hash
-        2. Check if hash exists in th_file_contents table
-        3. If exists: return cached original_text (skip LLM extraction)
-        4. If not: extract using LLM, save to th_file_contents, return text
-        
-        Args:
-            ctx: File processing context
-            temp_file_path: Path to temporary file
-            file_type: File type ('pdf' or 'image')
-            
+        Read the upload's bytes and extract original text.
+
+        SHA256 dedup against ``th_file_contents`` lives inside
+        ``FileAbstractExtractor.extract_file_original_text`` (one cache for
+        every extraction consumer, not a per-handler copy). The hash is still
+        computed here because callers persist it on the ``th_files`` row.
+
         Returns:
-            Tuple of (original_text, content_hash), or (None, None) if extraction failed
+            Tuple of (original_text, content_hash), or (None, None) on empty
+            content / extraction failure.
         """
-        import hashlib
-        
         try:
-            # Read file content
             await ctx.file.seek(0)
             file_content = await ctx.file.read()
-            
+
             if not file_content:
                 logging.warning(f"[BaseFileHandler] Empty file content: {ctx.filename}")
                 return None, None
-            
-            # Calculate SHA256 hash
+
             content_hash = hashlib.sha256(file_content).hexdigest()
-            
-            # Check th_file_contents for existing entry (direct SQL to avoid holywell dependency)
-            try:
-                from mirobody.utils.db import execute_query
-                
-                rows = await execute_query(
-                    "SELECT decrypt_content(original_text) as original_text FROM th_file_contents WHERE content_hash = :hash LIMIT 1",
-                    params={"hash": content_hash},
-                )
-                
-                if rows and len(rows) > 0 and rows[0].get("original_text"):
-                    cached_text = rows[0]["original_text"]
-                    logging.info(
-                        f"[BaseFileHandler] Reused cached original text: "
-                        f"hash={content_hash[:16]}..., length={len(cached_text)}"
-                    )
-                    return cached_text, content_hash
-            except Exception as e:
-                logging.warning(f"[BaseFileHandler] Failed to check file_contents cache: {e}")
-                # Continue with extraction even if cache check fails
-            
-            # Extract original text using LLM
+
             original_text = await self.abstract_extractor.extract_file_original_text(
                 file_content=file_content,
                 file_type=file_type,
                 filename=ctx.filename,
                 content_type=ctx.content_type,
             )
-            
-            # Save to th_file_contents for future deduplication (direct SQL)
-            if original_text:
-                try:
-                    from mirobody.utils.db import execute_query
-                    
-                    # Use INSERT ... ON CONFLICT to handle race conditions
-                    await execute_query(
-                        """
-                        INSERT INTO th_file_contents (content_hash, original_text, text_length, file_type)
-                        VALUES (:hash, encrypt_content(:text), :length, :file_type)
-                        ON CONFLICT (content_hash) DO NOTHING
-                        """,
-                        params={
-                            "hash": content_hash,
-                            "text": original_text,
-                            "length": len(original_text),
-                            "file_type": file_type,
-                        },
-                    )
-                    logging.info(
-                        f"[BaseFileHandler] Extracted and saved original text: "
-                        f"hash={content_hash[:16]}..., length={len(original_text)}"
-                    )
-                except Exception as e:
-                    logging.warning(f"[BaseFileHandler] Failed to save to file_contents: {e}")
-                    # Continue even if save fails - we still have the text
-            
             return original_text, content_hash
-            
+
         except Exception as e:
             logging.error(
                 f"[BaseFileHandler] Failed to extract original text for {ctx.filename}: {e}",

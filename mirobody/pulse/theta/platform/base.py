@@ -12,7 +12,7 @@ from mirobody.pulse.base import Provider
 from mirobody.pulse.core import LinkType
 from mirobody.pulse.core.push_service import push_service
 from mirobody.pulse.core.user import ThetaUserService
-from mirobody.pulse.data_upload.models.requests import (
+from mirobody.pulse.ingest.models.requests import (
     FormatDataContext,
     FormatDataInput,
     StandardPulseData,

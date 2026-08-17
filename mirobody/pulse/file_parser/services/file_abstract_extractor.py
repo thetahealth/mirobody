@@ -4,15 +4,17 @@ Extracts file summaries for different file types, with special handling for PDF 
 """
 
 import asyncio
+import hashlib
 import os
 import tempfile
 import logging
 import json
-from typing import Dict
+from typing import Dict, Optional
 
 import pdfplumber
 from PIL import Image
 from mirobody.utils.llm import unified_file_extract
+from mirobody.utils.file_types import is_excel_file, is_text_file
 from mirobody.pulse.file_parser.services.prompts.file_abstract_prompt import FILE_ABSTRACT_PROMPT, FALLBACK_ABSTRACT_TEMPLATES
 from mirobody.pulse.file_parser.services.prompts.file_original_text_prompt import FILE_ORIGINAL_TEXT_PROMPT
 
@@ -21,6 +23,56 @@ from mirobody.pulse.file_parser.services.prompts.file_original_text_prompt impor
 # born-digital extraction (Tier 1) instead of falling back to Vision-LLM OCR.
 # Scanned/image-only PDFs yield ~0 chars here.
 _PDF_TEXT_LAYER_MIN_CHARS = 100
+
+
+async def _read_original_text_cache(content_hash: str) -> Optional[str]:
+    """``th_file_contents`` dedup read: SHA256 of the raw bytes -> extracted text.
+
+    This is THE cache for original-text extraction. It used to be three
+    separate per-caller copies (pulse pdf/image/excel handlers, the text
+    handler, and the DeepAgent workspace parser — the last one querying a
+    different table, so it missed pulse hits and never wrote back); sinking it
+    here gives every ``extract_file_original_text`` caller the same dedup.
+
+    ``GLOBAL_FILE_CACHE_ENABLED: false`` skips reads (forces fresh extraction)
+    while results are still written back. Deferred imports + broad except:
+    extraction must keep working on installs without a database.
+    """
+    try:
+        from mirobody.utils.config import safe_read_cfg
+        if str(safe_read_cfg("GLOBAL_FILE_CACHE_ENABLED", "true")).strip().lower() in ("false", "0", "no"):
+            return None
+        from mirobody.utils.db import execute_query
+        rows = await execute_query(
+            "SELECT decrypt_content(original_text) AS original_text FROM th_file_contents WHERE content_hash = :hash LIMIT 1",
+            params={"hash": content_hash},
+        )
+        text = rows[0].get("original_text") if rows else None
+        return text if text and text.strip() else None
+    except Exception as e:
+        logging.warning(f"original-text cache read failed (hash={content_hash[:16]}...): {e}")
+        return None
+
+
+async def _write_original_text_cache(content_hash: str, text: str, file_type: str) -> None:
+    """Best-effort write-back to ``th_file_contents``; never raises."""
+    try:
+        from mirobody.utils.db import execute_query
+        await execute_query(
+            """
+            INSERT INTO th_file_contents (content_hash, original_text, text_length, file_type)
+            VALUES (:hash, encrypt_content(:text), :length, :file_type)
+            ON CONFLICT (content_hash) DO NOTHING
+            """,
+            params={
+                "hash": content_hash,
+                "text": text,
+                "length": len(text),
+                "file_type": file_type,
+            },
+        )
+    except Exception as e:
+        logging.warning(f"original-text cache write failed (hash={content_hash[:16]}...): {e}")
 
 
 class FileAbstractExtractor:
@@ -100,8 +152,6 @@ class FileAbstractExtractor:
                   (content_type and ("spreadsheet" in content_type or "excel" in content_type or
                    content_type in ["application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]))):
                 return await self._extract_excel_abstract(file_content, filename)
-            elif file_type == "genetic":
-                return await self._extract_genetic_abstract(file_content, filename)
             else:
                 return await self._extract_generic_abstract(file_content, filename, file_type)
                 
@@ -336,95 +386,6 @@ class FileAbstractExtractor:
         except Exception as e:
             logging.error(f"Excel abstract extraction failed: {filename}, {e}")
             return {"file_name": "", "file_abstract": f"Excel file: {filename} - Spreadsheet uploaded, analyzing content in background"}
-    
-    async def _extract_genetic_abstract(self, file_content: bytes, filename: str) -> Dict[str, str]:
-        """
-        Extract abstract from genetic data files (no filename generation)
-        Only processes first few lines to avoid performance issues with large files
-        
-        Args:
-            file_content: Genetic file binary content
-            filename: Original filename
-            
-        Returns:
-            Dict[str, str]: Dictionary with empty file_name and file_abstract
-        """
-        try:
-            # Decode only the first part of the file (first 2000 characters)
-            content_str = file_content[:2000].decode('utf-8', errors='ignore')
-            
-            # Split into lines and take first 20 lines for analysis
-            lines = content_str.split('\n')[:20]  # First 20 lines should be enough
-            
-            # Count total file size for display
-            total_size = len(file_content)
-            
-            # Analyze the header to extract basic information
-            file_info = []
-            data_lines_count = 0
-            
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                    
-                # Look for WeGene header information
-                if line.startswith("# This data file generated by WeGene"):
-                    file_info.append("WeGene genetic data")
-                elif line.startswith("# Batch"):
-                    batch_info = line.replace("# Batch: ", "")
-                    file_info.append(f"Batch: {batch_info}")
-                elif line.startswith("# Generated"):
-                    date_info = line.replace("# Generated at ", "")
-                    file_info.append(f"Generated: {date_info}")
-                elif not line.startswith("#") and "\t" in line:
-                    # This looks like actual genetic data
-                    data_lines_count += 1
-            
-            # Create abstract based on extracted information
-            if file_info:
-                info_str = ", ".join(file_info[:2])  # First 2 pieces of info to keep it concise
-                if data_lines_count > 0:
-                    abstract = f"Genetic data file: {filename} - {info_str}, contains {data_lines_count}+ genetic variants ({self._format_file_size(total_size)})"
-                else:
-                    abstract = f"Genetic data file: {filename} - {info_str} ({self._format_file_size(total_size)})"
-            else:
-                # Fallback if no header info found
-                abstract = f"Genetic data file: {filename} - Contains genetic test data ({self._format_file_size(total_size)})"
-            
-            # Try to use LLM for better analysis if we have some content
-            if len(lines) > 5 and total_size < 50 * 1024 * 1024:
-                try:
-                    sample_content = '\n'.join(lines)
-                    with tempfile.NamedTemporaryFile(mode='w', suffix=".txt", delete=False, encoding='utf-8') as temp_file:
-                        temp_file.write(sample_content)
-                        temp_file_path = temp_file.name
-                    
-                    try:
-                        result = await self._generate_llm_abstract_with_file(
-                            temp_file_path=temp_file_path, content_type="text/plain",
-                            context=f"Genetic data file: {filename} (first 20 lines sample)",
-                            file_extension="", generate_filename=False
-                        )
-                        llm_abstract = result.get("file_abstract", "")
-                        if llm_abstract and len(llm_abstract.strip()) > 30:
-                            abstract = llm_abstract
-                    finally:
-                        try:
-                            os.unlink(temp_file_path)
-                        except Exception:
-                            pass
-                except Exception:
-                    pass  # Continue with basic abstract
-            
-            return {
-                "file_name": "",  # Genetic files don't get generated filename
-                "file_abstract": self._truncate_abstract(abstract)
-            }
-                    
-        except Exception as e:
-            logging.error(f"Genetic file abstract extraction failed: {e}", stack_info=True)
-            return self._create_fallback_abstract(filename, "genetic")
     
     async def _extract_generic_abstract(self, file_content: bytes, filename: str, file_type: str) -> Dict[str, str]:
         """
@@ -702,26 +663,39 @@ Please return strictly in JSON format, do not include any markdown code block ma
         """
         try:
             logging.info(f"📄 [Original Text] Starting original text extraction: {filename}, file_type: {file_type}, content_type: {content_type}")
-            
+
+            # Dedup on the raw bytes before any extraction work — the expensive
+            # paths below are Vision-LLM calls.
+            content_hash = hashlib.sha256(file_content).hexdigest() if file_content else ""
+            if content_hash:
+                cached = await _read_original_text_cache(content_hash)
+                if cached:
+                    logging.info(f"🎯 [Original Text] Cache hit: {filename} (hash={content_hash[:16]}..., {len(cached)} chars)")
+                    return cached
+
             # Determine file type from content_type or filename extension
             is_pdf = file_type == "pdf" or (content_type and content_type == "application/pdf")
             is_image = file_type == "image" or (content_type and content_type.startswith("image/"))
-            is_excel = self._is_excel_file(filename, content_type)
-            is_text = self._is_text_file(filename, content_type)
-            
+            is_excel = is_excel_file(filename, content_type)
+            is_text = is_text_file(filename, content_type)
+
             if is_pdf:
-                return await self._extract_pdf_original_text(file_content, filename)
+                text = await self._extract_pdf_original_text(file_content, filename)
             elif is_image:
-                return await self._extract_image_original_text(file_content, filename)
+                text = await self._extract_image_original_text(file_content, filename)
             elif is_excel:
-                return await self._extract_excel_original_text(file_content, filename)
+                text = await self._extract_excel_original_text(file_content, filename)
             elif is_text:
-                return await self._extract_text_original_text(file_content, filename)
+                text = await self._extract_text_original_text(file_content, filename)
             else:
                 # For other file types, return empty string
                 logging.info(f"📄 [Original Text] Skipping original text extraction for unsupported file: {filename}, type: {file_type}")
                 return ""
-                
+
+            if text and content_hash:
+                await _write_original_text_cache(content_hash, text, file_type)
+            return text
+
         except Exception as e:
             logging.error(f"❌ [Original Text] Original text extraction failed for {filename}: {e}", stack_info=True)
             return ""
@@ -871,47 +845,6 @@ Please return strictly in JSON format, do not include any markdown code block ma
         except Exception as e:
             logging.error(f"❌ [Original Text] Image original text extraction failed: {filename}, error: {e}", stack_info=True)
             return ""
-
-    def _is_excel_file(self, filename: str, content_type: str = None) -> bool:
-        """Check if file is an Excel file"""
-        if not filename:
-            return False
-        
-        excel_extensions = [".xlsx", ".xls", ".xlsm", ".xlsb"]
-        filename_lower = filename.lower()
-        has_excel_extension = any(filename_lower.endswith(ext) for ext in excel_extensions)
-        
-        excel_mime_types = [
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "application/vnd.ms-excel",
-            "application/vnd.ms-excel.sheet.macroEnabled.12",
-            "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
-        ]
-        has_excel_mime = content_type in excel_mime_types if content_type else False
-        
-        return has_excel_extension or has_excel_mime
-
-    def _is_text_file(self, filename: str, content_type: str = None) -> bool:
-        """Check if file is a text file"""
-        if not filename:
-            return False
-        
-        text_extensions = [".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm", ".log"]
-        filename_lower = filename.lower()
-        has_text_extension = any(filename_lower.endswith(ext) for ext in text_extensions)
-        
-        text_mime_types = [
-            "text/plain",
-            "text/markdown",
-            "text/csv",
-            "application/json",
-            "text/xml",
-            "application/xml",
-            "text/html",
-        ]
-        has_text_mime = content_type in text_mime_types if content_type else False
-        
-        return has_text_extension or has_text_mime
 
     async def _extract_excel_original_text(self, file_content: bytes, filename: str) -> str:
         """

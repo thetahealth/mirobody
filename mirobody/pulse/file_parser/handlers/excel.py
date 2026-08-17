@@ -3,6 +3,7 @@ from typing import Any, Dict
 
 from mirobody.pulse.file_parser.handlers.base import BaseFileHandler, FileProcessingContext
 from mirobody.utils.i18n import t
+from mirobody.utils.file_types import is_excel_file
 
 
 class ExcelHandler(BaseFileHandler):
@@ -30,22 +31,9 @@ class ExcelHandler(BaseFileHandler):
     def get_type_name(self) -> str:
         return "excel"
 
-    @staticmethod
-    def is_excel_file(filename: str, content_type: str) -> bool:
-        if not filename:
-            return False
-        excel_extensions = [".xlsx", ".xls", ".xlsm", ".xlsb"]
-        filename_lower = filename.lower()
-        has_excel_extension = any(filename_lower.endswith(ext) for ext in excel_extensions)
-
-        excel_mime_types = [
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "application/vnd.ms-excel",
-            "application/vnd.ms-excel.sheet.macroEnabled.12",
-            "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
-        ]
-        has_excel_mime = content_type in excel_mime_types
-        return has_excel_extension or has_excel_mime
+    # Routing table lives in utils.file_types so the handler that accepts a
+    # spreadsheet and the extractor that parses it can never disagree.
+    is_excel_file = staticmethod(is_excel_file)
 
     async def _process_content(
         self,
@@ -93,10 +81,9 @@ class ExcelHandler(BaseFileHandler):
         if ctx.progress_callback:
             await ctx.progress_callback(55, t("extracting_text_content", language, "file_processor"))
 
-        # Built-in extraction: workbook -> text, with SHA256 dedup cache.
-        original_text, content_hash = await self._extract_and_save_original_text(
+        # Built-in extraction: workbook -> text (SHA256 dedup inside the extractor).
+        original_text, content_hash = await self._extract_original_text(
             ctx=ctx,
-            temp_file_path=temp_file_path,
             file_type="excel",
         )
 

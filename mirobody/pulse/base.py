@@ -13,7 +13,7 @@ from .core import (
     ProviderInfo,
     UserProvider,
 )
-from .data_upload.models.requests import StandardPulseData
+from .ingest.models.requests import StandardPulseData
 
 # Create AuthType alias for API compatibility
 AuthType = LinkType

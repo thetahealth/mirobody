@@ -21,21 +21,46 @@ Provider loading:
     adding/removing its directory.
 """
 
-# Export platform classes for external use
-from .platform.platform import ThetaPlatform
-from .platform.base import BaseThetaProvider
+# Lazy (PEP 562), matching `mirobody/pulse/__init__.py` and
+# `mirobody/agent/__init__.py`. Importing ThetaPlatform eagerly pulls in
+# fastapi, sqlalchemy, psycopg, redis and aiohttp — so `from
+# mirobody.pulse.theta.installed import installed_vendor_ids`, a filesystem
+# scan with no imports of its own, was loading the entire server stack just by
+# touching this package. `mirobody vendors` runs offline; it should not pay for
+# a database driver to read a directory listing.
+from typing import TYPE_CHECKING
 
-# Export utility modules
-from .platform import database_service, utils, pull_task, startup
+_EXPORTS = {
+    "ThetaPlatform"     : "platform.platform",
+    "BaseThetaProvider" : "platform.base",
+    # These four are submodules, not attributes — imported by path below.
+    "database_service"  : "platform.database_service",
+    "normalize"         : "platform.normalize",
+    "pull_task"         : "platform.pull_task",
+    "startup"           : "platform.startup",
+    "installed_provider_slugs": "installed",
+    "installed_vendor_ids"    : "installed",
+}
+__all__ = [*_EXPORTS]
 
-__all__ = [
-    # Main classes
-    "ThetaPlatform",
-    "BaseThetaProvider",
-    # Utility modules
-    "database_service",
-    "utils",
-    "pull_task",
-    "startup",
-]
+if TYPE_CHECKING:  # static analyzers resolve the real symbols
+    from .installed import installed_provider_slugs, installed_vendor_ids
+    from .platform import database_service, normalize, pull_task, startup
+    from .platform.base import BaseThetaProvider
+    from .platform.platform import ThetaPlatform
+
+
+def __getattr__(name: str):
+    import importlib
+
+    where = _EXPORTS.get(name)
+    if where is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    module = importlib.import_module(f".{where}", __name__)
+    # `where` names either the module that defines `name`, or — for the four
+    # utility submodules re-exported wholesale — the submodule itself.
+    value = module if where.rsplit(".", 1)[-1] == name else getattr(module, name)
+    globals()[name] = value
+    return value
 

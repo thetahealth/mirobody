@@ -72,7 +72,9 @@
         "userId": "test_user_005",
         "source": "theta",
         "timezone": "Asia/Shanghai",
-        "taskId": null
+        "taskId": null,
+        "windowFrom": null,
+        "windowTo": null
       },
       "healthData": [
         {

@@ -168,7 +168,9 @@
         "userId": "test_user_001",
         "source": "apple_health",
         "timezone": "America/Los_Angeles",
-        "taskId": "test_task_003"
+        "taskId": "test_task_003",
+        "windowFrom": null,
+        "windowTo": null
       },
       "healthData": [
         {

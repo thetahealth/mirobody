@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from mirobody.pulse.core import LinkType
 from mirobody.utils import execute_query
-from mirobody.utils.utils_encrypt import decrypt_string_aes_gcm, encrypt_string_aes_gcm
+from mirobody.utils.crypto import decrypt_string_aes_gcm, encrypt_string_aes_gcm
 
 
 class ThetaDatabaseService:

@@ -15,9 +15,10 @@ from ..core import (
     UserProvider,
     ProviderStatus
 )
-from ..core.aggregate_indicator.service import AggregateIndicatorService
+from ..aggregate.service import AggregateIndicatorService
 from ..core.distributed_lock import pull_task_lock_manager
-from ..data_upload.services import VitalHealthService
+from ..ingest.services import VitalHealthService
+from ...utils.tasks import spawn
 
 
 class AppleHealthPlatform(Platform):
@@ -110,7 +111,7 @@ class AppleHealthPlatform(Platform):
                 # scheduled AggregateIndicatorTask. Errors are swallowed in the
                 # background task; the scheduled task is the safety net.
                 if success:
-                    asyncio.create_task(self._trigger_aggregation_after_ingest(user_id))
+                    spawn(self._trigger_aggregation_after_ingest(user_id))
 
                 return success
 
@@ -130,20 +131,10 @@ class AppleHealthPlatform(Platform):
         concurrent ingest bursts. Any failure here is logged and swallowed —
         AggregateIndicatorTask (every 4 min) will catch up.
         """
-        # --- DEBOUNCE (DISABLED) -----------------------------------------------
-        # Re-enable when concurrent uploads from many users cause the
-        # distributed lock to back up. Keying by 'all' because we currently
-        # run a global incremental; switch the key to user_id if this method
-        # is later changed to per-user aggregation.
-        #
-        # from ..utils.utils_redis import redis_client
-        # debounce_key = "agg:debounce:apple_health:all"
-        # if redis_client is not None:
-        #     acquired = await redis_client.set(debounce_key, "1", ex=5, nx=True)
-        #     if not acquired:
-        #         logging.info("[AppleHealth] Post-ingest aggregation debounced")
-        #         return
-        # -----------------------------------------------------------------------
+        # Not debounced. If concurrent uploads from many users ever back the
+        # distributed lock up, a short Redis SET NX here would coalesce them —
+        # keyed globally, since this runs a global incremental, or by user_id
+        # if it ever becomes per-user.
 
         try:
             service = AggregateIndicatorService()

@@ -14,20 +14,22 @@ from mirobody.pulse.theta.platform.platform import ThetaPlatform
 from ..utils.config import global_config
 
 
-async def setup_platform_system_async(config_file_path=None, providers: Optional[List[BaseThetaProvider]] = None):
+async def setup_platform_system_async(providers: Optional[List[BaseThetaProvider]] = None):
     """
     Asynchronously initialize Platform system
 
     Register all Platforms and Providers (async version)
     
     Args:
-        config_file_path: Path to configuration file (optional)
         providers: List of additional ThetaProvider instances to register (optional)
     """
     logging.info("Starting platform system setup...")
 
     # 1. Create and register Platforms
-    cfg = global_config(config_file_path)
+    # Config.init() has already run by this point (server startup); this is
+    # the accessor, not a loader. It previously took `config_file_path` and
+    # silently dropped it.
+    cfg = global_config()
     
     theta_platform = ThetaPlatform(cfg)
     apple_platform = AppleHealthPlatform()
@@ -54,7 +56,7 @@ async def setup_platform_system_async(config_file_path=None, providers: Optional
             continue
 
     # 6. Initialize FHIR mapping (optional, config-driven)
-    from .core.fhir_mapping import FhirMapping
+    from .standardize.fhir_mapping import FhirMapping
     fhir_mapping = await FhirMapping.initialize()
     if fhir_mapping:
         logging.info(f"  - FHIR mapping initialized")

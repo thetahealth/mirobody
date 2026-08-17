@@ -17,9 +17,9 @@ import aiohttp
 
 from mirobody.pulse.base import ProviderInfo
 from mirobody.pulse.core import LinkType, ProviderStatus
-from mirobody.pulse.core.indicators_info import StandardIndicator
+from mirobody.pulse.standardize.indicators_info import StandardIndicator
 from mirobody.pulse.core.push_service import push_service
-from mirobody.pulse.data_upload.models.requests import (
+from mirobody.pulse.ingest.models.requests import (
     FormatDataInput,
     StandardPulseData,
     StandardPulseMetaInfo,
@@ -27,9 +27,10 @@ from mirobody.pulse.data_upload.models.requests import (
 )
 from mirobody.pulse.theta.platform.base import BaseThetaProvider
 from mirobody.pulse.theta.platform.oauth2 import ThetaOAuth2Client
-from mirobody.pulse.theta.platform.utils import ThetaDataFormatter, ThetaTimeUtils
+from mirobody.pulse.theta.platform.normalize import ThetaDataFormatter, ThetaTimeUtils
 from mirobody.utils import execute_query
 from mirobody.utils.config import safe_read_cfg
+from ....utils.tasks import spawn
 
 
 class ThetaOuraProvider(BaseThetaProvider):
@@ -209,7 +210,7 @@ class ThetaOuraProvider(BaseThetaProvider):
         )
 
         # Trigger initial data pull (backfill) asynchronously
-        asyncio.create_task(self._pull_and_push_for_user({
+        spawn(self._pull_and_push_for_user({
             "user_id": result["user_id"],
             "access_token": result["access_token"],
             "refresh_token": result["refresh_token"],

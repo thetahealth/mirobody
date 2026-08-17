@@ -2,6 +2,8 @@
 File processing service for async file operations
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import mimetypes
@@ -12,10 +14,18 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import UploadFile
+# `fastapi` lives in the [server] extra, but file parsing is advertised engine
+# functionality — a bare `pip install mirobody` must import this module. Every
+# use below is an annotation, so PEP 563 (the __future__ import) keeps them as
+# strings and the real symbol is only needed by type checkers.
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fastapi import UploadFile
 from pydantic import BaseModel
 
 from mirobody.pulse.file_parser.file_processor import FileProcessor
+from mirobody.pulse.file_parser.memory_upload_file import MemoryUploadFile
 from mirobody.pulse.file_parser.services.database_services import FileParserDatabaseService
 from mirobody.pulse.file_parser.services.db_utils import safe_json_loads
 from mirobody.pulse.file_parser.services.file_uploader import (
@@ -24,10 +34,10 @@ from mirobody.pulse.file_parser.services.file_uploader import (
     validate_file_extension,
 )
 from mirobody.utils.config.storage import get_storage_client
-from mirobody.utils.utils_audio import get_audio_duration_from_bytes
+from mirobody.utils.audio import get_audio_duration_from_bytes
 from mirobody.utils import execute_query
-from mirobody.utils.utils_files.utils_s3 import get_content_type
-from mirobody.utils.utils_user import get_query_user_id
+from mirobody.utils.s3 import get_content_type
+from mirobody.utils.permissions import get_query_user_id
 
 
 class FileUploadData(BaseModel):
@@ -39,297 +49,6 @@ class FileUploadData(BaseModel):
     file_type: str              # File MIME type
     upload_time: datetime       # Upload timestamp
     duration: Optional[int] = None  # Audio duration in milliseconds (only for audio files)
-
-
-async def process_file_uploads(
-    files: List[UploadFile],
-    user_id: str,
-    upload_time: datetime,
-    process_single_file_func,
-) -> Dict[str, Any]:
-    """
-    Process multiple file uploads with common logic
-    
-    Args:
-        files: List of files to upload
-        user_id: User ID
-        upload_time: Upload timestamp
-        process_single_file_func: Function to process single file upload
-        
-    Returns:
-        Dict containing:
-        - successful_uploads: List of successful upload results
-        - failed_uploads: List of failed upload results
-        - files_info: List of file info for database storage
-        - files_data_for_processing: List of file data for background processing
-        - overall_type: Overall file type
-        - url_thumbs: List of thumbnail URLs
-        - url_fulls: List of full URLs
-        - original_filenames: List of original filenames
-        - file_sizes: List of file sizes
-    """
-    # Track results
-    successful_uploads = []
-    failed_uploads = []
-    files_info = []
-    url_thumbs = []
-    url_fulls = []
-    original_filenames = []
-    file_sizes = []
-    files_data_for_processing = []
-    
-    # Determine overall file type (based on first file or mixed)
-    overall_type = "file"
-    
-    # Process all files concurrently
-    logging.info(f"Starting concurrent upload of {len(files)} files for user {user_id}")
-    
-    # Create upload tasks for all files
-    upload_tasks = [
-        process_single_file_func(file, file_index, user_id, upload_time)
-        for file_index, file in enumerate(files)
-    ]
-    
-    # Execute all uploads concurrently
-    upload_results = await asyncio.gather(*upload_tasks, return_exceptions=False)
-    
-    # Process results
-    for result in upload_results:
-        if result["success"]:
-            # Successful upload
-            successful_uploads.append({
-                "file_name": result["file_name"],
-                "url": result["url"],
-                "file_key": result["file_key"],
-                "file_size": result["file_size"],
-                "file_type": result["file_type"],
-                "upload_time": result["upload_time"]
-            })
-            
-            # Add file info for database storage
-            files_info.append({
-                "file_name": result["file_name"],
-                "original_filename": result["file_name"],
-                "type": result["file_category"],
-                "url_thumb": result["url"],
-                "url_full": result["url"],
-                "file_size": result["file_size"],
-                "file_key": result["file_key"],
-                "processed": False,
-                "raw": "",
-                "file_abstract": "",
-                "indicators": [],
-                "indicators_count": 0
-            })
-            
-            # Add to arrays for message content
-            url_thumbs.append(result["url"])
-            url_fulls.append(result["url"])
-            original_filenames.append(result["file_name"])
-            file_sizes.append(result["file_size"])
-            
-            # Store file data for background processing
-            files_data_for_processing.append({
-                "content_bytes": result["file_content"],
-                "file_name": result["file_name"],
-                "original_filename": result["file_name"],
-                "content_type": result["file_type"],
-                "file_key": result["file_key"]
-            })
-            
-            # Update overall type based on first successful file
-            if overall_type == "file" and result["file_category"] != "file":
-                overall_type = result["file_category"]
-        else:
-            # Failed upload
-            failed_uploads.append({
-                "file_name": result["file_name"],
-                "error": result["error"]
-            })
-    
-    logging.info(f"Concurrent upload completed: {len(successful_uploads)} successful, {len(failed_uploads)} failed")
-    
-    return {
-        "successful_uploads": successful_uploads,
-        "failed_uploads": failed_uploads,
-        "files_info": files_info,
-        "files_data_for_processing": files_data_for_processing,
-        "overall_type": overall_type,
-        "url_thumbs": url_thumbs,
-        "url_fulls": url_fulls,
-        "original_filenames": original_filenames,
-        "file_sizes": file_sizes
-    }
-
-
-async def save_upload_message(
-    msg_id: str,
-    user_id: str,
-    session_id: str,
-    upload_result: Dict[str, Any],
-    successful_count: int,
-    failed_count: int,
-    total_files: int
-) -> Optional[Dict[str, Any]]:
-    """
-    Save file upload records to th_files table.
-    
-    Now writes to th_files instead of th_messages.
-    
-    Args:
-        msg_id: Message ID (used as created_source_id)
-        user_id: User ID
-        session_id: Session ID (stored in file_content)
-        upload_result: Upload result from process_file_uploads
-        successful_count: Number of successful uploads
-        failed_count: Number of failed uploads
-        total_files: Total number of files
-        
-    Returns:
-        Dict with inserted file IDs or None on failure
-    """
-    from .file_db_service import FileDbService
-    
-    try:
-        # Prepare files_info for th_files table
-        files_info = upload_result.get("files_info", [])
-        
-        # Enrich files_info with additional metadata
-        for file_info in files_info:
-            file_info["session_id"] = session_id
-            file_info["upload_time"] = datetime.now().isoformat()
-            file_info["status"] = "uploaded"
-        
-        # Insert files into th_files table
-        inserted_ids = await FileDbService.insert_files_batch(
-            user_id=user_id,
-            files_info=files_info,
-            scene="web",
-            created_source="file_upload",
-            created_source_id=msg_id,
-            query_user_id=user_id,
-        )
-        
-        if inserted_ids:
-            logging.info(f"Files saved to th_files: msg_id={msg_id}, inserted={len(inserted_ids)}/{len(files_info)}")
-            return {
-                "success": True,
-                "msg_id": msg_id,
-                "inserted_ids": inserted_ids,
-                "total_inserted": len(inserted_ids),
-            }
-        else:
-            logging.warning(f"No files inserted for msg_id: {msg_id}")
-            return None
-            
-    except Exception as e:
-        logging.error(f"Error saving files to th_files: {str(e)}", stack_info=True)
-        return None
-
-
-async def process_single_file_upload(
-    file: UploadFile, 
-    file_index: int, 
-    user_id: str, 
-    upload_time: datetime
-) -> Dict[str, Any]:
-    """
-    Process single file upload concurrently
-    
-    Args:
-        file: UploadFile object
-        file_index: Index of the file in the batch
-        user_id: User ID
-        upload_time: Upload timestamp
-        
-    Returns:
-        Dict containing upload result
-    """
-    try:
-        # Get storage client at runtime (lazy initialization)
-        storage = get_storage_client()
-        
-        logging.info(f"Processing file {file_index + 1}: {file.filename} for user {user_id}")
-        
-        # Validate file extension
-        is_valid, error_msg = validate_file_extension(file)
-        if not is_valid:
-            return {
-                "success": False,
-                "file_name": file.filename,
-                "error": error_msg,
-                "file_index": file_index
-            }
-        
-        # Read file content
-        await file.seek(0)
-        file_content = await file.read()
-        file_size = len(file_content)
-        
-        # Check file size
-        if file_size == 0:
-            return {
-                "success": False,
-                "file_name": file.filename,
-                "error": "File is empty",
-                "file_index": file_index
-            }
-        
-        # Determine content type
-        content_type = file.content_type
-        if not content_type:
-            content_type = mimetypes.guess_type(file.filename)[0]
-            if not content_type:
-                file_extension = Path(file.filename).suffix.lower().lstrip('.')
-                content_type = get_content_type(file_extension)
-        
-        # Determine file type category
-        file_category = get_file_type_category(content_type)
-        
-        # Generate unique file key
-        file_key = generate_file_key(file.filename)
-        
-        # Upload file using unified storage client
-        logging.info(f"Uploading file using {storage.get_storage_type()} storage: {file.filename} -> {file_key}")
-        
-        file_url, error = await storage.put(
-            key=file_key,
-            content=file_content,
-            content_type=content_type,
-            expires=7200
-        )
-        
-        if not file_url or error:
-            return {
-                "success": False,
-                "file_name": file.filename,
-                "error": error or "Failed to upload file to storage",
-                "file_index": file_index
-            }
-        
-        logging.info(f"File uploaded successfully to {storage.get_storage_type()} storage: {file_url}")
-        
-        return {
-            "success": True,
-            "file_name": file.filename,
-            "url": file_url,
-            "file_key": file_key,
-            "file_size": file_size,
-            "file_type": content_type,
-            "file_category": file_category,
-            "upload_time": upload_time.isoformat(),
-            "file_content": file_content,
-            "file_index": file_index
-        }
-        
-    except Exception as e:
-        logging.error(f"File upload failed for {file.filename}", stack_info=True)
-        return {
-            "success": False,
-            "file_name": file.filename,
-            "error": str(e),
-            "file_index": file_index
-        }
 
 
 async def process_files_async(
@@ -361,42 +80,10 @@ async def process_files_async(
             filename = file_data["file_name"]
             logging.info(f"Processing file: {filename}, msg_id: {msg_id}")
             
-            # Create a mock UploadFile object for the processor
-            class MockUploadFile:
-                def __init__(self, filename: str, file_content: bytes, content_type: str):
-                    self.filename = filename
-                    self.content_type = content_type
-                    self.file = BytesIO(file_content)
-                    self._content = file_content
-                    
-                async def read(self, size: int = -1):
-                    # Accept an optional size like starlette's UploadFile.read(size).
-                    # Genetic detection calls read(100); without the param this
-                    # raised TypeError (swallowed), so genetic files were misread
-                    # as plain-text reports on the chat upload path. Always read
-                    # from the start so size=-1 callers still get full content.
-                    self.file.seek(0)
-                    data = self.file.read()
-                    return data if (size is None or size < 0) else data[:size]
-
-                async def seek(self, offset, whence=0):
-                    # Accept whence like a real file: the genetic handler calls
-                    # seek(0, 2) (seek-to-end) to measure size. Without whence this
-                    # raised TypeError and aborted genetic parsing on the chat path.
-                    return self.file.seek(offset, whence)
-
-                def tell(self):
-                    # Sync, like the genetic handler's `ctx.file.tell()` call after
-                    # seek(0, 2) to read the file size.
-                    return self.file.tell()
-
-                def close(self):
-                    self.file.close()
-            
-            mock_file = MockUploadFile(
+            mock_file = MemoryUploadFile(
+                content=file_data["content_bytes"],
                 filename=filename,
-                file_content=file_data["content_bytes"],
-                content_type=file_data["content_type"]
+                content_type=file_data["content_type"],
             )
             
             # Process single file (skip upload since already uploaded)
@@ -637,126 +324,6 @@ async def delete_file_from_storage(file_key: str) -> bool:
         return False
 
 
-async def update_message_after_deletion(
-    message_id: str,
-    remaining_files: list[dict[str, Any]],
-    message_content: dict[str, Any]
-) -> bool:
-    """
-    [DEPRECATED] Update message in database after file deletion.
-    
-    This function operates on th_messages table and is kept for backward compatibility.
-    New code should use FileDbService for th_files operations.
-    
-    Args:
-        message_id: The message ID
-        remaining_files: List of files that remain after deletion
-        message_content: Original message content
-    
-    Returns:
-        bool: True if update successful
-    """
-    try:
-        if len(remaining_files) == 0:
-            # No files left, mark message as deleted
-            update_query = """
-                UPDATE th_messages
-                SET is_del = true,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = :message_id
-                RETURNING id
-            """
-            params = {"message_id": message_id}
-            
-            logging.info(f"Marking message as deleted: {message_id}")
-        else:
-            # Update content with remaining files
-            updated_content = message_content.copy()
-            updated_content["files"] = remaining_files
-            
-            # Update file counts and URLs
-            updated_content["url_thumb"] = [f["url_thumb"] for f in remaining_files if "url_thumb" in f]
-            updated_content["url_full"] = [f["url_full"] for f in remaining_files if "url_full" in f]
-            updated_content["original_filenames"] = [f["filename"] for f in remaining_files if "filename" in f]
-            updated_content["file_sizes"] = [f["file_size"] for f in remaining_files if "file_size" in f]
-            updated_content["total_files"] = len(remaining_files)
-            updated_content["successful_files"] = len(remaining_files)
-            
-            update_query = """
-                UPDATE th_messages
-                SET content = encrypt_content(:content),
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = :message_id
-                RETURNING id
-            """
-            params = {
-                "message_id": message_id,
-                "content": json.dumps(updated_content)
-            }
-            
-            logging.info(f"Updating message content with {len(remaining_files)} remaining files")
-        
-        result = await execute_query(
-            query=update_query,
-            params=params,
-        )
-        
-        return result is not None
-        
-    except Exception as e:
-        logging.error(f"Error updating message after deletion: {str(e)}", stack_info=True)
-        return False
-
-
-async def _mark_message_as_deleted(message_id: str) -> dict[str, Any]:
-    """
-    Mark a message as deleted in the database
-    
-    Args:
-        message_id: The message ID to mark as deleted
-    
-    Returns:
-        Dict containing operation result
-    """
-    update_query = """
-        UPDATE th_messages
-        SET is_del = true,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = :message_id
-        RETURNING id
-    """
-    
-    try:
-        result = await execute_query(
-            query=update_query,
-            params={"message_id": message_id},
-        )
-        
-        if result:
-            logging.info(f"Successfully marked message as deleted: message_id={message_id}")
-            return {
-                "success": True,
-                "message_id": message_id,
-                "deleted_files": [],
-                "failed_deletions": [],
-                "remaining_files_count": 0,
-                "message_deleted": True
-            }
-        else:
-            return {
-                "success": False,
-                "error": "Failed to mark message as deleted",
-                "message_id": message_id
-            }
-    except Exception as e:
-        logging.error(f"Error marking message as deleted: {str(e)}", stack_info=True)
-        return {
-            "success": False,
-            "error": f"Failed to delete message: {str(e)}",
-            "message_id": message_id
-        }
-
-
 async def delete_all_files_from_message(
     message_id: str,
     user_id: str
@@ -989,26 +556,15 @@ def _start_background_cascade_delete(
         user_id: User ID
         deleted_files: List of deleted file information
     """
-    # Record task creation time
-    task_create_time = datetime.now()
-    logging.info(f"Creating background cascade delete task - message_id: {message_id}, user_id: {user_id}, files_count: {len(deleted_files)}, created_at: {task_create_time}")
-
-    task = asyncio.create_task(
-        _background_cascade_delete_by_file_info(
-            message_id, user_id, deleted_files
-        )
+    # spawn() keeps a strong reference until completion — a bare
+    # asyncio.create_task here left the task GC-collectable mid-delete
+    # (the exact failure mode utils/tasks.py documents).
+    logging.info(f"Creating background cascade delete task - message_id: {message_id}, user_id: {user_id}, files_count: {len(deleted_files)}")
+    from mirobody.utils.tasks import spawn
+    spawn(
+        _background_cascade_delete_by_file_info(message_id, user_id, deleted_files),
+        name=f"cascade-delete-{message_id}",
     )
-
-    # Add task completion callback
-    def task_done_callback(task):
-        completion_time = datetime.now()
-        duration = (completion_time - task_create_time).total_seconds()
-        if task.exception():
-            logging.error(f"Background cascade delete task failed - message_id: {message_id}, user_id: {user_id}, duration: {duration:.2f}s", stack_info=True)
-        else:
-            logging.info(f"Background cascade delete task completed - message_id: {message_id}, user_id: {user_id}, duration: {duration:.2f}s")
-
-    task.add_done_callback(task_done_callback)
 
 async def upload_files_to_storage(
     files: List[UploadFile], 
@@ -1193,161 +749,3 @@ async def upload_files_to_storage(
     }
 
 
-async def validate_file_operation_permission(
-    user_id: str, 
-    owner_user_id: Optional[str], 
-    required_permissions: Dict[str, int] = None
-) -> Dict[str, Any]:
-    """
-    Validate user permission for file operations
-    
-    Args:
-        user_id: Current user ID performing the operation
-        owner_user_id: Owner user ID (resource owner, if None defaults to user_id)
-        required_permissions: Dict of required permissions with levels (e.g., {'upload': 2})
-                             2 = write permission, 1 = read permission, 0 = no permission
-        
-    Returns:
-        Dict containing validation result:
-        - success: bool - Whether validation passed
-        - owner_user_id: str - Final owner user ID
-        - message: str - Error message if validation failed
-    """
-    # Set default permissions if not provided
-    if required_permissions is None:
-        required_permissions = {'upload': 2}  # Default to upload write permission
-    
-    # If no query user specified, default to current user
-    if not owner_user_id:
-        return {
-            "success": True,
-            "owner_user_id": user_id,
-            "message": "Success"
-        }
-    
-    # If query user is same as current user, allow
-    if owner_user_id == user_id:
-        return {
-            "success": True,
-            "owner_user_id": owner_user_id,
-            "message": "Success"
-        }
-    
-    try:
-        # Check permissions for different user
-        # Convert dict keys to list for permission parameter
-        permission_list = list(required_permissions.keys())
-        user_validation = await get_query_user_id(
-            user_id=owner_user_id, 
-            query_user_id=user_id,
-            permission=permission_list
-        )
-        if not user_validation.get("success", False):
-            logging.warning(f"No permission for query user: {owner_user_id}, user_id: {user_id}")
-            return {
-                "success": False,
-                "owner_user_id": owner_user_id,
-                "message": "No permission to access query user"
-            }
-        
-        # Check individual permissions and their levels
-        permissions_check = user_validation.get("permissions", {})
-        for permission_name, required_level in required_permissions.items():
-            actual_level = permissions_check.get(permission_name, 0)
-            if actual_level < required_level:
-                logging.warning(f"Insufficient permission level: {permission_name}, required: {required_level}, actual: {actual_level}, user_id: {user_id}, owner_user_id: {owner_user_id}")
-                permission_level_names = {0: "no permission", 1: "read", 2: "write"}
-                required_level_name = permission_level_names.get(required_level, str(required_level))
-                actual_level_name = permission_level_names.get(actual_level, str(actual_level))
-                return {
-                    "success": False,
-                    "owner_user_id": owner_user_id,
-                    "message": f"Insufficient permission: {permission_name} requires {required_level_name} but only has {actual_level_name}"
-                }
-        
-        return {
-            "success": True,
-            "owner_user_id": owner_user_id,
-            "message": "Success"
-        }
-        
-    except Exception as e:
-        logging.error("Permission validation failed", stack_info=True)
-        return {
-            "success": False,
-            "owner_user_id": owner_user_id,
-            "message": f"Permission validation error: {str(e)}"
-        }
-
-
-async def get_user_ids_by_msg_id(msg_id: str) -> Dict[str, Any]:
-    """
-    Query user_id and query_user_id by message_id
-    
-    Args:
-        msg_id: Message ID to query
-        
-    Returns:
-        Dict containing:
-        - success: bool - Whether query was successful
-        - user_id: str - User ID who sent the message
-        - query_user_id: str - Query user ID (target user)
-        - message: str - Error message if query failed
-    """
-    try:
-        logging.info(f"Querying user IDs for msg_id: {msg_id}")
-        
-        # Query message table to get user_id and query_user_id
-        query = """
-            SELECT 
-                user_id, 
-                query_user_id
-            FROM th_messages 
-            WHERE id = :msg_id 
-            AND is_del = false
-        """
-        
-        params = {"msg_id": msg_id}
-        result = await execute_query(
-            query=query,
-            params=params,
-        )
-        
-        if not result or len(result) == 0:
-            logging.warning(f"No message found or deleted for msg_id: {msg_id}")
-            return {
-                "success": False,
-                "user_id": None,
-                "query_user_id": None,
-                "message": f"Message not found or deleted for msg_id: {msg_id}"
-            }
-        
-        if isinstance(result, list) and len(result) > 0:
-            message_data = result[0]
-        elif isinstance(result, dict):
-            message_data = result
-        
-        user_id = str(message_data["user_id"]) if message_data["user_id"] else None
-        query_user_id = str(message_data["query_user_id"]) if message_data["query_user_id"] else None
-        
-        # If query_user_id is None, use user_id as fallback
-        if not query_user_id:
-            query_user_id = user_id
-        
-        logging.info(f"Successfully retrieved user IDs - user_id: {user_id}, query_user_id: {query_user_id}")
-        return {
-            "success": True,
-            "user_id": user_id,
-            "query_user_id": query_user_id,
-            "message": "Success"
-        }
-        
-    except Exception as e:
-        error_msg = f"Error querying user IDs for msg_id {msg_id}: {str(e)}"
-        logging.warning(error_msg, stack_info=True)
-        return {
-            "success": False,
-            "user_id": None,
-            "query_user_id": None,
-            "message": error_msg
-        }

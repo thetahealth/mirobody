@@ -4,6 +4,8 @@ File upload service
 Responsible for handling file uploads using unified storage client
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import uuid
@@ -11,8 +13,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Tuple
 
-from fastapi import UploadFile
+# `fastapi` lives in the [server] extra, but file parsing is advertised engine
+# functionality — a bare `pip install mirobody` must import this module. Every
+# use below is an annotation, so PEP 563 (the __future__ import) keeps them as
+# strings and the real symbol is only needed by type checkers.
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from fastapi import UploadFile
 from mirobody.utils.config.storage import get_storage_client
 from mirobody.utils.i18n import t
 from mirobody.utils.req_ctx import get_req_ctx
@@ -173,19 +181,6 @@ def generate_file_key(filename: str, folder_prefix: str = "uploads") -> str:
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     unique_id = uuid.uuid4().hex[:8]
     return f"{folder_prefix}/{timestamp}_{unique_id}{file_extension}"
-
-
-def generate_s3_key(filename: str) -> str:
-    """
-    Generate a unique S3 key for the file (deprecated, use generate_file_key instead)
-    
-    Args:
-        filename: Original filename
-        
-    Returns:
-        str: Unique S3 key with timestamp and UUID
-    """
-    return generate_file_key(filename)
 
 
 def get_file_type_category(content_type: str) -> str:

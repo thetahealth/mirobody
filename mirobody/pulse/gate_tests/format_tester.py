@@ -147,7 +147,7 @@ class FormatTestRunner:
     async def _call_format(self, instance: Any, case: TestCase) -> Any:
         """Call format_data_v2 (if context provided) or legacy format_data."""
         if case.context is not None:
-            from mirobody.pulse.data_upload.models.requests import (
+            from mirobody.pulse.ingest.models.requests import (
                 FormatDataContext,
                 FormatDataInput,
             )

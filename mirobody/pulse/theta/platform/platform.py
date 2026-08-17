@@ -12,8 +12,8 @@ from typing import Any, Dict, List, Optional
 from mirobody.pulse.base import LinkRequest, Platform, ProviderInfo, UserProvider
 from mirobody.pulse.core import ProviderStatus
 from mirobody.pulse.core.scheduler import scheduler
-from mirobody.pulse.data_upload.models.requests import FormatDataContext, FormatDataInput
-from mirobody.pulse.data_upload.services.upload_health import StandardHealthService
+from mirobody.pulse.ingest.models.requests import FormatDataContext, FormatDataInput
+from mirobody.pulse.ingest.services.upload_health import StandardHealthService
 from mirobody.pulse.theta.platform.database_service import ThetaDatabaseService
 from mirobody.utils.config import Config
 from .base import BaseThetaProvider

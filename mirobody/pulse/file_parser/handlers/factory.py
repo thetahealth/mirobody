@@ -1,8 +1,17 @@
+from __future__ import annotations
+
 import logging
 
 from typing import Optional
-from fastapi import UploadFile
 
+# `fastapi` lives in the [server] extra, but file parsing is advertised engine
+# functionality — a bare `pip install mirobody` must import this module. Every
+# use below is an annotation, so PEP 563 (the __future__ import) keeps them as
+# strings and the real symbol is only needed by type checkers.
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fastapi import UploadFile
 from mirobody.pulse.file_parser.handlers.base import BaseFileHandler
 from mirobody.pulse.file_parser.handlers.image import ImageHandler
 from mirobody.pulse.file_parser.handlers.pdf import PDFHandler
@@ -20,7 +29,6 @@ class FileHandlerFactory:
         uploader,
         temp_manager,
         content_extractor,
-        db_service,
         indicator_extractor,
         abstract_extractor,
         excel_processor=None,  # Optional: injected from mcp_server when Excel support is needed
@@ -29,7 +37,6 @@ class FileHandlerFactory:
         self.uploader = uploader
         self.temp_manager = temp_manager
         self.content_extractor = content_extractor
-        self.db_service = db_service
         self.indicator_extractor = indicator_extractor
         self.abstract_extractor = abstract_extractor
         self.excel_processor = excel_processor
@@ -48,7 +55,6 @@ class FileHandlerFactory:
                 self.uploader, 
                 self.temp_manager, 
                 self.content_extractor, 
-                self.db_service, 
                 self.indicator_extractor,
                 self.abstract_extractor
             )
@@ -59,7 +65,6 @@ class FileHandlerFactory:
                 self.uploader, 
                 self.temp_manager, 
                 self.content_extractor, 
-                self.db_service, 
                 self.indicator_extractor,
                 self.abstract_extractor
             )
@@ -70,7 +75,6 @@ class FileHandlerFactory:
                 self.uploader, 
                 self.temp_manager, 
                 self.content_extractor, 
-                self.db_service, 
                 self.indicator_extractor,
                 self.abstract_extractor
             )
@@ -81,7 +85,6 @@ class FileHandlerFactory:
                 self.uploader, 
                 self.temp_manager, 
                 self.content_extractor, 
-                self.db_service, 
                 self.indicator_extractor,
                 self.abstract_extractor
             )
@@ -92,7 +95,6 @@ class FileHandlerFactory:
                 self.uploader, 
                 self.temp_manager, 
                 self.content_extractor, 
-                self.db_service, 
                 self.indicator_extractor,
                 self.abstract_extractor
             )
@@ -105,7 +107,6 @@ class FileHandlerFactory:
                 uploader=self.uploader,
                 temp_manager=self.temp_manager,
                 content_extractor=self.content_extractor,
-                db_service=self.db_service,
                 indicator_extractor=self.indicator_extractor,
                 abstract_extractor=self.abstract_extractor
             )
@@ -118,8 +119,7 @@ class FileHandlerFactory:
                     uploader=self.uploader,
                     temp_manager=self.temp_manager,
                     content_extractor=self.content_extractor,
-                    db_service=self.db_service,
-                    indicator_extractor=self.indicator_extractor,
+                        indicator_extractor=self.indicator_extractor,
                     abstract_extractor=self.abstract_extractor
                 )
             else:

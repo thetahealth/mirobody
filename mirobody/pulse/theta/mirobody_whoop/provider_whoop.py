@@ -16,10 +16,10 @@ import aiohttp
 
 from mirobody.pulse.base import ProviderInfo
 from mirobody.pulse.core import LinkType, ProviderStatus
-from mirobody.pulse.core.indicators_info import StandardIndicator
+from mirobody.pulse.standardize.indicators_info import StandardIndicator
 from mirobody.pulse.core.push_service import push_service
-from mirobody.pulse.core.units import UNIT_CONVERSIONS
-from mirobody.pulse.data_upload.models.requests import (
+from mirobody.pulse.standardize.units import UNIT_CONVERSIONS
+from mirobody.pulse.ingest.models.requests import (
     FormatDataInput,
     StandardPulseData,
     StandardPulseMetaInfo,
@@ -27,9 +27,11 @@ from mirobody.pulse.data_upload.models.requests import (
 )
 from mirobody.pulse.theta.platform.base import BaseThetaProvider
 from mirobody.pulse.theta.platform.oauth2 import ThetaOAuth2Client
-from mirobody.pulse.theta.platform.utils import ThetaDataFormatter, ThetaTimeUtils
+from mirobody.pulse.theta.platform.normalize import ThetaDataFormatter, ThetaTimeUtils
 from mirobody.utils import execute_query
 from mirobody.utils.config import safe_read_cfg
+from ....utils.tasks import spawn
+from mirobody.utils.log import secret_fingerprint
 
 
 class ThetaWhoopProvider(BaseThetaProvider):
@@ -176,7 +178,13 @@ class ThetaWhoopProvider(BaseThetaProvider):
             from mirobody.utils.config import safe_read_cfg
             client_id = safe_read_cfg("WHOOP_CLIENT_ID")
             client_secret = safe_read_cfg("WHOOP_CLIENT_SECRET")
-            logging.info(f"whoop provider {client_id} {client_secret}")
+            # The vendor OAuth client_secret was in this line, at INFO, on every
+            # provider init. Logging whether it is configured is the useful
+            # part; the value never was.
+            logging.info(
+                "whoop provider %s, secret %s",
+                client_id, secret_fingerprint(client_secret),
+            )
             if not client_id or not client_secret:
                 logging.warning("Failed to create Whoop provider: unable to read config values")
                 return None
@@ -225,7 +233,7 @@ class ThetaWhoopProvider(BaseThetaProvider):
                 "access_token": result["access_token"],
                 "refresh_token": result.get("refresh_token", ""),
             }
-            asyncio.create_task(self._pull_and_push_for_user(creds_payload))
+            spawn(self._pull_and_push_for_user(creds_payload))
 
             return {
                 "provider_slug": self.info.slug,
