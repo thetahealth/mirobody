@@ -14,7 +14,7 @@ import json
 import logging
 import pathlib
 import time
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 
 from openai import AsyncOpenAI
 
@@ -29,7 +29,8 @@ from .media import (
     _convert_pdf_to_base64_images,
     _read_and_optimize_image,
 )
-from .results import _build_prompt_with_schema, _merge_page_results
+from .results import _build_prompt_with_schema, _merge_page_results, clean_json_response
+from ...file_types import IMAGE_EXTENSIONS
 
 # Provider-specific extra parameters for API calls (no thinking, for latency).
 PROVIDER_EXTRA_PARAMS: Dict[str, Dict[str, Any]] = {
@@ -164,6 +165,14 @@ async def _openai_compatible_file_extract(
 
 def _get_openrouter_client() -> AsyncOpenAI:
     """Get OpenRouter client."""
+    # Function-local, like every other client_manager call site in this package
+    # (utils.py does the same): clients.py builds provider SDK clients, and a
+    # module-scope import here would close the loop back through llm/__init__.
+    # Splitting file_processors.py into this package dropped the import and
+    # nothing caught it — `mirobody parse` died with NameError on any OpenRouter
+    # extraction, which is the README's headline "one LLM key" command.
+    from ..clients import client_manager
+
     return client_manager.get_async_openrouter_client()
 
 

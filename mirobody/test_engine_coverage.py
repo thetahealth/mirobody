@@ -180,6 +180,12 @@ CASES: list[tuple[str, str, str]] = [
     ("血清总胆红素",                  r"bilirubin.total",              r"direct|indirect|urine"),
     ("尿白细胞",                     r"leukocyte",                    r"blood|serum"),
     ("尿比重",                       r"specific gravity",             r""),
+    # CBC spelled out in 中文. The abbreviation resolved all along (MCV ->
+    # 30428-7); the words a report actually prints did not.
+    ("平均红细胞体积",                 r"MCV|mean corpuscular volume",  r""),
+    ("平均血红蛋白含量",               r"MCH \[|mean corpuscular hemoglobin", r"concentration|MCHC"),
+    ("平均血红蛋白浓度",               r"MCHC",                         r""),
+    ("超敏C反应蛋白",                 r"c reactive protein",           r"titer"),
 ]
 
 # Terms that must stay UNRESOLVED. A confident wrong code is worse than an

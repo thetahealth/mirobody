@@ -129,15 +129,23 @@ services:
       - HTTP_HOST=0.0.0.0
       - HTTP_PORT=18080
     healthcheck:
-      # /api/health needs no auth; curl is in the deploy.sh image. Generous
-      # timings on purpose: the first boot pip-installs the whole [agents]
-      # stack before the server comes up, and the worker's start gate below
-      # waits on this turning healthy.
+      # /api/health needs no auth; curl is in the deploy.sh image.
+      #
+      # start_period is the whole point here, and 60s was measured to be wrong:
+      # failures inside it are free, so it must cover the FIRST BOOT, which
+      # pip-installs the entire [agents] stack into the site-packages volume
+      # before the server binds a port. 60s + 30x10s put the deadline at 6
+      # minutes; on a 40 kB/s link that install is still downloading numpy at
+      # that point, so the app flipped to `unhealthy` and the worker below —
+      # gated on `service_healthy` — never left `Created`. The app itself was
+      # fine and recovered on a later probe; the deploy had already failed.
+      # 20 minutes costs nothing on a fast link (the first passing probe ends
+      # it immediately) and is what a cold, slow first boot actually needs.
       test: ["CMD-SHELL", "curl -sf http://localhost:18080/api/health"]
       interval: 10s
       timeout: 5s
       retries: 30
-      start_period: 60s
+      start_period: 1200s
     networks:
       # No static address: nothing resolves the app by IP (config.yaml only
       # pins pg/redis); it is reached via the published port.

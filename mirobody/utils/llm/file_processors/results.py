@@ -55,27 +55,72 @@ Please return the result in JSON format that strictly follows this schema:
 
 
 def _merge_json_results(json_strings: List[str]) -> str:
-    """Merge multiple JSON results into one combined result."""
-    merged = {}
+    """Merge per-page JSON results into one combined result.
+
+    Handles BOTH top-level shapes, because both are real. This used to be
+    `merged = {}` plus `if not isinstance(data, dict): continue`, which meant a
+    page answering with a top-level ARRAY was dropped on the floor — and the
+    engine's own extraction prompt (`engine._EXTRACT_PROMPT`) asks for exactly
+    that. The visible symptom was `mirobody parse report.pdf` raising
+    "extraction returned dict, expected a JSON array" on every multi-page PDF;
+    the invisible one was worse, since every reading the model had already read
+    off the page was discarded before anyone could notice. Single-page files
+    never hit it (`_merge_page_results` returns their content unmerged), which
+    is why a JPG worked and a 9-page scan did not.
+
+    A dict page whose only list-valued key holds the rows — `{"readings": [...]}`,
+    the other shape json_mode commonly produces — is unwrapped rather than
+    dropped, so a model that answers inconsistently across pages still costs
+    nothing.
+    """
+    merged_list: List[Any] = []
+    merged_dict: Dict[str, Any] = {}
+    dropped = 0
+
     for json_str in json_strings:
         try:
             data = json.loads(json_str)
-            if not isinstance(data, dict):
-                continue
-            for key, value in data.items():
-                if key not in merged:
-                    merged[key] = value
-                elif isinstance(value, list) and isinstance(merged[key], list):
-                    merged[key].extend(value)
-                elif isinstance(value, dict) and isinstance(merged[key], dict):
-                    for k, v in value.items():
-                        if k not in merged[key] or not merged[key][k]:
-                            merged[key][k] = v
-                elif not merged[key] and value:
-                    merged[key] = value
         except json.JSONDecodeError as e:
             logging.warning(f"Failed to parse JSON: {e}, content: {json_str[:100]}...")
-    return json.dumps(merged, ensure_ascii=False)
+            continue
+
+        if isinstance(data, list):
+            merged_list.extend(data)
+        elif isinstance(data, dict):
+            list_keys = [k for k, v in data.items() if isinstance(v, list)]
+            if merged_list and len(list_keys) == 1:
+                # Array-shaped document, this page wrapped it in a key.
+                merged_list.extend(data[list_keys[0]])
+                continue
+            for key, value in data.items():
+                if key not in merged_dict:
+                    merged_dict[key] = value
+                elif isinstance(value, list) and isinstance(merged_dict[key], list):
+                    merged_dict[key].extend(value)
+                elif isinstance(value, dict) and isinstance(merged_dict[key], dict):
+                    for k, v in value.items():
+                        if k not in merged_dict[key] or not merged_dict[key][k]:
+                            merged_dict[key][k] = v
+                elif not merged_dict[key] and value:
+                    merged_dict[key] = value
+        else:
+            dropped += 1
+
+    if dropped:
+        logging.warning(f"{dropped} page result(s) were neither array nor object; dropped")
+
+    if merged_list and merged_dict:
+        # Genuinely mixed shapes across pages of one document. Keep both rather
+        # than silently choosing: the array is the document, the object's keys
+        # ride along beside it.
+        logging.warning(
+            "pages returned mixed JSON shapes; merging array under 'items' "
+            f"alongside {len(merged_dict)} object key(s)"
+        )
+        return json.dumps({**merged_dict, "items": merged_list}, ensure_ascii=False)
+    if merged_list:
+        return json.dumps(merged_list, ensure_ascii=False)
+    return json.dumps(merged_dict, ensure_ascii=False)
 
 
 def _merge_page_results(all_results: List[Dict[str, Any]], json_mode: bool) -> str:

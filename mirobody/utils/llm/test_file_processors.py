@@ -99,6 +99,33 @@ def test_merge_json_results_skips_unparseable_pages_rather_than_failing():
     assert out == {"a": 1, "b": 2}
 
 
+def test_merge_json_results_concatenates_top_level_arrays():
+    """A page answering with a top-level ARRAY is the shape this repo's own
+    extraction prompt asks for (`engine._EXTRACT_PROMPT`), and every test above
+    this line uses a dict — which is how the merge came to drop arrays on the
+    floor. `mirobody parse` raised "extraction returned dict, expected a JSON
+    array" on every multi-page PDF, having already discarded the readings."""
+    out = json.loads(fp._merge_json_results(['[{"name": "LDL"}]', '[{"name": "HDL"}]']))
+    assert out == [{"name": "LDL"}, {"name": "HDL"}]
+
+
+def test_merge_json_results_unwraps_a_single_key_array_page():
+    """json_mode makes some models wrap the array in a key. Mixed across pages
+    of one document, the rows still belong to one list."""
+    out = json.loads(fp._merge_json_results(['[{"n": 1}]', '{"readings": [{"n": 2}]}']))
+    assert out == [{"n": 1}, {"n": 2}]
+
+
+def test_merge_json_results_keeps_both_shapes_when_pages_genuinely_disagree():
+    out = json.loads(fp._merge_json_results(['[{"n": 1}]', '{"patient": "x", "age": 57}']))
+    assert out == {"patient": "x", "age": 57, "items": [{"n": 1}]}
+
+
+def test_merge_json_results_array_survives_an_unparseable_page():
+    out = json.loads(fp._merge_json_results(['[{"n": 1}]', "not json", '[{"n": 2}]']))
+    assert out == [{"n": 1}, {"n": 2}]
+
+
 def test_merge_page_results_empty_input_is_empty_output():
     assert fp._merge_page_results([], json_mode=False) == ""
     assert fp._merge_page_results([{"error": "boom", "page": 1}], json_mode=False) == ""

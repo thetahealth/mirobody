@@ -248,3 +248,10 @@ lipid panel	!unresolved
 血清总胆红素	Bilirubin
 尿白细胞	Leukocyte esterase
 尿比重	Specific gravity of Urine
+# CBC full names as a 中文 report prints them; the ABBREVIATION already
+# resolved (MCV -> 30428-7), the spelled-out Chinese did not. Same shape as the
+# 血清 rows above, found in the same 9-page scanned report.
+平均红细胞体积	MCV
+平均血红蛋白含量	MCH
+平均血红蛋白浓度	MCHC
+超敏C反应蛋白	hs-CRP

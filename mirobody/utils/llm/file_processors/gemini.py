@@ -9,11 +9,13 @@ caller can act on.
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 import pathlib
 import time
 from typing import Any, Dict, List, Optional
 
+import pypdfium2 as pdfium
 from google.genai import types
 
 from ..clients import client_manager
