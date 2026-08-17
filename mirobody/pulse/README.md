@@ -8,13 +8,13 @@ Pulse is the health data integration engine of Mirobody. It ingests data from we
 
 ```
 PlatformManager (singleton)
-  ├── ThetaPlatform        — direct device integrations (Garmin, Whoop, Renpho, etc.)
-  │     └── BaseThetaProvider subclasses (one per device)
+  ├── ProviderPlatform        — direct device integrations (Garmin, Whoop, Renpho, etc.)
+  │     └── BasePullProvider subclasses (one per device)
   ├── AppleHealthPlatform  — Apple Health data import + CDA documents
   └── (future platforms)
 ```
 
-**Data flow (Theta path)**:
+**Data flow (pull-provider path)**:
 ```
 Vendor API → Provider.pull_from_vendor_api()
   → Provider.save_raw_data_to_db()     (raw JSON → health_data_<name>)
@@ -27,11 +27,11 @@ All platforms converge at `StandardPulseData` — the universal exchange format 
 
 ### Plugin System (Current: file-scan autoload)
 
-Theta providers are discovered at startup by `ThetaPlatform._load_providers_from_directory()`:
-1. Glob `theta/mirobody_*/provider_*.py`
-2. Import module, find class matching `Theta*Provider(BaseThetaProvider)`
+providers are discovered at startup by `ProviderPlatform._load_providers_from_directory()`:
+1. Glob `providers/mirobody_*/provider_*.py`
+2. Import module, find class matching `*Provider(BasePullProvider)`
 3. Call `create_provider(config)` — returns instance or `None` (graceful skip)
-4. Register with `ThetaPlatform.register_provider()` which also schedules pull tasks
+4. Register with `ProviderPlatform.register_provider()` which also schedules pull tasks
 
 > **Planned**: migrate to `__init_subclass__` registry (see todo: `init-subclass-provider-loading`).
 
@@ -46,9 +46,8 @@ Theta providers are discovered at startup by `ThetaPlatform._load_providers_from
 | **Insight** | `insight/` | Insight engine over aggregated data (recipes + LLM agents) | `insight/engine_task.py` |
 | **Monitor** | `monitor/` | Data coverage / collection monitoring | `monitor/collector_service.py` |
 | **File Parser** | `file_parser/` | Files as a data source: upload via WebSocket, parse PDF/CSV/Excel/audio/image/genetic | `file_parser/file_upload_manager.py` |
-| **Theta** | `theta/` | The live provider platform — plugin discovery, OAuth, pull scheduling | `theta/platform/platform.py` |
+| **Providers** | `providers/` | The live provider platform — plugin discovery, OAuth, pull scheduling | `providers/platform/platform.py` |
 | **Apple** | `apple/` | Apple Health platform + CDA processing | `apple/platform.py` |
-| **Vendor** | `vendor/` | Catalogue of external data vendors. Metadata only — see the note below | `vendor/registry.py` |
 
 `ingest/` was called `data_upload/` until it was renamed for saying the
 opposite of what it does: it holds `StandardPulseRecord` and
@@ -59,28 +58,14 @@ readers to the wrong place.
 There is no `router/` here any more — the HTTP endpoints moved to
 `mirobody/server/routers/`, where importing the agent layer is legal.
 
-### `theta/` vs `vendor/` — two words for "vendor", one of them real
-
-They look redundant and are not. `theta/` is the **live plugin platform**:
-`BaseThetaProvider`, four working providers (Garmin, Oura, WHOOP, PostgreSQL),
-OAuth, pull scheduling, discovery by directory scan. `vendor/` is a
-**catalogue** ported from an archived C++ implementation: 24 `VendorInfo`
-entries describing the market, every one of them `status=METADATA` with stub
-network operations that raise.
-
-So a source can appear in both — WHOOP is a catalogue entry AND a 1,227-line
-production provider. `mirobody vendors` marks that, deriving the annotation
-from the installed provider directories (`theta/installed.py`) rather than the
-hardcoded list it used to carry.
-
 ## Key Files by Task
 
-### Adding a new Theta Provider
-- `theta/platform/base.py` — `BaseThetaProvider` (inherit from this)
-- `theta/mirobody_pgsql/` — simplest reference implementation
-- `theta/mirobody_garmin_connect/` — full OAuth reference (OAuth1)
-- `theta/mirobody_whoop/` — OAuth2 reference
-- `theta/__init__.py` — add import here after creating provider
+### Adding a new provider
+- `providers/platform/base.py` — `BasePullProvider` (inherit from this)
+- `providers/mirobody_pgsql/` — simplest reference implementation
+- `providers/mirobody_garmin_connect/` — full OAuth reference (OAuth1)
+- `providers/mirobody_whoop/` — OAuth2 reference
+- `providers/__init__.py` — add import here after creating provider
 
 ### Adding a new health indicator
 - `standardize/indicators_info.py` — `StandardIndicator` enum + `IndicatorInfo` dataclass
@@ -113,8 +98,8 @@ These files form the framework skeleton. Modifying them affects ALL providers an
 | :red_circle: | `core/constants.py` | Shared enums (`LinkType`, `ProviderStatus`) — used everywhere |
 | :red_circle: | `core/scheduler.py` | Global pull scheduler — timing affects all providers |
 | :red_circle: | `setup.py` | Platform registration sequence — startup order matters |
-| :yellow_circle: | `theta/platform/platform.py` | `ThetaPlatform` — provider loading and registration |
-| :yellow_circle: | `theta/platform/base.py` | `BaseThetaProvider` — shared Theta provider logic |
+| :yellow_circle: | `providers/platform/platform.py` | `ProviderPlatform` — provider loading and registration |
+| :yellow_circle: | `providers/platform/base.py` | `BasePullProvider` — shared provider logic |
 
 ## Coding Constraints
 
@@ -207,16 +192,13 @@ never existed in this repo. The lesson was right; the code was not.)
 # Start the server (see the repo README for the full Quick Start)
 mirobody serve
 
-# List every data-source vendor with its honesty grade — needs no config
-mirobody vendors
-
 # Confirm providers were discovered
 docker compose logs mirobody | grep "Loaded provider"
 ```
 
 ## Common Patterns
 
-### Standard imports for a Theta Provider
+### Standard imports for a provider
 ```python
 from mirobody.pulse.base import ProviderInfo
 from mirobody.pulse.core import LinkType, ProviderStatus
@@ -224,15 +206,15 @@ from mirobody.pulse.standardize.indicators_info import StandardIndicator
 from mirobody.pulse.ingest.models.requests import (
     StandardPulseData, StandardPulseMetaInfo, StandardPulseRecord,
 )
-from mirobody.pulse.theta.platform.base import BaseThetaProvider
-from mirobody.pulse.theta.platform.normalize import ThetaDataFormatter, ThetaTimeUtils
+from mirobody.pulse.providers.platform.base import BasePullProvider
+from mirobody.pulse.providers.platform.normalize import DataFormatter, TimeUtils
 from mirobody.utils.config import safe_read_cfg, global_config
 ```
 
 ### Provider factory method pattern
 ```python
 @classmethod
-def create_provider(cls, config: Dict[str, Any]) -> Optional['ThetaXxxProvider']:
+def create_provider(cls, config: Dict[str, Any]) -> Optional['XxxProvider']:
     try:
         if not safe_read_cfg("XXX_API_KEY"):
             logging.info("XxxProvider disabled: missing config")

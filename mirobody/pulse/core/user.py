@@ -1,5 +1,5 @@
 """
-Theta Platform User Management Service
+Provider platform User Management Service
 
 Provides core functions for user creation, authentication, and linking
 """
@@ -13,11 +13,11 @@ from mirobody.utils import execute_query
 from typing import Optional, Dict, Any
 
 
-class ThetaUserService:
+class PlatformUserService:
 
     def __init__(self, jwt_secret_key: str = None, token_expires_in: int = 60 * 60 * 24 * 30):
         """
-        Initialize Theta user service
+        Initialize platform user service
         
         Args:
             jwt_secret_key: JWT secret key, if None will retrieve from config
@@ -62,7 +62,7 @@ class ThetaUserService:
             if additional_claims is None:
                 additional_claims = {}
 
-            # Add Theta platform specific claims
+            # Add provider platform specific claims
             theta_claims = {
                 "platform": "theta",
                 "token_type": "theta_access_token",
@@ -367,27 +367,27 @@ class ThetaUserService:
 _theta_user_service = None
 
 
-def get_theta_user_service(jwt_secret_key: str = None, token_expires_in: int = None) -> ThetaUserService:
+def get_platform_user_service(jwt_secret_key: str = None, token_expires_in: int = None) -> PlatformUserService:
     """
-    Get Theta User Service instance (Singleton pattern)
+    Get platform user service instance (Singleton pattern)
     
     Args:
         jwt_secret_key: JWT secret key
         token_expires_in: Token expiration time
         
     Returns:
-        ThetaUserService instance
+        PlatformUserService instance
     """
     global _theta_user_service
 
     if _theta_user_service is None:
-        # Only pass non-None arguments, let ThetaUserService use default values
+        # Only pass non-None arguments, let PlatformUserService use default values
         kwargs = {}
         if jwt_secret_key is not None:
             kwargs['jwt_secret_key'] = jwt_secret_key
         if token_expires_in is not None:
             kwargs['token_expires_in'] = token_expires_in
 
-        _theta_user_service = ThetaUserService(**kwargs)
+        _theta_user_service = PlatformUserService(**kwargs)
 
     return _theta_user_service

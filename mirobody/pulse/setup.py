@@ -9,19 +9,19 @@ from typing import List, Optional
 from .apple.platform import AppleHealthPlatform
 
 from .manager import platform_manager
-from mirobody.pulse.theta.platform.base import BaseThetaProvider
-from mirobody.pulse.theta.platform.platform import ThetaPlatform
+from mirobody.pulse.providers.platform.base import BasePullProvider
+from mirobody.pulse.providers.platform.platform import ProviderPlatform
 from ..utils.config import global_config
 
 
-async def setup_platform_system_async(providers: Optional[List[BaseThetaProvider]] = None):
+async def setup_platform_system_async(providers: Optional[List[BasePullProvider]] = None):
     """
     Asynchronously initialize Platform system
 
     Register all Platforms and Providers (async version)
     
     Args:
-        providers: List of additional ThetaProvider instances to register (optional)
+        providers: List of additional BasePullProvider instances to register (optional)
     """
     logging.info("Starting platform system setup...")
 
@@ -31,14 +31,14 @@ async def setup_platform_system_async(providers: Optional[List[BaseThetaProvider
     # silently dropped it.
     cfg = global_config()
     
-    theta_platform = ThetaPlatform(cfg)
+    theta_platform = ProviderPlatform(cfg)
     apple_platform = AppleHealthPlatform()
 
     # Register Platforms
     platform_manager.register_platform(theta_platform)
     platform_manager.register_platform(apple_platform)
 
-    # 3. Load Theta Providers using ThetaPlatform's method
+    # 3. Load providers using ProviderPlatform's method
     theta_providers = theta_platform.load_providers()
 
     # 4. Append additional providers if provided
@@ -46,7 +46,7 @@ async def setup_platform_system_async(providers: Optional[List[BaseThetaProvider
         for provider in providers:
             theta_providers.append(provider)
 
-    # 5. Register all Theta Providers to platform
+    # 5. Register all providers to the platform
     for provider in theta_providers:
         try:
             theta_platform.register_provider(provider)
@@ -62,7 +62,7 @@ async def setup_platform_system_async(providers: Optional[List[BaseThetaProvider
         logging.info(f"  - FHIR mapping initialized")
 
     logging.info("Platform system setup completed:")
-    logging.info(f"  - Theta platform loaded {len(theta_providers)} providers")
+    logging.info(f"  - provider platform loaded {len(theta_providers)} providers")
     logging.info(f"  - Apple Health platform initialized with built-in providers")
 
 

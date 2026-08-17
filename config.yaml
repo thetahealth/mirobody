@@ -207,7 +207,7 @@ MCP_RESOURCE_DIRS:
 AGENT_DIRS:
   - mirobody/agent
 PROVIDER_DIRS:
-  - mirobody/pulse/theta
+  - mirobody/pulse/providers
 
 # Agent Skills (https://agentskills.io/) — directories of SKILL.md skill
 # packages, served to DeepAgent via deepagents' native SkillsMiddleware: the

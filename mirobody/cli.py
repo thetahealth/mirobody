@@ -9,8 +9,6 @@ Commands:
   in, standardized LOINC table out. One LLM key, no database, no server.
 * ``mirobody resolve <terms...>``       — offline indicator-name resolution
   against the shipped bundles. Needs NOTHING: no key, no config, no network.
-* ``mirobody vendors``                  — the data-source registry with status
-  grades. Also zero config.
 * ``mirobody serve [config.yaml ...]``  — the full HTTP server (chat, MCP,
   API). Requires the ``[agents]`` extra; checked up front with a plain message
   instead of a traceback from deep inside an import chain.
@@ -96,33 +94,6 @@ def _cmd_parse(args: argparse.Namespace) -> None:
     print(f"\n{len(readings)} readings · {n_res} resolved to standard codes · offline lexical index")
 
 
-def _cmd_vendors(_args: argparse.Namespace) -> None:
-    from mirobody.pulse.theta.installed import installed_vendor_ids
-    from mirobody.pulse.vendor import all_vendor_info
-
-    # The vendor catalogue grades every entry on its own TRANSPORT layer, where
-    # all 24 are `metadata`. Some of those sources are nonetheless served in
-    # production by a pulse/theta provider, and without saying so the listing
-    # reads as a contradiction of VENDORS.md.
-    #
-    # This used to be the literal set {"garmin", "oura", "whoop"}, which was
-    # correct until someone added a fifth provider — at which point the listing
-    # quietly resumes lying. Derived from the installed provider directories
-    # instead; `installed_vendor_ids` is a filesystem scan that imports nothing.
-    production_provider = installed_vendor_ids()
-
-    infos = all_vendor_info()
-    width = max(len(v.id) for v in infos)
-    print(f"{len(infos)} data-source vendors (see VENDORS.md for the grading):\n")
-    for v in infos:
-        note = "  + production provider (pulse/theta)" if v.id in production_provider else ""
-        print(f"  {v.id:<{width}}  {v.status.value:<11}  {v.category:<8}  {v.display_name}{note}")
-    print(
-        "\nGrades apply to this transport layer only; `production provider` marks"
-        "\nsources served today by the battle-tested pulse/theta pipeline."
-    )
-
-
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="mirobody",
@@ -146,9 +117,6 @@ def main(argv: list[str] | None = None) -> None:
     p_resolve = sub.add_parser("resolve", help="resolve indicator names to standard codes — fully offline, no key needed")
     p_resolve.add_argument("terms", nargs="+", help="indicator names in any supported language")
     p_resolve.set_defaults(func=_cmd_resolve)
-
-    p_vendors = sub.add_parser("vendors", help="list the data-source vendor registry")
-    p_vendors.set_defaults(func=_cmd_vendors)
 
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())

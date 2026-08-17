@@ -22,7 +22,7 @@ stands on.
 from typing import TYPE_CHECKING
 
 # Lazy (PEP 562), matching `mirobody/pulse/__init__.py`,
-# `mirobody/agent/__init__.py` and `mirobody/pulse/theta/__init__.py`.
+# `mirobody/agent/__init__.py` and `mirobody/pulse/providers/__init__.py`.
 #
 # Importing any submodule ran this __init__, which imported `.database` and
 # pulled SQLAlchemy and FastAPI into the process. That made the INDICATOR

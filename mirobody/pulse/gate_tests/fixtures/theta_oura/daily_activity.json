@@ -1,7 +1,7 @@
 {
   "test_id": "theta_oura_daily_activity_001",
   "description": "Oura daily activity data with steps, calories, distance, and activity durations",
-  "provider_class": "mirobody.pulse.theta.mirobody_oura.provider_oura.ThetaOuraProvider",
+  "provider_class": "mirobody.pulse.providers.mirobody_oura.provider_oura.OuraProvider",
   "platform": "theta",
   "mock_context": {},
   "input": {
@@ -304,8 +304,8 @@
     }
   },
   "patch_targets": [
-    "mirobody.pulse.theta.platform.base.ThetaDatabaseService",
-    "mirobody.pulse.theta.platform.base.ThetaUserService",
+    "mirobody.pulse.providers.platform.base.ProviderDatabaseService",
+    "mirobody.pulse.providers.platform.base.PlatformUserService",
     {
       "target": "mirobody.utils.config.safe_read_cfg",
       "return_value": ""

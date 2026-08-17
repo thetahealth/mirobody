@@ -185,7 +185,7 @@ class FormatTestRunner:
 
     @staticmethod
     def _import_provider_class(dotted_path: str) -> type:
-        """Import 'mirobody.pulse.theta...ThetaGarminProvider' dynamically."""
+        """Import 'mirobody.pulse.providers...GarminProvider' dynamically."""
         module_path, class_name = dotted_path.rsplit(".", 1)
         module = importlib.import_module(module_path)
         return getattr(module, class_name)

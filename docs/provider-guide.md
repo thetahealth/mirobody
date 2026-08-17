@@ -87,9 +87,9 @@ connect/
 ### Class Hierarchy
 
 ```
-BaseThetaProvider (from mirobody.pulse.theta.platform.base)
+BasePullProvider (from mirobody.pulse.providers.platform.base)
     ↓
-ThetaYourProvider (your implementation)
+YourProvider (your implementation)
 ```
 
 ### Key Components
@@ -115,11 +115,11 @@ touch connect/theta/mirobody_<provider>/provider_<provider>.py
 
 ### Step 2: Define Provider Class
 
-Your provider must inherit from `BaseThetaProvider` and implement all required methods:
+Your provider must inherit from `BasePullProvider` and implement all required methods:
 
 ```python
 """
-Theta <Provider> Provider
+<Provider> Provider
 
 <Provider> OAuth data provider with authentication and data pulling functionality
 """
@@ -144,14 +144,14 @@ from mirobody.pulse.ingest.models.requests import (
     StandardPulseMetaInfo,
     StandardPulseRecord,
 )
-from mirobody.pulse.theta.platform.base import BaseThetaProvider
-from mirobody.pulse.theta.platform.utils import ThetaDataFormatter, ThetaTimeUtils
+from mirobody.pulse.providers.platform.base import BasePullProvider
+from mirobody.pulse.providers.platform.utils import DataFormatter, TimeUtils
 from mirobody.utils import execute_query
 from mirobody.utils.config import safe_read_cfg, global_config
 
 
-class ThetaYourProvider(BaseThetaProvider):
-    """Theta <Provider> Provider - Data Integration"""
+class YourProvider(BasePullProvider):
+    """<Provider> Provider - Data Integration"""
     
     def __init__(self):
         super().__init__()
@@ -159,7 +159,7 @@ class ThetaYourProvider(BaseThetaProvider):
         pass
     
     @classmethod
-    def create_provider(cls, config: Dict[str, Any]) -> Optional['ThetaYourProvider']:
+    def create_provider(cls, config: Dict[str, Any]) -> Optional['YourProvider']:
         """Factory method to create provider instance"""
         pass
     
@@ -267,7 +267,7 @@ def __init__(self):
 
 ---
 
-### 4.2 `create_provider(cls, config: Dict[str, Any]) -> Optional['ThetaYourProvider']`
+### 4.2 `create_provider(cls, config: Dict[str, Any]) -> Optional['YourProvider']`
 
 **Purpose**: Factory method for conditional provider instantiation
 
@@ -276,7 +276,7 @@ def __init__(self):
 **Implementation**:
 ```python
 @classmethod
-def create_provider(cls, config: Dict[str, Any]) -> Optional['ThetaYourProvider']:
+def create_provider(cls, config: Dict[str, Any]) -> Optional['YourProvider']:
     """
     Factory method to create provider from config
     
@@ -815,7 +815,7 @@ def _process_sleep_data(
             # Parse timestamp
             timestamp_str = item.get("start") or item.get("created_at")
             timestamp_ms = (
-                ThetaTimeUtils.parse_time_to_timestamp(timestamp_str)
+                TimeUtils.parse_time_to_timestamp(timestamp_str)
                 if timestamp_str
                 else int(time.time() * 1000)
             )
@@ -833,7 +833,7 @@ def _process_sleep_data(
                 
                 if value is not None:
                     record = StandardPulseRecord(
-                        source=ThetaDataFormatter.format_source_name(self.info.slug),
+                        source=DataFormatter.format_source_name(self.info.slug),
                         type=indicator_name,
                         timestamp=timestamp_ms,
                         unit=unit,
@@ -1458,12 +1458,12 @@ Create `test_provider_<provider>.py`:
 
 ```python
 import pytest
-from connect.theta.mirobody_<provider>.provider_<provider> import ThetaYourProvider
+from connect.theta.mirobody_<provider>.provider_<provider> import YourProvider
 
 @pytest.fixture
 def provider():
     """Create provider instance for testing"""
-    return ThetaYourProvider()
+    return YourProvider()
 
 @pytest.mark.asyncio
 async def test_provider_info(provider):
@@ -1517,7 +1517,7 @@ async def test_format_data_with_samples(provider):
 @pytest.mark.asyncio
 async def test_full_oauth_flow():
     """Test complete OAuth flow (requires test credentials)"""
-    provider = ThetaYourProvider()
+    provider = YourProvider()
     
     # 1. Test link
     class MockRequest:
@@ -1539,7 +1539,7 @@ async def test_full_oauth_flow():
 @pytest.mark.asyncio
 async def test_data_pipeline():
     """Test data pull, save, and format"""
-    provider = ThetaYourProvider()
+    provider = YourProvider()
     
     # Mock credentials
     credentials = {
@@ -1577,7 +1577,7 @@ async def test_data_pipeline():
    python main.py
    
    # Navigate to link endpoint
-   # http://localhost:8000/api/v1/pulse/theta/<provider>/link?user_id=test_user
+   # http://localhost:8000/api/v1/pulse/providers/<provider>/link?user_id=test_user
    
    # Complete OAuth authorization
    # Verify callback is handled correctly
@@ -1586,9 +1586,9 @@ async def test_data_pipeline():
 2. **Data Pull**:
    ```python
    # In Python console
-   from connect.theta.mirobody_<provider>.provider_<provider> import ThetaYourProvider
+   from connect.theta.mirobody_<provider>.provider_<provider> import YourProvider
    
-   provider = ThetaYourProvider()
+   provider = YourProvider()
    
    # Pull data
    import asyncio
@@ -1945,10 +1945,10 @@ Common indicators you'll map to:
 ## Support & Resources
 
 - **Example providers** (read these first — they are the real thing, not samples):
-   - Garmin: `mirobody/pulse/theta/mirobody_garmin_connect/provider_garmin.py`
-   - Whoop: `mirobody/pulse/theta/mirobody_whoop/provider_whoop.py`
-   - Oura: `mirobody/pulse/theta/mirobody_oura/provider_oura.py`
-- **Platform internals**: `mirobody/pulse/theta/platform/` — `base.py` is the
+   - Garmin: `mirobody/pulse/providers/mirobody_garmin_connect/provider_garmin.py`
+   - Whoop: `mirobody/pulse/providers/mirobody_whoop/provider_whoop.py`
+   - Oura: `mirobody/pulse/providers/mirobody_oura/provider_oura.py`
+- **Platform internals**: `mirobody/pulse/providers/platform/` — `base.py` is the
   contract you implement, `platform.py` does discovery and pull scheduling.
 - **Testing**: `docs/testing.md`, and `mirobody/pulse/gate_tests/` which snapshots
   `format_data()` output for every shipped provider.

@@ -3,7 +3,7 @@ Pulse Module
 
 Provides unified health data platform management architecture, supporting multiple data source platforms and providers
 
-Supports dynamic loading - Theta providers are automatically loaded based on configuration, deleting files will take them offline
+Supports dynamic loading - providers are automatically loaded based on configuration, deleting files will take them offline
 
 Exports resolve lazily (PEP 562). ``import mirobody.pulse`` is the ENGINE —
 it must not eagerly construct the platform singletons, and it carries no HTTP
@@ -31,14 +31,14 @@ _EXPORTS = {
     "setup_platform_system_async": "setup",
     "get_platform_manager": "setup",
     # Concrete implementations
-    "ThetaPlatform": "theta",
-    "BaseThetaProvider": "theta",
+    "ProviderPlatform": "providers",
+    "BasePullProvider": "providers",
     # Apple Health implementations
     "AppleHealthPlatform": "apple",
     "AppleHealthProvider": "apple",
     "CDAProvider": "apple",
-    # Note: Specific Theta providers (ThetaGarminProvider, etc.) are auto-loaded
-    # and can be imported from .theta if needed
+    # Note: Specific providers (GarminProvider, etc.) are auto-loaded
+    # and can be imported from .providers if needed
 }
 __all__ = [*_EXPORTS]
 
@@ -47,7 +47,7 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .base import LinkRequest, Platform, Provider, ProviderInfo, UserProvider
     from .manager import PlatformManager, platform_manager
     from .setup import get_platform_manager, setup_platform_system, setup_platform_system_async
-    from .theta import BaseThetaProvider, ThetaPlatform
+    from .providers import BasePullProvider, ProviderPlatform
 
 
 def __getattr__(name: str):

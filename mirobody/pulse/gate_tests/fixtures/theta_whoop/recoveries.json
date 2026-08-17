@@ -1,7 +1,7 @@
 {
   "test_id": "theta_whoop_recoveries_001",
   "description": "Whoop recoveries data",
-  "provider_class": "mirobody.pulse.theta.mirobody_whoop.provider_whoop.ThetaWhoopProvider",
+  "provider_class": "mirobody.pulse.providers.mirobody_whoop.provider_whoop.WhoopProvider",
   "platform": "theta",
   "mock_context": {},
   "input": {
@@ -172,8 +172,8 @@
     }
   },
   "patch_targets": [
-    "mirobody.pulse.theta.platform.base.ThetaDatabaseService",
-    "mirobody.pulse.theta.platform.base.ThetaUserService",
+    "mirobody.pulse.providers.platform.base.ProviderDatabaseService",
+    "mirobody.pulse.providers.platform.base.PlatformUserService",
     {
       "target": "mirobody.utils.config.safe_read_cfg",
       "return_value": ""

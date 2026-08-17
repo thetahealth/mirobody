@@ -53,7 +53,7 @@ provider.format_data(raw)          # vendor shape -> StandardPulseData
                         └─> convert_to_standard(indicator, value, unit)
 ```
 
-`ThetaPlatform.post_data()` drives it (`pulse/theta/platform/platform.py`), so a
+`ProviderPlatform.post_data()` drives it (`pulse/providers/platform/platform.py`), so a
 **provider author has nothing to do**: report your vendor's native unit in
 `format_data()` and it is converted on the way in.
 
@@ -207,7 +207,7 @@ INFO: Standardization completed: 5 records processed, 4 successful, 1 errors, 2 
 ### Platform Layer Testing
 ```python
 async def test_Platform_standardization():
-    Platform = ThetaPlatform()
+    Platform = ProviderPlatform()
     
     # Test data with non-standard indicators and units
     test_data = {
@@ -229,7 +229,7 @@ async def test_Platform_standardization():
 ### Provider Layer Testing
 ```python
 async def test_provider_format():
-    provider = ThetaRenphoProvider()
+    provider = RenphoProvider()
     raw_data = {...}
     
     # Test Provider output
@@ -244,7 +244,7 @@ async def test_provider_format():
 ### End-to-End Testing
 ```python
 async def test_end_to_end_standardization():
-    Platform = ThetaPlatform()
+    Platform = ProviderPlatform()
     
     # Test complete flow
     success = await Platform.post_data("theta_renpho", test_data, "msg_123")
@@ -265,7 +265,7 @@ async def test_end_to_end_standardization():
 
 ## 🚀 **Use Cases**
 
-- **Theta Platform**: Standardize raw data returned from device APIs
+- **Provider platform**: Standardize raw data returned from device APIs
 - **Vital Platform**: Standardize health indicators in webhook events
 - **Data Import**: Unify health data in various formats
 - **Quality Control**: Platform layer ensures data conforms to unified standards
