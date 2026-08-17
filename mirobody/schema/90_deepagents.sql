@@ -3,7 +3,7 @@
 -- One row per (user_id, session_id, scope, path). The agent's deepagents
 -- CompositeBackend mounts several PgFilesystemBackend instances over this single
 -- table; `scope` is what keeps the mounts isolated (workspace / memory / uploads
--- / library / charts), since the 5 mounts collapse onto only 2 session_id values.
+-- / library), since the 4 mounts collapse onto only 2 session_id values.
 --
 -- Storage tiering (decided per write in PgFilesystemBackend._classify_and_store):
 --   * inline  : utf-8 text <= 256 KB -> kept in `content`, object_storage_key NULL
@@ -53,7 +53,7 @@ CREATE INDEX IF NOT EXISTS idx_deep_agent_workspace_content_hash
 
 COMMENT ON TABLE deep_agent_workspace IS
     'DeepAgent scope-based virtual filesystem (deepagents BackendProtocol); one audit row per file.';
-COMMENT ON COLUMN deep_agent_workspace.scope IS 'Mount scope: workspace | memory | uploads | library | charts | shared';
+COMMENT ON COLUMN deep_agent_workspace.scope IS 'Mount scope: workspace | memory | uploads | library';
 COMMENT ON COLUMN deep_agent_workspace.path IS 'Absolute file path within the mount (starts with /)';
 COMMENT ON COLUMN deep_agent_workspace.content IS 'Inline utf-8 payload, or extracted/greppable text for offloaded files';
 COMMENT ON COLUMN deep_agent_workspace.encoding IS 'How to interpret the offloaded raw bytes: utf-8 (text) | base64 (binary)';

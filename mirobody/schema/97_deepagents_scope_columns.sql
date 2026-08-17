@@ -54,4 +54,4 @@ CREATE INDEX IF NOT EXISTS idx_deep_agent_workspace_scope_path
 CREATE INDEX IF NOT EXISTS idx_deep_agent_workspace_object_key
     ON deep_agent_workspace (object_storage_key) WHERE object_storage_key IS NOT NULL;
 
-COMMENT ON COLUMN deep_agent_workspace.scope IS 'Mount scope: workspace | memory | uploads | library | charts | shared';
+COMMENT ON COLUMN deep_agent_workspace.scope IS 'Mount scope: workspace | memory | uploads | library';

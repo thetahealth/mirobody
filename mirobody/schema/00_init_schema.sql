@@ -76,28 +76,6 @@ COMMENT ON COLUMN th_share_user_config.target_user_id IS 'The user being nicknam
 COMMENT ON COLUMN th_share_user_config.context IS 'Context for the configuration (default, family, etc.)';
 
 
-CREATE TABLE IF NOT EXISTS th_user_avatar_managed (
-    user_id character varying(100) NOT NULL,
-    owner_user_id character varying(100) NOT NULL,
-    avatar_key character varying(500) NOT NULL,
-    created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT th_user_avatar_managed_pkey PRIMARY KEY (user_id, owner_user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_th_user_avatar_managed_user_id 
-    ON th_user_avatar_managed(user_id);
-
-CREATE INDEX IF NOT EXISTS idx_th_user_avatar_managed_owner_user_id 
-    ON th_user_avatar_managed(owner_user_id);
-
-COMMENT ON TABLE th_user_avatar_managed IS 'Manages user avatars updated by authorized users (caregivers, family members, etc.)';
-COMMENT ON COLUMN th_user_avatar_managed.user_id IS 'The user whose avatar is being managed';
-COMMENT ON COLUMN th_user_avatar_managed.owner_user_id IS 'The user who is managing/updating the avatar';
-COMMENT ON COLUMN th_user_avatar_managed.avatar_key IS 'The file key/path of the avatar image in storage (S3/OSS)';
-COMMENT ON COLUMN th_user_avatar_managed.created_at IS 'Timestamp when the record was first created';
-COMMENT ON COLUMN th_user_avatar_managed.updated_at IS 'Timestamp when the avatar was last updated';
-
 CREATE TABLE IF NOT EXISTS th_share_permission_type (
     permission_id SERIAL PRIMARY KEY,
     permission_key VARCHAR(50) UNIQUE NOT NULL,
@@ -178,28 +156,6 @@ CREATE INDEX IF NOT EXISTS ix_theta_ai_health_user_profile_by_system_version
 
 ALTER TABLE health_user_profile_by_system
 ADD COLUMN IF NOT EXISTS common_part_encrypted text NULL;
-
-
-CREATE TABLE IF NOT EXISTS th_task_flow
-(
-    id integer generated always as identity not null,
-    task_id character varying(200) COLLATE pg_catalog."default" NOT NULL,
-    user_id character varying COLLATE pg_catalog."default" NOT NULL,
-    start_time timestamp without time zone NOT NULL,
-    end_time timestamp without time zone,
-    records integer DEFAULT 0,
-    indicators integer DEFAULT 0,
-    deleted integer NOT NULL DEFAULT 0,
-    create_time timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    update_time timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    type character varying(64) COLLATE pg_catalog."default" NOT NULL,
-    sort_time timestamp without time zone,
-    CONSTRAINT th_task_flow_pkey PRIMARY KEY (id),
-    CONSTRAINT uq_task_id UNIQUE (task_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_th_task_flow_user_id ON th_task_flow(user_id);
-
 
 
 

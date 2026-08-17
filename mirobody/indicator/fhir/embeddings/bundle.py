@@ -18,7 +18,15 @@ resolver needs:
 Built by ``benchmarks/build_loinc_bundle.py`` (axis + skip + demote)
 followed by the ``loinc-rank``, ``loinc-alias``, ``dose-index``,
 ``loinc-lexicon`` CLI subcommands which add their respective members in
-place. All mutations atomic via tempfile + ``os.replace`` so concurrent
+place.
+
+.. note::
+   ``benchmarks/`` is a maintainer-side working directory and has never been
+   part of this repository — do not go looking for it here. Everything needed
+   to CONSUME the bundle ships; the scripts that mint it from raw LOINC/UMLS
+   releases do not, because those releases are licensed per user (see
+   LICENSE-3RD-PARTY). The same caveat applies to every other
+   ``benchmarks/...`` path named in this package. All mutations atomic via tempfile + ``os.replace`` so concurrent
 readers always see a consistent state.
 
 ``aliases/*.tsv`` are loaded as a single merged dict by

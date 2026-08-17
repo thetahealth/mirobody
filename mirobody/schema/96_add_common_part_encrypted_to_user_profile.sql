@@ -4,9 +4,8 @@
 -- decrypt_content(). The encrypted column was missing from the schema, which
 -- caused: column "common_part_encrypted" does not exist.
 
--- 1. Add the encrypted column.
-ALTER TABLE health_user_profile_by_system
-ADD COLUMN IF NOT EXISTS common_part_encrypted TEXT DEFAULT NULL;
+-- 1. The column itself was folded back into the 00_init_schema baseline, so it
+--    is not re-added here; what follows is the part that baseline cannot express.
 
 -- 2. The legacy plaintext column is no longer written by the application, so it
 --    must not be NOT NULL or inserts that only set common_part_encrypted fail.

@@ -13,20 +13,30 @@ CREATE TABLE IF NOT EXISTS th_messages (
     question_id character varying(50),
     rating integer,
     created_at timestamp with time zone default CURRENT_TIMESTAMP,
-    comment text,
     message_type text,
     is_del boolean not null default false,
     updated_at timestamp with time zone default CURRENT_TIMESTAMP,
     group_id VARCHAR(64),
     scene VARCHAR(32) DEFAULT 'web',
-    query_user_id VARCHAR(100), 
+    query_user_id VARCHAR(100),
     reference_task_id VARCHAR(128) DEFAULT NULL
 );
 
+-- `comment text` and its GIN trigram index used to sit here. No query in the
+-- project ever read the column, and the one writer (`update_message_content`'s
+-- optional `comment=` argument) was never passed by any caller — so the trigram
+-- index was paying GIN maintenance on every insert into the busiest table in
+-- the schema to make an always-empty column searchable. 99_… drops the index
+-- from databases that already have it.
+-- `idx_th_messages_file_list` (user_id, message_type, is_del, created_at DESC)
+-- also used to sit here. It existed for one query — "list this user's uploaded
+-- files" back when files WERE `th_messages` rows with message_type in
+-- ('file','pdf','image'). Files moved to `th_files`, that listing is now
+-- `FileDbService.get_files_paginated`, and no remaining `th_messages` query
+-- filters on message_type without a far more selective `session_id` (served by
+-- the session index below). 99_… drops it where it already exists.
 CREATE INDEX IF NOT EXISTS idx_th_message_sessionID ON th_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_th_message_questionID ON th_messages(question_id);
-CREATE INDEX IF NOT EXISTS idx_th_messages_file_list ON th_messages(user_id, message_type, is_del, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_th_messages_comment_trgm ON th_messages USING GIN (comment gin_trgm_ops);
 
 
 CREATE TABLE IF NOT EXISTS th_sessions (
@@ -43,6 +53,16 @@ CREATE INDEX IF NOT EXISTS idx_th_sessions_user_id ON th_sessions(user_id);
 
 ALTER TABLE th_sessions ADD COLUMN IF NOT EXISTS category VARCHAR(50);
 ALTER TABLE th_sessions ADD COLUMN IF NOT EXISTS preview VARCHAR(200);  -- conversation preview snippet (matches test/prod)
+
+-- `category` keeps its comment and index HERE, with the column it belongs to
+-- (the README's "pick one owner" rule). They arrived with `27_add_tags_to_…`,
+-- which is gone: the rest of that file — plus `34_…status_fields` and
+-- `44_…add_status` — only added `tags`, `read_status`, `write_status`,
+-- `ai_status` and `status`, columns for a notes/journal feature that does not
+-- exist in this project and that no query here reads or writes.
+-- `get_session_summaries` does filter on `category IS NULL`, so the column stays.
+COMMENT ON COLUMN th_sessions.category IS 'File category: food, report, medicine, rtc, journal, other';
+CREATE INDEX IF NOT EXISTS idx_th_sessions_category ON th_sessions(category);
 
 
 CREATE TABLE IF NOT EXISTS fhir_indicators (

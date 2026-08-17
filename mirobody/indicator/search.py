@@ -47,7 +47,7 @@ class ResolveResult:
     code: str        # e.g. "2345-7", "73211009"
     name: str        # human-readable description (empty if meta absent)
     score: float     # cosine similarity (0-1, higher = better)
-    # Optional hybrid-output per-axis tuple (see ``docs/health_indicator_resolving.md``
+    # Optional hybrid-output per-axis tuple (see the internal resolving design note, not published in this repo;
     # page 9). Populated only when the caller passes ``emit_axes=True`` to
     # ``resolve_many`` AND this result is the LOINC top-1 pick. Keyed by LOINC
     # axis name (``COMPONENT`` / ``PROPERTY`` / ``TIME_ASPCT`` / ``SYSTEM`` /
