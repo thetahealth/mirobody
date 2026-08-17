@@ -19,7 +19,11 @@ from .utils import (
     DeepAgentError,
     ConfigError,
 )
-from .deep.middleware import ToolFaultMiddleware, UniversalPromptCachingMiddleware
+from .deep.middleware import (
+    InvalidToolCallRepairMiddleware,
+    ToolFaultMiddleware,
+    UniversalPromptCachingMiddleware,
+)
 
 # DeepAgent's default LLM provider when none is specified by the caller.
 _DEFAULT_PROVIDER_DEEP = "gemini-3.5-flash"
@@ -593,11 +597,14 @@ class DeepAgent():
             # deepagents' own stack in the order given, outermost first:
             #   1. ToolFaultMiddleware   — outermost, so it contains faults from
             #      every tool AND from the wrappers below it.
-            #   2. ModelCallLimitMiddleware — the real per-turn budget.
-            #   3. CodeInterpreterMiddleware — the `eval` REPL.
-            #   4. SkillsMiddleware — Agent Skills frontmatter into the prompt.
-            #   5. UniversalPromptCachingMiddleware — last so its decision wins.
-            middleware: list[Any] = [ToolFaultMiddleware()]
+            #   2. InvalidToolCallRepairMiddleware — a call whose JSON never
+            #      parsed reaches no tool at all; this feeds the parse error
+            #      back and retries instead of ending the turn empty.
+            #   3. ModelCallLimitMiddleware — the real per-turn budget.
+            #   4. CodeInterpreterMiddleware — the `eval` REPL.
+            #   5. SkillsMiddleware — Agent Skills frontmatter into the prompt.
+            #   6. UniversalPromptCachingMiddleware — last so its decision wins.
+            middleware: list[Any] = [ToolFaultMiddleware(), InvalidToolCallRepairMiddleware()]
 
             # Bound the loop by REAL tool rounds (model calls) rather than by raw
             # LangGraph super-steps. `exit_behavior="end"` ENDS the run gracefully,

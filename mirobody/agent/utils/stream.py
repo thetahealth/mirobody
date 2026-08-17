@@ -12,61 +12,10 @@ logger = logging.getLogger(__name__)
 FINAL_OUTPUT_NODES: set[str] = {"tools", "model"}
 
 
-# Per-million-token pricing (USD) for cost reporting.
-# Lookup is substring + longest-key match — see `create_cost_statistics`.
-# Source of truth: openrouter.ai (refreshed 2026-06-03). When openrouter
-# doesn't carry a model id, the closest analog or provider-direct rate is
-# used (see per-key comments).
-#
-# Implicit rules applied at compute time:
-#   cache_read     = input * 0.1   (all models, 90% discount)
-#   cache_creation = input * 1.25  (Claude only, 25% premium)
-MODEL_PRICING: dict[str, dict[str, float]] = {
-    # Claude — https://openrouter.ai/anthropic
-    "claude-opus-4":      {"input": 5.00, "output": 25.00},
-    "claude-sonnet-4":    {"input": 3.00, "output": 15.00},
-    "claude-haiku-4.5":     {"input": 1.00, "output":  5.00},
-
-    # OpenAI GPT-5 — https://openrouter.ai/openai
-    "gpt-5.4":              {"input": 2.50, "output": 15.00},
-    "gpt-5.2":              {"input": 1.75, "output": 14.00},
-    "gpt-5.1":              {"input": 1.25, "output": 10.00},
-    "gpt-5-mini":           {"input": 0.25, "output":  2.00},
-    "gpt-5-nano":           {"input": 0.05, "output":  0.40},
-
-    # DeepSeek — https://openrouter.ai/deepseek
-    "deepseek-v3.2":        {"input": 0.252, "output": 0.378},
-    "deepseek-v4-flash":    {"input": 0.14,  "output": 0.28},
-    "deepseek-v4-pro":      {"input": 0.435, "output": 0.87},
-
-    # Google Gemini — https://openrouter.ai/google
-    # Keys are substrings; longest-match wins, so "-flash-lite"/"-pro" beat "-flash".
-    "gemini-3.5-flash":         {"input": 1.50, "output":  9.00},
-    "gemini-3.1-pro":           {"input": 2.00, "output": 12.00},
-    "gemini-2.5-flash-lite":    {"input": 0.10, "output":  0.40},
-    "gemini-2.5-flash":         {"input": 0.30, "output":  2.50},
-
-    # Moonshot Kimi — https://openrouter.ai/moonshotai
-    "kimi-k2.5": {"input": 0.44, "output": 2.00},
-    "kimi-k2.6": {"input": 0.75, "output": 3.50},
-
-    # Alibaba Qwen — https://openrouter.ai/qwen
-    # qwen3.7-plus is DashScope-direct (not on openrouter); plus-tier estimate.
-    "qwen-plus":      {"input": 0.26,   "output": 0.78},
-    "qwen-max":       {"input": 1.04,   "output": 4.16},
-    "qwen3.5-plus":   {"input": 0.30,   "output": 1.80},
-    "qwen3.6-flash":  {"input": 0.1875, "output": 1.125},
-    "qwen3.6-plus":   {"input": 0.325,  "output": 1.95},
-    "qwen3.7-plus":   {"input": 0.40,   "output": 2.40},
-    "qwen3.7-max":    {"input": 1.25,   "output": 3.75},
-
-    # MiniMax — https://openrouter.ai/minimax
-    "minimax-m2.5":   {"input": 0.15,  "output": 1.15},
-    "minimax-m2.7":   {"input": 0.299, "output": 1.20},
-
-    # ByteDance Doubao — openrouter analog "Seed-2.0-Lite"
-    "doubao-seed-2-0-lite-260215": {"input": 0.25, "output": 2.00},
-}
+# costStatistics deliberately reports TOKENS ONLY. It used to also compute
+# dollar amounts from a hardcoded MODEL_PRICING table; provider prices change
+# faster than any table gets refreshed, so the amounts drifted into fiction
+# while looking authoritative. Tokens are facts from the API; prices are not.
 
 
 class StreamConverter:
@@ -374,22 +323,18 @@ class StreamConverter:
         cache_creation_tokens: int = 0
     ) -> Dict[str, Any] | None:
         """
-        Create cost statistics with prompt caching support.
-
-        Token breakdown (per Anthropic/OpenRouter API):
-        - input_tokens: Non-cached input tokens (charged at full input rate)
-        - cache_read_tokens: Tokens read from cache (charged at ~10% of input rate)
-        - cache_creation_tokens: Tokens written to cache (charged at ~125% of input rate)
+        Token-usage statistics for the turn. Tokens only, no dollar amounts —
+        see the module-level note.
 
         Args:
             input_tokens: Non-cached input tokens
             output_tokens: Output tokens
-            model_name: Model name for pricing lookup
+            model_name: Model name (display only)
             cache_read_tokens: Tokens read from cache (prompt caching hit)
             cache_creation_tokens: Tokens written to cache (prompt caching miss)
 
         Returns:
-            Cost statistics dictionary or None on error
+            costStatistics event dictionary or None on error
         """
         try:
             # Detect format:
@@ -400,53 +345,11 @@ class StreamConverter:
             if is_openai_format:
                 # OpenAI format: input_tokens already includes cache_read
                 total_input = input_tokens + cache_creation_tokens
-                non_cached_input = input_tokens - cache_read_tokens
             else:
                 # Anthropic format: input_tokens is non-cached only
                 total_input = input_tokens + cache_read_tokens + cache_creation_tokens
-                non_cached_input = input_tokens
 
             total_tokens = total_input + output_tokens
-
-            # Find matching pricing by substring match (prefer longest key for precision)
-            model_name_lower = model_name.lower()
-            rates = None
-            matched_key = ""
-            for key, pricing in MODEL_PRICING.items():
-                if key in model_name_lower and len(key) > len(matched_key):
-                    matched_key = key
-                    rates = pricing
-
-            # Calculate costs
-            total_cost = None
-            cost_saved = None
-
-            if rates:
-                input_rate = rates["input"]
-                output_rate = rates["output"]
-
-                # Cache pricing rules:
-                # - cache_read = input * 0.1 (all models, 90% discount)
-                # - cache_creation = input * 0.25 (Claude only, add 25% premium)
-                cache_read_rate = input_rate * 0.1
-                is_claude = "claude" in matched_key
-                cache_creation_rate = input_rate * 0.25 if is_claude else 0
-
-                # Cost breakdown:
-                # - non_cached_input: Fresh processing → full input rate
-                # - cache_read_tokens: Cache hits → discounted rate (all models)
-                # - cache_creation_tokens: Cache writes → premium rate (Claude only)
-                input_cost = (non_cached_input / 1_000_000) * input_rate
-                output_cost = (output_tokens / 1_000_000) * output_rate
-                cache_read_cost = (cache_read_tokens / 1_000_000) * cache_read_rate
-                cache_creation_cost = (cache_creation_tokens / 1_000_000) * cache_creation_rate
-
-                total_cost = round(input_cost + output_cost + cache_read_cost + cache_creation_cost, 6)
-
-                # Calculate savings: cache_read tokens at discounted rate vs full input rate
-                if cache_read_tokens > 0:
-                    cost_without_cache = (cache_read_tokens / 1_000_000) * input_rate
-                    cost_saved = round(cost_without_cache - cache_read_cost, 6)
 
             # Build response (all values as strings for stability)
             content = {
@@ -454,14 +357,13 @@ class StreamConverter:
                 "input_tokens": str(total_input),
                 "output_tokens": str(output_tokens),
                 "total_tokens": str(total_tokens),
-                "total_cost": f"{total_cost:.6f}" if total_cost is not None else "unrecognized model",
             }
 
-            # Add cache info only if cache was used
+            # Cache info only if cache was involved
             if cache_read_tokens > 0:
                 content["cache_read_tokens"] = str(cache_read_tokens)
-                if cost_saved is not None and cost_saved > 0:
-                    content["cost_saved"] = f"{cost_saved:.6f}"
+            if cache_creation_tokens > 0:
+                content["cache_creation_tokens"] = str(cache_creation_tokens)
 
             return {
                 "type": "costStatistics",
@@ -495,6 +397,25 @@ class TokenUsageCallback(AsyncCallbackHandler):
 
         # Debug: log full response structure
         logger.debug(f"[TokenUsage] llm_output keys: {response.llm_output.keys() if response.llm_output else 'None'}")
+
+        # Debug: the whole final message, not just usage. Exists because a turn
+        # ended with output tokens spent but zero streamed text and zero tool
+        # calls — only the full message shows where those tokens went
+        # (finish_reason, invalid_tool_calls, non-text content blocks).
+        try:
+            for gens in response.generations:
+                for gen in gens:
+                    msg = getattr(gen, "message", None)
+                    if msg is not None:
+                        logger.debug(
+                            "[LLMEnd] content=%r additional_kwargs=%r invalid_tool_calls=%r response_metadata=%r",
+                            getattr(msg, "content", None),
+                            getattr(msg, "additional_kwargs", None),
+                            getattr(msg, "invalid_tool_calls", None),
+                            getattr(msg, "response_metadata", None),
+                        )
+        except Exception as e:
+            logger.debug(f"[LLMEnd] introspection failed: {e}")
 
         # Method 1: response.llm_output["token_usage"] (OpenAI/OpenRouter format)
         if response.llm_output and "token_usage" in response.llm_output:
