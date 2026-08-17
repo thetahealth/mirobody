@@ -10,12 +10,16 @@ deepagents-native ``read_file`` tool, not through this module):
    https://docs.langchain.com/oss/python/deepagents/harness#virtual-filesystem-access
    and https://docs.langchain.com/oss/python/langchain/messages#multimodal
 
-2. **Text extraction** — best-effort text for the ``content`` column so that
-   ``grep`` works and non-multimodal models still get *some* signal. Delegates
-   to the shared ``FileAbstractExtractor``, which dedups repeated bytes against
-   ``th_file_contents`` (SHA256) for every extraction consumer — this module
-   used to keep its own hash cache over ``th_files`` instead, which missed
-   pulse-pipeline hits and never wrote back.
+2. **Text extraction, cold** — registration never OCRs. It only asks whether
+   these exact bytes were extracted before (one indexed SHA256 lookup against
+   ``th_files``); if not, ``content`` stays empty and the real extraction runs
+   the first time the model calls ``read_file`` on the file, via
+   ``PgFilesystemBackend._lazy_extract_doc_text`` -> ``extract_text``. Files
+   nobody opens therefore cost nothing beyond storage, which is the common case
+   for chat attachments.
+
+   The trade-off this buys is deliberate: an unopened document is not greppable
+   until something reads it, because its text does not exist yet.
 
 The resulting (raw_bytes, parsed_text, mime_type) triple is handed to
 ``PgFilesystemBackend.aupload_parsed`` which offloads the bytes and keeps the
@@ -27,7 +31,10 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import BinaryIO, Optional, Union
 
-from ...pulse.file_parser.services.file_abstract_extractor import FileAbstractExtractor
+from ...pulse.file_parser.services.file_abstract_extractor import (
+    FileAbstractExtractor,
+    lookup_extracted_text,
+)
 from ...utils.db import execute_query
 from .filetype import guess_mime, is_multimodal
 
@@ -58,11 +65,17 @@ class FileParser:
         file_input: Union[bytes, BinaryIO],
         filename: str,
     ) -> PreparedFile:
-        """Prepare an uploaded file for storage.
+        """Classify an uploaded file for storage — deliberately does NOT extract.
 
-        Returns raw bytes (for multimodal/offload), best-effort extracted text
-        (for grep / non-multimodal models), the mime type, and the multimodal
-        flag. Text extraction never raises — on failure ``parsed_text`` is "".
+        Cold loading: OCR is the expensive step and most registered files are
+        never opened, so it is deferred to the moment the model actually calls
+        ``read_file`` (``PgFilesystemBackend._lazy_extract_doc_text`` ->
+        ``extract_text``). Registration stays a byte copy.
+
+        The one thing done here is the cheap half — a single indexed SHA256
+        lookup. Bytes somebody already extracted come back inline immediately,
+        so a re-uploaded document is free, greppable at once, and needs no
+        read-time round-trip.
         """
         if hasattr(file_input, "read"):
             if hasattr(file_input, "seek"):
@@ -74,24 +87,20 @@ class FileParser:
         mime = guess_mime(filename)
         multimodal = is_multimodal(filename)
 
-        # Pure media (image/audio/video) has no text to extract — read happens
-        # multimodally. Only extract for text-y and pdf/ppt types.
+        # Pure media (image/audio/video) is read multimodally and has no text
+        # to look up. Only text-y and pdf/ppt types can have a cached extraction.
         ext = PurePosixPath(filename or "").suffix.lower()
-        should_extract = (not multimodal) or (ext in _TEXT_EXTRACTABLE_MULTIMODAL)
+        extractable = (not multimodal) or (ext in _TEXT_EXTRACTABLE_MULTIMODAL)
 
         parsed_text = ""
-        if should_extract and file_bytes:
+        if extractable and file_bytes:
             try:
-                text = await self.file_abstract_extractor.extract_file_original_text(
-                    file_content=file_bytes,
-                    file_type=ext.lstrip("."),
-                    filename=filename,
-                    content_type=mime,
-                )
-                if text and len(text.strip()) > 10:
-                    parsed_text = text
+                cached = await lookup_extracted_text(file_bytes)
+                if cached and len(cached.strip()) > 10:
+                    parsed_text = cached
+                    logger.info(f"🎯 {filename}: reused an earlier extraction, no OCR needed")
             except Exception as e:
-                logger.error(f"File parsing failed for {filename}: {e}", exc_info=True)
+                logger.warning(f"extraction lookup failed for {filename}: {e}")
 
         return PreparedFile(
             raw_bytes=file_bytes or None,
@@ -99,6 +108,29 @@ class FileParser:
             mime_type=mime,
             is_multimodal=multimodal,
         )
+
+    async def extract_text(self, file_bytes: bytes, filename: str) -> str:
+        """Run the real extraction — the only path here that can call a Vision LLM.
+
+        Reached from ``read_file`` on a document whose text is not inline yet.
+        Deduplication still applies inside ``extract_file_original_text``: two
+        models opening the same bytes pay for one OCR. Never raises; returns ""
+        when nothing could be extracted.
+        """
+        if not file_bytes:
+            return ""
+        ext = PurePosixPath(filename or "").suffix.lower()
+        try:
+            text = await self.file_abstract_extractor.extract_file_original_text(
+                file_content=file_bytes,
+                file_type=ext.lstrip("."),
+                filename=filename,
+                content_type=guess_mime(filename),
+            )
+            return text if text and len(text.strip()) > 10 else ""
+        except Exception as e:
+            logger.error(f"File parsing failed for {filename}: {e}", exc_info=True)
+            return ""
 
     async def get_cached_file_by_key(self, file_key: str) -> Optional[str]:
         """Text the pulse upload pipeline already parsed for this ``file_key``

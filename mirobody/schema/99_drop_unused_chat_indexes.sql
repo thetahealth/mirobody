@@ -1,4 +1,5 @@
--- Reclaim three indexes that cost writes and served no read.
+-- Reclaim three indexes that cost writes and served no read, and one table that
+-- stored a second copy of data th_files already holds.
 --
 -- Deleting a `CREATE INDEX` from a baseline only affects databases created
 -- afterwards — the bootstrap has no ledger and never drops anything — so a
@@ -32,6 +33,15 @@
 -- and no baseline ever created the table — so a database bootstrapped from this
 -- schema never had it, while anything that does got it from an older
 -- provisioning path and may still hold rows.
+
+-- th_file_contents (hash -> original_text) was the extraction dedup cache. It
+-- normalised nothing: th_files stores content_hash AND original_text on the
+-- same row anyway, so this was a second at-rest copy of the same health text —
+-- with no user_id, no foreign key to the file, and no delete path, meaning a
+-- user's extracted report survived the deletion of the file it came from. The
+-- lookup now reads th_files directly (see `_read_original_text_cache`), which
+-- makes "delete the file, lose the text" true.
+DROP TABLE IF EXISTS th_file_contents;
 
 DROP INDEX IF EXISTS idx_th_messages_comment_trgm;
 DROP INDEX IF EXISTS idx_th_sessions_tags;

@@ -17,7 +17,7 @@ from ..repositories.health_data import HealthDataRepository
 from ...standardize.indicators_info import is_summary_indicator, is_series_indicator, normalize_indicator_name
 from ...standardize.fhir_mapping import get_fhir_id
 from ...standardize.value_range_validator import ValueRangeValidator
-from ...core.user import ThetaUserService
+from ...core.user import PlatformUserService
 from ....utils import execute_query
 
 
@@ -35,7 +35,7 @@ class StandardHealthService(BaseHealthService):
     }
 
     def __init__(self, repository: HealthDataRepository = None):
-        self.user_service = ThetaUserService()
+        self.user_service = PlatformUserService()
         self._value_validator = ValueRangeValidator()
         super().__init__(repository)
 

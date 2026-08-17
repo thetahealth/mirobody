@@ -131,8 +131,9 @@ class PgFilesystemBackend(BackendProtocol):
         # When True, the bound model accepts a native `{'type': 'file'}` content
         # block (Claude / Gemini …), so pdf/ppt are served as raw base64 bytes
         # (preserving tables/figures/layout) rather than flattened to extracted
-        # text. When False (qwen/deepseek/… reject file blocks), they read as the
-        # upload-time extracted text. See aread's _TEXT_DOC_EXTS branch.
+        # text. When False (qwen/deepseek/… reject file blocks), they read as
+        # extracted text — extracted on that first read. See aread's
+        # _TEXT_DOC_EXTS branch.
         self._supports_file_block = bool(supports_file_block)
 
     @property
@@ -318,17 +319,22 @@ class PgFilesystemBackend(BackendProtocol):
         self, row: dict[str, Any], file_path: str
     ) -> str | None:
         """On-demand text extraction for a text-document (pdf/ppt) whose inline
-        ``content`` is still empty (upload-time parse not finished, or the file
-        was registered by reference).
+        ``content`` is empty.
 
-        Two sources, cheapest first:
-          1. the ``th_files`` parse cache by ``file_key`` — the asynchronous
-             upload parse may have completed since this row was registered;
-          2. the raw bytes in object storage — extract synchronously.
+        This is where OCR actually happens. Registration deliberately does not
+        extract (see ``parser.FileParser.prepare``), so for any document the
+        model has not opened before, the first ``read_file`` lands here.
+
+        Three sources, cheapest first:
+          1. the ``th_files`` parse cache by ``file_key`` — the upload pipeline's
+             own parse may have completed since this row was registered;
+          2. the raw bytes in object storage, deduplicated by SHA256 inside
+             ``extract_text`` — bytes extracted before never pay twice;
+          3. failing both, a real extraction (Vision LLM for scanned pages).
 
         On success the text is written back to the workspace row so subsequent
         reads are instant. Returns the extracted text, or ``None`` if nothing
-        could be produced yet.
+        could be produced.
         """
         file_key = row.get("file_key")
         oss_key = row.get("object_storage_key")
@@ -346,10 +352,10 @@ class PgFilesystemBackend(BackendProtocol):
             if oss_key:
                 raw = await self._get_from_storage(str(oss_key))
                 if raw:
-                    prepared = await parser.prepare(raw, name)
-                    if prepared.parsed_text and prepared.parsed_text.strip():
-                        await self._persist_inline_text(file_path, prepared.parsed_text)
-                        return prepared.parsed_text
+                    text = await parser.extract_text(raw, name)
+                    if text.strip():
+                        await self._persist_inline_text(file_path, text)
+                        return text
         except Exception as e:
             logger.warning(f"lazy doc extract failed for {file_path}: {e}")
         return None
@@ -481,8 +487,9 @@ class PgFilesystemBackend(BackendProtocol):
         #    are best at, and what matters for lab reports / scanned medical docs).
         #  * everything else here (ppt/pptx and Excel — no provider accepts these
         #    as file blocks — and PDF on text-only models like qwen/deepseek that
-        #    reject `{'type':'file'}` with HTTP 400): serve the upload-time
-        #    extracted text. We drop these extensions from deepagents' multimodal
+        #    reject `{'type':'file'}` with HTTP 400): serve the extracted text,
+        #    extracting it now if this is the file's first read. We drop these
+        #    extensions from deepagents' multimodal
         #    map (module-level patch below) so a text payload renders as a plain
         #    text block while a base64 payload still falls back to a "file" block.
         ext = PurePosixPath(file_path).suffix.lower()
@@ -960,8 +967,8 @@ def _guess_mime(file_path: str) -> str | None:
 # Excel (.xlsx/.xls/...) matters here: no provider accepts a spreadsheet as a
 # native file block, and its bytes are a ZIP the model cannot decode. Without
 # this entry ``aread`` would serve raw base64 and the model could not parse it.
-# The upload-time parser turns the workbook into a markdown table
-# (``_extract_excel_original_text``), which is what we serve instead.
+# The parser turns the workbook into a markdown table
+# (``_extract_excel_original_text``) on first read, which is what we serve.
 _TEXT_DOC_EXTS = {".pdf", ".ppt", ".pptx", ".xlsx", ".xls", ".xlsm", ".xlsb"}
 
 

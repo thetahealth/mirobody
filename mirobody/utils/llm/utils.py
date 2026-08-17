@@ -6,17 +6,13 @@ Provides format conversion, helper functions and other common utilities.
 
 import json
 import logging
-import os
-import uuid
 from typing import Dict, List, Optional
 
 from .config import AIConfig
 
-#-----------------------------------------------------------------------------
-
-PROJECT_DIR = os.getenv("PROJECT_PATH") or os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "../..")
-)
+# `PROJECT_DIR`, `os` and `uuid` used to be here to give `async_get_openai_tts`
+# somewhere to write its .mp3 — the only thing in this module that ever touched
+# the filesystem, and a function no caller ever invoked. All four went together.
 
 #-----------------------------------------------------------------------------
 
@@ -48,52 +44,6 @@ async def get_openai_chat(model_name: str, messages: List[Dict], **kwargs) -> Op
         logging.error(f"OpenAI chat API error: {type(e).__name__}", stack_info=True)
         return None
 
-
-async def async_get_openai_tts(text: str, voice: str = "alloy", model: str = "tts-1", **kwargs) -> Optional[str]:
-    """
-    Get OpenAI TTS response
-    """
-    try:
-        from .clients import client_manager
-
-        client = client_manager.get_async_openai_client()
-
-        response = await client.audio.speech.create(model=model, voice=voice, input=text, **kwargs)
-        # Save to local
-        file_dir = os.path.join(PROJECT_DIR, "tts")
-        if not os.path.exists(file_dir):
-            os.makedirs(file_dir)
-        file_path = os.path.join(file_dir, f"{uuid.uuid4()}.mp3")
-        response.write_to_file(file_path)
-        return file_path
-
-    except Exception as e:
-        logging.error(f"OpenAI TTS API error: {type(e).__name__}", stack_info=True)
-        return None
-
-
-async def async_get_openai_structured_output(
-    model_name: str, messages: List[Dict], response_format: Dict, **kwargs
-) -> Optional[Dict]:
-    """
-    Get OpenAI structured output response
-    """
-    try:
-        from .clients import client_manager
-
-        client = client_manager.get_async_openai_client()
-
-        response = await client.chat.completions.create(
-            model=model_name, messages=messages, response_format=response_format, **kwargs
-        )
-        result = response.choices[0].message.to_dict()
-        final_result = {}
-        if result["refusal"] is None:
-            final_result = json.loads(result["content"])
-        return final_result
-    except Exception as e:  # noqa
-        logging.error(f"OpenAI structured output API error: {type(e).__name__}", stack_info=True)
-        return None
 
 
 async def async_get_doubao_structured_output(

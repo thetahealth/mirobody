@@ -165,10 +165,11 @@ class BaseFileHandler(abc.ABC):
         """
         Read the upload's bytes and extract original text.
 
-        SHA256 dedup against ``th_file_contents`` lives inside
+        SHA256 dedup lives inside
         ``FileAbstractExtractor.extract_file_original_text`` (one cache for
-        every extraction consumer, not a per-handler copy). The hash is still
-        computed here because callers persist it on the ``th_files`` row.
+        every extraction consumer, not a per-handler copy). The hash is
+        computed here because callers persist it on the ``th_files`` row —
+        which is what makes the next upload of the same bytes a cache hit.
 
         Returns:
             Tuple of (original_text, content_hash), or (None, None) on empty

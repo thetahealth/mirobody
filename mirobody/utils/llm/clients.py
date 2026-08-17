@@ -190,57 +190,14 @@ class AIClientManager:
         return health_status
 
 
+# The one client entry point. Everything below it used to be a second,
+# never-wired one: a `_GlobalClients` lazy holder (whose `client_manager`
+# property built a SECOND AIClientManager, duplicating this singleton), three
+# module globals `openai_client`/`async_openai_client`/`gemini_client`
+# initialised to None, an `init_clients()` that filled them — and no caller
+# anywhere that ever invoked it. So the globals stayed None for the life of
+# every process, and `utils/llm/__init__` re-exported `openai_client` in its
+# `__all__` regardless: a documented public name whose value was permanently
+# None. A module-level `get_ai_client()` wrapper went the same way; the
+# METHOD of the same name on AIClientManager is live and stays.
 client_manager = AIClientManager()
-
-
-# Client getter functions
-def get_ai_client(provider: str) -> OpenAI:
-    """Get AI client"""
-    return client_manager.get_ai_client(provider)
-
-
-# Global client objects (lazy initialization)
-class _GlobalClients:
-    def __init__(self):
-        self._client_manager = None
-
-    @property
-    def client_manager(self) -> AIClientManager:
-        if self._client_manager is None:
-            self._client_manager = AIClientManager()
-        return self._client_manager
-
-    @property
-    def openai_client(self) -> OpenAI:
-        return client_manager.get_openai_client()
-
-    @property
-    def async_openai_client(self) -> AsyncOpenAI:
-        return client_manager.get_async_openai_client()
-
-    @property
-    def gemini_client(self):
-        return client_manager.get_async_gemini_client()
-
-
-# Global objects
-_global_clients = _GlobalClients()
-openai_client = None
-async_openai_client = None
-gemini_client = None
-
-
-def init_clients():
-    global openai_client, async_openai_client, gemini_client
-    try:
-        openai_client = _global_clients.openai_client
-    except (ValueError, Exception):
-        openai_client = None
-    try:
-        async_openai_client = _global_clients.async_openai_client
-    except (ValueError, Exception):
-        async_openai_client = None
-    try:
-        gemini_client = _global_clients.gemini_client
-    except (ValueError, Exception):
-        gemini_client = None

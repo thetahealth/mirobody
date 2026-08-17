@@ -160,8 +160,12 @@ async def register_files_to_workspace(
                 logger.warning(f"Skipping file with no content/URL/key: {file_name}")
                 continue
 
-            # Extract best-effort text + classify mime; multimodal files
-            # (pdf/image/...) are surfaced to the model as multimodal blocks on read.
+            # Classify mime and reuse an earlier extraction of these exact bytes
+            # if one exists — but do NOT extract here. Registering a file is a
+            # byte copy; OCR happens on the first read_file (see
+            # PgFilesystemBackend._lazy_extract_doc_text), so attachments the
+            # model never opens cost nothing. Multimodal files (image/audio/...)
+            # are surfaced as multimodal blocks and never need text at all.
             parsed_text = ""
             mime = guess_mime(file_name)
             if raw_bytes is not None:

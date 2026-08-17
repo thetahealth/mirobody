@@ -25,18 +25,40 @@ from mirobody.pulse.file_parser.services.prompts.file_original_text_prompt impor
 _PDF_TEXT_LAYER_MIN_CHARS = 100
 
 
+async def lookup_extracted_text(file_content: bytes) -> Optional[str]:
+    """Text a previous extraction of these exact bytes produced, or None.
+
+    The cheap half of extraction: one indexed lookup, never a model call. The
+    DeepAgent workspace uses it at registration time to decide whether a file
+    still needs OCR at all (see ``agent/deep/parser.FileParser.prepare``).
+    """
+    if not file_content:
+        return None
+    return await _read_original_text_cache(hashlib.sha256(file_content).hexdigest())
+
+
 async def _read_original_text_cache(content_hash: str) -> Optional[str]:
-    """``th_file_contents`` dedup read: SHA256 of the raw bytes -> extracted text.
+    """Dedup read: SHA256 of the raw bytes -> text some earlier upload extracted.
 
-    This is THE cache for original-text extraction. It used to be three
-    separate per-caller copies (pulse pdf/image/excel handlers, the text
-    handler, and the DeepAgent workspace parser — the last one querying a
-    different table, so it missed pulse hits and never wrote back); sinking it
-    here gives every ``extract_file_original_text`` caller the same dedup.
+    The cache IS ``th_files``. Every persistence path
+    (``FileDbService.insert_file`` / ``update_file_processed`` /
+    ``BaseFileHandler._save_original_text_to_db``) already writes
+    ``content_hash`` and ``original_text`` onto the same row, so a dedicated
+    hash->text table stored a second copy of the same health text and bought
+    nothing: it was never normalised away, nothing ever deleted from it, and no
+    foreign key tied it to the file it came from — so a user's extracted report
+    text outlived the file they deleted, in a table with no ``user_id``. Reading
+    through ``th_files`` (``is_del = false``) makes "delete the file, lose the
+    text" true.
 
-    ``GLOBAL_FILE_CACHE_ENABLED: false`` skips reads (forces fresh extraction)
-    while results are still written back. Deferred imports + broad except:
-    extraction must keep working on installs without a database.
+    The trade-off, stated plainly: an extraction only lands in the cache if it
+    reaches a ``th_files`` row. The DeepAgent workspace parser reads this cache
+    but does not populate it (its text goes to the workspace row instead), so a
+    file the agent OCRs before the upload pipeline finishes can be OCR'd twice.
+    That is a cost, not a correctness, difference.
+
+    ``GLOBAL_FILE_CACHE_ENABLED: false`` forces fresh extraction. Deferred
+    imports + broad except: extraction must keep working without a database.
     """
     try:
         from mirobody.utils.config import safe_read_cfg
@@ -44,7 +66,13 @@ async def _read_original_text_cache(content_hash: str) -> Optional[str]:
             return None
         from mirobody.utils.db import execute_query
         rows = await execute_query(
-            "SELECT decrypt_content(original_text) AS original_text FROM th_file_contents WHERE content_hash = :hash LIMIT 1",
+            """
+            SELECT decrypt_content(original_text) AS original_text
+            FROM th_files
+            WHERE content_hash = :hash AND is_del = false
+              AND original_text IS NOT NULL AND original_text != ''
+            ORDER BY updated_at DESC LIMIT 1
+            """,
             params={"hash": content_hash},
         )
         text = rows[0].get("original_text") if rows else None
@@ -52,27 +80,6 @@ async def _read_original_text_cache(content_hash: str) -> Optional[str]:
     except Exception as e:
         logging.warning(f"original-text cache read failed (hash={content_hash[:16]}...): {e}")
         return None
-
-
-async def _write_original_text_cache(content_hash: str, text: str, file_type: str) -> None:
-    """Best-effort write-back to ``th_file_contents``; never raises."""
-    try:
-        from mirobody.utils.db import execute_query
-        await execute_query(
-            """
-            INSERT INTO th_file_contents (content_hash, original_text, text_length, file_type)
-            VALUES (:hash, encrypt_content(:text), :length, :file_type)
-            ON CONFLICT (content_hash) DO NOTHING
-            """,
-            params={
-                "hash": content_hash,
-                "text": text,
-                "length": len(text),
-                "file_type": file_type,
-            },
-        )
-    except Exception as e:
-        logging.warning(f"original-text cache write failed (hash={content_hash[:16]}...): {e}")
 
 
 class FileAbstractExtractor:
@@ -692,8 +699,8 @@ Please return strictly in JSON format, do not include any markdown code block ma
                 logging.info(f"📄 [Original Text] Skipping original text extraction for unsupported file: {filename}, type: {file_type}")
                 return ""
 
-            if text and content_hash:
-                await _write_original_text_cache(content_hash, text, file_type)
+            # No write-back step: the caller persists this text onto the
+            # th_files row (with the same content_hash), which IS the cache.
             return text
 
         except Exception as e:

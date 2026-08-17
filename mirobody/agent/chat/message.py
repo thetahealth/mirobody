@@ -23,84 +23,30 @@ REDIS_CHAT_LIST_KEY_HOLYWELL = "redis_chat_list_hollywell"
 
 #-----------------------------------------------------------------------------
 
-def repair_json_string(json_str: str) -> str:
-    """
-    Attempt to repair common JSON formatting issues in LLM responses
-    
-    Args:
-        json_str: The potentially malformed JSON string
-        
-    Returns:
-        Repaired JSON string
-    """
-    # Remove any markdown code block markers
-    clean = json_str.strip()
-    if clean.startswith('```json'):
-        clean = clean[7:]
-    elif clean.startswith('```'):
-        clean = clean[3:]
-    
-    if clean.endswith('```'):
-        clean = clean[:-3]
-    
-    clean = clean.strip()
-    
-    # Fix common quote issues
-    clean = clean.replace('"', '"').replace('"', '"')  # Smart quotes
-    clean = clean.replace("'", "'").replace("'", "'")  # Smart apostrophes
-    
-    # Remove trailing commas before closing brackets/braces
-    clean = re.sub(r',(\s*[}\]])', r'\1', clean)
-    
-    # Fix unescaped quotes in strings (basic attempt)
-    # This is a simple heuristic and may not work in all cases
-    clean = re.sub(r'(?<!\\)"(?=.*":)', '\\"', clean)
-    
-    # Remove any control characters that might break JSON
-    clean = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', clean)
-    
-    return clean
+def parse_stored_content(raw: Any) -> Any:
+    """Parse a ``th_messages.content`` value, or return None if it is not JSON.
 
+    ``save_message`` writes this column, and it writes exactly two shapes: a
+    ``json.dumps`` of the assistant's element_list / the user's file bubble, or
+    a plain string (the user's question). So strict parsing is the whole job —
+    valid JSON parses, prose does not, and there is no third case.
 
-def safe_json_parse(json_str: str, fallback_value: Any = None) -> Any:
+    This replaced a 78-line "repair" pair (``repair_json_string`` /
+    ``safe_json_parse``) written for *LLM output*: it stripped markdown fences,
+    swapped smart quotes, removed trailing commas, and — the damaging part —
+    fell back to pulling the first ``[...]``/``{...}`` substring out of the
+    text. Nothing here parses model output; the sole caller reads back what
+    this module itself wrote. On its own writer's output every repair step was
+    a no-op, and on the other shape it was actively wrong: a user asking
+    ``这个配置 {"files": [1,2]} 对吗？`` had their question parsed to ``[1, 2]``
+    and shipped to the client as that message's ``content_dict``.
     """
-    Safely parse JSON with repair attempts and fallback
-    
-    Args:
-        json_str: The JSON string to parse
-        fallback_value: Value to return if parsing fails
-        
-    Returns:
-        Parsed JSON object or fallback_value
-    """
-    # Try parsing as-is first
+    if not isinstance(raw, str):
+        return raw if isinstance(raw, (list, dict)) else None
     try:
-        return json.loads(json_str)
-    except json.JSONDecodeError:
-        pass
-    
-    # Try with basic cleaning
-    try:
-        cleaned = repair_json_string(json_str)
-        return json.loads(cleaned)
-    except json.JSONDecodeError:
-        pass
-    
-    # Try to extract JSON from within the text (in case there's extra text)
-    try:
-        # Look for JSON array or object patterns
-        array_match = re.search(r'\[.*\]', json_str, re.DOTALL)
-        if array_match:
-            return json.loads(repair_json_string(array_match.group()))
-            
-        obj_match = re.search(r'\{.*\}', json_str, re.DOTALL)
-        if obj_match:
-            return json.loads(repair_json_string(obj_match.group()))
-    except json.JSONDecodeError:
-        pass
-    
-    # If all else fails, return fallback
-    return fallback_value
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None
 
 #-----------------------------------------------------------------------------
 
@@ -194,27 +140,38 @@ async def set_message_rating(user_id: str, message_id: str, rating: int) -> bool
 
 #-----------------------------------------------------------------------------
 
-async def get_last_message(user_id: str, query_user_id: str = None, session_id: str = None, include_all=False, db_mode: str = "sync", scene="app") -> list:
+async def get_last_message(user_id: str, query_user_id: str = None, session_id: str = None, scene="app") -> list:
+    """Recent turns of a conversation, flattened to text — BaseAgent's replay.
+
+    DeepAgent does NOT come through here: its history is the LangGraph
+    checkpointer (thread_id = session_id). This exists for BaseAgent, which has
+    no graph, and so the rows are flattened to ``{role, agent, content}`` — the
+    only fields ``compress_messages`` reads — plus ``created_at`` for the
+    resume-gap hint.
+
+    Trimmed of three dead parameters/fields in the process: ``include_all``
+    (a second, never-requested SQL branch dropping the query_user_id scope) and
+    ``db_mode`` (read by nothing at all) were never passed by any caller, and
+    the returned ``element_list``/``th_msg_id``/``reference_task_id`` lost their
+    only consumer when canonical replay moved to the checkpointer.
+    """
     if query_user_id is None:
         query_user_id = user_id
-    
+
     # session_id comes from the HTTP request (client-controlled) — must be a
     # bind param, never f-string interpolated, to prevent SQL injection.
     session_phrase = "and session_id = :session_id" if session_id else ""
 
     messages = []
     try:
-        if not include_all:
-            sql = f"""
-                select id, role, agent, decrypt_content(content) as content, reference_task_id, created_at from th_messages where user_id = :user_id and query_user_id = :query_user_id and scene = :scene and is_del = false {session_phrase} order by created_at desc limit 15
-            """
-            params = {"user_id": user_id, "query_user_id": query_user_id, "scene": scene}
-        else:
-            sql = f"""
-                select id, role, agent, decrypt_content(content) as content, reference_task_id, created_at from th_messages where user_id = :user_id and scene = :scene and is_del = false {session_phrase} order by created_at desc limit 15
-            """
-            params = {"user_id": user_id, "scene": scene}
-
+        sql = f"""
+            select role, agent, decrypt_content(content) as content, created_at
+            from th_messages
+            where user_id = :user_id and query_user_id = :query_user_id
+              and scene = :scene and is_del = false {session_phrase}
+            order by created_at desc limit 15
+        """
+        params = {"user_id": user_id, "query_user_id": query_user_id, "scene": scene}
         if session_id:
             params["session_id"] = session_id
 
@@ -223,39 +180,35 @@ async def get_last_message(user_id: str, query_user_id: str = None, session_id: 
         for i in range(len(rows) - 1, -1, -1):
             m = rows[i]
 
-            element_list: list = []
-            try:
-                # TODO: Handle more message types (e.g., food_snap, report)
-                content = ""
-                element_list = json.loads(m["content"])
-                for e in element_list:
-                    if e.get("type") == "reply":
-                        content += e.get("content", "")
-                # R1: fold a one-line tool/file trace into the replayed assistant
-                # text so the next turn knows it already read /uploads/* etc. and
-                # doesn't re-run read_file. Provider-agnostic; result is only an
-                # excerpt, never the full payload. (The legacy/text replay path
-                # consumes `content`; the canonical R3 path rebuilds from
-                # `element_list` instead, so this is harmless when canonical.)
+            # Assistant content is the persisted element_list; flatten it to the
+            # `reply` text. A plain string (the user's question, or a legacy row)
+            # parses to None and is used as-is.
+            element_list = parse_stored_content(m["content"])
+            if isinstance(element_list, list):
+                content = "".join(
+                    e.get("content", "")
+                    for e in element_list
+                    if isinstance(e, dict) and e.get("type") == "reply"
+                )
+                # Fold a one-line tool/file trace into the replayed assistant
+                # text so the next turn knows it already read /uploads/* and
+                # doesn't re-run read_file. Excerpt only, never the full payload.
                 if m["role"] == "assistant":
                     content = fold_trace_into_text(content, element_list)
-            except Exception:
+            else:
                 content = m["content"]
-                element_list = []
+
             messages.append(
                 dict(
-                    role                = m["role"],
-                    agent               = m["agent"],
-                    content             = content,
-                    element_list        = element_list,   # raw chunks for canonical (R3) replay
-                    th_msg_id           = m["id"],
-                    reference_task_id   = m["reference_task_id"],
-                    created_at          = m["created_at"]
+                    role        = m["role"],
+                    agent       = m["agent"],
+                    content     = content,
+                    created_at  = m["created_at"],
                 )
             )
 
         return messages
-    
+
     except Exception as e:
         logging.error(str(e), exc_info=True)
         return []
@@ -461,10 +414,15 @@ async def get_chat_history(user_id: str, session_id: str) -> list[dict[str, Any]
     """
     history = []
     try:
+        # `input_prompt` used to be selected here and surfaced on the response
+        # when truthy. Nothing in the project ever writes that column — not
+        # save_message, not the one UPDATE path (file_parser's
+        # update_message_content, which can set content/reasoning/message_type)
+        # — so it is NULL on every row and the branch never fired.
         session_sql = """
             SELECT
                 id, decrypt_content(content) AS content, reasoning, role, agent, provider,
-                input_prompt, created_at, rating, question_id, message_type
+                created_at, rating, question_id, message_type
             FROM th_messages
             WHERE user_id = :user_id AND session_id = :session_id
               AND message_type in ('text', 'file', 'pdf', 'image')
@@ -481,16 +439,16 @@ async def get_chat_history(user_id: str, session_id: str) -> list[dict[str, Any]
 
             for msg in db_messages:
                 content = msg.get("content", "")
-                content_json_obj = safe_json_parse(msg.get("content", ""))
+                content_json_obj = parse_stored_content(msg.get("content", ""))
                 thinking_chunks = []
                 if isinstance(content_json_obj, list) and msg.get("message_type") == "text":
-                    try:
-                        content = "".join([block["content"] for block in content_json_obj if block.get("type") == "reply"])
-                        thinking_chunks = [block for block in content_json_obj if block.get("type") in ["thinking", "queryTitle", "queryArguments", "queryDetail"]]
-                    
-                    except Exception as e:
-                        logging.error(f"Error parsing content: {str(e)}")
-                
+                    blocks = [b for b in content_json_obj if isinstance(b, dict)]
+                    content = "".join(b.get("content", "") for b in blocks if b.get("type") == "reply")
+                    thinking_chunks = [
+                        b for b in blocks
+                        if b.get("type") in ("thinking", "queryTitle", "queryArguments", "queryDetail")
+                    ]
+
                 try:
                     await _refresh_file_urls_in_content(content_json_obj)
                 except Exception as e:
@@ -514,9 +472,6 @@ async def get_chat_history(user_id: str, session_id: str) -> list[dict[str, Any]
                 if msg.get("agent"):
                     message["agent"] = msg.get("agent")
 
-                if msg.get("input_prompt"):
-                    message["input_prompt"] = msg.get("input_prompt")
-
                 if msg.get("rating") is not None:
                     message["rating"] = msg.get("rating")
 
@@ -537,10 +492,15 @@ async def get_chat_history(user_id: str, session_id: str) -> list[dict[str, Any]
 
             user_messages.sort(key=lambda x: x["timestamp"])
 
-            for user_msg in user_messages: 
-                if not user_msg.get("provider"): # filter duplicate messages 
-                    continue
-                
+            # Every user message is returned. There used to be a
+            # `if not user_msg.get("provider"): continue` here, labelled
+            # "filter duplicate messages": a workaround for a historical
+            # duplicate-write bug, which dropped any user message whose
+            # `provider` was empty. The bug is gone; the workaround was not,
+            # and it silently hid every user message written by a path that
+            # does not set `provider` — a filter on the wrong field for a
+            # problem that no longer exists.
+            for user_msg in user_messages:
                 history.append(user_msg)
 
                 question_id = user_msg.get("questionId")

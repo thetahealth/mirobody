@@ -12,7 +12,7 @@ streaming/agentic client stack with MCP tool calling.
 """
 
 # Client management
-from .clients import client_manager, openai_client
+from .clients import client_manager
 
 # Configuration management
 from .config import AI_CONFIG, AIConfig
@@ -21,18 +21,15 @@ from .file_processors import (
     FileProcessor,
     VisionProviderConfig,
     gemini_file_extract,
-    gemini_multi_file_extract,
     doubao_file_extract,
     unified_file_extract,
 )
 
 # Utility functions
 from .utils import (
-    async_get_openai_structured_output,
     async_get_doubao_structured_output,
     async_get_structured_output,
     async_get_text_completion,
-    async_get_openai_tts,
     get_openai_chat,
 )
 
@@ -51,19 +48,14 @@ __all__ = [
     "AIConfig",  # Configuration manager
     "AI_CONFIG",  # Global config object
     "client_manager",  # Client manager
-    "openai_client",  # OpenAI client
     # === File processing ===
     "FileProcessor",  # File processor
-    # "VisionProcessor",  # Vision processor
     "VisionProviderConfig",  # Vision provider config (query available providers)
     "gemini_file_extract",  # Gemini file extraction
-    "gemini_multi_file_extract",  # Gemini multi-file extraction
     "doubao_file_extract",  # Doubao file extraction
     "unified_file_extract",  # 🔥 Unified file extraction entry (auto-select model)
     # === Utility functions ===
     "get_openai_chat",  # Get OpenAI chat
-    "async_get_openai_tts",  # Get OpenAI TTS
-    "async_get_openai_structured_output",  # Get OpenAI structured output
     "async_get_doubao_structured_output",  # Get Doubao structured output
     "async_get_structured_output",  # 🔥 Unified structured output (auto-select provider)
     "async_get_text_completion",  # 🔥 Unified text generation (auto-select provider)

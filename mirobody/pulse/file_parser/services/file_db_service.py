@@ -63,7 +63,8 @@ class FileDbService:
             query_user_id: Query user ID (defaults to user_id)
             original_text: Original text content extracted from file (for rerank)
             text_length: Length of original text (for rerank strategy)
-            content_hash: SHA256 hash of file content (for deduplication, references th_file_contents)
+            content_hash: SHA256 of the raw bytes — the dedup key that lets a
+                later upload of the same file reuse this row's original_text
             
         Returns:
             Inserted file ID or None on failure

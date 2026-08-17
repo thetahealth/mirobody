@@ -244,6 +244,17 @@ async def delete_session(user_id: str, session_id: str) -> str | None:
             params={"user_id": user_id, "session_id": session_id}
         )
 
+        # And the agent's own copy. DeepAgent's conversation memory is the
+        # LangGraph checkpointer keyed on thread_id = session_id, so the two
+        # deletes above would otherwise leave the same turns — the health
+        # questions and the tool results answering them — sitting in the
+        # checkpoint tables under this session id. Deleting a conversation has
+        # to delete it, not just stop listing it. Best-effort by design (see
+        # deep.checkpointer.delete_thread): the user-visible rows are already
+        # gone, and a checkpoint-cleanup failure must not turn that into an error.
+        from ..deep.checkpointer import delete_thread
+        await delete_thread(session_id)
+
         return None
 
     except Exception as e:

@@ -27,10 +27,10 @@ class TextHandler(BaseFileHandler):
         # Extract text content
         raw_text = await self.content_extractor.extract_from_text_file(temp_file_path)
 
-        # For text files the raw decode IS the original text. The
-        # th_file_contents read/write that used to sit here saved a free decode
-        # and was the third hand-copied version of the cache SQL — dedup for
-        # expensive extraction lives in FileAbstractExtractor now.
+        # For text files the raw decode IS the original text. The dedup
+        # read/write that used to sit here cached a free decode and was the
+        # third hand-copied version of the cache SQL — dedup for expensive
+        # extraction lives in FileAbstractExtractor now.
         original_text = raw_text
 
         # Generate the abstract from the text we just extracted, like the

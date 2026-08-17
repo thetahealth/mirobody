@@ -139,6 +139,30 @@ async def get_checkpointer():
         return None
 
 
+async def delete_thread(session_id: str) -> None:
+    """Erase the agent's copy of one conversation.
+
+    ``thread_id == session_id``, so this is the checkpointer half of "delete
+    this conversation". Without it, ``chat/session.delete_session`` would clear
+    ``th_messages``/``th_sessions`` while the agent's own copy of the same turns
+    — health questions and the tool results answering them — survived
+    indefinitely under the session id. A user who deletes a conversation must
+    have it deleted, not merely hidden from the history endpoint.
+
+    Best-effort: a failure here is logged, never raised, so it cannot block the
+    user-visible deletion that already succeeded.
+    """
+    if not session_id:
+        return
+    saver = await get_checkpointer()
+    if saver is None:
+        return
+    try:
+        await saver.adelete_thread(str(session_id))
+    except Exception:
+        logger.warning("could not delete checkpoint thread %s", session_id, exc_info=True)
+
+
 async def close_checkpointer() -> None:
     """Close the singleton pool. Call on process shutdown."""
     global _pool, _saver, _unavailable
