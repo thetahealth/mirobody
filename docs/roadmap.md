@@ -500,32 +500,17 @@ they are **backend** defects — they were found from the UI, but no frontend
 change can fix them, and a finding that lives only in the other repo's doc is a
 finding nobody here will act on.
 
-- **`/api/prompts` is hardcoded to one agent.** `agent/chat/service.py:238`
-  calls `get_options_for_agent("deep")` regardless of which agent the caller is
-  using, so a client that has selected Base is offered Deep's prompt list — a
-  prompt describing a virtual filesystem, QuickJS and chart tools that
-  `BaseAgent` does not have. Either scope the endpoint by agent, or stop
-  publishing prompts as a selectable axis at all (see below).
-- **BaseAgent silently discards the prompt selection.**
-  `BaseAgent.generate_response` (`base_agent.py:135`) has no `prompt_name`
-  parameter; the value lands in `**kwargs` and is never read, and the prompt is
-  always the module-cached `agent/prompts/base.jinja`
-  (`base_agent.py:34`). So the API accepts a choice it does not honour. The two
-  agents cannot share a prompt by construction — Deep's describes tools Base
-  does not have — which means "prompt" is a property OF the agent, not an axis
-  beside it.
-- **`PROMPTS_BASE` is an empty config key for a mechanism that does not
-  exist.** `config.yaml` declares it next to `PROMPTS_DEEP`, implying BaseAgent
-  loads templates the same way; it does not. Wire it or delete the key —
-  a config knob that does nothing is worse than no knob.
-- **A user prompt REPLACES the system prompt rather than appending.**
-  `deep_agent.py:206-225` consults the shipped template only `if not
-  base_prompt`. A user who writes "answer in bullet points" silently discards
-  the whole `deep` prompt, including the lab-report workflow and the
-  no-diagnosis framing the shipped skill encodes. For a health product this is
-  a safety-relevant outcome reached through what looks like a preference.
-  Composing template + user text is the fix; keeping full override as an
-  explicitly-labelled advanced mode is a product call.
+**Four of the five are FIXED** (`be5a897`): `/api/prompts` is agent-scoped and
+echoes the agent back; BaseAgent honours `PROMPTS_BASE`; a user prompt is
+appended to the agent's own prompt instead of replacing it. Behaviour verified
+against the running deployment, and pinned by
+`mirobody/agent/test_prompt_resolution.py`. The prompt-selection design question
+they exposed — that a prompt belongs to an agent and should not be a
+user-facing axis at all — is the web team's call, written up in
+`mirobody-web-rebuild/docs/superpowers/plans/2026-08-17-ui-alignment-and-capability-surfacing.md` §1.2.
+
+**One remains open:**
+
 - **`/mirobody.json` publishes 3 of the 12 flags the client reads.** It returns
   `__IS_GOOGLE_LOGIN_ON__`, `__IS_APPLE_LOGIN_ON__`, `__IS_WEBAUTHN_ON__`; the
   client's `mirobody_config` also reads `__IS_EHR_CONFIG_ON__`,
