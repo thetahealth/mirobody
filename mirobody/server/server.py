@@ -406,6 +406,7 @@ class Server:
             file_router,
             session_share_router,
             sharing_router,
+            indicator_router,
         )
         app.include_router(pulse_public_router)
         # apple_router is ALSO nested inside pulse_public_router (routers/__init__),
@@ -421,6 +422,7 @@ class Server:
         app.include_router(user_router)
         app.include_router(session_share_router)
         app.include_router(sharing_router)
+        app.include_router(indicator_router)
 
         for router in fastapi_routers:
             app.include_router(router)

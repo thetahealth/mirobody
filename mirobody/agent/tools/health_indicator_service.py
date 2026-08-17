@@ -68,51 +68,87 @@ class HealthIndicatorService:
     ) -> dict[str, Any]:
         """
         Read the user's health indicator data — search AND fetch in ONE call.
+        No filters returns the CATALOG (everything this user has); `keywords`
+        plus an `aggregate` answers most questions in a single call.
 
         Args:
-            keywords: Fuzzy search terms for indicators whose exact name you do not know.
-                Include BOTH the abbreviation and the full name for medical shorthand,
-                e.g. ["MCHC", "Mean Corpuscular Hemoglobin Concentration"]. Any language.
-            indicators: EXACT indicator names, as returned by a previous call. Use this
-                instead of `keywords` when you already know the names.
+            keywords: Fuzzy terms, any language. For shorthand include both
+                forms, e.g. ["MCHC", "Mean Corpuscular Hemoglobin Concentration"].
+            indicators: EXACT names from a previous call — use instead of keywords.
             start_time: Inclusive start date, "YYYY-MM-DD".
             end_time: Inclusive end date, "YYYY-MM-DD".
-            aggregate: Shape of the answer. "none" returns individual readings.
-                "stats" returns count/min/max/avg/first/last/change per indicator over
-                the whole window. "day", "week" or "month" return one bucketed point per
-                period. Use "stats" or a bucket for any trend question — never pull raw
-                readings just to compute an average yourself.
-            limit: Max readings per indicator for aggregate="none" (capped at 500).
+            aggregate: QUOTED string ("none", never a bare none — that is
+                invalid JSON and drops the call). "none" = individual readings;
+                "stats" = count/min/max/avg/first/last/change per indicator;
+                "day"/"week"/"month" = one point per bucket. Use "stats" or a
+                bucket for trend questions instead of pulling raw readings.
+            limit: Max readings per indicator for aggregate="none" (≤500).
 
         Returns:
-            indicators: one entry per matched indicator, each with
-                - indicator: its exact name (pass this back as `indicators` later)
-                - system / code: the canonical terminology identity, e.g. LOINC 718-7.
-                  Two indicators sharing a code are the same test and ARE comparable
-                  even when their names differ; different codes are not.
-                - count: how many readings matched
-                - rows: a compact pipe-delimited table. The first line is the header;
-                  a leading "(constants: k=v)" line lists columns identical on every
-                  row (typically the unit), so they are not repeated per row.
-            catalog: returned INSTEAD of `indicators` when you pass neither `keywords`
-                nor `indicators` — the full list of indicators this user has, with codes
-                and date ranges. Start here when you don't know what exists.
-            truncated: present when a series was cut off by `limit`; maps indicator →
-                total available. Narrow the window or use an aggregate instead of
-                raising `limit`.
+            indicators: per match — indicator (exact name, reusable as
+                `indicators`), system/code (canonical identity: same code =
+                same test = comparable, whatever the names), count, and rows
+                (pipe-delimited table; a leading "(constants: k=v)" line holds
+                columns identical on every row, typically the unit).
+            catalog: instead of `indicators` when no filter was given AND when
+                nothing matched — what the user actually has. Pick from it
+                rather than re-guessing keywords.
+            truncated: indicator → total available when a series was cut by
+                `limit`; narrow the window or aggregate instead of raising it.
 
         Notes for LLMs:
-            - ONE call is usually enough. Do not call this to find a name and then call
-              it again to read the values — pass `keywords` and an `aggregate` together.
-            - No match returns `catalog` so you can see what the user actually has;
-              re-guessing keywords blindly is wasted effort.
-            - Absence of data is not absence of the condition — the user may simply
-              never have recorded it. Say so rather than concluding they are healthy.
+            - Absence of data is not absence of the condition — the user may
+              simply never have recorded it. Say so rather than concluding
+              they are healthy.
         """
         user_id = user_info.get("user_id")
         if not user_id or not isinstance(user_id, str):
             return {"success": False, "error": "Authorization required."}
 
+        return await self._query(
+            user_id,
+            keywords=keywords, indicators=indicators,
+            start_time=start_time, end_time=end_time,
+            aggregate=aggregate, limit=limit,
+            compact=True,
+        )
+
+    async def _query(
+        self,
+        user_id: str,
+        *,
+        keywords: list[str] | None = None,
+        indicators: list[str] | None = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        aggregate: str = "none",
+        limit: int = 50,
+        compact: bool = True,
+    ) -> dict[str, Any]:
+        """The lookup itself, for callers that are not the MCP tool.
+
+        The leading underscore is load-bearing, not a style choice:
+        `load_tools_from_class` exports every public method of a tool class as
+        an MCP tool, so naming this `query` published a second, undocumented
+        tool called `query` to every client that lists our surface. Underscore
+        is that loader's opt-out.
+
+        One implementation, two serializations. `compact=True` is what the model
+        gets: pipe-delimited tables with constant columns hoisted out, because a
+        third-party MCP client pays for those tokens (see `_table`). A browser
+        wants the opposite — arrays of objects it can sort and render — and
+        re-parsing a pipe table in JavaScript to rebuild the dicts that existed
+        two calls earlier is not a serialization strategy. `compact=False`
+        stops before that step and hands the rows over as they are.
+
+        The LLM-directed prose (`message`: "pick from them via `indicators`")
+        goes with it: it is instruction for a model mid-tool-loop, and noise in
+        a UI.
+
+        Kept separate from `query_health_indicators` so the tool's
+        signature stays the tool's schema — adding a `compact` argument there
+        would advertise it to every model that lists our tools.
+        """
         mode = (aggregate or "none").strip().lower()
         if mode not in ("none", "stats", "day", "week", "month"):
             return {"success": False, "error": f"aggregate must be one of none|stats|day|week|month, got {mode!r}."}
@@ -129,10 +165,14 @@ class HealthIndicatorService:
 
             # Neither → the user asked "what do I have?".
             if not names:
-                return await self._catalog(user_id, start_time, end_time, searched=bool(keywords))
+                return await self._catalog(
+                    user_id, start_time, end_time, searched=bool(keywords), compact=compact,
+                )
 
             if mode == "none":
-                payload, truncated = await self._rows(user_id, names, start_time, end_time, limit)
+                payload, truncated = await self._rows(
+                    user_id, names, start_time, end_time, limit, compact=compact,
+                )
             else:
                 payload, truncated = await self._aggregate(user_id, names, start_time, end_time, mode)
 
@@ -141,11 +181,21 @@ class HealthIndicatorService:
                 entry["system"] = code.get("system", "")
                 entry["code"] = code.get("code", "")
 
-            out: dict[str, Any] = {
-                "success": True,
-                "message": "Ok" if payload else "No data found",
-                "indicators": payload or None,
-            }
+            if compact:
+                out: dict[str, Any] = {
+                    "success": True,
+                    "message": "Ok" if payload else "No data found",
+                    "indicators": payload or None,
+                }
+            else:
+                # A list, not a name-keyed object: the UI renders rows in order
+                # and the name is already inside each entry.
+                out = {
+                    "success": True,
+                    "indicators": [
+                        {"indicator": name, **entry} for name, entry in (payload or {}).items()
+                    ],
+                }
             if truncated:
                 out["truncated"] = truncated
             return out
@@ -269,18 +319,27 @@ class HealthIndicatorService:
         return names, coding
 
     async def _catalog(
-        self, user_id: str, start_time: str | None, end_time: str | None, *, searched: bool,
+        self, user_id: str, start_time: str | None, end_time: str | None, *,
+        searched: bool, compact: bool = True,
     ) -> dict[str, Any]:
         """What this user actually has — the honest answer to a miss."""
         params: dict[str, Any] = {"user_id": user_id, "cap": self._CATALOG_MAX}
         time_clause = self._build_time_clause(params, start_time, end_time, "tsd.start_time")
+        # `latest_value` / `latest_unit` are for the REST consumer: a catalog
+        # table whose "Latest" column is an em-dash on every row is a column
+        # paying rent in width and returning nothing. ARRAY_AGG with an internal
+        # ORDER BY gets it without restructuring the GROUP BY. They are dropped
+        # again for the compact (model-facing) shape below — a third-party MCP
+        # client pays per token for a value it did not ask for.
         sql = f"""
         SELECT tsd.indicator,
                COUNT(*) AS count,
                MAX(fi.indicator_standard) AS system,
                MAX(fi.code) AS code,
                to_char(MIN(tsd.start_time), 'YYYY-MM-DD') AS first_date,
-               to_char(MAX(tsd.start_time), 'YYYY-MM-DD') AS last_date
+               to_char(MAX(tsd.start_time), 'YYYY-MM-DD') AS last_date,
+               (ARRAY_AGG(tsd.value ORDER BY tsd.start_time DESC))[1] AS latest_value,
+               (ARRAY_AGG(tsd.fhir_mapping_info ->> 'unit' ORDER BY tsd.start_time DESC))[1] AS latest_unit
           FROM th_series_data tsd
           LEFT JOIN fhir_indicators fi ON tsd.fhir_id = fi.id
          WHERE tsd.user_id = :user_id AND tsd.deleted = 0 {time_clause}
@@ -289,6 +348,34 @@ class HealthIndicatorService:
          LIMIT :cap
         """
         rows = await execute_query(sql, params) or []
+        catalog = [dict(r) for r in rows]
+
+        if not compact:
+            # Field names are the client contract, and they are not the SQL's:
+            # `*_time` because a reading has a time, and nulls become "" so the
+            # UI never renders the string "None".
+            return {
+                "success": True,
+                "catalog": [
+                    {
+                        "indicator": r.get("indicator") or "",
+                        "system": r.get("system") or "",
+                        "code": r.get("code") or "",
+                        "count": r.get("count") or 0,
+                        "unit": r.get("latest_unit") or "",
+                        "latest_value": r.get("latest_value") or "",
+                        "first_time": r.get("first_date") or "",
+                        "last_time": r.get("last_date") or "",
+                    }
+                    for r in catalog
+                ],
+                "count": len(catalog),
+            }
+
+        for r in catalog:                      # model-facing: drop the extras
+            r.pop("latest_value", None)
+            r.pop("latest_unit", None)
+
         return {
             "success": True,
             "message": (
@@ -298,15 +385,15 @@ class HealthIndicatorService:
                 "The indicators this user has. Call again with `indicators` (or `keywords`) to read values."
             ),
             "catalog": self._table(
-                [dict(r) for r in rows],
+                catalog,
                 ["indicator", "system", "code", "count", "first_date", "last_date"],
             ),
-            "count": len(rows),
+            "count": len(catalog),
         }
 
     async def _rows(
         self, user_id: str, names: list[str], start_time: str | None,
-        end_time: str | None, limit: int,
+        end_time: str | None, limit: int, *, compact: bool = True,
     ) -> tuple[dict[str, Any], dict[str, int]]:
         """Individual readings, compacted, with a hard row ceiling.
 
@@ -328,8 +415,8 @@ class HealthIndicatorService:
         params: dict[str, Any] = {"user_id": user_id, "names": names, "limit": limit}
         time_clause = self._build_time_clause(params, start_time, end_time, "tsd.start_time")
         sql = f"""
-        SELECT indicator, start_time, value, info, source_table_id FROM (
-            SELECT tsd.indicator, tsd.start_time, tsd.value,
+        SELECT id, indicator, start_time, value, info, source_table_id FROM (
+            SELECT tsd.id, tsd.indicator, tsd.start_time, tsd.value,
                    tsd.fhir_mapping_info AS info,
                    CASE WHEN tsd.source_table = 'th_files' THEN tsd.source_table_id END AS source_table_id,
                    ROW_NUMBER() OVER (PARTITION BY tsd.indicator ORDER BY tsd.start_time DESC) AS rn
@@ -345,25 +432,33 @@ class HealthIndicatorService:
         grouped: dict[str, list[dict]] = {}
         for r in rows:
             rec = {
+                # Row id: what the web client's edit/delete endpoint targets.
+                # The compact (MCP tool) table never selects this column, so
+                # the model-facing surface is unchanged.
+                "id": r["id"],
                 "time": str(r["start_time"]) if r["start_time"] is not None else "",
                 "value": str(r["value"]) if r["value"] is not None else "",
             }
             info = r["info"]
             if info and "unit" in info:
                 rec["unit"] = info["unit"]
-            # source_table_id is "<file_key>_#_<row>" for document-derived readings.
+            # source_table_id for th_files rows is the file_key itself; legacy
+            # rows carried a "<file_key>_#_<row>" suffix. Requiring the suffix
+            # meant every CURRENT-format reading lost its source link and the
+            # drawer showed "—" where "view source file" belongs.
             stid = r["source_table_id"]
-            if stid and "_#_" in stid:
+            if stid:
                 rec["file_key"] = stid.split("_#_")[0]
             grouped.setdefault(r["indicator"], []).append(rec)
 
         totals = await self._totals(user_id, names, start_time, end_time)
         payload, truncated = {}, {}
         for name, rs in grouped.items():
-            payload[name] = {
-                "count": len(rs),
-                "rows": self._table(rs, ["time", "value", "unit", "file_key"]),
-            }
+            payload[name] = (
+                {"count": len(rs), "rows": self._table(rs, ["time", "value", "unit", "file_key"])}
+                if compact else
+                {"count": len(rs), "readings": rs, "unit": (rs[0].get("unit", "") if rs else "")}
+            )
             total = totals.get(name, 0)
             if total > len(rs):
                 truncated[name] = total

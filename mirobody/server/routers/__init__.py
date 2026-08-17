@@ -27,6 +27,7 @@ Skills come from SKILL_DIRS on disk (see agent/deep_agent._build_backend).
 from .apple_router import router as apple_router
 from .manage_router import router as manage_router
 from .public_router import router as public_router
+from .indicator_router import router as indicator_router
 
 from .user_router import router as user_router
 from .file_router import router as file_router
@@ -37,6 +38,7 @@ public_router.include_router(apple_router)
 
 __all__ = [
     "public_router",
+    "indicator_router",
     "manage_router",
     "apple_router",
     "user_router",
