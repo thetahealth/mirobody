@@ -307,6 +307,12 @@ Then open `http://localhost:18080` in your web browser.
 > - **Tip**: Check `EMAIL_PREDEFINE_CODES` for predefined email accounts and verification codes used for user login.
 > - **🌍 Timezone**: Set `DEFAULT_TIMEZONE` in `config.{env}.yaml` to match your region (e.g., `America/New_York`, `Europe/London`, `Asia/Tokyo`). Defaults to `America/Los_Angeles`. See [CONFIG](mirobody/utils/config/README.md#-timezone) for details.
 > - **LLM Setup**: `OPENROUTER_API_KEY` is required for the Deep agent.
+>   - **A second key is required for the indicator pipeline**, and it is a
+>     different one: `EMBEDDING_PROVIDER` defaults to `gemini`, so the worker's
+>     indicator sync needs `GOOGLE_API_KEY` (set `EMBEDDING_PROVIDER: qwen` +
+>     `DASHSCOPE_API_KEY` to use the other supported provider). With only an
+>     OpenRouter key, chat works and Drive's **Health indicators stays 0** —
+>     embedding fails per batch in the worker log and nothing surfaces in the UI.
 > - **Auth Setup**: To enable **Google/Apple OAuth** or **Email Verification**, set the respective variables in `config.{env}.yaml`.
 > - All API keys will be encrypted automatically once Mirobody loads them using the `CONFIG_ENCRYPTION_KEY` value.
 

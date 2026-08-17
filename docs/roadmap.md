@@ -442,3 +442,53 @@ them.
   network round trip on first run.
 - **A documentation site.** `docs/` is now structured for MkDocs Material to be
   pointed at it directly.
+
+---
+
+## Found by a cold-start test against real reports (2026-08-17)
+
+A fresh clone, `./deploy.sh`, and the six files in a real 体检 case folder — two
+text-layer PDFs, a 9-page pure scan with no text layer, three phone photos of
+printed panels. What the run fixed is in the log; what it exposed and did not
+fix is here.
+
+- **`名称(缩写)` defeats the resolver, and it is the most common way a Chinese
+  lab prints a row.** `谷丙转氨酶` resolves to 1742-6; `谷丙转氨酶(ALT)` resolves
+  to nothing, and so do `碱性磷酸酶(AKP/ALP)`, `总胆红素(TBIL)`,
+  `神经元特异性烯醇化酶(NSE)`. Every abbreviation inside those parentheses
+  resolves on its own (NSE → 15060-7, TBIL → 1975-2, ALP → 6768-6), so the fix
+  is a trailing-parenthetical expansion in `OfflineResolver._candidate_keys`:
+  try the base name, then each `/`-separated token inside the parens, appended
+  AFTER the existing keys so nothing that resolves today can change.
+  **The trap that makes this not a one-liner:** `中性粒细胞(%)` must NOT strip,
+  because `中性粒细胞` resolves to the ABSOLUTE-count code 751-8 while the value
+  is a percentage — stripping would turn an honest miss into a confidently wrong
+  answer, the exact thing this project scores as failure. Gate on the
+  parenthetical containing letters, not just any content.
+- **Differential percentages have no correct target.** `中性粒细胞(%)`,
+  `淋巴细胞(%)` etc. need the `/100 leukocytes` codes in BLOOD (770-8, 736-9,
+  5905-5, 713-8, 706-2). Every phrasing tried resolves to the DEPRECATED body
+  fluid / CSF variants instead, so no override row can be written honestly until
+  the index carries the blood ones. Blocks a whole CBC column.
+- **Imaging narratives resolve to serum enzymes.** A B超 report parses fine, but
+  `肝脏` (an organ, with the finding "形态大小正常") answers
+  13874-3 *Alkaline phosphatase.liver*, `胰腺` answers *Amylase.pancreatic*, and
+  `肾脏` answers *Alkaline phosphatase.renal*. `胆囊` → *US Gallbladder* is the
+  only right one. Narrative imaging findings are not lab observations; the
+  resolver should decline them (`!unresolved`) rather than reach for an enzyme
+  that merely shares the organ name.
+- **Indicator extraction fails on a long report and nothing surfaces.**
+  `async_get_structured_output` ran 175s against a 12-page panel and came back
+  with truncated JSON (`Unterminated string`); with only one provider configured
+  there is no fallback, so the file lands as **Processed** in the UI while Drive
+  keeps showing `Health indicators 0`. Needs chunking or a length-aware retry,
+  and a status the UI can show other than success.
+- **The upload pipeline renames files, and the user cannot find their own
+  document.** `scanned-9page.pdf` was stored as
+  `2026-07-23_陈国跃_急性心肌梗死检查报告.pdf` — a genuinely impressive read off
+  a pure scan, and also why the agent answered "I cannot find that file" when
+  asked about it by the name the user uploaded. Keep the derived title, but keep
+  the original filename addressable too.
+- **pdfminer logs at DEBUG.** One PDF upload emits thousands of
+  `psparser.nextobject` lines. `logging.getLogger("pdfminer").setLevel(WARNING)`
+  at startup.
