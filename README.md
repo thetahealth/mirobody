@@ -90,6 +90,9 @@ Runnable walkthroughs: [`examples/`](examples/README.md) — five scripts from o
   > failure. [`mirobody_pgsql/`](mirobody/pulse/providers/mirobody_pgsql/) is
   > the one you can try immediately: set `ENABLE_PGSQL_DEVICE: 1` and the
   > platform logs `loaded 1 providers` on the next boot.
+  > **Step by step: [docs/provider-setup.md](docs/provider-setup.md)** — the
+  > exact callback URLs, the config keys, and how to tell "not configured"
+  > apart from "broken" in the boot log.
 
 - **Apple Health is push-only, and needs an iOS app you build** — the endpoints
   are here ([`/apple/health`, `/apple/statistics`, `/apple/cda`](mirobody/server/routers/apple_router.py),
@@ -607,6 +610,7 @@ contributor documentation into `site-packages`.
 | --- | --- | --- |
 | | **Runnable examples** | [`examples/`](examples/README.md) |
 | ① | Collect — the pulse engine | [`mirobody/pulse/`](mirobody/pulse/README.md) |
+| ① | **Connecting Garmin / Oura / Whoop** | [docs/provider-setup.md](docs/provider-setup.md) |
 | ① | Writing a data provider | [docs/provider-guide.md](docs/provider-guide.md) |
 | ① | Provider directory layout | [`mirobody/pulse/providers/`](mirobody/pulse/providers/README.md) |
 | ① | File-processing pipeline | [docs/file-processing.md](docs/file-processing.md) |
