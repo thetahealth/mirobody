@@ -262,28 +262,28 @@ PROMPTS_DEEP:
   - agent/prompts/deep.jinja
 
 PROVIDERS_DEEP:
-  gemini-3.7-flash:
+  gemini-flash:
     llm_type: google-genai
     api_key: GOOGLE_API_KEY
     model: gemini-3.5-flash
     temperature: 1.0
-  gpt-5.4:
+  gpt:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
-    model: openai/gpt-5.4
+    model: openai/gpt-5.4-mini
     temperature: 0.1
   claude-sonnet:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
-    model: anthropic/claude-sonnet-4.6
+    model: anthropic/claude-sonnet-5
     temperature: 0.1
   deepseek:
     llm_type: openai # Uses OpenAI-compatible API via OpenRouter
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
-    model: deepseek/deepseek-v4-flash
+    model: deepseek/deepseek-v4-flash-0731
     temperature: 0.1
 
 #---------------------------------------------------------
@@ -300,23 +300,14 @@ PROVIDERS_BASE:
   gemini-2.5-flash:
     api_key: GOOGLE_API_KEY
     model: gemini-2.5-flash
-    input_price: 0.5
-    output_price: 2.0
   gpt-5-nano:
     api_key: OPENAI_API_KEY
     model: gpt-5-nano
-    input_price: 0.05
-    output_price: 0.4
-  deepseek:
-    api_key: DEEPSEEK_API_KEY
-    model: deepseek-v4-flash
-    input_price: 0.44 # peak, cache-miss; off-peak is half
-    output_price: 1.32
-  dashscope:
-    api_key: DASHSCOPE_API_KEY
-    # qwen-plus/qwen-flash hit a legacy backend that rejects function results;
-    # see DashScopeClient docstring. Keep a new-backend model here.
-    model: qwen3.5-flash
+  # dashscope:
+  #   api_key: DASHSCOPE_API_KEY
+  #   # qwen-plus/qwen-flash hit a legacy backend that rejects function results;
+  #   # see DashScopeClient docstring. Keep a new-backend model here.
+  #   model: qwen3.5-flash
 
 ALLOWED_TOOLS_BASE:
 

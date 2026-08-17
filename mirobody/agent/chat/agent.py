@@ -110,7 +110,8 @@ def load_agents_from_directory(dir: str, private: bool = False, config: Config =
     for entry in entries:
         if entry.is_dir() or \
             not entry.name.lower().endswith(".py") or \
-            entry.name.startswith("_"):
+            entry.name.startswith("_") or \
+            entry.name.startswith("test_"):
             continue
 
         try:
