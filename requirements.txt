@@ -1,1 +1,6 @@
--e .
+# The FULL platform (engine + agent layer) — what compose.yaml and deploy.sh
+# install. A bare `pip install mirobody` / `pip install -e .` is the ENGINE as
+# a library (collect + standardize) and deliberately excludes the
+# LangChain/deepagents stack; the chat server needs it, hence the [agents]
+# extra here. See pyproject.toml.
+-e .[agents]
