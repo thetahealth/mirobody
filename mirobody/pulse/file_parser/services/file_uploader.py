@@ -26,12 +26,20 @@ from mirobody.utils.i18n import t
 from mirobody.utils.req_ctx import get_req_ctx
 
 
-# Supported file extensions
+# Supported file extensions. This gate must not be NARROWER than what the
+# handler factory can parse: it used to reject every audio extension while
+# AudioHandler sat unreachable behind it, and rejected .md while TextHandler
+# happily parses it — the web client even advertised audio in its upload copy.
 SUPPORTED_EXTENSIONS = {
-    # Images
+    # Images (ImageHandler takes any image/*; heic/heif come from iPhones)
     ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".svg",
+    ".heic", ".heif",
     # Documents
-    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt",
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+    # Plain text: lab exports, genetic raw data, notes
+    ".txt", ".md", ".markdown",
+    # Audio (AudioHandler)
+    ".wav", ".mp3", ".aiff", ".aac", ".ogg", ".flac", ".m4a",
     # Other common formats
     ".json", ".csv", ".xml", ".zip", ".rar"
 }

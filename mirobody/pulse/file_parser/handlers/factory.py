@@ -89,8 +89,12 @@ class FileHandlerFactory:
                 self.abstract_extractor
             )
 
-        # 5. Check for Text
-        if content_type.startswith("text/plain"):
+        # 5. Check for Text. Markdown included: browsers send .md as
+        # text/markdown, which used to fall through every branch and fail as
+        # "unsupported" even though TextHandler parses it identically to .txt.
+        # (text/csv must NOT land here — CSVHandler below owns it, which is why
+        # this is an allowlist rather than text/*.)
+        if content_type.startswith("text/plain") or content_type.startswith("text/markdown"):
              return TextHandler(
                 self.uploader, 
                 self.temp_manager, 
