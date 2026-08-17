@@ -78,7 +78,7 @@ CREATE INDEX idx_health_data_<provider>_msg_id
 ```
 connect/
 ├── __init__.py
-└── theta/
+└── providers/
     └── mirobody_<provider>/
         ├── __init__.py
         └── provider_<provider>.py

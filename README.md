@@ -124,7 +124,7 @@ mirobody/
 ├── engine.py            ②  The front door: resolve() offline, parse_file() one-LLM-call
 ├── cli.py                   mirobody parse | resolve | serve | worker
 ├── pulse/               ①  COLLECT — every signal, one intake
-│   ├── theta/               production device providers (Garmin/Oura/Whoop, 300+ devices)
+│   ├── providers/           production device providers (Garmin/Oura/Whoop, 300+ devices)
 │   ├── apple/               Apple Health import (zip + CDA)
 │   ├── file_parser/         8 file formats → indicators via LLM extraction (needs DB)
 │   ├── ingest/              StandardPulseData: the universal exchange format that
@@ -555,7 +555,7 @@ Mirobody provides standard endpoints for integration:
 
 ```bash
 pip install -e '.[test]'
-pytest        # 151 tests, ~3s — no database, no network, no API key
+pytest        # 260 tests, ~7s — no database, no network, no API key
 ```
 
 Tests sit beside the code they cover, so bare `pytest` is the whole suite. Two
