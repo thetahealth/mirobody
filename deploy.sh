@@ -140,21 +140,24 @@ fi
 #-----------------------------------------------------------------------------
 # Build docker image.
 
+# curl stays: compose.yaml's app healthcheck shells out to it. The former
+# nodesource setup_24.x line is gone on purpose — it added Node's apt repo
+# (hence gnupg) but nodejs was never in the install list, nothing at runtime
+# executes node, and the frontend ships prebuilt static files served by the
+# app itself. It only cost build time and a curl|bash.
 mirobody_dockerfile_content="
 FROM ${docker_host}ubuntu:24.04
 RUN apt update && \
-    apt install -y ca-certificates curl gnupg && \
-    curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt install -y --no-install-recommends \
+        ca-certificates curl \
         g++ gfortran build-essential \
         libfftw3-dev libhdf5-dev libblas-dev liblapack-dev \
         python3 python3-venv python3-dev \
-        nodejs \
         fonts-wqy-microhei fonts-wqy-zenhei fontconfig && \
+    rm -rf /var/lib/apt/lists/* && \
     fc-cache -fv && \
     mkdir /root/venv && \
     python3 -m venv /root/venv && \
-    npm config set registry https://registry.npmmirror.com && \
     mkdir -p /app
 WORKDIR /app
 "
@@ -171,19 +174,39 @@ fi
 #-----------------------------------------------------------------------------
 # Run docker containers.
 
-# stop_containers_by_ports {ports}
-stop_containers_by_ports() {
-    for port in $@; do
-        results=($(docker ps | grep ":$port->"))
-        if [ ${#results[@]} -gt 0 ]; then
-            echo "docker container stop ${results[0]}"
-            docker container stop ${results[0]}
+# check_ports_free {ports}
+#
+# Refuse to proceed when a required host port is held by a FOREIGN container.
+# This used to `docker container stop` whatever held the port — which on a
+# shared machine silently took down other projects' databases. Our own
+# containers are already gone by now (`compose down` above), so anything still
+# on these ports belongs to someone else: name it and let the operator decide.
+check_ports_free() {
+    local conflict=0
+    for port in "$@"; do
+        local holder
+        holder=$(docker ps --format '{{.Names}}\t{{.Ports}}' | grep ":$port->" | cut -f1)
+        if [ -n "${holder}" ]; then
+            echo "ERROR: port ${port} is held by container '${holder}' (not part of this project)."
+            conflict=1
         fi
     done
+    if [ ${conflict} -eq 1 ]; then
+        echo ""
+        echo "Refusing to stop containers that don't belong to this deployment."
+        echo "Free the ports (or change this project's ports) and re-run deploy.sh."
+        exit 1
+    fi
 }
 
+# compose.yaml interpolates ${DOCKER_MIRROR:-} onto its pulled images
+# (pgvector, redis), so the mirror fallback covers them too — previously it
+# only applied to the inline-built ubuntu base, and a first deploy behind the
+# mirror failed pulling pg/redis from the unreachable hub.
+export DOCKER_MIRROR="${docker_host}"
+
 docker compose -f ${DOCKER_COMPOSE_FILE} down
-stop_containers_by_ports 18080 18082 18089
+check_ports_free 18080 18082 18089
 
 docker compose -f ${DOCKER_COMPOSE_FILE} up -d --remove-orphans
 docker compose -f ${DOCKER_COMPOSE_FILE} logs -f
