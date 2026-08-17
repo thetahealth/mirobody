@@ -1,0 +1,12 @@
+{
+    "name": "Health Data Analysis",
+    "title": "Health Data Analysis",
+    "uri": "ui://widget/upload.html",
+    "description": "Health Data Analysis widget markup",
+    "mimeType": "text/html+skybridge",
+    "_meta": {
+        "openai/toolInvocation/invoking": "Analyzing your health data",
+        "openai/toolInvocation/invoked": "Served a health data analysis widget"
+    },
+    "_file": "upload.html"
+}

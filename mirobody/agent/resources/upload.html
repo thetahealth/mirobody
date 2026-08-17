@@ -1,0 +1,130 @@
+<style>
+html, body {
+	margin: 0;
+}
+</style>
+
+<div id="thetaHint"></div>
+<div id="thetaPanel"></div>
+
+<script>
+var TEXT = {
+	CAP_UPLOAD: "Upload Data File",
+	CAP_VIEW: "View Uploaded Files",
+
+	MSG_UPLOAD_OK: "File uploaded successfully",
+	MSG_UPLOAD_FAILED: "Failed to upload file."
+};
+
+var Message = {
+	el: document.getElementById("thetaHint"),
+
+	show: function (s) {
+		if (Message.el) {
+			Message.el.style.padding = "16px";
+			Message.el.style.borderRadius = "8px";
+			Message.el.style.backgroundColor = "#CEF7D3";
+			Message.el.style.color = "#1E1E1E";
+			Message.el.style.fontSize = "16px";
+			Message.el.style.fontWeight = "500";
+			Message.el.innerText = s;
+		}
+	},
+	error: function (s) {
+		if (Message.el) {
+			Message.el.style.padding = "16px";
+			Message.el.style.borderRadius = "8px";
+			Message.el.style.backgroundColor = "#FEE9E7";
+			Message.el.style.color = "#EC221F";
+			Message.el.style.fontSize = "16px";
+			Message.el.style.fontWeight = "500";
+			Message.el.innerText = s;
+		}
+	},
+	clear: function () {
+		if (Message.el) {
+			Message.el.style.padding = "0";
+			Message.el.style.borderRadius = "0";
+			Message.el.style.backgroundColor = "";
+			Message.el.style.color = "";
+			Message.el.style.fontSize = "0px";
+			Message.el.style.fontWeight = "0";
+			Message.el.innerText = "";
+		}
+	}
+};
+
+function initBtns() {
+	var uploadBtn = document.createElement("button");
+	uploadBtn.innerText = TEXT.CAP_UPLOAD;
+	uploadBtn.style.backgroundColor = "#DBEAFE";
+	uploadBtn.style.color = "#007AFF";
+	uploadBtn.style.fontWeight = "600";
+	uploadBtn.style.border = "0";
+	uploadBtn.style.borderRadius = "8px";
+	uploadBtn.style.padding = "16px";
+	uploadBtn.style.margin = "0";
+	uploadBtn.style.cursor = "pointer";
+
+	uploadBtn.onclick = function () {
+		var fi = document.createElement("input");
+		fi.type = "file";
+		fi.onchange = function (e) {
+			if (!fi.files) {
+				return;
+			}
+
+			var fd = new FormData();
+			fd.append("files", fi.files[0]);
+			
+			fetch(
+				"{{DATA_PUBLIC_URL}}/api/v1/data/upload-with-processing",
+				{
+					method: "POST",
+					headers: {
+						"Authorization": "{{JWT_TOKEN}}"
+					},
+					body: fd
+				}
+			).then(resp => {
+				if (!resp.ok) {
+					throw TEXT.MSG_UPLOAD_FAILED;
+				}
+				return resp.json();
+			}).then(result => {
+				if (result.code !== 0) {
+					throw result.msg;
+				}
+				Message.show(TEXT.MSG_UPLOAD_OK);
+			}).catch(err => {
+				Message.error(err);
+			});
+		};
+		fi.click();
+	};
+
+	var redirectBtn = document.createElement("button");
+	redirectBtn.innerText = TEXT.CAP_VIEW;
+	redirectBtn.style.float = "right";
+	redirectBtn.style.backgroundColor = "#DBEAFE";
+	redirectBtn.style.color = "#007AFF";
+	redirectBtn.style.fontWeight = "600";
+	redirectBtn.style.border = "0";
+	redirectBtn.style.borderRadius = "8px";
+	redirectBtn.style.padding = "16px";
+	redirectBtn.style.margin = "0";
+	redirectBtn.style.cursor = "pointer";
+	redirectBtn.onclick = function () {
+		window.open("{{MCP_FRONTEND_URL}}/drive", "_blank", "noopener,noreferrer");
+	};
+
+	var el = document.getElementById("thetaPanel");
+	if (el) {
+		el.style.padding = "8px 0px";
+
+		el.appendChild(uploadBtn);
+		el.appendChild(redirectBtn);
+	}
+};
+initBtns();
+</script>

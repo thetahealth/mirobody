@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        --pad: 12px;
+        --radius: 14px;
+      }
+
+      body {
+        margin: 0;
+        padding: var(--pad);
+        font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+        background: transparent;
+      }
+
+      /* Hide content by default until URL is available */
+      #wrap[hidden] {
+        display: none;
+      }
+
+      #title {
+        font-size: 16px;
+        font-weight: 650;
+        line-height: 1.25;
+        margin: 0 0 10px 0;
+        letter-spacing: 0.2px;
+      }
+
+      #img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border-radius: var(--radius);
+        /* Subtle border to prevent white background images from blending into the background */
+        outline: 1px solid rgba(0, 0, 0, 0.06);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="wrap" hidden>
+      <div id="title"></div>
+      <img id="img" />
+    </div>
+
+    <script>
+      const wrap = document.getElementById("wrap");
+      const titleEl = document.getElementById("title");
+      const imgEl = document.getElementById("img");
+
+      function notifyHeight() {
+        // Optional: Let the host adapt to content height to avoid clipping
+        window.openai?.notifyIntrinsicHeight?.(document.body.scrollHeight);
+      }
+
+      function render() {
+        const out = window.openai?.toolOutput; // Your structuredContent
+        const url = out?.url;
+        if (!url) return; // No data returned yet: keep blank, don't display anything
+
+        // Title: prioritize chart_title, then title
+        const title = (out?.chart_title ?? out?.title ?? "").toString().trim();
+        titleEl.textContent = title;
+        titleEl.style.display = title ? "block" : "none";
+
+        // Show container
+        wrap.hidden = false;
+
+        // Only update image when URL changes to avoid repeated loading
+        if (imgEl.dataset.src !== url) {
+          imgEl.dataset.src = url;
+          imgEl.src = url;
+        }
+
+        imgEl.alt = title || "chart";
+        notifyHeight();
+      }
+
+      // Notify height again after image loads (more stable)
+      imgEl.addEventListener("load", notifyHeight, { passive: true });
+      imgEl.addEventListener(
+        "error",
+        () => {
+          // Don't show error message (maintain "title + image only" requirement)
+          // Hide image on error (if you want to keep broken-image icon, delete the following two lines)
+          imgEl.removeAttribute("src");
+          notifyHeight();
+        },
+        { passive: true }
+      );
+
+      // Initial render (may not have data yet)
+      render();
+
+      // Key: After tool returns, host will update globals and trigger this event
+      window.addEventListener("openai:set_globals", render, { passive: true });
+    </script>
+  </body>
+</html>
