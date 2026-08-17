@@ -166,7 +166,7 @@ class AIClientManager:
         )
 
     def is_client_available(self, provider: str) -> bool:
-        """检查指定 provider 的 async client 是否可用"""
+        """Whether an async client for `provider` was successfully constructed."""
         self._initialize_clients()
         client_mapping = {
             "openai": "openai",
@@ -190,7 +190,6 @@ class AIClientManager:
         return health_status
 
 
-# Global client manager instance
 client_manager = AIClientManager()
 
 
@@ -198,27 +197,6 @@ client_manager = AIClientManager()
 def get_ai_client(provider: str) -> OpenAI:
     """Get AI client"""
     return client_manager.get_ai_client(provider)
-
-
-def get_azure_chat_model(deployment: str):
-    """Create a LangChain ChatOpenAI model using Azure v1 endpoint + WIF auth.
-
-    Uses /openai/v1/ endpoint — no api_version needed.
-    Reads AZURE_OPENAI_ENDPOINT from env (set by export_to_env() at startup).
-    """
-    from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-    from langchain_openai import ChatOpenAI
-
-    credential = DefaultAzureCredential()
-    token_provider = get_bearer_token_provider(
-        credential, "https://cognitiveservices.azure.com/.default"
-    )
-    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").rstrip("/")
-    return ChatOpenAI(
-        model=deployment,
-        base_url=f"{endpoint}/openai/v1/",
-        api_key=token_provider,
-    )
 
 
 # Global client objects (lazy initialization)

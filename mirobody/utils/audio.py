@@ -1,5 +1,9 @@
-"""
-Audio utility functions for audio file processing
+"""Audio duration, read from the container header without decoding.
+
+Three fallbacks in order (tinytag, a hand-rolled MP4 atom walk, mutagen)
+because no single one covers every format a user uploads.
+
+Was `utils_audio.py` (`mirobody.utils.utils_audio`).
 """
 
 import logging

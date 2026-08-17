@@ -23,6 +23,7 @@ from .auth_wechat import find_or_create_wechat_user
 from .account_merge import merge_accounts
 
 from ..utils import (
+    secret_fingerprint,
     json_response_with_code,
     json_response,
 
@@ -413,7 +414,7 @@ class UserService:
                     return json_response_with_code(-3, "Apple ID token is required.", request=request)
 
                 else:
-                    logging.debug(f"Apple JWT token: {token}")
+                    logging.debug("Apple JWT token: %s", secret_fingerprint(token))
 
                     payload, err = await self._apple_validator.verify_token(token)
                     if err:
@@ -471,7 +472,7 @@ class UserService:
                     }
                 )
                 token_issuer = unverified_payload.get("iss", "")
-            except:
+            except Exception:
                 token_issuer = ""
 
             payload = None
@@ -481,24 +482,24 @@ class UserService:
                 if self._firebase_validator:
                     payload, err = await self._firebase_validator.verify_token(token)
                     if err:
-                        logging.warning(err, extra={"token": token})
+                        logging.warning(err, extra={"token": secret_fingerprint(token)})
 
                 if not payload and self._google_validator:
                     payload, err = await self._google_validator.verify_token(token)
                     if err:
-                        logging.warning(err, extra={"token": token})
+                        logging.warning(err, extra={"token": secret_fingerprint(token)})
             
             else:
                 # Google validator first.
                 if self._google_validator:
                     payload, err = await self._google_validator.verify_token(token)
                     if err:
-                        logging.warning(err, extra={"token": token})
+                        logging.warning(err, extra={"token": secret_fingerprint(token)})
 
                 if not payload and self._firebase_validator:
                     payload, err = await self._firebase_validator.verify_token(token)
                     if err:
-                        logging.warning(err, extra={"token": token})
+                        logging.warning(err, extra={"token": secret_fingerprint(token)})
 
             if not payload:
                 return json_response_with_code(-2, "Invalid Google/Firebase ID token.", request=request)

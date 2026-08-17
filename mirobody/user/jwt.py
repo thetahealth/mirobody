@@ -264,3 +264,28 @@ class JwtRsaTokenValidator(AbstractTokenValidator):
         public_key = private_key.public_key()
 
 #-----------------------------------------------------------------------------
+
+def validator_from_config() -> "JwtTokenValidator":
+    """A validator carrying the SAME claims the server issues.
+
+    `user_router` used to hand-roll the whole payload with `pyjwt.encode` when
+    downgrading a session to AAL1, hardcoding `iss: ""` and `aud: ""` while
+    every other token in the system carries the configured JWT_ISS/JWT_AUD.
+    Nothing rejected it, because `verify_token` runs with `verify_iss` and
+    `verify_aud` both False — so the divergence was invisible right up until
+    someone hardens verification, at which point exactly one token type in the
+    system stops validating and only for users who just disabled MFA.
+
+    Claim shape belongs in one place. This is that place.
+    """
+    from ..utils.config import global_config
+
+    opts = global_config().get_jwt_options()
+    return JwtTokenValidator(
+        key         = opts.get("jwt_key", ""),
+        iss         = opts.get("jwt_iss", ""),
+        aud         = opts.get("jwt_aud", ""),
+        client_id   = opts.get("jwt_client_id", ""),
+        scope       = opts.get("jwt_scope", ""),
+        expires_in  = opts.get("jwt_expires_in") or 60 * 60 * 24 * 30,
+    )

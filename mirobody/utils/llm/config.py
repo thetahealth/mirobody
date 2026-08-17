@@ -1,4 +1,12 @@
-"""
+"""Provider catalogue for the `utils/llm/` package.
+
+A hardcoded table of base_urls, default models and the priority order used to
+auto-select a provider from whichever API keys are present.
+
+NOT the same thing as `mirobody/utils/config/llm.py`, despite the near-identical
+path — that one is `LLMConfig`, the YAML-driven member of the `Config` family.
+See its docstring for the full comparison and why the two have not been merged.
+
 AI model configuration management module
 
 Manages AI model configurations, provides validation and retrieval interfaces,
@@ -30,7 +38,6 @@ class AIConfig:
         },
     }
 
-    # Default provider priority list (sorted by priority)
     # Used for auto-selecting available providers
     _DEFAULT_PROVIDER_PRIORITY: List[Dict[str, Any]] = [
         {
@@ -298,7 +305,6 @@ class AIConfig:
         Raises:
             ValueError: If no provider is available
         """
-        # Check if preferred provider is available
         if preferred_provider:
             if preferred_provider in cls._CONFIG:
                 config = cls._CONFIG[preferred_provider]
@@ -307,7 +313,6 @@ class AIConfig:
                     return cls.get_provider_config(preferred_provider)
                 # Preferred provider unavailable, continue auto-selection
         
-        # Auto-select available provider
         available_provider = cls.get_available_provider()
         if not available_provider:
             status = cls.get_provider_status()

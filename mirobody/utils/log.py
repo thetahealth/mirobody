@@ -1,4 +1,4 @@
-import base64, datetime, json, logging, os
+import base64, datetime, hashlib, json, logging, os
 
 from .config import FernetEncrypter
 from .req_ctx import get_req_ctx
@@ -6,6 +6,26 @@ from .req_ctx import get_req_ctx
 #-----------------------------------------------------------------------------
 
 _fernet_encryptor = None
+
+#-----------------------------------------------------------------------------
+
+def secret_fingerprint(secret: str | None) -> str:
+    """A stable, non-reversible handle for a credential, safe to log.
+
+    Bearer tokens, ID tokens and OAuth client secrets were being logged whole,
+    and in one case returned to the caller in an HTTP 401 body. Truncation
+    (`token[:50]`, used elsewhere in this repo) is not a fix for a JWT: the
+    first 50 characters are the header plus the start of the *payload*, which
+    is base64 of the claims — email, subject, issuer. It hides the signature,
+    which is the one part that is not sensitive on its own.
+
+    A digest prefix keeps what logging a token is actually for — correlating
+    "this same token failed here and here" across lines — while carrying none
+    of the claims.
+    """
+    if not secret or not isinstance(secret, str):
+        return "<none>"
+    return "sha256:" + hashlib.sha256(secret.encode("utf-8")).hexdigest()[:12]
 
 #-----------------------------------------------------------------------------
 
@@ -18,7 +38,7 @@ class JsonEncoder(json.JSONEncoder):
             try:
                 s = str(o)
                 return s
-            except:
+            except Exception:
                 return base64.urlsafe_b64encode(o).decode()
         
         elif isinstance(o, list):
@@ -130,9 +150,15 @@ class JsonFormatter(logging.Formatter):
                     encrypted_encrypted_info = _fernet_encryptor.encrypt(plain_encrypted_info)
                 except Exception as e:
                     logging.warning(str(e))
-                    encrypted_encrypted_info = plain_encrypted_info
+                    encrypted_encrypted_info = "<unencrypted: encryption failed>"
             else:
-                encrypted_encrypted_info = plain_encrypted_info
+                # Fail CLOSED. This used to fall back to the plaintext, so with
+                # no LOG_ENCRYPT_KEY configured every "encrypted_info" payload
+                # was written in the clear under a field name that promises the
+                # opposite — the worst of both, since a reader trusts the name.
+                encrypted_encrypted_info = (
+                    "<unencrypted: LOG_ENCRYPT_KEY not configured>"
+                )
 
             json_record["encrypted_info"] = encrypted_encrypted_info \
                 if len(encrypted_encrypted_info) <= 200 \

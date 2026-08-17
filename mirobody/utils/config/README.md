@@ -126,95 +126,6 @@ Notes:
 - `PPT`/`PPTX` always read as extracted text (no provider accepts them as a file block).
 - Advanced: a raw `profile: { … }` dict of [`ModelProfile`](https://reference.langchain.com/python/langchain_core/language_models/#langchain_core.language_models.ModelProfile) fields is also honored and overrides the friendly flags.
 
-#### MixAgent Configuration
-
-MixAgent uses a two-phase model fusion architecture. Phase 1 (Orchestrator) uses providers with `@orchestrator` suffix for tool orchestration and data collection, while Phase 2 (Responder) uses providers with `@responder` suffix for response generation.
-
-**Important**:
-
-- Providers with `@responder` and `@orchestrator` suffixes are internal-only and will NOT appear in frontend APIs (`/api/providers`, `/api/models`).
-- At least one `@orchestrator` provider is required for Phase 1
-- At least one `@responder` provider is required for Phase 2
-
-##### Nested Configuration Format (Recommended)
-
-Group multiple providers under a single frontend-visible name:
-
-```yaml
-PROVIDERS_MIX:
-  claude|gemini:  # Frontend display name (e.g., "claude|gemini" shown in UI)
-    # Phase 1 (Orchestrator) - Tool orchestration and data collection
-    claude-sonnet@orchestrator:
-      llm_type: openai
-      api_key: OPENROUTER_API_KEY
-      base_url: https://openrouter.ai/api/v1
-      model: anthropic/claude-sonnet-4.6
-      temperature: 0.1
-
-    # Phase 2 (Responder) - Response generation with tool context
-    gemini-3-pro@responder:
-      llm_type: google-genai
-      api_key: GOOGLE_API_KEY
-      model: gemini-3.1-pro-preview
-      temperature: 1.0
-      response_with_tools: true  # Used when Phase 1 made tool calls
-
-    # Phase 2 (Responder) - Quick responses without tool context
-    gemini-3-flash@responder:
-      llm_type: google-genai
-      api_key: GOOGLE_API_KEY
-      model: gemini-3.1-flash-lite-preview
-      temperature: 1.0
-      response_with_tools: false  # Used when Phase 1 had no tool calls
-```
-
-##### Flat Configuration Format (Legacy)
-
-For backward compatibility, flat format is also supported:
-
-```yaml
-PROVIDERS_MIX:
-  claude-sonnet@orchestrator:
-    llm_type: openai
-    api_key: OPENROUTER_API_KEY
-    base_url: https://openrouter.ai/api/v1
-    model: anthropic/claude-sonnet-4.6
-    temperature: 0.1
-
-  gemini-pro@responder:
-    llm_type: google-genai
-    api_key: GOOGLE_API_KEY
-    model: gemini-3.1-pro-preview
-    temperature: 1.0
-    response_with_tools: true
-```
-
-##### Response Selection Logic
-
-The `response_with_tools` field determines which responder to use:
-
-| `response_with_tools` | Usage                                                               |
-| ----------------------- | ------------------------------------------------------------------- |
-| `true`                | Used when Phase 1 made tool calls (complex queries with data)       |
-| `false`               | Used when Phase 1 had no tool calls (simple queries, quick answers) |
-| *omitted* or `null` | **Flexible mode** - Used for both cases (single responder)    |
-
-##### Example: Single Responder for All Cases
-
-```yaml
-PROVIDERS_MIX:
-  claude|gemini:
-    claude-sonnet@orchestrator:
-      llm_type: openai
-      model: anthropic/claude-sonnet-4.6
-
-    gemini-3-pro@responder:  # No response_with_tools field
-      llm_type: google-genai
-      model: gemini-3.1-pro-preview
-      temperature: 1.0
-      # response_with_tools omitted - used for all cases
-```
-
 ### 2. Tools (`ALLOWED_TOOLS_{NAME}` / `DISALLOWED_TOOLS_{NAME}`)
 
 Control which tools an agent can access using whitelist or blacklist configurations.
@@ -262,8 +173,19 @@ Path to Jinja2 template files used for system prompts.
 
 ```yaml
 PROMPTS_DEEP:
-- mirobody/pub/agents/deep/prompts/default.jinja
+- agent/prompts/deep.jinja
 ```
+
+Paths are resolved twice: first as `os.path.isfile(path)` relative to the
+working directory, then relative to the installed `mirobody` package. So a
+**package-relative** path like the one above works both from a source checkout
+and from a `pip install` — which is why `config.yaml` uses that form — while
+your own templates outside the package should use an absolute path, or one
+relative to wherever you launch the server.
+
+(This section documented `mirobody/agent/deep/prompts/default.jinja` and
+`simple.jinja`. Neither the directory nor the files exist; the shipped
+templates are under `agent/prompts/`.)
 
 #### Path with Suffix Format
 
@@ -271,26 +193,11 @@ You can specify a custom key name using `path@suffix` format:
 
 ```yaml
 PROMPTS_DEEP:
-- mirobody/pub/agents/deep/prompts/default.jinja@main
-- mirobody/pub/agents/deep/prompts/simple.jinja@simple
+- agent/prompts/deep.jinja@main
+- /path/to/your/own.jinja@simple
 ```
 
 This will create `prompt_templates` with keys `main` and `simple` instead of deriving from file names.
-
-#### MixAgent Prompts Configuration
-
-MixAgent requires two prompts with specific keys:
-
-- `@orchestrator`: Phase 1 prompt for tool orchestration
-- `@responder`: Phase 2 prompt for response generation
-
-```yaml
-PROMPTS_MIX:
-  - pub/agents/mix/prompts/orchestrator.jinja@orchestrator
-  - pub/agents/mix/prompts/responder.jinja@responder
-```
-
-**Important**: Both prompts are required for MixAgent to function properly.
 
 ## 🧪 Code Execution (Sandbox)
 

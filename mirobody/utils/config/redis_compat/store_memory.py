@@ -26,6 +26,12 @@ class MemoryStore:
         self._hashes: dict[str, dict[str, str]] = {}
         self._sets: dict[str, set[str]] = {}
         self._lists: dict[str, collections.deque[str]] = {}
+        # Expiry for hash/set/list keys. String keys carry their own on Entry;
+        # these three had nowhere to record one, so EXPIRE against them was a
+        # silent no-op — it returned False, which a caller reads as "no such
+        # key", not as "this store cannot expire that". Real Redis expires any
+        # key type.
+        self._other_expires: dict[str, float] = {}
         # BLPOP/BRPOP waiters: key -> list of (side, future)
         self._list_waiters: dict[str, list[tuple[str, asyncio.Future]]] = {}
         # Guard compound read-modify-write sequences against future
@@ -81,7 +87,7 @@ class MemoryStore:
     async def exists(self, *keys: str) -> int:
         count = 0
         for key in keys:
-            if key in self._hashes or key in self._sets or key in self._lists:
+            if self._other_alive(key):
                 count += 1
             else:
                 entry = self._data.get(key)
@@ -111,28 +117,51 @@ class MemoryStore:
 
     async def keys(self, pattern: str = "*") -> list[str]:
         now = time.monotonic()
-        all_keys = set(self._hashes.keys()) | set(self._sets.keys()) | set(self._lists.keys())
+        all_keys = {
+            k for k in set(self._hashes) | set(self._sets) | set(self._lists)
+            if self._other_alive(k)
+        }
         all_keys.update(
             k for k, v in self._data.items()
             if not (v.expires_at and now > v.expires_at)
         )
         return [k for k in all_keys if fnmatch.fnmatch(k, pattern)]
 
+    def _other_alive(self, key: str) -> bool:
+        """A hash/set/list key that exists and has not passed its expiry."""
+        if key not in self._hashes and key not in self._sets and key not in self._lists:
+            return False
+        at = self._other_expires.get(key)
+        if at is not None and time.monotonic() > at:
+            self._hashes.pop(key, None)
+            self._sets.pop(key, None)
+            self._lists.pop(key, None)
+            self._other_expires.pop(key, None)
+            return False
+        return True
+
     async def expire(self, key: str, seconds: int) -> bool:
         entry = self._data.get(key)
         if entry is not None and not entry.expired:
             entry.expires_at = time.monotonic() + seconds
             return True
+        if self._other_alive(key):
+            self._other_expires[key] = time.monotonic() + seconds
+            return True
         return False
 
     async def ttl(self, key: str) -> int:
         entry = self._data.get(key)
-        if entry is None or entry.expired:
-            return -2  # key does not exist
-        if entry.expires_at is None:
-            return -1  # no expiry
-        remaining = entry.expires_at - time.monotonic()
-        return max(int(remaining), 0)
+        if entry is not None and not entry.expired:
+            if entry.expires_at is None:
+                return -1  # exists, no expiry
+            return max(int(entry.expires_at - time.monotonic()), 0)
+        if self._other_alive(key):
+            at = self._other_expires.get(key)
+            if at is None:
+                return -1
+            return max(int(at - time.monotonic()), 0)
+        return -2  # key does not exist
 
     # -- Hash operations --------------------------------------------------
 
@@ -149,6 +178,7 @@ class MemoryStore:
         return h.get(field)
 
     async def hgetall(self, key: str) -> dict[str, str]:
+        self._other_alive(key)          # drop it first if it has expired
         return self._hashes.get(key, {})
 
     async def hdel(self, key: str, *fields: str) -> int:

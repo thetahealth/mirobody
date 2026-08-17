@@ -23,8 +23,8 @@ class ProfileRefreshTask(BaseRedisTask):
     queue_key = "profile_refresh_queue"
 
     async def consume(self, messages: list[str]) -> None:
-        # Lazy import breaks mirobody.task ↔ mirobody.chat/pulse cycle.
-        from ..chat.user_profile import UserProfileService
+        # Lazy import breaks mirobody.task ↔ mirobody.agent.chat/pulse cycle.
+        from ..agent.chat.user_profile import UserProfileService
 
         user_ids = {m for m in messages if m}
         if not user_ids:

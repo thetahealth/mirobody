@@ -1,16 +1,19 @@
-import aiohttp, base64, dotenv, importlib, importlib.resources, importlib.metadata, inspect, io, json, logging, os, re
+import aiohttp, base64, dotenv, importlib, importlib.resources, importlib.metadata, io, json, logging, os, re
 
 from ruamel.yaml import YAML
 from typing import Any
 
 from ... import __version__
+from typing import TYPE_CHECKING
+
 from .encrypt import AbstractEncrypter, FernetEncrypter
 from .log import LogConfig
 from .http import HttpConfig
 from .llm import LLMConfig, LLMProvider, _OPENAI_COMPAT
-from .postgresql import PostgreSQLConfig
-from .redis import RedisConfig
-from .storage.abstract import AbstractStorage
+
+if TYPE_CHECKING:  # heavy drivers — imported lazily inside the accessors below
+    from .postgresql import PostgreSQLConfig
+    from .redis import RedisConfig
 
 #-----------------------------------------------------------------------------
 
@@ -99,8 +102,6 @@ class Config:
         self.agent_dirs         = self.get_dirs("AGENT_DIRS", [])
         self.task_dirs          = self.get_dirs("TASK_DIRS", [])
 
-        self.private_mcp_tool_dirs      = self.get_dirs("PRIVATE_MCP_TOOL_DIRS", [])
-        self.private_mcp_resource_dirs  = self.get_dirs("PRIVATE_MCP_RESOURCE_DIRS", [])
         self.private_agent_dirs         = self.get_dirs("PRIVATE_AGENT_DIRS", [])
 
         self.mcp_server_url = self.get_str("MCP_PUBLIC_URL")
@@ -230,7 +231,7 @@ class Config:
         try:
             n = int(obj)
             return n
-        except:
+        except Exception:
             return default
 
 
@@ -260,7 +261,7 @@ class Config:
                 l = json.loads(obj)
                 if isinstance(l, dict):
                     return l
-            except:
+            except Exception:
                 return default
 
         return default
@@ -277,7 +278,7 @@ class Config:
                 l = json.loads(obj)
                 if isinstance(l, list):
                     return l
-            except:
+            except Exception:
                 return default
 
         return default
@@ -323,7 +324,6 @@ class Config:
     def get_jwt_options(self) -> dict[str, str]:
         return {
             "jwt_key"           : self.get_str("JWT_KEY"),
-            # "jwt_private_key"   : self.get_str("JWT_PRIVATE_KEY"),
             "jwt_iss"           : self.get_str("JWT_ISS"),
             "jwt_aud"           : self.get_str("JWT_AUD"),
             "jwt_client_id"     : self.get_str("JWT_CLIENT_ID"),
@@ -363,9 +363,6 @@ class Config:
         return {
             "tool_dirs"         : self.mcp_tool_dirs,
             "resource_dirs"     : self.mcp_resource_dirs,
-
-            "private_tool_dirs"     : self.private_mcp_tool_dirs,
-            "private_resource_dirs" : self.private_mcp_resource_dirs,
         }
 
 
@@ -408,7 +405,7 @@ class Config:
 
         try:
             dist = importlib.resources.files("mirobody")
-        except:
+        except Exception:
             dist = None
 
         prompts = self.get(f"PROMPTS_{suffix}")
@@ -571,7 +568,14 @@ class Config:
 
     #-----------------------------------------------------
 
-    def get_postgresql(self, key: str="") -> PostgreSQLConfig:
+    def get_postgresql(self, key: str="") -> "PostgreSQLConfig":
+        # Imported here, not at module scope. `mirobody.utils.config` is on the
+        # import path of the whole ENGINE — `mirobody.engine`, `indicator`,
+        # `pulse` — so a module-level `from .postgresql import …` made psycopg +
+        # SQLAlchemy a hard requirement of `resolve()`, which touches no
+        # database at all. Only a caller that actually wants a DB handle pays.
+        from .postgresql import PostgreSQLConfig
+
         upper_key = key.strip().upper()
         if upper_key in self._postgresqls:
             return self._postgresqls[upper_key]
@@ -600,7 +604,9 @@ class Config:
 
     #-----------------------------------------------------
 
-    def get_redis(self, key: str="") -> RedisConfig:
+    def get_redis(self, key: str="") -> "RedisConfig":
+        from .redis import RedisConfig          # lazy — see get_postgresql
+
         upper_key = key.strip().upper()
         if upper_key in self._redises:
             return self._redises[upper_key]
@@ -677,37 +683,6 @@ class Config:
 
     #-----------------------------------------------------
 
-    def get_storage(self, storage_name: str="") -> AbstractStorage:
-        storage_name = storage_name.strip().upper()
-        if storage_name:
-            storage_name = f"_{storage_name}"
-
-        cluster = self.get_str("CLUSTER").strip().lower()
-        if not cluster:
-            cluster = "aws"
-
-        try:
-            module = importlib.import_module(f".storage.{cluster}", __package__)
-
-            classes = inspect.getmembers(module, predicate=inspect.isclass)
-            for class_name, klass in classes:
-                if inspect.isabstract(klass) or \
-                    inspect.isbuiltin(klass) or \
-                    class_name == "Any" or \
-                    not class_name.endswith("Storage") or \
-                    not klass.__module__.endswith(cluster):
-
-                    continue
-
-                return klass(config=self)
-
-        except Exception as e:
-            logging.error(str(e), exc_info=True)
-
-        return None
-
-    #-----------------------------------------------------
-
     def print(self):
         print(f"Configuration loaded from {self._yaml_filenames}:")
         print("----------------------------------------------------------")
@@ -726,12 +701,8 @@ class Config:
             print(f"mcp             : {self.mcp_server_url}")
         if self.mcp_tool_dirs:
             print(f"tools           : {self.mcp_tool_dirs}")
-        if self.private_mcp_tool_dirs:
-            print(f"private tools   : {self.private_mcp_tool_dirs}")
         if self.mcp_resource_dirs:
             print(f"resources       : {self.mcp_resource_dirs}")
-        if self.private_mcp_resource_dirs:
-            print(f"private resources: {self.private_mcp_resource_dirs}")
         if self.agent_dirs:
             print(f"agents          : {self.agent_dirs}")
         if self.private_agent_dirs:
@@ -856,8 +827,18 @@ class Config:
     async def init(
         yaml_filenames  : str | list[str] | None = None,
         dotenv_filenames: str | list[str] = [".env"],
-        log_extra       : dict = {}
+        log_extra       : dict | None = {}
     ):
+        log_extra = dict(log_extra) if log_extra else {}
+
+        # `.env` first, because ENV feeds the log fields below and the formatter
+        # has to be built with them already in place.
+        Config.load_dotenv(dotenv_filenames)
+
+        env = os.environ.get("ENV", "").strip().lower()
+        if env and log_extra:
+            log_extra["env"] = env
+
         from ..log import init_log_console
         init_log_console(extra=log_extra)
 
@@ -882,11 +863,13 @@ class Config:
 
         #-----------------------------------------------------
 
-        Config.load_dotenv(dotenv_filenames)
-
-        env = os.environ.get("ENV", "").strip().lower()
-        if env and log_extra:
-            log_extra["env"] = env
+        # `env` and `load_dotenv` used to run HERE, ~25 lines after
+        # `init_log_console` had already been handed `log_extra`. The `env`
+        # field still reached the log records, but only because JsonFormatter
+        # stores the dict it is given by reference rather than copying it —
+        # so adding a defensive `dict(extra)` to the formatter, an obviously
+        # safe-looking change, would have silently dropped `env` from every log
+        # line in production. Ordering, not aliasing, now makes it work.
 
         #-----------------------------------------------------
         # Load user yaml files.
@@ -900,7 +883,8 @@ class Config:
             yaml_file_list.extend(yaml_filenames)
 
         #-----------------------------------------------------
-        # Fill .key.yaml files.
+        # For every `x.yaml` requested, also load `x.key.yaml` — the
+        # split that keeps secrets out of the config file checked into git.
 
         temp_yaml_file_list = []
 
@@ -1011,11 +995,15 @@ class Config:
 
 #-----------------------------------------------------------------------------
 
-def global_config(*args, **kargs) -> Config | None:
-    global _global_config
-    if not _global_config:
-        return None
+def global_config() -> Config | None:
+    """The process-wide Config, or None if `Config.init()` has not run.
 
+    Took `*args, **kargs` and discarded them. That is not harmless: callers
+    reasonably read `global_config(path)` as "load this config file", and one
+    did — `pulse/setup.py` threaded a `config_file_path` parameter down from its
+    public signature into this call, where it evaporated. Accepting arguments
+    you ignore turns a wrong call into a silent no-op instead of a TypeError.
+    """
     return _global_config
 
 #-----------------------------------------------------------------------------

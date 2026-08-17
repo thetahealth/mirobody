@@ -627,7 +627,6 @@ async def gemini_multi_file_extract(
     client = client_manager.get_async_gemini_client()
     config = config or types.GenerateContentConfig(temperature=0.1)
 
-    # Build contents
     contents = []
     for file in files:
         file_data = pathlib.Path(file["path"]).read_bytes()
@@ -809,7 +808,6 @@ async def _handle_doubao(
     )
 
 
-# Provider handler registry
 PROVIDER_HANDLERS: Dict[str, Callable] = {
     "gemini": _handle_gemini,
     "openrouter": _handle_openrouter,
@@ -847,7 +845,6 @@ async def unified_file_extract(
     Raises:
         ValueError: If no provider is available or specified provider is invalid
     """
-    # Resolve provider
     if provider:
         provider_config = VisionProviderConfig.get_provider_by_name(provider)
         if not provider_config:

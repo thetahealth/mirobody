@@ -1,15 +1,34 @@
-"""
-LLM Provider Configuration
+"""Routing LLM traffic through BAA-covered providers, when you need that.
 
-All LLM traffic routes through compliant providers:
-  - Chat / Embedding → Azure OpenAI (WIF auth)
-  - File processing   → GCP Vertex Gemini
+Mirobody works with any OpenAI-compatible provider, and the default priority
+list starts at plain `api.openai.com`. That is deliberate — an engine should
+not dictate your vendor.
 
-Config center (YAML) is the source of truth. Call export_to_env() at startup
-to bridge values into standard env vars that the SDKs read natively:
-  - AZURE_OPENAI_ENDPOINT                          → Azure OpenAI v1 endpoint
-  - GOOGLE_GENAI_USE_VERTEXAI=true                 → google-genai SDK (force Vertex backend)
-  - GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION    → GCP Vertex SDK
+If you are handling PHI and need a HIPAA-eligible path, this module is how you
+get one without touching call sites: sign a BAA with Azure OpenAI and/or Google
+Cloud, put the values in your `config.{env}.yaml`, and call `export_to_env()`
+once at startup. It bridges the config into the env vars the SDKs read
+natively, after which the existing clients route to those endpoints:
+
+    AZURE_OPENAI_ENDPOINT                          Azure OpenAI v1 endpoint
+    GOOGLE_GENAI_USE_VERTEXAI=true                 force the google-genai
+                                                   SDK onto the Vertex backend
+    GOOGLE_CLOUD_PROJECT / GOOGLE_CLOUD_LOCATION   Vertex project + region
+
+    get_azure_deployment()                         model name -> Azure
+                                                   deployment name
+
+`export_to_env()` is not called for you: doing so unconditionally would break
+every install that has only an `OPENAI_API_KEY`, and choosing a provider is the
+operator's decision. Call it from your own startup path.
+
+Two error messages elsewhere (`llm/clients.py`, `config/llm.py`) already tell
+you to do exactly that when Vertex configuration is missing.
+
+The module docstring used to open "All LLM traffic routes through compliant
+providers", stated as fact. It describes what happens once you have configured
+this, not what a default install does — worth being precise about, since it is
+the kind of line someone handling PHI would reasonably rely on.
 """
 
 import logging

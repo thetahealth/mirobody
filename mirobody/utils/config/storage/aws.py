@@ -119,13 +119,11 @@ class AwsStorage(AbstractStorage):
                 "Key": object_key
             }
 
-            # Add content type
             if content_type:
                 put_params["ContentType"] = content_type
             else:
                 put_params["ContentType"] = self.get_content_type_from_filename(key)
 
-            # Add metadata
             if metadata:
                 put_params["Metadata"] = metadata
 

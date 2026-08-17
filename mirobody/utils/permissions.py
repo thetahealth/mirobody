@@ -1,10 +1,30 @@
+"""Care-circle permission resolution: may user A read user B's data?
+
+`get_query_user_id` is the single entry point and the only thing anything
+outside this module imports. It answers "the caller is A, the request names B —
+which user id should this query actually run against, and is that allowed?",
+which is the check standing between one person's health record and another's.
+
+Was `utils_user.py`, which stuttered (`mirobody.utils.utils_user`) and read as
+a grab bag of user helpers. It is not: two of its four functions
+(`authenticate_user`, `get_user_language`) had no callers at all and were
+removed. `check_permissions` stays — it looks unused from outside, but
+`get_query_user_id` calls it, and that is the whole check.
+
+This module deliberately imports NOTHING from `.auth`. It used to open with
+`from .auth import verify_token_string`, a name it never referenced — and
+because `utils/__init__` imports this module eagerly, that one dead line made
+`import mirobody.utils` (hence `mirobody.user`, `mirobody.task`, and anything
+calling `execute_query`) require FastAPI, which ships only in the `[server]`
+extra. A plain `pip install mirobody` could not import its own utils package.
+Keep this module framework-free.
+"""
+
 import json
 import logging
 
 from typing import Any, Dict, Optional, List
-from urllib.parse import unquote
 
-from .utils_auth import verify_token_string
 from .db import execute_query
 
 
@@ -37,10 +57,8 @@ def check_permissions(requested_permissions: List[str], db_permissions: Dict) ->
     for key, value in db_permissions.items():
         perm_dict[key.lower()] = int(value) if isinstance(value, (int, str)) and str(value).isdigit() else 0
 
-    # Get 'all' permission value, default to 0 if missing
     all_permission_value = perm_dict.get('all', 0)
 
-    # Check each requested permission
     for req_perm in requested_permissions:
         req_perm_lower = req_perm.lower().strip()
 
@@ -52,39 +70,6 @@ def check_permissions(requested_permissions: List[str], db_permissions: Dict) ->
             result[req_perm] = all_permission_value
 
     return result
-
-
-async def authenticate_user(token: str) -> Optional[str]:
-    """Authenticate user token and return user information"""
-    try:
-        # Log original token
-        logging.debug(f"Original token: {token[:50]}..." if len(token) > 50 else f"Original token: {token}")
-
-        # Ensure token format is correct
-        token = unquote(token)
-        logging.debug(f"After URL decode: {token[:50]}..." if len(token) > 50 else f"After URL decode: {token}")
-
-        # Fix: Don't add Bearer prefix here, let verify_token_string handle it
-        # verify_token_string will handle Bearer prefix correctly
-        logging.debug(f"Passing to verify_token_string: {token[:50]}..."
-            if len(token) > 50
-            else f"Passing to verify_token_string: {token}")
-
-        # Verify token and get user ID
-        user_id = await verify_token_string(token)
-        if not user_id:
-            logging.error("Token verification failed: unable to get user ID")
-            return None
-
-        logging.info(f"Token verified successfully, user: {user_id}")
-
-        return str(user_id)
-
-    except Exception as e:
-        logging.error(f"Token verification exception: {str(e)}, token: {token[:50]}..."
-            if len(token) > 50
-            else f"Token verification exception: {str(e)}, token: {token}", stack_info=True)
-        return None
 
 
 async def get_query_user_id(
@@ -124,7 +109,6 @@ async def get_query_user_id(
         if result:
             db_permissions = result[0].get("permission", {})
 
-            # Ensure db_permissions is a dictionary
             if isinstance(db_permissions, str):
                 try:
                     db_permissions = json.loads(db_permissions)
@@ -160,44 +144,3 @@ async def get_query_user_id(
         # Return directly if query_user_id equals current user_id, querying self has write permissions (level 2) by default
         permission_dict = {perm: 2 for perm in permission} if permission else {}
         return {"query_user_id": user_id, "success": True, "permissions": permission_dict}
-
-
-async def get_user_language(user_id: str) -> str:
-    """
-    Unified function to get user language - for a019_ai_task directory only
-
-    Args:
-        user_id: User ID (string type)
-
-    Returns:
-        str: Language code, 'zh' for Chinese, 'en' for English
-    """
-    try:
-        # health_app_user.id is integer primary key, need to convert user_id to integer
-        try:
-            user_id_int = int(user_id)
-        except ValueError:
-            logging.warning(f"Invalid user_id format: {user_id}. Using default language 'en'.")
-            return "en"
-
-        sql = """SELECT lang FROM health_app_user WHERE id = :user_id"""
-
-        result = await execute_query(
-            sql, params={"user_id": user_id_int}
-        )
-
-        if result and result[0].get("lang"):
-            language_code = result[0]["lang"]
-            if language_code == "zh_CN":
-                return "zh"
-            elif language_code == "en":
-                return "en"
-            else:
-                logging.warning(f"Unsupported language_code '{language_code}' for user {user_id_int}. Defaulting to 'en'.")
-                return "en"  # Default to English for unsupported codes
-
-        return "en"  # Default to English if lang is not set
-
-    except Exception as e:
-        logging.error(f"Error fetching language for user {user_id}: {e}. Defaulting to 'en'.", stack_info=True)
-        return "en"  # Default to English if anything goes wrong

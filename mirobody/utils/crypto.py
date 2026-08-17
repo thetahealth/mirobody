@@ -1,7 +1,12 @@
-"""
-Encryption utility module
+"""AES-GCM string encryption for values stored in the database.
 
-Provides string encryption/decryption functions, corresponding to utils.EncryptString and utils.DecryptString in Go code.
+Not to be confused with `utils/config/encrypt.py`, which is the Fernet
+encrypter the log pipeline uses for its `encrypted_info` field. Two different
+ciphers for two different jobs; the previous name (`utils_encrypt.py`) sat one
+directory away from `config/encrypt.py` and told you nothing about which was
+which.
+
+Ported from the Go implementation's `utils.EncryptString` / `utils.DecryptString`.
 """
 
 import base64, logging

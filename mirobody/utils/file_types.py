@@ -3,13 +3,9 @@
 Single source of truth for "what kind of file is this extension" lookups.
 Consumed by:
 
-- `mirobody/pub/agents/deep/backend.py`             — file_type field in tool results
+- `mirobody/agent/deep/backend.py`             — file_type field in tool results
 - `mirobody/utils/llm/file_processors.py`           — image branch in LLM processor
-
-`mirobody/pulse/file_parser/services/compressed_file_processor.py` keeps
-its own `SUPPORTED_FILE_TYPES` (a `dict[mime, list[ext]]` for archive
-extraction, not extension classification) — different shape, different
-purpose, intentionally separate.
+- `mirobody/pulse/file_parser/`                — handler routing + extraction routing
 """
 
 import os
@@ -53,6 +49,49 @@ IMAGE_MEDIA_TYPES: dict[str, str] = {
     ".webp": "image/webp",
     ".bmp":  "image/bmp",
 }
+
+
+# Extension + MIME sets for the "which extractor handles this?" question.
+# The Excel pair existed verbatim in two places — `ExcelHandler.is_excel_file`
+# (deciding which handler runs) and `FileAbstractExtractor._is_excel_file`
+# (deciding which extraction routine runs). Two copies of the routing table
+# meant a new spreadsheet type could reach a handler that then refused to
+# extract it.
+EXCEL_EXTENSIONS: set[str] = {".xlsx", ".xls", ".xlsm", ".xlsb"}
+EXCEL_MIME_TYPES: set[str] = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel",
+    "application/vnd.ms-excel.sheet.macroEnabled.12",
+    "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+}
+
+TEXT_EXTENSIONS: set[str] = {".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm", ".log"}
+TEXT_MIME_TYPES: set[str] = {
+    "text/plain",
+    "text/markdown",
+    "text/csv",
+    "application/json",
+    "text/xml",
+    "application/xml",
+    "text/html",
+}
+
+
+def _matches(filename: str, content_type: str | None, exts: set[str], mimes: set[str]) -> bool:
+    if not filename:
+        return False
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in exts or (content_type in mimes if content_type else False)
+
+
+def is_excel_file(filename: str, content_type: str | None = None) -> bool:
+    """True for spreadsheet uploads (by extension or MIME type)."""
+    return _matches(filename, content_type, EXCEL_EXTENSIONS, EXCEL_MIME_TYPES)
+
+
+def is_text_file(filename: str, content_type: str | None = None) -> bool:
+    """True for plain-text-ish uploads we can decode without a parser."""
+    return _matches(filename, content_type, TEXT_EXTENSIONS, TEXT_MIME_TYPES)
 
 
 def get_file_type(extension: str) -> str:

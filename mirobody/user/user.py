@@ -200,11 +200,18 @@ async def check_relationship(
 
         try:
             obj = json.loads(record[0])
-        except:
+        except Exception as e:
+            # A bare `except:` whose body called `str(e)` stood here — `e` was
+            # never bound, so a malformed permission row raised NameError from
+            # inside the handler instead of being logged and skipped.
             logging.error(str(e), extra={"owner_user_id": owner_user_id, "member_user_id": member_user_id, "permission": record[0]})
             continue
 
-        if not obj or not isinstance(obj):
+        # `isinstance(obj)` — one argument — stood here and raised TypeError for
+        # every row whose permission JSON parsed successfully: precisely the
+        # case where the care-circle share check was meant to SUCCEED. Sharing
+        # health data with a family member could not work.
+        if not obj or not isinstance(obj, dict):
             continue
 
         if "all" in obj and obj["all"] > 0:

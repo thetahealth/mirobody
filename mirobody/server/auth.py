@@ -1,22 +1,31 @@
+"""Bearer-token verification for HTTP requests.
+
+The FastAPI-facing half of authentication: pull the token off the request,
+verify it, and turn it into a user id — or raise 401. Token *issuance* and
+claim shape live in `mirobody/user/jwt.py`; this module only consumes them.
+
+Was `utils_auth.py`, then `mirobody/utils/auth.py`. It is FastAPI all the way
+down — `Header` defaults, `HTTPException` — and FastAPI ships in the
+`[server]` extra, so it never belonged in the engine's utils package: every
+one of its live callers is a router right next door. `verify_token_string` is
+the one function with a non-router caller in history, and that caller
+(`utils/permissions.py`) imported it without ever using it.
+
+Two functions did not come along, both with zero callers anywhere:
+`verify_token_from_websocket` (the only reason this module imported
+`WebSocket`) and `set_id_decoder`, already listed as dead in docs/roadmap.md.
+"""
+
 import jwt
 import logging
 
 from typing import Optional
 from urllib.parse import unquote
-from fastapi import Header, HTTPException, WebSocket
+from fastapi import Header, HTTPException
 
-from .config import global_config
-from .req_ctx import get_req_ctx, update_req_ctx
-
-#-----------------------------------------------------------------------------
-
-_external_id_decoder = None
-
-def set_id_decoder(decoder=None):
-    global _external_id_decoder
-
-    if callable(decoder):
-        _external_id_decoder = decoder
+from ..utils.config import global_config
+from ..utils.log import secret_fingerprint
+from ..utils.req_ctx import get_req_ctx, update_req_ctx
 
 #-----------------------------------------------------------------------------
 
@@ -64,7 +73,12 @@ async def verify_token_string(token_string: str) -> str:
         decoded = None
 
     if not decoded:
-        raise HTTPException(status_code=401, detail=f"Token decode failed, token: {token}")
+        # The full undecoded bearer token used to go out in this response
+        # BODY — to the caller, and onward into their proxy logs, browser
+        # console and error tracker. A 401 must not hand back the credential it
+        # just rejected; the fingerprint goes to our log instead.
+        logging.warning("JWT decode failed", extra={"token": secret_fingerprint(token)})
+        raise HTTPException(status_code=401, detail="Token decode failed")
     
     #-----------------------------------------------------
 
@@ -76,12 +90,8 @@ async def verify_token_string(token_string: str) -> str:
     if subject:
         try:
             user_id = int(subject)
-        except:
+        except Exception:
             user_id = None
-
-    if not user_id or user_id <= 0:
-        if callable(_external_id_decoder):
-            user_id = _external_id_decoder(decoded)
 
     if not user_id or user_id <= 0:
         raise HTTPException(status_code=401, detail="Invalid user ID")
@@ -117,27 +127,3 @@ async def verify_token(authorization: str = Header(...)) -> str:
 
     user_id = await verify_token_string(authorization)
     return str(user_id)
-
-async def verify_token_from_websocket(websocket: WebSocket) -> int:
-    try:
-        token = None
-
-        if websocket.headers and "Authorization" in websocket.headers:
-            token = websocket.headers["Authorization"]
-
-        if not token and websocket.query_params and "token" in websocket.query_params:
-            token = websocket.query_params["token"]
-
-        if not token:
-            logging.warning("No JWT token found")
-            raise HTTPException(status_code=401, detail="No token found in session")
-
-        user_id = await verify_token_string(token)
-        return user_id
-
-    except HTTPException:
-        raise
-
-    except Exception as e:
-        logging.error(f"Failed to verify WebSocket token: {str(e)}")
-        raise HTTPException(status_code=401, detail="Authentication failed")

@@ -104,7 +104,7 @@ async def async_get_doubao_structured_output(
     
     Args:
         model_name: Doubao model name (e.g., doubao-1.5-vision-pro-250328, doubao-1-5-ui-tars-250428)
-        messages: Message list, OpenAI-compatible format. Note: if "json" keyword not in messages, it will be auto-added
+        messages: Message list, OpenAI-compatible format. Passed through unchanged.
         response_format: Response format config (Doubao auto-supports JSON output, this param for compatibility)
         **kwargs: Other parameters:
             - temperature: Randomness control (0-1)
@@ -129,13 +129,11 @@ async def async_get_doubao_structured_output(
         # Get Doubao config
         volcengine_config = AIConfig.get_provider_config("volcengine")
         
-        # Create AsyncArk client
         client = AsyncArk(
             api_key=volcengine_config["api_key"],
             base_url=volcengine_config["api_base"],
         )
         
-        # Prepare request params
         request_params = {
             "model": model_name,
             "messages": messages,

@@ -12,9 +12,18 @@ from psycopg_pool import AsyncConnectionPool
 #
 # Tables that DON'T appear here have UNIQUE / PRIMARY KEY constraints over
 # the user_id column and need conflict-aware handling — see _merge_*().
+#
+# This list is deliberately WIDER than `mirobody/schema`: it covers whatever
+# user-scoped tables the running deployment happens to have, and the holywell
+# group below is provisioned by a007-holywell, not by us. Several entries name
+# tables our own DDL no longer creates (`th_task_flow`, `health_data_epic`,
+# `health_data_oracle`, `health_data_libre`, `health_vital_webhook`) — that is
+# correct, not stale: every access is guarded by `_table_exists`, so an entry
+# costs one catalogue lookup where the table is absent and keeps a merge honest
+# where it is present. Do not prune this list by diffing it against our schema.
 
 SIMPLE_RELINK_TABLES: list[tuple[str, list[str]]] = [
-    # mirobody/res/sql tables
+    # sql/ tables
     ("series_data",                     ["user_id"]),
     ("th_files",                        ["user_id", "query_user_id"]),
     ("th_messages",                     ["user_id", "query_user_id"]),
@@ -23,7 +32,6 @@ SIMPLE_RELINK_TABLES: list[tuple[str, list[str]]] = [
     ("th_series_data_genetic",          ["user_id"]),
     ("th_session_share",                ["user_id"]),
     ("th_task_flow",                    ["user_id"]),
-    ("th_user_custom_skills",           ["user_id"]),
     ("user_behavior_insight",           ["user_id"]),
     ("webauthn_credentials",            ["user_id"]),
 
