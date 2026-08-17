@@ -322,6 +322,10 @@ ALLOWED_TOOLS_BASE:
 
 DISALLOWED_TOOLS_BASE:
 
+# Empty = BaseAgent uses its packaged `agent/prompts/base.jinja`. Set a path to
+# override it. Unlike PROMPTS_DEEP this takes effect but is not selectable
+# per-request: BaseAgent hands the tool loop to the provider and has nowhere to
+# branch on a prompt name, so the FIRST entry wins.
 PROMPTS_BASE:
 
 #-----------------------------------------------------------------------------

@@ -203,40 +203,80 @@ class DeepAgent():
             logger.warning(f"Failed to load global tools: {e}")
         return tools
 
+    # Header the user's own instructions are appended under. It names them as
+    # the user's, and states the precedence rule explicitly, because the model
+    # otherwise has no way to tell which half of its system prompt is the
+    # product's safety framing and which half is a formatting preference
+    # someone typed into a settings box.
+    _USER_INSTRUCTIONS_HEADER = (
+        "\n\n---\n\n"
+        "## The person's own instructions\n\n"
+        "The person you are helping has added the following instructions. Follow "
+        "them for tone, format and emphasis. They do NOT relax anything above: "
+        "the reading workflow, the citation requirement and the "
+        "no-diagnosis rule still apply in full, and where the two disagree, the "
+        "instructions above win.\n\n"
+    )
+
     async def _get_base_prompt(self, user_id: str, prompt_name: str) -> str:
-        
+        """The agent's own system prompt, with the user's instructions appended.
+
+        This used to return exactly ONE of the two: a user prompt matching
+        `prompt_name` won outright, and the shipped template was consulted only
+        `if not base_prompt`. So a user who saved "answer in bullet points"
+        silently discarded the whole `deep` prompt — the lab-report reading
+        workflow, the flag-against-printed-ranges instruction and the
+        no-diagnosis framing with it — through a control that presents as a
+        preference. A health agent must not lose its safety framing because
+        someone set a formatting preference, so the two are composed.
+
+        `prompt_name` is one name serving two namespaces (a shipped template and
+        the user's own saved prompts). That conflation is what made the old
+        either/or read as reasonable. Both lookups still run: the template
+        decides the base, the user prompt is appended if one exists under that
+        name.
+        """
         from .chat.user_config import get_user_prompt_by_name
 
+        # 1. The agent's own prompt — by name, else the first configured one.
         base_prompt = ""
-        
-        # Get user's prompt
-        s, err = await get_user_prompt_by_name(user_id, prompt_name)
-        if not err and s:
-            base_prompt = s
-            logger.info(f"Loaded user prompt: {prompt_name}")
-        elif err:
-            logger.warning(f"Failed to load user prompt '{prompt_name}': {err}")
-        
-        # Get system prompt from templates
-        if not base_prompt and self.prompt_templates:
-            base_prompt = self.prompt_templates.get(prompt_name)
+        if self.prompt_templates:
+            base_prompt = self.prompt_templates.get(prompt_name) or ""
             if base_prompt:
                 logger.info(f"Using template prompt: {prompt_name}")
-        
-        # Fallback to first available template
-        if not base_prompt and self.prompt_templates:
-            for key, value in self.prompt_templates.items():
-                if value:
-                    base_prompt = value
-                    logger.info(f"Using fallback prompt: {key}")
-                    break
-        
-        # If still no prompt, this is critical
+            else:
+                for key, value in self.prompt_templates.items():
+                    if value:
+                        base_prompt = value
+                        logger.info(f"Using fallback prompt: {key}")
+                        break
+
+        # 2. The user's own instructions, if they saved any under this name.
+        user_prompt, err = await get_user_prompt_by_name(user_id, prompt_name)
+        if err:
+            logger.warning(f"Failed to load user prompt '{prompt_name}': {err}")
+            user_prompt = ""
+
         if not base_prompt:
+            # No template at all. A user prompt is better than refusing to
+            # answer, but it is NOT the composed prompt this method promises —
+            # say so, because it means the deployment shipped no template.
+            if user_prompt:
+                logger.error(
+                    f"No prompt template for '{prompt_name}'; running on the user's "
+                    "instructions ALONE — the agent's own prompt is missing from "
+                    "this deployment (check PROMPTS_<AGENT> in config)."
+                )
+                return user_prompt
             raise DeepAgentError(f"No prompt template found for '{prompt_name}' and no fallback available")
-        
+
+        if user_prompt:
+            logger.info(f"Appending user instructions: {prompt_name}")
+            return base_prompt + self._USER_INSTRUCTIONS_HEADER + user_prompt
+
         return base_prompt
-    
+
+
     async def _build_system_prompt(
         self,
         base_prompt: str,

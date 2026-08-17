@@ -234,8 +234,22 @@ class ChatService:
 
     @self_authenticating
     async def prompt_handler(self, request: Request) -> Response:
+        """System prompts for ONE agent, plus the caller's own saved prompts.
+
+        The agent is a query parameter because a prompt belongs to an agent, not
+        to the deployment: `deep.jinja` describes a virtual filesystem, QuickJS
+        and chart tools that BaseAgent does not have, so offering it to a Base
+        session is offering instructions for tools that are not there. This
+        used to hardcode `get_options_for_agent("deep")` and answer every caller
+        with Deep's list whatever agent they had selected.
+
+        An agent with no configured templates gets an empty list — which is the
+        honest answer, and is what tells a client there is nothing to pick.
+        """
+        agent = (request.query_params.get("agent") or "deep").strip().lower() or "deep"
+
         system_prompts = []
-        options = global_config().get_options_for_agent("deep")
+        options = global_config().get_options_for_agent(agent)
         if isinstance(options, dict) and "prompt_templates" in options:
             system_prompts = [{"name": name} for name in options["prompt_templates"]]
 
@@ -246,7 +260,12 @@ class ChatService:
             if not err and user_prompts_dict:
                 user_prompts = [{"name": name, "order": value.get("order", 0)} for name, value in user_prompts_dict.items()]
 
-        return json_response_with_code(data={"system": system_prompts, "user": user_prompts}, request=request)
+        # Echo the agent back: the caller asked for one agent's prompts and a
+        # client that cannot tell which list it received is the bug above.
+        return json_response_with_code(
+            data={"agent": agent, "system": system_prompts, "user": user_prompts},
+            request=request,
+        )
 
     #-------------------------------------------------------------------------
 

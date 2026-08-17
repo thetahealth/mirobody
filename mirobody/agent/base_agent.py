@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import functools
 import importlib.resources
+import logging
 from typing import Any, AsyncGenerator
 from zoneinfo import ZoneInfo
 
@@ -38,6 +39,33 @@ def _load_base_prompt_template() -> str:
         .joinpath("agent/prompts/base.jinja")
         .read_text(encoding="utf-8")
     )
+
+
+def _resolve_prompt_template(agent_name: str) -> str:
+    """`PROMPTS_<AGENT>` if the deployment configured one, else the packaged file.
+
+    `config.yaml` has shipped an empty `PROMPTS_BASE:` next to a working
+    `PROMPTS_DEEP:` — a knob wired to nothing, because this agent read
+    `base.jinja` directly and never consulted config. Setting it did nothing,
+    silently, which is worse than not offering it. Now it is real, and
+    `/api/prompts?agent=base` advertises exactly what this returns.
+
+    BaseAgent has no per-request prompt selection (`generate_response` takes no
+    `prompt_name` — the provider runs the tool loop, so there is no place to
+    branch), so a deployment listing several templates gets the first. Not
+    cached: config is loaded once at startup, and re-reading a dict per turn is
+    cheaper than a cache that goes stale on reload.
+    """
+    cfg = global_config()
+    if cfg is not None:
+        options = cfg.get_options_for_agent(agent_name.lower())
+        templates = options.get("prompt_templates") if isinstance(options, dict) else None
+        if templates:
+            for name, text in templates.items():
+                if text:
+                    logging.info(f"BaseAgent using configured prompt template: {name}")
+                    return text
+    return _load_base_prompt_template()
 
 
 #-----------------------------------------------------------------------------
@@ -170,7 +198,7 @@ class BaseAgent():
             )
         )
 
-        prompt = Environment().from_string(_load_base_prompt_template()).render(
+        prompt = Environment().from_string(_resolve_prompt_template(self._agent_name)).render(
             agent_name="Theta",
             language=detect_language(question),
             current_time=datetime.datetime.now(ZoneInfo(timezone)).strftime("%Y-%m-%d %H:%M:%S %z"),

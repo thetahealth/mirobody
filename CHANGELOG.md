@@ -30,7 +30,30 @@ names**; see below.
   factored out (~50% fewer characters than the old JSON); and a server-side
   ceiling on `limit`.
 
+- **A user's saved prompt is now APPENDED to the agent's system prompt instead
+  of replacing it.** Previously a user prompt whose name matched the request's
+  `prompt_name` won outright and the shipped template was never consulted — so
+  saving "answer in bullet points" silently discarded the whole `deep` prompt,
+  the lab-report reading workflow and the no-diagnosis framing included, through
+  a control that presents as a preference. The two are now composed, with the
+  user's text under a header that states which half wins. Deployments that
+  relied on full override must ship their own `PROMPTS_<AGENT>` template.
+
+- **`GET /api/prompts` is scoped by agent** and takes `?agent=<name>` (default
+  `deep`, so existing clients are unaffected). It used to hardcode
+  `get_options_for_agent("deep")` and hand every caller Deep's list — including
+  a caller on Base, for whom those instructions describe a virtual filesystem,
+  QuickJS and chart tools that do not exist. An agent with no configured
+  templates now returns an empty list, and the response echoes `agent` back.
+
 ### Added
+
+- **`PROMPTS_BASE` does something.** The key shipped in `config.yaml` next to a
+  working `PROMPTS_DEEP` while `BaseAgent` read its packaged `base.jinja`
+  directly — a knob wired to nothing, which is worse than no knob. It now
+  overrides the packaged template. BaseAgent has no per-request prompt
+  selection (the provider runs the tool loop, so there is nowhere to branch on a
+  name), so the first configured entry wins.
 
 - **MCP 2026-07-28** — the stateless revision: per-request `_meta` protocol
   fields, `resultType` on every result, `server/discover`, deterministic
