@@ -1,0 +1,101 @@
+"""Check whether this machine can run the full agent server — before you start it.
+
+    pip install 'mirobody[agents]'
+    python examples/05_agent_server_preflight.py
+
+Examples 01–04 need nothing but the package. This one covers ③ Answer, which is
+a different proposition: the chat server, the MCP endpoint over HTTP, and the
+agents need PostgreSQL, Redis, a model key and a JWT secret.
+
+Rather than have you discover that one failure at a time from a traceback, this
+reports every prerequisite at once and says exactly what to do about each. It
+changes nothing and connects to nothing you have not configured.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import os
+import shutil
+import socket
+
+OK, MISSING = "  ok  ", "MISSING"
+
+
+def _mark(ok: bool) -> str:
+    return OK if ok else MISSING
+
+
+def _port_open(host: str, port: int, timeout: float = 0.6) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+print(__doc__.strip().splitlines()[0])
+print("=" * 74)
+
+rows: list[tuple[str, bool, str]] = []
+
+# ── 1. the [agents] extra ────────────────────────────────────────────────────
+for mod, why in (("langchain", "the DeepAgent tool loop"),
+                 ("deepagents", "middleware, skills, virtual filesystem"),
+                 ("fastapi", "the HTTP surface")):
+    rows.append((f"python: {mod}", importlib.util.find_spec(mod) is not None,
+                 f"{why} — pip install 'mirobody[agents]'"))
+
+# ── 2. services ──────────────────────────────────────────────────────────────
+pg_host = os.environ.get("PG_HOST", "localhost")
+pg_port = int(os.environ.get("PG_PORT", "5432"))
+rd_host = os.environ.get("REDIS_HOST", "localhost")
+rd_port = int(os.environ.get("REDIS_PORT", "6379"))
+
+rows.append((f"postgres {pg_host}:{pg_port}", _port_open(pg_host, pg_port),
+             "docker compose up -d pg   (schema is created on first start)"))
+rows.append((f"redis {rd_host}:{rd_port}", _port_open(rd_host, rd_port),
+             "docker compose up -d redis   (sessions, locks, OAuth codes)"))
+
+# ── 3. secrets ───────────────────────────────────────────────────────────────
+model_keys = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_API_KEY",
+              "OPENROUTER_API_KEY", "DASHSCOPE_API_KEY", "VOLCENGINE_API_KEY")
+present = [k for k in model_keys if os.environ.get(k)]
+rows.append(("a model API key", bool(present),
+             "set one of: " + ", ".join(model_keys[:3]) + ", …"))
+rows.append(("JWT_KEY", bool(os.environ.get("JWT_KEY")),
+             "openssl rand -hex 32   (signs session tokens)"))
+rows.append(("CONFIG_ENCRYPTION_KEY", bool(os.environ.get("CONFIG_ENCRYPTION_KEY")),
+             "openssl rand -hex 32   (encrypts config values at rest)"))
+
+# ── 4. config file ───────────────────────────────────────────────────────────
+env_name = (os.environ.get("ENV") or "").strip()
+cfg = f"config.{env_name}.yaml" if env_name else None
+rows.append(("ENV + config.{ENV}.yaml", bool(cfg and os.path.isfile(cfg)),
+             "echo 'ENV=localdb' > .env, then create config.localdb.yaml next to config.yaml"))
+
+# ── 5. docker, for the one-command path ──────────────────────────────────────
+rows.append(("docker (optional)", shutil.which("docker") is not None,
+             "only needed for ./deploy.sh; a local Postgres/Redis works too"))
+
+width = max(len(n) for n, _, _ in rows)
+for name, ok, hint in rows:
+    print(f"[{_mark(ok)}] {name:<{width}}   {'' if ok else hint}")
+
+blocking = [n for n, ok, _ in rows if not ok and not n.endswith("(optional)")]
+print("=" * 74)
+if blocking:
+    print(f"{len(blocking)} prerequisite(s) missing: {', '.join(blocking)}")
+    print("\nThe fastest path past all of them is the Docker one:\n    ./deploy.sh")
+    print("which generates .env with fresh secrets, writes config.localdb.yaml,")
+    print("and starts Postgres, Redis and Mirobody together.")
+else:
+    print("Everything needed is present. Start the server with:\n")
+    print("    mirobody serve\n")
+    print("Then:")
+    print("    http://localhost:18080          the web client")
+    print("    http://localhost:18080/mcp      the MCP endpoint for Claude Desktop / Cursor")
+    print("    http://localhost:18080/docs     the REST API")
+
+if present:
+    print(f"\n(model keys detected: {', '.join(present)})")

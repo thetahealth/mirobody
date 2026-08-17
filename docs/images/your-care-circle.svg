@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -32 960 452" width="960" height="452" font-family="Helvetica, Arial, sans-serif">
+  <rect x="0" y="-32" width="960" height="452" fill="#ffffff"/>
+  <defs>
+    <marker id="ca" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#7a8aa0"/>
+    </marker>
+  </defs>
+  <text x="480" y="-8" text-anchor="middle" font-size="16" fill="#456">Invite the people you trust — then <tspan font-weight="bold" fill="#4072b8">choose what to share.</tspan></text>
+  <!-- ============ LEFT: how it works (3 steps) ============ -->
+  <text x="120" y="40" text-anchor="middle" font-size="11" font-weight="bold" fill="#5a6b7a">HOW IT WORKS</text>
+  <circle cx="48" cy="86" r="13" fill="#4072b8"/>
+  <text x="48" y="91" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">1</text>
+  <text x="70" y="82" font-size="12" font-weight="bold" fill="#234">Create a circle</text>
+  <text x="70" y="98" font-size="9" fill="#5a6b7a">name it — it's yours</text>
+  <circle cx="48" cy="140" r="13" fill="#4072b8"/>
+  <text x="48" y="145" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">2</text>
+  <text x="70" y="136" font-size="12" font-weight="bold" fill="#234">Invite by email</text>
+  <text x="70" y="152" font-size="9" fill="#5a6b7a">the people you trust</text>
+  <circle cx="48" cy="194" r="13" fill="#4072b8"/>
+  <text x="48" y="199" text-anchor="middle" font-size="13" font-weight="bold" fill="#fff">3</text>
+  <text x="70" y="190" font-size="12" font-weight="bold" fill="#234">They accept</text>
+  <text x="70" y="206" font-size="9" fill="#5a6b7a">acceptance required</text>
+  <!-- you're in control -->
+  <rect x="24" y="232" width="234" height="150" rx="12" fill="#f7f9fc" stroke="#9bb1c9" stroke-width="1.5"/>
+  <text x="40" y="256" font-size="11.5" font-weight="bold" fill="#234">You're in control</text>
+  <circle cx="46" cy="282" r="3" fill="#4072b8"/>
+  <text x="58" y="286" font-size="9" fill="#456">acceptance required to join</text>
+  <circle cx="46" cy="308" r="3" fill="#4072b8"/>
+  <text x="58" y="312" font-size="9" fill="#456">remove a member anytime</text>
+  <circle cx="46" cy="334" r="3" fill="#4072b8"/>
+  <text x="58" y="338" font-size="9" fill="#456">unshare a thread anytime</text>
+  <circle cx="46" cy="360" r="3" fill="#4072b8"/>
+  <text x="58" y="364" font-size="9" fill="#456">health stays off until you allow it</text>
+  <line x1="274" y1="209" x2="322" y2="209" stroke="#7a8aa0" stroke-width="2" marker-end="url(#ca)"/>
+  <!-- ============ CENTER: the circle of members (centered on y=209) ============ -->
+  <ellipse cx="460" cy="209" rx="138" ry="98" fill="#eef3fa" stroke="#4072b8" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="460" y="136" text-anchor="middle" font-size="14" font-weight="bold" fill="#2c4a73">Care circle</text>
+  <!-- mutual connections (drawn under the avatars) -->
+  <line x1="460" y1="182" x2="410" y2="246" stroke="#9bbbe0" stroke-width="1.5"/>
+  <line x1="460" y1="182" x2="512" y2="246" stroke="#9bbbe0" stroke-width="1.5"/>
+  <line x1="410" y1="246" x2="512" y2="246" stroke="#9bbbe0" stroke-width="1.5"/>
+  <!-- member: you -->
+  <circle cx="460" cy="182" r="15" fill="#fff" stroke="#234" stroke-width="2"/>
+  <path d="M453 184 Q460 190 467 184" stroke="#234" stroke-width="1.6" fill="none"/>
+  <circle cx="471" cy="193" r="6" fill="#2f7d4a"/>
+  <path d="M468 193 L470 195 L474 191" stroke="#fff" stroke-width="1.6" fill="none"/>
+  <text x="460" y="161" text-anchor="middle" font-size="10" font-weight="bold" fill="#234">you</text>
+  <!-- member: mom -->
+  <circle cx="410" cy="246" r="15" fill="#fff" stroke="#234" stroke-width="2"/>
+  <path d="M403 248 Q410 254 417 248" stroke="#234" stroke-width="1.6" fill="none"/>
+  <circle cx="421" cy="257" r="6" fill="#2f7d4a"/>
+  <path d="M418 257 L420 259 L424 255" stroke="#fff" stroke-width="1.6" fill="none"/>
+  <text x="410" y="280" text-anchor="middle" font-size="10" fill="#456">mom</text>
+  <!-- member: dad -->
+  <circle cx="512" cy="246" r="15" fill="#fff" stroke="#234" stroke-width="2"/>
+  <path d="M505 248 Q512 254 519 248" stroke="#234" stroke-width="1.6" fill="none"/>
+  <circle cx="523" cy="257" r="6" fill="#2f7d4a"/>
+  <path d="M520 257 L522 259 L526 255" stroke="#fff" stroke-width="1.6" fill="none"/>
+  <text x="512" y="280" text-anchor="middle" font-size="10" fill="#456">dad</text>
+  <text x="460" y="326" text-anchor="middle" font-size="10" fill="#5a6b7a">accepted members are mutually in the circle</text>
+  <line x1="598" y1="209" x2="646" y2="209" stroke="#7a8aa0" stroke-width="2" marker-end="url(#ca)"/>
+  <!-- ============ RIGHT: what you can share ============ -->
+  <text x="800" y="40" text-anchor="middle" font-size="11" font-weight="bold" fill="#5a6b7a">WHAT YOU CAN SHARE</text>
+  <!-- card 1: a conversation, with its access level (ShareAccess: View | Edit) -->
+  <rect x="662" y="70" width="278" height="96" rx="12" fill="#f3faf5" stroke="#2f7d4a" stroke-width="2"/>
+  <path d="M684 90 H706 A8 8 0 0 1 714 98 V106 A8 8 0 0 1 706 114 H698 L692 122 L688 114 H684 A8 8 0 0 1 676 106 V98 A8 8 0 0 1 684 90 Z" fill="#dff0e4" stroke="#2f7d4a" stroke-width="1.6"/>
+  <text x="730" y="100" font-size="12.5" font-weight="bold" fill="#1c5233">Share a conversation</text>
+  <text x="730" y="116" font-size="9" fill="#5a6b7a">it shows up in their history</text>
+  <text x="730" y="147" font-size="8.5" fill="#5a6b7a">access</text>
+  <rect x="772" y="137" width="42" height="15" rx="7.5" fill="#dff0e4" stroke="#2f7d4a" stroke-width="1.3"/>
+  <text x="793" y="148" text-anchor="middle" font-size="8.5" font-weight="bold" fill="#1c5233">View</text>
+  <rect x="820" y="137" width="42" height="15" rx="7.5" fill="#fff" stroke="#2f7d4a" stroke-width="1.3"/>
+  <text x="841" y="148" text-anchor="middle" font-size="8.5" font-weight="bold" fill="#1c5233">Edit</text>
+  <!-- card 2: health data (per-person switch) -->
+  <rect x="662" y="180" width="278" height="84" rx="12" fill="#fff7ec" stroke="#c08a3e" stroke-width="2"/>
+  <rect x="680" y="213" width="36" height="18" rx="9" fill="#fff" stroke="#c08a3e" stroke-width="2"/>
+  <circle cx="689" cy="222" r="6.5" fill="#c08a3e"/>
+  <text x="732" y="213" font-size="12.5" font-weight="bold" fill="#9a6a1e">Share health data</text>
+  <text x="732" y="230" font-size="9" fill="#5a6b7a">your switch — off by default</text>
+  <text x="732" y="246" font-size="9" fill="#5a6b7a">mutual — each member controls their own</text>
+  <!-- card 3: what sharing health data unlocks (ties back to slide 1) -->
+  <rect x="662" y="278" width="278" height="96" rx="12" fill="#f3e8f7" stroke="#8a4fb0" stroke-width="2"/>
+  <path d="M692 300 L694.5 305.5 L700 308 L694.5 310.5 L692 316 L689.5 310.5 L684 308 L689.5 305.5 Z" fill="#8a4fb0"/>
+  <text x="712" y="304" font-size="12.5" font-weight="bold" fill="#5e2e80">Then the AI can answer</text>
+  <text x="712" y="328" font-size="11" fill="#5e2e80">“How is my family doing?”</text>
+  <text x="712" y="348" font-size="9" fill="#5a6b7a">reads only what members chose to share</text>
+  <text x="480" y="404" text-anchor="middle" font-size="13" fill="#234">Invite-only, acceptance required — <tspan font-weight="bold" fill="#4072b8">every share is your choice.</tspan></text>
+</svg>

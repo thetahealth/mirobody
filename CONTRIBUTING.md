@@ -37,10 +37,34 @@ We love new ideas! Please open an issue to discuss your feature idea before impl
     - Write clear and concise commit messages.
 
 5.  **Test Your Changes**
-    Ensure your changes don't break existing functionality. Run the deployment script locally to verify:
+    `deploy.sh` used to be listed here. It builds and starts the Docker stack and
+    runs no tests at all, so following this step told you nothing about whether
+    you had broken something. The real gates:
+
     ```bash
-    ./deploy.sh
+    pip install -e '.[agents,test]'    # everything
+
+    pytest                # the whole suite; tests live next to the code
+    lint-imports          # the engine/agent boundary, machine-checked
     ```
+
+    `'.[test]'` alone is enough to work on the **engine** — it runs ~165 of the
+    tests and prints a header saying so. The agent-layer tests need the
+    `[agents]` extra, and are skipped at collection rather than aborting the
+    run without it.
+
+    `lint-imports` must run against the repo source — inside a venv holding an
+    installed older wheel it passes vacuously.
+
+    If you touched packaging or the shipped data bundles, also:
+
+    ```bash
+    python -m build && python scripts/check_wheel_data.py dist/*
+    ```
+
+    which rejects a wheel whose data files are missing or are Git-LFS pointer
+    stubs. That gate exists because we published wheels that imported fine and
+    could not resolve anything.
 
 6.  **Push and Pull Request**
     Push your branch to your fork:
@@ -51,9 +75,85 @@ We love new ideas! Please open an issue to discuss your feature idea before impl
 
 ## 📝 Coding Style
 
-- **Python**: We follow PEP 8 guidelines.
-- **Documentation**: Update README or other docs if you change how something works.
-- **Commits**: Use descriptive commit messages.
+This codebase was written by many hands over a long time. These rules are what
+we converged on; they are worth reading once because several are not the
+defaults you might assume.
+
+### Priorities, in order
+
+1. **Correct.** A wrong answer delivered confidently is the worst outcome this
+   project can produce — it is health data.
+2. **Testable.** Prefer a function that takes its inputs to one that reaches for
+   global config at call time. If you cannot write a test for it without a
+   database, say why in the docstring.
+3. **Concise and precise**, in that order after the first two. Do not trade
+   correctness for brevity.
+
+Concretely: no backwards-compatibility shims, no defensive validation for states
+that cannot occur, no abstraction built for one caller. Delete dead code rather
+than renaming or commenting it out — `git` remembers.
+
+### Comments
+
+**English, always** — including comments that quote non-English data. Quoting is
+encouraged: `# ``血气分析`` panels operate on arterial blood` is a *good*
+comment, because the term is what the code matches.
+
+**Explain why, with evidence. Never restate the code.**
+
+```python
+# Bad — says what the next line already says
+# Get the user id
+user_id = request.state.user_id
+
+# Good — records the bug that motivated the line
+# `next(..., None)` rather than `[...][0]`: this and the nearby rows come from
+# two separate queries, so the pair is not guaranteed to still be present. The
+# bare index raised IndexError and lost the whole response.
+query_rsid = next((r.get("rsid") for r in result if ...), None)
+```
+
+A comment naming the failure it prevents survives refactors. A comment
+paraphrasing the line does not, and becomes a lie the first time the line
+changes.
+
+**A stale comment is a bug.** If you change behaviour, the comments describing it
+are part of the change. We have shipped comments that confidently described
+behaviour the code had not had for a year.
+
+### Docstrings
+
+Module docstrings say what the module is *and what it is not* when confusion is
+likely — e.g. `utils/crypto.py` states it is AES-GCM for stored values, not the
+Fernet encrypter in `config/encrypt.py`. Public functions document the contract
+callers depend on, not the implementation.
+
+### Verify before you assert
+
+The rule that has caught the most real bugs here: **do not reason from what the
+code appears to do — run it.**
+
+- Before deleting something as unused, compute reachability *transitively*. A
+  helper with no external callers may be called by a live sibling.
+- Before consolidating two implementations, confirm they are behaviour-
+  identical, not merely similar. Different fallbacks mean it is a behaviour
+  change, and it needs its own commit and its own test.
+- Before repeating a claim from our own docs, test it. Our README has been wrong.
+
+### Documentation
+
+Docs must match the code. A command in a README is a promise that it runs —
+we have shipped a documented subcommand that exits with `invalid choice`. If you
+rename a module, grep the `.md` files.
+
+See [`docs/README.md`](docs/README.md) for which file a given piece of
+documentation belongs in.
+
+### Commits
+
+Explain *why*, and state how the change was verified. "fix bug" tells a future
+reader nothing; "the handler caught its own 404 and returned HTTP 200" tells them
+everything.
 
 ## ⚖️ License
 By contributing, you agree that your contributions will be licensed under the project's [LICENSE](./LICENSE).

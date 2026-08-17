@@ -2,188 +2,274 @@
 
 # 🚀 Mirobody
 
-**Your Data, Your AI — Health, Finance & More. Open Source, Privacy-First.**
+**The AI-native health data engine — collect, standardize, and reason over labs, wearables & genomics.**
 
-[![Demos](https://img.shields.io/badge/Live%20Demos-mirobody.ai-blue)](https://mirobody.ai)
-[![Theta Wellness](https://img.shields.io/badge/Theta%20Wellness-thetahealth.ai-green)](https://www.thetahealth.ai/)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-3776AB.svg?logo=python&logoColor=white)](pyproject.toml)
 [![PyPI Downloads](https://img.shields.io/pepy/dt/mirobody?label=PyPI%20Downloads&color=orange)](https://pepy.tech/projects/mirobody)
+[![Benchmarks](https://img.shields.io/badge/%F0%9F%A4%97_Benchmarks-4k%2B_downloads_each-FFD21E.svg)](https://huggingface.co/healthmemoryarena)
+[![arXiv](https://img.shields.io/badge/arXiv-2604.02834-b31b1b.svg)](https://arxiv.org/abs/2604.02834)
+[![Live](https://img.shields.io/badge/Live-mirobody.ai-black)](https://mirobody.ai)
+[![Theta](https://img.shields.io/badge/Powers-Theta%20Wellness-green)](https://www.thetahealth.ai/)
 
-*Self-hosted data platform that bridges your personal data with the latest AI capabilities*
+*Blood tests, wearables, genomics, imaging — all fragmented, all incompatible.
+Before AI can understand your health, someone has to unify these signals into a
+single standard AI can actually read. That is what this engine does.*
 
-**AI Engine:**
-
-- 🌐 **HTTP Remote MCP Server** - Deploy and access MCP tools over HTTPS
-- 🎯 **Claude Agent Skills Support** - Develop tools using standard Skills format (SKILL.md)
-- 🔄 **Universal Tool Adapter** - Works with ChatGPT, Claude, Cursor, and more
-- 🔌 **Pluggable Data Providers** - Connect any data source via [Providers API](mirobody/pulse/theta/README.md)
-- 🤖 **Custom Agents** - Create your own conversational agents via [Agents API](mirobody/pub/agents/README.md)
-
-**Health Data:**
-
-- 🏥 **FHIR & Health Standards** - 400+ health indicators, [LOINC / SNOMED CT / RxNorm cross-vocabulary search](mirobody/indicator/README.md)
-- 📊 **Health Data Pipeline** - Ingest from [300+ wearables](mirobody/pulse/theta/README.md), [Apple Health](mirobody/pulse/apple/README.md), EHR; normalize to [StandardPulseData](mirobody/pulse/README.md)
+<img src="docs/images/where-your-data-comes-from.svg" alt="From wearables to food photos — one standard format, ready for AI." width="920">
 
 </div>
 
----
+The engine does three things, and the codebase (and [Contributing](#-contributing)) is organized around exactly these three verbs:
 
-## 📖 Table of Contents
-
-- [Why Mirobody?](#-why-mirobody)
-- [Architecture](#%EF%B8%8F-architecture) — AI & Agent Engine, FHIR & Health Standards, Health Data Pipeline, Infrastructure
-- [Theta Wellness: Our Health Intelligence App](#-theta-wellness-our-health-intelligence-app)
-- [Quick Start](#-quick-start)
-- [Access &amp; Authentication](#-access--authentication)
-- [API Reference](#-api-reference)
-- [Documentation](#-documentation)
+| Verb                 | What it means                                                                                                     | Where                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| **① Collect** | Pull signals in: 4 production providers · 24 catalogued sources · 8 file formats · Apple Health                                             | [`pulse/`](mirobody/pulse/) · [VENDORS.md](VENDORS.md) |
+| **② Sort**    | Standardize: resolve any reading to canonical codes (LOINC · SNOMED CT · RxNorm), normalize units, land as FHIR | [`indicator/`](mirobody/indicator/)                    |
+| **③ Answer**  | Reason: agents read the*original documents* through a virtual filesystem and answer with charts & citations     | [`agent/`](mirobody/agent/)                  |
 
 ---
 
-## ✨ Why Mirobody?
+## ⚡ Try it in 60 seconds
 
-### 🔄 Write Tools Once, Run Everywhere
+**No install** — point any MCP client (Claude Desktop, Cursor, Cherry Studio) at the hosted server and talk to a live health-data engine:
 
-Forget about complex JSON schemas, manual bindings, or router configurations. In Mirobody, **your Python code is the only definition required.**
+```json
+{ "mcpServers": { "mirobody": { "url": "https://mcp.thetahealth.ai/mcp" } } }
+```
 
-- Tools built here instantly work in **ChatGPT** (via Apps-SDK) and the entire **MCP Ecosystem** (Claude, Cursor, IDEs).
-- Mirobody works simultaneously as an **MCP Client** (to use tools) and an **OAuth-enabled MCP Server** (to provide data), creating a complete data loop.
-- **🌐 HTTP Remote MCP Support**: Mirobody supports **HTTP-based remote MCP servers**, enabling cloud deployments and cross-network tool access. Configure `MCP_PUBLIC_URL` to expose your MCP server over HTTPS for ChatGPT Apps and other remote integrations.
+#### Protocol: MCP **2026-07-28** — the current revision
 
-### 💎 Your Data Is an Asset, Not a Payload
+We implement the [2026-07-28 spec](https://modelcontextprotocol.io/specification/2026-07-28/), the *stateless* revision that removed the `initialize`/`initialized` handshake and `Mcp-Session-Id` outright:
 
-Mirobody is built for **Personal Intelligence**, not just local storage. We believe the next frontier of AI is not knowing more about the world, but knowing more about *you*.
+- **Per-request `_meta`** — each request carries its own protocol version and client capabilities, so any request can land on any instance behind a load balancer with no shared session state.
+- **`resultType` on every result** — the field that makes polymorphic results (`complete` / `input_required`) possible.
+- **`server/discover`** — optional stateless capability discovery; no handshake needed before the first real call.
+- **Deterministic `tools/list` ordering** — a reconnect doesn't reshuffle the list and invalidate your client's prompt cache.
 
-- General AI creates generic answers. Mirobody uses your data to create a **Personal Knowledge Base**, enabling AI to give answers that are truly relevant to your life.
-- You can run the entire engine **locally** on your machine. We provide the architecture to unlock your data's value without ever compromising ownership.
+And it negotiates **down**: a client pinned to an older revision is answered in *its* revision, all the way back to `2024-11-05`, for the length of the deprecation offramp.
 
-### 🤖 Native Agent Engine
+Two of its tools need no account at all, because ② Sort is pure terminology:
 
-- Powered by a **self-developed agent engine** that fully reproduces **Claude Code's** autonomous capabilities locally.
-- **🎯 Skills-Based Tool Development**: Mirobody supports developing tools using **Claude Agent Skills** format (SKILL.md files). You can create reusable tools that work seamlessly across the MCP ecosystem. Simply structure your tools as Skills and drop them into the `skills/` directory - Mirobody will automatically discover and expose them.
-- Designed to load **Claude Agent Skills** SKILL.md files, turning your private data into an actionable knowledge base.
+| Tool | What it does | Needs |
+| --- | --- | --- |
+| `resolve_indicator` | any-language indicator name → canonical LOINC | nothing — offline, no user data |
+| `normalize_unit` | free-text unit → canonical UCUM + comparability family | nothing — offline, no user data |
+| `query_health_indicators` | your own records — search, read and aggregate in **one** call; every result carries its LOINC identity | your account |
+| `get_genetic_data` | your variants by rsid | your account |
 
-### 🧠 Agent Architecture
+**As a library** — the engine is a pip install, and ② Sort needs nothing but the package:
 
-Mirobody provides three agent types for different use cases:
+```bash
+pip install mirobody
+mirobody resolve "LDL cholesterol" "血红蛋白" "ヘモグロビン"
+```
 
-| Agent               | Description                     | Use Case                                               |
-| ------------------- | ------------------------------- | ------------------------------------------------------ |
-| **DeepAgent** | Single-model tool orchestration | Complex queries requiring data retrieval and analysis  |
-| **MixAgent**  | Two-phase model fusion          | Cost/quality balance with specialized models (experimental) |
-| **BaseAgent** | Direct LLM conversation         | Simple Q&A without tool calls                          |
+```python
+from mirobody.engine import resolve
+resolve("血红蛋白").loinc   # -> '718-7'   offline: no key, no config, no network
+```
 
-#### DeepAgent
+Runnable walkthroughs: [`examples/`](examples/README.md) — five scripts from offline resolution to a full-server preflight, each verified to run.
 
-Inspired by [LangChain DeepAgents](https://github.com/langchain-ai/deepagents), DeepAgent is our primary agent for tool-assisted conversations. Key features:
+**Self-hosted** — your data never leaves your machine: see [Quick Start](#-quick-start). Your own deployment serves the same MCP surface at `/mcp`.
 
-- **Full MCP Tool Support**: All tools are MCP-compliant and configurable via `ALLOWED_TOOLS` / `DISALLOWED_TOOLS`
-- **Multi-Provider**: Supports Google GenAI, OpenAI, Anthropic, OpenRouter, and any OpenAI-compatible endpoint
-- **File workspace**: A PostgreSQL-backed virtual filesystem (`/uploads`, `/library`, `/memories`, `/charts`) lets the agent read uploaded documents (PDF, image, Excel, …) across any provider
-- **Middleware Stack**: Includes prompt caching, tool call patching, and message summarization
-- **Charts (two paths, routed by agent)**:
-  - **DeepAgent / MixAgent** draw charts by emitting fenced ` ```vis-chart ` data blocks (pure-data JSON, no styling) that the frontend renders — no tool call, no PNG round-trip.
-  - **BaseAgent** draws charts via the `ChartService` MCP tools (`generate_*_chart`), the standard "LLM + MCP tool" path: the model calls a tool, ChartService renders a PNG (Node `@antv/gpt-vis-ssr`), stores it under `/charts`, and the stream emits an `image` event. This is filtered out of DeepAgent/MixAgent on purpose (see `_CHART_SERVICE_TOOLS` in `mirobody/pub/agents/deep_agent.py`).
-  - The `/charts` virtual-FS scope and its static-served storage volume (`mirobody_charts` → `/charts`) back the PNG path; a fork can also point its own chart-image tool there.
+---
 
-#### MixAgent
+## ① Collect — every signal, one intake
 
-A two-phase model fusion architecture that separates **tool orchestration** from **response generation**:
+- **24 data-source vendors behind one contract** — B2B aggregators (Terra, Validic, Human API, Rook, Spike, [Open Wearables](https://github.com/the-momentum/open-wearables), …), device brands (Fitbit, Withings, Dexcom, Polar, …), Huawei Health, and a generic **SMART-on-FHIR client for ONC-certified EHRs** (Epic, Oracle Health, athenahealth). Each integration is honestly graded *verified / implemented / metadata* — see **[VENDORS.md](VENDORS.md)**. Production-hardened providers for **Garmin, Oura, Whoop** plus [300+ devices](mirobody/pulse/theta/README.md) via the pulse platform, and [Apple Health](mirobody/pulse/apple/README.md) import with CDA processing.
+- **8 file formats parsed with AI** — PDF lab reports, Excel, CSV, images, audio, archives, plain text, and **genetic exports (WeGene)**; LLM-powered indicator extraction ([`pulse/file_parser/`](mirobody/pulse/file_parser/), 13k lines).
+- Ingest pipeline: staged intake → validate → normalize → daily rollups → [AI insights](mirobody/pulse/insight/) that feed back into the record — closing the loop.
 
-- **Phase 1 (Orchestrator)**: A capable model handles tool calls and data collection
-- **Phase 2 (Responder)**: A cost-effective model generates the final response with collected context
+## ② Sort — one standard AI can actually read
 
-This architecture optimizes for both cost and quality by using expensive models only where necessary. *MixAgent is currently experimental.*
+The part none of the adjacent open-source projects have — a **semantic standardization layer**, not a lookup table:
 
-#### BaseAgent
+- **Concept graph**: 440,961 nodes · 22,044,110 cross-vocabulary edges · **595,746 source ids** distilled into canonical concepts (LOINC · SNOMED CT · RxNorm bridges), shipped via Git LFS ([`indicator/`](mirobody/indicator/README.md)).
+- **Embedding-based resolution**: free-text indicator names → canonical codes, with **50,240 multilingual aliases** (中文 22,578 · 日本語 16,809 · +6 languages) — `血红蛋白`, `ヘモグロビン` and `hemoglobin` all land on LOINC 718-7.
+- **We measure that claim instead of asserting it.** [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) scores the offline resolver against the panels a physical actually orders — lipid, CBC, metabolic, liver, thyroid, hormones, tumour markers, urinalysis, vitals — written the way a report prints them, in English, 中文 and 日本語. **98/98 today; it scored 32/94 the day it was written.** It grades *clinical* correctness, not resolution rate: answering `血红蛋白` with the code for HbA1c is scored as a failure, and `血圧` (a panel, not an observation) is required to resolve to *nothing*, because a confident wrong code is worse than an honest miss.
+- **Unit normalization** to UCUM families (~310), 316 standard pulse indicators, FHIR R4 output.
+- Taxonomy of 25 clinical categories (Vital signs, Lab & Clinical, Body measures, …).
 
-A lightweight agent for direct LLM conversations, driven by the provider's own tool-calling loop. Ideal for:
+## ③ Answer — agents that read the originals
 
-- Simple Q&A scenarios
-- Testing and development
-- Low-latency responses
+There are **two ways to consume this layer**, and an agent for each — the difference is *who runs the tool loop*:
 
-> **📁 Secure File Operations**: File tools (`ls`, `read_file`, `write_file`, `edit_file`, `glob`, `grep`) are backed by **PostgreSQL** for data persistence and auditability. See `mirobody/pub/tools/file_read_service.py` and `file_write_service.py` for implementation details.
->
-> **🧪 Sandbox Code Execution**: The `execute` tool runs shell commands in isolated [E2B](https://e2b.dev) cloud sandboxes for data analysis and computation. Requires `E2B_API_KEY` configuration. See [CONFIG](mirobody/utils/config/README.md#-code-execution-sandbox) for setup details.
->
-> **👉 See [CONFIG](mirobody/utils/config/README.md) for detailed agent configuration guide.**
+| | **DeepAgent** — you run the engine | **BaseAgent** — your model consumes ours |
+| --- | --- | --- |
+| Tool loop runs | here, in your deployment | in the **LLM provider**, against `/mcp` over HTTP |
+| For | self-hosting the whole thing | Claude Desktop · Cursor · ChatGPT Apps · any MCP client |
+| Extras | virtual filesystem, QuickJS, Agent Skills, charts | whatever the MCP tool surface exposes — nothing hidden |
+
+- **DeepAgent** — the primary agent, on [deepagents](https://github.com/langchain-ai/deepagents) 0.7 / LangChain 1.3. Multi-provider (OpenAI, Gemini, Anthropic, OpenRouter, any OpenAI-compatible endpoint); a **PostgreSQL-backed virtual filesystem** (`/uploads`, `/library`, `/memories`, `/charts`, `/skills`) lets the model `read_file` your *original* PDF — multimodally — instead of a lossy extraction; in-process JS interpreter (QuickJS) for real computation; per-turn model-call budget with graceful stop.
+- **BaseAgent** — no LangChain, on purpose. It hands the MCP server to the provider (OpenAI Responses `mcp_server`, Gemini Interactions) and streams the result. That makes it our own rehearsal of the third-party experience: **anything BaseAgent can't do unaided is something an outside MCP client can't do either.** It does not chart — the consuming client brings its own visualization.
+- **MCP server built in** ([`mcp/`](mirobody/mcp/)) — every tool doubles as an MCP tool over HTTP; works as MCP client *and* OAuth-enabled MCP server. **Agent Skills** (SKILL.md) served via deepagents' native SkillsMiddleware from [`mirobody/agent/skills/`](mirobody/agent/skills/).
+- Care-circle sharing with per-person consent:
+
+<div align="center"><img src="docs/images/your-care-circle.svg" alt="Your care circle — invite the people you trust by email; you stay in control: remove a member or unshare anytime, and health sharing stays off until you allow it." width="920"></div>
 
 ---
 
 ## 🏗️ Architecture
 
-### AI & Agent Engine
+The engine is three verbs — **① Collect → ② Sort → ③ Answer** — and the package
+layout says the same thing.
 
-| Module                          | Path                            | Description                                                                                           |
-| ------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **Chat Service**          | `mirobody/chat/`              | Session management, conversation history, streaming adapters (HTTP/WebSocket), memory integration     |
-| **Agent Implementations** | `mirobody/pub/agents/`        | DeepAgent (LangChain), MixAgent (two-phase fusion), BaseAgent                                     |
-| **LLM Clients**           | `mirobody/utils/llm/`         | Multi-provider adapter (OpenAI, Gemini, Azure OpenAI, DashScope, any OpenAI-compatible), HIPAA-compliant routing |
-| **MCP Server**            | `mirobody/mcp/`               | JSON-RPC 2.0 tool/resource server, local + HTTP remote access                                         |
-| **Tools**                 | `mirobody/pub/tools/`         | Built-in tools: file ops, charts (BaseAgent), code execution ([E2B](https://e2b.dev) sandbox), memory                |
-| **Embeddings**            | `mirobody/utils/embedding.py` | Provider-agnostic 1024-dim embeddings (Gemini / Qwen), pgvector semantic search                  |
-| **Prompt Templates**      | `prompts/`                    | Jinja2 system prompts with dynamic context injection (user timezone, tools, health profile)           |
-| **Skills**                | `skills/`                     | Claude Agent Skills (SKILL.md + metadata.json), auto-discovery                                        |
+```
+mirobody/
+│
+│  ── the ENGINE (pip install mirobody · no agent framework, machine-enforced) ──
+│
+├── engine.py            ②  The front door: resolve() offline, parse_file() one-LLM-call
+├── cli.py                   mirobody parse | resolve | vendors | serve | worker
+├── pulse/               ①  COLLECT — every signal, one intake
+│   ├── vendor/              catalogue of 24 data-source vendors behind one Vendor
+│   │                        contract — metadata/stubs, not working transports
+│   ├── theta/               production device providers (Garmin/Oura/Whoop, 300+ devices)
+│   ├── apple/               Apple Health import (zip + CDA)
+│   ├── file_parser/         8 file formats → indicators via LLM extraction (needs DB)
+│   ├── ingest/              StandardPulseData: the universal exchange format that
+│   │                        every source above converges on (was `data_upload/`)
+│   └── core/                domain models, daily rollups, insights (needs DB)
+├── indicator/           ②  SORT — one standard AI can actually read
+│   └── fhir/                concept graph · embedding resolution · units → UCUM · taxonomy
+├── res/                     the shipped data: LOINC/SNOMED bundles (Git LFS, see
+│                            LICENSE-3RD-PARTY + *.NOTICE) · resolver_overrides.tsv · sql/
+│
+│  ── shared infrastructure: not a fourth verb, used BY the three ──────────
+│
+├── mcp/                     MCP server: every tool doubles as an MCP tool over HTTP
+├── task/                    background workers (indicator sync, profile refresh)
+│                              ← used by pulse, server
+├── user/                    accounts, auth, care-circle consent
+│                              ← used by agent, mcp, pulse, server
+├── utils/                   config (encrypted YAML), direct LLM SDK access, db,
+│                            locales ← used by EVERY other package. Keep it a
+│                            leaf: it must import nothing above itself
+│
+│  ── the AGENT LAYER (pip install 'mirobody[agents]' · LangChain lives ONLY here) ──
+│
+├── agent/               ③  ANSWER — one roof for everything conversational
+│   ├── deep_agent.py        DeepAgent — model 1: YOU run the engine. deepagents/
+│   │                        LangChain, PG virtual fs, QuickJS, Agent Skills
+│   ├── base_agent.py        BaseAgent — model 2: someone else's model consumes us
+│   │                        over MCP. Hands /mcp to the provider, which drives
+│   │                        the tool loop. No LangChain, on purpose.
+│   ├── base/ · deep/        the two agents' internals (backends, middleware)
+│   ├── chat/                sessions · messages · history replay · sharing · profile
+│   ├── tools/               the MCP tool surface (MCP_TOOL_DIRS): terminology
+│   │                        (② Sort, offline), health records, genetics
+│   ├── skills/              Agent Skills (SKILL.md) — deepagents SkillsMiddleware
+│   ├── prompts/             Jinja system prompts
+│   └── resources/           MCP UI widgets for ChatGPT Apps (see its README)
+└── server/                  HTTP lifecycle + the FastAPI routers (server/routers/)
 
-### FHIR & Health Standards
+frontend/                    the built-in web client — OUTSIDE the package on
+                             purpose: wheels ship the engine, not 8MB of JS.
+                             Served when `frontend/` exists next to the process
+                             (Docker/source); pip installs pair with mirobody.ai.
+```
 
-| Module                         | Path                                       | Description                                                                                               |
-| ------------------------------ | ------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| **FHIR Mapping**         | `mirobody/pulse/core/fhir_mapping.py`    | In-memory cache of indicator → FHIR code, optional auto-registration of new codes                        |
-| **Indicator Registry**   | `mirobody/pulse/core/indicators_info.py` | 400+`StandardIndicator` enum, multi-source (Vital, Apple Health, Garmin, Whoop, Renpho)                 |
-| **Unit Conversion**      | `mirobody/pulse/core/units.py`           | Bidirectional conversion: kg/lbs, °C/°F, mg·dL⁻¹/mmol·L⁻¹, mmHg/kPa, etc.                         |
-| **Indicator Search**     | `mirobody/indicator/`                    | Embedding-based free-text → indicator code, concept graph expansion (LOINC / SNOMED CT / RxNorm bridges) |
-| **Medical Code Mapping** | `health_tools/`                          | SNOMED-CT code mapping, health indicator classification                                                   |
+### What you get at each install size
 
-### Health Data Pipeline (Pulse)
+| Install | What works | Footprint |
+| --- | --- | --- |
+| *the wheel + numpy only* | `from mirobody.engine import resolve` — the offline resolver | **77 MB**, 2 packages |
+| `pip install mirobody` | + `mirobody parse` (one LLM key) · vendors · file parsing (PDF/Excel/audio) · FHIR output | 233 MB, 90 packages |
+| `pip install 'mirobody[server]'` | + the HTTP API and MCP endpoint | needs Postgres + Redis |
+| `pip install 'mirobody[agents]'` | + DeepAgent/BaseAgent and `mirobody serve` (includes `[server]`) | + the LangChain stack |
+| `pip install 'mirobody[indicator-build]'` | rebuilding the terminology bundles themselves | needs LOINC/UMLS sources |
 
-| Module                     | Path                                         | Description                                                                                     |
-| -------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **Platform Manager** | `mirobody/pulse/`                          | Platform–Provider plugin architecture, data normalization to `StandardPulseData`             |
-| **Theta Platform**   | `mirobody/pulse/theta/`                    | Direct device integrations: Garmin, Whoop, Oura, Renpho, PostgreSQL                             |
-| **Apple Health**     | `mirobody/pulse/apple/`                    | Apple Health import, CDA (Clinical Document Architecture) processing                            |
-| **Data Upload**      | `mirobody/pulse/data_upload/`              | `StandardPulseData` → `th_series_data` write pipeline                                      |
-| **File Parser**      | `mirobody/pulse/file_parser/`              | Multi-format: PDF, CSV, Excel, audio, image, genetic data; LLM-powered indicator extraction     |
-| **Aggregation**      | `mirobody/pulse/core/aggregate_indicator/` | Series → daily summaries, derived metrics, sleep 18:00–18:00 window                           |
-| **Health Insights**  | `mirobody/pulse/core/insight/`             | AI-powered trend detection, anomaly analysis, pattern recipes (multi-signal, recovery, glucose) |
+Sizes measured on a clean venv, not estimated. **51 MB of the 77 MB floor is the
+shipped LOINC/SNOMED data** — that is the resolver, not overhead, and it is what
+makes standardization work with the network unplugged.
 
-### Infrastructure
+The database driver, HTTP server, S3 and email clients used to be in the default
+install; they moved to `[server]`, which is what `[agents]` pulls in. If you only
+want the engine as a library, you no longer pay for a Postgres driver.
 
-| Module                  | Path                       | Description                                                                                       |
-| ----------------------- | -------------------------- | ------------------------------------------------------------------------------------------------- |
-| **Configuration** | `mirobody/utils/config/` | YAML + env var layered config, Fernet encryption, multi-storage backend (Local / S3 / OSS-compatible) |
-| **Auth & User**   | `mirobody/user/`         | JWT, OAuth (Google / Apple), WebAuthn / FIDO2, email verification                                 |
-| **Server**        | `mirobody/server/`       | Starlette ASGI, JWT middleware, rate limiting                                                     |
-| **Database**      | `mirobody/utils/db.py`   | Async PostgreSQL (psycopg), Redis cache/session store                                             |
+### The one rule, machine-enforced
 
-### Extension Points (Root Directories)
+**The engine must import with no agent framework installed.** `langchain*`,
+`deepagents` and `langgraph` are allowed only under `agent/` and `server/` —
+the same layering langchain itself uses for `langchain-core`. Two
+`[tool.importlinter.contracts]` in `pyproject.toml` fail the build on
+violation, function-local imports included:
 
-| Directory      | Purpose                                              |
-| -------------- | ---------------------------------------------------- |
-| `tools/`     | Drop-in Python tools — auto-discovered as MCP tools |
-| `skills/`    | Claude Agent Skills (SKILL.md + metadata.json)       |
-| `agents/`    | Custom agent implementations                         |
-| `providers/` | Custom Theta data providers                          |
-| `prompts/`   | Jinja2 prompt templates                              |
-| `resources/` | Static resources (HTML, JSON) exposed via MCP        |
+```bash
+pip install -e '.[test]' && lint-imports
+```
+
+That is what lets `mirobody.engine` resolve an indicator with numpy as the only
+third-party package present. `utils/` is deliberately a leaf — a top-level
+`from sqlalchemy import text` in `utils/db.py` once made the whole database
+stack a hard requirement of a function that never opens a connection.
+`utils/`, `user/` and `task/` are not verbs; they are the infrastructure the
+three stand on. One deliberate seam crosses the boundary today, recorded with
+its exit plan in `pyproject.toml`'s `ignore_imports` and in
+[docs/roadmap.md](docs/roadmap.md).
+
+### Two ways to consume ③ Answer
+
+The distinction most often misread as duplication. There are two agents because
+there are two ways to use this project, and each is the reference implementation
+of one:
+
+| | **DeepAgent** | **BaseAgent** |
+| --- | --- | --- |
+| Who runs the tool loop | us — LangChain / deepagents, in this process | the LLM **provider**, against our `/mcp` over HTTP |
+| Typical user | you self-host the whole engine (`pip install 'mirobody[agents]'`, Docker, mirobody.ai) | a third party points Claude Desktop / Cursor / a ChatGPT App at our MCP endpoint |
+| Gets the virtual filesystem, QuickJS, Skills | yes | no — only what the MCP tool surface exposes |
+| Why we keep it | maximum capability, fully inspectable, self-hosted | it is the live rehearsal of the third-party experience: if a tool description is too thin for a model to use unaided, it fails here first |
+
+**A capability that exists only inside DeepAgent is one external MCP clients do
+not have.** So "make the MCP offering better" is work in
+[`agent/tools/`](mirobody/agent/tools/) and the tool descriptions — not in the
+DeepAgent middleware stack.
+
+### Data flow, end to end
+
+```
+vendor APIs / files / Apple Health          ① pulse
+        └─> StandardPulseData ─> validate ─> normalize ─> daily rollups
+                 └─> indicator names ─> ② indicator: canonical codes (LOINC·SNOMED·RxNorm)
+                          └─> FHIR R4 rows in Postgres
+                                   └─> ③ agent: read ORIGINAL documents through the
+                                       virtual fs, compute, chart, answer — and insights
+                                       feed back into the record, closing the loop
+```
 
 ---
 
-## 🏥 Theta Wellness: Our Health Intelligence App
+## 📊 Benchmarks — we don't say "trust us", we ship the eval
 
-[**Theta Wellness**](https://www.thetahealth.ai/) is our flagship application built on Mirobody, demonstrating the platform's capabilities in the **Personal Health** domain. We have built a professional-grade **Health Data Analysis** suite that showcases how Mirobody can handle the most complex, multi-modal, and sensitive data environments.
+Our health-AI benchmarks are the **most-downloaded in their category on Hugging Face** (4,000+ each):
 
-### Key Features
+| Benchmark                                                                       | What it measures                                                                                                                                                | Downloads |
+| ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| [ESL-Bench](https://huggingface.co/datasets/healthmemoryarena/ESL-Bench)         | Event-driven longitudinal health agents — 100 synthetic users, 10,000 queries, programmatic ground truth ([arXiv:2604.02834](https://arxiv.org/abs/2604.02834)) | 4,800+    |
+| [MedHall-Bench](https://huggingface.co/datasets/healthmemoryarena/MedHall-Bench) | Medical hallucination                                                                                                                                           | 4,500+    |
+| [MedHarm-Bench](https://huggingface.co/datasets/healthmemoryarena/MedHarm-Bench) | Harmful medical advice                                                                                                                                          | 4,300+    |
 
-- **📱 Broad Integration**: Connects with **300+ devices**, Apple Health, and Google Health.
-- **🏥 EHR Ready**: Compatible with systems covering **90% of the US population's** Electronic Health Records.
-- **🎯 Multi-Modal Analysis**: Analyze health data via Voice, Image, Files, or Text.
+Reproduce any of them with one command via **[mirobody-eval](https://github.com/thetahealth/mirobody-eval)** — our open evaluation framework. Its generator also produces the synthetic (PHI-free) health data used in demos and tests.
 
-> **💡 Empowering the Community**
->
-> We are open-sourcing the Mirobody engine because the same architecture that powers our medical-grade Health Agent can power **your business**.
->
-> Whether you want to build a **Finance Analyzer**, **Legal Assistant**, or **DevOps Bot**, the infrastructure is ready. We focus on Health; you build the rest. Simply swap the files in the `tools/` directory to start your own vertical.
+We hold the engine itself to the same standard. **Resolver coverage** — can ② Sort name the everyday tests on a real lab report? — runs in this repo, offline, in under a second:
+
+```bash
+pytest mirobody/test_engine_coverage.py -s
+#   offline resolver coverage: 98/98 = 100%
+```
+
+It started at **32/94** — the benchmark has since grown to 98 cases. The gap was not the concept graph; it was that the index is built from LOINC long names, so it knew `LDL-C` but not `LDL cholesterol`, knew 葡萄糖 but not `血糖`, and answered `血红蛋白` with the code for HbA1c. Both classes of failure are one TSV row each to fix — [see Contributing](#-contributing).
+
+---
+
+## 🏥 Powers Theta
+
+> *"Theta collects it; Mirobody sorts every signal precisely into its own bucket, turning raw noise into a structured, AI-readable standard."*
+
+[**Theta Wellness**](https://www.thetahealth.ai/) ([App Store](https://apps.apple.com/us/app/theta-wellness/id6739960903) · [Google Play](https://play.google.com/store/apps/details?id=com.thetaai.theta)) is the HIPAA-compliant consumer app built on this engine — the same architecture that powers a production medical-grade health agent can power your product. We focus on health; swap the files in [`mirobody/agent/tools/`](mirobody/agent/tools/) to build your own vertical.
 
 ---
 
@@ -219,7 +305,7 @@ Then open `http://localhost:18080` in your web browser.
 >   - `CONFIG_ENCRYPTION_KEY`: A 32-byte string used for encrypting sensitive variables.
 > - The default configuration template is [`config.yaml`](config.yaml).
 >   - **👉 See [CONFIG](mirobody/utils/config/README.md) for a detailed configuration guide.**
->   - **👉 See [DATABASE](mirobody/pulse/core/README.md) for database schema and initialization details.**
+>   - **👉 See [DATABASE](mirobody/schema/README.md) for the schema, what it contains, and how it is applied.**
 > - **Tip**: Check `EMAIL_PREDEFINE_CODES` for predefined email accounts and verification codes used for user login.
 > - **🌍 Timezone**: Set `DEFAULT_TIMEZONE` in `config.{env}.yaml` to match your region (e.g., `America/New_York`, `Europe/London`, `Asia/Tokyo`). Defaults to `America/Los_Angeles`. See [CONFIG](mirobody/utils/config/README.md#-timezone) for details.
 > - **LLM Setup**: `OPENROUTER_API_KEY` is required for the Deep agent.
@@ -240,8 +326,7 @@ docker compose up -d pg redis
 
 Prerequisites:
 
-- **Python**: 3.10 or higher
-- **Node.js**: 18.0.0 or higher (for the BaseAgent `ChartService` PNG renderer; DeepAgent/MixAgent's ` ```vis-chart ` path needs no Node)
+- **Python**: 3.12 or higher (hard floor — the codebase uses PEP 701 f-strings, so 3.11 cannot even import it)
 
 ```bash
 # Create and activate virtual environment
@@ -251,14 +336,12 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Upgrade pip
 pip install --upgrade pip
 
-# Install Python dependencies
-pip install -e .
+# Install Python dependencies.
+# The bare package is the data ENGINE as a library; running the chat server
+# needs the agent layer, which is the [agents] extra:
+pip install -e '.[agents]'
 # Optional extras:
 # pip install -e .[cn]    # China region (Aliyun OSS, Volcengine, Dashscope)
-# pip install -e .[fin]   # Financial data (yfinance)
-
-# Install Node.js dependencies (for the ChartService chart renderer)
-npm install --omit=dev
 ```
 
 **3. Configuration**
@@ -270,9 +353,20 @@ echo "ENV=localdb" > .env
 echo "CONFIG_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> .env
 ```
 
-Then add your API keys in `config.localdb.yaml`:
+Then create `config.localdb.yaml` next to `config.yaml` (this file is **not** in
+the repo — `deploy.sh` generates one for Docker runs, but on the local path you
+create it yourself). The defaults in `config.yaml` point at Docker-internal IPs,
+so a local process **must** override the database hosts:
 
 ```yaml
+# Point at the pg/redis containers' published ports (see compose.yaml)
+PG_HOST: localhost
+PG_PORT: 18082
+REDIS_HOST: localhost
+REDIS_PORT: 18089
+# If 18080 is taken on your machine, pick another port:
+# HTTP_PORT: 28080
+
 # OpenRouter API key (Required for Deep Agent)
 OPENROUTER_API_KEY: 'sk-or-...'
 
@@ -286,10 +380,24 @@ GOOGLE_API_KEY: '...'
 **4. Run the Application**
 
 ```bash
-python -m main
+mirobody serve   # or: python -m mirobody serve
 ```
 
 The server will start at `http://localhost:18080`.
+
+> **First start takes about a minute**: the server creates the schema and runs
+> every SQL file under `mirobody/schema/` before it begins listening. Wait for
+> the `SQL files initialization completed` log line — it is not hung.
+
+**The CLI at a glance**
+
+| Command | What it does |
+| --- | --- |
+| `mirobody parse <file>` | Lab report in, standardized LOINC table out — one LLM key, zero infrastructure |
+| `mirobody resolve <terms…>` | Offline indicator-name resolution — no key, no config, no network |
+| `mirobody serve` | Run the HTTP server (chat, MCP, API) — needs `[agents]` |
+| `mirobody worker` | Run the background task worker (indicator sync, profile refresh) |
+| `mirobody vendors` | List all 24 data-source integrations with status grades — zero config needed |
 
 ### 👤 First Login
 
@@ -298,21 +406,16 @@ Use the pre-configured demo accounts:
 - **Email**: `demo1@mirobody.ai`
 - **Password**: `777777`
 
-### 2. Create Your Tools
+### 2. Extend It — Tools and Skills
 
-Mirobody adopts a **"Tools-First"** philosophy. No complex binding logic is required:
+Mirobody adopts a **"Tools-First"** philosophy: a tool is a plain Python function, a skill is a plain Markdown file. No registration, no binding logic.
 
-- **Python Tools**: Drop your Python scripts into the `tools/` directory. **👉 See [TOOLS](mirobody/pub/tools/README.md) for a developer guide.**
-- **Claude Agent Skills**: Place SKILL.md files in the `skills/` directory (content loaded directly as agent instructions)
-- ✨ **Zero Config**: The system auto-discovers your functions and skills.
-- 🐍 **Pure Python**: Use the libraries you love (Pandas, NumPy, etc.).
-- 🎯 **Skills Support**: Develop tools using **Claude Agent Skills** SKILL.md format - write instructions freely, they become agent context.
-- 🔧 **Universal**: A single tool file works for both REST API and MCP (local and remote HTTP).
+#### 🐍 Python Tools
 
-Example Tools structure:
+Tool modules are auto-discovered from the directories in `MCP_TOOL_DIRS` (default: [`mirobody/agent/tools/`](mirobody/agent/tools/) — add your own directory in `config.{env}.yaml`). Every function doubles as a REST tool **and** an MCP tool, local or remote HTTP. **👉 See [TOOLS](mirobody/agent/tools/README.md) for the developer guide.**
 
 ```python
-# tools/my_tools.py
+# your_tools_dir/my_tools.py
 def analyze_data(input_data: str) -> dict:
     """
     Description of this tool.
@@ -326,164 +429,38 @@ def analyze_data(input_data: str) -> dict:
     return {"result": "analysis"}
 ```
 
-> **🔐 JWT Authentication**: If your tool requires JWT authentication, add a `user_id: str` parameter. This parameter will be automatically injected by Mirobody from the JWT token and **should NOT be included in the docstring's Args section**. Example:
+> **🔐 JWT authentication**: if your tool needs the calling user, take a
+> **`user_info: Dict[str, Any]`** parameter and leave it out of the docstring's
+> `Args:`. The server fills it from the verified JWT and hides it from the tool
+> schema, so the model never sees or supplies it:
 >
 > ```python
-> # tools/my_authenticated_tools.py
-> def get_user_data(user_id: str, query: str) -> dict:
->     """
->     Retrieves user-specific data.
->
->     Args:
->         query: The search query.
->
->     Returns:
->         User data matching the query.
->     """
->     # user_id is automatically provided by Mirobody from JWT
->     return {"user_id": user_id, "data": "..."}
+> async def my_tool(self, query: str, user_info: Dict[str, Any]) -> dict:
+>     user_id = user_info.get("user_id")     # verified, not model-supplied
 > ```
-
-#### 🎯 Developing Tools with Claude Agent Skills
-
-Mirobody supports the **[Claude Agent Skills specification](https://agentskills.io/specification)**, allowing you to create sophisticated, reusable tools:
-
-- **📋 Standards Compliant**: Follows the official Agent Skills format with YAML frontmatter
-- **🔍 Auto-Discovery**: Place Skills in the `skills/` directory - Mirobody automatically detects and loads them
-- **✍️ Flexible Content**: SKILL.md body is loaded directly into agent context - write comprehensive instructions freely
-- **🌐 MCP Native**: Skills work seamlessly across the entire MCP ecosystem
-
-> **💡 Implementation Status**
 >
-> Mirobody supports the **core Agent Skills specification**:
->
-> - ✅ **SKILL.md files** with YAML frontmatter - loaded directly into agent context
-> - ✅ **metadata.json files** - required by Mirobody for skill discovery
-> - ✅ **Full content loading** - entire SKILL.md body becomes agent instructions
->
-> **Simple but Powerful**: Write comprehensive guides, detailed workflows, examples, and troubleshooting tips directly in SKILL.md - all content is available to the agent.
->
-> Additional features from the full specification (`scripts/`, `references/`, `assets/` directories, sandbox execution, `allowed-tools` enforcement) are planned for future releases.
+> **Do not take a `user_id` parameter.** This note used to say exactly that, and
+> it produces a tool that is both broken and unsafe: `user_id` is not the
+> injection hook, so the server does not fill it, and it stays visible in the
+> tool's JSON Schema — meaning the model supplies it, and any MCP client can ask
+> for another person's data by passing a different value. Tool loading now warns
+> loudly when it sees this shape.
 
-A skill is a directory containing a `SKILL.md` file and a `metadata.json` file:
+#### 📖 Agent Skills
+
+Mirobody supports **[Agent Skills](https://agentskills.io/)** through [deepagents](https://docs.langchain.com/oss/python/deepagents/overview)' native `SkillsMiddleware` — the same machinery LangChain's own deep agents use, not a bespoke loader:
+
+- A skill is a directory with a `SKILL.md` (YAML frontmatter: `name` + `description`; body: the instructions). Nothing else is required.
+- Skill directories come from `SKILL_DIRS` in config; the packaged default [`mirobody/agent/skills/`](mirobody/agent/skills/) ships with the wheel and is mounted read-only at `/skills/` in the agent's virtual filesystem.
+- **Progressive disclosure**: the agent sees every skill's frontmatter at startup, and reads the full body through the `/skills/` mount only when the task calls for it — rich capability, minimal standing context.
+
+The shipped [`lab-report-walkthrough`](mirobody/agent/skills/lab-report-walkthrough/SKILL.md) skill is the reference: it encodes the read-the-original / flag-against-printed-ranges / no-diagnosis workflow and is exactly the shape to copy for your own.
 
 ```
-skills/
-└── my-custom-skill/
-    ├── metadata.json     # Required by Mirobody: Skill metadata for discovery
-    └── SKILL.md          # Required by spec: Skill definition with YAML frontmatter
+mirobody/agent/skills/
+└── lab-report-walkthrough/
+    └── SKILL.md          # frontmatter (name, description) + instructions
 ```
-
-(Optional directories like `scripts/`, `references/`, and `assets/` are defined in the specification but not yet supported by Mirobody)
-
-**metadata.json** (Required by Mirobody):
-
-```json
-{
-  "name": "My Custom Skill",
-  "summary": "Extract and analyze data from structured documents",
-  "when_to_use": [
-    "When user needs to process CSV, Excel, or JSON files",
-    "When data extraction or transformation is required",
-    "When statistical analysis of structured data is needed"
-  ],
-  "when_not_to_use": [
-    "For unstructured text documents",
-    "For image or video processing",
-    "When simple file reading is sufficient"
-  ],
-  "tags": ["data-analysis", "csv", "excel", "statistics"]
-}
-```
-
-| Field               | Description                                                   | Required |
-| ------------------- | ------------------------------------------------------------- | -------- |
-| `name`            | Display name of the skill (can be human-readable with spaces) | Yes      |
-| `summary`         | Brief description for quick reference                         | Yes      |
-| `when_to_use`     | Array of use case scenarios                                   | Yes      |
-| `when_not_to_use` | Array of scenarios to avoid this skill                        | Yes      |
-| `tags`            | Array of tags for categorization                              | Yes      |
-
-> **📝 Note**:
->
-> - `metadata.json` is a **Mirobody-specific requirement** for skill discovery and IDE integration. It's not part of the official Agent Skills specification.
-> - The `name` in `metadata.json` is for display purposes (can contain spaces and capitals).
-> - The `name` in SKILL.md frontmatter must follow the strict naming convention (lowercase, hyphens only, matching directory name).
-
-**SKILL.md Example** (Required by Specification):
-
-```markdown
----
-name: my-custom-skill
-description: Extract and analyze data from structured documents. Use when working with CSV, Excel, or JSON files that need parsing, transformation, or statistical analysis.
-license: MIT
-metadata:
-  author: your-org
-  version: "1.0.0"
----
-
-# My Custom Skill
-
-This skill provides comprehensive data extraction and analysis capabilities for structured documents.
-
-## Instructions
-
-1. **Identify the file format** - Check if the input is CSV, Excel, or JSON
-2. **Parse the document** - Use appropriate parsing techniques for the file type
-3. **Validate data** - Ensure data integrity and handle missing values
-4. **Perform analysis** - Apply requested statistical or transformation operations
-5. **Return results** - Format output according to user preferences
-
-## Available Tools
-
-You can use the following MCP tools to accomplish this task:
-- Use file reading tools to access the document
-- Use data processing tools for transformation
-- Use statistical analysis tools for calculations
-
-## Edge Cases
-
-- Handle missing or malformed data gracefully
-- Support multiple encodings (UTF-8, Latin-1, etc.)
-- For large files, consider processing in manageable chunks
-
-## Example Usage
-
-When user provides sales_data.csv with columns: date, product, revenue
-1. Read and parse the CSV file
-2. Group data by month
-3. Calculate monthly revenue totals
-4. Identify trends and generate summary report
-```
-
-> **💡 SKILL.md Flexibility**
->
-> The SKILL.md file content is **loaded directly into the agent's context** when the skill is activated. This means:
->
-> - ✍️ **Write freely**: Structure your instructions however works best for your use case
-> - 📝 **No format restrictions**: Use any markdown format - lists, tables, code blocks, etc.
-> - 🎯 **Be as detailed as needed**: Include step-by-step guides, examples, edge cases, or troubleshooting tips
-> - 🧩 **Think of it as a prompt**: The content becomes part of the agent's instructions, so write clearly and comprehensively
->
-> The agent will read and follow everything you write in the body section, so make it as helpful and detailed as necessary!
-
-**Required Frontmatter Fields:**
-
-| Field           | Description                                  | Constraints                                                      |
-| --------------- | -------------------------------------------- | ---------------------------------------------------------------- |
-| `name`        | Skill identifier (must match directory name) | 1-64 chars, lowercase, hyphens only, no leading/trailing hyphens |
-| `description` | What the skill does and when to use it       | 1-1024 chars, include keywords for discoverability               |
-
-**Optional Frontmatter Fields:**
-
-| Field             | Description                           | Example                                        |
-| ----------------- | ------------------------------------- | ---------------------------------------------- |
-| `license`       | License identifier                    | `MIT`, `Apache-2.0`, `Proprietary`       |
-| `compatibility` | Environment requirements              | `Requires pandas, numpy, and network access` |
-| `metadata`      | Additional custom properties          | `author`, `version`, `category`          |
-| `allowed-tools` | Pre-approved tools (not yet enforced) | `Bash(git:*) Read Write`                     |
-
-> **💡 Mirobody Requirements**: In addition to the standard SKILL.md file, Mirobody requires a `metadata.json` file for skill discovery and categorization. This is a Mirobody-specific requirement and not part of the official Agent Skills specification.
 
 #### 🌐 HTTP Remote MCP Server
 
@@ -510,12 +487,12 @@ Once deployed, you can access the platform through the local web interface or ou
 
 ### 1. Access Interfaces
 
-| Interface                          | URL                                     | Description                                                                                                                                         |
-| ---------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Local Web App**            | `http://localhost:18080`              | Fully self-hosted web interface running locally.                                                                                                    |
+| Interface                          | URL                                       | Description                                                                                                                                         |
+| ---------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Local Web App**            | `http://localhost:18080`                | Fully self-hosted web interface running locally.                                                                                                    |
 | **Official Client**          | [https://mirobody.ai](https://mirobody.ai) | **Recommended.** Our official web client that connects securely to your local backend service.                                                |
-| **MCP Server (Local)**       | `http://localhost:18080/mcp`          | For Claude Desktop / Cursor integration via local connection.                                                                                       |
-| **MCP Server (Remote HTTP)** | `https://yourdomain.com/mcp`          | **🌐 HTTP Remote MCP Support** - For ChatGPT Apps and remote integrations. Set `MCP_PUBLIC_URL` in your config file to enable HTTPS access. |
+| **MCP Server (Local)**       | `http://localhost:18080/mcp`            | For Claude Desktop / Cursor integration via local connection.                                                                                       |
+| **MCP Server (Remote HTTP)** | `https://yourdomain.com/mcp`            | **🌐 HTTP Remote MCP Support** - For ChatGPT Apps and remote integrations. Set `MCP_PUBLIC_URL` in your config file to enable HTTPS access. |
 
 #### MCP Integration
 
@@ -579,57 +556,59 @@ Mirobody provides standard endpoints for integration:
 
 ## 🧪 Testing
 
-Mirobody includes integration tests for file operations, code execution, MCP protocol, and chat API.
-
 ```bash
-# Prerequisites: running server + demo account configured
-pip install -e ".[test]"
-
-# Quick tests (no LLM costs, no E2B required)
-pytest tests/ -v -m "not slow"
-
-# Full test suite
-pytest tests/ -v
-
-# By category
-pytest tests/ -v -m mcp    # File ops & MCP protocol
-pytest tests/ -v -m e2b    # Sandbox execution (requires E2B_API_KEY)
-pytest tests/ -v -m chat   # Chat API with real agents
+pip install -e '.[test]'
+pytest        # 151 tests, ~3s — no database, no network, no API key
 ```
 
-Tests cover:
+Tests sit beside the code they cover, so bare `pytest` is the whole suite. Two
+of them carry the project's public claims: `test_engine_coverage.py` is the
+98/98 resolver number quoted above, and `pulse/gate_tests/` snapshots every
+vendor payload against its standardized form.
 
-- **File operations**: write → read, write → ls, write → edit → read, glob, grep (with and without E2B)
-- **Execute tool**: shell commands, Python execution, error handling, timeout, graceful degradation without E2B
-- **Cross-filesystem sync**: write_file (PostgreSQL) → execute (E2B sandbox)
-- **Chat API**: agents trigger tools with real session-scoped namespaces
-
-> **👉 See [CONFIG](mirobody/utils/config/README.md#-testing) for detailed test configuration and environment variables.**
+**👉 [docs/testing.md](docs/testing.md)** — layout, markers, snapshot
+regeneration, and the release gates (`lint-imports`, `check_wheel_data.py`).
 
 ---
 
 ## 📚 Documentation
 
-| Topic                        | Location                                                        |
-| ---------------------------- | --------------------------------------------------------------- |
-| Agent Development            | [mirobody/pub/agents/README.md](mirobody/pub/agents/README.md)     |
-| Tool Development             | [mirobody/pub/tools/README.md](mirobody/pub/tools/README.md)       |
-| Provider Development         | [mirobody/pulse/theta/README.md](mirobody/pulse/theta/README.md)   |
-| Configuration Guide          | [mirobody/utils/config/README.md](mirobody/utils/config/README.md) |
-| Health Indicators & Database | [mirobody/pulse/core/README.md](mirobody/pulse/core/README.md)     |
-| Health Indicator Search      | [mirobody/indicator/README.md](mirobody/indicator/README.md)       |
-| Pulse Data Engine            | [mirobody/pulse/README.md](mirobody/pulse/README.md)               |
+Docs follow one rule: **each package carries a short `README.md` saying what it
+is; long-form guides live in [`docs/`](docs/)** so a `pip install` doesn't drag
+contributor documentation into `site-packages`.
+
+| | Topic | Location |
+| --- | --- | --- |
+| | **Runnable examples** | [`examples/`](examples/README.md) |
+| ① | Collect — the pulse engine | [`mirobody/pulse/`](mirobody/pulse/README.md) |
+| ① | Writing a data provider | [docs/provider-guide.md](docs/provider-guide.md) |
+| ① | Provider directory layout | [`mirobody/pulse/theta/`](mirobody/pulse/theta/README.md) |
+| ① | File-processing pipeline | [docs/file-processing.md](docs/file-processing.md) |
+| ① | Apple Health / CDA import | [docs/apple-health.md](docs/apple-health.md) |
+| ② | Indicator search & resolution | [`mirobody/indicator/`](mirobody/indicator/README.md) |
+| ② | Health indicators & units | [`mirobody/pulse/core/`](mirobody/pulse/core/README.md) |
+| ③ | Agent development | [`mirobody/agent/`](mirobody/agent/README.md) |
+| ③ | Tool development | [`mirobody/agent/tools/`](mirobody/agent/tools/README.md) |
+| ③ | ChatGPT Apps widgets | [`mirobody/agent/resources/`](mirobody/agent/resources/README.md) |
+| | Configuration guide | [`mirobody/utils/config/`](mirobody/utils/config/README.md) |
+| | Testing | [docs/testing.md](docs/testing.md) |
+| | Known gaps & deferred work | [docs/roadmap.md](docs/roadmap.md) |
+| | Changelog · Security · Vendors | [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) · [VENDORS](VENDORS.md) |
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on how to submit pull requests, report issues, and contribute to the project.
+Contributions are organized around the engine's three verbs — pick your lane:
+
+| Lane                 | What to contribute                                                                                                                                                                                                                                                                                                               | Typical size |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| **① Collect** | A new data-source vendor (implement the[`Vendor`](mirobody/pulse/vendor/base.py) contract, ~150–300 lines) — or **verify an existing one**: if you hold credentials for any `implemented`/`metadata` vendor in [VENDORS.md](VENDORS.md), running it end-to-end and reporting is one of the most valuable PRs we take | medium       |
+| **② Sort**    | **Make a term resolve.** Find one that comes back wrong or empty — `mirobody resolve "<term>"` — then add one row to [`resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv) and one case to [`test_engine_coverage.py`](mirobody/test_engine_coverage.py). Any language. This is the lowest-barrier useful PR in the repo, and it moves a number we publish. Also: unit mappings, taxonomy fixes | tiny         |
+| **③ Answer**  | An Agent Skill (`SKILL.md` package under [`mirobody/agent/skills/`](mirobody/agent/skills/) — copy [`lab-report-walkthrough`](mirobody/agent/skills/lab-report-walkthrough/SKILL.md)), an MCP tool, a chart schema                                                                                                                                                                                                                             | medium       |
+
+Found a lab report that parses wrong, or an indicator name that doesn't resolve? **That's a great issue** — attach the (de-identified) sample. See the [Contributing Guide](CONTRIBUTING.md) for PR mechanics.
 
 ---
 
 <div align="center">
-
-**Built with ❤️ for the AI Open Source Community**
-
-</div>
