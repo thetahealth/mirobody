@@ -224,3 +224,27 @@ blood pressure	!unresolved
 BP	!unresolved
 lipid panel	!unresolved
 血脂	!unresolved
+
+# Specimen-prefixed Chinese, which is how a real report prints them. The index
+# carries the bare noun (肌酐, 尿酸, 总胆固醇) because that is the alias shape
+# the lexicon was built from; a printed 中文 panel writes 血清肌酐 / 尿白细胞.
+# Two of these did not merely miss — they resolved CONFIDENTLY WRONG, which is
+# the failure mode this project scores as worse than silence:
+#   血清肌酐  -> 44760-7 MELD score          (its long name contains "serum creatinine")
+#   血清白蛋白 -> chicken serum albumin nGal d 5  (an allergen panel entry)
+# Found by resolving the terms printed in mirobody/test_engine_coverage.py's
+# newest cases, which were lifted verbatim off a 2025 physical report.
+血清肌酐	Creatinine
+血清尿酸	Urate
+血清总胆固醇	Cholesterol
+血清甘油三酯	Triglyceride
+血清葡萄糖	Glucose
+全血葡萄糖	Glucose
+血清白蛋白	Albumin
+血清钾	Potassium
+血清钠	Sodium
+血清谷丙转氨酶	Alanine aminotransferase
+血清谷草转氨酶	Aspartate aminotransferase
+血清总胆红素	Bilirubin
+尿白细胞	Leukocyte esterase
+尿比重	Specific gravity of Urine

@@ -431,7 +431,7 @@ them.
 ## Distribution and positioning
 
 - **Publish the resolver benchmark.** No public benchmark exists for
-  multilingual indicator-name → LOINC resolution. Releasing ours (98 cases,
+  multilingual indicator-name → LOINC resolution. Releasing ours (112 cases,
   scored on clinical correctness, with the 32/94 starting point stated) would
   define the metric for the category. Pairs naturally with the existing
   Hugging Face benchmark account.

@@ -159,6 +159,27 @@ CASES: list[tuple[str, str, str]] = [
     ("カルシウム",                    r"calcium",                      r"urine|ionized"),
     ("糖化ヘモグロビン",               r"hemoglobin a1c",               r""),
     ("コレステロール",                 r"cholesterol",                  r"LDL|HDL"),
+    # ── third sweep: 中文 as a report PRINTS it, specimen prefix and all ─────
+    # Lifted verbatim off a 2025 体检报告 PDF. The bare nouns above were the
+    # aliases the lexicon was built from; a Chinese lab prints 血清肌酐, not
+    # 肌酐. Every one of these missed, and two answered CONFIDENTLY WRONG:
+    # 血清肌酐 -> MELD score, 血清白蛋白 -> a chicken-allergen component. The
+    # negative patterns below are what pins that: it is not enough that they
+    # resolve, they must not resolve to those.
+    ("血清肌酐",                     r"creatinine",                   r"clearance|urine|end.stage|MELD"),
+    ("血清尿酸",                     r"urate|uric acid",              r"urine"),
+    ("血清总胆固醇",                  r"cholesterol",                  r"LDL|HDL"),
+    ("血清甘油三酯",                  r"triglyceride",                 r""),
+    ("血清葡萄糖",                    r"glucose",                      r"tolerance|urine"),
+    ("全血葡萄糖",                    r"glucose",                      r"tolerance|urine"),
+    ("血清白蛋白",                    r"^albumin \[",                  r"chicken|gal d|urine|globulin ratio"),
+    ("血清钾",                       r"potassium",                    r"urine"),
+    ("血清钠",                       r"sodium",                       r"urine"),
+    ("血清谷丙转氨酶",                 r"alanine aminotransferase",     r""),
+    ("血清谷草转氨酶",                 r"aspartate aminotransferase",   r""),
+    ("血清总胆红素",                  r"bilirubin.total",              r"direct|indirect|urine"),
+    ("尿白细胞",                     r"leukocyte",                    r"blood|serum"),
+    ("尿比重",                       r"specific gravity",             r""),
 ]
 
 # Terms that must stay UNRESOLVED. A confident wrong code is worse than an
