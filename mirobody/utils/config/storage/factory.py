@@ -35,10 +35,3 @@ def get_storage_client() -> AbstractStorage:
     return _instance
 
 #-----------------------------------------------------------------------------
-
-def reset_storage():
-    """Reset cached instance (useful for testing)"""
-    global _instance
-    _instance = None
-
-#-----------------------------------------------------------------------------

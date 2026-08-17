@@ -36,12 +36,12 @@ class LoggedCursor(psycopg.Cursor):
         return self
 
 
-class LoggedConnection(psycopg.Connection):
-    def __init__(self, *args, **kargs):
-        super().__init__(*args, **kargs)
-        self.cursor_factory = LoggedCursor
-
-#-----------------------------------------------------------------------------
+# NOTE: there is no sync `LoggedConnection` counterpart to
+# `LoggedAsyncConnection` below. One existed and was referenced by nothing:
+# `get_async_pool` passes `connection_class=LoggedAsyncConnection`, while the
+# sync `get_pool` passes no connection_class at all, so the sync class only
+# ever wired `LoggedCursor` for callers that did not exist. `LoggedCursor`
+# itself stays — it is the default `cursor_factory` of `get_client`.
 
 class LoggedAsyncCursor(psycopg.AsyncCursor):
     async def execute(

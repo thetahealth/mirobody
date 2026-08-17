@@ -375,12 +375,20 @@ class Config:
 
 
     def get_options_for_agent(self, agent_name: str) -> dict[str, Any]:
+        """Everything configured under the `*_<AGENT>` keys, cached per agent.
+
+        The two halves that do real work — resolving `PROMPTS_<AGENT>` path
+        references into template text, and normalising the three accepted
+        shapes of `PROVIDERS_<AGENT>` — live in `agent_options.py`. They were
+        ~95 of this method's 130 lines and are the only agent-specific logic in
+        this class; out there they are testable without a Config or a
+        filesystem. What is left here is the caching, which is this method's
+        actual job.
+        """
         if self._agent_options:
             result = self._agent_options.get(agent_name)
             if result:
                 return result
-
-        #-------------------------------------------------
 
         options = {
             "allowed_tools"     : [],
@@ -389,118 +397,17 @@ class Config:
             "providers"         : {}
         }
 
-        suffix = agent_name.strip()
+        suffix = agent_name.strip().upper()
         if not suffix:
             self._agent_options[agent_name] = options
             return options
 
-        suffix = suffix.upper()
+        from .agent_options import load_prompt_templates, parse_providers
 
         options["allowed_tools"]    = self.get_list(f"ALLOWED_TOOLS_{suffix}", [])
         options["disallowed_tools"] = self.get_list(f"DISALLOWED_TOOLS_{suffix}", [])
-
-        #-------------------------------------------------
-
-        options_prompts = {}
-
-        try:
-            dist = importlib.resources.files("mirobody")
-        except Exception:
-            dist = None
-
-        prompts = self.get(f"PROMPTS_{suffix}")
-        if prompts:
-            if isinstance(prompts, str):
-                try:
-                    obj = json.loads(prompts)
-                    if isinstance(obj, list):
-                        prompts = obj
-                except Exception as e:
-                    logging.error(str(e), exc_info=True)
-
-                if isinstance(prompts, str):
-                    prompts = [prompts]
-
-            if isinstance(prompts, list):
-                i = 0
-                for s in prompts:
-                    if not isinstance(s, str):
-                        continue
-
-                    # Parse path@suffix format (e.g., "path/to/prompt.jinja@orchestrator")
-                    file_path = s
-                    explicit_key = ""
-                    if "@" in s:
-                        parts = s.rsplit("@", 1)
-                        if len(parts) == 2:
-                            file_path = parts[0].strip()
-                            explicit_key = parts[1].strip()
-
-                    k = ""
-                    v = file_path
-
-                    if os.path.isfile(file_path):
-                        try:
-                            with open(file_path, "r") as f:
-                                v = f.read()
-                            k = explicit_key or os.path.basename(file_path).removesuffix(".jinja").strip()
-                        except Exception as e:
-                            logging.warning(str(e), exc_info=True)
-                            v = file_path
-
-                    elif dist and dist.is_dir():
-                        try:
-                            v = dist.joinpath(file_path).read_text(encoding="utf-8")
-                            k = explicit_key or os.path.basename(file_path).removesuffix(".jinja").strip()
-                        except Exception as e:
-                            logging.warning(str(e), exc_info=True)
-                            v = file_path
-
-                    if not k:
-                        i = i + 1
-                        k = f"Prompt_{i}"
-
-                    options_prompts[k] = v
-
-        options["prompt_templates"] = options_prompts
-
-        #-------------------------------------------------
-
-        options_providers = {}
-
-        providers = self.get(f"PROVIDERS_{suffix}")
-        if providers:
-            if isinstance(providers, str):
-                try:
-                    obj = json.loads(providers)
-                    if isinstance(obj, dict | list):
-                        providers = obj
-                except Exception as e:
-                    logging.error(str(e), exc_info=True)
-
-            #---------------------------------------------
-
-            if isinstance(providers, dict):
-                options_providers = providers
-
-            elif isinstance(providers, list):
-                for item in providers:
-                    if not isinstance(item, dict) or "provider" not in item:
-                        continue
-
-                    provider_name = item["provider"]
-                    if not isinstance(provider_name, str):
-                        continue
-                    provider_name = provider_name.strip()
-                    if not provider_name:
-                        continue
-
-                    del item["provider"]
-                    options_providers[provider_name] = item
-
-        options["providers"] = options_providers
-
-        #-------------------------------------------------
+        options["prompt_templates"] = load_prompt_templates(self, suffix)
+        options["providers"]        = parse_providers(self, suffix)
 
         self._agent_options[agent_name] = options
         return options
@@ -535,12 +442,6 @@ class Config:
             "google_client_id"      : self.get_str("GOOGLE_CLIENT_ID")
         }
 
-
-    def get_wechat_open_options(self) -> dict[str, str]:
-        return {
-            "wechat_open_appid"  : self.get_str("WECHAT_OPEN_APPID"),
-            "wechat_open_secret" : self.get_str("WECHAT_OPEN_SECRET"),
-        }
 
     def get_qr_options(self) -> dict[str, str]:
         return {
@@ -872,89 +773,15 @@ class Config:
         # line in production. Ordering, not aliasing, now makes it work.
 
         #-----------------------------------------------------
-        # Load user yaml files.
+        # Which files to look for: each requested `x.yaml` also brings its
+        # `x.key.yaml` secret sibling and their `{env}` variants. That
+        # expansion is pure and lives in `yaml_files.py`, where it is tested;
+        # existence is checked below because one entry (the remote config) has
+        # no path.
 
-        yaml_file_list = []
+        from .yaml_files import expand_yaml_filenames
 
-        if isinstance(yaml_filenames, str):
-            yaml_file_list.append(yaml_filenames)
-
-        elif isinstance(yaml_filenames, list):
-            yaml_file_list.extend(yaml_filenames)
-
-        #-----------------------------------------------------
-        # For every `x.yaml` requested, also load `x.key.yaml` — the
-        # split that keeps secrets out of the config file checked into git.
-
-        temp_yaml_file_list = []
-
-        for yaml_filename in yaml_file_list:
-            if not isinstance(yaml_filename, str):
-                continue
-
-            yaml_filename = yaml_filename.strip()
-            if not yaml_filename:
-                continue
-
-            if yaml_filename in temp_yaml_file_list:
-                continue
-
-            temp_yaml_file_list.append(yaml_filename)
-
-            #---------------------------------------------
-
-            if re.match(".*\\.key\\.yaml$", yaml_filename, re.IGNORECASE):
-                continue
-
-            elif not re.match(".*\\.yaml$", yaml_filename, re.IGNORECASE):
-                continue
-
-            n = len(yaml_filename)
-            temp_yaml_file_list.append(f"{yaml_filename[:n-5]}.key.yaml")
-
-        yaml_file_list = temp_yaml_file_list
-
-        #-----------------------------------------------------
-        # Fill .{env}.yaml and .{env}.key.yaml files.
-
-        if env:
-            if not yaml_file_list:
-                yaml_file_list = [f"config.{env}.yaml", f"config.{env}.key.yaml"]
-
-            else:
-                temp_yaml_file_list = []
-
-                for yaml_filename in yaml_file_list:
-                    if not isinstance(yaml_filename, str):
-                        continue
-
-                    yaml_filename = yaml_filename.strip()
-                    if not yaml_filename:
-                        continue
-
-                    if yaml_filename in temp_yaml_file_list:
-                        continue
-
-                    temp_yaml_file_list.append(yaml_filename)
-
-                    #---------------------------------------------
-
-                    env_yaml_filename = ""
-                    n = len(yaml_filename)
-
-                    if re.match(".*\\.key\\.yaml$", yaml_filename, re.IGNORECASE):
-                        env_yaml_filename = f"{yaml_filename[:n-9]}.{env}.key.yaml"
-
-                    elif re.match(".*\\.yaml$", yaml_filename, re.IGNORECASE):
-                        env_yaml_filename = f"{yaml_filename[:n-5]}.{env}.yaml"
-
-                    else:
-                        continue
-
-                    if env_yaml_filename not in temp_yaml_file_list:
-                        temp_yaml_file_list.append(env_yaml_filename)
-
-                yaml_file_list = temp_yaml_file_list
+        yaml_file_list = expand_yaml_filenames(yaml_filenames, env)
 
         #-------------------------------------------------
 

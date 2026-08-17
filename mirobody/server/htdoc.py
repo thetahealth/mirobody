@@ -9,7 +9,7 @@ register one literal `Route` per file, with a hard-coded whitelist of SPA
 paths re-serving index.html. Two failure modes, both observed:
 
 - the whitelist lagged the client's router: `/welcome`, `/chat/:sessionId`,
-  `/developer`, `/indicator*` and `/auth/wechat/callback` all 404'd on direct
+  `/developer`, `/indicator*` and client-side `/auth/*` routes all 404'd on direct
   navigation or refresh (docs/frontend-shipping.md, route inventory of
   2026-08-17);
 - the literal routes were folded into `FastAPI(routes=...)` at construction,
@@ -36,12 +36,10 @@ Two things stay hand-rolled:
   would otherwise receive the SPA shell with a 200. Real backend routes are
   registered before this is called, so they win by order; the guards only
   catch what nothing else matched. `/auth` is deliberately NOT guarded
-  wholesale: the client router owns `/auth/wechat/callback`. Unreachable in
-  the opensource deployment (no WeChat flag is injected into mirobody.json —
-  see Server.__init__), but proprietary deployments serve their
-  WeChat-enabled client through this same module and their gateway 302s to
-  that route with tokens in the URL fragment. Only the backend-owned
-  `/auth/session` and `/auth/webauthn` subtrees get guards.
+  wholesale: the client router owns callback routes under `/auth`, and a
+  deployment's identity gateway may 302 to one of them with tokens in the URL
+  fragment — those must reach the SPA shell, not a backend 404. Only the
+  backend-owned `/auth/session` and `/auth/webauthn` subtrees get guards.
 """
 
 import os
@@ -64,7 +62,6 @@ _API_PREFIXES = (
     "/invitation",
     "/apple",
     "/google",
-    "/wechat",
     "/email",
     "/personal",
     "/auth/session",

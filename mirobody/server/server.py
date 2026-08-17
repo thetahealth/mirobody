@@ -92,8 +92,6 @@ class Server:
 
         google_client_id        : str = "",
 
-        wechat_open_appid       : str = "",
-        wechat_open_secret      : str = "",
 
         # The following parameters can be generated via
         #   config.get_webauthn_options().
@@ -156,15 +154,6 @@ class Server:
         if "__IS_APPLE_LOGIN_ON__" not in self._webpage_config:
             self._webpage_config["__IS_APPLE_LOGIN_ON__"] = True if apple_client_id else False
 
-        # No WeChat flag is injected: this server has no WeChat *web* login to
-        # advertise. The client's QR panel implements the gateway flow
-        # (/wechat/start + /wechat/bridge/poll), which lives in the proprietary
-        # a007-mirovital deployment — auto-setting __IS_WECHAT_LOGIN_ON__ from
-        # the wechat_open_* credentials (which serve POST /wechat/verify, a
-        # different flow) rendered a login panel that could never complete.
-        # A deployment that does run the gateway opts in explicitly via
-        # MIROBODY_WEB_CONFIG.
-
         if "__IS_WEBAUTHN_ON__" not in self._webpage_config:
             self._webpage_config["__IS_WEBAUTHN_ON__"] = True if webauthn_rp_id else False
 
@@ -218,9 +207,6 @@ class Server:
             google_client_id    = google_client_id,
             firebase_project_id = firebase_project_id,
 
-            # WeChat Open Platform login (Website App, scope=snsapi_login).
-            wechat_open_appid   = wechat_open_appid,
-            wechat_open_secret  = wechat_open_secret,
 
             # WebAuthn (AAL2).
             webauthn_rp_id      = webauthn_rp_id,
@@ -387,7 +373,6 @@ class Server:
             **config.get_email_options(),
             **config.get_apple_options(),
             **config.get_google_options(),
-            **config.get_wechat_open_options(),
             **config.get_firebase_options()
         )
 

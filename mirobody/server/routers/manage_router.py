@@ -55,7 +55,7 @@ router = APIRouter(prefix="/api/v1/manage", tags=["management"])
 manage_service = ManageService()
 
 
-# ===== Theta Pull Scheduler Management Interfaces =====
+# ===== Provider Pull Scheduler Management Interfaces =====
 
 
 @router.get("/theta/pull/status", response_model=Union[StandardResponse, ErrorResponse])
@@ -68,7 +68,7 @@ async def get_theta_pull_status(authorized: bool = Depends(verify_manage_key)):
     """
     try:
         # Import the function from startup module
-        from mirobody.pulse.theta.platform.startup import get_theta_pull_task_status
+        from mirobody.pulse.providers.platform.startup import get_theta_pull_task_status
 
         # Get status from theta startup function
         status_data = get_theta_pull_task_status()
@@ -95,7 +95,7 @@ async def trigger_theta_pull(request: TriggerTaskRequest, authorized: bool = Dep
         # Get theta platform and trigger task
         theta_platform = platform_manager.get_platform("theta")
         if not theta_platform:
-            return ErrorResponse(code=404, detail="Theta platform not found")
+            return ErrorResponse(code=404, detail="provider platform not found")
 
         # Import scheduler to trigger task
         from ...pulse.core.scheduler import scheduler
@@ -124,7 +124,7 @@ async def get_theta_pull_lock_status(authorized: bool = Depends(verify_manage_ke
         # Get theta platform and check lock status
         theta_platform = platform_manager.get_platform("theta")
         if not theta_platform:
-            return StandardResponse(code=0, msg="ok", data={"locks": [], "message": "Theta platform not available"})
+            return StandardResponse(code=0, msg="ok", data={"locks": [], "message": "provider platform not available"})
 
         # For now, return basic lock status - this can be enhanced later
         lock_status = {
@@ -170,12 +170,12 @@ async def start_theta_pull_scheduler(authorized: bool = Depends(verify_manage_ke
     """
     try:
         # Import startup function to start scheduler
-        from mirobody.pulse.theta.platform.startup import start_theta_pull_scheduler as start_scheduler
+        from mirobody.pulse.providers.platform.startup import start_theta_pull_scheduler as start_scheduler
 
         await start_scheduler()
 
         return StandardResponse(code=0, msg="ok",
-                                data={"status": "started", "message": "Theta pull scheduler started successfully"})
+                                data={"status": "started", "message": "provider pull scheduler started successfully"})
 
     except Exception as e:
         logging.error(f"Failed to start theta pull scheduler: {str(e)}")
@@ -192,12 +192,12 @@ async def stop_theta_pull_scheduler(authorized: bool = Depends(verify_manage_key
     """
     try:
         # Import startup function to stop scheduler
-        from mirobody.pulse.theta.platform.startup import stop_theta_pull_scheduler as stop_scheduler
+        from mirobody.pulse.providers.platform.startup import stop_theta_pull_scheduler as stop_scheduler
 
         await stop_scheduler()
 
         return StandardResponse(code=0, msg="ok",
-                                data={"status": "stopped", "message": "Theta pull scheduler stopped successfully"})
+                                data={"status": "stopped", "message": "provider pull scheduler stopped successfully"})
 
     except Exception as e:
         logging.error(f"Failed to stop theta pull scheduler: {str(e)}")
@@ -405,7 +405,7 @@ async def get_platform_webhooks(
         platform: str,
         page: int = Query(1, description="Page number (starting from 1)"),
         page_size: int = Query(20, description="Number of records per page"),
-        provider: Optional[str] = Query(None, description="Provider slug (for Theta platform)"),
+        provider: Optional[str] = Query(None, description="Provider slug (for provider platform)"),
         event_type: Optional[str] = Query(None, description="Filter by event type"),
         user_id: Optional[str] = Query(None, description="Filter by user ID"),
         status: Optional[str] = Query(None, description="Filter by status (e.g., 'success', 'pending', 'error')"),
@@ -418,7 +418,7 @@ async def get_platform_webhooks(
         platform: Platform name (e.g., 'vital', 'theta')
         page: Page number (starting from 1)
         page_size: Number of records per page
-        provider: Optional provider slug (required for Theta, ignored for Vital)
+        provider: Optional provider slug (required for this platform, ignored for Vital)
         event_type: Optional filter for event type
         user_id: Optional filter for user ID
         status: Optional filter for status
@@ -441,7 +441,7 @@ async def get_platform_webhooks(
         status_clean = status.strip() if status else None
 
         # Call platform's get_webhooks method
-        # Only pass provider parameter if it's not None (for platforms that support it like Theta)
+        # Only pass provider parameter if it's not None (for platforms that support it)
         # Vital platform doesn't accept provider parameter
         webhook_params = {
             "page": page,
@@ -451,7 +451,7 @@ async def get_platform_webhooks(
             "status": status_clean
         }
         
-        # Only add provider if it's specified (for Theta platform)
+        # Only add provider if it's specified (for provider platform)
         if provider_clean is not None:
             webhook_params["provider"] = provider_clean
             
@@ -471,7 +471,7 @@ async def get_platform_webhooks(
 async def check_platform_webhook_format(
         platform: str,
         id: int = Query(..., description="Webhook ID"),
-        provider: Optional[str] = Query(None, description="Provider slug (for Theta platform)"),
+        provider: Optional[str] = Query(None, description="Provider slug (for provider platform)"),
         authorized: bool = Depends(verify_manage_key)
 ):
     """
@@ -480,7 +480,7 @@ async def check_platform_webhook_format(
     Args:
         platform: Platform name (e.g., 'vital', 'theta')
         id: Webhook ID from database
-        provider: Optional provider slug (required for Theta, ignored for Vital)
+        provider: Optional provider slug (required for this platform, ignored for Vital)
         
     Returns:
         Original webhook data and formatted result
@@ -497,7 +497,7 @@ async def check_platform_webhook_format(
         provider_clean = provider.strip() if provider else None
 
         # Call platform's check_format method
-        # Note: Only pass provider parameter if it's not None (for Theta platform)
+        # Note: Only pass provider parameter if it's not None (for provider platform)
         # Vital platform's check_format doesn't accept provider parameter
         if provider_clean:
             format_result = await platform_instance.check_format(id, provider=provider_clean)
@@ -663,15 +663,15 @@ async def get_user_indicators(
         return ErrorResponse(code=500, detail=str(e))
 
 
-# ===== Theta Provider Raw Data Query Interfaces =====
+# ===== provider Raw Data Query Interfaces =====
 
 
-@router.get("/pulse/theta/providers", response_model=Union[StandardResponse, ErrorResponse])
+@router.get("/pulse/providers/providers", response_model=Union[StandardResponse, ErrorResponse])
 async def get_theta_providers(
     authorized: bool = Depends(verify_manage_key)
 ):
     """
-    Get all registered Theta providers (Management API)
+    Get all registered providers (Management API)
     
     Query parameters:
         - sk: Management secret key (required, passed as query parameter)
@@ -683,7 +683,7 @@ async def get_theta_providers(
         # Get theta platform from platform_manager
         platform_instance = platform_manager.get_platform("theta")
         if not platform_instance:
-            return ErrorResponse(code=404, detail="Theta platform not found")
+            return ErrorResponse(code=404, detail="provider platform not found")
         
         # Get all registered providers
         providers = await platform_instance.get_providers()

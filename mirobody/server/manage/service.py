@@ -61,7 +61,7 @@ class ManageService:
         if "apple_health" in source.lower() or "com.apple.health" in source.lower():
             return "apple_health"
 
-        # Theta related data source normalization
+        # provider-related data source normalization
         if source.startswith("theta."):
             # Keep theta. prefix but simplify suffix
             parts = source.split(".")
@@ -294,17 +294,17 @@ class ManageService:
             logging.info("Starting to get theta pull configuration")
 
             # Import configuration constants
-            from mirobody.pulse.theta.platform.pull_task import PROVIDER_EXECUTION_INTERVALS, PROVIDER_LOCK_DURATIONS
+            from mirobody.pulse.providers.platform.pull_task import PROVIDER_EXECUTION_INTERVALS, PROVIDER_LOCK_DURATIONS
             from ..manager import platform_manager
 
             # Get theta platform
             theta_platform = platform_manager.get_platform("theta")
             if not theta_platform:
-                logging.warning("Theta platform not available")
+                logging.warning("provider platform not available")
                 return {
                     "platform": "theta",
                     "scheduler_enabled": False,
-                    "message": "Theta platform not available",
+                    "message": "provider platform not available",
                     "static_config": {},
                     "current_tasks": {},
                     "system_info": {}
@@ -334,7 +334,7 @@ class ManageService:
 
             # Try to get current task information
             try:
-                from mirobody.pulse.theta.platform.startup import get_theta_pull_task_status
+                from mirobody.pulse.providers.platform.startup import get_theta_pull_task_status
                 task_status = get_theta_pull_task_status()
                 if "tasks" in task_status:
                     config_data["current_tasks"] = task_status["tasks"]

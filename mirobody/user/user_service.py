@@ -8,7 +8,6 @@ from .email import create_email_validator
 from .apple import AppleTokenValidator
 from .google import GoogleTokenValidator
 from .firebase import FirebaseTokenValidator
-from .wechat import WeChatOpenValidator
 from .webauthn import WebAuthnService
 
 from .user import (
@@ -17,8 +16,6 @@ from .user import (
     get_user_via_apple_subject,
     update_user_name,
 )
-
-from .auth_wechat import find_or_create_wechat_user
 
 from .account_merge import merge_accounts
 
@@ -63,9 +60,6 @@ class UserService:
         google_client_id    : str = "",
         firebase_project_id : str = "",
 
-        wechat_open_appid   : str = "",
-        wechat_open_secret  : str = "",
-
         # WebAuthn (AAL2).
         webauthn_rp_id      : str = "",
         webauthn_rp_name    : str = "",
@@ -108,11 +102,6 @@ class UserService:
         else:
             self._firebase_validator = None
 
-        if wechat_open_appid and wechat_open_secret:
-            self._wechat_open_validator = WeChatOpenValidator(wechat_open_appid, wechat_open_secret)
-        else:
-            self._wechat_open_validator = None
-
          #-------------------------------------------------
 
         self._db_pool = db_pool
@@ -150,9 +139,6 @@ class UserService:
 
         if self._google_validator or self._firebase_validator:
             self.routes.append(Route(f"{uri_prefix}/google/verify", endpoint=self.google_verify_handler, methods=["POST", "OPTIONS"]))
-
-        if self._wechat_open_validator:
-            self.routes.append(Route(f"{uri_prefix}/wechat/verify", endpoint=self.wechat_verify_handler, methods=["POST", "OPTIONS"]))
 
     #-------------------------------------------------------------------------
 
@@ -213,14 +199,14 @@ class UserService:
         """
         Bind a real email to the currently-authenticated user.
 
-        Primary use case: a WeChat-only user (whose health_app_user.email is
-        the synthesized `wx_<openid>@wechat.local`) verifies a real email and
-        promotes that to be their canonical email.
+        Use case: a user whose health_app_user.email is a synthesized
+        placeholder (from an identity provider that gives no real address)
+        verifies a real email and promotes that to be their canonical one.
 
         If the verified email already belongs to a different active user, the
-        two accounts are merged: the email-side account wins, the WeChat-side
-        account's data (including its auth_wechat row) is moved over and the
-        WeChat-side health_app_user row is soft-deleted.
+        two accounts are merged: the email-side account wins, the current
+        account's data is moved over and its health_app_user row is
+        soft-deleted.
         """
         if request.method == "OPTIONS":
             return json_response_with_code(disable_log=True)
@@ -283,7 +269,7 @@ class UserService:
                 self._db_pool,
                 losing_user_id  = current_user_id,
                 winning_user_id = existing_owner,
-                reason          = "wechat_email_link",
+                reason          = "email_link",
             )
             if err:
                 logging.error(
@@ -340,9 +326,8 @@ class UserService:
     async def user_update_name_handler(self, request: Request) -> Response:
         """Update the current user's display name (health_app_user.name).
 
-        Used primarily by WeChat-only users to overwrite the placeholder
-        nickname pulled from /sns/userinfo (or "WeChat User" when userinfo
-        was unavailable). Email/Google users can also use it.
+        Used to overwrite a placeholder nickname supplied by an identity
+        provider. Email/Google users can use it too.
         """
         if request.method == "OPTIONS":
             return json_response_with_code(disable_log=True)
@@ -520,67 +505,6 @@ class UserService:
 
         except Exception as e:
             return json_response_with_code(-6, str(e), request=request)
-
-    #-------------------------------------------------------------------------
-
-    async def wechat_verify_handler(self, request: Request) -> Response:
-        """
-        WeChat Open Platform - Website App QR login.
-
-        Frontend owns the redirect_uri (`<frontend>/auth/wechat/callback`) and
-        posts the returned `code` here. We exchange it for an `openid`, then
-        look up the user via the `auth_wechat` identity table. First-time
-        WeChat logins create a health_app_user row with a synthesized
-        `wx_<openid>@wechat.local` virtual email plus an auth_wechat row.
-
-        The legacy `health_app_user.wechat_openid` column is no longer
-        written; pre-migration data lives there as read-only history and is
-        backfilled into auth_wechat by the schema migration.
-        """
-        if request.method == "OPTIONS":
-            return json_response_with_code(disable_log=True)
-
-        if not self._wechat_open_validator:
-            return json_response_with_code(-1, "WeChat login not configured.", request=request)
-
-        try:
-            request_json = await request.json()
-
-            code = request_json.get("code")
-            if not code:
-                return json_response_with_code(-2, "WeChat authorization code is required.", request=request)
-
-            #---------------------------------------------
-
-            info, err = await self._wechat_open_validator.exchange_code(code)
-            if err:
-                return json_response_with_code(-3, err, request=request)
-
-            openid  = info.get("openid")
-            unionid = info.get("unionid")
-            if not openid:
-                return json_response_with_code(-4, "WeChat response missing openid.", request=request)
-
-            #---------------------------------------------
-            # Resolve openid -> (user_id, email). The helper handles both
-            # the returning-user lookup and the first-time create_user +
-            # create_wechat_identity dance, shared with the holywell-side
-            # WeChat QR gateway (backend_py/mcp_server/wechat_gateway.py).
-
-            user_id, email, err = await find_or_create_wechat_user(
-                self._db_pool, openid, unionid,
-            )
-            if err:
-                return json_response_with_code(-5, err, request=request)
-            if not user_id:
-                return json_response_with_code(-6, "Empty user ID.", request=request)
-
-            return await self._generate_auth_response(user_id, email, "wechat", request)
-
-        except Exception as e:
-            return json_response_with_code(-10, str(e), request=request)
-
-    #-------------------------------------------------------------------------
 
     async def _generate_auth_response(
         self,

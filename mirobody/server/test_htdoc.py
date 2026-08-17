@@ -4,7 +4,7 @@ Each test pins one of the failure modes that motivated the rewrite from
 literal per-file routes + SPA whitelist to `app.frontend()`:
 
 - deep links the old whitelist missed (`/welcome`, `/chat/:sessionId`,
-  `/indicator/new`, `/auth/wechat/callback`) 404'd on refresh;
+  `/indicator/new`, client-side `/auth/*` callbacks) 404'd on refresh;
 - a naive catch-all would have shadowed API routes registered after it;
 - `__/auth/handler` and `__/auth/iframe` are extensionless and must render
   as HTML, and the handler must keep its `{{POST_BODY}}` templating.
@@ -92,7 +92,7 @@ def test_root_serves_shell_no_cache(client):
         "/login", "/mcplogin", "/chat", "/drive", "/home", "/share/abc123",
         # ...and everything it missed (docs/frontend-shipping.md route inventory).
         "/welcome", "/chat/f00-session-id", "/developer",
-        "/indicator", "/indicator/new", "/auth/wechat/callback",
+        "/indicator", "/indicator/new", "/auth/oauth-callback",
     ],
 )
 def test_deep_links_serve_shell(client, path):

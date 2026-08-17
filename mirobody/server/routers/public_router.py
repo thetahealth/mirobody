@@ -34,7 +34,7 @@ from pydantic import BaseModel, Field
 
 from ...pulse.core import LinkType
 from ...pulse.core import ProviderStatus
-from ...pulse.core.user import get_theta_user_service
+from ...pulse.core.user import get_platform_user_service
 # Import platform manager
 from ...pulse.manager import platform_manager
 from ..auth import verify_token, verify_token_optional
@@ -95,16 +95,16 @@ class UpdateLlmAccessRequest(BaseModel):
     llm_access: bool = Field(..., description="Whether to allow LLM access")
 
 
-class ThetaTokenRequest(BaseModel):
-    """Theta token request model"""
+class ProviderTokenRequest(BaseModel):
+    """Provider token request model"""
 
     provider_slug: str = Field(default="", description="Provider slug")
     user_id: str = Field(..., description="User identifier from device manufacturer")
     certification: str = Field(..., description="Authentication credentials from device manufacturer")
 
 
-class ThetaWebhookData(BaseModel):
-    """Theta webhook data model"""
+class ProviderWebhookData(BaseModel):
+    """Provider webhook data model"""
 
     type: str = Field(..., description="Indicator type")
     value: float = Field(..., description="Measurement value")
@@ -113,14 +113,14 @@ class ThetaWebhookData(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Optional metadata")
 
 
-class ThetaWebhookRequest(BaseModel):
-    """Theta webhook request model"""
+class ProviderWebhookRequest(BaseModel):
+    """Provider webhook request model"""
 
     user_id: str = Field(..., description="User identifier")
     source: Optional[str] = Field(default="", description="Data source")
     timestamp: int = Field(..., description="Request timestamp in milliseconds")
     timezone: Optional[str] = Field(default="", description="Timezone")
-    data: List[ThetaWebhookData] = Field(..., description="Health data list")
+    data: List[ProviderWebhookData] = Field(..., description="Health data list")
 
 
 # ===== Unified Response Models =====
@@ -472,7 +472,7 @@ async def link_provider(request: LinkProviderRequest, req: Request, current_user
         actual_platform = request.platform
         provider_slug = request.provider_slug
 
-        # Theta platform: theta_ prefix
+        # provider platform: theta_ prefix
         if provider_slug.startswith("theta_"):
             actual_platform = "theta"
             logging.info(f"Auto-detected platform 'theta' from provider_slug '{provider_slug}'")
@@ -684,7 +684,7 @@ async def unlink_provider(request: UnlinkProviderRequest, current_user: str = De
         actual_platform = request.platform
         provider_slug = request.provider_slug
 
-        # Theta platform: theta_ prefix
+        # provider platform: theta_ prefix
         if provider_slug.startswith("theta_"):
             actual_platform = "theta"
             logging.info(f"Auto-detected platform 'theta' from provider_slug '{provider_slug}'")
@@ -734,7 +734,7 @@ async def update_llm_access(request: UpdateLlmAccessRequest, current_user: str =
         actual_platform = request.platform
         provider_slug = request.provider_slug
 
-        # Theta platform: theta_ prefix
+        # provider platform: theta_ prefix
         if provider_slug.startswith("theta_"):
             actual_platform = "theta"
             logging.info(f"Auto-detected platform 'theta' from provider_slug '{provider_slug}'")
@@ -975,9 +975,9 @@ async def get_msg_id(request: Request) -> str:
 
 
 @router.post("/{platform}/token", response_model=Union[StandardResponse, ErrorResponse])
-async def get_theta_token(platform: str, request: ThetaTokenRequest):
+async def get_theta_token(platform: str, request: ProviderTokenRequest):
     """
-    Get Theta User Token API
+    Get Provider user token API
 
     Args:
         platform: "theta" only now
@@ -1000,7 +1000,7 @@ async def get_theta_token(platform: str, request: ThetaTokenRequest):
         platform_entity = platform_manager.get_platform(platform)
         if not platform_entity:
             logging.error("platform not available")
-            return ErrorResponse(code=503, msg="Theta platform not available")
+            return ErrorResponse(code=503, msg="provider platform not available")
 
         provider = platform_entity.get_provider(provider_slug)
         if not provider:
@@ -1009,7 +1009,7 @@ async def get_theta_token(platform: str, request: ThetaTokenRequest):
 
 
         await provider._validate_credentials(user_id, certification)
-        user = get_theta_user_service()
+        user = get_platform_user_service()
         from mirobody.utils.config import get_default_timezone
         app_user_id = await user.find_or_create_user_by_provider_id(provider_slug, user_id, get_default_timezone())
         token = await user.generate_token(app_user_id)
@@ -1045,7 +1045,7 @@ async def get_theta_token(platform: str, request: ThetaTokenRequest):
 @router.get("/theta/indicators", response_model=Union[StandardResponse, ErrorResponse])
 async def get_theta_indicators():
     """
-    Get supported indicators information for Theta platform
+    Get supported indicators information for provider platform
 
     Provides standard health indicators, units and description information for device manufacturers
     Now uses the same data source as manage interface (get_all_indicators_info), dynamically filters indicators by category

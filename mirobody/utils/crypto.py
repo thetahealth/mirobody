@@ -1,110 +1,29 @@
 """AES-GCM string encryption for values stored in the database.
 
+Ported from the Go implementation's `utils.EncryptString` / `utils.DecryptString`
+(the byte layout — 12-byte nonce ‖ ciphertext ‖ tag — is why the parsing below
+is spelled out step by step). The one consumer is
+`pulse/providers/platform/database_service.py`.
+
 Not to be confused with `utils/config/encrypt.py`, which is the Fernet
 encrypter the log pipeline uses for its `encrypted_info` field. Two different
 ciphers for two different jobs; the previous name (`utils_encrypt.py`) sat one
 directory away from `config/encrypt.py` and told you nothing about which was
 which.
 
-Ported from the Go implementation's `utils.EncryptString` / `utils.DecryptString`.
+A THIRD cipher used to live here too: a Fernet `EncryptionService` class plus
+`encrypt_string`/`decrypt_string` wrappers and a PBKDF2 key-derivation path,
+keyed on `CONFIG_ENCRYPTION_KEY`. Nothing in the project ever called any of it —
+which is also why nobody noticed that it duplicated `config/encrypt.py`'s job
+with a different salt. Deleted.
 """
 
 import base64, logging
-from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from typing import Optional
 
-from .config import global_config, safe_read_cfg
-
-
-class EncryptionService:
-    def __init__(self):
-        self.fernet = Fernet(
-            global_config().get_fernet_key("CONFIG_ENCRYPTION_KEY")
-        )
-
-    def encrypt_string(self, plaintext: str, key: Optional[str] = None) -> Optional[str]:
-        try:
-            if not plaintext:
-                return None
-
-            if key:
-                fernet = self._get_fernet_from_key(key)
-            else:
-                fernet = self.fernet
-
-            if not fernet:
-                logging.error("Fernet encryptor not available")
-                return None
-
-            encrypted_bytes = fernet.encrypt(plaintext.encode("utf-8"))
-            return encrypted_bytes.decode("utf-8")
-
-        except Exception as e:
-            logging.error(f"Error encrypting string: {str(e)}")
-            return None
-
-    def decrypt_string(self, encrypted_text: str, key: Optional[str] = None) -> Optional[str]:
-        try:
-            if not encrypted_text:
-                return None
-
-            if key:
-                fernet = self._get_fernet_from_key(key)
-            else:
-                fernet = self.fernet
-
-            if not fernet:
-                logging.error("Fernet decryptor not available")
-                return None
-
-            decrypted_bytes = fernet.decrypt(encrypted_text.encode("utf-8"))
-            return decrypted_bytes.decode("utf-8")
-
-        except Exception as e:
-            logging.error(f"Error decrypting string: {str(e)}")
-            return None
-
-    def _get_fernet_from_key(self, key: str) -> Optional[Fernet]:
-        try:
-            if len(key) == 44 and key.endswith("="):
-                return Fernet(key.encode())
-
-            kdf = PBKDF2HMAC(
-                algorithm=hashes.SHA256(),
-                length=32,
-                salt=b"holywell_salt",
-                iterations=100000,
-            )
-            key_bytes = kdf.derive(key.encode())
-            fernet_key = base64.urlsafe_b64encode(key_bytes)
-            return Fernet(fernet_key)
-
-        except Exception as e:
-            logging.error(f"Error creating Fernet from key: {str(e)}")
-            return None
-
-
-_encryption_service = None
-
-
-def encrypt_string(plaintext: str, key: Optional[str] = None) -> Optional[str]:
-    global _encryption_service
-    if not _encryption_service:
-        _encryption_service = EncryptionService()
-
-    return _encryption_service.encrypt_string(plaintext, key)
-
-
-def decrypt_string(encrypted_text: str, key: Optional[str] = None) -> Optional[str]:
-    global _encryption_service
-    if not _encryption_service:
-        _encryption_service = EncryptionService()
-
-    return _encryption_service.decrypt_string(encrypted_text, key)
+from .config import safe_read_cfg
 
 
 def decrypt_string_aes_gcm(ciphertext_base64: str, key_hex: Optional[str] = None) -> Optional[str]:

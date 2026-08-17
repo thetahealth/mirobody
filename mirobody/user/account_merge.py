@@ -293,13 +293,13 @@ async def merge_accounts(
     db_pool             : AsyncConnectionPool,
     losing_user_id      : int,
     winning_user_id     : int,
-    reason              : str = "wechat_email_link",
+    reason              : str = "email_link",
 ) -> tuple[
     dict[str, int],     # affected rows per table
     str | None          # error message
 ]:
     """Move all data owned by `losing_user_id` to `winning_user_id`, soft-delete
-    losing, repoint auth_wechat, and write an audit log row. Atomic.
+    losing account, and write an audit log row. Atomic.
     """
     if losing_user_id <= 0 or winning_user_id <= 0:
         return {}, "Invalid user IDs."
@@ -346,16 +346,6 @@ async def merge_accounts(
                     n = await _merge_unique_user_id_table(cur, "user_mcp_config", losing_str, winning_str)
                     if n:
                         affected["user_mcp_config"] = n
-
-                    # 3. Repoint auth_wechat at the winning user.
-                    if await _table_exists(cur, "auth_wechat"):
-                        await cur.execute(
-                            "UPDATE auth_wechat SET app_user_id=%s, update_time=CURRENT_TIMESTAMP"
-                            " WHERE app_user_id=%s AND is_del=FALSE;",
-                            [winning_user_id, losing_user_id]
-                        )
-                        if cur.rowcount:
-                            affected["auth_wechat"] = cur.rowcount
 
                     # 4. Soft-delete the losing health_app_user.
                     await cur.execute(

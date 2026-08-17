@@ -76,7 +76,7 @@ checking every table and column against the code:
 
 | Removed | Why |
 | --- | --- |
-| `health_data_epic`, `health_data_oracle`, `health_data_libre` | No such providers here (`pulse/theta/` ships Garmin, Oura, WHOOP, PostgreSQL). The two Epic/Oracle names survive only as string literals in a `source_table IN (…)` filter. |
+| `health_data_epic`, `health_data_oracle`, `health_data_libre` | No such providers here (`pulse/providers/` ships Garmin, Oura, WHOOP, PostgreSQL). The two Epic/Oracle names survive only as string literals in a `source_table IN (…)` filter. |
 | `health_vital_webhook` | No query anywhere touched it. |
 | `th_task_flow` | Same; `th_messages.reference_task_id` is read but never written. |
 | `th_user_avatar_managed` | Avatars live in `th_share_user_config.avatar_key`, which is what the sharing endpoints actually use. |

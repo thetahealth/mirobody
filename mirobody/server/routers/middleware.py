@@ -10,7 +10,7 @@ unused and a second source of truth for the same logic.
 import logging
 
 from ...pulse import setup_platform_system_async
-from ...pulse.theta.platform.startup import start_theta_pull_scheduler
+from ...pulse.providers.platform.startup import start_theta_pull_scheduler
 
 
 async def init():
