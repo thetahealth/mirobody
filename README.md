@@ -58,6 +58,10 @@ Two of its tools need no account at all, because ② Sort is pure terminology:
 | `query_health_indicators` | your own records — search, read and aggregate in **one** call; every result carries its LOINC identity | your account |
 | `get_genetic_data` | your variants by rsid | your account |
 
+`tools/list` is honest per account: the two account-bound tools are listed only
+when your account actually holds that kind of data — a client never carries the
+schema of a tool whose only possible answer is "no data".
+
 **As a library** — the engine is a pip install, and ② Sort needs nothing but the package:
 
 ```bash
@@ -430,10 +434,14 @@ The server will start at `http://localhost:18080`.
 
 ### 👤 First Login
 
-Use the pre-configured demo accounts:
+Sign in with a pre-seeded demo account — the server prints these at startup:
 
-- **Email**: `demo1@mirobody.ai`
-- **Password**: `777777`
+- **Email**: `exp1@mirobody.ai` (also `exp2@` / `exp3@`)
+- **Verification code**: `111111`
+
+They come from `EMAIL_PREDEFINE_CODES` in `config.yaml`: with no SMTP
+configured, only predefined addresses can sign in. Add your own address there,
+or configure `EMAIL_SMTP_*` to send real codes.
 
 ### 2. Extend It — Tools and Skills
 
@@ -508,6 +516,14 @@ MCP_PUBLIC_URL: "https://yourdomain.com"
 
 Your MCP server will then be accessible at the configured HTTPS endpoint, ready for remote integrations.
 
+#### 🔑 Your personal MCP URL
+
+Every signed-in user can mint a **personal MCP URL**: open the web client →
+**Settings → MCP Url → Copy**, and paste it into any MCP client (Claude
+Desktop, Cursor, Cherry Studio…). The URL embeds a private credential scoped to
+your account — no OAuth dance, and the client reads *your* indicators from the
+first call. Treat it like a password.
+
 ---
 
 ## 🔐 Access & Authentication
@@ -522,6 +538,19 @@ Once deployed, you can access the platform through the local web interface or ou
 | **Official Client**          | [https://mirobody.ai](https://mirobody.ai) | **Recommended.** Our official web client that connects securely to your local backend service.                                                |
 | **MCP Server (Local)**       | `http://localhost:18080/mcp`            | For Claude Desktop / Cursor integration via local connection.                                                                                       |
 | **MCP Server (Remote HTTP)** | `https://yourdomain.com/mcp`            | **🌐 HTTP Remote MCP Support** - For ChatGPT Apps and remote integrations. Set `MCP_PUBLIC_URL` in your config file to enable HTTPS access. |
+
+The bundled web client (served by the backend itself) is a full consumer app,
+not a demo shell:
+
+- **Data** (`/data`) — drag-and-drop lab PDFs, report photos (HEIC included),
+  Excel/CSV, audio, text/Markdown and raw genotype files. Extraction turns them
+  into standardized indicators; every reading links back to its **source file**
+  and can be **corrected or deleted in place** (your own record only).
+- **Ask** (`/ask`) — chat over your own records: DeepAgent finds the data,
+  charts it, and reports per-answer **token usage** (tokens, not invented
+  dollar figures). Pick a second model to compare answers side by side.
+- **Care circle** — upload and ask on behalf of the people who share with you,
+  gated by per-person consent.
 
 #### MCP Integration
 
@@ -565,9 +594,9 @@ You can choose to configure your own authentication providers or use the pre-set
 
 - **🔐 Social Login**: Google Account / Apple Account (Requires configuration in `config.yaml`)
 - **📧 Email Login**: Email Verification Code (Requires email service configuration)
-- **🎮 Demo Account** (Pre-configured in `config.localdb.yaml`):
-  - **Email**: `demo1@mirobody.ai`, `demo2@mirobody.ai`, `demo3@mirobody.ai`
-  - **Password**: `777777`
+- **🎮 Demo Accounts** (`EMAIL_PREDEFINE_CODES` in `config.yaml`):
+  - **Email**: `exp1@mirobody.ai`, `exp2@mirobody.ai`, `exp3@mirobody.ai`
+  - **Verification code**: `111111`
 
 ---
 

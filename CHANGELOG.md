@@ -66,6 +66,48 @@ names**; see below.
   at `/skills/`, with a shipped `lab-report-walkthrough` reference skill.
 - `mirobody parse` / `mirobody resolve` CLI, and a resolver
   coverage benchmark (`mirobody/test_engine_coverage.py`) that is run in CI.
+- **Reading correction over REST** — `GET /api/v1/health-indicators` (catalog /
+  search / readings, the web Indicators tab's source) and
+  `POST /api/v1/health-indicators/reading` to correct or soft-delete a single
+  reading the caller owns. Extraction is an LLM reading a lab report; it
+  mis-reads a value now and then, and the only fix used to be re-uploading the
+  file. Readings now carry their `th_series_data` id and source `file_key`, so
+  the UI can trace every number back to the original document.
+- **Data-gated `tools/list`** — the personal MCP surface hides
+  `get_genetic_data` when the account has no genotype rows and
+  `query_health_indicators` when it has no health rows: a tool whose only
+  possible answer is "no data" is schema every client pays for and none can
+  use. Fails open per probe, so a database hiccup never shrinks a real user's
+  tool surface.
+
+### Fixed
+
+- **A malformed tool call no longer ends the turn as an empty answer.**
+  claude-sonnet (via OpenRouter, temperature 0.1) deterministically emitted
+  `{"aggregate": none}` — Python's `None`, not JSON — LangChain parked the call
+  in `invalid_tool_calls`, the react loop saw no valid calls and ENDED, and the
+  user got "Answer Completed" over nothing, with no error anywhere.
+  `InvalidToolCallRepairMiddleware` now answers each unparseable call with the
+  parse error as a `ToolMessage` and jumps back to the model (two retries max).
+- **Local-storage file URLs are relative.** `LocalStorage._build_url` hard-coded
+  `http://localhost:18080/...` as its fallback, so on any deployment not on
+  port 18080 every "view file" link pointed at a dead host. The frontend is
+  same-origin with the server; `/files/<key>` works everywhere.
+- **The upload gate matches what the parsers accept.** `SUPPORTED_EXTENSIONS`
+  rejected every audio extension while `AudioHandler` sat unreachable behind
+  it, and rejected `.md`/`.heic` outright. Audio, HEIC/HEIF and Markdown now
+  pass, and `text/markdown` routes to the text handler.
+
+### Changed — agent answers
+
+- **`costStatistics` reports tokens only.** It used to multiply token counts by
+  a hardcoded per-model price table; provider prices change faster than any
+  table gets refreshed, so the dollar figures drifted into fiction while
+  looking authoritative. Tokens are facts from the API; prices are not.
+- **The MCP tool descriptions lost a third of their weight** (get_genetic_data:
+  half, and four of its eight parameters — filters that could only narrow an
+  already-exact rsid match). Every behavioural rule survives; what left was
+  restatement, and maintainer war stories that now live as code comments.
 
 ### Fixed — security
 
