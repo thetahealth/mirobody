@@ -41,7 +41,7 @@ Short, and about *that package only*:
 - [`mirobody/agent/resources/`](../mirobody/agent/resources/README.md) — ChatGPT Apps widgets
 - [`mirobody/pulse/core/`](../mirobody/pulse/core/README.md) — health indicators & unit conversion
 - [`mirobody/schema/`](../mirobody/schema/README.md) — database schema, contract and bootstrap
-- [`mirobody/pulse/theta/`](../mirobody/pulse/theta/README.md) — provider directory layout
+- [`mirobody/pulse/providers/`](../mirobody/pulse/providers/README.md) — provider directory layout
 - [`mirobody/utils/config/`](../mirobody/utils/config/README.md) — configuration
 
 ## Adding documentation

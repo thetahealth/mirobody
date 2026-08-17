@@ -41,7 +41,7 @@ names**; see below.
   data.
 - **Agent Skills** via deepagents' native `SkillsMiddleware`, mounted read-only
   at `/skills/`, with a shipped `lab-report-walkthrough` reference skill.
-- `mirobody parse` / `mirobody resolve` / `mirobody vendors` CLI, and a resolver
+- `mirobody parse` / `mirobody resolve` CLI, and a resolver
   coverage benchmark (`mirobody/test_engine_coverage.py`) that is run in CI.
 
 ### Fixed — security

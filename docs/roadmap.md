@@ -65,43 +65,30 @@ suite (they cost money), and run them after prompt or model changes.
 
 ## Structural work
 
-### `pulse/vendor/` — investigated, and mostly a false alarm
+### `pulse/vendor/` — deleted, archived on a branch
 
-**Status:** examined in detail. The consolidation originally proposed here was
-based on a wrong measurement; recording the correction so nobody repeats it.
+**Status:** removed. The 24-source catalogue and `VENDORS.md` are gone from this
+branch; the code is preserved at `archive/pulse-vendor` (a branch pointer, so
+the port-spec docstrings stay recoverable in full).
 
-The premise was "24 classes that override nothing, ~1,400 lines of boilerplate,
-and a README claim the code does not support". Re-measured directly:
+This reverses the "false alarm" verdict recorded here earlier, and the earlier
+measurement was not wrong — 1,008 of its lines really were ported port-spec
+documentation (confirmed endpoints, auth style, why each operation is a stub),
+which is the expensive part to reproduce. What changed is the weighing, not the
+facts. Against it: the package never entered a runtime path (verified by
+loading the whole `serve` assembly and finding no `pulse.vendor` module in
+`sys.modules`), all 24 entries graded `metadata`, no concrete vendor defined a
+single `async def`, `oauth2_token_request` was the one piece of working code and
+had no caller outside its own test, and 12 of the 24 entries carried mangled
+strings from the port (a stray leading quote in 17 fields). It also never
+existed on `main`.
 
-| | lines |
-| --- | --- |
-| port-spec docstrings (endpoints, auth style, why each op is a stub) | **1,008** |
-| `VendorInfo` catalogue data | 432 |
-| empty-class scaffolding | 120 |
-| imports / blank | 144 |
-
-So the bulk is not boilerplate — it is the ported specification from the
-archived C++ implementation, which is exactly what someone needs in order to
-implement a vendor. And the 120 lines of "ceremony" are the scaffold that
-implementation goes into: `open_vendor()` having no production caller is a
-statement about how far the work has got, not evidence the entry point is dead.
-
-The honesty claim was also wrong. `VENDORS.md` already grades every source, and
-defines `metadata` as "Profile only; every network operation is an honest stub
-that says so". It further states that `garmin`, `oura` and `whoop` have deep
-production providers under `pulse/theta/` and that their vendor-layer entries
-"await the transport consolidation". The dual track is documented, not hidden.
-
-One real inconsistency was found and fixed: the README's ① Collect row said
-"24 vendor integrations", which reads as 24 working integrations. It now
-distinguishes 4 production providers from 24 catalogued sources.
-
-**What is actually left**, and it is forward work rather than cleanup: the
-`Vendor` transport contract and the `BaseThetaProvider` pipeline contract are
-two different shapes for the same job. Unifying them — so a vendor implemented
-once serves both the catalogue and the production pipeline — is the
-"transport consolidation" VENDORS.md refers to. It is a design task, not a
-deletion task, and nothing about it is urgent.
+The conclusion that survives is the last paragraph of the old entry: the
+`Vendor` transport contract and the `BasePullProvider` pipeline contract are
+two shapes for one job. That unification is still the real work, and it starts
+from `BasePullProvider` — which has four working implementations — rather than
+from a catalogue of stubs. The research notes are one `git show` away when it is
+time to implement a source.
 
 **Connected:** four tables — `health_data_epic`, `health_data_oracle`,
 `health_data_libre`, `health_vital_webhook` — have schema and no ingestion path.
@@ -201,7 +188,7 @@ first, and there is currently no integration coverage of either path.
 
 `sharing.py` and `account_merge.py` use `utils/db.py`'s SQLAlchemy-backed
 `execute_query()` with `:named` params; `user.py`, `webauthn.py`,
-`user_service.py` and `auth_wechat.py` take a raw `psycopg_pool` connection and
+`user_service.py` takes a raw `psycopg_pool` connection and
 hand-roll `cur.execute(...)` with `%s`. The same table is queried both ways —
 `health_app_user` at `sharing.py:251` and `user.py:327`.
 

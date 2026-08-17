@@ -21,13 +21,13 @@ only ever receives its **build output** (`npm run build:opensource` → `dist/`)
 >    is a product call, not a serving fix; the section below stays as the
 >    playbook if it is ever taken.
 > 2. **`/auth` is not blanket-guarded.** The guard list below includes
->    `/auth`, but `/auth/wechat/callback` is a *client-side* route (the WeChat
->    gateway 302s to it with tokens in the URL fragment). Only the
+>    `/auth`, but the client router owns callback routes under `/auth` (an
+>    identity gateway 302s to one with tokens in the URL fragment). Only the
 >    backend-owned `/auth/session` and `/auth/webauthn` subtrees get guards.
 >
 > Bug #2 below (double-`share` path) is also fixed — `/api/share/deactivate`
 > is the route, the old double path stays as an undocumented alias. Gap #1 is
-> closed by decision (WeChat web login is out of scope here, see below); #4
+> closed by removing the WeChat code outright (see below); #4
 > (`uri_prefix` half-applied) remains open.
 
 ## Current state (and why it needs to change)
@@ -135,27 +135,30 @@ Current frontend client-side routes (from `src/router/index.jsx`, 2026-08-17):
 
 ## Known gaps & bugs (recorded 2026-08-17)
 
-1. **RESOLVED by decision (2026-08-17): WeChat web login is out of scope for
-   this deployment.** The opensource frontend supports email + Firebase
-   (Google/Apple) login only. The client's QR panel implements the *gateway*
-   flow (`/wechat/start`, `/wechat/bridge/poll`), which lives in the
-   proprietary a007-mirovital deployment and is specced in the
-   `mirobody-web-rebuild` docs — this backend never had it and will not grow
-   it. What made this a bug was `Server.__init__` auto-injecting
-   `__IS_WECHAT_LOGIN_ON__: true` into `mirobody.json` whenever the
-   `wechat_open_*` credentials (which serve `POST /wechat/verify`, an
-   unrelated Open Platform flow) were configured — the panel rendered and
-   then broke. That injection is removed; the flag is now only ever what a
-   deployment sets explicitly in `MIROBODY_WEB_CONFIG`, so the panel stays
-   hidden here and gateway-running deployments opt in. NOTE for a007: if its
-   flag relied on the auto-injection, it must add `__IS_WECHAT_LOGIN_ON__:
-   true` (and `__WECHAT_APP_ID__` if ever used) to its `MIROBODY_WEB_CONFIG`
-   when it next syncs this package. `POST /wechat/verify` and the
-   `mirobody/user` WeChat account code stay: a007's gateway consumes
-   `find_or_create_wechat_user`/`WeChatOpenValidator` from this package
-   (documented in mirobody-web-rebuild/CLAUDE.md) — deleting them here would
-   break that deployment, so removing them needs an explicit go-ahead plus a
-   check of a007's imports, not a frontend decision.
+1. **REMOVED (2026-08-17): WeChat login is gone from this package.** The
+   opensource frontend supports email + Firebase (Google/Apple) login only.
+   Deleted here: `mirobody/user/wechat.py` (`WeChatOpenValidator`),
+   `mirobody/user/auth_wechat.py` (the `auth_wechat` identity helpers),
+   `POST /wechat/verify` and its handler, the `wechat_open_*` credentials and
+   `Config.get_wechat_open_options()`, the `health_app_user.wechat_openid`
+   column and index, and the `auth_wechat` repoint branch in `merge_accounts`.
+   The client's QR panel implements a *gateway* flow (`/wechat/start`,
+   `/wechat/bridge/poll`) that this backend never had and will not grow.
+
+   **Correcting what this entry used to say.** It claimed a007's gateway
+   consumed `find_or_create_wechat_user` / `WeChatOpenValidator` *from this
+   package*, so deleting them "would break that deployment". That was a
+   misreport. `a007-holywell/backend_py/mcp_server/wechat_gateway.py` does
+   import those names, but they resolve against a007's OWN vendored copy:
+   `a007-holywell/backend_py/mirobody/` is 580 files tracked in a007's own
+   git, including its own `user/wechat.py` and `user/auth_wechat.py`, and a007
+   does not declare `mirobody` as an external dependency. There is no
+   consumption of this package's WeChat code by that deployment, and nothing
+   in any repo on disk even mounts that gateway (`make_routes` has no caller).
+
+   Anything still needing this code has it in git history, and a007 has its
+   own copy.
+
 2. **`POST /api/share/share/deactivate` double-`share` path**
    (`session_share_router.py`: router prefix `/api/share` + route
    `"/share/deactivate"`). The cdm chat-client calls `/api/share/deactivate`

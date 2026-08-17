@@ -24,7 +24,7 @@ The engine does three things, and the codebase (and [Contributing](#-contributin
 
 | Verb                 | What it means                                                                                                     | Where                                                   |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| **① Collect** | Pull signals in: 4 production providers · 24 catalogued sources · 8 file formats · Apple Health                                             | [`pulse/`](mirobody/pulse/) · [VENDORS.md](VENDORS.md) |
+| **① Collect** | Pull signals in: 4 production providers · 8 file formats · Apple Health                                             | [`pulse/`](mirobody/pulse/) |
 | **② Sort**    | Standardize: resolve any reading to canonical codes (LOINC · SNOMED CT · RxNorm), normalize units, land as FHIR | [`indicator/`](mirobody/indicator/)                    |
 | **③ Answer**  | Reason: agents read the*original documents* through a virtual filesystem and answer with charts & citations     | [`agent/`](mirobody/agent/)                  |
 
@@ -78,7 +78,7 @@ Runnable walkthroughs: [`examples/`](examples/README.md) — five scripts from o
 
 ## ① Collect — every signal, one intake
 
-- **24 data-source vendors behind one contract** — B2B aggregators (Terra, Validic, Human API, Rook, Spike, [Open Wearables](https://github.com/the-momentum/open-wearables), …), device brands (Fitbit, Withings, Dexcom, Polar, …), Huawei Health, and a generic **SMART-on-FHIR client for ONC-certified EHRs** (Epic, Oracle Health, athenahealth). Each integration is honestly graded *verified / implemented / metadata* — see **[VENDORS.md](VENDORS.md)**. Production-hardened providers for **Garmin, Oura, Whoop** plus [300+ devices](mirobody/pulse/theta/README.md) via the pulse platform, and [Apple Health](mirobody/pulse/apple/README.md) import with CDA processing.
+- **Production device providers behind one plugin contract** — battle-tested providers for **Garmin, Oura, Whoop** plus [300+ devices](mirobody/pulse/providers/README.md) via the pulse platform, and [Apple Health](mirobody/pulse/apple/README.md) import with CDA processing. A provider is a directory: drop it in, and discovery, OAuth and pull scheduling are wired for you.
 - **8 file formats parsed with AI** — PDF lab reports, Excel, CSV, images, audio, archives, plain text, and **genetic exports (WeGene)**; LLM-powered indicator extraction ([`pulse/file_parser/`](mirobody/pulse/file_parser/), 13k lines).
 - Ingest pipeline: staged intake → validate → normalize → daily rollups → [AI insights](mirobody/pulse/insight/) that feed back into the record — closing the loop.
 
@@ -122,10 +122,8 @@ mirobody/
 │  ── the ENGINE (pip install mirobody · no agent framework, machine-enforced) ──
 │
 ├── engine.py            ②  The front door: resolve() offline, parse_file() one-LLM-call
-├── cli.py                   mirobody parse | resolve | vendors | serve | worker
+├── cli.py                   mirobody parse | resolve | serve | worker
 ├── pulse/               ①  COLLECT — every signal, one intake
-│   ├── vendor/              catalogue of 24 data-source vendors behind one Vendor
-│   │                        contract — metadata/stubs, not working transports
 │   ├── theta/               production device providers (Garmin/Oura/Whoop, 300+ devices)
 │   ├── apple/               Apple Health import (zip + CDA)
 │   ├── file_parser/         8 file formats → indicators via LLM extraction (needs DB)
@@ -176,7 +174,7 @@ frontend/                    the built-in web client — OUTSIDE the package on
 | Install | What works | Footprint |
 | --- | --- | --- |
 | *the wheel + numpy only* | `from mirobody.engine import resolve` — the offline resolver | **77 MB**, 2 packages |
-| `pip install mirobody` | + `mirobody parse` (one LLM key) · vendors · file parsing (PDF/Excel/audio) · FHIR output | 233 MB, 90 packages |
+| `pip install mirobody` | + `mirobody parse` (one LLM key) · file parsing (PDF/Excel/audio) · FHIR output | 233 MB, 90 packages |
 | `pip install 'mirobody[server]'` | + the HTTP API and MCP endpoint | needs Postgres + Redis |
 | `pip install 'mirobody[agents]'` | + DeepAgent/BaseAgent and `mirobody serve` (includes `[server]`) | + the LangChain stack |
 | `pip install 'mirobody[indicator-build]'` | rebuilding the terminology bundles themselves | needs LOINC/UMLS sources |
@@ -397,7 +395,6 @@ The server will start at `http://localhost:18080`.
 | `mirobody resolve <terms…>` | Offline indicator-name resolution — no key, no config, no network |
 | `mirobody serve` | Run the HTTP server (chat, MCP, API) — needs `[agents]` |
 | `mirobody worker` | Run the background task worker (indicator sync, profile refresh) |
-| `mirobody vendors` | List all 24 data-source integrations with status grades — zero config needed |
 
 ### 👤 First Login
 
@@ -582,7 +579,7 @@ contributor documentation into `site-packages`.
 | | **Runnable examples** | [`examples/`](examples/README.md) |
 | ① | Collect — the pulse engine | [`mirobody/pulse/`](mirobody/pulse/README.md) |
 | ① | Writing a data provider | [docs/provider-guide.md](docs/provider-guide.md) |
-| ① | Provider directory layout | [`mirobody/pulse/theta/`](mirobody/pulse/theta/README.md) |
+| ① | Provider directory layout | [`mirobody/pulse/providers/`](mirobody/pulse/providers/README.md) |
 | ① | File-processing pipeline | [docs/file-processing.md](docs/file-processing.md) |
 | ① | Apple Health / CDA import | [docs/apple-health.md](docs/apple-health.md) |
 | ② | Indicator search & resolution | [`mirobody/indicator/`](mirobody/indicator/README.md) |
@@ -593,7 +590,7 @@ contributor documentation into `site-packages`.
 | | Configuration guide | [`mirobody/utils/config/`](mirobody/utils/config/README.md) |
 | | Testing | [docs/testing.md](docs/testing.md) |
 | | Known gaps & deferred work | [docs/roadmap.md](docs/roadmap.md) |
-| | Changelog · Security · Vendors | [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) · [VENDORS](VENDORS.md) |
+| | Changelog · Security | [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
 
 ---
 
@@ -603,7 +600,7 @@ Contributions are organized around the engine's three verbs — pick your lane:
 
 | Lane                 | What to contribute                                                                                                                                                                                                                                                                                                               | Typical size |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| **① Collect** | A new data-source vendor (implement the[`Vendor`](mirobody/pulse/vendor/base.py) contract, ~150–300 lines) — or **verify an existing one**: if you hold credentials for any `implemented`/`metadata` vendor in [VENDORS.md](VENDORS.md), running it end-to-end and reporting is one of the most valuable PRs we take | medium       |
+| **① Collect** | A new device provider — implement [`BasePullProvider`](mirobody/pulse/providers/platform/base.py) in one `mirobody_<slug>/` directory and the platform discovers it at startup; [`mirobody_pgsql/`](mirobody/pulse/providers/mirobody_pgsql/) is the smallest reference, [`mirobody_whoop/`](mirobody/pulse/providers/mirobody_whoop/) the OAuth2 one. Or a new file format for the parser | medium       |
 | **② Sort**    | **Make a term resolve.** Find one that comes back wrong or empty — `mirobody resolve "<term>"` — then add one row to [`resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv) and one case to [`test_engine_coverage.py`](mirobody/test_engine_coverage.py). Any language. This is the lowest-barrier useful PR in the repo, and it moves a number we publish. Also: unit mappings, taxonomy fixes | tiny         |
 | **③ Answer**  | An Agent Skill (`SKILL.md` package under [`mirobody/agent/skills/`](mirobody/agent/skills/) — copy [`lab-report-walkthrough`](mirobody/agent/skills/lab-report-walkthrough/SKILL.md)), an MCP tool, a chart schema                                                                                                                                                                                                                             | medium       |
 
