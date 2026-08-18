@@ -1,7 +1,7 @@
 {
   "test_id": "theta_oura_daily_spo2_001",
   "description": "Oura daily SpO2 data with nested spo2_percentage.average",
-  "provider_class": "mirobody.pulse.theta.mirobody_oura.provider_oura.ThetaOuraProvider",
+  "provider_class": "mirobody.pulse.providers.mirobody_oura.provider_oura.OuraProvider",
   "platform": "theta",
   "mock_context": {},
   "input": {
@@ -51,7 +51,9 @@
         "userId": "test_user_oura_001",
         "source": "theta",
         "timezone": "Asia/Shanghai",
-        "taskId": null
+        "taskId": null,
+        "windowFrom": null,
+        "windowTo": null
       },
       "healthData": [
         {
@@ -78,8 +80,8 @@
     }
   },
   "patch_targets": [
-    "mirobody.pulse.theta.platform.base.ThetaDatabaseService",
-    "mirobody.pulse.theta.platform.base.ThetaUserService",
+    "mirobody.pulse.providers.platform.base.ProviderDatabaseService",
+    "mirobody.pulse.providers.platform.base.PlatformUserService",
     {
       "target": "mirobody.utils.config.safe_read_cfg",
       "return_value": ""

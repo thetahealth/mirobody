@@ -3,6 +3,14 @@ import json, logging, time
 from starlette.responses import Response
 from starlette.requests import Request
 
+# MCP 2026-07-28 `_meta` keys, defined next to the code that writes them.
+# `mcp/service.py` used to keep its own copies while this module hardcoded the
+# serverInfo literal, so the two could drift. `clientInfo` was declared here
+# too and never written or read by anything — removed rather than left as a
+# third name to keep in sync.
+META_PROTOCOL_VERSION = "io.modelcontextprotocol/protocolVersion"
+META_SERVER_INFO      = "io.modelcontextprotocol/serverInfo"
+
 #-----------------------------------------------------------------------------
 
 def get_client_ip(request: Request) -> str:
@@ -18,6 +26,33 @@ def get_client_ip(request: Request) -> str:
     return ""
 
 #-----------------------------------------------------------------------------
+
+def request_origin(request: Request) -> str:
+    """`scheme://host[:port]` for the request, as the client would type it.
+
+    Five call sites built this by hand as::
+
+        f"{'http' if request.url.hostname == 'localhost' else 'https'}://{request.url.hostname}"
+
+    which is wrong three ways, and the results go into OAuth redirect URIs and
+    the MCP endpoint URLs we hand to clients:
+
+    * `hostname` DROPS THE PORT, so a local server on :18080 published
+      `http://localhost` — port 80, nothing listening. This is the broken local
+      login link.
+    * anything not literally "localhost" was forced to https, so a server
+      reached at `http://127.0.0.1:8000` advertised `https://127.0.0.1`.
+    * the request's own scheme was ignored entirely.
+
+    `netloc` carries host and port together and omits the port when it is the
+    scheme default, so this is correct for `https://mirobody.ai` too.
+
+    Behind a reverse proxy this reflects the forwarded scheme/host only if the
+    ASGI server is run with proxy headers enabled; otherwise it reports the
+    internal address, which is the standard caveat for any such helper.
+    """
+    return f"{request.url.scheme}://{request.url.netloc}"
+
 
 def get_jwt_token(request: Request) -> str:
     return request.headers.get("Authorization")
@@ -134,7 +169,51 @@ def redirect(url: str, status_code: int = 302, request: Request = None, disable_
 
 #-----------------------------------------------------------------------------
 
-def jsonrpc_result(id: any, result: any = None, method: str = "", request: Request = None, disable_log: bool = False) -> Response:
+def jsonrpc_result(
+    id: any,
+    result: any = None,
+    method: str = "",
+    request: Request = None,
+    disable_log: bool = False,
+    result_type: str = "complete",
+    server_info: dict | None = None,
+    cache_hint: tuple[int, str] | None = None,
+    protocol_version: str | None = None,
+) -> Response:
+    """Build a JSON-RPC 2.0 result response.
+
+    ``result_type`` / ``server_info`` carry the MCP 2026-07-28 additions:
+
+    * ``resultType`` is REQUIRED on every result in that revision (it is what
+      makes polymorphic results like ``input_required`` possible). Clients on
+      earlier revisions ignore the unknown key, and the spec tells new clients
+      to read an ABSENT ``resultType`` as ``"complete"`` — so emitting it is
+      backward compatible in both directions.
+    * ``io.modelcontextprotocol/serverInfo`` in ``_meta`` is a SHOULD, meant for
+      display and debugging only; the spec is explicit that neither side may
+      make security or behaviour decisions from it.
+
+    ``cache_hint`` is ``(ttl_ms, scope)`` and emits 2026-07-28's ``ttlMs`` /
+    ``cacheScope`` — field names taken from the SDK's own `ListToolsResult`, not
+    guessed. The spec marks ``tools/list``, ``prompts/list``,
+    ``resources/list``, ``resources/templates/list``, ``resources/read`` and
+    ``server/discover`` as cacheable; we pass it on all of those we implement
+    EXCEPT ``resources/read``, deliberately. Our resource bodies are templated
+    per request with the caller's JWT (see the copy-before-templating note in
+    `mcp/service.py`), so a cached read is a cached credential — it would
+    outlive a logout by up to the TTL. Being spec-permitted is not the same as
+    being safe for this server's payloads.
+
+    ``protocol_version`` echoes the revision this response is speaking. Under
+    2026-07-28 there is no handshake, so a stateless client has no other way to
+    learn what the server settled on — `initialize` is exactly the call it never
+    makes. Echoing per response is therefore not redundant with the
+    `initialize` result; it is the only channel that survives the handshake's
+    removal.
+
+    All four are injected only when ``result`` is a dict that does not already
+    carry them, so a caller can always override.
+    """
     if not disable_log:
         extra = {
             "mcp_method": method,
@@ -158,6 +237,21 @@ def jsonrpc_result(id: any, result: any = None, method: str = "", request: Reque
             logging.info(log_message, stacklevel=2, extra=extra)
 
     #-----------------------------------------------------
+
+    if isinstance(result, dict):
+        if result_type and "resultType" not in result:
+            result["resultType"] = result_type
+        if server_info or protocol_version:
+            meta = result.setdefault("_meta", {})
+            if isinstance(meta, dict):
+                if server_info:
+                    meta.setdefault(META_SERVER_INFO, server_info)
+                if protocol_version:
+                    meta.setdefault(META_PROTOCOL_VERSION, protocol_version)
+        if cache_hint:
+            ttl_ms, scope = cache_hint
+            result.setdefault("ttlMs", ttl_ms)
+            result.setdefault("cacheScope", scope)
 
     content = {
         "jsonrpc"   : "2.0",

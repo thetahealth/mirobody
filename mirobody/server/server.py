@@ -13,6 +13,9 @@ from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.cors import CORSMiddleware
 
+from .bootstrap import create_schema
+from .middleware_stack import build_middlewares
+from .htdoc import add_htdoc_routes
 from .middlewares import JwtMiddleware, UserInfoUpdaterMiddleware, RequestRateLimiterMiddleware
 
 from .. import __version__
@@ -23,7 +26,7 @@ from ..user import (
     UserService
 )
 from ..mcp import McpService
-from ..chat import ChatService
+from ..agent.chat import ChatService
 
 from ..utils.config.storage.constants import DEFAULT_LOCAL_CHARTS_PATH
 
@@ -60,9 +63,6 @@ class Server:
         tool_dirs       : list[str] = [],
         resource_dirs   : list[str] = [],
 
-        private_tool_dirs       : list[str] = [],
-        private_resource_dirs   : list[str] = [],
-
         mcp_server_url  : str = "",
 
         # The following parameters can be generated via
@@ -92,8 +92,6 @@ class Server:
 
         google_client_id        : str = "",
 
-        wechat_open_appid       : str = "",
-        wechat_open_secret      : str = "",
 
         # The following parameters can be generated via
         #   config.get_webauthn_options().
@@ -156,12 +154,6 @@ class Server:
         if "__IS_APPLE_LOGIN_ON__" not in self._webpage_config:
             self._webpage_config["__IS_APPLE_LOGIN_ON__"] = True if apple_client_id else False
 
-        if "__IS_WECHAT_LOGIN_ON__" not in self._webpage_config:
-            self._webpage_config["__IS_WECHAT_LOGIN_ON__"] = True if wechat_open_appid and wechat_open_secret else False
-
-        if wechat_open_appid and wechat_open_secret and "__WECHAT_APP_ID__" not in self._webpage_config:
-            self._webpage_config["__WECHAT_APP_ID__"] = wechat_open_appid
-
         if "__IS_WEBAUTHN_ON__" not in self._webpage_config:
             self._webpage_config["__IS_WEBAUTHN_ON__"] = True if webauthn_rp_id else False
 
@@ -215,9 +207,6 @@ class Server:
             google_client_id    = google_client_id,
             firebase_project_id = firebase_project_id,
 
-            # WeChat Open Platform login (Website App, scope=snsapi_login).
-            wechat_open_appid   = wechat_open_appid,
-            wechat_open_secret  = wechat_open_secret,
 
             # WebAuthn (AAL2).
             webauthn_rp_id      = webauthn_rp_id,
@@ -238,9 +227,6 @@ class Server:
             tool_dirs       = tool_dirs,
             resource_dirs   = resource_dirs,
 
-            private_tool_dirs       = private_tool_dirs,
-            private_resource_dirs   = private_resource_dirs,
-
             db_pool         = self._pg_pool,
             redis           = self._redis
         )
@@ -249,16 +235,12 @@ class Server:
             token_validator = self._jwt_token_validator,
 
             db_pool         = self._pg_pool,
-            redis           = self._redis,
 
             uri_prefix      = uri_prefix,
             routes          = self._routes,
 
-            mcp_server_url  = mcp_server_url,
-
             agent_dirs          = agent_dirs,
             private_agent_dirs  = private_agent_dirs,
-            api_keys            = api_keys
         )
 
         self._routes.append(Route(f"{uri_prefix}/api/health", endpoint=self.health_check_handler, methods=["GET"]))
@@ -299,73 +281,31 @@ class Server:
                 Route("/__/firebase/init.json", endpoint=auth_init_endpoint, methods=["GET", "HEAD"])
             )
 
-            #---------------------------------------------
-
-            self.add_htdoc_routes(
-                htdoc,
-                {
-                    "__FIREBASE_API_KEY__"              : firebase_api_key,
-                    "\"__FIREBASE_AUTH_DOMAIN__\""      : f"window.location.hostname === \"localhost\" ? \"{firebase_auth_domain}\" : window.location.hostname",
-                    "__FIREBASE_PROJECT_ID__"           : firebase_project_id,
-                    "__FIREBASE_STORAGE_BUCKET__"       : firebase_storage_bucket,
-                    "__FIREBASE_MESSAGING_SENDER_ID__"  : firebase_messaging_sender_id,
-                    "__FIREBASE_APP_ID__"               : firebase_app_id,
-                    "__FIREBASE_MEASUREMENT_ID__"       : firebase_measurement_id
-                }
-            )
+            # The static client itself is mounted by `add_htdoc_routes` in
+            # `start()`, after every router — its SPA fallback must lose to
+            # all real routes. Only the config endpoints the client fetches
+            # at boot (/mirobody.json, the Firebase init) live here.
 
         #-------------------------------------------------
 
-        self._middlewares = [
-            Middleware(GZipMiddleware,
-                       minimum_size=10_000),
-        ]
-
-        # Configure CORS from http_headers config.
-        # Extract CORS-related headers if provided; otherwise use secure defaults.
-        if http_headers:
-            allowed_origin = http_headers.get("Access-Control-Allow-Origin", "")
-            allowed_methods = http_headers.get("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-            allowed_headers = http_headers.get("Access-Control-Allow-Headers", "Authorization, Content-Type")
-            allow_credentials = http_headers.get("Access-Control-Allow-Credentials", "false").lower() == "true"
-            max_age = int(http_headers.get("Access-Control-Max-Age", "600"))
-
-            # Warn if wildcard origin is used with credentials (invalid per CORS spec).
-            if allowed_origin == "*" and allow_credentials:
-                import logging
-                logging.getLogger(__name__).warning(
-                    "CORS: Access-Control-Allow-Origin='*' with Allow-Credentials=true "
-                    "is invalid per the CORS spec and will be rejected by browsers. "
-                    "Set a specific origin instead."
-                )
-
-            self._middlewares.append(
-                Middleware(CORSMiddleware,
-                           allow_origins=[allowed_origin] if allowed_origin else [],
-                           allow_methods=allowed_methods.split(", ") if "," in allowed_methods else [allowed_methods],
-                           allow_headers=allowed_headers.split(", ") if "," in allowed_headers else [allowed_headers],
-                           allow_credentials=allow_credentials,
-                           max_age=max_age,
-                           )
-            )
-        if jwt_key:
-            self._middlewares.append(
-                Middleware(JwtMiddleware, jwt_key=jwt_key, decode_func=jwt_sub_decode_func)
-            )
-
-            if url_paths_for_request_rate_limiter and isinstance(url_paths_for_request_rate_limiter, dict):
-                self._middlewares.append(
-                    Middleware(RequestRateLimiterMiddleware, url_paths=url_paths_for_request_rate_limiter, redis_client=self._redis)
-                )
-
-            if url_paths_for_user_info_updater and isinstance(url_paths_for_user_info_updater, list):
-                self._middlewares.append(
-                    Middleware(UserInfoUpdaterMiddleware, url_paths=url_paths_for_user_info_updater, pg_pool=self._pg_pool)
-                )
-
+        self._middlewares = build_middlewares(
+            http_headers=http_headers,
+            jwt_key=jwt_key,
+            jwt_sub_decode_func=jwt_sub_decode_func,
+            url_paths_for_request_rate_limiter=url_paths_for_request_rate_limiter,
+            url_paths_for_user_info_updater=url_paths_for_user_info_updater,
+            redis=self._redis,
+            pg_pool=self._pg_pool,
+        )
     #-----------------------------------------------------
 
     async def health_check_handler(self, request: Request) -> Response:
+        # `agents` reads the module-global agent registry rather than a count
+        # cached on ChatService: the registry is what `get_global_agent` resolves
+        # against, and the cached `_agent_count` attribute no longer exists —
+        # this handler raised AttributeError on every /api/health call.
+        from ..agent.chat.agent import get_global_agent_count
+
         return JSONResponse(
             content = {
                 "service"               : self._mcp_service._name,
@@ -374,88 +314,9 @@ class Server:
                 "public_tools"          : (self._mcp_service._tools_count - self._mcp_service._auth_tools_count),
                 "authenticated_tools"   : self._mcp_service._auth_tools_count,
                 "resources"             : self._mcp_service._resources_count,
-                "agents"                : self._chat_service._agent_count,
+                "agents"                : get_global_agent_count(),
             }
         )
-
-    #-----------------------------------------------------
-
-    def add_htdoc_routes(self, dir: str, placeholders: dict[str, str] = {}):
-        index_bytes = None
-        auth_handler_bytes = None
-
-        filename_suffix_to_media_type = {
-            "js"    : "application/javascript",
-            "json"  : "application/json",
-            "css"   : "text/css",
-            "png"   : "image/png",
-            "gif"   : "image/gif",
-            "jpeg"  : "image/jpeg",
-            "jpg"   : "image/jpeg",
-            "svg"   : "image/svg+xml",
-            "html"  : "text/html",
-            "htm"   : "text/htm"
-        }
-
-        for root, dirs, files in os.walk(dir):
-            prefix = root.removeprefix(dir) + "/"
-
-            for file in files:
-                route = prefix + file
-
-                with open(os.path.join(root, file), "rb") as f:
-                    bytes = f.read()
-
-                    suffix = ""
-                    pos = file.rfind(".")
-                    if pos >= 0:
-                        suffix = file[pos+1:].strip().lower()
-                    media_type = filename_suffix_to_media_type.get(suffix, "text/html")
-
-                    # if placeholders:
-                    #     if media_type.startswith("application/") or media_type.startswith("text/"):
-                    #         s = bytes.decode()
-                    #         for k, v in placeholders.items():
-                    #             s = s.replace(k, v)
-                    #         bytes = s.encode()
-
-                    if route == "/__/auth/handler":
-                        auth_handler_bytes = bytes
-                        continue
-                    elif route == "/index.html":
-                        index_bytes = bytes
-
-                    async def file_endpoint(request: Request, content=bytes, media_type=media_type) -> Response:
-                        return Response(content=content, media_type=media_type)
-
-                    self._routes.append(
-                        Route(route, endpoint=file_endpoint, methods=["GET", "HEAD"])
-                    )
-
-        if auth_handler_bytes:
-            async def auth_handler_endpoint(request: Request, content=auth_handler_bytes) -> Response:
-                if request.method == "OPTIONS":
-                    return Response(status_code=204)
-
-                bytes = auth_handler_bytes
-                if request.method == "POST":
-                    post_body = await request.body()
-                    bytes = bytes.replace(b"{{POST_BODY}}", post_body)
-
-                return Response(content=bytes, media_type="text/html")
-
-            self._routes.append(
-                Route("/__/auth/handler", endpoint=auth_handler_endpoint, methods=["GET", "HEAD", "POST", "OPTIONS"])
-            )
-
-        if index_bytes:
-            async def index_endpoint(request: Request, content=index_bytes) -> Response:
-                return Response(content=content, media_type="text/html")
-
-            for index_route in ["/login", "/mcplogin", "/chat", "/drive", "/home", "/share/{share_id}", "/"]:
-                self._routes.append(
-                    Route(index_route, endpoint=index_endpoint, methods=["GET", "HEAD"])
-                )
 
     #-----------------------------------------------------
 
@@ -474,32 +335,7 @@ class Server:
         config = await Config.init(yaml_filenames=yaml_files)
         config.print()
 
-        if os.environ.get("ENV").strip().upper() not in ["TEST", "GRAY", "PROD", 'TEST-INLOCAL']:
-            pg_config = config.get_postgresql()
-
-            async with await pg_config.get_async_client(cursor_factory=None) as conn:
-                async with conn.cursor() as cur:
-                    for schema in pg_config.schema.split(","):
-                        if schema and isinstance(schema, str) and schema != "public":
-                            try:
-                                await cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema};")
-                                logging.info(f"Schema {schema} has been created.")
-                            except Exception as e:
-                                logging.error(str(e), exc_info=True)
-
-                    dirname = os.path.join(os.path.dirname(__file__), "..", "res", "sql")
-                    for filename in sorted(os.listdir(dirname)):
-                        with open(os.path.join(dirname, filename), "r", encoding="utf-8") as f:
-                            statements = f.read()
-                            try:
-                                await cur.execute(statements)
-                                await conn.commit()
-                                logging.info(f"SQL file {filename} executed successfully.")
-                            except Exception as e:
-                                logging.error(str(e), exc_info=True, extra={"sql_filename": filename})
-                                await conn.rollback()
-
-                    logging.info("SQL files initialization completed.")
+        await create_schema(config)
 
         #-----------------------------------------------------
         # Init mirobody server.
@@ -537,7 +373,6 @@ class Server:
             **config.get_email_options(),
             **config.get_apple_options(),
             **config.get_google_options(),
-            **config.get_wechat_open_options(),
             **config.get_firebase_options()
         )
 
@@ -560,33 +395,41 @@ class Server:
         #-----------------------------------------------------
         # Add other routers.
 
-        from ..pulse.router.middleware import init
+        from .routers.middleware import init
         await init()
 
-        from mirobody.pulse.router import (
+        from mirobody.server.routers import (
             public_router as pulse_public_router,
-            apple_router as old_router,
+            apple_router,
             manage_router,
             user_router,
             file_router,
-            food_router,
             session_share_router,
-            skill_router
+            sharing_router,
+            indicator_router,
         )
         app.include_router(pulse_public_router)
-        app.include_router(old_router)
+        # apple_router is ALSO nested inside pulse_public_router (routers/__init__),
+        # so Apple Health uploads answer on both /apple/* and /api/v1/pulse/apple/*.
+        # docs/apple-health.md documents POST /apple/health, and a self-hosted
+        # deployment's uploader may point at either surface; keep both mounts.
+        # (The former import alias `old_router` was misleading: the actual legacy
+        # /api/v1/health/apple-health router was never registered here — its dead
+        # remains were removed from apple_router.py.)
+        app.include_router(apple_router)
         app.include_router(manage_router)
         app.include_router(file_router)
-        app.include_router(food_router)
         app.include_router(user_router)
         app.include_router(session_share_router)
-        app.include_router(skill_router)
-
-        from mirobody.user.sharing import router as user_invitation_router
-        app.include_router(user_invitation_router)
+        app.include_router(sharing_router)
+        app.include_router(indicator_router)
 
         for router in fastapi_routers:
             app.include_router(router)
+
+        # Last on purpose: the SPA fallback and the API-prefix 404 guards
+        # only work if every real route above is already registered.
+        add_htdoc_routes(app, config.http.htdoc)
 
         #-----------------------------------------------------
         # Start asgi server.

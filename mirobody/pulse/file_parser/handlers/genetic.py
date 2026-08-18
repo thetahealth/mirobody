@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from typing import Any, Dict, Optional
 from mirobody.utils.i18n import t
@@ -5,7 +7,15 @@ from mirobody.utils.req_ctx import get_req_ctx
 from mirobody.pulse.file_parser.handlers.base import BaseFileHandler, FileProcessingContext
 from mirobody.pulse.file_parser.services.genetic_processor import process_genetic_file
 import asyncio
-from fastapi import UploadFile
+# `fastapi` lives in the [server] extra, but file parsing is advertised engine
+# functionality — a bare `pip install mirobody` must import this module. Every
+# use below is an annotation, so PEP 563 (the __future__ import) keeps them as
+# strings and the real symbol is only needed by type checkers.
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fastapi import UploadFile
+from ....utils.tasks import spawn
 
 class GeneticHandler(BaseFileHandler):
     def get_type_name(self) -> str:
@@ -100,7 +110,7 @@ class GeneticHandler(BaseFileHandler):
 
             # Spawn background task
             # Use target_user_id for genetic data ownership (th_series_data_genetic.user_id)
-            asyncio.create_task(
+            spawn(
                 process_genetic_file(
                     user_id=ctx.user_id,  # Uploader ID (for WebSocket notifications)
                     target_user_id=ctx.target_user_id,  # Data owner ID (for th_series_data_genetic)

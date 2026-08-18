@@ -1,7 +1,5 @@
 import logging, time
 
-from sqlalchemy import text
-
 from .config import global_config
 
 #-----------------------------------------------------------------------------
@@ -57,6 +55,13 @@ async def execute_query(
         # async with engine.begin() handles commit on success, rollback on
         # exception, and close in both cases. Don't reintroduce manual
         # commit/rollback/close here.
+        # Imported here rather than at module scope: `mirobody.utils` re-exports
+        # `execute_query`, so a top-level `from sqlalchemy import text` made
+        # SQLAlchemy a hard requirement of `import mirobody.utils` — and through
+        # it, of the whole offline engine, which never opens a connection.
+        # Anything that reaches this line already has a live engine.
+        from sqlalchemy import text
+
         async with engine.begin() as conn:
             # params=list[dict] triggers SQLAlchemy executemany; dict/None binds once.
             cur = await conn.execute(text(query), params)

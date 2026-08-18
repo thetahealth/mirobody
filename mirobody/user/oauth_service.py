@@ -6,6 +6,8 @@ from redis.asyncio import Redis
 from .jwt import AbstractTokenValidator
 
 from ..utils import (
+    request_origin,
+    secret_fingerprint,
     json_response,
     json_response_with_code,
     redirect,
@@ -50,6 +52,14 @@ from ..utils import (
 # unsupported_grant_type
 
 #-----------------------------------------------------------------------------
+
+# RFC 6749 §4.1.2: an authorization code "MUST be short lived", 10 minutes
+# maximum recommended. This used to be `token_validator.get_expires_in()` — the
+# ACCESS TOKEN lifetime, which defaults to 30 days when JWT_EXPIRES_IN is unset.
+# The comment beside the state token already said "will expire in 10 minutes";
+# the code had drifted from its own documented intent.
+_AUTH_CODE_TTL_SECONDS = 600
+
 
 class OAuthService:
     def __init__(
@@ -102,7 +112,7 @@ class OAuthService:
     #-------------------------------------------------------------------------
 
     async def metadata_handler(self, request: Request) -> Response:
-        url_prefix = f"{"http" if request.url.hostname == "localhost" else "https"}://{request.url.hostname}"
+        url_prefix = request_origin(request)
         metadata = {
             "issuer": url_prefix,
             "authorization_endpoint": f"{url_prefix}/oauth/authorize",
@@ -233,7 +243,7 @@ class OAuthService:
         payload, err = self._token_validator.verify_token(token)
         
         if request.method == "GET":
-            url_prefix = f"{"http" if request.url.hostname == "localhost" else "https"}://{request.url.hostname}"
+            url_prefix = request_origin(request)
 
             if err:
                 # Invalid jwt token, redirect to the login url.
@@ -309,7 +319,7 @@ class OAuthService:
                 "client_id" : client_id,
                 "user_id"   : user_id,
                 "scope"     : str(form_data.get("scope", "mcp:read mcp:write")),
-                "expires_at": int(time.time()) + self._token_validator.get_expires_in(),
+                "expires_at": int(time.time()) + _AUTH_CODE_TTL_SECONDS,
             }
             cached_client = {
                 "user_id"   : user_id
@@ -319,7 +329,7 @@ class OAuthService:
                 redis_key = self._auth_code_keyprefix + auth_code
                 try:
                     await self._redis.hset(redis_key, mapping=cached_auth_code)
-                    await self._redis.expire(redis_key, self._token_validator.get_expires_in())
+                    await self._redis.expire(redis_key, _AUTH_CODE_TTL_SECONDS)
                 except Exception as e:
                     logging.warning(str(e))
 
@@ -339,7 +349,7 @@ class OAuthService:
                 initial_state = {
                     "status"    : "pending",
                     "auth_code" : auth_code,
-                    "expires_at": int(time.time()) + self._token_validator.get_expires_in(),
+                    "expires_at": int(time.time()) + _AUTH_CODE_TTL_SECONDS,
                 }
 
                 if self._redis:
@@ -536,47 +546,81 @@ class OAuthService:
                     except Exception as e:
                         logging.warning(str(e))
 
-            logging.info(f"Token request - grant_type: {grant_type}, client_id: {client_id}, client_secret: {client_secret}")
+            # `client_secret` was in this line, at INFO, in cleartext. It is a
+            # long-lived credential: anyone with log read access could
+            # impersonate the client. The fingerprint still answers the only
+            # question this log line was ever used for — "did the client send
+            # the secret we expect?".
+            logging.info(
+                "Token request - grant_type: %s, client_id: %s, client_secret: %s",
+                grant_type, client_id, secret_fingerprint(client_secret),
+            )
 
             if grant_type == "authorization_code":
                 code = data.get("code")
                 if code is None or not isinstance(code, str):
                     code = ""
 
+                # Read AND consume in one step. RFC 6749 §4.1.2 requires an
+                # authorization code to be single-use; the Redis branch used to
+                # read it and leave it in place behind a `# TODO: pass`, so a
+                # leaked code could be exchanged for fresh token pairs for its
+                # whole lifetime. `delete` returning 0 means another request
+                # already redeemed it — that is a replay, and it is refused.
+                consumed = True
                 if self._redis:
+                    key = self._auth_code_keyprefix + code
                     try:
-                        stored_code = await self._redis.hgetall(self._auth_code_keyprefix + code)
+                        stored_code = await self._redis.hgetall(key)
+                        consumed = bool(await self._redis.delete(key))
                     except Exception as e:
                         logging.warning(str(e))
                         stored_code = {}
+                        consumed = False
 
                 else:
-                    stored_code = self._auth_codes.get(code, {})
+                    stored_code = self._auth_codes.pop(code, {})
 
-                # if not stored_code or stored_code["expires_at"] < time.time():
-                #     return JSONResponse(
-                #         {
-                #             "error": "invalid_grant",
-                #             "error_description": "Authorization code is invalid or expired.",
-                #         },
-                #         status_code=400,
-                #     )
-                # if stored_code["client_id"] != client_id:
-                #     return JSONResponse(
-                #         {
-                #             "error": "invalid_grant",
-                #             "error_description": "Client ID mismatch.",
-                #         },
-                #         status_code=400,
-                #     )
-                # if not client_id:
-                #     return JSONResponse(
-                #         {
-                #             "error": "invalid_client",
-                #             "error_description": "Client authentication failed.",
-                #         },
-                #         status_code=401,
-                #     )
+                # These three checks were present but commented out. Without
+                # them the grant only required that the stored record carry a
+                # user_id, so an expired code, a replayed code, or a code
+                # issued to a different client all minted tokens.
+                try:
+                    expires_at = int(stored_code.get("expires_at", 0))
+                except (TypeError, ValueError):
+                    expires_at = 0
+
+                if not stored_code or not consumed or expires_at < time.time():
+                    return json_response(
+                        {
+                            "error": "invalid_grant",
+                            "error_description": "Authorization code is invalid, expired or already used.",
+                        },
+                        status_code=400,
+                        request=request,
+                    )
+
+                if not client_id:
+                    return json_response(
+                        {
+                            "error": "invalid_client",
+                            "error_description": "Client authentication failed.",
+                        },
+                        status_code=401,
+                        request=request,
+                    )
+
+                # §4.1.3: the code must have been issued to the client
+                # presenting it, or one client can redeem another's code.
+                if stored_code.get("client_id") != client_id:
+                    return json_response(
+                        {
+                            "error": "invalid_grant",
+                            "error_description": "Client ID mismatch.",
+                        },
+                        status_code=400,
+                        request=request,
+                    )
 
                 user_id = stored_code.get("user_id")
                 scope   = stored_code.get("scope", "mcp:read mcp:write")
@@ -590,12 +634,6 @@ class OAuthService:
                         status_code=500,
                         request=request
                     )
-
-                if self._redis:
-                    # TODO:
-                    pass
-                else:
-                    del self._auth_codes[code]
 
                 access_token, refresh_token, err = await self._token_validator.generate_tokens(user_id, "", "mcp", client_id=client_id, scope=scope)
                 if err:
@@ -645,7 +683,7 @@ class OAuthService:
                 
                 payload, err = self._token_validator.verify_token(refresh_token)
                 if err or not payload:
-                    logging.error(err, extra={"refresh_token": refresh_token, "client_id": client_id})
+                    logging.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
 
                     return json_response(
                         {
@@ -658,7 +696,7 @@ class OAuthService:
                 
                 if not isinstance(payload, dict) or "sub" not in payload:
                     err = "No subject in refresh token."
-                    logging.error(err, extra={"refresh_token": refresh_token, "client_id": client_id})
+                    logging.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
 
                     return json_response(
                         {
@@ -671,7 +709,7 @@ class OAuthService:
 
                 new_access_token, new_refresh_token, err = await self._token_validator.generate_tokens(payload["sub"], "", "mcp", client_id=client_id)
                 if err:
-                    logging.error(err, extra={"refresh_token": refresh_token, "client_id": client_id})
+                    logging.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
 
                     return json_response(
                         {
@@ -729,7 +767,7 @@ class OAuthService:
                 
                 new_access_token, new_refresh_token, err = await self._token_validator.generate_tokens(cached_client["user_id"], "", "mcp", client_id=client_id)
                 if err:
-                    logging.error(err, extra={"refresh_token": refresh_token, "client_id": client_id})
+                    logging.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
 
                     return json_response(
                         {
@@ -800,7 +838,7 @@ class OAuthService:
         
         payload, err = self._token_validator.verify_token(token)
         if err:
-            logging.error(err, extra={"token": token})
+            logging.error(err, extra={"token": secret_fingerprint(token)})
             return json_response({"active": False}, request=request)
         
         return json_response(

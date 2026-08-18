@@ -68,7 +68,6 @@ from .search import cmd_search
 from .resolve import cmd_resolve
 from .embed import cmd_embed
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
 # ─── Default path helpers ────────────────────────────────────────────
@@ -132,6 +131,11 @@ def _resolve_ref_defaults(args, ref_dir: str) -> None:
 
 
 def main() -> None:
+    # Configuring the root logger is a process-wide side effect, so it belongs
+    # to the CLI entry point, not to import time: `import mirobody.indicator.main`
+    # from a library or a test would otherwise silently reformat the importing
+    # process's logging.
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     parser = ArgumentParser(
         description="mirobody.indicator: build LOINC/SNOMED sibling groups and bridge files"
     )
@@ -247,7 +251,7 @@ def main() -> None:
              "``body structure`` when the LOINC pick's SYSTEM-axis cosine is "
              "below 0.55 (e.g. ``心包液检验·红细胞沉降率`` where LOINC has no "
              "Pericardial-fluid ESR code). Other axes stay on LOINC. See "
-             "docs/health_indicator_resolving.md page 9.",
+             "the internal resolving design note (not published in this repo), page 9.",
     )
 
     # ── normalize ─────────────────────────────────────────────────────

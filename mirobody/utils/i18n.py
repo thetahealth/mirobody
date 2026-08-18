@@ -6,7 +6,6 @@ Uses a design where one program file corresponds to one translation file for eas
 Default language: English
 """
 
-import logging
 import json
 import logging
 import os
@@ -17,7 +16,6 @@ from typing import Any, Dict
 class I18n:
     """Multi-language internationalization class"""
 
-    # Language code mapping
     LANGUAGE_CODES = {
         "zh": "zh",
         "zh-cn": "zh",
@@ -77,8 +75,9 @@ class I18n:
             self._translations_cache[module_name] = translations
             return translations
         except (json.JSONDecodeError, IOError) as e:
-            # Return empty dict if loading fails
-            print(f"Failed to load translations for {module_name}: {e}")
+            # print() bypassed the JSON log pipeline entirely — no level, no
+            # trace_id correlation, straight to stdout.
+            logging.warning("Failed to load translations for %s: %s", module_name, e)
             self._translations_cache[module_name] = {}
             return {}
 
@@ -117,7 +116,6 @@ class I18n:
         # Load translations
         translations = self._load_translations(module)
 
-        # Get text dictionary
         text_dict = translations.get(key, {})
 
         # Get text in corresponding language, priority: specified language -> English -> Chinese -> key itself
@@ -171,24 +169,3 @@ def clear_translation_cache(module_name: str = None):
     i18n.clear_cache(module_name)
 
 
-def debug_translation(key: str, language: str = "ja", module: str = "load_genetic_data"):
-    """
-    Debug translation function to check if translations are loaded correctly
-
-    Args:
-        key: Translation key
-        language: Language code
-        module: Module name
-
-    Returns:
-        str: Translation result
-    """
-    # Clear cache first
-    clear_translation_cache(module)
-
-    # Get translation again
-    result = t(key, language, module)
-
-    print(f"Debug translation: key='{key}', language='{language}', module='{module}', result='{result}'")
-
-    return result

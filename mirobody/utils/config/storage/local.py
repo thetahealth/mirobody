@@ -91,13 +91,19 @@ class LocalStorage(AbstractStorage):
             File access URL
         """
         object_key = self._build_object_key(key)
-        
+
         if self.proxy_url:
             # Use proxy URL: http://localhost:18080/files/uploads/file.pdf
             return f"{self.proxy_url.rstrip('/')}/{object_key}"
         else:
-            # Fallback: return relative path
-            return f"http://localhost:18080/files/{object_key}"
+            # No MCP_PUBLIC_URL configured → RELATIVE URL. The comment here
+            # always said "relative" but the code returned an absolute
+            # http://localhost:18080/... — on any deployment whose port is not
+            # 18080 (config.local.yaml runs 18090; an ssh tunnel held 18080)
+            # every "View file" click landed on a dead host, silently. The
+            # frontend is same-origin with this server (htdoc-hosted in prod,
+            # vite-proxied in dev), so a relative /files/ path works in both.
+            return f"/files/{object_key}"
     
     #-----------------------------------------------------
 

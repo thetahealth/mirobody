@@ -77,7 +77,6 @@ class AliyunStorage(AbstractStorage):
             return
         
         try:
-            # Import oss2 with warning suppression
             import warnings
             warnings.filterwarnings("ignore", category=SyntaxWarning, module="oss2")
             import oss2
@@ -127,18 +126,15 @@ class AliyunStorage(AbstractStorage):
             # Build full object key with prefix
             object_key = self._build_object_key(key)
             
-            # Prepare headers
             headers = {}
             if content_type:
                 headers["Content-Type"] = content_type
             else:
-                # Auto-detect content type from filename
                 headers["Content-Type"] = self.get_content_type_from_filename(key)
 
             # Set Content-Disposition to inline so browsers preview instead of download
             headers["Content-Disposition"] = "inline"
             
-            # Add metadata
             if metadata:
                 for k, v in metadata.items():
                     headers[f"x-oss-meta-{k}"] = str(v)

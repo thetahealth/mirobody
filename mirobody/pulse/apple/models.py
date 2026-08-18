@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, field_validator
 
 # Import standard enums from core module
-from ..core import StandardIndicator
+from ..standardize import StandardIndicator
 
 class FlutterHealthTypeEnum(str, Enum):
     """Flutter Health Types - strict type constraints for Apple Health data"""

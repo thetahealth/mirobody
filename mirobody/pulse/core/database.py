@@ -453,7 +453,7 @@ class ManageDatabaseService(CacheableDatabaseService):
             is_summary = (indicator_type == 'summary')
         else:
             # Fallback to heuristic for backward compatibility
-            from .indicators_info import is_summary_indicator
+            from ..standardize.indicators_info import is_summary_indicator
             is_summary = is_summary_indicator(indicator)
         
         if is_summary:
@@ -503,7 +503,7 @@ class ManageDatabaseService(CacheableDatabaseService):
             is_summary = (indicator_type == 'summary')
         else:
             # Fallback to heuristic for backward compatibility
-            from .indicators_info import is_summary_indicator
+            from ..standardize.indicators_info import is_summary_indicator
             is_summary = is_summary_indicator(indicator)
         
         if is_summary:
@@ -579,8 +579,13 @@ class ManageDatabaseService(CacheableDatabaseService):
 
         await self.execute_query(query, params)
 
-        # Verify update result
-        verify_result = await self.get_existing_indicator_count(new_indicator, source)
+        # Verify update result. `indicator_type` is in scope and must be forwarded:
+        # without it the count falls back to a heuristic and can read the series
+        # table for a summary indicator (and vice versa), reporting 0 for a rename
+        # that succeeded.
+        verify_result = await self.get_existing_indicator_count(
+            new_indicator, source, indicator_type
+        )
         return verify_result
 
     async def get_user_provider_stats_cached(self, user_id: str) -> Dict[str, Dict[str, Any]]:

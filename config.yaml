@@ -35,7 +35,7 @@ HTTP_SERVER_NAME: mirobody
 # HTTP_PORT: 80
 
 # HTTP_URI_PREFIX: ''
-HTTP_ROOT: mirobody/pub/htdoc
+HTTP_ROOT: frontend
 
 # HTTP_HEADERS:
 #   Access-Control-Allow-Origin: 'http://localhost:18080'  # CHANGE FOR PRODUCTION
@@ -128,9 +128,9 @@ PG_MAX_CONNECTION: 20
 # Predefined email addresses and verification codes for testing/demo purposes.
 # Uncomment to enable instant demo login (password: the verification code).
 EMAIL_PREDEFINE_CODES:
-  demo1@mirobody.ai: '777777'
-  demo2@mirobody.ai: '777777'
-  demo3@mirobody.ai: '777777'
+  exp1@mirobody.ai: '111111'
+  exp2@mirobody.ai: '111111'
+  exp3@mirobody.ai: '111111'
 
 #-----------------------------------------------------------------------------
 # OAuth.
@@ -201,20 +201,22 @@ JWT_SCOPE: "mcp:read mcp:write"
 # LLM Configuration.
 
 MCP_TOOL_DIRS:
-  - mirobody/pub/tools
-  - mirobody/pub/tools_health
+  - mirobody/agent/tools
 MCP_RESOURCE_DIRS:
-  - mirobody/pub/resources
-  - resources
+  - mirobody/agent/resources
 AGENT_DIRS:
-  - mirobody/pub/agents
-  - agents
+  - mirobody/agent
 PROVIDER_DIRS:
-  - mirobody/pulse/theta
-  - providers
+  - mirobody/pulse/providers
+
+# Agent Skills (https://agentskills.io/) — directories of SKILL.md skill
+# packages, served to DeepAgent via deepagents' native SkillsMiddleware: the
+# first entry that exists is mounted read-only at /skills/ in the agent's
+# virtual filesystem, and skills load with progressive disclosure (frontmatter
+# at startup, full body only when the task needs it). Put deployment-specific
+# skills in your own directory and list it first.
 SKILL_DIRS:
-  - mirobody/pub/skills
-  - skills
+  - mirobody/agent/skills
 
 # LLM provider API keys. Get one (or more) from the provider you intend to use:
 #   GOOGLE_API_KEY     -> https://aistudio.google.com/apikey
@@ -231,6 +233,25 @@ OPENROUTER_API_KEY: ""
 #   Get a key -> https://dashscope.console.aliyun.com/apiKey
 DASHSCOPE_API_KEY: ""
 
+# DeepSeek API key — used by BaseAgent's DeepSeek Responses provider.
+#   Get a key -> https://platform.deepseek.com
+DEEPSEEK_API_KEY: ""
+
+#---------------------------------------------------------
+# Agent conversation memory.
+#
+# DeepAgent's graph is compiled with a LangGraph Postgres checkpointer keyed on
+# thread_id = session_id, so LangGraph stores the real message objects and
+# replays the conversation itself — the caller passes only the new turn.
+# The four checkpoint_* tables are created by the saver's own setup() on first
+# use, in PG_SCHEMA; no migration file is needed.
+#
+# Set to false to run DeepAgent with no cross-turn memory (each turn starts
+# fresh). Useful if the agent's DB role may not create tables, or to stage the
+# rollout. Failure to reach the database degrades to the same behaviour rather
+# than failing the request.
+AGENT_CHECKPOINTER: true
+
 #---------------------------------------------------------
 
 ALLOWED_TOOLS_DEEP:
@@ -238,41 +259,32 @@ ALLOWED_TOOLS_DEEP:
 DISALLOWED_TOOLS_DEEP:
 
 PROMPTS_DEEP:
-  - pub/prompts/deep/theta_health.jinja
-  - pub/prompts/deep/theta_health_simple.jinja
+  - agent/prompts/deep.jinja
 
 PROVIDERS_DEEP:
-  gemini-3.5-flash:
+  gemini-flash:
     llm_type: google-genai
     api_key: GOOGLE_API_KEY
     model: gemini-3.5-flash
     temperature: 1.0
-  gpt-5.4:
+  gpt:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
-    model: openai/gpt-5.4
+    model: openai/gpt-5.4-mini
     temperature: 0.1
   claude-sonnet:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
-    model: anthropic/claude-sonnet-4.6
+    model: anthropic/claude-sonnet-5
     temperature: 0.1
   deepseek:
     llm_type: openai # Uses OpenAI-compatible API via OpenRouter
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
-    model: deepseek/deepseek-v4-flash
+    model: deepseek/deepseek-v4-flash-0731
     temperature: 0.1
-  # Example: a DashScope-hosted model via its OpenAI-compatible endpoint.
-  # Uncomment and set DASHSCOPE_API_KEY above to enable.
-  # dashscope:
-  #   llm_type: openai
-  #   api_key: DASHSCOPE_API_KEY
-  #   base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
-  #   model: qwen-plus
-  #   temperature: 0.1
 
 #---------------------------------------------------------
 
@@ -284,56 +296,27 @@ PROMPTS_RTC:
 
 #---------------------------------------------------------
 
-ALLOWED_TOOLS_MIX:
-
-DISALLOWED_TOOLS_MIX:
-
-# Phase 1 (Orchestrator): Tool orchestration and data collection prompts (internal use)
-PROMPTS_MIX:
-  - pub/prompts/mix/orchestrator.jinja@orchestrator
-  - pub/prompts/mix/responder.jinja@responder
-
-
-PROVIDERS_MIX:
-  # Phase 1 (Orchestrator): Tool orchestration and data collection
-  claude&gemini:
-    claude-sonnet@orchestrator:
-      llm_type: openai
-      api_key: OPENROUTER_API_KEY
-      base_url: https://openrouter.ai/api/v1
-      model: anthropic/claude-sonnet-4.6
-      temperature: 0.1
-    # Phase 2 (Responder): same model whether or not Phase 1 used tools.
-    # Omitting response_with_tools makes this a flexible responder used for
-    # both cases (see mix/mixin.py _get_responder selection logic).
-    gemini-3.5-flash@responder:
-      llm_type: google-genai
-      api_key: GOOGLE_API_KEY
-      model: gemini-3.5-flash
-      temperature: 1.0
-      include_thoughts: true
-      thinking_level: medium
-#---------------------------------------------------------
-
 PROVIDERS_BASE:
   gemini-2.5-flash:
     api_key: GOOGLE_API_KEY
     model: gemini-2.5-flash
-    input_price: 0.5
-    output_price: 2.0
   gpt-5-nano:
     api_key: OPENAI_API_KEY
     model: gpt-5-nano
-    input_price: 0.05
-    output_price: 0.4
-  miro-thinker:
-    api_key: MIROTHINKER_API_KEY
-    model: mirothinker-1-7-deepresearch
+  # dashscope:
+  #   api_key: DASHSCOPE_API_KEY
+  #   # qwen-plus/qwen-flash hit a legacy backend that rejects function results;
+  #   # see DashScopeClient docstring. Keep a new-backend model here.
+  #   model: qwen3.5-flash
 
 ALLOWED_TOOLS_BASE:
 
 DISALLOWED_TOOLS_BASE:
 
+# Empty = BaseAgent uses its packaged `agent/prompts/base.jinja`. Set a path to
+# override it. Unlike PROMPTS_DEEP this takes effect but is not selectable
+# per-request: BaseAgent hands the tool loop to the provider and has nowhere to
+# branch on a prompt name, so the FIRST entry wins.
 PROMPTS_BASE:
 
 #-----------------------------------------------------------------------------

@@ -147,7 +147,7 @@ class FormatTestRunner:
     async def _call_format(self, instance: Any, case: TestCase) -> Any:
         """Call format_data_v2 (if context provided) or legacy format_data."""
         if case.context is not None:
-            from mirobody.pulse.data_upload.models.requests import (
+            from mirobody.pulse.ingest.models.requests import (
                 FormatDataContext,
                 FormatDataInput,
             )
@@ -185,7 +185,7 @@ class FormatTestRunner:
 
     @staticmethod
     def _import_provider_class(dotted_path: str) -> type:
-        """Import 'mirobody.pulse.theta...ThetaGarminProvider' dynamically."""
+        """Import 'mirobody.pulse.providers...GarminProvider' dynamically."""
         module_path, class_name = dotted_path.rsplit(".", 1)
         module = importlib.import_module(module_path)
         return getattr(module, class_name)

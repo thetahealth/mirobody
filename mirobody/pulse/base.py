@@ -5,7 +5,7 @@ Base classes and interfaces for Pulse system
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
-# from . import BaseThetaProvider  # Remove circular import
+# from . import BasePullProvider  # Remove circular import
 # === Enum definitions ===
 from .core import (
     LinkRequest,
@@ -13,7 +13,7 @@ from .core import (
     ProviderInfo,
     UserProvider,
 )
-from .data_upload.models.requests import StandardPulseData
+from .ingest.models.requests import StandardPulseData
 
 # Create AuthType alias for API compatibility
 AuthType = LinkType
@@ -187,7 +187,7 @@ class Platform(ABC):
         Args:
             page: Page number (starting from 1)
             page_size: Number of records per page
-            provider: Optional provider slug (for multi-provider platforms like Theta)
+            provider: Optional provider slug (for multi-provider platforms like this one)
             event_type: Optional filter for event type
             user_id: Optional filter for user ID
             status: Optional filter for status (e.g., 'success', 'pending', 'error')
@@ -209,7 +209,7 @@ class Platform(ABC):
         
         Args:
             webhook_id: Webhook ID from database
-            provider: Optional provider slug (for multi-provider platforms like Theta)
+            provider: Optional provider slug (for multi-provider platforms like this one)
             
         Returns:
             Dictionary containing original webhook data and formatted result

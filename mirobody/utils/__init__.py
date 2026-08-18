@@ -8,6 +8,8 @@ from .config import (
 from .log import (
     JsonFormatter,
 
+    secret_fingerprint,
+
     init_log_console,
     init_log_file,
     init_log_tqdm,
@@ -15,6 +17,7 @@ from .log import (
 )
 
 from .http import (
+    request_origin,
     get_client_ip,
     get_jwt_token,
 
@@ -35,7 +38,7 @@ from .db import (
     execute_query
 )
 
-from .utils_user import get_query_user_id
+from .permissions import get_query_user_id
 
 from .req_ctx import (
     get_req_ctx,

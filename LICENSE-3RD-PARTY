@@ -1,10 +1,36 @@
 Third-Party Data Licenses
 =========================
 
-The file `mirobody/res/concept_graph.bin` is a derived binary that encodes
-relationships (bridges and sibling groups) between FHIR integer IDs.  These
-relationships were computed from the following third-party datasets.  Use of
-this file is subject to the license terms of each source listed below.
+`mirobody/res/` holds the shipped terminology artifacts. Most are derived from
+third-party datasets and are covered by the licenses below; a few are our own
+hand-written overlays and are Apache-2.0 like the rest of the project. The
+table marks which is which — nothing else lives in that directory.
+
+(Our schema DDL used to sit beside them in `res/sql/`, which made an earlier
+version of this sentence untrue. It now lives in `mirobody/schema/` and is
+covered by the project's Apache-2.0 license.)
+
+These artifacts ship in the git repository (via Git LFS) and in the PyPI wheel;
+use of each is subject to the license terms of its sources:
+
+  Artifact                        Derived from                Notice
+  ------------------------------  --------------------------  -------------------------------
+  fhir_concept_graph.bin          UMLS, SNOMED CT, LOINC,     sections 1-5 below
+                                  RxNorm, ICD-10-CM
+  fhir_loinc_bundle.tar.gz        LOINC                       res/fhir_loinc_bundle.NOTICE
+  fhir_meta.csv.gz                LOINC, SNOMED CT, RxNorm    sections 1-4 below
+  fhir_snomed_ct_bundle.tar.gz    SNOMED CT                   res/fhir_snomed_ct_bundle.NOTICE
+  fhir_taxonomy.bin               LOINC, SNOMED CT            sections 2-3 below
+  fhir_id_map.npy                 internal id map over the    sections 1-5 below
+                                  same vocabularies
+  aliases_src/{lang}.tsv          LOINC Linguistic Variants   section 3 below
+  aliases_src/{lang}_curated.tsv  hand-written (Apache-2.0)   —
+  resolver_overrides.tsv          hand-written (Apache-2.0)   —
+  analyte_digit_src/              hand-written (Apache-2.0)   —
+    analyte_digit_curated.tsv
+
+The per-file NOTICE documents next to the bundles carry the full reproduction
+statements; this file lists the upstream licenses those statements rest on.
 
 
 1. UMLS Metathesaurus

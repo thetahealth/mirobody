@@ -77,7 +77,7 @@ class JwtMiddleware(BaseHTTPMiddleware):
                                 else:
                                     try:
                                         request.state.user_id = int(sub)
-                                    except:
+                                    except Exception:
                                         request.state.user_id = 0
 
         #-------------------------------------------------

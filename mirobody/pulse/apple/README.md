@@ -92,7 +92,7 @@ Create a new event handler:
 ```python
 # apple/event_providers/your_type.py
 from .base import BaseAppleEventProvider
-from ...data_upload.models.requests import StandardPulseRecord
+from ...ingest.models.requests import StandardPulseRecord
 
 class YourTypeEventProvider(BaseAppleEventProvider):
     @property

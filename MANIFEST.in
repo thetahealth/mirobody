@@ -1,0 +1,22 @@
+# The sdist must carry its own build backend.
+#
+# `[build-system] backend-path = ["scripts"]` points at scripts/build_backend.py,
+# which prunes test modules from the distribution. setuptools does not infer
+# that the backend itself belongs in the sdist, so without this line
+# `pip install mirobody-*.tar.gz` fails before it starts:
+#     Failed to validate `build-system`: `backend-path` entry 'scripts' does not exist
+# Caught by building the sdist and reading the error, not by any test.
+include scripts/build_backend.py
+
+# Schema DDL lives at mirobody/schema/ and is picked up by package-data
+# (`**/*.sql`), because `mirobody serve` creates its own tables — that is code,
+# and it has to travel with the package. It is kept out of mirobody/res/, which
+# LICENSE-3RD-PARTY describes as licensed terminology data and nothing else.
+
+include LICENSE LICENSE-3RD-PARTY CHANGELOG.md SECURITY.md VENDORS.md
+recursive-include mirobody/res *.NOTICE
+
+# Never ship: contributor docs, the web client, AI working notes.
+exclude CLAUDE.md
+recursive-exclude docs *
+recursive-exclude frontend *

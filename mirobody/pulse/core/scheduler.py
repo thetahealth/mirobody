@@ -6,6 +6,7 @@ import asyncio, json, logging
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, Optional
+from ...utils.tasks import spawn
 
 # Import distributed lock manager
 try:
@@ -552,7 +553,7 @@ class Scheduler:
                     if task.should_run():
                         logging.info(f"Executing scheduled task: {task.provider_slug}")
                         # Execute task with distributed lock
-                        asyncio.create_task(task.try_execute_with_lock(force=False))
+                        spawn(task.try_execute_with_lock(force=False))
 
                 # Wait 1 minute before next check
                 await asyncio.sleep(60)

@@ -1,7 +1,7 @@
 {
   "test_id": "theta_garmin_stress_001",
   "description": "Garmin stress data",
-  "provider_class": "mirobody.pulse.theta.mirobody_garmin_connect.provider_garmin.ThetaGarminProvider",
+  "provider_class": "mirobody.pulse.providers.mirobody_garmin_connect.provider_garmin.GarminProvider",
   "platform": "theta",
   "mock_context": {},
   "input": {
@@ -35,7 +35,9 @@
         "userId": "test_user_001",
         "source": "theta",
         "timezone": "Asia/Shanghai",
-        "taskId": null
+        "taskId": null,
+        "windowFrom": null,
+        "windowTo": null
       },
       "healthData": [],
       "batchInfo": null,
@@ -50,8 +52,8 @@
     }
   },
   "patch_targets": [
-    "mirobody.pulse.theta.platform.base.ThetaDatabaseService",
-    "mirobody.pulse.theta.platform.base.ThetaUserService",
+    "mirobody.pulse.providers.platform.base.ProviderDatabaseService",
+    "mirobody.pulse.providers.platform.base.PlatformUserService",
     {
       "target": "mirobody.utils.config.safe_read_cfg",
       "return_value": ""

@@ -11,8 +11,8 @@ from zoneinfo import ZoneInfo
 from .models import FLUTTER_TO_RECORD_TYPE_MAPPING, AppleHealthRecord, MetaInfo
 from ..base import LinkRequest, Provider, ProviderInfo
 from ..core import LinkType, ProviderStatus
-from ..core.indicators_info import StandardIndicator
-from ..data_upload.models.requests import (
+from ..standardize.indicators_info import StandardIndicator
+from ..ingest.models.requests import (
     StandardPulseData,
     StandardPulseMetaInfo,
     StandardPulseRecord,

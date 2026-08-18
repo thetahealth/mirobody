@@ -70,7 +70,7 @@ This project contains two main GitHub Actions workflows for automating package b
    - Check GitHub Releases page
    - Verify package on TestPyPI
 
-> 💡 **Tip**: See [Intelligent Release Notes Generation Guide](RELEASE_NOTES_GUIDE.md) to learn how to optimize automatically generated release notes.
+> 💡 **Tip**: See [Intelligent Release Notes Generation Guide](../RELEASE_NOTES_GUIDE.md) to learn how to optimize automatically generated release notes.
 
 ### Manual Test Build
 

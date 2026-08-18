@@ -13,10 +13,9 @@ class ImageHandler(BaseFileHandler):
         if ctx.progress_callback:
             await ctx.progress_callback(55, t("extracting_content", language, "file_processor"))
 
-        # Step 1: Extract original text first (with SHA256 deduplication)
-        original_text, content_hash = await self._extract_and_save_original_text(
+        # Step 1: Extract original text first (SHA256 dedup inside the extractor)
+        original_text, content_hash = await self._extract_original_text(
             ctx=ctx,
-            temp_file_path=temp_file_path,
             file_type="image",
         )
 

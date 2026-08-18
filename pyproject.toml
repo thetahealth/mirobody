@@ -1,6 +1,10 @@
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+# A thin wrapper over setuptools that drops test modules from the built
+# distribution. `exclude-package-data` cannot do it: `test_*.py` files are
+# package CODE, not data. See scripts/build_backend.py.
+build-backend = "build_backend"
+backend-path = ["scripts"]
 
 [project]
 name = "mirobody"
@@ -8,66 +12,178 @@ dynamic = ["version"]
 authors = [
     {name = "Theta AI Team", email = "developer@thetahealth.ai"},
 ]
-description = "Self-hosted data platform that bridges your personal data with the latest AI capabilities."
+# The PyPI storefront line — keep in lockstep with the README's H1 tagline.
+description = "The AI-native health data engine — collect, standardize, and reason over labs, wearables & genomics."
 readme = "README.md"
-requires-python = ">=3.11"
-keywords = ["health", "wellness", "data processing", "AI", "LLM"]
+# 3.12+ is a hard floor, not a preference: the codebase uses PEP 701 f-strings
+# (nested same-type quotes, e.g. utils/config/config.py), which are a SyntaxError
+# on 3.11 — the package cannot even be imported there.
+requires-python = ">=3.12"
+# What people actually search PyPI for; the vocabulary names are the moat.
+keywords = [
+    "health", "health-data", "FHIR", "LOINC", "SNOMED", "wearables",
+    "lab-reports", "genomics", "MCP", "agent", "AI", "LLM",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Intended Audience :: Healthcare Industry",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
+# Constraint policy (this is a LIBRARY): floors only. An upper cap needs a
+# reproduced breakage documented next to it — unjustified caps just create
+# resolver conflicts downstream. Every entry below is verified against actual
+# imports (AST scan incl. lazy imports) or a named string reference; removals
+# so far: setuptools, cachetools, defusedxml, openai-agents — declared for
+# years, imported never.
 dependencies = [
     # Configuration.
-    "setuptools",
     "python-dotenv",
-    "ruamel.yaml<0.18.0",
+    # Uses only the modern YAML() API (utils/config/config.py); load+dump of
+    # the real config.yaml verified on 0.19, so no upper cap.
+    "ruamel.yaml>=0.17",
     "cryptography",
     # Data.
-    "redis",
-    "psycopg[binary]",
-    "psycopg[pool]",
-    "sqlalchemy",
-    "greenlet",  # required by SQLAlchemy's async engine (greenlet_spawn)
     "pandas",
+    # numpy is a DIRECT requirement of ② Sort, not a pandas detail: the offline
+    # resolver rebuilds the 921k-alias index from .npz on every construction
+    # (engine.OfflineResolver.__init__), and 20 more modules under indicator/
+    # import it at module level. It went undeclared for a long time and worked
+    # only because pandas happens to pull it in — i.e. `mirobody resolve`, the
+    # flagship zero-config command, depended on a transitive accident.
+    "numpy",
     # HTTP.
     "aiohttp",
-    "starlette",
-    "fastapi",
-    "uvicorn",
+    # FastAPI raises at IMPORT time on any route using Form/File unless this is
+    # present (ensure_multipart_is_installed). The upload routers use both. It
+    # went undeclared forever and resolved only via transitive accident — found
+    # by the fresh-env import walk, invisible in any long-lived venv.
     "pydantic",
     "pyjwt",
     "pytz",
-    "webauthn>=2.0.0",
     # Storage.
-    "aioboto3",
-    # File.
+    # File parsing (① Collect: PDFs, images, audio tags, archives, Excel).
     "pypdf>=5.1.0",
     "pypdfium2>=4.30.0",
-    "pdfplumber~=0.11.7",
-    "cachetools~=6.2.4",
-    "Pillow>=11.1.0,<12.0.0",
+    "pdfplumber>=0.11.7",
+    "Pillow>=11.1.0",
     "tinytag>=1.6.0",
-    "mutagen~=1.47.0",
-    "rarfile~=4.0",
-    "py7zr~=0.22.0",
-    "openpyxl~=3.1.5",
+    "mutagen>=1.47",
+    "rarfile>=4.0",
+    "py7zr>=0.22",
+    # No `import openpyxl` anywhere — it is pandas' engine for .xlsx, named as
+    # a string: read_excel(engine="openpyxl") in file_abstract_extractor.py.
+    # (The xlrd fallback there for legacy .xls is deliberately NOT declared:
+    # it's a guarded try/except that degrades to a logged warning.)
+    "openpyxl>=3.1",
     # Email.
-    "mandrill",
-    # LLM.
-    "azure-identity>=1.15.0",
+    # LLM — the ENGINE's own model access (AI-native parsing / extraction /
+    # insight) via direct SDKs. The agent-framework stack (LangChain,
+    # deepagents, …) is deliberately NOT a core dependency: it lives in the
+    # [agents] extra, mirroring how langchain keeps langchain-core light.
+    # `import mirobody.pulse` / `mirobody.indicator` must work with no agent
+    # framework installed — enforced by the [tool.importlinter] contracts below.
+    "azure-identity>=1.15.0",  # Azure OpenAI WIF token provider (utils/config/llm.py)
     "openai>=2.11.0",
-    "openai-agents==0.7.0",
+    # The third provider SDK in utils/config/llm.py's client factory. Its two
+    # siblings (_build_openai_compat, _build_gemini) rest on declared packages;
+    # _build_anthropic did a bare `import anthropic` that only resolved because
+    # the [agents] extra drags it in via langchain-anthropic. Configuring an
+    # Anthropic key on a bare engine install therefore failed at client
+    # construction — "multi-provider" has to be true without the agent layer.
+    "anthropic",
     # Floor at 2.0: the Interactions API server dropped the legacy turn-list
     # schema (breaking change, May 2026) and now requires the 2.x 'steps' schema,
     # which only the >=2.0 SDK can send/parse. No upper cap.
     "google-genai>=2.0.0",
-    "langchain",
-    "langchain-openai",
-    "langchain-anthropic",
+    "jinja2",
+    # `utils/http.py` is built on Starlette's Request/Response (json_response and
+    # json_response_with_code alone have ~220 call sites, `mirobody.mcp` among
+    # them), and `utils/__init__` re-exports Request/Response/StreamingResponse/
+    # Route. So the ENGINE genuinely depends on Starlette — it was simply never
+    # declared, and only resolved because `mcp` happens to require it. Same class
+    # of bug as the undeclared `python-multipart`: invisible in a long-lived venv,
+    # and one upstream dependency change away from breaking every engine install.
+    # (FastAPI is a different story and stays in [server]: it is a web *framework*,
+    # and nothing in the engine imports it any more.)
+    "starlette",
+    # The official MCP SDK. Floor at 2.0 for two reasons, both verified against
+    # the installed source rather than release notes:
+    #   1. 2.0.0 is the first release implementing protocol revision 2026-07-28
+    #      (DiscoverRequest/Result, InputRequiredResult/MRTR, CacheHint);
+    #      1.29.0 tops out at 2025-11-25.
+    #   2. Its `func_metadata` generates our tool inputSchemas. The hand-rolled
+    #      parser it replaced got Literal, Enum, bare dict and Annotated wrong.
+    # NOTE `mcp.server.fastmcp` was REMOVED in 2.0 (it is `mcp.server.mcpserver`
+    # now), and the third-party `fastmcp` package does not yet import against
+    # 2.0 at all (`McpError` was renamed `MCPError`), so it is not an option.
+    "mcp>=2.0.0",
+    # `requests-oauthlib` is OAuth1, which only Garmin still speaks
+    # (provider_garmin.py); `tiktoken` counts tokens for history truncation
+    # (utils/truncate.py). Both have exactly one import site, hence "legacy" —
+    # but a real one each.
+    #
+    # `aiofiles` and `pycryptodome` used to sit here too. Neither had a single
+    # import site left: aiofiles went with the seven unused upload/thumbnail
+    # helpers removed from utils/s3.py, and pycryptodome with `ThetaEncryption`,
+    # a class no caller referenced. Verified by blocking both at the import
+    # hook and re-running the suite and the full module walk — 151 passed,
+    # 330/330 imported. Every installer was paying for two packages the code
+    # could not reach.
+    "tiktoken>=0.9.0",
+]
+
+[project.scripts]
+# The single entry point, source checkout and PyPI install alike:
+# `mirobody serve|worker|vendors`, or `python -m mirobody …` where a console
+# script may not survive (compose persists site-packages but not the venv's
+# bin/). Replaces the former repo-root main.py / main_worker.py, which were
+# not shipped in the wheel — a PyPI install had no way to start the server.
+mirobody = "mirobody.cli:main"
+
+[project.optional-dependencies]
+# The agent layer (③ Answer): DeepAgent's LangChain/deepagents stack and the
+# provider-native agent SDKs. The default install is the ENGINE (① Collect +
+# ② Sort) as a library; running the chat server requires this extra —
+# `mirobody serve` checks and says so instead of tracebacking.
+# The SERVER: HTTP surface, database, cache, object storage, email, and the
+# OAuth1 transport only Garmin still uses. `pip install mirobody` is the ENGINE
+# — resolve, parse, vendors, file extraction — and none of that opens a socket
+# to Postgres or Redis. Splitting these out took the default install from 114
+# packages / 293 MB down to the engine's real footprint. `mirobody serve` and
+# `worker` check for the extra and say what to install rather than dying deep
+# in an import chain.
+server = [
+    # (`starlette` is a BASE dependency — utils/http.py is built on it. Listing
+    # it here too would just be a second place to keep in sync.)
+    "fastapi",
+    "python-multipart",
+    "uvicorn",
+    "psycopg[binary]",
+    "psycopg[pool]",
+    "sqlalchemy",
+    # SQLAlchemy declares greenlet only under platform markers and extras, so
+    # its async engine can be missing it on an otherwise-correct install.
+    "greenlet",
+    "redis",
+    "aioboto3",
+    "webauthn>=2.0.0",
+    "mandrill",
+    # OAuth1 — among the shipped providers, only Garmin still speaks it.
+    "requests-oauthlib",
+]
+
+agents = [
+    # the agent layer runs inside the server
+    "mirobody[server]",
+    "langchain>=1.3.15",
+    "langchain-openai>=1.4.3",
+    "langchain-anthropic>=1.5.6",
     # 4.2.4 relaxed its google-genai cap to <3.0.0 (earlier 4.x pinned <2.0.0,
     # which would block the google-genai>=2.0 required above).
     "langchain-google-genai>=4.2.4",
@@ -77,23 +193,51 @@ dependencies = [
     # would conflict with google-genai>=2.0 above.
     "google-cloud-aiplatform>=1.157.0",
     "langchain_community",
-    # deepagents 0.6.7+ for the modern BackendProtocol surface (Result dataclasses).
-    "deepagents>=0.6.7",
+    # Floor at 0.7.5. 0.7 is where the BackendProtocol settled: the deprecated
+    # `*_info` / `grep_raw` shims are gone (we never used them), `glob`/`grep`
+    # take `path: str | None`, `grep` gained a `max_count` cap that
+    # CompositeBackend splits across mounts, and `delete` arrived as an optional
+    # protocol method (PgFilesystemBackend does not implement it; the tool is
+    # excluded by name — see deep_agent._EXCLUDED_NATIVE_TOOLS).
+    # NOTE 0.7 also DROPPED `TodoListMiddleware` from the default middleware
+    # stack, so `write_todos` no longer exists unless a caller adds it back.
+    # DeepAgent intentionally does not — see deep_agent._build_agent.
+    "deepagents>=0.7.5",
     # In-process JS/TS interpreter middleware (replaces the E2B remote sandbox).
     "langchain-quickjs>=0.1.3",
-    "jinja2",
-    # Legacy.
-    "aiofiles~=24.1.0",
-    "pycryptodome>=3.20.0",
-    "requests-oauthlib",
-    "tiktoken>=0.9.0",
-    "defusedxml",
+    # Conversation memory: the agent graph is compiled with an AsyncPostgresSaver
+    # keyed on thread_id = session_id, so LangGraph replays the real message
+    # objects. This replaced a hand-rolled rebuild of history from persisted UI
+    # chunks (the deleted chat/history_replay.rebuild_canonical_messages) —
+    # see agent/deep/checkpointer.py. Absent, the agent degrades to stateless
+    # turns rather than failing, so it is a dependency of the [agents] extra
+    # only, not of the engine.
+    "langgraph-checkpoint-postgres>=3.1.2",
 ]
-
-[project.optional-dependencies]
-cn = ["oss2", "volcengine-python-sdk[ark]~=3.0.1", "dashscope"]
-fin = ["yfinance"]
-test = ["pytest", "pytest-asyncio", "pytest-sugar"]
+# Aliyun OSS storage (utils/config/storage/aliyun.py, lazy-imported) and the
+# Volcengine Ark SDK (utils/llm/utils.py, file_processors.py).
+#
+# `dashscope` was listed here and is not needed: DashScope is reached through
+# its OpenAI-compatible endpoint, so `get_async_dashscope_client()` returns an
+# AsyncOpenAI pointed at `dashscope.aliyuncs.com/compatible-mode/v1`. The SDK
+# has no import site anywhere in the package.
+cn = ["oss2", "volcengine-python-sdk[ark]>=3.0.1"]
+test = ["pytest", "pytest-asyncio", "pytest-sugar", "import-linter"]
+# Rebuilding the shipped terminology bundles (concept graph, alias index,
+# embeddings) — `python -m mirobody.indicator …`. Consumers of the bundles need
+# none of this; only the people regenerating mirobody/res/fhir_* do.
+#
+# These four were imported but never declared, so `import
+# mirobody.indicator.fhir.bridge` raised ModuleNotFoundError on a correct,
+# complete install — polars is imported at MODULE level there and in
+# siblings.py. Declaring them here states the real requirement without putting
+# a dataframe engine in front of everyone who just wants to resolve a name.
+indicator-build = [
+    "polars",   # bridge.py / siblings.py (module-level), lexicon, rank, ref
+    "zhconv",   # zh-Hant -> zh-Hans folding in the alias lexicon build
+    "tqdm",     # progress reporting for the long build passes
+    "pgvector", # writing embeddings back to Postgres (embeddings/db.py)
+]
 
 [project.urls]
 "Homepage" = "https://github.com/thetahealth/mirobody"
@@ -102,6 +246,12 @@ test = ["pytest", "pytest-asyncio", "pytest-sugar"]
 
 [tool.setuptools.packages.find]
 include = ["mirobody", "mirobody.*"]
+# Tests stay in git — `test_engine_coverage.py` IS the 98/98 resolver number the
+# README publishes, and CI needs all of them. They just have no business in
+# someone's site-packages: 33 files and 21 recorded fixtures, ~206 KB, that no
+# consumer of the library can use. Excluded from the distribution here, kept on
+# disk and collected by `pytest` (see [tool.pytest.ini_options] testpaths).
+exclude = ["mirobody.pulse.gate_tests", "mirobody.pulse.gate_tests.*"]
 
 [tool.setuptools.package-data]
 "mirobody" = [
@@ -111,7 +261,18 @@ include = ["mirobody", "mirobody.*"]
     "**/*.yaml",
     "**/*.jinja",
     "**/*.so",
+    # ── engine data bundles (Git LFS) ────────────────────────────────────────
+    # These are not optional extras: `mirobody.engine.resolve` — the front door
+    # of ② Sort, and the one line the README leads with — reads
+    # res/fhir_loinc_bundle.tar.gz, res/fhir_meta.csv.gz and res/aliases_src/*.tsv
+    # at import time. Until 1.0.62 only *.bin was listed here, so every published
+    # wheel shipped an engine that could not resolve anything. Keep .gz/.npy/.tsv
+    # in this list; scripts/check_wheel_data.py enforces it at build time.
     "**/*.bin",
+    "**/*.gz",
+    "**/*.npy",
+    "**/*.tsv",
+    "**/*.NOTICE",
     "**/*.html",
     "**/*.htm",
     "**/*.js",
@@ -122,10 +283,93 @@ include = ["mirobody", "mirobody.*"]
     "**/*.svg",
     "**/*.ico",
 ]
-"mirobody.pub.htdoc.__.auth" = ["handler", "iframe"]
+# (The web client's static assets live at repo-root frontend/ — outside the
+# package on purpose. A pip install serves API + MCP; the UI comes from a
+# checkout (Docker/source) or the hosted client at mirobody.ai. This is what
+# took the wheel from ~57MB of which 8MB was JavaScript, to engine + data only.)
 
 [tool.setuptools.dynamic]
 version = {attr = "mirobody.__version__"}
 
 [tool.pytest.ini_options]
 disable_test_id_escaping_and_forfeit_all_rights_to_community_support = true
+# Collect bare `async def` tests via pytest-asyncio (already in the [test]
+# extra). Without this the async tests fail with "async def functions are not
+# natively supported" on every machine.
+asyncio_mode = "auto"
+# Tests live NEXT TO the code they cover (`mirobody/**/test_*.py`), so the whole
+# suite is `pytest mirobody`. There is no top-level `tests/` directory; the
+# README used to document one, along with `-m mcp` / `-m e2b` / `-m chat`
+# markers that were never defined — following it produced "0 tests collected".
+testpaths = ["mirobody"]
+markers = [
+    "needs_db: requires a live PostgreSQL (deselect with -m 'not needs_db')",
+    "needs_llm: calls a real model provider and costs money",
+]
+
+# ── Architectural boundary, machine-enforced (run: lint-imports) ─────────────
+#
+# The engine follows the langchain / langchain-core layering: the DATA ENGINE
+# (① Collect: pulse · ② Sort: indicator, plus the shared utils/user/mcp/task
+# infra) must stay importable without any agent framework, while the AGENT
+# LAYER (③ Answer: agent, server) is the only place LangChain and friends
+# may appear. These contracts turn that rule from a convention into a CI check.
+# import-linter parses function-local imports too, so lazy imports can't sneak
+# a violation past it.
+[tool.importlinter]
+root_packages = ["mirobody"]
+# Required for contracts that forbid EXTERNAL packages (the langchain family).
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "engine is agent-framework-free (the langchain-core rule)"
+type = "forbidden"
+source_modules = [
+    "mirobody.engine",
+    "mirobody.indicator",
+    "mirobody.pulse",
+    "mirobody.utils",
+    "mirobody.user",
+    "mirobody.task",
+    "mirobody.mcp",
+]
+forbidden_modules = [
+    "langchain",
+    "langchain_core",
+    "langchain_openai",
+    "langchain_anthropic",
+    "langchain_google_genai",
+    "langchain_google_vertexai",
+    "langchain_community",
+    "langgraph",
+    "deepagents",
+    "langchain_quickjs",
+]
+# (The former router seam is gone: pulse/router moved to server/routers, where
+# importing the agent layer is legal. The engine list needs no exemptions here.)
+
+[[tool.importlinter.contracts]]
+name = "engine does not import the agent layer"
+type = "forbidden"
+source_modules = [
+    "mirobody.engine",
+    "mirobody.indicator",
+    "mirobody.pulse",
+    "mirobody.utils",
+    "mirobody.task",
+]
+forbidden_modules = [
+    "mirobody.agent",
+    "mirobody.server",
+]
+# Documented seams, each with an owner-decision recorded:
+ignore_imports = [
+    # user_profile is the health profile — engine DATA that historically grew
+    # inside the chat layer (now agent/chat). BOTH the file pipeline and the
+    # background refresh task need it, which is exactly the evidence it belongs
+    # engine-side. It cannot simply move: profile GENERATION calls the LLM
+    # through the agent stack. The split (pure read/store engine-side,
+    # generation agent-side) is Phase 2, seam #4.
+    "mirobody.pulse.file_parser.file_upload_manager -> mirobody.agent.chat.user_profile",
+    "mirobody.task.profile_refresh -> mirobody.agent.chat.user_profile",
+]

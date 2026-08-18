@@ -1,5 +1,5 @@
 """
-Distributed lock manager for Theta Pull tasks
+Distributed lock manager for provider pull tasks
 """
 
 import logging, uuid

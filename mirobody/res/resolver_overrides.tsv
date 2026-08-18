@@ -1,0 +1,257 @@
+# Offline-resolver overrides:  <term as printed>  TAB  <target the index resolves>
+#
+# WHY THIS FILE EXISTS, and why it is not aliases_src/{lang}_curated.tsv
+# ---------------------------------------------------------------------
+# Those files are inputs to the BUNDLE BUILD (indicator/fhir/embeddings/
+# lexicon.py). Their right-hand side is a descriptive English phrase —
+# "Total cholesterol TC", "Leukocyte count WBC" — which is exactly the shape
+# the alias-index build wants.
+#
+# This file serves the OFFLINE RESOLVER at runtime, where the right-hand side
+# has a different job: it must itself be a key the finished alias index can
+# look up. "Total cholesterol TC" is a fine build input and a dead end at
+# lookup time. Rewriting the build inputs to suit the resolver would have
+# quietly degraded the semantic pipeline, so the two concerns get two files.
+#
+# Every row here was a documented failure in test_engine_coverage.py. Two
+# kinds of failure appear, and the second is the dangerous one:
+#
+#   MISS  — "LDL cholesterol" resolved to nothing. The index is built from
+#           LOINC long common names, so it knows the formal name and the lab
+#           short code (LDL-C) but not the phrase humans write. Plain English
+#           was, counter-intuitively, the worst-covered language.
+#
+#   WRONG — "血红蛋白" resolved to Hemoglobin A1c: a different test, returned
+#           with full confidence. It matches 301 index rows and the commonness
+#           prior likes HbA1c best. A resolution-rate metric scores this as a
+#           success; a patient reading the report would not.
+#
+# CONTRIBUTING: this is the lowest-barrier useful PR in the repo. Find a term
+# that resolves wrong or not at all, add one row here plus one case in
+# mirobody/test_engine_coverage.py, and raise COVERAGE_FLOOR. Any language.
+# Targets are validated by the test suite, so a typo'd target fails CI rather
+# than shipping.
+
+# ══ English ═══════════════════════════════════════════════════════════════
+# ── lipid panel ──────────────────────────────────────────────────────────
+total cholesterol	Cholesterol
+cholesterol total	Cholesterol
+serum cholesterol	Cholesterol
+LDL cholesterol	LDL-C
+LDL-cholesterol	LDL-C
+low density lipoprotein cholesterol	LDL-C
+low-density lipoprotein cholesterol	LDL-C
+HDL cholesterol	HDL-C
+HDL-cholesterol	HDL-C
+high density lipoprotein cholesterol	HDL-C
+high-density lipoprotein cholesterol	HDL-C
+
+# ── complete blood count ─────────────────────────────────────────────────
+# The bare plural nouns (Leukocytes, Erythrocytes, Hematocrit) are not index
+# keys on their own; the LOINC short names are. "HCT" alone is not usable as
+# a target either — it collides with Calcitonin.
+white blood cell count	WBC # Bld
+white blood cells	WBC # Bld
+WBC count	WBC # Bld
+leukocyte count	WBC # Bld
+red blood cell count	RBC # Bld
+red blood cells	RBC # Bld
+RBC count	RBC # Bld
+erythrocyte count	RBC # Bld
+hematocrit	HCT Fr Sg Auto
+haematocrit	HCT Fr Sg Auto
+packed cell volume	HCT Fr Sg Auto
+
+# ── metabolic panel ──────────────────────────────────────────────────────
+fasting glucose	Glucose
+fasting blood glucose	Glucose
+fasting plasma glucose	Glucose
+blood sugar	Glucose
+BUN	Urea nitrogen
+total bilirubin	Bilirubin
+bilirubin total	Bilirubin
+
+# ── liver enzymes ────────────────────────────────────────────────────────
+# Bare acronyms are how every report actually prints these.
+AST	Aspartate aminotransferase
+SGOT	Aspartate aminotransferase
+SGPT	Alanine aminotransferase
+ALP	Alkaline phosphatase
+
+# ── endocrine & vitamins ─────────────────────────────────────────────────
+free T4	FT4
+free thyroxine	FT4
+free T3	FT3
+free triiodothyronine	FT3
+vitamin D	Calcidiol
+vitamin D3	Calcidiol
+25-OH vitamin D	Calcidiol
+25 hydroxy vitamin D	Calcidiol
+vitamin B12	Cobalamin
+
+# ── extended panels ──────────────────────────────────────────────────────
+# Second sweep, from a 154-term hunt across the panels a physical actually
+# orders. Same failure shape as above: the formal LOINC name is indexed, the
+# name on the printout is not.
+lipoprotein(a)	Lp(a)
+Lp(a)	Lp(a)
+non-HDL cholesterol	Cholesterol.non HDL
+VLDL cholesterol	Cholesterol VLDL
+total protein	Protein
+reticulocyte count	Reticulocytes
+direct bilirubin	Bilirubin.glucuronidated
+conjugated bilirubin	Bilirubin.glucuronidated
+indirect bilirubin	Bilirubin.non-glucuronidated
+unconjugated bilirubin	Bilirubin.non-glucuronidated
+creatinine clearance	Creatinine renal clearance
+T3	Triiodothyronine
+total T3	Triiodothyronine
+T4	Thyroxine
+total T4	Thyroxine
+anti-TPO	Thyroperoxidase Ab
+TPO antibody	Thyroperoxidase Ab
+LH	Luteinizing hormone
+CA-125	Cancer Ag 125
+CA125	Cancer Ag 125
+CA19-9	Cancer Ag 19-9
+free PSA	Prostate specific Ag.free
+OGTT	Glucose^2H post 75 g glucose PO
+oral glucose tolerance test	Glucose^2H post 75 g glucose PO
+urine glucose	Glucose Ur-mCnc
+urine ketones	Ketones Ur-mCnc
+urine protein	Prot Ur Ql
+urine pH	pH Ur
+specific gravity	SP GR Ur
+urine specific gravity	SP GR Ur
+
+# ══ 中文（简体）═══════════════════════════════════════════════════════════
+# zh.tsv 由 LOINC 官方中文译名机器生成，收的是学名（"葡萄糖"），化验单上
+# 实际印的口语名（"血糖"、"总胆固醇"）反而缺失。
+血红蛋白	Hemoglobin
+血色素	Hemoglobin
+血糖	Glucose
+空腹血糖	Glucose
+餐后血糖	Glucose
+总胆固醇	Cholesterol
+胆固醇	Cholesterol
+低密度脂蛋白胆固醇	LDL-C
+高密度脂蛋白胆固醇	HDL-C
+白细胞计数	WBC # Bld
+白细胞	WBC # Bld
+红细胞计数	RBC # Bld
+红细胞	RBC # Bld
+血细胞比容	HCT Fr Sg Auto
+红细胞压积	HCT Fr Sg Auto
+总胆红素	Bilirubin
+游离甲状腺素	FT4
+维生素D	Calcidiol
+维生素B12	Cobalamin
+# electrolytes and the basic panel — the single-character names are the ones a
+# Chinese report prints, and none of them were indexed
+钾	Potassium
+血钾	Potassium
+钠	Sodium
+血钠	Sodium
+氯	Chloride
+氯化物	Chloride
+钙	Calcium
+血钙	Calcium
+镁	Magnesium
+磷	Phosphate
+无机磷	Phosphate
+总蛋白	Protein
+血清总蛋白	Protein
+糖化血红蛋白	HbA1c
+收缩压	Systolic blood pressure
+舒张压	Diastolic blood pressure
+血氧饱和度	Oxygen saturation
+网织红细胞计数	Reticulocytes
+尿蛋白	Prot Ur Ql
+尿糖	Glucose Ur-mCnc
+尿酮体	Ketones Ur-mCnc
+
+# ══ 日本語 ════════════════════════════════════════════════════════════════
+# 「中性脂肪」は字面どおり読むと便中の中性脂肪 (Fat.neutral in Stool) に
+# 落ちる。口語形は明示的な対応付けが要る。
+ヘモグロビン	Hemoglobin
+血色素	Hemoglobin
+総コレステロール	Cholesterol
+中性脂肪	Triglyceride
+クレアチニン	Creatinine
+尿酸値	Urate
+血糖値	Glucose
+空腹時血糖	Glucose
+白血球数	WBC # Bld
+赤血球数	RBC # Bld
+血小板数	Platelet count
+ヘマトクリット	HCT Fr Sg Auto
+# 日本語 was the weakest language in the 154-term hunt (13 of 20 missed): the
+# katakana forms and the short kanji names a 健康診断 prints are absent from the
+# machine-derived ja.tsv, which carries LOINC's formal translations.
+白血球	WBC # Bld
+白血球数	WBC # Bld
+赤血球	RBC # Bld
+赤血球数	RBC # Bld
+血小板	Platelet count
+総蛋白	Protein
+アルブミン	Albumin
+尿素窒素	Urea nitrogen
+ナトリウム	Sodium
+カリウム	Potassium
+カルシウム	Calcium
+クロール	Chloride
+マグネシウム	Magnesium
+糖化ヘモグロビン	HbA1c
+ヘモグロビンA1c	HbA1c
+コレステロール	Cholesterol
+尿蛋白	Prot Ur Ql
+尿糖	Glucose Ur-mCnc
+収縮期血圧	Systolic blood pressure
+拡張期血圧	Diastolic blood pressure
+# NOTE: 血圧 / "blood pressure" on its own is deliberately absent. It names a
+# panel, not one observation, and the index answers it with the diastolic code
+# — a confident wrong answer. An honest `unresolved` is the better output.
+
+# ══ Deliberate non-answers ════════════════════════════════════════════════
+# Target `!unresolved` means: never answer this term. These name a PANEL or a
+# category, not one observation, so any single code is a wrong answer. Measured
+# before blocking: "blood pressure" matched 183 index rows and the commonness
+# prior returned 8462-4 — the DIASTOLIC code — so a systolic reading filed
+# under it lands in the wrong series. Callers must ask which measurement is
+# meant. (Terms that legitimately map to a panel/set code are NOT listed here:
+# 血压 → 18684-1 "Blood pressure Set" is a panel code for a panel term.)
+blood pressure	!unresolved
+BP	!unresolved
+lipid panel	!unresolved
+血脂	!unresolved
+
+# Specimen-prefixed Chinese, which is how a real report prints them. The index
+# carries the bare noun (肌酐, 尿酸, 总胆固醇) because that is the alias shape
+# the lexicon was built from; a printed 中文 panel writes 血清肌酐 / 尿白细胞.
+# Two of these did not merely miss — they resolved CONFIDENTLY WRONG, which is
+# the failure mode this project scores as worse than silence:
+#   血清肌酐  -> 44760-7 MELD score          (its long name contains "serum creatinine")
+#   血清白蛋白 -> chicken serum albumin nGal d 5  (an allergen panel entry)
+# Found by resolving the terms printed in mirobody/test_engine_coverage.py's
+# newest cases, which were lifted verbatim off a 2025 physical report.
+血清肌酐	Creatinine
+血清尿酸	Urate
+血清总胆固醇	Cholesterol
+血清甘油三酯	Triglyceride
+血清葡萄糖	Glucose
+全血葡萄糖	Glucose
+血清白蛋白	Albumin
+血清钾	Potassium
+血清钠	Sodium
+血清谷丙转氨酶	Alanine aminotransferase
+血清谷草转氨酶	Aspartate aminotransferase
+血清总胆红素	Bilirubin
+尿白细胞	Leukocyte esterase
+尿比重	Specific gravity of Urine
+# CBC full names as a 中文 report prints them; the ABBREVIATION already
+# resolved (MCV -> 30428-7), the spelled-out Chinese did not. Same shape as the
+# 血清 rows above, found in the same 9-page scanned report.
+平均红细胞体积	MCV
+平均血红蛋白含量	MCH
+平均血红蛋白浓度	MCHC
+超敏C反应蛋白	hs-CRP

@@ -4,6 +4,8 @@ Temporary file management service
 Responsible for creating, deleting and other operations on temporary files
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import tempfile
@@ -11,8 +13,14 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import UploadFile
+# `fastapi` lives in the [server] extra, but file parsing is advertised engine
+# functionality — a bare `pip install mirobody` must import this module. Every
+# use below is an annotation, so PEP 563 (the __future__ import) keeps them as
+# strings and the real symbol is only needed by type checkers.
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from fastapi import UploadFile
 from mirobody.utils.i18n import t
 from mirobody.utils.req_ctx import get_req_ctx
 
@@ -135,18 +143,3 @@ class TempFileManager:
             logging.error(f"Failed to delete temporary file: {temp_file_path}, error: {str(e)}", stack_info=True)
             return False
 
-    @staticmethod
-    def cleanup_temp_files(temp_file_paths: list[str]) -> dict[str, bool]:
-        """
-        Batch cleanup temporary files
-
-        Args:
-            temp_file_paths: List of temporary file paths
-
-        Returns:
-            dict[str, bool]: Deletion result for each file
-        """
-        results = {}
-        for temp_file_path in temp_file_paths:
-            results[temp_file_path] = TempFileManager.cleanup_temp_file(temp_file_path)
-        return results

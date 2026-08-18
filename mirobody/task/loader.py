@@ -17,6 +17,8 @@ import importlib.util
 import logging
 import os
 
+from ..utils.plugin_dirs import import_plugin_module, resolve_plugin_dir
+
 #-----------------------------------------------------------------------------
 
 _BUILTIN_DIR = __package__  # "mirobody.task"
@@ -41,23 +43,13 @@ def _load_tasks_from_directory(dir: str, skip: set[str] | None = None) -> None:
     if not target:
         return
 
-    target = target.removeprefix(os.getcwd()).removeprefix(os.sep).strip()
+    # Same resolution as MCP tools and chat agents — see utils/plugin_dirs.py
+    # for why the path-string-to-module-name rule this replaces was unsound.
+    target, module_prefix = resolve_plugin_dir(target)
+
     if not target:
+        logging.warning(f"No task directory found at {dir!r}")
         return
-
-    module_prefix = target.replace(os.path.sep, ".")
-
-    if not os.path.isdir(target):
-        try:
-            spec = importlib.util.find_spec(module_prefix)
-        except Exception:
-            spec = None
-
-        if not spec or not spec.origin:
-            logging.warning(f"No task found at {module_prefix}")
-            return
-
-        target = os.path.dirname(spec.origin)
 
     try:
         entries = os.scandir(target)
@@ -70,18 +62,18 @@ def _load_tasks_from_directory(dir: str, skip: set[str] | None = None) -> None:
     for entry in entries:
         if entry.is_dir() or \
            not entry.name.lower().endswith(".py") or \
-           entry.name.startswith("_"):
+           entry.name.startswith("_") or \
+           entry.name.startswith("test_"):
             continue
 
         stem = entry.name[:-3]
         if skip and stem in skip:
             continue
 
-        module_name = f"{module_prefix}.{stem}"
         try:
-            importlib.import_module(module_name)
+            module_name, _ = import_plugin_module(target, module_prefix, entry.name)
             logging.info(f"Loaded task module: {module_name}")
         except Exception as e:
-            logging.warning(f"Error importing task module {module_name}: {e}")
+            logging.warning(f"Error importing task module {entry.name} from {target}: {e}")
 
 #-----------------------------------------------------------------------------

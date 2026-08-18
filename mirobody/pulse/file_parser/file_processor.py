@@ -4,15 +4,22 @@ File processor service
 Integrates various atomic services to provide complete file processing functionality
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any, Callable, Dict, Optional
 
-from fastapi import UploadFile
+# `fastapi` lives in the [server] extra, but file parsing is advertised engine
+# functionality — a bare `pip install mirobody` must import this module. Every
+# use below is an annotation, so PEP 563 (the __future__ import) keeps them as
+# strings and the real symbol is only needed by type checkers.
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from fastapi import UploadFile
 from mirobody.utils.i18n import t
 from mirobody.utils.req_ctx import get_req_ctx
 
-from mirobody.pulse.file_parser.services.compressed_file_processor import CompressedFileProcessor
 from mirobody.pulse.file_parser.services.content_extractor import ContentExtractor
 from mirobody.pulse.file_parser.services.database_services import FileParserDatabaseService
 from mirobody.pulse.file_parser.services.file_uploader import FileUploader
@@ -45,9 +52,7 @@ class FileProcessor:
         self.uploader = FileUploader()
         self.temp_manager = TempFileManager()
         self.content_extractor = ContentExtractor()
-        self.db_service = FileParserDatabaseService()
         self.indicator_extractor = IndicatorExtractor()
-        self.compressed_processor = CompressedFileProcessor()
         self.abstract_extractor = FileAbstractExtractor()
         
         # Excel processor is optional - use provided or get from global config
@@ -62,7 +67,6 @@ class FileProcessor:
             uploader=self.uploader,
             temp_manager=self.temp_manager,
             content_extractor=self.content_extractor,
-            db_service=self.db_service,
             indicator_extractor=self.indicator_extractor,
             abstract_extractor=self.abstract_extractor,
             excel_processor=self.excel_processor,
@@ -125,7 +129,7 @@ class FileProcessor:
                 query_user_id=query_user_id,
                 progress_callback=progress_callback,
                 file_key=file_key,
-                    skip_upload_oss=skip_upload_oss,
+                skip_upload_oss=skip_upload_oss,
                 original_filename=file.filename
             )
 
@@ -154,7 +158,3 @@ class FileProcessor:
                 "message_id": message_id,
             }
 
-    async def delete_health_report(self, user_id: int, report_id: int) -> bool:
-        """Delete health report"""
-        return await self.db_service.delete_health_report(user_id, report_id)
-            

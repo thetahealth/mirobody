@@ -9,7 +9,6 @@ async def add_or_get_user(
     email           : str,
     name            : str | None = None,
     apple_subject   : str | None = None,
-    wechat_openid   : str | None = None,
 ) -> tuple[
     int,        # User ID.
     str | None  # Error message.
@@ -44,13 +43,6 @@ async def add_or_get_user(
                         )
                         await conn.commit()
 
-                    if wechat_openid:
-                        await cur.execute(
-                            "UPDATE health_app_user SET wechat_openid=%s WHERE id=%s;",
-                            [wechat_openid, user_id]
-                        )
-                        await conn.commit()
-
                     # Return existing user ID.
                     return user_id, None
 
@@ -60,9 +52,9 @@ async def add_or_get_user(
                     apple_subject = None
 
                 await cur.execute(
-                    "INSERT INTO health_app_user (is_del,email,name,apple_sub,wechat_openid)"
-                    " VALUES (FALSE,%s,%s,%s,%s) RETURNING id;",
-                    [lower_email, name, apple_subject, wechat_openid]
+                    "INSERT INTO health_app_user (is_del,email,name,apple_sub)"
+                    " VALUES (FALSE,%s,%s,%s) RETURNING id;",
+                    [lower_email, name, apple_subject]
                 )
                 await conn.commit()
 
@@ -73,7 +65,7 @@ async def add_or_get_user(
 
     except Exception as e:
         logging.error(str(e), extra={
-            "email": email, "apple": apple_subject, "wechat_openid": wechat_openid
+            "email": email, "apple": apple_subject
         })
 
         return 0, str(e)
@@ -113,42 +105,6 @@ async def get_user_via_apple_subject(
 
     except Exception as e:
         logging.error(str(e), extra={"apple": apple_subject})
-
-        return 0, "", str(e)
-
-#-----------------------------------------------------------------------------
-
-async def get_user_via_wechat_openid(
-    db_pool         : AsyncConnectionPool,
-    wechat_openid   : str
-) -> tuple[
-    int,        # User ID.
-    str,        # Email.
-    str | None  # Error message.
-]:
-    if not wechat_openid:
-        return 0, "", "Invalid WeChat openid."
-
-    if not db_pool:
-        return 0, "", "Invalid database connection."
-
-    try:
-        async with db_pool.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT id,email FROM health_app_user WHERE wechat_openid=%s AND is_del=FALSE LIMIT 1;",
-                    [wechat_openid]
-                )
-                await conn.commit()
-
-                row = await cur.fetchone()
-                if not row:
-                    return 0, "", "Not found."
-
-                return row[0], row[1], None
-
-    except Exception as e:
-        logging.error(str(e), extra={"wechat_openid": wechat_openid})
 
         return 0, "", str(e)
 
@@ -200,11 +156,18 @@ async def check_relationship(
 
         try:
             obj = json.loads(record[0])
-        except:
+        except Exception as e:
+            # A bare `except:` whose body called `str(e)` stood here — `e` was
+            # never bound, so a malformed permission row raised NameError from
+            # inside the handler instead of being logged and skipped.
             logging.error(str(e), extra={"owner_user_id": owner_user_id, "member_user_id": member_user_id, "permission": record[0]})
             continue
 
-        if not obj or not isinstance(obj):
+        # `isinstance(obj)` — one argument — stood here and raised TypeError for
+        # every row whose permission JSON parsed successfully: precisely the
+        # case where the care-circle share check was meant to SUCCEED. Sharing
+        # health data with a family member could not work.
+        if not obj or not isinstance(obj, dict):
             continue
 
         if "all" in obj and obj["all"] > 0:

@@ -6926,7 +6926,7 @@ async def resolve_many(
     routed to SNOMED ``body structure`` when the cosine of the query
     against the LOINC pick's SYSTEM-value centroid falls below
     :data:`_HYBRID_SYSTEM_GATE` (Phase 1 of the hybrid-output rollout —
-    see ``docs/health_indicator_resolving.md`` page 9). Other axes
+    see the internal resolving design note, page 9 — not published in this repo). Other axes
     stay on LOINC. No-op when the LOINC axis bundle is unavailable
     (``axis_data is None``).
     """

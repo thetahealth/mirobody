@@ -464,13 +464,19 @@ python -m mirobody.indicator embed fhir     # fhir_indicators only
 
 Processes rows in batches of 100, skipping rows where `embedding_gemini` is already set. For `fhir_indicators`, only rows with a non-NULL `llm_description` are embedded.
 
-### 2.5 Verify (optional)
+### 2.5 Inspect (optional)
 
 ```bash
-python -m mirobody.indicator test
+python -m mirobody.indicator inspect --system LOINC --code 718-7
 ```
 
-Checks `concepts.csv` against known medical codes defined in `test.py` (e.g. LOINC DXA codes, HbA1c, etc.).
+Shows the concept-graph bridges and siblings recorded for one `(SYSTEM, CODE)`
+node — the quickest way to confirm a merge produced what you expected.
+
+(There was a `test` subcommand documented here that does not exist: running it
+exits with `invalid choice: 'test'`. The resolver's actual regression gate is
+`pytest mirobody/test_engine_coverage.py`, the 98-case benchmark the README
+headline number comes from.)
 
 ### 2.6 All-in-one
 
@@ -479,8 +485,34 @@ python -m mirobody.indicator siblings [--nhsa-catalog ~/ref/medicine_data.json]
 python -m mirobody.indicator bridge
 python -m mirobody.indicator merge
 python -m mirobody.indicator embed
-python -m mirobody.indicator test
 ```
+
+> **`benchmarks/` is not in this repository.** Several docstrings in this
+> package reference scripts under `benchmarks/` (`build_loinc_bundle.py`,
+> `run_resolve.py`, `mine_phase2.py`, …). That is a maintainer-side working
+> directory and was never tracked here. Everything required to *use* the
+> shipped bundles is present; the scripts that mint them from raw LOINC/UMLS
+> releases are not, since those releases are licensed per user — see
+> `LICENSE-3RD-PARTY`.
+
+## Other build steps
+
+These produce the shipped bundles and were undocumented here despite being
+required to regenerate `mirobody/res/`. One line each; `--help` carries the
+full contract.
+
+| Command | Produces |
+|---------|----------|
+| `loinc-alias` | `fhir_alias_index.pkl` — multilingual lexical alias → corpus-row inverted index |
+| `loinc-lexicon` | `aliases/{lang}.tsv` in the bundle — per-language src → canonical-EN mapping |
+| `loinc-skip` | `fhir_loinc_skip.npy` — row-aligned mask of LOINC codes resolve must exclude |
+| `loinc-rank` | `fhir_loinc_rank_bonus.npy` — cosine bonus from LOINC's COMMON_TEST_RANK |
+| `loinc-axis-vocab` | `res/loinc_axes/<AXIS>.tsv` — per-axis LOINC Part vocabularies |
+| `loinc-axis-emb` | `res/loinc_axes/<AXIS>.npy` — embeddings of the above |
+| `analyte-digit` | `analyte_digit.tsv` in the bundle — chemical name → numeric-subtype aliases |
+| `dose-index` | `fhir_dose_index.npz` — (value, UCUM unit) pairs mined from display names |
+| `snomed-axis-aliases` | `res/snomed_axes/aliases/{lang}.tsv` — SNOMED aliases from UMLS MRCONSO |
+| `taxonomy` | concept taxonomy tables |
 
 ## Output summary
 

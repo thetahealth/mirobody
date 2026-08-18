@@ -101,71 +101,9 @@ def parse_date(date_str: str, default: Optional[datetime] = None) -> Optional[da
     return default
 
 
-def parse_iso_datetime(dt_str: str) -> Optional[datetime]:
-    """
-    Parse ISO format datetime string
-    
-    Args:
-        dt_str: ISO format datetime string
-        
-    Returns:
-        Parsed naive datetime or None
-    """
-    if not dt_str:
-        return None
-    
-    try:
-        # Handle Z suffix
-        if dt_str.endswith("Z"):
-            dt_str = dt_str[:-1] + "+00:00"
-        parsed = datetime.fromisoformat(dt_str)
-        return parsed.replace(tzinfo=None)
-    except ValueError:
-        pass
-    
-    # Fallback: try common ISO formats
-    try:
-        clean_time = dt_str.replace("Z", "").replace("+00:00", "")
-        if "T" in clean_time:
-            return datetime.strptime(clean_time.split(".")[0], "%Y-%m-%dT%H:%M:%S")
-        else:
-            return datetime.strptime(clean_time, "%Y-%m-%d")
-    except ValueError:
-        return None
-
-
 def get_utc_now() -> datetime:
     """Get current UTC time as naive datetime"""
     return datetime.now(ZoneInfo("UTC")).replace(tzinfo=None)
-
-
-def db_error_handler(
-    default_return: Any = None,
-    log_function: str = "",
-    error_message: str = "Database operation failed"
-) -> Callable:
-    """
-    Decorator for handling database errors with consistent logging
-    
-    Args:
-        default_return: Value to return on error
-        log_function: Function name for logging
-        error_message: Error message prefix
-        
-    Returns:
-        Decorated function
-    """
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
-        @functools.wraps(func)
-        async def wrapper(*args, **kwargs) -> T:
-            func_name = log_function or func.__name__
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                logging.error(f"{error_message}: {str(e)}", stack_info=True)
-                return default_return
-        return wrapper
-    return decorator
 
 
 def extract_first_record(result: Optional[List]) -> Optional[Dict]:
@@ -180,21 +118,6 @@ def extract_first_record(result: Optional[List]) -> Optional[Dict]:
     """
     if result and len(result) > 0:
         return result[0]
-    return None
-
-
-def format_datetime_iso(dt: Optional[datetime]) -> Optional[str]:
-    """
-    Format datetime to ISO string
-    
-    Args:
-        dt: Datetime object
-        
-    Returns:
-        ISO format string or None
-    """
-    if dt and isinstance(dt, datetime):
-        return dt.isoformat()
     return None
 
 

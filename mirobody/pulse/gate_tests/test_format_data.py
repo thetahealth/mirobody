@@ -1,8 +1,13 @@
-"""
-Parametrized tests for Provider.format_data()
+"""Snapshot acceptance tests for `Provider.format_data()`.
 
-Uses FormatTestRunner to load fixtures from tests/fixtures/ and validate
-each provider's format_data output against expected rules + snapshots.
+The contract every data source converges on: raw vendor payload in,
+`StandardPulseData` out. 21 recorded fixtures across Apple Health, Garmin,
+Oura and Whoop, checked against expectation rules plus a stored snapshot.
+
+Run: `pytest mirobody/pulse/gate_tests`, or with `--update-snapshots` after a
+deliberate change to format_data output. (The fixtures path is
+`gate_tests/fixtures/`; this docstring used to say `tests/fixtures/`, a
+top-level directory that has never existed in this repo.)
 """
 
 import pytest

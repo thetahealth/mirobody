@@ -1,11 +1,30 @@
-"""
-LLM provider configuration — mirrors the PostgreSQLConfig / RedisConfig pattern.
+"""LLM provider configuration, as part of the `Config` object family.
 
-Usage::
+Mirrors PostgreSQLConfig / RedisConfig: values come from the loaded YAML config,
+and the object hands back a ready client.
 
     cfg = global_config()
     llm = cfg.get_llm(LLMProvider.OPENAI)
     client = llm.get_async_client()
+
+NOT the same thing as `mirobody/utils/llm/config.py`, despite the near-identical
+path. The two coexist and overlap on openai / openrouter / dashscope /
+volcengine / gemini:
+
+  utils/config/llm.py   (this file)  `LLMConfig`  — YAML-driven, 11 providers,
+                                     reached through `global_config().get_llm()`.
+                                     Used by `utils/embedding.py`.
+  utils/llm/config.py                `AIConfig`   — a hardcoded provider table
+                                     (base_url, default model, priority order)
+                                     paired with `utils/llm/clients.py`'s
+                                     `client_manager`. Used by everything under
+                                     `utils/llm/` and by the file-processing path.
+
+Both end up constructing an `AsyncOpenAI` with a base_url and a key from
+`safe_read_cfg`, so this is genuine duplication — but the provider sets and
+construction paths differ, so merging them is a behaviour change rather than a
+tidy-up. Tracked in `docs/roadmap.md`; do not merge them casually, there are no
+live-model tests to catch a regression.
 """
 
 from __future__ import annotations

@@ -18,8 +18,8 @@ from .models import (
     FLUTTER_TO_RECORD_TYPE_MAPPING,
     FlutterHealthTypeEnum,
 )
-from ..core.aggregate_indicator.naming import build_indicator_name
-from ..core.aggregate_indicator.database_service import AggregateDatabaseService
+from ..aggregate.naming import build_indicator_name
+from ..aggregate.database_service import AggregateDatabaseService
 
 # Mapping from statistics payload fields to aggregation method keys
 STAT_FIELD_TO_METHOD = {

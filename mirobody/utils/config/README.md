@@ -126,95 +126,6 @@ Notes:
 - `PPT`/`PPTX` always read as extracted text (no provider accepts them as a file block).
 - Advanced: a raw `profile: { … }` dict of [`ModelProfile`](https://reference.langchain.com/python/langchain_core/language_models/#langchain_core.language_models.ModelProfile) fields is also honored and overrides the friendly flags.
 
-#### MixAgent Configuration
-
-MixAgent uses a two-phase model fusion architecture. Phase 1 (Orchestrator) uses providers with `@orchestrator` suffix for tool orchestration and data collection, while Phase 2 (Responder) uses providers with `@responder` suffix for response generation.
-
-**Important**:
-
-- Providers with `@responder` and `@orchestrator` suffixes are internal-only and will NOT appear in frontend APIs (`/api/providers`, `/api/models`).
-- At least one `@orchestrator` provider is required for Phase 1
-- At least one `@responder` provider is required for Phase 2
-
-##### Nested Configuration Format (Recommended)
-
-Group multiple providers under a single frontend-visible name:
-
-```yaml
-PROVIDERS_MIX:
-  claude|gemini:  # Frontend display name (e.g., "claude|gemini" shown in UI)
-    # Phase 1 (Orchestrator) - Tool orchestration and data collection
-    claude-sonnet@orchestrator:
-      llm_type: openai
-      api_key: OPENROUTER_API_KEY
-      base_url: https://openrouter.ai/api/v1
-      model: anthropic/claude-sonnet-4.6
-      temperature: 0.1
-
-    # Phase 2 (Responder) - Response generation with tool context
-    gemini-3-pro@responder:
-      llm_type: google-genai
-      api_key: GOOGLE_API_KEY
-      model: gemini-3.1-pro-preview
-      temperature: 1.0
-      response_with_tools: true  # Used when Phase 1 made tool calls
-
-    # Phase 2 (Responder) - Quick responses without tool context
-    gemini-3-flash@responder:
-      llm_type: google-genai
-      api_key: GOOGLE_API_KEY
-      model: gemini-3.1-flash-lite-preview
-      temperature: 1.0
-      response_with_tools: false  # Used when Phase 1 had no tool calls
-```
-
-##### Flat Configuration Format (Legacy)
-
-For backward compatibility, flat format is also supported:
-
-```yaml
-PROVIDERS_MIX:
-  claude-sonnet@orchestrator:
-    llm_type: openai
-    api_key: OPENROUTER_API_KEY
-    base_url: https://openrouter.ai/api/v1
-    model: anthropic/claude-sonnet-4.6
-    temperature: 0.1
-
-  gemini-pro@responder:
-    llm_type: google-genai
-    api_key: GOOGLE_API_KEY
-    model: gemini-3.1-pro-preview
-    temperature: 1.0
-    response_with_tools: true
-```
-
-##### Response Selection Logic
-
-The `response_with_tools` field determines which responder to use:
-
-| `response_with_tools` | Usage                                                               |
-| ----------------------- | ------------------------------------------------------------------- |
-| `true`                | Used when Phase 1 made tool calls (complex queries with data)       |
-| `false`               | Used when Phase 1 had no tool calls (simple queries, quick answers) |
-| *omitted* or `null` | **Flexible mode** - Used for both cases (single responder)    |
-
-##### Example: Single Responder for All Cases
-
-```yaml
-PROVIDERS_MIX:
-  claude|gemini:
-    claude-sonnet@orchestrator:
-      llm_type: openai
-      model: anthropic/claude-sonnet-4.6
-
-    gemini-3-pro@responder:  # No response_with_tools field
-      llm_type: google-genai
-      model: gemini-3.1-pro-preview
-      temperature: 1.0
-      # response_with_tools omitted - used for all cases
-```
-
 ### 2. Tools (`ALLOWED_TOOLS_{NAME}` / `DISALLOWED_TOOLS_{NAME}`)
 
 Control which tools an agent can access using whitelist or blacklist configurations.
@@ -262,8 +173,19 @@ Path to Jinja2 template files used for system prompts.
 
 ```yaml
 PROMPTS_DEEP:
-- mirobody/pub/agents/deep/prompts/default.jinja
+- agent/prompts/deep.jinja
 ```
+
+Paths are resolved twice: first as `os.path.isfile(path)` relative to the
+working directory, then relative to the installed `mirobody` package. So a
+**package-relative** path like the one above works both from a source checkout
+and from a `pip install` — which is why `config.yaml` uses that form — while
+your own templates outside the package should use an absolute path, or one
+relative to wherever you launch the server.
+
+(This section documented `mirobody/agent/deep/prompts/default.jinja` and
+`simple.jinja`. Neither the directory nor the files exist; the shipped
+templates are under `agent/prompts/`.)
 
 #### Path with Suffix Format
 
@@ -271,72 +193,26 @@ You can specify a custom key name using `path@suffix` format:
 
 ```yaml
 PROMPTS_DEEP:
-- mirobody/pub/agents/deep/prompts/default.jinja@main
-- mirobody/pub/agents/deep/prompts/simple.jinja@simple
+- agent/prompts/deep.jinja@main
+- /path/to/your/own.jinja@simple
 ```
 
 This will create `prompt_templates` with keys `main` and `simple` instead of deriving from file names.
 
-#### MixAgent Prompts Configuration
+## 🧪 Code Execution (QuickJS)
 
-MixAgent requires two prompts with specific keys:
+DeepAgent computes with an **in-process JS/TS interpreter** —
+[langchain-quickjs](https://pypi.org/project/langchain-quickjs/)'
+`CodeInterpreterMiddleware`, which adds a persistent `eval` REPL tool. No API
+key, no network, no external sandbox service: it replaced the former E2B cloud
+sandbox (every `E2B_*` key is gone from the codebase).
 
-- `@orchestrator`: Phase 1 prompt for tool orchestration
-- `@responder`: Phase 2 prompt for response generation
-
-```yaml
-PROMPTS_MIX:
-  - pub/agents/mix/prompts/orchestrator.jinja@orchestrator
-  - pub/agents/mix/prompts/responder.jinja@responder
-```
-
-**Important**: Both prompts are required for MixAgent to function properly.
-
-## 🧪 Code Execution (Sandbox)
-
-Mirobody supports running code in isolated sandbox environments for data analysis, computation, and file processing. This is powered by [E2B](https://e2b.dev) cloud sandboxes.
-
-### How It Works
-
-When `E2B_API_KEY` is configured, the `execute` tool becomes available to agents. The architecture follows the [deepagents](https://github.com/langchain-ai/deepagents) `SandboxBackendProtocol` pattern:
-
-- **E2BSandboxBackend** implements `BaseSandbox` — all file operations (read/write/edit/grep/glob) and code execution share the same isolated E2B sandbox
-- **PostgresBackend** delegates `execute()` calls to the E2B sandbox while handling workspace file operations via PostgreSQL
-- Agents use `write_file` to create files in the sandbox, then `execute` to run code, then `read_file` to retrieve results
-
-### Configuration
-
-| Key           | Description                                  | Required |
-| ------------- | -------------------------------------------- | -------- |
-| `E2B_API_KEY` | API key from [e2b.dev](https://e2b.dev)      | Yes      |
-
-Set in your `config.{env}.yaml` or as an environment variable:
-
-```yaml
-E2B_API_KEY: "e2b_..."
-```
-
-Or via environment variable:
-
-```bash
-export E2B_API_KEY="e2b_..."
-```
-
-### Usage Examples
-
-Once configured, agents can execute shell commands in the sandbox:
-
-- `execute(command="python3 -c 'print(2+2)'")` — inline Python
-- `write_file("/script.py", "import pandas as pd; ...")` then `execute(command="python3 /script.py")` — multi-step
-- `execute(command="pip install scikit-learn && python3 analysis.py")` — install packages + run
-
-### Disabling Code Execution
-
-To disable code execution, simply leave `E2B_API_KEY` empty (default). The `execute` tool will return a configuration error when called. You can also explicitly block it:
+Nothing to configure — it is on whenever the `[agents]` extra is installed. To
+turn it off, block the tool:
 
 ```yaml
 DISALLOWED_TOOLS_DEEP:
-  - execute
+  - eval
 ```
 
 ## 🔒 Security
@@ -567,40 +443,17 @@ response = client.converse(
 
 ## 🧪 Testing
 
-Mirobody includes an integration test suite covering file operations, code execution, MCP protocol, and chat API.
-
-### Prerequisites
-
-- A running Mirobody server (local or Docker)
-- Demo account configured (`EMAIL_PREDEFINE_CODES` in config)
-- Python test dependencies: `pip install pytest httpx`
-
-### Environment Variables
-
-| Variable       | Description                          | Default                    |
-| -------------- | ------------------------------------ | -------------------------- |
-| `MIROBODY_URL` | Server URL                           | `http://localhost:18080`   |
-| `DEMO_EMAIL`   | Demo account email                   | `demo1@mirobody.ai`       |
-| `DEMO_CODE`    | Demo verification code               | `777777`                   |
-| `E2B_API_KEY`  | E2B sandbox API key (for execute)    | *(empty — execute tests skipped)* |
-
-### Running Tests
+Tests sit beside the code they cover; there is no separate `tests/` tree.
+Bare `pytest` from the repo root is the whole suite — 295 tests in ~8s, no
+database, no network, no API key:
 
 ```bash
-# All tests
-pytest tests/ -v
-
-# Quick tests only (skip slow LLM/E2B tests)
-pytest tests/ -v -m "not slow"
-
-# By category
-pytest tests/ -v -m mcp       # MCP tool tests (file ops, execute discovery)
-pytest tests/ -v -m e2b       # E2B sandbox tests (requires E2B_API_KEY)
-pytest tests/ -v -m chat      # Chat API tests (requires LLM provider keys)
-
-# Specific test file
-pytest tests/test_execute_tool.py -v   # File operations & execute tool
+pip install -e '.[test]'
+pytest
 ```
+
+Layout, markers, snapshot regeneration and the release gates:
+**[docs/testing.md](../../../docs/testing.md)**.
 
 ### Test Categories
 

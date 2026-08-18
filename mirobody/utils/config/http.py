@@ -25,12 +25,17 @@ class HttpConfig:
         else:
             self.uri_prefix = ""
 
+        # The web client's static assets live at repo-root `frontend/` — OUTSIDE
+        # the Python package, so the wheel ships the engine, not 8MB of
+        # JavaScript. Resolution: HTTP_ROOT from config, else `frontend/`
+        # relative to the working directory (the Docker/source layout). When
+        # neither exists the server runs API+MCP only and says so at startup —
+        # a pip-installed server pairs with the hosted client at mirobody.ai.
         self.htdoc = htdoc.strip() if htdoc else ""
-        if self.htdoc:
-            if not os.path.exists(self.htdoc):
-                self.htdoc = ""
-        if not self.htdoc:
-            self.htdoc = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "pub", "htdoc")
+        if self.htdoc and not os.path.exists(self.htdoc):
+            self.htdoc = ""
+        if not self.htdoc and os.path.isdir("frontend"):
+            self.htdoc = "frontend"
 
         #-------------------------------------------------
 
