@@ -19,10 +19,11 @@ notes to PyPI under a filename that told open-source readers to ignore it.
 
 | | Guide | For |
 | --- | --- | --- |
+| ① | [provider-setup.md](provider-setup.md) | turning ON Garmin / Oura / Whoop — credentials, callback URLs, boot-log truth |
 | ① | [provider-guide.md](provider-guide.md) | writing a data provider end to end — the long one |
 | ① | [file-processing.md](file-processing.md) | the file-parsing pipeline (8 formats, LLM extraction) |
 | ① | [apple-health.md](apple-health.md) | Apple Health export + CDA import |
-| ① | [oura-provider-design.md](oura-provider-design.md) | one provider's design, kept as a worked example |
+| ③ | [frontend-shipping.md](frontend-shipping.md) | how the built web client ships and gets served |
 | | [testing.md](testing.md) | test layout, markers, snapshots, release gates |
 | | [aggregation-tests.md](aggregation-tests.md) | the daily-rollup test suite in detail |
 
@@ -39,7 +40,7 @@ Short, and about *that package only*:
 - [`mirobody/agent/`](../mirobody/agent/README.md) — ③ Answer
 - [`mirobody/agent/tools/`](../mirobody/agent/tools/README.md) — the MCP tool surface
 - [`mirobody/agent/resources/`](../mirobody/agent/resources/README.md) — ChatGPT Apps widgets
-- [`mirobody/pulse/core/`](../mirobody/pulse/core/README.md) — health indicators & unit conversion
+- [`mirobody/pulse/standardize/`](../mirobody/pulse/standardize/README.md) — health indicators, units & standardization
 - [`mirobody/schema/`](../mirobody/schema/README.md) — database schema, contract and bootstrap
 - [`mirobody/pulse/providers/`](../mirobody/pulse/providers/README.md) — provider directory layout
 - [`mirobody/utils/config/`](../mirobody/utils/config/README.md) — configuration

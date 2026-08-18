@@ -199,51 +199,20 @@ PROMPTS_DEEP:
 
 This will create `prompt_templates` with keys `main` and `simple` instead of deriving from file names.
 
-## 🧪 Code Execution (Sandbox)
+## 🧪 Code Execution (QuickJS)
 
-Mirobody supports running code in isolated sandbox environments for data analysis, computation, and file processing. This is powered by [E2B](https://e2b.dev) cloud sandboxes.
+DeepAgent computes with an **in-process JS/TS interpreter** —
+[langchain-quickjs](https://pypi.org/project/langchain-quickjs/)'
+`CodeInterpreterMiddleware`, which adds a persistent `eval` REPL tool. No API
+key, no network, no external sandbox service: it replaced the former E2B cloud
+sandbox (every `E2B_*` key is gone from the codebase).
 
-### How It Works
-
-When `E2B_API_KEY` is configured, the `execute` tool becomes available to agents. The architecture follows the [deepagents](https://github.com/langchain-ai/deepagents) `SandboxBackendProtocol` pattern:
-
-- **E2BSandboxBackend** implements `BaseSandbox` — all file operations (read/write/edit/grep/glob) and code execution share the same isolated E2B sandbox
-- **PostgresBackend** delegates `execute()` calls to the E2B sandbox while handling workspace file operations via PostgreSQL
-- Agents use `write_file` to create files in the sandbox, then `execute` to run code, then `read_file` to retrieve results
-
-### Configuration
-
-| Key           | Description                                  | Required |
-| ------------- | -------------------------------------------- | -------- |
-| `E2B_API_KEY` | API key from [e2b.dev](https://e2b.dev)      | Yes      |
-
-Set in your `config.{env}.yaml` or as an environment variable:
-
-```yaml
-E2B_API_KEY: "e2b_..."
-```
-
-Or via environment variable:
-
-```bash
-export E2B_API_KEY="e2b_..."
-```
-
-### Usage Examples
-
-Once configured, agents can execute shell commands in the sandbox:
-
-- `execute(command="python3 -c 'print(2+2)'")` — inline Python
-- `write_file("/script.py", "import pandas as pd; ...")` then `execute(command="python3 /script.py")` — multi-step
-- `execute(command="pip install scikit-learn && python3 analysis.py")` — install packages + run
-
-### Disabling Code Execution
-
-To disable code execution, simply leave `E2B_API_KEY` empty (default). The `execute` tool will return a configuration error when called. You can also explicitly block it:
+Nothing to configure — it is on whenever the `[agents]` extra is installed. To
+turn it off, block the tool:
 
 ```yaml
 DISALLOWED_TOOLS_DEEP:
-  - execute
+  - eval
 ```
 
 ## 🔒 Security
@@ -474,40 +443,17 @@ response = client.converse(
 
 ## 🧪 Testing
 
-Mirobody includes an integration test suite covering file operations, code execution, MCP protocol, and chat API.
-
-### Prerequisites
-
-- A running Mirobody server (local or Docker)
-- Demo account configured (`EMAIL_PREDEFINE_CODES` in config)
-- Python test dependencies: `pip install pytest httpx`
-
-### Environment Variables
-
-| Variable       | Description                          | Default                    |
-| -------------- | ------------------------------------ | -------------------------- |
-| `MIROBODY_URL` | Server URL                           | `http://localhost:18080`   |
-| `DEMO_EMAIL`   | Demo account email                   | `demo1@mirobody.ai`       |
-| `DEMO_CODE`    | Demo verification code               | `777777`                   |
-| `E2B_API_KEY`  | E2B sandbox API key (for execute)    | *(empty — execute tests skipped)* |
-
-### Running Tests
+Tests sit beside the code they cover; there is no separate `tests/` tree.
+Bare `pytest` from the repo root is the whole suite — 295 tests in ~8s, no
+database, no network, no API key:
 
 ```bash
-# All tests
-pytest tests/ -v
-
-# Quick tests only (skip slow LLM/E2B tests)
-pytest tests/ -v -m "not slow"
-
-# By category
-pytest tests/ -v -m mcp       # MCP tool tests (file ops, execute discovery)
-pytest tests/ -v -m e2b       # E2B sandbox tests (requires E2B_API_KEY)
-pytest tests/ -v -m chat      # Chat API tests (requires LLM provider keys)
-
-# Specific test file
-pytest tests/test_execute_tool.py -v   # File operations & execute tool
+pip install -e '.[test]'
+pytest
 ```
+
+Layout, markers, snapshot regeneration and the release gates:
+**[docs/testing.md](../../../docs/testing.md)**.
 
 ### Test Categories
 

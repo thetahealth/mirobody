@@ -1,10 +1,16 @@
 # Shipping & Serving the Frontend
 
-How the built web client should be distributed with this package and served at
+How the built web client is distributed with this package and served at
 runtime. Research done 2026-08-17 against comparable open-source Python servers
-that ship a SPA; includes the concrete gaps/bugs the current setup has. The
-frontend source lives in a separate repo (`mirobody-web-rebuild`); this repo
-only ever receives its **build output** (`npm run build:opensource` → `dist/`).
+that ship a SPA; includes the concrete gaps/bugs the current setup has.
+
+**The web client ships as a fixed, pre-built bundle** — `frontend/` holds build
+output, not source, and this repo never receives the client's source. That is
+deliberate: the backend's **HTTP API + MCP surface is the contract**, and the
+bundled client is one reference consumer of it. If you want a different UI,
+build your own frontend against the same surface — everything the bundled
+client does goes through the public endpoints documented at
+[docs.mirobody.ai](https://docs.mirobody.ai/).
 
 > **Implemented 2026-08-17** — the serving half of this document is done:
 > `htdoc.py` now uses `app.frontend()` (mounted last in `Server.start()`),
@@ -35,18 +41,17 @@ only ever receives its **build output** (`npm run build:opensource` → `dist/`)
 - `frontend/` is committed at the repo root and explicitly excluded from the
   wheel (`MANIFEST.in`: `recursive-exclude frontend *`) — `pip install
   mirobody` ships **no UI**.
-- `mirobody/server/htdoc.py` walks the directory at startup, reads **every file
-  into memory**, and registers one literal `Route` per file. No ETag/Range
-  support, restart required to pick up new files.
-- The SPA fallback is a hard-coded whitelist (`/login /mcplogin /chat /drive
-  /home /share/{share_id} /`). Any other client-side route 404s on direct
-  navigation or refresh — see “Route inventory” below for what it already
-  misses today.
-- htdoc routes are folded into `FastAPI(routes=...)` at construction, **before**
-  the `app.include_router(...)` calls in `server.py`. Starlette matches in
-  registration order, so naively replacing the whitelist with a catch-all
-  `Route("/{path:path}")` would shadow every API router registered after it.
-  Any fix must be order-independent or registered last.
+- `mirobody/server/htdoc.py` mounts the directory via
+  `app.frontend(fallback="index.html")` — served from disk per request, so a
+  synced new build is live immediately, no restart needed (verified by writing
+  a probe file and fetching it on a running server).
+- The SPA fallback is a real catch-all now, but **navigation requests only**
+  (`Accept: text/html`): an API client probing an unknown path still gets a
+  404, not the SPA shell, and backend-owned prefixes (`/api`, `/mcp`, `/oauth`,
+  …) are explicitly guarded with JSON 404s. Historical note: this used to be a
+  hard-coded whitelist (`/login /mcplogin /chat /drive /home /share /`) and
+  every route the client added after it 404'd on refresh — that maintenance
+  trap is gone.
 
 ## How comparable projects do it
 
@@ -126,12 +131,14 @@ Either way, set cache headers explicitly: `Cache-Control: no-cache` for
 
 ### Route inventory the fallback must cover
 
-Current frontend client-side routes (from `src/router/index.jsx`, 2026-08-17):
-`/`, `/welcome`, `/login`, `/mcplogin`, `/auth/wechat/callback`,
-`/share/:shareSessionId`, `/chat`, `/chat/:sessionId`, `/drive`, `/home`,
-`/developer`, `/indicator`, `/indicator/new`. The current whitelist misses
-`/welcome`, `/auth/wechat/callback`, `/chat/:sessionId`, `/developer`,
-`/indicator*` — with a real catch-all this list stops needing maintenance.
+The shipped client's client-side routes (as of the 2026-08-18 build):
+`/`, `/login`, `/mcplogin`, `/share/:shareSessionId`, `/ask`,
+`/ask/:sessionId`, `/data`, `/home`, `/developer`, plus the legacy redirects
+`/chat`, `/chat/:sessionId`, `/drive`. The fallback is a real catch-all
+(`app.frontend(fallback="index.html")`, navigation requests only), so this
+list needs no whitelist maintenance — it exists for reading, not for code. A
+custom frontend gets the same treatment for free: any non-API navigation path
+falls back to its `index.html`.
 
 ## Known gaps & bugs (recorded 2026-08-17)
 

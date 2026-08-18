@@ -506,8 +506,8 @@ appended to the agent's own prompt instead of replacing it. Behaviour verified
 against the running deployment, and pinned by
 `mirobody/agent/test_prompt_resolution.py`. The prompt-selection design question
 they exposed — that a prompt belongs to an agent and should not be a
-user-facing axis at all — is the web team's call, written up in
-`mirobody-web-rebuild/docs/superpowers/plans/2026-08-17-ui-alignment-and-capability-surfacing.md` §1.2.
+user-facing axis at all — was resolved on the client side: the shipped web
+client no longer offers a prompt picker.
 
 **One remains open:**
 

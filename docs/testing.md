@@ -2,7 +2,7 @@
 
 ```bash
 pip install -e '.[agents,test]'
-pytest                    # the whole suite — 260 tests, ~7s, no DB, no network, no API key
+pytest                    # the whole suite — 295 tests, ~8s, no DB, no network, no API key
 ```
 
 `'.[test]'` without `[agents]` is a supported smaller install: it runs the

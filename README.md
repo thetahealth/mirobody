@@ -9,8 +9,9 @@
 [![PyPI Downloads](https://img.shields.io/pepy/dt/mirobody?label=PyPI%20Downloads&color=orange)](https://pepy.tech/projects/mirobody)
 [![Benchmarks](https://img.shields.io/badge/%F0%9F%A4%97_Benchmarks-4k%2B_downloads_each-FFD21E.svg)](https://huggingface.co/healthmemoryarena)
 [![arXiv](https://img.shields.io/badge/arXiv-2604.02834-b31b1b.svg)](https://arxiv.org/abs/2604.02834)
-[![Live](https://img.shields.io/badge/Live-mirobody.ai-black)](https://mirobody.ai)
-[![Theta](https://img.shields.io/badge/Powers-Theta%20Wellness-green)](https://www.thetahealth.ai/)
+[![Docs](https://img.shields.io/badge/Docs-docs.mirobody.ai-black)](https://docs.mirobody.ai/)
+
+**[📚 Documentation](https://docs.mirobody.ai/)** · **[💬 Hosted chat — chat.mirobody.ai](https://chat.mirobody.ai/)** · **[🔌 API platform — platform.mirobody.ai](https://platform.mirobody.ai/)**
 
 *Blood tests, wearables, genomics, imaging — all fragmented, all incompatible.
 Before AI can understand your health, someone has to unify these signals into a
@@ -32,37 +33,7 @@ The engine does three things, and the codebase (and [Contributing](#-contributin
 
 ## ⚡ Try it in 60 seconds
 
-**No install** — point any MCP client (Claude Desktop, Cursor, Cherry Studio) at the hosted server and talk to a live health-data engine:
-
-```json
-{ "mcpServers": { "mirobody": { "url": "https://mcp.thetahealth.ai/mcp" } } }
-```
-
-#### Protocol: MCP **2026-07-28** — the current revision
-
-We implement the [2026-07-28 spec](https://modelcontextprotocol.io/specification/2026-07-28/), the *stateless* revision that removed the `initialize`/`initialized` handshake and `Mcp-Session-Id` outright:
-
-- **Per-request `_meta`** — each request carries its own protocol version and client capabilities, so any request can land on any instance behind a load balancer with no shared session state.
-- **`resultType` on every result** — the field that makes polymorphic results (`complete` / `input_required`) possible.
-- **`server/discover`** — optional stateless capability discovery; no handshake needed before the first real call.
-- **Deterministic `tools/list` ordering** — a reconnect doesn't reshuffle the list and invalidate your client's prompt cache.
-
-And it negotiates **down**: a client pinned to an older revision is answered in *its* revision, all the way back to `2024-11-05`, for the length of the deprecation offramp.
-
-Two of its tools need no account at all, because ② Sort is pure terminology:
-
-| Tool | What it does | Needs |
-| --- | --- | --- |
-| `resolve_indicator` | any-language indicator name → canonical LOINC | nothing — offline, no user data |
-| `normalize_unit` | free-text unit → canonical UCUM + comparability family | nothing — offline, no user data |
-| `query_health_indicators` | your own records — search, read and aggregate in **one** call; every result carries its LOINC identity | your account |
-| `get_genetic_data` | your variants by rsid | your account |
-
-`tools/list` is honest per account: the two account-bound tools are listed only
-when your account actually holds that kind of data — a client never carries the
-schema of a tool whose only possible answer is "no data".
-
-**As a library** — the engine is a pip install, and ② Sort needs nothing but the package:
+No server, no key, no network — the terminology engine is a pip install:
 
 ```bash
 pip install mirobody
@@ -74,9 +45,32 @@ from mirobody.engine import resolve
 resolve("血红蛋白").loinc   # -> '718-7'   offline: no key, no config, no network
 ```
 
-Runnable walkthroughs: [`examples/`](examples/README.md) — five scripts from offline resolution to a full-server preflight, each verified to run.
+Then self-host the full thing (see [Quick Start](#-quick-start)), sign in, and
+mint your **personal MCP URL** (web client → Settings → MCP Url). Point any MCP
+client (Claude Desktop, Cursor, Cherry Studio) at it and talk to your own
+health-data engine:
 
-**Self-hosted** — your data never leaves your machine: see [Quick Start](#-quick-start). Your own deployment serves the same MCP surface at `/mcp`.
+```json
+{ "mcpServers": { "mirobody": { "url": "http://localhost:18080/mcp/<your-personal-secret>" } } }
+```
+
+The MCP surface is small on purpose:
+
+| Tool | What it does | Needs |
+| --- | --- | --- |
+| `resolve_indicator` | any-language indicator name → canonical LOINC | nothing — offline, no user data |
+| `normalize_unit` | free-text unit → canonical UCUM + comparability family | nothing — offline, no user data |
+| `query_health_indicators` | your own records — search, read and aggregate in **one** call; every result carries its LOINC identity | your account |
+| `get_genetic_data` | your variants by rsid | your account |
+
+`tools/list` is honest per account: the two account-bound tools are listed only
+when your account actually holds that kind of data. The server speaks
+[MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/) —
+the current stateless revision (per-request `_meta`, `server/discover`,
+deterministic tool ordering) — and negotiates down to `2024-11-05` for older
+clients.
+
+Runnable walkthroughs: [`examples/`](examples/README.md) — five scripts from offline resolution to a full-server preflight, each verified to run.
 
 ---
 
@@ -103,12 +97,10 @@ Runnable walkthroughs: [`examples/`](examples/README.md) — five scripts from o
   with [CDA processing](mirobody/pulse/apple/README.md)), but they *receive*
   data; nothing in this repo can pull from HealthKit. HealthKit is only readable
   from a signed iOS app, on-device, after the user grants permission per data
-  type — there is no web OAuth flow and no server-to-server API, and Apple Health
-  export archives are not an import path here either. So a self-hosted web
-  deployment shows no "connect Apple Health" button, correctly: the missing
-  piece is an iOS client with the HealthKit entitlement (that is what
-  [Theta Wellness](https://apps.apple.com/us/app/theta-wellness/id6739960903)
-  is), and the API above is what such a client would POST to.
+  type — there is no web OAuth flow and no server-to-server API. So a
+  self-hosted web deployment shows no "connect Apple Health" button, correctly:
+  the missing piece is an iOS client with the HealthKit entitlement, and the
+  API above is what such a client would POST to.
 - **8 file formats parsed with AI** — PDF lab reports, Excel, CSV, images, audio, archives, plain text, and **genetic exports (WeGene)**; LLM-powered indicator extraction ([`pulse/file_parser/`](mirobody/pulse/file_parser/), 13k lines).
 - Ingest pipeline: staged intake → validate → normalize → daily rollups → [AI insights](mirobody/pulse/insight/) that feed back into the record — closing the loop.
 
@@ -132,7 +124,7 @@ There are **two ways to consume this layer**, and an agent for each — the diff
 | For | self-hosting the whole thing | Claude Desktop · Cursor · ChatGPT Apps · any MCP client |
 | Extras | virtual filesystem, QuickJS, Agent Skills, charts | whatever the MCP tool surface exposes — nothing hidden |
 
-- **DeepAgent** — the primary agent, on [deepagents](https://github.com/langchain-ai/deepagents) 0.7 / LangChain 1.3. Multi-provider (OpenAI, Gemini, Anthropic, OpenRouter, any OpenAI-compatible endpoint); a **PostgreSQL-backed virtual filesystem** (`/uploads`, `/library`, `/memories`, `/charts`, `/skills`) lets the model `read_file` your *original* PDF — multimodally — instead of a lossy extraction; in-process JS interpreter (QuickJS) for real computation; per-turn model-call budget with graceful stop.
+- **DeepAgent** — the primary agent, on [deepagents](https://github.com/langchain-ai/deepagents) 0.7 / LangChain 1.3. Multi-provider (OpenAI, Gemini, Anthropic, OpenRouter, any OpenAI-compatible endpoint); a **PostgreSQL-backed virtual filesystem** (`/uploads`, `/library`, `/memories`, `/skills`) lets the model `read_file` your *original* PDF — multimodally — instead of a lossy extraction; in-process JS interpreter (QuickJS) for real computation; per-turn model-call budget with graceful stop.
 - **BaseAgent** — no LangChain, on purpose. It hands the MCP server to the provider (OpenAI Responses `mcp_server`, Gemini Interactions) and streams the result. That makes it our own rehearsal of the third-party experience: **anything BaseAgent can't do unaided is something an outside MCP client can't do either.** It does not chart — the consuming client brings its own visualization.
 - **MCP server built in** ([`mcp/`](mirobody/mcp/)) — every tool doubles as an MCP tool over HTTP; works as MCP client *and* OAuth-enabled MCP server. **Agent Skills** (SKILL.md) served via deepagents' native SkillsMiddleware from [`mirobody/agent/skills/`](mirobody/agent/skills/).
 - Care-circle sharing with per-person consent:
@@ -193,10 +185,12 @@ mirobody/
 │   └── resources/           MCP UI widgets for ChatGPT Apps (see its README)
 └── server/                  HTTP lifecycle + the FastAPI routers (server/routers/)
 
-frontend/                    the built-in web client — OUTSIDE the package on
-                             purpose: wheels ship the engine, not 8MB of JS.
-                             Served when `frontend/` exists next to the process
-                             (Docker/source); pip installs pair with mirobody.ai.
+frontend/                    the bundled web client, shipped as a FIXED build —
+                             outside the package on purpose: wheels ship the
+                             engine, not 8MB of JS. Served when `frontend/`
+                             exists next to the process (Docker/source). The
+                             API + MCP surface is the real contract: build your
+                             own frontend against it.
 ```
 
 ### What you get at each install size
@@ -238,24 +232,6 @@ three stand on. One deliberate seam crosses the boundary today, recorded with
 its exit plan in `pyproject.toml`'s `ignore_imports` and in
 [docs/roadmap.md](docs/roadmap.md).
 
-### Two ways to consume ③ Answer
-
-The distinction most often misread as duplication. There are two agents because
-there are two ways to use this project, and each is the reference implementation
-of one:
-
-| | **DeepAgent** | **BaseAgent** |
-| --- | --- | --- |
-| Who runs the tool loop | us — LangChain / deepagents, in this process | the LLM **provider**, against our `/mcp` over HTTP |
-| Typical user | you self-host the whole engine (`pip install 'mirobody[agents]'`, Docker, mirobody.ai) | a third party points Claude Desktop / Cursor / a ChatGPT App at our MCP endpoint |
-| Gets the virtual filesystem, QuickJS, Skills | yes | no — only what the MCP tool surface exposes |
-| Why we keep it | maximum capability, fully inspectable, self-hosted | it is the live rehearsal of the third-party experience: if a tool description is too thin for a model to use unaided, it fails here first |
-
-**A capability that exists only inside DeepAgent is one external MCP clients do
-not have.** So "make the MCP offering better" is work in
-[`agent/tools/`](mirobody/agent/tools/) and the tool descriptions — not in the
-DeepAgent middleware stack.
-
 ### Data flow, end to end
 
 ```
@@ -293,14 +269,6 @@ It started at **32/94** — the benchmark has since grown to 116 cases. The gap 
 
 ---
 
-## 🏥 Powers Theta
-
-> *"Theta collects it; Mirobody sorts every signal precisely into its own bucket, turning raw noise into a structured, AI-readable standard."*
-
-[**Theta Wellness**](https://www.thetahealth.ai/) ([App Store](https://apps.apple.com/us/app/theta-wellness/id6739960903) · [Google Play](https://play.google.com/store/apps/details?id=com.thetaai.theta)) is the HIPAA-compliant consumer app built on this engine — the same architecture that powers a production medical-grade health agent can power your product. We focus on health; swap the files in [`mirobody/agent/tools/`](mirobody/agent/tools/) to build your own vertical.
-
----
-
 ## ⚡ Quick Start
 
 ### 📋 Prerequisites
@@ -309,7 +277,7 @@ It started at **32/94** — the benchmark has since grown to 116 cases. The gap 
 - **Git**: To clone the repository.
 - **Git LFS**: Required to pull binary data files (e.g. `fhir_concept_graph.bin`). Install via `apt install git-lfs` (Linux) or `brew install git-lfs` (macOS). Git for Windows includes it by default. Run `git lfs install` once after installing.
 
-### 1. Deploy via Docker
+### Deploy via Docker
 
 ```bash
 git clone https://github.com/thetahealth/mirobody.git
@@ -326,102 +294,39 @@ This script will:
 
 Then open `http://localhost:18080` in your web browser.
 
-> **📝 Configuration Notes:**
+Three keys and one gotcha worth knowing before anything else:
+
+> - **LLM key**: `OPENROUTER_API_KEY` powers the Deep agent.
+> - **Embedding key** — a *different* one: the worker's indicator sync embeds
+>   names for standardization. `EMBEDDING_PROVIDER` defaults to `gemini`
+>   (`GOOGLE_API_KEY`); set `EMBEDDING_PROVIDER: qwen` + `DASHSCOPE_API_KEY`
+>   for the other supported provider. With only an OpenRouter key, chat works
+>   but **Health indicators stays 0** — embedding fails quietly in the worker
+>   log.
+> - Keys go in `config.{env}.yaml`; Mirobody encrypts them at first load with
+>   the generated `CONFIG_ENCRYPTION_KEY`.
+> - First start takes ~1 minute (schema creation) — wait for
+>   `SQL files initialization completed`.
 >
-> - A `.env` file will be created automatically with two variables:
->   - `ENV`: The name of the current config.
->   - `CONFIG_ENCRYPTION_KEY`: A 32-byte string used for encrypting sensitive variables.
-> - The default configuration template is [`config.yaml`](config.yaml).
->   - **👉 See [CONFIG](mirobody/utils/config/README.md) for a detailed configuration guide.**
->   - **👉 See [DATABASE](mirobody/schema/README.md) for the schema, what it contains, and how it is applied.**
-> - **Tip**: Check `EMAIL_PREDEFINE_CODES` for predefined email accounts and verification codes used for user login.
-> - **🌍 Timezone**: Set `DEFAULT_TIMEZONE` in `config.{env}.yaml` to match your region (e.g., `America/New_York`, `Europe/London`, `Asia/Tokyo`). Defaults to `America/Los_Angeles`. See [CONFIG](mirobody/utils/config/README.md#-timezone) for details.
-> - **LLM Setup**: `OPENROUTER_API_KEY` is required for the Deep agent.
->   - **A second key is required for the indicator pipeline**, and it is a
->     different one: `EMBEDDING_PROVIDER` defaults to `gemini`, so the worker's
->     indicator sync needs `GOOGLE_API_KEY` (set `EMBEDDING_PROVIDER: qwen` +
->     `DASHSCOPE_API_KEY` to use the other supported provider). With only an
->     OpenRouter key, chat works and Drive's **Health indicators stays 0** —
->     embedding fails per batch in the worker log and nothing surfaces in the UI.
-> - **Auth Setup**: To enable **Google/Apple OAuth** or **Email Verification**, set the respective variables in `config.{env}.yaml`.
-> - All API keys will be encrypted automatically once Mirobody loads them using the `CONFIG_ENCRYPTION_KEY` value.
+> Full configuration guide: [CONFIG](mirobody/utils/config/README.md) ·
+> [DATABASE](mirobody/schema/README.md) · [docs.mirobody.ai](https://docs.mirobody.ai/)
 
 ### 🐍 Local Python Development
 
-If you prefer to run the Mirobody agent code locally (for debugging or development) while keeping the database and cache in Docker:
-
-**1. Start Backing Services**
+Run the code on the host with pg/redis in Docker — the normal debug loop:
 
 ```bash
 docker compose up -d pg redis
-```
-
-**2. Environment Setup**
-
-Prerequisites:
-
-- **Python**: 3.12 or higher (hard floor — the codebase uses PEP 701 f-strings, so 3.11 cannot even import it)
-
-```bash
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Upgrade pip
-pip install --upgrade pip
-
-# Install Python dependencies.
-# The bare package is the data ENGINE as a library; running the chat server
-# needs the agent layer, which is the [agents] extra:
-pip install -e '.[agents]'
-# Optional extras:
-# pip install -e .[cn]    # China region (Aliyun OSS, Volcengine, Dashscope)
-```
-
-**3. Configuration**
-
-```bash
-# Create .env
+pip install -e '.[agents]'        # Python ≥3.12; engine-only is `pip install -e .`
 echo "ENV=localdb" > .env
-# Generate a random encryption key (optional but recommended)
-echo "CONFIG_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> .env
+# create config.localdb.yaml overriding PG_HOST/PG_PORT/REDIS_* to the
+# containers' published ports, add your LLM keys, then:
+mirobody serve
 ```
 
-Then create `config.localdb.yaml` next to `config.yaml` (this file is **not** in
-the repo — `deploy.sh` generates one for Docker runs, but on the local path you
-create it yourself). The defaults in `config.yaml` point at Docker-internal IPs,
-so a local process **must** override the database hosts:
-
-```yaml
-# Point at the pg/redis containers' published ports (see compose.yaml)
-PG_HOST: localhost
-PG_PORT: 18082
-REDIS_HOST: localhost
-REDIS_PORT: 18089
-# If 18080 is taken on your machine, pick another port:
-# HTTP_PORT: 28080
-
-# OpenRouter API key (Required for Deep Agent)
-OPENROUTER_API_KEY: 'sk-or-...'
-
-# Optional: OpenAI or Google keys
-OPENAI_API_KEY: 'sk-...'
-GOOGLE_API_KEY: '...'
-```
-
-> **Note:** Sensitive keys are automatically encrypted by the system using the `CONFIG_ENCRYPTION_KEY` found in your `.env` file.
-
-**4. Run the Application**
-
-```bash
-mirobody serve   # or: python -m mirobody serve
-```
-
-The server will start at `http://localhost:18080`.
-
-> **First start takes about a minute**: the server creates the schema and runs
-> every SQL file under `mirobody/schema/` before it begins listening. Wait for
-> the `SQL files initialization completed` log line — it is not hung.
+The step-by-step walkthrough (ports, encryption key, `[cn]` extra) lives at
+[docs.mirobody.ai](https://docs.mirobody.ai/) and in
+[CONFIG](mirobody/utils/config/README.md).
 
 **The CLI at a glance**
 
@@ -443,7 +348,7 @@ They come from `EMAIL_PREDEFINE_CODES` in `config.yaml`: with no SMTP
 configured, only predefined addresses can sign in. Add your own address there,
 or configure `EMAIL_SMTP_*` to send real codes.
 
-### 2. Extend It — Tools and Skills
+### Extend It — Tools and Skills
 
 Mirobody adopts a **"Tools-First"** philosophy: a tool is a plain Python function, a skill is a plain Markdown file. No registration, no binding logic.
 
@@ -526,21 +431,16 @@ first call. Treat it like a password.
 
 ---
 
-## 🔐 Access & Authentication
+## 🔐 Where you use it
 
-Once deployed, you can access the platform through the local web interface or our official hosted client.
+| Surface | URL | What it is |
+| --- | --- | --- |
+| **Your web client** | `http://localhost:18080` | The bundled app your deployment serves — everything below. |
+| **Your MCP endpoint** | `http://localhost:18080/mcp` | For Claude Desktop / Cursor; mint a personal URL in Settings. Set `MCP_PUBLIC_URL` for HTTPS/remote (ChatGPT Apps, OAuth). |
+| **Hosted chat** | [chat.mirobody.ai](https://chat.mirobody.ai/) | The hosted client, if you'd rather not run your own. |
+| **API platform** | [platform.mirobody.ai](https://platform.mirobody.ai/) | Keys, usage, and the health-data API for building on top. |
 
-### 1. Access Interfaces
-
-| Interface                          | URL                                       | Description                                                                                                                                         |
-| ---------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Local Web App**            | `http://localhost:18080`                | Fully self-hosted web interface running locally.                                                                                                    |
-| **Official Client**          | [https://mirobody.ai](https://mirobody.ai) | **Recommended.** Our official web client that connects securely to your local backend service.                                                |
-| **MCP Server (Local)**       | `http://localhost:18080/mcp`            | For Claude Desktop / Cursor integration via local connection.                                                                                       |
-| **MCP Server (Remote HTTP)** | `https://yourdomain.com/mcp`            | **🌐 HTTP Remote MCP Support** - For ChatGPT Apps and remote integrations. Set `MCP_PUBLIC_URL` in your config file to enable HTTPS access. |
-
-The bundled web client (served by the backend itself) is a full consumer app,
-not a demo shell:
+The bundled web client is a full consumer app, not a demo shell:
 
 - **Data** (`/data`) — drag-and-drop lab PDFs, report photos (HEIC included),
   Excel/CSV, audio, text/Markdown and raw genotype files. Extraction turns them
@@ -552,63 +452,8 @@ not a demo shell:
 - **Care circle** — upload and ask on behalf of the people who share with you,
   gated by per-person consent.
 
-#### MCP Integration
-
-Mirobody supports both **local** and **remote HTTP** MCP connections:
-
-**Local Connection (Cursor/Claude Desktop):**
-
-```json
-{
-  "mirobody_mcp": {
-    "command": "npx",
-    "args": [
-      "-y",
-      "universal-mcp-proxy"
-    ],
-    "env": {
-      "UMCP_ENDPOINT": "http://localhost:18080/mcp"
-    }
-  }
-}
-```
-
-**Remote HTTP Connection (ChatGPT Apps, Cloud Deployments):**
-
-Configure `MCP_PUBLIC_URL` in your `config.{env}.yaml`:
-
-```yaml
-MCP_PUBLIC_URL: "https://yourdomain.com"
-```
-
-Then access your MCP server via HTTPS at the configured URL. This enables:
-
-- ✅ ChatGPT Apps integration
-- ✅ Cross-network tool access
-- ✅ Cloud-based deployments
-- ✅ Secure OAuth-enabled remote MCP access
-
-### 2. Login Methods
-
-You can choose to configure your own authentication providers or use the pre-set demo account.
-
-- **🔐 Social Login**: Google Account / Apple Account (Requires configuration in `config.yaml`)
-- **📧 Email Login**: Email Verification Code (Requires email service configuration)
-- **🎮 Demo Accounts** (`EMAIL_PREDEFINE_CODES` in `config.yaml`):
-  - **Email**: `exp1@mirobody.ai`, `exp2@mirobody.ai`, `exp3@mirobody.ai`
-  - **Verification code**: `111111`
-
----
-
-## 🔌 API Reference
-
-Mirobody provides standard endpoints for integration:
-
-| Endpoint         | Description            | Protocol          |
-| ---------------- | ---------------------- | ----------------- |
-| `/mcp`         | MCP Protocol Interface | JSON-RPC 2.0      |
-| `/api/chat`    | AI Chat Interface      | OpenAI Compatible |
-| `/api/history` | Session Management     | REST              |
+Login: email verification codes (SMTP), Google/Apple OAuth, or the pre-seeded
+demo accounts above — all configured in `config.{env}.yaml`.
 
 ---
 
@@ -616,7 +461,7 @@ Mirobody provides standard endpoints for integration:
 
 ```bash
 pip install -e '.[test]'
-pytest        # 260 tests, ~7s — no database, no network, no API key
+pytest        # 295 tests, ~8s — no database, no network, no API key
 ```
 
 Tests sit beside the code they cover, so bare `pytest` is the whole suite. Two
@@ -631,9 +476,13 @@ regeneration, and the release gates (`lint-imports`, `check_wheel_data.py`).
 
 ## 📚 Documentation
 
-Docs follow one rule: **each package carries a short `README.md` saying what it
-is; long-form guides live in [`docs/`](docs/)** so a `pip install` doesn't drag
-contributor documentation into `site-packages`.
+**[docs.mirobody.ai](https://docs.mirobody.ai/)** is the documentation platform —
+deployment, the API platform, and this open-source engine, kept in sync as both
+evolve.
+
+In-repo docs follow one rule: **each package carries a short `README.md` saying
+what it is; long-form guides live in [`docs/`](docs/)** so a `pip install`
+doesn't drag contributor documentation into `site-packages`.
 
 | | Topic | Location |
 | --- | --- | --- |
@@ -645,7 +494,7 @@ contributor documentation into `site-packages`.
 | ① | File-processing pipeline | [docs/file-processing.md](docs/file-processing.md) |
 | ① | Apple Health / CDA import | [docs/apple-health.md](docs/apple-health.md) |
 | ② | Indicator search & resolution | [`mirobody/indicator/`](mirobody/indicator/README.md) |
-| ② | Health indicators & units | [`mirobody/pulse/core/`](mirobody/pulse/core/README.md) |
+| ② | Health indicators & units | [`mirobody/pulse/standardize/`](mirobody/pulse/standardize/README.md) |
 | ③ | Agent development | [`mirobody/agent/`](mirobody/agent/README.md) |
 | ③ | Tool development | [`mirobody/agent/tools/`](mirobody/agent/tools/README.md) |
 | ③ | ChatGPT Apps widgets | [`mirobody/agent/resources/`](mirobody/agent/resources/README.md) |
@@ -671,3 +520,9 @@ Found a lab report that parses wrong, or an indicator name that doesn't resolve?
 ---
 
 <div align="center">
+
+**[📚 docs.mirobody.ai](https://docs.mirobody.ai/)** · **[💬 chat.mirobody.ai](https://chat.mirobody.ai/)** · **[🔌 platform.mirobody.ai](https://platform.mirobody.ai/)**
+
+Apache-2.0 · your data stays on your machine
+
+</div>

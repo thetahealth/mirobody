@@ -48,8 +48,8 @@ Of particular interest:
 - Secrets handling: config encryption, key material in logs or error paths
 - SSRF or credential leakage in the vendor integrations
 
-**Out of scope** — the hosted products (Theta Wellness, mirobody.ai,
-`mcp.thetahealth.ai`): report those to security@thetahealth.ai as well, but
+**Out of scope** — the hosted products (chat.mirobody.ai,
+platform.mirobody.ai): report those to security@thetahealth.ai as well, but
 they are not covered by this repository's advisories. Also out of scope:
 findings that require an attacker who already has host or database access, and
 reports from automated scanners without a demonstrated impact.
@@ -60,8 +60,9 @@ The defaults in this repository are tuned for **local, single-user
 evaluation**, not for exposing to a network. Before anything reachable by
 others:
 
-- Replace the demo accounts. `config.localdb.yaml` ships predefined logins
-  (`demo1@mirobody.ai` / `777777`) — remove `EMAIL_PREDEFINE_CODES` entirely.
+- Replace the demo accounts. `config.yaml` ships predefined logins
+  (`exp1-3@mirobody.ai` / code `111111`) — remove `EMAIL_PREDEFINE_CODES`
+  entirely.
 - Generate your own `CONFIG_ENCRYPTION_KEY` and keep `.env` out of version
   control. `deploy.sh` generates one; do not copy a key between environments.
 - Restrict CORS to the origins you actually serve.
