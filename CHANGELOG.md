@@ -6,6 +6,27 @@ The first release in which `pip install mirobody` actually works, and the MCP
 surface is on the current protocol. There are **breaking changes to the MCP tool
 names**; see below.
 
+### Upgrading from 1.0.x
+
+Verified against a clean-venv install of the published `1.0.62` wheel: it
+imports, and that is all it does. It ships **no CLI** (no console script, no
+`main.py` in the wheel — nothing can start the server), **no
+`mirobody.engine`**, and its resolver data files are 133-byte **Git-LFS
+pointer stubs**, so no indicator ever resolved. There is therefore no working
+pip-install workflow for this release to break — every pip-visible change is
+"used to fail, now works".
+
+Deployments running from a **git checkout of `main`** upgrade with three
+things to know:
+
+- The MCP tool renames below (`query_health_indicators` replaces the old
+  pair) — the one real break, for MCP clients with hardcoded tool names.
+- The web client's `/chat` and `/drive` URLs redirect to `/ask` and `/data`;
+  bookmarks keep working.
+- The database is forward-compatible by policy: schema files never
+  `DROP COLUMN`/`DROP TABLE`, so an existing database keeps now-unused columns
+  (e.g. `wechat_openid`) harmlessly.
+
 ### Breaking
 
 - **`search_health_indicators` and `fetch_health_data` are removed**, replaced by
@@ -104,6 +125,9 @@ names**; see below.
   a hardcoded per-model price table; provider prices change faster than any
   table gets refreshed, so the dollar figures drifted into fiction while
   looking authoritative. Tokens are facts from the API; prices are not.
+  Applies to BaseAgent too: its clients computed `total_cost` from
+  `input_price`/`output_price` config keys that no longer exist, which had
+  quietly become "always $0.00" — removed along with the keys.
 - **The MCP tool descriptions lost a third of their weight** (get_genetic_data:
   half, and four of its eight parameters — filters that could only narrow an
   already-exact rsid match). Every behavioural rule survives; what left was

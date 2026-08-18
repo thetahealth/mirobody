@@ -29,8 +29,10 @@ class AbstractClient():
         self._http_timeout      = kwargs.get("http_timeout",        30_000)
         self._llm_temperature   = kwargs.get("llm_temperature",     0.1)
 
-        self._input_price       = kwargs.get("input_price",         0.0)
-        self._output_price      = kwargs.get("output_price",        0.0)
+        # No input_price/output_price: costStatistics reports tokens only.
+        # The per-model price keys left config.yaml with the DeepAgent price
+        # table — this computed total_cost from prices that were always 0.0
+        # once the config keys were gone, which is worse than no number.
 
         # Subclasses set `self._api_key_name` before calling super().__init__().
 
@@ -436,8 +438,6 @@ class OpenAIResponsesClient(AbstractClient):
                 "thought_tokens": reasoning_tokens,
                 "total_tokens": total_tokens
             }
-
-            content["total_cost"] = (input_tokens * self._input_price + (reasoning_tokens + output_tokens) * self._output_price) / 1e6
 
             yield {"type": "costStatistics", "content": content}
 
@@ -934,8 +934,6 @@ class GeminiClient(AbstractClient):
             "total_tokens": total_tokens
         }
 
-        content["total_cost"] = (input_tokens * self._input_price + (thought_tokens + output_tokens) * self._output_price) / 1e6
-
         yield {"type": "costStatistics", "content": content}
 
         if _redis_key and self._redis and interaction_id:
@@ -1127,7 +1125,6 @@ class GeminiClient(AbstractClient):
                 "thought_tokens": thought_tokens,
                 "total_tokens"  : total_tokens,
             }
-            content_stats["total_cost"] = (input_tokens * self._input_price + (thought_tokens + output_tokens) * self._output_price) / 1e6
             yield {"type": "costStatistics", "content": content_stats}
         finally:
             cached_text.close()
