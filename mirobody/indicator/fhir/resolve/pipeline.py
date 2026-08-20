@@ -7079,7 +7079,12 @@ async def resolve_many(
                 flat_inputs.append(_augment(s))
                 flat_to_qi.append(qi)
 
-        q_embs = await text_embedding(flat_inputs, provider="gemini", cache=True)
+        # provider=None reads EMBEDDING_PROVIDER (default gemini). It was
+        # hardcoded to "gemini", which meant the corpus matrix and the query
+        # vectors could silently disagree: a deployment configured for any other
+        # provider still embedded its QUERIES with gemini, and cosine against a
+        # non-gemini matrix is noise. The two sides have to be the same model.
+        q_embs = await text_embedding(flat_inputs, provider=None, cache=True)
         Q = np.asarray(q_embs, dtype=np.float32)
         norms = np.linalg.norm(Q, axis=1, keepdims=True)
         Q = np.divide(Q, norms, out=np.zeros_like(Q), where=norms > 0)

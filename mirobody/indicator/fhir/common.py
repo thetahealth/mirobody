@@ -71,9 +71,19 @@ def resolve_fhir_embedding_column() -> tuple[str, str]:
             f"(available: {sorted(EMBEDDING_PROVIDERS)})"
         )
     if provider not in FHIR_EMBEDDING_COLUMN:
+        # `openrouter` lands here on purpose, and adding a column is NOT the
+        # fix. This function serves the pgvector path — a `vector(1024)` column
+        # on `fhir_indicators`, filled by a full re-embed of the corpus, which
+        # is a schema migration and hours of API calls. The openrouter provider
+        # exists for the FILE-based semantic tier (a LOINC matrix built by
+        # scripts/build_loinc_embeddings.py) and for direct `text_embedding`
+        # callers, neither of which touches this column.
         raise ValueError(
-            f"no fhir_indicators column mapped for provider {provider!r}; "
-            f"add to FHIR_EMBEDDING_COLUMN in fhir/common.py"
+            f"provider {provider!r} has no fhir_indicators vector column. "
+            f"Database vector search supports {sorted(FHIR_EMBEDDING_COLUMN)}; "
+            f"{provider!r} is for the file-based semantic tier and for "
+            f"text_embedding() callers. Either set EMBEDDING_PROVIDER to one of "
+            f"the former, or use the file matrix."
         )
     return provider, FHIR_EMBEDDING_COLUMN[provider]
 

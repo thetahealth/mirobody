@@ -180,6 +180,46 @@ def _qwen():
     )
 
 
+@_emb_provider("openrouter")
+def _openrouter():
+    """Qwen3-Embedding-8B, the open-weights one, through OpenRouter.
+
+    Three things make this the provider to reach for in a self-hosted
+    deployment. The model is **open weights**, so the vectors are reproducible
+    by anyone who wants to run it themselves rather than being a black box
+    behind an API. A mirobody deployment **already needs an OPENROUTER_API_KEY**
+    for the agent, so the semantic tier costs no second credential. And it is
+    about **$0.01 per million tokens** — embedding the whole 96k-row LOINC
+    corpus is under two cents.
+
+    OpenRouter's `/models` listing covers chat models only and shows no
+    embedding models at all, which reads as "not supported"; `/v1/embeddings`
+    answers regardless. Verified against the live endpoint, not the docs.
+
+    `dimensions: 1024` uses Qwen3-Embedding's MRL prefix rather than a
+    projection, so it matches a corpus matrix built the same way — and the
+    corpus side MUST be built with this same model. A near-miss is worse than a
+    mismatch you can see: a matrix built from a different Qwen3-Embedding
+    serving config scored 0.64 self-cosine (against a 0.30 floor) and returned
+    plausible-looking nonsense — `空腹血糖` came back as "Widespread delusions".
+    """
+    from mirobody.utils.config import global_config
+    from mirobody.utils.config.llm import LLMProvider
+
+    return (
+        global_config().get_llm(LLMProvider.OPENROUTER),
+        "embeddings",
+        256,
+        4,  # max_concurrency
+        lambda chunk: {
+            "model": "qwen/qwen3-embedding-8b",
+            "input": chunk,
+            "dimensions": 1024,
+        },
+        lambda data: [item["embedding"] for item in data["data"]],
+    )
+
+
 # ── Public API ───────────────────────────────────────────────────────
 
 # Snapshot of provider names registered above. Callers that need to validate
@@ -190,13 +230,14 @@ EMBEDDING_PROVIDERS: frozenset[str] = frozenset(_EMB_PROVIDERS)
 
 async def text_embedding(
     texts: list[str],
-    provider: Literal["gemini", "qwen"] | None = None,
+    provider: Literal["gemini", "qwen", "openrouter"] | None = None,
     *,
     cache: bool = False,
 ) -> list[list[float] | None]:
     """Compute 1024-dim embeddings via *provider*.
 
-    Supported providers: ``"gemini"`` (auto Vertex AI), ``"qwen"``.
+    Supported providers: ``"gemini"`` (auto Vertex AI), ``"qwen"``
+    (DashScope), ``"openrouter"`` (open-weights Qwen3-Embedding-8B).
     When *provider* is ``None``, reads config key ``EMBEDDING_PROVIDER`` (default: ``"gemini"``).
     Long input lists are chunked per provider batch limit.
     Invalid entries (non-str / blank) yield ``None`` at the same index.
