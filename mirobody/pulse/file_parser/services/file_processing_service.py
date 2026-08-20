@@ -642,15 +642,38 @@ async def upload_files_to_storage(
                     "error": "File is empty"
                 })
                 continue
+
+            # `validate_file_extension` has been imported by this module since
+            # it was written and was never once called, so SUPPORTED_EXTENSIONS
+            # documented a restriction that did not exist: any extension landed
+            # in the store. Combined with the file route's old `inline`
+            # disposition that made an uploaded .html a stored-XSS payload on
+            # this origin.
+            ext_ok, ext_err = validate_file_extension(file)
+            if not ext_ok:
+                failed_uploads.append({
+                    "file_name": file.filename,
+                    "error": ext_err
+                })
+                continue
             
             # Determine content type
             content_type = file.content_type or "application/octet-stream"
             
-            # Generate unique file key for storage
-            if folder_prefix is not None:
-                file_key = generate_file_key(file.filename, folder_prefix=folder_prefix)
-            else:
-                file_key = generate_file_key(file.filename)
+            # Generate unique file key for storage. `folder_prefix` comes off
+            # the request's `?folder=` parameter, so an invalid one is a client
+            # error for THIS file, not a 500 for the whole batch.
+            try:
+                if folder_prefix is not None:
+                    file_key = generate_file_key(file.filename, folder_prefix=folder_prefix)
+                else:
+                    file_key = generate_file_key(file.filename)
+            except ValueError as e:
+                failed_uploads.append({
+                    "file_name": file.filename,
+                    "error": str(e)
+                })
+                continue
             
             # Record upload start time
             upload_time = datetime.now()

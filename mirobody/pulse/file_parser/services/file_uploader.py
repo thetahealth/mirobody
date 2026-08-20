@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -174,17 +175,53 @@ def validate_file_extension(file: UploadFile) -> Tuple[bool, str]:
     return True, ""
 
 
+#: A folder prefix is one or more `[A-Za-z0-9._-]` segments. Everything else —
+#: absolute paths, backslashes, NUL, unicode separators — is rejected rather
+#: than sanitized, because sanitizing invites the next bypass.
+#:
+#: The segment check is NOT redundant with the pattern. `.` is a legitimate
+#: character inside a folder name, so it has to be in the class, and that alone
+#: makes `..` a matching segment: the first version of this guard accepted
+#: `../secrets` and was caught by the test below, not by review.
+_SAFE_FOLDER_RE = re.compile(r"^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$")
+
+
+def _is_safe_folder(folder_prefix: str) -> bool:
+    if not folder_prefix or not _SAFE_FOLDER_RE.match(folder_prefix):
+        return False
+    return all(seg not in (".", "..") for seg in folder_prefix.split("/"))
+
+
 def generate_file_key(filename: str, folder_prefix: str = "uploads") -> str:
     """
     Generate a unique file key for cloud storage
-    
+
+    `folder_prefix` reaches this function straight from the `?folder=` query
+    parameter on `POST /files/upload`, so it is attacker-controlled. It used to
+    be interpolated as-is, and `AbstractStorage._build_object_key` only does
+    `lstrip("/")`, so `?folder=../secrets` produced the key
+    `../secrets/<ts>_<id>.pdf` and `LocalStorage` wrote it there — arbitrary
+    file write outside `base_path`, reproduced in
+    `test_upload_paths.py::test_a_traversing_folder_is_rejected`.
+
+    Rejecting is deliberate: silently rewriting `..` away would let a caller
+    aim at a directory they did not name, which is its own surprise.
+
     Args:
         filename: Original filename
         folder_prefix: Folder prefix for the file path (default: "uploads")
-        
+
     Returns:
         str: Unique file key with timestamp and UUID
+
+    Raises:
+        ValueError: if `folder_prefix` is not a plain relative folder path
     """
+    if not _is_safe_folder(folder_prefix or ""):
+        raise ValueError(
+            f"invalid folder prefix {folder_prefix!r}: expected one or more "
+            "path segments of [A-Za-z0-9._-]"
+        )
     file_extension = Path(filename).suffix
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     unique_id = uuid.uuid4().hex[:8]
