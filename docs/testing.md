@@ -2,12 +2,20 @@
 
 ```bash
 pip install -e '.[agents,test]'
-pytest                    # the whole suite — 439 tests, ~9s, no DB, no network, no API key
+pytest                    # the whole suite — 495 tests, ~9s, no DB, no network, no API key
 ```
 
-`'.[test]'` without `[agents]` is a supported smaller install: it runs the
-~165 engine tests and prints a header saying the agent-layer tests were skipped.
-It used to abort collection outright with `ModuleNotFoundError: langchain_core`.
+`'.[test]'` alone is a supported smaller install: it runs the 334 engine tests
+and prints a header naming the extras that were not installed. Server-layer
+tests need `[server]` (fastapi, psycopg, mandrill); agent-layer tests need
+`[agents]`, which pulls `[server]` in with it.
+
+Both used to abort collection outright rather than skip — first with
+`ModuleNotFoundError: langchain_core`, and after that was fixed, still with
+`psycopg_pool` and `mandrill`, because `mirobody/server/__init__` and
+`mirobody/user/__init__` import them and any test module under those packages
+executes its parent package first. `conftest.py` decides at COLLECTION time,
+which is the only point early enough.
 
 That is the entire happy path. `testpaths` is set, so bare `pytest` collects
 `mirobody/**/test_*.py`.

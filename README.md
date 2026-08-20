@@ -647,7 +647,7 @@ demo accounts above — all configured in `config.{env}.yaml`.
 
 ```bash
 pip install -e '.[test]'
-pytest        # 439 tests, ~9s — no database, no network, no API key
+pytest        # 495 tests, ~9s — no database, no network, no API key
 ```
 
 Tests sit beside the code they cover, so bare `pytest` is the whole suite. Two

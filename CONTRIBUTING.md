@@ -48,10 +48,13 @@ We love new ideas! Please open an issue to discuss your feature idea before impl
     lint-imports          # the engine/agent boundary, machine-checked
     ```
 
-    `'.[test]'` alone is enough to work on the **engine** — it runs ~165 of the
-    tests and prints a header saying so. The agent-layer tests need the
-    `[agents]` extra, and are skipped at collection rather than aborting the
-    run without it.
+    `'.[test]'` alone is enough to work on the **engine** — it runs 334 of the
+    tests and prints a header naming what it skipped. Server-layer tests need
+    `[server]` (fastapi, psycopg, mandrill) and agent-layer tests need
+    `[agents]`, which pulls `[server]` in with it. Both are dropped at
+    COLLECTION time rather than aborting the run: a module-level
+    `importorskip` is too late, because importing a test module imports its
+    parent package first and that is what pulls in the missing dependency.
 
     `lint-imports` must run against the repo source — inside a venv holding an
     installed older wheel it passes vacuously.
