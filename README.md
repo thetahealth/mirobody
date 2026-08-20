@@ -198,15 +198,46 @@ frontend/                    the bundled web client, shipped as a FIXED build �
 
 | Install | What works | Footprint |
 | --- | --- | --- |
-| *the wheel + numpy only* | `from mirobody.engine import resolve` — the offline resolver | **77 MB**, 2 packages |
+| *the wheel + numpy only* | `from mirobody.engine import resolve` — the offline resolver | **33 MB** of mirobody (76 MB with numpy) |
 | `pip install mirobody` | + `mirobody parse` (one LLM key) · file parsing (PDF/Excel/audio) · FHIR output | 233 MB, 90 packages |
 | `pip install 'mirobody[server]'` | + the HTTP API and MCP endpoint | needs Postgres + Redis |
 | `pip install 'mirobody[agents]'` | + DeepAgent/BaseAgent and `mirobody serve` (includes `[server]`) | + the LangChain stack |
 | `pip install 'mirobody[indicator-build]'` | rebuilding the terminology bundles themselves | needs LOINC/UMLS sources |
 
-Sizes measured on a clean venv, not estimated. **51 MB of the 77 MB floor is the
-shipped LOINC/SNOMED data** — that is the resolver, not overhead, and it is what
+Sizes measured on a clean venv, not estimated. **24 MB of mirobody's 33 MB is
+the shipped LOINC data** — that is the resolver, not overhead, and it is what
 makes standardization work with the network unplugged.
+
+#### The minimum usable scope, and what is deliberately not in it
+
+`pip install mirobody` carries exactly what `resolve()` reads, and nothing else:
+
+| Shipped | What reads it |
+| --- | --- |
+| `res/fhir_loinc_bundle.tar.gz` | the 921k-key alias index, the LOINC axis table, the commonness prior |
+| `res/fhir_meta.csv.gz` | the 677k-name corpus the alias index points into |
+| `res/aliases_src/*.tsv` | ~48k multilingual alias rows (中文 22,578 · 日本語 16,809 · +5) |
+| `res/resolver_overrides.tsv` | the hand-written corrections, and the deliberate non-answers |
+
+Four artifacts used to ship and no longer do — `fhir_concept_graph.bin`,
+`fhir_id_map.npy`, `fhir_taxonomy.bin`, `fhir_snomed_ct_bundle.tar.gz`, **28 MB
+between them**. Nothing at runtime read any of them: grep `server/`, `agent/`,
+`pulse/`, `mcp/` and `task/` for `concept_graph` or `taxonomy` and it comes back
+empty. Their readers are [`indicator/`](mirobody/indicator/)'s bundle-build
+tooling, which works from a git checkout, and the v2 semantic pipeline, which in
+addition needs an embedding matrix that is not distributed at all. Dropping the
+SNOMED bundle also takes its Affiliate-Licence obligation off every pip user.
+`scripts/check_wheel_data.py` now gates both directions — the five above present
+and real, those four absent.
+
+**What the minimum scope cannot do**: resolve a term the lexical layer misses.
+Resolution is exact-key and alias-table lookup over shipped vocabularies, plus
+the surface algebra in [`indicator/lexical.py`](mirobody/indicator/lexical.py).
+There is no embedding recall — [`fhir/resolve/pipeline.py`](mirobody/indicator/fhir/resolve/)
+implements it, and it needs a ~200 MB LOINC embedding matrix built by
+[`scripts/build_loinc_embeddings.py`](scripts/build_loinc_embeddings.py) plus an
+embedding API key. A miss here is an honest miss, and the fix is one row in
+`resolver_overrides.tsv` — [see Contributing](#-contributing).
 
 The database driver, HTTP server, S3 and email clients used to be in the default
 install; they moved to `[server]`, which is what `[agents]` pulls in. If you only

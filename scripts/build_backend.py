@@ -1,4 +1,4 @@
-"""Build backend: setuptools, minus the tests.
+"""Build backend: setuptools, minus the tests and the build-time-only data.
 
 Tests live beside the code they cover and are collected by `pytest` straight
 from the source tree. They must stay in git — `mirobody/test_engine_coverage.py`
@@ -10,6 +10,14 @@ installed the library.
 `[tool.setuptools.exclude-package-data]` cannot express this, because
 `test_*.py` files are package *code* rather than data. Hooking the build is the
 smallest thing that works, and it covers the wheel and the sdist alike.
+
+The same hook drops the four terminology artifacts nothing at runtime reads
+(:data:`_BUILD_ONLY_DATA`). They are DATA, so `exclude-package-data` ought to
+have handled them — it does not, because the broad `**/*.bin` / `**/*.npy`
+globs in `package-data` win, and the exclusion is not applied to files the
+include globs already matched. Rather than narrow the include globs (which is
+how a newly added data file gets silently forgotten), the exclusion happens
+here, where it is one list with the reason next to it.
 """
 
 from __future__ import annotations
@@ -36,6 +44,25 @@ get_requires_for_build_editable = _orig.get_requires_for_build_editable
 prepare_metadata_for_build_editable = _orig.prepare_metadata_for_build_editable
 
 _EXCLUDED_NAMES = ("conftest.py",)
+
+#: 28 MB of `mirobody/res/` that NO runtime code path reads — grep server/,
+#: agent/, pulse/, mcp/ and task/ for `concept_graph` or `taxonomy` and it comes
+#: back empty. Their readers are `mirobody/indicator/`'s bundle-build tooling
+#: (which runs from a git checkout) and the v2 semantic pipeline (which also
+#: needs a ~200 MB embedding matrix that is not distributed). Shipping them made
+#: `pip install mirobody` more than half data the installed code cannot use.
+#:
+#: The SNOMED bundle carries a second cost: its NOTICE requires every downstream
+#: recipient to hold a SNOMED CT Affiliate Licence. Not shipping it keeps that
+#: obligation off every pip user.
+#:
+#: scripts/check_wheel_data.py fails the build if any of them reappears.
+_BUILD_ONLY_DATA = frozenset({
+    "mirobody/res/fhir_concept_graph.bin",
+    "mirobody/res/fhir_id_map.npy",
+    "mirobody/res/fhir_taxonomy.bin",
+    "mirobody/res/fhir_snomed_ct_bundle.tar.gz",
+})
 
 
 def _is_test_artifact(path: str) -> bool:
@@ -111,6 +138,8 @@ def _rewrite_wheel(path: str) -> None:
 
 
 def _should_drop(member: str) -> bool:
+    if member in _BUILD_ONLY_DATA:
+        return True
     parts = member.split("/")
     if "gate_tests" in parts or "fixtures" in parts:
         return True

@@ -283,6 +283,13 @@ exclude = ["mirobody.pulse.gate_tests", "mirobody.pulse.gate_tests.*"]
     "**/*.svg",
     "**/*.ico",
 ]
+# NOTE: there is deliberately no [tool.setuptools.exclude-package-data] here.
+# It does not work against the broad `**/*.bin` / `**/*.npy` includes above —
+# setuptools keeps files the include globs matched — and a stanza that looks
+# like it prunes 28 MB while pruning nothing is worse than none. The pruning
+# lives in scripts/build_backend.py::_BUILD_ONLY_DATA (wheel) and MANIFEST.in
+# (sdist), and scripts/check_wheel_data.py fails the build if it stops working.
+
 # (The web client's static assets live at repo-root frontend/ — outside the
 # package on purpose. A pip install serves API + MCP; the UI comes from a
 # checkout (Docker/source) or the hosted client at mirobody.ai. This is what

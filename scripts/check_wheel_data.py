@@ -29,11 +29,24 @@ import zipfile
 REQUIRED = {
     "mirobody/res/fhir_loinc_bundle.tar.gz": 1_000_000,
     "mirobody/res/fhir_meta.csv.gz": 1_000_000,
-    "mirobody/res/fhir_concept_graph.bin": 1_000_000,
     "mirobody/res/aliases_src/zh.tsv": 100_000,
     "mirobody/res/aliases_src/ja.tsv": 100_000,
     "mirobody/res/resolver_overrides.tsv": 1_000,
 }
+
+# The other direction, and it is worth a gate of its own: the package-data globs
+# are deliberately broad (``**/*.bin``, ``**/*.npy``) so a new data file cannot
+# be forgotten, which means anything dropped into ``res/`` ships by default.
+# These four are read by NOTHING at runtime — the build tooling and the v2
+# semantic pipeline are their only callers — and they were 28 MB of every
+# wheel. One of them, the SNOMED bundle, also put an Affiliate-Licence
+# obligation on every downstream recipient.
+FORBIDDEN = (
+    "mirobody/res/fhir_concept_graph.bin",
+    "mirobody/res/fhir_id_map.npy",
+    "mirobody/res/fhir_taxonomy.bin",
+    "mirobody/res/fhir_snomed_ct_bundle.tar.gz",
+)
 
 # Git LFS pointer files start with this line and are a few hundred bytes.
 LFS_MAGIC = b"version https://git-lfs.github.com/spec/"
@@ -65,11 +78,19 @@ def _sdist_entries(path: str):
 def check(path: str) -> list[str]:
     entries = _wheel_entries(path) if path.endswith(".whl") else _sdist_entries(path)
     seen: dict[str, tuple[int, bytes]] = {}
+    stowaways: list[tuple[str, int]] = []
     for name, size, head in entries:
         if name in REQUIRED:
             seen[name] = (size, head)
+        elif name in FORBIDDEN:
+            stowaways.append((name, size))
 
     problems: list[str] = []
+    for name, size in stowaways:
+        problems.append(
+            f"UNWANTED  {name} — {size/1e6:.1f} MB that no runtime code path reads; "
+            "add it to [tool.setuptools.exclude-package-data]"
+        )
     for member, min_size in REQUIRED.items():
         if member not in seen:
             problems.append(f"MISSING   {member} — not in the artifact (check package-data globs)")
@@ -99,7 +120,7 @@ def main() -> int:
             for p in problems:
                 print(f"  {p}")
         else:
-            print(f"{artifact}: all {len(REQUIRED)} engine data bundles present and real")
+            print(f"{artifact}: all {len(REQUIRED)} engine data bundles present and real; none of the {len(FORBIDDEN)} build-time-only artifacts shipped")
 
     if failed:
         print(

@@ -91,6 +91,65 @@ class TerminologyService:
 
     #-------------------------------------------------------------------------
 
+    async def convert_unit(
+        self,
+        value: float,
+        from_unit: str,
+        to_unit: str,
+        loinc_code: str = "",
+    ) -> dict[str, Any]:
+        """
+        Convert one measurement between units. Offline, no user data. Use this
+        before comparing or charting readings that were recorded in different
+        units — never scale a value by hand.
+
+        Args:
+            value: The number as recorded, e.g. 5.6.
+            from_unit: Unit it is in now, as printed, e.g. "mmol/L".
+            to_unit: Unit wanted, e.g. "mg/dL".
+            loinc_code: The reading's LOINC code. Required only to cross between
+                mass and substance concentration (mg/dL <-> mmol/L), which needs
+                that analyte's molar mass. Omit for same-dimension conversions.
+
+        Returns:
+            converted: the value in `to_unit`, or null when the two units cannot
+                be converted — which is an ANSWER, not a failure: report the
+                readings separately with their own units rather than scaling
+                one to look like the other. Percentages and absolute counts, and
+                anything needing a molar mass this engine does not carry, land
+                here. `reason` says which case it was.
+        """
+        from mirobody.indicator.fhir.units import (
+            convert_value, normalize_unit as _norm,
+        )
+
+        src = _norm(from_unit) or from_unit
+        dst = _norm(to_unit) or to_unit
+        try:
+            converted = convert_value(float(value), src, dst, loinc_code=(loinc_code or "").strip())
+        except (TypeError, ValueError):
+            return {"success": False, "error": "value must be a number."}
+
+        if converted is None:
+            return {
+                "success": True,
+                "converted": None,
+                "from_ucum": src,
+                "to_ucum": dst,
+                "reason": (
+                    "These units are not interconvertible. Either they measure "
+                    "different things (a percentage is not an absolute count), "
+                    "or the conversion needs a molar mass this engine does not "
+                    "carry for that code. Report the readings separately."
+                ),
+            }
+        return {
+            "success": True,
+            "converted": converted,
+            "from_ucum": src,
+            "to_ucum": dst,
+        }
+
     async def normalize_unit(self, units: list[str]) -> dict[str, Any]:
         """
         Normalize free-text measurement units to canonical UCUM form. Offline,
@@ -103,9 +162,11 @@ class TerminologyService:
         Returns:
             results: per input, in order — unit (unchanged), ucum (canonical
                 form; empty means unrecognized — say so rather than assuming),
-                family (LOINC PROPERTY, e.g. "SCnc"). Units in the SAME family
-                are convertible; converting across families is a category
-                error, not arithmetic.
+                family (LOINC PROPERTY, e.g. "SCnc"). `family` classifies the
+                property; it does NOT tell you what converts — `kg/m2` (BMI)
+                and `mg/dL` share the family MCnc and cannot convert, while
+                `U/L` and `[IU]/L` are in different families and are the same
+                unit. Call `convert_unit` for that question.
         """
         if not isinstance(units, list) or not units:
             return {"success": False, "error": "units must be a non-empty list of strings."}
