@@ -730,14 +730,17 @@ async def authorize_shared_by_me(
     try:
         service = await get_sharing_service()
 
-        # Prioritize share_id for better performance
+        # Prioritize share_id for better performance.
+        # `acting_user_id` is what scopes the UPDATE — without it the share_id
+        # branch authorized any row in the table for any caller.
         result = await service.authorize_invitation(
             owner_user_id=current_user_id if not request.share_id else None,
             query_user_id=request.query_user_id if not request.share_id else None,
             share_id=request.share_id,
             permission=request.permission,
             email=None,
-            verification_code=None
+            verification_code=None,
+            acting_user_id=current_user_id,
         )
 
         return result
@@ -763,6 +766,7 @@ async def authorize_shared_with_me(
         # Determine verification strategy based on code/email presence
         verification_email = None
         verification_code = None
+        remote_verified = False
 
         if request.code and request.email:
             # Need email verification
@@ -799,7 +803,9 @@ async def authorize_shared_with_me(
                                 logging.error(f"Remote verification failed: success=False, msg={error_msg}, full response={result_json}")
                                 return {"code": -1, "msg": f"Remote verification failed: {error_msg}"}
 
-                            # Remote verification successful, verification will be skipped in service
+                            # Remote verification successful; the service must
+                            # not demand a second one it cannot perform.
+                            remote_verified = True
                             logging.info("Remote verification successful")
                     except Exception as e:
                         logging.error(f"Exception during remote verification: {e}")
@@ -823,7 +829,13 @@ async def authorize_shared_with_me(
             if user_result and user_result[0]:
                 request.owner_user_id = str(user_result[0].get("id"))
 
-        # Prioritize share_id for better performance
+        # Prioritize share_id for better performance.
+        #
+        # `require_email_verification` makes the docstring above true. It said
+        # this endpoint "ALWAYS requires email verification" while the service
+        # only verified `if email and verification_code`, so omitting both
+        # skipped the check. `remote_verified` is the one legitimate way past
+        # it: the remote MCP server already verified the code, above.
         result = await service.authorize_invitation(
             owner_user_id=request.owner_user_id if not request.share_id else None,
             query_user_id=current_user_id if not request.share_id else None,
@@ -831,7 +843,9 @@ async def authorize_shared_with_me(
             permission=request.permission,
             email=verification_email,
             verification_code=verification_code,
-            nickname=request.nickname
+            nickname=request.nickname,
+            acting_user_id=current_user_id,
+            require_email_verification=not remote_verified,
         )
 
         return result

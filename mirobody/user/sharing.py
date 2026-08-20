@@ -616,14 +616,42 @@ class SharingService:
             permission: Dict[str, int] = None,
             email: str = None,
             verification_code: str = None,
-            nickname: str = None
+            nickname: str = None,
+            acting_user_id: Optional[str] = None,
+            require_email_verification: bool = False,
     ) -> Dict[str, Any]:
         """
         Authorize an invitation - unified function for both tabs
         Can use either (owner_user_id, query_user_id) or share_id
+
+        `acting_user_id` is the authenticated caller and is REQUIRED. The
+        share_id branch used to run
+
+            UPDATE th_share_relationship SET status='authorized',
+                   permissions=:permissions WHERE share_id = :share_id
+
+        with no predicate naming the caller at all. Any authenticated user
+        could flip any share row to `authorized` with permissions of their
+        choosing: insert a pending share against a victim's email, authorize
+        it, and read that victim's entire health record, with no notification
+        on their side. The (owner_user_id, query_user_id) branch was safe only
+        because the router happened to pass the caller's own id into one of
+        them — safety by call-site convention, which the other branch did not
+        follow.
         """
         try:
-            # Email verification if email and code are provided
+            if not acting_user_id:
+                return {"code": -7, "msg": "Authenticated caller is required"}
+
+            # Email verification. `if email and verification_code:` meant a
+            # caller who simply omitted BOTH skipped verification entirely,
+            # while `authorize_shared_with_me`'s own docstring said it "ALWAYS
+            # requires email verification". `require_email_verification` makes
+            # the requirement the caller's explicit choice instead of an
+            # accident of which arguments were filled in.
+            if require_email_verification and not (email and verification_code):
+                return {"code": -8, "msg": "Email verification is required"}
+
             if email and verification_code:
                 if self._email_validator:
                     try:
@@ -637,18 +665,31 @@ class SharingService:
 
             # Build UPDATE query based on parameters
             if share_id:
-                # Use share_id directly - more efficient
+                # Use share_id directly - more efficient.
+                #
+                # The caller must be a PARTY to the row. Either side may
+                # authorize — the owner approves someone they are sharing with,
+                # the member accepts an invitation addressed to them — but a
+                # third party is not a party and matches neither column.
                 update_query = """UPDATE th_share_relationship
                                   SET status='authorized',
                                       permissions=:permissions,
                                       updated_at=NOW()
-                                  WHERE share_id = :share_id RETURNING owner_user_id, member_user_id;"""
+                                  WHERE share_id = :share_id
+                                    AND (owner_user_id = :acting_user_id
+                                         OR member_user_id = :acting_user_id)
+                                  RETURNING owner_user_id, member_user_id;"""
                 params = {
                     "permissions": json.dumps(permission),
-                    "share_id": share_id
+                    "share_id": share_id,
+                    "acting_user_id": str(acting_user_id),
                 }
             elif owner_user_id and query_user_id:
-                # Fallback to old method for backward compatibility
+                # The (owner, member) pair form. The caller must still be one of
+                # the two: relying on the router to pass its own id into the
+                # right slot is the convention the share_id branch broke.
+                if str(acting_user_id) not in (str(owner_user_id), str(query_user_id)):
+                    return {"code": -9, "msg": "Not a party to this share"}
                 update_query = """UPDATE th_share_relationship
                                   SET status='authorized',
                                       permissions=:permissions,
@@ -669,6 +710,9 @@ class SharingService:
             )
 
             if not result:
+                # Also the answer when the caller is not a party to the row:
+                # the predicate matched nothing. Same message either way, so
+                # this does not become a share_id oracle.
                 return {"code": -4, "msg": "Invitation record not found"}
 
             row = result[0]
