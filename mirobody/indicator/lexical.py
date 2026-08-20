@@ -151,4 +151,14 @@ def split_trailing_parenthetical(term: str) -> tuple[str, str]:
     match = TRAILING_PARENTHETICAL.search(term or "")
     if not match:
         return "", ""
-    return TRAILING_PARENTHETICAL.sub("", term).strip(), match.group(1).strip()
+    inside = match.group(1).strip()
+    # The parenthetical must look like a NAME, not a unit. `中性粒细胞(%)` is a
+    # differential percentage whose stem answers the ABSOLUTE-count code
+    # (751-8) while the value is a fraction — stripping it would turn an honest
+    # miss into a confidently wrong answer, which is the failure this project
+    # scores worst. Requiring a letter keeps `(ALT)` and `(10*9/L)` (which does
+    # name a unit, but is at least a token the index can be asked about) while
+    # rejecting `(%)`, `(+)` and `(-)`.
+    if not any(ch.isalpha() for ch in inside):
+        return "", ""
+    return TRAILING_PARENTHETICAL.sub("", term).strip(), inside

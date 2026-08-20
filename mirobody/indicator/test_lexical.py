@@ -88,6 +88,17 @@ def test_surface_variants(raw, expected):
         ("lipoprotein(a)", "lipoprotein", "a"),
         ("fasting glucose", "", ""),  # nothing to split
         ("(orphan)", "", "orphan"),  # no stem is a legal outcome
+        # A parenthetical with no letter is a UNIT, not a name. `中性粒细胞(%)`
+        # is a differential percentage; its stem answers the absolute-count
+        # code while the value is a fraction, so stripping would turn an honest
+        # miss into a confidently wrong answer.
+        ("中性粒细胞(%)", "", ""),
+        ("淋巴细胞(%)", "", ""),
+        ("尿蛋白(+)", "", ""),
+        # A unit that does contain letters still splits: the abbreviation and
+        # the unit are not distinguishable here, and the resolver's own
+        # disagreement rule decides what to do with it.
+        ("中性粒细胞(10*9/L)", "中性粒细胞", "10*9/L"),
     ],
 )
 def test_split_trailing_parenthetical(raw, stem, inside):

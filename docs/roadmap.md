@@ -30,23 +30,68 @@ Note the honesty constraint this inherits from the resolver: a wrong range is
 worse than no range. Whatever ships must be able to say "no reference range for
 this indicator" rather than guessing one.
 
-### Unit conversion (not just normalization)
+### Unit conversion — **done**
 
-**Status:** not started. Half of it already exists.
+**Status:** shipped in `indicator/fhir/units/convert.py`. Kept here because two
+of the traps it walked into are worth not rediscovering.
 
-`normalize_unit` canonicalizes to UCUM and reports the LOINC PROPERTY family —
-so we already know that `mg/dL` and `mmol/L` are both `MCnc`/`SCnc` and
-therefore *comparable*. We do not convert between them.
+Three tiers: same-dimension UCUM parsing, a molar-mass bridge keyed by LOINC
+code for mass↔substance, and an explicit refusal for everything else.
 
-The family table is the safety rail that makes conversion tractable: converting
-across families is a category error and must be refused. Two rules to carry over
-from prior art:
+The trap this entry originally missed: **do not use `unit_family()` to decide
+convertibility.** It is a LOINC PROPERTY classifier and it is wrong in both
+directions — `kg/m2` (BMI) and `mg/dL` are both `MCnc` and cannot convert, while
+`U/L` (`CCnc`) and `[IU]/L` (`ACnc`) are in different families and are the same
+unit. The MCP tool's own docstring asserted the family rule, so a model
+following it would have turned a BMI of 24 into a mass concentration. Dimension
+signatures reject the first and accept the second by construction.
 
-- **Affine units need an offset.** °F ↔ °C is not a multiplication. If a
-  conversion has no declared offset and the unit is affine, refuse and warn
-  rather than approximating.
-- **Unknown unit ⇒ never convert.** Default to a "no conversion" class instead
-  of guessing a factor.
+The affine-unit warning above stands and is honoured by omission: `Cel` has no
+offset declared, so it parses to `None` and converts only to itself.
+
+Three conventions are written into `MOLAR_MASS` because they will otherwise be
+got wrong: triglyceride uses a CONVENTIONAL average mass (triolein ≈ 885.4, not
+a determinate molecule), BUN is reported as nitrogen while urea is the whole
+molecule (2.14x apart, one row each, never shared), and conversion happens only
+WITHIN one code — across codes is concept mapping.
+
+### Japanese coverage: the data is there, the wrong data is there
+
+**Status:** not started, and deliberately NOT the obvious fix.
+
+`res/aliases_src/ja.tsv` is 16,809 rows and 715 KB, and **16,300 of them resolve
+to nothing at all** — not "nothing in LOINC", nothing. Its right-hand side is
+overwhelmingly SNOMED-shaped: `Jaagsiekte sheep retrovirus`,
+`Ornithine transcarbamoylase deficiency`, `Abiotrophia defectiva endocarditis`.
+Diseases and organisms, not observations, so the observation index has no key for
+them.
+
+**Cleaning up that file is not the fix, and was measured before being rejected:**
+
+- Size: 715 KB of a 24.4 MB wheel — 3.0%.
+- Memory: ~2.1 MB of the resolver's ~484 MB resident — 0.4%.
+- Correctness: the plausible mechanism was shadowing. `_alias_source_files`
+  reads ja.tsv BEFORE zh.tsv and the loader uses `setdefault`, so a shared kanji
+  term takes ja's target. Measured: 25 shared keys, 10 with differing targets,
+  and 5 of those 10 already resolve correctly anyway via the raw-index fallback
+  (including `胆汁酸` → 14628-2, the only real analyte among them). The
+  remaining 5 are conditions and procedures — 交換輸血, 幹細胞移植, 肝細胞癌,
+  脊柱腫瘤, 膀胱腫瘤 — whose "recovered" codes would be a risk score and an
+  aneuploidy panel. Recovering them would be a regression in spirit.
+- Cost: the generator reads LOINC linguistic-variant sources that are **not in
+  this repo**, so the change could be neither run nor verified here.
+
+So the 16,300 rows are inert, not harmful, and the real gap is elsewhere: a spot
+check of the everyday 健康診断 panel resolves **20 of 24**, and the misses were
+specific words, not a shortage of data. `ja_curated.tsv` — the hand-written file
+that takes precedence over the machine-generated one — has **4 rows**, all
+header placeholder, against `zh_curated.tsv`'s 633.
+
+The work is therefore curation, not cleanup: resolve a 健康診断 term, find the
+miss, add a row to `ja_curated.tsv` or `resolver_overrides.tsv`, add a case to
+`test_engine_coverage.py`. Same loop as the 中文 rows that took coverage from
+32/94 to 175/175. If the machine-generated file is ever regenerated, filter it
+by LOINC CLASS at generation time so observations survive and conditions do not.
 
 ### LLM behaviour tests for `mirobody parse`
 
@@ -452,24 +497,44 @@ text-layer PDFs, a 9-page pure scan with no text layer, three phone photos of
 printed panels. What the run fixed is in the log; what it exposed and did not
 fix is here.
 
-- **`名称(缩写)` defeats the resolver, and it is the most common way a Chinese
-  lab prints a row.** `谷丙转氨酶` resolves to 1742-6; `谷丙转氨酶(ALT)` resolves
-  to nothing, and so do `碱性磷酸酶(AKP/ALP)`, `总胆红素(TBIL)`,
-  `神经元特异性烯醇化酶(NSE)`. Every abbreviation inside those parentheses
-  resolves on its own (NSE → 15060-7, TBIL → 1975-2, ALP → 6768-6), so the fix
-  is a trailing-parenthetical expansion in `OfflineResolver._candidate_keys`:
-  try the base name, then each `/`-separated token inside the parens, appended
-  AFTER the existing keys so nothing that resolves today can change.
-  **The trap that makes this not a one-liner:** `中性粒细胞(%)` must NOT strip,
-  because `中性粒细胞` resolves to the ABSOLUTE-count code 751-8 while the value
-  is a percentage — stripping would turn an honest miss into a confidently wrong
-  answer, the exact thing this project scores as failure. Gate on the
-  parenthetical containing letters, not just any content.
-- **Differential percentages have no correct target.** `中性粒细胞(%)`,
-  `淋巴细胞(%)` etc. need the `/100 leukocytes` codes in BLOOD (770-8, 736-9,
-  5905-5, 713-8, 706-2). Every phrasing tried resolves to the DEPRECATED body
-  fluid / CSF variants instead, so no override row can be written honestly until
-  the index carries the blood ones. Blocks a whole CBC column.
+- **`名称(缩写)` — done.** Handled as a class in
+  `OfflineResolver.resolve`: strip the trailing parenthetical, resolve BOTH
+  halves, take the answer only when they agree or only one resolves. So
+  `谷丙转氨酶(ALT)` → 1742-6, `总胆红素(TBIL)` → 1975-2,
+  `神经元特异性烯醇化酶(NSE)` → 15060-7, while `血糖(HbA1c)` — two different
+  tests in one string — stays unresolved.
+  **The trap this entry predicted was real and is honoured**: a parenthetical
+  containing no letter is a UNIT, not a name, so `中性粒细胞(%)` does not strip
+  (`lexical.split_trailing_parenthetical`). Without that guard the stem answers
+  the ABSOLUTE-count code while the value is a fraction.
+- **Differential percentages: the panel disagrees with itself.** Re-measured
+  2026-08-20, and it is not the blanket miss this entry first described — four of
+  the five cells already answer a RATIO code, and one does not:
+
+  ```
+  淋巴细胞      26478-8  NFr   Lymphocytes/Leukocytes      ratio  ✓
+  单核细胞      26485-3  NFr   Monocytes/Leukocytes        ratio  ✓
+  嗜酸性粒细胞   26450-7  NFr   Eosinophils/Leukocytes      ratio  ✓
+  嗜碱性粒细胞   30180-4  NFr   Basophils/Leukocytes        ratio  ✓
+  中性粒细胞     751-8   NCnc  Neutrophils [#/volume]      COUNT  ✗
+  ```
+
+  So a five-cell differential lands four ratios and one absolute count, and
+  `中性粒细胞 62 %` is filed as a cell count.
+
+  `resolve_reading` cannot fix this and should not: it walks to siblings sharing
+  the **full** COMPONENT, and `Neutrophils` and `Neutrophils/Leukocytes` are
+  genuinely different measurements — `units/convert.py` refuses `%` ↔ `10*9/L`
+  for the same reason.
+
+  The mechanism that would fix it: LOINC writes a ratio into COMPONENT as
+  `<numerator>/<denominator>`, so a fraction-family unit (`NFr`/`MFr`) on a
+  reading whose code has a `/`-free COMPONENT should look for the
+  `<component>/…` sibling, and an absolute-count unit on a ratio code should
+  look for the numerator alone. Both directions are determined; neither is
+  built. Targets for the forward direction are 770-8, 736-9, 5905-5, 713-8,
+  706-2.
+
 - **Imaging narratives resolve to serum enzymes.** A B超 report parses fine, but
   `肝脏` (an organ, with the finding "形态大小正常") answers
   13874-3 *Alkaline phosphatase.liver*, `胰腺` answers *Amylase.pancreatic*, and
