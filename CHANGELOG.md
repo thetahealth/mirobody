@@ -152,7 +152,7 @@ things to know:
   blocked instead: each names more than one test (钙 vs 癌抗原; prothrombin time
   vs 前列腺素; 镁 vs the unit), and the index answers whichever the commonness
   prior likes — which is exactly how `HGB` became HbA1c.
-  Resolver coverage: **116/116 → 169/169**.
+  Resolver coverage: **116/116 → 175/175**.
 - **A malformed tool call no longer ends the turn as an empty answer.**
   claude-sonnet (via OpenRouter, temperature 0.1) deterministically emitted
   `{"aggregate": none}` — Python's `None`, not JSON — LangChain parked the call

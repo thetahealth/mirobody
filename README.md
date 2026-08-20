@@ -110,7 +110,7 @@ The part none of the adjacent open-source projects have — a **semantic standar
 
 - **Concept graph**: 440,961 nodes · 22,044,110 cross-vocabulary edges · **595,746 source ids** distilled into canonical concepts (LOINC · SNOMED CT · RxNorm bridges), shipped via Git LFS ([`indicator/`](mirobody/indicator/README.md)).
 - **Embedding-based resolution**: free-text indicator names → canonical codes, with **50,240 multilingual aliases** (中文 22,578 · 日本語 16,809 · +6 languages) — `血红蛋白`, `ヘモグロビン` and `hemoglobin` all land on LOINC 718-7.
-- **We measure that claim instead of asserting it.** [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) scores the offline resolver against the panels a physical actually orders — lipid, CBC, metabolic, liver, thyroid, hormones, tumour markers, urinalysis, vitals — written the way a report prints them, in English, 中文 and 日本語 — plus the device/wearable vocabulary the platform API teaches (`steps`, `resting_heart_rate`, `sleep_duration`). **169/169 today; it scored 32/94 the day it was written.** It grades *clinical* correctness, not resolution rate: answering `血红蛋白` with the code for HbA1c is scored as a failure, and `血圧` (a panel, not an observation) is required to resolve to *nothing*, because a confident wrong code is worse than an honest miss.
+- **We measure that claim instead of asserting it.** [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) scores the offline resolver against the panels a physical actually orders — lipid, CBC, metabolic, liver, thyroid, hormones, tumour markers, urinalysis, vitals — written the way a report prints them, in English, 中文 and 日本語 — plus the device/wearable vocabulary the platform API teaches (`steps`, `resting_heart_rate`, `sleep_duration`). **175/175 today; it scored 32/94 the day it was written.** It grades *clinical* correctness, not resolution rate: answering `血红蛋白` with the code for HbA1c is scored as a failure, and `血圧` (a panel, not an observation) is required to resolve to *nothing*, because a confident wrong code is worse than an honest miss.
 - **Surface algebra, so the spelling doesn't decide the answer** ([`indicator/lexical.py`](mirobody/indicator/lexical.py)): NFKC-lite folding (full-width, superscripts, the six dash variants) plus a CJK-aware tokenizer, and a guarded strip of the `名称(缩写)` shape a lab report prints. `ＦＢＧ`, `LDL–C`, `fasting_glucose`, `空腹血糖(GLU)` and `Cholesterol, total` all reach the same codes as their plain forms. When the two halves of `名称(缩写)` disagree — `血糖(HbA1c)` — the term stays **unresolved** rather than picking one.
 - **Unit normalization** to UCUM families (~310), 316 standard pulse indicators, FHIR R4 output.
 - Taxonomy of 25 clinical categories (Vital signs, Lab & Clinical, Body measures, …).
@@ -263,10 +263,10 @@ We hold the engine itself to the same standard. **Resolver coverage** — can �
 
 ```bash
 pytest mirobody/test_engine_coverage.py -s
-#   offline resolver coverage: 169/169 = 100%
+#   offline resolver coverage: 175/175 = 100%
 ```
 
-It started at **32/94** — the benchmark has since grown to 169 cases. The gap was not the concept graph; it was that the index is built from LOINC long names, so it knew `LDL-C` but not `LDL cholesterol`, knew 葡萄糖 but not `血糖`, and answered `血红蛋白` with the code for HbA1c. Both classes of failure are one TSV row each to fix — [see Contributing](#-contributing).
+It started at **32/94** — the benchmark has since grown to 175 cases. The gap was not the concept graph; it was that the index is built from LOINC long names, so it knew `LDL-C` but not `LDL cholesterol`, knew 葡萄糖 but not `血糖`, and answered `血红蛋白` with the code for HbA1c. Both classes of failure are one TSV row each to fix — [see Contributing](#-contributing).
 
 ---
 
@@ -511,7 +511,7 @@ pytest        # 342 tests, ~8s — no database, no network, no API key
 
 Tests sit beside the code they cover, so bare `pytest` is the whole suite. Two
 of them carry the project's public claims: `test_engine_coverage.py` is the
-169/169 resolver number quoted above, and `pulse/gate_tests/` snapshots every
+175/175 resolver number quoted above, and `pulse/gate_tests/` snapshots every
 vendor payload against its standardized form.
 
 **👉 [docs/testing.md](docs/testing.md)** — layout, markers, snapshot

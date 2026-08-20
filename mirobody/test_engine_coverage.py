@@ -73,7 +73,7 @@ CASES: list[tuple[str, str, str]] = [
     ("platelet count",              r"platelet",                     r""),
     # ── metabolic panel ──────────────────────────────────────────────────────
     ("glucose",                     r"glucose",                      r"tolerance|challenge"),
-    ("fasting glucose",             r"glucose",                      r"tolerance|challenge"),
+    ("fasting glucose",             r"^fasting glucose",             r"tolerance"),
     ("creatinine",                  r"creatinine",                   r"clearance|urine"),
     ("blood urea nitrogen",         r"urea nitrogen",                r""),
     ("sodium",                      r"sodium",                       r""),
@@ -96,7 +96,7 @@ CASES: list[tuple[str, str, str]] = [
     # ── 中文（简体）─────────────────────────────────────────────────────────
     ("血红蛋白",                     r"hemoglobin",                   r"A1c|glycated"),
     ("血糖",                         r"glucose",                      r"tolerance|challenge"),
-    ("空腹血糖",                     r"glucose",                      r"tolerance|challenge"),
+    ("空腹血糖",                     r"^fasting glucose",             r"tolerance"),
     ("总胆固醇",                     r"cholesterol",                  r"LDL|HDL"),
     ("低密度脂蛋白胆固醇",             r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
     ("高密度脂蛋白胆固醇",             r"cholesterol.*HDL|HDL.*cholesterol", r"LDL"),
@@ -188,6 +188,14 @@ CASES: list[tuple[str, str, str]] = [
     ("平均血红蛋白含量",               r"MCH \[|mean corpuscular hemoglobin", r"concentration|MCHC"),
     ("平均血红蛋白浓度",               r"MCHC",                         r""),
     ("超敏C反应蛋白",                 r"c reactive protein",           r"titer"),
+    # Abbreviations that name more than one test resolve to the widespread
+    # reading. `HRV` answered 40991-2 Rhinovirus+Enterovirus RNA — a PCR
+    # panel — for what every wearable means by those three letters.
+    ("HRV",                         r"heart rate variability|r-r interval", r"rhinovirus|enterovirus"),
+    ("CA",                          r"^calcium",                     r"cancer|antigen"),
+    ("PT",                          r"prothrombin time",             r"^inr|substitution"),
+    ("MG",                          r"^magnesium",                   r""),
+    ("凝血酶原时间",                  r"prothrombin time",             r"^inr"),
     # ── fourth sweep: device & wearable vocabulary, incl. the snake_case an
     # API caller sends ──────────────────────────────────────────────────────
     # `POST /v1/data` in the platform docs calls device data the main form
@@ -215,10 +223,10 @@ CASES: list[tuple[str, str, str]] = [
     ("SpO2",                        r"oxygen saturation",            r"deprecated|mixed venous|cord"),
     ("血氧",                         r"oxygen saturation",            r"deprecated|mixed venous|cord"),
     # Fasting glucose in the three spellings the docs and a 中文 report use.
-    ("fasting_glucose",             r"glucose",                      r"tolerance|challenge|urine"),
-    ("FBG",                         r"glucose",                      r"tolerance|challenge|urine"),
-    ("glucose, fasting",            r"glucose",                      r"tolerance|challenge|urine"),
-    ("血糖(空腹)",                    r"glucose",                      r"tolerance|challenge|urine"),
+    ("fasting_glucose",             r"^fasting glucose",             r"tolerance|urine"),
+    ("FBG",                         r"^fasting glucose",             r"tolerance|urine"),
+    ("glucose, fasting",            r"^fasting glucose",             r"tolerance|urine"),
+    ("血糖(空腹)",                    r"^fasting glucose",             r"tolerance|urine"),
     ("systolic_blood_pressure",     r"systolic blood pressure",      r""),
     ("total_cholesterol",           r"^cholesterol \[",              r"LDL|HDL|VLDL"),
     # ── fifth sweep: the surfaces a report actually prints ───────────────────
@@ -229,6 +237,9 @@ CASES: list[tuple[str, str, str]] = [
     #     row: strip the trailing parenthetical, resolve both halves, and refuse
     #     when they disagree (see MUST_NOT_RESOLVE for the refusals).
     ("空腹血糖(GLU)",                 r"glucose",                      r"tolerance|urine"),
+    # The two halves disagree on code but share the COMPONENT analyte head
+    # (`Glucose^post CFst` vs `Glucose`), so the stem — the more specific
+    # framing — wins instead of the term being refused.
     ("总胆固醇(TC)",                  r"^cholesterol \[",              r"LDL|HDL|VLDL"),
     ("甘油三酯(TG)",                  r"triglyceride",                 r""),
     ("低密度脂蛋白胆固醇(LDL-C)",         r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
@@ -256,6 +267,13 @@ CASES: list[tuple[str, str, str]] = [
     #     invisible character away from a key that already existed.
     ("ＦＢＧ",                        r"glucose",                      r"tolerance|urine"),
     ("LDL–C",                       r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
+    # (d) 日本語 健康診断 names the ja.tsv sweep does not reach — it carries
+    #     diseases and organisms, not observations (3% of its targets are keys
+    #     the observation index can look up).
+    ("LDLコレステロール",               r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
+    ("HDLコレステロール",               r"cholesterol.*HDL|HDL.*cholesterol", r"LDL"),
+    ("血清鉄",                       r"^iron \[",                     r"binding|saturation"),
+    ("フェリチン",                    r"ferritin",                     r""),
 ]
 
 # Terms that must stay UNRESOLVED. A confident wrong code is worse than an
@@ -284,11 +302,11 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     ("血糖(HbA1c)", "stem is glucose, parenthetical is HbA1c — they disagree"),
     ("胆固醇(HDL-C)", "stem is total cholesterol, parenthetical is HDL"),
     ("血压(收缩压)", "a blocked panel name keeps its block through the strip"),
-    # Abbreviations that name more than one test. The index answers whichever
-    # the commonness prior likes, which is exactly how HGB became HbA1c.
-    ("CA", "钙 (calcium) or 癌抗原 (CA-125/CA19-9)"),
-    ("PT", "prothrombin time, or 前列腺素, or 甲状旁腺"),
-    ("MG", "镁 (magnesium), or the unit mg"),
+    # NOTE what is deliberately NOT here any more: CA / PT / MG. An ambiguous
+    # abbreviation is not the same case as a panel name. A panel has no correct
+    # single observation code; an abbreviation has a reading that dominates
+    # ordinary use, and refusing it helps nobody. They are pinned as positive
+    # cases above instead.
 ]
 
 # Ratchet. Every case above is expected to pass, so the floor is 1.0; raise the

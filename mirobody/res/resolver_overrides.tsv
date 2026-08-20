@@ -63,9 +63,9 @@ haematocrit	HCT Fr Sg Auto
 packed cell volume	HCT Fr Sg Auto
 
 # ── metabolic panel ──────────────────────────────────────────────────────
-fasting glucose	Glucose
-fasting blood glucose	Glucose
-fasting plasma glucose	Glucose
+fasting glucose	Fasting glucose [Mass/volume] in Serum or Plasma
+fasting blood glucose	Fasting glucose [Mass/volume] in Serum or Plasma
+fasting plasma glucose	Fasting glucose [Mass/volume] in Serum or Plasma
 blood sugar	Glucose
 BUN	Urea nitrogen
 total bilirubin	Bilirubin
@@ -130,7 +130,7 @@ urine specific gravity	SP GR Ur
 血红蛋白	Hemoglobin
 血色素	Hemoglobin
 血糖	Glucose
-空腹血糖	Glucose
+空腹血糖	Fasting glucose [Mass/volume] in Serum or Plasma
 餐后血糖	Glucose
 总胆固醇	Cholesterol
 胆固醇	Cholesterol
@@ -180,7 +180,7 @@ urine specific gravity	SP GR Ur
 クレアチニン	Creatinine
 尿酸値	Urate
 血糖値	Glucose
-空腹時血糖	Glucose
+空腹時血糖	Fasting glucose [Mass/volume] in Serum or Plasma
 白血球数	WBC # Bld
 赤血球数	RBC # Bld
 血小板数	Platelet count
@@ -283,12 +283,15 @@ body fat percentage	Percentage of body fat Measured
 体脂率	Percentage of body fat Measured
 SpO2	oxygen saturation
 血氧	oxygen saturation
-# Fasting glucose as an API caller and a 中文 report write it. The spaced
-# English forms were already covered; these spellings were not.
-FBG	Glucose
-FPG	Glucose
-glucose, fasting	Glucose
-血糖(空腹)	Glucose
+# Fasting glucose is its OWN LOINC concept (1558-6, COMPONENT
+# `Glucose^post CFst`), not plain glucose (2339-0). These rows used to target
+# `Glucose`, which collapsed a fasting reading into the generic glucose
+# series — the distinction the ordering physician made, thrown away on
+# ingest.
+FBG	Fasting glucose [Mass/volume] in Serum or Plasma
+FPG	Fasting glucose [Mass/volume] in Serum or Plasma
+glucose, fasting	Fasting glucose [Mass/volume] in Serum or Plasma
+血糖(空腹)	Fasting glucose [Mass/volume] in Serum or Plasma
 
 # ══ lab-report abbreviations ══════════════════════════════════════════════
 # The short codes a CBC / 生化 printout puts in its own column. They were the
@@ -316,16 +319,40 @@ CREA	Creatinine
 UA	Urate
 TP	Protein
 CK	Creatine kinase
-# Ambiguous abbreviations are refused, not guessed. Each of these is a real
-# short code for more than one test, and the index answers whichever the
-# commonness prior likes — which is how HGB became HbA1c above.
-#   CA  = 钙 (calcium) or 癌抗原 (cancer antigen, CA-125/CA19-9)
-#   PT  = 凝血酶原时间 (prothrombin time) or 前列腺素 or 甲状旁腺
-#   MG  = 镁 (magnesium) or the unit mg
-# Not blocked, deliberately: `Cr` and `CR` casefold to the SAME key, so a
-# block row here would shadow `Cr -> Creatinine` (or be shadowed by it,
-# depending on read order). Creatinine on a 生化 panel is far commoner than
-# chromium, so the useful answer wins and the ambiguity is recorded here.
-CA	!unresolved
-PT	!unresolved
-MG	!unresolved
+# Abbreviations that name more than one test resolve to the WIDESPREAD
+# reading rather than refusing. A panel name is a different case and stays
+# blocked (see the non-answers section): there, no single observation code
+# can be right. Here one reading dominates ordinary use by a wide margin,
+# and an honest miss on `CA` helps nobody when 钙 is what a 生化 panel means
+# by it ~always. What must not happen is the index picking for us — that is
+# how HGB became HbA1c — so each is written down.
+#   CA = 钙 (calcium), not 癌抗原 CA-125/CA19-9 (those spell themselves out)
+#   PT = 凝血酶原时间 (prothrombin time), not 前列腺素 / 甲状旁腺
+#   MG = 镁 (magnesium), not the unit mg
+#   Cr = 肌酐 (creatinine), not chromium — and note `Cr`/`CR` casefold to one
+#        key, so only one row can win
+CA	Calcium
+PT	Prothrombin time (PT)
+MG	Magnesium
+
+# ══ 日本語 — 健康診断 terms the ja.tsv sweep does not carry ═══════════════════
+# ja.tsv is 16,809 rows but its right-hand side is overwhelmingly SNOMED-shaped:
+# diseases and organisms (Jaagsiekte sheep retrovirus, Ornithine
+# transcarbamoylase deficiency), not LOINC observations — only 3% of its
+# distinct targets are keys the observation index can look up. Everyday 健康診断
+# names come out at 20/24 all the same, via zh/ja_curated plus the index; these
+# four are what a spot-check of the panel found missing.
+LDLコレステロール	LDL-C
+HDLコレステロール	HDL-C
+血清鉄	Iron
+鉄	Iron
+フェリチン	Ferritin
+
+# HRV is heart rate variability. It is also the abbreviation for human
+# rhinovirus, and the index preferred that reading: `HRV` answered 40991-2
+# Rhinovirus+Enterovirus RNA, a PCR panel, for what every wearable on the
+# market means by those three letters. Same rule as CA/PT/MG above — the
+# widespread reading, written down rather than left to the commonness prior.
+HRV	heart rate variability
+# 凝血酶原时间 answered 34714-6 INR: a DERIVED ratio, not the time itself.
+凝血酶原时间	Prothrombin time (PT)

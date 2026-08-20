@@ -134,12 +134,23 @@ class OfflineResolver:
             else np.zeros(len(self._names), dtype=np.float32)
         )
 
-        # name -> LOINC_NUM, from the axis table inside the bundle.
+        # name -> LOINC_NUM, and LOINC_NUM -> analyte head, from the axis
+        # table inside the bundle.
         self._loinc_by_name: dict[str, str] = {}
+        self._analyte: dict[str, str] = {}
         axis_raw = read_member("loinc_axis.csv", bundle_path=_BUNDLE)
         if axis_raw is not None:
             for row in csv.DictReader(io.StringIO(axis_raw.decode("utf-8"))):
                 self._loinc_by_name[_normalize(row["LONG_COMMON_NAME"])] = row["LOINC_NUM"]
+                # COMPONENT is the analyte axis, and the part before `^` is the
+                # analyte itself with any challenge/timing modifier stripped:
+                # 1558-6 is `Glucose^post CFst`, 2339-0 is `Glucose`. Same head =
+                # same substance measured differently; different head = a
+                # different test. `resolve` uses it to decide whether the two
+                # halves of `名称(缩写)` are talking about one thing.
+                component = (row.get("COMPONENT") or "").split("^")[0].strip()
+                if component:
+                    self._analyte[row["LOINC_NUM"]] = _normalize(component)
 
         # term -> a target the index resolves. Two sources, in precedence order:
         #
@@ -309,7 +320,24 @@ class OfflineResolver:
         stem_hit = self._lookup(stem) if stem else None
         inside_hit = self._lookup(inside) if inside else None
         if stem_hit and inside_hit and stem_hit.loinc != inside_hit.loinc:
-            return Resolution(term=term)
+            # Different codes, so ask the axis table whether they are even the
+            # same substance. LOINC's COMPONENT answers it:
+            #
+            #   空腹血糖(GLU)   Glucose^post CFst  vs Glucose
+            #                  -> same analyte, the parenthetical is just
+            #                     labelling the stem, so the stem (the more
+            #                     specific framing, and the written head of the
+            #                     term) wins.
+            #   血糖(HbA1c)    Glucose            vs Hemoglobin A1c/Hemoglobin.total
+            #   胆固醇(HDL-C)  Cholesterol        vs Cholesterol.in HDL
+            #                  -> different analytes: two tests in one string,
+            #                     and picking either files the reading into the
+            #                     wrong series. Stays unresolved.
+            stem_analyte = self._analyte.get(stem_hit.loinc, "")
+            inside_analyte = self._analyte.get(inside_hit.loinc, "")
+            if not stem_analyte or stem_analyte != inside_analyte:
+                return Resolution(term=term)
+            inside_hit = None
 
         chosen = stem_hit or inside_hit
         if chosen is None:
