@@ -13,6 +13,7 @@ from fastapi import Request
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
+from mirobody.utils import execute_query
 from mirobody.utils.req_ctx import set_req_ctx
 from mirobody.server.auth import verify_token, verify_token_string
 from mirobody.utils.permissions import get_query_user_id
@@ -73,31 +74,94 @@ class FileDeleteResponse(BaseModel):
 
 my_data_service = MyDataService()
 
-@router.get("/files/{file_path:path}", tags=["files"])
-async def serve_storage_file(file_path: str):
+async def _authorize_file_read(file_key: str, caller_id: str) -> bool:
+    """Can `caller_id` read the object stored under `file_key`?
+
+    Ownership is not a property of the object store — S3/OSS/local all hand out
+    bytes to whoever names the key — so it has to come from the row that
+    recorded the upload. Two tables record one:
+
+    * ``th_files``  — everything the upload path stores, ``file_key`` unique.
+    * ``deep_agent_workspace`` — the agent's virtual filesystem, ``oss_key``.
+
+    Care-circle members reach an owner's files through the same permission
+    check the uploaded-files LIST endpoint already uses, so a shared file and a
+    shared listing cannot disagree.
+
+    An unrecorded key is denied. That is deliberate and it is the reason this
+    returns bool rather than raising: a key nobody claims is either gone or was
+    never ours, and both should look identical from outside.
     """
-    Proxy files from storage (S3/OSS) through backend.
-    
-    This endpoint provides a unified URL for file access that works both
-    in browser and inside Docker containers.
-    
+    caller = str(caller_id)
+
+    rows = await execute_query(
+        "SELECT user_id FROM th_files WHERE file_key = :key AND is_del = FALSE LIMIT 1;",
+        params={"key": file_key},
+    )
+    if not rows:
+        rows = await execute_query(
+            "SELECT user_id FROM deep_agent_workspace WHERE oss_key = :key LIMIT 1;",
+            params={"key": file_key},
+        )
+    if not rows:
+        return False
+
+    owner = str(rows[0].get("user_id") or "")
+    if owner and owner == caller:
+        return True
+
+    check = await get_query_user_id(
+        user_id=owner, query_user_id=caller, permission=["uploadfile"]
+    )
+    return bool(check.get("success"))
+
+
+@router.get("/files/{file_path:path}", tags=["files"])
+async def serve_storage_file(
+    file_path: str,
+    authorization: Optional[str] = Header(None),
+    access_token: Optional[str] = Query(
+        None, description="Bearer token, for browser contexts that cannot set a header"
+    ),
+):
+    """
+    Proxy files from storage (S3/OSS) through backend, for the file's owner.
+
     URL format: /files/uploads/20231125_123456_abc123.pdf
-    
-    Benefits:
-    - Single URL works for both browser and container access
-    - Hides storage implementation details
-    - Can add access control if needed
+
+    **This endpoint had no authentication at all.** An external review fetched a
+    real health-report PDF from a running deployment with no token — the key is
+    a second-resolution timestamp plus 8 hex characters, which is not a secret,
+    and the response also carried `Cache-Control: public` so any shared proxy
+    was free to keep a copy of someone's labs. The docstring said "Can add
+    access control if needed"; for PHI it was needed.
+
+    The token may arrive in the `Authorization` header OR as `?access_token=`.
+    The query parameter is not a convenience: a browser cannot set a header on
+    a navigation, an `<img src>` or a PDF viewer embed, and `_build_url` hands
+    out exactly such URLs. **Clients rendering these links must now append the
+    token** — a bare `<a href="/files/...">` gets 401.
     """
     from fastapi.responses import StreamingResponse
     from mirobody.utils.config.storage import get_storage_client
     import io
-    
+
     try:
         # Security check: prevent path traversal
         if ".." in file_path or file_path.startswith("/"):
             logging.warning(f"Attempted path traversal: {file_path}")
             raise HTTPException(status_code=403, detail="Access denied")
-        
+
+        caller_id = await verify_token_string(authorization or access_token or "")
+
+        if not await _authorize_file_read(file_path, caller_id):
+            # 404, not 403: a 403 confirms the key exists, which turns this
+            # route back into the enumeration oracle it just stopped being.
+            logging.warning(
+                "unauthorized file read: user=%s key=%s", caller_id, file_path
+            )
+            raise HTTPException(status_code=404, detail="File not found")
+
         # Get storage client
         storage = get_storage_client()
         
@@ -123,9 +187,14 @@ async def serve_storage_file(file_path: str):
             io.BytesIO(content),
             media_type=content_type,
             headers={
-                "Content-Disposition": f'inline; filename="{filename}"',
+                # `attachment`, not `inline`: an uploaded .html or .svg served
+                # inline executes on this origin with the session that fetched
+                # it. Nothing here needs to render in place.
+                "Content-Disposition": f'attachment; filename="{filename}"',
                 "Content-Length": str(len(content)),
-                "Cache-Control": "public, max-age=86400",  # Cache for 1 day
+                # `private`: the response is now per-user, so a shared proxy
+                # caching it would serve one person's labs to the next caller.
+                "Cache-Control": "private, no-store",
             }
         )
         
