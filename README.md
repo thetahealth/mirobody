@@ -442,12 +442,17 @@ Then open `http://localhost:18080` in your web browser.
 Three keys and one gotcha worth knowing before anything else:
 
 > - **LLM key**: `OPENROUTER_API_KEY` powers the Deep agent.
-> - **Embedding key** — a *different* one: the worker's indicator sync embeds
->   names for standardization. `EMBEDDING_PROVIDER` defaults to `gemini`
->   (`GOOGLE_API_KEY`); set `EMBEDDING_PROVIDER: qwen` + `DASHSCOPE_API_KEY`
->   for the other supported provider. With only an OpenRouter key, chat works
->   but **Health indicators stays 0** — embedding fails quietly in the worker
->   log.
+> - **Embedding key** — a *different* one, and it is still a second key: the
+>   worker's indicator sync embeds names into a `th_series_dim` vector column,
+>   and only two providers have one. `EMBEDDING_PROVIDER` defaults to `gemini`
+>   (`GOOGLE_API_KEY`); `qwen` (`DASHSCOPE_API_KEY`) is the other. With only an
+>   OpenRouter key, chat works but **Health indicators stays 0** — embedding
+>   fails in the worker log. Setting `EMBEDDING_PROVIDER: openrouter` does not
+>   fix that and will not pretend to: it raises, naming the missing column,
+>   because a sweep that quietly wrote nothing looks identical to a sweep with
+>   nothing to do. That provider exists for `text_embedding` callers and the
+>   [file-based semantic tier](#-semantic-recall-opt-in-and-why-it-is-opt-in),
+>   neither of which touches a database column.
 > - Keys go in `config.{env}.yaml`; Mirobody encrypts them at first load with
 >   the generated `CONFIG_ENCRYPTION_KEY`.
 > - First start takes ~1 minute (schema creation) — wait for
@@ -650,7 +655,7 @@ demo accounts above — all configured in `config.{env}.yaml`.
 
 ```bash
 pip install -e '.[test]'
-pytest        # 342 tests, ~8s — no database, no network, no API key
+pytest        # 439 tests, ~9s — no database, no network, no API key
 ```
 
 Tests sit beside the code they cover, so bare `pytest` is the whole suite. Two

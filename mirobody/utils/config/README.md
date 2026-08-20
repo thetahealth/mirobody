@@ -444,7 +444,7 @@ response = client.converse(
 ## 🧪 Testing
 
 Tests sit beside the code they cover; there is no separate `tests/` tree.
-Bare `pytest` from the repo root is the whole suite — 295 tests in ~8s, no
+Bare `pytest` from the repo root is the whole suite — 439 tests in ~9s, no
 database, no network, no API key:
 
 ```bash

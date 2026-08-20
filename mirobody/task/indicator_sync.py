@@ -305,6 +305,12 @@ class IndicatorSyncTask(BaseRedisTask):
 
         Provider selected by `EMBEDDING_PROVIDER` (default `gemini`).
         Per-batch embedding errors are logged and skipped; the loop continues.
+
+        A provider with no `th_series_dim` vector column raises BEFORE the loop
+        and is therefore not one of those skippable per-batch errors — it is a
+        misconfiguration, and a sweep that quietly wrote nothing would look
+        exactly like a sweep with nothing to do. `openrouter` is the current
+        example: it can embed text, but its vectors have no column to land in.
         """
         from mirobody.indicator.fhir.common import resolve_dim_embedding_column
 
