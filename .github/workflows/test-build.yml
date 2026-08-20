@@ -33,7 +33,31 @@ jobs:
     - name: Install build dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install build twine setuptools wheel pytest
+        pip install build twine setuptools wheel
+
+    # The suite and the layering contract, actually run.
+    #
+    # `pytest` was in the install line above and was never invoked, so every
+    # claim the tests carry — the 176/176 resolver number, the vendor payload
+    # snapshots, the security regressions — was unguarded on every PR. An
+    # external reviewer found a `[test]`-only install aborting at collection;
+    # a CI run would have caught it the day it appeared.
+    #
+    # `[test]` alone here on purpose, NOT `[agents,test]`: this job is the
+    # closest thing to a fresh contributor's machine, and it is where a missing
+    # or newly-eager dependency shows up. The full run happens below.
+    - name: Engine tests on a minimal install
+      run: |
+        pip install -e '.[test]'
+        pytest -q
+
+    - name: Full suite and the import contracts
+      run: |
+        pip install -e '.[agents,test]'
+        pytest -q
+        # Must run against the repo source. In a venv holding an installed
+        # older wheel it passes vacuously.
+        lint-imports
 
     - name: Set test version
       run: |

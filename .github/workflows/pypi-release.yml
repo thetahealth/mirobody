@@ -49,16 +49,20 @@ jobs:
         pip install build twine setuptools wheel
 
     # Install package dependencies for testing
+    # The quality gate. Both steps below used to carry `continue-on-error: true`,
+    # so nothing in this workflow could fail a release on a code defect — the
+    # only hard gates were packaging ones (LFS bundles, langchain-free wheel).
+    # 1.0.62 shipped a wheel that resolved no indicators at all; the suite is
+    # what stands between that and PyPI, so it runs, and it can fail.
     - name: Install package dependencies
       run: |
-        pip install -e .
-      continue-on-error: true  # Some dependencies may not be available in CI environment
+        pip install -e '.[agents,test]'
 
-    # Run basic import test
-    - name: Test package import
+    - name: Test suite and import contracts
       run: |
-        python -c "import mirobody; print(f'Mirobody imported successfully')"
-      continue-on-error: true
+        pytest -q
+        # Must run against the repo source, not an installed wheel.
+        lint-imports
 
     # Get version from tag or use test version
     - name: Set version from tag or manual trigger
