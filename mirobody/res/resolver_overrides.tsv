@@ -255,3 +255,37 @@ lipid panel	!unresolved
 平均血红蛋白含量	MCH
 平均血红蛋白浓度	MCHC
 超敏C反应蛋白	hs-CRP
+
+# ══ device & wearable indicators ═══════════════════════════════════════════
+# Fourth sweep, prompted by the platform API docs: `POST /v1/data` says device
+# and wearable data is the MAIN form structured records take, and every example
+# in it names indicators the way a device SDK does — `steps`,
+# `resting_heart_rate`, `sleep_duration`. The lab panels above were covered;
+# this vocabulary was not. Underscore flattening (engine.py `_candidate_keys`)
+# handles the snake_case shape, so these rows only need the human wording.
+# Two were WRONG rather than missing:
+#   SpO2  -> a Deprecated "Fractional oxyhemoglobin ... Preductal" row with no
+#            LOINC at all — resolved=True carrying an empty code.
+#   HRV   -> 40991-2 Rhinovirus+Enterovirus RNA. NOT fixed here: HRV is a real
+#            abbreviation for human rhinovirus as well as heart rate
+#            variability, so the right answer is a decision, not a lookup. The
+#            spelled-out form already resolves (76643-6).
+resting heart rate	heart rate resting
+静息心率	heart rate resting
+安静時心拍数	heart rate resting
+心率变异性	heart rate variability
+steps	Number of steps
+step count	Number of steps
+daily steps	Number of steps
+睡眠时长	sleep duration
+睡眠時間	sleep duration
+body fat percentage	Percentage of body fat Measured
+体脂率	Percentage of body fat Measured
+SpO2	oxygen saturation
+血氧	oxygen saturation
+# Fasting glucose as an API caller and a 中文 report write it. The spaced
+# English forms were already covered; these spellings were not.
+FBG	Glucose
+FPG	Glucose
+glucose, fasting	Glucose
+血糖(空腹)	Glucose

@@ -12,7 +12,7 @@ Ordered by (value ÷ risk) within each section.
 
 ### Reference ranges and abnormal flagging
 
-**Status:** not started. The largest functional gap in ② Sort.
+**Status:** not started. The largest functional gap in ② Standardize.
 
 Resolving `LDL cholesterol` to LOINC `13457-7` tells you *what the test is*. It
 does not tell you whether `4.2 mmol/L` is high — and that is the question a
@@ -431,7 +431,7 @@ them.
 ## Distribution and positioning
 
 - **Publish the resolver benchmark.** No public benchmark exists for
-  multilingual indicator-name → LOINC resolution. Releasing ours (116 cases,
+  multilingual indicator-name → LOINC resolution. Releasing ours (140 cases,
   scored on clinical correctness, with the 32/94 starting point stated) would
   define the metric for the category. Pairs naturally with the existing
   Hugging Face benchmark account.

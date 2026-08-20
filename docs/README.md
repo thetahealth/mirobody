@@ -36,8 +36,8 @@ work — each entry states the measurement that motivated it.
 Short, and about *that package only*:
 
 - [`mirobody/pulse/`](../mirobody/pulse/README.md) — ① Collect
-- [`mirobody/indicator/`](../mirobody/indicator/README.md) — ② Sort
-- [`mirobody/agent/`](../mirobody/agent/README.md) — ③ Answer
+- [`mirobody/indicator/`](../mirobody/indicator/README.md) — ② Standardize
+- [`mirobody/agent/`](../mirobody/agent/README.md) — ③ Answers
 - [`mirobody/agent/tools/`](../mirobody/agent/tools/README.md) — the MCP tool surface
 - [`mirobody/agent/resources/`](../mirobody/agent/resources/README.md) — ChatGPT Apps widgets
 - [`mirobody/pulse/standardize/`](../mirobody/pulse/standardize/README.md) — health indicators, units & standardization

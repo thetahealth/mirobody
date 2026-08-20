@@ -80,7 +80,7 @@ things to know:
   fields, `resultType` on every result, `server/discover`, deterministic
   `tools/list` ordering. Older revisions back to `2024-11-05` still negotiate.
 - **Terminology over MCP** — `resolve_indicator` and `normalize_unit` expose
-  ② Sort itself: any-language indicator name → LOINC, free-text unit → UCUM plus
+  ② Standardize itself: any-language indicator name → LOINC, free-text unit → UCUM plus
   its comparability family. Both are offline, need no account, and read no user
   data.
 - **Agent Skills** via deepagents' native `SkillsMiddleware`, mounted read-only
@@ -103,6 +103,31 @@ things to know:
 
 ### Fixed
 
+- **snake_case indicator names resolve.** `_normalize` is NFKC + casefold, so it
+  left `_` alone and every programmatic spelling missed both the alias table and
+  the index while its spaced form resolved: `fasting_glucose` → nothing,
+  `fasting glucose` → 2339-0. That is the naming convention the platform API
+  documents in every `POST /v1/data` example, so a caller following the docs got
+  an unresolved row for a term the engine knows. `_candidate_keys` now appends
+  underscore-flattened keys **last**, after the term as written has missed, so
+  the fallback can only turn a miss into a hit. Only `_` is flattened — `-`
+  carries meaning in clinical names (`LDL-C`, `25-OH`, `20:4 n-6`).
+  The deliberate-non-answer check flattens too: without that, `blood_pressure`
+  skipped the block, reached the index as `blood pressure` and came back 8462-4
+  (diastolic) — the exact bug the block sentinel was written for, through the
+  back door. Both spellings are now pinned in `MUST_NOT_RESOLVE`.
+- **Device and wearable vocabulary resolves.** `POST /v1/data` calls device data
+  the main form structured records take, and that vocabulary was the least
+  covered: `steps`, `resting heart rate`, `sleep duration`, `body fat
+  percentage`, `静息心率`, `睡眠时长`, `体脂率`, `FBG`/`FPG`, `血糖(空腹)` all
+  missed, and `SpO2` was worse than missing — it answered a **deprecated**
+  "Fractional oxyhemoglobin … Preductal" row carrying no LOINC at all
+  (`resolved=True`, empty code). 18 rows in `resolver_overrides.tsv`, each
+  verified against its target. Resolver coverage: **116/116 → 140/140**.
+  `HRV` is deliberately left alone: it abbreviates human rhinovirus as well as
+  heart rate variability (it answers 40991-2, Rhinovirus+Enterovirus RNA), so
+  the right result is a decision rather than a lookup. The spelled-out form and
+  `心率变异性` resolve to 76643-6.
 - **A malformed tool call no longer ends the turn as an empty answer.**
   claude-sonnet (via OpenRouter, temperature 0.1) deterministically emitted
   `{"aggregate": none}` — Python's `None`, not JSON — LangChain parked the call
@@ -214,6 +239,16 @@ things to know:
   `pip install mirobody-*.tar.gz` failed at `backend-path entry 'scripts' does
   not exist` — before any project code ran. CI now installs from the sdist as
   well as the wheel, because no wheel test can catch that.
+
+### Changed — naming
+
+- **Stage ② is `Standardize`, stage ③ is `Answers`** — was `Sort` / `Answer`.
+  The three stages are the spine of both this README and
+  [docs.mirobody.ai](https://docs.mirobody.ai/), and they have to be the same
+  three words in both: **① Collect → ② Standardize → ③ Answers**, C · S · A.
+  `Sort` also under-described what `indicator/` does — it resolves codes and
+  normalizes units, which is standardization, not ordering. Labels and prose
+  only; no module, package or symbol was renamed.
 
 ### Changed — documentation and tests
 

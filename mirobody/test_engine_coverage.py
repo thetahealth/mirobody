@@ -23,8 +23,10 @@ Run just this benchmark, with the score printed:
     pytest mirobody/test_engine_coverage.py -v -s
 
 Contributing: a term that misses here is a one-line fix in
-``mirobody/res/aliases_src/*_curated.tsv``. Add the row, add the case, watch
-COVERAGE_FLOOR go up.
+``mirobody/res/resolver_overrides.tsv`` — that file, not
+``aliases_src/*_curated.tsv``, is the one this resolver reads at runtime (the
+curated files are inputs to the bundle BUILD; see the overrides header for why
+the two are separate). Add the row, add the case here, and the score goes up.
 """
 
 from __future__ import annotations
@@ -186,6 +188,39 @@ CASES: list[tuple[str, str, str]] = [
     ("平均血红蛋白含量",               r"MCH \[|mean corpuscular hemoglobin", r"concentration|MCHC"),
     ("平均血红蛋白浓度",               r"MCHC",                         r""),
     ("超敏C反应蛋白",                 r"c reactive protein",           r"titer"),
+    # ── fourth sweep: device & wearable vocabulary, incl. the snake_case an
+    # API caller sends ──────────────────────────────────────────────────────
+    # `POST /v1/data` in the platform docs calls device data the main form
+    # structured records take, and names indicators the way an SDK does. Every
+    # one of these missed; `_` was never normalized, so the spaced form
+    # resolved and the snake_case form — the documented spelling — did not.
+    # Both spellings are cased here, because only one of them was ever tested.
+    ("steps",                       r"steps",                        r"walk 10-meters"),
+    ("step count",                  r"steps",                        r"walk 10-meters"),
+    ("resting heart rate",          r"heart rate.*resting",          r"variability"),
+    ("resting_heart_rate",          r"heart rate.*resting",          r"variability"),
+    ("静息心率",                     r"heart rate.*resting",          r"variability"),
+    ("heart rate",                  r"^heart rate",                  r"resting|variability|fetal"),
+    ("heart_rate",                  r"^heart rate",                  r"resting|variability|fetal"),
+    ("心率变异性",                    r"heart rate variability|r-r interval", r""),
+    ("sleep duration",              r"sleep duration",               r""),
+    ("sleep_duration",              r"sleep duration",               r""),
+    ("睡眠时长",                     r"sleep duration",               r""),
+    ("body weight",                 r"body weight",                  r"birth|ideal|estimated"),
+    ("body_weight",                 r"body weight",                  r"birth|ideal|estimated"),
+    ("body fat percentage",         r"body fat",                     r""),
+    ("体脂率",                       r"body fat",                     r""),
+    # SpO2 did not miss — it answered a DEPRECATED "Fractional oxyhemoglobin
+    # ... Preductal" row whose LOINC is empty, i.e. resolved=True with no code.
+    ("SpO2",                        r"oxygen saturation",            r"deprecated|mixed venous|cord"),
+    ("血氧",                         r"oxygen saturation",            r"deprecated|mixed venous|cord"),
+    # Fasting glucose in the three spellings the docs and a 中文 report use.
+    ("fasting_glucose",             r"glucose",                      r"tolerance|challenge|urine"),
+    ("FBG",                         r"glucose",                      r"tolerance|challenge|urine"),
+    ("glucose, fasting",            r"glucose",                      r"tolerance|challenge|urine"),
+    ("血糖(空腹)",                    r"glucose",                      r"tolerance|challenge|urine"),
+    ("systolic_blood_pressure",     r"systolic blood pressure",      r""),
+    ("total_cholesterol",           r"^cholesterol \[",              r"LDL|HDL|VLDL"),
 ]
 
 # Terms that must stay UNRESOLVED. A confident wrong code is worse than an
@@ -201,6 +236,9 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # pressure Set", a panel code for a panel term — a correct answer.
     ("血圧", "blood pressure is a panel; the index would answer 'diastolic'"),
     ("blood pressure", "panel; answered 8462-4 (diastolic) before it was blocked"),
+    ("blood_pressure", "the same panel, snake_case: underscore flattening reached "
+                       "the index under the spaced form and re-answered 8462-4 "
+                       "until the block check learned to flatten too"),
     ("BP", "the same panel, abbreviated"),
     ("lipid panel", "four analytes, not one observation"),
     ("血脂", "the same lipid panel in Chinese"),

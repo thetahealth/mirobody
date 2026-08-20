@@ -4,7 +4,7 @@
     export OPENAI_API_KEY=...          # or ANTHROPIC_API_KEY / GOOGLE_API_KEY
     python examples/03_parse_a_lab_report.py path/to/report.pdf
 
-This is ① Collect + ② Sort in a single function. `parse_file()` sends the
+This is ① Collect + ② Standardize in a single function. `parse_file()` sends the
 document to one model to extract name/value/unit, then resolves every extracted
 name **offline** against the shipped bundles. No database, no `mirobody serve`,
 no agent framework.

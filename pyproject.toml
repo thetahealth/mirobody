@@ -50,7 +50,7 @@ dependencies = [
     "cryptography",
     # Data.
     "pandas",
-    # numpy is a DIRECT requirement of ② Sort, not a pandas detail: the offline
+    # numpy is a DIRECT requirement of ② Standardize, not a pandas detail: the offline
     # resolver rebuilds the 921k-alias index from .npz on every construction
     # (engine.OfflineResolver.__init__), and 20 more modules under indicator/
     # import it at module level. It went undeclared for a long time and worked
@@ -147,9 +147,9 @@ dependencies = [
 mirobody = "mirobody.cli:main"
 
 [project.optional-dependencies]
-# The agent layer (③ Answer): DeepAgent's LangChain/deepagents stack and the
+# The agent layer (③ Answers): DeepAgent's LangChain/deepagents stack and the
 # provider-native agent SDKs. The default install is the ENGINE (① Collect +
-# ② Sort) as a library; running the chat server requires this extra —
+# ② Standardize) as a library; running the chat server requires this extra —
 # `mirobody serve` checks and says so instead of tracebacking.
 # The SERVER: HTTP surface, database, cache, object storage, email, and the
 # OAuth1 transport only Garmin still uses. `pip install mirobody` is the ENGINE
@@ -263,7 +263,7 @@ exclude = ["mirobody.pulse.gate_tests", "mirobody.pulse.gate_tests.*"]
     "**/*.so",
     # ── engine data bundles (Git LFS) ────────────────────────────────────────
     # These are not optional extras: `mirobody.engine.resolve` — the front door
-    # of ② Sort, and the one line the README leads with — reads
+    # of ② Standardize, and the one line the README leads with — reads
     # res/fhir_loinc_bundle.tar.gz, res/fhir_meta.csv.gz and res/aliases_src/*.tsv
     # at import time. Until 1.0.62 only *.bin was listed here, so every published
     # wheel shipped an engine that could not resolve anything. Keep .gz/.npy/.tsv
@@ -310,9 +310,9 @@ markers = [
 # ── Architectural boundary, machine-enforced (run: lint-imports) ─────────────
 #
 # The engine follows the langchain / langchain-core layering: the DATA ENGINE
-# (① Collect: pulse · ② Sort: indicator, plus the shared utils/user/mcp/task
+# (① Collect: pulse · ② Standardize: indicator, plus the shared utils/user/mcp/task
 # infra) must stay importable without any agent framework, while the AGENT
-# LAYER (③ Answer: agent, server) is the only place LangChain and friends
+# LAYER (③ Answers: agent, server) is the only place LangChain and friends
 # may appear. These contracts turn that rule from a convention into a CI check.
 # import-linter parses function-local imports too, so lazy imports can't sneak
 # a violation past it.

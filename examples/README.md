@@ -6,10 +6,10 @@ missing step.
 
 | | Example | Needs | Shows |
 |---|---|---|---|
-| 01 | [`01_resolve_offline.py`](01_resolve_offline.py) | `pip install mirobody` | ② Sort: name → LOINC, any language, fully offline |
+| 01 | [`01_resolve_offline.py`](01_resolve_offline.py) | `pip install mirobody` | ② Standardize: name → LOINC, any language, fully offline |
 | 02 | [`02_standardize_a_reading.py`](02_standardize_a_reading.py) | `pip install mirobody` | ① Collect: unit conversion + the indicator catalogue |
 | 03 | [`03_parse_a_lab_report.py`](03_parse_a_lab_report.py) | + one model key | a document → standardized readings in one call |
-| 04 | [`04_mcp_tool_surface.py`](04_mcp_tool_surface.py) | `pip install mirobody` | ③ Answer: exactly what an external MCP client receives |
+| 04 | [`04_mcp_tool_surface.py`](04_mcp_tool_surface.py) | `pip install mirobody` | ③ Answers: exactly what an external MCP client receives |
 | 05 | [`05_agent_server_preflight.py`](05_agent_server_preflight.py) | `pip install 'mirobody[agents]'` | whether this machine can run the full server, and what is missing |
 
 ```bash

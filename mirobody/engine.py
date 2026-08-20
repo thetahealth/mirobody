@@ -10,8 +10,8 @@ credentials at all (pure offline lookup against the shipped data bundles);
     resolve("血红蛋白").loinc          # -> "718-7", offline
     await parse_file("labs.pdf")       # -> readings + resolutions, one LLM call
 
-This is the deliberate small door into the two engine verbs (① Collect,
-② Sort) — the same machinery the full platform uses, minus its persistence:
+This is the deliberate small door into the first two engine stages (① Collect,
+② Standardize) — the same machinery the full platform uses, minus its persistence:
 
 * **Lexical resolution** rides the shipped LOINC bundle: the 921k-entry
   multilingual alias index (``loinc_alias_index.npz``), the 677k-name corpus
@@ -198,8 +198,39 @@ class OfflineResolver:
         different test, silently and confidently. The alias table says plainly
         ``血红蛋白 -> Hemoglobin``. See test_engine_coverage.py, which exists
         largely to keep this class of near-miss from coming back.
+
+        Underscores are separators, and only that. ``_normalize`` is NFKC +
+        casefold, so it leaves ``_`` in place — and every snake_case name
+        therefore missed both the alias table and the index while its spaced
+        form resolved: ``fasting_glucose`` -> nothing, ``fasting glucose`` ->
+        2339-0. That is not a corner case, it is the naming convention the
+        platform API teaches in every ``POST /v1/data`` example
+        (``fasting_glucose``, ``resting_heart_rate``, ``sleep_duration``), so
+        a caller following the docs got an unresolved row for a term the engine
+        knows. The flattened keys go LAST, after the term as written has missed
+        entirely, so they can only turn a miss into a hit — never overrule an
+        answer. Only ``_`` is flattened: ``-`` carries meaning inside clinical
+        names (``LDL-C``, ``25-OH``, ``20:4 n-6``) and rewriting it would be
+        the guess this resolver refuses to make.
         """
+        keys = self._keys_for(self._normalize(term))
+
+        flat = self._normalize(term.replace("_", " "))
+        flat = " ".join(flat.split())
+        if flat and flat != keys[-1]:
+            keys += [k for k in self._keys_for(flat) if k not in keys]
+
+        return keys
+
+    def _is_blocked(self, term: str) -> bool:
+        """True when the term (as written, or underscore-flattened) is a
+        deliberate non-answer in resolver_overrides.tsv."""
         norm = self._normalize(term)
+        flat = " ".join(self._normalize(term.replace("_", " ")).split())
+        return _BLOCK_SENTINEL in (self._src.get(norm), self._src.get(flat))
+
+    def _keys_for(self, norm: str) -> list[str]:
+        """Alias-table hop then the raw key, for one already-normalized term."""
         keys: list[str] = []
         eng = self._src.get(norm)
         if eng:
@@ -239,7 +270,14 @@ class OfflineResolver:
         # series entirely. A confident wrong code is worse than an honest miss,
         # so these resolve to nothing and the caller has to ask which
         # measurement was meant.
-        if self._src.get(self._normalize(term)) == _BLOCK_SENTINEL:
+        #
+        # Both spellings are checked, because underscore flattening in
+        # `_candidate_keys` reaches the index under the spaced form: with only
+        # the as-written check, `blood_pressure` skipped the block, flattened to
+        # `blood pressure`, hit those 183 rows and came back 8462-4 —
+        # re-creating the very bug this guard was written for, through the back
+        # door.
+        if self._is_blocked(term):
             return Resolution(term=term)
 
         for key in self._candidate_keys(term):

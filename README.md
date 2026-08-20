@@ -21,13 +21,13 @@ single standard AI can actually read. That is what this engine does.*
 
 </div>
 
-The engine does three things, and the codebase (and [Contributing](#-contributing)) is organized around exactly these three verbs:
+The engine does three things, and the codebase (and [Contributing](#-contributing)) is organized around exactly these three stages — the same **C · S · A** the [documentation](https://docs.mirobody.ai/en/api-reference/) uses:
 
-| Verb                 | What it means                                                                                                     | Where                                                   |
+| Stage                | What it means                                                                                                     | Where                                                   |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | **① Collect** | Pull signals in: 4 production providers · 8 file formats · Apple Health                                             | [`pulse/`](mirobody/pulse/) |
-| **② Sort**    | Standardize: resolve any reading to canonical codes (LOINC · SNOMED CT · RxNorm), normalize units, land as FHIR | [`indicator/`](mirobody/indicator/)                    |
-| **③ Answer**  | Reason: agents read the*original documents* through a virtual filesystem and answer with charts & citations     | [`agent/`](mirobody/agent/)                  |
+| **② Standardize**    | One standard: resolve any reading to canonical codes (LOINC · SNOMED CT · RxNorm), normalize units, land as FHIR | [`indicator/`](mirobody/indicator/)                    |
+| **③ Answers**  | Reason: agents read the*original documents* through a virtual filesystem and answer with charts & citations     | [`agent/`](mirobody/agent/)                  |
 
 ---
 
@@ -104,17 +104,17 @@ Runnable walkthroughs: [`examples/`](examples/README.md) — five scripts from o
 - **8 file formats parsed with AI** — PDF lab reports, Excel, CSV, images, audio, archives, plain text, and **genetic exports (WeGene)**; LLM-powered indicator extraction ([`pulse/file_parser/`](mirobody/pulse/file_parser/), 13k lines).
 - Ingest pipeline: staged intake → validate → normalize → daily rollups → [AI insights](mirobody/pulse/insight/) that feed back into the record — closing the loop.
 
-## ② Sort — one standard AI can actually read
+## ② Standardize — one standard AI can actually read
 
 The part none of the adjacent open-source projects have — a **semantic standardization layer**, not a lookup table:
 
 - **Concept graph**: 440,961 nodes · 22,044,110 cross-vocabulary edges · **595,746 source ids** distilled into canonical concepts (LOINC · SNOMED CT · RxNorm bridges), shipped via Git LFS ([`indicator/`](mirobody/indicator/README.md)).
 - **Embedding-based resolution**: free-text indicator names → canonical codes, with **50,240 multilingual aliases** (中文 22,578 · 日本語 16,809 · +6 languages) — `血红蛋白`, `ヘモグロビン` and `hemoglobin` all land on LOINC 718-7.
-- **We measure that claim instead of asserting it.** [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) scores the offline resolver against the panels a physical actually orders — lipid, CBC, metabolic, liver, thyroid, hormones, tumour markers, urinalysis, vitals — written the way a report prints them, in English, 中文 and 日本語. **116/116 today; it scored 32/94 the day it was written.** It grades *clinical* correctness, not resolution rate: answering `血红蛋白` with the code for HbA1c is scored as a failure, and `血圧` (a panel, not an observation) is required to resolve to *nothing*, because a confident wrong code is worse than an honest miss.
+- **We measure that claim instead of asserting it.** [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) scores the offline resolver against the panels a physical actually orders — lipid, CBC, metabolic, liver, thyroid, hormones, tumour markers, urinalysis, vitals — written the way a report prints them, in English, 中文 and 日本語 — plus the device/wearable vocabulary the platform API teaches (`steps`, `resting_heart_rate`, `sleep_duration`). **140/140 today; it scored 32/94 the day it was written.** It grades *clinical* correctness, not resolution rate: answering `血红蛋白` with the code for HbA1c is scored as a failure, and `血圧` (a panel, not an observation) is required to resolve to *nothing*, because a confident wrong code is worse than an honest miss.
 - **Unit normalization** to UCUM families (~310), 316 standard pulse indicators, FHIR R4 output.
 - Taxonomy of 25 clinical categories (Vital signs, Lab & Clinical, Body measures, …).
 
-## ③ Answer — agents that read the originals
+## ③ Answers — agents that read the originals
 
 There are **two ways to consume this layer**, and an agent for each — the difference is *who runs the tool loop*:
 
@@ -135,7 +135,7 @@ There are **two ways to consume this layer**, and an agent for each — the diff
 
 ## 🏗️ Architecture
 
-The engine is three verbs — **① Collect → ② Sort → ③ Answer** — and the package
+The engine is three stages — **① Collect → ② Standardize → ③ Answers** — and the package
 layout says the same thing.
 
 ```
@@ -152,12 +152,12 @@ mirobody/
 │   ├── ingest/              StandardPulseData: the universal exchange format that
 │   │                        every source above converges on (was `data_upload/`)
 │   └── core/                domain models, daily rollups, insights (needs DB)
-├── indicator/           ②  SORT — one standard AI can actually read
+├── indicator/           ②  STANDARDIZE — one standard AI can actually read
 │   └── fhir/                concept graph · embedding resolution · units → UCUM · taxonomy
 ├── res/                     the shipped data: LOINC/SNOMED bundles (Git LFS, see
 │                            LICENSE-3RD-PARTY + *.NOTICE) · resolver_overrides.tsv · sql/
 │
-│  ── shared infrastructure: not a fourth verb, used BY the three ──────────
+│  ── shared infrastructure: not a fourth stage, used BY the three ─────────
 │
 ├── mcp/                     MCP server: every tool doubles as an MCP tool over HTTP
 ├── task/                    background workers (indicator sync, profile refresh)
@@ -170,7 +170,7 @@ mirobody/
 │
 │  ── the AGENT LAYER (pip install 'mirobody[agents]' · LangChain lives ONLY here) ──
 │
-├── agent/               ③  ANSWER — one roof for everything conversational
+├── agent/               ③  ANSWERS — one roof for everything conversational
 │   ├── deep_agent.py        DeepAgent — model 1: YOU run the engine. deepagents/
 │   │                        LangChain, PG virtual fs, QuickJS, Agent Skills
 │   ├── base_agent.py        BaseAgent — model 2: someone else's model consumes us
@@ -179,7 +179,7 @@ mirobody/
 │   ├── base/ · deep/        the two agents' internals (backends, middleware)
 │   ├── chat/                sessions · messages · history replay · sharing · profile
 │   ├── tools/               the MCP tool surface (MCP_TOOL_DIRS): terminology
-│   │                        (② Sort, offline), health records, genetics
+│   │                        (② Standardize, offline), health records, genetics
 │   ├── skills/              Agent Skills (SKILL.md) — deepagents SkillsMiddleware
 │   ├── prompts/             Jinja system prompts
 │   └── resources/           MCP UI widgets for ChatGPT Apps (see its README)
@@ -227,7 +227,7 @@ That is what lets `mirobody.engine` resolve an indicator with numpy as the only
 third-party package present. `utils/` is deliberately a leaf — a top-level
 `from sqlalchemy import text` in `utils/db.py` once made the whole database
 stack a hard requirement of a function that never opens a connection.
-`utils/`, `user/` and `task/` are not verbs; they are the infrastructure the
+`utils/`, `user/` and `task/` are not stages; they are the infrastructure the
 three stand on. One deliberate seam crosses the boundary today, recorded with
 its exit plan in `pyproject.toml`'s `ignore_imports` and in
 [docs/roadmap.md](docs/roadmap.md).
@@ -258,14 +258,14 @@ Our health-AI benchmarks are the **most-downloaded in their category on Hugging 
 
 Reproduce any of them with one command via **[mirobody-eval](https://github.com/thetahealth/mirobody-eval)** — our open evaluation framework. Its generator also produces the synthetic (PHI-free) health data used in demos and tests.
 
-We hold the engine itself to the same standard. **Resolver coverage** — can ② Sort name the everyday tests on a real lab report? — runs in this repo, offline, in under a second:
+We hold the engine itself to the same standard. **Resolver coverage** — can ② Standardize name the everyday tests on a real lab report? — runs in this repo, offline, in under a second:
 
 ```bash
 pytest mirobody/test_engine_coverage.py -s
-#   offline resolver coverage: 116/116 = 100%
+#   offline resolver coverage: 140/140 = 100%
 ```
 
-It started at **32/94** — the benchmark has since grown to 116 cases. The gap was not the concept graph; it was that the index is built from LOINC long names, so it knew `LDL-C` but not `LDL cholesterol`, knew 葡萄糖 but not `血糖`, and answered `血红蛋白` with the code for HbA1c. Both classes of failure are one TSV row each to fix — [see Contributing](#-contributing).
+It started at **32/94** — the benchmark has since grown to 140 cases. The gap was not the concept graph; it was that the index is built from LOINC long names, so it knew `LDL-C` but not `LDL cholesterol`, knew 葡萄糖 but not `血糖`, and answered `血红蛋白` with the code for HbA1c. Both classes of failure are one TSV row each to fix — [see Contributing](#-contributing).
 
 ---
 
@@ -466,7 +466,7 @@ pytest        # 295 tests, ~8s — no database, no network, no API key
 
 Tests sit beside the code they cover, so bare `pytest` is the whole suite. Two
 of them carry the project's public claims: `test_engine_coverage.py` is the
-116/116 resolver number quoted above, and `pulse/gate_tests/` snapshots every
+140/140 resolver number quoted above, and `pulse/gate_tests/` snapshots every
 vendor payload against its standardized form.
 
 **👉 [docs/testing.md](docs/testing.md)** — layout, markers, snapshot
@@ -507,13 +507,13 @@ doesn't drag contributor documentation into `site-packages`.
 
 ## 🤝 Contributing
 
-Contributions are organized around the engine's three verbs — pick your lane:
+Contributions are organized around the engine's three stages — pick your lane:
 
 | Lane                 | What to contribute                                                                                                                                                                                                                                                                                                               | Typical size |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
 | **① Collect** | A new device provider — implement [`BasePullProvider`](mirobody/pulse/providers/platform/base.py) in one `mirobody_<slug>/` directory and the platform discovers it at startup; [`mirobody_pgsql/`](mirobody/pulse/providers/mirobody_pgsql/) is the smallest reference, [`mirobody_whoop/`](mirobody/pulse/providers/mirobody_whoop/) the OAuth2 one. Or a new file format for the parser | medium       |
-| **② Sort**    | **Make a term resolve.** Find one that comes back wrong or empty — `mirobody resolve "<term>"` — then add one row to [`resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv) and one case to [`test_engine_coverage.py`](mirobody/test_engine_coverage.py). Any language. This is the lowest-barrier useful PR in the repo, and it moves a number we publish. Also: unit mappings, taxonomy fixes | tiny         |
-| **③ Answer**  | An Agent Skill (`SKILL.md` package under [`mirobody/agent/skills/`](mirobody/agent/skills/) — copy [`lab-report-walkthrough`](mirobody/agent/skills/lab-report-walkthrough/SKILL.md)), an MCP tool, a chart schema                                                                                                                                                                                                                             | medium       |
+| **② Standardize**    | **Make a term resolve.** Find one that comes back wrong or empty — `mirobody resolve "<term>"` — then add one row to [`resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv) and one case to [`test_engine_coverage.py`](mirobody/test_engine_coverage.py). Any language. This is the lowest-barrier useful PR in the repo, and it moves a number we publish. Also: unit mappings, taxonomy fixes | tiny         |
+| **③ Answers**  | An Agent Skill (`SKILL.md` package under [`mirobody/agent/skills/`](mirobody/agent/skills/) — copy [`lab-report-walkthrough`](mirobody/agent/skills/lab-report-walkthrough/SKILL.md)), an MCP tool, a chart schema                                                                                                                                                                                                                             | medium       |
 
 Found a lab report that parses wrong, or an indicator name that doesn't resolve? **That's a great issue** — attach the (de-identified) sample. See the [Contributing Guide](CONTRIBUTING.md) for PR mechanics.
 

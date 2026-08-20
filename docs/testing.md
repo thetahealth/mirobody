@@ -25,7 +25,7 @@ test move together, and a reviewer sees both in one diff.
 
 | Suite | Covers | Notes |
 | --- | --- | --- |
-| `mirobody/test_engine.py` | golden LOINC codes for ② Sort | pins the whole chain: alias index → commonness prior → axis table |
+| `mirobody/test_engine.py` | golden LOINC codes for ② Standardize | pins the whole chain: alias index → commonness prior → axis table |
 | `mirobody/test_engine_coverage.py` | **the published accuracy number** | 98 everyday panel terms in en/zh/ja. Prints the score; `COVERAGE_FLOOR = 1.0` |
 | `mirobody/mcp/test_protocol.py` | MCP wire behaviour | version negotiation, `resultType`, `server/discover`, and the cross-user JWT leak that `resources/read` once had |
 | `mirobody/pulse/gate_tests/` | vendor payload → `StandardPulseData` | snapshot tests over recorded fixtures |

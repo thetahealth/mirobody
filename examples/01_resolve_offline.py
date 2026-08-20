@@ -3,7 +3,7 @@
     pip install mirobody
     python examples/01_resolve_offline.py
 
-This is the whole of ② Sort in library form. Everything below runs against the
+This is the whole of ② Standardize in library form. Everything below runs against the
 data bundles shipped inside the package: no PostgreSQL, no Redis, no server, no
 API key, and no outbound connection. Unplug the network and it still works.
 
