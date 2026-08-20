@@ -657,6 +657,15 @@ counts in the review predate this branch.
 | `pip install -e '.[test]'` aborted at collection | `make pip install -e '.[test]' run the tests it claims to` |
 | CI installed pytest and never ran it | `run the tests in CI` |
 
+The file-route fix has a client half, and it is done: the shipped web client
+reached files four ways a browser sends no `Authorization` header on — an
+`<a href>`, `window.open`, and two `<img src>` — so all four would have 401'd.
+It now fetches with the session token and renders from a blob, keeping the
+token out of the URL and forcing a non-executable MIME type (a `blob:` URL
+inherits the page origin, and `.svg` is an uploadable extension). Source in
+mirobody-web-rebuild @ 9698500; rebuilt into `frontend/`.
+
+
 Three remain open. None is a defect in code that exists; each is a feature that
 does not, and two need a client change to be useful — which is why they are
 here rather than half-built.
