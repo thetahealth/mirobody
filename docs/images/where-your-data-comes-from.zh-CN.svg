@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -32 960 452" width="960" height="452" font-family="Helvetica, Arial, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif">
+  <rect x="0" y="-32" width="960" height="452" fill="#ffffff"/>
+  <defs>
+    <marker id="fa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#7a8aa0"/>
+    </marker>
+    <marker id="fg" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#2f7d4a"/>
+    </marker>
+  </defs>
+  <text x="480" y="-8" text-anchor="middle" font-size="16" fill="#456">从穿戴设备到饭菜照片 —— <tspan font-weight="bold" fill="#c08a3e">一种标准格式</tspan>，AI 可直接读取。</text>
+  <text x="132" y="38" text-anchor="middle" font-size="11" font-weight="bold" fill="#5a6b7a">你的数据来源</text>
+  <!-- ===== source cards ===== -->
+  <g>
+    <rect x="24" y="50" width="216" height="54" rx="10" fill="#fff" stroke="#9bb1c9" stroke-width="1.5"/>
+    <rect x="41" y="67" width="16" height="22" rx="5" fill="#fff" stroke="#234" stroke-width="2"/>
+    <rect x="45" y="62" width="8" height="6" rx="2" fill="#234"/>
+    <rect x="45" y="88" width="8" height="6" rx="2" fill="#234"/>
+    <circle cx="49" cy="78" r="3" fill="#4072b8"/>
+    <text x="78" y="74" font-size="12" font-weight="bold" fill="#234">穿戴设备</text>
+    <text x="78" y="90" font-size="9" fill="#5a6b7a">步数 · 心率 · 睡眠</text>
+  </g>
+  <g>
+    <rect x="24" y="112" width="216" height="54" rx="10" fill="#fff" stroke="#9bb1c9" stroke-width="1.5"/>
+    <rect x="43" y="126" width="14" height="26" rx="3" fill="#fff" stroke="#234" stroke-width="2"/>
+    <rect x="46" y="130" width="8" height="15" rx="1" fill="#eef3fa"/>
+    <text x="78" y="136" font-size="12" font-weight="bold" fill="#234">手机健康数据</text>
+    <text x="78" y="152" font-size="9" fill="#5a6b7a">Apple Health · Health Connect</text>
+  </g>
+  <g>
+    <rect x="24" y="174" width="216" height="54" rx="10" fill="#fff" stroke="#9bb1c9" stroke-width="1.5"/>
+    <rect x="44" y="188" width="12" height="4" rx="1" fill="#234"/>
+    <rect x="45" y="190" width="10" height="24" rx="5" fill="#fff" stroke="#234" stroke-width="2"/>
+    <rect x="47" y="203" width="6" height="9" rx="2" fill="#9fc1e0"/>
+    <text x="78" y="198" font-size="12" font-weight="bold" fill="#234">检验结果</text>
+    <text x="78" y="214" font-size="9" fill="#5a6b7a">血液检查 · 生物标志物</text>
+  </g>
+  <g>
+    <rect x="24" y="236" width="216" height="54" rx="10" fill="#fff" stroke="#9bb1c9" stroke-width="1.5"/>
+    <rect x="40" y="251" width="20" height="24" rx="2" fill="#fff" stroke="#234" stroke-width="2"/>
+    <rect x="48" y="256" width="4" height="14" fill="#c0392b"/>
+    <rect x="43" y="261" width="14" height="4" fill="#c0392b"/>
+    <text x="78" y="260" font-size="12" font-weight="bold" fill="#234">就诊记录</text>
+    <text x="78" y="276" font-size="9" fill="#5a6b7a">诊断 · 用药 · 就诊</text>
+  </g>
+  <g>
+    <rect x="24" y="298" width="216" height="54" rx="10" fill="#fff" stroke="#9bb1c9" stroke-width="1.5"/>
+    <rect x="40" y="316" width="22" height="16" rx="3" fill="#fff" stroke="#234" stroke-width="2"/>
+    <rect x="47" y="312" width="9" height="5" rx="1.5" fill="#234"/>
+    <circle cx="51" cy="325" r="3.5" fill="none" stroke="#234" stroke-width="2"/>
+    <text x="78" y="322" font-size="12" font-weight="bold" fill="#234">日常记录</text>
+    <text x="78" y="338" font-size="8.5" fill="#5a6b7a">饭菜照片 · 语音心情 · 皮肤照片</text>
+  </g>
+  <!-- ===== converging arrows into mirobody ===== -->
+  <line x1="244" y1="77" x2="382" y2="166" stroke="#7a8aa0" stroke-width="2" marker-end="url(#fa)"/>
+  <line x1="244" y1="139" x2="382" y2="184" stroke="#7a8aa0" stroke-width="2" marker-end="url(#fa)"/>
+  <line x1="244" y1="201" x2="382" y2="202" stroke="#7a8aa0" stroke-width="2" marker-end="url(#fa)"/>
+  <line x1="244" y1="263" x2="382" y2="220" stroke="#7a8aa0" stroke-width="2" marker-end="url(#fa)"/>
+  <line x1="244" y1="325" x2="382" y2="238" stroke="#7a8aa0" stroke-width="2" marker-end="url(#fa)"/>
+  <!-- ===== mirobody normalizes to FHIR ===== -->
+  <rect x="386" y="120" width="176" height="156" rx="14" fill="#f3faf5" stroke="#2f7d4a" stroke-width="2.5"/>
+  <rect x="414" y="138" width="120" height="34" rx="9" fill="#dff0e4" stroke="#2f7d4a" stroke-width="2.5"/>
+  <text x="474" y="161" text-anchor="middle" font-size="14" font-weight="bold" fill="#1c5233">mirobody</text>
+  <text x="474" y="198" text-anchor="middle" font-size="11" fill="#456">把一切标准化为</text>
+  <rect x="420" y="210" width="108" height="30" rx="8" fill="#fff3e0" stroke="#c08a3e" stroke-width="2"/>
+  <text x="474" y="231" text-anchor="middle" font-size="16" font-weight="bold" fill="#9a6a1e">FHIR R4</text>
+  <text x="474" y="258" text-anchor="middle" font-size="10" fill="#5a6b7a">一种标准格式</text>
+  <!-- ===== mirobody feeds an AI model, which answers you ===== -->
+  <line x1="564" y1="199" x2="594" y2="199" stroke="#2f7d4a" stroke-width="2.5" marker-end="url(#fg)"/>
+  <rect x="596" y="156" width="112" height="86" rx="12" fill="#f3e8f7" stroke="#8a4fb0" stroke-width="2.5"/>
+  <path d="M652 166 L654.5 171.5 L660 174 L654.5 176.5 L652 182 L649.5 176.5 L644 174 L649.5 171.5 Z" fill="#8a4fb0"/>
+  <text x="652" y="197" text-anchor="middle" font-size="15" font-weight="bold" fill="#5e2e80">AI 模型</text>
+  <text x="652" y="214" text-anchor="middle" font-size="8.5" font-weight="bold" fill="#2f7d4a">OpenAI · Claude</text>
+  <text x="652" y="227" text-anchor="middle" font-size="8.5" fill="#8a4fb0">Gemini · Qwen · DeepSeek</text>
+  <line x1="710" y1="199" x2="740" y2="199" stroke="#2f7d4a" stroke-width="2.5" marker-end="url(#fg)"/>
+  <g>
+    <path d="M678 66 H808 A12 12 0 0 1 820 78 V100 A12 12 0 0 1 808 112 H788 L778 130 L770 112 H678 A12 12 0 0 1 666 100 V78 A12 12 0 0 1 678 66 Z" fill="#f3e8f7" stroke="#8a4fb0"/>
+    <text x="743" y="86" text-anchor="middle" font-size="11" fill="#5e2e80">“我的身体</text>
+    <text x="743" y="101" text-anchor="middle" font-size="11" fill="#5e2e80">更健康了吗？”</text>
+  </g>
+  <g stroke="#234" stroke-width="2.5" fill="none" stroke-linecap="round">
+    <circle cx="770" cy="150" r="16" fill="#fff"/>
+    <line x1="770" y1="166" x2="770" y2="224"/>
+    <line x1="770" y1="180" x2="750" y2="200"/>
+    <line x1="770" y1="180" x2="792" y2="196"/>
+    <line x1="770" y1="224" x2="754" y2="258"/>
+    <line x1="770" y1="224" x2="786" y2="258"/>
+  </g>
+  <path d="M762 154 Q770 161 778 154" stroke="#234" stroke-width="2" fill="none"/>
+  <!-- the answer: plain words + an interactive chart -->
+  <rect x="806" y="150" width="138" height="100" rx="10" fill="#fff" stroke="#8a4fb0" stroke-width="2"/>
+  <text x="875" y="167" text-anchor="middle" font-size="8.5" font-weight="bold" fill="#5e2e80">本周睡眠提升 12%</text>
+  <line x1="818" y1="178" x2="818" y2="234" stroke="#d8cce4" stroke-width="1"/>
+  <line x1="818" y1="234" x2="936" y2="234" stroke="#d8cce4" stroke-width="1"/>
+  <polyline points="824,228 850,218 876,222 902,200 928,184" fill="none" stroke="#8a4fb0" stroke-width="2"/>
+  <circle cx="824" cy="228" r="2" fill="#8a4fb0"/>
+  <circle cx="850" cy="218" r="2" fill="#8a4fb0"/>
+  <circle cx="876" cy="222" r="2" fill="#8a4fb0"/>
+  <circle cx="902" cy="200" r="2" fill="#8a4fb0"/>
+  <circle cx="928" cy="184" r="2" fill="#8a4fb0"/>
+  <text x="875" y="247" text-anchor="middle" font-size="7.5" fill="#8a4fb0">文字 + 交互图表 · ECharts</text>
+  <text x="480" y="404" text-anchor="middle" font-size="13" fill="#234">杂乱的来源进 —— <tspan font-weight="bold" fill="#2f7d4a">一种 AI 可读的格式出。</tspan></text>
+</svg>
