@@ -76,6 +76,17 @@ class Resolution:
     loinc: str = ""                 # LOINC_NUM when the canonical name is LOINC
     candidates: int = 0             # how many corpus rows matched the alias
     resolved: bool = False
+    #: How the answer was reached: ``"lexical"`` (shipped vocabularies — the
+    #: only kind :func:`resolve` returns), ``"semantic"`` (embedding recall, via
+    #: :func:`resolve_with_semantic_fallback`), or ``""`` when unresolved.
+    #:
+    #: **A caller that uses a code as an IDENTITY** — a grouping key, a decision
+    #: that two readings are the same series, a FHIR mirror — **must accept only
+    #: ``"lexical"``.** Semantic recall cannot abstain: measured on the LOINC
+    #: matrix, nonsense scored 0.78 while real terms went as low as 0.56, so no
+    #: threshold separates them. It is a suggestion to confirm, not an identity.
+    method: str = ""
+    score: float = 0.0              # cosine, semantic answers only
 
     @property
     def code(self) -> str:
@@ -348,6 +359,7 @@ class OfflineResolver:
             loinc=chosen.loinc,
             candidates=chosen.candidates,
             resolved=True,
+            method="lexical",
         )
 
     def _lookup(self, term: str) -> Resolution | None:
@@ -364,6 +376,7 @@ class OfflineResolver:
                 loinc=self._loinc_by_name.get(self._normalize(name), ""),
                 candidates=int(len(rows)),
                 resolved=True,
+                method="lexical",
             )
         return None
 
@@ -376,6 +389,63 @@ def get_resolver() -> OfflineResolver:
 def resolve(term: str) -> Resolution:
     """Module-level convenience: offline-resolve one indicator name."""
     return get_resolver().resolve(term)
+
+
+async def resolve_with_semantic_fallback(
+    terms: list[str],
+    *,
+    index_path: str | None = None,
+    min_score: float | None = None,
+) -> list[Resolution]:
+    """Lexical first; embedding recall only for the terms that missed.
+
+    **Opt-in on purpose, and the opposite of a drop-in upgrade.** Semantic
+    recall raises coverage and lowers trust at the same time: it answers terms
+    the alias tables never heard of, and it also answers `绝对不存在的指标名xyzzy`
+    with a confident code, because it has no way to say "I don't know". Measured
+    on the LOINC matrix, nonsense scored 0.78 while genuine indicator names went
+    as low as 0.56 — the ranges overlap, so `min_score` cannot make it honest.
+    It is exposed anyway because a suggested code a human or a model can confirm
+    beats a blank, but every one of them comes back marked ``method="semantic"``
+    and must not be used as an identity. :func:`resolve` never returns one.
+
+    Falls back silently to the lexical answer when no matrix is installed —
+    that is the normal state of a `pip install`, not a failure.
+
+    `min_score` is offered for callers who want a floor anyway (e.g. to cut the
+    obviously-hopeless tail before showing suggestions); it is None by default
+    because presenting one as a correctness threshold would be a lie.
+    """
+    resolver = get_resolver()
+    out = [resolver.resolve(t) for t in terms]
+
+    missed = [i for i, r in enumerate(out) if not r.resolved]
+    if not missed:
+        return out
+
+    from .indicator.semantic import get_index
+
+    index = get_index(index_path)
+    if index is None:
+        return out
+
+    ranked = await index.search([terms[i] for i in missed], top_k=1)
+    for i, candidates in zip(missed, ranked):
+        if not candidates:
+            continue
+        best = candidates[0]
+        if min_score is not None and best.score < min_score:
+            continue
+        out[i] = Resolution(
+            term=terms[i],
+            canonical=best.canonical,
+            loinc=best.loinc,
+            candidates=1,
+            resolved=True,
+            method="semantic",
+            score=best.score,
+        )
+    return out
 
 
 # ── parse: document -> readings (one LLM call) ────────────────────────────────
