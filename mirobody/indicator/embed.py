@@ -5,9 +5,8 @@ from __future__ import annotations
 import logging
 from argparse import Namespace
 
-from mirobody.utils.embedding import EMBEDDING_PROVIDERS, text_embedding
+from mirobody.utils.embedding import text_embedding
 
-from .fhir.common import FHIR_EMBEDDING_COLUMN
 
 log = logging.getLogger(__name__)
 
@@ -29,18 +28,15 @@ async def _embed_table(
     ``embedding_qwen3``) via :data:`FHIR_EMBEDDING_COLUMN`.
     """
     from mirobody.utils import Config
-    from mirobody.utils.config import safe_read_cfg
 
-    provider = safe_read_cfg("EMBEDDING_PROVIDER", "gemini").lower()
-    if provider not in EMBEDDING_PROVIDERS:
-        raise ValueError(
-            f"EMBEDDING_PROVIDER invalid: {provider!r} "
-            f"(available: {sorted(EMBEDDING_PROVIDERS)})"
-        )
     if table == "th_series_dim":
-        embedding_column = f"embedding_{provider}"
+        from mirobody.indicator.fhir.common import resolve_dim_embedding_column
+
+        provider, embedding_column = resolve_dim_embedding_column()
     elif table == "fhir_indicators":
-        embedding_column = FHIR_EMBEDDING_COLUMN[provider]
+        from mirobody.indicator.fhir.common import resolve_fhir_embedding_column
+
+        provider, embedding_column = resolve_fhir_embedding_column()
     else:
         raise ValueError(f"no embedding-column convention registered for table {table!r}")
 

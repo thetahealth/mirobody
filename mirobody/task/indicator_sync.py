@@ -49,8 +49,7 @@ from typing import Any
 
 from .base import BaseRedisTask
 from ..utils import execute_query
-from ..utils.config import safe_read_cfg
-from ..utils.embedding import EMBEDDING_PROVIDERS, text_embedding
+from ..utils.embedding import text_embedding
 
 #-----------------------------------------------------------------------------
 
@@ -307,13 +306,12 @@ class IndicatorSyncTask(BaseRedisTask):
         Provider selected by `EMBEDDING_PROVIDER` (default `gemini`).
         Per-batch embedding errors are logged and skipped; the loop continues.
         """
-        dim_provider = safe_read_cfg("EMBEDDING_PROVIDER", "gemini").lower()
-        if dim_provider not in EMBEDDING_PROVIDERS:
-            raise ValueError(
-                f"EMBEDDING_PROVIDER invalid: {dim_provider!r} "
-                f"(available: {sorted(EMBEDDING_PROVIDERS)})"
-            )
-        col_name = f"embedding_{dim_provider}"
+        from mirobody.indicator.fhir.common import resolve_dim_embedding_column
+
+        # Whitelisted, not formatted: `col_name` goes straight into SQL below,
+        # and a provider without a column has to fail here rather than produce
+        # a query against one that does not exist.
+        dim_provider, col_name = resolve_dim_embedding_column()
 
         query = f"""
             SELECT dim.id, dim.original_indicator, dim.standard_indicator

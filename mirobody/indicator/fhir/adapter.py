@@ -18,6 +18,7 @@ from ..concept_graph import ConceptGraph
 from ..search import DomainAdapter, ResolveResult
 from .common import (
     SYSTEMS, SYSTEM_TO_CODE, _CODE_BITS, _CODE_MASK, int_to_code,
+    resolve_dim_embedding_column,
     resolve_fhir_embedding_column,
 )
 from .embeddings.local import RES_DIR as _RES_DIR, load as _load_local_fhir_cache
@@ -1125,13 +1126,13 @@ class FhirAdapter(DomainAdapter):
         end_time: str | None = None,
     ) -> list[dict]:
         time_clause, time_params = self._build_time_clause(start_time, end_time)
-        # th_series_dim follows the family-only convention (embedding_qwen,
-        # embedding_gemini) — different from fhir_indicators' versioned
-        # naming (embedding_qwen3). Resolve provider via the FHIR helper
-        # purely for its config-key + whitelist plumbing, then build the
-        # dim column name directly.
-        provider, _ = resolve_fhir_embedding_column()
-        dim_col = f"embedding_{provider}"
+        # th_series_dim names the family (embedding_qwen) where
+        # fhir_indicators names the model version (embedding_qwen3), so it has
+        # its own map. This used to borrow the FHIR helper for its config +
+        # whitelist plumbing and then build `f"embedding_{provider}"` by hand —
+        # correct for both providers that existed, and a coincidence rather
+        # than a convention.
+        provider, dim_col = resolve_dim_embedding_column()
 
         async def _single_query(emb: list[float]) -> list[dict]:
             vector_str = "[" + ",".join(map(str, emb)) + "]"

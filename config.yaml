@@ -378,9 +378,6 @@ DATABASE_DECRYPTION_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
 # Jina API Key (OPTIONAL)
 # JINA_API_KEY: ''
 
-# Embedding provider for th_series_dim vector recall column.
-# Supported: gemini, qwen. Default: gemini
-# DIM_EMBEDDING_PROVIDER: gemini
 
 # File analysis LLM provider override (optional).
 # Leave empty for auto-selection based on available API keys.
@@ -395,6 +392,20 @@ DATABASE_DECRYPTION_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
 #   0 = disabled (skip extraction)
 #   1 = enabled (extract indicators)
 ENABLE_INDICATOR_EXTRACTION: 1
+# Embedding provider, for BOTH the fhir_indicators and th_series_dim vector
+# columns — there is one knob, not two. (A second key, DIM_EMBEDDING_PROVIDER,
+# was documented here and read by no code at all; removed.)
+#
+#   gemini      GOOGLE_API_KEY      column embedding_gemini
+#   qwen        DASHSCOPE_API_KEY   column embedding_qwen3 / embedding_qwen
+#   openrouter  OPENROUTER_API_KEY  open-weights Qwen3-Embedding-8B. No database
+#               column: it serves the file-based semantic tier and direct
+#               text_embedding() callers, and setting it here makes the vector
+#               columns unusable until a column is added and both tables are
+#               re-embedded.
+#
+# Corpus and query MUST be embedded by the same model. A mismatched pair does
+# not error, it returns confident nonsense.
 EMBEDDING_PROVIDER: gemini
 
 # Vision model for image/PDF parsing (unified_file_extract). The vision provider
