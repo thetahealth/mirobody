@@ -206,6 +206,14 @@ urine specific gravity	SP GR Ur
 コレステロール	Cholesterol
 尿蛋白	Prot Ur Ql
 尿糖	Glucose Ur-mCnc
+# The spelled-out ホルモン names. `甲状腺刺激ホルモン(TSH)` already resolved via
+# the parenthetical strip, and the bare form — which is what a 健康診断結果表
+# actually prints — did not. Found by the four-language row in
+# examples/01_resolve_offline.py, which shows one analyte in en/简/繁/日 and
+# marks the row when the four disagree.
+甲状腺刺激ホルモン	Thyroid stimulating hormone
+チロトロピン	Thyrotropin
+副甲状腺ホルモン	Parathyrin
 収縮期血圧	Systolic blood pressure
 拡張期血圧	Diastolic blood pressure
 # NOTE: 血圧 / "blood pressure" on its own is a panel term and resolves to the
@@ -389,6 +397,52 @@ HRV	heart rate variability
 血圧	Blood pressure panel with all children optional
 blood pressure	Blood pressure panel with all children optional
 BP	Blood pressure panel with all children optional
+
+# ══ 台灣繁體 clinical vocabulary ═══════════════════════════════════════════
+# NOT a script variant of the 中文 rows above. `lexical.surface_variants` folds
+# zh-Hant to zh-Hans on the way in, so 白細胞 / 總膽固醇 / 穀丙轉氨酶 already
+# reach their Simplified rows without help. These are the terms where Taiwan
+# clinical usage picks a DIFFERENT WORD, and folding them is worse than useless
+# — it manufactures the exact failure this project scores worst:
+#
+#   血紅素   folds to 血红素   -> 4548-4  HbA1c        (in Taiwan it is HAEMOGLOBIN)
+#   糖化血色素 folds to 糖化血色素 -> nothing              (this is the actual HbA1c)
+#
+# So the fold got haemoglobin and HbA1c backwards, confidently, for every
+# Taiwanese report. `_candidate_keys` tries the term as written before any
+# variant, so these rows win over the fold by construction.
+#
+# Source of truth for the wording: the 檢驗報告單 a Taiwanese hospital prints,
+# not a character conversion of a mainland form.
+#
+# A right-hand side must be a key the ALIAS INDEX can look up — as the file
+# header says — and not another row's left-hand side. Three of these rows were
+# first written as `飯前血糖 -> Fasting glucose`, which is itself an override
+# key, and the resolver does not follow a two-hop chain: they resolved to
+# nothing and looked fine. Point at the index key the other row points at.
+# Rows whose term already resolved without them were dropped rather than left
+# as decoration (尿素氮, 白血球, 血小板計數 all reach the index unaided).
+血紅素	Hemoglobin
+血红素	Hemoglobin
+糖化血色素	HbA1c
+肌酸酐	Creatinine
+血中尿素氮	Urea nitrogen
+紅血球	红细胞
+紅血球計數	红细胞
+白血球計數	Leukocytes [#/volume] in Blood
+飯前血糖	Fasting glucose [Mass/volume] in Serum or Plasma
+空腹血糖值	Fasting glucose [Mass/volume] in Serum or Plasma
+甲狀腺刺激素	Thyroid stimulating hormone
+甲狀腺促素	Thyroid stimulating hormone
+總膽固醇值	Cholesterol
+低密度膽固醇	LDL-C
+高密度膽固醇	HDL-C
+尿蛋白質	Prot Ur Ql
+
+# 血脂肪 is the Taiwan wording for the lipid panel — same category term, same
+# reason it cannot have one code. Listed here rather than in the block section
+# above because it is the 台灣 spelling of an entry that already exists there.
+血脂肪	!unresolved
 
 # ══ qualitative indicators ═════════════════════════════════════════════════
 # Half of what a report prints is not a number, and half the shipped corpus is

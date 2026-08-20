@@ -128,11 +128,24 @@ def word_tokens(text: str) -> list[str]:
 def surface_variants(term: str) -> list[str]:
     """The spellings of ``term`` worth trying, most faithful first.
 
-    Never more than three, and the first is always the term as written, so a
+    Never more than four, and the first is always the term as written, so a
     caller that stops at the first hit keeps today's answer for today's inputs.
+
+    The last is the zh-Hant → zh-Hans fold. The alias lexicon build already
+    mirrors Simplified keys to Traditional in the BUNDLE, but
+    ``res/resolver_overrides.tsv`` is a runtime file that gets no such
+    expansion — and it holds the hand-curated everyday panel terms. Measured
+    before this: of eight common indicators whose Traditional spelling differs,
+    two resolved and six returned nothing, with no rule distinguishing them.
+    Folding the query is the symmetric half of what the build does to the
+    corpus. See :mod:`mirobody.indicator.zh_fold` for why folding is a script
+    transform and never a translation.
     """
+    from .zh_fold import fold_to_hans
+
     out: list[str] = []
-    for candidate in (term, normalize(term), " ".join(word_tokens(term))):
+    candidates = (term, normalize(term), " ".join(word_tokens(term)), fold_to_hans(term or ""))
+    for candidate in candidates:
         candidate = (candidate or "").strip()
         if candidate and candidate not in out:
             out.append(candidate)

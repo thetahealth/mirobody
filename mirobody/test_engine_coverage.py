@@ -116,6 +116,47 @@ CASES: list[tuple[str, str, str]] = [
     ("中性脂肪",                     r"triglyceride",                 r""),
     ("クレアチニン",                  r"creatinine",                   r"clearance|urine"),
     ("尿酸値",                       r"urate|uric acid",              r""),
+    # The spelled-out ホルモン names a 健康診断結果表 prints. The parenthetical
+    # form `甲状腺刺激ホルモン(TSH)` resolved all along; the bare one did not,
+    # and nothing was watching until examples/01 put en/简/繁/日 in one row and
+    # flagged the row where the four disagreed.
+    ("甲状腺刺激ホルモン",             r"thyrotropin|thyroid stimulating", r""),
+    ("チロトロピン",                  r"thyrotropin",                  r""),
+    # ── 中文（繁體 · 台灣）───────────────────────────────────────────────────
+    # Two distinct problems live here and only one of them is script.
+    #
+    # SCRIPT: 白細胞 / 總膽固醇 / 穀丙轉氨酶 are the same words in different
+    # glyphs. `lexical.surface_variants` folds zh-Hant to zh-Hans on the way in
+    # (see indicator/zh_fold.py), which is the symmetric half of what the
+    # lexicon build already does to the corpus. Before that fold, six of the
+    # eight common indicators whose Traditional spelling differs returned
+    # nothing, and the two that worked did so by accident of which file they
+    # came from.
+    #
+    # VOCABULARY: Taiwan clinical usage picks DIFFERENT WORDS, and folding
+    # those is worse than not folding them. 血紅素 folds to 血红素, which the
+    # index answers 4548-4 — HbA1c — while in Taiwan 血紅素 *is* haemoglobin.
+    # The fold had haemoglobin and HbA1c backwards for every Taiwanese report.
+    # Hence the `must_not` on the first two rows: they are the regression.
+    ("血紅素",                       r"^hemoglobin \[",               r"A1c|glycated"),
+    ("糖化血色素",                    r"hemoglobin a1c",               r""),
+    ("白血球",                       r"leukocyte|white blood cell",   r""),
+    ("紅血球",                       r"erythrocyte|red blood cell",   r""),
+    ("血小板",                       r"platelet",                     r""),
+    ("總膽固醇",                      r"^cholesterol \[",              r"LDL|HDL|VLDL"),
+    ("三酸甘油酯",                    r"triglyceride",                 r""),
+    ("低密度脂蛋白膽固醇",             r"cholesterol in LDL",           r"HDL|VLDL"),
+    ("高密度脂蛋白膽固醇",             r"cholesterol in HDL",           r"LDL|VLDL"),
+    ("肌酸酐",                       r"creatinine",                   r"clearance|urine"),
+    ("血中尿素氮",                    r"urea nitrogen",                r""),
+    ("甲狀腺刺激素",                  r"thyrotropin|thyroid stimulating", r""),
+    ("鹼性磷酸酶",                    r"alkaline phosphatase",         r""),
+    ("穀丙轉氨酶",                    r"alanine aminotransferase",     r""),
+    ("尿蛋白質",                      r"protein.*urine",               r""),
+    ("收縮壓",                       r"systolic blood pressure",      r""),
+    ("血壓",                         r"blood pressure panel",         r"systolic|diastolic|attach"),
+    ("飯前血糖",                      r"fasting glucose",              r"tolerance|challenge"),
+
     # ── second sweep: the wider panel a physical actually orders ─────────────
     # English extended
     ("total protein",               r"^protein \[",                  r"urine|LDL"),
@@ -303,6 +344,9 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # different answers they used to give.
     ("lipid panel", "four analytes, not one observation"),
     ("血脂", "the same lipid panel in Chinese"),
+    ("血脂肪", "the same lipid panel, 台灣 wording — folding 血脂肪 reaches "
+               "nothing, so without a row of its own it was an honest miss "
+               "rather than a refusal, and the semantic tier would answer it"),
     ("绝对不存在的指标名xyzzy", "pure nonsense must never resolve"),
     # "名称(缩写)" where the two halves mean DIFFERENT tests. The parenthetical
     # strip must not silently prefer the stem: filing an HbA1c reading into the
