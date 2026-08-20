@@ -162,9 +162,26 @@ class Config:
                     value != "REPLACE_THIS_VALUE_IN_PRODUCTION":
 
                     # Encrypt it.
-                    data[key] = self._encrypter.encrypt(value)
-                    if not modified:
-                        modified = (data[key] != value)
+                    #
+                    # An empty result means the encrypter is a no-op (an
+                    # unusable key — see `get_fernet_key`). Writing that back
+                    # would REPLACE the user's real secret with "" in the
+                    # config file. `self._raw` keeps the plaintext, so the
+                    # process keeps working and the loss only surfaces on the
+                    # next restart, with nothing to point at. Leave the file
+                    # alone and say so.
+                    encrypted = self._encrypter.encrypt(value)
+                    if not encrypted:
+                        logging.error(
+                            "refusing to write config: %s could not be "
+                            "encrypted (encryption key unusable). The value on "
+                            "disk is left untouched and remains in plaintext.",
+                            upper_key,
+                        )
+                    else:
+                        data[key] = encrypted
+                        if not modified:
+                            modified = (data[key] != value)
 
             self._raw[upper_key] = value
 
@@ -303,19 +320,42 @@ class Config:
 
 
     def get_fernet_key(self, key: str) -> str:
-        s = self.get_str(key)
-        s = s.strip()
-        if len(s) > 32:
-            s = s[:32]
+        """Derive a Fernet key from the configured passphrase.
+
+        Fernet needs exactly 32 raw BYTES, urlsafe-base64 encoded. This used to
+        truncate to 32 CHARACTERS and then pad to 32 BYTES, which are the same
+        operation only for ASCII. A passphrase with any CJK, accented or emoji
+        character produced 33-96 bytes, `ljust(32)` padded nothing, `Fernet()`
+        rejected the result, and the encrypter silently became a no-op — see
+        `FernetEncrypter.__init__`, and `_load_data` for what a no-op encrypter
+        then did to the config file.
+
+        Slicing the ENCODED bytes fixes it and changes nothing for an ASCII
+        passphrase, so no existing deployment has to re-encrypt.
+
+        The all-zeros fallback when the passphrase is empty is kept — changing
+        the derivation would strand every config already encrypted under it —
+        but it is no longer silent. It is a publicly known key; anything
+        "encrypted" with it is plaintext with extra steps.
+        """
+        s = self.get_str(key).strip()
+
+        if not s:
+            logging.error(
+                "%s is not set. Config secrets will be 'encrypted' with a "
+                "fixed, publicly-known key and are effectively plaintext. Set "
+                "it to a random 32-character value.", key,
+            )
 
         try:
-            result = base64.urlsafe_b64encode(
-                s.encode().ljust(32, b"0")
-            ).decode()
-            return result
+            # Slice AFTER encoding: `s[:32].encode()` can exceed 32 bytes.
+            raw = s.encode("utf-8")[:32].ljust(32, b"0")
+            return base64.urlsafe_b64encode(raw).decode()
 
         except Exception as e:
-            logging.error(str(e), extra={"key": s})
+            # Deliberately not logging `s`: it is the encryption passphrase,
+            # and the old version put it in the log line verbatim.
+            logging.error("could not derive a Fernet key from %s: %s", key, e)
             return ""
 
 
