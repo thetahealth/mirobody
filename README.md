@@ -674,8 +674,8 @@ regeneration, and the release gates (`lint-imports`, `check_wheel_data.py`).
 ## 📚 Documentation
 
 **[docs.mirobody.ai](https://docs.mirobody.ai/)** is the documentation platform —
-deployment, the API platform, and this open-source engine, kept in sync as both
-evolve.
+deployment, the API platform, and this open-source engine, kept in sync as all
+three evolve.
 
 In-repo docs follow one rule: **each package carries a short `README.md` saying
 what it is; long-form guides live in [`docs/`](docs/)** so a `pip install`

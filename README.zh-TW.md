@@ -2,7 +2,7 @@
 
 # 🚀 Mirobody
 
-**原生 AI 的健康資料引擎——收集、標準化，並針對檢驗報告、穿戴裝置與基因體資料進行推理。**
+**AI 原生的健康資料引擎——收集、標準化，並針對檢驗報告、穿戴裝置與基因體資料進行推理。**
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-3776AB.svg?logo=python&logoColor=white)](pyproject.toml)
@@ -518,8 +518,8 @@ curl localhost:18080/api/data -H "Authorization: Bearer $JWT" \
 - **沒有 `user` / `retention` / `session_id` / `mb_live_*` 這些欄位。** 主
   體識別、到期排程、計費，這些都是給多租戶平台用的維運機制；在這裡，你的
   JWT 就說明了你是誰，一筆資料會一直留著，直到有人把它刪掉為止。
-  `retention` 和 `session_id` 會被*接受但忽略*，而不是直接拒絕——為了一個
-  平台文件告訴你要送的欄位回一個 400，對誰都沒有幫助。
+  `retention` 和 `session_id` 會被*接受但忽略*，而不是直接拒絕——畢竟一個
+  平台文件教你要送的欄位，卻換來一個 400，對誰都沒有幫助。
 - **`DELETE /api/data` 需要明確指定範圍。** 雲端版的端點把「沒有篩選條件」
   當成「全部」，這在一個維運者刻意核發的金鑰背後是合理的。但在這裡，一次
   打錯字的 curl，可能只差一個按鍵就刪掉一個人的整份紀錄，所以最大的範圍就
