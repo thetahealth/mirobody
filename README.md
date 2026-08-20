@@ -45,6 +45,64 @@ from mirobody.engine import resolve
 resolve("血红蛋白").loinc   # -> '718-7'   offline: no key, no config, no network
 ```
 
+### The two functions you will actually call
+
+`resolve()` answers a **name**. `resolve_reading()` answers a **measurement** —
+and they give different codes, because LOINC puts the unit and the result type
+into the identity:
+
+```python
+from mirobody.engine import resolve, resolve_reading
+
+resolve("total cholesterol").loinc                       # '2093-3'   [Mass/volume]
+resolve_reading("total cholesterol", "5.0", "mmol/L")    # '14647-2'  [Moles/volume]
+resolve_reading("total cholesterol", "193", "mg/dL")     # '2093-3'   unchanged
+
+resolve("尿糖").loinc                                     # '2350-7'   [Mass/volume]
+resolve_reading("尿糖", "阴性")                            # '2349-9'   [Presence]
+resolve_reading("尿糖", "5.6", "mmol/L")                   # '15076-3'  [Moles/volume]
+```
+
+**If you have the value and the unit, pass them.** The same indicator goes
+opposite ways depending on the reading, and filing a mmol/L result under the
+mg/dL code — or a 阴性 result under a mass-concentration code — is how a series
+ends up with two units in it and nobody notices. Both functions are offline,
+deterministic, and safe to call in a loop (~25 µs each after the first).
+
+Every answer says how it got there, and one value is not like the others:
+
+```python
+r = resolve("血红蛋白")
+r.loinc, r.canonical, r.method     # '718-7', 'Hemoglobin [Mass/volume] in Blood', 'lexical'
+
+resolve("绝对不存在的指标名xyzzy").method   # ''         never seen it
+resolve("blood pressure").method          # 'refused'  a panel, not one observation
+```
+
+`""` is a gap and worth a second opinion; `"refused"` is the answer — `blood
+pressure` is a panel, `血糖(HbA1c)` names two different tests, and no single code
+is right for either. **Only treat `method == "lexical"` as an identity** (a
+grouping key, a "these are the same series" decision, a FHIR mirror). See
+[Semantic recall](#-semantic-recall-opt-in-and-why-it-is-opt-in) for the other
+kind.
+
+### Units are compared, never assumed
+
+```python
+from mirobody.indicator.fhir.units import convert_value, convertible
+
+convert_value(5.6, "mmol/L", "mg/dL", loinc_code="1558-6")   # 100.9  (molar-mass bridge)
+convert_value(42.0, "U/L", "[IU]/L")                         # 42.0   (1:1, different families)
+convert_value(24.0, "kg/m2", "mg/dL")                        # None   (BMI is not a concentration)
+convertible("%", "10*9/L")                                   # False  (a fraction is not a count)
+```
+
+`None` is an answer, not a failure: report the readings separately rather than
+scaling one to look like the other. Do **not** use `unit_family()` to decide
+convertibility — it is a LOINC PROPERTY classifier and it is wrong in both
+directions for that question (`kg/m2` and `mg/dL` share a family and cannot
+convert; `U/L` and `[IU]/L` are in different families and are the same unit).
+
 Then self-host the full thing (see [Quick Start](#-quick-start)), sign in, and
 mint your **personal MCP URL** (web client → Settings → MCP Url). Point any MCP
 client (Claude Desktop, Cursor, Cherry Studio) at it and talk to your own
@@ -112,8 +170,60 @@ The part none of the adjacent open-source projects have — a **semantic standar
 - **Embedding-based resolution**: free-text indicator names → canonical codes, with **50,240 multilingual aliases** (中文 22,578 · 日本語 16,809 · +6 languages) — `血红蛋白`, `ヘモグロビン` and `hemoglobin` all land on LOINC 718-7.
 - **We measure that claim instead of asserting it.** [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) scores the offline resolver against the panels a physical actually orders — lipid, CBC, metabolic, liver, thyroid, hormones, tumour markers, urinalysis, vitals — written the way a report prints them, in English, 中文 and 日本語 — plus the device/wearable vocabulary the platform API teaches (`steps`, `resting_heart_rate`, `sleep_duration`). **175/175 today; it scored 32/94 the day it was written.** It grades *clinical* correctness, not resolution rate: answering `血红蛋白` with the code for HbA1c is scored as a failure, and `血圧` (a panel, not an observation) is required to resolve to *nothing*, because a confident wrong code is worse than an honest miss.
 - **Surface algebra, so the spelling doesn't decide the answer** ([`indicator/lexical.py`](mirobody/indicator/lexical.py)): NFKC-lite folding (full-width, superscripts, the six dash variants) plus a CJK-aware tokenizer, and a guarded strip of the `名称(缩写)` shape a lab report prints. `ＦＢＧ`, `LDL–C`, `fasting_glucose`, `空腹血糖(GLU)` and `Cholesterol, total` all reach the same codes as their plain forms. When the two halves of `名称(缩写)` disagree — `血糖(HbA1c)` — the term stays **unresolved** rather than picking one.
-- **Unit normalization** to UCUM families (~310), 316 standard pulse indicators, FHIR R4 output.
+- **The reading picks the code, not just the name** ([`engine.resolve_reading`](mirobody/engine.py)). LOINC codes the unit *and* the result type into the identity, so the unit picks `PROPERTY` and the value's kind picks `SCALE_TYP`. `5.0 mmol/L` → 14647-2, `193 mg/dL` → 2093-3, `阴性` → the `[Presence]` variant. Half the shipped corpus is non-`Qn` (38,687 rows of 79,368), so a resolver that only constrains numbers is blind to half of it.
+- **Unit normalization** to UCUM families (~310), plus [conversion](mirobody/indicator/fhir/units/convert.py) — dimensional analysis, a molar-mass bridge keyed by LOINC code, and an explicit refusal for `%` vs `10*9/L`. 316 standard pulse indicators, FHIR R4 output.
 - Taxonomy of 25 clinical categories (Vital signs, Lab & Clinical, Body measures, …).
+
+### 🧪 Semantic recall: opt-in, and why it is opt-in
+
+Everything above is lexical — shipped vocabularies and table lookups. It abstains
+when it does not know a term, which is a ceiling as well as a virtue. There is a
+second tier ([`indicator/semantic.py`](mirobody/indicator/semantic.py)): cosine
+recall over an embedding of the LOINC corpus, built by
+[`scripts/build_loinc_embeddings.py`](scripts/build_loinc_embeddings.py).
+
+```python
+from mirobody.engine import resolve_with_semantic_fallback
+
+out = await resolve_with_semantic_fallback(["空腹血糖", "some unheard-of assay"])
+out[0].method    # 'lexical'  — the lexical tier answered; the fallback never saw it
+out[1].method    # ''         — no matrix installed, so nothing to fall back TO
+                 # 'semantic' once one is, and that means "a suggestion", not an identity
+```
+
+**No matrix ships**, so this is a no-op on a plain `pip install` and returns
+exactly what `resolve()` would. Point `MIROBODY_SEMANTIC_INDEX` at one to
+enable it; a matrix is ~198 MB and needs an embedding key, and corpus and query
+MUST come from the same model — a mismatched pair does not fail, it returns
+confident nonsense.
+
+It stays opt-in even once installed, and here is the measured reason. Benchmarked over 32 real indicator terms and 8 non-indicators, on
+Qwen3-Embedding-8B and -0.6B, each with and without the query-instruction
+wrapper:
+
+| tier | right + defensible | wrong | abstained |
+| --- | --- | --- | --- |
+| lexical (this engine) | **29/32** | **0** | 3 |
+| 8B, bare / instruct | 16 / 18 | 16 / 14 | 0 |
+| 0.6B, bare / instruct | 12 / 11 | 20 / 21 | 0 |
+
+**No configuration separates junk from real, and none ever abstains.** Junk
+scored 0.62–0.74 while genuine terms went down to 0.72, so no cosine threshold
+exists. The collisions are not noise: LOINC ships a large PHQ / FACIT /
+NIH-Toolbox / PhenX corpus of casual natural-language items, so `the quick brown
+fox` matching "Freckles" at 0.741 is the index working correctly.
+
+What makes it usable at all is that a reading is not a bare string by the time it
+arrives — an LLM extraction pass upstream returns an empty result for non-health
+content, and hands over `{indicator, value, unit}`. So the tier gates candidates
+on the axes the reading implies (`SCALE_TYP` from the value's kind, `PROPERTY`
+from the unit's dimension) and drops the 18,762 non-clinical rows
+`loinc_skip.txt` already lists. That lifts frontier precision from .396 to .446
+and fixes the one error all four configurations made (`total cholesterol` → a
+PhenX self-report survey item).
+
+Use it to *suggest* a code a human or a model then confirms. Do not use a
+`method == "semantic"` code as an identity.
 
 ## ③ Answers — agents that read the originals
 
