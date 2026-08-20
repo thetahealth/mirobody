@@ -392,6 +392,27 @@ Return JSON format: {"file_name": "...", "file_abstract": "..."}"""
 
     # ── Shared indicator extraction methods (used by pdf, image, text, etc.) ──
 
+    @staticmethod
+    def _indicator_extraction_enabled() -> bool:
+        """`ENABLE_INDICATOR_EXTRACTION` — 0 skips the LLM extraction pass.
+
+        config.yaml and docs/file-processing.md have both documented this switch
+        for a long time and NOTHING read it, so a deployment that set it to 0 —
+        to stop paying for an extraction call on a bulk import, say, or to keep
+        a document store text-only — got extraction anyway. It is the single
+        most expensive step in the upload path (one LLM call per file), which
+        makes a silently-ignored off switch an unbudgeted bill rather than a
+        cosmetic defect.
+
+        Defaults to enabled, which is what every existing deployment already
+        gets. The file itself, its text and its search index are unaffected;
+        only the indicator rows are not produced.
+        """
+        from mirobody.utils.config import safe_read_cfg
+
+        raw = safe_read_cfg("ENABLE_INDICATOR_EXTRACTION", "1").strip().lower()
+        return raw not in ("0", "false", "no", "off")
+
     def _start_background_indicator_extraction(
         self,
         original_text: str,
@@ -400,6 +421,13 @@ Return JSON format: {"file_name": "...", "file_abstract": "..."}"""
         file_key: str,
     ):
         """Start background indicator extraction with GC-safe task reference."""
+        if not self._indicator_extraction_enabled():
+            logging.info(
+                f"⏭️  {self.get_type_name()} upload completed, indicator extraction "
+                f"skipped (ENABLE_INDICATOR_EXTRACTION=0): {file_key}"
+            )
+            return
+
         task = asyncio.create_task(
             self._async_extract_indicators(
                 original_text=original_text,

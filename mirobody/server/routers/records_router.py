@@ -153,7 +153,7 @@ async def standardize(body: StandardizeRequest, user_id: str = Depends(verify_to
 
     stored_count = 0
     if body.store and data:
-        stored_count = await _insert_records(
+        stored_count, _ = await _insert_records(
             user_id,
             [
                 {
@@ -218,14 +218,19 @@ def _parse_time(raw: str | None) -> datetime:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
-async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source: str) -> int:
+async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source: str) -> tuple[int, int]:
     """Write readings, standardizing each on the way in.
+
+    Returns `(written, standardized)`. The caller used to compute the second
+    number with its own pass of `_standardize` over the same records, which
+    resolved every indicator name twice per request.
 
     `ON CONFLICT DO NOTHING` against the `(user_id, indicator, start_time,
     end_time)` unique key: re-sending a batch after a timeout is a retry, not a
     request for a duplicate row.
     """
     params = []
+    coded = 0
     for record in records:
         when = _parse_time(record.get("time"))
         end = _parse_time(record["end_time"]) if record.get("end_time") else when
@@ -237,6 +242,8 @@ async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source
         # splits it expects to find it there.
         text = f"{value} {unit}".strip() if unit else f"{value}"
         std = _standardize(record["indicator"], str(value), unit)
+        if std["loinc_code"]:
+            coded += 1
         params.append(
             {
                 "user_id": str(user_id),
@@ -265,7 +272,7 @@ async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source
         """,
         params=params,
     )
-    return len(params)
+    return len(params), coded
 
 
 @router.post("/data")
@@ -282,9 +289,8 @@ async def write_records(body: WriteRequest, user_id: str = Depends(verify_token)
         }
         for r in body.records
     ]
-    coded = sum(1 for r in records if _standardize(r["indicator"], str(r["value"]), r["unit"])["loinc_code"])
     try:
-        written = await _insert_records(user_id, records, source=_SOURCE_API)
+        written, coded = await _insert_records(user_id, records, source=_SOURCE_API)
     except Exception as e:
         logging.error(f"[write_records] {e}", exc_info=True)
         return _error(500, "These records could not be written.", "internal_error")
