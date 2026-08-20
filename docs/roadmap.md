@@ -93,6 +93,25 @@ miss, add a row to `ja_curated.tsv` or `resolver_overrides.tsv`, add a case to
 32/94 to 176/176. If the machine-generated file is ever regenerated, filter it
 by LOINC CLASS at generation time so observations survive and conditions do not.
 
+### Uploads accept archives that nothing can parse
+
+**Status:** not started, small, and a one-line decision either way.
+
+`SUPPORTED_EXTENSIONS` admits `.zip` and `.rar`. `FileHandlerFactory.get_handler`
+dispatches to exactly seven handlers — genetic, image, PDF, audio, text, Excel,
+CSV — and `return None` for everything else. So an archive uploads, validates,
+lands in the object store and in `th_files`, and is never parsed: no indicators,
+no extracted text, and nothing in the UI saying why.
+
+Found while auditing the README's countable claims, which said "8 file formats"
+and listed archives as one of them. There are 7 handlers and archives are not
+among them; the README is corrected.
+
+Either extract archives into their members and re-dispatch each one (the useful
+version — a 健檢 PDF bundle arrives zipped often enough), or drop the two
+extensions so the upload is refused at the door with a message. Silently storing
+a file the pipeline cannot read is the one option that should not survive.
+
 ### `resolved=True` with no code: a contract the resolver breaks 9.6% of the time
 
 **Status:** not started. The one-line fix is safe; the useful part is not.
