@@ -62,9 +62,12 @@ def test_standardize_wire_shape(client, monkeypatch):
         "parsed_value", "unit_raw", "unit_ucum", "reference_range", "measured_at",
     }
     assert row["indicator_raw"] == "空腹血糖"
-    # 1558-6 Fasting glucose, not 2339-0 plain Glucose: fasting is its own
-    # LOINC concept and collapsing it loses the distinction the order made.
-    assert row["loinc_code"] == "1558-6"          # resolved offline, not guessed
+    # 14771-0 "Fasting glucose [Moles/volume]", and every part of that is load-
+    # bearing. Not 2339-0 (plain Glucose — fasting is its own concept), and not
+    # 1558-6 (the [Mass/volume] variant) because this reading is in mmol/L and
+    # LOINC codes the unit into the identity. The route has the unit, so filing
+    # it under the mg/dL code would be a mixed-unit series by construction.
+    assert row["loinc_code"] == "14771-0"         # resolved offline, not guessed
     assert row["parsed_value"] == "5.6"
     assert row["unit_ucum"] == "mmol/L"
 
@@ -122,8 +125,9 @@ def test_write_records_standardizes_on_the_way_in(client, calls):
     assert r.status_code == 200
     assert r.json() == {"status": "ok", "ingested": 2, "standardized": 1}
     _, params = calls[-1]
-    # snake_case is the spelling the platform docs teach; it must reach a code.
-    assert params[0]["indicator_id"] == "1558-6"
+    # snake_case is the spelling the platform docs teach; it must reach a code —
+    # and the mmol/L variant of it, see test_standardize_wire_shape.
+    assert params[0]["indicator_id"] == "14771-0"
     assert params[1]["indicator_id"] == ""      # honest miss, still stored
     assert params[0]["value"] == "5.6 mmol/L"
 

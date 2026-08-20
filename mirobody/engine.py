@@ -76,9 +76,18 @@ class Resolution:
     loinc: str = ""                 # LOINC_NUM when the canonical name is LOINC
     candidates: int = 0             # how many corpus rows matched the alias
     resolved: bool = False
-    #: How the answer was reached: ``"lexical"`` (shipped vocabularies — the
-    #: only kind :func:`resolve` returns), ``"semantic"`` (embedding recall, via
-    #: :func:`resolve_with_semantic_fallback`), or ``""`` when unresolved.
+    #: How the answer was reached, or why there is none:
+    #:
+    #:   ``"lexical"``   shipped vocabularies — the only kind :func:`resolve`
+    #:                   returns
+    #:   ``"semantic"``  embedding recall, via
+    #:                   :func:`resolve_with_semantic_fallback`
+    #:   ``"refused"``   a DECISION not to answer: a panel name, or a string
+    #:                   naming two different tests. Distinct from ``""``, which
+    #:                   means simply not found, because the two want opposite
+    #:                   treatment — a gap is worth a second opinion, a refusal
+    #:                   is the answer and must not be overturned by one.
+    #:   ``""``          not found
     #:
     #: **A caller that uses a code as an IDENTITY** — a grouping key, a decision
     #: that two readings are the same series, a FHIR mirror — **must accept only
@@ -149,6 +158,8 @@ class OfflineResolver:
         # table inside the bundle.
         self._loinc_by_name: dict[str, str] = {}
         self._analyte: dict[str, str] = {}
+        self._axis_rows: list[tuple[str, str, str, str, str, str, str]] = []
+        self._by_component: dict[str, list[tuple]] | None = None
         axis_raw = read_member("loinc_axis.csv", bundle_path=_BUNDLE)
         if axis_raw is not None:
             for row in csv.DictReader(io.StringIO(axis_raw.decode("utf-8"))):
@@ -162,6 +173,18 @@ class OfflineResolver:
                 component = (row.get("COMPONENT") or "").split("^")[0].strip()
                 if component:
                     self._analyte[row["LOINC_NUM"]] = _normalize(component)
+                # The FULL component (challenge suffix included) plus the two
+                # axes `resolve_reading` gates on. Kept from the pass that is
+                # already reading this file rather than re-parsing 97k rows.
+                self._axis_rows.append((
+                    row["LOINC_NUM"],
+                    _normalize(row.get("COMPONENT") or ""),
+                    row.get("PROPERTY") or "",
+                    row.get("SCALE_TYP") or "",
+                    row.get("SYSTEM") or "",
+                    row.get("METHOD_TYP") or "",
+                    row.get("LONG_COMMON_NAME") or "",
+                ))
 
         # term -> a target the index resolves. Two sources, in precedence order:
         #
@@ -306,7 +329,7 @@ class OfflineResolver:
         # re-creating the very bug this guard was written for, through the back
         # door.
         if self._is_blocked(term):
-            return Resolution(term=term)
+            return Resolution(term=term, method="refused")
 
         hit = self._lookup(term)
         if hit is not None:
@@ -326,7 +349,7 @@ class OfflineResolver:
         if not stem and not inside:
             return Resolution(term=term)
         if (stem and self._is_blocked(stem)) or (inside and self._is_blocked(inside)):
-            return Resolution(term=term)
+            return Resolution(term=term, method="refused")
 
         stem_hit = self._lookup(stem) if stem else None
         inside_hit = self._lookup(inside) if inside else None
@@ -347,7 +370,7 @@ class OfflineResolver:
             stem_analyte = self._analyte.get(stem_hit.loinc, "")
             inside_analyte = self._analyte.get(inside_hit.loinc, "")
             if not stem_analyte or stem_analyte != inside_analyte:
-                return Resolution(term=term)
+                return Resolution(term=term, method="refused")
             inside_hit = None
 
         chosen = stem_hit or inside_hit
@@ -361,6 +384,100 @@ class OfflineResolver:
             resolved=True,
             method="lexical",
         )
+
+    def _component_index(self) -> dict[str, list[tuple]]:
+        """component -> its rows, built on first use and then cached.
+
+        Lazy because `resolve()` never needs it: a caller with no value and no
+        unit has nothing to pick a variant with, and paying for this index on
+        every import would tax the offline path that is the whole point of the
+        library.
+        """
+        if self._by_component is None:
+            from .indicator.fhir.embeddings.bundle import read_member
+
+            skip: set[str] = set()
+            raw = read_member("loinc_skip.txt", bundle_path=_BUNDLE)
+            if raw is not None:
+                skip = {
+                    line.strip()
+                    for line in raw.decode("utf-8").splitlines()
+                    if line.strip() and not line.startswith("#")
+                }
+            index: dict[str, list[tuple]] = {}
+            for row in self._axis_rows:
+                code, component = row[0], row[1]
+                if component and code not in skip:
+                    index.setdefault(component, []).append(row)
+            self._by_component = index
+        return self._by_component
+
+    def _names_by_loinc(self) -> dict[str, str]:
+        """code -> LONG_COMMON_NAME, for reporting a switched variant."""
+        if not hasattr(self, "_name_by_code"):
+            self._name_by_code = {r[0]: r[6] for r in self._axis_rows}
+        return self._name_by_code
+
+    def variant_for_reading(self, loinc: str, value: str | None, unit: str | None) -> str:
+        """The code for the SAME measurement, in the form this reading took.
+
+        LOINC gives one code per (analyte, property, scale, specimen, method),
+        so one measurement has many codes and the reading itself says which:
+
+        * the UNIT picks the ``PROPERTY``. Total cholesterol is 2093-3 in mg/dL
+          and 14647-2 in mmol/L. The alias table answers with whichever one it
+          points at, so a mmol/L reading routinely landed on the
+          mass-concentration code and everything downstream believed a
+          two-unit series was one unit.
+        * the VALUE'S KIND picks the ``SCALE_TYP``. `尿糖 阴性` is not a number,
+          and answering it with *Glucose [Mass/volume] in Urine* files a
+          dipstick result into a quantitative assay. Measured on the everyday
+          qualitative panel, ten of thirty indicators did exactly that —
+          尿糖, 尿酮体, 类风湿因子, 抗核抗体, 妊娠试验 and their English forms.
+          Half the shipped corpus is non-``Qn`` (38,687 rows), so this is not
+          an edge.
+
+        Both constraints are applied to the sibling with the same **full**
+        COMPONENT — `Glucose^post CFst`, not `Glucose`, so a fasting reading
+        cannot decay into plain glucose. Prefers the same SYSTEM and a
+        method-less variant.
+
+        Deterministic and reversible: no embedding, no scoring, still
+        `method="lexical"`, because the analyte came from the alias table and
+        the variant from a table lookup. Returns `loinc` unchanged whenever the
+        reading says nothing, already agrees, or has no sibling — "leave it
+        alone" is always available and always safe.
+        """
+        if not loinc:
+            return loinc
+        from .indicator.fhir.units import normalize_unit, unit_families
+        from .indicator.value_scale import scales_for_value
+
+        ucum = normalize_unit(unit) if unit else None
+        families = frozenset(unit_families(ucum) or ()) if ucum else frozenset()
+        scales = scales_for_value(value) or frozenset()
+        if not families and not scales:
+            return loinc
+
+        current = next((r for r in self._axis_rows if r[0] == loinc), None)
+        if current is None:
+            return loinc
+        prop_ok = (not families) or current[2] in families
+        scale_ok = (not scales) or current[3] in scales
+        if prop_ok and scale_ok:
+            return loinc
+
+        siblings = [
+            r for r in self._component_index().get(current[1], [])
+            if ((not families) or r[2] in families) and ((not scales) or r[3] in scales)
+        ]
+        if not siblings:
+            return loinc
+        same_system = [r for r in siblings if r[4] == current[4]] or siblings
+        # A method-less variant first: `... by Automated count` is a narrower
+        # claim than the report supports.
+        same_system.sort(key=lambda r: (r[5] != "", len(r[6])))
+        return same_system[0][0]
 
     def _lookup(self, term: str) -> Resolution | None:
         """First candidate key that hits the alias index, or None on a miss."""
@@ -391,6 +508,44 @@ def resolve(term: str) -> Resolution:
     return get_resolver().resolve(term)
 
 
+def resolve_reading(name: str, value: str | None = None, unit: str | None = None) -> Resolution:
+    """Resolve a reading, in the unit it was actually reported in.
+
+    `resolve()` answers a NAME; this answers a MEASUREMENT, and the difference
+    matters because LOINC codes the unit into the identity:
+
+        resolve("total cholesterol")                    -> 2093-3  [Mass/volume]
+        resolve_reading("total cholesterol", "5.0", "mmol/L") -> 14647-2 [Moles/volume]
+        resolve_reading("total cholesterol", "193", "mg/dL")  -> 2093-3  (unchanged)
+
+    Two lexical steps, no embedding and no guessing: the alias table picks the
+    analyte, then the axis table picks the variant whose PROPERTY matches the
+    unit. A reading whose unit does not parse, or already agrees, comes back
+    exactly as `resolve()` would answer it.
+
+    This is where the value and unit earn their keep. Upstream, an LLM
+    extraction pass has already decided the content is health data and emitted
+    `{indicator, value, unit}` — so by the time a name reaches the resolver it
+    is a measurement with a magnitude, and throwing that away to match on the
+    name alone discards the strongest disambiguator available.
+    """
+    resolver = get_resolver()
+    hit = resolver.resolve(name)
+    if not hit.resolved or not hit.loinc:
+        return hit
+    switched = resolver.variant_for_reading(hit.loinc, value, unit)
+    if switched == hit.loinc:
+        return hit
+    return Resolution(
+        term=hit.term,
+        canonical=resolver._names_by_loinc().get(switched, hit.canonical),
+        loinc=switched,
+        candidates=hit.candidates,
+        resolved=True,
+        method="lexical",
+    )
+
+
 async def resolve_with_semantic_fallback(
     terms: list[str],
     *,
@@ -419,7 +574,13 @@ async def resolve_with_semantic_fallback(
     resolver = get_resolver()
     out = [resolver.resolve(t) for t in terms]
 
-    missed = [i for i, r in enumerate(out) if not r.resolved]
+    # `method="refused"` is a decision, not a gap. `blood pressure` is a panel;
+    # `血糖(HbA1c)` names two different tests. Neither has a right answer, and
+    # the embedding tier will supply one anyway — measured, it answered all nine
+    # refusals in the eval set and got all nine wrong. Letting the second tier
+    # overturn the first tier's refusal is the one thing this design must not
+    # do, so only genuine misses go on.
+    missed = [i for i, r in enumerate(out) if not r.resolved and r.method != "refused"]
     if not missed:
         return out
 
@@ -536,13 +697,20 @@ def _readings_from_json(raw: str, *, resolve_names: bool) -> list[Reading]:
         if not isinstance(it, dict) or not it.get("name"):
             continue
         name = str(it["name"]).strip()
+        value = str(it.get("value") or "").strip()
+        unit = str(it.get("unit") or "").strip()
         readings.append(
             Reading(
                 name=name,
-                value=str(it.get("value") or "").strip(),
-                unit=str(it.get("unit") or "").strip(),
+                value=value,
+                unit=unit,
                 reference_range=str(it.get("reference_range") or "").strip(),
-                resolution=resolver.resolve(name) if resolver else None,
+                # The unit is right here, and LOINC codes the unit into the
+                # identity — resolving on the name alone would file a mmol/L
+                # reading under the mg/dL code.
+                resolution=(
+                    resolve_reading(name, value, unit) if resolver else None
+                ),
             )
         )
     return readings

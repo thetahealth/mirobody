@@ -206,82 +206,16 @@ log = logging.getLogger(__name__)
 # scale (e.g. sodium has no Ord variant) gracefully fall back to the
 # cosine top-1 — scale is the softer constraint and relaxes first.
 
-# Ordinal markers — patient-side report tokens for graded results.
-# Includes simplified/traditional Chinese, Japanese, Korean, plus "+/-"
-# and ASCII "trace". Single ``+`` / ``-`` are ambiguous with "positive
-# / negative" (Nom); the regex below matches *only* when they're the
-# whole token, so "+" alone classifies as Ord and "(+)" as Nom (via the
-# nominal token list below).
-_VALUE_ORD_RE = re.compile(
-    r"^\s*(?:"
-    r"[+-]{1,4}"                     # +, ++, +++, ++++, -
-    r"|\+/\-"                        # +/-
-    r"|[1-4]\s*\+"                   # 1+, 2+
-    r"|trace"
-    r"|微量|可疑"
-    r"|微量陽性|微量阳性"
-    r")\s*$",
-    re.IGNORECASE,
+# The value-kind vocabulary and the scale-compatibility table now live in
+# `mirobody.indicator.value_scale`, so the lexical resolver and the small
+# LOINC-only semantic tier gate on the same definitions this pipeline reranks
+# with, rather than on a second copy that drifts. Names are re-bound to the
+# module-private spellings the rest of this file uses.
+from mirobody.indicator.value_scale import (  # noqa: E402
+    SCALE_COMPAT as _SCALE_COMPAT,
+    VALUE_NOM_TOKENS as _VALUE_NOM_TOKENS,
+    classify_value as _classify_value,
 )
-
-# Numeric value (optionally with comparator and unit). Examples that
-# classify as Qn: "20", "20.5", "1.2e-3", "<10", ">100", "20 mg/dL",
-# "0.42 mIU/mL", "5.0×10^6/L". The leading optional comparator is for
-# below-limit / above-limit reports.
-_VALUE_QN_RE = re.compile(
-    r"^\s*[<>≤≥]?\s*"
-    r"\d+(?:\.\d+)?(?:[eE][+-]?\d+)?"
-    r"(?:\s*[×x*]\s*10[\^]?[+-]?\d+)?"
-    r"(?:\s*[^\d].*)?$"              # any trailing unit/text
-)
-
-# Nominal tokens — short categorical labels. Includes blood-type letters
-# (A/B/AB/O ± Rh+/-), positive/negative markers, reactive/non-reactive
-# serology results. Multilingual: Chinese (simp+trad), Japanese, Korean,
-# Spanish, German, French, Russian.
-_VALUE_NOM_TOKENS: frozenset[str] = frozenset({
-    # English
-    "positive", "negative", "pos", "neg", "reactive", "non-reactive",
-    "nonreactive", "detected", "not detected", "present", "absent",
-    "(+)", "(-)",
-    # Blood types
-    "a", "b", "ab", "o", "a+", "a-", "b+", "b-", "ab+", "ab-", "o+", "o-",
-    "rh+", "rh-", "rh positive", "rh negative",
-    # CJK
-    "阳性", "阴性", "陽性", "陰性",
-    "陽", "陰",
-    "陽性反応", "陰性反応",
-    "양성", "음성",
-    # Spanish / German / French / Russian
-    "positivo", "negativo",
-    "positiv", "negativ",
-    "positif", "négatif", "negatif",
-    "положительный", "отрицательный",
-})
-
-# Scale-class → ordered SCALE_TYP preference. SCALE_TYP values come
-# from LoincTableCore.csv; only the ones we actively bias toward are
-# listed here (others — "Multi", "Set", "" — never qualify as a match).
-# Tuple position = preference tier (lower index wins): for ``"qn"``,
-# a same-family ``Qn`` row beats ``SemiQn`` which beats ``OrdQn`` even
-# when cosine ranks them otherwise — keeps a stray ``[Titer]`` SemiQn
-# from snatching the top slot from the proper ``[Units/volume]`` Qn
-# whenever cosine puts them within tie distance. Within one tier,
-# cosine breaks ties as before.
-_SCALE_COMPAT: dict[str, tuple[str, ...]] = {
-    "qn":  ("Qn", "SemiQn", "OrdQn"),
-    "ord": ("Ord", "OrdQn", "SemiQn"),
-    # Semi-quantitative — query carries an explicit ``半定量`` /
-    # ``semi-quantitative`` marker (titer / grade / 1+/2+/3+ assays).
-    # Tier order: SemiQn first (canonical match — D-dimer titer
-    # 38898-3, RPR titer, HPV titer, etc.), OrdQn second (functionally
-    # close — ordinal scale with quantitative anchor), Qn third (over-
-    # specified Mass/vol that ignores the assay class — still better
-    # than Ord which has no quantitative info at all).
-    "semiqn": ("SemiQn", "OrdQn", "Qn", "Ord"),
-    "nom": ("Nom",),
-    "nar": ("Nar", "Doc"),
-}
 
 # Specimen preference for the within-family final tiebreak. Tuple
 # position = preference tier (lower index wins). Applied AFTER scale
@@ -433,32 +367,6 @@ def _semiquantitative_trigger_re() -> "re.Pattern[str]":
     pat = _compile_marker_pattern(_SEMIQUANTITATIVE_TRIGGER_MARKERS)
     _semiquantitative_trigger_re._cached = pat   # type: ignore[attr-defined]
     return pat
-
-
-def _classify_value(value: str | None) -> str | None:
-    """Map an observed value string to a SCALE_TYP scale class.
-
-    Returns one of ``"qn"`` (numeric, w/ or w/o unit), ``"ord"`` (graded
-    +/− markers), ``"nom"`` (positive/negative/blood-type tokens), or
-    ``"nar"`` (free narrative text). ``None`` for empty / unparseable
-    input — caller skips scale rerank for that term.
-
-    Order: ord-first (so ``"+"`` doesn't fall into the qn-trailing-unit
-    branch as a sign), then qn, then nom (token-exact), else nar if the
-    remaining text is non-empty.
-    """
-    if value is None:
-        return None
-    s = value.strip()
-    if not s:
-        return None
-    if _VALUE_ORD_RE.match(s):
-        return "ord"
-    if s.lower() in _VALUE_NOM_TOKENS:
-        return "nom"
-    if _VALUE_QN_RE.match(s):
-        return "qn"
-    return "nar"
 
 
 def _build_system_match_rank(cache: dict) -> "np.ndarray | None":

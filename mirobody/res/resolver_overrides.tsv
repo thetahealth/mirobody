@@ -356,3 +356,47 @@ HDLコレステロール	HDL-C
 HRV	heart rate variability
 # 凝血酶原时间 answered 34714-6 INR: a DERIVED ratio, not the time itself.
 凝血酶原时间	Prothrombin time (PT)
+
+# 血圧 is 血压 in Japanese and had no entry at all, so it missed — while the
+# Chinese form answers 18684-1 "Blood pressure Set". The overrides header states
+# the rule those two were breaking: a panel TERM mapping to a panel CODE is a
+# correct answer and is not blocked (which is why 血压 is not in the
+# non-answers section). One language getting the panel code and another getting
+# silence is not a policy, it is a gap — surfaced by the eval harness, which
+# asked why the two behaved differently.
+血圧	First Blood pressure Set
+
+# ══ qualitative indicators ═════════════════════════════════════════════════
+# Half of what a report prints is not a number, and half the shipped corpus is
+# not Qn — 25,156 Ord rows, 7,859 Nom, 4,258 SemiQn. A urinalysis panel, a
+# serology screen and a blood type are all 阴性/阳性/++ results, and the ones
+# below simply had no entry at all.
+#
+# Targets are the [Presence] / [Type] variants, because that is what these
+# tests ARE. `resolve_reading` then moves along the scale axis when a value
+# says otherwise, so a term that also has a quantitative form (乙肝表面抗体 is
+# reported both as a titre and as reactive/non-reactive) still lands right.
+尿隐血	Hemoglobin [Presence] in Urine by Test strip
+尿红细胞	Erythrocytes [Presence] in Urine
+尿亚硝酸盐	Nitrite Ur Ql
+亚硝酸盐	Nitrite Ur Ql
+尿白细胞酯酶	Leukocyte esterase
+白细胞酯酶	Leukocyte esterase
+乙肝表面抗原	Hepatitis B virus surface Ag
+HBsAg	Hepatitis B virus surface Ag
+乙肝表面抗体	Hepatitis B virus surface Ab
+乙肝e抗原	Hepatitis B virus e Ag
+乙肝核心抗体	Hepatitis B virus core Ab
+丙肝抗体	Hepatitis C virus Ab
+anti-HCV	Hepatitis C virus Ab
+HIV抗体	HIV 1+2 Ab
+梅毒抗体	Treponema pallidum Ab
+# 血型 answered 50962-0 "XXX blood group IgG Ab [Titer]" — an antibody titre,
+# not a blood type. ABO grouping is 883-9.
+血型	ABO group
+血型鉴定	ABO group
+ABO血型	ABO group
+blood type	ABO group
+blood group	ABO group
+Rh血型	Rh typing
+RhD血型	Rh typing

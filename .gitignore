@@ -45,3 +45,14 @@ tests
 # mirobody/pulse/README.md.
 CLAUDE.md
 **/CLAUDE.md
+
+# Resolver evaluation harness — LOCAL ONLY, deliberately.
+#
+# `eval/` holds the maintained test set, the runner, and every timestamped
+# result. It stays out of the repo for two reasons and neither is tidiness:
+# the test set is derived in part from a sibling private repo's curated seed,
+# and a published benchmark that ships alongside the thing it grades is an
+# invitation to tune against it. Kept on disk so a change to the resolver can
+# be re-scored against the same set and the same runner — reproducible,
+# upgradable, traceable — without becoming a public claim.
+eval/

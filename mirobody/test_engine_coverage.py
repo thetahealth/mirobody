@@ -146,6 +146,7 @@ CASES: list[tuple[str, str, str]] = [
     ("总蛋白",                       r"^protein \[",                  r"urine"),
     ("糖化血红蛋白",                  r"hemoglobin a1c",               r""),
     ("收缩压",                       r"systolic blood pressure",      r""),
+    ("血圧",                         r"blood pressure set",           r"systolic|diastolic"),
     ("舒张压",                       r"diastolic blood pressure",     r""),
     ("血氧饱和度",                    r"oxygen saturation",            r""),
     ("尿蛋白",                       r"protein.*urine",               r""),
@@ -285,9 +286,11 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # reading filed under it lands in the wrong series. Blocked with the
     # `!unresolved` sentinel in resolver_overrides.tsv.
     #
-    # Note what is deliberately NOT blocked: 血压 resolves to 18684-1 "Blood
-    # pressure Set", a panel code for a panel term — a correct answer.
-    ("血圧", "blood pressure is a panel; the index would answer 'diastolic'"),
+    # Note what is deliberately NOT blocked: 血压 AND 血圧 both resolve to
+    # 18684-1 "Blood pressure Set", a panel code for a panel term — a correct
+    # answer. 血圧 used to be listed here, which made the same concept blocked in
+    # one language and answered in another; the eval harness asked why and there
+    # was no reason.
     ("blood pressure", "panel; answered 8462-4 (diastolic) before it was blocked"),
     ("blood_pressure", "the same panel, snake_case: underscore flattening reached "
                        "the index under the spaced form and re-answered 8462-4 "
@@ -367,3 +370,113 @@ def test_coverage(resolver):
         f"coverage {coverage:.0%} is below the {COVERAGE_FLOOR:.0%} floor; "
         f"{len(misses)} miss(es): " + "; ".join(f"{t} — {why}" for t, why in misses)
     )
+
+
+# ── unit-consistent codes: resolve_reading vs resolve ────────────────────────
+# LOINC codes the unit into the identity, so total cholesterol is 2093-3 in
+# mg/dL and 14647-2 in mmol/L — different codes for the same measurement. The
+# alias table answers with whichever one it points at, so a mmol/L reading used
+# to land on the mass-concentration code and every consumer downstream believed
+# a two-unit series was one unit. `resolve_reading` walks the axis table to the
+# sibling with the same FULL component and a PROPERTY in the unit's family.
+#
+# (term, value, unit, expected code, why)
+READING_CASES: list[tuple[str, str, str, str, str]] = [
+    ("total cholesterol", "5.0", "mmol/L", "14647-2", "switches to [Moles/volume]"),
+    ("total cholesterol", "193", "mg/dL",  "2093-3",  "already consistent, untouched"),
+    # The challenge suffix must survive: `Glucose^post CFst`, not `Glucose`, or
+    # a fasting reading decays into plain glucose on the way to mmol/L.
+    ("空腹血糖",          "5.6", "mmol/L", "14771-0", "fasting qualifier preserved"),
+    ("空腹血糖",          "100", "mg/dL",  "1558-6",  "already consistent"),
+    ("肌酐",             "95",  "umol/L", "14682-9", "creatinine to substance conc"),
+    ("尿酸",             "420", "umol/L", "14933-6", "urate to substance conc"),
+    ("总胆红素",          "17",  "umol/L", "14631-6", "bilirubin.total to substance conc"),
+    ("甘油三酯",          "1.7", "mmol/L", "14927-8", "triglyceride to substance conc"),
+    # No unit, an unparseable unit, or a unit already in the right family must
+    # all leave the answer exactly where `resolve` put it.
+    ("HGB",             "140", "g/L",    "718-7",   "g/L is already MCnc"),
+    ("hematocrit",      "42",  "%",      "4544-3",  "% has no substance sibling"),
+    ("白细胞计数",         "6.5", "10*9/L", "26464-8", "count already NCnc"),
+]
+
+
+@pytest.mark.parametrize("term, value, unit, expected, why", READING_CASES)
+def test_resolve_reading_is_unit_consistent(term, value, unit, expected, why):
+    from mirobody.engine import resolve_reading
+
+    got = resolve_reading(term, value, unit)
+    assert got.loinc == expected, f"{term} @ {unit}: {why} — got {got.loinc} {got.canonical!r}"
+    # A variant switch is a table lookup, not a guess: it stays identity-grade.
+    assert got.method == "lexical"
+
+
+def test_resolve_reading_without_a_unit_matches_resolve():
+    """No unit means no constraint, not a different answer."""
+    from mirobody.engine import resolve, resolve_reading
+
+    for term in ("total cholesterol", "空腹血糖", "HGB", "绝对不存在的指标名xyzzy"):
+        assert resolve_reading(term).loinc == resolve(term).loinc
+        assert resolve_reading(term, "5.0", "").loinc == resolve(term).loinc
+        assert resolve_reading(term, "5.0", "not-a-unit").loinc == resolve(term).loinc
+
+
+# ── non-numeric readings: the value's KIND picks the scale ────────────────────
+# Half of what a report prints is not a number, and 38,687 of the shipped axis
+# rows are not Qn (25,156 Ord · 7,859 Nom · 4,258 SemiQn · 1,414 OrdQn). A
+# 阴性/阳性/++ result belongs on a [Presence]/[Type] code; answering it with a
+# mass-concentration code files a dipstick into a quantitative assay. Measured
+# before this worked: ten of thirty everyday qualitative indicators did exactly
+# that — 尿糖, 尿酮体, 类风湿因子, 抗核抗体, 妊娠试验 and their English forms.
+#
+# (term, value, expected code, note)
+QUALITATIVE_READINGS: list[tuple[str, str, str, str]] = [
+    ("尿糖",           "阴性", "2349-9",  "dipstick negative -> [Presence], not [Mass/volume]"),
+    ("尿蛋白",         "阴性", "2887-8",  "already a Presence code, untouched"),
+    ("尿蛋白",         "++",   "2887-8",  "graded ordinal, same code"),
+    ("尿酮体",         "阴性", "33903-6", "was 49779-2 [Mass/volume]"),
+    ("尿隐血",         "阴性", "5794-3",  "had no entry at all"),
+    ("尿亚硝酸盐",     "阴性", "32710-6", "had no entry at all"),
+    ("尿白细胞酯酶",   "阴性", "5799-2",  "had no entry at all"),
+    ("便隐血",         "阴性", "2335-8",  "already a Presence code"),
+    ("乙肝表面抗原",   "阴性", "5196-1",  "serology screen"),
+    ("丙肝抗体",       "阴性", "13955-0", "serology screen"),
+    ("类风湿因子",     "阴性", "33910-1", "was 11572-5 [Units/volume]"),
+    ("妊娠试验",       "阳性", "2118-8",  "was 19080-1 [Units/volume]"),
+    ("血型",           "O",    "883-9",   "was 50962-0, an antibody TITRE not a blood type"),
+    ("Rh血型",         "阳性", "10331-7", "had no entry at all"),
+    ("urine glucose",  "negative", "2349-9",  "same rule, English"),
+    ("rheumatoid factor", "negative", "33910-1", "same rule, English"),
+    ("blood type",     "O+",   "883-9",   "same rule, English"),
+]
+
+
+@pytest.mark.parametrize("term, value, expected, note", QUALITATIVE_READINGS)
+def test_a_non_numeric_value_picks_a_non_numeric_code(term, value, expected, note):
+    from mirobody.engine import resolve_reading
+
+    got = resolve_reading(term, value, None)
+    assert got.loinc == expected, f"{term} = {value}: {note} — got {got.loinc} {got.canonical!r}"
+    assert got.method == "lexical"          # a table lookup, still identity-grade
+
+
+@pytest.mark.parametrize(
+    "term, value, unit, expected",
+    [
+        # The SAME indicator reported as a number goes the other way. The value
+        # decides, not the name — which is the whole point.
+        ("尿糖", "5.6", "mmol/L", "15076-3"),
+        ("类风湿因子", "12", "IU/mL", "11572-5"),
+    ],
+)
+def test_the_same_indicator_as_a_number_stays_quantitative(term, value, unit, expected):
+    from mirobody.engine import resolve_reading
+
+    assert resolve_reading(term, value, unit).loinc == expected
+
+
+def test_a_value_of_an_unknown_kind_places_no_constraint():
+    """Narrative or empty values must not silently move the answer."""
+    from mirobody.engine import resolve, resolve_reading
+
+    for value in (None, "", "见报告", "clear yellow fluid"):
+        assert resolve_reading("尿蛋白", value, None).loinc == resolve("尿蛋白").loinc

@@ -39,7 +39,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from ...engine import resolve as resolve_indicator_name
+from ...engine import resolve_reading as resolve_indicator_name
 from ...indicator.fhir.units.normalize import normalize_unit, parse_value_unit
 from ...utils import execute_query
 from ..auth import verify_token
@@ -85,8 +85,12 @@ def _standardize(name: str, value: str | None, unit: str | None) -> dict[str, An
     This is stage ② in one function: name -> LOINC via the offline resolver,
     value+unit -> a parsed number and a UCUM unit. `None` for the code is the
     honest answer for a term that did not resolve — never a guessed one.
+
+    `resolve_reading`, not `resolve`: the code depends on the unit. Total
+    cholesterol is 2093-3 in mg/dL and 14647-2 in mmol/L, and a route that has
+    the unit in its hand has no excuse for filing one under the other.
     """
-    resolution = resolve_indicator_name(name or "")
+    resolution = resolve_indicator_name(name or "", value, unit)
     parsed = parse_value_unit(f"{value or ''} {unit or ''}".strip())
     ucum = normalize_unit(unit) if unit else (parsed.unit or None)
     return {
