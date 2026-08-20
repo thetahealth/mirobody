@@ -636,6 +636,80 @@ fix is here.
   `psparser.nextobject` lines. `logging.getLogger("pdfminer").setLevel(WARNING)`
   at startup.
 
+## Found by an external security review (2026-08-18)
+
+A reviewer deployed the stack with `./deploy.sh` and one OpenRouter key, drove
+it end to end, and audited the source. Every finding below was re-verified here
+before being acted on — one turned out to be worse than reported, and the
+counts in the review predate this branch.
+
+**Fixed on this branch**, each with a regression test:
+
+| Finding | Commit |
+| --- | --- |
+| `GET /files/{key}` served PHI with no authentication (confirmed live) | `require auth and ownership to read an uploaded file` |
+| `?folder=` traversal → arbitrary file write outside the storage root | `stop an upload from choosing where on disk it lands` |
+| Care-circle `share_id` authorize had no ownership predicate (IDOR) | `a care-circle share may only be authorized by a party to it` |
+| OAuth `redirect_uri` never validated → auth-code theft | `validate redirect_uri against what the OAuth client registered` |
+| Login code: no attempt cap, and reusable in the Redis branch | `make a login code single-use and cap how often it may be guessed` |
+| `data-distribution?user_id=` unauthorized cross-user read | `authorize the data-distribution route like the one beside it` |
+| Encryption key derivation erased the secret it could not encrypt | `stop an unusable encryption key from erasing the secret it cannot encrypt` |
+| `pip install -e '.[test]'` aborted at collection | `make pip install -e '.[test]' run the tests it claims to` |
+| CI installed pytest and never ran it | `run the tests in CI` |
+
+Three remain open. None is a defect in code that exists; each is a feature that
+does not, and two need a client change to be useful — which is why they are
+here rather than half-built.
+
+### The personal MCP URL cannot be revoked
+
+`/mcp/<secret>` is bearer authority in a URL: whoever has the string is the
+user, for 365 days. There is no revoke, no rotate, and re-generating returns
+the SAME value, so a URL leaked through browser history, a screenshot, a shell
+history file or a proxy log cannot be taken back by the person it belongs to.
+Without Redis it degrades further to an unbounded in-process dict with no TTL
+at all.
+
+The fix is a `POST /personal/mcp/revoke` that invalidates the current secret and
+mints a new one, plus a shorter default lifetime. It needs a UI affordance in
+the same change or nobody will find it, which is the part this repo cannot do
+alone — the web client ships as a build artifact from another repository.
+
+### User-defined MCP servers are write-only
+
+`/api/user/mcp/*` stores, lists and deletes user-configured MCP servers, and
+`get_user_mcps` is called by exactly three functions: the list handler, the set
+handler and the delete handler. **Neither agent's tool loader ever reads it.**
+Compare `get_user_prompt_by_name` right beside it in the same module, which
+`deep_agent.py:259` genuinely consumes.
+
+So a user can add an MCP server in Settings, see it listed back, and nothing
+ever connects to it. That is worse than the feature being absent: it looks like
+it works.
+
+Two honest ways to close it, and the choice is a product one:
+
+  - load the enabled entries in `deep/tool_loader.py` alongside the built-in
+    MCP tools, with a per-server timeout and failures degrading to "that server
+    is unavailable" rather than failing the turn; or
+  - delete the three endpoints and the UI that feeds them.
+
+Not deleted unilaterally here because the endpoints are live API the shipped
+web client calls.
+
+### The config encryption key needs a real KDF, and that is a migration
+
+`get_fernet_key` base64s the passphrase padded to 32 bytes. The byte/character
+bug in it is fixed and the empty-passphrase fallback no longer fails silently,
+but the derivation is still not a KDF: no salt, no iteration count, and a
+passphrase shorter than 32 bytes is padded with a known constant.
+
+PBKDF2HMAC-SHA256 with a stored salt is the right answer and cannot be dropped
+in: every config already encrypted under the current derivation would become
+unreadable. It needs a versioned key header (`v2$<salt>$<ct>`), a read path
+that accepts both, and a one-shot `mirobody config reencrypt`. Worth doing;
+worth doing as its own change.
+
 ## Found by auditing the web client against this backend (2026-08-17)
 
 Surfaced while writing the web team's optimisation plan. Recorded here because
