@@ -221,6 +221,41 @@ CASES: list[tuple[str, str, str]] = [
     ("血糖(空腹)",                    r"glucose",                      r"tolerance|challenge|urine"),
     ("systolic_blood_pressure",     r"systolic blood pressure",      r""),
     ("total_cholesterol",           r"^cholesterol \[",              r"LDL|HDL|VLDL"),
+    # ── fifth sweep: the surfaces a report actually prints ───────────────────
+    # Two shapes, both measured on the hosted platform's production data.
+    #
+    # (a) "名称(缩写)" — 147 of its 868 distinct indicator names, 70 of which
+    #     carried no code at all. Handled as a CLASS in engine.py, not row by
+    #     row: strip the trailing parenthetical, resolve both halves, and refuse
+    #     when they disagree (see MUST_NOT_RESOLVE for the refusals).
+    ("空腹血糖(GLU)",                 r"glucose",                      r"tolerance|urine"),
+    ("总胆固醇(TC)",                  r"^cholesterol \[",              r"LDL|HDL|VLDL"),
+    ("甘油三酯(TG)",                  r"triglyceride",                 r""),
+    ("低密度脂蛋白胆固醇(LDL-C)",         r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
+    ("丙氨酸氨基转移酶(ALT)",            r"alanine aminotransferase",     r""),
+    ("血小板计数（PLT）",               r"platelet",                     r""),
+    ("糖化血红蛋白(HbA1c)",            r"hemoglobin a1c",               r""),
+    ("尿素氮(BUN)",                  r"urea nitrogen",                r""),
+    # (b) The abbreviation column itself. HGB and HCT did not miss — they
+    #     answered 4548-4 (HbA1c) and 1992-7 (Calcitonin): the 血红蛋白->HbA1c
+    #     near-miss again, wearing the short code instead of the word.
+    ("HGB",                         r"^hemoglobin \[",               r"a1c|glycated"),
+    ("Hb",                          r"^hemoglobin \[",               r"a1c|glycated"),
+    ("HCT",                         r"hematocrit",                   r"calcitonin"),
+    ("PLT",                         r"platelet",                     r""),
+    ("RBC",                         r"erythrocyte|red blood cell",   r""),
+    ("WBC",                         r"leukocyte|white blood cell",   r""),
+    ("TC",                          r"^cholesterol \[",              r"LDL|HDL|VLDL"),
+    ("TG",                          r"triglyceride",                 r""),
+    ("GLU",                         r"glucose",                      r"tolerance|urine"),
+    ("Cr",                          r"creatinine",                   r"clearance|urine"),
+    ("UA",                          r"urate|uric acid",              r"urine"),
+    ("TP",                          r"^protein \[",                  r"urine"),
+    ("CK",                          r"creatine kinase",              r""),
+    # (c) Codepoints that look identical on screen. Each of these was one
+    #     invisible character away from a key that already existed.
+    ("ＦＢＧ",                        r"glucose",                      r"tolerance|urine"),
+    ("LDL–C",                       r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
 ]
 
 # Terms that must stay UNRESOLVED. A confident wrong code is worse than an
@@ -243,6 +278,17 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     ("lipid panel", "four analytes, not one observation"),
     ("血脂", "the same lipid panel in Chinese"),
     ("绝对不存在的指标名xyzzy", "pure nonsense must never resolve"),
+    # "名称(缩写)" where the two halves mean DIFFERENT tests. The parenthetical
+    # strip must not silently prefer the stem: filing an HbA1c reading into the
+    # glucose series is the same class of harm as 血红蛋白 -> HbA1c.
+    ("血糖(HbA1c)", "stem is glucose, parenthetical is HbA1c — they disagree"),
+    ("胆固醇(HDL-C)", "stem is total cholesterol, parenthetical is HDL"),
+    ("血压(收缩压)", "a blocked panel name keeps its block through the strip"),
+    # Abbreviations that name more than one test. The index answers whichever
+    # the commonness prior likes, which is exactly how HGB became HbA1c.
+    ("CA", "钙 (calcium) or 癌抗原 (CA-125/CA19-9)"),
+    ("PT", "prothrombin time, or 前列腺素, or 甲状旁腺"),
+    ("MG", "镁 (magnesium), or the unit mg"),
 ]
 
 # Ratchet. Every case above is expected to pass, so the floor is 1.0; raise the

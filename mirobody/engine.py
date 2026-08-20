@@ -47,6 +47,8 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Optional
 
+from .indicator.lexical import split_trailing_parenthetical, surface_variants
+
 logger = logging.getLogger(__name__)
 
 _RES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "res")
@@ -199,35 +201,39 @@ class OfflineResolver:
         ``血红蛋白 -> Hemoglobin``. See test_engine_coverage.py, which exists
         largely to keep this class of near-miss from coming back.
 
-        Underscores are separators, and only that. ``_normalize`` is NFKC +
-        casefold, so it leaves ``_`` in place — and every snake_case name
-        therefore missed both the alias table and the index while its spaced
-        form resolved: ``fasting_glucose`` -> nothing, ``fasting glucose`` ->
-        2339-0. That is not a corner case, it is the naming convention the
-        platform API teaches in every ``POST /v1/data`` example
-        (``fasting_glucose``, ``resting_heart_rate``, ``sleep_duration``), so
-        a caller following the docs got an unresolved row for a term the engine
-        knows. The flattened keys go LAST, after the term as written has missed
-        entirely, so they can only turn a miss into a hit — never overrule an
-        answer. Only ``_`` is flattened: ``-`` carries meaning inside clinical
-        names (``LDL-C``, ``25-OH``, ``20:4 n-6``) and rewriting it would be
-        the guess this resolver refuses to make.
+        Both hops are then repeated for each surface variant from
+        :func:`mirobody.indicator.lexical.surface_variants`. The bundle's own
+        normalizer is NFKC + casefold and nothing more — it has to be, it folded
+        the index keys at build time — so a full-width ``ＦＢＧ``, an en-dashed
+        ``LDL–C`` and a snake_case ``fasting_glucose`` each sat one invisible
+        codepoint away from a key that already exists. (snake_case is not a
+        corner case: it is the convention the platform API documents in every
+        ``POST /data`` example.) Variants come LAST, after the term as written
+        has missed, so they can only turn a miss into a hit — never overrule an
+        answer that was already correct.
         """
-        keys = self._keys_for(self._normalize(term))
-
-        flat = self._normalize(term.replace("_", " "))
-        flat = " ".join(flat.split())
-        if flat and flat != keys[-1]:
-            keys += [k for k in self._keys_for(flat) if k not in keys]
-
+        keys: list[str] = []
+        for surface in surface_variants(term):
+            for key in self._keys_for(self._normalize(surface)):
+                if key not in keys:
+                    keys.append(key)
         return keys
 
     def _is_blocked(self, term: str) -> bool:
-        """True when the term (as written, or underscore-flattened) is a
-        deliberate non-answer in resolver_overrides.tsv."""
-        norm = self._normalize(term)
-        flat = " ".join(self._normalize(term.replace("_", " ")).split())
-        return _BLOCK_SENTINEL in (self._src.get(norm), self._src.get(flat))
+        """True when ANY surface variant of the term is a deliberate
+        non-answer (target ``!unresolved`` in resolver_overrides.tsv).
+
+        Every variant, not only the term as written: variant lookup is a new
+        route into the index, so a block that knew one spelling would simply be
+        walked around. Measured — ``blood_pressure`` skipped a block written for
+        ``blood pressure``, tokenized to it anyway, hit those 183 rows and came
+        back 8462-4 (diastolic): the exact bug the sentinel exists to prevent,
+        reached through the back door.
+        """
+        return any(
+            self._src.get(self._normalize(surface)) == _BLOCK_SENTINEL
+            for surface in surface_variants(term)
+        )
 
     def _keys_for(self, norm: str) -> list[str]:
         """Alias-table hop then the raw key, for one already-normalized term."""
@@ -280,6 +286,44 @@ class OfflineResolver:
         if self._is_blocked(term):
             return Resolution(term=term)
 
+        hit = self._lookup(term)
+        if hit is not None:
+            return hit
+
+        # "名称(缩写)" — the shape a lab report prints more often than not. On
+        # the hosted platform's production data, 147 of 868 distinct indicator
+        # names are this shape and 70 of them carried no code at all.
+        #
+        # Which half is the answer is NOT decidable by position, so it is not
+        # guessed. ``空腹血糖(GLU)`` means the stem; ``血糖(HbA1c)`` means the
+        # parenthetical, and answering that one with glucose would file an HbA1c
+        # reading into the glucose series. So both halves are resolved, and when
+        # they disagree the term stays unresolved — the same trade the
+        # ``!unresolved`` sentinel makes, applied to a shape rather than a word.
+        stem, inside = split_trailing_parenthetical(term)
+        if not stem and not inside:
+            return Resolution(term=term)
+        if (stem and self._is_blocked(stem)) or (inside and self._is_blocked(inside)):
+            return Resolution(term=term)
+
+        stem_hit = self._lookup(stem) if stem else None
+        inside_hit = self._lookup(inside) if inside else None
+        if stem_hit and inside_hit and stem_hit.loinc != inside_hit.loinc:
+            return Resolution(term=term)
+
+        chosen = stem_hit or inside_hit
+        if chosen is None:
+            return Resolution(term=term)
+        return Resolution(
+            term=term,
+            canonical=chosen.canonical,
+            loinc=chosen.loinc,
+            candidates=chosen.candidates,
+            resolved=True,
+        )
+
+    def _lookup(self, term: str) -> Resolution | None:
+        """First candidate key that hits the alias index, or None on a miss."""
         for key in self._candidate_keys(term):
             rows = self._alias.get(key)
             if rows is None or not len(rows):
@@ -293,7 +337,7 @@ class OfflineResolver:
                 candidates=int(len(rows)),
                 resolved=True,
             )
-        return Resolution(term=term)
+        return None
 
 
 @lru_cache(maxsize=1)

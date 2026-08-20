@@ -103,19 +103,33 @@ things to know:
 
 ### Fixed
 
-- **snake_case indicator names resolve.** `_normalize` is NFKC + casefold, so it
-  left `_` alone and every programmatic spelling missed both the alias table and
-  the index while its spaced form resolved: `fasting_glucose` → nothing,
-  `fasting glucose` → 2339-0. That is the naming convention the platform API
-  documents in every `POST /v1/data` example, so a caller following the docs got
-  an unresolved row for a term the engine knows. `_candidate_keys` now appends
-  underscore-flattened keys **last**, after the term as written has missed, so
-  the fallback can only turn a miss into a hit. Only `_` is flattened — `-`
-  carries meaning in clinical names (`LDL-C`, `25-OH`, `20:4 n-6`).
-  The deliberate-non-answer check flattens too: without that, `blood_pressure`
-  skipped the block, reached the index as `blood pressure` and came back 8462-4
-  (diastolic) — the exact bug the block sentinel was written for, through the
-  back door. Both spellings are now pinned in `MUST_NOT_RESOLVE`.
+- **The spelling no longer decides the answer.** New
+  `mirobody/indicator/lexical.py`: NFKC-lite folding (full-width, superscripts,
+  the six Unicode dash variants) and a CJK-aware tokenizer, used to derive extra
+  candidate surfaces for a lookup. The bundle's own normalizer is NFKC +
+  casefold and must stay that way — it folded the index keys at build time — so
+  `LDL–C` (en-dash) missed while `LDL-C` resolved, one invisible codepoint
+  apart, and `fasting_glucose` missed while `fasting glucose` resolved. The
+  latter is the convention the platform API documents in every `POST /data`
+  example, so a caller following the docs got an unresolved row for a term the
+  engine knows. Variants are tried **last**, after the term as written has
+  missed, so they can only turn a miss into a hit.
+  The deliberate-non-answer check runs over the variants too: without that,
+  `blood_pressure` skipped a block written for `blood pressure`, tokenized to it
+  anyway and came back 8462-4 (diastolic) — the exact bug the sentinel was
+  written for, through the back door. Both spellings are pinned in
+  `MUST_NOT_RESOLVE`.
+- **`名称(缩写)` resolves — and refuses when the halves disagree.** The shape a
+  lab report prints more often than not: on the hosted platform's production
+  data, 147 of 868 distinct indicator names are `名称(缩写)` and 70 of those
+  carried no code at all. `resolve` now strips the trailing parenthetical (all
+  four bracket pairs, full-width included), resolves **both** halves, and takes
+  the answer only when they agree or only one of them resolves. `空腹血糖(GLU)`,
+  `总胆固醇(TC)`, `血小板计数（PLT）`, `尿素氮(BUN)` now resolve; `血糖(HbA1c)`
+  and `胆固醇(HDL-C)` stay unresolved, because preferring the stem there would
+  file an HbA1c reading into the glucose series. Measured over 6,641 terms that
+  resolve when written plainly: **0% → 100%** survive being written in the
+  `名称(缩写)` shape.
 - **Device and wearable vocabulary resolves.** `POST /v1/data` calls device data
   the main form structured records take, and that vocabulary was the least
   covered: `steps`, `resting heart rate`, `sleep duration`, `body fat
@@ -123,11 +137,22 @@ things to know:
   missed, and `SpO2` was worse than missing — it answered a **deprecated**
   "Fractional oxyhemoglobin … Preductal" row carrying no LOINC at all
   (`resolved=True`, empty code). 18 rows in `resolver_overrides.tsv`, each
-  verified against its target. Resolver coverage: **116/116 → 140/140**.
+  verified against its target.
   `HRV` is deliberately left alone: it abbreviates human rhinovirus as well as
   heart rate variability (it answers 40991-2, Rhinovirus+Enterovirus RNA), so
   the right result is a decision rather than a lookup. The spelled-out form and
   `心率变异性` resolve to 76643-6.
+- **The abbreviation column resolves, and the ambiguous ones are refused.**
+  The short codes a CBC / 生化 printout puts beside each analyte were the
+  worst-covered surface in the engine, and two of them were WRONG rather than
+  missing — the 血红蛋白 → HbA1c near-miss again, wearing the short code instead
+  of the word: `HGB` → 4548-4 **Hemoglobin A1c**, `HCT` → 1992-7
+  **Calcitonin**. `HGB`/`Hb`/`HCT`/`PCV`/`PLT`/`RBC`/`WBC`/`TC`/`TG`/`GLU`/
+  `Cr`/`CREA`/`UA`/`TP`/`CK` now resolve correctly. `CA`, `PT` and `MG` are
+  blocked instead: each names more than one test (钙 vs 癌抗原; prothrombin time
+  vs 前列腺素; 镁 vs the unit), and the index answers whichever the commonness
+  prior likes — which is exactly how `HGB` became HbA1c.
+  Resolver coverage: **116/116 → 169/169**.
 - **A malformed tool call no longer ends the turn as an empty answer.**
   claude-sonnet (via OpenRouter, temperature 0.1) deterministically emitted
   `{"aggregate": none}` — Python's `None`, not JSON — LangChain parked the call

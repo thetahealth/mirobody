@@ -289,3 +289,43 @@ FBG	Glucose
 FPG	Glucose
 glucose, fasting	Glucose
 血糖(空腹)	Glucose
+
+# ══ lab-report abbreviations ══════════════════════════════════════════════
+# The short codes a CBC / 生化 printout puts in its own column. They were the
+# worst-covered surface in the resolver, and two of them were WRONG rather than
+# missing — the same near-miss class as 血红蛋白 -> HbA1c, just wearing the
+# abbreviation instead of the word:
+#
+#   HGB -> 4548-4  Hemoglobin A1c        (a diabetes marker for a CBC line)
+#   HCT -> 1992-7  Calcitonin            (a thyroid hormone for hematocrit)
+#
+# Targets are the phrasings the index actually keys on; each row was checked
+# with `mirobody resolve` before being written down.
+HGB	Hemoglobin
+Hb	Hemoglobin
+HCT	HCT Fr Sg Auto
+PCV	HCT Fr Sg Auto
+PLT	Platelet count PLT
+RBC	RBC # Bld
+WBC	WBC # Bld
+TC	Cholesterol
+TG	Triglyceride
+GLU	Glucose
+Cr	Creatinine
+CREA	Creatinine
+UA	Urate
+TP	Protein
+CK	Creatine kinase
+# Ambiguous abbreviations are refused, not guessed. Each of these is a real
+# short code for more than one test, and the index answers whichever the
+# commonness prior likes — which is how HGB became HbA1c above.
+#   CA  = 钙 (calcium) or 癌抗原 (cancer antigen, CA-125/CA19-9)
+#   PT  = 凝血酶原时间 (prothrombin time) or 前列腺素 or 甲状旁腺
+#   MG  = 镁 (magnesium) or the unit mg
+# Not blocked, deliberately: `Cr` and `CR` casefold to the SAME key, so a
+# block row here would shadow `Cr -> Creatinine` (or be shadowed by it,
+# depending on read order). Creatinine on a 生化 panel is far commoner than
+# chromium, so the useful answer wins and the ambiguity is recorded here.
+CA	!unresolved
+PT	!unresolved
+MG	!unresolved
