@@ -265,6 +265,34 @@ things to know:
   not exist` — before any project code ran. CI now installs from the sdist as
   well as the wheel, because no wheel test can catch that.
 
+### Added — a records API shaped like the hosted one
+
+- **`POST /api/standardize` · `POST` · `GET` · `DELETE /api/data`**
+  (`server/routers/records_router.py`). Same request bodies, response envelopes
+  and field names as the corresponding endpoints on
+  [docs.mirobody.ai](https://docs.mirobody.ai/en/api-reference/), so code
+  written against a self-hosted deployment reads like code written against the
+  hosted one instead of being a second API to learn.
+  `POST /api/data` standardizes every record on the way in and answers
+  `{"status":"ok","ingested":N,"standardized":M}`; `GET /api/data` returns
+  `{"object":"list","data":[…],"has_more":…}` one object per reading, carrying
+  the row `id` that `DELETE /api/data?id=` takes; `POST /api/standardize`
+  returns `{"object":"extraction","data":[…]}` and is a dry-run unless
+  `store=true`.
+  Three deliberate departures, all the same direction — this is one machine, not
+  a multi-tenant plane: **no `/v1` prefix** (these are not the hosted contract);
+  **no `user` / `retention` / `session_id` / `mb_live_*`** (your JWT says who you
+  are, and a row lives until something deletes it) — `retention` and
+  `session_id` are accepted and ignored rather than rejected, because a 400 for
+  a field the platform docs told you to send helps nobody; and **`DELETE
+  /api/data` requires an explicit scope** (`id`, `indicator`, or `all=true`),
+  where the hosted endpoint reads "no filter" as "everything".
+  Errors on this surface use the platform envelope
+  (`{"error":{message,type,code,param}}`); the web client's endpoints keep the
+  house `{code,msg,data}`.
+- **`engine.parse_text`** — the text half of `parse_file`, split out so
+  `/api/standardize` can extract from a string without writing a temp file.
+
 ### Changed — naming
 
 - **Stage ② is `Standardize`, stage ③ is `Answers`** — was `Sort` / `Answer`.

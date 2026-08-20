@@ -432,6 +432,50 @@ first call. Treat it like a password.
 
 ---
 
+## 🔌 The HTTP API
+
+Two surfaces, on purpose.
+
+**The records API — shaped like [Mirobody Cloud](https://docs.mirobody.ai/en/api-reference/).**
+If you have read the platform docs, you already know these: same request bodies,
+same response envelopes, same field names, so code you write against a
+self-hosted deployment reads the same as code written against the hosted one.
+
+| Endpoint | What it does |
+| --- | --- |
+| `POST /api/standardize` | Report text in, standardized readings out — `{object: "extraction", data: [...]}`. Dry-run unless `store=true`. |
+| `POST /api/data` | Write structured records (`records[]`, ≤500 per call). Every write is standardized on the way in. |
+| `GET /api/data` | Read them back, newest first — `{object: "list", data: [...], has_more}`, one object per reading with its `loinc_code`. |
+| `DELETE /api/data` | Erase by `id`, by `indicator`, or `all=true`. |
+
+```bash
+curl localhost:18080/api/data -H "Authorization: Bearer $JWT" \
+  -H 'Content-Type: application/json' \
+  -d '{"records":[{"indicator":"fasting_glucose","value":5.6,"unit":"mmol/L","time":"2026-08-19T07:30:00Z"}]}'
+# {"status":"ok","ingested":1,"standardized":1}
+```
+
+**Three deliberate differences from the hosted contract**, all in the same
+direction — this is your machine, not a multi-tenant platform:
+
+- **No `/v1` prefix.** These paths are not the hosted contract and should not
+  claim to be versioned alongside it.
+- **No `user` / `retention` / `session_id` / `mb_live_*` keys.** Subjects, expiry
+  scheduling and billing are operator machinery for a plane with many tenants;
+  here your JWT says who you are and a row lives until something deletes it.
+  `retention` and `session_id` are *accepted and ignored* rather than rejected —
+  a 400 for a field the platform docs told you to send helps nobody.
+- **`DELETE /api/data` needs an explicit scope.** The hosted endpoint reads "no
+  filter" as "everything", which is fine behind a key an operator minted on
+  purpose. Here a mistyped curl is one keystroke from a person's whole record,
+  so the widest scope is `all=true`.
+
+**The web client's API** (`/api/v1/health-indicators`, `/api/chat`,
+`/api/v1/pulse/*`, `/files/*`, `/invitation/*`) keeps the house
+`{code, msg, data}` envelope. It is what the bundled frontend talks to; build
+against it if you are replacing the frontend, and against the records API above
+if you are feeding data in or reading it out.
+
 ## 🔐 Where you use it
 
 | Surface | URL | What it is |
@@ -462,7 +506,7 @@ demo accounts above — all configured in `config.{env}.yaml`.
 
 ```bash
 pip install -e '.[test]'
-pytest        # 330 tests, ~8s — no database, no network, no API key
+pytest        # 342 tests, ~8s — no database, no network, no API key
 ```
 
 Tests sit beside the code they cover, so bare `pytest` is the whole suite. Two

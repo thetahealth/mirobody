@@ -370,6 +370,26 @@ _MIME = {
 }
 
 
+async def parse_text(document: str, *, resolve_names: bool = True) -> list[Reading]:
+    """Parse report TEXT into readings — the same one LLM call as
+    :func:`parse_file`, without a file.
+
+    Split out of ``parse_file`` for ``POST /api/standardize``, which is handed
+    raw text by the caller and had no way in short of writing a temp file.
+    """
+    from .utils import Config
+    from .utils.llm import async_get_text_completion
+
+    await Config.init()
+    raw = await async_get_text_completion(
+        [
+            {"role": "system", "content": _EXTRACT_PROMPT},
+            {"role": "user", "content": document},
+        ]
+    ) or ""
+    return _readings_from_json(raw, resolve_names=resolve_names)
+
+
 async def parse_file(path: str, *, resolve_names: bool = True) -> list[Reading]:
     """Parse a lab report / health document into readings, optionally resolving
     each indicator name to its canonical LOINC identity (offline).
@@ -391,21 +411,18 @@ async def parse_file(path: str, *, resolve_names: bool = True) -> list[Reading]:
         # Plain-text documents skip the vision path entirely: read the text and
         # ask for the extraction directly (unified_file_extract is built for
         # binary/vision inputs and returns nothing useful for text uploads).
-        from .utils.llm import async_get_text_completion
-
         with open(path, encoding="utf-8", errors="replace") as f:
             document = f.read()
-        raw = await async_get_text_completion(
-            [
-                {"role": "system", "content": _EXTRACT_PROMPT},
-                {"role": "user", "content": document},
-            ]
-        ) or ""
-    else:
-        content_type = _MIME.get(ext, "application/pdf")
-        raw = await unified_file_extract(path, _EXTRACT_PROMPT, content_type=content_type, json_mode=True)
+        return await parse_text(document, resolve_names=resolve_names)
 
-    text = raw.strip()
+    content_type = _MIME.get(ext, "application/pdf")
+    raw = await unified_file_extract(path, _EXTRACT_PROMPT, content_type=content_type, json_mode=True)
+    return _readings_from_json(raw, resolve_names=resolve_names)
+
+
+def _readings_from_json(raw: str, *, resolve_names: bool) -> list[Reading]:
+    """The extraction model's JSON array -> Readings. Shared by both parsers."""
+    text = (raw or "").strip()
     if text.startswith("```"):
         text = re.sub(r"^```[a-zA-Z]*\n?|```$", "", text).strip()
     try:

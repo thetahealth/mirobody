@@ -407,6 +407,7 @@ class Server:
             session_share_router,
             sharing_router,
             indicator_router,
+            records_router,
         )
         app.include_router(pulse_public_router)
         # apple_router is ALSO nested inside pulse_public_router (routers/__init__),
@@ -423,6 +424,10 @@ class Server:
         app.include_router(session_share_router)
         app.include_router(sharing_router)
         app.include_router(indicator_router)
+        # The platform-shaped records surface (/api/data, /api/standardize).
+        # Registered after indicator_router: neither shadows the other, but the
+        # order documents which one the web client depends on.
+        app.include_router(records_router)
 
         for router in fastapi_routers:
             app.include_router(router)
