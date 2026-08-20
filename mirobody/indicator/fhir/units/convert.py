@@ -35,6 +35,14 @@ editing one.
 
 Ported from the hosted platform's `indicators/units/convert.py`, whose design
 note is the source for the tier split and the conventions below.
+
+**Not to be confused with** :func:`mirobody.pulse.standardize.units.convert_to_standard`,
+which is a different job on the other side of the pipeline: it takes a
+``StandardIndicator`` enum member and converts to *that device indicator's*
+declared canonical unit (① Collect, one target per indicator). This module takes
+two arbitrary UCUM strings and asks whether they are interconvertible at all
+(② Standardize, no target). Use that one to canonicalize a device sample; use
+this one to compare two readings.
 """
 
 from __future__ import annotations

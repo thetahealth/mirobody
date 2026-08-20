@@ -46,6 +46,15 @@ tests
 CLAUDE.md
 **/CLAUDE.md
 
+# Internal testing results — LOCAL ONLY, deliberately.
+#
+# Our own measurements are not what an open-source reader needs. What they need
+# is a demo they can run (`examples/`) and a claim they can check themselves
+# (`pytest mirobody/test_engine_coverage.py -s` prints the published score). The
+# rule for which side a number falls on: backed by a test in the repo that
+# anyone can run -> publishable; produced by `eval/` -> not.
+docs/internal-testing.md
+
 # Resolver evaluation harness — LOCAL ONLY, deliberately.
 #
 # `eval/` holds the maintained test set, the runner, and every timestamped

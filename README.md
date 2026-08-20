@@ -197,33 +197,22 @@ enable it; a matrix is ~198 MB and needs an embedding key, and corpus and query
 MUST come from the same model — a mismatched pair does not fail, it returns
 confident nonsense.
 
-It stays opt-in even once installed, and here is the measured reason. Benchmarked over 32 real indicator terms and 8 non-indicators, on
-Qwen3-Embedding-8B and -0.6B, each with and without the query-instruction
-wrapper:
+It stays opt-in even once installed, and the reason is a property of the tier
+rather than a tuning problem: **cosine recall cannot abstain.** Asked about a
+term it has never seen, it returns its nearest neighbour with the same
+confidence it returns a correct answer, and LOINC's own questionnaire corpus
+gives it plenty of plausible-looking neighbours to reach for. There is no score
+threshold that separates the two.
 
-| tier | right + defensible | wrong | abstained |
-| --- | --- | --- | --- |
-| lexical (this engine) | **29/32** | **0** | 3 |
-| 8B, bare / instruct | 16 / 18 | 16 / 14 | 0 |
-| 0.6B, bare / instruct | 12 / 11 | 20 / 21 | 0 |
+What makes it useful anyway is that a reading is not a bare string by the time it
+gets here. The extraction pass ahead of it returns nothing for non-health
+content and hands over `{indicator, value, unit}`, so the tier can gate
+candidates on what the reading implies — `SCALE_TYP` from the value's kind,
+`PROPERTY` from the unit's dimension — and skip the non-clinical rows
+`loinc_skip.txt` already lists.
 
-**No configuration separates junk from real, and none ever abstains.** Junk
-scored 0.62–0.74 while genuine terms went down to 0.72, so no cosine threshold
-exists. The collisions are not noise: LOINC ships a large PHQ / FACIT /
-NIH-Toolbox / PhenX corpus of casual natural-language items, so `the quick brown
-fox` matching "Freckles" at 0.741 is the index working correctly.
-
-What makes it usable at all is that a reading is not a bare string by the time it
-arrives — an LLM extraction pass upstream returns an empty result for non-health
-content, and hands over `{indicator, value, unit}`. So the tier gates candidates
-on the axes the reading implies (`SCALE_TYP` from the value's kind, `PROPERTY`
-from the unit's dimension) and drops the 18,762 non-clinical rows
-`loinc_skip.txt` already lists. That lifts frontier precision from .396 to .446
-and fixes the one error all four configurations made (`total cholesterol` → a
-PhenX self-report survey item).
-
-Use it to *suggest* a code a human or a model then confirms. Do not use a
-`method == "semantic"` code as an identity.
+So: use it to **suggest** a code that a human or a model then confirms. The
+lexical tier is what you build identities on.
 
 ## ③ Answers — agents that read the originals
 
