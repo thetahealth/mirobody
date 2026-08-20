@@ -34,7 +34,7 @@ test move together, and a reviewer sees both in one diff.
 | Suite | Covers | Notes |
 | --- | --- | --- |
 | `mirobody/test_engine.py` | golden LOINC codes for ② Standardize | pins the whole chain: alias index → commonness prior → axis table |
-| `mirobody/test_engine_coverage.py` | **the published accuracy number** | 176 cases: the panels a physical orders, in en/zh/ja, plus device vocabulary, report shapes (`名称(缩写)`, snake_case, full-width), unit-dependent codes and non-numeric readings. Prints the score; `COVERAGE_FLOOR = 1.0` |
+| `mirobody/test_engine_coverage.py` | **the published accuracy number** | 197 cases: the panels a physical orders, in en / 简体中文 / 繁體中文 / 日本語, plus device vocabulary, report shapes (`名称(缩写)`, snake_case, full-width), unit-dependent codes and non-numeric readings. Prints the score; `COVERAGE_FLOOR = 1.0` |
 | `mirobody/indicator/test_lexical.py` | the surface algebra | NFKC-lite folds, the CJK tokenizer, and the parenthetical split — including the ones it must REFUSE (`中性粒细胞(%)`) |
 | `mirobody/indicator/test_semantic.py` | the opt-in semantic tier's contract | that `resolve()` never returns a semantic answer, that a refusal is not a miss, and that a width mismatch raises instead of padding. Uses a synthetic 3-row index: no matrix, no key |
 | `mirobody/indicator/fhir/units/test_convert.py` | unit conversion | 31 golden vectors, half of them negative — BMI must not become a concentration, `%` must not become a count |

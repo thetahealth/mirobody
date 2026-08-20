@@ -246,7 +246,7 @@ indicator-build = [
 
 [tool.setuptools.packages.find]
 include = ["mirobody", "mirobody.*"]
-# Tests stay in git — `test_engine_coverage.py` IS the 176/176 resolver number the
+# Tests stay in git — `test_engine_coverage.py` IS the 197/197 resolver number the
 # README publishes, and CI needs all of them. They just have no business in
 # someone's site-packages: 33 files and 21 recorded fixtures, ~206 KB, that no
 # consumer of the library can use. Excluded from the distribution here, kept on

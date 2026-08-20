@@ -152,6 +152,36 @@ rename a module, grep the `.md` files.
 See [`docs/README.md`](docs/README.md) for which file a given piece of
 documentation belongs in.
 
+### Translations
+
+The README ships in English, 简体中文, 繁體中文 and 日本語; the web client ships
+the same four. **English is the source of truth** — change it first, then the
+others, and if you only change English say so in the PR so the drift is visible
+instead of silent.
+
+Two rules that are specific to this project:
+
+- **A translation is not a character conversion.** 繁體中文 is written for
+  Taiwan usage, and that is word choice, not glyphs: 資料/檔案/登入, and — this
+  is the one that matters — **血紅素** for haemoglobin, not 血紅蛋白. Converting
+  the Simplified form character by character gives 血红素, which the raw index
+  answers with the code for **HbA1c**. We shipped exactly that bug; see
+  `res/resolver_overrides.tsv`.
+- **Medical terms come off a real report**, not from a dictionary: a 体检报告
+  (mainland), a 檢驗報告單 (Taiwan), a 健康診断結果表 (Japan). Triglycerides are
+  甘油三酯 / 三酸甘油酯 / 中性脂肪 in the three, and only the last is what a
+  Japanese 健診 form actually prints.
+
+Adding a new indicator term in any language is one row in
+`mirobody/res/resolver_overrides.tsv` plus one case in
+`mirobody/test_engine_coverage.py`. The right-hand side of an override row must
+be a key the alias index can look up — **not another row's left-hand side**; the
+resolver does not follow a two-hop chain, and such a row resolves to nothing
+while looking correct.
+
+For UI strings, add the key to `src/i18n/en.json` first, then all four files.
+A key present in one file and missing in another silently renders the key name.
+
 ### Commits
 
 Explain *why*, and state how the change was verified. "fix bug" tells a future
