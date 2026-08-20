@@ -415,6 +415,23 @@ async def get_data_distribution(
                 content={"code": -1, "msg": "Empty user ID"},
             )
 
+        # `?user_id=` was honoured with no authorization check at all, so any
+        # authenticated caller could read any user's data-category distribution
+        # — which categories of health data they hold and how much. The route
+        # directly below this one (`/api/v1/data/uploaded-files`) already did
+        # this correctly; the two were written apart and only one got the
+        # check.
+        if str(target_user_id) != str(current_user):
+            permission_check = await get_query_user_id(
+                user_id=str(target_user_id),
+                query_user_id=str(current_user),
+                permission=["uploadfile"],
+            )
+            if not permission_check.get("success", False):
+                return JSONResponse(
+                    content={"code": -2, "msg": "No permission to query this user's data"},
+                )
+
         logging.info(f"Get data distribution: user_id={target_user_id}")
 
         # Call service to get data distribution
