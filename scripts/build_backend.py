@@ -59,7 +59,6 @@ _EXCLUDED_NAMES = ("conftest.py",)
 #: scripts/check_wheel_data.py fails the build if any of them reappears.
 _BUILD_ONLY_DATA = frozenset({
     "mirobody/res/fhir_concept_graph.bin",
-    "mirobody/res/fhir_id_map.npy",
     "mirobody/res/fhir_taxonomy.bin",
     "mirobody/res/fhir_snomed_ct_bundle.tar.gz",
 })

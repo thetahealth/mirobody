@@ -25,6 +25,5 @@ recursive-exclude frontend *
 # terminology artifacts no runtime code path reads. Keep the two lists in step;
 # scripts/check_wheel_data.py checks BOTH artifacts.
 exclude mirobody/res/fhir_concept_graph.bin
-exclude mirobody/res/fhir_id_map.npy
 exclude mirobody/res/fhir_taxonomy.bin
 exclude mirobody/res/fhir_snomed_ct_bundle.tar.gz

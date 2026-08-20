@@ -547,7 +547,7 @@ Files prefixed with `_` are intermediate. The runtime search service only needs 
 |----------|---------|-----------|
 | `fhir_embeddings.npy` | structured `(N,)` of `[fhir_id i8, emb f2[1024]]`, fp16 L2-normalised | yes |
 | `fhir_meta.csv.gz` | `(N,)` rows of `name` + `code_str` (latter only for DCM/THETA hash rows) | optional (search works without; resolve `name` empty) |
-| `fhir_id_map.npy` | `(N,)` int64 — `db_pks[r]` is the `fhir_indicators.id` for embedding row `r` | optional (compat mode only) |
+| `fhir_id_map.npy` | `(N,)` int64 — `db_pks[r]` is the `fhir_indicators.id` for embedding row `r` | optional, and **no longer in this repo**: it maps to one database's PRIMARY KEYS, so it is meaningless in any other deployment. Regenerate with `indicator id-map` against your own `fhir_indicators`. |
 
 **None of these files is provider-tagged, and the filename is fixed** —
 `local.py::EMB_BASENAME` is the literal `fhir_embeddings.npy`. A bundle
@@ -628,18 +628,34 @@ mv mirobody/res/fhir_embeddings.npy.bak mirobody/res/fhir_embeddings.npy
 
 #### Distribution matrix
 
-| File | Size | pip wheel | Git LFS | GitHub Releases | Required by |
-|---|---:|:-:|:-:|:-:|---|
-| `fhir_concept_graph.bin` | ~9 MB | ✓ | ✓ | — | `FhirAdapter.expand` (search) |
-| `fhir_taxonomy.bin` | ~180 KB | ✓ | ✓ | — | `Taxonomy.get` (FHIR API category view) |
-| `fhir_embeddings.npy` (or `_<provider>.npy`) | 1.4 GB each | ✗ | ✗ (gitignored) | ✓ | `FhirAdapter.search` / `FhirAdapter.resolve` local path |
-| `fhir_id_map.npy` | 5.4 MB | ✗ | ✓ | ✓ | `FhirAdapter.search` local path in compat mode |
-| `fhir_meta.csv.gz` | 6.9 MB | ✗ | ✓ | ✓ | `FhirAdapter.resolve` (display names) |
+| File | Size | pip wheel | Git LFS | Required by |
+|---|---:|:-:|:-:|---|
+| `fhir_loinc_bundle.tar.gz` | 15.5 MB | ✓ | ✓ | `engine.resolve` — alias index, axis table, commonness prior |
+| `fhir_meta.csv.gz` | 6.9 MB | ✓ | ✓ | `engine.resolve` — the 677k-name corpus the index points into |
+| `aliases_src/*.tsv` | 1.9 MB | ✓ | — | `engine.resolve` — ~48k multilingual alias rows |
+| `resolver_overrides.tsv` | 20 KB | ✓ | — | `engine.resolve` — corrections and deliberate non-answers |
+| `fhir_concept_graph.bin` | 22.5 MB | ✗ | ✓ | `FhirAdapter.expand`, and the build tooling in this package |
+| `fhir_taxonomy.bin` | 180 KB | ✗ | ✓ | `Taxonomy.get` (FHIR API category view) |
+| `fhir_snomed_ct_bundle.tar.gz` | 140 KB | ✗ | ✓ | the v2 pipeline's body-structure mask |
+| `fhir_embeddings.npy` | 198 MB (LOINC-only) – 1.4 GB (full corpus) | ✗ | ✗ | the semantic tier; build it with `scripts/build_loinc_embeddings.py` |
+| `fhir_id_map.npy` | 5.4 MB | ✗ | ✗ | **not in this repo** — see below |
 
-`pyproject.toml` package-data only matches `**/*.bin` under `mirobody/res/`, so `pip install` ships exactly the two `.bin` files. The `.npy` / `.csv.gz` trio is fetched out-of-band:
+The three ✗-in-wheel `.bin`/`.tar.gz` files are pruned by
+`scripts/build_backend.py::_BUILD_ONLY_DATA`, and
+`scripts/check_wheel_data.py` fails the build if any of them reappears — or if
+any of the four ✓ files goes missing. Both directions are gated, because both
+have gone wrong: release 1.0.62 shipped LFS pointer stubs for the ✓ files, and
+every release before this one shipped 28 MB of the ✗ files that nothing at
+runtime reads.
+
+`fhir_id_map.npy` maps canonical ids to `fhir_indicators.id` — **one database's
+primary keys**. It is meaningless in any other deployment and was deleted rather
+than merely unshipped; regenerate your own with `indicator id-map` if you are
+running in compat mode.
+
 
 - **Search-only deployment.** Two `.bin` files are enough — `FhirAdapter.search` falls back to pgvector on `fhir_indicators` when `fhir_embeddings.npy` is absent, no behavioural difference except DB hit + latency.
-- **Offline / fast deployment.** Need all three `.npy` / `.csv.gz` files in the same directory. Mount them on a virtual disk and set `FHIR_INDICATORS_DIR` (see below).
+- **Offline / fast deployment.** Needs `fhir_embeddings.npy` and `fhir_meta.csv.gz` in the same directory (plus `fhir_id_map.npy` in compat mode, which you regenerate). Mount them on a virtual disk and set `FHIR_INDICATORS_DIR` (see below).
 - **Resolve-only deployment.** Same as offline — `fhir_meta.csv.gz` is **mandatory** for `ResolveResult.name` to populate; without it, resolve silently returns `name=""`.
 
 #### Mounting an external bundle

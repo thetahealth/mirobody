@@ -329,13 +329,16 @@ makes standardization work with the network unplugged.
 | `res/aliases_src/*.tsv` | ~48k multilingual alias rows (中文 22,578 · 日本語 16,809 · +5) |
 | `res/resolver_overrides.tsv` | the hand-written corrections, and the deliberate non-answers |
 
-Four artifacts used to ship and no longer do — `fhir_concept_graph.bin`,
-`fhir_id_map.npy`, `fhir_taxonomy.bin`, `fhir_snomed_ct_bundle.tar.gz`, **28 MB
-between them**. Nothing at runtime read any of them: grep `server/`, `agent/`,
-`pulse/`, `mcp/` and `task/` for `concept_graph` or `taxonomy` and it comes back
-empty. Their readers are [`indicator/`](mirobody/indicator/)'s bundle-build
-tooling, which works from a git checkout, and the v2 semantic pipeline, which in
-addition needs an embedding matrix that is not distributed at all. Dropping the
+Four artifacts used to ship and no longer do, **28 MB between them**. Nothing at
+runtime read any of them: grep `server/`, `agent/`, `pulse/`, `mcp/` and `task/`
+for `concept_graph` or `taxonomy` and it comes back empty. Three —
+`fhir_concept_graph.bin`, `fhir_taxonomy.bin`, `fhir_snomed_ct_bundle.tar.gz` —
+are still in the repo for [`indicator/`](mirobody/indicator/)'s bundle-build
+tooling, which works from a git checkout, and for the v2 semantic pipeline, which
+in addition needs an embedding matrix that is not distributed at all. The fourth,
+`fhir_id_map.npy`, is **gone from the repo entirely**: it mapped canonical ids to
+`fhir_indicators.id`, one database's primary keys, so it was never meaningful to
+anyone else — regenerate your own with `indicator id-map`. Dropping the
 SNOMED bundle also takes its Affiliate-Licence obligation off every pip user.
 `scripts/check_wheel_data.py` now gates both directions — the five above present
 and real, those four absent.

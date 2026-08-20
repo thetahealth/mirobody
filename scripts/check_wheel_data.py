@@ -43,9 +43,11 @@ REQUIRED = {
 # obligation on every downstream recipient.
 FORBIDDEN = (
     "mirobody/res/fhir_concept_graph.bin",
-    "mirobody/res/fhir_id_map.npy",
     "mirobody/res/fhir_taxonomy.bin",
     "mirobody/res/fhir_snomed_ct_bundle.tar.gz",
+    # fhir_id_map.npy is not listed because it no longer exists: it mapped
+    # canonical ids to `fhir_indicators.id`, one database's PRIMARY KEYS, and was
+    # deleted rather than merely unshipped.
 )
 
 # Git LFS pointer files start with this line and are a few hundred bytes.
