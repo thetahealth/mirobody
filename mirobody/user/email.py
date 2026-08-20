@@ -29,7 +29,80 @@ class DummyEmailCodeValidator(AbstractEmailCodeValidator):
 
 #-----------------------------------------------------------------------------
 
-class MandrillEmailValidator(AbstractEmailCodeValidator):
+#-----------------------------------------------------------------------------
+
+#: Attempts allowed against one issued code before it is burned. A 6-digit code
+#: is 10**6 possibilities; unlimited guessing turns a 600-second window into a
+#: guaranteed account takeover, and nothing else stood in the way — the request
+#: rate limiter is gated on `request.state.user_id > 0`, so it never fires for
+#: /email/verify, which is by definition anonymous.
+_MAX_VERIFY_ATTEMPTS = 5
+
+
+class _CodeVerificationMixin:
+    """Shared, guarded verification for the code validators.
+
+    The Mandrill and SMTP validators carried byte-identical verify bodies, and
+    both had the same two holes:
+
+    * **The Redis branch never deleted the code on success.** The in-memory
+      branch did (`del self._codes[...]`), so a code was single-use in
+      development and reusable for its whole 600-second TTL in production —
+      the deployment shape where it matters.
+    * **Neither counted failures.** With no lockout and no rate limiting
+      reachable on an anonymous endpoint, the whole keyspace is walkable.
+
+    Failure and success both clear state here, so a burned code cannot be
+    resumed by waiting.
+    """
+
+    async def _verify_code(self, keyed_email: str, code: str) -> str | None:
+        if self._redis:
+            attempts_key = self._attempt_keyprefix + keyed_email
+            code_key = self._code_keyprefix + keyed_email
+
+            attempts = await self._redis.incr(attempts_key)
+            if isinstance(attempts, int) and attempts == 1:
+                # Outlive the code itself, so burning it cannot be reset by
+                # letting the counter expire first.
+                await self._redis.expire(attempts_key, self._expires_in + 60)
+
+            if isinstance(attempts, int) and attempts > _MAX_VERIFY_ATTEMPTS:
+                await self._redis.delete(code_key)
+                return "Too many attempts."
+
+            resp = await self._redis.get(code_key)
+            if isinstance(resp, bytes):
+                resp = resp.decode("utf-8", "replace")
+
+            if isinstance(resp, str) and secrets.compare_digest(resp, code):
+                await self._redis.delete(code_key)
+                await self._redis.delete(attempts_key)
+                return None
+
+            return "Invalid code."
+
+        entry = self._codes.get(keyed_email)
+        if not entry:
+            return "Invalid code."
+
+        if entry["expires_at"] < time.time():
+            del self._codes[keyed_email]
+            return "Code expired."
+
+        entry["attempts"] = entry.get("attempts", 0) + 1
+        if entry["attempts"] > _MAX_VERIFY_ATTEMPTS:
+            del self._codes[keyed_email]
+            return "Too many attempts."
+
+        if secrets.compare_digest(str(entry["value"]), code):
+            del self._codes[keyed_email]
+            return None
+
+        return "Invalid code."
+
+
+class MandrillEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator):
     def __init__(
             self,
             apiKey          : str,
@@ -63,6 +136,7 @@ class MandrillEmailValidator(AbstractEmailCodeValidator):
 
         if self._redis:
             self._code_keyprefix    = "mirobody:email:code:"
+            self._attempt_keyprefix = "mirobody:email:attempt:"
             self._limit_keyprefix   = "mirobody:email:limit:"
 
         # Use local memory when no redis connection is available.
@@ -213,32 +287,11 @@ class MandrillEmailValidator(AbstractEmailCodeValidator):
         else:
             lower_email_with_service = lower_email
         
-        if self._redis:
-            resp = await self._redis.get(self._code_keyprefix + lower_email_with_service)
-            if isinstance(resp, str) and resp == code:
-                # Everything is fine.
-                return None
-
-        else:
-            if  lower_email_with_service in self._codes:
-                # Remove it if it expires.
-                if self._codes[lower_email_with_service]["expires_at"] < time.time():
-                    del self._codes[lower_email_with_service]
-
-                    return "Code expired."
-
-                # Check its value.
-                if self._codes[lower_email_with_service]["value"] == code:
-                    del self._codes[lower_email_with_service]
-
-                    # Everything is fine.
-                    return None
-
-        return "Invalid code."
+        return await self._verify_code(lower_email_with_service, code)
 
 #-----------------------------------------------------------------------------
 
-class SMTPEmailValidator(AbstractEmailCodeValidator):
+class SMTPEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator):
     """Email validator using direct SMTP connection (e.g., Aliyun DirectMail)."""
     
     def __init__(
@@ -272,6 +325,7 @@ class SMTPEmailValidator(AbstractEmailCodeValidator):
 
         if self._redis:
             self._code_keyprefix    = "mirobody:email:code:"
+            self._attempt_keyprefix = "mirobody:email:attempt:"
             self._limit_keyprefix   = "mirobody:email:limit:"
 
         # Use local memory when no redis connection is available.
@@ -441,28 +495,7 @@ class SMTPEmailValidator(AbstractEmailCodeValidator):
         else:
             lower_email_with_service = lower_email
         
-        if self._redis:
-            resp = await self._redis.get(self._code_keyprefix + lower_email_with_service)
-            if isinstance(resp, str) and resp == code:
-                # Everything is fine.
-                return None
-
-        else:
-            if  lower_email_with_service in self._codes:
-                # Remove it if it expires.
-                if self._codes[lower_email_with_service]["expires_at"] < time.time():
-                    del self._codes[lower_email_with_service]
-
-                    return "Code expired."
-
-                # Check its value.
-                if self._codes[lower_email_with_service]["value"] == code:
-                    del self._codes[lower_email_with_service]
-
-                    # Everything is fine.
-                    return None
-
-        return "Invalid code."
+        return await self._verify_code(lower_email_with_service, code)
 
 #-----------------------------------------------------------------------------
 
