@@ -270,10 +270,14 @@ class OfflineResolver:
 
         Every variant, not only the term as written: variant lookup is a new
         route into the index, so a block that knew one spelling would simply be
-        walked around. Measured — ``blood_pressure`` skipped a block written for
-        ``blood pressure``, tokenized to it anyway, hit those 183 rows and came
-        back 8462-4 (diastolic): the exact bug the sentinel exists to prevent,
-        reached through the back door.
+        walked around. ``lipid_panel`` must refuse because ``lipid panel`` does,
+        and it only does because the check flattens too.
+
+        Found the hard way on blood pressure, which is no longer blocked (it has
+        a panel code — see resolver_overrides.tsv): ``blood_pressure`` skipped
+        the block written for ``blood pressure``, tokenized to it anyway, hit
+        183 index rows and came back 8462-4, the DIASTOLIC code. Same back door,
+        and the terms still on the block list use the same spellings.
         """
         return any(
             self._src.get(self._normalize(surface)) == _BLOCK_SENTINEL
@@ -315,19 +319,19 @@ class OfflineResolver:
             return Resolution(term=term)
 
         # Deliberate non-answers (target `!unresolved` in the overrides file).
-        # Some terms name a PANEL, not one observation: "blood pressure" matched
-        # 183 index rows and the commonness prior returned the DIASTOLIC code —
-        # so a systolic reading filed under that answer lands in the wrong
-        # series entirely. A confident wrong code is worse than an honest miss,
-        # so these resolve to nothing and the caller has to ask which
-        # measurement was meant.
+        # Some terms name a CATEGORY with no code of its own: "血脂" is four
+        # analytes and LOINC's lipid panels differ by which children they
+        # include, so any single code encodes an assumption about what was
+        # ordered. A confident wrong code is worse than an honest miss, so these
+        # resolve to nothing and the caller has to say which measurement.
         #
-        # Both spellings are checked, because underscore flattening in
-        # `_candidate_keys` reaches the index under the spaced form: with only
-        # the as-written check, `blood_pressure` skipped the block, flattened to
-        # `blood pressure`, hit those 183 rows and came back 8462-4 —
-        # re-creating the very bug this guard was written for, through the back
-        # door.
+        # Note the case this is NOT: a panel term that has a real panel code
+        # ("blood pressure" -> 85354-9) resolves, because a panel code says
+        # "expect components", which is the very thing a refusal would only be
+        # gesturing at. See resolver_overrides.tsv.
+        #
+        # All surface variants are checked, not just the term as written — see
+        # `_is_blocked` for the back door that requires.
         if self._is_blocked(term):
             return Resolution(term=term, method="refused")
 
@@ -574,8 +578,9 @@ async def resolve_with_semantic_fallback(
     resolver = get_resolver()
     out = [resolver.resolve(t) for t in terms]
 
-    # `method="refused"` is a decision, not a gap. `blood pressure` is a panel;
-    # `血糖(HbA1c)` names two different tests. Neither has a right answer, and
+    # `method="refused"` is a decision, not a gap. `血脂` is four analytes with
+    # no single panel code; `血糖(HbA1c)` names two different tests in one
+    # string. Neither has a right answer, and
     # the embedding tier will supply one anyway — measured, it answered all nine
     # refusals in the eval set and got all nine wrong. Letting the second tier
     # overturn the first tier's refusal is the one thing this design must not

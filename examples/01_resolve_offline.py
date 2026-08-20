@@ -11,7 +11,7 @@ Why that matters for health data specifically: standardizing a lab report is
 normally the step that forces you to send it somewhere.
 """
 
-from mirobody.engine import get_resolver
+from mirobody.engine import get_resolver, resolve_reading
 
 # One resolver, reused. Construction rebuilds the 921k-entry alias index and
 # costs a couple of seconds; lookups afterwards are microseconds. get_resolver()
@@ -29,7 +29,7 @@ for term in ("hemoglobin", "血红蛋白", "ヘモグロビン", "Hämoglobin"):
 # ── 2. a whole lab panel ─────────────────────────────────────────────────────
 panel = [
     "total cholesterol", "LDL cholesterol", "HDL cholesterol", "triglycerides",
-    "fasting glucose", "HbA1c", "creatinine", "eGFR", "ALT", "AST", "TSH",
+    "fasting glucose", "HbA1c", "creatinine", "urea nitrogen", "ALT", "AST", "TSH",
 ]
 print("\nA lipid + metabolic panel:\n")
 for term in panel:
@@ -37,17 +37,46 @@ for term in panel:
     print(f"  {term:<20} {r.loinc:<10} {r.canonical[:52]}")
 
 
-# ── 3. what a miss looks like ────────────────────────────────────────────────
-# The resolver never guesses. `血圧` (blood pressure) names a panel rather than
-# a single observation, so the honest answer is nothing at all — the alternative
-# would be confidently returning the diastolic code.
-print("\nMisses are honest, never guesses:\n")
-for term in ("血圧", "some indicator that does not exist"):
+# ── 3. the reading decides the code, not just the name ───────────────────────
+# LOINC puts the unit AND the result type into the identity, so one measurement
+# has several codes and the reading itself says which. If you have the value and
+# the unit, pass them: filing a mmol/L result under the mg/dL code is how a
+# series ends up with two units in it and nobody notices.
+print("\nSame indicator, different readings, different codes:\n")
+for name, value, unit in [
+    ("total cholesterol", "5.0", "mmol/L"),
+    ("total cholesterol", "193", "mg/dL"),
+    ("尿糖", "阴性", None),            # a dipstick result is not a number
+    ("尿糖", "5.6", "mmol/L"),
+]:
+    r = resolve_reading(name, value, unit)
+    shown = f"{value} {unit}" if unit else value
+    print(f"  {name:<20} {shown:<10} -> {r.loinc:<10} {r.canonical[:44]}")
+
+
+# ── 4. what a miss looks like, and what a refusal looks like ─────────────────
+# The resolver never guesses, and it distinguishes two kinds of non-answer.
+# `method == ""` is a gap: never seen this term. `method == "refused"` is a
+# decision: `lipid panel` is four analytes, and `血糖(HbA1c)` names two
+# different tests in one string — no single code can be right, and the
+# alternative is confidently picking one.
+print("\nA gap and a refusal are different things:\n")
+for term in ("lipid panel", "血糖(HbA1c)", "some indicator that does not exist"):
     r = resolver.resolve(term)
-    print(f"  {term:<36} resolved={r.resolved}")
+    kind = {"refused": "refused — no single code can be right",
+            "": "not found"}[r.method]
+    print(f"  {term:<36} {kind}")
+print("\nOnly method == 'lexical' should be used as an identity.")
+
+# A panel term with a real panel code is the opposite case, and it looks alike:
+# `blood pressure` resolves — to the panel, not to one of its two numbers.
+bp = resolver.resolve("blood pressure")
+print(f"\n  blood pressure -> {bp.loinc} ({bp.canonical}),")
+print("  a panel code: it says 'expect components', which is what a refusal")
+print("  would only have been trying to tell you.")
 
 
-# ── 4. ambiguity is reported, not hidden ─────────────────────────────────────
+# ── 5. ambiguity is reported, not hidden ─────────────────────────────────────
 # `candidates` is how many corpus rows matched. A high count means the term is
 # genuinely ambiguous (specimen, method, timing) and one default was chosen;
 # check it when you need to be certain rather than merely correct-looking.

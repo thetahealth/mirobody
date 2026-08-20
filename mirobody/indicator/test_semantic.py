@@ -101,11 +101,11 @@ def test_every_lexical_hit_is_labelled():
 def test_a_refusal_is_distinguishable_from_a_miss():
     """Both are unresolved; they want opposite treatment downstream.
 
-    A gap is worth a second opinion. A refusal IS the answer — `blood pressure`
-    is a panel and `血糖(HbA1c)` names two tests — and must not be overturned
-    by one.
+    A gap is worth a second opinion. A refusal IS the answer — `血脂` is four
+    analytes with no single panel code and `血糖(HbA1c)` names two different
+    tests — and must not be overturned by one.
     """
-    for term in ("blood pressure", "BP", "lipid panel", "血脂", "血糖(HbA1c)", "胆固醇(HDL-C)"):
+    for term in ("lipid panel", "血脂", "血糖(HbA1c)", "胆固醇(HDL-C)", "血压(收缩压)"):
         r = resolve(term)
         assert not r.resolved and r.method == "refused", term
     for term in ("绝对不存在的指标名xyzzy", "some unheard-of assay name"):
@@ -176,10 +176,11 @@ async def test_min_score_is_opt_in_and_off_by_default(monkeypatch):
 async def test_a_blocked_term_never_reaches_the_fallback(monkeypatch):
     """`!unresolved` is a decision, not a gap.
 
-    `blood pressure` is a panel and `血糖(HbA1c)` is two tests in one string —
-    neither has a right answer, so the second tier must not be allowed to
-    overturn the first tier's refusal. Measured before this guard existed: the
-    embedding tier answered all nine blocked terms in the eval set, all wrong.
+    `血脂` is four analytes with no single panel code and `血糖(HbA1c)` is two
+    tests in one string — neither has a right answer, so the second tier must
+    not be allowed to overturn the first tier's refusal. Measured before this
+    guard existed: the embedding tier answered all nine blocked terms in the
+    eval set, all wrong.
     """
     from mirobody import engine
 
@@ -192,7 +193,7 @@ async def test_a_blocked_term_never_reaches_the_fallback(monkeypatch):
 
     monkeypatch.setattr("mirobody.indicator.semantic.get_index", lambda p=None: FakeIndex())
 
-    blocked = ["blood pressure", "血脂", "BP", "lipid panel", "血糖(HbA1c)"]
+    blocked = ["血脂", "lipid panel", "血糖(HbA1c)", "胆固醇(HDL-C)", "血压(收缩压)"]
     out = await engine.resolve_with_semantic_fallback(blocked)
     assert sent == []                                  # nothing was even embedded
     # And they come back marked as refusals, not as gaps — the distinction is

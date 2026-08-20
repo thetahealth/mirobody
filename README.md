@@ -76,12 +76,15 @@ r = resolve("血红蛋白")
 r.loinc, r.canonical, r.method     # '718-7', 'Hemoglobin [Mass/volume] in Blood', 'lexical'
 
 resolve("绝对不存在的指标名xyzzy").method   # ''         never seen it
-resolve("blood pressure").method          # 'refused'  a panel, not one observation
+resolve("血糖(HbA1c)").method              # 'refused'  two different tests in one string
 ```
 
-`""` is a gap and worth a second opinion; `"refused"` is the answer — `blood
-pressure` is a panel, `血糖(HbA1c)` names two different tests, and no single code
-is right for either. **Only treat `method == "lexical"` as an identity** (a
+`""` is a gap and worth a second opinion; `"refused"` is the answer — `血糖(HbA1c)`
+names glucose outside the parentheses and HbA1c inside, `血脂` is four analytes,
+and no single code is right for either. A panel term that *has* a panel code is
+not a refusal: `blood pressure` → `85354-9`, the code FHIR's vital-signs profile
+mandates, which tells the caller to expect components.
+**Only treat `method == "lexical"` as an identity** (a
 grouping key, a "these are the same series" decision, a FHIR mirror). See
 [Semantic recall](#-semantic-recall-opt-in-and-why-it-is-opt-in) for the other
 kind.
@@ -168,7 +171,7 @@ The part none of the adjacent open-source projects have — a **semantic standar
 
 - **Concept graph**: 440,961 nodes · 22,044,110 cross-vocabulary edges · **595,746 source ids** distilled into canonical concepts (LOINC · SNOMED CT · RxNorm bridges), shipped via Git LFS ([`indicator/`](mirobody/indicator/README.md)).
 - **Embedding-based resolution**: free-text indicator names → canonical codes, with **50,240 multilingual aliases** (中文 22,578 · 日本語 16,809 · +6 languages) — `血红蛋白`, `ヘモグロビン` and `hemoglobin` all land on LOINC 718-7.
-- **We measure that claim instead of asserting it.** [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) scores the offline resolver against the panels a physical actually orders — lipid, CBC, metabolic, liver, thyroid, hormones, tumour markers, urinalysis, vitals — written the way a report prints them, in English, 中文 and 日本語 — plus the device/wearable vocabulary the platform API teaches (`steps`, `resting_heart_rate`, `sleep_duration`). **175/175 today; it scored 32/94 the day it was written.** It grades *clinical* correctness, not resolution rate: answering `血红蛋白` with the code for HbA1c is scored as a failure, and `血圧` (a panel, not an observation) is required to resolve to *nothing*, because a confident wrong code is worse than an honest miss.
+- **We measure that claim instead of asserting it.** [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) scores the offline resolver against the panels a physical actually orders — lipid, CBC, metabolic, liver, thyroid, hormones, tumour markers, urinalysis, vitals — written the way a report prints them, in English, 中文 and 日本語 — plus the device/wearable vocabulary the platform API teaches (`steps`, `resting_heart_rate`, `sleep_duration`). **176/176 today; it scored 32/94 the day it was written.** It grades *clinical* correctness, not resolution rate: answering `血红蛋白` with the code for HbA1c is scored as a failure, and `血脂` (a category, not an observation) is required to resolve to *nothing*, because a confident wrong code is worse than an honest miss.
 - **Surface algebra, so the spelling doesn't decide the answer** ([`indicator/lexical.py`](mirobody/indicator/lexical.py)): NFKC-lite folding (full-width, superscripts, the six dash variants) plus a CJK-aware tokenizer, and a guarded strip of the `名称(缩写)` shape a lab report prints. `ＦＢＧ`, `LDL–C`, `fasting_glucose`, `空腹血糖(GLU)` and `Cholesterol, total` all reach the same codes as their plain forms. When the two halves of `名称(缩写)` disagree — `血糖(HbA1c)` — the term stays **unresolved** rather than picking one.
 - **The reading picks the code, not just the name** ([`engine.resolve_reading`](mirobody/engine.py)). LOINC codes the unit *and* the result type into the identity, so the unit picks `PROPERTY` and the value's kind picks `SCALE_TYP`. `5.0 mmol/L` → 14647-2, `193 mg/dL` → 2093-3, `阴性` → the `[Presence]` variant. Half the shipped corpus is non-`Qn` (38,687 rows of 79,368), so a resolver that only constrains numbers is blind to half of it.
 - **Unit normalization** to UCUM families (~310), plus [conversion](mirobody/indicator/fhir/units/convert.py) — dimensional analysis, a molar-mass bridge keyed by LOINC code, and an explicit refusal for `%` vs `10*9/L`. 316 standard pulse indicators, FHIR R4 output.
@@ -396,10 +399,10 @@ We hold the engine itself to the same standard. **Resolver coverage** — can �
 
 ```bash
 pytest mirobody/test_engine_coverage.py -s
-#   offline resolver coverage: 175/175 = 100%
+#   offline resolver coverage: 176/176 = 100%
 ```
 
-It started at **32/94** — the benchmark has since grown to 175 cases. The gap was not the concept graph; it was that the index is built from LOINC long names, so it knew `LDL-C` but not `LDL cholesterol`, knew 葡萄糖 but not `血糖`, and answered `血红蛋白` with the code for HbA1c. Both classes of failure are one TSV row each to fix — [see Contributing](#-contributing).
+It started at **32/94** — the benchmark has since grown to 176 cases. The gap was not the concept graph; it was that the index is built from LOINC long names, so it knew `LDL-C` but not `LDL cholesterol`, knew 葡萄糖 but not `血糖`, and answered `血红蛋白` with the code for HbA1c. Both classes of failure are one TSV row each to fix — [see Contributing](#-contributing).
 
 ---
 
@@ -649,7 +652,7 @@ pytest        # 439 tests, ~9s — no database, no network, no API key
 
 Tests sit beside the code they cover, so bare `pytest` is the whole suite. Two
 of them carry the project's public claims: `test_engine_coverage.py` is the
-175/175 resolver number quoted above, and `pulse/gate_tests/` snapshots every
+176/176 resolver number quoted above, and `pulse/gate_tests/` snapshots every
 vendor payload against its standardized form.
 
 **👉 [docs/testing.md](docs/testing.md)** — layout, markers, snapshot

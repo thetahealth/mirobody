@@ -146,8 +146,18 @@ CASES: list[tuple[str, str, str]] = [
     ("总蛋白",                       r"^protein \[",                  r"urine"),
     ("糖化血红蛋白",                  r"hemoglobin a1c",               r""),
     ("收缩压",                       r"systolic blood pressure",      r""),
-    ("血圧",                         r"blood pressure set",           r"systolic|diastolic"),
     ("舒张压",                       r"diastolic blood pressure",     r""),
+    # Blood pressure written as the panel, in every spelling a report or an API
+    # caller uses. All five must land on the SAME code and it must be the panel,
+    # never one of the two numbers: these used to give three different answers
+    # (18684-1 via the index, nothing at all, and a hard block), and 18684-1 is
+    # an ED attachment code — CLASS=ATTACH.ED — that merely reads "First Blood
+    # pressure Set". The forbidden pattern is what makes this test bite.
+    ("血压",                         r"blood pressure panel",         r"systolic|diastolic|attach"),
+    ("血圧",                         r"blood pressure panel",         r"systolic|diastolic|attach"),
+    ("blood pressure",              r"blood pressure panel",         r"systolic|diastolic|attach"),
+    ("blood_pressure",              r"blood pressure panel",         r"systolic|diastolic|attach"),
+    ("BP",                          r"blood pressure panel",         r"systolic|diastolic|attach"),
     ("血氧饱和度",                    r"oxygen saturation",            r""),
     ("尿蛋白",                       r"protein.*urine",               r""),
     # 日本語 extended — the katakana and short-kanji forms a 健康診断 prints
@@ -280,22 +290,17 @@ CASES: list[tuple[str, str, str]] = [
 # Terms that must stay UNRESOLVED. A confident wrong code is worse than an
 # honest miss, so "answers nothing" is a behaviour worth pinning too.
 MUST_NOT_RESOLVE: list[tuple[str, str]] = [
-    # Panel / category names. No single code can be right for these, and the
-    # index's answer was actively harmful: "blood pressure" matched 183 rows and
-    # the commonness prior returned 8462-4 — the DIASTOLIC code — so a systolic
-    # reading filed under it lands in the wrong series. Blocked with the
-    # `!unresolved` sentinel in resolver_overrides.tsv.
+    # Category names with no panel code of their own. LOINC's lipid panels
+    # differ by which children they include, so picking one is picking an
+    # assumption about what was ordered.
     #
-    # Note what is deliberately NOT blocked: 血压 AND 血圧 both resolve to
-    # 18684-1 "Blood pressure Set", a panel code for a panel term — a correct
-    # answer. 血圧 used to be listed here, which made the same concept blocked in
-    # one language and answered in another; the eval harness asked why and there
-    # was no reason.
-    ("blood pressure", "panel; answered 8462-4 (diastolic) before it was blocked"),
-    ("blood_pressure", "the same panel, snake_case: underscore flattening reached "
-                       "the index under the spaced form and re-answered 8462-4 "
-                       "until the block check learned to flatten too"),
-    ("BP", "the same panel, abbreviated"),
+    # Note what is deliberately NOT here: blood pressure, in any of its four
+    # spellings. It reads like the same case and is the opposite one — it HAS a
+    # panel code (85354-9, the one FHIR R4's vital-signs profile mandates), and
+    # a panel code is how you tell a caller "expect components", which is the
+    # very thing a refusal would be trying to say. The four spellings are pinned
+    # as positive cases above; see resolver_overrides.tsv for the three
+    # different answers they used to give.
     ("lipid panel", "four analytes, not one observation"),
     ("血脂", "the same lipid panel in Chinese"),
     ("绝对不存在的指标名xyzzy", "pure nonsense must never resolve"),
@@ -304,7 +309,13 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # glucose series is the same class of harm as 血红蛋白 -> HbA1c.
     ("血糖(HbA1c)", "stem is glucose, parenthetical is HbA1c — they disagree"),
     ("胆固醇(HDL-C)", "stem is total cholesterol, parenthetical is HDL"),
-    ("血压(收缩压)", "a blocked panel name keeps its block through the strip"),
+    # Stem is the BP panel, parenthetical is systolic. Unlike the two above, the
+    # halves do not contradict — the parenthetical NARROWS the stem, and 8480-6
+    # would be a defensible answer. Refusing anyway, because proving "narrows"
+    # needs LOINC panel membership, which the shipped axis table does not carry;
+    # without it the rule would be "prefer the parenthetical", which is exactly
+    # what breaks 血糖(HbA1c). Written up in roadmap.md.
+    ("血压(收缩压)", "stem is the BP panel, parenthetical is one of its members"),
     # NOTE what is deliberately NOT here any more: CA / PT / MG. An ambiguous
     # abbreviation is not the same case as a panel name. A panel has no correct
     # single observation code; an abbreviation has a reading that dominates

@@ -208,20 +208,20 @@ urine specific gravity	SP GR Ur
 尿糖	Glucose Ur-mCnc
 収縮期血圧	Systolic blood pressure
 拡張期血圧	Diastolic blood pressure
-# NOTE: 血圧 / "blood pressure" on its own is deliberately absent. It names a
-# panel, not one observation, and the index answers it with the diastolic code
-# — a confident wrong answer. An honest `unresolved` is the better output.
+# NOTE: 血圧 / "blood pressure" on its own is a panel term and resolves to the
+# panel code — see the "panel terms" section below for why that is not the same
+# as answering it with one of these two.
 
 # ══ Deliberate non-answers ════════════════════════════════════════════════
-# Target `!unresolved` means: never answer this term. These name a PANEL or a
-# category, not one observation, so any single code is a wrong answer. Measured
-# before blocking: "blood pressure" matched 183 index rows and the commonness
-# prior returned 8462-4 — the DIASTOLIC code — so a systolic reading filed
-# under it lands in the wrong series. Callers must ask which measurement is
-# meant. (Terms that legitimately map to a panel/set code are NOT listed here:
-# 血压 → 18684-1 "Blood pressure Set" is a panel code for a panel term.)
-blood pressure	!unresolved
-BP	!unresolved
+# Target `!unresolved` means: never answer this term. These name a category
+# with no panel code of its own, so any single code is a wrong answer: "血脂"
+# is four analytes and LOINC's lipid panels differ by which children they
+# include, so picking one is picking an assumption.
+#
+# A panel TERM that has a real panel CODE is NOT listed here — it is aliased to
+# that code in the "panel terms" section below. The two cases look alike and are
+# opposites: a panel code tells the caller "expect components", which is the
+# very thing we would be refusing in order to say.
 lipid panel	!unresolved
 血脂	!unresolved
 
@@ -357,14 +357,38 @@ HRV	heart rate variability
 # 凝血酶原时间 answered 34714-6 INR: a DERIVED ratio, not the time itself.
 凝血酶原时间	Prothrombin time (PT)
 
-# 血圧 is 血压 in Japanese and had no entry at all, so it missed — while the
-# Chinese form answers 18684-1 "Blood pressure Set". The overrides header states
-# the rule those two were breaking: a panel TERM mapping to a panel CODE is a
-# correct answer and is not blocked (which is why 血压 is not in the
-# non-answers section). One language getting the panel code and another getting
-# silence is not a policy, it is a gap — surfaced by the eval harness, which
-# asked why the two behaved differently.
-血圧	First Blood pressure Set
+# ══ panel terms that DO have a panel code ═════════════════════════════════
+# "blood pressure" written on its own. All four spellings below name the same
+# concept and, before this block existed, got three different answers:
+#
+#   血压              -> 18684-1  via the index
+#   血圧              -> nothing  (no entry in any language file)
+#   blood pressure    -> blocked  (the index answered 8462-4, DIASTOLIC — a
+#                                  systolic reading filed under it lands in the
+#                                  wrong series, which is why it was blocked)
+#   BP                -> blocked  (same)
+#
+# The eval harness asked why one language got a code and another got silence,
+# and there was no reason. But unifying them exposed the worse bug: 18684-1 is
+# not a blood-pressure panel. Its axis reads PROPERTY=Cmplx, SCALE=Set,
+# CLASS=ATTACH.ED — an emergency-department ATTACHMENT code, a document, not a
+# measurement. Its LONG_COMMON_NAME just happens to read "First Blood pressure
+# Set". So the language that "worked" was returning a document code with full
+# confidence.
+#
+# 85354-9 is the real answer: CLASS=PANEL.VITALS, and it is the code FHIR R4's
+# vital-signs profile mandates for blood pressure, with 8480-6 / 8462-4 as its
+# components. A caller who wants one number still has to say which — that is
+# what a panel code means — but now they are told that, instead of being handed
+# either silence or an ED attachment.
+#
+# `blood_pressure` needs no row: underscore flattening reaches "blood pressure".
+# It is pinned in test_engine_coverage.py anyway, because that flattening is
+# exactly the route that used to walk around the old block.
+血压	Blood pressure panel with all children optional
+血圧	Blood pressure panel with all children optional
+blood pressure	Blood pressure panel with all children optional
+BP	Blood pressure panel with all children optional
 
 # ══ qualitative indicators ═════════════════════════════════════════════════
 # Half of what a report prints is not a number, and half the shipped corpus is

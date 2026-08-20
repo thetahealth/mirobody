@@ -90,8 +90,86 @@ header placeholder, against `zh_curated.tsv`'s 633.
 The work is therefore curation, not cleanup: resolve a 健康診断 term, find the
 miss, add a row to `ja_curated.tsv` or `resolver_overrides.tsv`, add a case to
 `test_engine_coverage.py`. Same loop as the 中文 rows that took coverage from
-32/94 to 175/175. If the machine-generated file is ever regenerated, filter it
+32/94 to 176/176. If the machine-generated file is ever regenerated, filter it
 by LOINC CLASS at generation time so observations survive and conditions do not.
+
+### `resolved=True` with no code: a contract the resolver breaks 9.6% of the time
+
+**Status:** not started. The one-line fix is safe; the useful part is not.
+
+`resolve("eGFR")` returns `resolved=True`, `method="lexical"`, canonical
+*"Glomerular filtration rate [Volume Rate/Area] ... (MDRD)/1.73 sq M"* — and
+`loinc=""`. A caller who branches on `.resolved`, which is what the field is
+for, gets a truthy answer holding no identity.
+
+Measured over a uniform 30,000-key sample of the 921,172-key alias index:
+**2,888 of the 30,000 resolve this way — 9.6%.** Every one has the same cause,
+and it is not a shortage of data:
+
+```
+what the trap is made of (n=2,888)
+  2,888   the matched LONG_COMMON_NAME is not in the ACTIVE axis at all
+```
+
+`_pick` chooses a display name from the wider name table, and the code lookup
+then runs against the ACTIVE-filtered axis. When the winning name belongs to a
+DEPRECATED row the name survives and the code does not. Most of the 2,888 say so
+in their own text — *"Deprecated Oat IgG Ab RAST class"*, *"Deprecated JWH-018
+butanol metabolite/Creatinine"* — so for those, withholding the code is right
+and only `resolved` is lying.
+
+**The damaging subset is the clinical terms that land in it.** `eGFR` is on
+every metabolic panel printed anywhere, and its best name match happens to be a
+retired MDRD row.
+
+**The naive fix was prototyped and rejected.** Make `_pick` skip-aware: when the
+top-ranked name has no ACTIVE code, walk down the ranking. It improved `血常规`
+(→ 57021-8, a CBC panel — correct) and it sent **`eGFR` → 107231-3, *Natriuretic
+peptide B*** — BNP, a cardiac marker, for a kidney-function term. Walking the
+ranking crosses analyte boundaries silently, which is the exact failure this
+project scores as worse than silence.
+
+So the work splits into two independent pieces, and the second is the real one:
+
+1. **Make the field honest.** `resolved` should be `bool(loinc)`. This cannot
+   regress a correct answer — it only stops a codeless one from claiming to be
+   one — and it converts 2,888 confident non-answers per 30,000 into honest
+   misses. Do this first and separately.
+2. **Curate the clinical terms it exposes.** Once `eGFR` reports as a miss it
+   joins the same loop every other gap uses: one row in
+   `resolver_overrides.tsv`, one case in `test_engine_coverage.py`. `eGFR` needs
+   a target that is an alias key AND has an active code; the four obvious
+   spellings (`GFR/1.73 sq M.predicted`, `estimated glomerular filtration rate`,
+   …) are not alias keys, so this one needs a `zh_curated`/`en_curated` row
+   rather than an override redirect.
+
+### A parenthetical that NARROWS its stem is not a contradiction
+
+**Status:** blocked on data we do not ship, and documented so it is not
+"fixed" by accident.
+
+`名称(缩写)` where the halves disagree must refuse — `血糖(HbA1c)` is glucose
+outside and HbA1c inside, and preferring either half files a reading into the
+wrong series. That rule is pinned in `test_engine_coverage.py` and it is right.
+
+`血压(收缩压)` has the same *shape* and is not the same case. The parenthetical
+narrows the stem: the stem is the BP panel (85354-9) and the parenthetical is
+one of its two members (8480-6). 8480-6 is the defensible answer, and today the
+term refuses.
+
+Telling the two apart needs one fact: **is the parenthetical's code a child of
+the stem's panel?** LOINC answers it, in the panel-hierarchy file
+(`LOINC/AccessoryFiles/MultiAxialHierarchy`), which is not in the shipped
+bundle — `loinc_axis.csv` carries the six axes and no membership. Without it the
+only implementable rule is "prefer the parenthetical", which is precisely what
+breaks `血糖(HbA1c)`.
+
+Two ways forward, in preference order: ship the parent/child pairs for the
+panels the resolver actually answers (a few hundred rows, not the whole
+hierarchy), or hand-list the narrowing pairs in `resolver_overrides.tsv` the way
+every other curated fact in this repo is handled. Do not implement it by
+guessing from string containment — `收缩压` contains `压` and so does everything
+else in the vicinity.
 
 ### LLM behaviour tests for `mirobody parse`
 

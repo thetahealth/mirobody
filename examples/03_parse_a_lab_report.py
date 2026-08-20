@@ -59,7 +59,7 @@ panel = [
     ("血糖",                     5.5,  "mmol/L"),
     ("γ-GTP",                  28.0,  "U/L"),
     ("Thyroid stimulating hormone", 2.1, "uIU/mL"),
-    ("blood pressure",         None,  None),      # a panel, not an observation
+    ("血糖(HbA1c)",             None,  None),      # two different tests in one string
 ]
 
 print(f"  {'as printed':<30} {'LOINC':<10} canonical")
@@ -68,6 +68,8 @@ for name, _value, _unit in panel:
     r = resolve(name)
     print(f"  {name[:30]:<30} {(r.loinc or '—'):<10} {r.canonical or '(deliberately unresolved)'}")
 
-print("\n`blood pressure` resolves to nothing on purpose: it names a panel, not a")
-print("single observation, and answering it with the diastolic code would be wrong.")
+print("\n`血糖(HbA1c)` resolves to nothing on purpose: the stem says glucose and the")
+print("parenthetical says HbA1c, so either answer files the reading into the wrong")
+print("series. A panel term with a real panel code is the other case and does")
+print("resolve — see 01_resolve_offline.py.")
 print("\nGive this script a PDF/JPG/CSV path to run the full extraction.")
