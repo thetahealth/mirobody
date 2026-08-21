@@ -10,15 +10,12 @@ import uuid
 
 from datetime import datetime
 from typing import Any
-from redis.asyncio import Redis
 
 from ...utils import execute_query
-from ...utils.config import global_config
 from ..base.history_replay import fold_trace_into_text
 
 #-----------------------------------------------------------------------------
 
-REDIS_CHAT_LIST_KEY_HOLYWELL = "redis_chat_list_hollywell"
 
 
 #-----------------------------------------------------------------------------
@@ -517,33 +514,5 @@ async def get_chat_history(user_id: str, session_id: str) -> list[dict[str, Any]
         logging.error(f"Error loading conversation history: {str(e)}", exc_info=True)
 
     return history
-
-#-----------------------------------------------------------------------------
-
-
-#-----------------------------------------------------------------------------
-
-_redis_client: Redis = None
-
-async def chat_list_setter_hollywell(user_id: str, msg_id: str, question: str):
-    global _redis_client
-    if _redis_client is None:
-        _redis_client = await global_config().get_redis().get_async_client()
-    if _redis_client is None:
-        logging.error("Invalid redis client.")
-        return
-
-    message = json.dumps(
-        {
-            "user_id": user_id,
-            "msg_id": msg_id,
-            "question": question,
-        }
-    )
-    status = await _redis_client.rpush(REDIS_CHAT_LIST_KEY_HOLYWELL, message)
-    if status:
-        logging.info(f"Redis chat list setter success: {user_id}, {msg_id}, {question}")
-    else:
-        logging.error(f"Redis chat list setter failed: {user_id}, {msg_id}, {question}", exc_info=True)
 
 #-----------------------------------------------------------------------------

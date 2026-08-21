@@ -22,7 +22,6 @@ from ..message import (
     compress_messages,
     save_message,
     get_last_message,
-    chat_list_setter_hollywell
 )
 from ..model import ChatStreamRequest
 
@@ -351,33 +350,6 @@ class ChatProtocolAdapter(ABC):
     
     #-------------------------------------------------------------------------
 
-    async def log_chat_extraction(
-        self,
-        params: ChatStreamRequest,
-        user_id: str,
-        msg_id: str
-    ):
-        """
-        Log chat for extraction (fire-and-forget).
-        
-        Only logs for self-queries (not help-ask scenarios).
-        
-        Args:
-            params: Chat request parameters
-            user_id: User ID (str)
-            msg_id: Message ID
-        """
-        if params.question and (params.query_user_id == user_id):
-            spawn(
-                chat_list_setter_hollywell(
-                    user_id=user_id,
-                    msg_id=msg_id,
-                    question=params.question
-                )
-            )
-    
-    #-------------------------------------------------------------------------
-
     def _prepare_agent_kwargs(
         self,
         params: ChatStreamRequest,
@@ -580,9 +552,6 @@ class ChatProtocolAdapter(ABC):
                 # the last turn. Surface it on the CURRENT user turn — after the
                 # cache breakpoint, so the cached prefix is untouched.
                 time_note = relative_time_hint(messages)
-
-            # Log for chat extraction (fire-and-forget via base class)
-            await self.log_chat_extraction(params, params.user_id, params.question_id)
 
             agent_kwargs = self._prepare_agent_kwargs(
                 params, compressed_messages, current_turn_note=time_note,
