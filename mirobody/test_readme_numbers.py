@@ -31,7 +31,8 @@ import re
 import tarfile
 
 import pytest
-import yaml
+
+from ruamel.yaml import YAML
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _READMES = ["README.md", "README.zh-CN.md", "README.zh-TW.md", "README.ja.md"]
@@ -146,9 +147,13 @@ _EMAIL = re.compile(r"[\w.+-]+@mirobody\.ai")
 @pytest.mark.parametrize("name", _READMES)
 def test_the_demo_credential_is_one_the_server_accepts(name: str):
     """A wrong account here breaks the first thing a reader does."""
-    codes = yaml.safe_load((_ROOT / "config.yaml").read_text(encoding="utf-8"))[
-        "EMAIL_PREDEFINE_CODES"
-    ]
+    # ruamel, not PyYAML: ruamel.yaml is a declared base dependency and the
+    # parser utils/config/config.py itself uses, so this reads config.yaml the
+    # way the server does. PyYAML is in nobody's dependency list and sits in
+    # the dev venv by transitive accident -- `import yaml` here would pass
+    # locally and die in CI's minimal `.[test]` install, which is how
+    # python-multipart and numpy each went undeclared for months.
+    codes = YAML(typ="safe").load(_ROOT / "config.yaml")["EMAIL_PREDEFINE_CODES"]
     text = _text(name)
     for email in set(_EMAIL.findall(text)):
         assert email in codes, (
