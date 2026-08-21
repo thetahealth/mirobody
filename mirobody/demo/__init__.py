@@ -1,11 +1,16 @@
 """Care-circle demo seed — so a fresh deployment is not an empty database.
 
-A first-time self-hoster signs in as `exp1@mirobody.ai` and, today, finds
-nothing: the agent works and has nothing to work on. This module fills that gap
-with one synthetic person's two-year record and puts `exp1@` in their care
-circle, which demonstrates two things at once — what the engine does with real
-volume, and what it feels like to hold someone else's record rather than your
-own. You have no data; you can still ask about hers and get an answer.
+A first-time self-hoster signs in and, today, finds nothing: the agent works and
+has nothing to work on. This module fills that gap with one synthetic person's
+two-year record and shares it into the care circle of EVERY address in
+`EMAIL_PREDEFINE_CODES` — not just the one this repo ships. A deployment that
+added its own demo accounts, or `./deploy.sh` with a different set, gets the same
+data behind whichever of them a human actually signs in as; guessing one name
+here would have made the demo look empty for the rest.
+
+It demonstrates two things at once — what the engine does with real volume, and
+what it feels like to hold someone else's record rather than your own. You have
+no data; you can still ask about hers and get an answer.
 
 The data is NOT generated here. `care_circle_demo.json.gz` was produced once
 from ESL-Bench (`healthmemoryarena/ESL-Bench`) via the sibling
