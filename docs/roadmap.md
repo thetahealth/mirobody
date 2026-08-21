@@ -373,14 +373,22 @@ touched 105 sites across 43 files and broke callers that iterate the
 parameter directly. Worth doing per-signature when a file is being edited for
 another reason, not as a sweep.
 
-### Judgment call: `GET /user/settings` performs an UPDATE
+### Resolved: `GET /user/settings` no longer performs an UPDATE
 
-`server/routers/user_router.py:196-226` force-enables MFA for
-CommonWell-connected users inside a GET handler. A GET that mutates is wrong
-by every REST convention — but this one is a security control being applied,
-and removing it weakens that control for anyone who has not re-saved their
-settings. Left alone deliberately; it needs a product decision, not a
-refactor.
+It used to force-enable MFA for CommonWell-connected users inside a GET
+handler — a mutation in a GET, kept because it was a security control being
+applied. The product decision it was waiting on arrived: this project is not
+connected to CommonWell, and `commonwell_patient` is a table no baseline here
+creates, so the three queries reading it could only ever raise
+(`execute_query` re-raises). The control was not protecting anything; it was a
+guaranteed 500 the moment `WEBAUTHN_RP_ID` was configured.
+
+All three sites are gone, along with the `cw_connected` field. The shared
+frontend keeps its HIE surface for the deployments that do use it and degrades
+on its own: `security?.cw_connected` reads `undefined`, so the MFA switch is
+simply enabled — the same graceful-degradation idiom as the opensource paths in
+`Indicators/index.jsx` and `FileTable/index.jsx`. Nothing here is feature-gated
+on an integration this project does not ship.
 
 
 ### Seam #4 revisited: the agent/pulse cycle, measured
@@ -561,7 +569,7 @@ Every gate so far is import-level or protocol-level. Route mounting, Agent
 Skills reaching the system prompt, the OAuth flow and a real conversation have
 never been exercised together. Needs PostgreSQL, Redis and a model key.
 
-### Re-run the a007-mirovital duplication analysis
+### Re-run the sibling-codebase duplication analysis
 
 The "≈55% duplicated, ~24k lines" figures were produced by a Haiku subagent
 before the model default was corrected. Those numbers are the basis for the
