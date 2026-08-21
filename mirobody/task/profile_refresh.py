@@ -1,8 +1,10 @@
 """Profile-refresh task.
 
 Producer (pulse): `await ProfileRefreshTask.enqueue(user_id)` on ingest.
-Consumer (holywell backend_job): drains a burst, dedupes user_ids, and calls
-`UserProfileService.create_user_profile` for each unique user.
+Consumer (`consume` below): drains a burst, dedupes user_ids, and calls
+`UserProfileService.create_user_profile` for each unique user. It used to live
+in a separate service, and this docstring still said so long after the worker
+here took it over.
 
 Weak consistency with IndicatorSyncTask: profile may occasionally refresh
 before the latest dim sync completes and read slightly stale dim data — the

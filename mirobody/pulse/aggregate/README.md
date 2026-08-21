@@ -289,85 +289,26 @@ status = await service.get_status()
 - **Processing count**: Number of summary records and affected users
 - **Error statistics**: Error types and frequency
 
-## Self-Test Functionality
+## Tests
 
-### Overview
+Nothing in this module runs a self-test at startup, and there is no
+`test_aggregator_self_test.py` — an earlier version of this section documented
+both, along with a container name from a deployment that is not part of this
+project. What actually exists:
 
-The module includes built-in self-test functionality to verify core logic correctness during service initialization. Self-tests don't depend on database connections and can quickly verify:
-- Timezone conversion logic (UTC ↔ local time)
-- Data aggregation calculations (sum, avg, count, etc.)
-- Time window boundaries (normal data 00:00-24:00, sleep data 18:00-18:00)
-
-### How to Run
+| File | Runs with | Needs a database |
+| --- | --- | --- |
+| `test_date_range_query.py` | `pytest` | no |
+| `test_cgm_indicators.py` | `pytest` | one test does (`test_db_aggregation`) |
+| `test_aggregator.py` | `python3 -m mirobody.pulse.aggregate.test_aggregator` | yes — it is a standalone integration script with its own `main()`, not a pytest module, so `pytest` collects nothing from it |
 
 ```bash
-# Run standalone test script
-docker exec a007-opensource-backend-1 python3 /app/test_aggregator_self_test.py
+# unit tests
+python3 -m pytest mirobody/pulse/aggregate -q
+
+# the integration script, against a running stack
+docker compose exec mirobody python3 -m mirobody.pulse.aggregate.test_aggregator
 ```
-
-### Test Contents
-
-#### Test 1: Normal Data Timezone Conversion
-- Verify local time → UTC conversion
-- Example: Asia/Shanghai 2025-10-30 00:00 → UTC 2025-10-29 16:00
-
-#### Test 2: Sleep Data Timezone Conversion
-- Verify timezone conversion for sleep data special window
-- Example: Asia/Shanghai 2025-10-30 18:00 → UTC 2025-10-30 10:00
-
-#### Test 3: Reverse Timezone Conversion
-- Verify UTC → local time conversion
-- Ensure conversion reversibility
-
-#### Test 4: Aggregation Calculations
-- Verify sum, avg, count and other aggregation functions
-- Example: 10 records × 1000 = sum:10000, avg:1000, count:10
-
-#### Test 5: Time Window Boundaries
-- Verify normal data window: 00:00-23:59:59
-- Verify sleep data storage window: 00:00-23:59:59
-
-#### Test 6: UTC Query Boundaries
-- Verify UTC query time range is exactly 24 hours
-- Ensure indexes can be used correctly
-
-### Expected Output
-
-```
-================================================================================
-Running Aggregator Self-Test
-================================================================================
-Test 1: Timezone conversion for normal data
-✓ Normal data: 2025-10-30 00:00:00 (Asia/Shanghai) = 2025-10-29 16:00:00 (UTC)
-Test 2: Timezone conversion for sleep data
-✓ Sleep data: 2025-10-30 18:00:00 (Asia/Shanghai) = 2025-10-30 10:00:00 (UTC)
-Test 3: Reverse conversion (UTC -> Local)
-✓ Reverse: 2025-10-29 16:00:00 (UTC) = 2025-10-30 00:00:00 (Asia/Shanghai)
-Test 4: Aggregation calculations
-✓ Aggregation: sum=10000, avg=1000.0, count=10
-Test 5: Time window boundaries
-✓ Normal window: 2025-10-30 00:00:00 ~ 2025-10-30 23:59:59
-✓ Sleep window (stored): 2025-10-30 00:00:00 ~ 2025-10-30 23:59:59
-Test 6: UTC query boundaries
-✓ UTC query window: 2025-10-29 16:00:00 ~ 2025-10-30 16:00:00 (24h)
-================================================================================
-✅ All self-tests PASSED
-================================================================================
-```
-
-### Design Advantages
-
-1. **Implementation-agnostic**: Test logic is independent of specific implementations (SQLAggregator, SQLv2Aggregator, PyAggregator, etc.)
-2. **Fast verification**: No database dependency, verification can be completed at startup
-3. **Easy to maintain**: Test code is centralized, easy to update
-4. **Continuous assurance**: Can be run at every service startup to ensure code stability
-
-### When to Use
-
-- **Development phase**: Verify correctness after modifying aggregation logic
-- **Deployment phase**: Quick self-check at service startup
-- **Debugging phase**: Run test script independently to troubleshoot issues
-- **Upgrade phase**: Verify consistency between new and old implementations
 
 ## Summary
 

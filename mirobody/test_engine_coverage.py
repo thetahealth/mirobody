@@ -93,7 +93,7 @@ CASES: list[tuple[str, str, str]] = [
     ("vitamin B12",                 r"cobalamin|vitamin b12",        r""),
     ("ferritin",                    r"ferritin",                     r""),
     ("CRP",                         r"c reactive protein",           r""),
-    # ── 中文（简体）─────────────────────────────────────────────────────────
+    # ── Simplified Chinese ────────────────────────────────────────────────────
     ("血红蛋白",                     r"hemoglobin",                   r"A1c|glycated"),
     ("血糖",                         r"glucose",                      r"tolerance|challenge"),
     ("空腹血糖",                     r"^fasting glucose",             r"tolerance"),
@@ -110,7 +110,7 @@ CASES: list[tuple[str, str, str]] = [
     ("谷草转氨酶",                   r"aspartate aminotransferase",   r""),
     ("promoted:糖化血红蛋白",         r"hemoglobin a1c",               r""),
     ("促甲状腺激素",                 r"thyrotropin|thyroid stimulating", r""),
-    # ── 日本語 ───────────────────────────────────────────────────────────────
+    # ── Japanese ──────────────────────────────────────────────────────────────
     ("ヘモグロビン",                  r"hemoglobin",                   r"A1c|glycated"),
     ("総コレステロール",              r"cholesterol",                  r"LDL|HDL"),
     ("中性脂肪",                     r"triglyceride",                 r""),
@@ -122,7 +122,7 @@ CASES: list[tuple[str, str, str]] = [
     # flagged the row where the four disagreed.
     ("甲状腺刺激ホルモン",             r"thyrotropin|thyroid stimulating", r""),
     ("チロトロピン",                  r"thyrotropin",                  r""),
-    # ── 中文（繁體 · 台灣）───────────────────────────────────────────────────
+    # ── Traditional Chinese (Taiwan) ──────────────────────────────────────────
     # Two distinct problems live here and only one of them is script.
     #
     # SCRIPT: 白細胞 / 總膽固醇 / 穀丙轉氨酶 are the same words in different
@@ -213,7 +213,7 @@ CASES: list[tuple[str, str, str]] = [
     ("カルシウム",                    r"calcium",                      r"urine|ionized"),
     ("糖化ヘモグロビン",               r"hemoglobin a1c",               r""),
     ("コレステロール",                 r"cholesterol",                  r"LDL|HDL"),
-    # ── third sweep: 中文 as a report PRINTS it, specimen prefix and all ─────
+    # ── third sweep: Chinese as a report PRINTS it, specimen prefix and all ───
     # Lifted verbatim off a 2025 体检报告 PDF. The bare nouns above were the
     # aliases the lexicon was built from; a Chinese lab prints 血清肌酐, not
     # 肌酐. Every one of these missed, and two answered CONFIDENTLY WRONG:

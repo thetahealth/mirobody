@@ -14,13 +14,13 @@ from psycopg_pool import AsyncConnectionPool
 # the user_id column and need conflict-aware handling — see _merge_*().
 #
 # This list is deliberately WIDER than `mirobody/schema`: it covers whatever
-# user-scoped tables the running deployment happens to have, and the holywell
-# group below is provisioned by a007-holywell, not by us. Several entries name
-# tables our own DDL no longer creates (`th_task_flow`, `health_data_epic`,
-# `health_data_oracle`, `health_data_libre`, `health_vital_webhook`) — that is
-# correct, not stale: every access is guarded by `_table_exists`, so an entry
-# costs one catalogue lookup where the table is absent and keeps a merge honest
-# where it is present. Do not prune this list by diffing it against our schema.
+# user-scoped tables the running deployment happens to have, including ones
+# provisioned outside this project. Several entries name tables our own DDL no
+# longer creates (`th_task_flow`, `health_data_epic`, `health_data_oracle`,
+# `health_data_libre`, `health_vital_webhook`) — that is correct, not stale:
+# every access is guarded by `_table_exists`, so an entry costs one catalogue
+# lookup where the table is absent and keeps a merge honest where it is
+# present. Do not prune this list by diffing it against our schema.
 
 SIMPLE_RELINK_TABLES: list[tuple[str, list[str]]] = [
     # sql/ tables
@@ -35,7 +35,7 @@ SIMPLE_RELINK_TABLES: list[tuple[str, list[str]]] = [
     ("user_behavior_insight",           ["user_id"]),
     ("webauthn_credentials",            ["user_id"]),
 
-    # holywell tables (loaded from a007-holywell/backend_db/resource_holywell)
+    # externally provisioned tables (absent in a standalone deployment)
     ("deep_agent_workspace",            ["user_id"]),
     ("health_data_epic",                ["theta_user_id"]),
     ("health_data_garmin",              ["theta_user_id"]),
@@ -51,8 +51,8 @@ SIMPLE_RELINK_TABLES: list[tuple[str, list[str]]] = [
 #-----------------------------------------------------------------------------
 
 async def _table_exists(cur, table_name: str) -> bool:
-    """Skip tables that aren't part of the current deployment (mirobody-only
-    vs full holywell stack). Avoids UndefinedTable errors aborting the txn.
+    """Skip tables that aren't part of the current deployment. Avoids
+    UndefinedTable errors aborting the txn.
     """
     await cur.execute("SELECT to_regclass(%s);", [f"public.{table_name}"])
     row = await cur.fetchone()
@@ -354,8 +354,8 @@ async def merge_accounts(
                     )
                     affected["health_app_user"] = cur.rowcount or 0
 
-                    # 5. Audit log (skip when the table isn't deployed yet —
-                    # mirobody-only deployments that don't pull holywell).
+                    # 5. Audit log (skip where the table isn't provisioned —
+                    # it is not part of this project's own DDL).
                     if await _table_exists(cur, "user_account_merge_log"):
                         await cur.execute(
                             "INSERT INTO user_account_merge_log"

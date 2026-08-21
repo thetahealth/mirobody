@@ -23,9 +23,8 @@ A run of CJK is deliberately ONE token: it keeps ``血糖`` and ``空腹血糖``
 distinct surfaces rather than making one a substring of the other.
 
 Ported from the same C++ ``src/indicator`` engine (``normalize.cpp`` /
-``word.cpp``) that the hosted platform ported into
-``mirovital/domains/health_records/indicators/lexical.py``; kept faithful so the
-two implementations answer alike. Golden-locked by ``test_lexical.py``.
+``word.cpp``) that the hosted platform ports independently; kept faithful so
+the two implementations answer alike. Golden-locked by ``test_lexical.py``.
 """
 
 from __future__ import annotations

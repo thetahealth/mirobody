@@ -7,7 +7,7 @@ Extensible indicator search engine with domain-specific adapters and graph-based
 ```
 indicator/
   fhir/                  # FHIR-vocabulary domain implementation
-    search.py            # FhirAdapter: FHIR tables, th_series_data, etc.
+    adapter.py           # FhirAdapter: FHIR tables, th_series_data, etc.
     graph_builder.py     # Build fhir_id graph binary from bridge/sibling CSVs
     bridge.py            # Cross-vocabulary bridge files
     siblings.py          # Same-system sibling groups
@@ -57,7 +57,7 @@ indicator/
 3. **Global score sort** -- merged result is sorted by score descending, so callers can compare candidates across vocabularies and judge by relative score (no opaque threshold knob)
 
 ```python
-from mirobody.indicator.fhir.search import FhirAdapter
+from mirobody.indicator.fhir.adapter import FhirAdapter
 
 adapter = FhirAdapter(bundle_dir=...)
 results = await adapter.resolve("blood glucose", top_k=3, systems=["LOINC"])
@@ -668,7 +668,7 @@ The 1.4 GB `fhir_embeddings.npy` is too large for the pip wheel and Git LFS quot
 
    ```python
    from mirobody.utils import safe_read_cfg
-   from mirobody.indicator.fhir.search import FhirAdapter
+   from mirobody.indicator.fhir.adapter import FhirAdapter
 
    bundle_dir = safe_read_cfg("FHIR_INDICATORS_DIR")  # None if unset
    adapter = FhirAdapter(bundle_dir=bundle_dir)

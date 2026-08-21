@@ -101,18 +101,22 @@ Insert 10 records: [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
 ### Method 1: Run Module Directly
 
 ```bash
-# Run in container
-docker exec a007-opensource-backend-1 python3 -m mirobody.pulse.aggregate.test_aggregator
+# Against a running stack
+docker compose exec mirobody python3 -m mirobody.pulse.aggregate.test_aggregator
 
-# Or run on host machine
-cd /Users/admin/go/a007-opensource
+# Or on the host, from the repo root
 python3 -m mirobody.pulse.aggregate.test_aggregator
 ```
+
+This is an integration script with its own `main()`, not a pytest module —
+`pytest` collects nothing from it. It needs a reachable database. The unit
+tests beside it (`test_date_range_query.py`, `test_cgm_indicators.py`) run
+under `python3 -m pytest mirobody/pulse/aggregate -q`.
 
 ### Method 2: Run as Python Script
 
 ```bash
-docker exec a007-opensource-backend-1 python3 /app/mirobody/pulse/aggregate/test_aggregator.py
+docker compose exec mirobody python3 /app/mirobody/pulse/aggregate/test_aggregator.py
 ```
 
 ## Test Flow

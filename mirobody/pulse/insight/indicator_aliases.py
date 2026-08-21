@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Set
 #   1. SQLAggregator output (dailyAvg*, dailyTotal*, dailyLast* — active, supports .source suffix)
 #   2. Demo/synthetic names (RestingHeartRate-RHR, etc.)
 #   3. Raw indicator names (heartRates, steps — may need aggregation)
-#   4. Holywell stage2 (daily_stats_* — DEPRECATED, no longer producing new data)
+#   4. legacy `daily_stats_*` (DEPRECATED, no longer produced; historical rows only)
 #
 # Suffix matching: resolve_indicator() supports prefix match, so
 # "dailyAvgHeartRates" will match "dailyAvgHeartRates.apple_health" in user data.
@@ -34,15 +34,15 @@ INDICATOR_ALIASES: Dict[str, List[str]] = {
         "DailyAverageHeartRate",           # demo/synthetic
         "restingHeartRates",               # raw
         "heartRates",                      # raw
-        "daily_stats_restingHeartRatesAvg", # holywell (deprecated)
-        "daily_stats_heartRatesAvg",       # holywell (deprecated)
+        "daily_stats_restingHeartRatesAvg", # legacy (deprecated)
+        "daily_stats_heartRatesAvg",       # legacy (deprecated)
     ],
     "heartRateExercise": [
         "dailyAvgWalkingHeartRates",       # SQLAggregator
         "AverageHeartRateDuringExercise",   # demo
         "MaxHeartRateDuringExercise",       # demo
         "walkingHeartRates",               # raw
-        "daily_stats_walkingHeartRatesAvg", # holywell (deprecated)
+        "daily_stats_walkingHeartRatesAvg", # legacy (deprecated)
     ],
 
     # =========================================================================
@@ -53,7 +53,7 @@ INDICATOR_ALIASES: Dict[str, List[str]] = {
         "DeepSleepPercentage",                    # demo
         "DeepSleepDuration",                      # demo
         "sleepAnalysis_Asleep(Deep)",              # raw
-        "daily_stats_sleepAnalysis_Asleep(Deep)Sum", # holywell (deprecated)
+        "daily_stats_sleepAnalysis_Asleep(Deep)Sum", # legacy (deprecated)
     ],
     "sleepTotal": [
         "dailyTotalSleepAnalysis_Asleep(Total)",  # SQLAggregator
@@ -61,21 +61,21 @@ INDICATOR_ALIASES: Dict[str, List[str]] = {
         "DailySleepDuration",                      # demo
         "sleepAnalysis_Asleep(Total)",              # raw
         "sleepAnalysis_InBed",                     # raw
-        "daily_stats_sleepAnalysis_Asleep(Total)Sum", # holywell (deprecated)
+        "daily_stats_sleepAnalysis_Asleep(Total)Sum", # legacy (deprecated)
     ],
     "sleepLight": [
         "dailyTotalSleepAnalysis_Asleep(Core)",   # SQLAggregator
         "LightSleepPercentage",                    # demo
         "LightSleepDuration",                      # demo
         "sleepAnalysis_Asleep(Core)",               # raw
-        "daily_stats_sleepAnalysis_Asleep(Core)Sum", # holywell (deprecated)
+        "daily_stats_sleepAnalysis_Asleep(Core)Sum", # legacy (deprecated)
     ],
     "sleepRem": [
         "dailyTotalSleepAnalysis_Asleep(REM)",    # SQLAggregator
         "REMSleepPercentage",                      # demo
         "REMSleepDuration",                        # demo
         "sleepAnalysis_Asleep(REM)",                # raw
-        "daily_stats_sleepAnalysis_Asleep(REM)Sum", # holywell (deprecated)
+        "daily_stats_sleepAnalysis_Asleep(REM)Sum", # legacy (deprecated)
     ],
     "sleepAwake": [
         "dailyTotalSleepAnalysis_Awake",           # SQLAggregator
@@ -94,13 +94,13 @@ INDICATOR_ALIASES: Dict[str, List[str]] = {
         "dailyTotalSteps",                         # SQLAggregator
         "DailyStepCount",                          # demo
         "steps",                                   # raw
-        "daily_stats_stepsSum",                    # holywell (deprecated)
+        "daily_stats_stepsSum",                    # legacy (deprecated)
     ],
     "exerciseDuration": [
         "dailyTotalExerciseMinutes",               # SQLAggregator
         "DailyExerciseDuration",                   # demo
         "exerciseMinutes",                         # raw
-        "daily_stats_exerciseMinutesSum",           # holywell (deprecated)
+        "daily_stats_exerciseMinutesSum",           # legacy (deprecated)
     ],
     "activeCalories": [
         "ActiveCalories",                          # demo
@@ -110,7 +110,7 @@ INDICATOR_ALIASES: Dict[str, List[str]] = {
     "distance": [
         "dailyTotalWalkingRunningDistances",        # SQLAggregator
         "DailyDistance",                            # demo
-        "daily_stats_walkingRunningDistancesSum",   # holywell (deprecated)
+        "daily_stats_walkingRunningDistancesSum",   # legacy (deprecated)
     ],
 
     # =========================================================================
@@ -122,7 +122,7 @@ INDICATOR_ALIASES: Dict[str, List[str]] = {
         "HRV-RMSSD",                               # demo
         "hrvRMSSD",                                # raw
         "hrvDatas",                                # raw
-        "daily_stats_hrvDatasAvg",                 # holywell (deprecated)
+        "daily_stats_hrvDatasAvg",                 # legacy (deprecated)
     ],
 
     # =========================================================================
@@ -132,7 +132,7 @@ INDICATOR_ALIASES: Dict[str, List[str]] = {
         "dailyAvgBloodGlucoses",                   # SQLAggregator
         "FastingBloodGlucose-FBG",                  # demo
         "bloodGlucoses",                           # raw
-        "daily_stats_bloodGlucosesAvg",            # holywell (deprecated)
+        "daily_stats_bloodGlucosesAvg",            # legacy (deprecated)
     ],
     "hba1c": [
         "EstimatedHbA1c-eA1C",                     # demo
@@ -156,8 +156,8 @@ INDICATOR_ALIASES: Dict[str, List[str]] = {
         "DaytimeAverageSystolicBP",                 # demo
         "systolicPressures",                       # raw
         "bloodPressureSystolics",                  # raw
-        "daily_stats_systolicPressuresAvg",        # holywell (deprecated)
-        "daily_stats_bloodPressureSystolicsAvg",   # holywell (deprecated, old naming)
+        "daily_stats_systolicPressuresAvg",        # legacy (deprecated)
+        "daily_stats_bloodPressureSystolicsAvg",   # legacy (deprecated, old naming)
     ],
     "bpDiastolic": [
         "dailyAvgDiastolicPressures",              # SQLAggregator
@@ -166,8 +166,8 @@ INDICATOR_ALIASES: Dict[str, List[str]] = {
         "DaytimeAverageDiastolicBP",                # demo
         "diastolicPressures",                      # raw
         "bloodPressureDiastolics",                 # raw
-        "daily_stats_diastolicPressuresAvg",       # holywell (deprecated)
-        "daily_stats_bloodPressureDiastolicsAvg",  # holywell (deprecated, old naming)
+        "daily_stats_diastolicPressuresAvg",       # legacy (deprecated)
+        "daily_stats_bloodPressureDiastolicsAvg",  # legacy (deprecated, old naming)
     ],
 
     # =========================================================================
@@ -189,13 +189,13 @@ INDICATOR_ALIASES: Dict[str, List[str]] = {
         "dailyMinOxygenSaturations",               # SQLAggregator
         "DailyMinSpO2",                             # demo
         "oxygenSaturations",                       # raw
-        "daily_stats_oxygenSaturationsAvg",        # holywell (deprecated)
+        "daily_stats_oxygenSaturationsAvg",        # legacy (deprecated)
     ],
     "respiratoryRate": [
         "dailyAvgRespiratoryRates",                # SQLAggregator
         "AverageRespiratoryRate",                    # demo
         "respiratoryRates",                        # raw
-        "daily_stats_respiratoryRatesAvg",         # holywell (deprecated)
+        "daily_stats_respiratoryRatesAvg",         # legacy (deprecated)
     ],
 
     # =========================================================================
@@ -206,7 +206,7 @@ INDICATOR_ALIASES: Dict[str, List[str]] = {
         "BodyWeight",                              # demo
         "bodyMasss",                               # raw
         "weight",                                  # raw
-        "daily_stats_bodyMasssLast",               # holywell (deprecated)
+        "daily_stats_bodyMasssLast",               # legacy (deprecated)
     ],
     "bmi": [
         "dailyLastBmis",                           # SQLAggregator

@@ -577,11 +577,13 @@ async def upload_files_to_storage(
     Universal file upload service that can be reused across projects
     
     Uploads multiple files directly to S3/Aliyun OSS without storing metadata in database.
-    This function is project-agnostic and can be used in holywell or other projects.
+    This function is project-agnostic: it takes only its arguments and touches
+    no module-level state, so it can be lifted into another codebase as-is.
     
     File Caching Strategy:
         - Files are uploaded to S3/OSS for persistent storage
-        - Files are also cached locally in /tmp/holywell_cache/ for faster access
+        - Extracted text is cached in Redis under `file_cache:{file_key}`;
+          there is no local disk cache (an earlier docstring claimed one).
         - Redis stores the local file path (string) with TTL, not binary content
         - This avoids UTF-8 decode errors and provides fast local file access
     

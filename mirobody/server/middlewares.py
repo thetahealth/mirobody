@@ -89,6 +89,9 @@ class JwtMiddleware(BaseHTTPMiddleware):
             try:
                 ctx.update(get_request_info(request))
             except Exception:
+                # Best-effort log enrichment. `ctx` already carries the user_id,
+                # which is the part anything downstream reads; failing the
+                # request because a header could not be parsed would be worse.
                 pass
 
             # Get user's language.

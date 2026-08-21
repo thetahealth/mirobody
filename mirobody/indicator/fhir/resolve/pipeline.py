@@ -3926,7 +3926,7 @@ _CONCEPT_NO_LOINC_QUERY_RE = re.compile(
     r"|T\s*细胞\s*[/／]\s*B\s*细胞\s*比"
     r"|T\s*cell\s*[/／]\s*B\s*cell\s*ratio"
     r"|\bT\s*[/／]\s*B\s+ratio"
-    # 病毒检测 audit (2026-05-28):
+    # ``病毒检测`` audit (2026-05-28):
     # - RSV type-A / type-B antigen — LOINC enumerates pan-RSV Ag
     #   (5874-3 / 5876-8 / 33045-6 / etc.) and type-specific RNA
     #   (77022-2 RSV A RNA, 105213-3 RSV B RNA) but NO type-specific
