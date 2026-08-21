@@ -128,6 +128,13 @@ services:
       - PYTHONUNBUFFERED=1
       - HTTP_HOST=0.0.0.0
       - HTTP_PORT=18080
+      # A first run signs you in to an empty database, which shows off nothing.
+      # This loads one synthetic person's two-year record and puts every
+      # EMAIL_PREDEFINE_CODES account in their care circle, so the demo covers
+      # both "what does the engine do with real volume" and "what is it like to
+      # hold someone else's record". Vendored fixture, no network, no keys.
+      # Set it to false for a deployment that will hold real data.
+      - SEED_DEMO_DATA=${SEED_DEMO_DATA:-true}
     healthcheck:
       # /api/health needs no auth; curl is in the deploy.sh image.
       #

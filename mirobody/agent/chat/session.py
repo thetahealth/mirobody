@@ -17,7 +17,7 @@ async def create_session(
 
     `session_id` is optional. When omitted the function behaves as before
     (mints a uuid4). When supplied — e.g. by a client that needs to
-    encode pane/group metadata directly into the id (cdm compare mode) —
+    encode pane/group metadata directly into the id (compare mode) —
     the supplied id is used verbatim, after a safety check rejects
     obvious abuse (too long / unsupported chars). Other callers that
     don't send the param continue to get backend-minted uuids, so this
@@ -37,7 +37,7 @@ async def create_session(
         # Validate client-supplied session_id against th_sessions.session_id
         # (varchar(100)) so we never push a value the column would truncate.
         # Character whitelist matches what mirobody normally generates
-        # (uuids) plus the underscore/hyphen the cdm codec uses.
+        # (uuids) plus the underscore/hyphen a structured-id codec uses.
         if session_id:
             import re
             if len(session_id) > 100 or not re.fullmatch(r"[A-Za-z0-9_\-]+", session_id):

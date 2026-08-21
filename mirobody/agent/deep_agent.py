@@ -457,7 +457,7 @@ class DeepAgent():
         under the wrong key is a no-op that leaves the general-purpose subagent
         ENABLED, and the model then happily calls ``task``.
 
-        This bit us on the sibling a007-mirovital agent in production
+        This bit a sibling agent of ours in production
         (2026-07-28) and looked fine in test only because the default there is an
         OpenAI-family model, and ``ChatOpenAI`` does override ``ls_provider``.
 

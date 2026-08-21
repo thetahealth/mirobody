@@ -276,8 +276,8 @@ class ChatService:
             query_user_id = params.get("query_user_id", user_id)
             session_id = params.get("session_id")  # Optional — clients may
                                                    # supply a structured id
-                                                   # (e.g. cdm encodes compare
-                                                   # group/pane info into it).
+                                                   # (e.g. a client encoding
+                                                   # compare pane info into it).
         except Exception:
             query_user_id = user_id
             session_id = None

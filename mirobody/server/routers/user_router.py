@@ -98,18 +98,6 @@ async def set_user_settings(
         params["tz"] = request.timezone
 
     if request.mfa_enabled is not None:
-        # Validate: cannot disable MFA while CW connected.
-        if not request.mfa_enabled:
-            cw_result = await execute_query(
-                "SELECT registration_status FROM commonwell_patient WHERE user_id = :uid AND is_del = FALSE LIMIT 1",
-                params={"uid": int(user_id)},
-            )
-            cw_connected = bool(cw_result and len(cw_result) > 0 and cw_result[0].get("registration_status") == "registered")
-            if cw_connected:
-                return JSONResponse(
-                    content={"code": -2, "msg": "Cannot disable MFA while connected to Health Records Network. Please disconnect first."},
-                    status_code=400,
-                )
         update_fields.append("mfa_enabled = :mfa_enabled")
         params["mfa_enabled"] = request.mfa_enabled
 
@@ -213,28 +201,10 @@ async def get_user_settings(
             )
             webauthn_registered = bool(cred_result and cred_result[0].get("cnt", 0) > 0)
 
-            # Check if user is CW connected
-            cw_result = await execute_query(
-                "SELECT registration_status FROM commonwell_patient WHERE user_id = :uid AND is_del = FALSE LIMIT 1",
-                params={"uid": uid},
-            )
-            cw_connected = bool(cw_result and len(cw_result) > 0 and cw_result[0].get("registration_status") == "registered")
-
-            mfa_enabled = bool(user_data.get("mfa_enabled", False))
-
-            # Auto-fix: if CW connected but MFA not enabled, force enable it.
-            if cw_connected and not mfa_enabled:
-                await execute_query(
-                    "UPDATE health_app_user SET mfa_enabled = TRUE, update_at = CURRENT_TIMESTAMP WHERE id = :uid AND is_del = FALSE",
-                    params={"uid": uid},
-                )
-                mfa_enabled = True
-
             security = {
-                "mfa_enabled": mfa_enabled,
+                "mfa_enabled": bool(user_data.get("mfa_enabled", False)),
                 "webauthn_supported": True,
                 "webauthn_registered": webauthn_registered,
-                "cw_connected": cw_connected,
             }
 
         # Build settings response
@@ -329,19 +299,6 @@ async def update_user_settings(
 
         # Update security settings if provided
         if settings.security and settings.security.mfa_enabled is not None:
-            # Validate: cannot disable MFA while CW connected
-            if not settings.security.mfa_enabled:
-                cw_result = await execute_query(
-                    "SELECT registration_status FROM commonwell_patient WHERE user_id = :uid AND is_del = FALSE LIMIT 1",
-                    params={"uid": int(user_id)},
-                )
-                cw_connected = bool(cw_result and len(cw_result) > 0 and cw_result[0].get("registration_status") == "registered")
-                if cw_connected:
-                    return JSONResponse(
-                        content={"code": -2, "msg": "Cannot disable MFA while connected to Health Records Network. Please disconnect first."},
-                        status_code=400,
-                    )
-
             update_fields.append("mfa_enabled = :mfa_enabled")
             update_params["mfa_enabled"] = settings.security.mfa_enabled
 

@@ -125,12 +125,16 @@ PG_MAX_CONNECTION: 20
 # EMAIL_TEMPLATE: ''
 # EMAIL_SMTP_PASS: ''
 
-# Predefined email addresses and verification codes for testing/demo purposes.
-# Uncomment to enable instant demo login (password: the verification code).
+# The demo account. One address, named for the role it plays: you sign in as the
+# CAREGIVER and the record you read belongs to someone else ("Demo (synthetic)",
+# loaded by SEED_DEMO_DATA). `exp1/exp2/exp3` said nothing about that.
+#
+# This is the email-CODE path, which needs no mail provider precisely because the
+# code is listed here. It is a demo credential in a public repository — treat it
+# as public. For an account of your own use `POST /password/register`, which
+# stores a bcrypt hash and ships no default.
 EMAIL_PREDEFINE_CODES:
-  exp1@mirobody.ai: '111111'
-  exp2@mirobody.ai: '111111'
-  exp3@mirobody.ai: '111111'
+  caregiver@mirobody.ai: '111111'
 
 #-----------------------------------------------------------------------------
 # OAuth.
@@ -378,9 +382,6 @@ DATABASE_DECRYPTION_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
 # Jina API Key (OPTIONAL)
 # JINA_API_KEY: ''
 
-# Embedding provider for th_series_dim vector recall column.
-# Supported: gemini, qwen. Default: gemini
-# DIM_EMBEDDING_PROVIDER: gemini
 
 # File analysis LLM provider override (optional).
 # Leave empty for auto-selection based on available API keys.
@@ -395,6 +396,20 @@ DATABASE_DECRYPTION_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
 #   0 = disabled (skip extraction)
 #   1 = enabled (extract indicators)
 ENABLE_INDICATOR_EXTRACTION: 1
+# Embedding provider, for BOTH the fhir_indicators and th_series_dim vector
+# columns — there is one knob, not two. (A second key, DIM_EMBEDDING_PROVIDER,
+# was documented here and read by no code at all; removed.)
+#
+#   gemini      GOOGLE_API_KEY      column embedding_gemini
+#   qwen        DASHSCOPE_API_KEY   column embedding_qwen3 / embedding_qwen
+#   openrouter  OPENROUTER_API_KEY  open-weights Qwen3-Embedding-8B. No database
+#               column: it serves the file-based semantic tier and direct
+#               text_embedding() callers, and setting it here makes the vector
+#               columns unusable until a column is added and both tables are
+#               re-embedded.
+#
+# Corpus and query MUST be embedded by the same model. A mismatched pair does
+# not error, it returns confident nonsense.
 EMBEDDING_PROVIDER: gemini
 
 # Vision model for image/PDF parsing (unified_file_extract). The vision provider

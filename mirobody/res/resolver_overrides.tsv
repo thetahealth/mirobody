@@ -63,9 +63,9 @@ haematocrit	HCT Fr Sg Auto
 packed cell volume	HCT Fr Sg Auto
 
 # ── metabolic panel ──────────────────────────────────────────────────────
-fasting glucose	Glucose
-fasting blood glucose	Glucose
-fasting plasma glucose	Glucose
+fasting glucose	Fasting glucose [Mass/volume] in Serum or Plasma
+fasting blood glucose	Fasting glucose [Mass/volume] in Serum or Plasma
+fasting plasma glucose	Fasting glucose [Mass/volume] in Serum or Plasma
 blood sugar	Glucose
 BUN	Urea nitrogen
 total bilirubin	Bilirubin
@@ -130,7 +130,7 @@ urine specific gravity	SP GR Ur
 血红蛋白	Hemoglobin
 血色素	Hemoglobin
 血糖	Glucose
-空腹血糖	Glucose
+空腹血糖	Fasting glucose [Mass/volume] in Serum or Plasma
 餐后血糖	Glucose
 总胆固醇	Cholesterol
 胆固醇	Cholesterol
@@ -180,7 +180,7 @@ urine specific gravity	SP GR Ur
 クレアチニン	Creatinine
 尿酸値	Urate
 血糖値	Glucose
-空腹時血糖	Glucose
+空腹時血糖	Fasting glucose [Mass/volume] in Serum or Plasma
 白血球数	WBC # Bld
 赤血球数	RBC # Bld
 血小板数	Platelet count
@@ -206,22 +206,30 @@ urine specific gravity	SP GR Ur
 コレステロール	Cholesterol
 尿蛋白	Prot Ur Ql
 尿糖	Glucose Ur-mCnc
+# The spelled-out ホルモン names. `甲状腺刺激ホルモン(TSH)` already resolved via
+# the parenthetical strip, and the bare form — which is what a 健康診断結果表
+# actually prints — did not. Found by the four-language row in
+# examples/01_resolve_offline.py, which shows one analyte in en/简/繁/日 and
+# marks the row when the four disagree.
+甲状腺刺激ホルモン	Thyroid stimulating hormone
+チロトロピン	Thyrotropin
+副甲状腺ホルモン	Parathyrin
 収縮期血圧	Systolic blood pressure
 拡張期血圧	Diastolic blood pressure
-# NOTE: 血圧 / "blood pressure" on its own is deliberately absent. It names a
-# panel, not one observation, and the index answers it with the diastolic code
-# — a confident wrong answer. An honest `unresolved` is the better output.
+# NOTE: 血圧 / "blood pressure" on its own is a panel term and resolves to the
+# panel code — see the "panel terms" section below for why that is not the same
+# as answering it with one of these two.
 
 # ══ Deliberate non-answers ════════════════════════════════════════════════
-# Target `!unresolved` means: never answer this term. These name a PANEL or a
-# category, not one observation, so any single code is a wrong answer. Measured
-# before blocking: "blood pressure" matched 183 index rows and the commonness
-# prior returned 8462-4 — the DIASTOLIC code — so a systolic reading filed
-# under it lands in the wrong series. Callers must ask which measurement is
-# meant. (Terms that legitimately map to a panel/set code are NOT listed here:
-# 血压 → 18684-1 "Blood pressure Set" is a panel code for a panel term.)
-blood pressure	!unresolved
-BP	!unresolved
+# Target `!unresolved` means: never answer this term. These name a category
+# with no panel code of its own, so any single code is a wrong answer: "血脂"
+# is four analytes and LOINC's lipid panels differ by which children they
+# include, so picking one is picking an assumption.
+#
+# A panel TERM that has a real panel CODE is NOT listed here — it is aliased to
+# that code in the "panel terms" section below. The two cases look alike and are
+# opposites: a panel code tells the caller "expect components", which is the
+# very thing we would be refusing in order to say.
 lipid panel	!unresolved
 血脂	!unresolved
 
@@ -255,3 +263,218 @@ lipid panel	!unresolved
 平均血红蛋白含量	MCH
 平均血红蛋白浓度	MCHC
 超敏C反应蛋白	hs-CRP
+
+# ══ device & wearable indicators ═══════════════════════════════════════════
+# Fourth sweep, prompted by the platform API docs: `POST /v1/data` says device
+# and wearable data is the MAIN form structured records take, and every example
+# in it names indicators the way a device SDK does — `steps`,
+# `resting_heart_rate`, `sleep_duration`. The lab panels above were covered;
+# this vocabulary was not. Underscore flattening (engine.py `_candidate_keys`)
+# handles the snake_case shape, so these rows only need the human wording.
+# Two were WRONG rather than missing:
+#   SpO2  -> a Deprecated "Fractional oxyhemoglobin ... Preductal" row with no
+#            LOINC at all — resolved=True carrying an empty code.
+#   HRV   -> 40991-2 Rhinovirus+Enterovirus RNA. NOT fixed here: HRV is a real
+#            abbreviation for human rhinovirus as well as heart rate
+#            variability, so the right answer is a decision, not a lookup. The
+#            spelled-out form already resolves (76643-6).
+resting heart rate	heart rate resting
+静息心率	heart rate resting
+安静時心拍数	heart rate resting
+心率变异性	heart rate variability
+steps	Number of steps
+step count	Number of steps
+daily steps	Number of steps
+睡眠时长	sleep duration
+睡眠時間	sleep duration
+body fat percentage	Percentage of body fat Measured
+体脂率	Percentage of body fat Measured
+SpO2	oxygen saturation
+血氧	oxygen saturation
+# Fasting glucose is its OWN LOINC concept (1558-6, COMPONENT
+# `Glucose^post CFst`), not plain glucose (2339-0). These rows used to target
+# `Glucose`, which collapsed a fasting reading into the generic glucose
+# series — the distinction the ordering physician made, thrown away on
+# ingest.
+FBG	Fasting glucose [Mass/volume] in Serum or Plasma
+FPG	Fasting glucose [Mass/volume] in Serum or Plasma
+glucose, fasting	Fasting glucose [Mass/volume] in Serum or Plasma
+血糖(空腹)	Fasting glucose [Mass/volume] in Serum or Plasma
+
+# ══ lab-report abbreviations ══════════════════════════════════════════════
+# The short codes a CBC / 生化 printout puts in its own column. They were the
+# worst-covered surface in the resolver, and two of them were WRONG rather than
+# missing — the same near-miss class as 血红蛋白 -> HbA1c, just wearing the
+# abbreviation instead of the word:
+#
+#   HGB -> 4548-4  Hemoglobin A1c        (a diabetes marker for a CBC line)
+#   HCT -> 1992-7  Calcitonin            (a thyroid hormone for hematocrit)
+#
+# Targets are the phrasings the index actually keys on; each row was checked
+# with `mirobody resolve` before being written down.
+HGB	Hemoglobin
+Hb	Hemoglobin
+HCT	HCT Fr Sg Auto
+PCV	HCT Fr Sg Auto
+PLT	Platelet count PLT
+RBC	RBC # Bld
+WBC	WBC # Bld
+TC	Cholesterol
+TG	Triglyceride
+GLU	Glucose
+Cr	Creatinine
+CREA	Creatinine
+UA	Urate
+TP	Protein
+CK	Creatine kinase
+# Abbreviations that name more than one test resolve to the WIDESPREAD
+# reading rather than refusing. A panel name is a different case and stays
+# blocked (see the non-answers section): there, no single observation code
+# can be right. Here one reading dominates ordinary use by a wide margin,
+# and an honest miss on `CA` helps nobody when 钙 is what a 生化 panel means
+# by it ~always. What must not happen is the index picking for us — that is
+# how HGB became HbA1c — so each is written down.
+#   CA = 钙 (calcium), not 癌抗原 CA-125/CA19-9 (those spell themselves out)
+#   PT = 凝血酶原时间 (prothrombin time), not 前列腺素 / 甲状旁腺
+#   MG = 镁 (magnesium), not the unit mg
+#   Cr = 肌酐 (creatinine), not chromium — and note `Cr`/`CR` casefold to one
+#        key, so only one row can win
+CA	Calcium
+PT	Prothrombin time (PT)
+MG	Magnesium
+
+# ══ 日本語 — 健康診断 terms the ja.tsv sweep does not carry ═══════════════════
+# ja.tsv is 16,809 rows but its right-hand side is overwhelmingly SNOMED-shaped:
+# diseases and organisms (Jaagsiekte sheep retrovirus, Ornithine
+# transcarbamoylase deficiency), not LOINC observations — only 3% of its
+# distinct targets are keys the observation index can look up. Everyday 健康診断
+# names come out at 20/24 all the same, via zh/ja_curated plus the index; these
+# four are what a spot-check of the panel found missing.
+LDLコレステロール	LDL-C
+HDLコレステロール	HDL-C
+血清鉄	Iron
+鉄	Iron
+フェリチン	Ferritin
+
+# HRV is heart rate variability. It is also the abbreviation for human
+# rhinovirus, and the index preferred that reading: `HRV` answered 40991-2
+# Rhinovirus+Enterovirus RNA, a PCR panel, for what every wearable on the
+# market means by those three letters. Same rule as CA/PT/MG above — the
+# widespread reading, written down rather than left to the commonness prior.
+HRV	heart rate variability
+# 凝血酶原时间 answered 34714-6 INR: a DERIVED ratio, not the time itself.
+凝血酶原时间	Prothrombin time (PT)
+
+# ══ panel terms that DO have a panel code ═════════════════════════════════
+# "blood pressure" written on its own. All four spellings below name the same
+# concept and, before this block existed, got three different answers:
+#
+#   血压              -> 18684-1  via the index
+#   血圧              -> nothing  (no entry in any language file)
+#   blood pressure    -> blocked  (the index answered 8462-4, DIASTOLIC — a
+#                                  systolic reading filed under it lands in the
+#                                  wrong series, which is why it was blocked)
+#   BP                -> blocked  (same)
+#
+# The eval harness asked why one language got a code and another got silence,
+# and there was no reason. But unifying them exposed the worse bug: 18684-1 is
+# not a blood-pressure panel. Its axis reads PROPERTY=Cmplx, SCALE=Set,
+# CLASS=ATTACH.ED — an emergency-department ATTACHMENT code, a document, not a
+# measurement. Its LONG_COMMON_NAME just happens to read "First Blood pressure
+# Set". So the language that "worked" was returning a document code with full
+# confidence.
+#
+# 85354-9 is the real answer: CLASS=PANEL.VITALS, and it is the code FHIR R4's
+# vital-signs profile mandates for blood pressure, with 8480-6 / 8462-4 as its
+# components. A caller who wants one number still has to say which — that is
+# what a panel code means — but now they are told that, instead of being handed
+# either silence or an ED attachment.
+#
+# `blood_pressure` needs no row: underscore flattening reaches "blood pressure".
+# It is pinned in test_engine_coverage.py anyway, because that flattening is
+# exactly the route that used to walk around the old block.
+血压	Blood pressure panel with all children optional
+血圧	Blood pressure panel with all children optional
+blood pressure	Blood pressure panel with all children optional
+BP	Blood pressure panel with all children optional
+
+# ══ 台灣繁體 clinical vocabulary ═══════════════════════════════════════════
+# NOT a script variant of the 中文 rows above. `lexical.surface_variants` folds
+# zh-Hant to zh-Hans on the way in, so 白細胞 / 總膽固醇 / 穀丙轉氨酶 already
+# reach their Simplified rows without help. These are the terms where Taiwan
+# clinical usage picks a DIFFERENT WORD, and folding them is worse than useless
+# — it manufactures the exact failure this project scores worst:
+#
+#   血紅素   folds to 血红素   -> 4548-4  HbA1c        (in Taiwan it is HAEMOGLOBIN)
+#   糖化血色素 folds to 糖化血色素 -> nothing              (this is the actual HbA1c)
+#
+# So the fold got haemoglobin and HbA1c backwards, confidently, for every
+# Taiwanese report. `_candidate_keys` tries the term as written before any
+# variant, so these rows win over the fold by construction.
+#
+# Source of truth for the wording: the 檢驗報告單 a Taiwanese hospital prints,
+# not a character conversion of a mainland form.
+#
+# A right-hand side must be a key the ALIAS INDEX can look up — as the file
+# header says — and not another row's left-hand side. Three of these rows were
+# first written as `飯前血糖 -> Fasting glucose`, which is itself an override
+# key, and the resolver does not follow a two-hop chain: they resolved to
+# nothing and looked fine. Point at the index key the other row points at.
+# Rows whose term already resolved without them were dropped rather than left
+# as decoration (尿素氮, 白血球, 血小板計數 all reach the index unaided).
+血紅素	Hemoglobin
+血红素	Hemoglobin
+糖化血色素	HbA1c
+肌酸酐	Creatinine
+血中尿素氮	Urea nitrogen
+紅血球	红细胞
+紅血球計數	红细胞
+白血球計數	Leukocytes [#/volume] in Blood
+飯前血糖	Fasting glucose [Mass/volume] in Serum or Plasma
+空腹血糖值	Fasting glucose [Mass/volume] in Serum or Plasma
+甲狀腺刺激素	Thyroid stimulating hormone
+甲狀腺促素	Thyroid stimulating hormone
+總膽固醇值	Cholesterol
+低密度膽固醇	LDL-C
+高密度膽固醇	HDL-C
+尿蛋白質	Prot Ur Ql
+
+# 血脂肪 is the Taiwan wording for the lipid panel — same category term, same
+# reason it cannot have one code. Listed here rather than in the block section
+# above because it is the 台灣 spelling of an entry that already exists there.
+血脂肪	!unresolved
+
+# ══ qualitative indicators ═════════════════════════════════════════════════
+# Half of what a report prints is not a number, and half the shipped corpus is
+# not Qn — 25,156 Ord rows, 7,859 Nom, 4,258 SemiQn. A urinalysis panel, a
+# serology screen and a blood type are all 阴性/阳性/++ results, and the ones
+# below simply had no entry at all.
+#
+# Targets are the [Presence] / [Type] variants, because that is what these
+# tests ARE. `resolve_reading` then moves along the scale axis when a value
+# says otherwise, so a term that also has a quantitative form (乙肝表面抗体 is
+# reported both as a titre and as reactive/non-reactive) still lands right.
+尿隐血	Hemoglobin [Presence] in Urine by Test strip
+尿红细胞	Erythrocytes [Presence] in Urine
+尿亚硝酸盐	Nitrite Ur Ql
+亚硝酸盐	Nitrite Ur Ql
+尿白细胞酯酶	Leukocyte esterase
+白细胞酯酶	Leukocyte esterase
+乙肝表面抗原	Hepatitis B virus surface Ag
+HBsAg	Hepatitis B virus surface Ag
+乙肝表面抗体	Hepatitis B virus surface Ab
+乙肝e抗原	Hepatitis B virus e Ag
+乙肝核心抗体	Hepatitis B virus core Ab
+丙肝抗体	Hepatitis C virus Ab
+anti-HCV	Hepatitis C virus Ab
+HIV抗体	HIV 1+2 Ab
+梅毒抗体	Treponema pallidum Ab
+# 血型 answered 50962-0 "XXX blood group IgG Ab [Titer]" — an antibody titre,
+# not a blood type. ABO grouping is 883-9.
+血型	ABO group
+血型鉴定	ABO group
+ABO血型	ABO group
+blood type	ABO group
+blood group	ABO group
+Rh血型	Rh typing
+RhD血型	Rh typing

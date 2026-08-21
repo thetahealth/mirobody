@@ -80,7 +80,7 @@ things to know:
   fields, `resultType` on every result, `server/discover`, deterministic
   `tools/list` ordering. Older revisions back to `2024-11-05` still negotiate.
 - **Terminology over MCP** — `resolve_indicator` and `normalize_unit` expose
-  ② Sort itself: any-language indicator name → LOINC, free-text unit → UCUM plus
+  ② Standardize itself: any-language indicator name → LOINC, free-text unit → UCUM plus
   its comparability family. Both are offline, need no account, and read no user
   data.
 - **Agent Skills** via deepagents' native `SkillsMiddleware`, mounted read-only
@@ -103,6 +103,56 @@ things to know:
 
 ### Fixed
 
+- **The spelling no longer decides the answer.** New
+  `mirobody/indicator/lexical.py`: NFKC-lite folding (full-width, superscripts,
+  the six Unicode dash variants) and a CJK-aware tokenizer, used to derive extra
+  candidate surfaces for a lookup. The bundle's own normalizer is NFKC +
+  casefold and must stay that way — it folded the index keys at build time — so
+  `LDL–C` (en-dash) missed while `LDL-C` resolved, one invisible codepoint
+  apart, and `fasting_glucose` missed while `fasting glucose` resolved. The
+  latter is the convention the platform API documents in every `POST /data`
+  example, so a caller following the docs got an unresolved row for a term the
+  engine knows. Variants are tried **last**, after the term as written has
+  missed, so they can only turn a miss into a hit.
+  The deliberate-non-answer check runs over the variants too: without that,
+  `blood_pressure` skipped a block written for `blood pressure`, tokenized to it
+  anyway and came back 8462-4 (diastolic) — the exact bug the sentinel was
+  written for, through the back door. Both spellings are pinned in
+  `MUST_NOT_RESOLVE`.
+- **`名称(缩写)` resolves — and refuses when the halves disagree.** The shape a
+  lab report prints more often than not: on the hosted platform's production
+  data, 147 of 868 distinct indicator names are `名称(缩写)` and 70 of those
+  carried no code at all. `resolve` now strips the trailing parenthetical (all
+  four bracket pairs, full-width included), resolves **both** halves, and takes
+  the answer only when they agree or only one of them resolves. `空腹血糖(GLU)`,
+  `总胆固醇(TC)`, `血小板计数（PLT）`, `尿素氮(BUN)` now resolve; `血糖(HbA1c)`
+  and `胆固醇(HDL-C)` stay unresolved, because preferring the stem there would
+  file an HbA1c reading into the glucose series. Measured over 6,641 terms that
+  resolve when written plainly: **0% → 100%** survive being written in the
+  `名称(缩写)` shape.
+- **Device and wearable vocabulary resolves.** `POST /v1/data` calls device data
+  the main form structured records take, and that vocabulary was the least
+  covered: `steps`, `resting heart rate`, `sleep duration`, `body fat
+  percentage`, `静息心率`, `睡眠时长`, `体脂率`, `FBG`/`FPG`, `血糖(空腹)` all
+  missed, and `SpO2` was worse than missing — it answered a **deprecated**
+  "Fractional oxyhemoglobin … Preductal" row carrying no LOINC at all
+  (`resolved=True`, empty code). 18 rows in `resolver_overrides.tsv`, each
+  verified against its target.
+  `HRV` is deliberately left alone: it abbreviates human rhinovirus as well as
+  heart rate variability (it answers 40991-2, Rhinovirus+Enterovirus RNA), so
+  the right result is a decision rather than a lookup. The spelled-out form and
+  `心率变异性` resolve to 76643-6.
+- **The abbreviation column resolves, and the ambiguous ones are refused.**
+  The short codes a CBC / 生化 printout puts beside each analyte were the
+  worst-covered surface in the engine, and two of them were WRONG rather than
+  missing — the 血红蛋白 → HbA1c near-miss again, wearing the short code instead
+  of the word: `HGB` → 4548-4 **Hemoglobin A1c**, `HCT` → 1992-7
+  **Calcitonin**. `HGB`/`Hb`/`HCT`/`PCV`/`PLT`/`RBC`/`WBC`/`TC`/`TG`/`GLU`/
+  `Cr`/`CREA`/`UA`/`TP`/`CK` now resolve correctly. `CA`, `PT` and `MG` are
+  blocked instead: each names more than one test (钙 vs 癌抗原; prothrombin time
+  vs 前列腺素; 镁 vs the unit), and the index answers whichever the commonness
+  prior likes — which is exactly how `HGB` became HbA1c.
+  Resolver coverage: **116/116 → 175/175**.
 - **A malformed tool call no longer ends the turn as an empty answer.**
   claude-sonnet (via OpenRouter, temperature 0.1) deterministically emitted
   `{"aggregate": none}` — Python's `None`, not JSON — LangChain parked the call
@@ -214,6 +264,44 @@ things to know:
   `pip install mirobody-*.tar.gz` failed at `backend-path entry 'scripts' does
   not exist` — before any project code ran. CI now installs from the sdist as
   well as the wheel, because no wheel test can catch that.
+
+### Added — a records API shaped like the hosted one
+
+- **`POST /api/standardize` · `POST` · `GET` · `DELETE /api/data`**
+  (`server/routers/records_router.py`). Same request bodies, response envelopes
+  and field names as the corresponding endpoints on
+  [docs.mirobody.ai](https://docs.mirobody.ai/en/api-reference/), so code
+  written against a self-hosted deployment reads like code written against the
+  hosted one instead of being a second API to learn.
+  `POST /api/data` standardizes every record on the way in and answers
+  `{"status":"ok","ingested":N,"standardized":M}`; `GET /api/data` returns
+  `{"object":"list","data":[…],"has_more":…}` one object per reading, carrying
+  the row `id` that `DELETE /api/data?id=` takes; `POST /api/standardize`
+  returns `{"object":"extraction","data":[…]}` and is a dry-run unless
+  `store=true`.
+  Three deliberate departures, all the same direction — this is one machine, not
+  a multi-tenant plane: **no `/v1` prefix** (these are not the hosted contract);
+  **no `user` / `retention` / `session_id` / `mb_live_*`** (your JWT says who you
+  are, and a row lives until something deletes it) — `retention` and
+  `session_id` are accepted and ignored rather than rejected, because a 400 for
+  a field the platform docs told you to send helps nobody; and **`DELETE
+  /api/data` requires an explicit scope** (`id`, `indicator`, or `all=true`),
+  where the hosted endpoint reads "no filter" as "everything".
+  Errors on this surface use the platform envelope
+  (`{"error":{message,type,code,param}}`); the web client's endpoints keep the
+  house `{code,msg,data}`.
+- **`engine.parse_text`** — the text half of `parse_file`, split out so
+  `/api/standardize` can extract from a string without writing a temp file.
+
+### Changed — naming
+
+- **Stage ② is `Standardize`, stage ③ is `Answers`** — was `Sort` / `Answer`.
+  The three stages are the spine of both this README and
+  [docs.mirobody.ai](https://docs.mirobody.ai/), and they have to be the same
+  three words in both: **① Collect → ② Standardize → ③ Answers**, C · S · A.
+  `Sort` also under-described what `indicator/` does — it resolves codes and
+  normalizes units, which is standardization, not ordering. Labels and prose
+  only; no module, package or symbol was renamed.
 
 ### Changed — documentation and tests
 

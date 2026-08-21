@@ -5,7 +5,7 @@ Computes derived indicators from existing daily summaries in th_series_data.
 Independent from SQLAggregator — reads th_series_data, computes, writes back.
 
 Data source priority:
-  1. holywell stage2 output (daily_stats_*, already source-resolved)
+  1. legacy `daily_stats_*` rows (already source-resolved when written)
   2. SQLAggregator output (daily{Method}{Indicator}.{source}, pick by source priority)
 """
 
@@ -67,11 +67,17 @@ def _safe_divide(numerator: float, denominator: float) -> Optional[float]:
 
 
 # ---------------------------------------------------------------------------
-# Holywell alias mapping: standard name → holywell daily_stats_* name
-# holywell stage2 uses: daily_stats_{indicator}{Method}
-# SQLAggregator uses:   daily{Method}{Indicator}
+# Legacy alias mapping: current name → the `daily_stats_*` spelling.
+#
+# th_series_data still holds rows written under an older aggregation scheme
+# that named things `daily_stats_{indicator}{Method}`, where the current
+# SQLAggregator writes `daily{Method}{Indicator}`. Nothing produces the old
+# spelling any more, but the historical rows are real data and a derived rule
+# that ignored them would silently lose years of history — so every lookup
+# checks both spellings. The values are therefore DATA, not naming
+# preference: do not "modernise" them.
 # ---------------------------------------------------------------------------
-HOLYWELL_ALIASES: Dict[str, str] = {
+LEGACY_DAILY_STATS_ALIASES: Dict[str, str] = {
     # Sleep
     "dailyTotalSleepAnalysis_Asleep(Total)": "daily_stats_sleepAnalysis_Asleep(Total)Sum",
     "dailyTotalSleepAnalysis_InBed": "daily_stats_sleepAnalysis_InBedSum",
@@ -237,7 +243,7 @@ class DerivedAggregator:
     Computes derived indicators from th_series_data daily summaries.
 
     Source priority:
-      1. holywell stage2 (daily_stats_*, already source-resolved, priority=0)
+      1. legacy `daily_stats_*` rows (already source-resolved, priority=0)
       2. SQLAggregator (daily{Method}{Indicator}.{source}, priority from th_data_source_priority)
     Uses DISTINCT ON + priority ordering to pick the best value per user-day-indicator.
     """
@@ -283,17 +289,17 @@ class DerivedAggregator:
         """
         Process a single derived rule across all user-days.
 
-        For each input indicator, queries BOTH holywell (daily_stats_*) and
-        SQLAggregator (daily{Method}*.{source}) data, picks best by priority.
+        For each input indicator, queries BOTH the legacy `daily_stats_*`
+        rows and SQLAggregator (daily{Method}*.{source}), picks best by priority.
         """
         n_inputs = len(rule.input_indicators)
 
-        # Build UNION ALL for each input: holywell alias (priority=0) + SQLAggregator (source priority)
+        # Build UNION ALL for each input: legacy alias (priority=0) + SQLAggregator (source priority)
         union_parts = []
         params: Dict[str, Any] = {"cutoff": cutoff, "n_inputs": n_inputs}
 
         for i, inp in enumerate(rule.input_indicators):
-            alias = HOLYWELL_ALIASES.get(inp)
+            alias = LEGACY_DAILY_STATS_ALIASES.get(inp)
             param_std = f"std_{i}"
             params[param_std] = inp
 
@@ -310,9 +316,9 @@ class DerivedAggregator:
                   AND value ~ '^-?[0-9]+\\.?[0-9]*$'
             """)
 
-            # Holywell alias: exact match, priority=0 (highest)
+            # Legacy alias: exact match, priority=0 (highest)
             if alias:
-                param_hw = f"hw_{i}"
+                param_hw = f"legacy_{i}"
                 params[param_hw] = alias
                 union_parts.append(f"""
                     SELECT user_id, start_time::date AS day,

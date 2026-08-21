@@ -474,7 +474,12 @@ async def _phase2_embed(
     async def flush() -> None:
         if not buf_text:
             return
-        embs = await text_embedding(buf_text, provider="gemini")
+        # provider=None reads EMBEDDING_PROVIDER. Hardcoding gemini here meant
+        # this exporter built a GEMINI matrix whatever the deployment was
+        # configured for, and nothing downstream could tell: the artifact
+        # carries no record of the model that produced it, so a mismatched
+        # corpus/query pair returns confident nonsense rather than an error.
+        embs = await text_embedding(buf_text, provider=None)
         for i, emb in zip(buf_idx, embs):
             if emb is None:
                 raise RuntimeError(

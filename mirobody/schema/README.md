@@ -83,9 +83,10 @@ checking every table and column against the code:
 | `th_user_custom_skills` (`31_…`) | Its CRUD router is gone: DeepAgent loads Agent Skills from `SKILL_DIRS` on disk, so nothing ever read this table. |
 | `27_add_tags_to_sessions`, `34_add_session_status_fields`, `44_th_sessions_add_status` | `tags`, `read_status`, `write_status`, `ai_status`, `status` — a notes/journal feature that does not exist here. `category` survived (a live `IS NULL` filter) and moved to its owning baseline. |
 | `th_messages.comment` + its GIN trigram index | Never read; its only writer was an argument no caller passed. The index paid trigram maintenance on every insert into the busiest table. |
+| `th_series_data.full_dim_id` + `idx_th_series_data_full_dim_id` (`42_`) | The second key `42_` added beside `fhir_id`, into `indicator_full_dim` — a dimension table no baseline here creates, owned by a service this project no longer runs. Nothing here read or wrote the column, so the index kept a b-tree over an always-NULL column on every insert into `th_series_data`. `fhir_id` stayed: it is live (`_coding_for`). |
 
-Nothing was dropped from existing databases except those two indexes
-(`99_drop_unused_chat_indexes.sql`) — removing DDL from a baseline only changes
+Nothing was dropped from existing databases except four indexes and one table
+(`99_drop_unused_ddl.sql`) — removing DDL from a baseline only changes
 what a *new* database gets, and `DROP COLUMN`/`DROP TABLE` would destroy data a
 deployment may still hold. Production and staging provision their schema ahead of
 time (see "It only runs in dev"), so none of this touches them.

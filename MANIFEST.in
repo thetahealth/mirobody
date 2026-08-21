@@ -20,3 +20,10 @@ recursive-include mirobody/res *.NOTICE
 exclude CLAUDE.md
 recursive-exclude docs *
 recursive-exclude frontend *
+
+# The sdist half of scripts/build_backend.py::_BUILD_ONLY_DATA — 28 MB of
+# terminology artifacts no runtime code path reads. Keep the two lists in step;
+# scripts/check_wheel_data.py checks BOTH artifacts.
+exclude mirobody/res/fhir_concept_graph.bin
+exclude mirobody/res/fhir_taxonomy.bin
+exclude mirobody/res/fhir_snomed_ct_bundle.tar.gz

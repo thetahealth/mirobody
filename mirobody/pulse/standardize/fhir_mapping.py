@@ -203,14 +203,24 @@ class FhirMapping:
 
     async def _insert_indicator(self, code: str, short_name: str,
                                 description: str, unit: str) -> Optional[int]:
-        """Insert a new indicator into fhir_indicators and return its id."""
+        """Insert a new indicator into fhir_indicators and return its id.
+
+        The column list used to end in ``update_time``, which
+        ``schema/01_basedata.sql`` does not define — so this INSERT raised
+        ``column "update_time" of relation "fhir_indicators" does not exist``
+        against our own DDL, every time. It went unnoticed because the write
+        path is gated behind ``FHIR_TABLE_AUTO_W`` and because the table used
+        to be populated by an external mapper instead. That mapper is retired,
+        which makes this the only thing that can put a row in the table, so it
+        has to actually work.
+        """
         query = f"""
             INSERT INTO {FHIR_TABLE_NAME} (
                 indicator_standard, code, full_name, short_name,
-                description, unit, llm_unit, rank, update_time
+                description, unit, llm_unit, rank
             ) VALUES (
                 :standard, :code, :full_name, :short_name,
-                :description, :unit, :llm_unit, 0, CURRENT_TIMESTAMP
+                :description, :unit, :llm_unit, 0
             )
             ON CONFLICT (indicator_standard, code) DO NOTHING
             RETURNING id

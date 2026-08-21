@@ -7,7 +7,7 @@ Extensible indicator search engine with domain-specific adapters and graph-based
 ```
 indicator/
   fhir/                  # FHIR-vocabulary domain implementation
-    search.py            # FhirAdapter: FHIR tables, th_series_data, etc.
+    adapter.py           # FhirAdapter: FHIR tables, th_series_data, etc.
     graph_builder.py     # Build fhir_id graph binary from bridge/sibling CSVs
     bridge.py            # Cross-vocabulary bridge files
     siblings.py          # Same-system sibling groups
@@ -57,7 +57,7 @@ indicator/
 3. **Global score sort** -- merged result is sorted by score descending, so callers can compare candidates across vocabularies and judge by relative score (no opaque threshold knob)
 
 ```python
-from mirobody.indicator.fhir.search import FhirAdapter
+from mirobody.indicator.fhir.adapter import FhirAdapter
 
 adapter = FhirAdapter(bundle_dir=...)
 results = await adapter.resolve("blood glucose", top_k=3, systems=["LOINC"])
@@ -545,11 +545,26 @@ Files prefixed with `_` are intermediate. The runtime search service only needs 
 
 | Artifact | Content | Required? |
 |----------|---------|-----------|
-| `fhir_embeddings.npy` (gemini) / `fhir_embeddings_<provider>.npy` (others) | structured `(N,)` of `[fhir_id i8, emb f2[1024]]`, fp16 L2-normalised | yes |
+| `fhir_embeddings.npy` | structured `(N,)` of `[fhir_id i8, emb f2[1024]]`, fp16 L2-normalised | yes |
 | `fhir_meta.csv.gz` | `(N,)` rows of `name` + `code_str` (latter only for DCM/THETA hash rows) | optional (search works without; resolve `name` empty) |
-| `fhir_id_map.npy` | `(N,)` int64 — `db_pks[r]` is the `fhir_indicators.id` for embedding row `r` | optional (compat mode only) |
+| `fhir_id_map.npy` | `(N,)` int64 — `db_pks[r]` is the `fhir_indicators.id` for embedding row `r` | optional, and **no longer in this repo**: it maps to one database's PRIMARY KEYS, so it is meaningless in any other deployment. Regenerate with `indicator id-map` against your own `fhir_indicators`. |
 
-The active provider is read from `DIM_EMBEDDING_PROVIDER` (default `gemini`). gemini keeps the unprefixed `fhir_embeddings.npy` so existing disk mounts don't need a rename; other providers (e.g. `qwen`) get a sibling `fhir_embeddings_<provider>.npy` in the same directory. `fhir_meta.csv.gz` and `fhir_id_map.npy` are **not** provider-tagged — they're row-aligned to whichever emb npy was just exported, and a fresh export overwrites them. Switching provider therefore requires re-exporting both providers' emb npys against the same `fhir_indicators` snapshot to keep all bundles row-consistent.
+**None of these files is provider-tagged, and the filename is fixed** —
+`local.py::EMB_BASENAME` is the literal `fhir_embeddings.npy`. A bundle
+directory therefore holds the vectors of exactly ONE embedding model, and
+nothing in the artifact records which one. (This paragraph used to describe a
+`DIM_EMBEDDING_PROVIDER` config key selecting between `fhir_embeddings.npy` and
+sibling `fhir_embeddings_<provider>.npy` files via an `emb_basename()` helper.
+No such key is read by any Python file and no such helper exists; the scheme was
+documented but never built. Removed rather than left as a description of
+imaginary behaviour.)
+
+That the model is unrecorded is the sharp edge here, because a mismatched
+corpus/query pair does not fail — it returns confident nonsense. A matrix built
+by one Qwen3-Embedding serving config, queried with another, answered `空腹血糖`
+with *"Widespread delusions [DI-PAD]"*. When swapping providers, re-export
+**all three** files together against the same `fhir_indicators` snapshot, and
+keep the query side on the same `EMBEDDING_PROVIDER`.
 
 All three files are **row-aligned by index** to the active emb npy — the i-th meta row and the i-th id_map entry describe the same concept as `arr[i]`. Loaders abort if row counts disagree; never half-aligned.
 
@@ -564,7 +579,7 @@ python -m mirobody.indicator embeddings --from-db    # writes all three artifact
 python -m mirobody.indicator code-names              # fills name column from ~/ref
 ```
 
-`embeddings --from-db` streams `fhir_indicators` rows with the active provider's embedding column set (`embedding_gemini` / `embedding_qwen3`, selected via `DIM_EMBEDDING_PROVIDER`) in a **single pass** that produces all three artifacts at once: each fetched row contributes its embedding (→ npy `emb`), canonical fhir_id (→ npy `fhir_id`), DB pk (→ id_map `db_pks[r]`), and original code string for hash rows (→ meta `code_str`).
+`embeddings --from-db` streams `fhir_indicators` rows with the active provider's embedding column set (`embedding_gemini` / `embedding_qwen3`, selected via `EMBEDDING_PROVIDER` through `resolve_fhir_embedding_column`) in a **single pass** that produces all three artifacts at once: each fetched row contributes its embedding (→ npy `emb`), canonical fhir_id (→ npy `fhir_id`), DB pk (→ id_map `db_pks[r]`), and original code string for hash rows (→ meta `code_str`).
 
 Embedding download is checkpoint-resumable via memmap partials + `progress.json` in `out/` (handles Ctrl-C / DB disconnects across hours).
 
@@ -613,18 +628,34 @@ mv mirobody/res/fhir_embeddings.npy.bak mirobody/res/fhir_embeddings.npy
 
 #### Distribution matrix
 
-| File | Size | pip wheel | Git LFS | GitHub Releases | Required by |
-|---|---:|:-:|:-:|:-:|---|
-| `fhir_concept_graph.bin` | ~9 MB | ✓ | ✓ | — | `FhirAdapter.expand` (search) |
-| `fhir_taxonomy.bin` | ~180 KB | ✓ | ✓ | — | `Taxonomy.get` (FHIR API category view) |
-| `fhir_embeddings.npy` (or `_<provider>.npy`) | 1.4 GB each | ✗ | ✗ (gitignored) | ✓ | `FhirAdapter.search` / `FhirAdapter.resolve` local path |
-| `fhir_id_map.npy` | 5.4 MB | ✗ | ✓ | ✓ | `FhirAdapter.search` local path in compat mode |
-| `fhir_meta.csv.gz` | 6.9 MB | ✗ | ✓ | ✓ | `FhirAdapter.resolve` (display names) |
+| File | Size | pip wheel | Git LFS | Required by |
+|---|---:|:-:|:-:|---|
+| `fhir_loinc_bundle.tar.gz` | 15.5 MB | ✓ | ✓ | `engine.resolve` — alias index, axis table, commonness prior |
+| `fhir_meta.csv.gz` | 6.9 MB | ✓ | ✓ | `engine.resolve` — the 677k-name corpus the index points into |
+| `aliases_src/*.tsv` | 1.9 MB | ✓ | — | `engine.resolve` — ~48k multilingual alias rows |
+| `resolver_overrides.tsv` | 20 KB | ✓ | — | `engine.resolve` — corrections and deliberate non-answers |
+| `fhir_concept_graph.bin` | 22.5 MB | ✗ | ✓ | `FhirAdapter.expand`, and the build tooling in this package |
+| `fhir_taxonomy.bin` | 180 KB | ✗ | ✓ | `Taxonomy.get` (FHIR API category view) |
+| `fhir_snomed_ct_bundle.tar.gz` | 140 KB | ✗ | ✓ | the v2 pipeline's body-structure mask |
+| `fhir_embeddings.npy` | 198 MB (LOINC-only) – 1.4 GB (full corpus) | ✗ | ✗ | the semantic tier; build it with `scripts/build_loinc_embeddings.py` |
+| `fhir_id_map.npy` | 5.4 MB | ✗ | ✗ | **not in this repo** — see below |
 
-`pyproject.toml` package-data only matches `**/*.bin` under `mirobody/res/`, so `pip install` ships exactly the two `.bin` files. The `.npy` / `.csv.gz` trio is fetched out-of-band:
+The three ✗-in-wheel `.bin`/`.tar.gz` files are pruned by
+`scripts/build_backend.py::_BUILD_ONLY_DATA`, and
+`scripts/check_wheel_data.py` fails the build if any of them reappears — or if
+any of the four ✓ files goes missing. Both directions are gated, because both
+have gone wrong: release 1.0.62 shipped LFS pointer stubs for the ✓ files, and
+every release before this one shipped 28 MB of the ✗ files that nothing at
+runtime reads.
+
+`fhir_id_map.npy` maps canonical ids to `fhir_indicators.id` — **one database's
+primary keys**. It is meaningless in any other deployment and was deleted rather
+than merely unshipped; regenerate your own with `indicator id-map` if you are
+running in compat mode.
+
 
 - **Search-only deployment.** Two `.bin` files are enough — `FhirAdapter.search` falls back to pgvector on `fhir_indicators` when `fhir_embeddings.npy` is absent, no behavioural difference except DB hit + latency.
-- **Offline / fast deployment.** Need all three `.npy` / `.csv.gz` files in the same directory. Mount them on a virtual disk and set `FHIR_INDICATORS_DIR` (see below).
+- **Offline / fast deployment.** Needs `fhir_embeddings.npy` and `fhir_meta.csv.gz` in the same directory (plus `fhir_id_map.npy` in compat mode, which you regenerate). Mount them on a virtual disk and set `FHIR_INDICATORS_DIR` (see below).
 - **Resolve-only deployment.** Same as offline — `fhir_meta.csv.gz` is **mandatory** for `ResolveResult.name` to populate; without it, resolve silently returns `name=""`.
 
 #### Mounting an external bundle
@@ -637,17 +668,17 @@ The 1.4 GB `fhir_embeddings.npy` is too large for the pip wheel and Git LFS quot
 
    ```python
    from mirobody.utils import safe_read_cfg
-   from mirobody.indicator.fhir.search import FhirAdapter
+   from mirobody.indicator.fhir.adapter import FhirAdapter
 
    bundle_dir = safe_read_cfg("FHIR_INDICATORS_DIR")  # None if unset
    adapter = FhirAdapter(bundle_dir=bundle_dir)
    ```
 
-2. `_resolve_bundle_dir()` validates `bundle_dir` by checking that the active provider's emb npy (per `DIM_EMBEDDING_PROVIDER`, see `emb_basename()`) exists in it. If yes → use it. If no (or `bundle_dir is None`) → fall back to `mirobody/res/` and log a warning.
+2. `_resolve_bundle_dir()` validates `bundle_dir` by checking that `fhir_embeddings.npy` (`local.py::EMB_BASENAME`) exists in it. If yes → use it. If no (or `bundle_dir is None`) → fall back to `mirobody/res/` and log a warning.
 
    An explicit `bundle_dir` that fails validation does **not** then re-check `FHIR_INDICATORS_DIR` — explicit caller intent isn't quietly redirected to ambient config (mirrors `ConceptGraph.get`'s "explicit path → bundled fallback" model).
 
-**Path-keyed cache.** `load(bundle_dir=...)` keys its singleton on `(resolved_path, emb_basename)`, so multiple `FhirAdapter` instances pinned to different bundles — or to different providers in the same bundle — each get their own cache (~200 MB of Python heap each, plus a shared mmap). Reuse the same adapter instance for the same path + provider; different paths with the same physical file still get separate dict copies.
+**Path-keyed cache.** `load(bundle_dir=...)` keys its singleton on the resolved path, so multiple `FhirAdapter` instances pinned to different bundles each get their own cache (~200 MB of Python heap each, plus a shared mmap). Reuse the same adapter instance for the same path + provider; different paths with the same physical file still get separate dict copies.
 
 **Note.** `fhir_concept_graph.bin` is small (~9 MB) and stays bundled in the pip wheel under `mirobody/res/`. `FhirAdapter` looks under ``bundle_dir`` first then falls back to the bundled location, so external mounts can ship a custom graph if they want, but the default deployment doesn't need to.
 

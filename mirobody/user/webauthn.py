@@ -409,6 +409,8 @@ class WebAuthnService:
             resp = cred_data.get("response", {})
             transports = resp.get("transports")
         except Exception:
+            # Optional hint the browser may or may not send; `transports` stays
+            # None and registration proceeds. Not worth failing a ceremony over.
             pass
 
         # Save credential to database.
@@ -544,6 +546,10 @@ class WebAuthnService:
                     matched_cred = cred
                     break
         except Exception:
+            # Fail closed: a credential we cannot parse leaves `matched_cred`
+            # None, and the check below rejects the request. Swallowing is safe
+            # here for that reason and that reason only — do not move this block
+            # below the `if not matched_cred` guard.
             pass
 
         if not matched_cred:
@@ -673,6 +679,10 @@ class WebAuthnService:
                     matched_cred = cred
                     break
         except Exception:
+            # Fail closed: a credential we cannot parse leaves `matched_cred`
+            # None, and the check below rejects the request. Swallowing is safe
+            # here for that reason and that reason only — do not move this block
+            # below the `if not matched_cred` guard.
             pass
 
         if not matched_cred:
@@ -877,6 +887,10 @@ class WebAuthnService:
                     matched_cred = cred
                     break
         except Exception:
+            # Fail closed: a credential we cannot parse leaves `matched_cred`
+            # None, and the check below rejects the request. Swallowing is safe
+            # here for that reason and that reason only — do not move this block
+            # below the `if not matched_cred` guard.
             pass
 
         if not matched_cred:

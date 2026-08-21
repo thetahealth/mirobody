@@ -41,7 +41,7 @@ DIRECTORY STRUCTURE
 
 tools/
 ├── __init__.py                      # This documentation
-├── terminology_service.py           # ② Sort over MCP: resolve_indicator, normalize_unit
+├── terminology_service.py           # ② Standardize over MCP: resolve_indicator, normalize_unit
 │                                    #   (offline, no user data — works anonymously)
 ├── health_indicator_service.py      # query_health_indicators — ONE call: search +
 │                                    #   read + server-side aggregate, LOINC-coded

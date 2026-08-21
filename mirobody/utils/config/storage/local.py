@@ -67,16 +67,37 @@ class LocalStorage(AbstractStorage):
     
     def _get_file_path(self, key: str) -> Path:
         """
-        Get full file path from key
-        
+        Get full file path from key, refusing anything outside `base_path`.
+
+        The containment check is here rather than only at the callers because
+        this is the one place every read and write funnels through, and the key
+        is not always ours: `generate_file_key` builds it from a `?folder=`
+        query parameter. Before this existed, `?folder=../secrets` wrote the
+        payload to a sibling of `base_path` and `put()` returned success.
+
+        S3 and OSS are unaffected — `../` in an object key is a literal key
+        segment there, not a parent directory — which is exactly why this could
+        sit unnoticed in a codebase whose production backend is S3.
+
         Args:
             key: File key/path
-            
+
         Returns:
-            Full filesystem path
+            Full filesystem path, guaranteed to be under `base_path`
+
+        Raises:
+            ValueError: if the key resolves outside `base_path`
         """
         object_key = self._build_object_key(key)
-        return self.base_path / object_key
+        candidate = (self.base_path / object_key).resolve()
+        root = self.base_path.resolve()
+        # `is_relative_to` compares resolved paths, so it also catches a key
+        # that traverses through an existing symlink.
+        if not candidate.is_relative_to(root):
+            raise ValueError(
+                f"file key {key!r} resolves outside the storage root"
+            )
+        return candidate
     
     #-----------------------------------------------------
     

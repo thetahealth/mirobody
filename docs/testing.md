@@ -2,12 +2,20 @@
 
 ```bash
 pip install -e '.[agents,test]'
-pytest                    # the whole suite — 295 tests, ~8s, no DB, no network, no API key
+pytest                    # the whole suite — 495 tests, ~9s, no DB, no network, no API key
 ```
 
-`'.[test]'` without `[agents]` is a supported smaller install: it runs the
-~165 engine tests and prints a header saying the agent-layer tests were skipped.
-It used to abort collection outright with `ModuleNotFoundError: langchain_core`.
+`'.[test]'` alone is a supported smaller install: it runs the 334 engine tests
+and prints a header naming the extras that were not installed. Server-layer
+tests need `[server]` (fastapi, psycopg, mandrill); agent-layer tests need
+`[agents]`, which pulls `[server]` in with it.
+
+Both used to abort collection outright rather than skip — first with
+`ModuleNotFoundError: langchain_core`, and after that was fixed, still with
+`psycopg_pool` and `mandrill`, because `mirobody/server/__init__` and
+`mirobody/user/__init__` import them and any test module under those packages
+executes its parent package first. `conftest.py` decides at COLLECTION time,
+which is the only point early enough.
 
 That is the entire happy path. `testpaths` is set, so bare `pytest` collects
 `mirobody/**/test_*.py`.
@@ -25,8 +33,12 @@ test move together, and a reviewer sees both in one diff.
 
 | Suite | Covers | Notes |
 | --- | --- | --- |
-| `mirobody/test_engine.py` | golden LOINC codes for ② Sort | pins the whole chain: alias index → commonness prior → axis table |
-| `mirobody/test_engine_coverage.py` | **the published accuracy number** | 98 everyday panel terms in en/zh/ja. Prints the score; `COVERAGE_FLOOR = 1.0` |
+| `mirobody/test_engine.py` | golden LOINC codes for ② Standardize | pins the whole chain: alias index → commonness prior → axis table |
+| `mirobody/test_engine_coverage.py` | **the published accuracy number** | 197 cases: the panels a physical orders, in en / 简体中文 / 繁體中文 / 日本語, plus device vocabulary, report shapes (`名称(缩写)`, snake_case, full-width), unit-dependent codes and non-numeric readings. Prints the score; `COVERAGE_FLOOR = 1.0` |
+| `mirobody/indicator/test_lexical.py` | the surface algebra | NFKC-lite folds, the CJK tokenizer, and the parenthetical split — including the ones it must REFUSE (`中性粒细胞(%)`) |
+| `mirobody/indicator/test_semantic.py` | the opt-in semantic tier's contract | that `resolve()` never returns a semantic answer, that a refusal is not a miss, and that a width mismatch raises instead of padding. Uses a synthetic 3-row index: no matrix, no key |
+| `mirobody/indicator/fhir/units/test_convert.py` | unit conversion | 31 golden vectors, half of them negative — BMI must not become a concentration, `%` must not become a count |
+| `mirobody/server/routers/test_records_router.py` | the platform-shaped `/api` surface | wire shapes, the explicit-scope delete, and that `value` is not decrypted while `comment` is |
 | `mirobody/mcp/test_protocol.py` | MCP wire behaviour | version negotiation, `resultType`, `server/discover`, and the cross-user JWT leak that `resources/read` once had |
 | `mirobody/pulse/gate_tests/` | vendor payload → `StandardPulseData` | snapshot tests over recorded fixtures |
 | `mirobody/pulse/aggregate/` | daily rollups, CGM indicators, source priority | the only suite that touches config |
@@ -46,10 +58,12 @@ be able to clone, `pip install -e '.[test]'`, and get a green suite in seconds.
 
 ## The two tests that carry the project's claims
 
-**Resolver coverage.** `test_engine_coverage.py` is the number in the README.
+**Resolver coverage.** `test_engine_coverage.py` is the number in the README. It grades *clinical* correctness rather than resolution rate: answering `血红蛋白` with the HbA1c code is a failure.
 It grades *clinical* correctness, not resolution rate: answering `血红蛋白`
-with the code for HbA1c is scored as a failure, and terms naming a panel
-(`blood pressure`, `血脂`) are required to resolve to **nothing**. Adding a term
+with the code for HbA1c is scored as a failure, and a category with no panel
+code of its own (`血脂`, `lipid panel`) is required to resolve to **nothing**,
+while a panel term that has one (`blood pressure` → `85354-9`) is required to
+resolve to the panel and never to one of its members. Adding a term
 is one row in `mirobody/res/resolver_overrides.tsv` plus one case here.
 
 ```bash

@@ -47,10 +47,54 @@ EMBEDDING_DIM = 1024
 # gemma3) — diverges from th_series_dim's family-only convention
 # (embedding_qwen). Both columns already exist with HNSW indexes, so
 # rename isn't free; we map explicitly here instead.
+#: provider → the `fhir_indicators` vector column holding its embeddings.
 FHIR_EMBEDDING_COLUMN: dict[str, str] = {
     "gemini": "embedding_gemini",
     "qwen": "embedding_qwen3",
 }
+
+#: provider → the `th_series_dim` vector column. **A separate map, because the
+#: two tables genuinely disagree**: `fhir_indicators` names the model version
+#: (`embedding_qwen3`) while `th_series_dim` names the family
+#: (`embedding_qwen`). Three call sites used to build this name as
+#: `f"embedding_{provider}"`, which happened to be right for both current
+#: providers and is not a convention — it is a coincidence that breaks the
+#: moment a provider's name is not its column's name.
+#:
+#: It also has to be a whitelist rather than a format string because the result
+#: is interpolated into SQL.
+DIM_EMBEDDING_COLUMN: dict[str, str] = {
+    "gemini": "embedding_gemini",
+    "qwen": "embedding_qwen",
+}
+
+
+def resolve_dim_embedding_column() -> tuple[str, str]:
+    """``EMBEDDING_PROVIDER`` → ``(provider, th_series_dim column)``.
+
+    Providers with no column raise here rather than composing SQL against one
+    that does not exist. `openrouter` is the current example: it serves the
+    file-based semantic tier and `text_embedding` callers, and giving it a
+    column would mean a migration plus a full re-embed of both tables — a
+    decision to take once, deliberately, when a model is settled on.
+    """
+    from mirobody.utils.config import safe_read_cfg
+    from mirobody.utils.embedding import EMBEDDING_PROVIDERS
+
+    provider = safe_read_cfg("EMBEDDING_PROVIDER", "gemini").lower()
+    if provider not in EMBEDDING_PROVIDERS:
+        raise ValueError(
+            f"EMBEDDING_PROVIDER invalid: {provider!r} "
+            f"(available: {sorted(EMBEDDING_PROVIDERS)})"
+        )
+    if provider not in DIM_EMBEDDING_COLUMN:
+        raise ValueError(
+            f"provider {provider!r} has no th_series_dim vector column. "
+            f"Database vector search supports {sorted(DIM_EMBEDDING_COLUMN)}; "
+            f"{provider!r} is for the file-based semantic tier and for "
+            f"text_embedding() callers."
+        )
+    return provider, DIM_EMBEDDING_COLUMN[provider]
 
 
 def resolve_fhir_embedding_column() -> tuple[str, str]:
@@ -71,9 +115,19 @@ def resolve_fhir_embedding_column() -> tuple[str, str]:
             f"(available: {sorted(EMBEDDING_PROVIDERS)})"
         )
     if provider not in FHIR_EMBEDDING_COLUMN:
+        # `openrouter` lands here on purpose, and adding a column is NOT the
+        # fix. This function serves the pgvector path — a `vector(1024)` column
+        # on `fhir_indicators`, filled by a full re-embed of the corpus, which
+        # is a schema migration and hours of API calls. The openrouter provider
+        # exists for the FILE-based semantic tier (a LOINC matrix built by
+        # scripts/build_loinc_embeddings.py) and for direct `text_embedding`
+        # callers, neither of which touches this column.
         raise ValueError(
-            f"no fhir_indicators column mapped for provider {provider!r}; "
-            f"add to FHIR_EMBEDDING_COLUMN in fhir/common.py"
+            f"provider {provider!r} has no fhir_indicators vector column. "
+            f"Database vector search supports {sorted(FHIR_EMBEDDING_COLUMN)}; "
+            f"{provider!r} is for the file-based semantic tier and for "
+            f"text_embedding() callers. Either set EMBEDDING_PROVIDER to one of "
+            f"the former, or use the file matrix."
         )
     return provider, FHIR_EMBEDDING_COLUMN[provider]
 

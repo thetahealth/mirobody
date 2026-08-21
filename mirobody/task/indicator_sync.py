@@ -15,12 +15,12 @@ search:
   2. `backfill_from_history`  — fill NULL where an indicator's already-mapped
                                 rows agree on a single `fhir_id`
                                 (`COUNT(DISTINCT) = 1`). Catches free-text
-                                indicators with stable medkg mapping.
+                                indicators whose history already agrees.
   3. `backfill_from_dominant` — fill NULL using the ≥99% majority `fhir_id`
                                 across an indicator's history — cleans
-                                medkg drift noise. True multi-meaning
+                                mapping drift. True multi-meaning
                                 (e.g. "pain" spread across body sites)
-                                never reaches 99% and is left for medkg.
+                                never reaches 99% and stays NULL.
   4. `insert`                 — INSERT placeholder dim rows for every
                                 still-unmapped indicator (only
                                 `original_indicator` is set).
@@ -35,10 +35,15 @@ performance choice: earlier steps are cheaper and higher confidence, so
 running them first shrinks the work later steps see.
 
 This task is the canonical writer for `th_series_dim` (see memory:
-project_dim_tables). It does NOT fill `standard_indicator` (medkg owns
-description generation via `indicator_full_dim.llm_description`). It DOES
-backfill `th_series_data.fhir_id`, but only for unambiguous cases —
-truly ambiguous free-text indicators stay NULL for medkg to resolve.
+project_dim_tables). It does NOT fill `standard_indicator` — nothing in this
+project does, since the external mapper that once generated descriptions was
+retired. It DOES backfill `th_series_data.fhir_id`, but only for unambiguous
+cases; truly ambiguous free-text indicators are left NULL rather than guessed.
+
+Note what that retirement means for the funnel: steps 2 and 3 are *self*-
+referential — they propagate mappings that already exist in `th_series_data`.
+With no upstream mapper seeding new ones, they can only spread what the
+historical rows already carry.
 """
 
 from __future__ import annotations
@@ -49,8 +54,7 @@ from typing import Any
 
 from .base import BaseRedisTask
 from ..utils import execute_query
-from ..utils.config import safe_read_cfg
-from ..utils.embedding import EMBEDDING_PROVIDERS, text_embedding
+from ..utils.embedding import text_embedding
 
 #-----------------------------------------------------------------------------
 
@@ -161,12 +165,11 @@ class IndicatorSyncTask(BaseRedisTask):
         (`HAVING COUNT(DISTINCT fhir_id) = 1`).
 
         Catches free-text indicators (typically Chinese medical terms from
-        report uploads) where medkg has already produced a stable mapping:
-        we don't re-pay the LLM cost and don't expose the next rows to
-        medkg's non-determinism. Conflict cases (same text → multiple
+        report uploads) that already carry a stable mapping: we don't re-pay
+        the LLM cost, and a new row inherits what its predecessors settled on
+        instead of being mapped afresh. Conflict cases (same text → multiple
         fhir_ids — see memory: project_indicator_mapping_conflicts) are
-        deliberately skipped and handled by `backfill_from_dominant` or
-        medkg itself.
+        deliberately skipped and left to `backfill_from_dominant`.
 
         Run order matters: runs AFTER `backfill_from_registry`, so any fhir_ids
         just filled by the dict step are already in the `fhir_id IS NOT
@@ -193,17 +196,17 @@ class IndicatorSyncTask(BaseRedisTask):
     @classmethod
     async def backfill_from_dominant(cls, threshold: float = 0.99) -> None:
         """Backfill `th_series_data.fhir_id` using ≥`threshold` majority rule
-        across an indicator's mapped history — cleans medkg drift noise
+        across an indicator's mapped history — cleans mapping drift
         without touching true multi-meaning cases.
 
         Rationale: a medical indicator is expected to have a single stable
         meaning. When the same text appears under multiple fhir_ids, the
-        long-tailed minority is almost always medkg non-determinism /
-        version drift (e.g. "fasting blood glucose" observed at 99.93% on
-        one fhir_id). True multi-meaning — e.g. "pain" split 60/30/10
-        across body sites — never reaches 99% dominance, so a strict
-        threshold filters drift noise while leaving genuine ambiguity
-        alone for medkg.
+        long-tailed minority is almost always non-determinism / version
+        drift from whatever mapped those rows (e.g. "fasting blood glucose"
+        observed at 99.93% on one fhir_id). True multi-meaning — e.g. "pain"
+        split 60/30/10 across body sites — never reaches 99% dominance, so a
+        strict threshold filters drift noise while leaving genuine ambiguity
+        untouched.
 
         Scope:
         - Only fills NULL rows. Does NOT overwrite existing fhir_ids —
@@ -306,14 +309,19 @@ class IndicatorSyncTask(BaseRedisTask):
 
         Provider selected by `EMBEDDING_PROVIDER` (default `gemini`).
         Per-batch embedding errors are logged and skipped; the loop continues.
+
+        A provider with no `th_series_dim` vector column raises BEFORE the loop
+        and is therefore not one of those skippable per-batch errors — it is a
+        misconfiguration, and a sweep that quietly wrote nothing would look
+        exactly like a sweep with nothing to do. `openrouter` is the current
+        example: it can embed text, but its vectors have no column to land in.
         """
-        dim_provider = safe_read_cfg("EMBEDDING_PROVIDER", "gemini").lower()
-        if dim_provider not in EMBEDDING_PROVIDERS:
-            raise ValueError(
-                f"EMBEDDING_PROVIDER invalid: {dim_provider!r} "
-                f"(available: {sorted(EMBEDDING_PROVIDERS)})"
-            )
-        col_name = f"embedding_{dim_provider}"
+        from mirobody.indicator.fhir.common import resolve_dim_embedding_column
+
+        # Whitelisted, not formatted: `col_name` goes straight into SQL below,
+        # and a provider without a column has to fail here rather than produce
+        # a query against one that does not exist.
+        dim_provider, col_name = resolve_dim_embedding_column()
 
         query = f"""
             SELECT dim.id, dim.original_indicator, dim.standard_indicator

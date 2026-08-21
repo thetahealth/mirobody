@@ -1,4 +1,4 @@
-import base64, logging, secrets, time, urllib.parse
+import base64, json, logging, secrets, time, urllib.parse
 
 from typing import Callable
 from redis.asyncio import Redis
@@ -169,6 +169,43 @@ class OAuthService:
 
     #-------------------------------------------------------------------------
 
+    async def _is_registered_redirect_uri(self, client_id: str, redirect_uri: str) -> bool:
+        """Is `redirect_uri` one this client registered?
+
+        Out-of-band is the one value with no registration to check against: it
+        is not a URL, nothing is redirected, and the code is shown to the user
+        to paste. Everything else must match a registered entry exactly.
+
+        A client with no registered URIs cannot use the redirect flow at all.
+        RFC 7591 requires `redirect_uris` for the authorization_code grant, and
+        treating "none registered" as "anything allowed" would reinstate the
+        vulnerability for every client that simply omits the field.
+        """
+        if redirect_uri == "urn:ietf:wg:oauth:2.0:oob":
+            return True
+        if not redirect_uri or not client_id:
+            return False
+
+        raw = None
+        if self._redis:
+            try:
+                raw = await self._redis.hget(self._client_keyprefix + client_id, "redirect_uris")
+            except Exception as e:
+                logging.warning(str(e))
+        else:
+            raw = (self._clients.get(client_id) or {}).get("redirect_uris")
+
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", "replace")
+        try:
+            registered = json.loads(raw) if raw else []
+        except Exception:
+            registered = []
+
+        return isinstance(registered, list) and redirect_uri in registered
+
+    #-------------------------------------------------------------------------
+
     async def register_handler(self, request: Request) -> Response:
         if request.method == "OPTIONS":
             return json_response(disable_log=True)
@@ -179,8 +216,20 @@ class OAuthService:
             client_id = f"mcp_client_{secrets.token_hex(16)}"
             client_secret = secrets.token_hex(32)
 
+            # `redirect_uris` must be PERSISTED, not merely echoed back. It was
+            # only ever put in the response body, so the authorize handler had
+            # nothing to compare against and trusted whatever `redirect_uri` the
+            # request carried — an attacker could send a logged-in victim to
+            # /authorize with `redirect_uri=https://evil.example/cb` and receive
+            # a code exchangeable for that victim's tokens (RFC 6749 §10.6).
+            # JSON because a Redis hash value must be a scalar.
+            registered_redirect_uris = data.get("redirect_uris", [])
+            if not isinstance(registered_redirect_uris, list):
+                registered_redirect_uris = []
+
             cached_client = {
-                "secret": client_secret
+                "secret": client_secret,
+                "redirect_uris": json.dumps(registered_redirect_uris),
             }
 
             if self._redis:
@@ -207,7 +256,7 @@ class OAuthService:
                 "client_id": client_id,
                 "client_secret": client_secret,
                 "client_name": data.get("client_name", "MCP Client"),
-                "redirect_uris": data.get("redirect_uris", []),
+                "redirect_uris": registered_redirect_uris,
                 "scope": data.get("scope", "mcp:read mcp:write"),
                 "response_types": data.get("response_types", ["code"]),
                 "grant_types": data.get(
@@ -314,6 +363,20 @@ class OAuthService:
             auth_code   = f"auth_code_{secrets.token_urlsafe(32)}"
             client_id   = str(form_data.get("client_id"))
             user_id     = str(payload["sub"])
+
+            # The redirect target must be one the client registered. Exact
+            # string match, per RFC 6749 §3.1.2.3 and RFC 8252 §7.1 — no
+            # prefix or host matching, both of which are routinely bypassed
+            # (`https://good.example.evil.com`, `https://good.example/../..`).
+            if not await self._is_registered_redirect_uri(client_id, redirect_uri):
+                logging.warning(
+                    "rejected unregistered redirect_uri for client %s", client_id
+                )
+                return json_response(
+                    content = {"code": -1, "msg": "invalid redirect_uri"},
+                    status_code = 400,
+                    request = request,
+                )
 
             cached_auth_code = {
                 "client_id" : client_id,

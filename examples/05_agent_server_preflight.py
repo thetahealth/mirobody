@@ -3,7 +3,7 @@
     pip install 'mirobody[agents]'
     python examples/05_agent_server_preflight.py
 
-Examples 01–04 need nothing but the package. This one covers ③ Answer, which is
+Examples 01–04 need nothing but the package. This one covers ③ Answers, which is
 a different proposition: the chat server, the MCP endpoint over HTTP, and the
 agents need PostgreSQL, Redis, a model key and a JWT secret.
 

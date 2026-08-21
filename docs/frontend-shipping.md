@@ -152,24 +152,21 @@ falls back to its `index.html`.
    The client's QR panel implements a *gateway* flow (`/wechat/start`,
    `/wechat/bridge/poll`) that this backend never had and will not grow.
 
-   **Correcting what this entry used to say.** It claimed a007's gateway
-   consumed `find_or_create_wechat_user` / `WeChatOpenValidator` *from this
-   package*, so deleting them "would break that deployment". That was a
-   misreport. `a007-holywell/backend_py/mcp_server/wechat_gateway.py` does
-   import those names, but they resolve against a007's OWN vendored copy:
-   `a007-holywell/backend_py/mirobody/` is 580 files tracked in a007's own
-   git, including its own `user/wechat.py` and `user/auth_wechat.py`, and a007
-   does not declare `mirobody` as an external dependency. There is no
-   consumption of this package's WeChat code by that deployment, and nothing
-   in any repo on disk even mounts that gateway (`make_routes` has no caller).
+   **Correcting what this entry used to say.** It claimed an external
+   deployment's WeChat gateway consumed `find_or_create_wechat_user` /
+   `WeChatOpenValidator` *from this package*, so deleting them "would break
+   that deployment". That was a misreport: the gateway imports those names,
+   but they resolve against its own vendored copy of this package, which it
+   tracks in its own git and does not declare `mirobody` as a dependency for.
+   Nothing outside this repo consumes this package's WeChat code, and nothing
+   mounts that gateway here either (`make_routes` has no caller).
 
-   Anything still needing this code has it in git history, and a007 has its
-   own copy.
+   Anything still needing this code has it in git history.
 
 2. **`POST /api/share/share/deactivate` double-`share` path**
    (`session_share_router.py`: router prefix `/api/share` + route
-   `"/share/deactivate"`). The cdm chat-client calls `/api/share/deactivate`
-   and gets a 404. Fix the route to `"/deactivate"` (optionally keep the old
+   `"/share/deactivate"`). Clients call `/api/share/deactivate`
+   and get a 404. Fix the route to `"/deactivate"` (optionally keep the old
    path as an alias during transition).
 3. **SPA whitelist 404s** — covered above; fixed structurally by the catch-all.
 4. **`uri_prefix` is only applied to the manually-built route group**

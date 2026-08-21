@@ -99,8 +99,7 @@ async def generate_and_save_summary(user_id: str, session_id: str, provider: Opt
         # We only feed user turns into the summarizer so the LLM can't
         # accidentally lift the assistant's answer/diagnosis into the
         # title. In compare mode every pane sees the same user question,
-        # so this keeps sibling sessions' summaries aligned (see
-        # cdm/backendbug.log §2).
+        # so this keeps sibling sessions' summaries aligned.
         conversation_text = ""
         for msg in messages[:10]:
             role = msg.get("role", "")

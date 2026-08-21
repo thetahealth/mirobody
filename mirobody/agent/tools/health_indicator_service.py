@@ -279,7 +279,7 @@ class HealthIndicatorService:
     async def _coding_for(self, user_id: str, names: list[str]) -> dict[str, dict]:
         """indicator name → {system, code} for the terminology identity.
 
-        This is ② Sort's answer and the reason the engine exists; it used to be
+        This is ② Standardize's answer and the reason the engine exists; it used to be
         computed by the search pipeline and then dropped before the model saw it.
         """
         if not names:

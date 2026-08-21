@@ -13,7 +13,7 @@ from typing import Any, Dict, List
 from ...utils import execute_query
 from ..standardize.indicators_info import StandardIndicator, HealthDataType
 from ..aggregate.rule_generator import generate_rules_from_indicators
-from ..aggregate.derived_aggregator import DERIVED_RULES, HOLYWELL_ALIASES
+from ..aggregate.derived_aggregator import DERIVED_RULES, LEGACY_DAILY_STATS_ALIASES
 
 
 class CoverageService:
@@ -222,9 +222,9 @@ class CoverageService:
         for ds_ind in daily_stats_data:
             available_bases.add(ds_ind)
 
-        # Build reverse alias map: standard name → holywell name
+        # Build reverse alias map: current name → legacy `daily_stats_*` name
         # So we can check both naming conventions
-        reverse_aliases = {v: k for k, v in HOLYWELL_ALIASES.items()}
+        reverse_aliases = {v: k for k, v in LEGACY_DAILY_STATS_ALIASES.items()}
 
         results = []
         for rule in DERIVED_RULES:
@@ -233,9 +233,9 @@ class CoverageService:
             for inp in rule.input_indicators:
                 # Check standard name (direct or with .source suffix)
                 found = inp in available_bases
-                # Also check via holywell alias
+                # Also check via the legacy alias
                 if not found:
-                    alias = HOLYWELL_ALIASES.get(inp)
+                    alias = LEGACY_DAILY_STATS_ALIASES.get(inp)
                     if alias and alias in available_bases:
                         found = True
                 if not found:

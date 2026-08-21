@@ -12,7 +12,7 @@ Ordered by (value ÷ risk) within each section.
 
 ### Reference ranges and abnormal flagging
 
-**Status:** not started. The largest functional gap in ② Sort.
+**Status:** not started. The largest functional gap in ② Standardize.
 
 Resolving `LDL cholesterol` to LOINC `13457-7` tells you *what the test is*. It
 does not tell you whether `4.2 mmol/L` is high — and that is the question a
@@ -30,23 +30,165 @@ Note the honesty constraint this inherits from the resolver: a wrong range is
 worse than no range. Whatever ships must be able to say "no reference range for
 this indicator" rather than guessing one.
 
-### Unit conversion (not just normalization)
+### Unit conversion — **done**
 
-**Status:** not started. Half of it already exists.
+**Status:** shipped in `indicator/fhir/units/convert.py`. Kept here because two
+of the traps it walked into are worth not rediscovering.
 
-`normalize_unit` canonicalizes to UCUM and reports the LOINC PROPERTY family —
-so we already know that `mg/dL` and `mmol/L` are both `MCnc`/`SCnc` and
-therefore *comparable*. We do not convert between them.
+Three tiers: same-dimension UCUM parsing, a molar-mass bridge keyed by LOINC
+code for mass↔substance, and an explicit refusal for everything else.
 
-The family table is the safety rail that makes conversion tractable: converting
-across families is a category error and must be refused. Two rules to carry over
-from prior art:
+The trap this entry originally missed: **do not use `unit_family()` to decide
+convertibility.** It is a LOINC PROPERTY classifier and it is wrong in both
+directions — `kg/m2` (BMI) and `mg/dL` are both `MCnc` and cannot convert, while
+`U/L` (`CCnc`) and `[IU]/L` (`ACnc`) are in different families and are the same
+unit. The MCP tool's own docstring asserted the family rule, so a model
+following it would have turned a BMI of 24 into a mass concentration. Dimension
+signatures reject the first and accept the second by construction.
 
-- **Affine units need an offset.** °F ↔ °C is not a multiplication. If a
-  conversion has no declared offset and the unit is affine, refuse and warn
-  rather than approximating.
-- **Unknown unit ⇒ never convert.** Default to a "no conversion" class instead
-  of guessing a factor.
+The affine-unit warning above stands and is honoured by omission: `Cel` has no
+offset declared, so it parses to `None` and converts only to itself.
+
+Three conventions are written into `MOLAR_MASS` because they will otherwise be
+got wrong: triglyceride uses a CONVENTIONAL average mass (triolein ≈ 885.4, not
+a determinate molecule), BUN is reported as nitrogen while urea is the whole
+molecule (2.14x apart, one row each, never shared), and conversion happens only
+WITHIN one code — across codes is concept mapping.
+
+### Japanese coverage: the data is there, the wrong data is there
+
+**Status:** not started, and deliberately NOT the obvious fix.
+
+`res/aliases_src/ja.tsv` is 16,809 rows and 715 KB, and **16,300 of them resolve
+to nothing at all** — not "nothing in LOINC", nothing. Its right-hand side is
+overwhelmingly SNOMED-shaped: `Jaagsiekte sheep retrovirus`,
+`Ornithine transcarbamoylase deficiency`, `Abiotrophia defectiva endocarditis`.
+Diseases and organisms, not observations, so the observation index has no key for
+them.
+
+**Cleaning up that file is not the fix, and was measured before being rejected:**
+
+- Size: 715 KB of a 24.4 MB wheel — 3.0%.
+- Memory: ~2.1 MB of the resolver's ~484 MB resident — 0.4%.
+- Correctness: the plausible mechanism was shadowing. `_alias_source_files`
+  reads ja.tsv BEFORE zh.tsv and the loader uses `setdefault`, so a shared kanji
+  term takes ja's target. Measured: 25 shared keys, 10 with differing targets,
+  and 5 of those 10 already resolve correctly anyway via the raw-index fallback
+  (including `胆汁酸` → 14628-2, the only real analyte among them). The
+  remaining 5 are conditions and procedures — 交換輸血, 幹細胞移植, 肝細胞癌,
+  脊柱腫瘤, 膀胱腫瘤 — whose "recovered" codes would be a risk score and an
+  aneuploidy panel. Recovering them would be a regression in spirit.
+- Cost: the generator reads LOINC linguistic-variant sources that are **not in
+  this repo**, so the change could be neither run nor verified here.
+
+So the 16,300 rows are inert, not harmful, and the real gap is elsewhere: a spot
+check of the everyday 健康診断 panel resolves **20 of 24**, and the misses were
+specific words, not a shortage of data. `ja_curated.tsv` — the hand-written file
+that takes precedence over the machine-generated one — has **4 rows**, all
+header placeholder, against `zh_curated.tsv`'s 633.
+
+The work is therefore curation, not cleanup: resolve a 健康診断 term, find the
+miss, add a row to `ja_curated.tsv` or `resolver_overrides.tsv`, add a case to
+`test_engine_coverage.py`. Same loop as the 中文 rows that took coverage from
+32/94 to 176/176. If the machine-generated file is ever regenerated, filter it
+by LOINC CLASS at generation time so observations survive and conditions do not.
+
+### Uploads accept archives that nothing can parse
+
+**Status:** not started, small, and a one-line decision either way.
+
+`SUPPORTED_EXTENSIONS` admits `.zip` and `.rar`. `FileHandlerFactory.get_handler`
+dispatches to exactly seven handlers — genetic, image, PDF, audio, text, Excel,
+CSV — and `return None` for everything else. So an archive uploads, validates,
+lands in the object store and in `th_files`, and is never parsed: no indicators,
+no extracted text, and nothing in the UI saying why.
+
+Found while auditing the README's countable claims, which said "8 file formats"
+and listed archives as one of them. There are 7 handlers and archives are not
+among them; the README is corrected.
+
+Either extract archives into their members and re-dispatch each one (the useful
+version — a 健檢 PDF bundle arrives zipped often enough), or drop the two
+extensions so the upload is refused at the door with a message. Silently storing
+a file the pipeline cannot read is the one option that should not survive.
+
+### `resolved=True` with no code: a contract the resolver breaks 9.6% of the time
+
+**Status:** not started. The one-line fix is safe; the useful part is not.
+
+`resolve("eGFR")` returns `resolved=True`, `method="lexical"`, canonical
+*"Glomerular filtration rate [Volume Rate/Area] ... (MDRD)/1.73 sq M"* — and
+`loinc=""`. A caller who branches on `.resolved`, which is what the field is
+for, gets a truthy answer holding no identity.
+
+Measured over a uniform 30,000-key sample of the 921,172-key alias index:
+**2,888 of the 30,000 resolve this way — 9.6%.** Every one has the same cause,
+and it is not a shortage of data:
+
+```
+what the trap is made of (n=2,888)
+  2,888   the matched LONG_COMMON_NAME is not in the ACTIVE axis at all
+```
+
+`_pick` chooses a display name from the wider name table, and the code lookup
+then runs against the ACTIVE-filtered axis. When the winning name belongs to a
+DEPRECATED row the name survives and the code does not. Most of the 2,888 say so
+in their own text — *"Deprecated Oat IgG Ab RAST class"*, *"Deprecated JWH-018
+butanol metabolite/Creatinine"* — so for those, withholding the code is right
+and only `resolved` is lying.
+
+**The damaging subset is the clinical terms that land in it.** `eGFR` is on
+every metabolic panel printed anywhere, and its best name match happens to be a
+retired MDRD row.
+
+**The naive fix was prototyped and rejected.** Make `_pick` skip-aware: when the
+top-ranked name has no ACTIVE code, walk down the ranking. It improved `血常规`
+(→ 57021-8, a CBC panel — correct) and it sent **`eGFR` → 107231-3, *Natriuretic
+peptide B*** — BNP, a cardiac marker, for a kidney-function term. Walking the
+ranking crosses analyte boundaries silently, which is the exact failure this
+project scores as worse than silence.
+
+So the work splits into two independent pieces, and the second is the real one:
+
+1. **Make the field honest.** `resolved` should be `bool(loinc)`. This cannot
+   regress a correct answer — it only stops a codeless one from claiming to be
+   one — and it converts 2,888 confident non-answers per 30,000 into honest
+   misses. Do this first and separately.
+2. **Curate the clinical terms it exposes.** Once `eGFR` reports as a miss it
+   joins the same loop every other gap uses: one row in
+   `resolver_overrides.tsv`, one case in `test_engine_coverage.py`. `eGFR` needs
+   a target that is an alias key AND has an active code; the four obvious
+   spellings (`GFR/1.73 sq M.predicted`, `estimated glomerular filtration rate`,
+   …) are not alias keys, so this one needs a `zh_curated`/`en_curated` row
+   rather than an override redirect.
+
+### A parenthetical that NARROWS its stem is not a contradiction
+
+**Status:** blocked on data we do not ship, and documented so it is not
+"fixed" by accident.
+
+`名称(缩写)` where the halves disagree must refuse — `血糖(HbA1c)` is glucose
+outside and HbA1c inside, and preferring either half files a reading into the
+wrong series. That rule is pinned in `test_engine_coverage.py` and it is right.
+
+`血压(收缩压)` has the same *shape* and is not the same case. The parenthetical
+narrows the stem: the stem is the BP panel (85354-9) and the parenthetical is
+one of its two members (8480-6). 8480-6 is the defensible answer, and today the
+term refuses.
+
+Telling the two apart needs one fact: **is the parenthetical's code a child of
+the stem's panel?** LOINC answers it, in the panel-hierarchy file
+(`LOINC/AccessoryFiles/MultiAxialHierarchy`), which is not in the shipped
+bundle — `loinc_axis.csv` carries the six axes and no membership. Without it the
+only implementable rule is "prefer the parenthetical", which is precisely what
+breaks `血糖(HbA1c)`.
+
+Two ways forward, in preference order: ship the parent/child pairs for the
+panels the resolver actually answers (a few hundred rows, not the whole
+hierarchy), or hand-list the narrowing pairs in `resolver_overrides.tsv` the way
+every other curated fact in this repo is handled. Do not implement it by
+guessing from string containment — `收缩压` contains `压` and so does everything
+else in the vicinity.
 
 ### LLM behaviour tests for `mirobody parse`
 
@@ -231,14 +373,22 @@ touched 105 sites across 43 files and broke callers that iterate the
 parameter directly. Worth doing per-signature when a file is being edited for
 another reason, not as a sweep.
 
-### Judgment call: `GET /user/settings` performs an UPDATE
+### Resolved: `GET /user/settings` no longer performs an UPDATE
 
-`server/routers/user_router.py:196-226` force-enables MFA for
-CommonWell-connected users inside a GET handler. A GET that mutates is wrong
-by every REST convention — but this one is a security control being applied,
-and removing it weakens that control for anyone who has not re-saved their
-settings. Left alone deliberately; it needs a product decision, not a
-refactor.
+It used to force-enable MFA for CommonWell-connected users inside a GET
+handler — a mutation in a GET, kept because it was a security control being
+applied. The product decision it was waiting on arrived: this project is not
+connected to CommonWell, and `commonwell_patient` is a table no baseline here
+creates, so the three queries reading it could only ever raise
+(`execute_query` re-raises). The control was not protecting anything; it was a
+guaranteed 500 the moment `WEBAUTHN_RP_ID` was configured.
+
+All three sites are gone, along with the `cw_connected` field. The shared
+frontend keeps its HIE surface for the deployments that do use it and degrades
+on its own: `security?.cw_connected` reads `undefined`, so the MFA switch is
+simply enabled — the same graceful-degradation idiom as the opensource paths in
+`Indicators/index.jsx` and `FileTable/index.jsx`. Nothing here is feature-gated
+on an integration this project does not ship.
 
 
 ### Seam #4 revisited: the agent/pulse cycle, measured
@@ -419,7 +569,7 @@ Every gate so far is import-level or protocol-level. Route mounting, Agent
 Skills reaching the system prompt, the OAuth flow and a real conversation have
 never been exercised together. Needs PostgreSQL, Redis and a model key.
 
-### Re-run the a007-mirovital duplication analysis
+### Re-run the sibling-codebase duplication analysis
 
 The "≈55% duplicated, ~24k lines" figures were produced by a Haiku subagent
 before the model default was corrected. Those numbers are the basis for the
@@ -431,7 +581,7 @@ them.
 ## Distribution and positioning
 
 - **Publish the resolver benchmark.** No public benchmark exists for
-  multilingual indicator-name → LOINC resolution. Releasing ours (116 cases,
+  multilingual indicator-name → LOINC resolution. Releasing ours (175 cases,
   scored on clinical correctness, with the 32/94 starting point stated) would
   define the metric for the category. Pairs naturally with the existing
   Hugging Face benchmark account.
@@ -452,24 +602,44 @@ text-layer PDFs, a 9-page pure scan with no text layer, three phone photos of
 printed panels. What the run fixed is in the log; what it exposed and did not
 fix is here.
 
-- **`名称(缩写)` defeats the resolver, and it is the most common way a Chinese
-  lab prints a row.** `谷丙转氨酶` resolves to 1742-6; `谷丙转氨酶(ALT)` resolves
-  to nothing, and so do `碱性磷酸酶(AKP/ALP)`, `总胆红素(TBIL)`,
-  `神经元特异性烯醇化酶(NSE)`. Every abbreviation inside those parentheses
-  resolves on its own (NSE → 15060-7, TBIL → 1975-2, ALP → 6768-6), so the fix
-  is a trailing-parenthetical expansion in `OfflineResolver._candidate_keys`:
-  try the base name, then each `/`-separated token inside the parens, appended
-  AFTER the existing keys so nothing that resolves today can change.
-  **The trap that makes this not a one-liner:** `中性粒细胞(%)` must NOT strip,
-  because `中性粒细胞` resolves to the ABSOLUTE-count code 751-8 while the value
-  is a percentage — stripping would turn an honest miss into a confidently wrong
-  answer, the exact thing this project scores as failure. Gate on the
-  parenthetical containing letters, not just any content.
-- **Differential percentages have no correct target.** `中性粒细胞(%)`,
-  `淋巴细胞(%)` etc. need the `/100 leukocytes` codes in BLOOD (770-8, 736-9,
-  5905-5, 713-8, 706-2). Every phrasing tried resolves to the DEPRECATED body
-  fluid / CSF variants instead, so no override row can be written honestly until
-  the index carries the blood ones. Blocks a whole CBC column.
+- **`名称(缩写)` — done.** Handled as a class in
+  `OfflineResolver.resolve`: strip the trailing parenthetical, resolve BOTH
+  halves, take the answer only when they agree or only one resolves. So
+  `谷丙转氨酶(ALT)` → 1742-6, `总胆红素(TBIL)` → 1975-2,
+  `神经元特异性烯醇化酶(NSE)` → 15060-7, while `血糖(HbA1c)` — two different
+  tests in one string — stays unresolved.
+  **The trap this entry predicted was real and is honoured**: a parenthetical
+  containing no letter is a UNIT, not a name, so `中性粒细胞(%)` does not strip
+  (`lexical.split_trailing_parenthetical`). Without that guard the stem answers
+  the ABSOLUTE-count code while the value is a fraction.
+- **Differential percentages: the panel disagrees with itself.** Re-measured
+  2026-08-20, and it is not the blanket miss this entry first described — four of
+  the five cells already answer a RATIO code, and one does not:
+
+  ```
+  淋巴细胞      26478-8  NFr   Lymphocytes/Leukocytes      ratio  ✓
+  单核细胞      26485-3  NFr   Monocytes/Leukocytes        ratio  ✓
+  嗜酸性粒细胞   26450-7  NFr   Eosinophils/Leukocytes      ratio  ✓
+  嗜碱性粒细胞   30180-4  NFr   Basophils/Leukocytes        ratio  ✓
+  中性粒细胞     751-8   NCnc  Neutrophils [#/volume]      COUNT  ✗
+  ```
+
+  So a five-cell differential lands four ratios and one absolute count, and
+  `中性粒细胞 62 %` is filed as a cell count.
+
+  `resolve_reading` cannot fix this and should not: it walks to siblings sharing
+  the **full** COMPONENT, and `Neutrophils` and `Neutrophils/Leukocytes` are
+  genuinely different measurements — `units/convert.py` refuses `%` ↔ `10*9/L`
+  for the same reason.
+
+  The mechanism that would fix it: LOINC writes a ratio into COMPONENT as
+  `<numerator>/<denominator>`, so a fraction-family unit (`NFr`/`MFr`) on a
+  reading whose code has a `/`-free COMPONENT should look for the
+  `<component>/…` sibling, and an absolute-count unit on a ratio code should
+  look for the numerator alone. Both directions are determined; neither is
+  built. Targets for the forward direction are 770-8, 736-9, 5905-5, 713-8,
+  706-2.
+
 - **Imaging narratives resolve to serum enzymes.** A B超 report parses fine, but
   `肝脏` (an organ, with the finding "形态大小正常") answers
   13874-3 *Alkaline phosphatase.liver*, `胰腺` answers *Amylase.pancreatic*, and
@@ -492,6 +662,89 @@ fix is here.
 - **pdfminer logs at DEBUG.** One PDF upload emits thousands of
   `psparser.nextobject` lines. `logging.getLogger("pdfminer").setLevel(WARNING)`
   at startup.
+
+## Found by an external security review (2026-08-18)
+
+A reviewer deployed the stack with `./deploy.sh` and one OpenRouter key, drove
+it end to end, and audited the source. Every finding below was re-verified here
+before being acted on — one turned out to be worse than reported, and the
+counts in the review predate this branch.
+
+**Fixed on this branch**, each with a regression test:
+
+| Finding | Commit |
+| --- | --- |
+| `GET /files/{key}` served PHI with no authentication (confirmed live) | `require auth and ownership to read an uploaded file` |
+| `?folder=` traversal → arbitrary file write outside the storage root | `stop an upload from choosing where on disk it lands` |
+| Care-circle `share_id` authorize had no ownership predicate (IDOR) | `a care-circle share may only be authorized by a party to it` |
+| OAuth `redirect_uri` never validated → auth-code theft | `validate redirect_uri against what the OAuth client registered` |
+| Login code: no attempt cap, and reusable in the Redis branch | `make a login code single-use and cap how often it may be guessed` |
+| `data-distribution?user_id=` unauthorized cross-user read | `authorize the data-distribution route like the one beside it` |
+| Encryption key derivation erased the secret it could not encrypt | `stop an unusable encryption key from erasing the secret it cannot encrypt` |
+| `pip install -e '.[test]'` aborted at collection | `make pip install -e '.[test]' run the tests it claims to` |
+| CI installed pytest and never ran it | `run the tests in CI` |
+
+The file-route fix has a client half, and it is done: the shipped web client
+reached files four ways a browser sends no `Authorization` header on — an
+`<a href>`, `window.open`, and two `<img src>` — so all four would have 401'd.
+It now fetches with the session token and renders from a blob, keeping the
+token out of the URL and forcing a non-executable MIME type (a `blob:` URL
+inherits the page origin, and `.svg` is an uploadable extension). Source in
+mirobody-web-rebuild @ 9698500; rebuilt into `frontend/`.
+
+
+Three remain open. None is a defect in code that exists; each is a feature that
+does not, and two need a client change to be useful — which is why they are
+here rather than half-built.
+
+### The personal MCP URL cannot be revoked
+
+`/mcp/<secret>` is bearer authority in a URL: whoever has the string is the
+user, for 365 days. There is no revoke, no rotate, and re-generating returns
+the SAME value, so a URL leaked through browser history, a screenshot, a shell
+history file or a proxy log cannot be taken back by the person it belongs to.
+Without Redis it degrades further to an unbounded in-process dict with no TTL
+at all.
+
+The fix is a `POST /personal/mcp/revoke` that invalidates the current secret and
+mints a new one, plus a shorter default lifetime. It needs a UI affordance in
+the same change or nobody will find it, which is the part this repo cannot do
+alone — the web client ships as a build artifact from another repository.
+
+### User-defined MCP servers are write-only
+
+`/api/user/mcp/*` stores, lists and deletes user-configured MCP servers, and
+`get_user_mcps` is called by exactly three functions: the list handler, the set
+handler and the delete handler. **Neither agent's tool loader ever reads it.**
+Compare `get_user_prompt_by_name` right beside it in the same module, which
+`deep_agent.py:259` genuinely consumes.
+
+So a user can add an MCP server in Settings, see it listed back, and nothing
+ever connects to it. That is worse than the feature being absent: it looks like
+it works.
+
+Two honest ways to close it, and the choice is a product one:
+
+  - load the enabled entries in `deep/tool_loader.py` alongside the built-in
+    MCP tools, with a per-server timeout and failures degrading to "that server
+    is unavailable" rather than failing the turn; or
+  - delete the three endpoints and the UI that feeds them.
+
+Not deleted unilaterally here because the endpoints are live API the shipped
+web client calls.
+
+### The config encryption key needs a real KDF, and that is a migration
+
+`get_fernet_key` base64s the passphrase padded to 32 bytes. The byte/character
+bug in it is fixed and the empty-passphrase fallback no longer fails silently,
+but the derivation is still not a KDF: no salt, no iteration count, and a
+passphrase shorter than 32 bytes is padded with a known constant.
+
+PBKDF2HMAC-SHA256 with a stored salt is the right answer and cannot be dropped
+in: every config already encrypted under the current derivation would become
+unreadable. It needs a versioned key header (`v2$<salt>$<ct>`), a read path
+that accepts both, and a one-shot `mirobody config reencrypt`. Worth doing;
+worth doing as its own change.
 
 ## Found by auditing the web client against this backend (2026-08-17)
 

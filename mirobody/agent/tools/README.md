@@ -6,7 +6,7 @@ Mirobody follows a **"Tools First"** philosophy. You write standard Python code,
 
 Tool directories are configured by `MCP_TOOL_DIRS` in `config.{env}.yaml`. The defaults:
 
-1. **Built-in tools**: `mirobody/agent/tools/` (this directory) — the whole shipped tool surface: terminology (② Sort), health records, genetics.
+1. **Built-in tools**: `mirobody/agent/tools/` (this directory) — the whole shipped tool surface: terminology (② Standardize), health records, genetics.
 
 **Place your own tools in your own directory and add it to `MCP_TOOL_DIRS`** — the list is ordinary config, so a deployment can extend it without touching the package:
 

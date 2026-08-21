@@ -13,6 +13,8 @@
 
 **[📚 Documentation](https://docs.mirobody.ai/)** · **[💬 Hosted chat — chat.mirobody.ai](https://chat.mirobody.ai/)** · **[🔌 API platform — platform.mirobody.ai](https://platform.mirobody.ai/)**
 
+**English** · **[简体中文](README.zh-CN.md)** · **[繁體中文](README.zh-TW.md)** · **[日本語](README.ja.md)**
+
 *Blood tests, wearables, genomics, imaging — all fragmented, all incompatible.
 Before AI can understand your health, someone has to unify these signals into a
 single standard AI can actually read. That is what this engine does.*
@@ -21,13 +23,13 @@ single standard AI can actually read. That is what this engine does.*
 
 </div>
 
-The engine does three things, and the codebase (and [Contributing](#-contributing)) is organized around exactly these three verbs:
+The engine does three things, and the codebase (and [Contributing](#-contributing)) is organized around exactly these three stages — the same **C · S · A** the [documentation](https://docs.mirobody.ai/en/api-reference/) uses:
 
-| Verb                 | What it means                                                                                                     | Where                                                   |
+| Stage                | What it means                                                                                                     | Where                                                   |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| **① Collect** | Pull signals in: 4 production providers · 8 file formats · Apple Health                                             | [`pulse/`](mirobody/pulse/) |
-| **② Sort**    | Standardize: resolve any reading to canonical codes (LOINC · SNOMED CT · RxNorm), normalize units, land as FHIR | [`indicator/`](mirobody/indicator/)                    |
-| **③ Answer**  | Reason: agents read the*original documents* through a virtual filesystem and answer with charts & citations     | [`agent/`](mirobody/agent/)                  |
+| **① Collect** | Pull signals in: 3 device providers + a SQL source · 7 file formats · Apple Health                                             | [`pulse/`](mirobody/pulse/) |
+| **② Standardize**    | One standard: resolve any reading to canonical codes (LOINC · SNOMED CT · RxNorm), normalize units, land against FHIR-recognized code systems | [`indicator/`](mirobody/indicator/)                    |
+| **③ Answers**  | Reason: agents read the*original documents* through a virtual filesystem and answer with charts & citations     | [`agent/`](mirobody/agent/)                  |
 
 ---
 
@@ -37,13 +39,82 @@ No server, no key, no network — the terminology engine is a pip install:
 
 ```bash
 pip install mirobody
-mirobody resolve "LDL cholesterol" "血红蛋白" "ヘモグロビン"
+mirobody resolve "hemoglobin" "血红蛋白" "血紅素" "ヘモグロビン"
+# all four -> LOINC 718-7
 ```
 
 ```python
 from mirobody.engine import resolve
 resolve("血红蛋白").loinc   # -> '718-7'   offline: no key, no config, no network
 ```
+
+The third one is the interesting case. `血紅素` is not `血红蛋白` in different
+glyphs — Taiwan and the mainland use **different words** for haemoglobin, and a
+character conversion of one gives you `血红素`, which a raw index answers with
+the code for **HbA1c**: a different test. Script folding gets this wrong; the
+vocabulary has to be curated. Most of what a standardization layer does is
+this, not the easy rows.
+
+### The two functions you will actually call
+
+`resolve()` answers a **name**. `resolve_reading()` answers a **measurement** —
+and they give different codes, because LOINC puts the unit and the result type
+into the identity:
+
+```python
+from mirobody.engine import resolve, resolve_reading
+
+resolve("total cholesterol").loinc                       # '2093-3'   [Mass/volume]
+resolve_reading("total cholesterol", "5.0", "mmol/L")    # '14647-2'  [Moles/volume]
+resolve_reading("total cholesterol", "193", "mg/dL")     # '2093-3'   unchanged
+
+resolve("尿糖").loinc                                     # '2350-7'   [Mass/volume]
+resolve_reading("尿糖", "阴性")                            # '2349-9'   [Presence]
+resolve_reading("尿糖", "5.6", "mmol/L")                   # '15076-3'  [Moles/volume]
+```
+
+**If you have the value and the unit, pass them.** The same indicator goes
+opposite ways depending on the reading, and filing a mmol/L result under the
+mg/dL code — or a 阴性 result under a mass-concentration code — is how a series
+ends up with two units in it and nobody notices. Both functions are offline,
+deterministic, and safe to call in a loop (~25 µs each after the first).
+
+Every answer says how it got there, and one value is not like the others:
+
+```python
+r = resolve("血红蛋白")
+r.loinc, r.canonical, r.method     # '718-7', 'Hemoglobin [Mass/volume] in Blood', 'lexical'
+
+resolve("绝对不存在的指标名xyzzy").method   # ''         never seen it
+resolve("血糖(HbA1c)").method              # 'refused'  two different tests in one string
+```
+
+`""` is a gap and worth a second opinion; `"refused"` is the answer — `血糖(HbA1c)`
+names glucose outside the parentheses and HbA1c inside, `血脂` is four analytes,
+and no single code is right for either. A panel term that *has* a panel code is
+not a refusal: `blood pressure` → `85354-9`, the code FHIR's vital-signs profile
+mandates, which tells the caller to expect components.
+**Only treat `method == "lexical"` as an identity** (a
+grouping key, a "these are the same series" decision, a FHIR mirror). See
+[Semantic recall](#-semantic-recall-opt-in-and-why-it-is-opt-in) for the other
+kind.
+
+### Units are compared, never assumed
+
+```python
+from mirobody.indicator.fhir.units import convert_value, convertible
+
+convert_value(5.6, "mmol/L", "mg/dL", loinc_code="1558-6")   # 100.9  (molar-mass bridge)
+convert_value(42.0, "U/L", "[IU]/L")                         # 42.0   (1:1, different families)
+convert_value(24.0, "kg/m2", "mg/dL")                        # None   (BMI is not a concentration)
+convertible("%", "10*9/L")                                   # False  (a fraction is not a count)
+```
+
+`None` is an answer, not a failure: report the readings separately rather than
+scaling one to look like the other. Do **not** use `unit_family()` to decide
+convertibility — it is a LOINC PROPERTY classifier and it is wrong in both
+directions for that question (`kg/m2` and `mg/dL` share a family and cannot
+convert; `U/L` and `[IU]/L` are in different families and are the same unit).
 
 Then self-host the full thing (see [Quick Start](#-quick-start)), sign in, and
 mint your **personal MCP URL** (web client → Settings → MCP Url). Point any MCP
@@ -101,20 +172,63 @@ Runnable walkthroughs: [`examples/`](examples/README.md) — five scripts from o
   self-hosted web deployment shows no "connect Apple Health" button, correctly:
   the missing piece is an iOS client with the HealthKit entitlement, and the
   API above is what such a client would POST to.
-- **8 file formats parsed with AI** — PDF lab reports, Excel, CSV, images, audio, archives, plain text, and **genetic exports (WeGene)**; LLM-powered indicator extraction ([`pulse/file_parser/`](mirobody/pulse/file_parser/), 13k lines).
+- **7 file formats parsed with AI** — PDF lab reports, Excel, CSV, images, audio, plain text, and **genetic exports (WeGene)**; LLM-powered indicator extraction ([`pulse/file_parser/`](mirobody/pulse/file_parser/), 13k lines).
 - Ingest pipeline: staged intake → validate → normalize → daily rollups → [AI insights](mirobody/pulse/insight/) that feed back into the record — closing the loop.
 
-## ② Sort — one standard AI can actually read
+## ② Standardize — one standard AI can actually read
 
 The part none of the adjacent open-source projects have — a **semantic standardization layer**, not a lookup table:
 
 - **Concept graph**: 440,961 nodes · 22,044,110 cross-vocabulary edges · **595,746 source ids** distilled into canonical concepts (LOINC · SNOMED CT · RxNorm bridges), shipped via Git LFS ([`indicator/`](mirobody/indicator/README.md)).
-- **Embedding-based resolution**: free-text indicator names → canonical codes, with **50,240 multilingual aliases** (中文 22,578 · 日本語 16,809 · +6 languages) — `血红蛋白`, `ヘモグロビン` and `hemoglobin` all land on LOINC 718-7.
-- **We measure that claim instead of asserting it.** [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) scores the offline resolver against the panels a physical actually orders — lipid, CBC, metabolic, liver, thyroid, hormones, tumour markers, urinalysis, vitals — written the way a report prints them, in English, 中文 and 日本語. **116/116 today; it scored 32/94 the day it was written.** It grades *clinical* correctness, not resolution rate: answering `血红蛋白` with the code for HbA1c is scored as a failure, and `血圧` (a panel, not an observation) is required to resolve to *nothing*, because a confident wrong code is worse than an honest miss.
-- **Unit normalization** to UCUM families (~310), 316 standard pulse indicators, FHIR R4 output.
+- **Embedding-based resolution**: free-text indicator names → canonical codes, with **49,253 multilingual aliases** (中文 22,578 · 日本語 16,809 · +5: de·es·fr·ko·ru) — `hemoglobin`, `血红蛋白`, `血紅素` and `ヘモグロビン` all land on LOINC 718-7.
+- **繁體中文 is two problems, handled as two.** Script is mechanical: queries are folded zh-Hant → zh-Hans from a shipped 3,336-character table ([`zh_fold.py`](mirobody/indicator/zh_fold.py)), mirroring what the lexicon build already does to the corpus. Vocabulary is not: Taiwan clinical usage picks different words, and folding `血紅素` yields `血红素` → the HbA1c code. Those terms are curated under their Traditional spelling, and a curated row always beats a fold.
+- **We measure that claim instead of asserting it.** [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) scores the offline resolver against the panels a physical actually orders — lipid, CBC, metabolic, liver, thyroid, hormones, tumour markers, urinalysis, vitals — written the way a report prints them, in English, 简体中文, 繁體中文 and 日本語 — plus the device/wearable vocabulary the platform API teaches (`steps`, `resting_heart_rate`, `sleep_duration`). **197/197 today; it scored 32/94 the day it was written.** It grades *clinical* correctness, not resolution rate: answering `血红蛋白` with the code for HbA1c is scored as a failure, and `血脂` (a category, not an observation) is required to resolve to *nothing*, because a confident wrong code is worse than an honest miss.
+- **Surface algebra, so the spelling doesn't decide the answer** ([`indicator/lexical.py`](mirobody/indicator/lexical.py)): NFKC-lite folding (full-width, superscripts, the six dash variants) plus a CJK-aware tokenizer, and a guarded strip of the `名称(缩写)` shape a lab report prints. `ＦＢＧ`, `LDL–C`, `fasting_glucose`, `空腹血糖(GLU)` and `Cholesterol, total` all reach the same codes as their plain forms. When the two halves of `名称(缩写)` disagree — `血糖(HbA1c)` — the term stays **unresolved** rather than picking one.
+- **The reading picks the code, not just the name** ([`engine.resolve_reading`](mirobody/engine.py)). LOINC codes the unit *and* the result type into the identity, so the unit picks `PROPERTY` and the value's kind picks `SCALE_TYP`. `5.0 mmol/L` → 14647-2, `193 mg/dL` → 2093-3, `阴性` → the `[Presence]` variant. Half the shipped corpus is non-`Qn` (38,687 rows of 79,368), so a resolver that only constrains numbers is blind to half of it.
+- **Unit normalization** to UCUM families (~310), plus [conversion](mirobody/indicator/fhir/units/convert.py) — dimensional analysis, a molar-mass bridge keyed by LOINC code, and an explicit refusal for `%` vs `10*9/L`. 316 standard pulse indicators.
 - Taxonomy of 25 clinical categories (Vital signs, Lab & Clinical, Body measures, …).
 
-## ③ Answer — agents that read the originals
+### 🧪 Semantic recall: opt-in, and why it is opt-in
+
+Everything above is lexical — shipped vocabularies and table lookups. It abstains
+when it does not know a term, which is a ceiling as well as a virtue. There is a
+second tier ([`indicator/semantic.py`](mirobody/indicator/semantic.py)): cosine
+recall over an embedding of the LOINC corpus, built by
+[`scripts/build_loinc_embeddings.py`](scripts/build_loinc_embeddings.py).
+
+```python
+from mirobody.engine import resolve_with_semantic_fallback
+
+out = await resolve_with_semantic_fallback(["空腹血糖", "some unheard-of assay"])
+out[0].method    # 'lexical'  — the lexical tier answered; the fallback never saw it
+out[1].method    # ''         — no matrix installed, so nothing to fall back TO
+                 # 'semantic' once one is, and that means "a suggestion", not an identity
+```
+
+**No matrix ships**, so this is a no-op on a plain `pip install` and returns
+exactly what `resolve()` would. Point `MIROBODY_SEMANTIC_INDEX` at one to
+enable it; a matrix is ~198 MB and needs an embedding key, and corpus and query
+MUST come from the same model — a mismatched pair does not fail, it returns
+confident nonsense.
+
+It stays opt-in even once installed, and the reason is a property of the tier
+rather than a tuning problem: **cosine recall cannot abstain.** Asked about a
+term it has never seen, it returns its nearest neighbour with the same
+confidence it returns a correct answer, and LOINC's own questionnaire corpus
+gives it plenty of plausible-looking neighbours to reach for. There is no score
+threshold that separates the two.
+
+What makes it useful anyway is that a reading is not a bare string by the time it
+gets here. The extraction pass ahead of it returns nothing for non-health
+content and hands over `{indicator, value, unit}`, so the tier can gate
+candidates on what the reading implies — `SCALE_TYP` from the value's kind,
+`PROPERTY` from the unit's dimension — and skip the non-clinical rows
+`loinc_skip.txt` already lists.
+
+So: use it to **suggest** a code that a human or a model then confirms. The
+lexical tier is what you build identities on.
+
+## ③ Answers — agents that read the originals
 
 There are **two ways to consume this layer**, and an agent for each — the difference is *who runs the tool loop*:
 
@@ -135,7 +249,7 @@ There are **two ways to consume this layer**, and an agent for each — the diff
 
 ## 🏗️ Architecture
 
-The engine is three verbs — **① Collect → ② Sort → ③ Answer** — and the package
+The engine is three stages — **① Collect → ② Standardize → ③ Answers** — and the package
 layout says the same thing.
 
 ```
@@ -148,16 +262,16 @@ mirobody/
 ├── pulse/               ①  COLLECT — every signal, one intake
 │   ├── providers/           production device providers (Garmin/Oura/Whoop, 300+ devices)
 │   ├── apple/               Apple Health import (zip + CDA)
-│   ├── file_parser/         8 file formats → indicators via LLM extraction (needs DB)
+│   ├── file_parser/         7 file formats → indicators via LLM extraction (needs DB)
 │   ├── ingest/              StandardPulseData: the universal exchange format that
 │   │                        every source above converges on (was `data_upload/`)
 │   └── core/                domain models, daily rollups, insights (needs DB)
-├── indicator/           ②  SORT — one standard AI can actually read
+├── indicator/           ②  STANDARDIZE — one standard AI can actually read
 │   └── fhir/                concept graph · embedding resolution · units → UCUM · taxonomy
 ├── res/                     the shipped data: LOINC/SNOMED bundles (Git LFS, see
 │                            LICENSE-3RD-PARTY + *.NOTICE) · resolver_overrides.tsv · sql/
 │
-│  ── shared infrastructure: not a fourth verb, used BY the three ──────────
+│  ── shared infrastructure: not a fourth stage, used BY the three ─────────
 │
 ├── mcp/                     MCP server: every tool doubles as an MCP tool over HTTP
 ├── task/                    background workers (indicator sync, profile refresh)
@@ -170,7 +284,7 @@ mirobody/
 │
 │  ── the AGENT LAYER (pip install 'mirobody[agents]' · LangChain lives ONLY here) ──
 │
-├── agent/               ③  ANSWER — one roof for everything conversational
+├── agent/               ③  ANSWERS — one roof for everything conversational
 │   ├── deep_agent.py        DeepAgent — model 1: YOU run the engine. deepagents/
 │   │                        LangChain, PG virtual fs, QuickJS, Agent Skills
 │   ├── base_agent.py        BaseAgent — model 2: someone else's model consumes us
@@ -179,7 +293,7 @@ mirobody/
 │   ├── base/ · deep/        the two agents' internals (backends, middleware)
 │   ├── chat/                sessions · messages · history replay · sharing · profile
 │   ├── tools/               the MCP tool surface (MCP_TOOL_DIRS): terminology
-│   │                        (② Sort, offline), health records, genetics
+│   │                        (② Standardize, offline), health records, genetics
 │   ├── skills/              Agent Skills (SKILL.md) — deepagents SkillsMiddleware
 │   ├── prompts/             Jinja system prompts
 │   └── resources/           MCP UI widgets for ChatGPT Apps (see its README)
@@ -197,15 +311,49 @@ frontend/                    the bundled web client, shipped as a FIXED build �
 
 | Install | What works | Footprint |
 | --- | --- | --- |
-| *the wheel + numpy only* | `from mirobody.engine import resolve` — the offline resolver | **77 MB**, 2 packages |
-| `pip install mirobody` | + `mirobody parse` (one LLM key) · file parsing (PDF/Excel/audio) · FHIR output | 233 MB, 90 packages |
+| *the wheel + numpy only* | `from mirobody.engine import resolve` — the offline resolver | **33 MB** of mirobody (76 MB with numpy) |
+| `pip install mirobody` | + `mirobody parse` (one LLM key) · file parsing (PDF/Excel/audio) · coded output | 233 MB, 90 packages |
 | `pip install 'mirobody[server]'` | + the HTTP API and MCP endpoint | needs Postgres + Redis |
 | `pip install 'mirobody[agents]'` | + DeepAgent/BaseAgent and `mirobody serve` (includes `[server]`) | + the LangChain stack |
 | `pip install 'mirobody[indicator-build]'` | rebuilding the terminology bundles themselves | needs LOINC/UMLS sources |
 
-Sizes measured on a clean venv, not estimated. **51 MB of the 77 MB floor is the
-shipped LOINC/SNOMED data** — that is the resolver, not overhead, and it is what
+Sizes measured on a clean venv, not estimated. **24 MB of mirobody's 33 MB is
+the shipped LOINC data** — that is the resolver, not overhead, and it is what
 makes standardization work with the network unplugged.
+
+#### The minimum usable scope, and what is deliberately not in it
+
+`pip install mirobody` carries exactly what `resolve()` reads, and nothing else:
+
+| Shipped | What reads it |
+| --- | --- |
+| `res/fhir_loinc_bundle.tar.gz` | the 921k-key alias index, the LOINC axis table, the commonness prior |
+| `res/fhir_meta.csv.gz` | the 677k-name corpus the alias index points into |
+| `res/aliases_src/*.tsv` | 49,253 multilingual alias rows (中文 22,578 · 日本語 16,809 · +5: de·es·fr·ko·ru) |
+| `res/resolver_overrides.tsv` | the hand-written corrections, and the deliberate non-answers |
+
+Four artifacts used to ship and no longer do, **28 MB between them**. Nothing at
+runtime read any of them: grep `server/`, `agent/`, `pulse/`, `mcp/` and `task/`
+for `concept_graph` or `taxonomy` and it comes back empty. Three —
+`fhir_concept_graph.bin`, `fhir_taxonomy.bin`, `fhir_snomed_ct_bundle.tar.gz` —
+are still in the repo for [`indicator/`](mirobody/indicator/)'s bundle-build
+tooling, which works from a git checkout, and for the v2 semantic pipeline, which
+in addition needs an embedding matrix that is not distributed at all. The fourth,
+`fhir_id_map.npy`, is **gone from the repo entirely**: it mapped canonical ids to
+`fhir_indicators.id`, one database's primary keys, so it was never meaningful to
+anyone else — regenerate your own with `indicator id-map`. Dropping the
+SNOMED bundle also takes its Affiliate-Licence obligation off every pip user.
+`scripts/check_wheel_data.py` now gates both directions — the five above present
+and real, those four absent.
+
+**What the minimum scope cannot do**: resolve a term the lexical layer misses.
+Resolution is exact-key and alias-table lookup over shipped vocabularies, plus
+the surface algebra in [`indicator/lexical.py`](mirobody/indicator/lexical.py).
+There is no embedding recall — [`fhir/resolve/pipeline.py`](mirobody/indicator/fhir/resolve/)
+implements it, and it needs a ~200 MB LOINC embedding matrix built by
+[`scripts/build_loinc_embeddings.py`](scripts/build_loinc_embeddings.py) plus an
+embedding API key. A miss here is an honest miss, and the fix is one row in
+`resolver_overrides.tsv` — [see Contributing](#-contributing).
 
 The database driver, HTTP server, S3 and email clients used to be in the default
 install; they moved to `[server]`, which is what `[agents]` pulls in. If you only
@@ -227,7 +375,7 @@ That is what lets `mirobody.engine` resolve an indicator with numpy as the only
 third-party package present. `utils/` is deliberately a leaf — a top-level
 `from sqlalchemy import text` in `utils/db.py` once made the whole database
 stack a hard requirement of a function that never opens a connection.
-`utils/`, `user/` and `task/` are not verbs; they are the infrastructure the
+`utils/`, `user/` and `task/` are not stages; they are the infrastructure the
 three stand on. One deliberate seam crosses the boundary today, recorded with
 its exit plan in `pyproject.toml`'s `ignore_imports` and in
 [docs/roadmap.md](docs/roadmap.md).
@@ -238,7 +386,7 @@ its exit plan in `pyproject.toml`'s `ignore_imports` and in
 vendor APIs / files / Apple Health          ① pulse
         └─> StandardPulseData ─> validate ─> normalize ─> daily rollups
                  └─> indicator names ─> ② indicator: canonical codes (LOINC·SNOMED·RxNorm)
-                          └─> FHIR R4 rows in Postgres
+                          └─> coded rows in Postgres
                                    └─> ③ agent: read ORIGINAL documents through the
                                        virtual fs, compute, chart, answer — and insights
                                        feed back into the record, closing the loop
@@ -256,16 +404,16 @@ Our health-AI benchmarks are the **most-downloaded in their category on Hugging 
 | [MedHall-Bench](https://huggingface.co/datasets/healthmemoryarena/MedHall-Bench) | Medical hallucination                                                                                                                                           | 4,500+    |
 | [MedHarm-Bench](https://huggingface.co/datasets/healthmemoryarena/MedHarm-Bench) | Harmful medical advice                                                                                                                                          | 4,300+    |
 
-Reproduce any of them with one command via **[mirobody-eval](https://github.com/thetahealth/mirobody-eval)** — our open evaluation framework. Its generator also produces the synthetic (PHI-free) health data used in demos and tests.
+Reproduce any of them with one command via **[mirobody-eval](https://github.com/thetahealth/mirobody-eval)** — our open evaluation framework. Its generator also produces the synthetic (PHI-free) trajectories that fill a fresh deployment's empty database — see [Seed it with data](#-seed-it-with-data).
 
-We hold the engine itself to the same standard. **Resolver coverage** — can ② Sort name the everyday tests on a real lab report? — runs in this repo, offline, in under a second:
+We hold the engine itself to the same standard. **Resolver coverage** — can ② Standardize name the everyday tests on a real lab report? — runs in this repo, offline, in under a second:
 
 ```bash
 pytest mirobody/test_engine_coverage.py -s
-#   offline resolver coverage: 116/116 = 100%
+#   offline resolver coverage: 197/197 = 100%
 ```
 
-It started at **32/94** — the benchmark has since grown to 116 cases. The gap was not the concept graph; it was that the index is built from LOINC long names, so it knew `LDL-C` but not `LDL cholesterol`, knew 葡萄糖 but not `血糖`, and answered `血红蛋白` with the code for HbA1c. Both classes of failure are one TSV row each to fix — [see Contributing](#-contributing).
+It started at **32/94** — the benchmark has since grown to 197 cases. The gap was not the concept graph; it was that the index is built from LOINC long names, so it knew `LDL-C` but not `LDL cholesterol`, knew 葡萄糖 but not `血糖`, and answered `血红蛋白` with the code for HbA1c. Both classes of failure are one TSV row each to fix — [see Contributing](#-contributing).
 
 ---
 
@@ -297,12 +445,17 @@ Then open `http://localhost:18080` in your web browser.
 Three keys and one gotcha worth knowing before anything else:
 
 > - **LLM key**: `OPENROUTER_API_KEY` powers the Deep agent.
-> - **Embedding key** — a *different* one: the worker's indicator sync embeds
->   names for standardization. `EMBEDDING_PROVIDER` defaults to `gemini`
->   (`GOOGLE_API_KEY`); set `EMBEDDING_PROVIDER: qwen` + `DASHSCOPE_API_KEY`
->   for the other supported provider. With only an OpenRouter key, chat works
->   but **Health indicators stays 0** — embedding fails quietly in the worker
->   log.
+> - **Embedding key** — a *different* one, and it is still a second key: the
+>   worker's indicator sync embeds names into a `th_series_dim` vector column,
+>   and only two providers have one. `EMBEDDING_PROVIDER` defaults to `gemini`
+>   (`GOOGLE_API_KEY`); `qwen` (`DASHSCOPE_API_KEY`) is the other. With only an
+>   OpenRouter key, chat works but **Health indicators stays 0** — embedding
+>   fails in the worker log. Setting `EMBEDDING_PROVIDER: openrouter` does not
+>   fix that and will not pretend to: it raises, naming the missing column,
+>   because a sweep that quietly wrote nothing looks identical to a sweep with
+>   nothing to do. That provider exists for `text_embedding` callers and the
+>   [file-based semantic tier](#-semantic-recall-opt-in-and-why-it-is-opt-in),
+>   neither of which touches a database column.
 > - Keys go in `config.{env}.yaml`; Mirobody encrypts them at first load with
 >   the generated `CONFIG_ENCRYPTION_KEY`.
 > - First start takes ~1 minute (schema creation) — wait for
@@ -341,12 +494,121 @@ The step-by-step walkthrough (ports, encryption key, `[cn]` extra) lives at
 
 Sign in with a pre-seeded demo account — the server prints these at startup:
 
-- **Email**: `exp1@mirobody.ai` (also `exp2@` / `exp3@`)
+- **Email**: `caregiver@mirobody.ai` — named for the role: you sign in as the
+  caregiver, and the record you read belongs to someone else
 - **Verification code**: `111111`
 
 They come from `EMAIL_PREDEFINE_CODES` in `config.yaml`: with no SMTP
 configured, only predefined addresses can sign in. Add your own address there,
 or configure `EMAIL_SMTP_*` to send real codes.
+
+Those three are an allowlist, not a limit on registration: any address that
+passes verification is created on the spot (`add_or_get_user`). What the
+allowlist gates is *verification* — with no SMTP configured, the only codes that
+verify are the predefined ones, so "Send code" will report `No SMTP server
+configured.` and you type the code you already know.
+
+**Or skip codes entirely.** The code path needs Mandrill or SMTP, which a
+deployment you cloned to try out does not have — so the login page opens on
+**Sign in / Create account** and keeps **Email code** as a third tab. The API
+underneath, if you would rather curl it:
+
+```bash
+curl -X POST localhost:18080/password/register -H 'Content-Type: application/json' \
+     -d '{"email":"you@example.com","password":"at-least-8-chars"}'
+```
+
+That returns a token and creates the account; `POST /password/login` with the
+same body signs you back in. `username` works in place of `email`. The hash is
+bcrypt computed inside Postgres by `pgcrypto` (`crypt()` / `gen_salt('bf', 12)`),
+so no password is ever hashed, compared or logged in Python, and no default
+password ships in this repo. `register` refuses an account that already has one
+rather than overwriting it — that endpoint takes no proof of ownership, so
+letting it rotate a password would be a takeover primitive. Wrong password and
+unknown account answer identically, which is deliberate: telling them apart
+enumerates accounts.
+
+To add your own address to a Docker deployment without editing a tracked file,
+pass the whole map as an environment variable — config precedence is
+`env > config.{env}.yaml > config.yaml`, and a JSON string is parsed:
+
+```bash
+docker compose run -e EMAIL_PREDEFINE_CODES='{"you@example.com":"424242","caregiver@mirobody.ai":"111111"}' mirobody
+```
+
+It **replaces** the map rather than extending it, so re-list any `exp*` account
+you still want. For real codes to arbitrary addresses, configure `EMAIL_SMTP_*`
+instead and the allowlist stops mattering.
+
+### 👨‍👩‍👧 The care circle demo — ask, then upload
+
+`compose.yaml` sets `SEED_DEMO_DATA=true`, so the Docker path arrives with one
+synthetic person already in your care circle: **Demo (synthetic)** — 244
+indicators across two years, plus five markdown documents the agent can
+`read_file`. Sign in as `caregiver@mirobody.ai` (code `111111`) and you own
+nothing; the record you are reading is someone else's.
+
+**Start with a question, not the data table.** On the Ask page:
+
+> *"What was her latest LDL cholesterol and how does it compare to a year earlier?"*
+
+which on a freshly seeded deployment answers from her real history:
+
+```
+| Date       | LDL (mmol/L) |
+| 2024-04-16 | 3.4          |
+| 2024-10-15 | 3.2          |
+| 2025-04-15 | 3.1          |
+```
+
+…and then volunteers that the most recent panel is over a year old and worth
+repeating. Which is the cue for the second half of the demo.
+
+**Now hand it a file.** `mirobody/demo/lab_report_2025-10-15.pdf` is her *next*
+panel, deliberately held out of the seed — so uploading it is not a no-op, it is
+data the database does not have. Drop it on the Data page (or the ＋ in Ask) and
+watch ① Collect and ② Standardize do their jobs: the PDF is read, twelve
+analytes come out with their units, each resolves to a code, and the LDL series
+gains a fourth point. Ask the same question again and the answer moves.
+
+Other questions that land on seeded data: *"which of her results are outside the
+reference range?"*, *"has her sleep changed since last winter?"*, *"summarise her
+last lab panel for me"*.
+
+Every value is synthetic. The trajectory was generated for
+[ESL-Bench](https://huggingface.co/datasets/healthmemoryarena/ESL-Bench) by
+[mirobody-eval](https://github.com/thetahealth/mirobody-eval) and vendored here
+as one 200 KB file plus a 5 KB PDF, so the seed needs no network, no HuggingFace
+download and no API key — and the PDF says "SYNTHETIC SAMPLE" across its head.
+The seed is an upsert, so restarts do not duplicate it. Set
+`SEED_DEMO_DATA=false` for a deployment that will hold real data.
+
+Answering questions needs an LLM key; browsing the record and uploading do not.
+Indicator names arrive in the source's own spelling
+(`AlanineAminotransferase-ALT`) rather than the display names your own uploads
+get, because that polish comes from the dim/embedding pass — configure an
+embedding key and `IndicatorSyncTask` tidies them up.
+
+### 🌱 Seed it with data
+
+A fresh install signs you in to an empty database — a poor first impression, and
+it makes any change to the agent impossible to judge. The sibling
+[mirobody-eval](https://github.com/thetahealth/mirobody-eval) fills it with one
+synthetic user's five-year trajectory, then scores your deployment:
+
+```bash
+uv run python -m generator.eslbench.prepare_data                   # ~20 MB from HuggingFace
+uv run python -m generator.eslbench.seed_mirobody --users user5086@demo
+uv run python -m benchmark.basic_runner eslbench sample200-20260430 \
+    --target-type mirobody --limit 20
+```
+
+Seeding needs `pip install mirobody` pointed at the deployment you are filling,
+plus an embedding key; scoring needs its HTTP server up (`MIROBODY_BASE_URL`,
+default `http://localhost:18080`). Add `--hold-out-exams 1` to keep the latest
+lab panel out of the database, and `generator.eslbench.labreport` renders it as
+a PDF — so the upload path has something the database genuinely lacks. Every
+value is synthetic, and the PDF says so on its front page.
 
 ### Extend It — Tools and Skills
 
@@ -431,6 +693,50 @@ first call. Treat it like a password.
 
 ---
 
+## 🔌 The HTTP API
+
+Two surfaces, on purpose.
+
+**The records API — shaped like [Mirobody Cloud](https://docs.mirobody.ai/en/api-reference/).**
+If you have read the platform docs, you already know these: same request bodies,
+same response envelopes, same field names, so code you write against a
+self-hosted deployment reads the same as code written against the hosted one.
+
+| Endpoint | What it does |
+| --- | --- |
+| `POST /api/standardize` | Report text in, standardized readings out — `{object: "extraction", data: [...]}`. Dry-run unless `store=true`. |
+| `POST /api/data` | Write structured records (`records[]`, ≤500 per call). Every write is standardized on the way in. |
+| `GET /api/data` | Read them back, newest first — `{object: "list", data: [...], has_more}`, one object per reading with its `loinc_code`. |
+| `DELETE /api/data` | Erase by `id`, by `indicator`, or `all=true`. |
+
+```bash
+curl localhost:18080/api/data -H "Authorization: Bearer $JWT" \
+  -H 'Content-Type: application/json' \
+  -d '{"records":[{"indicator":"fasting_glucose","value":5.6,"unit":"mmol/L","time":"2026-08-19T07:30:00Z"}]}'
+# {"status":"ok","ingested":1,"standardized":1}
+```
+
+**Three deliberate differences from the hosted contract**, all in the same
+direction — this is your machine, not a multi-tenant platform:
+
+- **No `/v1` prefix.** These paths are not the hosted contract and should not
+  claim to be versioned alongside it.
+- **No `user` / `retention` / `session_id` / `mb_live_*` keys.** Subjects, expiry
+  scheduling and billing are operator machinery for a plane with many tenants;
+  here your JWT says who you are and a row lives until something deletes it.
+  `retention` and `session_id` are *accepted and ignored* rather than rejected —
+  a 400 for a field the platform docs told you to send helps nobody.
+- **`DELETE /api/data` needs an explicit scope.** The hosted endpoint reads "no
+  filter" as "everything", which is fine behind a key an operator minted on
+  purpose. Here a mistyped curl is one keystroke from a person's whole record,
+  so the widest scope is `all=true`.
+
+**The web client's API** (`/api/v1/health-indicators`, `/api/chat`,
+`/api/v1/pulse/*`, `/files/*`, `/invitation/*`) keeps the house
+`{code, msg, data}` envelope. It is what the bundled frontend talks to; build
+against it if you are replacing the frontend, and against the records API above
+if you are feeding data in or reading it out.
+
 ## 🔐 Where you use it
 
 | Surface | URL | What it is |
@@ -461,12 +767,12 @@ demo accounts above — all configured in `config.{env}.yaml`.
 
 ```bash
 pip install -e '.[test]'
-pytest        # 295 tests, ~8s — no database, no network, no API key
+pytest        # 495 tests, ~9s — no database, no network, no API key
 ```
 
 Tests sit beside the code they cover, so bare `pytest` is the whole suite. Two
 of them carry the project's public claims: `test_engine_coverage.py` is the
-116/116 resolver number quoted above, and `pulse/gate_tests/` snapshots every
+197/197 resolver number quoted above, and `pulse/gate_tests/` snapshots every
 vendor payload against its standardized form.
 
 **👉 [docs/testing.md](docs/testing.md)** — layout, markers, snapshot
@@ -477,8 +783,8 @@ regeneration, and the release gates (`lint-imports`, `check_wheel_data.py`).
 ## 📚 Documentation
 
 **[docs.mirobody.ai](https://docs.mirobody.ai/)** is the documentation platform —
-deployment, the API platform, and this open-source engine, kept in sync as both
-evolve.
+deployment, the API platform, and this open-source engine, kept in sync as all
+three evolve.
 
 In-repo docs follow one rule: **each package carries a short `README.md` saying
 what it is; long-form guides live in [`docs/`](docs/)** so a `pip install`
@@ -507,13 +813,13 @@ doesn't drag contributor documentation into `site-packages`.
 
 ## 🤝 Contributing
 
-Contributions are organized around the engine's three verbs — pick your lane:
+Contributions are organized around the engine's three stages — pick your lane:
 
 | Lane                 | What to contribute                                                                                                                                                                                                                                                                                                               | Typical size |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
 | **① Collect** | A new device provider — implement [`BasePullProvider`](mirobody/pulse/providers/platform/base.py) in one `mirobody_<slug>/` directory and the platform discovers it at startup; [`mirobody_pgsql/`](mirobody/pulse/providers/mirobody_pgsql/) is the smallest reference, [`mirobody_whoop/`](mirobody/pulse/providers/mirobody_whoop/) the OAuth2 one. Or a new file format for the parser | medium       |
-| **② Sort**    | **Make a term resolve.** Find one that comes back wrong or empty — `mirobody resolve "<term>"` — then add one row to [`resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv) and one case to [`test_engine_coverage.py`](mirobody/test_engine_coverage.py). Any language. This is the lowest-barrier useful PR in the repo, and it moves a number we publish. Also: unit mappings, taxonomy fixes | tiny         |
-| **③ Answer**  | An Agent Skill (`SKILL.md` package under [`mirobody/agent/skills/`](mirobody/agent/skills/) — copy [`lab-report-walkthrough`](mirobody/agent/skills/lab-report-walkthrough/SKILL.md)), an MCP tool, a chart schema                                                                                                                                                                                                                             | medium       |
+| **② Standardize**    | **Make a term resolve.** Find one that comes back wrong or empty — `mirobody resolve "<term>"` — then add one row to [`resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv) and one case to [`test_engine_coverage.py`](mirobody/test_engine_coverage.py). Any language. This is the lowest-barrier useful PR in the repo, and it moves a number we publish. Also: unit mappings, taxonomy fixes | tiny         |
+| **③ Answers**  | An Agent Skill (`SKILL.md` package under [`mirobody/agent/skills/`](mirobody/agent/skills/) — copy [`lab-report-walkthrough`](mirobody/agent/skills/lab-report-walkthrough/SKILL.md)), an MCP tool, a chart schema                                                                                                                                                                                                                             | medium       |
 
 Found a lab report that parses wrong, or an indicator name that doesn't resolve? **That's a great issue** — attach the (de-identified) sample. See the [Contributing Guide](CONTRIBUTING.md) for PR mechanics.
 

@@ -2,7 +2,8 @@
 File Database Service for th_files table operations
 
 Provides CRUD operations for the th_files table.
-This is an independent service for mirobody, not dependent on holywell.
+This is a self-contained service: it owns its own DB access and pulls in
+nothing from outside the project.
 """
 
 import logging

@@ -20,6 +20,7 @@ from .user import (
 from .account_merge import merge_accounts
 
 from ..utils import (
+    execute_query,
     secret_fingerprint,
     json_response_with_code,
     json_response,
@@ -130,6 +131,10 @@ class UserService:
         self.routes.append(Route(f"{uri_prefix}/email/login", endpoint=self.email_login_handler, methods=["POST", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/email/verify", endpoint=self.email_verify_handler, methods=["POST", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/email/bind", endpoint=self.email_bind_handler, methods=["POST", "OPTIONS"]))
+        # Password login. Additive: the email-code routes above are unchanged, and
+        # an account with `password_hash IS NULL` can still only use those.
+        self.routes.append(Route(f"{uri_prefix}/password/register", endpoint=self.password_register_handler, methods=["POST", "OPTIONS"]))
+        self.routes.append(Route(f"{uri_prefix}/password/login", endpoint=self.password_login_handler, methods=["POST", "OPTIONS"]))
 
         self.routes.append(Route(f"{uri_prefix}/user/del", endpoint=self.user_unregister_handler, methods=["POST", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/user/update_name", endpoint=self.user_update_name_handler, methods=["POST", "OPTIONS"]))
@@ -192,6 +197,105 @@ class UserService:
         #-------------------------------------------------
 
         return await self._generate_auth_response(id, email, "email", request)
+
+    #-------------------------------------------------------------------------
+
+    # ── password login ───────────────────────────────────────────────────────
+    #
+    # Why this exists at all: the email-code path needs Mandrill or SMTP, which
+    # someone who cloned the repo to try it out does not have. Without this the
+    # only accounts that could ever sign in were the hardcoded ones in
+    # EMAIL_PREDEFINE_CODES — a demo, not a sign-up.
+    #
+    # Hashing is bcrypt inside Postgres (`pgcrypto`), so no hash is ever built,
+    # compared or logged in Python. See `a1_add_password_login.sql`.
+
+    #: Short enough to be typed, long enough that bcrypt is not the weak link.
+    _MIN_PASSWORD_LEN = 8
+
+    @staticmethod
+    def _read_credentials(data: dict) -> tuple[str, str]:
+        """`email` or `username` — both name the same column; whichever arrived."""
+        email = (data.get("email") or data.get("username") or "").strip().lower()
+        return email, data.get("password") or ""
+
+    async def password_register_handler(self, request: Request) -> Response:
+        """Create an account with a password, or set one on an account without.
+
+        Deliberately NOT a password *change*: an account that already has a hash
+        is refused rather than overwritten, because this endpoint takes no proof
+        of ownership. Rotation belongs behind an authenticated route, and
+        pretending otherwise here would be a takeover primitive.
+        """
+        if request.method == "OPTIONS":
+            return json_response_with_code(disable_log=True)
+
+        try:
+            email, password = self._read_credentials(await request.json())
+        except Exception as e:
+            return json_response_with_code(-1, str(e), request=request)
+
+        if not email or "@" not in email:
+            return json_response_with_code(-2, "A valid email is required.", request=request)
+        if len(password) < self._MIN_PASSWORD_LEN:
+            return json_response_with_code(
+                -3, f"Password must be at least {self._MIN_PASSWORD_LEN} characters.", request=request
+            )
+
+        rows = await execute_query(
+            """
+            INSERT INTO health_app_user (is_del, email, name, password_hash)
+            VALUES (FALSE, :email, :name, crypt(:password, gen_salt('bf', 12)))
+            ON CONFLICT (email) DO UPDATE
+                SET password_hash = crypt(:password, gen_salt('bf', 12))
+                -- Only when there is none to overwrite. `WHERE` on DO UPDATE
+                -- makes the conflicting row survive untouched instead.
+                WHERE health_app_user.password_hash IS NULL
+            RETURNING id
+            """,
+            {"email": email, "name": email.split("@")[0], "password": password},
+            log_sql=False,
+        )
+        if not rows:
+            # The row exists and already had a hash, so nothing was updated.
+            return json_response_with_code(
+                -4, "That account already has a password. Sign in instead.", request=request
+            )
+
+        return await self._generate_auth_response(rows[0]["id"], email, "password", request)
+
+    async def password_login_handler(self, request: Request) -> Response:
+        if request.method == "OPTIONS":
+            return json_response_with_code(disable_log=True)
+
+        try:
+            email, password = self._read_credentials(await request.json())
+        except Exception as e:
+            return json_response_with_code(-1, str(e), request=request)
+
+        if not email or not password:
+            return json_response_with_code(-2, "Email and password are required.", request=request)
+
+        # The comparison happens in SQL: `stored = crypt(candidate, stored)` re-runs
+        # bcrypt with the stored salt and cost. `password_hash IS NOT NULL` keeps an
+        # account that never set one from being reachable through this route.
+        rows = await execute_query(
+            """
+            SELECT id FROM health_app_user
+             WHERE email = :email AND is_del = FALSE
+               AND password_hash IS NOT NULL
+               AND password_hash = crypt(:password, password_hash)
+             LIMIT 1
+            """,
+            {"email": email, "password": password},
+            log_sql=False,
+        )
+        if not rows:
+            # One message for "no such account", "no password set" and "wrong
+            # password" alike — telling them apart is an account-enumeration gift.
+            return json_response_with_code(-3, "Incorrect email or password.", request=request)
+
+        return await self._generate_auth_response(rows[0]["id"], email, "password", request)
 
     #-------------------------------------------------------------------------
 
