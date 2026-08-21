@@ -8,12 +8,20 @@ plus the two places this surface deliberately departs from the hosted one.
 
 from __future__ import annotations
 
+import importlib
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from mirobody.server.auth import verify_token
-from mirobody.server.routers import records_router as rr
+# The MODULE, not the router object, and `import a.b.c as rr` will not do it:
+# that form binds via attribute lookup on the package, and `routers/__init__.py`
+# exports `records_router` as the APIRouter — it has to, since `server.py` calls
+# `include_router` on it, and all nine routers are exported that way. So the
+# attribute shadows the submodule and `monkeypatch.setattr(rr, "execute_query",
+# …)` has nothing to patch. `import_module` returns the module regardless.
+rr = importlib.import_module("mirobody.server.routers.records_router")
 
 
 @pytest.fixture

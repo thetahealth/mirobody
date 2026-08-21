@@ -33,6 +33,13 @@ from .user_router import router as user_router
 from .file_router import router as file_router
 from .session_share_router import router as session_share_router
 from .sharing_router import router as sharing_router
+# Without this line `from .routers import records_router` in server.py resolves to
+# the SUBMODULE (Python's fallback for a missing attribute on a package), the import
+# raises nothing, and `app.include_router(<module>)` then dies with
+# `AttributeError: ... has no attribute '_contains_router'` — aborting startup before
+# uvicorn binds. The traceback was invisible: asyncio.run's task cleanup hangs on the
+# scheduler, so the exception never got re-raised and the log just stopped.
+from .records_router import router as records_router
 
 public_router.include_router(apple_router)
 
@@ -45,4 +52,5 @@ __all__ = [
     "file_router",
     "session_share_router",
     "sharing_router",
+    "records_router",
 ]
