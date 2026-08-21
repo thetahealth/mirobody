@@ -1,4 +1,4 @@
--- Reclaim three indexes that cost writes and served no read, and one table that
+-- Reclaim four indexes that cost writes and served no read, and one table that
 -- stored a second copy of data th_files already holds.
 --
 -- Deleting a `CREATE INDEX` from a baseline only affects databases created
@@ -14,6 +14,14 @@
 --
 --   idx_th_sessions_tags — GIN index on `th_sessions.tags`, same story for the
 --     notes/journal feature that does not exist in this project.
+--
+--   idx_th_series_data_full_dim_id — a b-tree on `th_series_data.full_dim_id`,
+--     the second key 42_ added beside `fhir_id`. It pointed into
+--     `indicator_full_dim`, a dimension table no baseline here creates, owned by
+--     a service this project no longer runs. Nothing in the repo ever read or
+--     wrote the column, so the index kept an entry per row over a column that is
+--     NULL in all of them — on every insert into th_series_data, the
+--     highest-write table in the schema. 42_ no longer creates either.
 --
 --   idx_th_messages_file_list — (user_id, message_type, is_del, created_at DESC),
 --     the last database-side remnant of the th_messages → th_files migration.
@@ -46,3 +54,4 @@ DROP TABLE IF EXISTS th_file_contents;
 DROP INDEX IF EXISTS idx_th_messages_comment_trgm;
 DROP INDEX IF EXISTS idx_th_sessions_tags;
 DROP INDEX IF EXISTS idx_th_messages_file_list;
+DROP INDEX IF EXISTS idx_th_series_data_full_dim_id;
