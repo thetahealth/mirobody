@@ -82,7 +82,12 @@ async def _authorize_file_read(file_key: str, caller_id: str) -> bool:
     recorded the upload. Two tables record one:
 
     * ``th_files``  — everything the upload path stores, ``file_key`` unique.
-    * ``deep_agent_workspace`` — the agent's virtual filesystem, ``oss_key``.
+    * ``deep_agent_workspace`` — the agent's virtual filesystem,
+      ``object_storage_key``. That is the column name; ``oss_key`` is only the
+      Python-side bind parameter in `deep/backend.py`, and querying by it here
+      raised `column "oss_key" does not exist` — turning "key nobody claims"
+      into a 500 for exactly the workspace-only files this branch exists to
+      authorize, and breaking the no-raise contract three lines below.
 
     Care-circle members reach an owner's files through the same permission
     check the uploaded-files LIST endpoint already uses, so a shared file and a
@@ -100,7 +105,7 @@ async def _authorize_file_read(file_key: str, caller_id: str) -> bool:
     )
     if not rows:
         rows = await execute_query(
-            "SELECT user_id FROM deep_agent_workspace WHERE oss_key = :key LIMIT 1;",
+            "SELECT user_id FROM deep_agent_workspace WHERE object_storage_key = :key LIMIT 1;",
             params={"key": file_key},
         )
     if not rows:
