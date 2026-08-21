@@ -1,6 +1,14 @@
 name: Test Build
 
-# Triggered manually, on PR, or on push
+# The comment here used to say "or on push" while no push trigger existed, so
+# every commit landing on main went unchecked and had to be dispatched by hand.
+#
+# No paths filter, deliberately. The old one listed '**.py', pyproject.toml and
+# this file, which already missed config.yaml (the demo credential test reads
+# it) and now misses README*.md, mirobody/demo/ and mirobody/res/ as well --
+# test_readme_numbers.py checks the READMEs' figures against the bundle and the
+# fixture, so a README-only edit can break the build. A filter that is wrong is
+# worse than no filter, and a full run is three minutes.
 on:
   workflow_dispatch:
     inputs:
@@ -8,12 +16,10 @@ on:
         description: 'Test version number (e.g., 1.0.0a1, 1.0.0b1, 1.0.0rc1)'
         required: false
         default: '0.0.0a1'
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main, master, develop ]
-    paths:
-      - '**.py'
-      - 'pyproject.toml'
-      - '.github/workflows/test-build.yml'
 
 jobs:
   test-build:
