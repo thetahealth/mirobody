@@ -23,7 +23,16 @@ jobs:
         python-version: ['3.12', '3.13']
 
     steps:
+    # lfs: true is load-bearing here for the same reason it is in
+    # pypi-release.yml, and this job was missing it. A plain checkout leaves
+    # 133-byte pointer files where mirobody/res/*.gz lives, so:
+    #   * the engine tests fail with `BadGzipFile: Not a gzipped file (b've')`
+    #     — that `ve` is the start of `version https://git-lfs...`
+    #   * `python -m build` below happily packages the pointers, which is
+    #     exactly how 1.0.62 shipped a wheel whose `resolve` could never work
     - uses: actions/checkout@v4
+      with:
+        lfs: true
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
@@ -73,6 +82,13 @@ jobs:
         ls -la dist/
         echo "Built packages:"
         ls -1 dist/
+
+    # The gate that would have caught the missing lfs above on its own: it
+    # opens each artifact and refuses pointer-sized members. pypi-release.yml
+    # has run this since 1.0.62; the test workflow never did, so CI could build
+    # a hollow wheel and call it green.
+    - name: Verify artifacts carry the engine data bundles
+      run: python scripts/check_wheel_data.py dist/*
 
     - name: Check package with twine
       run: |
