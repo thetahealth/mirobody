@@ -28,7 +28,7 @@ AIが健康データを理解する前に、まずこれらの信号を統合し
 | 段階                | 意味                                                                                                     | 場所                                                   |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | **① Collect(収集)** | 信号を取り込む:デバイスプロバイダ3種 + SQLソース・ファイル形式7種・Apple Health                                             | [`pulse/`](mirobody/pulse/) |
-| **② Standardize(標準化)**    | 単一標準への統一:任意の測定値を正規コード(LOINC・SNOMED CT・RxNorm)に解決し、単位を正規化し、FHIRとして格納 | [`indicator/`](mirobody/indicator/)                    |
+| **② Standardize(標準化)**    | 単一標準への統一:任意の測定値を正規コード(LOINC・SNOMED CT・RxNorm)に解決し、単位を正規化し、FHIRが認めるコード体系に載せる | [`indicator/`](mirobody/indicator/)                    |
 | **③ Answers(応答)**  | 推論:エージェントが仮想ファイルシステム経由で*元の文書*を読み、グラフと引用付きで回答     | [`agent/`](mirobody/agent/)                  |
 
 ---
@@ -218,8 +218,7 @@ MCPサーフェスは意図的に小さい:
   対して盲目になる。
 - UCUMファミリー(約310)への**単位正規化**、および
   [変換処理](mirobody/indicator/fhir/units/convert.py) ―― 次元解析、LOINCコードをキーとす
-  るモル質量ブリッジ、`%` と `10*9/L` に対する明示的な変換拒否。標準pulse指標316種、
-  FHIR R4形式で出力。
+  るモル質量ブリッジ、`%` と `10*9/L` に対する明示的な変換拒否。標準pulse指標316種。
 - 臨床カテゴリ25種のタキソノミー(バイタルサイン、臨床検査、身体測定、……)。
 
 ### 🧪 Semantic recall ―― オプトインであることの理由
@@ -357,7 +356,7 @@ frontend/                    the bundled web client, shipped as a FIXED build �
 | インストール | できること | フットプリント |
 | --- | --- | --- |
 | *wheel + numpyのみ* | `from mirobody.engine import resolve` ―― オフラインリゾルバ | mirobody部分で**33 MB**(numpy込みで76 MB) |
-| `pip install mirobody` | + `mirobody parse`(LLMキー1つ)・ファイル解析(PDF/Excel/音声)・FHIR出力 | 233 MB、90パッケージ |
+| `pip install mirobody` | + `mirobody parse`(LLMキー1つ)・ファイル解析(PDF/Excel/音声)・標準コード出力 | 233 MB、90パッケージ |
 | `pip install 'mirobody[server]'` | + HTTP APIとMCPエンドポイント | Postgres + Redisが必要 |
 | `pip install 'mirobody[agents]'` | + DeepAgent/BaseAgentと `mirobody serve`(`[server]` を含む) | + LangChainスタック |
 | `pip install 'mirobody[indicator-build]'` | 用語バンドル自体の再構築 | LOINC/UMLSソースが必要 |
@@ -430,7 +429,7 @@ pip install -e '.[test]' && lint-imports
 vendor APIs / files / Apple Health          ① pulse
         └─> StandardPulseData ─> validate ─> normalize ─> daily rollups
                  └─> indicator names ─> ② indicator: canonical codes (LOINC·SNOMED·RxNorm)
-                          └─> FHIR R4 rows in Postgres
+                          └─> coded rows in Postgres
                                    └─> ③ agent: read ORIGINAL documents through the
                                        virtual fs, compute, chart, answer — and insights
                                        feed back into the record, closing the loop
@@ -450,8 +449,8 @@ vendor APIs / files / Apple Health          ① pulse
 | [MedHarm-Bench](https://huggingface.co/datasets/healthmemoryarena/MedHarm-Bench) | 有害な医療アドバイス                                                                                                                                            | 4,300+    |
 
 いずれも**[mirobody-eval](https://github.com/thetahealth/mirobody-eval)**(私たちのオープ
-ンな評価フレームワーク)を使えば1コマンドで再現できる。そのジェネレータは、デモやテストで
-使う合成(PHIを含まない)健康データも生成する。
+ンな評価フレームワーク)を使えば1コマンドで再現できる。そのジェネレータは、新しいデプロイの空の
+データベースを満たす合成(PHIを含まない)推移データも生成する ―― [データを入れる](#-データを入れる)を参照。
 
 エンジン自体にも同じ基準を課している。**リゾルバカバレッジ** ―― ② Standardize(標準化)は
 実際の検査報告書にある日常的な検査項目に正しく名前を付けられるか ―― は本リポジトリの中
@@ -548,12 +547,117 @@ mirobody serve
 
 事前に用意されたデモアカウントでサインインする ―― サーバーは起動時にこれらを出力する:
 
-- **メールアドレス**:`exp1@mirobody.ai`(`exp2@` / `exp3@` も利用可)
+- **メールアドレス**:`caregiver@mirobody.ai` ―― 名前がそのまま役割だ。
+  介護者としてログインし、読むのは他人の記録になる
 - **確認コード**:`111111`
 
 これらは `config.yaml` の `EMAIL_PREDEFINE_CODES` から来ている:SMTPが未設定の場合、サイ
 ンインできるのは事前定義済みのアドレスのみだ。自分のアドレスをそこに追加するか、
 `EMAIL_SMTP_*` を設定して実際のコードを送信するようにする。
+
+この3件は許可リストであって、登録の上限ではない。検証を通った宛先はその場で作成
+される(`add_or_get_user`)。許可リストが縛るのは**検証**の側だ ―― SMTPが未設定
+なら検証を通るのは事前定義のコードだけなので、「コードを送信」は
+`No SMTP server configured.` を返し、すでに分かっているコードを自分で入力する。
+
+**あるいはコードを使わない。** コードの経路にはMandrillかSMTPが要るが、試すために
+cloneしたデプロイにはどちらも無い ―― なのでログインページは既定で
+**サインイン / アカウント作成**を開き、**メールコード**は3つめのタブとして残してある。
+curlで叩くなら、その下のAPIはこれだ。
+
+```bash
+curl -X POST localhost:18080/password/register -H 'Content-Type: application/json' \
+     -d '{"email":"you@example.com","password":"at-least-8-chars"}'
+```
+
+トークンを返し、アカウントを作る。同じbodyで `POST /password/login` を叩けば再び
+サインインできる。`email` の代わりに `username` でもよい。ハッシュは `pgcrypto` が
+Postgres内部で計算するbcrypt(`crypt()` / `gen_salt('bf', 12)`)なので、パスワードが
+Pythonでハッシュ化・比較・ログ出力されることはなく、既定のパスワードも同梱しない。
+すでにパスワードのあるアカウントに対して `register` は上書きせず拒否する ―― この
+エンドポイントは所有の証明を取らないので、変更を許せばアカウント奪取の原語になる。
+パスワード誤りと存在しないアカウントは同じ応答を返す。区別することがアカウント列挙
+を許すからだ。
+
+Gitで追跡されているファイルを触らずにDockerデプロイへ自分の宛先を足すには、
+マップ全体を環境変数で渡す ―― 優先順位は
+`環境変数 > config.{env}.yaml > config.yaml` で、JSON文字列は解析される。
+
+```bash
+docker compose run -e EMAIL_PREDEFINE_CODES='{"you@example.com":"424242","caregiver@mirobody.ai":"111111"}' mirobody
+```
+
+追加ではなく**置き換え**なので、残したい `exp*` アカウントも書き並べること。
+任意の宛先へ実際のコードを送るなら、代わりに `EMAIL_SMTP_*` を設定すれば許可
+リストは効かなくなる。
+
+### 👨‍👩‍👧 ケアサークルのデモ ―― まず問い、それからアップロード
+
+`compose.yaml` が `SEED_DEMO_DATA=true` を設定しているので、Dockerの経路は起動を
+終えた時点であなたのケアサークルに合成ユーザーが1人いる。**Demo (synthetic)** ――
+2年分・244指標、そしてエージェントが `read_file` できるmarkdown文書5件。
+`caregiver@mirobody.ai`(コード `111111`)でログインすると自分のデータは何もない。
+読んでいるのは他人の記録だ。
+
+**データ一覧ではなく、問いから始める。** Askページで:
+
+> *「彼女の直近のLDLは? 1年前と比べてどうか?」*
+
+投入直後のデプロイでも、答えは彼女の実際の履歴から返る:
+
+```
+| 日付       | LDL (mmol/L) |
+| 2024-04-16 | 3.4          |
+| 2024-10-15 | 3.2          |
+| 2025-04-15 | 3.1          |
+```
+
+……そのうえで、最新のパネルが1年以上前でありもう一度受けるに値する、と自分から
+指摘してくる。それがデモ後半の合図だ。
+
+**次にファイルを渡す。** `mirobody/demo/lab_report_2025-10-15.pdf` は彼女の
+*次の*パネルで、投入からは意図的に外してある ―― だからアップロードは空振りでは
+なく、データベースにまだ無いデータになる。Dataページ(またはAskの ＋)に落とせば、
+① Collect と ② Standardize が仕事をする。PDFが読まれ、12項目が単位付きで出てき
+て、それぞれがコードに解決され、LDLの系列に4点目が増える。同じ問いをもう一度
+投げれば、答えが動く。
+
+投入データに当たる他の問い: *「参照範囲を外れている結果はどれ?」*、
+*「去年の冬から睡眠は変わった?」*、*「直近の検査をまとめて」*。
+
+値はすべて合成。この推移は
+[mirobody-eval](https://github.com/thetahealth/mirobody-eval) が
+[ESL-Bench](https://huggingface.co/datasets/healthmemoryarena/ESL-Bench) 向けに
+生成したもので、200 KBのファイル1つと5 KBのPDFとしてこのリポジトリに同梱してある。
+だから投入にネットワークもHuggingFaceからのダウンロードもAPIキーも要らない ――
+PDFの冒頭には "SYNTHETIC SAMPLE" と刷ってある。投入はupsertなので再起動で重複
+しない。実データを載せるデプロイでは `SEED_DEMO_DATA=false` に。
+
+問いに答えるにはLLMキーが必要。記録の閲覧とアップロードには要らない。指標名は
+データ元の綴りのまま(`AlanineAminotransferase-ALT`)で、自分のアップロードが得る
+表示名にはならない。その仕上げはdim/embeddingの工程が担うので、embeddingキーを
+設定すれば `IndicatorSyncTask` が整えてくれる。
+
+### 🌱 データを入れる
+
+インストール直後にログインしても、データベースは空だ。第一印象が悪いだけでなく、
+エージェントに加えた変更を評価することもできない。兄弟プロジェクトの
+[mirobody-eval](https://github.com/thetahealth/mirobody-eval) が、合成ユーザー
+1人の5年分の推移でそれを満たし、そのうえでデプロイを採点する。
+
+```bash
+uv run python -m generator.eslbench.prepare_data                   # HuggingFace から約 20 MB
+uv run python -m generator.eslbench.seed_mirobody --users user5086@demo
+uv run python -m benchmark.basic_runner eslbench sample200-20260430 \
+    --target-type mirobody --limit 20
+```
+
+投入には、対象のデプロイを指す設定の `pip install mirobody` と embedding キーが
+必要。採点にはそのデプロイの HTTP サーバーが稼働していること(`MIROBODY_BASE_URL`、
+既定は `http://localhost:18080`)。`--hold-out-exams 1` を付けると直近の検査パネル
+をデータベースに入れず残せるので、`generator.eslbench.labreport` でそれを PDF に
+描き出せば、アップロード経路に「データベースにまだ無いデータ」を渡せる。値はすべて
+合成で、PDF の表紙にもそう書いてある。
 
 ### 拡張する ―― ToolsとSkills
 

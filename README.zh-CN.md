@@ -28,7 +28,7 @@
 | 阶段 | 含义 | 位置 |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | **① 收集** | 把信号拉进来：3 家设备提供者 + 一个 SQL 数据源 · 7 种文件格式 · Apple Health | [`pulse/`](mirobody/pulse/) |
-| **② 标准化** | 一套标准：把任意一条读数解析成标准代码（LOINC · SNOMED CT · RxNorm），统一单位，落地为 FHIR | [`indicator/`](mirobody/indicator/) |
+| **② 标准化** | 一套标准：把任意一条读数解析成标准代码（LOINC · SNOMED CT · RxNorm），统一单位，落地到 FHIR 认可的码制 | [`indicator/`](mirobody/indicator/) |
 | **③ 解答** | 推理：agent 通过虚拟文件系统读取*原始文件*，并用图表和引用来源作答 | [`agent/`](mirobody/agent/) |
 
 ---
@@ -219,7 +219,7 @@ MCP 对外的接口刻意做得很精简：
 - **单位归一化**到 UCUM 单位家族（约 310 个），加上
   [单位换算](mirobody/indicator/fhir/units/convert.py)——量纲分析、按
   LOINC 代码索引的摩尔质量桥接，以及对 `%` 和 `10*9/L` 这类情况的明确拒绝换
-  算。共 316 个标准 pulse 指标，输出为 FHIR R4。
+  算。共 316 个标准 pulse 指标。
 - 25 个临床分类的体系（生命体征、检验与临床、身体测量……）。
 
 ### 🧪 语义召回：选择加入，为什么选择加入
@@ -359,7 +359,7 @@ frontend/                    the bundled web client, shipped as a FIXED build �
 | 安装方式 | 能用什么 | 体积 |
 | --- | --- | --- |
 | *只装 wheel + numpy* | `from mirobody.engine import resolve`——离线解析器 | mirobody 本体 **33 MB**（加上 numpy 是 76 MB） |
-| `pip install mirobody` | + `mirobody parse`（一个 LLM 密钥）· 文件解析（PDF/Excel/音频）· FHIR 输出 | 233 MB，90 个依赖包 |
+| `pip install mirobody` | + `mirobody parse`（一个 LLM 密钥）· 文件解析（PDF/Excel/音频）· 标准码输出 | 233 MB，90 个依赖包 |
 | `pip install 'mirobody[server]'` | + HTTP API 和 MCP 端点 | 需要 Postgres + Redis |
 | `pip install 'mirobody[agents]'` | + DeepAgent/BaseAgent 和 `mirobody serve`（包含 `[server]`） | + 完整的 LangChain 依赖栈 |
 | `pip install 'mirobody[indicator-build]'` | 自己重建术语数据包 | 需要 LOINC/UMLS 源数据 |
@@ -435,7 +435,7 @@ pip install -e '.[test]' && lint-imports
 vendor APIs / files / Apple Health          ① pulse
         └─> StandardPulseData ─> validate ─> normalize ─> daily rollups
                  └─> indicator names ─> ② indicator: canonical codes (LOINC·SNOMED·RxNorm)
-                          └─> FHIR R4 rows in Postgres
+                          └─> coded rows in Postgres
                                    └─> ③ agent: read ORIGINAL documents through the
                                        virtual fs, compute, chart, answer — and insights
                                        feed back into the record, closing the loop
@@ -456,8 +456,8 @@ vendor APIs / files / Apple Health          ① pulse
 
 这几个基准，都能用
 **[mirobody-eval](https://github.com/thetahealth/mirobody-eval)**——我们的
-开放评测框架——一条命令复现。它的生成器同时也是演示和测试里用的那些合成
-（不含 PHI）健康数据的来源。
+开放评测框架——一条命令复现。它的生成器也会产出用来填满一个新部署空库的
+合成（不含 PHI）轨迹数据——见[灌入数据](#-灌入数据)。
 
 我们对引擎本身也用同一个标准来要求。**解析器覆盖率**——② 标准化这一层，
 能不能叫出一张真实检验报告上那些日常检验项目的名字？——这个测试就在本仓
@@ -557,12 +557,107 @@ mirobody serve
 
 用一个预置的演示账号登录——服务器启动时会把它们打印出来：
 
-- **邮箱**：`exp1@mirobody.ai`（还有 `exp2@` / `exp3@`）
+- **邮箱**：`caregiver@mirobody.ai`——名字就是角色：你以照护者身份登录，
+  读的是别人的记录
 - **验证码**：`111111`
 
 这些账号来自 `config.yaml` 里的 `EMAIL_PREDEFINE_CODES`：没配置 SMTP 的情
 况下，只有预置的地址能登录。你可以把自己的地址加进去，或者配置
 `EMAIL_SMTP_*` 来发送真实验证码。
+
+这三个是白名单，不是注册的上限：任何通过验证的地址都会被就地创建
+（`add_or_get_user`）。白名单管的是**验证**这一步——没有配置 SMTP 时，只有预置
+的码能通过验证，所以"发送验证码"会返回 `No SMTP server configured.`，你直接填
+已知的那个码。
+
+**或者干脆不用验证码。** 验证码那条路需要 Mandrill 或 SMTP，而你 clone 下来试用
+的部署两者都没有——所以登录页默认落在**登录 / 注册**，把**邮箱验证码**留作第三个
+标签。底层 API 如果你想直接 curl：
+
+```bash
+curl -X POST localhost:18080/password/register -H 'Content-Type: application/json' \
+     -d '{"email":"you@example.com","password":"at-least-8-chars"}'
+```
+
+它会返回 token 并创建账号；用同样的 body 打 `POST /password/login` 就能再次登录。
+`username` 可以代替 `email`。哈希是 `pgcrypto` 在 Postgres 内部算的 bcrypt
+（`crypt()` / `gen_salt('bf', 12)`），所以密码从不在 Python 里被哈希、比较或记日志，
+本仓也不预置任何密码。对已经设过密码的账号，`register` 会拒绝而不是覆盖——这个端点
+不校验所有权，允许它改密码就等于送出一个账号接管原语。密码错误和账号不存在返回完全
+相同的消息，这是刻意的：区分开来就等于允许枚举账号。
+
+要给 Docker 部署加自己的地址、又不改动被 git 跟踪的文件，就把整张表用环境变量
+传进去——配置优先级是 `环境变量 > config.{env}.yaml > config.yaml`，而 JSON
+字符串会被解析：
+
+```bash
+docker compose run -e EMAIL_PREDEFINE_CODES='{"you@example.com":"424242","caregiver@mirobody.ai":"111111"}' mirobody
+```
+
+它是**替换**而不是追加，所以还想留的 `exp*` 账号要一并列上。如果要给任意地址发
+真实验证码，改为配置 `EMAIL_SMTP_*`，白名单就不再起作用。
+
+### 👨‍👩‍👧 关爱圈 demo —— 先问，再上传
+
+`compose.yaml` 里设了 `SEED_DEMO_DATA=true`，所以 Docker 这条路启动完，你的关爱圈
+里已经有一位合成用户：**Demo (synthetic)**——两年跨度 244 个指标，另有五份 markdown
+文档可供 agent `read_file`。用 `caregiver@mirobody.ai`（验证码 `111111`）登录，你
+自己什么都没有；你读的是别人的记录。
+
+**从提问开始，而不是从数据表开始。** 在 Ask 页问：
+
+> *「她最近一次的 LDL 是多少？和一年前比怎么样？」*
+
+在刚灌好的部署上，答案来自她真实的历史：
+
+```
+| 日期       | LDL (mmol/L) |
+| 2024-04-16 | 3.4          |
+| 2024-10-15 | 3.2          |
+| 2025-04-15 | 3.1          |
+```
+
+……然后它会主动指出最近一次面板已经一年多了、值得再查一次。这正是 demo 后半段的
+引子。
+
+**接着给它一个文件。** `mirobody/demo/lab_report_2025-10-15.pdf` 是她**下一次**的
+面板，刻意从灌入数据里留出——所以上传它不是空操作，而是库里确实没有的数据。把它
+拖到 Data 页（或 Ask 页的 ＋），看着 ① 收集 和 ② 标准化 各就各位：PDF 被读取、
+十二个分析物带着单位出来、每一个解析到标准码、LDL 序列多出第四个点。再问同一个
+问题，答案就变了。
+
+其他能落在灌入数据上的问题：*「她哪些结果超出参考区间？」*、*「她的睡眠和去年冬天
+比有变化吗？」*、*「帮我总结她最近一次化验」*。
+
+所有数值都是合成的。这条轨迹由
+[mirobody-eval](https://github.com/thetahealth/mirobody-eval) 为
+[ESL-Bench](https://huggingface.co/datasets/healthmemoryarena/ESL-Bench) 生成，
+以一个 200 KB 文件加一份 5 KB PDF 固化在本仓，所以灌数据不需要联网、不需要从
+HuggingFace 下载、也不需要任何 API key——PDF 抬头就印着 "SYNTHETIC SAMPLE"。灌入
+是 upsert，重启不会灌重。要让部署承载真实数据，把 `SEED_DEMO_DATA` 设为 false。
+
+回答问题需要 LLM key；浏览记录和上传文件不需要。指标名沿用数据源本身的拼写
+（`AlanineAminotransferase-ALT`），而不是你自己上传时得到的展示名——那层打磨来自
+dim/embedding 环节：配上 embedding key，`IndicatorSyncTask` 会把它们理顺。
+
+### 🌱 灌入数据
+
+新装完成后登录进去是一个空库——第一印象不好，而且对 agent 的任何改动都无法
+评估。兄弟项目 [mirobody-eval](https://github.com/thetahealth/mirobody-eval)
+会用一位合成用户五年的轨迹把它填满，然后给你的部署打分：
+
+```bash
+uv run python -m generator.eslbench.prepare_data                   # 从 HuggingFace 拉取约 20 MB
+uv run python -m generator.eslbench.seed_mirobody --users user5086@demo
+uv run python -m benchmark.basic_runner eslbench sample200-20260430 \
+    --target-type mirobody --limit 20
+```
+
+灌数据需要 `pip install mirobody` 且配置指向你要填的那个部署，再加一个 embedding
+key；打分需要该部署的 HTTP 服务在跑（`MIROBODY_BASE_URL`，默认
+`http://localhost:18080`）。加上 `--hold-out-exams 1` 可以把最近一次化验面板留在
+库外，再用 `generator.eslbench.labreport` 渲染成 PDF——这样文件上传这条路就有了
+库里确实没有的数据。所有数值都是合成的，PDF 首页也写明了这一点。
 
 ### 扩展它——工具与技能
 

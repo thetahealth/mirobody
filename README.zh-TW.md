@@ -28,7 +28,7 @@
 | 階段 | 意思 | 位置 |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | **① 收集** | 把訊號拉進來：3 家裝置提供者 + 一個 SQL 來源 · 7 種檔案格式 · Apple Health | [`pulse/`](mirobody/pulse/) |
-| **② 標準化** | 一套標準：把任何一筆讀值解析成標準代碼（LOINC · SNOMED CT · RxNorm），統一單位，並落地成 FHIR | [`indicator/`](mirobody/indicator/) |
+| **② 標準化** | 一套標準：把任何一筆讀值解析成標準代碼（LOINC · SNOMED CT · RxNorm），統一單位，並落地到 FHIR 認可的碼制 | [`indicator/`](mirobody/indicator/) |
 | **③ 解答** | 推理：agent 透過虛擬檔案系統讀取*原始文件*，並用圖表與引用來源作答 | [`agent/`](mirobody/agent/) |
 
 ---
@@ -145,7 +145,7 @@ MCP 對外的介面刻意做得很精簡：
 - **這個說法我們不是憑空主張，而是實測出來的。** [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) 拿醫師實際會開的檢驗套組來為離線解析器評分——血脂肪、全血球計數（CBC）、代謝、肝功能、甲狀腺、荷爾蒙、腫瘤標記、尿液檢查、生命徵象——寫法就是報告單真正印出來的樣子，涵蓋英文、简体中文、繁體中文與日本語——再加上平台 API 會用到的裝置／穿戴裝置詞彙（`steps`、`resting_heart_rate`、`sleep_duration`）。**現在是 197/197；剛寫出來那天只有 32/94。**它評的是*臨床*上對不對，不是解析成功率：把 `血红蛋白` 解析成 HbA1c 的代碼算是失敗，而 `血脂`（一個分類，不是單一檢驗項目）則要求解析結果必須是*什麼都沒有*，因為一個信心十足卻錯誤的代碼，比一個老實的「不知道」更糟。
 - **表面字元代數，讓寫法本身不會決定答案**（[`indicator/lexical.py`](mirobody/indicator/lexical.py)）：NFKC-lite 折疊（全形字元、上標、六種破折號變體），加上一個看得懂 CJK 的斷詞器，以及對檢驗報告常印出來的 `名称(缩写)` 這種形狀做的保守拆解。`ＦＢＧ`、`LDL–C`、`fasting_glucose`、`空腹血糖(GLU)`、`Cholesterol, total`，全部都會對到跟一般寫法一樣的代碼。當 `名称(缩写)` 前後兩半意見不合時——例如 `血糖(HbA1c)`——這個詞就會維持**未解析**狀態，而不是隨便選一個。
 - **是讀值在決定代碼，不只是名稱**（[`engine.resolve_reading`](mirobody/engine.py)）。LOINC 把單位*和*結果型態都編進了識別身分裡，所以單位決定 `PROPERTY`，數值的性質決定 `SCALE_TYP`。`5.0 mmol/L` → 14647-2，`193 mg/dL` → 2093-3，`阴性` → `[Presence]` 這個變體。內建語料庫裡有一半是非 `Qn`（79,368 列裡有 38,687 列），所以一個只針對數字設計限制條件的解析器，對其中一半的資料等於是視而不見。
-- **單位標準化**成 UCUM 家族（約 310 個），再加上[單位轉換](mirobody/indicator/fhir/units/convert.py)——因次分析、依 LOINC 代碼查表的摩爾質量橋接，以及對 `%` 相對 `10*9/L` 這種情況明確拒絕轉換。316 個標準 pulse 指標，輸出為 FHIR R4。
+- **單位標準化**成 UCUM 家族（約 310 個），再加上[單位轉換](mirobody/indicator/fhir/units/convert.py)——因次分析、依 LOINC 代碼查表的摩爾質量橋接，以及對 `%` 相對 `10*9/L` 這種情況明確拒絕轉換。316 個標準 pulse 指標。
 - 25 種臨床類別的分類法（生命徵象、檢驗與臨床、身體量測……等）。
 
 ### 🧪 語義召回：選擇加入，為什麼選擇加入
@@ -252,7 +252,7 @@ frontend/                    the bundled web client, shipped as a FIXED build �
 | 安裝方式 | 能做什麼 | 佔用空間 |
 | --- | --- | --- |
 | *只有 wheel + numpy* | `from mirobody.engine import resolve`——離線解析器 | mirobody 本身 **33 MB**（加上 numpy 共 76 MB） |
-| `pip install mirobody` | + `mirobody parse`（一支 LLM 金鑰） · 檔案解析（PDF/Excel/audio） · FHIR 輸出 | 233 MB，90 個套件 |
+| `pip install mirobody` | + `mirobody parse`（一支 LLM 金鑰） · 檔案解析（PDF/Excel/audio） · 標準碼輸出 | 233 MB，90 個套件 |
 | `pip install 'mirobody[server]'` | + HTTP API 與 MCP 端點 | 需要 Postgres + Redis |
 | `pip install 'mirobody[agents]'` | + DeepAgent/BaseAgent 與 `mirobody serve`（包含 `[server]`） | + 整套 LangChain |
 | `pip install 'mirobody[indicator-build]'` | 可以重新建置術語資料包本身 | 需要 LOINC/UMLS 原始資料 |
@@ -292,7 +292,7 @@ pip install -e '.[test]' && lint-imports
 vendor APIs / files / Apple Health          ① pulse
         └─> StandardPulseData ─> validate ─> normalize ─> daily rollups
                  └─> indicator names ─> ② indicator: canonical codes (LOINC·SNOMED·RxNorm)
-                          └─> FHIR R4 rows in Postgres
+                          └─> coded rows in Postgres
                                    └─> ③ agent: read ORIGINAL documents through the
                                        virtual fs, compute, chart, answer — and insights
                                        feed back into the record, closing the loop
@@ -310,7 +310,7 @@ vendor APIs / files / Apple Health          ① pulse
 | [MedHall-Bench](https://huggingface.co/datasets/healthmemoryarena/MedHall-Bench) | 醫療幻覺 | 4,500+ |
 | [MedHarm-Bench](https://huggingface.co/datasets/healthmemoryarena/MedHarm-Bench) | 有害的醫療建議 | 4,300+ |
 
-透過我們自己開發的開放評測框架 **[mirobody-eval](https://github.com/thetahealth/mirobody-eval)**，一行指令就能重現上面任何一個結果。它的產生器也會生成 demo 和測試裡用到的合成健康資料（不含 PHI，亦即不含可識別個人身分的健康資訊）。
+透過我們自己開發的開放評測框架 **[mirobody-eval](https://github.com/thetahealth/mirobody-eval)**，一行指令就能重現上面任何一個結果。它的產生器也會產出用來填滿新部署空資料庫的合成軌跡資料（不含 PHI，亦即不含可識別個人身分的健康資訊）——見[灌入資料](#-灌入資料)。
 
 我們對引擎本身，也用同一套標準要求。**解析器覆蓋率**——② 標準化這一層，能不能叫得出一份真實檢驗報告上那些日常檢驗項目的名字？——這個測試就在這個 repo 裡跑，離線執行，不到一秒：
 
@@ -400,10 +400,105 @@ mirobody serve
 
 用一個預先建立好的 demo 帳號登入——伺服器啟動時會把它們印出來：
 
-- **Email**：`exp1@mirobody.ai`（還有 `exp2@` / `exp3@`）
+- **Email**：`caregiver@mirobody.ai`——名字就是角色：你以照護者身分登入，
+  讀的是別人的紀錄
 - **驗證碼**：`111111`
 
 這些帳號來自 `config.yaml` 裡的 `EMAIL_PREDEFINE_CODES`：沒有設定 SMTP 的話，只有預先設定好的地址才能登入。你可以把自己的地址加進去，或者設定 `EMAIL_SMTP_*` 來寄送真正的驗證碼。
+
+這三個是白名單，不是註冊的上限：任何通過驗證的地址都會被當場建立
+（`add_or_get_user`）。白名單管的是**驗證**這一步——沒有設定 SMTP 時，只有預置
+的驗證碼能通過，所以「發送驗證碼」會回傳 `No SMTP server configured.`，你直接
+填你已經知道的那個碼。
+
+**或者乾脆不用驗證碼。** 驗證碼那條路需要 Mandrill 或 SMTP，而你 clone 下來試用
+的部署兩者都沒有——所以登入頁預設落在**登入 / 註冊**，把**Email 驗證碼**留作第三個
+分頁。底層 API 如果你想直接 curl：
+
+```bash
+curl -X POST localhost:18080/password/register -H 'Content-Type: application/json' \
+     -d '{"email":"you@example.com","password":"at-least-8-chars"}'
+```
+
+它會回傳 token 並建立帳號；用同樣的 body 打 `POST /password/login` 就能再次登入。
+`username` 可以代替 `email`。雜湊是 `pgcrypto` 在 Postgres 內部算的 bcrypt
+（`crypt()` / `gen_salt('bf', 12)`），所以密碼從不在 Python 裡被雜湊、比較或寫進
+日誌，本 repo 也不預置任何密碼。對已經設過密碼的帳號，`register` 會拒絕而不是覆蓋
+——這個端點不驗證所有權，允許它改密碼等於送出一個帳號接管原語。密碼錯誤和帳號不存在
+會回傳完全相同的訊息，這是刻意的：區分開來就等於允許枚舉帳號。
+
+要為 Docker 部署加上自己的地址、又不改動被 git 追蹤的檔案，就把整張表用環境
+變數傳進去——設定優先序是 `環境變數 > config.{env}.yaml > config.yaml`，而
+JSON 字串會被解析：
+
+```bash
+docker compose run -e EMAIL_PREDEFINE_CODES='{"you@example.com":"424242","caregiver@mirobody.ai":"111111"}' mirobody
+```
+
+它是**取代**而不是追加，所以還想保留的 `exp*` 帳號要一起列上。若要對任意地址寄
+出真實驗證碼，改為設定 `EMAIL_SMTP_*`，白名單就不再有作用。
+
+### 👨‍👩‍👧 關愛圈 demo —— 先問，再上傳
+
+`compose.yaml` 裡設了 `SEED_DEMO_DATA=true`，所以 Docker 這條路啟動完，你的關愛圈
+裡已經有一位合成使用者：**Demo (synthetic)**——兩年跨度 244 个指标，另有五份 markdown
+文件可供 agent `read_file`。用 `caregiver@mirobody.ai`（验证码 `111111`）登入，你
+自己什麼都沒有；你讀的是別人的紀錄。
+
+**從提問開始，而不是從資料表開始。** 在 Ask 頁問：
+
+> *「她最近一次的 LDL 是多少？和一年前比怎麼樣？」*
+
+在剛灌好的部署上，答案來自她真實的歷史：
+
+```
+| 日期       | LDL (mmol/L) |
+| 2024-04-16 | 3.4          |
+| 2024-10-15 | 3.2          |
+| 2025-04-15 | 3.1          |
+```
+
+……然後它會主動指出最近一次面板已經一年多了、值得再查一次。這正是 demo 後半段的
+引子。
+
+**接著給它一個檔案。** `mirobody/demo/lab_report_2025-10-15.pdf` 是她**下一次**的
+面板，刻意從灌入資料裡留出——所以上傳它不是空操作，而是資料庫裡確實沒有的資料。把它
+拖到 Data 頁（或 Ask 頁的 ＋），看著 ① 收集 和 ② 標準化 各就各位：PDF 被讀取、
+十二個分析物帶著單位出來、每一個解析到標準碼、LDL 序列多出第四個點。再問同一個
+問題，答案就變了。
+
+其他能落在灌入資料上的問題：*「她哪些結果超出參考區間？」*、*「她的睡眠和去年冬天
+比有變化嗎？」*、*「幫我總結她最近一次化驗」*。
+
+所有數值都是合成的。這條軌跡由
+[mirobody-eval](https://github.com/thetahealth/mirobody-eval) 为
+[ESL-Bench](https://huggingface.co/datasets/healthmemoryarena/ESL-Bench) 產生，
+以一個 200 KB 檔案加一份 5 KB PDF 固化在本 repo，所以灌資料不需要連網、不需要從
+HuggingFace 下載、也不需要任何 API key——PDF 抬頭就印著 "SYNTHETIC SAMPLE"。灌入
+是 upsert，重啟不會灌重。若要讓部署承載真實資料，把 `SEED_DEMO_DATA` 设为 false。
+
+回答問題需要 LLM key；瀏覽紀錄和上傳檔案不需要。指标名沿用数据源本身的拼写
+（`AlanineAminotransferase-ALT`），而不是你自己上傳時得到的顯示名稱——那層打磨來自
+dim/embedding 環節：配上 embedding key，`IndicatorSyncTask` 會把它們整理好。
+
+### 🌱 灌入資料
+
+裝好之後登入進去是一個空的資料庫——第一印象不好，而且對 agent 做的任何改動都
+無從評估。兄弟專案 [mirobody-eval](https://github.com/thetahealth/mirobody-eval)
+會用一位合成使用者五年的軌跡把它填滿，然後替你的部署打分：
+
+```bash
+uv run python -m generator.eslbench.prepare_data                   # 從 HuggingFace 抓約 20 MB
+uv run python -m generator.eslbench.seed_mirobody --users user5086@demo
+uv run python -m benchmark.basic_runner eslbench sample200-20260430 \
+    --target-type mirobody --limit 20
+```
+
+灌資料需要 `pip install mirobody`，且設定要指向你要填的那個部署，另外還需要一組
+embedding key；打分則需要該部署的 HTTP 服務處於執行中（`MIROBODY_BASE_URL`，
+預設 `http://localhost:18080`）。加上 `--hold-out-exams 1` 可以把最近一次化驗
+面板留在資料庫外，再用 `generator.eslbench.labreport` 產生成 PDF——這樣檔案上傳
+這條路徑就有了資料庫裡確實沒有的資料。所有數值都是合成的，PDF 首頁也會註明。
 
 ### 擴充它——工具與技能
 

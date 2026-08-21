@@ -28,7 +28,7 @@ The engine does three things, and the codebase (and [Contributing](#-contributin
 | Stage                | What it means                                                                                                     | Where                                                   |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | **① Collect** | Pull signals in: 3 device providers + a SQL source · 7 file formats · Apple Health                                             | [`pulse/`](mirobody/pulse/) |
-| **② Standardize**    | One standard: resolve any reading to canonical codes (LOINC · SNOMED CT · RxNorm), normalize units, land as FHIR | [`indicator/`](mirobody/indicator/)                    |
+| **② Standardize**    | One standard: resolve any reading to canonical codes (LOINC · SNOMED CT · RxNorm), normalize units, land against FHIR-recognized code systems | [`indicator/`](mirobody/indicator/)                    |
 | **③ Answers**  | Reason: agents read the*original documents* through a virtual filesystem and answer with charts & citations     | [`agent/`](mirobody/agent/)                  |
 
 ---
@@ -185,7 +185,7 @@ The part none of the adjacent open-source projects have — a **semantic standar
 - **We measure that claim instead of asserting it.** [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) scores the offline resolver against the panels a physical actually orders — lipid, CBC, metabolic, liver, thyroid, hormones, tumour markers, urinalysis, vitals — written the way a report prints them, in English, 简体中文, 繁體中文 and 日本語 — plus the device/wearable vocabulary the platform API teaches (`steps`, `resting_heart_rate`, `sleep_duration`). **197/197 today; it scored 32/94 the day it was written.** It grades *clinical* correctness, not resolution rate: answering `血红蛋白` with the code for HbA1c is scored as a failure, and `血脂` (a category, not an observation) is required to resolve to *nothing*, because a confident wrong code is worse than an honest miss.
 - **Surface algebra, so the spelling doesn't decide the answer** ([`indicator/lexical.py`](mirobody/indicator/lexical.py)): NFKC-lite folding (full-width, superscripts, the six dash variants) plus a CJK-aware tokenizer, and a guarded strip of the `名称(缩写)` shape a lab report prints. `ＦＢＧ`, `LDL–C`, `fasting_glucose`, `空腹血糖(GLU)` and `Cholesterol, total` all reach the same codes as their plain forms. When the two halves of `名称(缩写)` disagree — `血糖(HbA1c)` — the term stays **unresolved** rather than picking one.
 - **The reading picks the code, not just the name** ([`engine.resolve_reading`](mirobody/engine.py)). LOINC codes the unit *and* the result type into the identity, so the unit picks `PROPERTY` and the value's kind picks `SCALE_TYP`. `5.0 mmol/L` → 14647-2, `193 mg/dL` → 2093-3, `阴性` → the `[Presence]` variant. Half the shipped corpus is non-`Qn` (38,687 rows of 79,368), so a resolver that only constrains numbers is blind to half of it.
-- **Unit normalization** to UCUM families (~310), plus [conversion](mirobody/indicator/fhir/units/convert.py) — dimensional analysis, a molar-mass bridge keyed by LOINC code, and an explicit refusal for `%` vs `10*9/L`. 316 standard pulse indicators, FHIR R4 output.
+- **Unit normalization** to UCUM families (~310), plus [conversion](mirobody/indicator/fhir/units/convert.py) — dimensional analysis, a molar-mass bridge keyed by LOINC code, and an explicit refusal for `%` vs `10*9/L`. 316 standard pulse indicators.
 - Taxonomy of 25 clinical categories (Vital signs, Lab & Clinical, Body measures, …).
 
 ### 🧪 Semantic recall: opt-in, and why it is opt-in
@@ -312,7 +312,7 @@ frontend/                    the bundled web client, shipped as a FIXED build �
 | Install | What works | Footprint |
 | --- | --- | --- |
 | *the wheel + numpy only* | `from mirobody.engine import resolve` — the offline resolver | **33 MB** of mirobody (76 MB with numpy) |
-| `pip install mirobody` | + `mirobody parse` (one LLM key) · file parsing (PDF/Excel/audio) · FHIR output | 233 MB, 90 packages |
+| `pip install mirobody` | + `mirobody parse` (one LLM key) · file parsing (PDF/Excel/audio) · coded output | 233 MB, 90 packages |
 | `pip install 'mirobody[server]'` | + the HTTP API and MCP endpoint | needs Postgres + Redis |
 | `pip install 'mirobody[agents]'` | + DeepAgent/BaseAgent and `mirobody serve` (includes `[server]`) | + the LangChain stack |
 | `pip install 'mirobody[indicator-build]'` | rebuilding the terminology bundles themselves | needs LOINC/UMLS sources |
@@ -386,7 +386,7 @@ its exit plan in `pyproject.toml`'s `ignore_imports` and in
 vendor APIs / files / Apple Health          ① pulse
         └─> StandardPulseData ─> validate ─> normalize ─> daily rollups
                  └─> indicator names ─> ② indicator: canonical codes (LOINC·SNOMED·RxNorm)
-                          └─> FHIR R4 rows in Postgres
+                          └─> coded rows in Postgres
                                    └─> ③ agent: read ORIGINAL documents through the
                                        virtual fs, compute, chart, answer — and insights
                                        feed back into the record, closing the loop
@@ -404,7 +404,7 @@ Our health-AI benchmarks are the **most-downloaded in their category on Hugging 
 | [MedHall-Bench](https://huggingface.co/datasets/healthmemoryarena/MedHall-Bench) | Medical hallucination                                                                                                                                           | 4,500+    |
 | [MedHarm-Bench](https://huggingface.co/datasets/healthmemoryarena/MedHarm-Bench) | Harmful medical advice                                                                                                                                          | 4,300+    |
 
-Reproduce any of them with one command via **[mirobody-eval](https://github.com/thetahealth/mirobody-eval)** — our open evaluation framework. Its generator also produces the synthetic (PHI-free) health data used in demos and tests.
+Reproduce any of them with one command via **[mirobody-eval](https://github.com/thetahealth/mirobody-eval)** — our open evaluation framework. Its generator also produces the synthetic (PHI-free) trajectories that fill a fresh deployment's empty database — see [Seed it with data](#-seed-it-with-data).
 
 We hold the engine itself to the same standard. **Resolver coverage** — can ② Standardize name the everyday tests on a real lab report? — runs in this repo, offline, in under a second:
 
@@ -494,12 +494,121 @@ The step-by-step walkthrough (ports, encryption key, `[cn]` extra) lives at
 
 Sign in with a pre-seeded demo account — the server prints these at startup:
 
-- **Email**: `exp1@mirobody.ai` (also `exp2@` / `exp3@`)
+- **Email**: `caregiver@mirobody.ai` — named for the role: you sign in as the
+  caregiver, and the record you read belongs to someone else
 - **Verification code**: `111111`
 
 They come from `EMAIL_PREDEFINE_CODES` in `config.yaml`: with no SMTP
 configured, only predefined addresses can sign in. Add your own address there,
 or configure `EMAIL_SMTP_*` to send real codes.
+
+Those three are an allowlist, not a limit on registration: any address that
+passes verification is created on the spot (`add_or_get_user`). What the
+allowlist gates is *verification* — with no SMTP configured, the only codes that
+verify are the predefined ones, so "Send code" will report `No SMTP server
+configured.` and you type the code you already know.
+
+**Or skip codes entirely.** The code path needs Mandrill or SMTP, which a
+deployment you cloned to try out does not have — so the login page opens on
+**Sign in / Create account** and keeps **Email code** as a third tab. The API
+underneath, if you would rather curl it:
+
+```bash
+curl -X POST localhost:18080/password/register -H 'Content-Type: application/json' \
+     -d '{"email":"you@example.com","password":"at-least-8-chars"}'
+```
+
+That returns a token and creates the account; `POST /password/login` with the
+same body signs you back in. `username` works in place of `email`. The hash is
+bcrypt computed inside Postgres by `pgcrypto` (`crypt()` / `gen_salt('bf', 12)`),
+so no password is ever hashed, compared or logged in Python, and no default
+password ships in this repo. `register` refuses an account that already has one
+rather than overwriting it — that endpoint takes no proof of ownership, so
+letting it rotate a password would be a takeover primitive. Wrong password and
+unknown account answer identically, which is deliberate: telling them apart
+enumerates accounts.
+
+To add your own address to a Docker deployment without editing a tracked file,
+pass the whole map as an environment variable — config precedence is
+`env > config.{env}.yaml > config.yaml`, and a JSON string is parsed:
+
+```bash
+docker compose run -e EMAIL_PREDEFINE_CODES='{"you@example.com":"424242","caregiver@mirobody.ai":"111111"}' mirobody
+```
+
+It **replaces** the map rather than extending it, so re-list any `exp*` account
+you still want. For real codes to arbitrary addresses, configure `EMAIL_SMTP_*`
+instead and the allowlist stops mattering.
+
+### 👨‍👩‍👧 The care circle demo — ask, then upload
+
+`compose.yaml` sets `SEED_DEMO_DATA=true`, so the Docker path arrives with one
+synthetic person already in your care circle: **Demo (synthetic)** — 244
+indicators across two years, plus five markdown documents the agent can
+`read_file`. Sign in as `caregiver@mirobody.ai` (code `111111`) and you own
+nothing; the record you are reading is someone else's.
+
+**Start with a question, not the data table.** On the Ask page:
+
+> *"What was her latest LDL cholesterol and how does it compare to a year earlier?"*
+
+which on a freshly seeded deployment answers from her real history:
+
+```
+| Date       | LDL (mmol/L) |
+| 2024-04-16 | 3.4          |
+| 2024-10-15 | 3.2          |
+| 2025-04-15 | 3.1          |
+```
+
+…and then volunteers that the most recent panel is over a year old and worth
+repeating. Which is the cue for the second half of the demo.
+
+**Now hand it a file.** `mirobody/demo/lab_report_2025-10-15.pdf` is her *next*
+panel, deliberately held out of the seed — so uploading it is not a no-op, it is
+data the database does not have. Drop it on the Data page (or the ＋ in Ask) and
+watch ① Collect and ② Standardize do their jobs: the PDF is read, twelve
+analytes come out with their units, each resolves to a code, and the LDL series
+gains a fourth point. Ask the same question again and the answer moves.
+
+Other questions that land on seeded data: *"which of her results are outside the
+reference range?"*, *"has her sleep changed since last winter?"*, *"summarise her
+last lab panel for me"*.
+
+Every value is synthetic. The trajectory was generated for
+[ESL-Bench](https://huggingface.co/datasets/healthmemoryarena/ESL-Bench) by
+[mirobody-eval](https://github.com/thetahealth/mirobody-eval) and vendored here
+as one 200 KB file plus a 5 KB PDF, so the seed needs no network, no HuggingFace
+download and no API key — and the PDF says "SYNTHETIC SAMPLE" across its head.
+The seed is an upsert, so restarts do not duplicate it. Set
+`SEED_DEMO_DATA=false` for a deployment that will hold real data.
+
+Answering questions needs an LLM key; browsing the record and uploading do not.
+Indicator names arrive in the source's own spelling
+(`AlanineAminotransferase-ALT`) rather than the display names your own uploads
+get, because that polish comes from the dim/embedding pass — configure an
+embedding key and `IndicatorSyncTask` tidies them up.
+
+### 🌱 Seed it with data
+
+A fresh install signs you in to an empty database — a poor first impression, and
+it makes any change to the agent impossible to judge. The sibling
+[mirobody-eval](https://github.com/thetahealth/mirobody-eval) fills it with one
+synthetic user's five-year trajectory, then scores your deployment:
+
+```bash
+uv run python -m generator.eslbench.prepare_data                   # ~20 MB from HuggingFace
+uv run python -m generator.eslbench.seed_mirobody --users user5086@demo
+uv run python -m benchmark.basic_runner eslbench sample200-20260430 \
+    --target-type mirobody --limit 20
+```
+
+Seeding needs `pip install mirobody` pointed at the deployment you are filling,
+plus an embedding key; scoring needs its HTTP server up (`MIROBODY_BASE_URL`,
+default `http://localhost:18080`). Add `--hold-out-exams 1` to keep the latest
+lab panel out of the database, and `generator.eslbench.labreport` renders it as
+a PDF — so the upload path has something the database genuinely lacks. Every
+value is synthetic, and the PDF says so on its front page.
 
 ### Extend It — Tools and Skills
 
