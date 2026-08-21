@@ -1,0 +1,181 @@
+"""Every exact number the root READMEs quote, checked against what produces it.
+
+Nothing checked them before. ``test_readme_links.py`` guards the links and the
+per-language diagrams; ``pulse/standardize/test_readme_claims.py`` guards the
+*module* README's unit table. The root READMEs' figures were the one set with
+no gate, which is how they came to advertise "316 standard pulse indicators"
+against a catalogue of 300, and "25 clinical categories" against 13 — both
+found by hand, not by the suite.
+
+The check is presence of today's value, not parsing of the prose: for each
+claim the README must contain the number the code currently produces, written
+the way the READMEs write numbers (thousands separated). A bundle rebuild that
+moves an alias count therefore turns these red, which is the point — those
+counts are quoted in four files and derived in none.
+
+Two claims cannot be checked by presence alone and get a regex instead: the
+pulse-indicator count, because a bare ``300`` also matches inside ``4,300+``;
+and the resolver score, which is a ratio.
+
+Deliberately not checked: the approximations ("~310 UCUM families", "4,000+",
+"two years", "50 pages"). They are round by intent, and pinning them would
+turn every rebuild into a README edit for no gain in truth.
+"""
+
+from __future__ import annotations
+
+import gzip
+import json
+import pathlib
+import re
+import tarfile
+
+import pytest
+import yaml
+
+_ROOT = pathlib.Path(__file__).resolve().parent.parent
+_READMES = ["README.md", "README.zh-CN.md", "README.zh-TW.md", "README.ja.md"]
+
+
+def _text(name: str) -> str:
+    return (_ROOT / name).read_text(encoding="utf-8")
+
+
+def _fixture() -> dict:
+    path = _ROOT / "mirobody" / "demo" / "care_circle_demo.json.gz"
+    with gzip.open(path) as f:
+        return json.load(f)
+
+
+@pytest.fixture(scope="module")
+def live() -> dict[str, int]:
+    """The figures, read from the artifacts and code that define them.
+
+    Module-scoped because the concept graph is 22 MB and takes a few seconds
+    to mmap; every claim that depends on it shares the one load.
+    """
+    from mirobody.indicator.concept_graph import ConceptGraph
+    from mirobody.indicator.zh_fold import _TABLE
+    from mirobody.pulse.standardize import StandardIndicator
+    from mirobody.test_engine_coverage import CASES, MUST_NOT_RESOLVE
+
+    graph = ConceptGraph.get(str(_ROOT / "mirobody" / "res" / "fhir_concept_graph.bin")).stats()
+
+    with tarfile.open(_ROOT / "mirobody" / "res" / "fhir_loinc_bundle.tar.gz") as tf:
+        aliases = {
+            m.name[len("aliases/"):-len(".tsv")]: sum(1 for _ in tf.extractfile(m))
+            for m in tf.getmembers()
+            if m.name.startswith("aliases/") and m.name.endswith(".tsv")
+        }
+
+    series = _fixture()["series"]
+
+    return {
+        "concept-graph nodes": graph["bridge_nodes"],
+        "cross-vocabulary edges": graph["bridge_edges"],
+        "source ids": graph["sibling_ids"],
+        "multilingual aliases": sum(aliases.values()),
+        "Chinese aliases": aliases["zh"],
+        "Japanese aliases": aliases["ja"],
+        "zh-Hant fold table": len(_TABLE),
+        "demo indicators": len({r["indicator"] for r in series}),
+        # Not presence-checkable (substring of 4,300+); see test_pulse_count.
+        "_pulse indicators": len(StandardIndicator),
+        # The benchmark's own denominator, not a re-derivation of it.
+        "_resolver cases": len(CASES) + len(MUST_NOT_RESOLVE),
+    }
+
+
+@pytest.mark.parametrize("name", _READMES)
+def test_every_exact_figure_is_the_current_one(name: str, live: dict[str, int]):
+    """Report every stale figure in this language at once, not one per test.
+
+    When a bundle rebuild shifts things the useful output is the whole list of
+    what to edit, in one place.
+    """
+    text = _text(name)
+    stale = [
+        f"{what}: code says {value:,}, {name} does not contain that number"
+        for what, value in live.items()
+        if not what.startswith("_") and f"{value:,}" not in text
+    ]
+    assert not stale, "\n".join(stale)
+
+
+# A number attached to the word "pulse" on either side of it — "300 standard
+# pulse indicators" in English, "標準pulse指標300種" in Japanese.
+_NEAR_PULSE = re.compile(r"(\d[\d,]*)[^\n\d]{0,16}pulse|pulse[^\n\d]{0,16}(\d[\d,]*)", re.I)
+
+
+@pytest.mark.parametrize("name", _READMES)
+def test_pulse_count(name: str, live: dict[str, int]):
+    found = {
+        int(a.replace(",", "") or b.replace(",", ""))
+        for a, b in _NEAR_PULSE.findall(_text(name))
+    }
+    assert found, f"{name} no longer states how many standard pulse indicators there are"
+    assert found == {live["_pulse indicators"]}, (
+        f"{name} says {sorted(found)} standard pulse indicators; "
+        f"StandardIndicator has {live['_pulse indicators']}"
+    )
+
+
+# Only perfect scores: "32/94" is the honest historical baseline and stays.
+# Digit lookaround rather than \b: Japanese writes "今日は197/197" and CJK
+# counts as \w, so there is no word boundary before the number to anchor to.
+_RATIO = re.compile(r"(?<!\d)(\d[\d,]*)/(\d[\d,]*)(?!\d)")
+
+
+@pytest.mark.parametrize("name", _READMES)
+def test_resolver_score(name: str, live: dict[str, int]):
+    perfect = {
+        int(a.replace(",", ""))
+        for a, b in _RATIO.findall(_text(name))
+        if a == b
+    }
+    assert perfect, f"{name} no longer quotes the resolver coverage score"
+    assert perfect == {live["_resolver cases"]}, (
+        f"{name} claims a perfect {sorted(perfect)}; the benchmark scores "
+        f"{live['_resolver cases']} cases"
+    )
+
+
+_EMAIL = re.compile(r"[\w.+-]+@mirobody\.ai")
+
+
+@pytest.mark.parametrize("name", _READMES)
+def test_the_demo_credential_is_one_the_server_accepts(name: str):
+    """A wrong account here breaks the first thing a reader does."""
+    codes = yaml.safe_load((_ROOT / "config.yaml").read_text(encoding="utf-8"))[
+        "EMAIL_PREDEFINE_CODES"
+    ]
+    text = _text(name)
+    for email in set(_EMAIL.findall(text)):
+        assert email in codes, (
+            f"{name} tells the reader to sign in as {email}, which is not in "
+            f"config.yaml's EMAIL_PREDEFINE_CODES ({sorted(codes)})"
+        )
+        assert codes[email] in text, (
+            f"{name} names {email} but not its code {codes[email]!r}"
+        )
+
+
+_DEMO_FILE = re.compile(r"mirobody/demo/([\w.-]+\.(?:pdf|json\.gz))")
+
+
+@pytest.mark.parametrize("name", _READMES)
+def test_the_demo_file_the_readme_hands_you_is_shipped(name: str):
+    """The upload step names a path; the wheel has to actually carry it."""
+    referenced = set(_DEMO_FILE.findall(_text(name)))
+    assert referenced, f"{name} no longer names the demo lab report"
+    held_out = _fixture()["held_out_exam"]
+    for filename in referenced:
+        assert (_ROOT / "mirobody" / "demo" / filename).exists(), (
+            f"{name} points at mirobody/demo/{filename}, which is not in the tree"
+        )
+        if filename.endswith(".pdf"):
+            assert held_out in filename, (
+                f"{name} hands the reader {filename}, but the panel held out of the "
+                f"seeded history is dated {held_out} — the demo arc only works if "
+                "the upload is the exam the database is missing"
+            )
