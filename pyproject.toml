@@ -270,6 +270,11 @@ exclude = ["mirobody.pulse.gate_tests", "mirobody.pulse.gate_tests.*"]
     # in this list; scripts/check_wheel_data.py enforces it at build time.
     "**/*.bin",
     "**/*.gz",
+    # demo/lab_report_*.pdf — the raw file the care-circle demo asks you to
+    # upload. Without this line the wheel ships a README telling you to open a
+    # file that is not there, which is the exact failure `check_wheel_data.py`
+    # exists to catch for the engine bundles.
+    "**/*.pdf",
     "**/*.npy",
     "**/*.tsv",
     "**/*.NOTICE",

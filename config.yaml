@@ -125,12 +125,16 @@ PG_MAX_CONNECTION: 20
 # EMAIL_TEMPLATE: ''
 # EMAIL_SMTP_PASS: ''
 
-# Predefined email addresses and verification codes for testing/demo purposes.
-# Uncomment to enable instant demo login (password: the verification code).
+# The demo account. One address, named for the role it plays: you sign in as the
+# CAREGIVER and the record you read belongs to someone else ("Demo (synthetic)",
+# loaded by SEED_DEMO_DATA). `exp1/exp2/exp3` said nothing about that.
+#
+# This is the email-CODE path, which needs no mail provider precisely because the
+# code is listed here. It is a demo credential in a public repository — treat it
+# as public. For an account of your own use `POST /password/register`, which
+# stores a bcrypt hash and ships no default.
 EMAIL_PREDEFINE_CODES:
-  exp1@mirobody.ai: '111111'
-  exp2@mirobody.ai: '111111'
-  exp3@mirobody.ai: '111111'
+  caregiver@mirobody.ai: '111111'
 
 #-----------------------------------------------------------------------------
 # OAuth.

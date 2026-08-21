@@ -13,7 +13,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.cors import CORSMiddleware
 
-from .bootstrap import create_schema
+from .bootstrap import create_schema, seed_demo_data
 from .middleware_stack import build_middlewares
 from .htdoc import add_htdoc_routes
 from .middlewares import JwtMiddleware, UserInfoUpdaterMiddleware, RequestRateLimiterMiddleware
@@ -336,6 +336,7 @@ class Server:
         config.print()
 
         await create_schema(config)
+        await seed_demo_data(config)
 
         #-----------------------------------------------------
         # Init mirobody server.
