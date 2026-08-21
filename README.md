@@ -83,7 +83,7 @@ Not a lookup table — this is the part adjacent open-source projects do not hav
   `10*9/L`. 300 standard pulse indicators.
 - **We measure the claim instead of asserting it.**
   [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) scores the offline
-  resolver against the panels a physical actually orders, written the way a report
+  resolver against the panels an ordinary checkup includes, written the way a report
   prints them, in English, 简体中文, 繁體中文 and 日本語 — plus the wearable
   vocabulary the platform API teaches. **197/197 today; it scored 32/94 the day it
   was written.** It grades *clinical* correctness: answering `血红蛋白` with the
@@ -223,8 +223,9 @@ mirobody/
 ```
 
 **One rule, machine-enforced:** `indicator/` never imports the agent layer, so
-`pip install mirobody` stays a 233 MB engine instead of pulling a framework.
-Two import-linter contracts hold the line — `lint-imports` fails the build.
+`pip install mirobody` is 207 MB across 89 packages, with no framework in sight —
+adding `[agents]` nearly triples it, to 597 MB across 168. Two import-linter
+contracts hold the line, and `lint-imports` fails the build.
 
 → [Architecture](https://docs.mirobody.ai/en/concepts/architecture/) ·
 [CONTRIBUTING.md](CONTRIBUTING.md)

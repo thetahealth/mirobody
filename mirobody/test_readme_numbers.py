@@ -20,6 +20,11 @@ and the resolver score, which is a ratio.
 Deliberately not checked: the approximations ("~310 UCUM families", "4,000+",
 "two years", "50 pages"). They are round by intent, and pinning them would
 turn every rebuild into a README edit for no gain in truth.
+
+Also not checked, for a different reason: the install footprint (207 MB / 89
+packages, 597 MB / 168 with [agents]). Those are real measurements, but they
+move with every upstream release and differ per platform, so a gate on them
+would fail for reasons that have nothing to do with this repo.
 """
 
 from __future__ import annotations

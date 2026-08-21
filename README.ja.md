@@ -214,8 +214,9 @@ mirobody/
 ```
 
 **機械で強制される1つのルール**：`indicator/` はエージェント層を決してimportしない。
-だから `pip install mirobody` はフレームワークを引き込まず233 MBのエンジンのままだ。
-2つのimport-linter契約がその線を守り、`lint-imports` がビルドを落とす。
+だから `pip install mirobody` は207 MB・89パッケージで、フレームワークの影もない ――
+`[agents]` を足すとほぼ3倍の597 MB・168パッケージになる。2つのimport-linter契約が
+その線を守り、`lint-imports` がビルドを落とす。
 
 → [アーキテクチャ](https://docs.mirobody.ai/en/concepts/architecture/) ·
 [CONTRIBUTING.md](CONTRIBUTING.md)

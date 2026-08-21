@@ -207,8 +207,9 @@ mirobody/
 ```
 
 **一条机器强制的规则**：`indicator/` 永不导入 agent 层，所以
-`pip install mirobody` 保持是一个 233 MB 的引擎，而不是拖来一整套框架。两条
-import-linter 契约守着这条线——`lint-imports` 会让构建失败。
+`pip install mirobody` 是 207 MB、89 个包，看不到任何框架——加上 `[agents]` 几乎
+翻三倍，到 597 MB、168 个包。两条 import-linter 契约守着这条线，`lint-imports`
+会让构建失败。
 
 → [架构](https://docs.mirobody.ai/en/concepts/architecture/) ·
 [CONTRIBUTING.md](CONTRIBUTING.md)
