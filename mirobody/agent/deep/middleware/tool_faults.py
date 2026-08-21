@@ -24,11 +24,12 @@ NOT caught, deliberately:
   * ``asyncio.CancelledError`` — a ``BaseException``, so ``except Exception``
     misses it by construction; a disconnected client must still cancel the run.
 
-Ported from the a007-mirovital agent (``agent/tool_faults.py``).
+Ported from a sibling agent of ours.
 """
 
 import json
 import logging
+import re
 
 from langchain.agents.middleware import AgentMiddleware, hook_config
 from langchain_core.messages import AIMessage, ToolMessage
@@ -92,6 +93,56 @@ class ToolFaultMiddleware(AgentMiddleware):
 # (via OpenRouter, temperature 0.1) deterministically emitted
 # `{"aggregate": none, ...}` for query_health_indicators — Python's None
 # instead of JSON null / the quoted enum string "none".
+
+# ── salvaging malformed arguments ────────────────────────────────────────────
+#
+# The hint below tells the model exactly what it got wrong, and this provider
+# still re-emits the same shape twice in a row before we give up — observed
+# against `query_health_indicators`, where every attempt looked like:
+#
+#     {"keywords": [...], "start_time": 2024-08-21, "aggregate": none}
+#                                       ^unquoted date      ^bare `none`
+#
+# The comment on _MAX_REPAIRS_PER_TURN was already right that a model emitting
+# broken JSON will not be argued into correctness. So try to REPAIR the string
+# before bouncing it back: these are deterministic, narrow rewrites applied only
+# to text that has ALREADY failed `json.loads`, so a valid call can never reach
+# them.
+_PY_LITERALS = re.compile(r'(?<=[:\[,\s])(None|none|True|False)(?=[\s,\]}])')
+
+#: An unquoted date or timestamp: JSON reads `2024` and chokes on the dash.
+_BARE_DATE = re.compile(
+    r'(?<=[:\[,])\s*(\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?)\s*(?=[,\]}])'
+)
+
+_TRAILING_COMMA = re.compile(r',\s*(?=[}\]])')
+
+
+def _salvage_json_args(raw):
+    """Return a dict if *raw* can be coerced into valid JSON, else None.
+
+    Only ever called on arguments LangChain already refused to parse.
+    """
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+
+    fixed = _PY_LITERALS.sub(
+        lambda m: {"None": "null", "none": "null", "True": "true", "False": "false"}[m.group(1)],
+        raw,
+    )
+    fixed = _BARE_DATE.sub(lambda m: f'"{m.group(1)}"', fixed)
+    fixed = _TRAILING_COMMA.sub("", fixed)
+
+    if fixed == raw:
+        # Nothing we know how to fix; do not hand back a string that failed once.
+        return None
+    try:
+        parsed = json.loads(fixed)
+    except Exception:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
 _INVALID_CALL_HINT = (
     "Your call to this tool was DROPPED: the arguments were not valid JSON. "
     "Common causes: Python literals (none/None/True/False) instead of JSON "
@@ -151,6 +202,41 @@ class InvalidToolCallRepairMiddleware(AgentMiddleware):
                 [c.get("name") for c in invalid],
             )
             return None
+
+        # Salvage first. A call we can coerce into valid JSON is promoted onto
+        # `tool_calls` and the message REPLACED (same id, so `add_messages`
+        # overwrites rather than appends), which lets ToolNode run it this turn
+        # instead of spending a model call asking for a rewrite that does not come.
+        salvaged, unsalvageable = [], []
+        for call in invalid:
+            args = _salvage_json_args(call.get("args"))
+            if args is None:
+                unsalvageable.append(call)
+            else:
+                salvaged.append({
+                    "name": call.get("name"),
+                    "args": args,
+                    "id": call.get("id") or "salvaged_tool_call",
+                    "type": "tool_call",
+                })
+
+        if salvaged and not unsalvageable:
+            logger.warning(
+                "salvaged malformed tool call(s) without a retry: %s",
+                [c["name"] for c in salvaged],
+            )
+            return {
+                "messages": [
+                    AIMessage(
+                        id=last.id,
+                        content=last.content,
+                        tool_calls=salvaged,
+                        invalid_tool_calls=[],
+                        additional_kwargs=last.additional_kwargs,
+                        response_metadata=last.response_metadata,
+                    )
+                ]
+            }
 
         logger.warning(
             "repairing invalid tool call(s): %s",
