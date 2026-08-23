@@ -9,8 +9,13 @@ data behind whichever of them a human actually signs in as; guessing one name
 here would have made the demo look empty for the rest.
 
 It demonstrates two things at once — what the engine does with real volume, and
-what it feels like to hold someone else's record rather than your own. You have
-no data; you can still ask about hers and get an answer.
+what it feels like to hold someone else's record next to your own. Each sign-in
+account gets a THIN record of its own (a few weeks of self-tracked vitals and
+one unremarkable annual checkup, ~two dozen readings) beside the synthetic
+person's two-year, 244-indicator record shared into the circle. That contrast
+is the point: ask about YOUR HbA1c and you get one normal value from your own
+data; ask about HERS and the answer comes from a record you merely have view
+access to — data isolation you can see, not just read about.
 
 The data is NOT generated here. `care_circle_demo.json.gz` was produced once
 from ESL-Bench (`healthmemoryarena/ESL-Bench`) via the sibling
@@ -75,8 +80,8 @@ INSERT INTO th_files (
     scene, created_source, created_source_id, original_text, text_length,
     is_del, created_at, updated_at
 ) VALUES (
-    :user_id, :user_id, :file_name, 'text/markdown', :file_key, '{}',
-    :scene, 'demo_seed', :created_source_id, :original_text, :text_length,
+    :user_id, :user_id, :file_name, 'text/markdown', :file_key, :file_content,
+    :scene, 'web_drive', :created_source_id, :original_text, :text_length,
     false, now(), now()
 )
 ON CONFLICT (file_key) DO UPDATE SET
@@ -86,23 +91,138 @@ ON CONFLICT (file_key) DO UPDATE SET
     updated_at    = now()
 """
 
-# `status` must be exactly 'authorized': that is what `get_query_user_id`
-# (utils/permissions.py) filters on. The column's default is 'pending', which
-# would leave the circle visible in listings but refuse every proxied read.
-_UPSERT_SHARE = """
-INSERT INTO th_share_relationship (
-    owner_user_id, member_user_id, owner_email, member_email, status, permissions
-) VALUES (
-    :owner_id, :member_id, :owner_email, :member_email, 'authorized', '{"all": 1}'::jsonb
-)
-ON CONFLICT (owner_user_id, member_user_id) DO UPDATE SET
-    status     = 'authorized',
-    updated_at = CURRENT_TIMESTAMP
-"""
 
 
 def enabled() -> bool:
     return (os.environ.get("SEED_DEMO_DATA") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+# ── The sign-in account's OWN record ─────────────────────────────────
+#
+# A thin, healthy, self-tracked slice — deliberately the opposite of the
+# synthetic person's 244-indicator clinical record, so the walkthrough can
+# SHOW isolation instead of asserting it: the same question ("my HbA1c?" /
+# "her HbA1c?") answers from two different records with two different
+# stories. All values are ordinary-normal; dates are fixed so replays upsert
+# the same rows.
+
+def _member_series(member_id: str, email: str) -> list[dict]:
+    common = {
+        "user_id": member_id,
+        "source": "demo.self_tracked",
+        "source_table": "demo_seed",
+        "source_table_id": email,
+        "indicator_id": "",
+        "task_id": "",
+    }
+
+    def row(indicator, value, day, unit, comment, time="08:00:00"):
+        ts = f"{day} {time}"
+        return dict(common, indicator=indicator, value=str(value),
+                    start_time=ts, end_time=ts,
+                    comment=comment, fhir_mapping_info=json.dumps({"unit": unit}))
+
+    rows: list[dict] = []
+    # A month of Monday weigh-ins.
+    for day, kg in (("2025-03-03", 70.4), ("2025-03-10", 70.1), ("2025-03-17", 70.2),
+                    ("2025-03-24", 69.8), ("2025-03-31", 69.9), ("2025-04-07", 69.6)):
+        rows.append(row("bodyMasss", kg, day, "kg", "Bathroom scale, self-tracked"))
+    # Resting heart rate, same mornings.
+    for day, bpm in (("2025-03-03", 58), ("2025-03-10", 57), ("2025-03-17", 59),
+                     ("2025-03-24", 56), ("2025-03-31", 57)):
+        rows.append(row("dailyRestingHeartRates", bpm, day, "count/min", "Watch, self-tracked"))
+    # A week of steps.
+    for day, steps in (("2025-03-24", 9412), ("2025-03-25", 11250), ("2025-03-26", 8103),
+                       ("2025-03-27", 10877), ("2025-03-28", 7642), ("2025-03-29", 12490),
+                       ("2025-03-30", 6889)):
+        rows.append(row("dailySteps", steps, day, "count", "Watch, self-tracked", time="23:59:00"))
+    # Two home blood-pressure checks.
+    for day, sys_v, dia_v in (("2025-03-10", 114, 74), ("2025-04-07", 118, 76)):
+        rows.append(row("systolicPressures", sys_v, day, "mmHg", "Home cuff, self-tracked"))
+        rows.append(row("diastolicPressures", dia_v, day, "mmHg", "Home cuff, self-tracked"))
+    # The one lab value that makes the isolation contrast land: the SAME
+    # indicator the shared record's storyline turns on (hers: 7.2→6.5→6.6),
+    # here boring and normal.
+    for day, pct in (("2024-11-12", 5.3), ("2025-05-06", 5.2)):
+        rows.append(row("GlycatedHemoglobin-HbA1c", pct, day, "%",
+                        "Annual checkup lab draw", time="09:15:00"))
+    return rows
+
+
+_MEMBER_DOCUMENT = {
+    "name": "my_annual_checkup_2025-05.md",
+    "scene": "report",
+    "body": """# Annual checkup — 2025-05-06
+
+Routine annual physical. Everything within reference ranges.
+
+| Test | Result | Reference |
+| --- | --- | --- |
+| HbA1c | 5.2 % | < 5.7 % |
+| Fasting glucose | 88 mg/dL | 70–99 mg/dL |
+| Total cholesterol | 172 mg/dL | < 200 mg/dL |
+| LDL cholesterol | 96 mg/dL | < 130 mg/dL |
+| HDL cholesterol | 58 mg/dL | > 40 mg/dL |
+| Triglycerides | 84 mg/dL | < 150 mg/dL |
+| Blood pressure | 116/75 mmHg | < 120/80 mmHg |
+| Resting heart rate | 57 bpm | 60–100 bpm (athletic: lower) |
+
+Physician note: no findings. Continue current activity level; next routine
+checkup in 12 months.
+
+*This is the sign-in account's own record — synthetic, like everything the
+demo seeds. The two-year record with the HbA1c story belongs to the person
+sharing with you, not to you.*
+""",
+}
+
+
+async def _put_blob(file_key: str, text: str) -> None:
+    """Store the document's bytes where the row's file_key points.
+
+    The row alone is enough for the agent's VFS (it reads original_text), but
+    the file page's "view original" link serves the BLOB at file_key — without
+    one the link is dead and every listing logs a "File not found" warning.
+    Best-effort: a storage failure must not fail the seed.
+    """
+    try:
+        from ..utils.config.storage.factory import get_storage_client
+        _, err = await get_storage_client().put(
+            key=file_key,
+            content=text.encode("utf-8"),
+            content_type="text/markdown",
+        )
+        if err:
+            logging.warning(f"demo seed: could not store blob {file_key}: {err}")
+    except Exception as e:
+        logging.warning(f"demo seed: could not store blob {file_key}: {e}")
+
+
+async def _seed_member_own_data(execute_query, member_id: str, email: str) -> int:
+    """Give a sign-in account its own thin record. Returns readings written."""
+    rows = _member_series(member_id, email)
+    await execute_query(_UPSERT_SERIES, rows, log_sql=False)
+
+    body = _MEMBER_DOCUMENT["body"]
+    member_file_key = f"demo/{email}/{_MEMBER_DOCUMENT['name']}"
+    await execute_query(
+        _UPSERT_FILE,
+        {
+            "user_id": member_id,
+            "file_name": _MEMBER_DOCUMENT["name"],
+            "file_key": member_file_key,
+            # file_size is read from this JSON blob by the file-list shaper;
+            # a bare '{}' rendered as "0 B" in the UI.
+            "file_content": json.dumps({"file_size": len(body.encode("utf-8")), "processed": True}),
+            "scene": _MEMBER_DOCUMENT["scene"],
+            "created_source_id": email,
+            "original_text": body,
+            "text_length": len(body),
+        },
+        log_sql=False,
+    )
+    await _put_blob(member_file_key, body)
+    return len(rows)
 
 
 async def seed(member_emails: list[str]) -> None:
@@ -113,6 +233,7 @@ async def seed(member_emails: list[str]) -> None:
     needs a member id and `add_or_get_user` only runs on first login: without
     this, the first sign-in would land on an account that is in no circle.
     """
+    from ..user import care_circle as cc
     from ..utils import execute_query
 
     if not os.path.isfile(_FIXTURE):
@@ -154,13 +275,15 @@ async def seed(member_emails: list[str]) -> None:
 
     for doc in fixture.get("documents") or []:
         body = doc["body"]
+        owner_file_key = f"demo/{owner['email']}/{doc['name']}"
         await execute_query(
             _UPSERT_FILE,
             {
                 "user_id": owner_id,
                 "file_name": doc["name"],
                 # Stable, so a replay updates the same row instead of adding one.
-                "file_key": f"demo/{owner['email']}/{doc['name']}",
+                "file_key": owner_file_key,
+                "file_content": json.dumps({"file_size": len(body.encode("utf-8")), "processed": True}),
                 "scene": doc.get("scene") or "others",
                 "created_source_id": owner["email"],
                 "original_text": body,
@@ -168,6 +291,7 @@ async def seed(member_emails: list[str]) -> None:
             },
             log_sql=False,
         )
+        await _put_blob(owner_file_key, body)
 
     shared = []
     for email in member_emails:
@@ -180,20 +304,34 @@ async def seed(member_emails: list[str]) -> None:
             member_id = str(row[0]["id"]) if row else ""
         if not member_id or member_id == owner_id:
             continue
-        await execute_query(
-            _UPSERT_SHARE,
-            {
-                "owner_id": owner_id,
-                "member_id": member_id,
-                "owner_email": owner["email"],
-                "member_email": email,
-            },
-            log_sql=False,
-        )
+        # The demo person's circle, with each sign-in account accepted into it.
+        # `health_access` is set on the OWNER's row, because that is where the
+        # switch lives: it says what the synthetic person shares with the
+        # circle, and it is the only reason the caregiver can read anything.
+        # ACCESS_VIEW, not EDIT — a walkthrough should not be able to edit the
+        # record it is reading.
+        circle_id = await cc.ensure_own_circle(owner_id, name="Demo care circle")
+        await cc.set_health_access(owner_id, circle_id, cc.ACCESS_VIEW)
+
+        # The real invite/accept pair, run on the member's behalf, rather than a
+        # shortcut: these are accounts a human signs in as, so their own
+        # `health_access` must stay at 0. Seeding them with the managed-member
+        # path would set it to read-write and put the walkthrough in a state the
+        # product says is impossible — "off by default, each member controls
+        # their own".
+        await cc.invite(circle_id, int(member_id))
+        await cc.respond_to_invitation(int(member_id), circle_id, accept=True)
+
+        # The member's own thin record — see _member_series for why.
+        await _seed_member_own_data(execute_query, member_id, email)
         shared.append(email)
 
     logging.info(
-        "demo seed: %s → %d readings, %d documents; care circle shared with %s. %s",
+        "demo seed: %s → %d readings, %d documents; care circle shared with %s "
+        "(each member also gets their own thin record: ~%d readings + 1 checkup "
+        "document). %s",
         owner["email"], written, len(fixture.get("documents") or []),
-        ", ".join(shared) or "(nobody)", fixture.get("note", ""),
+        ", ".join(shared) or "(nobody)",
+        len(_member_series("0", "x@x")),
+        fixture.get("note", ""),
     )
