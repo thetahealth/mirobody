@@ -187,16 +187,12 @@ class BaseAgent():
             for f in (file_list or []) if f.get("file_url")
         ]
 
-        # Also upload to workspace for MCP tools (read_file, etc.)
-        from .utils import handle_file_upload
-        spawn(
-            handle_file_upload(
-                file_list=file_list,
-                session_id=kwargs.get("session_id", ""),
-                user_id=self._user_id,
-                files_data=kwargs.get("files_data"),
-            )
-        )
+        # `file_infos` above is the whole attachment path: BaseAgent hands the
+        # tool loop to the provider, so a file reaches the model as a URL the
+        # provider fetches natively. There used to be a second, spawned path
+        # that copied the bytes into a filesystem for a `read_file` tool to
+        # serve — but BaseAgent's tool surface is the four health tools and has
+        # never included one, so the copy was written and never read.
 
         prompt = Environment().from_string(_resolve_prompt_template(self._agent_name)).render(
             agent_name="Theta",

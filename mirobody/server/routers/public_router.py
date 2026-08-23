@@ -80,11 +80,6 @@ class UnlinkProviderRequest(BaseModel):
     owner_user_id: Optional[str] = Field(None, description="if sharing device, help unlink")
 
 
-class GetLlmAccessRequest(BaseModel):
-    """Get LLM access permission request model"""
-
-    provider_slug: str = Field(..., description="Provider identifier")
-    platform: str = Field(..., description="Platform name (vital, theta, cgm)")
 
 
 class UpdateLlmAccessRequest(BaseModel):
@@ -113,14 +108,6 @@ class ProviderWebhookData(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Optional metadata")
 
 
-class ProviderWebhookRequest(BaseModel):
-    """Provider webhook request model"""
-
-    user_id: str = Field(..., description="User identifier")
-    source: Optional[str] = Field(default="", description="Data source")
-    timestamp: int = Field(..., description="Request timestamp in milliseconds")
-    timezone: Optional[str] = Field(default="", description="Timezone")
-    data: List[ProviderWebhookData] = Field(..., description="Health data list")
 
 
 # ===== Unified Response Models =====
@@ -142,6 +129,7 @@ class ErrorResponse(BaseModel):
 
 
 # Import ConnectInfoField for type hints
+from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 from mirobody.pulse.core.models import ConnectInfoField as CoreConnectInfoField
 
 
@@ -167,13 +155,6 @@ class ProviderInfo(BaseModel):
     )
 
 
-class UserProviderConnection(BaseModel):
-    """User Provider connection information - API response format"""
-
-    slug: str = Field(..., description="Provider slug")
-    status: str = Field(..., description="Connection status")
-    connected_at: Optional[str] = Field(None, description="Connection time")
-    last_sync_at: Optional[str] = Field(None, description="Last sync time")
 
 
 # User-facing interfaces
@@ -264,15 +245,9 @@ async def get_providers(
 
         # If owner_user_id is provided, verify sharing permissions
         if owner_user_id and current_user and owner_user_id != current_user:
-            from mirobody.utils.permissions import get_query_user_id
-
-            permission_check = await get_query_user_id(
-                user_id=owner_user_id,  # Data owner
-                query_user_id=current_user,  # Querier (current user)
-                permission=[]  # No specific permission needed for providers list
-            )
-
-            if not permission_check.get("success", False):
+            try:
+                await resolve_subject(current_user, owner_user_id)
+            except CareCircleDenied:
                 return ErrorResponse(
                     code=-1,
                     msg=f"No permission to query providers for user {owner_user_id}"
@@ -400,15 +375,9 @@ async def get_user_providers(
 
         # If owner_user_id is provided, verify sharing permissions
         if owner_user_id and owner_user_id != current_user:
-            from mirobody.utils.permissions import get_query_user_id
-
-            permission_check = await get_query_user_id(
-                user_id=owner_user_id,  # Data owner
-                query_user_id=current_user,  # Querier (current user)
-                permission=[]  # No specific permission needed for providers list
-            )
-
-            if not permission_check.get("success", False):
+            try:
+                await resolve_subject(current_user, owner_user_id)
+            except CareCircleDenied:
                 return ErrorResponse(
                     code=-1,
                     msg=f"No permission to query providers for user {owner_user_id}"
@@ -444,25 +413,17 @@ async def link_provider(request: LinkProviderRequest, req: Request, current_user
 
         # If owner_user_id is provided, verify sharing permissions
         if request.owner_user_id and request.owner_user_id != current_user:
-            from mirobody.utils.permissions import get_query_user_id
-
-            permission_check = await get_query_user_id(
-                user_id=request.owner_user_id,  # Data owner
-                query_user_id=current_user,  # Querier (current user)
-                permission=["device"]  # Check 'all' permission for provider linking
-            )
-
-            if not permission_check.get("success", False):
+            # Linking a device writes to someone's record, so the request asks
+            # for write and gets it only from a read-write grant. Two checks
+            # collapsed into one: the old code fetched the level and then
+            # compared it to 2 itself, which is the comparison every caller had
+            # to remember to write.
+            try:
+                await resolve_subject(current_user, request.owner_user_id, require_write=True)
+            except CareCircleDenied as denied:
                 return ErrorResponse(
                     code=-1,
-                    msg=f"No permission to link provider for user {request.owner_user_id}"
-                )
-
-            all_permission = permission_check.get("permissions", {}).get("device", 0)
-            if all_permission < 2:
-                return ErrorResponse(
-                    code=-1,
-                    msg="Insufficient permission to link provider. Write access required."
+                    msg=f"No permission to link provider for user {request.owner_user_id}: {denied}"
                 )
 
             query_user_id = request.owner_user_id
@@ -655,26 +616,13 @@ async def unlink_provider(request: UnlinkProviderRequest, current_user: str = De
 
         # If owner_user_id is provided, verify sharing permissions
         if request.owner_user_id and request.owner_user_id != current_user:
-            from mirobody.utils.permissions import get_query_user_id
-
-            permission_check = await get_query_user_id(
-                user_id=request.owner_user_id,  # Data owner
-                query_user_id=current_user,  # Querier (current user)
-                permission=["device"]  # Check 'device' permission for provider unlinking
-            )
-
-            if not permission_check.get("success", False):
+            # Unlinking writes, so the request asks for write.
+            try:
+                await resolve_subject(current_user, request.owner_user_id, require_write=True)
+            except CareCircleDenied as denied:
                 return ErrorResponse(
                     code=-1,
-                    msg=f"No permission to unlink provider for user {request.owner_user_id}"
-                )
-
-            # Check if user has write permission (level 2) required for unlinking
-            device_permission = permission_check.get("permissions", {}).get("device", 0)
-            if device_permission < 2:
-                return ErrorResponse(
-                    code=-1,
-                    msg="Insufficient permission to unlink provider. Write access required."
+                    msg=f"No permission to unlink provider for user {request.owner_user_id}: {denied}"
                 )
 
             query_user_id = request.owner_user_id
@@ -1145,108 +1093,3 @@ async def get_theta_indicators():
         logging.error(f"Unexpected error in get_theta_indicators: {str(e)}")
         return ErrorResponse(code=500, msg=f"Failed to get indicators information: {str(e)}")
 
-# =============================================================================
-# Insight API — User-facing insight queries
-# =============================================================================
-
-
-@router.get("/user/insights", response_model=Union[StandardResponse, ErrorResponse])
-async def get_user_insights(
-    limit: int = Query(20, ge=1, le=100, description="Results per page"),
-    offset: int = Query(0, ge=0, description="Pagination offset"),
-    severity: Optional[str] = Query(None, description="Filter: mild/moderate/severe"),
-    recipe: Optional[str] = Query(None, description="Filter by recipe name"),
-    current_user: str = Depends(verify_token),
-):
-    """
-    Get health insights for the current user.
-
-    Returns paginated list of AI-generated health insights with observations,
-    hypotheses, and actionable touch messages.
-    """
-    try:
-        from ...pulse.insight.database_service import InsightDatabaseService
-
-        db = InsightDatabaseService()
-        rows, total = await db.get_user_insights(
-            user_id=current_user,
-            limit=limit,
-            offset=offset,
-            severity=severity,
-            recipe_name=recipe,
-        )
-
-        insights = []
-        for row in rows:
-            indicators = row.get("indicators_detail")
-            if isinstance(indicators, str):
-                import json as _json
-                try:
-                    indicators = _json.loads(indicators)
-                except Exception:
-                    pass
-
-            insights.append({
-                "id": row.get("id"),
-                "date": str(row.get("target_date")),
-                "recipe": row.get("recipe_name"),
-                "severity": row.get("severity"),
-                "observation": row.get("observation"),
-                "hypothesis": row.get("hypothesis"),
-                "touch_message": row.get("touch_message"),
-                "indicators": indicators,
-                "tags": row.get("user_tags"),
-                "created_at": str(row.get("created_at")) if row.get("created_at") else None,
-            })
-
-        return StandardResponse(data={
-            "insights": insights,
-            "total": total,
-            "limit": limit,
-            "offset": offset,
-        })
-    except Exception as e:
-        logging.error(f"Failed to get user insights: {e}")
-        return ErrorResponse(code=500, msg=f"Failed to get insights: {str(e)}")
-
-
-@router.post("/user/insights/{insight_id}/feedback", response_model=Union[StandardResponse, ErrorResponse])
-async def submit_insight_feedback(
-    insight_id: int,
-    feedback_type: str = Query(..., description="confirmed or denied"),
-    reason: Optional[str] = Query(None, description="Optional reason"),
-    current_user: str = Depends(verify_token),
-):
-    """
-    Submit user feedback on an insight (confirmed/denied).
-
-    This feedback is used to improve future insight quality.
-    """
-    if feedback_type not in ("confirmed", "denied"):
-        return ErrorResponse(code=400, msg="feedback_type must be 'confirmed' or 'denied'")
-
-    try:
-        import json as _json
-        from ...pulse.core.database import execute_query
-
-        feedback = _json.dumps({"type": feedback_type, "reason": reason})
-
-        sql = """
-            UPDATE user_behavior_insight
-            SET user_feedback = :feedback
-            WHERE id = :id AND user_id = :user_id
-        """
-        await execute_query(sql, {
-            "id": insight_id,
-            "user_id": current_user,
-            "feedback": feedback,
-        })
-
-        return StandardResponse(data={"insight_id": insight_id, "feedback_type": feedback_type})
-    except Exception as e:
-        logging.error(f"Failed to submit insight feedback: {e}")
-        return ErrorResponse(code=500, msg=f"Failed to submit feedback: {str(e)}")
-
-
-# Export router
-# pulse_public_router = router

@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 
 from pydantic import Field
 
@@ -50,7 +51,13 @@ class HealthIndicatorService:
     _NUMERIC = r"CASE WHEN tsd.value ~ '^-?[0-9]+(\.[0-9]+)?$' THEN tsd.value::numeric END"
 
     _MAX_LIMIT = 500          # hard server-side ceiling, whatever the caller asks
-    _CATALOG_MAX = 200        # names returned when listing what the user has
+    _CATALOG_MAX = 200        # names listed for the MODEL: a token budget
+    # ...and not the browser's budget. The web client renders the catalog as a
+    # table it scrolls, so capping it at a model's context window hid 44 of the
+    # demo user's 244 indicators AND reported `count: 200` as though that were
+    # the total — the list stopped at TSH and nothing said so. Still bounded,
+    # because an unbounded catalog is a different kind of bug.
+    _REST_CATALOG_MAX = 2000
 
     async def query_health_indicators(
         self,
@@ -305,10 +312,25 @@ class HealthIndicatorService:
         if not kws:
             return [], {}
 
-        found = await search(
-            adapter=FhirAdapter(bundle_dir=None), user_id=user_id,
-            keywords=kws, start_time=start_time, end_time=end_time,
-        ) or []
+        # Semantic recall needs an embedding key. Without one, this used to
+        # fail SILENTLY: `text_embedding` raised (or recalled nothing), the
+        # search box answered "No indicator matched" for `HbA1c` while the
+        # user's own `GlycatedHemoglobin-HbA1c` sat in the database, and the
+        # UI's "any language, abbreviation or full name" hint became a lie.
+        # The vector channel stays primary; the lexical fallback below covers
+        # both "no key configured" and "embedding up but recalled nothing".
+        found: list[dict] = []
+        try:
+            found = await search(
+                adapter=FhirAdapter(bundle_dir=None), user_id=user_id,
+                keywords=kws, start_time=start_time, end_time=end_time,
+            ) or []
+        except Exception as e:
+            logging.warning(
+                "semantic indicator search unavailable (%s: %s) — falling back "
+                "to lexical matching", type(e).__name__, e,
+            )
+
         names, coding = [], {}
         for ind in found:
             name = ind.get("indicator")
@@ -316,6 +338,70 @@ class HealthIndicatorService:
                 continue
             names.append(name)
             coding[name] = {"system": ind.get("system") or "", "code": ind.get("code") or ""}
+
+        if not names:
+            names, coding = await self._lexical_keyword_fallback(
+                user_id, kws, start_time, end_time,
+            )
+        return names, coding
+
+    async def _lexical_keyword_fallback(
+        self, user_id: str, kws: list[str], start_time: str | None, end_time: str | None,
+    ) -> tuple[list[str], dict[str, dict]]:
+        """Keyword → indicator without embeddings: substring + offline resolver.
+
+        Two passes over the user's own catalog (never the global vocabulary —
+        this returns indicators the user HAS, same contract as the vector path):
+
+        * normalized substring match — `HbA1c`, `A1c`, `Hemoglobin` all hit
+          `GlycatedHemoglobin-HbA1c` once separators and case are dropped;
+        * the offline lexical resolver (`mirobody.engine.resolve`, the same
+          no-key path the README's front-door demo uses) maps free text in any
+          language to a LOINC code, matched against the catalog's codes — so
+          `血红蛋白` still finds hemoglobin with no embedding key anywhere.
+        """
+        params: dict[str, Any] = {"user_id": user_id}
+        time_clause = self._build_time_clause(params, start_time, end_time, "tsd.start_time")
+        sql = f"""
+        SELECT tsd.indicator,
+               MAX(fi.indicator_standard) AS system,
+               MAX(fi.code) AS code
+          FROM th_series_data tsd
+          LEFT JOIN fhir_indicators fi ON tsd.fhir_id = fi.id
+         WHERE tsd.user_id = :user_id AND tsd.deleted = 0 {time_clause}
+         GROUP BY tsd.indicator
+        """
+        rows = await execute_query(sql, params) or []
+
+        resolved_codes: set[str] = set()
+        try:
+            from mirobody.engine import resolve
+            for kw in kws:
+                result = resolve(kw)
+                if getattr(result, "resolved", False) and getattr(result, "loinc", ""):
+                    resolved_codes.add(result.loinc)
+        except Exception as e:
+            # No resolver data (e.g. LFS bundle absent) — substring still works.
+            logging.warning("offline resolver unavailable in lexical fallback: %s", e)
+
+        def _norm(s: str) -> str:
+            return re.sub(r"[^a-z0-9一-鿿぀-ヿ]+", "", s.lower())
+
+        norm_kws = [n for n in (_norm(k) for k in kws) if n]
+        names: list[str] = []
+        coding: dict[str, dict] = {}
+        for row in rows:
+            name = row.get("indicator") or ""
+            if not name or name in coding:
+                continue
+            norm_name = _norm(name)
+            hit = (row.get("code") or "") in resolved_codes and row.get("code")
+            if not hit:
+                hit = any(nk in norm_name or (len(nk) >= 3 and norm_name in nk)
+                          for nk in norm_kws)
+            if hit:
+                names.append(name)
+                coding[name] = {"system": row.get("system") or "", "code": row.get("code") or ""}
         return names, coding
 
     async def _catalog(
@@ -323,7 +409,10 @@ class HealthIndicatorService:
         searched: bool, compact: bool = True,
     ) -> dict[str, Any]:
         """What this user actually has — the honest answer to a miss."""
-        params: dict[str, Any] = {"user_id": user_id, "cap": self._CATALOG_MAX}
+        params: dict[str, Any] = {
+            "user_id": user_id,
+            "cap": self._CATALOG_MAX if compact else self._REST_CATALOG_MAX,
+        }
         time_clause = self._build_time_clause(params, start_time, end_time, "tsd.start_time")
         # `latest_value` / `latest_unit` are for the REST consumer: a catalog
         # table whose "Latest" column is an em-dash on every row is a column
@@ -334,6 +423,10 @@ class HealthIndicatorService:
         sql = f"""
         SELECT tsd.indicator,
                COUNT(*) AS count,
+               -- Window functions run before LIMIT, so this is how many
+               -- indicators the user HAS, next to the page we return. Without
+               -- it `count` was len(rows) and truncation was undetectable.
+               COUNT(*) OVER () AS total_indicators,
                MAX(fi.indicator_standard) AS system,
                MAX(fi.code) AS code,
                to_char(MIN(tsd.start_time), 'YYYY-MM-DD') AS first_date,
@@ -349,6 +442,9 @@ class HealthIndicatorService:
         """
         rows = await execute_query(sql, params) or []
         catalog = [dict(r) for r in rows]
+        total = int(catalog[0]["total_indicators"]) if catalog else 0
+        for r in catalog:
+            r.pop("total_indicators", None)   # every row carried the same number
 
         if not compact:
             # Field names are the client contract, and they are not the SQL's:
@@ -370,6 +466,8 @@ class HealthIndicatorService:
                     for r in catalog
                 ],
                 "count": len(catalog),
+                "total": total,
+                "truncated": total > len(catalog),
             }
 
         for r in catalog:                      # model-facing: drop the extras
@@ -389,6 +487,8 @@ class HealthIndicatorService:
                 ["indicator", "system", "code", "count", "first_date", "last_date"],
             ),
             "count": len(catalog),
+            **({"truncated": f"{len(catalog)} of {total} shown — narrow with `keywords`"}
+               if total > len(catalog) else {}),
         }
 
     async def _rows(

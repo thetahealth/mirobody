@@ -33,7 +33,7 @@ from ...user import (
     JwtTokenValidator,
 )
 from ...user.user import get_user_info
-from ...user.sharing import get_sharing_service
+from ...user.care_circle import beneficiary_users
 from ...utils import (
     json_response_with_code,
     json_response,
@@ -412,7 +412,7 @@ class ChatService:
                 params["language"] = request.state.language
 
         if "timezone" not in params or "language" not in params:
-            user_info, err = await get_user_info(self._db_pool, user_id)
+            user_info, err = await get_user_info(user_id)
             if err:
                 logging.warning(err, extra={"user": user_id})
             else:
@@ -423,6 +423,20 @@ class ChatService:
                     params["language"] = user_info.language if user_info.language else "en"
 
         #-------------------------------------------------
+
+        # Reject unknown fields the way the MCP surface does, instead of
+        # letting `ChatStreamRequest(**params)` turn a caller's typo (or a
+        # natural guess like `model`) into a bare 500.
+        import inspect
+        accepted = set(inspect.signature(ChatStreamRequest.__init__).parameters) - {"self"}
+        unknown = sorted(set(params) - accepted)
+        if unknown:
+            return json_response_with_code(
+                -4,
+                f"Unknown field(s): {', '.join(unknown)}. "
+                f"Accepted: {', '.join(sorted(accepted))}.",
+                request=request,
+            )
 
         adapter = HTTPChatAdapter()
 
@@ -442,8 +456,7 @@ class ChatService:
     @requires_auth
     async def beneficiary_user_handler(self, request: Request, user_id: str) -> Response:
         try:
-            service = await get_sharing_service()
-            data = await service.get_query_users_simple(user_id)
+            data = await beneficiary_users(user_id)
 
         except Exception as e:
             return json_response_with_code(-1, str(e), request=request)

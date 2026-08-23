@@ -426,8 +426,13 @@ class OpenAIResponsesClient(AbstractClient):
                             except Exception:
                                 pass
                         continue
-                    logging.error(str(e))
-                    yield {"type": "error", "content": str(e)}
+                    logging.error(str(e), exc_info=True)
+                    # Exception type only — the full provider error body (which
+                    # can carry request URLs, org identifiers, key fragments)
+                    # stays in the server log, not in the stream and not in
+                    # saved chat history. Same policy as ToolFaultMiddleware.
+                    from ..utils.errors import client_safe_error
+                    yield {"type": "error", "content": client_safe_error(e)}
                     break
 
             # Yield final cost statistics

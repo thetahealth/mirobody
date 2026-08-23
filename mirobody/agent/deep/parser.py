@@ -21,9 +21,8 @@ deepagents-native ``read_file`` tool, not through this module):
    The trade-off this buys is deliberate: an unopened document is not greppable
    until something reads it, because its text does not exist yet.
 
-The resulting (raw_bytes, parsed_text, mime_type) triple is handed to
-``PgFilesystemBackend.aupload_parsed`` which offloads the bytes and keeps the
-text inline.
+The resulting (raw_bytes, parsed_text, mime_type) triple is what a caller
+registering a new file stores: the bytes offloaded, the text kept inline.
 """
 
 import logging
@@ -47,7 +46,7 @@ _TEXT_EXTRACTABLE_MULTIMODAL = {".pdf", ".ppt", ".pptx"}
 
 @dataclass
 class PreparedFile:
-    """Result of preparing an uploaded file for the workspace."""
+    """Result of preparing an uploaded file for storage."""
     raw_bytes: Optional[bytes]
     parsed_text: str
     mime_type: str
@@ -55,7 +54,7 @@ class PreparedFile:
 
 
 class FileParser:
-    """Extract text from uploaded files for the workspace ``content`` column."""
+    """Extract text from uploaded files, to serve as their inline ``content``."""
 
     def __init__(self):
         self.file_abstract_extractor = FileAbstractExtractor()
@@ -136,11 +135,11 @@ class FileParser:
         """Text the pulse upload pipeline already parsed for this ``file_key``
         (``th_files.original_text``), or None.
 
-        The upload-time parse runs asynchronously, so a workspace row registered
-        by reference may predate its result; this lookup is how the workspace
-        picks it up later without re-extracting (see
-        ``PgFilesystemBackend._lazy_extract_doc_text``). Distinct from the
-        byte-level SHA256 dedup, which lives inside ``FileAbstractExtractor``.
+        The upload-time parse runs asynchronously, so a read can land before
+        that parse finishes; this lookup is how
+        ``PgFilesystemBackend._lazy_extract_doc_text`` picks it up once it
+        exists, without re-extracting. Distinct from the byte-level SHA256
+        dedup, which lives inside ``FileAbstractExtractor``.
         """
         if not file_key:
             return None

@@ -16,6 +16,8 @@ from mirobody.user.jwt import validator_from_config
 from mirobody.server.auth import verify_token
 from mirobody.utils import execute_query
 from mirobody.utils.config import get_default_timezone, global_config
+from ...user import care_circle as cc
+from ...user.user import get_user
 
 # Create router
 router = APIRouter(prefix="/api")
@@ -119,11 +121,8 @@ async def set_user_settings(
         try:
             jwt_key = global_config().get("JWT_KEY") if global_config() else None
             if jwt_key:
-                email_result = await execute_query(
-                    "SELECT email FROM health_app_user WHERE id = :uid AND is_del = FALSE",
-                    params={"uid": int(user_id)},
-                )
-                email = email_result[0].get("email", "") if email_result else ""
+                user_row = await get_user(user_id=user_id)
+                email = user_row.get("email", "") if user_row else ""
 
                 # This used to build the whole payload inline and call
                 # pyjwt.encode directly, hardcoding iss/aud/client_id/scope to
@@ -163,22 +162,11 @@ async def get_user_settings(
         logging.info(f"Getting settings for user: {user_id}, lang: {accept_language}, tz: {timezone}")
 
         # Get user profile info from health_app_user table
-        user_sql = """
-            SELECT email, gender, birth, blood, tz, lang, mfa_enabled
-            FROM health_app_user
-            WHERE id = :user_id AND is_del = false
-        """
-
-        user_result = await execute_query(
-            user_sql,
-            params={"user_id": int(user_id)}
-        )
+        user_data = await get_user(user_id=user_id)
 
         # Check if user exists and extract data
-        if user_result and len(user_result) > 0:
-            user_data = user_result[0]
-            logging.info(f"Using user data: {user_data}"
-                         )
+        if user_data:
+            logging.info(f"Using user data: {user_data}")
         else:
             # User not found or deleted
             logging.warning(f"No user data found for user_id: {user_id}")
@@ -339,15 +327,7 @@ async def create_virtual_user(
         logging.info(f"Creating virtual user for user: {current_user_id}, request: {request.dict()}")
 
         # Check if username already exists
-        check_email_query = """
-            SELECT id FROM health_app_user 
-            WHERE email = :email AND is_del = false
-        """
-        
-        existing_user = await execute_query(
-            check_email_query,
-            params={"email": request.email.lower()},
-        )
+        existing_user = await get_user(email=request.email)
 
         if existing_user:
             return JSONResponse(
@@ -386,58 +366,20 @@ async def create_virtual_user(
         virtual_user_id = str(row["id"])
         virtual_user_name = row["name"]
 
-        # Get current user's email for the relationship
-        current_user_query = """
-            SELECT email FROM health_app_user
-            WHERE id = :user_id AND is_del = false
-        """
-
-        current_user_result = await execute_query(
-            current_user_query,
-            params={"user_id": int(current_user_id)},
-        )
-
-        current_user_email = current_user_result[0]["email"] if current_user_result else ""
-
-        # Create share relationship using new th_share_relationship table
-        create_relationship_query = """
-            INSERT INTO th_share_relationship
-            (owner_user_id, member_user_id, owner_email, member_email, status, permissions, relationship_type)
-            VALUES (:owner_user_id, :member_user_id, :owner_email, :member_email, 'authorized', :permissions, 'data_sharing')
-            ON CONFLICT (owner_user_id, member_user_id) DO NOTHING
-        """
-
-        # Default permission: full access (all: 2 means write access)
-        import json
-        default_permissions = {"all": 2}
-
-        await execute_query(
-            create_relationship_query,
-            params={
-                "owner_user_id": current_user_id,
-                "member_user_id": virtual_user_id,
-                "owner_email": current_user_email,
-                "member_email": request.email.lower(),
-                "permissions": json.dumps(default_permissions),
-            },
-        )
-
-        # Create nickname record in th_share_user_config
-        create_config_query = """
-            INSERT INTO th_share_user_config
-            (setter_user_id, target_user_id, nickname, created_at, updated_at)
-            VALUES (:setter_user_id, :target_user_id, :nickname, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            ON CONFLICT (setter_user_id, target_user_id, context)
-            DO UPDATE SET nickname = EXCLUDED.nickname, updated_at = CURRENT_TIMESTAMP
-        """
-
-        await execute_query(
-            create_config_query,
-            params={
-                "setter_user_id": current_user_id,
-                "target_user_id": virtual_user_id,
-                "nickname": virtual_user_name,
-            },
+        # A managed member: a real row in the circle, marked accepted and
+        # read-write, without an invitation handshake — because this person will
+        # never sign in. That shortcut is scoped to the CALLER'S OWN circle,
+        # which is the whole safety story: `create_circle` makes the caller its
+        # owner, and `force_accept_managed_member` writes only into a circle the
+        # caller owns.
+        #
+        # `health_access = 2` is correct here and would be wrong anywhere else.
+        # For everyone who can sign in, that switch is theirs and starts at 0. A
+        # managed member has no way to set it, so the person who created them
+        # holds it — and they are the same person.
+        circle_id = await cc.ensure_own_circle(current_user_id)
+        await cc.force_accept_managed_member(
+            circle_id, int(virtual_user_id), nickname=virtual_user_name
         )
 
         logging.info(f"Successfully created virtual user {virtual_user_id} for user {current_user_id}")

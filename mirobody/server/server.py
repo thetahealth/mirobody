@@ -6,14 +6,13 @@ from redis.asyncio import Redis
 
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
-from starlette.routing import Mount, Route
-from starlette.staticfiles import StaticFiles
+from starlette.routing import Route
 from starlette.middleware import Middleware
 
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.cors import CORSMiddleware
 
-from .bootstrap import create_schema, seed_demo_data
+from .bootstrap import create_schema, enforce_production_auth_safety, seed_demo_data
 from .middleware_stack import build_middlewares
 from .htdoc import add_htdoc_routes
 from .middlewares import JwtMiddleware, UserInfoUpdaterMiddleware, RequestRateLimiterMiddleware
@@ -27,8 +26,6 @@ from ..user import (
 )
 from ..mcp import McpService
 from ..agent.chat import ChatService
-
-from ..utils.config.storage.constants import DEFAULT_LOCAL_CHARTS_PATH
 
 #-----------------------------------------------------------------------------
 
@@ -113,8 +110,6 @@ class Server:
 
         url_paths_for_user_info_updater     : list[str] | None = None,      # ["url_path"]
         url_paths_for_request_rate_limiter  : dict[str, int] | None = None, # {"url_path": requests_per_minute}
-
-        local_chart_dir         : str = "",
 
         http_headers            : dict[str, str] | None = None,
 
@@ -245,14 +240,6 @@ class Server:
 
         self._routes.append(Route(f"{uri_prefix}/api/health", endpoint=self.health_check_handler, methods=["GET"]))
 
-        # Add static file serving for chart images.
-        charts_dir = local_chart_dir or DEFAULT_LOCAL_CHARTS_PATH
-        if os.path.exists(charts_dir):
-            self._routes.append(Mount("/charts", app=StaticFiles(directory=charts_dir)))
-            logging.info(f"Chart static files enabled: {charts_dir}")
-        else:
-            logging.warning(f"Chart directory not found: {charts_dir}. Please ensure it exists or is mounted.")
-
         if htdoc:
             self._routes.append(
                 Route(
@@ -335,6 +322,10 @@ class Server:
         config = await Config.init(yaml_filenames=yaml_files)
         config.print()
 
+        # Fail fast, before any socket is bound: a production ENV that still
+        # carries demo login codes must not come up at all.
+        enforce_production_auth_safety(config)
+
         await create_schema(config)
         await seed_demo_data(config)
 
@@ -363,8 +354,6 @@ class Server:
             url_paths_for_request_rate_limiter  = config.get_dict("REQUEST_RATE_LIMITER"),
             url_paths_for_user_info_updater     = config.get_list("USER_INFO_UPDATER"),
 
-            local_chart_dir = config.get_str("LOCAL_CHARTS_DIR"),
-
             http_headers    = config.http.headers or {},
 
             **config.get_mcp_options(),
@@ -387,6 +376,23 @@ class Server:
             middleware  = server.get_middlewares()
         )
 
+        # One handler for care-circle denial, so a route that forgets to catch
+        # `CareCircleDenied` answers 403 instead of proceeding. That is the whole
+        # reason the check raises: the shape it replaced returned
+        # `{"success": False, ...}`, and a caller who forgot to read that key got
+        # a silent grant. With this, forgetting costs a 403, not someone's
+        # health record.
+        from fastapi.responses import JSONResponse
+
+        from ..user.care_circle import CareCircleDenied
+
+        @app.exception_handler(CareCircleDenied)
+        async def _care_circle_denied(request, exc: CareCircleDenied):
+            logging.warning("care-circle denial reached the app handler: %s %s — %s",
+                            request.method, request.url.path, exc)
+            return JSONResponse(status_code=403,
+                                content={"code": -403, "msg": str(exc), "data": {}})
+
         # Store global resources in app.state for access by all routers
         app.state.redis = redis
         app.state.pg_pool = pg_pool
@@ -402,7 +408,6 @@ class Server:
         from mirobody.server.routers import (
             public_router as pulse_public_router,
             apple_router,
-            manage_router,
             user_router,
             file_router,
             session_share_router,
@@ -419,7 +424,6 @@ class Server:
         # /api/v1/health/apple-health router was never registered here — its dead
         # remains were removed from apple_router.py.)
         app.include_router(apple_router)
-        app.include_router(manage_router)
         app.include_router(file_router)
         app.include_router(user_router)
         app.include_router(session_share_router)

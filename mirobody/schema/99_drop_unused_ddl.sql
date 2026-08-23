@@ -51,6 +51,23 @@
 -- makes "delete the file, lose the text" true.
 DROP TABLE IF EXISTS th_file_contents;
 
+--   deep_agent_workspace — the agent's virtual filesystem, when it was a table.
+--     Four mounts lived in it: the agent's scratch space plus three COPIES of
+--     data another table already owned (uploaded files from `th_files`, the
+--     health profile from `health_user_profile_by_system`). The copies were
+--     re-synced from their sources on every chat turn, which bought nothing on
+--     the read path — the sync queried the source anyway — and cost a second
+--     home for the truth. That is what let a deleted health document keep
+--     answering: the projection outlived what it projected, twice.
+--
+--     Every mount is now either graph state (the scratch space, which LangGraph's
+--     checkpointer already persists) or a read-only projection whose WHERE clause
+--     carries the deletion contract. See `agent/deep/files_backend.py` and
+--     `agent/deep/profile_backend.py`. Its two DDL files (90_deepagents.sql and
+--     97_deepagents_scope_columns.sql) are deleted; this drops the table from
+--     databases that already ran them.
+DROP TABLE IF EXISTS deep_agent_workspace;
+
 DROP INDEX IF EXISTS idx_th_messages_comment_trgm;
 DROP INDEX IF EXISTS idx_th_sessions_tags;
 DROP INDEX IF EXISTS idx_th_messages_file_list;

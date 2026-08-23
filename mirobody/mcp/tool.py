@@ -22,51 +22,6 @@ global_gemini_functions = []
 
 #-----------------------------------------------------------------------------
 
-def _parse_type(s: str) -> tuple[str, str]:
-
-    type_mapping = {
-        "str"   : "string",
-        "int"   : "integer",
-        "float" : "number",
-        "bool"  : "boolean"
-    }
-
-    #-----------------------------------------------------
-
-    s = s.removeprefix("<class '").removesuffix("'>")
-
-    if s in type_mapping:
-        return type_mapping[s], ""
-
-    #-----------------------------------------------------
-
-    if s.startswith("typing.Optional[") and s.endswith("]"):
-        s = s.removeprefix("typing.Optional[").removesuffix("]")
-
-    if s in type_mapping:
-        return type_mapping[s], ""
-
-    #-----------------------------------------------------
-
-    if s.startswith("dict[") or s.startswith("typing.Dict["):
-        return "object", ""
-
-    #-----------------------------------------------------
-
-    if s.startswith("list[") and s.endswith("]"):
-        s = s.removeprefix("list[").removesuffix("]")
-
-        return "array", type_mapping[s] if s in type_mapping else "string"
-
-    if s.startswith("typing.List[") and s.endswith("]"):
-        s = s.removeprefix("typing.List[").removesuffix("]")
-
-        return "array", type_mapping[s] if s in type_mapping else "string"
-
-    #-----------------------------------------------------
-
-    # Unknown type.
-    return "string", ""
 
 def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
     # 🆕 Check if function has custom inputSchema attribute

@@ -4,7 +4,7 @@ Agents are the "brains" of Mirobody. They process user messages, execute logic (
 
 ## 🧱 Built-in Agents
 
-Three built-in agents ship under this directory, each backed by a different runtime mechanism. Pick by what your use case needs:
+Two built-in agents ship under this directory, each backed by a different runtime mechanism. Pick by what your use case needs:
 
 | Agent                   | File                              | Mechanism                                                                                                                     | When to use                                                                                                                                                         |
 | ----------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -35,14 +35,22 @@ removed).
 
 ## 📂 Discovery (custom agents)
 
-Mirobody automatically discovers agents in the following locations:
+Agents are discovered by scanning the directories listed under `AGENT_DIRS`
+in `config.yaml`, which ships as:
 
-1. **Custom Agents**: `agents/` (Root directory) - **Place your own agents here.**
-2. **Core Agents**: `mirobody/agent/` - Built-in system agents (the three above).
+```yaml
+AGENT_DIRS:
+  - mirobody/agent
+```
+
+Dropping a `.py` file in `mirobody/agent/` is therefore enough for it to be
+picked up. To keep your own agents outside the package, add your directory to
+`AGENT_DIRS` in an overlay — a directory that is not listed there is never
+scanned, no matter what it is named.
 
 ### Discovery Rules
 
-1. **File Location**: Must be a `.py` file inside `agents/`.
+1. **File Location**: Must be a `.py` file inside a directory listed in `AGENT_DIRS`.
 2. **Naming Convention**: Class name must end with `Agent` (e.g., `SupportAgent`).
 3. **Inheritance**: Technically optional, but recommended to follow the standard signature.
 

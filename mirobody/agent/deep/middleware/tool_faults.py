@@ -23,8 +23,6 @@ NOT caught, deliberately:
     silently break any approval flow added later.
   * ``asyncio.CancelledError`` — a ``BaseException``, so ``except Exception``
     misses it by construction; a disconnected client must still cancel the run.
-
-Ported from a sibling agent of ours.
 """
 
 import json
@@ -201,7 +199,15 @@ class InvalidToolCallRepairMiddleware(AgentMiddleware):
                 repairs,
                 [c.get("name") for c in invalid],
             )
-            return None
+            # Returning None here ended the turn with a ZERO-character reply
+            # and no error event — the client paid for the whole run and saw
+            # blank. Raise instead: the streaming loop's exception handler
+            # turns this into an `error` event the client actually renders.
+            raise RuntimeError(
+                f"the model kept producing malformed tool calls after "
+                f"{repairs} repair attempts — please retry, or switch "
+                f"provider/model"
+            )
 
         # Salvage first. A call we can coerce into valid JSON is promoted onto
         # `tool_calls` and the message REPLACED (same id, so `add_messages`

@@ -27,22 +27,6 @@ async def init():
         logging.error(f"Failed to start aggregate indicator scheduler: {str(e)}")
         raise  # Re-raise to prevent service from starting if tests fail
 
-    # Start monitor collector tasks (TH-141)
-    try:
-        from ...pulse.monitor.startup import start_monitor_collector
-        await start_monitor_collector()
-        logging.info("Monitor collector tasks started")
-    except Exception as e:
-        logging.error(f"Failed to start monitor collector tasks: {str(e)}")
-
-    # Start insight engine task (Phase 4)
-    try:
-        from ...pulse.insight.startup import start_insight_engine
-        await start_insight_engine()
-        logging.info("Insight engine task started")
-    except Exception as e:
-        logging.error(f"Failed to start insight engine task: {str(e)}")
-
     # Start standard indicator registry task — publishes in-code
     # StandardIndicator enum + derived aggregation rules to
     # standard_indicators_device once a day.
