@@ -80,12 +80,24 @@ CREATE TABLE IF NOT EXISTS fhir_indicators (
 	llm_unit text NULL,
 	embedding_gemini vector(1024) NULL,
 	embedding_qwen3 vector(1024) NULL,            -- only column search needs for EMBEDDING_PROVIDER=qwen (_search_fhir_db); matches test/prod
+	embedding_qwen3_8b vector(1024) NULL,         -- EMBEDDING_PROVIDER=openrouter (qwen/qwen3-embedding-8b) — the shipped default
 	CONSTRAINT fhir_indicators_indicator_standard_code_unique UNIQUE (indicator_standard, code),
 	CONSTRAINT fhir_indicators_pkey PRIMARY KEY (id)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_fhir_indicators_source_code ON fhir_indicators USING btree (indicator_standard, code);
 CREATE INDEX IF NOT EXISTS idx_fhir_indicators_embedding_qwen3
     ON fhir_indicators USING hnsw (embedding_qwen3 vector_cosine_ops);
+
+-- EMBEDDING_PROVIDER=openrouter (open-weights qwen/qwen3-embedding-8b, the
+-- shipped default — one OPENROUTER_API_KEY covers the agent AND this column).
+-- Named after the MODEL, not the provider: vectors are only comparable within
+-- one (provider, model) pair, and a column named for a provider already lied
+-- once (embedding_qwen3 actually holds DashScope text-embedding-v4 vectors).
+-- ALTER (not just the CREATE above) because this schema is replayed at boot
+-- against databases created before the column existed.
+ALTER TABLE fhir_indicators ADD COLUMN IF NOT EXISTS embedding_qwen3_8b vector(1024);
+CREATE INDEX IF NOT EXISTS idx_fhir_indicators_embedding_qwen3_8b
+    ON fhir_indicators USING hnsw (embedding_qwen3_8b vector_cosine_ops);
 
 
 CREATE TABLE IF NOT EXISTS series_data (
@@ -152,9 +164,17 @@ COMMENT ON COLUMN th_series_dim.embedding_gemini IS 'Gemini embedding (1024 dime
 CREATE INDEX IF NOT EXISTS idx_th_series_dim_embedding_gemini
     ON th_series_dim USING hnsw (embedding_gemini vector_cosine_ops);
 
---  Add embedding_qwen field for Qwen 1024-dimension vector search (selected via DIM_EMBEDDING_PROVIDER=qwen)
+--  Add embedding_qwen field for Qwen 1024-dimension vector search (selected via EMBEDDING_PROVIDER=qwen)
 ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS embedding_qwen vector(1024);
 COMMENT ON COLUMN th_series_dim.embedding_qwen IS 'Qwen embedding (1024 dimensions) for semantic search';
+
+--  EMBEDDING_PROVIDER=openrouter (qwen/qwen3-embedding-8b) — the shipped
+--  default. Same rationale as the fhir_indicators column above: named after
+--  the model, added by ALTER for pre-existing databases.
+ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS embedding_qwen3_8b vector(1024);
+COMMENT ON COLUMN th_series_dim.embedding_qwen3_8b IS 'Qwen3-Embedding-8B via OpenRouter (1024 dims, MRL prefix) for semantic search';
+CREATE INDEX IF NOT EXISTS idx_th_series_dim_embedding_qwen3_8b
+    ON th_series_dim USING hnsw (embedding_qwen3_8b vector_cosine_ops);
 
 CREATE INDEX IF NOT EXISTS idx_th_series_dim_embedding_qwen
     ON th_series_dim USING hnsw (embedding_qwen vector_cosine_ops);

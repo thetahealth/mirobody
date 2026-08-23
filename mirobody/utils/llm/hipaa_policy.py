@@ -87,7 +87,7 @@ def _get_azure_yaml_cfg() -> dict:
 # ---------------------------------------------------------------------------
 
 def export_to_env() -> None:
-    """Bridge config center values into standard SDK env vars.
+    """Bridge configured values into standard SDK env vars.
 
     Call once at startup. Only sets vars that are not already present
     in the environment (explicit env vars take precedence).

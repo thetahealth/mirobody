@@ -11,6 +11,7 @@ from .chat.model import UserInfo
 from .chat.agent import get_llm_client_by_name
 from ..utils.log import get_req_ctx
 from ..utils.config import safe_read_cfg
+from ..utils.log import secret_fingerprint
 
 from .utils import (
     StreamConverter,
@@ -26,11 +27,33 @@ from .deep.middleware import (
 )
 
 # DeepAgent's default LLM provider when none is specified by the caller.
-_DEFAULT_PROVIDER_DEEP = "gemini-3.5-flash"
+#
+# Both values must be KEYS of the shipped PROVIDERS_DEEP in config.yaml —
+# these strings are looked up in that dict, not resolved as model names. An
+# earlier value, "gemini-3.5-flash", was a model name matching no shipped key
+# (the entry is called "gemini-flash"), so a call with no provider raised
+# ConfigError on an untouched config.
+#
+# Two defaults because the repo promises TWO one-key paths: "claude-sonnet"
+# routes through OPENROUTER_API_KEY (the recommended default), "qwen" through
+# DASHSCOPE_API_KEY (the fallback for networks where openrouter.ai is
+# unreachable).
+# `_default_provider()` picks by which key is actually present — the same
+# select-by-available-key idea the vision pipeline already uses — so a bare
+# DASHSCOPE_API_KEY deployment chats without touching DEFAULT_PROVIDER_DEEP.
+_DEFAULT_PROVIDER_DEEP = "claude-sonnet"
+_DEFAULT_PROVIDER_DEEP_FALLBACK = "qwen"
+
+
+def _default_provider() -> str:
+    if os.environ.get("OPENROUTER_API_KEY") or safe_read_cfg("OPENROUTER_API_KEY", ""):
+        return _DEFAULT_PROVIDER_DEEP
+    if os.environ.get("DASHSCOPE_API_KEY") or safe_read_cfg("DASHSCOPE_API_KEY", ""):
+        return _DEFAULT_PROVIDER_DEEP_FALLBACK
+    return _DEFAULT_PROVIDER_DEEP
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
-    from .deep.backend import PostgresBackend
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +147,7 @@ class DeepAgent():
         self.prompt_templates = prompt_templates
         self.agent_name = "Theta"
         self.agent_identifier = self.__class__.__name__.removesuffix("Agent")
-        self.default_provider = safe_read_cfg("DEFAULT_PROVIDER_DEEP") or _DEFAULT_PROVIDER_DEEP
+        self.default_provider = safe_read_cfg("DEFAULT_PROVIDER_DEEP") or _default_provider()
         self.file_parse_cache_ttl = int(safe_read_cfg("FILE_CACHE_TTL") or 300)
         self.file_parse_cache_maxsize = int(safe_read_cfg("FILE_CACHE_MAXSIZE") or 100)
         # Two layers, and they are not interchangeable (see `_build_agent`):
@@ -256,10 +279,14 @@ class DeepAgent():
                         break
 
         # 2. The user's own instructions, if they saved any under this name.
-        user_prompt, err = await get_user_prompt_by_name(user_id, prompt_name)
-        if err:
-            logger.warning(f"Failed to load user prompt '{prompt_name}': {err}")
-            user_prompt = ""
+        # An empty name means "none requested" — asking the store for it only
+        # produced a WARNING on every default chat.
+        user_prompt = ""
+        if prompt_name:
+            user_prompt, err = await get_user_prompt_by_name(user_id, prompt_name)
+            if err:
+                logger.warning(f"Failed to load user prompt '{prompt_name}': {err}")
+                user_prompt = ""
 
         if not base_prompt:
             # No template at all. A user prompt is better than refusing to
@@ -337,42 +364,58 @@ class DeepAgent():
     ) -> tuple[Any, list | None]:
         """Build the deepagents virtual filesystem.
 
-        With a ``user_id``: a ``CompositeBackend`` over the scope-based
-        ``deep_agent_workspace`` table (deepagents-native fs tools operate on it):
+        With a ``user_id``: a ``CompositeBackend`` of read-only PROJECTIONS over
+        the tables that already own the data — there is no agent-filesystem
+        table (see the comment below for how that changed):
 
-          default        → workspace (scope='workspace', session=cur)  scratch, rw
-          /memories/...  → memory    (scope='memory',    session='')   cross-session, rw
-          /uploads/...   → uploads   (scope='uploads',   session=cur)  this request's files, ro
-          /library/...   → library   (scope='library',   session='')   file history, ro
+          default        → StateBackend                    scratch, rw
+          /memories/...  → ProfileBackend                   health profile, ro
+          /uploads/...   → ThFilesBackend(scope='uploads')  this request's files, ro
+          /library/...   → ThFilesBackend(scope='library')  file history, ro
           /skills/...    → Agent Skills from SKILL_DIRS (local, ro)
 
-        ``/uploads/`` and ``/library/`` are auto-populated from ``th_files`` via
-        ``register_blob`` (pointers — no byte copy; parsed text inlined for grep,
-        bytes surfaced multimodally on read). ``/skills/`` is the read half of
-        SkillsMiddleware's progressive disclosure: the middleware injects each
-        skill's frontmatter at startup, and the agent ``read_file``s the full
-        SKILL.md through this mount only when a task calls for it. Anonymous
-        calls fall back to ``StateBackend``. Returns ``(backend, permissions)``.
+        ``/uploads/`` and ``/library/`` project ``th_files`` directly (no byte
+        copy; parsed text inlined for grep, bytes surfaced multimodally on
+        read). ``/skills/`` is the read half of SkillsMiddleware's progressive
+        disclosure: the middleware injects each skill's frontmatter at startup,
+        and the agent ``read_file``s the full SKILL.md through this mount only
+        when a task calls for it. Anonymous calls fall back to ``StateBackend``.
+        Returns ``(backend, permissions)``.
         """
         if not user_id:
             from deepagents.backends import StateBackend
             return StateBackend(), None
 
-        from deepagents.backends import CompositeBackend
+        from deepagents.backends import CompositeBackend, StateBackend
         from deepagents.middleware.filesystem import FilesystemPermission
-        from .deep.backend import PgFilesystemBackend
+        from .deep.files_backend import ThFilesBackend
+        from .deep.profile_backend import ProfileBackend
 
-        workspace = PgFilesystemBackend(user_id=user_id, session_id=session_id or "", scope="workspace", supports_file_block=supports_file_block)
-        memory = PgFilesystemBackend(user_id=user_id, session_id="", scope="memory", supports_file_block=supports_file_block)
-        uploads = PgFilesystemBackend(user_id=user_id, session_id=session_id or "", scope="uploads", supports_file_block=supports_file_block)
-        library = PgFilesystemBackend(user_id=user_id, session_id="", scope="library", supports_file_block=supports_file_block)
+        # Every mount is now either graph state or a read-only PROJECTION of the
+        # table that owns the data. There is no agent-filesystem table:
+        #
+        #   /            the agent's scratch space — StateBackend, checkpointed by
+        #                LangGraph (deep/checkpointer.py), so it survives the turn
+        #                without a table of its own
+        #   /memories/   projects health_user_profile_by_system (is_deleted = false)
+        #   /uploads/    projects th_files, narrowed to THIS request's file_keys
+        #   /library/    projects th_files (is_del = false), the rest of the history
+        #
+        # The two mirroring passes that used to run here — one per turn, copying
+        # path/mime/hash/text out of th_files into pointer rows — are gone. They
+        # bought nothing on the read path (they queried th_files every turn
+        # anyway) and cost a second home for the truth, which is how a deleted
+        # health document kept answering.
+        this_turn_keys = [str(f["file_key"]) for f in (file_list or [])
+                          if isinstance(f, dict) and f.get("file_key")]
 
-        # Mirror this request's uploads first, then history (excluding those keys).
-        try:
-            session_keys = await _sync_session_uploads(uploads, user_id=user_id, file_list=file_list)
-            await _sync_user_library(library, user_id=user_id, exclude_file_keys=session_keys)
-        except Exception as exc:
-            logger.warning(f"upload/library mirroring failed: {exc}", exc_info=True)
+        memory = ProfileBackend(user_id=user_id)
+        uploads = ThFilesBackend(user_id=user_id, scope="uploads",
+                                 file_keys=this_turn_keys,
+                                 supports_file_block=supports_file_block)
+        library = ThFilesBackend(user_id=user_id, scope="library",
+                                 file_keys=this_turn_keys,
+                                 supports_file_block=supports_file_block)
 
         routes = {
             "/memories/": memory,
@@ -395,7 +438,11 @@ class DeepAgent():
                 FilesystemPermission(operations=["write"], paths=["/skills/**"], mode="deny")
             )
 
-        backend = CompositeBackend(default=workspace, routes=routes)
+        # The scratch root is graph state, not a table. It was a
+        # PgFilesystemBackend(scope='workspace') row per file; LangGraph's
+        # checkpointer already persists state per thread, so the table was
+        # storing what the checkpointer stores.
+        backend = CompositeBackend(default=StateBackend(), routes=routes)
         return backend, permissions
 
 
@@ -457,7 +504,7 @@ class DeepAgent():
         under the wrong key is a no-op that leaves the general-purpose subagent
         ENABLED, and the model then happily calls ``task``.
 
-        This bit a sibling agent of ours in production
+        This exact silent failure already happened in production once
         (2026-07-28) and looked fine in test only because the default there is an
         OpenAI-family model, and ``ChatOpenAI`` does override ``ls_provider``.
 
@@ -575,7 +622,7 @@ class DeepAgent():
         messages: list[dict[str, Any]] | list[BaseMessage],
         file_list: list[dict[str, Any]] | None = None,
         supports_file_block: bool = False,
-    ) -> tuple[Any, "PostgresBackend", list]:
+    ) -> tuple[Any, Any, list]:
         """
         Build agent with backend and handle file uploads.
 
@@ -584,9 +631,10 @@ class DeepAgent():
         """
         try:
             # Build the deepagents virtual filesystem (CompositeBackend). User
-            # uploads + history are auto-mounted at /uploads/ and /library/ via
-            # register_blob — the agent reads them with the native read_file tool
-            # (multimodal for pdf/image/…). No custom file MCP tools, no E2B.
+            # uploads + history are auto-mounted at /uploads/ and /library/ as
+            # live th_files projections — the agent reads them with the native
+            # read_file tool (multimodal for pdf/image/…). No custom file MCP
+            # tools, no external sandbox.
             backend, permissions = await self._build_backend(
                 session_id, user_id, file_list, supports_file_block=supports_file_block
             )
@@ -623,8 +671,8 @@ class DeepAgent():
                 logger.warning(f"model call limit middleware unavailable: {exc}")
 
             # In-process JS/TS interpreter (langchain-quickjs). Adds an `eval`
-            # tool — a persistent REPL — replacing the E2B remote sandbox for
-            # compute.
+            # tool — a persistent REPL — for compute, in-process with no
+            # external sandbox service or key.
             try:
                 from langchain_quickjs import CodeInterpreterMiddleware
                 middleware.append(CodeInterpreterMiddleware())
@@ -762,7 +810,17 @@ class DeepAgent():
 
         except Exception as e:
             logger.error(f"DeepAgent streaming error: {str(e)}", stack_info=True)
-            yield {"type": "error", "content": f"Streaming error: {str(e)}"}
+            detail = str(e)
+            # A connect failure names neither the unreachable host nor the way
+            # out. Connection-shaped errors get the pointer the docs already
+            # carry: openrouter.ai is unreachable from some networks, and the
+            # DashScope gateway is the documented drop-in fallback.
+            if "connect" in f"{type(e).__name__} {detail}".lower():
+                detail += (
+                    " — the model provider's endpoint may be unreachable from "
+                    "this network; see the DashScope fallback in config.yaml"
+                )
+            yield {"type": "error", "content": f"Streaming error: {detail}"}
 
     async def generate_response(
         self,
@@ -791,10 +849,11 @@ class DeepAgent():
             # `files_data` (the HTTP layer's pre-downloaded bytes) is deliberately
             # NOT consumed here — it arrives via **kwargs and is ignored. Uploads
             # reach the agent as FILES, not as message payload: _build_backend
-            # mirrors them into /uploads/ by REFERENCE (register_blob, no byte
-            # copy) and the prompt tells the model to read_file them on demand.
-            # Injecting the bytes into the turn would duplicate that and blow up
-            # the context. BaseAgent still uses files_data (it has no virtual FS).
+            # projects them into /uploads/ by file_key (ThFilesBackend over
+            # th_files, no byte copy) and the prompt tells the model to
+            # read_file them on demand. Injecting the bytes into the turn would
+            # duplicate that and blow up the context. BaseAgent still uses
+            # files_data (it has no virtual FS).
 
             # Tell the model exactly which files were attached this turn (and
             # their /uploads/ paths) so it reads them without an ls round-trip and
@@ -960,8 +1019,18 @@ class DeepAgent():
                 model_provider = llm_type
                 init_kwargs = {k: v for k, v in config.items() if k not in _NON_INIT_CONFIG_KEYS}
 
-                # Log call parameters
-                logger.info(f"[{class_name}] Calling init_chat_model('{provider_name}'): model={model}, provider={model_provider}, kwargs={init_kwargs}")
+                # Log call parameters — with the key FINGERPRINTED, never raw.
+                # This line used to print init_kwargs verbatim, which put the
+                # live api_key in cleartext at INFO once per provider on every
+                # boot — straight into `docker compose logs`, `> server.log`,
+                # any log shipper. Found by a first-run reviewer tailing the
+                # log to check startup health. Same discipline as
+                # secret_fingerprint() everywhere else: identity, not value.
+                loggable_kwargs = {
+                    k: (secret_fingerprint(v) if k == "api_key" and isinstance(v, str) else v)
+                    for k, v in init_kwargs.items()
+                }
+                logger.info(f"[{class_name}] Calling init_chat_model('{provider_name}'): model={model}, provider={model_provider}, kwargs={loggable_kwargs}")
 
                 try:
                     client = init_chat_model(model=model, model_provider=model_provider, **init_kwargs)
@@ -985,7 +1054,18 @@ class DeepAgent():
         total = len(llm_client_config)
 
         if loaded > 0:
-            logger.info(f"[{class_name}] Loaded {loaded}/{total} providers: {', '.join(llm_clients.keys())}")
+            # "Loaded 5/5" on a zero-key deployment read as five USABLE
+            # providers; count the placeholders so the summary cannot.
+            keyless = [
+                name for name in llm_clients
+                if (llm_client_config.get(name) or {}).get("api_key")
+                and not safe_read_cfg((llm_client_config.get(name) or {}).get("api_key"))
+            ]
+            note = (
+                f" ({len(keyless)} placeholder{'s' if len(keyless) != 1 else ''}"
+                " — no usable key)" if keyless else ""
+            )
+            logger.info(f"[{class_name}] Loaded {loaded}/{total} providers{note}: {', '.join(llm_clients.keys())}")
 
         if failed:
             for name, reason in failed:
@@ -995,18 +1075,6 @@ class DeepAgent():
             logger.warning(f"[{class_name}] No providers loaded (0/{total}) - agent may be disabled intentionally")
 
         return llm_clients
-
-
-# ── uploads / library mirroring (th_files -> deepagents filesystem) ──────────
-# Pointers only: register_blob stores object_storage_key (= th_files.file_key)
-# + inlined parsed text; raw bytes stay in object storage and are surfaced
-# multimodally on read. No byte duplication into Postgres.
-
-_MAX_SESSION_UPLOAD_POINTERS = 50
-_MAX_USER_LIBRARY_POINTERS = 200
-
-# Canonical workspace table name (single source of truth in the backend module).
-from .deep.backend import _TABLE as _WORKSPACE_TABLE  # noqa: E402
 
 
 def _attachment_reminder(file_list: list[dict[str, Any]] | None) -> str | None:
@@ -1020,8 +1088,10 @@ def _attachment_reminder(file_list: list[dict[str, Any]] | None) -> str | None:
     """
     items = [f for f in (file_list or []) if isinstance(f, dict) and f.get("file_key")]
     paths: list[str] = []
-    for f in items[:_MAX_SESSION_UPLOAD_POINTERS]:
-        name = _safe_basename(f.get("file_name") or str(f.get("file_key")))
+    from .deep.files_backend import _MAX_SESSION_FILES, safe_basename
+
+    for f in items[:_MAX_SESSION_FILES]:
+        name = safe_basename(f.get("file_name") or str(f.get("file_key")))
         if name:
             paths.append(f"/uploads/{name}")
     if not paths:
@@ -1034,153 +1104,3 @@ def _attachment_reminder(file_list: list[dict[str, Any]] | None) -> str | None:
     )
 
 
-def _safe_basename(file_name: str) -> str | None:
-    """Flatten a th_files name to a path-safe basename (no separators/leading dots)."""
-    safe = str(file_name or "").replace("/", "_").replace("\\", "_").lstrip(".")
-    return safe or None
-
-
-async def _sync_session_uploads(uploads_backend, *, user_id: str, file_list) -> set:
-    """Mirror this request's attached files into /uploads/ (read-only).
-
-    Uses the request ``file_list`` (file_key + file_name); enriches each with the
-    th_files parse cache (decrypted original_text / content_hash / size). Returns
-    the set of file_keys registered, for exclusion from /library/.
-    """
-    from ..utils.db import execute_query
-    from .deep.filetype import guess_mime
-
-    items = [f for f in (file_list or []) if isinstance(f, dict) and f.get("file_key")]
-    if not items:
-        return set()
-    keys = [str(f["file_key"]) for f in items][:_MAX_SESSION_UPLOAD_POINTERS]
-
-    rowmap: dict[str, dict] = {}
-    try:
-        in_clause = ", ".join(f":k{i}" for i in range(len(keys)))
-        params = {f"k{i}": k for i, k in enumerate(keys)}
-        params["uid"] = str(user_id)
-        rows = await execute_query(
-            query=f"""
-            SELECT file_key, decrypt_content(file_name) as file_name, file_type,
-                   content_hash, decrypt_content(original_text) as original_text, text_length
-            FROM th_files
-            WHERE user_id = :uid AND file_key IN ({in_clause}) AND is_del = false
-            """,
-            params=params,
-        )
-        for r in (rows or []):
-            rowmap[str(r.get("file_key"))] = dict(r)
-    except Exception as exc:
-        logger.warning(f"sync_session_uploads query failed: {exc}")
-
-    registered: set = set()
-    for f in items:
-        key = str(f["file_key"])
-        row = rowmap.get(key, {})
-        name = _safe_basename(f.get("file_name") or row.get("file_name") or key)
-        if not name:
-            continue
-        try:
-            err = await uploads_backend.register_blob(
-                path=f"/{name}",
-                object_storage_key=key,
-                content_hash=str(row.get("content_hash") or ""),
-                content_size=int(row.get("text_length") or 0),
-                mime_type=guess_mime(name),
-                parsed_text=(row.get("original_text") or None),
-                file_key=key,
-                source="user_upload",
-            )
-            if err is None:
-                registered.add(key)
-        except Exception:
-            logger.warning(f"sync_session_uploads register failed for {name}", exc_info=True)
-
-    logger.info(f"sync_session_uploads: user={user_id} registered={len(registered)}/{len(items)}")
-    return registered
-
-
-async def _sync_user_library(library_backend, *, user_id: str, exclude_file_keys: set) -> None:
-    """Mirror the user's parsed file history (excluding this request's keys) into /library/ (read-only)."""
-    from ..utils.db import execute_query
-    from .deep.filetype import guess_mime
-
-    params: dict[str, Any] = {"uid": str(user_id), "limit": _MAX_USER_LIBRARY_POINTERS}
-    exclusion = ""
-    if exclude_file_keys:
-        ph = ", ".join(f":ex{i}" for i in range(len(exclude_file_keys)))
-        exclusion = f"AND file_key NOT IN ({ph})"
-        for i, k in enumerate(exclude_file_keys):
-            params[f"ex{i}"] = str(k)
-
-    try:
-        rows = await execute_query(
-            query=f"""
-            SELECT file_key, decrypt_content(file_name) as file_name, file_type,
-                   content_hash, decrypt_content(original_text) as original_text, text_length
-            FROM th_files
-            WHERE user_id = :uid AND is_del = false
-              AND original_text IS NOT NULL AND original_text <> ''
-              {exclusion}
-            ORDER BY created_at DESC LIMIT :limit
-            """,
-            params=params,
-        )
-    except Exception as exc:
-        logger.warning(f"sync_user_library query failed: {exc}")
-        return
-
-    # Library rows persist across turns (scope='library', session_id=''), so most
-    # of the history is already mirrored from earlier turns. Fetch what's present
-    # once and skip files whose bytes are unchanged — steady state becomes 0
-    # writes instead of up to _MAX_USER_LIBRARY_POINTERS register_blob upserts on
-    # every chat turn. (A file gains a library row only once its original_text is
-    # extracted, so a newly-parsed file is simply absent here and still registers.)
-    already: dict[str, str] = {}
-    try:
-        erows = await execute_query(
-            query=f"""
-            SELECT file_key, content_hash FROM {_WORKSPACE_TABLE}
-            WHERE user_id = :uid AND scope = 'library' AND session_id = '' AND deleted = 0
-            """,
-            params={"uid": str(user_id)},
-        )
-        for er in (erows or []):
-            fk = er.get("file_key")
-            if fk:
-                already[str(fk)] = str(er.get("content_hash") or "")
-    except Exception as exc:
-        logger.warning(f"sync_user_library existing-rows query failed: {exc}")
-
-    seen: set = set()
-    count = 0
-    skipped = 0
-    for r in (rows or []):
-        key = str(r.get("file_key") or "")
-        chash = str(r.get("content_hash") or "")
-        if key and chash and already.get(key) == chash:
-            skipped += 1
-            continue
-        base = _safe_basename(r.get("file_name") or key)
-        if not base:
-            continue
-        name = base if base not in seen else f"{base}__thf_{key[:8]}"
-        seen.add(name)
-        try:
-            err = await library_backend.register_blob(
-                path=f"/{name}",
-                object_storage_key=key,
-                content_hash=str(r.get("content_hash") or ""),
-                content_size=int(r.get("text_length") or 0),
-                mime_type=guess_mime(name),
-                parsed_text=(r.get("original_text") or None),
-                file_key=key,
-                source="user_upload",
-            )
-            if err is None:
-                count += 1
-        except Exception:
-            logger.warning(f"sync_user_library register failed for {base}", exc_info=True)
-
-    logger.info(f"sync_user_library: user={user_id} registered={count} skipped={skipped}")

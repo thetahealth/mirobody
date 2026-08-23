@@ -276,7 +276,6 @@ def agent_keeps_own_history(agent_name: str) -> bool:
 
 global_llm_clients_for_agents = {}
 global_llm_client_names = None
-global_agents_with_llm_client_names = None
 
 
 def load_llm_clients_for_agent_class(
@@ -322,12 +321,15 @@ def load_llm_clients_for_agent_class(
 
 
 def get_agents_with_llm_client_names() -> list[str]:
-    global global_agents_with_llm_client_names
-    if global_agents_with_llm_client_names is not None:
-        return global_agents_with_llm_client_names
+    """The `/api/models` picker list — filtered to providers whose key resolves.
 
-    #-----------------------------------------------------
-
+    Unfiltered, this listed every configured provider — five models on a
+    zero-key deployment — so the picker offered choices that could only fail
+    at chat time. A provider appears only when its client was loaded at
+    startup AND its `api_key` config resolves non-empty NOW (recomputed per
+    call, no cache: removing a key hides its models on the next request).
+    Adding a key still needs a restart — the client itself is built at boot.
+    """
     global global_llm_clients_for_agents
     if not global_llm_clients_for_agents:
         return []
@@ -336,18 +338,27 @@ def get_agents_with_llm_client_names() -> list[str]:
     if not global_public_agents:
         return []
 
+    from ...utils.config import global_config, safe_read_cfg
+
+    config = global_config()
+
     a = []
     for agent_name, llm_clients in global_llm_clients_for_agents.items():
         if agent_name not in global_public_agents or not llm_clients:
             continue
 
-        for llm_client_name, llm_client_instance in llm_clients.items():
+        providers = {}
+        if config:
+            providers = (config.get_options_for_agent(agent_name) or {}).get("providers") or {}
+
+        for llm_client_name in llm_clients:
+            key_name = (providers.get(llm_client_name) or {}).get("api_key", "")
+            if key_name and not safe_read_cfg(key_name):
+                continue
             a.append(f"{agent_name}/{llm_client_name}")
 
     a.sort()
-
-    global_agents_with_llm_client_names = a
-    return global_agents_with_llm_client_names
+    return a
 
 
 def get_llm_client_by_name(agent_name: str, provider_name: str) -> Any:

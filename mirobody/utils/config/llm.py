@@ -78,7 +78,7 @@ class LLMConfig:
     """
     Single LLM provider's configuration. Created by ``Config.get_llm()``.
 
-    Holds credentials and endpoints read from the config center;
+    Holds credentials and endpoints read from configuration;
     ``get_client()`` / ``get_async_client()`` lazily create and cache
     the native SDK client.
     """
