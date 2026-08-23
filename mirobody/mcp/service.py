@@ -25,7 +25,6 @@ from ..utils import (
 )
 
 from ..user import (
-    check_relationship,
 
     AbstractTokenValidator
 )
@@ -892,9 +891,17 @@ class McpService:
             return json_response_with_code(-4, "Invalid user ID.", request=request)
 
         if len(beneficiary_user_id) > 0 and beneficiary_user_id != user_id:
-            err = await check_relationship(self._db_pool, user_id, beneficiary_user_id, ["chat"])
-            if err:
-                return json_response_with_code(-5, err, request=request)
+            # The personal MCP URL can be minted for someone else's record only
+            # if the care circle says so. `check_relationship` used to answer
+            # this by parsing a permissions bag out of `th_share_relationship`
+            # and returning an error STRING — with two bugs in the parse
+            # (`isinstance(obj)` one-arg, and an unbound `e` in the handler)
+            # that made the success path raise.
+            from ..user.care_circle import CareCircleDenied, resolve_subject
+            try:
+                await resolve_subject(user_id, beneficiary_user_id)
+            except CareCircleDenied as denied:
+                return json_response_with_code(-5, str(denied), request=request)
 
             user_id = beneficiary_user_id
 

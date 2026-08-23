@@ -44,7 +44,8 @@ async def load_global_tools(
     Args:
         user_id: User ID for authentication
         token: JWT token for authentication
-        session_id: Session ID for file workspace isolation
+        session_id: Session ID included in the `user_info` passed to tools
+            (see USER_INFO INJECTION in tools/__init__.py)
         allowed_tools: List of allowed tool names (whitelist)
         disallowed_tools: List of disallowed tool names (blacklist)
 

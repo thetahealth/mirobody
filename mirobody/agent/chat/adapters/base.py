@@ -17,6 +17,7 @@ from langchain_core.messages import BaseMessage, HumanMessage
 from ..agent import agent_keeps_own_history, get_global_agent
 from ..file import process_files_from_storage
 from ...base.history_replay import relative_time_hint
+from ...utils.errors import client_safe_error
 
 from ..message import (
     compress_messages,
@@ -25,25 +26,14 @@ from ..message import (
 )
 from ..model import ChatStreamRequest
 
-from ....utils import execute_query, get_query_user_id, safe_read_cfg
+from ....user.care_circle import CareCircleDenied, resolve_subject
+from ....utils import execute_query, safe_read_cfg
 from ....utils.config import get_default_timezone
 from ....utils.tasks import spawn
 
 #-----------------------------------------------------------------------------
 # Constants
 #-----------------------------------------------------------------------------
-
-class PERMISSION_ENUM:
-    """Permission type identifiers"""
-    chat = "chat"
-
-
-class PERMISSION_LEVEL_ENUM:
-    """Permission level values"""
-    no_permission = 0
-    read = 1
-    write = 2
-
 
 # Chunk types persisted into element_list but never streamed to the client.
 _NON_STREAMING_TYPES = {"food_snap", "report"}
@@ -192,25 +182,17 @@ class ChatProtocolAdapter(ABC):
             return True
         
         # Validate help-ask permissions
-        permission_kwargs = {"permission": [PERMISSION_ENUM.chat]}
-        if "token" in kwargs:
-            permission_kwargs["token"] = kwargs["token"]
-            
-        permission_result = await get_query_user_id(
-            params.query_user_id, 
-            user_id,
-            **permission_kwargs
-        )
-        
-        if not permission_result.get("success"):
-            logging.error(f"Permission validation failed: {permission_result.get('error')}")
+        # The call this replaced also forwarded a `token` kwarg that the
+        # function did not accept — a TypeError waiting on whichever caller
+        # first passed one.
+        try:
+            await resolve_subject(user_id, params.query_user_id)
+        except CareCircleDenied as denied:
+            logging.error(
+                f"user {user_id} may not open a chat on {params.query_user_id}'s record: {denied}"
+            )
             return False
-            
-        permissions = permission_result.get("permissions", {})
-        if permissions.get(PERMISSION_ENUM.chat, 0) < PERMISSION_LEVEL_ENUM.read:
-            logging.error(f"Insufficient chat permissions for user {user_id} to query {params.query_user_id}")
-            return False
-        
+
         return True
     
     #-------------------------------------------------------------------------
@@ -429,16 +411,20 @@ class ChatProtocolAdapter(ABC):
                 # dangling alias) — that is the only case this fallback covers.
                 # A constructor that RAISES does not land here; it propagates
                 # to the except below and errors out without fallback.
-                logging.warning(
-                    f"⚠️ Agent '{agent_name}' is not registered "
-                    f"(user {agent_kwargs['user_id']}). Falling back to DeepAgent."
-                )
+                # An EMPTY name is not a wrong name: it means "no specific
+                # agent requested", and announcing a fallback for it put a
+                # "[System] Agent '' unavailable" line into every chat.
+                if agent_name:
+                    logging.warning(
+                        f"⚠️ Agent '{agent_name}' is not registered "
+                        f"(user {agent_kwargs['user_id']}). Falling back to DeepAgent."
+                    )
 
-                # Yield warning chunk so frontend knows about the fallback
-                yield {
-                    "type": "thinking",
-                    "content": f"[System] Agent '{agent_name}' unavailable, using default agent."
-                }
+                    # Yield warning chunk so frontend knows about the fallback
+                    yield {
+                        "type": "thinking",
+                        "content": f"[System] Agent '{agent_name}' unavailable, using default agent."
+                    }
 
                 agent_instance = get_global_agent(agent_name="Deep", **agent_kwargs)
 
@@ -456,7 +442,7 @@ class ChatProtocolAdapter(ABC):
         except Exception as e:
             logging.error(f"Error generating chat response: {str(e)}", exc_info=True)
 
-            yield {"type": "error", "content": f"⚠️ An error occurred: {str(e)}"}
+            yield {"type": "error", "content": client_safe_error(e)}
             yield {"type": "end", "content": ""}
 
     #-------------------------------------------------------------------------
@@ -575,7 +561,7 @@ class ChatProtocolAdapter(ABC):
             logging.error(f"Error in HTTP chat handler: {str(e)}", exc_info=True)
 
             # Yield error as SSE
-            yield self.encode_chunk({"type": "error", "content": str(e)})
+            yield self.encode_chunk({"type": "error", "content": client_safe_error(e)})
 
     async def _process_files_if_needed(
         self,
@@ -753,7 +739,7 @@ class ChatProtocolAdapter(ABC):
                     
             except Exception as e:
                 logging.error("Background processor error: %s", e, exc_info=True)
-                await output_queue.put({"type": "error", "content": str(e)})
+                await output_queue.put({"type": "error", "content": client_safe_error(e)})
             finally:
                 await output_queue.put(None)
                 logging.debug("Background task completed")
@@ -801,4 +787,4 @@ class ChatProtocolAdapter(ABC):
             
         except Exception as e:
             logging.error("Frontend stream error: %s", e, exc_info=True)
-            yield self.encode_chunk({"type": "error", "content": str(e)})
+            yield self.encode_chunk({"type": "error", "content": client_safe_error(e)})

@@ -33,7 +33,7 @@ from pydantic import BaseModel, Field
 
 from ...agent.tools.health_indicator_service import HealthIndicatorService
 from ...utils import execute_query
-from ...utils.permissions import get_query_user_id
+from ...user.care_circle import CareCircleDenied, resolve_subject
 from ..auth import verify_token
 from .public_router import ErrorResponse, StandardResponse
 
@@ -74,10 +74,9 @@ async def health_indicators(
     # Reading someone else's record goes through the care-circle check, not a
     # trusted query parameter — the same rule the agent's tools follow.
     if target_user_id and target_user_id != user_id:
-        allowed = await get_query_user_id(
-            user_id=target_user_id, query_user_id=user_id, permission=["health"],
-        )
-        if not allowed.get("success") or not allowed.get("permissions", {}).get("health"):
+        try:
+            await resolve_subject(user_id, target_user_id)
+        except CareCircleDenied:
             return ErrorResponse(code=403, msg="Not permitted to read this member's health data.")
         owner_id = target_user_id
 

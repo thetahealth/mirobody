@@ -71,8 +71,9 @@ text and tables.
 The former ChartService MCP tools (generate_*_chart), which rendered PNGs
 through a Node @antv/gpt-vis-ssr toolchain, were removed: the repository's
 ONLY Node.js dependency, five chart tools polluting the MCP surface, and 18
-"Method not found" warnings on every boot. Historic chart PNGs remain served
-from the /charts static volume; only the generation path is gone.
+"Method not found" warnings on every boot. The `/charts` static mount and its
+Docker volume went with them — nothing writes chart files any more, so there
+is nothing to serve.
 
 =============================================================================
 EXAMPLE: Adding a New Tool

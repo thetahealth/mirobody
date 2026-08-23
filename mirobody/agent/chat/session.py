@@ -3,7 +3,7 @@ import logging, uuid
 from datetime import datetime
 
 from ...utils import execute_query
-from ...utils.permissions import get_query_user_id
+from ...user.care_circle import CareCircleDenied, resolve_subject
 
 #-----------------------------------------------------------------------------
 
@@ -24,13 +24,13 @@ async def create_session(
     is a backward-compatible parameter addition.
     """
     try:
-        query_user_validation = await get_query_user_id(user_id=query_user_id, query_user_id=user_id, permission=["chat"])
-        if not query_user_validation.get("success"):
-            return {
-                "code"  : -1,
-                "msg"   : query_user_validation.get("error"),
-                "data"  : {}
-            }
+        # `user_id` is the caller, `query_user_id` the record the session is
+        # about. The check this replaced took them in the other order and every
+        # call site passed them swapped to compensate.
+        try:
+            await resolve_subject(user_id, query_user_id)
+        except CareCircleDenied as denied:
+            return {"code": -1, "msg": str(denied), "data": {}}
 
         #-------------------------------------------------
 
@@ -176,13 +176,23 @@ async def get_session_summaries_by_person(user_id: str) -> list[dict[str, any]]:
             
             if query_user_id != user_id:
                 if query_user_id not in nickname_map:
-                    query_user_nickname_sql = "select nickname from th_share_user_config where setter_user_id = :user_id and target_user_id = :query_user_id limit 1"
-                    query_user_nickname_result = await execute_query(
-                        query_user_nickname_sql,
-                        params={"user_id": user_id, "query_user_id": query_user_id}
+                    # The label this person carries in a circle the caller
+                    # shares with them. It used to come from
+                    # `th_share_user_config` keyed by (setter, target), i.e. a
+                    # nickname per viewer; it is now one label per member, on
+                    # the membership row.
+                    rows = await execute_query(
+                        "SELECT m.nickname FROM care_circle_members m"
+                        " JOIN care_circle_members mine"
+                        "   ON mine.care_circle_id = m.care_circle_id"
+                        " WHERE mine.user_id = :user_id AND m.user_id = :query_user_id"
+                        "   AND m.nickname IS NOT NULL"
+                        "   AND mine.deleted_at IS NULL AND m.deleted_at IS NULL"
+                        " LIMIT 1",
+                        params={"user_id": int(user_id), "query_user_id": int(query_user_id)},
                     )
-                    if query_user_nickname_result:
-                        user_name = query_user_nickname_result[0].get("nickname")
+                    if rows:
+                        user_name = rows[0].get("nickname")
                         nickname_map[query_user_id] = user_name
                 else:
                     user_name = nickname_map[query_user_id]

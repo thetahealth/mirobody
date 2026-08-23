@@ -94,51 +94,6 @@ async def get_health_profile_core(user_id: str, maxlen: int = 2000) -> str | Non
     return core or None
 
 
-_MEMORY_PROFILE_PATH = "/health_profile.md"
-
-
-async def mirror_profile_to_memories(user_id: str, profile_markdown: str) -> None:
-    """Best-effort: mirror the FULL detailed profile into the agent's encrypted
-    ``/memories/`` filesystem at ``/health_profile.md`` so the agent can read the
-    detail on demand (the bounded core is injected into the prompt separately).
-
-    Writes to the same ``deep_agent_workspace`` row layout the deepagents
-    PgFilesystemBackend uses for the memory scope (``scope='memory'``,
-    ``session_id=''``, content wrapped in ``encrypt_content`` so it is encrypted
-    at rest and decrypts transparently on the agent's read). Failures are logged,
-    never raised — profile creation must not depend on this.
-    """
-    text = str(profile_markdown or "").strip()
-    if not user_id or not text:
-        return
-    try:
-        await execute_query(
-            """
-            INSERT INTO deep_agent_workspace
-                (user_id, session_id, scope, path, content, encoding, content_size,
-                 mime_type, source, created_at, updated_at, deleted)
-            VALUES
-                (:user_id, '', 'memory', :path, encrypt_content(:content), 'utf-8', :size,
-                 'text/markdown', 'tool_generated', NOW(), NOW(), 0)
-            ON CONFLICT (user_id, session_id, scope, path) DO UPDATE
-                SET content = EXCLUDED.content,
-                    content_size = EXCLUDED.content_size,
-                    mime_type = EXCLUDED.mime_type,
-                    source = EXCLUDED.source,
-                    updated_at = NOW(),
-                    deleted = 0
-            """,
-            params={
-                "user_id": str(user_id),
-                "path": _MEMORY_PROFILE_PATH,
-                "content": text,
-                "size": len(text.encode("utf-8")),
-            },
-        )
-        logger.info(f"[profile] mirrored detailed profile to /memories{_MEMORY_PROFILE_PATH} for user {user_id}")
-    except Exception as e:
-        logger.warning(f"[profile] failed to mirror profile to /memories: {e}")
-
 MAX_TOKENS = 10000
 MAX_OUTPUT_TOKENS = 32000  # No limit on profile output length to avoid truncation
 MAX_PREVIOUS_PROFILE_LENGTH = 15000  # Maximum character limit for previous profile version
@@ -1304,7 +1259,6 @@ class UserProfileService:
             # Mirror the FULL detailed profile into the agent's encrypted /memories/
             # so it can read specifics on demand; the bounded Core Summary is what
             # gets injected into the system prompt. Best-effort — never blocks save.
-            await mirror_profile_to_memories(user_id, profile_without_scenario)
 
             return {
                 "status": "success",

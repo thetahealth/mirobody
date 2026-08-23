@@ -16,7 +16,7 @@ from pydantic import BaseModel, field_validator
 from mirobody.utils import execute_query
 from mirobody.utils.req_ctx import set_req_ctx
 from mirobody.server.auth import verify_token, verify_token_string
-from mirobody.utils.permissions import get_query_user_id
+from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 
 from mirobody.pulse.file_parser.file_upload_manager import get_websocket_file_upload_manager
 from mirobody.pulse.file_parser.services.database_services import FileParserDatabaseService
@@ -81,13 +81,13 @@ async def _authorize_file_read(file_key: str, caller_id: str) -> bool:
     bytes to whoever names the key — so it has to come from the row that
     recorded the upload. Two tables record one:
 
-    * ``th_files``  — everything the upload path stores, ``file_key`` unique.
-    * ``deep_agent_workspace`` — the agent's virtual filesystem,
-      ``object_storage_key``. That is the column name; ``oss_key`` is only the
-      Python-side bind parameter in `deep/backend.py`, and querying by it here
-      raised `column "oss_key" does not exist` — turning "key nobody claims"
-      into a 500 for exactly the workspace-only files this branch exists to
-      authorize, and breaking the no-raise contract three lines below.
+    ``th_files`` is the only one, now. There used to be a second lookup against
+    `deep_agent_workspace.object_storage_key`, for files the agent had written
+    into its own filesystem and that `th_files` therefore did not know about.
+    The agent's scratch space is deepagents' checkpointed `StateBackend` and
+    holds no object-storage bytes, so no such file exists and the fallback could
+    only ever have authorized a stale row. One source is also the point: two
+    tables answering "who owns this key" is two chances to disagree.
 
     Care-circle members reach an owner's files through the same permission
     check the uploaded-files LIST endpoint already uses, so a shared file and a
@@ -104,21 +104,17 @@ async def _authorize_file_read(file_key: str, caller_id: str) -> bool:
         params={"key": file_key},
     )
     if not rows:
-        rows = await execute_query(
-            "SELECT user_id FROM deep_agent_workspace WHERE object_storage_key = :key LIMIT 1;",
-            params={"key": file_key},
-        )
-    if not rows:
         return False
 
     owner = str(rows[0].get("user_id") or "")
     if owner and owner == caller:
         return True
 
-    check = await get_query_user_id(
-        user_id=owner, query_user_id=caller, permission=["uploadfile"]
-    )
-    return bool(check.get("success"))
+    try:
+        await resolve_subject(caller, owner)
+    except CareCircleDenied:
+        return False
+    return True
 
 
 @router.get("/files/{file_path:path}", tags=["files"])
@@ -427,12 +423,9 @@ async def get_data_distribution(
         # this correctly; the two were written apart and only one got the
         # check.
         if str(target_user_id) != str(current_user):
-            permission_check = await get_query_user_id(
-                user_id=str(target_user_id),
-                query_user_id=str(current_user),
-                permission=["uploadfile"],
-            )
-            if not permission_check.get("success", False):
+            try:
+                await resolve_subject(current_user, target_user_id)
+            except CareCircleDenied:
                 return JSONResponse(
                     content={"code": -2, "msg": "No permission to query this user's data"},
                 )
@@ -484,12 +477,9 @@ async def get_uploaded_files(
         logging.info(f"Query uploaded files: current_user={current_user}, target_user_id={target_user_id}")
 
         if target_user_id and target_user_id != str(current_user):
-            permission_check = await get_query_user_id(
-                user_id=target_user_id,
-                query_user_id=str(current_user),
-                permission=["uploadfile"]
-            )
-            if not permission_check.get("success", False):
+            try:
+                await resolve_subject(current_user, target_user_id)
+            except CareCircleDenied:
                 return JSONResponse(
                     content={"code": -2, "msg": "No permission to query this file"}
                 )
