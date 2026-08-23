@@ -4,7 +4,7 @@ FHIR Indicator Mapping
 Loads fhir_indicators table at startup and provides fhir_id lookup for
 th_series_data writes. Hot path is read-only (memory cache).
 
-Configuration (from config center via safe_read_cfg):
+Configuration (read via safe_read_cfg — environment > overlay > config.yaml):
     FHIR_TABLE_AUTO_R: "true"/"false" - Whether to load fhir_indicators mapping
     FHIR_TABLE_AUTO_W: "true"/"false" - Whether to auto-register missing indicators
 """
@@ -46,20 +46,21 @@ class FhirMapping:
     @classmethod
     async def initialize(cls) -> Optional['FhirMapping']:
         """
-        Initialize FhirMapping from config center. Call once at startup.
+        Initialize FhirMapping from configuration. Call once at startup.
 
         Config keys:
             FHIR_TABLE_AUTO_R: "true" to enable reading fhir_indicators mapping
             FHIR_TABLE_AUTO_W: "true" to enable auto-registering missing indicators
 
         Returns None if FHIR_TABLE_AUTO_R is not "true" (feature disabled).
-        If config keys are missing, logs a reminder to add them in config center.
+        If config keys are missing, logs how to enable the feature.
         """
         auto_read = safe_read_cfg("FHIR_TABLE_AUTO_R")
         if not auto_read:
             logging.info(
-                "[FhirMapping] FHIR_TABLE_AUTO_R not configured. "
-                "To enable fhir_id mapping, add FHIR_TABLE_AUTO_R=true in config center."
+                "[FhirMapping] FHIR_TABLE_AUTO_R not configured; fhir_id "
+                "mapping stays off. Set `FHIR_TABLE_AUTO_R: true` in "
+                "config.yaml (or the environment) to enable it."
             )
             cls._instance = None
             return None
@@ -73,7 +74,7 @@ class FhirMapping:
         if not auto_write:
             logging.info(
                 "[FhirMapping] FHIR_TABLE_AUTO_W not configured. "
-                "Auto-registration disabled. To enable, add FHIR_TABLE_AUTO_W=true in config center."
+                "Auto-registration disabled. Set `FHIR_TABLE_AUTO_W: true` in config.yaml (or the environment) to enable it."
             )
         auto_register = auto_write.lower() == "true" if auto_write else False
 

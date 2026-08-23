@@ -165,8 +165,19 @@ class ValueRangeValidator:
         return len(self._rules)
 
     def _parse_rule(self, rule: str) -> Optional[Tuple[str, float]]:
-        """Parse a rule string like '>0' into ('>', 0.0)."""
-        match = self._RULE_PATTERN.match(rule.strip())
-        if not match:
+        """Parse a rule string like '>0' into ('>', 0.0).
+
+        Total: returns None for ANYTHING it cannot parse. `indicator_valid_rules`
+        is a hand-edited table and the character class `[\\d.]+` happily matches
+        `1.2.3` or a lone `.` — strings `float()` then rejects. That ValueError
+        used to escape load()'s loop, so one typo'd rule for one indicator
+        killed rule loading for ALL indicators, the opposite of the
+        skip-and-warn contract the surrounding code keeps.
+        """
+        try:
+            match = self._RULE_PATTERN.match(rule.strip())
+            if not match:
+                return None
+            return match.group(1), float(match.group(2))
+        except (ValueError, TypeError, AttributeError):
             return None
-        return match.group(1), float(match.group(2))

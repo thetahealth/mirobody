@@ -19,8 +19,10 @@ Commands:
 from __future__ import annotations
 
 import argparse
+import unicodedata
 import asyncio
 import importlib.util
+import os
 import sys
 
 
@@ -57,26 +59,69 @@ def _cmd_worker(args: argparse.Namespace) -> None:
     asyncio.run(Worker.start(yaml_files=args.configs))
 
 
+def _width(text: str) -> int:
+    """Terminal COLUMNS, not characters.
+
+    `f"{term:<{n}}"` pads by `len()`, and every CJK character occupies two
+    columns in every terminal. So `血红蛋白` was billed as 4 and drawn as 8, and
+    the LOINC column drifted four places right on exactly the rows that make the
+    point — this command's whole pitch is that four languages land on one code,
+    and it showed that as a table which did not line up.
+    """
+    return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
+
+
+def _pad(text: str, width: int) -> str:
+    return text + " " * max(0, width - _width(text))
+
+
 def _cmd_resolve(args: argparse.Namespace) -> None:
     from mirobody.engine import get_resolver
 
     resolver = get_resolver()   # first call pays the bundle load (~seconds)
-    width = max(len(t) for t in args.terms)
+    width = max(_width(t) for t in args.terms)
     for term in args.terms:
         r = resolver.resolve(term)
         if r.resolved:
             loinc = f"LOINC {r.loinc}" if r.loinc else "(no LOINC axis row)"
-            print(f"  {term:<{width}}  {loinc:<16}  {r.canonical}"
+            print(f"  {_pad(term, width)}  {loinc:<16}  {r.canonical}"
                   + (f"   [{r.candidates} candidates]" if r.candidates > 1 else ""))
         else:
-            print(f"  {term:<{width}}  unresolved — not in the lexical index "
+            print(f"  {_pad(term, width)}  unresolved — not in the lexical index "
                   "(the full semantic pipeline may still resolve it)")
 
 
 def _cmd_parse(args: argparse.Namespace) -> None:
+    """Read a document into standardized readings. Needs one vision-capable key.
+
+    The no-key case gets the same treatment as the missing `[agents]` extra in
+    `_require_agents_extra`, and for the same reason. It used to surface as a
+    twenty-line traceback ending in a `ValueError` from four frames inside
+    `unified_file_extract` — the message was correct and nobody would read it
+    there. `parse` is the second command the README hands a new user, right
+    after `resolve`, which needs no key at all; being told which environment
+    variable to set is the entire content of the failure.
+    """
     from mirobody.engine import parse_file
 
-    readings = asyncio.run(parse_file(args.file, resolve_names=not args.no_resolve))
+    if not os.path.isfile(args.file):
+        sys.exit(f"mirobody parse: no such file: {args.file}")
+
+    try:
+        readings = asyncio.run(parse_file(args.file, resolve_names=not args.no_resolve))
+    except ValueError as e:
+        if "vision provider" not in str(e).lower():
+            raise
+        sys.exit(
+            "mirobody parse reads the document with a vision-capable model, so it "
+            "needs one API key:\n"
+            "\n"
+            "    export OPENROUTER_API_KEY=...     # or GOOGLE_API_KEY,\n"
+            "                                      # DASHSCOPE_API_KEY, VOLCENGINE_API_KEY\n"
+            "\n"
+            "`mirobody resolve` needs no key and no network — try that first if you "
+            "only want to see indicator resolution."
+        )
     if not readings:
         print("No indicator measurements found in the document.")
         return

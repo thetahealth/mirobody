@@ -123,179 +123,41 @@ this table is generated from it.
 | `StandardIndicator.HEART_RATE` | `count/min` | heartRates |
 
 Note `HEART_RATE` stores `count/min`, not `bpm` — `bpm` is accepted as input
-and converted. This section previously listed the members in lower case, which
-raises `AttributeError`, and gave three wrong units. Generating it from the
-catalogue is what stops that recurring; `test_readme_claims.py` checks it.
-## 🔧 **Platform Layer Auto Conversion**
+and converted. The member list and units above are generated from the
+catalogue itself, so this table cannot drift from the code — hand-written
+revisions of it carried casing and unit errors.
 
-### Conversion Examples
+## 🔧 Conversion examples
+
+What `convert_to_standard()` does on the ingest path, verbatim from the tables
+in `units.py`:
+
 ```python
-# Provider input: weight=154.5, unit="lb"
-# Platform standardization: weight=70.1, unit="kg" (auto-converted)
-
-# Provider input: temperature=98.6, unit="°F" 
-# Platform standardization: temperature=37.0, unit="°C" (auto-converted)
-
-# Provider input: glucose=5.5, unit="mmol/L"
-# Platform standardization: glucose=99.1, unit="mg/dL" (auto-converted)
+convert_to_standard(StandardIndicator.WEIGHT, 154.5, "lb")          # (70.08, "kg")
+convert_to_standard(StandardIndicator.BODY_TEMPERATURE, 98.6, "°F") # (37.0, "°C")
+convert_to_standard(StandardIndicator.BLOOD_GLUCOSE, 5.5, "mmol/L") # (99.1, "mg/dL")
+convert_to_standard(StandardIndicator.HEART_RATE, 75.0, "bpm")      # (75.0, "count/min")
 ```
 
-### Supported Conversions
-- **Mass**: g, lb, oz → kg
-- **Length**: cm, mm, ft, in, km → m
-- **Temperature**: °F, F, K → °C
-- **Pressure**: kPa, psi → mmHg
-- **Energy**: cal, kJ, J → kcal
-- **Blood Glucose**: mmol/L, g/L → mg/dL
-- **Frequency**: Hz, count/min, /min → bpm
+Note the last line: `bpm` is accepted on input but the stored unit is
+`count/min` — the same fact the unit table above records.
 
-## 📋 **Platform Layer Standardization Flow**
+Triglycerides convert with their own molar mass (~885.4 g/mol), not the
+cholesterol family's ~387: sharing one factor across the four lipids reads a
+normal TG of 150 mg/dL as "severely elevated" (3.879 mmol/L instead of
+~1.69). A regression test in the maintainers' suite pins the split.
 
-### 1. Provider Invocation
-- Platform receives raw data
-- Calls Provider's `format_data` method
-- Provider returns raw StandardPulseData
+## ✅ Responsibility division
 
-### 2. Indicator Check
-- Platform checks if `type` is in `StandardIndicator` enum
-- If invalid, print ERROR log, keep original record
-
-### 3. Unit Validation
-- Platform checks if `unit` is in `STANDARD_UNITS` set
-- If invalid, print ERROR log, use standard unit
-
-### 4. Unit Conversion
-- If current unit is not standard unit, attempt conversion
-- Conversion success: Update value and unit, print INFO log
-- Conversion failure: Print ERROR log, keep original value but use standard unit
-
-### 5. Data Processing
-- Pass standardized data to subsequent processing services
-- Update statistics in `processingInfo`
-
-## 🚨 **Error Log Examples**
-
-```
-ERROR: Invalid indicator: 'body_weight' - not in standard indicator enum
-ERROR: Invalid unit: 'pounds' for indicator 'weight' - not in standard unit set
-ERROR: Failed to convert unit from 'xyz' to 'kg' for indicator 'weight'
-INFO: Converted weight: 154.5 lb → 70.1 kg
-INFO: Standardization completed: 5 records processed, 4 successful, 1 errors, 2 conversions
-```
-
-## ✅ **Responsibility Division**
-
-### Platform Layer Responsibilities
-- ✅ Call `standardize_pulse_data` for standardization
-- ✅ Check error logs after standardization
-- ✅ Pass standardized data to subsequent processing
-- ✅ Ensure data quality and consistency
-
-### Provider Layer Responsibilities
-- ✅ Build reasonable StandardPulseData
-- ✅ Use reasonable indicator names (standard indicators recommended)
-- ✅ Use reasonable unit names (can be original units)
-- ✅ Focus on data formatting, no standardization handling
-
-### Developer Responsibilities
-- ✅ Platform developers: Ensure standardization function is called
-- ✅ Provider developers: Focus on data accuracy, not standardization
-- ✅ Test developers: Validate standardization results
-
-## 🔍 **Testing and Validation**
-
-### Platform Layer Testing
-```python
-async def test_Platform_standardization():
-    Platform = ProviderPlatform()
-    
-    # Test data with non-standard indicators and units
-    test_data = {
-        "user_id": "123",
-        "data": {
-            "Weight(kg)": 70.5,
-            "body_weight_lb": 155.0  # Non-standard indicator and unit
-        }
-    }
-    
-    # Call Platform processing
-    success = await Platform.post_data("theta_renpho", test_data, "msg_123")
-    assert success
-    
-    # Validate standardization logs
-    # Should see logs for unit conversion and indicator mapping
-```
-
-### Provider Layer Testing
-```python
-async def test_provider_format():
-    provider = RenphoProvider()
-    raw_data = {...}
-    
-    # Test Provider output
-    result = await provider.format_data(raw_data)
-    assert isinstance(result, StandardPulseData)
-    assert len(result.healthData) > 0
-    
-    # Provider doesn't need to validate standardization
-    # Platform layer handles standardization
-```
-
-### End-to-End Testing
-```python
-async def test_end_to_end_standardization():
-    Platform = ProviderPlatform()
-    
-    # Test complete flow
-    success = await Platform.post_data("theta_renpho", test_data, "msg_123")
-    assert success
-    
-    # Validate final data standardization
-    # Check if data in database uses standard units
-```
-
-## 🎯 **Advantages**
-
-1. **Separation of Concerns**: Provider focuses on formatting, Platform handles unified standardization
-2. **Simplified Development**: Provider developers don't need to worry about standardization logic
-3. **Unified Management**: All Platforms use the same standardization flow
-4. **Strong Fault Tolerance**: Errors don't interrupt processing, ensuring system stability
-5. **Easy Maintenance**: Standardization logic centralized in Platform layer
-6. **Flexible Extension**: Adding new indicators and conversion rules is simple
-
-## 🚀 **Use Cases**
-
-- **Provider platform**: Standardize raw data returned from device APIs
-- **Vital Platform**: Standardize health indicators in webhook events
-- **Data Import**: Unify health data in various formats
-- **Quality Control**: Platform layer ensures data conforms to unified standards
-
-## 📈 **Development Workflow**
-
-### 1. Provider Development
-```python
-# Provider only needs to focus on data formatting
-class MyProvider(Provider):
-    async def format_data(self, raw_data):
-        # Build StandardPulseData, use original indicators and units
-        return StandardPulseData(...)
-```
-
-### 2. Platform Development
-```python
-# Platform handles standardization
-class MyPlatform(Platform):
-    async def post_data(self, provider_slug, data, msg_id):
-        pulse_data = await provider.format_data(data)
-        standardized_data = standardize_pulse_data(pulse_data)  # Must call
-        # Process standardized data...
-```
-
-### 3. Testing and Validation
-```python
-# Validate indicators and units
-assert is_valid_indicator(final_data.healthData[0].type)
-# Unit conversion is automatically handled during upload
-```
-
-This design ensures separation of concerns, simplifies Provider development, unifies standardization management, and improves system maintainability and data quality.
+- **Provider authors**: build `StandardPulseData` in `format_data()` with your
+  vendor's native units, and use catalogue indicator names. Nothing else — do
+  NOT convert units yourself.
+- **The ingest layer** (`pulse/ingest/services/base.py`) converts every record
+  once, on the one path all sources share. There is no standardization
+  function for a platform to call — an earlier version of this document
+  described a `standardize_pulse_data()` entry point that never existed; the
+  flow diagram in "Where standardization actually happens" above is the
+  real contract.
+- **Failure mode to know**: an unknown indicator or failed conversion is
+  logged and the original value/unit kept (see the trade-off note above), so
+  new indicators must be added to the catalogue, not merely sent.

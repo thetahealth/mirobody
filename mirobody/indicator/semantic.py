@@ -50,8 +50,8 @@ was meant, and pretending otherwise is how confident wrong answers get shipped.
 So: gates when the caller has a value and unit, and `method="semantic"` always,
 because that residue is real. `resolve()` stays lexical, and a caller using a
 code as an IDENTITY — a grouping key, a merge decision, a FHIR mirror — should
-still prefer ``"lexical"``. The hosted platform reached the same rule
-independently and enforces it as ``TRUSTED_METHODS = {"lexical"}``.
+still prefer ``"lexical"``: it is deterministic and reproducible, while a
+semantic hit carries exactly the wrong-analyte residue described above.
 
 **Why this is not** :mod:`mirobody.indicator.fhir.resolve.pipeline`. That is the
 full v2 algorithm — embedding recall plus family rerank, SYSTEM centroids, CLASS
@@ -149,6 +149,7 @@ class SemanticIndex:
         from .fhir.common import fhir_id_to_code
         from .fhir.embeddings.bundle import read_member
 
+        self._check_identity(path)
         raw = np.load(path, mmap_mode="r")
         self._emb = np.asarray(raw["emb"], dtype=np.float32)
         # Stored normalized, but a truncated (MRL) or re-quantized matrix may
@@ -308,6 +309,51 @@ class SemanticIndex:
 
     def __len__(self) -> int:
         return len(self._codes)
+
+    @staticmethod
+    def _check_identity(path: str) -> None:
+        """Refuse a matrix built by a different (provider, model) pair.
+
+        The failure this prevents is silent: a mismatched matrix does not
+        error, it ranks confidently in the wrong space — a matrix from a
+        different Qwen3-Embedding serving config once answered ``空腹血糖``
+        with *"Widespread delusions"* at a plausible score. The build script
+        stamps ``<matrix>.meta.json``; queries here are embedded with the
+        configured ``EMBEDDING_PROVIDER``, so the two identities must agree.
+
+        A matrix WITHOUT a sidecar (built before stamping existed) loads with
+        a warning: refusing it would brick every existing download, and the
+        pre-stamp default build was the same openrouter/8B pair the runtime
+        now defaults to.
+        """
+        import json
+
+        meta_path = f"{path}.meta.json"
+        if not os.path.isfile(meta_path):
+            logger.warning(
+                "semantic matrix %s has no .meta.json identity stamp; cannot "
+                "verify it matches EMBEDDING_PROVIDER. Rebuild with "
+                "scripts/build_loinc_embeddings.py to silence this.", path,
+            )
+            return
+
+        with open(meta_path, encoding="utf-8") as f:
+            meta = json.load(f)
+
+        from ..utils.embedding import embedding_model_id, resolve_embedding_provider
+
+        provider = resolve_embedding_provider()
+        model = embedding_model_id(provider)
+        if meta.get("provider") != provider or meta.get("model") != model:
+            raise ValueError(
+                f"semantic matrix {path} was built by "
+                f"{meta.get('provider')}/{meta.get('model')} but queries are "
+                f"embedded by {provider}/{model} (EMBEDDING_PROVIDER). A "
+                "cross-model cosine is confident nonsense, not a looser "
+                "match — rebuild the matrix with "
+                f"scripts/build_loinc_embeddings.py --provider {provider}, "
+                "or set EMBEDDING_PROVIDER to match the matrix."
+            )
 
     def search_vectors(
         self,

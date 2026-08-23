@@ -2090,22 +2090,6 @@ _SLEEP_STAGE_DURATION_DROP_LCN_RE = re.compile(
 )
 
 
-def _build_sleep_stage_duration_drop_mask(cache: dict) -> np.ndarray:
-    """Tag the 4 sleep-stage duration LOINC rows (93829-0 / 93830-8 /
-    93831-6 / 93832-4). Used to drop them when the query names a wake
-    stage that has its own dedicated code (103215-0 / 103210-1).
-    """
-    cached = cache.get("_loinc_sleep_stage_duration_drop_mask")
-    if cached is not None:
-        return cached
-    names = cache.get("names") or []
-    n = int(np.asarray(cache["canonical"]).shape[0])
-    mask = np.zeros(n, dtype=bool)
-    for i, nm in enumerate(names):
-        if nm and _SLEEP_STAGE_DURATION_DROP_LCN_RE.search(nm):
-            mask[i] = True
-    cache["_loinc_sleep_stage_duration_drop_mask"] = mask
-    return mask
 
 
 # Positive wake-duration keep set. When the query asks for wake-stage
@@ -5153,31 +5137,6 @@ def _build_loinc_ratio_mask(cache: dict) -> np.ndarray:
     return mask
 
 
-def _ratio_required_keep(query_text: str, cache: dict) -> "np.ndarray | None":
-    """When the query carries an explicit pair-of-analyte ratio marker,
-    keep ONLY rows that are ratio-shaped. Symmetric mirror of the
-    ``mass_ratio`` family's negative demote.
-
-    Clinical contract: ``单核细胞比率`` is the Monocytes/Leukocytes
-    fraction (5905-5 / 26485-3 / 71875-9), NOT the Monocytes count
-    (742-7). ``谷草/谷丙`` is the AST/ALT ratio (1916-6), NOT the
-    hepatic function panel (24324-6). ``尿素氮/肌酐`` is the BUN/Cr
-    ratio (3097-3), NOT the renal function panel (24362-6).
-
-    Registered in :data:`_TOPK_PROBE_FALLBACK_FILTERS`: when cosine
-    top-10 contains no ratio rows (LOINC has no ratio code for the
-    queried concept, e.g. ``TH1/TH2 比值`` where LOINC only has a
-    panel of TH1 and TH2 cytokines), the filter steps aside so the
-    closest non-ratio match survives. Without the fallback, queries
-    like ``TH1/TH2 比值`` would null-out — wrong, since LOINC has no
-    better answer than the panel.
-    """
-    if not _RATIO_REQUIRED_QUERY_RE.search(query_text):
-        return None
-    mask = _build_loinc_ratio_mask(cache)
-    if not mask.any():
-        return None
-    return mask
 
 
 # ── Ratio orientation (X/Y numerator-denominator alignment) ────────────
@@ -5303,94 +5262,6 @@ def _build_loinc_ratio_orientations(
     return out
 
 
-def _ratio_orientation_keep(
-    query_text: str, cache: dict,
-) -> "np.ndarray | None":
-    """Drop ratio rows whose COMPONENT orientation is reversed
-    relative to the ``X/Y`` query.
-
-    ``谷草/谷丙`` (AST/ALT intent) — drop 16325-3 (ALT/AST), keep
-    1916-6 (AST/ALT). ``高密度/总胆固醇`` (HDL/Total intent) — drop
-    32309-7 (Total/HDL), keep 9830-1 (HDL/Total).
-
-    Sibling-aware: only drops a row when its COMPONENT matches the
-    query in REVERSED orientation AND not in correct orientation.
-    Rows whose COMPONENT pair has no token overlap with either query
-    side are left alone (un-involved pairs the filter has no opinion
-    on).
-
-    Silent when either query side can't be bridged to canonical EN
-    tokens (e.g. obscure CJK pair not in the short-form overlay) —
-    refusing to act on partial information is preferable to dropping
-    every row that happens to share one analyte token with the query.
-    """
-    m = _RATIO_PAIR_QUERY_RE.search(query_text)
-    if not m:
-        return None
-    q_head_toks, h_ok = _ratio_side_tokens(m.group("head"))
-    q_tail_toks, t_ok = _ratio_side_tokens(m.group("tail"))
-    if not (h_ok and t_ok and q_head_toks and q_tail_toks):
-        return None
-    orientations = _build_loinc_ratio_orientations(cache)
-    n = int(np.asarray(cache["canonical"]).shape[0])
-    mask = np.ones(n, dtype=bool)
-    n_reversed = 0
-    n_uninvolved = 0
-    qh_lower = [t.lower() for t in q_head_toks]
-    qt_lower = [t.lower() for t in q_tail_toks]
-    # Two-pass: first find any correct-orientation row to confirm LOINC
-    # ships the pair in the right direction; without such an anchor we
-    # leave uninvolved rows alone (rare-pair fallback). Reversed rows
-    # are always dropped when correct anchor exists.
-    has_correct_anchor = False
-    correct_flags = np.zeros(n, dtype=bool)
-    reversed_flags = np.zeros(n, dtype=bool)
-    for r in range(n):
-        orient = orientations[r]
-        if orient is None:
-            continue
-        rh_l = orient[0].lower()
-        rt_l = orient[1].lower()
-        correct = (
-            any(t in rh_l for t in qh_lower)
-            and any(t in rt_l for t in qt_lower)
-        )
-        reversed_match = (
-            any(t in rt_l for t in qh_lower)
-            and any(t in rh_l for t in qt_lower)
-        )
-        if correct:
-            correct_flags[r] = True
-            has_correct_anchor = True
-        if reversed_match and not correct:
-            reversed_flags[r] = True
-    if not has_correct_anchor:
-        # LOINC doesn't ship the pair — let other layers decide rather
-        # than null-out every ratio row (some niche pairs have only
-        # reversed-orientation rows in LOINC).
-        return None
-    for r in range(n):
-        orient = orientations[r]
-        if orient is None:
-            continue
-        if correct_flags[r]:
-            continue
-        if reversed_flags[r]:
-            mask[r] = False
-            n_reversed += 1
-            continue
-        # Uninvolved ratio row (mentions neither query analyte in the
-        # right slot, nor the wrong slot). Drop — the user specified a
-        # concrete pair and we have at least one correct-orientation
-        # anchor, so any other ratio code is a wrong-pair noise.
-        mask[r] = False
-        n_uninvolved += 1
-    if n_reversed or n_uninvolved:
-        log.info(
-            "ratio orientation: dropped %d reversed + %d uninvolved ratio "
-            "rows for query ``%s``", n_reversed, n_uninvolved, query_text,
-        )
-    return mask
 
 
 def _intake_recall_keep(query_text: str, cache: dict) -> "np.ndarray | None":
@@ -6833,9 +6704,8 @@ async def resolve_many(
     ``SCALE_TYP`` / ``METHOD_TYP``) to an :class:`AxisCode`. SYSTEM is
     routed to SNOMED ``body structure`` when the cosine of the query
     against the LOINC pick's SYSTEM-value centroid falls below
-    :data:`_HYBRID_SYSTEM_GATE` (Phase 1 of the hybrid-output rollout —
-    see the internal resolving design note, page 9 — not published in this repo). Other axes
-    stay on LOINC. No-op when the LOINC axis bundle is unavailable
+    :data:`_HYBRID_SYSTEM_GATE` (Phase 1 of the hybrid-output rollout).
+    Other axes stay on LOINC. No-op when the LOINC axis bundle is unavailable
     (``axis_data is None``).
     """
     from mirobody.utils.embedding import text_embedding
@@ -6987,7 +6857,7 @@ async def resolve_many(
                 flat_inputs.append(_augment(s))
                 flat_to_qi.append(qi)
 
-        # provider=None reads EMBEDDING_PROVIDER (default gemini). It was
+        # provider=None reads EMBEDDING_PROVIDER (default openrouter). It was
         # hardcoded to "gemini", which meant the corpus matrix and the query
         # vectors could silently disagree: a deployment configured for any other
         # provider still embedded its QUERIES with gemini, and cosine against a

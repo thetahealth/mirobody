@@ -64,7 +64,30 @@ CASES: list[tuple[str, str, str]] = [
     ("LDL cholesterol",             r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
     ("LDL-C",                       r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
     ("HDL cholesterol",             r"cholesterol.*HDL|HDL.*cholesterol", r"LDL"),
+    # Bare abbreviations and the spelled-out lipoprotein names are near-miss
+    # magnets — the index holds neighbours that INVERT the reading: `HDL` sits
+    # next to "Cholesterol NON HDL" (the opposite analyte), `LDL` and
+    # `低密度脂蛋白` next to "Cholesterol in LDL/Cholesterol in HDL [Mass
+    # Ratio]" (a ratio, not a concentration), `高密度脂蛋白` next to
+    # "Lipoprotein.alpha/total Lipoprotein". The must-not patterns forbid
+    # exactly those.
+    ("HDL",                         r"cholesterol.*HDL|HDL.*cholesterol", r"non.?HDL|LDL|ratio"),
+    ("LDL",                         r"cholesterol.*LDL|LDL.*cholesterol", r"HDL|ratio"),
+    ("High-Density Lipoprotein",    r"cholesterol.*HDL|HDL.*cholesterol", r"non.?HDL|LDL|ratio"),
+    ("Low-Density Lipoprotein",     r"cholesterol.*LDL|LDL.*cholesterol", r"HDL|ratio"),
+    ("高密度脂蛋白",                  r"cholesterol.*HDL|HDL.*cholesterol", r"non.?HDL|LDL|ratio"),
+    ("低密度脂蛋白",                  r"cholesterol.*LDL|LDL.*cholesterol", r"HDL|ratio"),
     ("triglycerides",               r"triglyceride",                 r""),
+    # The names the shipped demo report actually prints. Ratios must land on a
+    # RATIO code and never on either component.
+    ("Blood Glucose",               r"glucose",                      r"fasting|tolerance|A1c|urine"),
+    ("Cholesterol/HDL Ratio",       r"ratio",                        r"^(?!.*ratio)"),
+    ("LDL/HDL Ratio",               r"LDL.*HDL.*ratio",              r""),
+    ("Lipid-Free Fatty Acids",      r"fatty acid",                   r"cholesterol"),
+    ("Lipid-Phospholipids",         r"phospholipid",                 r"cholesterol"),
+    ("Non-HDL Cholesterol-Non-HDL", r"non HDL",                    r"in HDL \[|in LDL"),
+    ("Non-HDL Cholesterol-Non-HDL-C", r"non HDL",                    r"in HDL \[|in LDL"),
+    ("Lipid-Low-Density Lipoprotein Calculated", r"cholesterol.*LDL|LDL.*cholesterol", r"HDL|ratio"),
     # ── complete blood count ─────────────────────────────────────────────────
     ("hemoglobin",                  r"hemoglobin",                   r"A1c|glycated"),
     ("hematocrit",                  r"hematocrit",                   r""),
@@ -116,10 +139,8 @@ CASES: list[tuple[str, str, str]] = [
     ("中性脂肪",                     r"triglyceride",                 r""),
     ("クレアチニン",                  r"creatinine",                   r"clearance|urine"),
     ("尿酸値",                       r"urate|uric acid",              r""),
-    # The spelled-out ホルモン names a 健康診断結果表 prints. The parenthetical
-    # form `甲状腺刺激ホルモン(TSH)` resolved all along; the bare one did not,
-    # and nothing was watching until examples/01 put en/简/繁/日 in one row and
-    # flagged the row where the four disagreed.
+    # The spelled-out ホルモン names a 健康診断結果表 prints — the bare form
+    # must resolve, not only the parenthetical `甲状腺刺激ホルモン(TSH)`.
     ("甲状腺刺激ホルモン",             r"thyrotropin|thyroid stimulating", r""),
     ("チロトロピン",                  r"thyrotropin",                  r""),
     # ── Traditional Chinese (Taiwan) ──────────────────────────────────────────
@@ -128,16 +149,13 @@ CASES: list[tuple[str, str, str]] = [
     # SCRIPT: 白細胞 / 總膽固醇 / 穀丙轉氨酶 are the same words in different
     # glyphs. `lexical.surface_variants` folds zh-Hant to zh-Hans on the way in
     # (see indicator/zh_fold.py), which is the symmetric half of what the
-    # lexicon build already does to the corpus. Before that fold, six of the
-    # eight common indicators whose Traditional spelling differs returned
-    # nothing, and the two that worked did so by accident of which file they
-    # came from.
+    # lexicon build already does to the corpus.
     #
     # VOCABULARY: Taiwan clinical usage picks DIFFERENT WORDS, and folding
     # those is worse than not folding them. 血紅素 folds to 血红素, which the
-    # index answers 4548-4 — HbA1c — while in Taiwan 血紅素 *is* haemoglobin.
-    # The fold had haemoglobin and HbA1c backwards for every Taiwanese report.
-    # Hence the `must_not` on the first two rows: they are the regression.
+    # index answers 4548-4 — HbA1c — while in Taiwan 血紅素 *is* haemoglobin:
+    # a character-level fold has haemoglobin and HbA1c backwards for every
+    # Taiwanese report. Hence the `must_not` on the first two rows.
     ("血紅素",                       r"^hemoglobin \[",               r"A1c|glycated"),
     ("糖化血色素",                    r"hemoglobin a1c",               r""),
     ("白血球",                       r"leukocyte|white blood cell",   r""),
@@ -190,10 +208,9 @@ CASES: list[tuple[str, str, str]] = [
     ("舒张压",                       r"diastolic blood pressure",     r""),
     # Blood pressure written as the panel, in every spelling a report or an API
     # caller uses. All five must land on the SAME code and it must be the panel,
-    # never one of the two numbers: these used to give three different answers
-    # (18684-1 via the index, nothing at all, and a hard block), and 18684-1 is
-    # an ED attachment code — CLASS=ATTACH.ED — that merely reads "First Blood
-    # pressure Set". The forbidden pattern is what makes this test bite.
+    # never one of the two numbers — and never 18684-1, an ED attachment code
+    # (CLASS=ATTACH.ED) that merely reads "First Blood pressure Set" yet sits
+    # closest in the alias index. The forbidden pattern is what makes this bite.
     ("血压",                         r"blood pressure panel",         r"systolic|diastolic|attach"),
     ("血圧",                         r"blood pressure panel",         r"systolic|diastolic|attach"),
     ("blood pressure",              r"blood pressure panel",         r"systolic|diastolic|attach"),
@@ -214,12 +231,11 @@ CASES: list[tuple[str, str, str]] = [
     ("糖化ヘモグロビン",               r"hemoglobin a1c",               r""),
     ("コレステロール",                 r"cholesterol",                  r"LDL|HDL"),
     # ── third sweep: Chinese as a report PRINTS it, specimen prefix and all ───
-    # Lifted verbatim off a 2025 体检报告 PDF. The bare nouns above were the
-    # aliases the lexicon was built from; a Chinese lab prints 血清肌酐, not
-    # 肌酐. Every one of these missed, and two answered CONFIDENTLY WRONG:
-    # 血清肌酐 -> MELD score, 血清白蛋白 -> a chicken-allergen component. The
-    # negative patterns below are what pins that: it is not enough that they
-    # resolve, they must not resolve to those.
+    # Written the way a 体检报告 PDF prints them: a Chinese lab prints 血清肌酐,
+    # not the bare noun 肌酐 the lexicon's aliases carry. The specimen prefix
+    # invites confidently wrong neighbours — 血清肌酐 sits near a MELD score,
+    # 血清白蛋白 near a chicken-allergen component — so the negative patterns
+    # pin that resolving is not enough: they must not resolve to those.
     ("血清肌酐",                     r"creatinine",                   r"clearance|urine|end.stage|MELD"),
     ("血清尿酸",                     r"urate|uric acid",              r"urine"),
     ("血清总胆固醇",                  r"cholesterol",                  r"LDL|HDL"),
@@ -234,15 +250,15 @@ CASES: list[tuple[str, str, str]] = [
     ("血清总胆红素",                  r"bilirubin.total",              r"direct|indirect|urine"),
     ("尿白细胞",                     r"leukocyte",                    r"blood|serum"),
     ("尿比重",                       r"specific gravity",             r""),
-    # CBC spelled out in 中文. The abbreviation resolved all along (MCV ->
-    # 30428-7); the words a report actually prints did not.
+    # CBC spelled out in 中文 — the words a report prints, not only the
+    # abbreviations (MCV -> 30428-7).
     ("平均红细胞体积",                 r"MCV|mean corpuscular volume",  r""),
     ("平均血红蛋白含量",               r"MCH \[|mean corpuscular hemoglobin", r"concentration|MCHC"),
     ("平均血红蛋白浓度",               r"MCHC",                         r""),
     ("超敏C反应蛋白",                 r"c reactive protein",           r"titer"),
-    # Abbreviations that name more than one test resolve to the widespread
-    # reading. `HRV` answered 40991-2 Rhinovirus+Enterovirus RNA — a PCR
-    # panel — for what every wearable means by those three letters.
+    # Abbreviations that name more than one test must resolve to the widespread
+    # reading. `HRV` means heart-rate variability to every wearable, yet sits
+    # one alias away from 40991-2, a Rhinovirus+Enterovirus RNA PCR panel.
     ("HRV",                         r"heart rate variability|r-r interval", r"rhinovirus|enterovirus"),
     ("CA",                          r"^calcium",                     r"cancer|antigen"),
     ("PT",                          r"prothrombin time",             r"^inr|substitution"),
@@ -251,10 +267,10 @@ CASES: list[tuple[str, str, str]] = [
     # ── fourth sweep: device & wearable vocabulary, incl. the snake_case an
     # API caller sends ──────────────────────────────────────────────────────
     # `POST /v1/data` in the platform docs calls device data the main form
-    # structured records take, and names indicators the way an SDK does. Every
-    # one of these missed; `_` was never normalized, so the spaced form
-    # resolved and the snake_case form — the documented spelling — did not.
-    # Both spellings are cased here, because only one of them was ever tested.
+    # structured records take, and names indicators the way an SDK does:
+    # snake_case. Both spellings are cased for each indicator, because `_`
+    # normalization is the only thing keeping the documented spelling and the
+    # spaced one on the same code.
     ("steps",                       r"steps",                        r"walk 10-meters"),
     ("step count",                  r"steps",                        r"walk 10-meters"),
     ("resting heart rate",          r"heart rate.*resting",          r"variability"),
@@ -270,8 +286,9 @@ CASES: list[tuple[str, str, str]] = [
     ("body_weight",                 r"body weight",                  r"birth|ideal|estimated"),
     ("body fat percentage",         r"body fat",                     r""),
     ("体脂率",                       r"body fat",                     r""),
-    # SpO2 did not miss — it answered a DEPRECATED "Fractional oxyhemoglobin
-    # ... Preductal" row whose LOINC is empty, i.e. resolved=True with no code.
+    # SpO2's nearest alias row is a DEPRECATED "Fractional oxyhemoglobin
+    # ... Preductal" entry whose LOINC is empty — resolved=True with no code —
+    # which the must-not forbids.
     ("SpO2",                        r"oxygen saturation",            r"deprecated|mixed venous|cord"),
     ("血氧",                         r"oxygen saturation",            r"deprecated|mixed venous|cord"),
     # Fasting glucose in the three spellings the docs and a 中文 report use.
@@ -282,12 +299,11 @@ CASES: list[tuple[str, str, str]] = [
     ("systolic_blood_pressure",     r"systolic blood pressure",      r""),
     ("total_cholesterol",           r"^cholesterol \[",              r"LDL|HDL|VLDL"),
     # ── fifth sweep: the surfaces a report actually prints ───────────────────
-    # Two shapes, both measured on the hosted platform's production data.
     #
-    # (a) "名称(缩写)" — 147 of its 868 distinct indicator names, 70 of which
-    #     carried no code at all. Handled as a CLASS in engine.py, not row by
-    #     row: strip the trailing parenthetical, resolve both halves, and refuse
-    #     when they disagree (see MUST_NOT_RESOLVE for the refusals).
+    # (a) "名称(缩写)" — the single commonest shape on a Chinese report.
+    #     Handled as a CLASS in engine.py, not row by row: strip the trailing
+    #     parenthetical, resolve both halves, and refuse when they disagree
+    #     (see MUST_NOT_RESOLVE for the refusals).
     ("空腹血糖(GLU)",                 r"glucose",                      r"tolerance|urine"),
     # The two halves disagree on code but share the COMPONENT analyte head
     # (`Glucose^post CFst` vs `Glucose`), so the stem — the more specific
@@ -299,9 +315,9 @@ CASES: list[tuple[str, str, str]] = [
     ("血小板计数（PLT）",               r"platelet",                     r""),
     ("糖化血红蛋白(HbA1c)",            r"hemoglobin a1c",               r""),
     ("尿素氮(BUN)",                  r"urea nitrogen",                r""),
-    # (b) The abbreviation column itself. HGB and HCT did not miss — they
-    #     answered 4548-4 (HbA1c) and 1992-7 (Calcitonin): the 血红蛋白->HbA1c
-    #     near-miss again, wearing the short code instead of the word.
+    # (b) The abbreviation column itself. HGB sits one alias away from 4548-4
+    #     (HbA1c) and HCT from 1992-7 (Calcitonin) — the 血红蛋白->HbA1c
+    #     near-miss wearing the short code instead of the word.
     ("HGB",                         r"^hemoglobin \[",               r"a1c|glycated"),
     ("Hb",                          r"^hemoglobin \[",               r"a1c|glycated"),
     ("HCT",                         r"hematocrit",                   r"calcitonin"),
@@ -315,8 +331,8 @@ CASES: list[tuple[str, str, str]] = [
     ("UA",                          r"urate|uric acid",              r"urine"),
     ("TP",                          r"^protein \[",                  r"urine"),
     ("CK",                          r"creatine kinase",              r""),
-    # (c) Codepoints that look identical on screen. Each of these was one
-    #     invisible character away from a key that already existed.
+    # (c) Codepoints that look identical on screen — each is one invisible
+    #     character away from a key that exists.
     ("ＦＢＧ",                        r"glucose",                      r"tolerance|urine"),
     ("LDL–C",                       r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
     # (d) 日本語 健康診断 names the ja.tsv sweep does not reach — it carries
@@ -340,13 +356,12 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # panel code (85354-9, the one FHIR R4's vital-signs profile mandates), and
     # a panel code is how you tell a caller "expect components", which is the
     # very thing a refusal would be trying to say. The four spellings are pinned
-    # as positive cases above; see resolver_overrides.tsv for the three
-    # different answers they used to give.
+    # as positive cases above.
     ("lipid panel", "four analytes, not one observation"),
     ("血脂", "the same lipid panel in Chinese"),
-    ("血脂肪", "the same lipid panel, 台灣 wording — folding 血脂肪 reaches "
-               "nothing, so without a row of its own it was an honest miss "
-               "rather than a refusal, and the semantic tier would answer it"),
+    ("血脂肪", "the same lipid panel, 台灣 wording — needs its own refusal row: "
+               "the zh-Hant fold reaches nothing here, and without the row the "
+               "semantic tier would answer it"),
     ("绝对不存在的指标名xyzzy", "pure nonsense must never resolve"),
     # "名称(缩写)" where the two halves mean DIFFERENT tests. The parenthetical
     # strip must not silently prefer the stem: filing an HbA1c reading into the
@@ -360,7 +375,7 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # without it the rule would be "prefer the parenthetical", which is exactly
     # what breaks 血糖(HbA1c). Written up in roadmap.md.
     ("血压(收缩压)", "stem is the BP panel, parenthetical is one of its members"),
-    # NOTE what is deliberately NOT here any more: CA / PT / MG. An ambiguous
+    # NOTE what is deliberately NOT here: CA / PT / MG. An ambiguous
     # abbreviation is not the same case as a panel name. A panel has no correct
     # single observation code; an abbreviation has a reading that dominates
     # ordinary use, and refusing it helps nobody. They are pinned as positive
@@ -371,8 +386,8 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
 # case count, never lower this number to make a red build green. A drop here
 # means real users started getting worse answers than they did yesterday.
 #
-# Baseline for the record: this set scored 34% (32/94) against the resolver as
-# it stood before resolver_overrides.tsv and the lookup-order fix existed.
+# Baseline for the record: this set scored 34% (32/94) against the bare alias
+# index, before `resolver_overrides.tsv` existed.
 COVERAGE_FLOOR = 1.0
 
 
@@ -430,10 +445,11 @@ def test_coverage(resolver):
 # ── unit-consistent codes: resolve_reading vs resolve ────────────────────────
 # LOINC codes the unit into the identity, so total cholesterol is 2093-3 in
 # mg/dL and 14647-2 in mmol/L — different codes for the same measurement. The
-# alias table answers with whichever one it points at, so a mmol/L reading used
-# to land on the mass-concentration code and every consumer downstream believed
-# a two-unit series was one unit. `resolve_reading` walks the axis table to the
-# sibling with the same FULL component and a PROPERTY in the unit's family.
+# alias table answers with whichever one it points at, so without the axis walk
+# a mmol/L reading lands on the mass-concentration code and every consumer
+# downstream believes a two-unit series is one unit. `resolve_reading` walks
+# the axis table to the sibling with the same FULL component and a PROPERTY in
+# the unit's family.
 #
 # (term, value, unit, expected code, why)
 READING_CASES: list[tuple[str, str, str, str, str]] = [
@@ -479,26 +495,24 @@ def test_resolve_reading_without_a_unit_matches_resolve():
 # Half of what a report prints is not a number, and 38,687 of the shipped axis
 # rows are not Qn (25,156 Ord · 7,859 Nom · 4,258 SemiQn · 1,414 OrdQn). A
 # 阴性/阳性/++ result belongs on a [Presence]/[Type] code; answering it with a
-# mass-concentration code files a dipstick into a quantitative assay. Measured
-# before this worked: ten of thirty everyday qualitative indicators did exactly
-# that — 尿糖, 尿酮体, 类风湿因子, 抗核抗体, 妊娠试验 and their English forms.
+# mass-concentration code files a dipstick into a quantitative assay.
 #
 # (term, value, expected code, note)
 QUALITATIVE_READINGS: list[tuple[str, str, str, str]] = [
     ("尿糖",           "阴性", "2349-9",  "dipstick negative -> [Presence], not [Mass/volume]"),
     ("尿蛋白",         "阴性", "2887-8",  "already a Presence code, untouched"),
     ("尿蛋白",         "++",   "2887-8",  "graded ordinal, same code"),
-    ("尿酮体",         "阴性", "33903-6", "was 49779-2 [Mass/volume]"),
-    ("尿隐血",         "阴性", "5794-3",  "had no entry at all"),
-    ("尿亚硝酸盐",     "阴性", "32710-6", "had no entry at all"),
-    ("尿白细胞酯酶",   "阴性", "5799-2",  "had no entry at all"),
+    ("尿酮体",         "阴性", "33903-6", "not 49779-2 [Mass/volume]"),
+    ("尿隐血",         "阴性", "5794-3",  "dipstick presence code"),
+    ("尿亚硝酸盐",     "阴性", "32710-6", "dipstick presence code"),
+    ("尿白细胞酯酶",   "阴性", "5799-2",  "dipstick presence code"),
     ("便隐血",         "阴性", "2335-8",  "already a Presence code"),
     ("乙肝表面抗原",   "阴性", "5196-1",  "serology screen"),
     ("丙肝抗体",       "阴性", "13955-0", "serology screen"),
-    ("类风湿因子",     "阴性", "33910-1", "was 11572-5 [Units/volume]"),
-    ("妊娠试验",       "阳性", "2118-8",  "was 19080-1 [Units/volume]"),
-    ("血型",           "O",    "883-9",   "was 50962-0, an antibody TITRE not a blood type"),
-    ("Rh血型",         "阳性", "10331-7", "had no entry at all"),
+    ("类风湿因子",     "阴性", "33910-1", "not 11572-5 [Units/volume], the numeric form's code"),
+    ("妊娠试验",       "阳性", "2118-8",  "not 19080-1 [Units/volume]"),
+    ("血型",           "O",    "883-9",   "not 50962-0, an antibody TITRE"),
+    ("Rh血型",         "阳性", "10331-7", "Rh [Type], not a titre"),
     ("urine glucose",  "negative", "2349-9",  "same rule, English"),
     ("rheumatoid factor", "negative", "33910-1", "same rule, English"),
     ("blood type",     "O+",   "883-9",   "same rule, English"),

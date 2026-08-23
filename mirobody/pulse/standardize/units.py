@@ -339,11 +339,15 @@ def _populate_indicator_specific_conversions():
     # 1 mmol/L = 38.67 mg/dL
     # g/L <-> mmol/L conversion
     # 1 g/L = 2.586 mmol/L
+    #
+    # Triglycerides are NOT in this list. An earlier version applied the
+    # cholesterol factor (387 g/mol) to triglycerides too, so TG 150 mg/dL
+    # (upper normal) converted to 3.879 mmol/L — read as "severely elevated"
+    # instead of the correct ~1.69 mmol/L (a 2.29x error).
     for cholesterol_indicator in [
         StandardIndicator.CHOLESTEROL_LDL,
         StandardIndicator.CHOLESTEROL_HDL,
         StandardIndicator.CHOLESTEROL_TOTAL,
-        StandardIndicator.CHOLESTEROL_TRIGLYCERIDES,
     ]:
         INDICATOR_SPECIFIC_CONVERSIONS[cholesterol_indicator] = {
             "conversions": {
@@ -357,6 +361,24 @@ def _populate_indicator_specific_conversions():
                 }
             }
         }
+
+    # Triglycerides: standard unit is mmol/L, but the molar mass is its own —
+    # a conventional average of ~885.4 g/mol (triolein), the same constant
+    # `indicator/fhir/units/convert.py` uses for LOINC 2571-8.
+    # 1 mg/dL = 10/885.4 = 0.011294 mmol/L
+    # 1 mmol/L = 88.54 mg/dL
+    INDICATOR_SPECIFIC_CONVERSIONS[StandardIndicator.CHOLESTEROL_TRIGLYCERIDES] = {
+        "conversions": {
+            "mg/dL": {
+                "to_standard": lambda v: v * (10.0 / 885.4),  # mg/dL -> mmol/L
+                "from_standard": lambda v: v * 88.54,  # mmol/L -> mg/dL
+            },
+            "g/L": {
+                "to_standard": lambda v: v * (1000.0 / 885.4),  # g/L -> mmol/L
+                "from_standard": lambda v: v * 0.8854,  # mmol/L -> g/L
+            }
+        }
+    }
 
 
 # ============================================================================
