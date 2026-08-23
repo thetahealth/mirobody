@@ -19,11 +19,10 @@
    - **Important**: Select the branch to test (build or cicd) in the dropdown menu
    - Set parameters:
      - test_mode: Keep default `true` (test mode, does not publish to PyPI)
-     - version_suffix: Optional, e.g., `test1`
    - Click the green "Run workflow" button
 
 3. **Version Number Format**
-   - Test version format: `0.0.0.dev20250130142035.build.test1`
+   - Test builds get a timestamped dev version derived at build time (e.g. `0.0.0.dev20250130142035`)
    - Includes timestamp, branch name, and suffix for easy identification
 
 ### Method 2: Using GitHub CLI (Command Line)
@@ -38,8 +37,7 @@ gh auth login
 # Trigger workflow on build branch
 gh workflow run pypi-release.yml \
   --ref build \
-  -f test_mode=true \
-  -f version_suffix=test1
+  -f test_mode=true
 
 # Check run status
 gh run list --workflow=pypi-release.yml

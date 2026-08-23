@@ -30,12 +30,8 @@ package-lock.json
 
 # config
 .env
-config.yaml
 *.*.yaml
 *.env
-
-# testing
-tests
 
 # AI assistant working notes (local only, never published).
 # Bare `CLAUDE.md` at the root is the intended one; the `**/` pattern is because
@@ -65,3 +61,9 @@ docs/internal-testing.md
 # be re-scored against the same set and the same runner — reproducible,
 # upgradable, traceable — without becoming a public claim.
 eval/
+
+# Local regression suite. Not published: the repository keeps only the tests
+# that are evidence for something it claims (see [tool.pytest.ini_options] in
+# pyproject.toml). Everything else lives here so it can be thorough without
+# being public API.
+/tests/

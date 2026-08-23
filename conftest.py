@@ -67,13 +67,6 @@ _SERVER_ONLY = [
     "mirobody/user/*",
     "mirobody/user/**/*",
     "mirobody/mcp/test_protocol.py",
-    # Not a layering slip: these exercise the provider PLATFORM, which manages
-    # user accounts (`pulse/core/user.py` -> `mirobody.user.UserService` ->
-    # psycopg_pool) and loads providers whose own SDKs are server-extra
-    # dependencies (`requests_oauthlib` for Garmin, `psycopg` for pgsql). A
-    # provider that links accounts to a database needs the database.
-    "mirobody/pulse/gate_tests/test_format_data.py",
-    "mirobody/pulse/providers/test_provider_loading.py",
 ]
 
 collect_ignore_glob: list[str] = []

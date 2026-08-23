@@ -21,12 +21,18 @@ local_env=${ENV:-localdb}
 
 # Check the .env file.
 if [[ ! -f ".env" ]]; then
-    echo "# Configuartion sets.
-# 'localdb', 'test', 'gray', 'prod', or a name defined by yourself.
+    echo "# Configuration set: any name you like. ENV only selects which
+# config.\${ENV}.yaml overlay loads on top of config.yaml, and tags log lines.
+# It carries NO behavior — production posture is declared with
+# 'PRODUCTION: true' in the overlay, not by naming the ENV 'prod'.
 ENV=${local_env}
 
 # Encryption of sensitive configuration values.
-CONFIG_ENCRYPTION_KEY=${CONFIG_ENCRYPTION_KEY:-$(generate_random_string 32)}" > ".env"
+CONFIG_ENCRYPTION_KEY=${CONFIG_ENCRYPTION_KEY:-$(generate_random_string 32)}
+
+# Encryption of sensitive fields in log records (unset = ERROR noise at every
+# boot and effectively-plaintext log fields).
+LOG_ENCRYPTION_KEY=${LOG_ENCRYPTION_KEY:-$(generate_random_string 32)}" > ".env"
 fi
 
 # Check the config.{local_env}.yaml file.
@@ -51,30 +57,45 @@ if [ ! -f "${config_filename}" ]; then
 JWT_KEY: $(generate_random_string 32)
 
 # Predefined email addresses and verification codes for testing purposes.
-EMAIL_PREDEFINE_CODES:
-  demo1@mirobody.ai: '777777'
-  demo2@mirobody.ai: '777777'
-  demo3@mirobody.ai: '777777'
+# The demo login itself (caregiver@mirobody.ai / 111111) ships in config.yaml —
+# do NOT redeclare EMAIL_PREDEFINE_CODES here unless you mean to REPLACE it:
+# overlay dicts substitute the whole key, they do not merge (an earlier
+# generated block did exactly that, and the README's stated login stopped
+# working on every ./deploy.sh install). To ADD accounts, list the caregiver
+# line again alongside yours:
+# EMAIL_PREDEFINE_CODES:
+#   caregiver@mirobody.ai: '111111'
+#   you@example.com: '<your code>'
+#
+# BEFORE EXPOSING THIS DEPLOYMENT TO A NETWORK, set the two lines below and
+# remove the predefined codes (see SECURITY.md). With PRODUCTION: true the
+# server REFUSES to start while predefined codes or placeholder secrets remain.
+# PRODUCTION: true
+# BOOTSTRAP_SCHEMA: false
 
 
 # ============================================================================
 # AI Service API Keys
 # ============================================================================
 
-# Google Gemini API key.
-# Required for Google Gemini AI model integration.
-# Get your API key from: https://makersuite.google.com/app/apikey
-# GOOGLE_API_KEY: 'YOUR GOOGLE/GEMINI API KEY'
-
-# OpenAI API key.
-# Required for OpenAI model integration (GPT-5, etc.).
-# Get your API key from: https://platform.openai.com/api-keys
-# OPENAI_API_KEY: 'YOUR OPENAI/CHATGPT API KEY'
-
-# OpenRouter API key.
-# Required for accessing multiple AI models through OpenRouter service.
+# OpenRouter API key — the recommended single key: chat, vision file parsing
+# and semantic search all follow it with no further configuration.
 # Get your API key from: https://openrouter.ai/keys
 # OPENROUTER_API_KEY: 'YOUR OPENROUTER API KEY'
+
+# DashScope API key — the drop-in fallback for networks where openrouter.ai
+# is unreachable (mainland China being the common case). One key covers chat
+# (Qwen; DeepSeek/Kimi one uncomment away in config.yaml), vision and
+# embeddings, exactly like OpenRouter above.
+# Get your API key from: https://dashscope.console.aliyun.com/apiKey
+# DASHSCOPE_API_KEY: 'YOUR DASHSCOPE API KEY'
+
+# Direct provider keys (optional — the gateways above already reach these
+# models).
+# Google Gemini: https://aistudio.google.com/apikey
+# GOOGLE_API_KEY: 'YOUR GOOGLE/GEMINI API KEY'
+# OpenAI: https://platform.openai.com/api-keys
+# OPENAI_API_KEY: 'YOUR OPENAI/CHATGPT API KEY'
 
 
 # ============================================================================
@@ -86,7 +107,7 @@ EMAIL_PREDEFINE_CODES:
 #
 # Setup instructions if you don't have a public domain yet:
 #   1. Visit https://ngrok.com/docs/getting-started and install ngrok.
-#   2. Run 'ngrok http 18080' in your terminal.
+#   2. Run 'ngrok http 18060' in your terminal.
 #   3. Copy your ngrok domain (e.g., https://abc123.ngrok-free.app).
 #   4. Set MCP_PUBLIC_URL to it.
 #
@@ -199,6 +220,42 @@ check_ports_free() {
     fi
 }
 
+# check_subnet_free
+#
+# compose.yaml pins mirobody_network to 10.108.0.0/24 (config.yaml resolves
+# pg/redis by fixed addresses inside it). If another Docker network already
+# holds that subnet — a second checkout of this repo, or an unrelated project —
+# `compose up` dies with "Pool overlaps with other one on this address space",
+# which names neither the network nor the fix. Name both, up front. Our own
+# network is gone by now (`compose down` above), so any holder is foreign.
+check_subnet_free() {
+    # Read the subnet from compose.yaml rather than hardcoding it, so the
+    # recovery advice below actually works: an operator who moves the stack to
+    # another subnet must not be re-rejected by a guard still checking the old
+    # one (that happened — the guard and the file disagreed).
+    local subnet
+    subnet=$(awk '/subnet:/ {print $NF; exit}' "${DOCKER_COMPOSE_FILE}")
+    subnet="${subnet:-10.108.0.0/24}"
+    # Exclude only THIS project's own network, by exact name: compose reuses a
+    # same-name network without conflict, while ANY other holder — including a
+    # second checkout of this repo — collides. A substring filter on
+    # "mirobody" would blind the check to exactly that second-checkout case.
+    local own
+    own="$(basename "$PWD" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]//g')_mirobody_network"
+    local holder
+    holder=$(docker network ls -q | xargs -r docker network inspect \
+        --format '{{.Name}} {{json .IPAM.Config}}' 2>/dev/null \
+        | grep -F "${subnet}" | awk -v own="${own}" '$1 != own {print $1}' | head -1)
+    if [ -n "${holder}" ]; then
+        echo "ERROR: Docker network '${holder}' already uses ${subnet}, which compose.yaml pins for this stack."
+        echo ""
+        echo "Either remove that network if it is unused:  docker network rm ${holder}"
+        echo "or move this stack to a free subnet: edit mirobody_network in compose.yaml"
+        echo "AND point PG_HOST / REDIS_HOST at the new pg/redis addresses in your overlay."
+        exit 1
+    fi
+}
+
 # compose.yaml interpolates ${DOCKER_MIRROR:-} onto its pulled images
 # (pgvector, redis), so the mirror fallback covers them too — previously it
 # only applied to the inline-built ubuntu base, and a first deploy behind the
@@ -206,7 +263,8 @@ check_ports_free() {
 export DOCKER_MIRROR="${docker_host}"
 
 docker compose -f ${DOCKER_COMPOSE_FILE} down
-check_ports_free 18080 18082 18089
+check_ports_free 18060 18062 18069
+check_subnet_free
 
 docker compose -f ${DOCKER_COMPOSE_FILE} up -d --remove-orphans
 docker compose -f ${DOCKER_COMPOSE_FILE} logs -f

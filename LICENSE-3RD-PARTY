@@ -20,7 +20,6 @@ use of each is subject to the license terms of its sources:
   fhir_loinc_bundle.tar.gz        LOINC                       res/fhir_loinc_bundle.NOTICE
   fhir_meta.csv.gz                LOINC, SNOMED CT, RxNorm    sections 1-4 below
   fhir_snomed_ct_bundle.tar.gz    SNOMED CT                   res/fhir_snomed_ct_bundle.NOTICE
-  fhir_taxonomy.bin               LOINC, SNOMED CT            sections 2-3 below
   fhir_id_map.npy                 internal id map over the    sections 1-5 below
                                   same vocabularies
   aliases_src/{lang}.tsv          LOINC Linguistic Variants   section 3 below

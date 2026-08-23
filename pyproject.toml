@@ -81,6 +81,12 @@ dependencies = [
     # (The xlrd fallback there for legacy .xls is deliberately NOT declared:
     # it's a guarded try/except that degrades to a logged warning.)
     "openpyxl>=3.1",
+    # Word and PowerPoint. Both read only the modern zip-based formats, which is
+    # exactly the honest boundary: `.docx`/`.pptx` are supported, and legacy
+    # binary `.doc`/`.ppt` stay OUT of `SUPPORTED_EXTENSIONS` rather than being
+    # accepted and then refused after the upload — which is what they used to do.
+    "python-docx>=1.1",
+    "python-pptx>=1.0",
     # Email.
     # LLM — the ENGINE's own model access (AI-native parsing / extraction /
     # insight) via direct SDKs. The agent-framework stack (LangChain,
@@ -140,7 +146,8 @@ dependencies = [
 
 [project.scripts]
 # The single entry point, source checkout and PyPI install alike:
-# `mirobody serve|worker|vendors`, or `python -m mirobody …` where a console
+# `mirobody serve|worker|parse|resolve`, or `python -m mirobody …` where a
+# console
 # script may not survive (compose persists site-packages but not the venv's
 # bin/). Replaces the former repo-root main.py / main_worker.py, which were
 # not shipped in the wheel — a PyPI install had no way to start the server.
@@ -153,7 +160,8 @@ mirobody = "mirobody.cli:main"
 # `mirobody serve` checks and says so instead of tracebacking.
 # The SERVER: HTTP surface, database, cache, object storage, email, and the
 # OAuth1 transport only Garmin still uses. `pip install mirobody` is the ENGINE
-# — resolve, parse, vendors, file extraction — and none of that opens a socket
+# — resolve, parse, vendor providers, file extraction — and none of that opens
+# a socket
 # to Postgres or Redis. Splitting these out took the default install from 114
 # packages / 293 MB down to the engine's real footprint. `mirobody serve` and
 # `worker` check for the extra and say what to install rather than dying deep
@@ -203,7 +211,8 @@ agents = [
     # stack, so `write_todos` no longer exists unless a caller adds it back.
     # DeepAgent intentionally does not — see deep_agent._build_agent.
     "deepagents>=0.7.5",
-    # In-process JS/TS interpreter middleware (replaces the E2B remote sandbox).
+    # In-process JS/TS interpreter middleware — the agent's code sandbox, with
+    # no external sandbox service or key.
     "langchain-quickjs>=0.1.3",
     # Conversation memory: the agent graph is compiled with an AsyncPostgresSaver
     # keyed on thread_id = session_id, so LangGraph replays the real message
@@ -246,12 +255,18 @@ indicator-build = [
 
 [tool.setuptools.packages.find]
 include = ["mirobody", "mirobody.*"]
-# Tests stay in git — `test_engine_coverage.py` IS the 197/197 resolver number the
-# README publishes, and CI needs all of them. They just have no business in
-# someone's site-packages: 33 files and 21 recorded fixtures, ~206 KB, that no
-# consumer of the library can use. Excluded from the distribution here, kept on
-# disk and collected by `pytest` (see [tool.pytest.ini_options] testpaths).
-exclude = ["mirobody.pulse.gate_tests", "mirobody.pulse.gate_tests.*"]
+# The five test modules still in the package are the ones that are EVIDENCE for
+# a public claim: `test_engine_coverage.py` is the resolver score the README
+# publishes and links, and the three `test_readme_*` / `test_public_surface`
+# gates check the READMEs and the export tables against reality. They stay in
+# git because a benchmark nobody can run is an assertion. They are still pruned
+# from the artifact by `scripts/build_backend.py` — useful to a contributor,
+# useless in someone's site-packages.
+#
+# Everything else moved to a gitignored `tests/` at the repo root, so the local
+# regression suite can be thorough without becoming public API. `gate_tests`
+# went with it, which is why the exclusion that used to sit here is gone: there
+# is no `mirobody.pulse.gate_tests` package to exclude any more.
 
 [tool.setuptools.package-data]
 "mirobody" = [
@@ -309,11 +324,20 @@ disable_test_id_escaping_and_forfeit_all_rights_to_community_support = true
 # extra). Without this the async tests fail with "async def functions are not
 # natively supported" on every machine.
 asyncio_mode = "auto"
-# Tests live NEXT TO the code they cover (`mirobody/**/test_*.py`), so the whole
-# suite is `pytest mirobody`. There is no top-level `tests/` directory; the
-# README used to document one, along with `-m mcp` / `-m e2b` / `-m chat`
-# markers that were never defined — following it produced "0 tests collected".
-testpaths = ["mirobody"]
+# Two roots. `mirobody/` keeps the tests that are EVIDENCE for a public claim —
+# the resolver benchmark the README scores itself against, and the gates on the
+# README's own numbers, links and translations — living next to the code they
+# grade. `tests/` is the local regression suite and is gitignored: internal
+# quality control that can be as detailed as it needs to be without becoming
+# part of the project's public surface. It is simply absent from a clone, and
+# pytest skips a testpath that does not exist. (Historical note: the README
+# once documented a tests/ directory along with `-m mcp` / `-m chat` and other
+# markers, none of which existed — following it produced "0 tests collected".)
+testpaths = ["mirobody", "tests"]
+# Scratch and artifact directories are never test roots. `out/` in particular
+# holds review artifacts that may include a full clone of this repo — recursing
+# into one collides every test module with its twin ("import file mismatch").
+norecursedirs = [".*", "build", "dist", "node_modules", "out", "frontend", "__pycache__"]
 markers = [
     "needs_db: requires a live PostgreSQL (deselect with -m 'not needs_db')",
     "needs_llm: calls a real model provider and costs money",
