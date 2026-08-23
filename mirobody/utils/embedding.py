@@ -4,7 +4,7 @@ Usage::
 
     from mirobody.utils.embedding import text_embedding
 
-    vectors = await text_embedding(["hello", "world"])                # default: gemini
+    vectors = await text_embedding(["hello", "world"])                # default: openrouter
     vectors = await text_embedding(["hello", "world"], provider="qwen")
 """
 
@@ -117,6 +117,62 @@ def _cache_store(provider: str, items: dict[str, list[float]]) -> None:
 
 _EMB_PROVIDERS: dict[str, callable] = {}
 
+#: provider → the exact model each factory below calls. ONE source of truth,
+#: shared with `scripts/build_loinc_embeddings.py` (matrix builds) and
+#: `indicator/semantic.py` (matrix load-time compatibility check): vectors are
+#: only comparable within one (provider, model) pair, so everything that
+#: stamps or checks identity must read the same table the factories use.
+#:
+#: Availability is measured, not assumed (all verified against the live
+#: endpoints, 2026-08-23):
+#:   * openrouter — qwen3-embedding-8b: open weights, so a deployment can
+#:     also self-host the same model (vLLM/TEI) and set OPENROUTER_BASE_URL
+#:     to its endpoint. OpenRouter serves 8b/4b but NOT 0.6b ("No endpoints
+#:     found").
+#:   * qwen (DashScope) — text-embedding-v4 (the productized Qwen3-Embedding;
+#:     batch cap 10/request, `dimensions: 1024`), the fallback path when
+#:     openrouter.ai is unreachable. No
+#:     embedding model is served by BOTH gateways today (bge-m3 came closest:
+#:     OpenRouter yes, DashScope present-but-gated), so each gateway runs its
+#:     own model; vectors never cross deployments, so this costs nothing.
+EMBEDDING_MODEL_IDS: dict[str, str] = {
+    "gemini": "gemini-embedding-001",
+    "qwen": "text-embedding-v4",
+    "openrouter": "qwen/qwen3-embedding-8b",
+}
+
+
+def resolve_embedding_provider() -> str:
+    """`EMBEDDING_PROVIDER` if set; otherwise pick by which API key exists.
+
+    The auto path mirrors the vision pipeline's select-by-available-key: the
+    promise is that ONE key — OPENROUTER_API_KEY or DASHSCOPE_API_KEY — runs
+    every feature with zero further configuration. Explicit config always
+    wins; openrouter outranks the others when several keys are present.
+    (Vision keeps its own priority order — gemini first — so the two lists
+    agree on the promise, not on the sequence.)
+    """
+    from .config import safe_read_cfg
+
+    explicit = (safe_read_cfg("EMBEDDING_PROVIDER", "") or "").strip().lower()
+    if explicit:
+        return explicit
+    for key, provider in (
+        ("OPENROUTER_API_KEY", "openrouter"),
+        ("DASHSCOPE_API_KEY", "qwen"),
+        ("GOOGLE_API_KEY", "gemini"),
+    ):
+        if os.environ.get(key) or safe_read_cfg(key, ""):
+            return provider
+    return "openrouter"
+
+
+def embedding_model_id(provider: str | None = None) -> str:
+    """The model id the given (or configured) provider embeds with."""
+    if provider is None:
+        provider = resolve_embedding_provider()
+    return EMBEDDING_MODEL_IDS.get(provider, "")
+
 
 def _emb_provider(name: str):
     """Decorator that registers an embedding provider factory."""
@@ -133,7 +189,7 @@ def _gemini():
 
     use_vertex = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "0").lower() in ("true", "1")
     llm = global_config().get_llm(LLMProvider.VERTEX_AI if use_vertex else LLMProvider.GEMINI)
-    model = "gemini-embedding-001"
+    model = EMBEDDING_MODEL_IDS["gemini"]
 
     if use_vertex:
         # Vertex :predict accepts one input per request for this model;
@@ -173,9 +229,9 @@ def _qwen():
     return (
         global_config().get_llm(LLMProvider.DASHSCOPE),
         "embeddings",
-        10,
+        10,  # DashScope caps a text-embedding-v4 request at 10 inputs
         1,  # max_concurrency
-        lambda chunk: {"model": "text-embedding-v4", "input": chunk, "dimensions": 1024},
+        lambda chunk: {"model": EMBEDDING_MODEL_IDS["qwen"], "input": chunk, "dimensions": 1024},
         lambda data: [item["embedding"] for item in data["data"]],
     )
 
@@ -212,7 +268,7 @@ def _openrouter():
         256,
         4,  # max_concurrency
         lambda chunk: {
-            "model": "qwen/qwen3-embedding-8b",
+            "model": EMBEDDING_MODEL_IDS["openrouter"],
             "input": chunk,
             "dimensions": 1024,
         },
@@ -238,7 +294,8 @@ async def text_embedding(
 
     Supported providers: ``"gemini"`` (auto Vertex AI), ``"qwen"``
     (DashScope), ``"openrouter"`` (open-weights Qwen3-Embedding-8B).
-    When *provider* is ``None``, reads config key ``EMBEDDING_PROVIDER`` (default: ``"gemini"``).
+    When *provider* is ``None``, uses :func:`resolve_embedding_provider`
+    (explicit ``EMBEDDING_PROVIDER``, else picked by which API key exists).
     Long input lists are chunked per provider batch limit.
     Invalid entries (non-str / blank) yield ``None`` at the same index.
 
@@ -251,8 +308,7 @@ async def text_embedding(
     hitting the API.
     """
     if provider is None:
-        from .config import safe_read_cfg
-        provider = safe_read_cfg("EMBEDDING_PROVIDER", "gemini")
+        provider = resolve_embedding_provider()
 
     if isinstance(texts, str):
         texts = [texts]

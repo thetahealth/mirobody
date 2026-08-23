@@ -35,7 +35,7 @@ Valid values are [IANA timezone names](https://en.wikipedia.org/wiki/List_of_tz_
 | ----------- | ------------------------------------------------ | --------- |
 | `LOG_NAME`  | Log file name prefix. Empty = console-only       | *(empty)* |
 | `LOG_DIR`   | Directory for log files                          | *(empty)* |
-| `LOG_LEVEL` | Log level: `debug`, `info`, `warning`, `error`   | `DEBUG`   |
+| `LOG_LEVEL` | Log level: `debug`, `info`, `warning`, `error`   | `INFO`   |
 
 By default (no `LOG_NAME`), logs go to **console only** (stdout). To enable file logging, set both `LOG_NAME` and `LOG_DIR` in your `config.{env}.yaml`:
 
@@ -204,8 +204,7 @@ This will create `prompt_templates` with keys `main` and `simple` instead of der
 DeepAgent computes with an **in-process JS/TS interpreter** —
 [langchain-quickjs](https://pypi.org/project/langchain-quickjs/)'
 `CodeInterpreterMiddleware`, which adds a persistent `eval` REPL tool. No API
-key, no network, no external sandbox service: it replaced the former E2B cloud
-sandbox (every `E2B_*` key is gone from the codebase).
+key, no network, no external sandbox service, nothing to provision.
 
 Nothing to configure — it is on whenever the `[agents]` extra is installed. To
 turn it off, block the tool:
@@ -373,7 +372,7 @@ EKS pods must have the following injected by the webhook:
 
 #### Configuration Center (JSON)
 
-If your config center delivers settings as JSON, set `AZURE_OPENAI` as a JSON string — the system parses it automatically:
+If your configuration source delivers settings as JSON, set `AZURE_OPENAI` as a JSON string — the system parses it automatically:
 
 ```bash
 AZURE_OPENAI='{"endpoint":"https://my-resource.openai.azure.com/","api_version":"2025-03-01-preview","deployments":{"gpt-4o":"my-gpt4o-deployment","gpt-4.1":"my-gpt41-deployment","text-embedding-3-small":"my-embed-small"}}'
@@ -443,12 +442,13 @@ response = client.converse(
 
 ## 🧪 Testing
 
-Tests sit beside the code they cover; there is no separate `tests/` tree.
-Bare `pytest` from the repo root is the whole suite — 439 tests in ~9s, no
+Tests sit beside the code they cover; the repository publishes no separate
+`tests/` tree.
+Bare `pytest` from the repo root is the whole suite — seconds, no
 database, no network, no API key:
 
 ```bash
-pip install -e '.[test]'
+pip install -e '.[agents,test]'
 pytest
 ```
 
@@ -457,33 +457,25 @@ Layout, markers, snapshot regeneration and the release gates:
 
 ### Test Categories
 
-| Marker   | Description                                                       | E2B Required |
-| -------- | ----------------------------------------------------------------- | ------------ |
-| `mcp`    | MCP protocol: file ops (write/read/edit/ls/glob/grep), execute    | No*          |
-| `e2b`    | E2B sandbox: command execution, cross-filesystem sync             | Yes          |
-| `chat`   | Chat API: agents trigger tools, session-scoped file visibility    | No*          |
-| `slow`   | Tests that take >10s (LLM calls, sandbox creation)                | Varies       |
+Two markers exist, both declared in `pyproject.toml`:
 
-*\* Some tests within `mcp` and `chat` markers are additionally marked `e2b` and skipped without `E2B_API_KEY`.*
+| Marker | Meaning | Skip with |
+| --- | --- | --- |
+| `needs_db` | requires a live PostgreSQL | `-m 'not needs_db'` |
+| `needs_llm` | calls a real model provider and costs money | `-m 'not needs_llm'` |
+
+This table used to list `mcp` / `chat` / `slow` and more, none of which were
+ever defined, so `pytest -m mcp` reported *0 tests collected*. The
+`pyproject.toml` comment above `markers` records the same trap.
 
 ### What the Tests Cover
 
-**Without E2B** (always run):
-- `write_file` → `read_file` round-trip
-- `write_file` → `ls` visibility (the reported bug scenario)
-- `write_file` → `edit_file` → `read_file` CRUD cycle
-- `write_file` → `glob` / `grep` discoverability
-- Multiple writes → `ls` shows all files
-- Subdirectory file operations
-- Error handling (nonexistent files, duplicate writes)
-- Execute tool graceful degradation (returns config error)
-- Chat API: write → ls via real session_id
+For this module: config parsing, provider wiring and the one-key defaults —
+`mirobody/test_one_key_defaults.py`. The
+agent's PostgreSQL-backed filesystem tools (`write_file` / `read_file` / `ls` /
+`glob` / `grep`) have no dedicated suite yet; the bullet list that used to sit
+here described upstream tests that never shipped with this repository.
 
-**With E2B** (requires `E2B_API_KEY`):
-- Shell command execution (echo, Python, pip install)
-- Exit code reporting (success/failure)
-- stderr capture
-- Timeout handling
-- Cross-filesystem sync: `write_file` (PostgreSQL) → `execute` (E2B sandbox)
-- Sandbox state persistence across calls
-- Chat API: agents trigger execute and return results
+There is no external code-execution sandbox to test: QuickJS (see the section
+above) runs in-process, needs no key, and only reshapes already-fetched
+numbers into chart JSON — no sandbox lifecycle, no shell, no remote state.

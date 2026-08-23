@@ -45,6 +45,7 @@ row per ACTIVE LOINC row of the shipped bundle, in corpus order.
 from __future__ import annotations
 
 import argparse
+import json
 import asyncio
 import csv
 import gzip
@@ -67,16 +68,19 @@ DIM = 1024
 #: costs about $0.01 per million tokens — the whole 96k-row build is under two
 #: cents. Note the endpoint is NOT in OpenRouter's /models listing, which covers
 #: chat models only; /embeddings works regardless.
-PROVIDERS: dict[str, tuple[str, str, int, str]] = {
+# Model ids are imported from `mirobody.utils.embedding.EMBEDDING_MODEL_IDS` in
+# main() — the same table the runtime query side reads — so this script cannot
+# drift onto a model the deployed `text_embedding()` does not call.
+PROVIDERS: dict[str, tuple[str, str | None, int, str]] = {
     "openrouter": (
         "https://openrouter.ai/api/v1/embeddings",
-        "qwen/qwen3-embedding-8b",
+        None,                    # filled from EMBEDDING_MODEL_IDS["openrouter"]
         256,
         "OPENROUTER_API_KEY",
     ),
     "qwen": (
         "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings",
-        "text-embedding-v4",
+        None,                    # filled from EMBEDDING_MODEL_IDS["qwen"]
         10,                      # DashScope caps a request at 10 inputs
         "DASHSCOPE_API_KEY",
     ),
@@ -139,6 +143,10 @@ async def main() -> int:
     from mirobody.indicator.fhir.common import SYSTEM_TO_CODE, code_to_fhir_id
     from mirobody.indicator.fhir.embeddings.bundle import read_member
     from mirobody.utils import Config
+    from mirobody.utils.embedding import EMBEDDING_MODEL_IDS
+
+    url0, _, batch0, key0 = PROVIDERS[args.provider]
+    PROVIDERS[args.provider] = (url0, EMBEDDING_MODEL_IDS[args.provider], batch0, key0)
 
     config = await Config.init(yaml_filenames=["config.yaml", "config.local.yaml"])
     key_name = PROVIDERS[args.provider][3]
@@ -190,7 +198,23 @@ async def main() -> int:
             out["emb"][k] = (v / norm if norm > 0 else v).astype(np.float16)
 
     np.save(args.out, out)
+
+    # Sidecar identity stamp. Vectors are only comparable within one
+    # (provider, model) pair, and a mismatched matrix does not error — it
+    # returns confident nonsense ("空腹血糖" once answered as "Widespread
+    # delusions" off a matrix from a different serving config). SemanticIndex
+    # refuses to load a matrix whose stamp disagrees with the configured
+    # EMBEDDING_PROVIDER, and warns when the stamp is missing.
+    meta_path = f"{args.out}.meta.json"
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump({
+            "provider": args.provider,
+            "model": model,
+            "dim": DIM,
+            "rows": len(out),
+        }, f, indent=2)
     print(f"wrote {args.out}  {os.path.getsize(args.out)/1e6:.0f} MB  {len(out):,} rows", flush=True)
+    print(f"wrote {meta_path}", flush=True)
     return 0
 
 

@@ -1,4 +1,4 @@
-import aiohttp, base64, dotenv, importlib, importlib.resources, importlib.metadata, io, json, logging, os, re
+import base64, dotenv, importlib, importlib.resources, importlib.metadata, io, json, logging, os, re
 
 from ruamel.yaml import YAML
 from typing import Any
@@ -18,6 +18,13 @@ if TYPE_CHECKING:  # heavy drivers — imported lazily inside the accessors belo
 #-----------------------------------------------------------------------------
 
 _global_config = None
+
+#: The value shipped in place of every secret that a real deployment must
+#: replace. Named in one place because two behaviors key on it: the auto-
+#: encryption pass skips it (encrypting the placeholder would hide that it was
+#: never changed), and `PRODUCTION: true` refuses to start while any key still
+#: carries it (see `server/bootstrap.py`).
+PLACEHOLDER_SENTINEL = "REPLACE_THIS_VALUE_IN_PRODUCTION"
 
 #-----------------------------------------------------------------------------
 
@@ -159,7 +166,7 @@ class Config:
 
                 if re.search(r"_KEY|_PASSWORD|_PASS|_PWD|_SECRET|_SK|_TOKEN", upper_key) and \
                     not upper_key.endswith("_URL") and \
-                    value != "REPLACE_THIS_VALUE_IN_PRODUCTION":
+                    value != PLACEHOLDER_SENTINEL:
 
                     # Encrypt it.
                     #
@@ -259,12 +266,28 @@ class Config:
             return obj
 
         if isinstance(obj, str):
-            return obj.strip().upper() == "TRUE"
+            # Same truthy set as `demo.enabled()`: environment variables
+            # arrive as strings, and "1"/"yes"/"on" must not silently read
+            # as False (REDIS_SSL=1 used to).
+            return obj.strip().upper() in ("TRUE", "1", "YES", "ON")
 
         if isinstance(obj, int):
             return obj != 0
 
         return default
+
+
+    def placeholder_keys(self) -> list[str]:
+        """Config keys whose value is still the shipped placeholder sentinel.
+
+        The demo runs fine on placeholders; a deployment that declared
+        `PRODUCTION: true` must not — `server/bootstrap.py` refuses to start
+        while this list is non-empty.
+        """
+        return sorted(
+            key for key, value in self._raw.items()
+            if value == PLACEHOLDER_SENTINEL
+        )
 
 
     def get_dict(self, key: str, default: dict | None = None) -> dict:
@@ -582,10 +605,17 @@ class Config:
 
         if provider in _OPENAI_COMPAT:
             api_key_env, default_base_url = _OPENAI_COMPAT[provider]
+            # `<PROVIDER>_BASE_URL` (OPENROUTER_BASE_URL, DASHSCOPE_BASE_URL, …)
+            # redirects the provider to a self-hosted OpenAI-compatible
+            # endpoint — the mechanism behind the README's "serve the same
+            # embedding model yourself and point the provider's base_url at
+            # it". Config.get reads the environment first, so an env var or a
+            # config key both work.
             llm_config = LLMConfig(
                 provider = provider,
                 api_key  = self.get_str(api_key_env),
-                base_url = default_base_url,
+                base_url = self.get_str(api_key_env.replace("_API_KEY", "_BASE_URL"))
+                           or default_base_url,
             )
         elif provider == LLMProvider.ANTHROPIC:
             llm_config = LLMConfig(
@@ -729,41 +759,6 @@ class Config:
                 os.environ.setdefault(key.upper(), value)
 
     #-------------------------------------------------------------------------
-
-    @staticmethod
-    async def load_remote_config(server: str, token: str, env: str) -> tuple[str | None, str | None]:
-        if not server:
-            return None, "Empty 'server'."
-
-        if not token:
-            return None, "Empty 'token'."
-
-        if not env:
-            return None, "Empty 'env'."
-
-        #-----------------------------------------------------
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                url = f"{server}/api/v1/config/environments/{env}/configs/resolved?is_yaml=true"
-                headers = {
-                    "X-Config-Token": token
-                }
-
-                async with session.get(url=url, headers=headers) as resp:
-                    resp_text = await resp.text()
-                    if not resp_text:
-                        return None, "Empty HTTP response body."
-
-                    if not resp.ok:
-                        return None, f"{resp.status}: {resp_text}"
-
-                    return resp_text, None
-
-        except Exception as e:
-            return None, str(e)
-
-    #-------------------------------------------------------------------------
     @staticmethod
     async def init(
         yaml_filenames  : str | list[str] | None = None,
@@ -831,15 +826,6 @@ class Config:
         if os.path.exists(default_yaml) and default_yaml not in yaml_file_list:
             final_yaml_file_list.append(default_yaml)
             logging.info("Default config has been loaded.")
-
-        remote_yaml, err = await Config.load_remote_config(
-            server  = os.environ.get("CONFIG_SERVER", ""),
-            token   = os.environ.get("CONFIG_TOKEN", ""),
-            env     = env
-        )
-        if not err:
-            final_yaml_file_list.append(io.StringIO(remote_yaml))
-            logging.info("Remote config has been loaded.")
 
         for yaml_filename in yaml_file_list:
             if os.path.exists(yaml_filename):

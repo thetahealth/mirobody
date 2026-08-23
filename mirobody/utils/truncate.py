@@ -1,12 +1,47 @@
-import tiktoken
+import logging
 
-_ENCODING = tiktoken.get_encoding("o200k_base")
+# tiktoken downloads its o200k_base BPE file from an OpenAI CDN
+# (openaipublic.blob.core.windows.net) on first use and caches it under
+# TIKTOKEN_CACHE_DIR. That CDN is unreachable from some networks — mainland
+# China among them, i.e. exactly the deployments the DashScope gateway exists
+# for — and this module sits on the chat request path. A module-scope
+# get_encoding() therefore made the FIRST QUESTION crash on a perfectly
+# configured offline-from-OpenAI host, with an error naming neither tiktoken
+# nor the download. Load lazily, try once, and fall back to a character-count
+# estimate: token counts here only pack text into chunk budgets, where a
+# conservative estimate is as good as an exact one.
+_ENCODING = None
+_ENCODING_UNAVAILABLE = False
 
 
 def _num_tokens(text: str) -> int:
     if not text or text.isspace():
         return 0
-    return len(_ENCODING.encode(text))
+
+    global _ENCODING, _ENCODING_UNAVAILABLE
+    if _ENCODING is None and not _ENCODING_UNAVAILABLE:
+        try:
+            import tiktoken
+            _ENCODING = tiktoken.get_encoding("o200k_base")
+        except Exception as e:
+            _ENCODING_UNAVAILABLE = True
+            logging.warning(
+                "tiktoken could not load its BPE file (%s: %s); token counts "
+                "fall back to a character estimate. For exact counts on a host "
+                "that cannot reach openaipublic.blob.core.windows.net, set "
+                "TIKTOKEN_CACHE_DIR to a directory pre-seeded with "
+                "o200k_base.tiktoken.",
+                type(e).__name__, e,
+            )
+
+    if _ENCODING is not None:
+        return len(_ENCODING.encode(text))
+
+    # Estimate must err HIGH: an undercount packs a chunk past its budget.
+    # ~4 chars/token holds for English; CJK runs ~1–2 chars/token, so text
+    # containing CJK uses the denser divisor.
+    divisor = 2 if any(ord(ch) > 0x2E80 for ch in text) else 4
+    return max(1, len(text) // divisor)
 
 
 def split_by_tokens(

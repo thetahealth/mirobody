@@ -60,6 +60,6 @@ __all__ = [
     "async_get_structured_output",  # 🔥 Unified structured output (auto-select provider)
     "async_get_text_completion",  # 🔥 Unified text generation (auto-select provider)
     # === LLM provider config ===
-    "export_to_env",  # Bridge config center → SDK env vars (call at startup)
+    "export_to_env",  # Bridge config values → SDK env vars (call at startup)
     "get_azure_deployment",  # Azure deployment name resolution
 ]

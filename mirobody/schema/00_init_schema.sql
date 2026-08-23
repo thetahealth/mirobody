@@ -27,75 +27,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_uni_health_app_user_apple_sub_active ON he
 COMMENT ON COLUMN health_app_user.gender IS 'Gender: 0-Unknown 1-Male 2-Female';
 
 
-CREATE TABLE IF NOT EXISTS th_share_relationship (
-    share_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),    
-    owner_user_id VARCHAR(50) NOT NULL,
-    member_user_id VARCHAR(50) NOT NULL,
-    owner_email VARCHAR(255),
-    member_email VARCHAR(255),
-    status VARCHAR(20) DEFAULT 'pending',
-    permissions JSONB DEFAULT '{"all": 1}'::jsonb,
-    relationship_type VARCHAR(50) DEFAULT 'data_sharing',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_share_relationship UNIQUE (owner_user_id, member_user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_share_owner_user_id ON th_share_relationship(owner_user_id);
-CREATE INDEX IF NOT EXISTS idx_share_member_user_id ON th_share_relationship(member_user_id);
-CREATE INDEX IF NOT EXISTS idx_share_status ON th_share_relationship(status);
-
-COMMENT ON TABLE th_share_relationship IS 'Data sharing relationships between users';
-COMMENT ON COLUMN th_share_relationship.owner_user_id IS 'The data owner (user sharing their data)';
-COMMENT ON COLUMN th_share_relationship.member_user_id IS 'The member (user who can access the data)';
-COMMENT ON COLUMN th_share_relationship.status IS 'Status: pending, authorized, revoked';
-COMMENT ON COLUMN th_share_relationship.permissions IS 'Permission JSON: {"all": 0/1/2} or {"device": 1, "ehr": 2}';
-
-
-CREATE TABLE IF NOT EXISTS th_share_user_config (
-    config_id SERIAL PRIMARY KEY,
-    setter_user_id VARCHAR(50) NOT NULL,
-    target_user_id VARCHAR(50) NOT NULL,
-    context VARCHAR(50) DEFAULT 'default',
-    nickname VARCHAR(255),
-    avatar_key VARCHAR(500),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_share_user_config UNIQUE (setter_user_id, target_user_id, context)
-);
-
-CREATE INDEX IF NOT EXISTS idx_share_config_setter ON th_share_user_config(setter_user_id);
-CREATE INDEX IF NOT EXISTS idx_share_config_target ON th_share_user_config(target_user_id);
-
-COMMENT ON TABLE th_share_user_config IS 'User-specific configuration for shared relationships (nicknames, avatars)';
-COMMENT ON COLUMN th_share_user_config.setter_user_id IS 'The user who sets the nickname/avatar';
-COMMENT ON COLUMN th_share_user_config.target_user_id IS 'The user being nicknamed/avatared';
-COMMENT ON COLUMN th_share_user_config.context IS 'Context for the configuration (default, family, etc.)';
-
-
-CREATE TABLE IF NOT EXISTS th_share_permission_type (
-    permission_id SERIAL PRIMARY KEY,
-    permission_key VARCHAR(50) UNIQUE NOT NULL,
-    permission_name VARCHAR(100) NOT NULL,
-    permission_description TEXT,
-    category VARCHAR(50),
-    display_order INTEGER DEFAULT 0,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_share_perm_key ON th_share_permission_type(permission_key);
-CREATE INDEX IF NOT EXISTS idx_share_perm_active ON th_share_permission_type(is_active);
-
-INSERT INTO th_share_permission_type (permission_key, permission_name, permission_description, category, display_order)
-VALUES
-    ('all', 'All Data', 'Access to all data types', 'general', 1),
-    ('device', 'Device Data', 'Access to device and sensor data', 'specific', 2),
-    ('ehr', 'Health Records', 'Access to electronic health records', 'specific', 3),
-    ('chat', 'Chat History', 'Access to chat and conversation history', 'specific', 4),
-    ('uploadfile', 'upload file', 'Access to upload file', 'specific', 5)
-ON CONFLICT (permission_key) DO NOTHING;
-
+-- `th_share_relationship`, `th_share_user_config` and `th_share_permission_type`
+-- used to be defined here. Two tables replace all three:
+-- `care_circles` / `care_circle_members` (`a2_care_circles.sql`), with
+-- `a3_migrate_share_relationship.sql` carrying existing rows across and dropping
+-- the old ones. The old trio modelled a directed grant defaulting to
+-- `{"all": 1}` — read everything, on by default, decided by the other party —
+-- which is the opposite of what this product promises, and its advertised
+-- vocabulary (`th_share_permission_type`, which listed `ehr`) did not even match
+-- the names the checker honoured (`health`).
 
 CREATE TABLE IF NOT EXISTS health_user_provider
 (
