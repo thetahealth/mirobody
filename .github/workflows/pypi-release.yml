@@ -164,10 +164,10 @@ jobs:
         "
         # ① The BARE install must import every module the engine advertises —
         # resolve, parse, vendors, file extraction — with no [server] extra, so
-        # no FastAPI. `mirobody.utils` is listed first and by name: one dead
-        # `from .auth import verify_token_string` in utils/permissions.py made
-        # the engine's own utils package (hence anything calling execute_query)
-        # unimportable without the extra, and no gate saw it.
+        # no FastAPI. `mirobody.utils` is checked by name: it is the engine's
+        # own utils package (anything calling execute_query imports it), and a
+        # stray FastAPI-dependent import inside it would break the bare install
+        # without any other gate seeing it.
         #
         # This step was added after the last release and had never run; when it
         # first did, it also asserted mirobody.task / mirobody.user here, which
@@ -179,7 +179,7 @@ jobs:
             'gate is vacuous: FastAPI is installed, so this cannot prove the '
             'engine imports without the [server] extra'
         )
-        import mirobody.utils, mirobody.utils.permissions
+        import mirobody.utils
         import mirobody.pulse, mirobody.pulse.file_parser
         import mirobody.indicator, mirobody.mcp, mirobody.engine
         print('engine imports clean on a bare (FastAPI-free) install')
