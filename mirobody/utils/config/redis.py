@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import redis, redis.asyncio
 
-from .redis_compat import RedisCompat
 
 #-----------------------------------------------------------------------------
 
@@ -121,11 +120,5 @@ class RedisConfig:
             decode_responses    = True,
             socket_timeout      = self.timeout,
         )
-
-    #-----------------------------------------------------
-
-    def get_async_compact_client(self) -> RedisCompat:
-        """Return an in-memory RedisCompat instance (no real Redis needed)."""
-        return RedisCompat()
 
 #-----------------------------------------------------------------------------

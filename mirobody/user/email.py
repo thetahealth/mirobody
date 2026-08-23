@@ -18,13 +18,24 @@ class DummyEmailCodeValidator(AbstractEmailCodeValidator):
         self._predefined_codes = predefined_codes if isinstance(predefined_codes, dict) else {}
 
     async def send(self, to_email: str, expires_in: int = 0, service: str = "") -> str | None:
+        """Succeed for an address whose code is already known, fail otherwise.
+
+        There is nothing to send for a predefined account: the code is fixed and
+        the server prints it at startup, which is exactly what the README tells
+        a new user to read. Returning an error here made the sign-in page's
+        "send code" button answer "No SMTP server configured" for the one
+        account the quickstart hands you — the code still worked if you typed
+        it, so the failure was in the step that had nothing to do.
+        """
+        if to_email in self._predefined_codes:
+            return None
+
         return "No SMTP server configured."
-    
+
     async def verify(self, to_email: str, code: str, service: str = "") -> str | None:
-        if self._predefined_codes:
-            if to_email in self._predefined_codes and self._predefined_codes[to_email] == code:
-                return None
-        
+        if self._predefined_codes.get(to_email) == code:
+            return None
+
         return "No SMTP server configured."
 
 #-----------------------------------------------------------------------------

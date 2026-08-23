@@ -68,8 +68,18 @@ class PullTaskLockManager:
         lock_key = self._get_lock_key(provider_slug)
         redis_client = await get_redis_client()
         if redis_client is None:
-            logging.warning(f"Redis client not initialized for {provider_slug} return true")
-            return execution_id
+            # Fail CLOSED. An earlier version answered "lock acquired" here,
+            # which abandoned mutual exclusion at exactly the moment duplicate
+            # concurrent execution is most likely — every instance that could
+            # not reach Redis proceeded at once. A pull that waits for Redis
+            # to come back is a delay; two instances double-pulling and
+            # double-writing the same readings is the bug this class exists
+            # to prevent.
+            logging.error(
+                f"Redis unavailable — refusing execution lock for {provider_slug} "
+                "(fail-closed; task will retry on its next schedule)"
+            )
+            return None
         # Force execution mode
         if force:
             logging.warning(f"Force execution mode enabled for {provider_slug}, ignoring existing locks")
@@ -125,29 +135,41 @@ class PullTaskLockManager:
         lock_key = self._get_lock_key(provider_slug)
 
         try:
-            # Get current lock value to verify ownership
-            current_lock = await redis_client.get(lock_key)
-            if current_lock is None:
-                logging.warning(f"Lock {lock_key} does not exist or already expired")
-                return True
-
-            # Parse lock value to check ownership
-            current_lock_str = current_lock.decode() if isinstance(current_lock, bytes) else current_lock
-            if execution_id in current_lock_str and self.instance_id in current_lock_str:
-                # We own this lock, safe to delete
-                await redis_client.delete(lock_key)
+            # Check-and-delete must be ONE Redis-side operation. The previous
+            # GET → compare → DELETE ran as three round trips: if this
+            # instance's lock expired between the GET and the DELETE and
+            # another instance acquired it in that window, the DELETE removed
+            # the OTHER instance's live lock — reopening the duplicate-
+            # execution hole. The Lua script evaluates atomically inside Redis.
+            released = await redis_client.eval(
+                self._RELEASE_SCRIPT, 1, lock_key, self.instance_id, execution_id
+            )
+            if released:
                 logging.info(f"Released execution lock for {provider_slug} (execution: {execution_id})")
                 return True
-            else:
-                logging.warning(
-                    f"Lock ownership mismatch for {provider_slug}, "
-                    f"expected execution: {execution_id}, current: {current_lock_str}"
-                )
-                return False
+            logging.warning(
+                f"Lock ownership mismatch for {provider_slug}, "
+                f"expected instance {self.instance_id} / execution {execution_id} — not released"
+            )
+            return False
 
         except Exception as e:
             logging.error(f"Error releasing execution lock for {provider_slug}: {str(e)}")
             return False
+
+    # Returns 1 when the lock is gone on exit (deleted by us, or already
+    # expired), 0 when a DIFFERENT owner holds it (left untouched). Plain-text
+    # find is enough: instance_id and execution_id are UUID fragments with no
+    # Lua pattern metacharacters.
+    _RELEASE_SCRIPT = """
+    local v = redis.call('GET', KEYS[1])
+    if not v then return 1 end
+    if string.find(v, ARGV[1], 1, true) and string.find(v, ARGV[2], 1, true) then
+        redis.call('DEL', KEYS[1])
+        return 1
+    end
+    return 0
+    """
 
     async def get_last_execution_timestamp(
         self,

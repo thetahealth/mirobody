@@ -6,7 +6,6 @@ import sqlalchemy, sqlalchemy.event, sqlalchemy.ext, sqlalchemy.ext.asyncio
 
 from typing import Any, Self
 
-from .redis_compat import RedisCompat
 
 #-----------------------------------------------------------------------------
 
@@ -252,12 +251,6 @@ class PostgreSQLConfig:
         sqlalchemy.event.listen(engine, "after_cursor_execute", after_sqlarchemy_cursor_execute)
 
         return engine
-
-    #-----------------------------------------------------
-
-    def get_async_compact_redis_client(self) -> RedisCompat:
-        """Return a RedisCompat instance backed by this PostgreSQL database."""
-        return RedisCompat(pg_config=self)
 
 
 #-----------------------------------------------------------------------------

@@ -1,8 +1,6 @@
 import jwt, secrets, time
 
 from typing import Callable
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 
 from starlette.requests import Request
 
@@ -77,10 +75,12 @@ class AbstractTokenValidator:
         str,        # Refresh token.
         str | None  # Error message.
     ]:
-        if not refresh_token:
-            return "", "", "invalid_request"
-        
-        return "", "", None
+        # Not implemented. An earlier stub returned ("", "", None) — success
+        # with EMPTY tokens — for any non-empty refresh_token, which is a
+        # landmine for whoever wires this endpoint up: the caller sees no
+        # error and hands the client blank credentials. Fail honestly until
+        # a real rotation flow exists.
+        return "", "", "unsupported_grant_type"
 
     #-----------------------------------------------------
 
@@ -246,22 +246,6 @@ class JwtTokenValidator(AbstractTokenValidator):
 
 #-----------------------------------------------------------------------------
 
-class JwtRsaTokenValidator(AbstractTokenValidator):
-    def __init__(
-        self,
-        keys: list[str],
-        iss: str,
-        aud: str,
-        scopt: str,
-        expires_in: int = 60*60*24*30
-    ):
-        super().__init__()
-
-        private_key = rsa.generate_private_key(
-            public_exponent=65537,
-            key_size=2048
-        )
-        public_key = private_key.public_key()
 
 #-----------------------------------------------------------------------------
 

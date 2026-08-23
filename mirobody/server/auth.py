@@ -8,8 +8,9 @@ Was `utils_auth.py`, then `mirobody/utils/auth.py`. It is FastAPI all the way
 down — `Header` defaults, `HTTPException` — and FastAPI ships in the
 `[server]` extra, so it never belonged in the engine's utils package: every
 one of its live callers is a router right next door. `verify_token_string` is
-the one function with a non-router caller in history, and that caller
-(`utils/permissions.py`) imported it without ever using it.
+the one function with a non-router caller in history, and that caller — the
+care-circle permission check, then `utils/permissions.py`, now
+`user/care_circle.py` — imported it without ever using it.
 
 Two functions did not come along, both with zero callers anywhere:
 `verify_token_from_websocket` (the only reason this module imported

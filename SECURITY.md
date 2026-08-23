@@ -60,9 +60,18 @@ The defaults in this repository are tuned for **local, single-user
 evaluation**, not for exposing to a network. Before anything reachable by
 others:
 
-- Replace the demo accounts. `config.yaml` ships predefined logins
-  (`exp1-3@mirobody.ai` / code `111111`) — remove `EMAIL_PREDEFINE_CODES`
-  entirely.
+- **Set `PRODUCTION: true` in your config — first, before anything else.**
+  It is the switch the rest of this list hangs off: the server then refuses
+  to start while any demo affordance remains (predefined login codes, any
+  `REPLACE_THIS_VALUE_IN_PRODUCTION` placeholder still in place) and ignores
+  `SEED_DEMO_DATA`. Environment names carry no behavior — `ENV=prod` alone
+  protects nothing, and the server warns if it sees that pattern without
+  the switch. Set `BOOTSTRAP_SCHEMA: false` too if you provision the schema
+  yourself.
+- Replace the demo accounts. `config.yaml` ships a predefined login
+  (`caregiver@mirobody.ai` / code `111111`) — remove `EMAIL_PREDEFINE_CODES`
+  entirely. With `PRODUCTION: true` the server enforces this instead of
+  trusting the checklist.
 - Generate your own `CONFIG_ENCRYPTION_KEY` and keep `.env` out of version
   control. `deploy.sh` generates one; do not copy a key between environments.
 - Restrict CORS to the origins you actually serve.

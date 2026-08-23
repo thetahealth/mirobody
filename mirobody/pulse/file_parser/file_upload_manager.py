@@ -210,6 +210,34 @@ class WebSocketFileUploadManager:
 
             logging.info(f"Starting file upload: connection_id={connection_id}, real_user_id={real_user_id}, message_id={message_id}, file_count={len(files_info)}, proxy_user_id={query_user_id}")
 
+            # AUTHORIZE a proxy upload before anything is written. `query_user_id`
+            # is client-supplied: without this gate any authenticated user could
+            # write a file into ANY user's record (even a non-existent id) by
+            # naming it here — the file lands under the victim's query_user_id,
+            # their agent's VFS reads it, and it never shows in the attacker's
+            # own file list. That is the prompt-injection delivery surface
+            # SECURITY.md warns about. Same check the proxy paths in
+            # public_router already use; write access is required because this
+            # WRITES to the subject's record.
+            if query_user_id and str(query_user_id) != str(real_user_id):
+                from mirobody.user.care_circle import CareCircleDenied, resolve_subject
+                try:
+                    await resolve_subject(real_user_id, query_user_id, require_write=True)
+                except (CareCircleDenied, ValueError, TypeError) as e:
+                    logging.warning(
+                        f"Rejected proxy upload: user {real_user_id} -> "
+                        f"query_user_id {query_user_id!r}: {e}"
+                    )
+                    await self.send_message(
+                        connection_id,
+                        {
+                            "type": "error",
+                            "messageId": message_id,
+                            "message": "You do not have write access to that user's record.",
+                        },
+                    )
+                    return False
+
             # Determine target user ID for file storage (use real user_id, not connection_id)
             target_user_id = query_user_id if query_user_id else real_user_id
             
