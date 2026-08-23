@@ -27,22 +27,36 @@ from mirobody.utils.i18n import t
 from mirobody.utils.req_ctx import get_req_ctx
 
 
-# Supported file extensions. This gate must not be NARROWER than what the
-# handler factory can parse: it used to reject every audio extension while
-# AudioHandler sat unreachable behind it, and rejected .md while TextHandler
-# happily parses it — the web client even advertised audio in its upload copy.
+# Supported file extensions. This gate must match what the handler factory can
+# actually route, in BOTH directions, and it has been wrong both ways:
+#
+#   too narrow — it rejected every audio extension while AudioHandler sat
+#                unreachable behind it, and rejected .md while TextHandler
+#                happily parses it; the web client advertised audio anyway.
+#   too wide   — .doc/.docx/.ppt/.pptx were accepted here with no handler in
+#                existence, so the picker let you choose one, the upload ran,
+#                and `file_processor` then answered "file not supported". They
+#                are removed until there is something that parses them, so the
+#                refusal happens at the gate with a list of what does work.
+#                (docs/roadmap.md carries this as a capability gap.)
+#
+# `handlers/test_factory_routing.py` fails if this set and the factory disagree.
 SUPPORTED_EXTENSIONS = {
     # Images (ImageHandler takes any image/*; heic/heif come from iPhones)
     ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".svg",
     ".heic", ".heif",
-    # Documents
-    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-    # Plain text: lab exports, genetic raw data, notes
-    ".txt", ".md", ".markdown",
+    # Documents. `.docx`/`.pptx` are back now that `handlers/document.py`
+    # parses them; legacy binary `.doc`/`.ppt` stay out, because python-docx
+    # and python-pptx read only the zip-based formats and accepting a file we
+    # then refuse is the defect this set exists to prevent.
+    ".pdf", ".xls", ".xlsx", ".docx", ".pptx",
+    # Plain text: lab exports, genetic raw data, notes. `.csv` belongs here —
+    # TextHandler owns it now that the never-injected CSVHandler is gone.
+    ".txt", ".md", ".markdown", ".csv", ".json", ".xml",
     # Audio (AudioHandler)
     ".wav", ".mp3", ".aiff", ".aac", ".ogg", ".flac", ".m4a",
-    # Other common formats
-    ".json", ".csv", ".xml", ".zip", ".rar"
+    # Archives: accepted for their contents, not parsed as themselves
+    ".zip", ".rar",
 }
 
 

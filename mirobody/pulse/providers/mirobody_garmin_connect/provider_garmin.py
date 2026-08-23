@@ -119,14 +119,27 @@ class GarminProvider(BasePullProvider):
             }
         },
         "bodyComps": {
-            "timestamp_source": "startTimeInSeconds",
+            # Field names are the Garmin Health API Body Composition summary
+            # VERBATIM — the same names the gate fixture's captured payload
+            # carries (weightInGrams, measurementTimeInSeconds, …InPercent,
+            # …InGrams). An earlier config invented names no Garmin payload
+            # has (`weight`, `bodyFatPercentage`, `boneMass`, `muscleMass`)
+            # and keyed the timestamp on `startTimeInSeconds` (bodyComps sends
+            # `measurementTimeInSeconds`), so every bodyComps push produced
+            # ZERO records with wall-clock fallback timestamps — and the gate
+            # fixture certified that zero output as golden.
+            "timestamp_source": "measurementTimeInSeconds",
             "simple_fields": {
-                "weight": {"indicator": StandardIndicator.WEIGHT.value.name, "converter": lambda x: x, "unit": "kg"},
+                "weightInGrams": {"indicator": StandardIndicator.WEIGHT.value.name, "converter": lambda x: x / 1000.0, "unit": "kg"},
                 "bodyMassIndex": {"indicator": StandardIndicator.BMI.value.name, "converter": lambda x: x, "unit": "count"},
-                "bodyFatPercentage": {"indicator": StandardIndicator.BODY_FAT_PERCENTAGE.value.name, "converter": lambda x: x, "unit": "%"},
-                "bodyWaterPercentage": {"indicator": StandardIndicator.BODY_WATER_PERCENTAGE.value.name, "converter": lambda x: x, "unit": "%"},
-                "boneMass": {"indicator": StandardIndicator.BONE_MASS.value.name, "converter": lambda x: x, "unit": "kg"},
-                "muscleMass": {"indicator": StandardIndicator.MUSCLE_PERCENTAGE.value.name, "converter": lambda x: x, "unit": "%"},
+                "bodyFatInPercent": {"indicator": StandardIndicator.BODY_FAT_PERCENTAGE.value.name, "converter": lambda x: x, "unit": "%"},
+                "bodyWaterInPercent": {"indicator": StandardIndicator.BODY_WATER_PERCENTAGE.value.name, "converter": lambda x: x, "unit": "%"},
+                "boneMassInGrams": {"indicator": StandardIndicator.BONE_MASS.value.name, "converter": lambda x: x / 1000.0, "unit": "kg"},
+                # muscleMassInGrams is deliberately unmapped: it is a MASS,
+                # and the catalogue's only muscle indicator is
+                # MUSCLE_PERCENTAGE (%). Mapping grams to a percent field is
+                # the silently-wrong-number failure this layer exists to
+                # prevent; add a muscle-mass indicator first if it is wanted.
             }
         },
         "userMetrics": {
@@ -138,7 +151,19 @@ class GarminProvider(BasePullProvider):
         "pulseOx": {
             "timestamp_source": "startTimeInSeconds",
             "simple_fields": {
+                # on-demand spot readings
                 "singleReadingSpO2": {"indicator": StandardIndicator.BLOOD_OXYGEN.value.name, "converter": lambda x: x, "unit": "%"},
+            },
+            "time_series": {
+                # monitoring mode (onDemand=false) — the payload shape the
+                # gate fixture captured, which used to fall through unmapped
+                # and certify zero output as golden
+                "timeOffsetSpo2Values": {
+                    "indicator": StandardIndicator.BLOOD_OXYGEN.value.name,
+                    "unit": "%",
+                    "format": "dict",  # offset_str -> SpO2 %
+                    "filter_negative": True
+                }
             }
         },
         "bloodPressures": {
@@ -321,8 +346,11 @@ class GarminProvider(BasePullProvider):
                 verifier=None
             )
 
-            # Get request token
-            resp = oauth.post(self.request_token_url)
+            # Get request token. OAuth1Session is synchronous `requests` —
+            # awaiting it in a thread keeps this provider from freezing the
+            # event loop (Oura/Whoop use aiohttp natively; Garmin is the one
+            # provider still on OAuth1, which aiohttp does not speak).
+            resp = await asyncio.to_thread(oauth.post, self.request_token_url)
 
             if resp.status_code != 200:
                 raise RuntimeError(f"Failed to get request token: {resp.status_code} - {resp.text}")
@@ -476,10 +504,10 @@ class GarminProvider(BasePullProvider):
                 resource_owner_secret=oauth_token_secret,
                 verifier=oauth_verifier
             )
-            garmin_user_id = self._get_user_id(oauth)
+            garmin_user_id = await asyncio.to_thread(self._get_user_id, oauth)
 
-            # Get access token
-            resp = oauth.post(self.access_token_url)
+            # Get access token (sync requests — run in a thread, see above)
+            resp = await asyncio.to_thread(oauth.post, self.access_token_url)
 
             if resp.status_code != 200:
                 raise RuntimeError(f"Failed to get access token: {resp.status_code} - {resp.text}")
@@ -561,9 +589,9 @@ class GarminProvider(BasePullProvider):
                     resource_owner_secret=token_secret
                 )
 
-                # Call DELETE API to unlink user
+                # Call DELETE API to unlink user (sync requests — thread)
                 unlink_url = f"{self.api_base_url}/user/registration"
-                resp = oauth.delete(unlink_url)
+                resp = await asyncio.to_thread(oauth.delete, unlink_url)
 
                 if resp.status_code == 204:
                     api_unlink_success = True
@@ -1188,8 +1216,12 @@ class GarminProvider(BasePullProvider):
                 resource_owner_secret=token_secret
             )
 
-            # Get user ID first
-            user_id = self._get_user_id(oauth)
+            # Get user ID first. Everything below is synchronous `requests`
+            # via OAuth1Session; each unit runs in a worker thread so a
+            # multi-endpoint, multi-day pull does not stall every other
+            # coroutine on this loop for its whole duration — which is what
+            # happened when these were called inline in this `async def`.
+            user_id = await asyncio.to_thread(self._get_user_id, oauth)
 
             all_data = []
 
@@ -1206,11 +1238,13 @@ class GarminProvider(BasePullProvider):
                     batch_start = batch_end - (24 * 60 * 60)
                     logging.info(f"Pulling batch {day_offset + 1}/{days}: {batch_start} to {batch_end}")
                     
-                    batch_data = self._pull_data_batch(oauth, user_id, batch_start, batch_end)
+                    batch_data = await asyncio.to_thread(
+                        self._pull_data_batch, oauth, user_id, batch_start, batch_end)
                     all_data.extend(batch_data)
             else:
                 # Single day request
-                batch_data = self._pull_data_batch(oauth, user_id, start_timestamp, end_timestamp)
+                batch_data = await asyncio.to_thread(
+                    self._pull_data_batch, oauth, user_id, start_timestamp, end_timestamp)
                 all_data.extend(batch_data)
 
             logging.info(f"Completed Garmin data pull: {len(all_data)} data sets retrieved")

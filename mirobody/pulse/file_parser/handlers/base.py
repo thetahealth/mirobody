@@ -236,18 +236,29 @@ class BaseFileHandler(abc.ABC):
                 "required": ["file_name", "file_abstract"]
             }
             
-            prompt = """Based on the document content below, generate:
+            # `language` reaches this prompt because it used to be an unused
+            # parameter, and "use the same language as the content" was one
+            # bullet in a list the model ignored. An English lab report came
+            # back named `2025-10-15_Laborbericht_Lipide_Glukose.pdf`, and on a
+            # second run `..._Rapport_labo_lipides_glycemie.pdf` — German, then
+            # French, for the same English document. Two runs, two wrong
+            # languages, so it was not one bad sample.
+            prompt = f"""Based on the document content below, generate:
 1. file_name: A descriptive filename in format: Date_Content_Description.extension
    - Include date if found (YYYY-MM-DD format)
    - Keep it concise (15-40 chars excluding extension)
-   - Use the same language as the content
-   
+   - LANGUAGE: write it in the language the DOCUMENT ITSELF uses. An English
+     report gets an English name; a 体检报告 gets a Chinese one. Never translate
+     into a third language. If the document's own language is genuinely
+     ambiguous, fall back to: {language}
+
 2. file_abstract: A brief summary (max 150 characters)
    - Identify document type
    - Extract key information
    - Highlight main findings
+   - Same language rule as above
 
-Return JSON format: {"file_name": "...", "file_abstract": "..."}"""
+Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
 
             messages = [
                 {"role": "system", "content": prompt},
@@ -458,6 +469,7 @@ Return JSON format: {"file_name": "...", "file_abstract": "..."}"""
             indicators = []
             llm_ret = {}
             formatted_raw = original_text
+            extraction_failed_reason = ""
 
             try:
                 from mirobody.pulse.file_parser.services.content_formatter import ContentFormatter
@@ -471,10 +483,29 @@ Return JSON format: {"file_name": "...", "file_abstract": "..."}"""
                     file_key=file_key,
                     save_to_db=True,
                 )
-                logging.info(
-                    f"✅ Async indicator extraction completed for {file_type}: {file_key}, "
-                    f"count: {len(indicators) if indicators else 0}"
-                )
+                count = len(indicators) if indicators else 0
+
+                # Zero rows with zero LLM keys is not a success: the file is
+                # stored, but the extraction the README demonstrates never ran.
+                # Reporting it as "complete" showed a green status over an empty
+                # indicator list, with the real cause visible only in server
+                # logs — mark the file failed so the UI says so.
+                if count == 0:
+                    from mirobody.utils.llm.config import AIConfig
+                    if not any(AIConfig.get_provider_status().values()):
+                        extraction_failed_reason = (
+                            "no LLM provider key configured — set "
+                            "OPENROUTER_API_KEY (or DASHSCOPE_API_KEY) and re-upload"
+                        )
+                        logging.warning(
+                            f"⚠️ Indicator extraction for {file_type} {file_key} produced 0 rows "
+                            f"because {extraction_failed_reason}."
+                        )
+                if not extraction_failed_reason:
+                    logging.info(
+                        f"✅ Async indicator extraction completed for {file_type}: {file_key}, "
+                        f"count: {count}"
+                    )
 
                 # Format content
                 if isinstance(llm_ret, dict) and "formatted_content" in llm_ret:
@@ -497,9 +528,10 @@ Return JSON format: {"file_name": "...", "file_abstract": "..."}"""
                 file_key=file_key,
                 formatted_raw=formatted_raw,
                 indicators_count=len(indicators) if indicators else 0,
+                failed_reason=extraction_failed_reason,
             )
 
-            logging.info(f"✅ Async indicator extraction completed for {file_type}: {file_key}")
+            logging.info(f"Async indicator extraction finished for {file_type}: {file_key}")
 
         except Exception as e:
             logging.error(f"❌ Async indicator extraction failed for {file_type} {file_key}: {e}", exc_info=True)
@@ -542,21 +574,34 @@ Return JSON format: {"file_name": "...", "file_abstract": "..."}"""
         file_key: str,
         formatted_raw: str,
         indicators_count: int,
+        failed_reason: str = "",
     ):
-        """Update th_files with indicator extraction results."""
+        """Update th_files with indicator extraction results.
+
+        `failed_reason` marks the file `status: failed` (the files API maps it
+        to `upload_status: "failed"`), so an extraction that could not run —
+        e.g. zero LLM keys — is not presented as a processed file. A later
+        successful extraction on the same file_key writes `completed`, which
+        clears an earlier failure.
+        """
         try:
             from mirobody.pulse.file_parser.services.file_db_service import FileDbService
 
+            updates = {
+                "raw": formatted_raw,
+                "indicators_count": indicators_count,
+                "processed": True,
+                "status": "failed" if failed_reason else "completed",
+            }
+            if failed_reason:
+                updates["error"] = failed_reason
+
             await FileDbService.update_file_content(
                 file_key=file_key,
-                updates={
-                    "raw": formatted_raw,
-                    "indicators_count": indicators_count,
-                    "processed": True,
-                },
+                updates=updates,
             )
 
-            logging.info(f"✅ Updated th_files indicators: {file_key}")
+            logging.info(f"Updated th_files indicators: {file_key}")
 
         except Exception as e:
             logging.warning(f"⚠️ Failed to update file indicators: {e}")

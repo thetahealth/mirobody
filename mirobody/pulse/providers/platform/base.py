@@ -161,9 +161,9 @@ class BasePullProvider(Provider):
     def _extract_theta_user_id(self, saved_data: Dict[str, Any]) -> str:
         """Extract internal system user ID from saved data.
 
-        Tries 'theta_user_id' (Theta convention) then 'app_user_id'
-        (Vital convention). Does NOT fall back to 'user_id' because
-        'user_id' means external/vendor user ID by convention.
+        Tries 'theta_user_id' (this platform's own convention) then
+        'app_user_id' (Vital convention). Does NOT fall back to 'user_id'
+        because 'user_id' means external/vendor user ID by convention.
         """
         return saved_data.get("theta_user_id", saved_data.get("app_user_id", ""))
 

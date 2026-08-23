@@ -29,24 +29,20 @@ from mirobody.pulse.file_parser.services.file_abstract_extractor import FileAbst
 
 from mirobody.pulse.file_parser.handlers.factory import FileHandlerFactory
 from mirobody.pulse.file_parser.handlers.base import FileProcessingContext
-from mirobody.pulse.file_parser.config import get_excel_processor, get_csv_processor
 
 
 class FileProcessor:
     """Main file processor service class"""
 
-    def __init__(self, excel_processor=None, csv_processor=None):
-        """
-        Initialize FileProcessor with optional excel_processor and csv_processor.
-        
-        Args:
-            excel_processor: Optional ExcelProcessor instance. If None, will try to 
-                           get from global config. If still None, Excel files will 
-                           not be supported. This allows mcp_server to inject its 
-                           own ExcelProcessor while mirobody can run without it.
-            csv_processor: Optional CSVProcessor instance. If None, will try to 
-                         get from global config. If still None, CSV files will 
-                         not be supported.
+    def __init__(self):
+        """Wire the extraction services and the handler factory.
+
+        The two optional parameters that stood here — `excel_processor` and
+        `csv_processor` — plus the `file_parser/config.py` module that stored
+        them globally, were an injection seam with no injector: both callers
+        construct `FileProcessor()` with no arguments and nothing ever called
+        the setters, so both attributes were always None. For Excel that made a
+        branch unreachable; for CSV it made the format unsupported.
         """
         # Initialize services
         self.uploader = FileUploader()
@@ -54,14 +50,7 @@ class FileProcessor:
         self.content_extractor = ContentExtractor()
         self.indicator_extractor = IndicatorExtractor()
         self.abstract_extractor = FileAbstractExtractor()
-        
-        # Excel processor is optional - use provided or get from global config
-        # This allows mcp_server to set the processor globally once during startup
-        self.excel_processor = excel_processor or get_excel_processor()
-        
-        # CSV processor is optional - use provided or get from global config
-        self.csv_processor = csv_processor or get_csv_processor()
-        
+
         # Initialize Factory with services
         self.factory = FileHandlerFactory(
             uploader=self.uploader,
@@ -69,8 +58,6 @@ class FileProcessor:
             content_extractor=self.content_extractor,
             indicator_extractor=self.indicator_extractor,
             abstract_extractor=self.abstract_extractor,
-            excel_processor=self.excel_processor,
-            csv_processor=self.csv_processor,
         )
 
     async def process_single_file(

@@ -8,11 +8,11 @@ them differently:
 * source names — the free-text device/app label a vendor reports, normalized
   so `Garmin Connect`, `garmin_connect` and `GarminConnect` are one source.
 
-Was a 369-line module called `utils` holding five `Theta*Utils` classes, of
-which three (`ThetaEncryption`, `ThetaHttpUtils`, `ThetaValidationUtils`) had
-no callers anywhere and five further methods were unreachable. Removing them
-also removed this file's `Crypto` import, which was the only thing pulling
-pycryptodome into the provider import path.
+Was a 369-line module called `utils` holding five helper classes (an
+encryption class, an HTTP-helper class, and a validation class among them), of
+which three had no callers anywhere and five further methods were
+unreachable. Removing them also removed this file's `Crypto` import, which
+was the only thing pulling pycryptodome into the provider import path.
 """
 
 import logging

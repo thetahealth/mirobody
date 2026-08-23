@@ -14,6 +14,7 @@ import logging
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, TypeVar
 from zoneinfo import ZoneInfo
+from mirobody.utils.file_types import guess_mime
 
 # Type variable for generic function return types
 T = TypeVar('T')
@@ -122,70 +123,19 @@ def extract_first_record(result: Optional[List]) -> Optional[Dict]:
 
 
 # MIME type mapping for common file extensions
-MIME_TYPE_MAP = {
-    # Images
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-    ".svg": "image/svg+xml",
-    ".ico": "image/x-icon",
-    ".bmp": "image/bmp",
-    ".tiff": "image/tiff",
-    ".tif": "image/tiff",
-    # Documents
-    ".pdf": "application/pdf",
-    ".doc": "application/msword",
-    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".xls": "application/vnd.ms-excel",
-    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ".ppt": "application/vnd.ms-powerpoint",
-    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    # Text
-    ".txt": "text/plain",
-    ".csv": "text/csv",
-    ".json": "application/json",
-    ".xml": "application/xml",
-    ".html": "text/html",
-    ".htm": "text/html",
-    ".md": "text/markdown",
-    # Audio
-    ".mp3": "audio/mpeg",
-    ".wav": "audio/wav",
-    ".ogg": "audio/ogg",
-    ".m4a": "audio/mp4",
-    ".flac": "audio/flac",
-    # Video
-    ".mp4": "video/mp4",
-    ".webm": "video/webm",
-    ".avi": "video/x-msvideo",
-    ".mov": "video/quicktime",
-    ".mkv": "video/x-matroska",
-    # Archives
-    ".zip": "application/zip",
-    ".rar": "application/vnd.rar",
-    ".7z": "application/x-7z-compressed",
-    ".tar": "application/x-tar",
-    ".gz": "application/gzip",
-}
 
 
 def get_mime_type(filename: str) -> str:
+    """MIME type for a filename, from the one shared table.
+
+    Was a 40-entry `MIME_TYPE_MAP` local to this module — the fifth
+    extension-to-MIME implementation in the project, and the one with the most
+    reach: five call sites use it to set the `content_type` stored on a file row
+    and the type handed to the model. It disagreed with what object storage had
+    already written into the object itself on `.flac`, `.m4a`, `.rar` and `.wav`,
+    so the same bytes were described two ways inside one deployment.
     """
-    Get MIME type from filename extension
-    
-    Args:
-        filename: Filename with extension
-        
-    Returns:
-        MIME type string
-    """
-    if not filename or "." not in filename:
-        return "application/octet-stream"
-    
-    ext = "." + filename.rsplit(".", 1)[-1].lower()
-    return MIME_TYPE_MAP.get(ext, "application/octet-stream")
+    return guess_mime(filename)
 
 
 def get_simple_file_type(file_type: str) -> str:

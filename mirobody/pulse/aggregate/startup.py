@@ -60,43 +60,7 @@ async def start_aggregate_indicator_scheduler(run_integration_test: bool = False
         logging.info("Derived indicator task registered successfully")
 
 
-async def stop_aggregate_indicator_scheduler():
-    """
-    Stop is handled by the unified scheduler
-    
-    This function is kept for API compatibility but doesn't need to do anything.
-    The unified scheduler will handle stopping all tasks.
-    """
-    logging.info("Aggregate indicator task will be stopped by unified scheduler")
 
 
-def get_aggregate_task_status() -> dict:
-    """
-    Get aggregate indicator task status (synchronous - scheduler info only)
-    
-    Returns:
-        Dict with task status information
-    """
-    if _aggregate_task:
-        return _aggregate_task.get_status()
-    else:
-        return {
-            "status": "not_initialized",
-            "message": "Aggregate indicator task not registered"
-        }
 
 
-async def get_aggregate_task_full_status() -> dict:
-    """
-    Get aggregate indicator task full status (async - includes cached data)
-    
-    Returns:
-        Dict with full task status including cached timestamp and stats
-    """
-    if _aggregate_task:
-        return await _aggregate_task.get_task_info()
-    else:
-        return {
-            "status": "not_initialized",
-            "message": "Aggregate indicator task not registered"
-        }

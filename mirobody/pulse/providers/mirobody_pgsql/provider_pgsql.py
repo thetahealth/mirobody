@@ -119,7 +119,11 @@ class PgsqlProvider(BasePullProvider):
             ValueError: If credentials are invalid
             RuntimeError: If connection fails
         """
-        logging.info(f"credentials: {credentials}")
+        # Do NOT log `credentials` here: connect_info carries the user's
+        # plaintext database password (encryption only happens later, in
+        # save_user_theta_provider). An earlier version logged the whole dict
+        # at INFO on every connection attempt. The host/port/database line
+        # below is all the debugging context this step needs.
 
         # Get all fields from connect_info
         connect_info = credentials.get("connect_info", {})

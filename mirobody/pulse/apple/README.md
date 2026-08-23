@@ -1,38 +1,52 @@
 # Apple Health Platform
 
-The Apple Health Platform is used to process Apple Health export data and CDA (Clinical Document Architecture) documents.
+Processes Apple Health export data, statistics batches, and CDA (Clinical
+Document Architecture) documents.
 
-## Architecture Overview
+> An earlier revision of this file described an event-driven architecture —
+> `event_providers/`, `registry.py`, `HeartRateEventProvider`, per-
+> `HKQuantityTypeIdentifier*` handlers — that does not exist in this codebase
+> and never shipped from it. Extending along that guide produced an immediate
+> `ImportError`. What follows describes the files that are actually here;
+> [docs/apple-health.md](../../../docs/apple-health.md) is the long-form
+> companion and agrees with this layout.
+
+## What is actually here
 
 ```
-Apple Platform
-├── AppleHealthPlatform      # Main platform class
-├── Providers/               # Data providers
-│   ├── AppleHealthProvider  # Apple Health data processing
-│   └── CDAProvider          # CDA document processing
-├── Event Providers/         # Event handlers
-│   ├── HeartRateEventProvider
-│   └── [Other event handlers]
-└── Database Service         # Database service
+mirobody/pulse/apple/
+├── platform.py               # AppleHealthPlatform — registers both providers,
+│                             #   post_data() drives format + store
+├── provider.py               # AppleHealthProvider (health records)
+│                             # CDAProvider (CDA documents; slug "cda")
+├── models.py                 # FlutterHealthTypeEnum, AppleHealthRecord,
+│                             #   MetaInfo, AppleHealthRequest, and
+│                             #   FLUTTER_TO_RECORD_TYPE_MAPPING (type → indicator)
+├── statistics_service.py     # /apple/statistics batches → summary records
+└── services/
+    └── database_service.py   # provider-link rows for apple_health / cda
 ```
+
+The HTTP surface lives in `mirobody/server/routers/apple_router.py`:
+
+| Endpoint | Handled by |
+| --- | --- |
+| `POST /apple/health` | `AppleHealthProvider.format_data` via `platform.post_data("apple_health", …)` |
+| `POST /apple/statistics` | `statistics_service.process_apple_health_statistics` |
+| `POST /apple/cda` | `CDAProvider.format_data` via `platform.post_data("cda", …)` |
+
+All three accept optional gzip bodies (`Content-Encoding: gzip`); the router
+caps decompressed size, because a compressed body is attacker-shaped input.
 
 ## Features
 
-- **No Authentication Required**: Apple Health receives data via API without OAuth or password authentication
-- **Event-Driven Architecture**: Uses event handlers to process different types of health data
-- **Batch Processing**: Supports batch data processing and performance optimization
+- **No authentication dance**: data arrives over the API under the caller's
+  JWT — no OAuth link step. Both providers report `LinkType.NONE`.
+- **Batch processing**: a single upload can carry many record types; inserts
+  are batched (1000 records per batch).
 
-## Usage
+## Request format (`POST /apple/health`)
 
-### 1. Upload Data via API Endpoint
-
-The Apple Health Platform provides RESTful API endpoints to receive health data:
-
-**API Endpoints**: 
-- Apple Health data: `POST /apple/health`
-- CDA document data: `POST /apple/cda`
-
-**Apple Health Data Format**:
 ```json
 {
     "request_id": "unique_request_id",
@@ -41,11 +55,11 @@ The Apple Health Platform provides RESTful API endpoints to receive health data:
     },
     "healthData": [
         {
-            "uuid": "550e8400-e29b-41d4-a716-446655440000",  // Required
-            "type": "HEART_RATE",  // Required, FlutterHealthTypeEnum
-            "dateFrom": 1705284600000,  // Millisecond timestamp
+            "uuid": "550e8400-e29b-41d4-a716-446655440000",
+            "type": "HEART_RATE",
+            "dateFrom": 1705284600000,
             "dateTo": 1705284600000,
-            "value": {"numericValue": 72},  // Required
+            "value": {"numericValue": 72},
             "unitSymbol": "bpm",
             "sourceId": "com.apple.health",
             "timezone": "Asia/Shanghai"
@@ -54,74 +68,40 @@ The Apple Health Platform provides RESTful API endpoints to receive health data:
 }
 ```
 
-**Data Validation**:
-- Uses Pydantic models for strict data validation
-- `uuid` and `type` fields are required
-- `type` must be a valid `FlutterHealthTypeEnum` value
-- Invalid data will return a 400 error
+- Pydantic-validated; `uuid` and `type` are required, `type` must be a
+  `FlutterHealthTypeEnum` value; invalid data returns 400.
+- `type` maps to a standard indicator through
+  `FLUTTER_TO_RECORD_TYPE_MAPPING` in `models.py` — 50+ types across vital
+  signs, activity, body measurements, sleep and nutrition; sleep stages map
+  to the dedicated `StandardIndicator` sleep types.
 
-**Data Type Mapping**:
-- The `type` field (FlutterHealthTypeEnum) in Apple Health data is automatically mapped to standard indicators
-- Supports 50+ health data types, including vital signs, activity & fitness, body measurements, sleep, nutrition, etc.
-- Sleep data is specially mapped to StandardIndicator sleep types
-- For detailed mapping relationships, refer to `FLUTTER_TO_RECORD_TYPE_MAPPING` in `models.py`
+## Data flow
 
-**Features**:
-- Supports gzip compression (add `Content-Encoding: gzip` header)
-- Batch data processing (1000 records per batch)
-- Asynchronous task processing
-- Performance optimizations:
-  - Timezone caching to avoid repeated ZoneInfo object creation
-  - Direct use of Pydantic object properties to avoid model_dump()
-  - Reduced logging calls to improve processing speed
+1. The router parses (and, if needed, size-capped-decompresses) the body.
+2. `platform_manager.get_platform("apple").post_data(provider_slug, …)` looks
+   up the provider — both `apple_health` and `cda` are registered in
+   `AppleHealthPlatform._register_built_in_providers` (the CDA registration
+   was once missing, which made `/apple/cda` permanently answer
+   `{"success": false}`; `test_provider_registration.py` pins it now).
+3. The provider's `format_data` returns `StandardPulseData`.
+4. `VitalHealthService.process_standard_data` stores the records; unit
+   conversion happens on that shared ingest path
+   (see [`../standardize/README.md`](../standardize/README.md)).
 
-### 2. Supported Data Types
+## Extending to a new data type
 
-Currently implemented event handlers:
-- **Heart Rate Data** (HeartRateEventProvider)
-  - `HKQuantityTypeIdentifierHeartRate`
-  - `HKQuantityTypeIdentifierRestingHeartRate`
-  - `HKQuantityTypeIdentifierWalkingHeartRateAverage`
+There is no handler registry to extend. To accept a new Apple Health type:
 
-For data types without specific handlers, a generic processing method will be used.
+1. Add the member to `FlutterHealthTypeEnum` in `models.py`.
+2. Map it in `FLUTTER_TO_RECORD_TYPE_MAPPING` to a `StandardIndicator`
+   (add the indicator to the catalogue first if it is new — see
+   `../standardize/indicators_info.py`).
+3. If the value shape is unusual, teach
+   `AppleHealthProvider._extract_value` about it in `provider.py`.
 
-### 3. Extending New Data Types
+## Important notes
 
-Create a new event handler:
-
-```python
-# apple/event_providers/your_type.py
-from .base import BaseAppleEventProvider
-from ...ingest.models.requests import StandardPulseRecord
-
-class YourTypeEventProvider(BaseAppleEventProvider):
-    @property
-    def supported_data_types(self) -> List[str]:
-        return ["HKQuantityTypeIdentifierYourType"]
-    
-    async def format_records(self, raw_records, user_id):
-        # Implement data formatting logic
-        pass
-```
-
-Then register in `registry.py`:
-
-```python
-def _auto_register_providers(self):
-    # ...
-    self.register_provider(YourTypeEventProvider())
-```
-
-## Data Flow
-
-1. Client sends Apple Health data via API
-2. Platform receives and parses the data
-3. Dispatches to corresponding event handler based on data type
-4. Event handler formats data into `StandardPulseRecord`
-5. Calls `VitalHealthService` to store data into `series_data` table
-
-## Important Notes
-
-- Apple Health data uses ISO time format with timezone information
-- All data is ultimately converted to standard `StandardPulseData` format
-- Supports batch data processing, a single upload can contain multiple data types
+- Timestamps arrive as millisecond epochs plus an explicit timezone;
+  everything is converted to standard `StandardPulseData` on the way in.
+- ZoneInfo objects are cached per timezone string — the hot path avoids
+  re-parsing on every record.
