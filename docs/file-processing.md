@@ -43,6 +43,12 @@ This module provides comprehensive health data file processing capabilities, inc
 | Images | `image/*` | `ImageHandler` | Supports JPEG, PNG, GIF, WebP; recognizes health reports and extracts indicators |
 | Audio | `audio/*` | `AudioHandler` | Speech-to-text conversion for extracting verbal health information |
 | Genetic Data | Specific formats | `GeneticHandler` | Genetic test report parsing |
+| Text | `text/*` | `TextHandler` | `.txt`, `.md`, `.csv`, `.json`, `.xml`, `.html`, `.log` — decoded directly, same extraction path as PDF |
+| Excel | `application/vnd.ms-excel`, OOXML | `ExcelHandler` | `.xlsx`, `.xls`, `.xlsm`, `.xlsb` via pandas/openpyxl, converted to text then extracted |
+
+The routing table itself lives in `mirobody/utils/file_types.py`, so this list
+can lag it — when in doubt, that module is the contract (it is the one place
+the handler that accepts a file and the extractor that parses it both read).
 
 ---
 
@@ -629,8 +635,10 @@ WebSocket connections receive a notification on timeout:
 
 ### 2. Batch Uploads
 
-- Limit to 10 files per upload
-- Total file size should not exceed 100MB
+- Keep uploads to a handful of files and moderate total size. (These are
+  recommendations for client behavior — the server does not currently enforce
+  a per-upload file count or total-size ceiling, so a client that ignores
+  them fails slowly rather than being rejected.)
 
 ### 3. Progress Monitoring
 
@@ -663,7 +671,7 @@ class FileUploader {
     connect() {
         return new Promise((resolve, reject) => {
             this.ws = new WebSocket(
-                `ws://localhost:18080/ws/upload-health-report?token=${this.token}`
+                `ws://localhost:18060/ws/upload-health-report?token=${this.token}`
             );
 
             this.ws.onopen = () => {
@@ -766,7 +774,7 @@ def upload_files(file_paths: list, token: str, folder: str = None) -> dict:
     Returns:
         Upload result dictionary
     """
-    url = "http://localhost:18080/files/upload"
+    url = "http://localhost:18060/files/upload"
     headers = {"Authorization": f"Bearer {token}"}
     
     files = []
@@ -804,7 +812,7 @@ def delete_files(message_id: str, file_keys: list, token: str) -> dict:
     Returns:
         Deletion result dictionary
     """
-    url = "http://localhost:18080/api/v1/data/delete-files"
+    url = "http://localhost:18060/api/v1/data/delete-files"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json"

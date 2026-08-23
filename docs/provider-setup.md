@@ -24,7 +24,7 @@ back to your server after they approve, and none of them accept `localhost` or
 plain HTTP for a registered redirect. For local development, tunnel:
 
 ```bash
-ngrok http 18080     # → https://abc123.ngrok-free.app
+ngrok http 18060     # → https://abc123.ngrok-free.app
 ```
 
 Use that hostname everywhere below, and set it as `MCP_PUBLIC_URL` in
@@ -123,7 +123,7 @@ that is an import error, and there is a regression test for it
 **2. It is offered to users.**
 
 ```bash
-curl -s http://localhost:18080/api/v1/pulse/providers | jq '.data[].slug'
+curl -s http://localhost:18060/api/v1/pulse/providers | jq '.data[].slug'
 ```
 
 **3. Link an account.** `POST /api/v1/pulse/user/providers/link` (authenticated)
@@ -131,7 +131,7 @@ returns the vendor authorisation URL; open it, approve, and the vendor sends the
 browser to your callback. On success the user's linked providers appear in:
 
 ```bash
-curl -s http://localhost:18080/api/v1/pulse/user/providers -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:18060/api/v1/pulse/user/providers -H "Authorization: Bearer $TOKEN"
 ```
 
 Unlink with `POST /api/v1/pulse/user/providers/unlink`.

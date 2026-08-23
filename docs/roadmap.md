@@ -10,202 +10,137 @@ Ordered by (value ÷ risk) within each section.
 
 ## Capability gaps
 
+### Word and PowerPoint uploads — **parsed**
+
+**Status:** done for `.docx` and `.pptx`. Legacy `.doc`/`.ppt` stay out, and that
+is the honest boundary rather than a gap.
+
+`handlers/document.py` extracts both to markdown through the same seam Excel
+uses — headings keep their level, tables keep their columns and separator row —
+and `BaseFileHandler.process` then runs indicator extraction over the result. A
+lab report saved as a Word document now gets what a lab report saved as a PDF
+gets, and the `Name-ABBREV` cells such tables are full of resolve since
+`surface_variants` learned that shape.
+
+python-docx and python-pptx read the zip-based formats only, so `.doc` and
+`.ppt` are refused at the gate instead of after the upload. The routing test
+pins both directions, and its positive control is now `.doc` — the two previous
+choices for that control (`.dwg`, then `.docx`) both stopped being refused,
+which is why it is worth keeping one.
+
 ### Reference ranges and abnormal flagging
 
-**Status:** not started. The largest functional gap in ② Standardize.
-
-Resolving `LDL cholesterol` to LOINC `13457-7` tells you *what the test is*. It
-does not tell you whether `4.2 mmol/L` is high — and that is the question a
-person actually has. LOINC itself carries no reference ranges; they vary by
-laboratory, method, age and sex, so this needs a data source and a precedence
-policy, not just code.
-
-A comparable system (`theta-smart`) resolves ranges by
+Readings are stored and charted, but nothing marks a value as outside its
+reference range — the agent reasons about "high" and "low" from the model's
+own knowledge instead of from data. One useful precedent resolves ranges by
 `condition → sex → default → union-of-all-sexes`, with that last fallback
 existing so an indicator that only has sex-stratified ranges (GGT, for example)
 still yields something usable for a user whose sex is unknown. That precedence
 chain is worth copying; the data source is the open question.
 
-Note the honesty constraint this inherits from the resolver: a wrong range is
-worse than no range. Whatever ships must be able to say "no reference range for
-this indicator" rather than guessing one.
+### Names a report prints that the resolver does not know
 
-### Unit conversion — **done**
+**Status:** the shape gaps are closed; four corpus gaps remain.
 
-**Status:** shipped in `indicator/fhir/units/convert.py`. Kept here because two
-of the traps it walked into are worth not rediscovering.
+Running `mirobody parse` over the shipped demo report — the file the README tells
+a new user to upload — produced **12 readings and 0 resolved codes**. It is 8/12
+now, and the remaining four are a different kind of missing.
 
-Three tiers: same-dimension UCUM parsing, a molar-mass bridge keyed by LOINC
-code for mass↔substance, and an explicit refusal for everything else.
+Closed:
 
-The trap this entry originally missed: **do not use `unit_family()` to decide
-convertibility.** It is a LOINC PROPERTY classifier and it is wrong in both
-directions — `kg/m2` (BMI) and `mg/dL` are both `MCnc` and cannot convert, while
-`U/L` (`CCnc`) and `[IU]/L` (`ACnc`) are in different families and are the same
-unit. The MCP tool's own docstring asserted the family rule, so a model
-following it would have turned a BMI of 24 into a mass concentration. Dimension
-signatures reject the first and accept the second by construction.
+* **Surface.** The extractor emits `Name-ABBREV` ("Total Cholesterol-TC").
+  `surface_variants` offers the hyphen-stripped spelling as an additional
+  variant — additive, the term as written still tried first, bounded so
+  `High-Density Lipoprotein` and `25-Hydroxyvitamin D3` are untouched.
+* **Vocabulary.** Thirteen override rows with their coverage cases: six that were
+  WRONG answers inverting the reading (`HDL` → "Cholesterol non HDL", `LDL` and
+  `低密度脂蛋白` → an LDL/HDL *ratio*, `高密度脂蛋白` → Lipoprotein.alpha), and
+  seven misses the report actually prints (`Blood Glucose`,
+  `Cholesterol/HDL Ratio`, `LDL/HDL Ratio`, `Lipid-Free Fatty Acids`,
+  `Lipid-Phospholipids`, `Non-HDL Cholesterol-Non-HDL`,
+  `Lipid-Low-Density Lipoprotein Calculated`). Benchmark 197 → 211.
 
-The affine-unit warning above stands and is honoured by omission: `Cel` has no
-offset declared, so it parses to `None` and converts only to itself.
+Open, and NOT alias gaps — the shipped lexical bundle has no key for these
+analytes at all, so an override row would have nothing to point at:
 
-Three conventions are written into `MOLAR_MASS` because they will otherwise be
-got wrong: triglyceride uses a CONVENTIONAL average mass (triolein ≈ 885.4, not
-a determinate molecule), BUN is reported as nitrogen while urea is the whole
-molecule (2.14x apart, one row each, never shared), and conversion happens only
-WITHIN one code — across codes is concept mapping.
+| term | what it needs |
+| --- | --- |
+| `Postprandial Blood Glucose-PBG` | a 2-hour post-meal glucose code |
+| `Lipid-Oxidized Low-Density Lipoprotein` | oxidized LDL |
+| `Lipid-Small Dense Low-Density Lipoprotein Cholesterol` | sdLDL-C |
+| `Lipid-Low-Density Lipoprotein Particle Number` | LDL-P — a particle COUNT, not LDL-C. The nearest reachable code, 43727-7, is `Lipoprotein.beta.subparticle.small`, which is a different measurement; mapping to it would be a wrong answer of exactly the kind the six above were |
 
-### Japanese coverage: the data is there, the wrong data is there
-
-**Status:** not started, and deliberately NOT the obvious fix.
-
-`res/aliases_src/ja.tsv` is 16,809 rows and 715 KB, and **16,300 of them resolve
-to nothing at all** — not "nothing in LOINC", nothing. Its right-hand side is
-overwhelmingly SNOMED-shaped: `Jaagsiekte sheep retrovirus`,
-`Ornithine transcarbamoylase deficiency`, `Abiotrophia defectiva endocarditis`.
-Diseases and organisms, not observations, so the observation index has no key for
-them.
-
-**Cleaning up that file is not the fix, and was measured before being rejected:**
-
-- Size: 715 KB of a 24.4 MB wheel — 3.0%.
-- Memory: ~2.1 MB of the resolver's ~484 MB resident — 0.4%.
-- Correctness: the plausible mechanism was shadowing. `_alias_source_files`
-  reads ja.tsv BEFORE zh.tsv and the loader uses `setdefault`, so a shared kanji
-  term takes ja's target. Measured: 25 shared keys, 10 with differing targets,
-  and 5 of those 10 already resolve correctly anyway via the raw-index fallback
-  (including `胆汁酸` → 14628-2, the only real analyte among them). The
-  remaining 5 are conditions and procedures — 交換輸血, 幹細胞移植, 肝細胞癌,
-  脊柱腫瘤, 膀胱腫瘤 — whose "recovered" codes would be a risk score and an
-  aneuploidy panel. Recovering them would be a regression in spirit.
-- Cost: the generator reads LOINC linguistic-variant sources that are **not in
-  this repo**, so the change could be neither run nor verified here.
-
-So the 16,300 rows are inert, not harmful, and the real gap is elsewhere: a spot
-check of the everyday 健康診断 panel resolves **20 of 24**, and the misses were
-specific words, not a shortage of data. `ja_curated.tsv` — the hand-written file
-that takes precedence over the machine-generated one — has **4 rows**, all
-header placeholder, against `zh_curated.tsv`'s 633.
-
-The work is therefore curation, not cleanup: resolve a 健康診断 term, find the
-miss, add a row to `ja_curated.tsv` or `resolver_overrides.tsv`, add a case to
-`test_engine_coverage.py`. Same loop as the 中文 rows that took coverage from
-32/94 to 176/176. If the machine-generated file is ever regenerated, filter it
-by LOINC CLASS at generation time so observations survive and conditions do not.
-
-### Uploads accept archives that nothing can parse
-
-**Status:** not started, small, and a one-line decision either way.
-
-`SUPPORTED_EXTENSIONS` admits `.zip` and `.rar`. `FileHandlerFactory.get_handler`
-dispatches to exactly seven handlers — genetic, image, PDF, audio, text, Excel,
-CSV — and `return None` for everything else. So an archive uploads, validates,
-lands in the object store and in `th_files`, and is never parsed: no indicators,
-no extracted text, and nothing in the UI saying why.
-
-Found while auditing the README's countable claims, which said "8 file formats"
-and listed archives as one of them. There are 7 handlers and archives are not
-among them; the README is corrected.
-
-Either extract archives into their members and re-dispatch each one (the useful
-version — a 健檢 PDF bundle arrives zipped often enough), or drop the two
-extensions so the upload is refused at the door with a message. Silently storing
-a file the pipeline cannot read is the one option that should not survive.
-
-### `resolved=True` with no code: a contract the resolver breaks 9.6% of the time
-
-**Status:** not started. The one-line fix is safe; the useful part is not.
-
-`resolve("eGFR")` returns `resolved=True`, `method="lexical"`, canonical
-*"Glomerular filtration rate [Volume Rate/Area] ... (MDRD)/1.73 sq M"* — and
-`loinc=""`. A caller who branches on `.resolved`, which is what the field is
-for, gets a truthy answer holding no identity.
-
-Measured over a uniform 30,000-key sample of the 921,172-key alias index:
-**2,888 of the 30,000 resolve this way — 9.6%.** Every one has the same cause,
-and it is not a shortage of data:
-
-```
-what the trap is made of (n=2,888)
-  2,888   the matched LONG_COMMON_NAME is not in the ACTIVE axis at all
-```
-
-`_pick` chooses a display name from the wider name table, and the code lookup
-then runs against the ACTIVE-filtered axis. When the winning name belongs to a
-DEPRECATED row the name survives and the code does not. Most of the 2,888 say so
-in their own text — *"Deprecated Oat IgG Ab RAST class"*, *"Deprecated JWH-018
-butanol metabolite/Creatinine"* — so for those, withholding the code is right
-and only `resolved` is lying.
-
-**The damaging subset is the clinical terms that land in it.** `eGFR` is on
-every metabolic panel printed anywhere, and its best name match happens to be a
-retired MDRD row.
-
-**The naive fix was prototyped and rejected.** Make `_pick` skip-aware: when the
-top-ranked name has no ACTIVE code, walk down the ranking. It improved `血常规`
-(→ 57021-8, a CBC panel — correct) and it sent **`eGFR` → 107231-3, *Natriuretic
-peptide B*** — BNP, a cardiac marker, for a kidney-function term. Walking the
-ranking crosses analyte boundaries silently, which is the exact failure this
-project scores as worse than silence.
-
-So the work splits into two independent pieces, and the second is the real one:
-
-1. **Make the field honest.** `resolved` should be `bool(loinc)`. This cannot
-   regress a correct answer — it only stops a codeless one from claiming to be
-   one — and it converts 2,888 confident non-answers per 30,000 into honest
-   misses. Do this first and separately.
-2. **Curate the clinical terms it exposes.** Once `eGFR` reports as a miss it
-   joins the same loop every other gap uses: one row in
-   `resolver_overrides.tsv`, one case in `test_engine_coverage.py`. `eGFR` needs
-   a target that is an alias key AND has an active code; the four obvious
-   spellings (`GFR/1.73 sq M.predicted`, `estimated glomerular filtration rate`,
-   …) are not alias keys, so this one needs a `zh_curated`/`en_curated` row
-   rather than an override redirect.
-
-### A parenthetical that NARROWS its stem is not a contradiction
-
-**Status:** blocked on data we do not ship, and documented so it is not
-"fixed" by accident.
-
-`名称(缩写)` where the halves disagree must refuse — `血糖(HbA1c)` is glucose
-outside and HbA1c inside, and preferring either half files a reading into the
-wrong series. That rule is pinned in `test_engine_coverage.py` and it is right.
-
-`血压(收缩压)` has the same *shape* and is not the same case. The parenthetical
-narrows the stem: the stem is the BP panel (85354-9) and the parenthetical is
-one of its two members (8480-6). 8480-6 is the defensible answer, and today the
-term refuses.
-
-Telling the two apart needs one fact: **is the parenthetical's code a child of
-the stem's panel?** LOINC answers it, in the panel-hierarchy file
-(`LOINC/AccessoryFiles/MultiAxialHierarchy`), which is not in the shipped
-bundle — `loinc_axis.csv` carries the six axes and no membership. Without it the
-only implementable rule is "prefer the parenthetical", which is precisely what
-breaks `血糖(HbA1c)`.
-
-Two ways forward, in preference order: ship the parent/child pairs for the
-panels the resolver actually answers (a few hundred rows, not the whole
-hierarchy), or hand-list the narrowing pairs in `resolver_overrides.tsv` the way
-every other curated fact in this repo is handled. Do not implement it by
-guessing from string containment — `收缩压` contains `压` and so does everything
-else in the vicinity.
-
-### LLM behaviour tests for `mirobody parse`
-
-**Status:** not started. `parse` has **zero** tests that exercise a real model.
-
-The extraction prompt in `mirobody/engine.py` can drift silently on a prompt
-edit or a model upgrade, and nothing would fail. The pattern worth copying
-asserts *structural invariants* rather than golden output — e.g. an ECG page
-must collapse to one row and must never be split into per-measurement rows; a
-sparse note must not sprout history sections the document never contained.
-
-Gate them behind the existing `needs_llm` marker so they stay out of the default
-suite (they cost money), and run them after prompt or model changes.
-
----
+Closing these means adding the terms to `aliases_src/*_curated.tsv` and
+rebuilding the bundle, not editing `resolver_overrides.tsv`.
 
 ## Structural work
+
+### The corpus build pipeline — **tried splitting it out, reverted**
+
+**Status:** reverted. It stays in `mirobody/indicator/`. What is left open is the
+duplication the attempt exposed.
+
+`mirobody/indicator/` is 28,841 lines and the shipped resolver imports ~6.7k of
+them; the rest is the pipeline that turns licensed source files into
+`mirobody/res/`. That looked like an obvious split — the `[indicator-build]`
+extra already named its four dependencies — so it was done: 35 modules to an
+`indicator_build/` tree at the repo root, kept out of the wheel by
+`packages.find`, with a static boundary test and a `check_wheel_data` gate.
+
+Then it was measured, and the measurements did not support it:
+
+| claim | measured |
+| --- | --- |
+| gets 22k lines out of the artifact | wheel 24,503,731 → 24,150,062 bytes = **1.4%**. The wheel is 24 MB of LOINC data; the Python is noise. |
+| a clean boundary | leaked: 46 lines of `cmd_*` still shipped inside the package, and the build tree imported back into `mirobody.indicator` at 59 sites |
+| separates two codebases | 1 identical 8-line block across the two trees — so no copy-paste — but two *parallel implementations*, both older than the split |
+
+The third row is why it was reverted rather than patched. The real duplication is:
+
+* `concept_graph.py` and `taxonomy.py` — opening docstrings identical word for
+  word except the noun ("Integer-ID concept graph / taxonomy: build, serialise,
+  load, and query. Domain-specific subclasses override … The binary format,
+  serialisation, and query API live here."), the same `XBuilder(load_*, load_*,
+  build, _save)` + `X(get, _load_bin, …, stats)` pair, the same path-keyed cache
+  policy, 17–50% line-level similarity. One design written twice.
+* `fhir/adapter.py:resolve_many` (141 lines) against
+  `fhir/resolve/pipeline.py:resolve_many` (421 lines) — two answers to "resolve
+  these terms". `engine.py` documents this one as deliberate, and it may stay
+  deliberate, but it is two implementations either way.
+
+Both pairs pre-date the split (checked at `6c1787d`). Putting them on opposite
+sides of a package boundary makes merging them harder, not easier — and a
+1.4% artifact win does not pay for that. **Integrate first; split later, if ever.**
+
+### The `concept_graph` / `taxonomy` duplication — **resolved by deletion**
+
+**Status:** done. `taxonomy.py` and `fhir/taxonomy.py` are gone, 643 lines and a
+183 KB artifact with them.
+
+Unifying the two into one abstraction was the obvious move and would have been
+wrong. `Taxonomy`, the reader half, had **zero importers** — checked by import
+graph rather than by grep, because `\bget\b` and `\blabel\b` match unrelated
+words all over this package and the grep version of this check reported dozens of
+false hits. `TaxonomyBuilder` and `Label` had exactly one importer each
+(`fhir/taxonomy.py`, the build path), so the whole chain was a build step writing
+`fhir_taxonomy.bin` that nothing in the repo opened. The file was already
+excluded from the wheel by `build_backend.py` and asserted absent by
+`check_wheel_data.py`; the only thing that named it as an input was
+`indicator/README.md`, which claimed a consumer — "`Taxonomy.get` (FHIR API
+category view)" — that does not exist here. Our own README is not evidence.
+
+So the duplicated design is gone rather than merged: half of it was dead.
+
+The remaining pair is deliberate and stays. `fhir/adapter.py:resolve_many` (141
+lines) is the lite lexical path that ships; `fhir/resolve/pipeline.py:resolve_many`
+(421 lines) is the v2 semantic pipeline, which needs a ~200 MB embedding matrix
+that is not distributed. `engine.py`'s module docstring already states which one
+it is and why the other is not it.
+
+The split attempt also left two real fixes behind: the architecture tree in
+`indicator/README.md` was naming a `fhir/test.py` that does not exist, and listed
+4 of the package's 12 top-level modules. Both corrected.
+
 
 ### `pulse/vendor/` — deleted, archived on a branch
 
@@ -240,24 +175,29 @@ an explicit migration: it is irreversible for anyone holding data.
 
 ### `pulse/` internal layout
 
-**Status:** proposed, awaiting a decision.
+**Status:** the readable half is done; the moves are not proposed any more.
 
-Renaming `pulse/` to `vendor/` was considered and rejected on measurement: only
-36% of the package is external-source integration. `core/` (aggregation,
-insights, monitoring) is 41% and `file_parser/` is 31%. Naming the whole package
-after one third of it would recreate the name/content mismatch this repo has
-been removing.
+Renaming `pulse/` to `vendor/` was considered and rejected on measurement, and
+the measurement has since changed: with `insight/` and `monitor/` deleted, the
+package is ~30.5k lines of which external-source integration is `providers/`
+(~6.4k) + `apple/` (~1.2k) + `file_parser/` (~8.5k), the pipeline is `ingest/` +
+`standardize/` + `aggregate/` (~10.8k), and `core/` is down from 41% to ~8%.
+Naming the whole package after one part of it would recreate the name/content
+mismatch this repo has been removing, so the rejection stands.
 
-The alternative is to make the mental model readable *inside* `pulse/` without
-renaming it:
+What was actually wrong was legibility, not the names. The directory listing
+sorts `aggregate/` before `providers/`, so the tree shows the pipeline in an
+order it does not run in, and nothing said which directories are sources, which
+are stages, and which are the floor they stand on. `pulse/__init__.py` and
+`pulse/README.md` now both state that in flow order — sources, convergence,
+meaning, rollups, with `core/` marked as infrastructure rather than a stage.
+Sizes are given rounded (`~6.4k`), because an exact count in prose is stale the
+week after it is written and the number is there to show proportion.
 
-```
-pulse/
-├── vendor/   ① every external source (devices, platforms, EHR, Apple)
-├── files/    ← file_parser, promoted to a sibling: a file is a source too
-├── core/     processing: standardize → daily rollups → insights
-└── ingest/  the single entry point, StandardPulseData
-```
+That was the whole benefit. Moving `file_parser/` to a `files/` sibling and
+grouping the rest under `vendor/` would churn every import path in the package
+to communicate what two paragraphs now communicate, so it is not carried here as
+pending work.
 
 ### `[server]` extra — finish the dependency split
 
@@ -311,46 +251,136 @@ Blocking concerns:
 
 Do it on its own branch so it can be reverted independently.
 
-### Sharing: one write path for `th_share_relationship`
+### Sharing: rebuilt as care circles — **done**
 
-**Status:** the file split landed; the duplicate write did not.
+**Status:** done. `th_share_relationship`, `th_share_user_config` and
+`th_share_permission_type` are dropped; `care_circles` + `care_circle_members`
+replace all three.
 
-`server/routers/user_router.py` builds a "virtual user" and INSERTs into
-`th_share_relationship` with its own ad hoc SQL and its own default-permission
-literal (`{"all": 2}`) — the same table `SharingService` owns, never calling
-into it. Two writers, two notions of the default permission, on a table that
-decides who can read whose health data.
+The old entry here asked for "one write path" for a table that had four. The
+table was the problem. `permissions jsonb DEFAULT '{"all": 1}'` is
+read-everything, on by default, chosen by the other party — and
+`docs/images/your-care-circle.svg`, the diagram the README embeds, promises the
+opposite in four places: "acceptance required to join", "health stays off until
+you allow it", "your switch — off by default", "mutual — each member controls
+their own". The shipped code contradicted the picture on every one.
 
-Not folded in with the split because the split was provably behaviour-neutral
-(the OpenAPI schema is byte-identical) and this is not: it changes which code
-path a live sharing write takes. It needs a test against a real database
-first, and there is currently no integration coverage of either path.
+`care_circle_members.health_access` (0 none / 1 read / 2 read-write) is that
+switch: on your own row, about your own record, `DEFAULT 0`, and no other party's
+action can raise it. `POST /invitation/health-access` is the endpoint for it —
+there was none before, because the concept did not exist.
 
-### `user/`: two database access layers, undocumented
+Also fixed, each of which was its own defect:
 
-`sharing.py` and `account_merge.py` use `utils/db.py`'s SQLAlchemy-backed
-`execute_query()` with `:named` params; `user.py`, `webauthn.py`,
-`user_service.py` takes a raw `psycopg_pool` connection and
-hand-roll `cur.execute(...)` with `%s`. The same table is queried both ways —
-`health_app_user` at `sharing.py:251` and `user.py:327`.
+* **Denial raises.** `get_query_user_id` returned `{"success": False, …}`; eleven
+  callers each had to remember to read that key. `CareCircleDenied` cannot be
+  mistaken for success, and one handler in `server.py` turns it into a 403 so a
+  route that forgets costs a status code rather than a health record.
+* **The parameters mean what they are named.** That function's first parameter
+  was named `user_id` and documented as "the data owner", and every one of its
+  call sites passed the TARGET there and the caller second, because the SQL
+  required it. Its return value was then ignored.
+* **The grant is trimmed to the request.** `require_write=False` on a read-write
+  membership returns read.
+* **`status`** is a SMALLINT with a CHECK, not a varchar whose default
+  (`'pending'`) was never the value that authorized anything (`'authorized'`).
+* **Real foreign keys** to `health_app_user(id)`, integer to integer. The old
+  table held `VARCHAR(50)` ids against an `INTEGER` primary key with no FK, and
+  the live database had a soft-deleted account sitting in a circle.
+* **Nicknames** are one label per member on the membership row, which is what the
+  diagram shows ("mom", "dad"). `th_share_user_config` keyed them by
+  (setter, target, context) — one per viewer — with a `context` column nothing
+  ever set to anything but `'default'`, and it needed three endpoints.
 
-This is most likely deliberate (multi-statement transactions need the raw
-pool) but nothing says so, so the next person picks one by coin flip. Wants
-one paragraph stating the rule, and a single `get_user_by_id()` instead of the
-query being retyped in four places.
+Seventeen `/invitation/*` endpoints became seven. The seventeen were a symptom of
+the directed model: every operation needed a "by me" and a "with me" copy. The
+web client calls exactly two of them (`shared-by-me/list`, `shared-by-me/remove`,
+from a grep of `frontend/assets/*.js`), and both keep their paths and field names
+— `status: "authorized"`, `share_id`, `query_user_id` — mapped at the router from
+the integers the table stores. The wire stayed; the storage got fixed.
 
-### Three independent "what type is this file" implementations
+Verified against a live database end to end: pending is denied, accepted with the
+switch off is denied, the owner's switch opens read but not write, the reverse
+direction stays closed until that member sets their own switch, a plain member
+cannot administer, removal revokes, re-invitation after removal works. Migration
+of the dev database's 5 rows produced 1 circle, the owner at `health_access = 1`,
+5 members at 0, and dropped the old tables. All three client-facing endpoints
+answered over HTTP with a real token, including `/api/beneficiary-users`, which
+is the one call the README's demo turns on.
 
-`utils/file_types.py:get_file_type` (extension → tag), `utils/s3.py:get_content_type` (8-entry if/elif ladder), and
-`config/storage/abstract.py` (magic-byte sniffing plus stdlib `mimetypes`).
-They disagree: the S3 one returns `application/octet-stream` for anything
-outside its 8 extensions, where `mimetypes` resolves many correctly.
+### `user/`: two database access layers — **one rule, one query**
 
-`AbstractStorage`'s pair is the one to keep. Deferred because changing which
-content-type a file is stored with is a live behaviour change — it affects
-what S3 serves and how a browser renders an existing object — and it deserves
-its own before/after over real uploaded files rather than being folded into a
-cleanup commit.
+**Status:** done.
+
+The previous version of this entry guessed the split was deliberate: "most
+likely multi-statement transactions need the raw pool". Measured, that is true
+of three functions and false everywhere else. `execute_query` runs ONE statement
+inside its own `engine.begin()`, so anything that must commit together cannot
+use it — `add_or_get_user` (SELECT then INSERT-or-UPDATE), `del_user` (two
+tables), `account_merge` (an explicit `conn.transaction()`). Every other
+raw-pool site was a single SELECT that took an injected `AsyncConnectionPool` to
+run it: `webauthn._is_mfa_enabled` fetched one boolean that way. The rule is now
+stated at the top of `user/user.py`, and it is about atomicity, not about files.
+
+The retyping was worse than this entry said: not 20 sites but 25, in `user/`,
+`server/routers/`, `pulse/core/`, `pulse/file_parser/`, `indicator/` and
+`demo/`, each with its own column list. And the cost was not the duplication.
+One of the copies — `get_user_info`, the profile the chat layer greets you with
+— had no `is_del` filter, so a deleted account still answered with its name,
+language and timezone. Twenty-five copies of a predicate is twenty-five chances
+to omit it once, and it was omitted once.
+
+`user.get_user(user_id= | email= | apple_sub=)` is the lookup: exactly one
+selector, `is_del = false` not expressible as a parameter, email normalized the
+way it is stored, string ids accepted (care-circle ids travel as VARCHAR). 19
+call sites now use it. `test_user_lookup.py` fails on a new hand-rolled read,
+with an `ALLOWED` list where every entry carries its reason — the two
+transactions, the `crypt()` password comparison that must stay in SQL, the
+find-or-create that deliberately SEES deleted rows so signing up again revives
+the account, and the demo seeder's read-back.
+
+Verified against the live database: all 13 columns exist, mixed-case email
+matches, unknown returns None — and a soft-deleted probe user became invisible
+to `get_user(user_id=)`, `get_user(email=)` and `get_user_info`, which is the
+leak this closes.
+
+### Three "what type is this file" implementations — **unified**
+
+**Status:** done. One function, `utils/file_types.guess_mime`.
+
+`utils/s3.get_content_type` (an 8-branch ladder that interpolated
+`f"application/{ext}"`), `utils/config/storage/abstract.get_content_type_from_filename`
+(bare `mimetypes`) and `agent/deep/filetype.guess_mime` (a small curated table)
+all answered the same question and disagreed. `utils/file_types` is where the
+shared one lives, because object storage and the presigned-URL helper are engine
+layer and cannot import the agent layer.
+
+The deferral in the previous version of this entry was right about the risk and
+wrong about the direction. Changing which content-type a file is stored with IS a
+live behaviour change — so it was measured first, over the 41 extensions this
+project accepts or serves:
+
+- Against this host: **0 differences.** Unifying on the curated implementation
+  changes nothing that is currently stored.
+- Against `mimetypes.MimeTypes(filenames=())` — the interpreter's built-in table
+  alone, which is what a bare container has — **13 differ, 9 of them becoming
+  `application/octet-stream`**: `.docx`, `.pptx`, `.flac`, `.m4a`, `.ogg`,
+  `.flv`, `.wmv`, `.rar`, `.aac`.
+
+So the real defect was not that the three disagreed with each other. It was that
+two of them read the answer from the machine, and `Content-Type` is written into
+the object at PUT time — making the build host part of the data. A spreadsheet
+uploaded from a laptop opened as a spreadsheet; the same upload in Docker
+downloaded as bytes. `MIME_BY_EXT` now pins every accepted-or-served extension,
+`mimetypes` is the fallback for the rest, and the legacy `x-` forms
+(`audio/x-aac`, `video/x-flv`) are kept rather than modernized to their newer
+IANA names — changing one would leave a deployment serving two content-types for
+the same extension depending on upload date.
+
+`test_content_type.py` pins all three entry points to the same answers and fails
+if an extension is added to `SUPPORTED_EXTENSIONS` or `MULTIMODAL_EXTS` without
+being pinned. Also deleted `agent/deep/backend._guess_mime`, a fourth copy with
+no callers.
 
 ### Task delivery is at-most-once, with no re-drive
 
@@ -472,7 +502,7 @@ needs its own commit and characterisation test):
 * "Strip a ```json fence, then json.loads" exists 5 times, unshared.
 * Filename → MIME lookup is reimplemented in 4 places and **disagrees** on real
   extensions — the reason this cannot be a tidy-up.
-* `STRUCTURED_OUTPUT_PRIORITY` (`llm/utils.py`) is a hand-maintained copy of
+* `STRUCTURED_OUTPUT_PRIORITY` (`utils/llm/utils.py`) is a hand-maintained copy of
   `AIConfig._DEFAULT_PROVIDER_PRIORITY`. Worse, provider *validation* and
   provider *dispatch* consult the two different lists, so a provider can
   validate and then fail to dispatch.
@@ -569,19 +599,12 @@ Every gate so far is import-level or protocol-level. Route mounting, Agent
 Skills reaching the system prompt, the OAuth flow and a real conversation have
 never been exercised together. Needs PostgreSQL, Redis and a model key.
 
-### Re-run the sibling-codebase duplication analysis
-
-The "≈55% duplicated, ~24k lines" figures were produced by a Haiku subagent
-before the model default was corrected. Those numbers are the basis for the
-convergence recommendation, so they should be re-derived before anyone acts on
-them.
-
 ---
 
 ## Distribution and positioning
 
 - **Publish the resolver benchmark.** No public benchmark exists for
-  multilingual indicator-name → LOINC resolution. Releasing ours (175 cases,
+  multilingual indicator-name → LOINC resolution. Releasing ours (211 cases,
   scored on clinical correctness, with the 32/94 starting point stated) would
   define the metric for the category. Pairs naturally with the existing
   Hugging Face benchmark account.
@@ -689,8 +712,8 @@ reached files four ways a browser sends no `Authorization` header on — an
 `<a href>`, `window.open`, and two `<img src>` — so all four would have 401'd.
 It now fetches with the session token and renders from a blob, keeping the
 token out of the URL and forcing a non-executable MIME type (a `blob:` URL
-inherits the page origin, and `.svg` is an uploadable extension). Source in
-mirobody-web-rebuild @ 9698500; rebuilt into `frontend/`.
+inherits the page origin, and `.svg` is an uploadable extension). Already
+rebuilt into `frontend/`.
 
 
 Three remain open. None is a defect in code that exists; each is a feature that
@@ -776,3 +799,38 @@ client no longer offers a prompt picker.
   invisible in the shipped web client.** Derive the set from what is actually
   configured (`pulse/providers/installed.py` already knows which providers
   exist) and emit all of them.
+
+---
+
+## Found while recording the README walkthroughs in four languages (2026-08-23)
+
+Twenty GIFs — five scenes × four READMEs — meant driving the shipped client in
+简体中文, 繁體中文 and 日本語 rather than only English. Three defects showed up
+that no English pass could have surfaced. All three are in the **web client**,
+whose source is a separate checkout; fixing them means rebuilding the bundle,
+which is why they are recorded rather than patched here.
+
+- **A greeting that wraps is clipped and cannot be scrolled to.** The new-
+  conversation screen centres its content with `justify-center` inside a
+  `min-h-[366px]` box. In English and Chinese the greeting is one line and fits;
+  in Japanese (「こんにちは、今日は何をお手伝いしましょうか？」) it wraps to two,
+  the content becomes taller than the box, and flex centring pushes 40px above
+  the scroll container's top — where `scrollTop` is already 0, so it is
+  unreachable at any window height. Measured, not guessed: `greet.top = 111.5`
+  against `scroller.top = 152`. The fix is `justify-start` (or `margin: auto`)
+  once the content overflows.
+
+- **`Analyzing...` and `Running tool: <name>` stay English in every locale.**
+  They are the only untranslated strings in an otherwise fully localized screen,
+  and they are on screen for the whole time the agent is working — which is most
+  of what a walkthrough shows.
+
+- **The upload help text still omits Word and PowerPoint.** It lists “PDF、画像、
+  Excel/CSV、音声、テキスト/Markdown、遺伝子の生データ（txt）” — accurate before
+  `handlers/document.py`, stale now that `.docx` and `.pptx` are parsed.
+
+One finding on this side, already fixed here: the localized recordings were
+first encoded at the terminal demo's pace (0.22 s per frame), which is right for
+a typing animation and far too fast for a screenful of UI. Each localized GIF now
+holds each frame for as long as its English sibling does — 1.5 s for
+`care-circle`, 1.9 s for `upload`, 2.0 s for `ask-circle`, 1.76 s for `ask-own`.

@@ -1,0 +1,139 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>mirobody resolve</title>
+<!--
+  One frame of the README's terminal demo. `?step=N` decides how much of the
+  session is drawn, so scripts/make_demo_gifs.py can screenshot N frames with
+  headless Chrome and hand them to ffmpeg.
+
+  Columns are a CSS grid rather than monospace padding on purpose: the CJK
+  fallback font's advance is not exactly twice Menlo's, so a padded string that
+  lines up in a real terminal does not line up in a browser. The grid is what
+  makes both true at once.
+
+  Every code and canonical name below is the real output of
+      mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン "空腹血糖(GLU)" 血脂
+  captured 2026-08-22. Regenerate rather than edit by hand.
+-->
+<style>
+  :root {
+    --bg: #0d1117; --chrome: #161b22; --edge: #30363d;
+    --fg: #e6edf3; --dim: #8b949e; --prompt: #7ee787;
+    --code: #79c0ff; --name: #c9d1d9; --cand: #6e7681; --miss: #ffa657;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: transparent; }
+  body {
+    font: 15px/1.62 Menlo, "Hiragino Kaku Gothic ProN", "Hiragino Sans GB",
+          "PingFang SC", monospace;
+    width: 916px;
+  }
+  /* One cell per frame, all the same height, so the strip slices evenly. */
+  .frame { height: 344px; padding: 18px; background: #f6f8fa; }
+  .win { background: var(--bg); border: 1px solid var(--edge); border-radius: 10px;
+         overflow: hidden; box-shadow: 0 8px 28px rgba(0,0,0,.45); }
+  .bar { background: var(--chrome); border-bottom: 1px solid var(--edge);
+         padding: 9px 12px; display: flex; align-items: center; gap: 7px; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .bar span { margin-left: 8px; color: var(--dim); font-size: 12px; }
+  .body { padding: 14px 16px 18px; color: var(--fg); min-height: 232px; }
+  .cmd { white-space: pre-wrap; word-break: break-word; }
+  .p { color: var(--prompt); }
+  .cur { display: inline-block; width: 8px; height: 17px; vertical-align: -3px;
+         background: var(--fg); }
+  .rows { display: grid; grid-template-columns: max-content max-content 1fr;
+          column-gap: 22px; margin-top: 12px; }
+  .rows div { padding: 1px 0; }
+  .t { color: var(--fg); }
+  .c { color: var(--code); }
+  .n { color: var(--name); }
+  .cand { color: var(--cand); }
+  .miss { color: var(--miss); grid-column: 2 / span 2; }
+  .note { color: var(--dim); margin-top: 14px; }
+  .note b { color: var(--fg); font-weight: 600; }
+</style>
+<div id="strip"></div>
+<script>
+const CMD = 'mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン "空腹血糖(GLU)" 血脂';
+const L10N = {
+  "": {
+    bar:  "mirobody — offline, no key, no network",
+    note: 'Four languages &rarr; <b>one code</b>. <span class="miss">血脂</span> is a '
+        + 'category, so it resolves to <b>nothing</b> &mdash; on purpose.',
+  },
+  "zh-CN": {
+    bar:  "mirobody — 离线，无需密钥，无需联网",
+    note: '四种语言 &rarr; <b>同一个码</b>。<span class="miss">血脂</span>是一个类别，'
+        + '所以它<b>解析不出来</b>——这是故意的。',
+  },
+  "zh-TW": {
+    bar:  "mirobody — 離線，無需金鑰，無需連網",
+    note: '四種語言 &rarr; <b>同一個碼</b>。<span class="miss">血脂</span>是一個類別，'
+        + '所以它<b>解析不出來</b>——這是故意的。',
+  },
+  "ja": {
+    bar:  "mirobody — オフライン、キー不要、ネットワーク不要",
+    note: '4つの言語 &rarr; <b>1つのコード</b>。<span class="miss">血脂</span>は'
+        + 'カテゴリなので<b>解決しない</b> —— 意図的に。',
+  },
+};
+const ROWS = [
+  ["LDL cholesterol", "LOINC 13457-7", "Cholesterol in LDL [Mass/volume] in Serum or Plasma by calculation", "[63 candidates]"],
+  ["血红蛋白",         "LOINC 718-7",   "Hemoglobin [Mass/volume] in Blood", "[72 candidates]"],
+  ["ヘモグロビン",     "LOINC 718-7",   "Hemoglobin [Mass/volume] in Blood", "[72 candidates]"],
+  ["空腹血糖(GLU)",    "LOINC 1558-6",  "Fasting glucose [Mass/volume] in Serum or Plasma", ""],
+  ["血脂",             null,            "unresolved — not in the lexical index", ""],
+];
+// Frame budget: type the command in chunks, then one row per frame, then hold.
+const TYPE_FRAMES = 7;
+const FRAMES = 13, TYPE = TYPE_FRAMES;
+const q = new URLSearchParams(location.search);
+const T = L10N[q.get("lang") || ""] || L10N[""];
+const only = q.has("step") ? [+q.get("step")] : [...Array(FRAMES).keys()];
+
+function build(step) {
+  const win = document.createElement("div"); win.className = "win";
+  win.innerHTML = `<div class="bar">
+      <i class="dot" style="background:#ff5f57"></i>
+      <i class="dot" style="background:#febc2e"></i>
+      <i class="dot" style="background:#28c840"></i>
+      <span class="barlabel"></span></div>
+    <div class="body">
+      <div class="cmd"><span class="p">$</span> <span class="cmdtext"></span><span class="cur"></span></div>
+      <div class="rows"></div>
+      <div class="note" hidden></div>
+    </div>`;
+  win.querySelector(".barlabel").textContent = T.bar;
+  win.querySelector(".note").innerHTML = T.note;
+  const typed = Math.min(step, TYPE);
+  win.querySelector(".cmdtext").textContent =
+    CMD.slice(0, Math.round(CMD.length * typed / TYPE));
+  const shown = Math.max(0, step - TYPE);
+  if (shown > 0) win.querySelector(".cur").remove();
+  const g = win.querySelector(".rows");
+  for (const [term, code, name, cand] of ROWS.slice(0, shown)) {
+    const t = document.createElement("div"); t.className = "t";
+    t.textContent = term; g.append(t);
+    if (code === null) {
+      const m = document.createElement("div"); m.className = "miss";
+      m.textContent = name; g.append(m);
+    } else {
+      const c = document.createElement("div"); c.className = "c";
+      c.textContent = code; g.append(c);
+      const n = document.createElement("div"); n.className = "n";
+      n.textContent = name;
+      if (cand) { const sp = document.createElement("span");
+        sp.className = "cand"; sp.textContent = "  " + cand; n.append(sp); }
+      g.append(n);
+    }
+  }
+  if (shown >= ROWS.length) win.querySelector(".note").hidden = false;
+  return win;
+}
+
+const strip = document.getElementById("strip");
+for (const step of only) {
+  const cell = document.createElement("div"); cell.className = "frame";
+  cell.append(build(step)); strip.append(cell);
+}
+</script>

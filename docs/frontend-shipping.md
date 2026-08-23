@@ -174,3 +174,32 @@ falls back to its `index.html`.
    `APIRouter`s attached via `include_router` (`apple`, `file`, `user`,
    `share`, `pulse`, `manage`, `invitation`). A deployment setting
    `HTTP_URI_PREFIX` gets a half-prefixed API.
+5. **Google Fonts CDN is the frontend's one external runtime dependency**
+   (recorded 2026-08-23). `frontend/index.html` links stylesheets from
+   `fonts.googleapis.com` / `fonts.gstatic.com` (DM Sans, Poppins). On a
+   network that cannot reach Google the UI still works — the CSS font stack
+   falls back to system fonts — but the pending font requests can slow first
+   paint. A fully self-contained build should vendor the fonts; that is a
+   frontend-repo change (this repo ships build artifacts only).
+6. **Upload → delete → immediately re-upload can wedge at "uploading"**
+   (recorded 2026-08-23, reproduced once during external review). Console
+   shows `WebSocketManager :: WebSocket not connected, cannot send message`
+   ×3 with no user-visible error; a page refresh recovers. Looks like a WS
+   reconnect race in the client. Frontend-repo fix; noted here so the report
+   is not lost.
+7. **The data page renders the upload drop zone on a view-only shared
+   record** (recorded 2026-08-23). The backend now refuses the write —
+   `handle_upload_start` calls `resolve_subject(require_write=True)` on a
+   proxy upload (this was NOT true when first recorded; see the note below) —
+   so this is a UI affordance promising an action that will be denied: the
+   drop zone should be hidden or disabled when the viewed subject grants
+   view-only access. Frontend-repo fix.
+
+   > Note (2026-08-23): an earlier revision of this entry claimed the backend
+   > "refuses the write" as if that were already the case. It was not — the WS
+   > upload path took a client-supplied `query_user_id` with no authorization
+   > check at all, so any authenticated user could write a file into any
+   > record. That was a real high-severity hole, fixed in
+   > `file_upload_manager.handle_upload_start` and pinned by
+   > `mirobody/pulse/file_parser/test_upload_authz.py`. This UI item is what
+   > remains, and it is cosmetic only because the server now enforces the rule.

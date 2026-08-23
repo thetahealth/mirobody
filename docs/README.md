@@ -27,7 +27,7 @@ notes to PyPI under a filename that told open-source readers to ignore it.
 | | [testing.md](testing.md) | test layout, markers, snapshots, release gates |
 | | [aggregation-tests.md](aggregation-tests.md) | the daily-rollup test suite in detail |
 
-Start at [the Architecture section of the README](../README.md#-architecture) if you want the map rather than a
+Start at the README's **Repository layout** section ([README.md](../README.md)) if you want the map rather than a
 specific subsystem, and [roadmap.md](roadmap.md) for known gaps and deferred
 work — each entry states the measurement that motivated it.
 
@@ -40,6 +40,8 @@ Short, and about *that package only*:
 - [`mirobody/agent/`](../mirobody/agent/README.md) — ③ Answers
 - [`mirobody/agent/tools/`](../mirobody/agent/tools/README.md) — the MCP tool surface
 - [`mirobody/agent/resources/`](../mirobody/agent/resources/README.md) — ChatGPT Apps widgets
+- [`mirobody/pulse/apple/`](../mirobody/pulse/apple/README.md) — Apple Health import
+- [`mirobody/pulse/aggregate/`](../mirobody/pulse/aggregate/README.md) — daily rollups
 - [`mirobody/pulse/standardize/`](../mirobody/pulse/standardize/README.md) — health indicators, units & standardization
 - [`mirobody/schema/`](../mirobody/schema/README.md) — database schema, contract and bootstrap
 - [`mirobody/pulse/providers/`](../mirobody/pulse/providers/README.md) — provider directory layout

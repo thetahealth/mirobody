@@ -174,105 +174,81 @@ Failure response format:
 
 ## 🔧 Adding New Data Type Support
 
-### 1. Create Event Provider
+There is no per-metric provider class. One enum and one mapping, both in
+[`mirobody/pulse/apple/models.py`](../mirobody/pulse/apple/models.py), decide
+what the endpoint accepts and where a record lands.
+
+**1. Declare the type** on `FlutterHealthTypeEnum`:
 
 ```python
-# apple/event_providers/blood_pressure.py
-
-from typing import Any, Dict, List
-from ...ingest.models.requests import StandardPulseRecord
-from .base import BaseAppleEventProvider
-
-class BloodPressureEventProvider(BaseAppleEventProvider):
-    """Blood Pressure Event Provider"""
-    
-    @property
-    def supported_data_types(self) -> List[str]:
-        return [
-            "HKQuantityTypeIdentifierBloodPressureSystolic",
-            "HKQuantityTypeIdentifierBloodPressureDiastolic"
-        ]
-    
-    async def format_records(
-        self, 
-        raw_records: List[Dict[str, Any]], 
-        user_id: str
-    ) -> List[StandardPulseRecord]:
-        formatted_records = []
-        
-        for record in raw_records:
-            # Implement blood pressure data formatting logic
-            data_type = record.get("type")
-            
-            if data_type == "HKQuantityTypeIdentifierBloodPressureSystolic":
-                indicator = "blood_pressure_systolic"
-            else:
-                indicator = "blood_pressure_diastolic"
-            
-            pulse_record = StandardPulseRecord(
-                indicator=indicator,
-                value=float(record.get("value", 0)),
-                unit="mmHg",
-                timestamp=record.get("startDate"),
-                metadata={
-                    "source": "apple_health",
-                    "data_type": data_type
-                }
-            )
-            formatted_records.append(pulse_record)
-        
-        return formatted_records
+class FlutterHealthTypeEnum(str, Enum):
+    ...
+    BLOOD_PRESSURE_SYSTOLIC = "BLOOD_PRESSURE_SYSTOLIC"
 ```
 
-### 2. Register Event Provider
-
-In `apple/event_providers/registry.py`:
+**2. Map it to a standard indicator**, in the same file:
 
 ```python
-from .blood_pressure import BloodPressureEventProvider
-
-def _auto_register_providers(self):
-    # Existing registrations
-    self.register_provider(HeartRateEventProvider())
-    
-    # Add blood pressure provider
-    self.register_provider(BloodPressureEventProvider())
+FLUTTER_TO_RECORD_TYPE_MAPPING = {
+    ...
+    FlutterHealthTypeEnum.BLOOD_PRESSURE_SYSTOLIC:
+        StandardIndicator.BLOOD_PRESSURE_SYSTOLIC.value.name,
+}
 ```
 
-## 📊 Supported Apple Health Data Type Examples
+**3. If that indicator does not exist yet**, add it to `StandardIndicator` in
+[`mirobody/pulse/standardize/indicators_info.py`](../mirobody/pulse/standardize/indicators_info.py)
+with its canonical unit — see that package's
+[README](../mirobody/pulse/standardize/README.md).
 
-### Vital Signs
-- `HKQuantityTypeIdentifierHeartRate` - Heart Rate
-- `HKQuantityTypeIdentifierBloodPressureSystolic` - Systolic Blood Pressure
-- `HKQuantityTypeIdentifierBloodPressureDiastolic` - Diastolic Blood Pressure
-- `HKQuantityTypeIdentifierBodyTemperature` - Body Temperature
-- `HKQuantityTypeIdentifierRespiratoryRate` - Respiratory Rate
+Step 1 without step 2 is silent data loss, not an error. `type` validation is
+deliberately lenient, so the record is accepted and then dropped in
+`_prepare_record_optimized` with:
 
-### Body Measurements
-- `HKQuantityTypeIdentifierBodyMass` - Body Mass
-- `HKQuantityTypeIdentifierHeight` - Height
-- `HKQuantityTypeIdentifierBodyMassIndex` - BMI
-- `HKQuantityTypeIdentifierBodyFatPercentage` - Body Fat Percentage
+```
+This record will be DISCARDED. Please add mapping to
+FLUTTER_TO_RECORD_TYPE_MAPPING if needed.
+```
 
-### Activity Data
-- `HKQuantityTypeIdentifierStepCount` - Step Count
-- `HKQuantityTypeIdentifierDistanceWalkingRunning` - Walking/Running Distance
-- `HKQuantityTypeIdentifierActiveEnergyBurned` - Active Energy Burned
-- `HKQuantityTypeIdentifierBasalEnergyBurned` - Basal Energy Burned
+## 📊 What the endpoint accepts
 
-### Nutrition Data
-- `HKQuantityTypeIdentifierDietaryWater` - Water Intake
-- `HKQuantityTypeIdentifierDietaryEnergyConsumed` - Energy Consumed
-- `HKQuantityTypeIdentifierDietaryProtein` - Protein
-- `HKQuantityTypeIdentifierDietaryCarbohydrates` - Carbohydrates
+**`type` is a `FlutterHealthTypeEnum` value, not an Apple HealthKit
+identifier.** Send `HEART_RATE`, not `HKQuantityTypeIdentifierHeartRate` — no
+`HK*` string appears anywhere in this codebase, and because validation is
+lenient, sending one is accepted and then discarded exactly as above.
 
-### Sleep Data
-- `HKCategoryTypeIdentifierSleepAnalysis` - Sleep Analysis
+64 members are declared; **60 carry a mapping**:
+
+| Group | Mapped | Examples |
+| --- | --- | --- |
+| Vital signs | 10 | `HEART_RATE`, `BLOOD_PRESSURE_SYSTOLIC`, `BLOOD_OXYGEN` |
+| Renpho body-scale | 12 | `BASAL_METABOLIC_RATE`, `BODY_WATER`, `VISCERAL_FAT` |
+| Reproductive health | 11 | `BASAL_BODY_TEMPERATURE`, `MENSTRUATION_FLOW` |
+| Activity and fitness | 9 | `STEPS`, `DISTANCE_WALKING_RUNNING`, `VO2_MAX` |
+| Body measurements | 6 | `HEIGHT`, `WEIGHT`, `BODY_MASS_INDEX` |
+| Sleep | 6 | `SLEEP_IN_BED`, `SLEEP_DEEP`, `SLEEP_REM` |
+| Nutrition | 5 | `DIETARY_PROTEIN_CONSUMED`, `DIETARY_WATER` |
+| UV exposure | 1 | `UV_EXPOSURE` |
+
+This table is a summary. The mapping in the source is the only authoritative
+list, and it is one command away — so nothing here can drift into being a
+second, wrong copy of it:
+
+```bash
+python -c "from mirobody.pulse.apple.models import FLUTTER_TO_RECORD_TYPE_MAPPING as m; \
+           print(len(m)); [print(k.value) for k in m]"
+```
+
+The remaining **4 declared-but-unmapped** members — `INFREQUENT_MENSTRUAL_CYCLES`,
+`IRREGULAR_MENSTRUAL_CYCLES`, `PERSISTENT_INTERMENSTRUAL_BLEEDING`,
+`PROLONGED_MENSTRUAL_PERIODS` — have their mapping rows commented out even though
+the target `StandardIndicator` members exist. A client may legally send them and
+the records are dropped. Treat that as a known gap, not a design.
 
 ## 🔍 Debugging Tips
 
 1. **View Logs**: Logs record detailed information about data processing
-2. **Generic Processing**: Data types without specific providers will use generic processing methods
+2. **Unmapped types are dropped, not rejected**: grep the worker log for `will be DISCARDED` to see which `type` values a client is sending that `FLUTTER_TO_RECORD_TYPE_MAPPING` has no row for
 3. **Performance Optimization**: Large amounts of data will be processed in batches to improve performance
 
 ## ⚠️ Important Notes

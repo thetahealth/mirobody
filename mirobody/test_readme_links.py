@@ -5,11 +5,6 @@ each other. CONTRIBUTING says "if you rename a module, grep the `.md` files",
 which is a rule that depends on someone remembering. This is the same rule,
 enforced.
 
-It is not hypothetical rot: this repo has shipped a README documenting a CLI
-subcommand that exits with `invalid choice`, and a `pytest tests/ -m mcp`
-command for a `tests/` directory that never existed. A dead link is the same
-failure with less noise.
-
 Skipped when the repo root is not present, because the READMEs are not in the
 wheel and an installed package has nothing to check.
 """
@@ -80,3 +75,51 @@ def test_a_translated_readme_uses_its_own_diagrams(name):
     for stem in ("where-your-data-comes-from", "your-care-circle"):
         expected = f"docs/images/{stem}{lang}.svg"
         assert expected in text, f"{name} should embed {expected}"
+    # The demo GIF's terminal content is language-neutral by construction (real
+    # CLI output), but its window label and closing caption are prose, and prose
+    # in the wrong language is the same defect as an English diagram.
+    expected = f"docs/images/resolve-demo{lang}.gif"
+    assert expected in text, f"{name} should embed {expected}"
+    # The web walkthroughs are screenshots of the running app in a chosen UI
+    # language, so they localize like everything else — an English screenshot
+    # in a translated README is the same defect as an English diagram.
+    #
+    # They are recorded one at a time, though: each is a person signing in and
+    # clicking through a running stack, and the chat ones need a real
+    # conversation in that language. So the rule is "use yours if it exists":
+    # a localized recording that is present MUST be the one embedded, and a
+    # language that has not been recorded yet still passes on the English file.
+    # Adding `docs/images/<stem>.<lang>.gif` is therefore what makes this test
+    # start demanding it.
+    # All FIVE scenes: a scene absent from a translation is a silently shorter
+    # narrative — the reader of that language never learns the capability
+    # exists.
+    for stem in ("care-circle-demo", "upload-demo", "ask-circle-demo", "ask-own-demo"):
+        localized = f"docs/images/{stem}{lang}.gif"
+        if lang and (_ROOT / localized).is_file():
+            assert localized in text, (
+                f"{name} should embed {localized} — it exists, and an English "
+                f"screenshot in a translated README is what this checks for"
+            )
+        else:
+            assert f"docs/images/{stem}.gif" in text, f"{name} should embed {stem}.gif"
+
+
+# The docs site carries en and zh only. A Japanese reader therefore belongs on
+# /en/ — /zh/ would be worse than English, not better.
+_DOCS_LOCALE = {"README.md": "en", "README.zh-CN.md": "zh",
+                "README.zh-TW.md": "zh", "README.ja.md": "en"}
+_DOCS_LINK = re.compile(r"https://docs\.mirobody\.ai/([a-z-]+)/")
+
+
+@pytest.mark.parametrize("name", _READMES)
+def test_docs_links_use_the_locale_of_the_readme_they_are_in(name):
+    """A reader following a link out of the Chinese README should not land in
+    English when a Chinese page exists."""
+    text = (_ROOT / name).read_text(encoding="utf-8")
+    want = _DOCS_LOCALE[name]
+    found = set(_DOCS_LINK.findall(text))
+    assert found, f"{name} links to no documentation pages at all"
+    assert found == {want}, (
+        f"{name} should link to docs.mirobody.ai/{want}/; found {sorted(found)}"
+    )
