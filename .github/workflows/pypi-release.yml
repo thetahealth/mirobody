@@ -90,6 +90,20 @@ jobs:
         echo "MIROBODY_VERSION=$VERSION" >> $GITHUB_ENV
         echo "Setting version to $VERSION"
 
+        # A real release tag must match the version the source tree calls
+        # itself (mirobody/__init__.py, kept in step with the CHANGELOG and
+        # READMEs by the test suite) — otherwise the wheel's metadata and the
+        # package's own __version__ disagree forever. Pre-release suffixes
+        # (1.2.1-rc1) compare on their X.Y.Z prefix; timestamped 0.0.0.dev*
+        # test builds are exempt: they exist to not collide.
+        if [[ "$VERSION" != 0.0.0.dev* ]]; then
+          SOURCE_VERSION=$(python -c "import re; print(re.search(r'or \"(\d+\.\d+\.\d+)\"', open('mirobody/__init__.py').read()).group(1))")
+          if [[ "${VERSION%%-*}" != "$SOURCE_VERSION" ]]; then
+            echo "::error::Tag $VERSION does not match mirobody/__init__.py version $SOURCE_VERSION — bump the file (and CHANGELOG/READMEs) before tagging."
+            exit 1
+          fi
+        fi
+
     # Build Python package
     - name: Build package
       run: |

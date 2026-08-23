@@ -3,13 +3,9 @@
 `__all__` is the public surface: it drives `from x import *`, and readers and
 tools treat it as the answer to "what does this module offer". A name left in it
 after the symbol is deleted turns a star-import into an `AttributeError` at
-import time, and nothing else in the suite notices.
-
-That is not hypothetical — it happened on this branch. Deleting three uncalled
-classes from what is now `pulse/providers/platform/normalize.py` left them listed,
-so `from ...normalize import *` raised. A repo-wide check costs nothing and
-catches the whole class, including the lazy PEP 562 packages where `__all__` and
-the export table must agree.
+import time, and nothing else in the suite notices. A repo-wide check costs
+nothing and catches the whole class, including the lazy PEP 562 packages where
+`__all__` and the export table must agree.
 """
 
 from __future__ import annotations

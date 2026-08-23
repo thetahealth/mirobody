@@ -1,10 +1,11 @@
 # Changelog
 
-## 1.2.0 — unreleased
+## 1.2.1 — unreleased
 
 The first release in which `pip install mirobody` actually works, and the MCP
 surface is on the current protocol. There are **breaking changes to the MCP tool
-names**; see below.
+names**; see below. (1.2.0 was the working name of this release while it was
+being hardened; it was never published — the version jumps 1.0.62 → 1.2.1.)
 
 ### Upgrading from 1.0.x
 
@@ -66,6 +67,34 @@ things to know:
   a caller on Base, for whom those instructions describe a virtual filesystem,
   QuickJS and chart tools that do not exist. An agent with no configured
   templates now returns an empty list, and the response echoes `agent` back.
+
+### Added — one key, two gateways, a production switch
+
+- **One key runs everything.** Chat, vision file parsing and semantic
+  indicator search all follow whichever single key is present —
+  `OPENROUTER_API_KEY` (recommended) or `DASHSCOPE_API_KEY` (the drop-in
+  fallback for networks where openrouter.ai is unreachable). The chat default,
+  the vision provider and `EMBEDDING_PROVIDER` auto-select by available key;
+  the shipped config pins none of them.
+- **Self-hosted embeddings.** Any OpenAI-compatible provider accepts a
+  `<PROVIDER>_BASE_URL` override (e.g. `OPENROUTER_BASE_URL`), so a deployment
+  can serve the open-weights Qwen3-Embedding-8B itself and point the provider
+  at it.
+- **Explicit deployment posture.** `PRODUCTION: true` refuses to start while
+  demo login codes or `REPLACE_THIS_VALUE_IN_PRODUCTION` placeholders remain,
+  and skips the demo seed; `BOOTSTRAP_SCHEMA: false` turns off the boot-time
+  DDL replay. Environment NAMES carry no behavior — `ENV` only selects a
+  config overlay and tags log lines.
+- **Every sign-in account owns data.** The demo seed gives each predefined
+  account a thin record of its own (self-tracked vitals, one normal checkup)
+  beside the shared synthetic record, so care-circle isolation is visible on
+  screen, not just described.
+- **Honest failure surfaces.** A zero-key deployment now marks an uploaded
+  file *failed* with the missing-key reason instead of showing "processed"
+  over an empty extraction; `/api/models` lists only providers whose key
+  actually resolves; the tokenizer degrades to an estimate instead of
+  crashing the first chat on hosts that cannot reach the OpenAI CDN
+  (`TIKTOKEN_CACHE_DIR` pre-seeding is the exact-count remedy).
 
 ### Added
 
@@ -184,6 +213,40 @@ things to know:
   restatement, and maintainer war stories that now live as code comments.
 
 ### Fixed — security
+
+- **Deleting a health document did not stop the agent reading it.** Walked
+  through the UI on a running stack: upload a lab report, ask about it, delete it
+  from the Files tab, ask again — and the answer came back with all twelve
+  values. The object was gone from storage, the `th_files` row was soft-deleted
+  and the readings were cascade-deleted. Two copies were not:
+
+  - `deep_agent_workspace` scope `library`, the agent's virtual filesystem.
+    `deep/backend.py` calls `/uploads/` and `/library/` "read-only projections of
+    `th_files`", but each is its own row holding its own copy of the extracted
+    CONTENT, so the projection outlived what it projected. The table has had a
+    `deleted` column all along and nothing had ever set it.
+  - `health_user_profile_by_system.common_part` and its
+    `/memories/health_profile.md` mirror — a DERIVED summary that quotes the
+    readings verbatim ("GLU 7.5 mmol/L, FBG 7.45, PBG 9.5, HbA1c 7.2% …"). It
+    carries no `file_key`, so neither the file delete nor the reading cascade
+    reached it. This was the copy that kept answering after the first fix.
+
+  Both are now withdrawn inline with the delete the user asked for, not in the
+  background cascade: a background failure leaves the file gone from the UI and
+  still readable by the model. They are keyed differently on purpose — the
+  workspace copy belongs to whoever UPLOADED, the profile to whoever OWNS the
+  readings, and for a care-circle upload those are different people. The profile
+  is invalidated rather than repaired, because a projection of a record that
+  changed is wrong by definition and the refresh pass rebuilds it from what
+  remains.
+
+  Verified by the same walk-through: the agent now reports it searched
+  `/uploads/`, `/library/` and the indicator store and found nothing. Nine tests,
+  including one that fails if either call site is removed — the first version of
+  those tests exercised the helpers directly and stayed green with both calls
+  deleted.
+
+
 
 - **Cross-user credential leak in `resources/read`.** The widget cache was
   templated in place, so the first caller's JWT was baked into the shared
@@ -324,6 +387,18 @@ things to know:
 
 ### Removed
 
+- The `/charts` static mount, its Docker volume and `LOCAL_CHARTS_DIR`:
+  nothing has generated chart PNGs since the ChartService tools went (the
+  agent charts by writing a `vis-chart` fence the frontend renders), so the
+  mount served an eternally empty directory and logged a misleading warning.
+- The remote-config fetch (`CONFIG_SERVER` / `CONFIG_TOKEN`): it spoke a
+  proprietary config-service API nothing in this repository implements or
+  documents. Configuration is `config.yaml` + `config.{ENV}.yaml` overlays +
+  environment variables.
+- Dead configuration keys read by no code: `FILE_ANALYSIS_PROVIDER`,
+  `VITAL_API_KEY`/`VITAL_ENVIRONMENT`, `RENPHO_*`. The Oura provider's real
+  keys (`OURA_CLIENT_ID`/`OURA_CLIENT_SECRET`) gained the config slots they
+  never had.
 - ~1,100 lines of verified-dead code, each confirmed unreferenced by a
   repo-wide search including dynamic and string references: `chat/history.py`
   (whose function names shadowed the live `session.py`), `chat/mcp_loader.py`,
@@ -335,8 +410,10 @@ things to know:
 
 ### Changed
 
-- Resolver coverage on everyday panels went from 32/94 to 98/98, measured. Panel
-  names (`blood pressure`, `lipid panel`) now resolve to *nothing* rather than to
-  one arbitrary component — `blood pressure` used to return the diastolic code.
+- Resolver coverage on everyday panels went from 32/94 to 211/211, measured
+  (`test_engine_coverage.py` prints the score). Panel names resolve honestly:
+  `lipid panel` / `血脂` to *nothing* rather than to one arbitrary component,
+  and `blood pressure` to the FHIR vital-signs panel code (85354-9) rather
+  than the diastolic code it used to return.
 - The agent layer is one package: `mirobody/agent/` (was `mirobody/pub/` plus a
   top-level `mirobody/chat/`). HTTP routers moved to `mirobody/server/routers/`.
