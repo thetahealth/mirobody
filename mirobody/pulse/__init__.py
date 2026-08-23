@@ -1,9 +1,22 @@
-"""
-Pulse Module
+"""① Collect — every way a reading gets into Mirobody, and what happens next.
 
-Provides unified health data platform management architecture, supporting multiple data source platforms and providers
+Three source shapes, one convergence point, then meaning:
 
-Supports dynamic loading - providers are automatically loaded based on configuration, deleting files will take them offline
+    providers/   devices and health platforms, pulled on a schedule
+    apple/       Apple Health exports and CDA documents
+    file_parser/ a file is a source too: lab PDFs, photos, CSV, genetic raw data
+         ↓
+    ingest/      all three converge on StandardPulseData → th_series_data
+         ↓
+    standardize/ what a value MEANS: indicator catalogue, units, ranges, fhir_id
+    aggregate/   series → daily summaries and derived indicators
+
+`core/` is what those stand on, not a stage: the provider contract types, the
+scheduler, the DB base classes, the distributed lock. Sub-package sizes and
+entry points are in README.md, ordered the same way — the directory listing
+cannot show this order, since `aggregate/` sorts before `providers/`.
+
+Providers are discovered by file scan, so deleting one takes it offline.
 
 Exports resolve lazily (PEP 562). ``import mirobody.pulse`` is the ENGINE —
 it must not eagerly construct the platform singletons, and it carries no HTTP
