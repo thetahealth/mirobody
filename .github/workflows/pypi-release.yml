@@ -137,14 +137,26 @@ jobs:
     # Test package installation. `import mirobody` alone is not a test: it
     # passes on a wheel with pointer-file data. Exercise the front door the
     # README promises, from a directory that is NOT the source checkout.
+    #
+    # A FRESH venv is load-bearing here. The earlier "Install package
+    # dependencies" step did `pip install -e '.[agents,test]'` into the job's
+    # global environment, so FastAPI and langchain are already importable
+    # there — the bare-install gates below would be vacuous (and their own
+    # asserts fail) if they ran against it. The sdist step isolates for the
+    # same reason.
     - name: Test package installation
       run: |
         WHEEL="$(ls "$PWD"/dist/*.whl)"   # absolute: the checks below run from $RUNNER_TEMP
-        pip install "$WHEEL"
+        python -m venv "$RUNNER_TEMP/wheel-venv"
+        VPY="$RUNNER_TEMP/wheel-venv/bin/python"
+        VPIP="$RUNNER_TEMP/wheel-venv/bin/pip"
+        VBIN="$RUNNER_TEMP/wheel-venv/bin"
+        "$VPIP" install --quiet --upgrade pip
+        "$VPIP" install "$WHEEL"
         cd "$RUNNER_TEMP"
-        python -c "import mirobody; print(f'Version: {mirobody.__version__}')"
-        mirobody resolve "LDL cholesterol" "hemoglobin" "血糖"
-        python -c "
+        "$VPY" -c "import mirobody; print(f'Version: {mirobody.__version__}')"
+        "$VBIN/mirobody" resolve "LDL cholesterol" "hemoglobin" "血糖"
+        "$VPY" -c "
         from mirobody.engine import resolve
         r = resolve('hemoglobin')
         assert r.resolved and r.loinc, f'offline resolve is broken in the wheel: {r}'
@@ -161,7 +173,7 @@ jobs:
         # first did, it also asserted mirobody.task / mirobody.user here, which
         # cannot hold — a Redis-backed task queue and a Mandrill mailer really
         # do need [server]. Those moved to ② rather than being weakened away.
-        python -c "
+        "$VPY" -c "
         import importlib.util
         assert importlib.util.find_spec('fastapi') is None, (
             'gate is vacuous: FastAPI is installed, so this cannot prove the '
@@ -177,8 +189,8 @@ jobs:
         # see: a module-scope import of mirobody.agent.chat.* executes
         # agent/__init__, and if that __init__ is eager it drags langchain into
         # an engine import. Exactly this happened to pulse.file_parser once.
-        pip install "${WHEEL}[server]"
-        python -c "
+        "$VPIP" install "${WHEEL}[server]"
+        "$VPY" -c "
         import importlib.util
         assert importlib.util.find_spec('langchain_core') is None, (
             'gate is vacuous: langchain is installed, so this cannot prove the '
@@ -188,7 +200,6 @@ jobs:
         import mirobody.agent.chat.user_profile
         print('engine/agent boundary holds on a langchain-free [server] install')
         "
-        pip uninstall -y mirobody
 
     # Upload to TestPyPI
     - name: Publish to TestPyPI
