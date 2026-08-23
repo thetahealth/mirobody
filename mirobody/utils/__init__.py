@@ -38,7 +38,6 @@ from .db import (
     execute_query
 )
 
-from .permissions import get_query_user_id
 
 from .req_ctx import (
     get_req_ctx,

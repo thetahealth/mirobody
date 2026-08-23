@@ -154,13 +154,3 @@ def create_pull_task_for_provider(
     return task
 
 
-def get_provider_execution_config() -> Dict:
-    """Get execution configuration for all providers"""
-    return {
-        "execution_intervals": PROVIDER_EXECUTION_INTERVALS,
-        "lock_durations": PROVIDER_LOCK_DURATIONS,
-        "description": {
-            "execution_intervals": "Provider execution interval configuration (hours)",
-            "lock_durations": "Provider distributed lock duration configuration (hours)",
-        },
-    }

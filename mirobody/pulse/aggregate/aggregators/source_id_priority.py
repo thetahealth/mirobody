@@ -8,9 +8,6 @@ inflation for cumulative metrics (sleep duration, steps, calories).
 This module emits a SQL CASE expression that the aggregator uses to rank
 source_ids per (user, indicator, source); only the highest-ranked
 source_id's data is kept for aggregation.
-
-See Confluence: [TH-422] Pulse SQLAggregator Apple Health multi
-source_id aggregation bug fix.
 """
 
 from typing import List, Tuple

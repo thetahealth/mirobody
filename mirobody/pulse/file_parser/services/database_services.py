@@ -165,16 +165,12 @@ class FileParserDatabaseService:
     async def get_user_current_time_with_timezone(user_id: str) -> datetime:
         """Get current time in user's timezone, falls back to UTC"""
         try:
-            query = "SELECT tz FROM health_app_user WHERE id = :user_id AND is_del = FALSE"
-            result = await execute_query(
-                query=query,
-                params={"user_id": int(user_id)},
-            )
-            
-            first_record = extract_first_record(result)
+            from ....user.user import get_user
+
+            first_record = await get_user(user_id=user_id)
             if not first_record:
                 return get_utc_now()
-            
+
             user_tz = (first_record.get("tz") or "").strip()
             if not user_tz:
                 return get_utc_now()
@@ -466,12 +462,17 @@ class FileParserDatabaseService:
         # CSV
         if "csv" in mime_lower:
             return "csv"
-        
+
+        # Markdown / rich text — the upload dropzone advertises "text/Markdown"
+        # as accepted, so a .md upload must not render as "unknown".
+        if "markdown" in mime_lower:
+            return "text"
+
         # Default fallback based on common patterns
         if "text/plain" in mime_lower:
             # text/plain could be genetic or csv - check file extension if available
             return "genetic"  # Default to genetic for text files in this context
-        
+
         return "unknown"
 
     @staticmethod

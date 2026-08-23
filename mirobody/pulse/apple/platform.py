@@ -7,7 +7,7 @@ import logging
 
 from typing import Any, Dict, List
 
-from .provider import AppleHealthProvider
+from .provider import AppleHealthProvider, CDAProvider
 from .services.database_service import AppleDatabaseService
 from ..base import LinkRequest, Platform, ProviderInfo
 from ..core import (
@@ -54,6 +54,14 @@ class AppleHealthPlatform(Platform):
     def _register_built_in_providers(self) -> None:
         apple_provider = AppleHealthProvider(self)
         self._providers[apple_provider.info.slug] = apple_provider
+
+        # The /apple/cda endpoint routes to slug "cda". This registration was
+        # missing, so `post_data(provider_slug="cda", ...)` failed the provider
+        # lookup on EVERY request and the endpoint answered a permanent
+        # `200 {"success": false}` — total unavailability dressed up as an
+        # ordinary soft failure.
+        cda_provider = CDAProvider(self)
+        self._providers[cda_provider.info.slug] = cda_provider
 
         logging.info(f"Registered built-in providers for {self.name} platform")
 

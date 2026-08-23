@@ -32,7 +32,7 @@ class LocalStorage(AbstractStorage):
         Args:
             base_path: Base directory for file storage (default: ./.theta/mcp/upload/)
             prefix: Key prefix for all objects
-            proxy_url: Backend proxy URL for file access (e.g., http://localhost:18080/files)
+            proxy_url: Backend proxy URL for file access (e.g., http://localhost:18060/files)
         """
 
         if not base_path or not proxy_url:
@@ -114,7 +114,7 @@ class LocalStorage(AbstractStorage):
         object_key = self._build_object_key(key)
 
         if self.proxy_url:
-            # Use proxy URL: http://localhost:18080/files/uploads/file.pdf
+            # Use proxy URL: http://localhost:18060/files/uploads/file.pdf
             return f"{self.proxy_url.rstrip('/')}/{object_key}"
         else:
             # No MCP_PUBLIC_URL configured → RELATIVE URL. The comment here

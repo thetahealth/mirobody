@@ -14,7 +14,7 @@ from typing import Dict, Optional
 import pdfplumber
 from PIL import Image
 from mirobody.utils.llm import unified_file_extract
-from mirobody.utils.file_types import is_excel_file, is_text_file
+from mirobody.utils.file_types import is_document_file, is_excel_file, is_text_file
 from mirobody.pulse.file_parser.services.prompts.file_abstract_prompt import FILE_ABSTRACT_PROMPT, FALLBACK_ABSTRACT_TEMPLATES
 from mirobody.pulse.file_parser.services.prompts.file_original_text_prompt import FILE_ORIGINAL_TEXT_PROMPT
 
@@ -52,10 +52,13 @@ async def _read_original_text_cache(content_hash: str) -> Optional[str]:
     text" true.
 
     The trade-off, stated plainly: an extraction only lands in the cache if it
-    reaches a ``th_files`` row. The DeepAgent workspace parser reads this cache
-    but does not populate it (its text goes to the workspace row instead), so a
-    file the agent OCRs before the upload pipeline finishes can be OCR'd twice.
-    That is a cost, not a correctness, difference.
+    reaches a ``th_files`` row. Registration (``FileParser.prepare``) reads this
+    cache but never OCRs to populate it; the agent's own OCR runs lazily, on
+    the first ``read_file`` (``PgFilesystemBackend._lazy_extract_doc_text``),
+    and is written back into this same ``th_files`` row rather than kept apart.
+    That write happens only once the extraction finishes, so a file the agent
+    reads before the upload pipeline's own extraction lands can still be OCR'd
+    by both. That is a cost, not a correctness, difference.
 
     ``GLOBAL_FILE_CACHE_ENABLED: false`` forces fresh extraction. Deferred
     imports + broad except: extraction must keep working without a database.
@@ -685,6 +688,7 @@ Please return strictly in JSON format, do not include any markdown code block ma
             is_image = file_type == "image" or (content_type and content_type.startswith("image/"))
             is_excel = is_excel_file(filename, content_type)
             is_text = is_text_file(filename, content_type)
+            is_document = is_document_file(filename, content_type)
 
             if is_pdf:
                 text = await self._extract_pdf_original_text(file_content, filename)
@@ -692,6 +696,8 @@ Please return strictly in JSON format, do not include any markdown code block ma
                 text = await self._extract_image_original_text(file_content, filename)
             elif is_excel:
                 text = await self._extract_excel_original_text(file_content, filename)
+            elif is_document:
+                text = await self._extract_document_original_text(file_content, filename)
             elif is_text:
                 text = await self._extract_text_original_text(file_content, filename)
             else:
@@ -852,6 +858,92 @@ Please return strictly in JSON format, do not include any markdown code block ma
         except Exception as e:
             logging.error(f"❌ [Original Text] Image original text extraction failed: {filename}, error: {e}", stack_info=True)
             return ""
+
+    async def _extract_document_original_text(
+        self, file_content: bytes, filename: str
+    ) -> str:
+        """Word or PowerPoint to markdown, the same way Excel becomes a table.
+
+        Both formats used to be accepted by `file_uploader.SUPPORTED_EXTENSIONS`
+        with no handler in existence: the picker took the file, the upload ran,
+        and `file_processor` answered "file not supported" at the end. This is
+        the extraction that closes that, and it is deliberately plain — a lab
+        report saved as .docx is text and a table, not a layout problem.
+
+        Legacy binary `.doc`/`.ppt` are NOT handled: python-docx and
+        python-pptx read the zip-based formats only. They stay out of the
+        accepted set rather than failing late, which is the whole point.
+        """
+        import io
+        import time
+
+        start = time.time()
+        ext = (filename or "").rsplit(".", 1)[-1].lower()
+        parts: list[str] = []
+
+        try:
+            if ext == "docx":
+                import docx
+
+                doc = docx.Document(io.BytesIO(file_content))
+                parts.append(f"# Word Document: {filename}")
+                for para in doc.paragraphs:
+                    text = (para.text or "").strip()
+                    if text:
+                        # Heading levels carry the report's own sectioning, and
+                        # the indicator extractor downstream reads structure.
+                        style = (para.style.name or "") if para.style else ""
+                        if style.startswith("Heading"):
+                            level = style.removeprefix("Heading ").strip()
+                            hashes = "#" * (int(level) + 1 if level.isdigit() else 2)
+                            parts.append(f"{hashes} {text}")
+                        else:
+                            parts.append(text)
+                for i, table in enumerate(doc.tables, 1):
+                    parts.append(f"## Table {i}")
+                    for r, row in enumerate(table.rows):
+                        cells = [(c.text or "").strip().replace("|", "/") for c in row.cells]
+                        parts.append("| " + " | ".join(cells) + " |")
+                        if r == 0:
+                            parts.append("|" + "---|" * len(cells))
+
+            elif ext == "pptx":
+                from pptx import Presentation
+
+                deck = Presentation(io.BytesIO(file_content))
+                parts.append(f"# Presentation: {filename}")
+                for n, slide in enumerate(deck.slides, 1):
+                    parts.append(f"## Slide {n}")
+                    for shape in slide.shapes:
+                        if shape.has_text_frame:
+                            for para in shape.text_frame.paragraphs:
+                                text = "".join(r.text or "" for r in para.runs).strip()
+                                if text:
+                                    parts.append(text)
+                        if getattr(shape, "has_table", False):
+                            for r, row in enumerate(shape.table.rows):
+                                cells = [(c.text or "").strip().replace("|", "/") for c in row.cells]
+                                parts.append("| " + " | ".join(cells) + " |")
+                                if r == 0:
+                                    parts.append("|" + "---|" * len(cells))
+            else:
+                return ""
+
+        except Exception as e:
+            # Same contract as every other extractor here: a failure is a logged
+            # empty string, not an exception that fails the upload.
+            logging.warning(f"⚠️ [Original Text] {ext} extraction failed for {filename}: {e}")
+            return ""
+
+        text = "\n".join(parts).strip()
+        if len(parts) <= 1:
+            logging.info(f"ℹ️ [Original Text] {ext} file has no text: {filename}")
+            return ""
+        logging.info(
+            f"📄 [Original Text] {ext}: {filename} -> {len(text)} chars "
+            f"in {time.time() - start:.2f}s"
+        )
+        return text
 
     async def _extract_excel_original_text(self, file_content: bytes, filename: str) -> str:
         """

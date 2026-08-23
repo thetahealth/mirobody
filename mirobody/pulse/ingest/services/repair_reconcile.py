@@ -1,7 +1,7 @@
 """
 Data-repair mark-and-sweep reconcile.
 
-Backend slice of the theta-smart OpenSpec change `user-data-repair` (capability
+Backend slice of the OpenSpec change `user-data-repair` (capability
 `apple-health-repair-reconcile`). When iOS uploads a repair batch
 (`metaInfo.taskId = "repair-<uuid>"`), the existing upsert/save stamps that taskId on
 every re-confirmed row (the "mark"). This module performs the "sweep": after the save,
@@ -13,7 +13,7 @@ Window contract (epoch ms, from metaInfo): the sweep deletes ONLY within
 [windowFrom, windowTo]. If either bound is missing/invalid, the sweep is SKIPPED — the
 batch is still upserted, but nothing is deleted (keep the original, safe behavior).
 
-Sweep targets (see openspec/changes/apple-health-data-repair-reconcile):
+Sweep targets:
   - series_data (SERIES/MIX, raw sleep stages): PHYSICAL delete, then re-aggregate so
     derived th_series_data values refresh. series_data.time is naive UTC.
   - th_series_data (directly-upserted SUMMARY/MIX): reversible SOFT delete (deleted=1).

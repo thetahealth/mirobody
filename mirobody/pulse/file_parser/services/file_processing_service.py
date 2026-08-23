@@ -36,8 +36,6 @@ from mirobody.pulse.file_parser.services.file_uploader import (
 from mirobody.utils.config.storage import get_storage_client
 from mirobody.utils.audio import get_audio_duration_from_bytes
 from mirobody.utils import execute_query
-from mirobody.utils.s3 import get_content_type
-from mirobody.utils.permissions import get_query_user_id
 
 
 class FileUploadData(BaseModel):
@@ -191,6 +189,48 @@ async def process_files_async(
         logging.error(f"Concurrent async processing failed for files batch, msg_id: {msg_id}", stack_info=True)
 
 
+async def _invalidate_derived_profile(owner_id: str) -> None:
+    """Drop the health profile DERIVED from data that no longer exists.
+
+    Revoking the file copy was not enough. The profile generator writes a
+    summary into ``health_user_profile_by_system.common_part`` and mirrors the
+    detailed version to ``/memories/health_profile.md`` — and that mirror quotes
+    the readings verbatim ("GLU 7.5 mmol/L, FBG 7.45, PBG 9.5, HbA1c 7.2% ...").
+    It carries no ``file_key``, so it survived both the file delete and the
+    reading cascade.
+
+    Measured, after deleting the report through the UI: the file was gone, its
+    readings were gone, the agent's copy was revoked — and the next question
+    still came back with all twelve values, sourced from that profile.
+
+    Both derived copies are therefore invalidated here rather than repaired.
+    They are projections of the record, so once the record changes they are
+    wrong by definition; the refresh pass rebuilds them from whatever remains,
+    and until it does an ABSENT profile is the only correct state. Keyed by the
+    OWNER of the readings, which for a care-circle upload is the member, not
+    whoever uploaded the file.
+    """
+    if not owner_id:
+        return
+    try:
+        await execute_query(
+            query="""
+            UPDATE health_user_profile_by_system
+               SET is_deleted = true, last_update_time = NOW()
+             WHERE user_id = :user_id AND is_deleted = false
+            """,
+            params={"user_id": str(owner_id)},
+        )
+        # No second statement any more. `/memories/health_profile.md` used to be a
+        # COPY in deep_agent_workspace and had to be chased separately; it is now
+        # a projection that selects `is_deleted = false`, so the UPDATE above
+        # removes the agent's view of the profile as a side effect of
+        # invalidating the profile. That is the whole point of the projection.
+        logging.info(f"Invalidated derived health profile for user {owner_id}")
+    except Exception as e:
+        logging.error(f"FAILED to invalidate derived profile for {owner_id}: {e}", exc_info=True)
+
+
 async def delete_files_from_message(
     message_id: str,
     file_keys: list[str],
@@ -251,13 +291,16 @@ async def delete_files_from_message(
             db_deleted = await FileDbService.soft_delete_file(file_key, user_id)
             
             if db_deleted:
+                # Nothing to revoke any more. The agent's view of a file is a
+                # projection of THIS row (deep/files_backend.py selects
+                # `is_del = false`), so soft-deleting it here is the whole of it.
                 deleted_files.append({
                     "file_key": file_key,
                     "filename": filename,
                     "type": file_type,
                     "scene": scene,  # Pass scene for cascade delete logic
                     "status": "deleted",
-                    "storage_deleted": storage_deleted
+                    "storage_deleted": storage_deleted,
                 })
                 logging.info(f"Successfully deleted file: {file_key}")
             else:
@@ -269,6 +312,12 @@ async def delete_files_from_message(
                     "error": "Database deletion failed"
                 })
         
+        # The profile is derived from the readings the cascade is about to remove,
+        # and it quotes them. Invalidate it inline — a background failure here
+        # leaves deleted values in the model's system prompt.
+        if deleted_files:
+            await _invalidate_derived_profile(cascade_delete_user_id or user_id)
+
         # Start background cascade delete task for successfully deleted files
         # Use query_user_id (target user) for th_series_data deletion
         if deleted_files:

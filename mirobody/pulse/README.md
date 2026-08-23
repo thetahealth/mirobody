@@ -37,23 +37,35 @@ providers are discovered at startup by `ProviderPlatform._load_providers_from_di
 
 ## Subsystem Map
 
-| Subsystem | Directory | Responsibility | Entry Point |
-|-----------|-----------|---------------|-------------|
-| **Core** | `core/` | The plugin framework runtime: provider contract types, scheduler, DB base classes, push, distributed lock | `core/constants.py`, `core/models.py` |
-| **Standardize** | `standardize/` | What a value means: indicator catalogue, unit conversion, value ranges, fhir_id mapping | `standardize/indicators_info.py` |
-| **Ingest** | `ingest/` | `StandardPulseData` → DB write pipeline. Every source below converges here | `ingest/services/upload_health.py` |
-| **Aggregate** | `aggregate/` | Series data → daily summaries; derived indicators | `aggregate/service.py` |
-| **Insight** | `insight/` | Insight engine over aggregated data (recipes + LLM agents) | `insight/engine_task.py` |
-| **Monitor** | `monitor/` | Data coverage / collection monitoring | `monitor/collector_service.py` |
-| **File Parser** | `file_parser/` | Files as a data source: upload via WebSocket, parse PDF/CSV/Excel/audio/image/genetic | `file_parser/file_upload_manager.py` |
-| **Providers** | `providers/` | The live provider platform — plugin discovery, OAuth, pull scheduling | `providers/platform/platform.py` |
-| **Apple** | `apple/` | Apple Health platform + CDA processing | `apple/platform.py` |
+| Subsystem | Directory | Size | Responsibility | Entry Point |
+|-----------|-----------|------:|---------------|-------------|
+| *— where data comes from —* | | | | |
+| **Providers** | `providers/` | ~6.4k | The live provider platform — plugin discovery, OAuth, pull scheduling | `providers/platform/platform.py` |
+| **Apple** | `apple/` | ~1.2k | Apple Health platform + CDA processing | `apple/platform.py` |
+| **File Parser** | `file_parser/` | ~8.5k | Files as a data source: upload, parse PDF/CSV/Excel/audio/image/genetic | `file_parser/file_upload_manager.py` |
+| *— what happens to it —* | | | | |
+| **Ingest** | `ingest/` | ~1.1k | `StandardPulseData` → DB write. Every source above converges here | `ingest/services/upload_health.py` |
+| **Standardize** | `standardize/` | ~4.8k | What a value means: indicator catalogue, units, value ranges, fhir_id | `standardize/indicators_info.py` |
+| **Aggregate** | `aggregate/` | ~4.9k | Series data → daily summaries; derived indicators | `aggregate/service.py` |
+| *— what they all stand on —* | | | | |
+| **Core** | `core/` | ~2.5k | The plugin framework runtime: provider contract types, scheduler, DB base classes, push, distributed lock | `core/constants.py`, `core/models.py` |
+
+Read top to bottom and the table is the data flow: three source shapes, one
+convergence point, then meaning and rollups. The directory listing cannot show
+that ordering — `aggregate/` sorts before `providers/` — which is why it is
+spelled out here.
 
 `ingest/` was called `data_upload/` until it was renamed for saying the
 opposite of what it does: it holds `StandardPulseRecord` and
 `StandardHealthService`, the normalized-record core, while the directory that
 actually handles file *uploads* is `file_parser/`. The old name reliably sent
 readers to the wrong place.
+
+Two subsystems are gone rather than moved: `insight/` (a recipe + LLM engine
+writing rows nothing displayed) and `monitor/` (ingestion counters read only by
+the admin API). An insight is what the agent produces when you ask it about your
+own data, over the same series; a second scheduled path to the same answer was a
+duplicate with its own tables and prompts.
 
 There is no `router/` here any more — the HTTP endpoints moved to
 `mirobody/server/routers/`, where importing the agent layer is legal.
@@ -73,9 +85,11 @@ There is no `router/` here any more — the HTTP endpoints moved to
 - `apple/models.py` — `FlutterHealthTypeEnum` mapping (if from Apple Health)
 
 ### Modifying API endpoints
-- `router/public_router.py` — main user-facing API (~1100 lines, see section index at top)
-- `router/manage_router.py` — admin/management endpoints
-- `router/file_router.py` — file upload endpoints
+**Not in this package.** The HTTP layer moved to `mirobody/server/routers/`;
+`pulse/` has no FastAPI routes, which is what keeps ① Collect importable without
+a web framework.
+- `mirobody/server/routers/public_router.py` — main user-facing API
+- `mirobody/server/routers/file_router.py` — file upload endpoints
 
 ### Data processing pipeline
 - `ingest/models/requests.py` — `StandardPulseData`, `StandardPulseRecord`, `StandardPulseMetaInfo`
@@ -235,7 +249,7 @@ def create_provider(cls, config: Dict[str, Any]) -> Optional['XxxProvider']:
 | `UNMAPPED_HEALTH_TYPE` validation error | New health type not in enum | Add to enum or use permissive mode |
 | Circular import on startup | Module dependency cycle | Follow layered architecture, refactor shared code |
 | Provider not loading despite config | `create_provider` returns `None` | Check logs for "provider disabled" messages |
-| Router endpoints not responding | Router not imported in `__init__.py` | Add import to `router/__init__.py` |
+| Router endpoints not responding | Router not imported in `__init__.py` | Add import to `mirobody/server/routers/__init__.py` — a router module that exists but is not re-exported there makes the whole server fail to start, not just that route 404 |
 
 
 ---

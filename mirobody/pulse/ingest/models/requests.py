@@ -37,16 +37,10 @@ class VitalHealthRecord(BaseModel):
     timezone: Optional[str] = Field("UTC", description="Timezone info, e.g. America/Los_Angeles")  # Add timezone field
 
 
-class VitalHealthRequest(BaseModel):
-    """Vital health data request"""
-
-    request_id: Optional[str] = Field(None, description="Request ID")
-    healthData: List[VitalHealthRecord] = Field(..., description="Vital signs data")
 
 
 # ==================== StandardPulseData Series Models ====================
 # Migrated from pulse/core/models.py to solve circular dependency issues
-# Based on .cursorrules specifications (lines 289-312)
 
 
 class StandardPulseMetaInfo(BaseModel):

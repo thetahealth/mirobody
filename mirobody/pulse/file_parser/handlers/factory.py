@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
+from mirobody.utils.file_types import is_text_file
+from mirobody.pulse.file_parser.handlers.document import DocumentHandler
 from mirobody.pulse.file_parser.handlers.base import BaseFileHandler
 from mirobody.pulse.file_parser.handlers.image import ImageHandler
 from mirobody.pulse.file_parser.handlers.pdf import PDFHandler
@@ -19,7 +21,6 @@ from mirobody.pulse.file_parser.handlers.audio import AudioHandler
 from mirobody.pulse.file_parser.handlers.text import TextHandler
 from mirobody.pulse.file_parser.handlers.genetic import GeneticHandler
 from mirobody.pulse.file_parser.handlers.excel import ExcelHandler
-from mirobody.pulse.file_parser.handlers.csv import CSVHandler
 from mirobody.utils.i18n import t
 from mirobody.utils.req_ctx import get_req_ctx
 
@@ -31,16 +32,12 @@ class FileHandlerFactory:
         content_extractor,
         indicator_extractor,
         abstract_extractor,
-        excel_processor=None,  # Optional: injected from mcp_server when Excel support is needed
-        csv_processor=None,    # Optional: injected from mcp_server when CSV support is needed
     ):
         self.uploader = uploader
         self.temp_manager = temp_manager
         self.content_extractor = content_extractor
         self.indicator_extractor = indicator_extractor
         self.abstract_extractor = abstract_extractor
-        self.excel_processor = excel_processor
-        self.csv_processor = csv_processor
 
     async def get_handler(self, file: UploadFile) -> Optional[BaseFileHandler]:
         """
@@ -92,9 +89,16 @@ class FileHandlerFactory:
         # 5. Check for Text. Markdown included: browsers send .md as
         # text/markdown, which used to fall through every branch and fail as
         # "unsupported" even though TextHandler parses it identically to .txt.
-        # (text/csv must NOT land here — CSVHandler below owns it, which is why
-        # this is an allowlist rather than text/*.)
-        if content_type.startswith("text/plain") or content_type.startswith("text/markdown"):
+        # `text/csv` lands here too, and that is the fix for a real bug: it used
+        # to be routed to a `CSVHandler` that only delegated to an injected
+        # `csv_processor`, which nothing in this project ever injected. The
+        # factory therefore returned None for every .csv — no handler at all —
+        # while `SUPPORTED_EXTENSIONS` accepted `.csv` and
+        # `file_types.TEXT_MIME_TYPES` already called it text. A lab CSV is text:
+        # extract it, then run the same indicator extraction as everything else.
+        if (content_type.startswith("text/plain")
+                or content_type.startswith("text/markdown")
+                or is_text_file(filename, content_type)):
              return TextHandler(
                 self.uploader, 
                 self.temp_manager, 
@@ -103,33 +107,29 @@ class FileHandlerFactory:
                 self.abstract_extractor
             )
 
-        # 6. Check for Excel. The handler works with the built-in pandas/openpyxl
-        # extraction; an external excel_processor (may be None) only overrides it.
+        # 6. Word / PowerPoint, before Excel because both are OOXML zips and
+        # only the extension separates them.
+        if DocumentHandler.is_document_file(filename, content_type):
+            return DocumentHandler(
+                uploader=self.uploader,
+                temp_manager=self.temp_manager,
+                content_extractor=self.content_extractor,
+                indicator_extractor=self.indicator_extractor,
+                abstract_extractor=self.abstract_extractor,
+            )
+
+        # 7. Check for Excel — built-in pandas/openpyxl extraction. The
+        # `excel_processor` override parameter is gone with the same seam: it
+        # was documented as "injected from mcp_server", and no such injector
+        # exists here, so the branch was unreachable.
         if ExcelHandler.is_excel_file(filename, content_type):
             return ExcelHandler(
-                self.excel_processor,  # optional override; None => built-in extraction
                 uploader=self.uploader,
                 temp_manager=self.temp_manager,
                 content_extractor=self.content_extractor,
                 indicator_extractor=self.indicator_extractor,
                 abstract_extractor=self.abstract_extractor
             )
-
-        # 7. Check for CSV (only if csv_processor is available)
-        if CSVHandler.is_csv_file(filename, content_type):
-            if self.csv_processor is not None:
-                return CSVHandler(
-                    self.csv_processor,  # Pass specific processor
-                    uploader=self.uploader,
-                    temp_manager=self.temp_manager,
-                    content_extractor=self.content_extractor,
-                        indicator_extractor=self.indicator_extractor,
-                    abstract_extractor=self.abstract_extractor
-                )
-            else:
-                # CSV processor not available, return None to indicate unsupported
-                logging.warning(f"CSV file detected but csv_processor not available: {filename}")
-                return None
 
         return None
 

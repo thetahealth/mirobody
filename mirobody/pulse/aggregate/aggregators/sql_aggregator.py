@@ -408,10 +408,11 @@ class SQLAggregator:
             # The public contract is INCLUSIVE of end_date's calendar day —
             # `calculate_time_range_aggregations` computes
             # `(end_date - start_date).days + 1`. The SQL above is half-open, so
-            # translate here rather than asking every caller to remember: the two
-            # real callers disagree today, one passing a bare date (manage_router)
-            # and one padding to 23:59:59.999999 (repair_reconcile). Normalising
-            # to the start of the following day covers both.
+            # translate here rather than asking every caller to remember which
+            # shape it has to send. `repair_reconcile` pads to 23:59:59.999999; a
+            # bare `date` arrives at midnight. Normalising to the start of the
+            # following day covers both, and under `<=` they behaved completely
+            # differently — 1 row versus 3, verified against Postgres.
             end_exclusive = (end_date + timedelta(days=1)).replace(
                 hour=0, minute=0, second=0, microsecond=0
             )

@@ -32,10 +32,10 @@ class ProviderPlatform(Platform):
     def name(self) -> str:
         """Platform name — deliberately still `theta`, not `providers`.
 
-        The package, this class and every provider class were renamed off the
-        retired Theta brand because the name explained nothing. This string was
-        NOT, and must not be: it is persisted and client-visible data, not a
-        label. It keys `platform_manager.get_platform("theta")`, it is stored in
+        The package, this class and every provider class were renamed off
+        their original name because that name explained nothing. This string
+        was NOT, and must not be: it is persisted and client-visible data, not
+        a label. It keys `platform_manager.get_platform("theta")`, it is stored in
         `health_user_provider`, it pairs with the `theta_*` provider slugs and
         the `theta_user_id` columns, and clients send it as the `platform` field
         (`Platform name (vital, theta, cgm)`) and on `GET /theta/indicators`.
@@ -146,9 +146,10 @@ class ProviderPlatform(Platform):
         """The provider instance a loaded module offers, or None.
 
         Discovery is by SUBCLASS, not by name. This used to require
-        `attr_name.startswith("Theta")`, which silently skipped any provider not
-        named after the retired Theta brand — a trap for the next contributor,
-        and the reason renaming the classes had to touch this line.
+        `attr_name.startswith(...)` against a fixed class-name prefix, which
+        silently skipped any provider not sharing that old naming scheme — a
+        trap for the next contributor, and the reason renaming the classes had
+        to touch this line.
         `endswith("Provider")` stays as a cheap pre-filter; the issubclass test
         is the authority, and the `!=` guard keeps the imported base class from
         matching itself.

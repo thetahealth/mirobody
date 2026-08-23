@@ -1,6 +1,7 @@
-import mimetypes
 
 from typing import Any, BinaryIO
+
+from ...file_types import guess_mime
 
 #-----------------------------------------------------------------------------
 
@@ -274,16 +275,14 @@ class AbstractStorage:
 
     @staticmethod
     def get_content_type_from_filename(filename: str) -> str:
-        """
-        Get content type based on file extension using the standard library.
+        """MIME type for a filename — the `Content-Type` stored on the object.
 
-        Args:
-            filename: File name with extension
-
-        Returns:
-            MIME type string
+        Delegates to `utils.file_types.guess_mime` so a bare container and a
+        developer laptop store the same value. Reading `mimetypes` directly made
+        this a property of the host's `/etc/mime.types`: `.docx` and `.pptx`
+        answer `application/octet-stream` from the interpreter's built-in table
+        alone, and the answer is baked into the object at PUT time.
         """
-        mime, _ = mimetypes.guess_type(filename or "")
-        return mime or "application/octet-stream"
+        return guess_mime(filename)
 
 #-----------------------------------------------------------------------------

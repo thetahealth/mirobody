@@ -12,9 +12,16 @@ calls them, not because anything outside this module does.
 import logging
 from contextlib import asynccontextmanager
 
-import aioboto3
-
 from mirobody.utils.config import safe_read_cfg
+from .file_types import guess_mime
+
+# `aioboto3` is imported inside `get_s3_client`, not here: it ships with the
+# `[server]` extra only, while this module is imported (via `pulse/file_parser`)
+# from the bare engine install, whose header contract says `pip install
+# mirobody` must be able to import it. A module-scope import made the whole
+# file_parser chain crash on ImportError in the bare install — and broke test
+# collection under `[test]`-only environments. Same pattern as
+# `utils/config/storage/aws.py`.
 
 # S3 configuration - lazy initialization
 def get_s3_config():
@@ -44,6 +51,8 @@ async def get_s3_client():
     """
     Create and provide S3 client async context manager
     """
+    import aioboto3
+
     config = get_s3_config()
     session = aioboto3.Session()
     async with session.client(
@@ -55,17 +64,17 @@ async def get_s3_client():
         yield client  # Provide client to caller
 
 
-def get_content_type(file_type):
-    contentType = None
-    if file_type in ["png", "jpeg", "jpg", "gif"]:
-        contentType = f"image/{file_type}"
-    elif file_type in ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"]:
-        contentType = f"application/{file_type}"
-    elif file_type == "json":
-        contentType = "application/json"
-    else:
-        contentType = "application/octet-stream"
-    return contentType
+def get_content_type(file_type: str) -> str:
+    """MIME type for a bare extension, for the `Content-Type` on a presigned URL.
+
+    Delegates to `utils.file_types.guess_mime`, which is the one table. This was
+    an eight-branch ladder building the type by string interpolation, and it was
+    wrong for 12 of the 18 extensions this project accepts — every Office format
+    got an invented type (`application/xlsx`, `application/doc`) and everything
+    outside the eight fell to octet-stream, i.e. a forced download for exactly
+    the file kinds the README advertises accepting.
+    """
+    return guess_mime(file_type)
 
 
 async def aget_s3_url(key, file_name, content_type=None, expires_in=3600, bucket_name=None):

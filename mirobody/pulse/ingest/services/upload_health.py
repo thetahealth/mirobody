@@ -354,7 +354,12 @@ class StandardHealthService(BaseHealthService):
 
             logging.info(f"About to save {len(summary_records)} summary records to th_series_data")
             for record in summary_records[:2]:  # Log first 2 records for debugging
-                logging.info(f"Sample record: {record}")
+                # `comment` (and the value itself) are user health data — the
+                # INSERT below encrypts `comment` at rest, so logging the full
+                # record would put in plaintext exactly what the column
+                # encryption is there to protect. Log structure, not content.
+                redacted = {k: v for k, v in record.items() if k not in ("comment", "value")}
+                logging.info(f"Sample record (values redacted): {redacted}")
 
             for i in range(0, len(summary_records), batch_size):
                 batch = summary_records[i:i + batch_size]

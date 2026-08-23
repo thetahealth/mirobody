@@ -28,6 +28,3 @@ class MyDataService:
         
         # Call database service layer method
         return await FileParserDatabaseService.get_user_data_distribution(user_id)
-
-
-# Convenience function, maintaining compatibility with original routes.py

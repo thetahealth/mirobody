@@ -34,8 +34,7 @@ isolation for tests / migrations / batch re-runs. The `consume` order is a
 performance choice: earlier steps are cheaper and higher confidence, so
 running them first shrinks the work later steps see.
 
-This task is the canonical writer for `th_series_dim` (see memory:
-project_dim_tables). It does NOT fill `standard_indicator` — nothing in this
+This task is the canonical writer for `th_series_dim`. It does NOT fill `standard_indicator` — nothing in this
 project does, since the external mapper that once generated descriptions was
 retired. It DOES backfill `th_series_data.fhir_id`, but only for unambiguous
 cases; truly ambiguous free-text indicators are left NULL rather than guessed.
@@ -168,8 +167,7 @@ class IndicatorSyncTask(BaseRedisTask):
         report uploads) that already carry a stable mapping: we don't re-pay
         the LLM cost, and a new row inherits what its predecessors settled on
         instead of being mapped afresh. Conflict cases (same text → multiple
-        fhir_ids — see memory: project_indicator_mapping_conflicts) are
-        deliberately skipped and left to `backfill_from_dominant`.
+        fhir_ids) are deliberately skipped and left to `backfill_from_dominant`.
 
         Run order matters: runs AFTER `backfill_from_registry`, so any fhir_ids
         just filled by the dict step are already in the `fhir_id IS NOT
@@ -211,8 +209,7 @@ class IndicatorSyncTask(BaseRedisTask):
         Scope:
         - Only fills NULL rows. Does NOT overwrite existing fhir_ids —
           historical "collapse noisy minorities to dominant" is out of
-          scope here (one-shot CLI maintenance if ever needed; see memory:
-          project_indicator_mapping_conflicts).
+          scope here (one-shot CLI maintenance if ever needed).
         - `threshold` is a classmethod arg (default 0.99), not a config
           value: changing it affects safety semantics, so it should be an
           explicit per-call decision in tests/migrations.

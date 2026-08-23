@@ -265,38 +265,42 @@ class FileDbService:
         offset: int = 0,
     ) -> Dict[str, Any]:
         """
-        Get user's files with pagination.
-        
+        List the files attached to a user's record, with pagination.
+
         Args:
-            user_id: Current user ID (for permission checking)
-            query_user_id: Target user ID to query (None = query user_id)
+            user_id: The caller (used as the target when query_user_id is None;
+                authorization itself happens at the router via resolve_subject)
+            query_user_id: Whose record to list (None = the caller's own)
             scene: Optional scene filter - can be a single string or list of strings
             created_source: Optional created_source filter
             limit: Page size
             offset: Page offset
-            
+
         Returns:
             Dict with files list and total count
         """
         try:
             from mirobody.utils.config import get_default_timezone
             timezone = get_req_ctx("timezone", get_default_timezone())
-            
-            # Build WHERE clause
-            # user_id = current user (who uploaded)
-            # query_user_id = target user (for whom the file was uploaded)
+
+            # Build WHERE clause. The listing answers "which files are attached
+            # to the TARGET's record" (query_user_id = whose record), matching
+            # the endpoint's docstring and what the agent's VFS serves. It used
+            # to also require user_id = viewer — "files the VIEWER uploaded for
+            # the target" — which made a shared member's file tab permanently
+            # empty while the agent quoted her documents. Authorization is the
+            # router's job (resolve_subject), not this query's.
             where_conditions = [
-                "user_id = :user_id",
                 "is_del = false",
                 "(file_type IS NULL OR file_type NOT LIKE 'audio/%')"  # Exclude audio files
             ]
             params: Dict[str, Any] = {
-                "user_id": str(user_id),
                 "limit": limit,
                 "offset": offset,
             }
-            
-            # If query_user_id is specified, filter by it; otherwise query files uploaded for self
+
+            # If query_user_id is specified, filter by it; otherwise query the
+            # caller's own record.
             target_user_id = query_user_id or user_id
             where_conditions.append("query_user_id = :query_user_id")
             params["query_user_id"] = str(target_user_id)

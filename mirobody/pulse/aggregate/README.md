@@ -149,7 +149,7 @@ graph TD
 ## Supported Processing Scenarios
 
 ### Scheduled Execution
-- **Frequency**: Executes every 6 minutes
+- **Frequency**: Executes every 4 minutes (`task.py`: `interval_minutes=4`)
 - **Incremental processing**: Only processes data after `last_timestamp`
 - **Distributed lock**: Prevents concurrent execution across multiple instances
 
@@ -159,7 +159,8 @@ graph TD
 - **Full processing**: Processes all available data
 
 ### Historical Data Recalculation
-- **API trigger**: `/api/v1/manage/aggregate/recalculate-range`
+- **Caller**: `AggregateIndicatorService.recalculate_date_range`, used by
+  `ingest/services/repair_reconcile.py` after a late-arriving backfill
 - **Time range**: Supports specifying start and end dates
 - **User filtering**: Supports specifying specific users
 - **30-day limit**: Automatically chunks processing for periods exceeding 30 days
@@ -215,7 +216,7 @@ custom_rule = AggregationRule(
 register_custom_rule(custom_rule)
 ```
 
-## 数据模型
+## Data Models
 
 ### CalculationTask
 ```python
@@ -255,19 +256,25 @@ class ProcessingStats:
 - **Graceful degradation**: Errors don't affect other data processing
 
 ### Redis Caching
-- **last_timestamp**: Stores last processing timestamp
-- **processing_stats**: Stores processing statistics
-- **distributed_lock**: Distributed lock to prevent concurrent execution
+
+The real key names, from `pulse/core/distributed_lock.py` (an earlier revision
+of this section listed keys that never existed, which is exactly the wrong
+thing for the on-call engineer inspecting Redis at 3am):
+
+- `task_execution_timestamp:{slug}`: last processing timestamp (float epoch,
+  sub-second precision) for incremental runs
+- `theta_pull_execution_lock:{slug}`: the distributed execution lock
+- `pull_task:last_run:{slug}`: last successful wall-clock run, surviving restarts
 
 ## Execution Parameters
 
 | Parameter | Value | Description |
 |------|-----|------|
-| Execution frequency | 5 minutes | Scheduled interval |
+| Execution frequency | 4 minutes | Scheduled interval (`task.py`) |
 | Task threshold | 5000 tasks | Single SQL vs split by indicator threshold |
 | Time chunking | 30 days | Historical data processing chunk size |
 | Batch size | 1000 records | Database batch save size |
-| Lock timeout | 10 minutes | Distributed lock timeout duration |
+| Lock timeout | 12 minutes | Distributed lock timeout (`task.py`: `lock_duration_hours=12/60`) |
 
 ## Monitoring and Debugging
 
