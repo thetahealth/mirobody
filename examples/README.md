@@ -11,6 +11,7 @@ missing step.
 | 03 | [`03_parse_a_lab_report.py`](03_parse_a_lab_report.py) | + one model key | a document → standardized readings in one call |
 | 04 | [`04_mcp_tool_surface.py`](04_mcp_tool_surface.py) | `pip install mirobody` | ③ Answers: exactly what an external MCP client receives |
 | 05 | [`05_agent_server_preflight.py`](05_agent_server_preflight.py) | `pip install 'mirobody[agents]'` | whether this machine can run the full server, and what is missing |
+| 06 | [`06_care_circle_rules.py`](06_care_circle_rules.py) | `pip install mirobody` | who may read whose record — the rule behind the README's demo |
 
 ```bash
 pip install mirobody
@@ -18,13 +19,17 @@ python examples/01_resolve_offline.py
 python examples/02_standardize_a_reading.py
 python examples/03_parse_a_lab_report.py          # no key needed without a file
 python examples/04_mcp_tool_surface.py
+python examples/06_care_circle_rules.py
 ```
 
 ## The split these are arranged around
 
-01, 02 and 04 need **nothing but the package** — no database, no network, no
+01, 02, 04 and 06 need **nothing but the package** — no database, no network, no
 API key. That is the point of the engine layer: standardizing health data is
 normally the step that forces you to send it somewhere, and here it is not.
+06 is offline for a different reason — the authorization decision is a value
+object and two properties, so the rule can be shown without a database holding
+anybody's data.
 
 03 needs one model key, and only for the *extraction* half — reading the page.
 The standardization that follows is deterministic and runs offline, which is

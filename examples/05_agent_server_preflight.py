@@ -47,10 +47,14 @@ for mod, why in (("langchain", "the DeepAgent tool loop"),
                  f"{why} — pip install 'mirobody[agents]'"))
 
 # ── 2. services ──────────────────────────────────────────────────────────────
+# Defaults match what this repo's compose.yaml maps onto the host
+# (pg → 127.0.0.1:18062, redis → 127.0.0.1:18069) — the stack the fix-it
+# column tells you to start. A bare-metal Postgres/Redis is checked with
+# PG_PORT=5432 / REDIS_PORT=6379 in the environment.
 pg_host = os.environ.get("PG_HOST", "localhost")
-pg_port = int(os.environ.get("PG_PORT", "5432"))
+pg_port = int(os.environ.get("PG_PORT", "18062"))
 rd_host = os.environ.get("REDIS_HOST", "localhost")
-rd_port = int(os.environ.get("REDIS_PORT", "6379"))
+rd_port = int(os.environ.get("REDIS_PORT", "18069"))
 
 rows.append((f"postgres {pg_host}:{pg_port}", _port_open(pg_host, pg_port),
              "docker compose up -d pg   (schema is created on first start)"))
@@ -93,9 +97,9 @@ else:
     print("Everything needed is present. Start the server with:\n")
     print("    mirobody serve\n")
     print("Then:")
-    print("    http://localhost:18080          the web client")
-    print("    http://localhost:18080/mcp      the MCP endpoint for Claude Desktop / Cursor")
-    print("    http://localhost:18080/docs     the REST API")
+    print("    http://localhost:18060          the web client")
+    print("    http://localhost:18060/mcp      the MCP endpoint for Claude Desktop / Cursor")
+    print("    http://localhost:18060/docs     the REST API")
 
 if present:
     print(f"\n(model keys detected: {', '.join(present)})")

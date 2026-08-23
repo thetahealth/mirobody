@@ -39,8 +39,21 @@ AIが健康データを理解する前に、まずこれらの信号を統合し
 
 ```bash
 pip install mirobody
-mirobody resolve "LDL cholesterol" "血红蛋白" "ヘモグロビン" "空腹血糖(GLU)"
+mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン "空腹血糖(GLU)" 血脂
 ```
+
+> **1.2.1 が PyPI に出るまでは、ソースチェックアウトから実行してほしい**
+> （`git clone` + `git lfs pull` + `pip install -e .`。後述の「一式を動かす」参照）。
+> 公開中の `1.0.62` wheel は空箱だ ―― CLI が無く、リゾルバのデータファイルは
+> 133バイトの Git-LFS ポインタスタブなので、何も解決できない。詳細は
+> [CHANGELOG](CHANGELOG.md)。
+
+<p align="center">
+  <img src="docs/images/resolve-demo.ja.gif"
+       alt="mirobody resolve：4つの言語が1つのLOINCコードに落ちる、完全オフライン" width="880">
+</p>
+
+> これは実際の出力で、GIFはビルド成果物だ ―― [`docs/demo/resolve.html`](docs/demo/resolve.html) を [`scripts/make_demo_gifs.py`](scripts/make_demo_gifs.py) が描画するので、示すと主張しているコマンドから離れていくことがない。
 
 ```python
 from mirobody.engine import resolve, resolve_reading
@@ -76,11 +89,19 @@ resolve("血脂").resolved                                 # False    観測で�
   常に畳み込みに勝つ。
 - **単位**は約310のUCUMファミリーへ正規化。次元解析、LOINCコードをキーとするモル質量
   ブリッジ、`%` と `10*9/L` に対する明示的な拒否を含む。標準pulse指標300種。
+- **第2の層があり、意図的にオプトインのままだ。** 上のすべては語彙的で、知らない用語には
+  棄権する ―― 正直な天井だ。コサイン検索([`indicator/semantic.py`](mirobody/indicator/semantic.py))
+  はそれを越えるが、**棄権できない**：見たことのない用語に対して、正解と同じ確信度で最近傍を
+  返し、両者を分けるしきい値は存在しない。行列は同梱しないので `MIROBODY_SEMANTIC_INDEX`
+  を指すまで `resolve()` は変わらない ―― 指した後は、人が確認するコードを*提案*させるために
+  使い、同一性を作るためには使わない。
+  → [セマンティック検索](https://docs.mirobody.ai/en/concepts/semantic-recall/)：ベンチマーク、
+  2つの軸ゲート、そして `min_score` が正しさのしきい値ではない理由。
 - **この主張は断言ではなく計測している。**
   [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) は健診が実際に出す
   パネルでオフラインリゾルバを採点する。報告書が実際に印字する書き方で、英語・
   简体中文・繁體中文・日本語、さらにプラットフォームAPIが教えるウェアラブル語彙も。
-  **今日は197/197。書いた日は32/94だった。** 採点するのは*臨床的*正しさで、
+  **今日は211/211。書いた日は32/94だった。** 採点するのは*臨床的*正しさで、
   `血红蛋白` にHbA1cのコードを答えれば失敗、`血脂` は何も返さないことが要求される。
 
 ```bash
@@ -93,7 +114,7 @@ pytest mirobody/test_engine_coverage.py -s   # オフライン、約1秒
 
 ---
 
-## 📊 ベンチマーク ―― 「信じてくれ」ではなく、評価そのものを出す
+## 📊 ベンチマーク ―― すべて公開、独立に再現可能
 
 私たちのヘルスAIベンチマークは、Hugging Faceの同カテゴリで**最もダウンロードされて
 いる**(各4,000+)。
@@ -117,7 +138,7 @@ git lfs pull          # エンジンのデータバンドル。`resolve` に必�
 ./deploy.sh           # Postgres + pgvector、Redis、サーバー、ワーカー
 ```
 
-そして **http://localhost:18080** を開く。サーバーは受け付けるアカウントを起動時に
+そして **http://localhost:18060** を開く。サーバーは受け付けるアカウントを起動時に
 出力する ―― 同梱のものは `caregiver@mirobody.ai`、コード `111111`。名前がそのまま
 役割だ：介護者としてサインインし、読む記録は他人のものになる。
 
@@ -125,47 +146,100 @@ git lfs pull          # エンジンのデータバンドル。`resolve` に必�
 メールコードは3つめのタブとして残っている。
 
 ```bash
-curl -X POST localhost:18080/password/register -H 'Content-Type: application/json' \
+curl -X POST localhost:18060/password/register -H 'Content-Type: application/json' \
      -d '{"email":"you@example.com","password":"at-least-8-chars"}'
 ```
 
-会話するにはLLMキーが必要。embeddingキーは任意だ。
+**キー1つで全部動く。** [OpenRouterのキー](https://openrouter.ai/keys)を
+`OPENROUTER_API_KEY` に設定する ―― Docker スタックでは `compose.yaml` の隣の
+`.env` に書いて `docker compose restart` するだけでよい（アプリが `/app/.env` を
+読み直す。シェルの `export` はコンテナに届かない）。これで会話・ファイルの視覚解析・指標のセマンティック
+検索がすべて動き出す ―― 会話は Claude/GPT/DeepSeek、セマンティック検索は
+オープンウェイトの Qwen3-Embedding-8B（自前デプロイも可: OpenAI互換の
+`/v1/embeddings` で同じモデルをサーブし、`OPENROUTER_BASE_URL` を向ければよい）。
+
+ネットワークから openrouter.ai に届かない場合（中国本土がその典型）は、
+[DashScopeのキー](https://dashscope.console.aliyun.com/apiKey)を
+`DASHSCOPE_API_KEY` に設定すればそのまま置き換えられる ―― 会話は Qwen
+（DeepSeek/Kimi はコメント解除で追加）、視覚解析は qwen3-vl、セマンティック検索は
+text-embedding-v4。
+
+どちらの道も追加設定は不要。Google・OpenAI への直結キーも引き続き使える ――
+`config.yaml` 参照。
 → [Dockerデプロイ](https://docs.mirobody.ai/en/deployment/docker/) ·
 [設定](https://docs.mirobody.ai/en/configuration/) ·
 [ローカルPython環境](https://docs.mirobody.ai/en/development/setup/)
 
-### 👨‍👩‍👧 答えたうえで、ファイルを要求してくるデモ
+### 👨‍👩‍👧 エンジン全体を、4分で
 
-`SEED_DEMO_DATA` は既定でオンなので、入った時点でケアサークルに合成ユーザーが1人
-いる。**Demo (synthetic)**、2年分244指標、エージェントが `read_file` できる文書5件。
-自分のデータは何もない。その記録は彼女のものだ。
+`SEED_DEMO_DATA` は既定でオンなので、`./deploy.sh` が終わった瞬間から ① → ② → ③ の
+連鎖を通しで歩ける ―― サインインとシードデータの閲覧にキーは要らない。パート2の
+アップロード抽出とその後の質問は、上で設定した1つのキーで動く。4パート、どれも
+実際に動いているスタックで録画した。
+
+**1 · サインイン。** サインインした時点で自分には**軽量**な記録が1つある ――
+数週間のセルフトラッキングと、結果に異常のない年次健診1回。同時にケアサークル
+には、**完全**な記録を共有している合成ユーザーが1人いる。**Demo (synthetic)**、
+2年分・244指標・14,273件の読み取り、そしてエージェントが `read_file` で読める
+文書5件。同じ質問に対して記録は互いに独立している。*自分の*HbA1cを尋ねれば
+自分のデータから正常値が1件返り、*彼女の*HbA1cを尋ねれば、閲覧権限のみの
+2年分の記録から回答が返る。データ分離がそのまま画面上で確認できる。
+
+<p align="center">
+  <img src="docs/images/care-circle-demo.ja.gif"
+       alt="自分のアカウントの指標とアップロードした文書、Demoの共有記録へ切り替え、2年分のHbA1cを開く" width="880">
+</p>
 
 <div align="center">
-<img src="docs/images/your-care-circle.ja.svg" alt="自分のデータは無く、読むのは彼女の記録だ。" width="820">
+<img src="docs/images/your-care-circle.ja.svg" alt="自分の薄い記録の隣に、彼女の厚い記録 ―― 後者は閲覧のみ。" width="820">
 </div>
 
-**データ一覧ではなく、問いから始める。** Askページで:
-
-> *「彼女の直近のLDLは? 1年前と比べてどうか?」*
+最初に開くべき系列は彼女のHbA1cだ ―― 良くなって、そのあと保たなかった:
 
 ```
-2024-04-16   3.4 mmol/L
-2024-10-15   3.2
-2025-04-15   3.1
+2024-04-16   7.2 %
+2024-10-15   6.5
+2025-04-15   6.6      ← そしてそれ以降はない
 ```
 
-……そのうえで、最新のパネルが1年以上前でもう一度受けるに値する、と自分から指摘して
-くる。それが後半の合図だ。
+**尋ねてみる。** 日本語で彼女のこの2年のHbA1cを尋ねると、エージェントは自分でデータを
+探す。採血による検査は **2回** だけ、センサー由来のeA1Cは **約85回** ある。両方を一枚の
+グラフに重ね、6.5〜6.6%の帯に張り付いたまま目立った悪化も改善もない、と読む。自分の
+限界も自分から言う ―― 検査は2回しかなく、CGM推定と検査値は同じものではない。
+
+<p align="center">
+  <img src="docs/images/ask-circle-demo.ja.gif"
+       alt="日本語で共有された記録のHbA1cを尋ねる。エージェントが照会し、検査値とセンサー系列を重ねて描き、傾向を読む" width="880">
+</p>
 
 **次にファイルを渡す。** `mirobody/demo/lab_report_2025-10-15.pdf` は彼女の*次の*
-パネルで、投入からは意図的に外してある ―― だからアップロードは空振りではない。
-Dataページに落とせば ① Collect と ② Standardize が働く。12項目が単位付きで出てきて、
-それぞれがコードに解決され、LDLの系列に4点目が増える。同じ問いをもう一度投げれば、
-答えが動く。
+パネルで、投入からは意図的に外してある。だからアップロードは空振りではない。
+Dataページに落とせば ① Collect と ② Standardize が数秒で走り、12項目が値と単位を
+伴って出てくる。どれも読み取り元のページに戻れる。
+
+<p align="center">
+  <img src="docs/images/upload-demo.ja.gif"
+       alt="検査報告のPDFをDataページに落とす。12項目が抽出され、どれも元ファイルにリンクする" width="880">
+</p>
+
+**もう一度尋ねる。今度は自分がアップロードしたファイルについて。** 同じエージェント、
+違うデータ ―― レポートそのものを読み、12項目を印字された基準範囲と一つずつ照らし合わせ
+（12項目すべてが範囲外だった）、そして1回分のデータしかないので傾向はまだ判断できないと
+はっきり言う。
+
+<p align="center">
+  <img src="docs/images/ask-own-demo.ja.gif"
+       alt="自分がアップロードしたパネルを尋ねる。エージェントがレポート本体を読み、すべての結果を基準範囲と照合する" width="880">
+</p>
+
+この対比がこのデモの主旨だ ―― **2年の履歴が買うのは傾向、1枚のパネルが買うのは解釈。**
+どちらの答えも、自分が読んだものを引用する。
 
 値はすべて合成 ―― [mirobody-eval](https://github.com/thetahealth/mirobody-eval) が
 ESL-Bench向けに生成したものを同梱しているので、投入にネットワークもキーも要らない。
-実データを載せるデプロイでは `SEED_DEMO_DATA=false` に。
+実データを載せるデプロイでは `SEED_DEMO_DATA=false` に。抽出の段がその12件の読み取りに
+対して**まだできていないこと**は、ここで曖昧にせず
+[docs/roadmap.md](docs/roadmap.md) に書いてある。
 
 ---
 
@@ -206,16 +280,17 @@ ESL-Bench向けに生成したものを同梱しているので、投入にネ�
 ```
 mirobody/
 ├── pulse/       ① Collect     ―― provider、ファイル解析、集計
-├── indicator/   ② Standardize ―― リゾルバ、単位、タキソノミー(DBもネットワークも不要)
+├── indicator/   ② Standardize ―― リゾルバ、単位、概念グラフ(DBもネットワークも不要)
 ├── agent/       ③ Answers     ―― DeepAgent、ツール、skills、chat
 ├── mcp/         MCPサーバー
 ├── schema/      DDL。開発環境では起動時に再生される
-└── demo/        ケアサークルのfixture
+└── demo/        ケアサークルのデモデータ
 ```
 
 **機械で強制される1つのルール**：`indicator/` はエージェント層を決してimportしない。
-だから `pip install mirobody` は207 MB・89パッケージで、フレームワークの影もない ――
-`[agents]` を足すとほぼ3倍の597 MB・168パッケージになる。2つのimport-linter契約が
+だから `pip install mirobody` はおよそ200 MB・90パッケージ前後で、フレームワークの
+影もない ―― `[agents]` を足すとほぼ3倍の約600 MBになる（フレッシュなvenvでの実測。
+正確な数字はプラットフォームとインストーラで変わる）。2つのimport-linter契約が
 その線を守り、`lint-imports` がビルドを落とす。
 
 → [アーキテクチャ](https://docs.mirobody.ai/en/concepts/architecture/) ·
@@ -225,8 +300,8 @@ mirobody/
 
 ## 📚 ドキュメント
 
-これより深い内容はすべて **[docs.mirobody.ai](https://docs.mirobody.ai/)** に ――
-50ページ、英語と简体中文。
+詳細は **[docs.mirobody.ai](https://docs.mirobody.ai/)** のオンライン
+ドキュメント（英語・簡体字中国語）を参照。
 
 | | |
 | --- | --- |
@@ -235,8 +310,20 @@ mirobody/
 | [APIリファレンス](https://docs.mirobody.ai/en/api-reference/) · [ストリーミング](https://docs.mirobody.ai/en/api-reference/streaming/) · [関数呼び出し](https://docs.mirobody.ai/en/api-reference/function-calling/) | これを使って作る |
 | [コントリビュート](https://docs.mirobody.ai/en/development/contributing/) · [セットアップ](https://docs.mirobody.ai/en/development/setup/) | 開発に参加する |
 
-リポジトリ内、コントリビューター向け：[CONTRIBUTING.md](CONTRIBUTING.md) ·
-[docs/roadmap.md](docs/roadmap.md) · [SECURITY.md](SECURITY.md)
+### リポジトリ内、コントリビューター向け
+
+各パッケージはそれが何であるかを述べる `README.md` を持ち、長文のガイドは [`docs/`](docs/) にある。
+どの言語のREADMEから来ても、これらはすべて英語だ。
+
+| | Where |
+| --- | --- |
+| 実行できる例 | [`examples/`](examples/README.md) |
+| ① 収集 | [`pulse/`](mirobody/pulse/README.md) · [providers](mirobody/pulse/providers/README.md) · [aggregation](mirobody/pulse/aggregate/README.md) · [Apple Health](mirobody/pulse/apple/README.md) |
+| ① ガイド | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [Apple Health API](docs/apple-health.md) |
+| ② 標準化 | [`indicator/`](mirobody/indicator/README.md) · [indicators & units](mirobody/pulse/standardize/README.md) |
+| ③ 回答 | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [ChatGPT widgets](mirobody/agent/resources/README.md) |
+| 下ばたらき | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [shipping the frontend](docs/frontend-shipping.md) |
+| 開発に参加 | [CONTRIBUTING.md](CONTRIBUTING.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
 
 ---
 

@@ -19,7 +19,7 @@ This guide provides comprehensive instructions for integrating new device/servic
 Before integrating a new provider, ensure you have:
 
 ### Technical Requirements
-- Python 3.8+ environment
+- Python 3.12+ environment (`pyproject.toml`: `requires-python = ">=3.12"`)
 - Access to the target device/service API documentation
 - OAuth credentials (OAuth1 or OAuth2) from the device vendor
 - Understanding of async/await patterns in Python
@@ -76,12 +76,10 @@ CREATE INDEX idx_health_data_<provider>_msg_id
 ### Directory Structure
 
 ```
-connect/
-├── __init__.py
-└── providers/
-    └── mirobody_<provider>/
-        ├── __init__.py
-        └── provider_<provider>.py
+providers/                       # or mirobody/pulse/providers/ for a core provider
+└── mirobody_<provider>/
+    ├── __init__.py
+    └── provider_<provider>.py
 ```
 
 ### Class Hierarchy
@@ -105,13 +103,22 @@ YourProvider (your implementation)
 
 ### Step 1: Create Provider Directory
 
-Create a new directory under `connect/theta/`:
+Two locations work, and the choice is about ownership rather than mechanism:
+a **custom** provider goes in a root `providers/` directory (nothing in this
+repo to fork), a **core** one in `mirobody/pulse/providers/`. The loader globs
+`mirobody_*/provider_*.py` in both.
 
 ```bash
-mkdir -p connect/theta/mirobody_<provider>
-touch connect/theta/mirobody_<provider>/__init__.py
-touch connect/theta/mirobody_<provider>/provider_<provider>.py
+mkdir -p providers/mirobody_<slug>
+touch providers/mirobody_<slug>/__init__.py
+touch providers/mirobody_<slug>/provider_<name>.py
 ```
+
+The module file name need not match the directory slug — the shipped Garmin
+provider is `mirobody_garmin_connect/provider_garmin.py`. A `mirobody_*/`
+directory with no `provider_*.py` fails `test_installed.py` rather than loading
+nothing silently. See
+[`mirobody/pulse/providers/README.md`](../mirobody/pulse/providers/README.md).
 
 ### Step 2: Define Provider Class
 
@@ -145,7 +152,7 @@ from mirobody.pulse.ingest.models.requests import (
     StandardPulseRecord,
 )
 from mirobody.pulse.providers.platform.base import BasePullProvider
-from mirobody.pulse.providers.platform.utils import DataFormatter, TimeUtils
+from mirobody.pulse.providers.platform.normalize import DataFormatter, TimeUtils
 from mirobody.utils import execute_query
 from mirobody.utils.config import safe_read_cfg, global_config
 
@@ -1458,7 +1465,7 @@ Create `test_provider_<provider>.py`:
 
 ```python
 import pytest
-from connect.theta.mirobody_<provider>.provider_<provider> import YourProvider
+from mirobody.pulse.providers.mirobody_<provider>.provider_<provider> import YourProvider
 
 @pytest.fixture
 def provider():
@@ -1586,7 +1593,7 @@ async def test_data_pipeline():
 2. **Data Pull**:
    ```python
    # In Python console
-   from connect.theta.mirobody_<provider>.provider_<provider> import YourProvider
+   from mirobody.pulse.providers.mirobody_<provider>.provider_<provider> import YourProvider
    
    provider = YourProvider()
    
@@ -1633,7 +1640,7 @@ async def test_data_pipeline():
 
 ## 7. Best Practices
 
-### Cttonfiguration Management
+### Configuration Management
 
 1. **Use Environment-Specific Configs**:
    ```yaml
@@ -1950,8 +1957,9 @@ Common indicators you'll map to:
    - Oura: `mirobody/pulse/providers/mirobody_oura/provider_oura.py`
 - **Platform internals**: `mirobody/pulse/providers/platform/` — `base.py` is the
   contract you implement, `platform.py` does discovery and pull scheduling.
-- **Testing**: `docs/testing.md`, and `mirobody/pulse/gate_tests/` which snapshots
-  `format_data()` output for every shipped provider.
+- **Testing**: `docs/testing.md`. The maintainers' internal suite (not
+  published in this repository) additionally snapshots `format_data()` output
+  for every shipped provider.
 - **Data contract**: `mirobody/pulse/ingest/models/requests.py` — `StandardPulseData`
   and friends, the shape every provider must produce.
 
@@ -1959,6 +1967,4 @@ For questions or assistance, contact the platform team or create an issue in the
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: December 2024  
-**Author**: Platform Team
+**Maintenance note**: this guide is prose without a test gate — when it and the code disagree, the code wins. The shipped providers listed above are the executable reference.

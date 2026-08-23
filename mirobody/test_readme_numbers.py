@@ -1,11 +1,9 @@
 """Every exact number the root READMEs quote, checked against what produces it.
 
-Nothing checked them before. ``test_readme_links.py`` guards the links and the
-per-language diagrams; ``pulse/standardize/test_readme_claims.py`` guards the
-*module* README's unit table. The root READMEs' figures were the one set with
-no gate, which is how they came to advertise "316 standard pulse indicators"
-against a catalogue of 300, and "25 clinical categories" against 13 — both
-found by hand, not by the suite.
+``test_readme_links.py`` guards the links and the per-language diagrams; this
+file gates the figures — alias counts, graph sizes, the resolver score. They
+are quoted in four files and derived in none, so nothing short of a gate keeps
+them honest.
 
 The check is presence of today's value, not parsing of the prose: for each
 claim the README must contain the number the code currently produces, written
@@ -21,10 +19,10 @@ Deliberately not checked: the approximations ("~310 UCUM families", "4,000+",
 "two years", "50 pages"). They are round by intent, and pinning them would
 turn every rebuild into a README edit for no gain in truth.
 
-Also not checked, for a different reason: the install footprint (207 MB / 89
-packages, 597 MB / 168 with [agents]). Those are real measurements, but they
-move with every upstream release and differ per platform, so a gate on them
-would fail for reasons that have nothing to do with this repo.
+Also not checked, for a different reason: the install footprints (the ~200 MB
+engine and the ~600 MB [agents] install). Those are real measurements, but they
+move with every upstream release and differ per platform and installer, so a
+gate on them would fail for reasons that have nothing to do with this repo.
 """
 
 from __future__ import annotations
@@ -149,15 +147,45 @@ def test_resolver_score(name: str, live: dict[str, int]):
 _EMAIL = re.compile(r"[\w.+-]+@mirobody\.ai")
 
 
+# The canonical source-tree version — read from the FILE, not imported:
+# an editable install's metadata freezes whatever was current at install
+# time, so `mirobody.__version__` can lag the checkout it sits in.
+_VERSION_SENTINEL = re.compile(r'or "(\d+\.\d+\.\d+)"')
+
+
+def test_the_awaited_version_is_the_source_tree_version():
+    """The READMEs tell readers to run from source "until X reaches PyPI",
+    the CHANGELOG's top entry names the release being prepared, and
+    `mirobody/__init__.py` carries the version the tree calls itself. All
+    three must agree, or a reader waits for a release that will never bear
+    that number. (When the release lands and the READMEs drop the warning,
+    delete the README half of this test; the CHANGELOG half stays.)"""
+    src = (_ROOT / "mirobody" / "__init__.py").read_text(encoding="utf-8")
+    version = _VERSION_SENTINEL.search(src).group(1)
+
+    changelog = (_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    top = re.search(r"^## (\d+\.\d+\.\d+)", changelog, re.M).group(1)
+    assert top == version, (
+        f"CHANGELOG's top entry is {top}; mirobody/__init__.py says {version}"
+    )
+
+    for name in _READMES:
+        m = re.search(r"(\d+\.\d+\.\d+)(?= reaches| 发布| 發佈| が PyPI)", _text(name))
+        assert m, f"{name}: the run-from-source warning names no awaited version"
+        assert m.group(1) == version, (
+            f"{name} tells readers to wait for {m.group(1)}; "
+            f"the source tree is {version}"
+        )
+
+
 @pytest.mark.parametrize("name", _READMES)
 def test_the_demo_credential_is_one_the_server_accepts(name: str):
     """A wrong account here breaks the first thing a reader does."""
     # ruamel, not PyYAML: ruamel.yaml is a declared base dependency and the
     # parser utils/config/config.py itself uses, so this reads config.yaml the
-    # way the server does. PyYAML is in nobody's dependency list and sits in
-    # the dev venv by transitive accident -- `import yaml` here would pass
-    # locally and die in CI's minimal `.[test]` install, which is how
-    # python-multipart and numpy each went undeclared for months.
+    # way the server does. An undeclared `import yaml` would pass in a dev venv
+    # (where PyYAML sits by transitive accident) and die in a minimal `.[test]`
+    # install.
     codes = YAML(typ="safe").load(_ROOT / "config.yaml")["EMAIL_PREDEFINE_CODES"]
     text = _text(name)
     for email in set(_EMAIL.findall(text)):

@@ -6,8 +6,20 @@
 
 ## Test Characteristics
 
+### Not a pytest file, and not runnable as shipped
+
+Two things to know before the rest of this page:
+
+1. **`pytest` collects nothing from it.** Despite the `test_` prefix, everything
+   runs under `if __name__ == "__main__"`, so pytest reports *0 tests collected*
+   for this file. That is why the offline suite stays
+   green without a database — this script is a maintainer tool, not part of it.
+2. **`TEST_USER_ID = "138"` is hardcoded** and refers to a user in the authors'
+   database. Edit it to a user id that exists in yours (the seeded demo user
+   works) or the run finds no tasks and reports nothing wrong.
+
 ### Uses Real Data
-- **Test user**: user_id = 138
+- **Test user**: `TEST_USER_ID` in the script — `138` as shipped
 - **Test timezone**: Asia/Shanghai (UTC+8)
 - **Test date**: Current date (dynamic)
 
@@ -110,8 +122,8 @@ python3 -m mirobody.pulse.aggregate.test_aggregator
 
 This is an integration script with its own `main()`, not a pytest module —
 `pytest` collects nothing from it. It needs a reachable database. The unit
-tests beside it (`test_date_range_query.py`, `test_cgm_indicators.py`) run
-under `python3 -m pytest mirobody/pulse/aggregate -q`.
+tests beside it live in the maintainers' internal suite and are not published
+in this repository.
 
 ### Method 2: Run as Python Script
 
@@ -286,7 +298,7 @@ async def test_new_scenario(self):
 
 ## Related Documentation
 
-- [Aggregate Indicator README](README.md)
+- [Aggregate Indicator README](../mirobody/pulse/aggregate/README.md)
 - [Testing Guide](testing.md)
 
 

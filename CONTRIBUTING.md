@@ -44,11 +44,12 @@ We love new ideas! Please open an issue to discuss your feature idea before impl
     ```bash
     pip install -e '.[agents,test]'    # everything
 
-    pytest                # the whole suite; tests live next to the code
+    pytest                # the tests this repo ships: the resolver
+                          # benchmark and the README gates
     lint-imports          # the engine/agent boundary, machine-checked
     ```
 
-    `'.[test]'` alone is enough to work on the **engine** — it runs 334 of the
+    `'.[test]'` alone is enough to work on the **engine** — it runs the offline
     tests and prints a header naming what it skipped. Server-layer tests need
     `[server]` (fastapi, psycopg, mandrill) and agent-layer tests need
     `[agents]`, which pulls `[server]` in with it. Both are dropped at
@@ -128,7 +129,7 @@ behaviour the code had not had for a year.
 
 Module docstrings say what the module is *and what it is not* when confusion is
 likely — e.g. `utils/crypto.py` states it is AES-GCM for stored values, not the
-Fernet encrypter in `config/encrypt.py`. Public functions document the contract
+Fernet encrypter in `utils/config/encrypt.py`. Public functions document the contract
 callers depend on, not the implementation.
 
 ### Verify before you assert
@@ -179,8 +180,11 @@ be a key the alias index can look up — **not another row's left-hand side**; t
 resolver does not follow a two-hop chain, and such a row resolves to nothing
 while looking correct.
 
-For UI strings, add the key to `src/i18n/en.json` first, then all four files.
-A key present in one file and missing in another silently renders the key name.
+UI strings are **not** in this repo. `frontend/` holds the built web client, not
+its source, so there is no `i18n/` here to edit. What is translatable here is the
+four READMEs — `README.md` plus `.zh-CN` / `.zh-TW` / `.ja` — and they are checked
+as a set by `mirobody/test_readme_links.py` and `mirobody/test_readme_numbers.py`.
+Everything under `docs/` and every in-package `README.md` stays English.
 
 ### Commits
 

@@ -40,8 +40,21 @@ no network:
 
 ```bash
 pip install mirobody
-mirobody resolve "LDL cholesterol" "血红蛋白" "ヘモグロビン" "空腹血糖(GLU)"
+mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン "空腹血糖(GLU)" 血脂
 ```
+
+> **Until 1.2.1 reaches PyPI, run this from a source checkout** (`git clone` +
+> `git lfs pull` + `pip install -e .`, as in [Run the whole thing](#-run-the-whole-thing)):
+> the published `1.0.62` wheel is an empty shell — no CLI, and the resolver data
+> files are 133-byte Git-LFS pointer stubs, so nothing resolves. Details in the
+> [CHANGELOG](CHANGELOG.md).
+
+<p align="center">
+  <img src="docs/images/resolve-demo.gif"
+       alt="mirobody resolve: four languages landing on one LOINC code, fully offline" width="880">
+</p>
+
+> Real output, and the GIF is a build artifact — [`docs/demo/resolve.html`](docs/demo/resolve.html) rendered by [`scripts/make_demo_gifs.py`](scripts/make_demo_gifs.py), so it cannot drift away from the command it claims to show.
 
 ```python
 from mirobody.engine import resolve, resolve_reading
@@ -63,9 +76,9 @@ second look, `"refused"` is the answer.
 
 ---
 
-## What the standardization layer actually is
+## What the standardization layer provides
 
-Not a lookup table — this is the part adjacent open-source projects do not have:
+Standardization here is not a lookup table but a complete terminology-normalization system:
 
 - **Concept graph**: 440,961 nodes · 22,044,110 cross-vocabulary edges ·
   **595,746 source ids** distilled into canonical concepts (LOINC · SNOMED CT ·
@@ -81,11 +94,21 @@ Not a lookup table — this is the part adjacent open-source projects do not hav
 - **Units** normalized to ~310 UCUM families, with dimensional analysis, a
   molar-mass bridge keyed by LOINC code, and an explicit refusal for `%` vs
   `10*9/L`. 300 standard pulse indicators.
+- **A second tier exists, and stays opt-in.** Everything above is lexical, so it
+  abstains on terms it does not know — an honest ceiling. Cosine recall
+  ([`indicator/semantic.py`](mirobody/indicator/semantic.py)) reaches past it but
+  **cannot abstain**: for a term it has never seen it returns its nearest
+  neighbour with the confidence of a correct answer, and no threshold separates
+  the two. No matrix ships, so `resolve()` is unchanged until you point
+  `MIROBODY_SEMANTIC_INDEX` at one — then use it to *suggest* a code a human
+  confirms, never to mint an identity.
+  → [Semantic recall](https://docs.mirobody.ai/en/concepts/semantic-recall/) — the
+  benchmark, the two axis gates, and why `min_score` is not a correctness threshold.
 - **We measure the claim instead of asserting it.**
   [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) scores the offline
   resolver against the panels an ordinary checkup includes, written the way a report
   prints them, in English, 简体中文, 繁體中文 and 日本語 — plus the wearable
-  vocabulary the platform API teaches. **197/197 today; it scored 32/94 the day it
+  vocabulary the platform API teaches. **211/211 today; it scored 32/94 the day it
   was written.** It grades *clinical* correctness: answering `血红蛋白` with the
   HbA1c code is a failure, and `血脂` is required to resolve to nothing.
 
@@ -99,7 +122,7 @@ pytest mirobody/test_engine_coverage.py -s   # offline, about a second
 
 ---
 
-## 📊 Benchmarks — we don't say "trust us", we ship the eval
+## 📊 Benchmarks — open and independently reproducible
 
 Our health-AI benchmarks are the **most-downloaded in their category on Hugging
 Face** (4,000+ each):
@@ -124,7 +147,7 @@ git lfs pull          # the engine's data bundles; `resolve` needs them
 ./deploy.sh           # Postgres + pgvector, Redis, server, worker
 ```
 
-Then open **http://localhost:18080**. The server prints the accounts it accepts
+Then open **http://localhost:18060**. The server prints the accounts it accepts
 at startup — the shipped one is `caregiver@mirobody.ai`, code `111111`, named for
 the role it plays: you sign in as the caregiver and the record you read belongs to
 someone else.
@@ -133,48 +156,108 @@ No mail provider? You do not need one. The sign-in page opens on **password**,
 with email-code as a third tab:
 
 ```bash
-curl -X POST localhost:18080/password/register -H 'Content-Type: application/json' \
+curl -X POST localhost:18060/password/register -H 'Content-Type: application/json' \
      -d '{"email":"you@example.com","password":"at-least-8-chars"}'
 ```
 
-An LLM key is what you need to hold a conversation. An embedding key is optional.
+**One key runs everything.** Set an [OpenRouter key](https://openrouter.ai/keys)
+in `OPENROUTER_API_KEY` — for the Docker stack that means the `.env` file next
+to `compose.yaml`, then `docker compose restart` (that alone suffices: the app
+re-reads `/app/.env`; a shell `export` does not reach the containers) — and
+conversation, vision file parsing and semantic
+indicator search are all live — chat via Claude/GPT/DeepSeek, embeddings via
+the open-weights Qwen3-Embedding-8B (self-hostable: serve the same model
+behind any OpenAI-compatible `/v1/embeddings` and point
+`OPENROUTER_BASE_URL` at it).
+
+If openrouter.ai is unreachable from your network (the case in mainland
+China), a [DashScope key](https://dashscope.console.aliyun.com/apiKey) in
+`DASHSCOPE_API_KEY` is a drop-in replacement — chat via Qwen (DeepSeek/Kimi
+one uncomment away), vision via qwen3-vl, embeddings via text-embedding-v4.
+
+No further configuration either way; direct provider keys (Google, OpenAI)
+remain supported — see `config.yaml`.
 → [Docker deployment](https://docs.mirobody.ai/en/deployment/docker/) ·
 [Configuration](https://docs.mirobody.ai/en/configuration/) ·
 [Local Python setup](https://docs.mirobody.ai/en/development/setup/)
 
-### 👨‍👩‍👧 A demo that answers, then asks you for a file
+### 👨‍👩‍👧 The whole engine, in four minutes
 
-`SEED_DEMO_DATA` defaults to on, so you arrive with one synthetic person already
-in your care circle: **Demo (synthetic)**, 244 indicators across two years, five
-documents the agent can `read_file`. You own nothing; the record is hers.
+`SEED_DEMO_DATA` defaults to on, so the ① → ② → ③ chain is walkable the moment
+`./deploy.sh` finishes — signing in and browsing the seeded record need no
+key; the upload extraction in part 2 and the questions after it ride the one
+key configured above. Four parts, each recorded against the running stack.
+
+**1 · Arrive.** You sign in owning a **thin** record — a few weeks of
+self-tracked vitals and one unremarkable checkup, seeded as your own — and find
+one synthetic person sharing a **thick** one with you: **Demo (synthetic)**,
+244 indicators and 14,273 readings across two years, five documents the agent
+can `read_file`. Same question, two records: *your* HbA1c answers with one
+boring-normal value from data you own; *hers* answers with a two-year story
+from data you can only view. Isolation you can see, not just read about.
+
+<p align="center">
+  <img src="docs/images/care-circle-demo.gif"
+       alt="Your own account's indicators and an uploaded report, then switching to Demo's shared record and opening two years of HbA1c" width="880">
+</p>
 
 <div align="center">
-<img src="docs/images/your-care-circle.svg" alt="You have no data of your own; the record you read is hers." width="820">
+<img src="docs/images/your-care-circle.svg" alt="Your own thin record next to hers — the thick one you can only view." width="820">
 </div>
 
-**Start with a question, not the data table.** On the Ask page:
+The switch in that diagram is a column, not a promise:
+`care_circle_members.health_access`, `NOT NULL DEFAULT 0`, on **your own** row.
+Being invited into a circle shares nothing — the member decides, and no other
+person's action can raise it. The check that reads it raises rather than
+returning a falsy value, so a route that forgets to look answers 403 instead of
+handing over a record.
+[`examples/06_care_circle_rules.py`](examples/06_care_circle_rules.py) prints
+the whole decision table offline.
 
-> *"What was her latest LDL cholesterol and how does it compare to a year earlier?"*
+**2 · ③ Answers, on someone else's record.** Ask about her HbA1c and the agent
+finds the data itself, cross-references the lab draws against the sensor-derived
+series, and charts both — then tells you the improvement did not hold.
+
+<p align="center">
+  <img src="docs/images/ask-circle-demo.gif"
+       alt="Asking about the shared record's HbA1c; the agent queries, charts lab and sensor series together, and reads the trend" width="880">
+</p>
 
 ```
-2024-04-16   3.4 mmol/L
-2024-10-15   3.2
-2025-04-15   3.1
+lab-drawn HbA1c   7.2 % (2024-04)  →  6.5 % (2024-10)  →  6.6 % (2025-04)
+                  only 3 lab draws in two years — the sensor eA1C has 104
 ```
 
-…and it volunteers that the newest panel is over a year old and worth repeating.
-Which is the cue for the second half.
+**3 · ① Collect + ② Standardize, on your own.**
+`mirobody/demo/lab_report_2025-10-15.pdf` is a panel deliberately held out of the
+seed, so uploading it is not a no-op. Drop it on the Data page and twelve
+analytes come out with their values and units in seconds, each linking back to
+the page it was read from.
 
-**Now hand it a file.** `mirobody/demo/lab_report_2025-10-15.pdf` is her *next*
-panel, deliberately held out of the seed — so uploading it is not a no-op. Drop it
-on the Data page and watch ① Collect and ② Standardize work: twelve analytes come
-out with their units, each resolves to a code, and the LDL series gains a fourth
-point. Ask again and the answer moves.
+<p align="center">
+  <img src="docs/images/upload-demo.gif"
+       alt="Dropping a lab-report PDF on the Data page; twelve analytes extracted, each linked to its source file" width="880">
+</p>
+
+**4 · ③ Answers, on what you just uploaded.** Ask again, now about your own
+record. The agent reads the report through the virtual filesystem, flags all
+twelve results against their printed reference ranges — and says plainly that one
+date is not a trend.
+
+<p align="center">
+  <img src="docs/images/ask-own-demo.gif"
+       alt="Asking about your own just-uploaded panel; the agent reads the report and flags every result against its reference range" width="880">
+</p>
+
+That contrast is the demo's point: **two years of history buys a trend, one panel
+buys an interpretation.** Both answers cite what they read.
 
 Every value is synthetic — generated for ESL-Bench by
 [mirobody-eval](https://github.com/thetahealth/mirobody-eval) and vendored, so the
 seed needs no network and no key. Set `SEED_DEMO_DATA=false` for a deployment that
-will hold real data.
+will hold real data. What the extraction pass does *not* yet do with those twelve
+readings is written down in [docs/roadmap.md](docs/roadmap.md) rather than glossed
+over here.
 
 ---
 
@@ -210,21 +293,23 @@ Not sure which? → [Choose your API](https://docs.mirobody.ai/en/api-reference/
 
 ---
 
-## 🏗️ How the repo is laid out
+## 🏗️ Repository layout
 
 ```
 mirobody/
 ├── pulse/       ① Collect     — providers, file parsing, aggregation
-├── indicator/   ② Standardize — the resolver, units, taxonomy (no DB, no network)
+├── indicator/   ② Standardize — the resolver, units, concept graph (no DB, no network)
 ├── agent/       ③ Answers     — DeepAgent, tools, skills, chat
 ├── mcp/         the MCP server
+├── user/        identity and the care circle — who may read whose record
 ├── schema/      the DDL, replayed at boot in dev
-└── demo/        the care-circle fixture
+└── demo/        care-circle demo data
 ```
 
 **One rule, machine-enforced:** `indicator/` never imports the agent layer, so
-`pip install mirobody` is 207 MB across 89 packages, with no framework in sight —
-adding `[agents]` nearly triples it, to 597 MB across 168. Two import-linter
+`pip install mirobody` is roughly 200 MB across ~90 packages, with no framework
+in sight — adding `[agents]` roughly triples it, to ~600 MB (fresh-venv
+measurements; exact figures vary by platform and installer). Two import-linter
 contracts hold the line, and `lint-imports` fails the build.
 
 → [Architecture](https://docs.mirobody.ai/en/concepts/architecture/) ·
@@ -234,8 +319,8 @@ contracts hold the line, and `lint-imports` fails the build.
 
 ## 📚 Documentation
 
-Everything deeper lives at **[docs.mirobody.ai](https://docs.mirobody.ai/)** —
-50 pages, English and 简体中文.
+For full documentation, see **[docs.mirobody.ai](https://docs.mirobody.ai/)**
+(English and Simplified Chinese).
 
 | | |
 | --- | --- |
@@ -244,8 +329,20 @@ Everything deeper lives at **[docs.mirobody.ai](https://docs.mirobody.ai/)** —
 | [API reference](https://docs.mirobody.ai/en/api-reference/) · [Streaming](https://docs.mirobody.ai/en/api-reference/streaming/) · [Function calling](https://docs.mirobody.ai/en/api-reference/function-calling/) | Building against it |
 | [Contributing](https://docs.mirobody.ai/en/development/contributing/) · [Setup](https://docs.mirobody.ai/en/development/setup/) | Working on it |
 
-In-repo, for contributors: [CONTRIBUTING.md](CONTRIBUTING.md) · [docs/roadmap.md](docs/roadmap.md) ·
-[SECURITY.md](SECURITY.md)
+### In-repo, for contributors
+
+Each package carries a `README.md` saying what it is; long-form guides live in
+[`docs/`](docs/). All of it is English, whichever README you arrived from.
+
+| | Where |
+| --- | --- |
+| Runnable examples | [`examples/`](examples/README.md) |
+| ① Collect | [`pulse/`](mirobody/pulse/README.md) · [providers](mirobody/pulse/providers/README.md) · [aggregation](mirobody/pulse/aggregate/README.md) · [Apple Health](mirobody/pulse/apple/README.md) |
+| ① guides | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [Apple Health API](docs/apple-health.md) |
+| ② Standardize | [`indicator/`](mirobody/indicator/README.md) · [indicators & units](mirobody/pulse/standardize/README.md) |
+| ③ Answers | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [ChatGPT widgets](mirobody/agent/resources/README.md) |
+| Plumbing | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [shipping the frontend](docs/frontend-shipping.md) |
+| Working on it | [CONTRIBUTING.md](CONTRIBUTING.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
 
 ---
 
