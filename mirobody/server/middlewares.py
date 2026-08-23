@@ -194,13 +194,26 @@ class RequestRateLimiterMiddleware(BaseHTTPMiddleware):
     #-----------------------------------------------------
 
     async def dispatch(self, request, call_next) -> Response:
-        if self._url_paths and \
-            request.state.user_id > 0 and \
-            self._redis_client:
+        if self._url_paths and self._redis_client:
 
             threshold = self._url_paths.get(request.url.path)
             if isinstance(threshold, int) and threshold > 0:
-                key = f"{self._cache_key_prefix}{request.state.user_id}:{request.url.path}"
+                # Authenticated requests count per user. Unauthenticated ones
+                # count per client IP — an earlier version required
+                # `user_id > 0`, which meant the pre-auth endpoints
+                # (/password/login, /password/register, /email/verify) could
+                # STRUCTURALLY never be limited: exactly the routes an online
+                # password-guessing attack hits were the ones the limiter
+                # ignored. `request.client.host` is the peer address, not
+                # X-Forwarded-For: behind a reverse proxy that is coarse (all
+                # clients share the proxy's IP), but an attacker cannot spoof
+                # it with a header. Deployments that trust their proxy can
+                # front this with proxy-level limiting instead.
+                if request.state.user_id > 0:
+                    counter_id = str(request.state.user_id)
+                else:
+                    counter_id = f"ip:{request.client.host if request.client else 'unknown'}"
+                key = f"{self._cache_key_prefix}{counter_id}:{request.url.path}"
                 resp = await self._redis_client.incr(key)
                 if isinstance(resp, int):
                     if resp == 1:

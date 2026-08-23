@@ -157,17 +157,6 @@ class ProcessAction(int, Enum):
     PROVIDER = 6
 
 
-class TokenConfig:
-    """Token Configuration"""
-    
-    # Default expiration time for Vital Link Token (5 minutes)
-    VITAL_LINK_TOKEN_TTL = 5 * 60
-    
-    # Default expiration time for JWT Token (30 days)
-    JWT_TOKEN_TTL = 30 * 24 * 60 * 60
-    
-    # Default expiration time for Client Token (10 minutes)
-    CLIENT_TOKEN_TTL = 10 * 60
 
 
 class CacheConfig:

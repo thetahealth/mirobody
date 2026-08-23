@@ -304,21 +304,9 @@ class PlatformUserService:
             User information dictionary, None if not exists
         """
         try:
-            query = """
-                SELECT id, email, name, gender, birth, blood, tz, create_at, update_at
-                FROM health_app_user
-                WHERE id = :user_id AND is_del = FALSE
-            """
+            from ...user.user import get_user
 
-            result = await execute_query(
-                query=query,
-                params={"user_id": int(user_id)}
-            )
-
-            if result and len(result) > 0:
-                return dict(result[0])
-
-            return None
+            return await get_user(user_id=user_id)
 
         except Exception as e:
             logging.error(f"Failed to get user {user_id}: {str(e)}")

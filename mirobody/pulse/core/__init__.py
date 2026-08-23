@@ -11,12 +11,11 @@ Provides common functionalities for all Platforms and Providers, including:
 
 What a value *means* — the indicator catalogue, unit conversion, value-range
 validation, fhir_id mapping — lives in `mirobody.pulse.standardize`, not here.
-The downstream pipeline stages — `pulse.aggregate` (series → daily summaries),
-`pulse.insight`, `pulse.monitor` — are top-level pulse packages too. All four
-used to live inside this package, which made "core" a grab-bag: the pipeline
-was invisible in the directory tree, and pure data modules imported alongside
-the server infrastructure above. Core is now only the shared base every stage
-stands on.
+The downstream pipeline stage — `pulse.aggregate`, series → daily summaries —
+is a top-level pulse package too. Both used to live inside this package, which
+made "core" a grab-bag: the pipeline was invisible in the directory tree, and
+pure data modules imported alongside the server infrastructure above. Core is
+now only the shared base every stage stands on.
 """
 
 from typing import TYPE_CHECKING

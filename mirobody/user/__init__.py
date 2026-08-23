@@ -31,7 +31,6 @@ _EXPORTS = {
     "AbstractTokenValidator": "jwt",
     "JwtTokenValidator": "jwt",
     "MandrillEmailValidator": "email",
-    "check_relationship": "user",
     "OAuthService": "oauth_service",
     "UserService": "user_service",
 }
@@ -42,7 +41,6 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .email import MandrillEmailValidator
     from .jwt import AbstractTokenValidator, JwtTokenValidator
     from .oauth_service import OAuthService
-    from .user import check_relationship
     from .user_service import UserService
 
 

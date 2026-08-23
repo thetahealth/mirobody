@@ -1,9 +1,9 @@
 """AES-GCM string encryption for values stored in the database.
 
-Ported from the Go implementation's `utils.EncryptString` / `utils.DecryptString`
-(the byte layout — 12-byte nonce ‖ ciphertext ‖ tag — is why the parsing below
-is spelled out step by step). The one consumer is
-`pulse/providers/platform/database_service.py`.
+The byte layout — 12-byte nonce ‖ ciphertext ‖ tag — must match the format
+already used for values stored in the database, which is why the parsing
+below is spelled out step by step rather than left to a higher-level API.
+The one consumer is `pulse/providers/platform/database_service.py`.
 
 Not to be confused with `utils/config/encrypt.py`, which is the Fernet
 encrypter the log pipeline uses for its `encrypted_info` field. Two different
@@ -42,13 +42,13 @@ def decrypt_string_aes_gcm(ciphertext_base64: str, key_hex: Optional[str] = None
             logging.error(f"Error decoding base64 ciphertext: {str(e)}")
             return None
 
-        # Go: nonceSize := gcm.NonceSize()
+        # The nonce is fixed at 12 bytes, matching the layout it was written with.
         nonce_size = 12
         if len(ciphertext) < nonce_size:
             logging.error(f"Ciphertext too short: {len(ciphertext)} < {nonce_size}")
             return None
 
-        # Go: nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+        # Split the leading nonce from the remaining ciphertext + tag.
         nonce = ciphertext[:nonce_size]
         ciphertext_with_tag = ciphertext[nonce_size:]
 

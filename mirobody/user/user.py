@@ -1,6 +1,79 @@
+"""User records, and the rule for which database layer to use.
+
+**Two layers, and the boundary is atomicity.** `utils/db.execute_query` runs ONE
+statement inside its own `engine.begin()`, so anything that must commit or roll
+back together cannot use it — two calls are two transactions. That is the whole
+rule, and in this package it applies to exactly three functions: `add_or_get_user`
+(SELECT then INSERT-or-UPDATE, a read-then-write that must not interleave),
+`del_user` (two tables marked deleted together), and `account_merge` (an explicit
+`conn.transaction()` over the whole merge). Those take an injected
+`AsyncConnectionPool` and hand-roll `cur.execute(..., %s)`.
+
+Everything else — every single-statement read, wherever it lives — goes through
+`execute_query` with `:named` params. Choose by need, never by file.
+
+**And one query, not twenty.** A hand-rolled `SELECT ... FROM health_app_user
+WHERE ... AND is_del = false` at every call site is a per-call-site chance to
+drop the `is_del` filter, and a lookup without it answers for deleted accounts
+— name, language, timezone and all. :func:`get_user` is the single lookup;
+`test_user_lookup.py` fails if a new hand-rolled one appears.
+"""
+
+from __future__ import annotations
+
 import json, logging
 
-from psycopg_pool import AsyncConnectionPool
+from typing import TYPE_CHECKING
+
+# Type-checking only: `AsyncConnectionPool` appears in three parameter
+# annotations, and psycopg_pool lives in the [server] extra. A module-scope
+# import here made `import mirobody.user.care_circle` — the pure authorization
+# rules examples/06 demonstrates — require the server extra.
+if TYPE_CHECKING:
+    from psycopg_pool import AsyncConnectionPool
+
+from ..utils.db import execute_query
+
+#-----------------------------------------------------------------------------
+
+# Every column a caller has asked for across those 20 sites, so the one accessor
+# can serve all of them. The table is 15 narrow columns; naming them beats `*`
+# because a dropped column then fails here instead of at the first KeyError.
+_USER_COLUMNS = (
+    "id, email, name, lang, response_lang, tz, gender, birth, blood, "
+    "apple_sub, mfa_enabled, consultant_id, coins"
+)
+
+
+async def get_user(
+    *,
+    user_id     : int | str | None = None,
+    email       : str | None = None,
+    apple_sub   : str | None = None,
+) -> dict | None:
+    """The one `health_app_user` lookup. Returns the live row, or None.
+
+    Exactly one selector. `is_del = false` is not optional and not a parameter:
+    a soft-deleted account must not be findable by any of the three keys, which
+    is the bug this function exists to make unrepeatable.
+    """
+    keys = {"id": user_id, "email": email, "apple_sub": apple_sub}
+    given = {k: v for k, v in keys.items() if v not in (None, "")}
+    if len(given) != 1:
+        raise ValueError(f"get_user needs exactly one of {list(keys)}, got {list(given)}")
+
+    column, value = next(iter(given.items()))
+    if column == "id":
+        value = int(value)
+    elif column == "email":
+        value = str(value).strip().lower()
+
+    rows = await execute_query(
+        f"SELECT {_USER_COLUMNS} FROM health_app_user "
+        f"WHERE {column} = :value AND is_del = false LIMIT 1;",
+        params={"value": value},
+    )
+    return rows[0] if rows else None
 
 #-----------------------------------------------------------------------------
 
@@ -75,7 +148,6 @@ async def add_or_get_user(
 #-----------------------------------------------------------------------------
 
 async def get_user_via_apple_subject(
-    db_pool         : AsyncConnectionPool,
     apple_subject   : str
 ) -> tuple[
     int,        # User ID.
@@ -84,24 +156,13 @@ async def get_user_via_apple_subject(
 ]:
     if not apple_subject:
         return 0, "", "Invalid Apple sub."
-    
-    if not db_pool:
-        return 0, "", "Invalid database connection."
-    
-    try:
-        async with db_pool.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT id,email FROM health_app_user WHERE apple_sub=%s AND is_del=FALSE;",
-                    [apple_subject]
-                )
-                await conn.commit()
 
-                row = await cur.fetchone()
-                if not row:
-                    return 0, "", "Not found."
-            
-                return row[0], row[1], None
+    try:
+        row = await get_user(apple_sub=apple_subject)
+        if not row:
+            return 0, "", "Not found."
+
+        return row["id"], row["email"], None
 
     except Exception as e:
         logging.error(str(e), extra={"apple": apple_subject})
@@ -110,83 +171,6 @@ async def get_user_via_apple_subject(
 
 #-----------------------------------------------------------------------------
 
-async def check_relationship(
-    db_pool         : AsyncConnectionPool,
-    owner_user_id   : str,
-    member_user_id  : str,
-    permissions     : list[str]
-) -> str | None:    # Error message.
-    if not permissions:
-        return "Empty permission list."
-    
-    if not owner_user_id:
-        return "Empty owner user ID."
-    
-    if not member_user_id or owner_user_id == member_user_id:
-        return None
-    
-    if not db_pool:
-        return "Invalid database connection."
-    
-    #-----------------------------------------------------
-
-    try:
-        async with db_pool.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT permissions FROM th_share_relationship WHERE owner_user_id=%s AND member_user_id=%s AND status='authorized';",
-                    [owner_user_id, member_user_id]
-                )
-                await conn.commit()
-
-                records = await cur.fetchall()
-                if not records:
-                    return "Not found."
-
-    except Exception as e:
-        logging.error(str(e), extra={"owner_user_id": owner_user_id, "member_user_id": member_user_id, "permissions": permissions})
-
-        return str(e)
-
-    #-----------------------------------------------------
-
-    for record in records:
-        if not record or not record[0]:
-            continue
-
-        try:
-            obj = json.loads(record[0])
-        except Exception as e:
-            # A bare `except:` whose body called `str(e)` stood here — `e` was
-            # never bound, so a malformed permission row raised NameError from
-            # inside the handler instead of being logged and skipped.
-            logging.error(str(e), extra={"owner_user_id": owner_user_id, "member_user_id": member_user_id, "permission": record[0]})
-            continue
-
-        # `isinstance(obj)` — one argument — stood here and raised TypeError for
-        # every row whose permission JSON parsed successfully: precisely the
-        # case where the care-circle share check was meant to SUCCEED. Sharing
-        # health data with a family member could not work.
-        if not obj or not isinstance(obj, dict):
-            continue
-
-        if "all" in obj and obj["all"] > 0:
-            return None
-        
-        # Check claimed permissions, respectively.
-        ok = True
-        for permission in permissions:
-            if not permission:
-                continue
-            if permission not in obj or obj[permission] <= 0:
-                ok = False
-                break
-        if ok:
-            return None
-
-    #-----------------------------------------------------
-    
-    return "Not allowed."
 
 #-----------------------------------------------------------------------------
 
@@ -268,24 +252,15 @@ class UserInfo():
 
 
 async def get_user_info(
-    db_pool : AsyncConnectionPool,
     user_id : int
 ) -> tuple[UserInfo | None, str | None]:
     if user_id <= 0:
         return None, "Invalid user ID."
 
-    if not db_pool:
-        return None, "Invalid database connection."
-
     try:
-        async with db_pool.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("SELECT name,lang,tz FROM health_app_user WHERE id=%s;", [user_id])
-                await conn.commit()
-
-                row = await cur.fetchone()
-                if row and len(row) == 3:
-                    return UserInfo(*row), None
+        row = await get_user(user_id=user_id)
+        if row:
+            return UserInfo(row["name"], row["lang"], row["tz"]), None
 
     except Exception as e:
         logging.error(str(e), extra={"id": user_id})

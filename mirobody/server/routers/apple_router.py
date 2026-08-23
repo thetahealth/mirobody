@@ -3,9 +3,9 @@ Apple Health Platform Routes
 """
 
 import logging
-import gzip
 import json
 import time
+import zlib
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Header, Request, status
@@ -45,10 +45,23 @@ async def _process_request_data(
         
         logging.info(f"Raw body size: {len(raw_body)} bytes, content_encoding: {content_encoding}, content_type: {content_type}")
 
-        # If gzip compressed, decompress first
+        # If gzip compressed, decompress first — with a ceiling. A compressed
+        # body is attacker-shaped input: gzip reaches ~1000:1, so a 100 MB
+        # bomb inflates to ~100 GB and `gzip.decompress` would try to hold all
+        # of it. Streaming through a `decompressobj` with `max_length` caps
+        # what we ever materialize. 512 MB is far above any real Apple Health
+        # export batch (the client chunks uploads) and far below harm.
+        _MAX_DECOMPRESSED = 512 * 1024 * 1024
         if content_encoding and content_encoding.lower() == "gzip":
             try:
-                decompressed_body = gzip.decompress(raw_body)
+                decompressor = zlib.decompressobj(wbits=31)  # 31 = gzip container
+                decompressed_body = decompressor.decompress(raw_body, _MAX_DECOMPRESSED)
+                if decompressor.unconsumed_tail:
+                    raise ValueError(
+                        f"decompressed payload exceeds {_MAX_DECOMPRESSED} bytes"
+                    )
+            except ValueError:
+                raise
             except Exception as e:
                 raise ValueError(f"Failed to decompress gzip data: {str(e)}")
         else:

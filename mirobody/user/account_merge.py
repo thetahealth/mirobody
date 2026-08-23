@@ -36,7 +36,6 @@ SIMPLE_RELINK_TABLES: list[tuple[str, list[str]]] = [
     ("webauthn_credentials",            ["user_id"]),
 
     # externally provisioned tables (absent in a standalone deployment)
-    ("deep_agent_workspace",            ["user_id"]),
     ("health_data_epic",                ["theta_user_id"]),
     ("health_data_garmin",              ["theta_user_id"]),
     ("health_data_libre",               ["user_id"]),
@@ -82,144 +81,73 @@ async def _relink_simple(cur, table: str, columns: list[str], losing_str: str, w
 # user_id columns, so naive UPDATE may collide with rows already on the
 # winning side.
 
-async def _merge_th_share_relationship(cur, losing_str: str, winning_str: str) -> int:
-    """th_share_relationship UNIQUE(owner_user_id, member_user_id).
 
-    Conflict policy: if (winning, X) already exists when we'd move (losing, X)
-    onto it, prefer the row with status='authorized', then earlier created_at,
-    and merge permissions JSONB by taking the union ({"all":1} dominates).
-    Self-loops created by the rename ((winning, winning)) are dropped.
+
+
+
+async def _merge_care_circle_members(cur, losing_id: int, winning_id: int) -> int:
+    """care_circle_members has a partial UNIQUE (care_circle_id, user_id) on live rows.
+
+    Conflict policy: if the winning account is already a live member of a circle
+    the losing account is also in, the losing row is soft-deleted rather than
+    moved — and `health_access` is taken as the MAX of the two, because that is
+    the rule `care_circle.accepted_membership` already reads by. Anything else
+    would let a merge silently revoke access the surviving account had, or grant
+    access neither had.
+
+    Replaces the two functions this used to need, `_merge_th_share_relationship`
+    and `_merge_th_share_user_config`. The first carried a permissions-bag union
+    ("{{\"all\":1}} dominates") which has no meaning now that the grant is one
+    named column; the second merged nicknames keyed by (setter, target, context),
+    which is a table that no longer exists.
     """
-    if not await _table_exists(cur, "th_share_relationship"):
+    if not await _table_exists(cur, "care_circle_members"):
         return 0
 
-    # Drop self-loops first: rows where the OTHER side already equals winning.
-    await cur.execute(
-        "DELETE FROM th_share_relationship"
-        " WHERE (owner_user_id=%s AND member_user_id=%s)"
-        "    OR (owner_user_id=%s AND member_user_id=%s);",
-        [losing_str, winning_str, winning_str, losing_str]
-    )
-    deleted_loops = cur.rowcount or 0
-
-    # Resolve conflicts on the owner side: same member already shared by winning.
+    # Raise the surviving row to the better grant, then retire the loser.
     await cur.execute(
         """
-        WITH losing_rows AS (
-            SELECT share_id, member_user_id, status, permissions, created_at
-            FROM th_share_relationship
-            WHERE owner_user_id=%(losing)s
-        ),
-        conflicts AS (
-            SELECT l.share_id AS losing_id, w.share_id AS winning_id,
-                   l.status AS l_status, w.status AS w_status,
-                   l.permissions AS l_perm, w.permissions AS w_perm,
-                   l.created_at AS l_at, w.created_at AS w_at
-            FROM losing_rows l
-            JOIN th_share_relationship w
-              ON w.owner_user_id=%(winning)s AND w.member_user_id=l.member_user_id
-        )
-        UPDATE th_share_relationship t
-           SET status = CASE WHEN c.l_status='authorized' OR c.w_status='authorized'
-                             THEN 'authorized' ELSE t.status END,
-               permissions = CASE
-                 WHEN (c.l_perm->>'all')::int >= 1 OR (c.w_perm->>'all')::int >= 1
-                   THEN '{"all":1}'::jsonb
-                 ELSE COALESCE(c.l_perm, '{}'::jsonb) || COALESCE(c.w_perm, '{}'::jsonb)
-               END,
-               created_at = LEAST(c.l_at, c.w_at),
-               updated_at = CURRENT_TIMESTAMP
-          FROM conflicts c
-         WHERE t.share_id = c.winning_id;
+        UPDATE care_circle_members w
+           SET health_access = GREATEST(w.health_access, l.health_access),
+               nickname      = COALESCE(w.nickname, l.nickname),
+               updated_at    = now()
+          FROM care_circle_members l
+         WHERE w.user_id = %s AND l.user_id = %s
+           AND w.care_circle_id = l.care_circle_id
+           AND w.deleted_at IS NULL AND l.deleted_at IS NULL;
         """,
-        {"losing": losing_str, "winning": winning_str}
+        [winning_id, losing_id],
     )
+    total = cur.rowcount or 0
 
-    # Now delete the losing-side conflict rows (their data has been merged in).
     await cur.execute(
         """
-        DELETE FROM th_share_relationship l
-         WHERE l.owner_user_id=%(losing)s
-           AND EXISTS (
-             SELECT 1 FROM th_share_relationship w
-              WHERE w.owner_user_id=%(winning)s
-                AND w.member_user_id=l.member_user_id
-           );
+        UPDATE care_circle_members l
+           SET deleted_at = now()
+         WHERE l.user_id = %s AND l.deleted_at IS NULL
+           AND EXISTS (SELECT 1 FROM care_circle_members w
+                        WHERE w.user_id = %s
+                          AND w.care_circle_id = l.care_circle_id
+                          AND w.deleted_at IS NULL);
         """,
-        {"losing": losing_str, "winning": winning_str}
+        [losing_id, winning_id],
     )
-    deleted_owner_conflicts = cur.rowcount or 0
+    total += cur.rowcount or 0
 
-    # Symmetric handling for the member side.
+    # Whatever is left has no counterpart: move it over.
     await cur.execute(
-        """
-        DELETE FROM th_share_relationship l
-         WHERE l.member_user_id=%(losing)s
-           AND EXISTS (
-             SELECT 1 FROM th_share_relationship w
-              WHERE w.member_user_id=%(winning)s
-                AND w.owner_user_id=l.owner_user_id
-           );
-        """,
-        {"losing": losing_str, "winning": winning_str}
+        "UPDATE care_circle_members SET user_id=%s, updated_at=now()"
+        " WHERE user_id=%s AND deleted_at IS NULL;",
+        [winning_id, losing_id],
     )
-    deleted_member_conflicts = cur.rowcount or 0
+    total += cur.rowcount or 0
 
-    # Surviving rows just get their user_id columns rewritten.
+    # The circles the losing account OWNED go with it.
     await cur.execute(
-        "UPDATE th_share_relationship SET owner_user_id=%s WHERE owner_user_id=%s;",
-        [winning_str, losing_str]
+        "UPDATE care_circles SET owner_user_id=%s, updated_at=now() WHERE owner_user_id=%s;",
+        [winning_id, losing_id],
     )
-    updated_owner = cur.rowcount or 0
-
-    await cur.execute(
-        "UPDATE th_share_relationship SET member_user_id=%s WHERE member_user_id=%s;",
-        [winning_str, losing_str]
-    )
-    updated_member = cur.rowcount or 0
-
-    return (deleted_loops + deleted_owner_conflicts + deleted_member_conflicts
-            + updated_owner + updated_member)
-
-
-async def _merge_th_share_user_config(cur, losing_str: str, winning_str: str) -> int:
-    """th_share_user_config UNIQUE(setter_user_id, target_user_id, context).
-
-    Conflict policy: drop the losing-side row if the winning side already
-    has an entry for the same (setter, target, context); permissions /
-    nickname / avatar belong to the winning user post-merge.
-    """
-    if not await _table_exists(cur, "th_share_user_config"):
-        return 0
-
-    total = 0
-    for col_self, col_other in [
-        ("setter_user_id", "target_user_id"),
-        ("target_user_id", "setter_user_id"),
-    ]:
-        # Drop conflicting losing-side rows.
-        await cur.execute(
-            f"""
-            DELETE FROM th_share_user_config l
-             WHERE l.{col_self}=%(losing)s
-               AND EXISTS (
-                 SELECT 1 FROM th_share_user_config w
-                  WHERE w.{col_self}=%(winning)s
-                    AND w.{col_other}=l.{col_other}
-                    AND w.context=l.context
-               );
-            """,
-            {"losing": losing_str, "winning": winning_str}
-        )
-        total += cur.rowcount or 0
-
-        # Rewrite the survivors.
-        await cur.execute(
-            f"UPDATE th_share_user_config SET {col_self}=%s WHERE {col_self}=%s;",
-            [winning_str, losing_str]
-        )
-        total += cur.rowcount or 0
-
+    total += cur.rowcount or 0
     return total
 
 
@@ -327,13 +255,9 @@ async def merge_accounts(
                             affected[table] = n
 
                     # 2. Conflict-aware merges
-                    n = await _merge_th_share_relationship(cur, losing_str, winning_str)
+                    n = await _merge_care_circle_members(cur, losing_user_id, winning_user_id)
                     if n:
-                        affected["th_share_relationship"] = n
-
-                    n = await _merge_th_share_user_config(cur, losing_str, winning_str)
-                    if n:
-                        affected["th_share_user_config"] = n
+                        affected["care_circle_members"] = n
 
                     n = await _merge_th_user_avatar_managed(cur, losing_str, winning_str)
                     if n:

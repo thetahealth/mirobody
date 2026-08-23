@@ -32,6 +32,8 @@ from ..utils import (
     Route,
 )
 
+from .user import get_user
+
 #-----------------------------------------------------------------------------
 
 _CHALLENGE_PREFIX = "mirobody:webauthn:challenge:"
@@ -265,17 +267,9 @@ class WebAuthnService:
 
     async def _is_mfa_enabled(self, user_id: int) -> bool:
         """Check if MFA is enabled for this user in their settings."""
-        if not self._db_pool:
-            return False
-
         try:
-            async with self._db_pool.connection() as conn:
-                row = await conn.execute(
-                    "SELECT mfa_enabled FROM health_app_user WHERE id = %s AND is_del = FALSE",
-                    (user_id,)
-                )
-                result = await row.fetchone()
-                return bool(result and result[0])
+            row = await get_user(user_id=user_id)
+            return bool(row and row["mfa_enabled"])
         except Exception as e:
             logging.warning(f"Failed to check mfa_enabled for user {user_id}: {e}")
             return False

@@ -13,6 +13,7 @@ from .webauthn import WebAuthnService
 from .user import (
     add_or_get_user,
     del_user,
+    get_user,
     get_user_via_apple_subject,
     update_user_name,
 )
@@ -346,16 +347,8 @@ class UserService:
         lower_email = email.strip().lower()
 
         try:
-            async with self._db_pool.connection() as conn:
-                async with conn.cursor() as cur:
-                    await cur.execute(
-                        "SELECT id FROM health_app_user WHERE email=%s AND is_del=FALSE LIMIT 1;",
-                        [lower_email]
-                    )
-                    await conn.commit()
-
-                    row = await cur.fetchone()
-                    existing_owner = row[0] if row else 0
+            row = await get_user(email=lower_email)
+            existing_owner = row["id"] if row else 0
 
         except Exception as e:
             return json_response_with_code(-5, str(e), request=request)
@@ -487,11 +480,15 @@ class UserService:
             #---------------------------------------------
 
             if code:
-                logging.debug(f"Apple authorization code: {code}")
+                # The authorization code is a live credential (exchangeable for
+                # tokens until it expires); fingerprint it like the JWT below
+                # instead of writing it verbatim — DEBUG logs are not a safe
+                # place for it either.
+                logging.debug("Apple authorization code: %s", secret_fingerprint(code))
 
                 payload, err = await self._apple_validator.verify_authorization_code(code)
                 if err:
-                    logging.error(err, extra={"code": code, "email": email})
+                    logging.error(err, extra={"code": secret_fingerprint(code), "email": email})
 
                     if not token:
                         return json_response_with_code(-2, err, request=request)
@@ -517,7 +514,7 @@ class UserService:
             if not apple_subject:
                 return json_response_with_code(-6, "Empty Apple subject.", request=request)
 
-            id, email, err = await get_user_via_apple_subject(self._db_pool, apple_subject)
+            id, email, err = await get_user_via_apple_subject(apple_subject)
             if err:
                 logging.warning(err, extra={"apple_subject": apple_subject})
 
