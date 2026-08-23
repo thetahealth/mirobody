@@ -1,6 +1,6 @@
 # `mirobody/schema` — the database schema
 
-26 SQL files, applied in filename order by `Server.start()` at boot. Four
+25 SQL files, applied in filename order by `Server.start()` at boot. Four
 baselines (`00`–`10`) create the tables; the rest are incremental `ALTER`s.
 
 Gaps in the numbering are deletions, not mistakes — see "Pruning" below.
@@ -24,10 +24,14 @@ that means `IF NOT EXISTS` on `CREATE TABLE`/`CREATE INDEX`/`ADD COLUMN`, `OR
 REPLACE` on functions, and `ON CONFLICT DO NOTHING` on seed inserts. Verified by
 running the whole set three times against a clean database: zero errors.
 
-**It only runs in dev.** `Server.start()` skips the bootstrap when `ENV` is
-`TEST`, `GRAY`, `PROD` or `TEST-INLOCAL` — those deployments use a schema
-provisioned ahead of time. So this is a convenience for local work, not a
-production migration path.
+**It is a dev convenience, governed by one explicit switch.** The replay runs
+while `BOOTSTRAP_SCHEMA` is true (the default — the one-command demo's tables
+appear by themselves). A real deployment provisions its schema ahead of time
+and sets `BOOTSTRAP_SCHEMA: false` in its overlay; this is not a production
+migration path. (An earlier version skipped the replay only for a hardcoded
+list of environment names, so a deployment named `ENV=production` — any name
+outside the list — got the replay against its provisioned database. Names
+carry no behavior anymore.)
 
 ## What the schema contains
 
@@ -46,27 +50,21 @@ The following PostgreSQL extensions are enabled:
 - **`health_user_provider`**: Stores connection info for external providers (Google, Apple, etc.).
 
 #### Data Sharing
-- **`th_share_relationship`**: Tracks who shares data with whom.
-- **`th_share_permission_type`**: Defines granular permissions (e.g., "All Data", "Device Data").
+- **`care_circles`** / **`care_circle_members`**: the care circle, and THE
+  authorization throat — `user/care_circle.py::accepted_membership` reads the
+  second one to decide whether one person may act on another's record. Each
+  member's `health_access` (0 none / 1 read / 2 read-write) says what THEY share
+  of THEIR OWN record, defaults to 0, and cannot be raised by anyone else.
+  Replaced `th_share_relationship` + `th_share_user_config` +
+  `th_share_permission_type` (three tables), which stored a directed grant
+  defaulting to `{"all": 1}` — read everything, on by default, chosen by the
+  other party. `a3_migrate_share_relationship.sql` carries old rows across.
 
 #### Health Data
 
 - **`health_data_{provider}`**: Raw data storage for specific providers. One table
   per provider that actually ships here — `health_data_garmin`, `health_data_oura`,
   `health_data_whoop` — plus `health_vital_user`.
-
-#### Agent Workspace
-
-- **`deep_agent_workspace`**: PostgreSQL-backed storage for DeepAgent's virtual
-  filesystem (`ls`, `read_file`, `write_file`, `edit_file`, `glob`, `grep` — the
-  native deepagents FilesystemMiddleware tools, not MCP tools).
-
-One row per file, keyed `(user_id, session_id, scope, path)`, where `scope`
-isolates the mounts (`workspace` / `memory` / `uploads` / `library`) that a single
-`CompositeBackend` layers over this one table. Large or binary payloads are
-offloaded to object storage; `content` keeps extracted text so `grep` still works.
-
-**Implementation:** `mirobody/agent/deep/backend.py` (`PgFilesystemBackend`) | Schema: `mirobody/schema/90_deepagents.sql`
 
 ## Pruning
 
@@ -79,23 +77,22 @@ checking every table and column against the code:
 | `health_data_epic`, `health_data_oracle`, `health_data_libre` | No such providers here (`pulse/providers/` ships Garmin, Oura, WHOOP, PostgreSQL). The two Epic/Oracle names survive only as string literals in a `source_table IN (…)` filter. |
 | `health_vital_webhook` | No query anywhere touched it. |
 | `th_task_flow` | Same; `th_messages.reference_task_id` is read but never written. |
-| `th_user_avatar_managed` | Avatars live in `th_share_user_config.avatar_key`, which is what the sharing endpoints actually use. |
+| `th_user_avatar_managed` | Avatars live in `care_circle_members.avatar_key`, which is what the sharing endpoints actually use. |
 | `th_user_custom_skills` (`31_…`) | Its CRUD router is gone: DeepAgent loads Agent Skills from `SKILL_DIRS` on disk, so nothing ever read this table. |
 | `27_add_tags_to_sessions`, `34_add_session_status_fields`, `44_th_sessions_add_status` | `tags`, `read_status`, `write_status`, `ai_status`, `status` — a notes/journal feature that does not exist here. `category` survived (a live `IS NULL` filter) and moved to its owning baseline. |
 | `th_messages.comment` + its GIN trigram index | Never read; its only writer was an argument no caller passed. The index paid trigram maintenance on every insert into the busiest table. |
 | `th_series_data.full_dim_id` + `idx_th_series_data_full_dim_id` (`42_`) | The second key `42_` added beside `fhir_id`, into `indicator_full_dim` — a dimension table no baseline here creates, owned by a service this project no longer runs. Nothing here read or wrote the column, so the index kept a b-tree over an always-NULL column on every insert into `th_series_data`. `fhir_id` stayed: it is live (`_coding_for`). |
 
-Nothing was dropped from existing databases except four indexes and one table
-(`99_drop_unused_ddl.sql`) — removing DDL from a baseline only changes
+Nothing was dropped from existing databases except four indexes and two
+tables (`99_drop_unused_ddl.sql`) — removing DDL from a baseline only changes
 what a *new* database gets, and `DROP COLUMN`/`DROP TABLE` would destroy data a
 deployment may still hold. Production and staging provision their schema ahead of
 time (see "It only runs in dev"), so none of this touches them.
 
 Columns that are inert but harmless were left alone: `th_messages.user_name`,
-`group_id`, `updated_at`, `th_sessions.user_name`, `preview`, and
-`deep_agent_workspace.metadata`. A nullable column nobody writes costs no
-maintenance; removing it from a baseline that live databases already ran only
-buys divergence.
+`group_id`, `updated_at`, `th_sessions.user_name`, and `preview`. A nullable
+column nobody writes costs no maintenance; removing it from a baseline that
+live databases already ran only buys divergence.
 
 ## Applying it by hand
 
