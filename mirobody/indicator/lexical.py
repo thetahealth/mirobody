@@ -22,9 +22,9 @@ What that thoroughness buys, measured on real report text:
 A run of CJK is deliberately ONE token: it keeps ``血糖`` and ``空腹血糖``
 distinct surfaces rather than making one a substring of the other.
 
-Ported from the same C++ ``src/indicator`` engine (``normalize.cpp`` /
-``word.cpp``) that the hosted platform ports independently; kept faithful so
-the two implementations answer alike. Golden-locked by ``test_lexical.py``.
+The folds are deliberately conservative, and they are pinned rather than tuned:
+``test_lexical.py`` golden-locks every one of them, because a fold that looks
+harmless in isolation changes which surface a term collides with.
 """
 
 from __future__ import annotations
@@ -124,11 +124,26 @@ def word_tokens(text: str) -> list[str]:
     return out
 
 
+# "Total Cholesterol-TC" -> "Total Cholesterol". The analyte and its
+# abbreviation joined by a hyphen, which is what `mirobody parse` emits: on the
+# shipped demo report, 12 of 12 extracted names carried this shape and 0 of 12
+# resolved. `engine._TRAILING_ACRONYM` already handles the space-separated form
+# ("Fasting plasma glucose FPG") but only on alias-table VALUES, never on the
+# incoming term.
+#
+# Bounded on both sides so it strips a suffix and not a word: at least three
+# characters before the hyphen, at most seven after, and the tail must start
+# with a letter or digit. "High-Density Lipoprotein" is untouched (the hyphen is
+# not final), and so is "25-Hydroxyvitamin D3".
+_TRAILING_HYPHEN_ABBREV = re.compile(r"(?<=\w{3})-([A-Za-z][A-Za-z0-9]{0,6}|[0-9][A-Za-z0-9]{0,6})$")
+
+
 def surface_variants(term: str) -> list[str]:
     """The spellings of ``term`` worth trying, most faithful first.
 
-    Never more than four, and the first is always the term as written, so a
+    Never more than five, and the first is always the term as written, so a
     caller that stops at the first hit keeps today's answer for today's inputs.
+    Every entry after the first can only turn a miss into a hit.
 
     The last is the zh-Hant → zh-Hans fold. The alias lexicon build already
     mirrors Simplified keys to Traditional in the BUNDLE, but
@@ -143,7 +158,13 @@ def surface_variants(term: str) -> list[str]:
     from .zh_fold import fold_to_hans
 
     out: list[str] = []
-    candidates = (term, normalize(term), " ".join(word_tokens(term)), fold_to_hans(term or ""))
+    candidates = (
+        term,
+        normalize(term),
+        " ".join(word_tokens(term)),
+        _TRAILING_HYPHEN_ABBREV.sub("", term or "").strip(),
+        fold_to_hans(term or ""),
+    )
     for candidate in candidates:
         candidate = (candidate or "").strip()
         if candidate and candidate not in out:

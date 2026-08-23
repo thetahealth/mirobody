@@ -177,16 +177,6 @@ def load_all_aliases(bundle_path: str | None = None) -> dict[str, str]:
     return out
 
 
-def list_aliases_languages(bundle_path: str | None = None) -> list[str]:
-    """Return sorted language codes for which ``aliases/{lang}.tsv``
-    exists in the bundle. Diagnostic helper for callers that want to
-    show coverage."""
-    path = bundle_path or BUNDLE_PATH
-    return sorted(
-        name[len(_MEMBER_PREFIX) : -len(_MEMBER_SUFFIX)]
-        for name in list_members(bundle_path=path)
-        if _is_aliases_member(name)
-    )
 
 
 # ── Build pipeline ────────────────────────────────────────────────────

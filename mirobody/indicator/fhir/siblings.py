@@ -683,57 +683,6 @@ def enrich_siblings_with_cui(
 
 # ─── Sibling expansion for mapping ──────────────────────────────────
 
-def expand_with_siblings(
-    rows: list[MappingRow],
-    siblings: dict[int, dict[int, set[Rel]]],
-    existing_pairs: set[tuple[int, int]],
-    snomed_fan_out: dict[int, int],
-    max_targets: int = 0,
-) -> list[MappingRow]:
-    """Expand mapping rows: for each (SNOMED, LOINC), add sibling LOINC codes.
-
-    Siblings sharing >=2 grouping axes get distance=1 (strong);
-    siblings sharing only 1 axis get distance=2 (weak).
-    The path field records which relations linked the pair (e.g. "sibling:comp+lcn").
-    """
-    new_rows: list[MappingRow] = []
-
-    loinc_pairs: list[tuple[int, str, str, int]] = []
-    for row in rows:
-        if row["target_system"] != "LOINC":
-            continue
-        sc_int = code_to_int(row["snomed_code"])
-        lc_int = code_to_int(row["target_code"], "LOINC")
-        loinc_pairs.append((sc_int, row["snomed_name"], row["cui"], lc_int))
-
-    n_new = 0
-    for sc, sc_name, cui, lc in loinc_pairs:
-        sib_rels = siblings.get(lc, {})
-        for sib, rels in sorted(sib_rels.items(), key=lambda x: -len(x[1])):
-            pair = (sc, sib)
-            if pair in existing_pairs:
-                continue
-            if max_targets and snomed_fan_out.get(sc, 0) >= max_targets:
-                break
-            existing_pairs.add(pair)
-            snomed_fan_out[sc] = snomed_fan_out.get(sc, 0) + 1
-            n_new += 1
-            distance = 1 if len(rels) >= 2 else 2
-            new_rows.append(MappingRow(
-                snomed_code=str(sc),
-                snomed_name=sc_name,
-                cui=cui,
-                target_system="LOINC",
-                target_code=int_to_code(sib, "LOINC"),
-                target_name="",
-                target_tty="LN",
-                path="sibling:" + "+".join(r.label for r in sorted(rels)),
-                distance=distance,
-            ))
-
-    if n_new:
-        log.info(f"  Sibling expansion: {n_new:,} new LOINC rows")
-    return new_rows
 
 
 # ─── CLI subcommand ──────────────────────────────────────────────────

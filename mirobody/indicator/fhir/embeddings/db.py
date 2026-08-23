@@ -182,7 +182,7 @@ async def _export_embeddings_and_meta(
     compute canonical fhir_id, write structured npy + meta.csv.gz + id_map.npy.
 
     Provider is selected via :func:`resolve_fhir_embedding_column`
-    (``EMBEDDING_PROVIDER``, default gemini).
+    (``EMBEDDING_PROVIDER``, default openrouter).
 
     On first run: pre-allocates fp32 emb memmap + canonical memmap +
     db_pk memmap + hash-codes JSON in *out_dir*. Streams via id-paginated

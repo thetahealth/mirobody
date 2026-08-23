@@ -11,7 +11,7 @@ Subcommands:
     loinc-skip — Build fhir_loinc_skip.npy mask (PHENX/SURVEY/DOC + DEPRECATED/DISCOURAGED excluded from resolve).
     loinc-rank — Build fhir_loinc_rank_bonus.npy soft-bonus (top-100 LOINCs +0.020, tail less; derived from COMMON_TEST_RANK).
     loinc-alias — Build fhir_alias_index.pkl multilingual lexical alias → row index (from LinguisticVariants + main RELATEDNAMES2).
-    embed    — Batch-fill embedding_gemini for th_series_dim / fhir_indicators.
+    embed    — Batch-fill the configured provider's embedding column for th_series_dim / fhir_indicators.
 
 Build artifacts can be verified with:
     pytest tests/indicator/fhir/ --out-dir out/
@@ -50,7 +50,6 @@ from argparse import ArgumentParser
 from .fhir.siblings import cmd_siblings
 from .fhir.bridge import cmd_bridge
 from .fhir.merge import cmd_merge
-from .fhir.taxonomy import cmd_taxonomy
 from .fhir.embeddings.db import cmd_embeddings_db, cmd_id_map
 from .fhir.embeddings.dose import cmd_dose_index
 from .fhir.embeddings.names import cmd_code_names
@@ -250,8 +249,7 @@ def main() -> None:
              "each as ``(system, code, name)``. SYSTEM falls back to SNOMED "
              "``body structure`` when the LOINC pick's SYSTEM-axis cosine is "
              "below 0.55 (e.g. ``心包液检验·红细胞沉降率`` where LOINC has no "
-             "Pericardial-fluid ESR code). Other axes stay on LOINC. See "
-             "the internal resolving design note (not published in this repo), page 9.",
+             "Pericardial-fluid ESR code). Other axes stay on LOINC.",
     )
 
     # ── normalize ─────────────────────────────────────────────────────
@@ -299,23 +297,6 @@ def main() -> None:
     p_embed.add_argument(
         "target", choices=["series", "fhir", "all"], default="all", nargs="?",
         help="Which table to embed (default: all)",
-    )
-
-    # ── taxonomy ──────────────────────────────────────────────────────
-    p_tax = sub.add_parser(
-        "taxonomy",
-        help="Build a taxonomy binary (currently: body systems → fhir_taxonomy.bin)",
-    )
-    p_tax.add_argument(
-        "-o", "--output",
-        default=_default_output,
-        help=f"Output directory for CSV caches (default: {_default_output})",
-    )
-    p_tax.add_argument("--snomed-dir", default=None, help="SNOMED CT release dir")
-    p_tax.add_argument("--umls-dir", default=None, help="UMLS release dir")
-    p_tax.add_argument(
-        "--bin-output", default=None,
-        help="Output path for the .bin file (default: mirobody/res/fhir_taxonomy.bin)",
     )
 
     # ── embeddings ────────────────────────────────────────────────────
@@ -555,7 +536,7 @@ def main() -> None:
     p_axis_emb.add_argument(
         "--provider", default=None,
         help="Embedding provider override (gemini / qwen). Default: "
-             "config key EMBEDDING_PROVIDER (falls back to gemini).",
+             "config key EMBEDDING_PROVIDER (falls back to openrouter).",
     )
 
     # ── snomed-axis-aliases ───────────────────────────────────────────
@@ -605,8 +586,6 @@ def main() -> None:
         cmd_inspect(args)
     elif args.command == "embed":
         asyncio.run(_run_async(cmd_embed(args)))
-    elif args.command == "taxonomy":
-        asyncio.run(_run_async(cmd_taxonomy(args)))
     elif args.command == "embeddings":
         if args.from_ref:
             asyncio.run(_run_async(cmd_embeddings_ref(args)))

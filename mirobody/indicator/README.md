@@ -13,7 +13,6 @@ indicator/
     siblings.py          # Same-system sibling groups
     merge.py             # Merge pipeline + trigger graph build
     common.py            # SYSTEMS, code_to_fhir_id, RRF reader, shared types
-    test.py              # Verify output against known test cases
     locales/             # Locale plugins for local drug/vaccine names
     units/               # Free-text unit string → canonical UCUM + LOINC PROPERTY family
       normalize.py       # normalize_unit, parse_value_unit, ParsedQuantity
@@ -27,9 +26,32 @@ indicator/
       migrate.py         # One-shot recovery: legacy 4-file → new layout
   concept_graph.py       # ConceptGraphBuilder ABC + ConceptGraph (load/save/query)
   search.py              # DomainAdapter ABC + search/resolve engines + ResolveResult
+  lexical.py             # surface algebra: folding, parentheticals, surface_variants
+  zh_fold.py             # zh-Hant -> zh-Hans table
+  semantic.py            # cosine tier over the embedding index (off by default)
+  value_scale.py         # value shape -> LOINC SCALE compatibility
+  resolve.py             # the v2 pipeline's CLI front-end
   embed.py               # Batch-fill embedding_gemini for DB tables
-  main.py                # CLI entry point
+  main.py                # CLI entry point (`python -m mirobody.indicator`)
 ```
+
+**Runtime vs build, in one package on purpose.** Roughly 6.7k of these lines are
+what `mirobody.engine` and the agent actually import; the rest is the corpus
+pipeline that produces `mirobody/res/`. Splitting the two into separate trees was
+tried and reverted: it moved 1.4% of the wheel (the artifact is 24 MB of LOINC
+data, so the Python is noise) while putting the package's duplicated pairs on
+opposite sides of a boundary, which makes merging them harder rather than easier.
+
+Integrating them instead is what that produced. `taxonomy.py` was a second copy
+of `concept_graph.py`'s design — same opening docstring word for word except the
+noun, same builder/loader class pair, same path-keyed cache — and its READER had
+zero importers: the build wrote a 183 KB `fhir_taxonomy.bin` that nothing in this
+repo opened, deliberately excluded from the wheel. It is deleted, not merged.
+
+The other pair stays and is deliberate: `fhir/adapter.py:resolve_many` is the
+lite lexical path that ships, `fhir/resolve/pipeline.py:resolve_many` is the v2
+semantic pipeline that needs a ~200 MB matrix which is not distributed.
+`engine.py`'s module docstring says which one it is and why.
 
 ## Two retrieval modes
 
@@ -475,7 +497,7 @@ node — the quickest way to confirm a merge produced what you expected.
 
 (There was a `test` subcommand documented here that does not exist: running it
 exits with `invalid choice: 'test'`. The resolver's actual regression gate is
-`pytest mirobody/test_engine_coverage.py`, the 98-case benchmark the README
+`pytest mirobody/test_engine_coverage.py`, the 197-case benchmark the README
 headline number comes from.)
 
 ### 2.6 All-in-one
@@ -595,7 +617,7 @@ Use for fresh deployments where `fhir_indicators` is empty:
 python -m mirobody.indicator embeddings --from-ref
 ```
 
-Phase 1 parses ~/ref (SNOMED + LOINC + RxNorm + DCM, ~677K concepts) and writes `out/fhir_ref_texts.csv`. Phase 2 calls the Gemini embedding API in batches of 256, resumable via memmap partials. Display names are filled inline (no separate `code-names` step). **No** `fhir_id_map.npy` — there is no DB pk to bridge, so upstream code (the part that writes `th_series_data.fhir_id`) **must** populate that column with `code_to_fhir_id(system, code)` directly.
+Phase 1 parses ~/ref (SNOMED + LOINC + RxNorm + DCM, ~677K concepts) and writes `out/fhir_ref_texts.csv`. Phase 2 calls the embedding API of the configured `EMBEDDING_PROVIDER` (default: openrouter — this sentence used to hardcode "the Gemini embedding API", which `ref.py` itself no longer does), resumable via memmap partials. Display names are filled inline (no separate `code-names` step). **No** `fhir_id_map.npy` — there is no DB pk to bridge, so upstream code (the part that writes `th_series_data.fhir_id`) **must** populate that column with `code_to_fhir_id(system, code)` directly.
 
 ### 3.3 Recovery utilities
 
@@ -635,7 +657,6 @@ mv mirobody/res/fhir_embeddings.npy.bak mirobody/res/fhir_embeddings.npy
 | `aliases_src/*.tsv` | 1.9 MB | ✓ | — | `engine.resolve` — ~48k multilingual alias rows |
 | `resolver_overrides.tsv` | 20 KB | ✓ | — | `engine.resolve` — corrections and deliberate non-answers |
 | `fhir_concept_graph.bin` | 22.5 MB | ✗ | ✓ | `FhirAdapter.expand`, and the build tooling in this package |
-| `fhir_taxonomy.bin` | 180 KB | ✗ | ✓ | `Taxonomy.get` (FHIR API category view) |
 | `fhir_snomed_ct_bundle.tar.gz` | 140 KB | ✗ | ✓ | the v2 pipeline's body-structure mask |
 | `fhir_embeddings.npy` | 198 MB (LOINC-only) – 1.4 GB (full corpus) | ✗ | ✗ | the semantic tier; build it with `scripts/build_loinc_embeddings.py` |
 | `fhir_id_map.npy` | 5.4 MB | ✗ | ✗ | **not in this repo** — see below |
@@ -716,7 +737,7 @@ At search time, `FhirAdapter.expand(top_ids)` lazy-loads `fhir_concept_graph.bin
 - `sibling_neighbors(fhir_id, max_per_id=50)` -- same-vocabulary fhir_ids (smaller groups first)
 - `neighbors(fhir_id)` -- union of both
 
-The `FhirAdapter` in `fhir/search.py` handles all database queries (FHIR vector recall, non-FHIR recall, global resolve) and the graph-based expansion. The domain-agnostic engine in `search.py` only knows the `DomainAdapter.search` / `expand` / `fetch` / `resolve` interface — adding a new domain means subclassing those, not touching the engine.
+The `FhirAdapter` in `fhir/adapter.py` handles all database queries (FHIR vector recall, non-FHIR recall, global resolve) and the graph-based expansion. The domain-agnostic engine in `search.py` only knows the `DomainAdapter.search` / `expand` / `fetch` / `resolve` interface — adding a new domain means subclassing those, not touching the engine.
 
 ## Data Attribution
 

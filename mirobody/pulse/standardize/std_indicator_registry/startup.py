@@ -30,8 +30,3 @@ async def start_std_indicator_registry():
     logging.info("Std indicator registry task registered successfully")
 
 
-async def get_std_indicator_registry_full_status() -> dict:
-    """Return full task status (async — includes cached stats)."""
-    if _registry_task:
-        return await _registry_task.get_task_info()
-    return {"status": "not_initialized"}

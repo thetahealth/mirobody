@@ -47,8 +47,8 @@ class ResolveResult:
     code: str        # e.g. "2345-7", "73211009"
     name: str        # human-readable description (empty if meta absent)
     score: float     # cosine similarity (0-1, higher = better)
-    # Optional hybrid-output per-axis tuple (see the internal resolving design note, not published in this repo;
-    # page 9). Populated only when the caller passes ``emit_axes=True`` to
+    # Optional hybrid-output per-axis tuple. Populated only when the caller
+    # passes ``emit_axes=True`` to
     # ``resolve_many`` AND this result is the LOINC top-1 pick. Keyed by LOINC
     # axis name (``COMPONENT`` / ``PROPERTY`` / ``TIME_ASPCT`` / ``SYSTEM`` /
     # ``SCALE_TYP`` / ``METHOD_TYP``). ``SYSTEM`` may be a SNOMED ``body
@@ -132,11 +132,14 @@ class DomainAdapter:
 
 async def _resolve_user_id(identifier: str) -> str:
     if "@" in identifier:
-        from mirobody.utils import execute_query
-        sql = "SELECT id FROM health_app_user WHERE email = :email AND is_del = FALSE"
-        result = await execute_query(sql, {"email": identifier})
-        if result:
-            return str(result[0]["id"])
+        # Imported here, not at module scope: this is the one place a terminology
+        # module needs identity, and a top-level import would put `mirobody.user`
+        # (and its database) in front of every offline `resolve()`.
+        from mirobody.user.user import get_user
+
+        row = await get_user(email=identifier)
+        if row:
+            return str(row["id"])
     return identifier
 
 

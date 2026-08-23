@@ -77,8 +77,6 @@ def bundle_path() -> str:
     return BUNDLE_PATH
 
 
-def snomed_bundle_path() -> str:
-    return SNOMED_BUNDLE_PATH
 
 
 def read_member(name: str, *, bundle_path: str | None = None) -> bytes | None:
@@ -100,8 +98,24 @@ def read_snomed_member(
     return _read_member_from(name, bundle_path or SNOMED_BUNDLE_PATH)
 
 
+def _is_lfs_pointer(path: str) -> bool:
+    """True when the file at *path* is a Git LFS pointer stub, not real data.
+
+    A clone made without git-lfs leaves ~130 bytes of text where the tar.gz
+    should be; feeding that to tarfile produced a screenful of traceback
+    before the one line that mattered. Naming the stub is the whole fix."""
+    try:
+        with open(path, "rb") as fh:
+            return fh.read(24).startswith(b"version https://git-lfs")
+    except OSError:
+        return False
+
+
 def _read_member_from(name: str, path: str) -> bytes | None:
     if not os.path.isfile(path):
+        return None
+    if _is_lfs_pointer(path):
+        log.error("%s is a Git LFS pointer stub, not the data bundle — run `git lfs pull`", path)
         return None
     try:
         with tarfile.open(path, "r:gz") as tf:
@@ -120,7 +134,7 @@ def _read_member_from(name: str, path: str) -> bytes | None:
 def list_members(*, bundle_path: str | None = None) -> list[str]:
     """Return all member names in the bundle (or [] if absent)."""
     path = bundle_path or BUNDLE_PATH
-    if not os.path.isfile(path):
+    if not os.path.isfile(path) or _is_lfs_pointer(path):
         return []
     try:
         with tarfile.open(path, "r:gz") as tf:

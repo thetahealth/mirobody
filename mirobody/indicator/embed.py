@@ -22,7 +22,7 @@ async def _embed_table(
 ) -> int:
     """Embed rows missing the configured provider's embedding column.
 
-    Provider comes from ``EMBEDDING_PROVIDER`` (default ``gemini``).
+    Provider comes from ``EMBEDDING_PROVIDER`` (default ``openrouter``).
     th_series_dim uses the family-only naming (``embedding_<provider>``);
     fhir_indicators uses model-version-specific names (e.g.
     ``embedding_qwen3``) via :data:`FHIR_EMBEDDING_COLUMN`.
@@ -78,7 +78,7 @@ async def _embed_table(
 async def cmd_embed(args: Namespace) -> None:
     """Subcommand: embed — batch-fill the configured provider's embedding column.
 
-    Provider is read from ``EMBEDDING_PROVIDER`` (default ``gemini``).
+    Provider is read from ``EMBEDDING_PROVIDER`` (default ``openrouter``).
     """
     target = args.target
 

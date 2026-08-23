@@ -33,8 +33,8 @@ fidelity all depend on the reading as recorded; conversion is for the caller
 that is about to compare or chart, and it hands back a number rather than
 editing one.
 
-Ported from the hosted platform's `indicators/units/convert.py`, whose design
-note is the source for the tier split and the conventions below.
+The tier split and the conventions below come from a design worked out and
+validated against real unit-conversion cases, not invented for this module.
 
 **Not to be confused with** :func:`mirobody.pulse.standardize.units.convert_to_standard`,
 which is a different job on the other side of the pipeline: it takes a

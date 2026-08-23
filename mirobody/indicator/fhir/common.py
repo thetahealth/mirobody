@@ -50,7 +50,15 @@ EMBEDDING_DIM = 1024
 #: provider → the `fhir_indicators` vector column holding its embeddings.
 FHIR_EMBEDDING_COLUMN: dict[str, str] = {
     "gemini": "embedding_gemini",
+    # DashScope's text-embedding-v4 — the fallback path for networks where
+    # openrouter.ai is unreachable. (The column
+    # name says "qwen3" because v4 is the productized Qwen3-Embedding; the
+    # openrouter entry below names the model precisely to avoid repeating
+    # that ambiguity.)
     "qwen": "embedding_qwen3",
+    # Open-weights qwen/qwen3-embedding-8b via OpenRouter (or self-hosted —
+    # same weights, same column), one OPENROUTER_API_KEY for agent + embeddings.
+    "openrouter": "embedding_qwen3_8b",
 }
 
 #: provider → the `th_series_dim` vector column. **A separate map, because the
@@ -66,6 +74,7 @@ FHIR_EMBEDDING_COLUMN: dict[str, str] = {
 DIM_EMBEDDING_COLUMN: dict[str, str] = {
     "gemini": "embedding_gemini",
     "qwen": "embedding_qwen",
+    "openrouter": "embedding_qwen3_8b",
 }
 
 
@@ -73,15 +82,13 @@ def resolve_dim_embedding_column() -> tuple[str, str]:
     """``EMBEDDING_PROVIDER`` → ``(provider, th_series_dim column)``.
 
     Providers with no column raise here rather than composing SQL against one
-    that does not exist. `openrouter` is the current example: it serves the
-    file-based semantic tier and `text_embedding` callers, and giving it a
-    column would mean a migration plus a full re-embed of both tables — a
-    decision to take once, deliberately, when a model is settled on.
+    that does not exist. (That decision was taken deliberately for openrouter
+    when it became the shipped default: the model is settled —
+    qwen/qwen3-embedding-8b — and both tables carry `embedding_qwen3_8b`.)
     """
-    from mirobody.utils.config import safe_read_cfg
-    from mirobody.utils.embedding import EMBEDDING_PROVIDERS
+    from mirobody.utils.embedding import EMBEDDING_PROVIDERS, resolve_embedding_provider
 
-    provider = safe_read_cfg("EMBEDDING_PROVIDER", "gemini").lower()
+    provider = resolve_embedding_provider()
     if provider not in EMBEDDING_PROVIDERS:
         raise ValueError(
             f"EMBEDDING_PROVIDER invalid: {provider!r} "
@@ -101,27 +108,24 @@ def resolve_fhir_embedding_column() -> tuple[str, str]:
     """Resolve ``EMBEDDING_PROVIDER`` to ``(provider, fhir_indicators column)``.
 
     Read from a single config key — ``EMBEDDING_PROVIDER`` (default
-    ``gemini``). Validated against both :data:`FHIR_EMBEDDING_COLUMN` and the
+    ``openrouter``). Validated against both :data:`FHIR_EMBEDDING_COLUMN` and the
     embedding-API provider registry, since the column name is interpolated
     into SQL.
     """
-    from mirobody.utils.config import safe_read_cfg
-    from mirobody.utils.embedding import EMBEDDING_PROVIDERS
+    from mirobody.utils.embedding import EMBEDDING_PROVIDERS, resolve_embedding_provider
 
-    provider = safe_read_cfg("EMBEDDING_PROVIDER", "gemini").lower()
+    provider = resolve_embedding_provider()
     if provider not in EMBEDDING_PROVIDERS:
         raise ValueError(
             f"EMBEDDING_PROVIDER invalid: {provider!r} "
             f"(available: {sorted(EMBEDDING_PROVIDERS)})"
         )
     if provider not in FHIR_EMBEDDING_COLUMN:
-        # `openrouter` lands here on purpose, and adding a column is NOT the
-        # fix. This function serves the pgvector path — a `vector(1024)` column
-        # on `fhir_indicators`, filled by a full re-embed of the corpus, which
-        # is a schema migration and hours of API calls. The openrouter provider
-        # exists for the FILE-based semantic tier (a LOINC matrix built by
-        # scripts/build_loinc_embeddings.py) and for direct `text_embedding`
-        # callers, neither of which touches this column.
+        # Every registered provider now has a column (openrouter got
+        # embedding_qwen3_8b when it became the shipped default), so this
+        # branch only fires for a provider added to the API registry without
+        # its schema column + map entry — refuse rather than compose SQL
+        # against a column that does not exist.
         raise ValueError(
             f"provider {provider!r} has no fhir_indicators vector column. "
             f"Database vector search supports {sorted(FHIR_EMBEDDING_COLUMN)}; "
@@ -237,45 +241,8 @@ def fhir_id_to_code(fhir_id: int) -> tuple[str, str]:
 # a CSV to translate packed → DB id. Without a map, ``resolve_fhir_id``
 # returns the packed bigint — which is what new deployments should use.
 
-def load_fhir_id_map(path: str) -> dict[int, int]:
-    """Load packed-fhir-id → ``fhir_indicators.id`` from ``fhir_code_index.csv[.gz]``.
-
-    Expects columns ``standard`` (enum int — column name kept for artifact
-    compatibility), ``code`` (vocab string, LOINC may contain a dash),
-    ``id`` (DB fhir_indicators.id). This is exactly the artifact produced
-    by ``embeddings-db`` / ``embeddings-ref``. ``.gz`` is detected by
-    extension.
-    """
-    opener = gzip.open if path.endswith(".gz") else open
-    id_map: dict[int, int] = {}
-    with opener(path, "rt", encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            packed = code_to_fhir_id(int(row["standard"]), row["code"])
-            id_map[packed] = int(row["id"])
-    return id_map
 
 
-def resolve_fhir_id(
-    system: str,
-    code: str,
-    id_map: dict[int, int] | None = None,
-) -> int | None:
-    """Return a single int id for ``(system, code)``.
-
-    - ``id_map`` is None → packed bigint from :func:`code_to_fhir_id`
-      (never None)
-    - ``id_map`` given, key present → DB ``fhir_indicators.id``
-    - ``id_map`` given, key missing → ``None``; caller decides (register
-      a new fhir_indicators row, skip, log, etc.). Legacy DBs routinely
-      lack entries for newly-seen codes, so missing is expected, not error.
-    """
-    if id_map is None:
-        return code_to_fhir_id(system, code)
-    # Fast path: id_map entries come from a validated DB export, so the
-    # overflow guards in code_to_fhir_id are unnecessary here.
-    sys_int = SYSTEM_TO_CODE[system]
-    n = code_to_int(code, system)
-    return id_map.get((sys_int << _CODE_BITS) | n)
 
 
 # ─── Target vocabulary config ───────────────────────────────────────
@@ -373,16 +340,6 @@ def load_loinc_skip_codes(loinc_core_csv: str) -> set[str]:
     return set(ct_df.filter(is_skip)["LOINC_NUM"].to_list())
 
 
-def load_loinc_demote_codes(loinc_core_csv: str) -> set[str]:
-    """Return LOINC codes that should rank behind any non-demoted peer
-    (TRIAL status or LABORDERS.ONTOLOGY abstract placeholders)."""
-    import polars as pl
-    ct_df = pl.read_csv(
-        loinc_core_csv, columns=["LOINC_NUM", "CLASS", "STATUS"],
-    )
-    is_demote = pl.col("STATUS").is_in(list(_DEMOTE_STATUSES))
-    is_demote = is_demote | pl.col("CLASS").is_in(list(_DEMOTE_CLASSES))
-    return set(ct_df.filter(is_demote)["LOINC_NUM"].to_list())
 
 
 # ─── RRF reader ──────────────────────────────────────────────────────

@@ -41,6 +41,10 @@ LDL cholesterol	LDL-C
 LDL-cholesterol	LDL-C
 low density lipoprotein cholesterol	LDL-C
 low-density lipoprotein cholesterol	LDL-C
+HDL	HDL-C
+LDL	LDL-C
+High-Density Lipoprotein	HDL-C
+Low-Density Lipoprotein	LDL-C
 HDL cholesterol	HDL-C
 HDL-cholesterol	HDL-C
 high density lipoprotein cholesterol	HDL-C
@@ -96,6 +100,14 @@ vitamin B12	Cobalamin
 lipoprotein(a)	Lp(a)
 Lp(a)	Lp(a)
 non-HDL cholesterol	Cholesterol.non HDL
+Blood Glucose	glucose
+Cholesterol/HDL Ratio	Cholesterol.total/Cholesterol.in HDL
+LDL/HDL Ratio	Cholesterol.in LDL/Cholesterol.in HDL
+Lipid-Free Fatty Acids	free fatty acids
+Lipid-Phospholipids	phospholipid
+Non-HDL Cholesterol-Non-HDL	Cholesterol non HDL
+Non-HDL Cholesterol-Non-HDL-C	Cholesterol non HDL
+Lipid-Low-Density Lipoprotein Calculated	LDL-C
 VLDL cholesterol	Cholesterol VLDL
 total protein	Protein
 reticulocyte count	Reticulocytes
@@ -135,6 +147,8 @@ urine specific gravity	SP GR Ur
 总胆固醇	Cholesterol
 胆固醇	Cholesterol
 低密度脂蛋白胆固醇	LDL-C
+高密度脂蛋白	HDL-C
+低密度脂蛋白	LDL-C
 高密度脂蛋白胆固醇	HDL-C
 白细胞计数	WBC # Bld
 白细胞	WBC # Bld
@@ -171,6 +185,8 @@ urine specific gravity	SP GR Ur
 尿酮体	Ketones Ur-mCnc
 
 # ══ 日本語 ════════════════════════════════════════════════════════════════
+# 血色素・尿蛋白・尿糖 は簡体字セクションにもある（同形同義の共有漢語）。
+# 各言語セクションを自己完結に保つため、重複を承知でここにも載せる。
 # 「中性脂肪」は字面どおり読むと便中の中性脂肪 (Fat.neutral in Stool) に
 # 落ちる。口語形は明示的な対応付けが要る。
 ヘモグロビン	Hemoglobin
@@ -189,9 +205,7 @@ urine specific gravity	SP GR Ur
 # katakana forms and the short kanji names a 健康診断 prints are absent from the
 # machine-derived ja.tsv, which carries LOINC's formal translations.
 白血球	WBC # Bld
-白血球数	WBC # Bld
 赤血球	RBC # Bld
-赤血球数	RBC # Bld
 血小板	Platelet count
 総蛋白	Protein
 アルブミン	Albumin
