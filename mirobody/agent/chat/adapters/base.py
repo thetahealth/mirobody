@@ -38,6 +38,22 @@ from ....utils.tasks import spawn
 # Chunk types persisted into element_list but never streamed to the client.
 _NON_STREAMING_TYPES = {"food_snap", "report"}
 
+# What an attachment-only turn asks on the user's behalf, keyed by the primary
+# subtag of the request language. Attaching a report and pressing send without
+# typing anything IS a question; this is what it says out loud so the turn never
+# carries a zero-length user message.
+_ATTACHMENT_ONLY_QUESTION = {
+    "zh": "请阅读我这次上传的文件,并给出解读。",
+    "ja": "今回アップロードしたファイルを読んで、内容を説明してください。",
+    "en": "Please read the file(s) I attached to this message and tell me what they say.",
+}
+
+
+def attachment_only_question(language: str) -> str:
+    """The stand-in user text for a turn that carries files but no words."""
+    primary = (language or "en").replace("_", "-").split("-")[0].lower()
+    return _ATTACHMENT_ONLY_QUESTION.get(primary, _ATTACHMENT_ONLY_QUESTION["en"])
+
 class ChunkAccumulator:
     """
     Efficient chunk accumulator using list accumulation
@@ -358,6 +374,17 @@ class ChatProtocolAdapter(ABC):
         question = params.question
         if current_turn_note:
             question = f"{question}\n\n{current_turn_note}" if question else current_turn_note
+        if not question and params.file_list:
+            # Attachment-only turn: the files ARE the message, but they must
+            # still reach the model AS TEXT. An empty user message is not a
+            # harmless no-op — the Anthropic API rejects a zero-length text
+            # block outright (400), other providers silently drop the message,
+            # and LangGraph checkpoints this turn's input BEFORE the model runs,
+            # so an empty message that fails here stays in the session thread and
+            # is replayed on every later turn. Ask on the user's behalf instead.
+            # (A turn with neither text nor files never reaches here — the only
+            # caller, `chat.service.chat_handler`, still answers it with -3.)
+            question = attachment_only_question(params.language)
         if messages and isinstance(messages[-1], BaseMessage):
             messages = messages + [HumanMessage(content=question)]
         else:
