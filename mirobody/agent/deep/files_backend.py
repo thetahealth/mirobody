@@ -66,6 +66,7 @@ class ThFilesBackend(PgFilesystemBackend):
         scope: str,                     # "uploads" | "library"
         file_keys: list[str] | None = None,
         supports_file_block: bool = False,
+        turn_names: dict[str, str] | None = None,
     ):
         if scope not in ("uploads", "library"):
             raise ValueError(f"ThFilesBackend scope must be uploads|library, got {scope!r}")
@@ -74,6 +75,16 @@ class ThFilesBackend(PgFilesystemBackend):
         super().__init__(user_id=user_id, session_id="", scope=scope,
                          supports_file_block=supports_file_block)
         self._keys = [str(k) for k in (file_keys or [])][:_MAX_SESSION_FILES]
+        # file_key -> the name THIS request attached the file under. `/uploads/`
+        # names a file by this rather than by `th_files.file_name`, which is not
+        # stable: the upload pass asks an LLM for a descriptive name and
+        # overwrites the column with it (`handlers/base.py::_extract_abstract`),
+        # and that write lands DURING the turn, concurrently with the agent. The
+        # column is the right name for `/library/`, where it is discovered by
+        # `ls`; it is the wrong one here, because `_attachment_reminder` has
+        # already told the model the request's name and a rename mid-turn turned
+        # that path into `file_not_found` (`ls` had listed it seconds earlier).
+        self._turn_names = {str(k): str(v) for k, v in (turn_names or {}).items() if v}
 
     # ── the projection ───────────────────────────────────────────────────────
 
@@ -148,7 +159,11 @@ class ThFilesBackend(PgFilesystemBackend):
         seen: set[str] = set()
         out: list[dict[str, Any]] = []
         for r in rows or []:
-            base = safe_basename(r.get("file_name") or r.get("file_key") or "")
+            # `/uploads/` names this turn's attachments by the name the request
+            # carried; only `/library/` reads the (rewritable) stored name. See
+            # `_turn_names` in __init__ for why the column cannot be trusted here.
+            pinned = self._turn_names.get(str(r.get("file_key") or ""))
+            base = safe_basename(pinned or r.get("file_name") or r.get("file_key") or "")
             if not base:
                 continue
             # Newest wins; a repeat name gets its key appended rather than
