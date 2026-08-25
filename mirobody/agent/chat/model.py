@@ -94,6 +94,30 @@ class ChatStreamRequest:
 
 #-----------------------------------------------------------------------------
 
+
+def has_attachment(file_list: Any) -> bool:
+    """True when this turn really carries a file the agent can reach.
+
+    Truthiness of `file_list` is not the same question. `[{}]` and `"x"` are
+    both truthy and neither names a file: `/uploads/` would be empty and
+    `_attachment_reminder` would return None, while the guard had already let
+    the turn through and the stand-in question had already promised the model
+    an attachment. `file_key` is what the whole upload path keys on, so it is
+    what counts here. Entries arrive as dicts from the JSON body; the
+    `ChatFileObject` branch is for callers that build the request in Python.
+    """
+    if not isinstance(file_list, (list, tuple)):
+        return False
+    for f in file_list:
+        if isinstance(f, dict):
+            if f.get("file_key"):
+                return True
+        elif getattr(f, "file_key", ""):
+            return True
+    return False
+
+#-----------------------------------------------------------------------------
+
 class UserInfo(BaseModel):
     user_id: str = Field(..., description="User ID")
     user_name: str = Field(..., description="User Name")

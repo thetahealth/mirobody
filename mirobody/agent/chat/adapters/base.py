@@ -24,11 +24,12 @@ from ..message import (
     save_message,
     get_last_message,
 )
-from ..model import ChatStreamRequest
+from ..model import ChatStreamRequest, has_attachment
 
 from ....user.care_circle import CareCircleDenied, resolve_subject
 from ....utils import execute_query, safe_read_cfg
 from ....utils.config import get_default_timezone
+from ....utils.i18n import t
 from ....utils.tasks import spawn
 
 #-----------------------------------------------------------------------------
@@ -37,22 +38,6 @@ from ....utils.tasks import spawn
 
 # Chunk types persisted into element_list but never streamed to the client.
 _NON_STREAMING_TYPES = {"food_snap", "report"}
-
-# What an attachment-only turn asks on the user's behalf, keyed by the primary
-# subtag of the request language. Attaching a report and pressing send without
-# typing anything IS a question; this is what it says out loud so the turn never
-# carries a zero-length user message.
-_ATTACHMENT_ONLY_QUESTION = {
-    "zh": "请阅读我这次上传的文件,并给出解读。",
-    "ja": "今回アップロードしたファイルを読んで、内容を説明してください。",
-    "en": "Please read the file(s) I attached to this message and tell me what they say.",
-}
-
-
-def attachment_only_question(language: str) -> str:
-    """The stand-in user text for a turn that carries files but no words."""
-    primary = (language or "en").replace("_", "-").split("-")[0].lower()
-    return _ATTACHMENT_ONLY_QUESTION.get(primary, _ATTACHMENT_ONLY_QUESTION["en"])
 
 class ChunkAccumulator:
     """
@@ -374,17 +359,6 @@ class ChatProtocolAdapter(ABC):
         question = params.question
         if current_turn_note:
             question = f"{question}\n\n{current_turn_note}" if question else current_turn_note
-        if not question and params.file_list:
-            # Attachment-only turn: the files ARE the message, but they must
-            # still reach the model AS TEXT. An empty user message is not a
-            # harmless no-op — the Anthropic API rejects a zero-length text
-            # block outright (400), other providers silently drop the message,
-            # and LangGraph checkpoints this turn's input BEFORE the model runs,
-            # so an empty message that fails here stays in the session thread and
-            # is replayed on every later turn. Ask on the user's behalf instead.
-            # (A turn with neither text nor files never reaches here — the only
-            # caller, `chat.service.chat_handler`, still answers it with -3.)
-            question = attachment_only_question(params.language)
         if messages and isinstance(messages[-1], BaseMessage):
             messages = messages + [HumanMessage(content=question)]
         else:
@@ -506,7 +480,29 @@ class ChatProtocolAdapter(ABC):
             if not await self.validate_permissions(params, params.user_id):
                 yield self.encode_chunk({"type": "error", "content": "No permission to chat for this user"})
                 return
-            
+
+            # An attachment-only turn asks "read this" — say it out loud, ONCE,
+            # before anything downstream reads `params.question`. Everything
+            # that turn touches keys on that field: `_save_question_if_needed`
+            # (so the turn leaves a user row and the session gets a title
+            # instead of an assistant answer whose `question_id` points at a
+            # row that does not exist), the `question` kwarg BaseAgent renders
+            # its prompt from (`detect_language("")` is English, so a Chinese
+            # user who typed nothing got an English-instructed prompt), and the
+            # message the model receives. Substituting later, at message-build
+            # time, fixed only the last of those — and even that only until a
+            # `current_turn_note` was folded in ahead of it, which left the user
+            # message a bare time hint asking nothing at all.
+            #
+            # The empty message this replaces is not a harmless no-op: Anthropic
+            # rejects a zero-length text block outright (400), and LangGraph
+            # checkpoints the turn's input BEFORE the model node runs, so the
+            # failed turn stays in the session thread and is replayed on every
+            # later turn of that session.
+            if not params.question and has_attachment(params.file_list):
+                params.question = t("attachment_only_question",
+                                    params.language or "en", module="chat")
+
             question_msg_id = params.question_id or f"q_{uuid.uuid4()}"
             
             parallel_tasks = [

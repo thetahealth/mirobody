@@ -13,7 +13,7 @@ from .session import (
     get_session_summaries_by_person,
     delete_session
 )
-from .model import ChatStreamRequest
+from .model import ChatStreamRequest, has_attachment
 from .message import (
     get_chat_history,
     set_message_rating
@@ -401,8 +401,10 @@ class ChatService:
         # An attachment-only turn is a real request ("read this"), so a missing
         # question is only empty when nothing else came with it. This guard used
         # to reject on the text alone, which made "attach an image, press send"
-        # a hard -3 for every client.
-        if not params["question"] and not params.get("file_list"):
+        # a hard -3 for every client. `has_attachment` rather than truthiness:
+        # `[{}]` names no file, and letting it through would promise the model
+        # an attachment that `/uploads/` cannot serve.
+        if not params["question"] and not has_attachment(params.get("file_list")):
             return json_response_with_code(-3, "Empty question.", request=request)
 
         #-------------------------------------------------
