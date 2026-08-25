@@ -170,7 +170,8 @@ class ThFilesBackend(PgFilesystemBackend):
             # shadowing the older file, matching what the sync did.
             if base in seen:
                 key = str(r.get("file_key") or "")
-                base = f"{base}__thf_{key[:8]}" if key else base
+                suffix = safe_basename(key)[:8]
+                base = f"{base}__thf_{suffix}" if suffix else base
                 if base in seen:
                     continue
             seen.add(base)
