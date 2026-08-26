@@ -409,9 +409,20 @@ class DeepAgent():
         this_turn_keys = [str(f["file_key"]) for f in (file_list or [])
                           if isinstance(f, dict) and f.get("file_key")]
 
+        # The names `_attachment_reminder` announces to the model, so the mount
+        # answers to exactly the paths the model was handed. Deriving them from
+        # `th_files.file_name` instead would reintroduce the mid-turn rename race
+        # (see `ThFilesBackend.__init__`). The `file_key` fallback mirrors the
+        # reminder's (`_attachment_reminder`, below) — a request that carries no
+        # `file_name` must still name the file the same way at both ends.
+        this_turn_names = {str(f["file_key"]): str(f.get("file_name") or f.get("file_key") or "")
+                           for f in (file_list or [])
+                           if isinstance(f, dict) and f.get("file_key")}
+
         memory = ProfileBackend(user_id=user_id)
         uploads = ThFilesBackend(user_id=user_id, scope="uploads",
                                  file_keys=this_turn_keys,
+                                 turn_names=this_turn_names,
                                  supports_file_block=supports_file_block)
         library = ThFilesBackend(user_id=user_id, scope="library",
                                  file_keys=this_turn_keys,
