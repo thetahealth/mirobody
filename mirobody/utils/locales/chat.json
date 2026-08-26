@@ -1,0 +1,9 @@
+{
+  "attachment_only_question": {
+    "zh": "请阅读我这次上传的文件，并给出解读。",
+    "en": "Please read the file(s) I attached to this message and tell me what they say.",
+    "fr": "Merci de lire le ou les fichiers que j'ai joints à ce message et de m'expliquer ce qu'ils contiennent.",
+    "ja": "今回アップロードしたファイルを読んで、内容を説明してください。",
+    "es": "Por favor, lee el archivo o los archivos que he adjuntado a este mensaje y explícame qué dicen."
+  }
+}

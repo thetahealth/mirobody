@@ -24,11 +24,12 @@ from ..message import (
     save_message,
     get_last_message,
 )
-from ..model import ChatStreamRequest
+from ..model import ChatStreamRequest, has_attachment
 
 from ....user.care_circle import CareCircleDenied, resolve_subject
 from ....utils import execute_query, safe_read_cfg
 from ....utils.config import get_default_timezone
+from ....utils.i18n import t
 from ....utils.tasks import spawn
 
 #-----------------------------------------------------------------------------
@@ -479,7 +480,29 @@ class ChatProtocolAdapter(ABC):
             if not await self.validate_permissions(params, params.user_id):
                 yield self.encode_chunk({"type": "error", "content": "No permission to chat for this user"})
                 return
-            
+
+            # An attachment-only turn asks "read this" — say it out loud, ONCE,
+            # before anything downstream reads `params.question`. Everything
+            # that turn touches keys on that field: `_save_question_if_needed`
+            # (so the turn leaves a user row and the session gets a title
+            # instead of an assistant answer whose `question_id` points at a
+            # row that does not exist), the `question` kwarg BaseAgent renders
+            # its prompt from (`detect_language("")` is English, so a Chinese
+            # user who typed nothing got an English-instructed prompt), and the
+            # message the model receives. Substituting later, at message-build
+            # time, fixed only the last of those — and even that only until a
+            # `current_turn_note` was folded in ahead of it, which left the user
+            # message a bare time hint asking nothing at all.
+            #
+            # The empty message this replaces is not a harmless no-op: Anthropic
+            # rejects a zero-length text block outright (400), and LangGraph
+            # checkpoints the turn's input BEFORE the model node runs, so the
+            # failed turn stays in the session thread and is replayed on every
+            # later turn of that session.
+            if not params.question and has_attachment(params.file_list):
+                params.question = t("attachment_only_question",
+                                    params.language or "en", module="chat")
+
             question_msg_id = params.question_id or f"q_{uuid.uuid4()}"
             
             parallel_tasks = [
