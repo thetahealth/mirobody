@@ -1,6 +1,33 @@
 # Changelog
 
-## 1.2.1 — unreleased
+## 1.2.2 — unreleased
+
+### Fixed
+
+- **An attachment-only chat turn is a question.** Attaching a file and pressing
+  send without typing anything was refused with `-3 Empty question.` before the
+  agent was ever reached — `chat_handler` judged emptiness on the message text
+  alone. It now judges the whole turn, and a turn that carries files but no
+  words is normalised once, at the top of `handle_request`, into a stand-in
+  question in the request's language (`mirobody/utils/locales/chat.json`). One
+  field, so persistence, the session title, the resume hint, the `question`
+  kwarg and the message the model receives all agree; no turn reaches a
+  provider as a zero-length user message, which Anthropic rejects outright and
+  LangGraph would checkpoint into the session and replay. (#39, #41)
+
+- **`/uploads/` paths no longer move under the model mid-turn.** The upload
+  pass asks an LLM for a descriptive filename and overwrites
+  `th_files.file_name` with it, concurrently with the agent — so `ls` listed a
+  file that `read_file` then could not open, and the agent told the user their
+  report was unreadable. `/uploads/` now names this turn's attachments by what
+  the request attached them under, and the note that announces those paths to
+  the model is built from the mount itself rather than from the request, so it
+  cannot name a path the mount does not serve: same-named attachments are
+  announced apart, a `file_key` whose row is deleted or is not the caller's is
+  not announced at all, and a listing shortened by the per-turn file cap says
+  so. `/library/` still shows the stored, descriptive name. (#40, #42)
+
+## 1.2.1 — released 2026-08-23
 
 The first release in which `pip install mirobody` actually works, and the MCP
 surface is on the current protocol. There are **breaking changes to the MCP tool

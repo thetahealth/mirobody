@@ -153,13 +153,17 @@ _EMAIL = re.compile(r"[\w.+-]+@mirobody\.ai")
 _VERSION_SENTINEL = re.compile(r'or "(\d+\.\d+\.\d+)"')
 
 
-def test_the_awaited_version_is_the_source_tree_version():
-    """The READMEs tell readers to run from source "until X reaches PyPI",
-    the CHANGELOG's top entry names the release being prepared, and
-    `mirobody/__init__.py` carries the version the tree calls itself. All
-    three must agree, or a reader waits for a release that will never bear
-    that number. (When the release lands and the READMEs drop the warning,
-    delete the README half of this test; the CHANGELOG half stays.)"""
+def test_the_changelog_names_the_version_the_tree_calls_itself():
+    """The CHANGELOG's top entry names the release being prepared and
+    `mirobody/__init__.py` carries the version the tree calls itself; they
+    must agree, or the release notes describe a number nothing will ship
+    under.
+
+    This used to check a third place: the READMEs told readers to run from a
+    source checkout "until 1.2.1 reaches PyPI", because the published 1.0.62
+    wheel was an empty shell. 1.2.1 published on 2026-08-23, the four READMEs
+    dropped the warning, and this half went with it — as the previous version
+    of this docstring said it should."""
     src = (_ROOT / "mirobody" / "__init__.py").read_text(encoding="utf-8")
     version = _VERSION_SENTINEL.search(src).group(1)
 
@@ -168,14 +172,6 @@ def test_the_awaited_version_is_the_source_tree_version():
     assert top == version, (
         f"CHANGELOG's top entry is {top}; mirobody/__init__.py says {version}"
     )
-
-    for name in _READMES:
-        m = re.search(r"(\d+\.\d+\.\d+)(?= reaches| 发布| 發佈| が PyPI)", _text(name))
-        assert m, f"{name}: the run-from-source warning names no awaited version"
-        assert m.group(1) == version, (
-            f"{name} tells readers to wait for {m.group(1)}; "
-            f"the source tree is {version}"
-        )
 
 
 @pytest.mark.parametrize("name", _READMES)
