@@ -42,12 +42,6 @@ pip install mirobody
 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン "空腹血糖(GLU)" 血脂
 ```
 
-> **1.2.1 が PyPI に出るまでは、ソースチェックアウトから実行してほしい**
-> （`git clone` + `git lfs pull` + `pip install -e .`。後述の「一式を動かす」参照）。
-> 公開中の `1.0.62` wheel は空箱だ ―― CLI が無く、リゾルバのデータファイルは
-> 133バイトの Git-LFS ポインタスタブなので、何も解決できない。詳細は
-> [CHANGELOG](CHANGELOG.md)。
-
 <p align="center">
   <img src="docs/images/resolve-demo.ja.gif"
        alt="mirobody resolve：4つの言語が1つのLOINCコードに落ちる、完全オフライン" width="880">

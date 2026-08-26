@@ -42,11 +42,6 @@ pip install mirobody
 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン "空腹血糖(GLU)" 血脂
 ```
 
-> **在 1.2.1 发布到 PyPI 之前，请从源码 checkout 运行**（`git clone` +
-> `git lfs pull` + `pip install -e .`，见下文「把整套跑起来」）：当前发布的
-> `1.0.62` wheel 是个空壳——没有 CLI，解析器数据文件只是 133 字节的 Git-LFS
-> 指针 stub，什么都解析不了。详见 [CHANGELOG](CHANGELOG.md)。
-
 <p align="center">
   <img src="docs/images/resolve-demo.zh-CN.gif"
        alt="mirobody resolve：四种语言落到同一个 LOINC 码，完全离线" width="880">
