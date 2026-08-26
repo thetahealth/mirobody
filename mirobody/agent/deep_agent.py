@@ -866,18 +866,9 @@ class DeepAgent():
             # duplicate that and blow up the context. BaseAgent still uses
             # files_data (it has no virtual FS).
 
-            # Tell the model exactly which files were attached this turn (and
-            # their /uploads/ paths) so it reads them without an ls round-trip and
-            # never misses one. Transient — appended to the run's messages only,
-            # not the cached system prompt. Matches the incoming list's element
-            # type (BaseMessage vs dict) to avoid mixing forms.
-            reminder = _attachment_reminder(file_list)
-            if reminder:
-                if messages and isinstance(messages[-1], BaseMessage):
-                    from langchain_core.messages import HumanMessage
-                    messages = [*messages, HumanMessage(content=reminder)]
-                else:
-                    messages = [*messages, {"role": "user", "content": reminder}]
+            # The attachment reminder is built AFTER the mount exists — see the
+            # append below, and `_attachment_reminder` for why the paths have to
+            # come from the mount rather than from this request.
 
             llm_client, model_name, fallback_msg, loaded_tools, system_prompt = await self._prepare_context(
                 user_id=user_id,
@@ -903,6 +894,19 @@ class DeepAgent():
                 file_list=file_list,
                 supports_file_block=supports_file_block,
             )
+
+            # Tell the model exactly which files this turn attached and where to
+            # read them, so it never needs an `ls /uploads/` round-trip and never
+            # silently misses one. Transient — appended to the run's messages
+            # only, not the cached system prompt. Matches the list's element type
+            # (BaseMessage vs dict) to avoid mixing forms.
+            reminder = await _attachment_reminder(backend, file_list)
+            if reminder:
+                if final_messages and isinstance(final_messages[-1], BaseMessage):
+                    from langchain_core.messages import HumanMessage
+                    final_messages = [*final_messages, HumanMessage(content=reminder)]
+                else:
+                    final_messages = [*final_messages, {"role": "user", "content": reminder}]
 
             token_counter = TokenUsageCallback()
             stream_config = self._create_stream_config(user_id, token_counter, session_id)
@@ -1088,30 +1092,76 @@ class DeepAgent():
         return llm_clients
 
 
-def _attachment_reminder(file_list: list[dict[str, Any]] | None) -> str | None:
-    """A short note naming the files attached to THIS turn and their /uploads/
-    paths, so the model reads them without first having to ``ls /uploads/`` (and
-    never silently misses an attachment). Returns None when nothing is attached.
+async def _attachment_reminder(backend: Any,
+                               file_list: list[dict[str, Any]] | None) -> str | None:
+    """A short note naming this turn's attachments and their `/uploads/` paths,
+    so the model reads them without first having to ``ls /uploads/`` (and never
+    silently misses one). Returns None when nothing readable is attached.
+
+    **The paths come from the MOUNT, never from the request.** Deriving them
+    from the request payload is what issue #40 was: two independent name
+    computations that agreed only for as long as nothing renamed the file
+    mid-turn. Pinning `/uploads/` to the request's names (PR #42) made them
+    agree in the common case, but a request-derived listing can still name a
+    path the mount does not serve, in at least three ways:
+
+    * two attachments share a name — the mount serves the second under a
+      ``__thf_`` suffix the request cannot predict, so a request-derived note
+      announces one path twice and every read lands on the first file;
+    * the row is gone or was never the caller's (deleted, another user's
+      `file_key`) — the projection filters on `user_id` and `is_del`, the
+      request does not, so the note promises a file the mount will refuse;
+    * more than `_MAX_SESSION_FILES` attachments — the mount truncates, and a
+      request-derived note lists files that are not there.
+
+    Every one of those ends the same way for the user: the agent says the
+    upload is unreadable and asks them to send it again. Asking the projection
+    removes the class rather than the instances, and keeps this note correct
+    through any future change to how the mount names a file.
+
+    The listing is a snapshot taken as the turn starts, while the mount
+    re-queries on every tool call. That is the right way round: an upload
+    INSERTs its `th_files` row before the chat request carries its `file_key`,
+    so what lands mid-turn is an UPDATE (the rename), and anything the snapshot
+    somehow missed is still reachable with `ls`.
 
     Injected as a transient message (NOT the system prompt — that is cached and
     must stay stable across turns). Ephemeral: persistence saves the user
     question + assistant reply separately, not this note.
     """
-    items = [f for f in (file_list or []) if isinstance(f, dict) and f.get("file_key")]
-    paths: list[str] = []
-    from .deep.files_backend import _MAX_SESSION_FILES, safe_basename
+    attached = [f for f in (file_list or []) if isinstance(f, dict) and f.get("file_key")]
+    if not attached:
+        return None
 
-    for f in items[:_MAX_SESSION_FILES]:
-        name = safe_basename(f.get("file_name") or str(f.get("file_key")))
-        if name:
-            paths.append(f"/uploads/{name}")
+    # Anonymous sessions get a bare StateBackend with no /uploads/ route, and
+    # nothing to announce; `routes` is what tells the two apart.
+    uploads = getattr(backend, "routes", {}).get("/uploads/")
+    if uploads is None:
+        return None
+
+    # The public listing seam, so this note says exactly what the model's own
+    # `ls /uploads/` would say. A query failure returns no entries (`_files`
+    # logs and degrades); the model then falls back to `ls`, as it did before
+    # this note existed.
+    listed = await uploads.als("/")
+    paths = [f"/uploads{e['path']}" for e in (listed.entries or [])
+             if e.get("path") and not e.get("is_dir")]
     if not paths:
         return None
+
     listing = "\n".join(f"- {p}" for p in paths)
-    return (
-        "[System note: the user attached the following file(s) to THIS message. "
+    note = (
+        "[System note: the user attached file(s) to THIS message. "
         "Read the relevant one(s) with read_file before answering:\n"
-        f"{listing}]"
+        f"{listing}"
     )
+    # Say so rather than quietly listing fewer than were sent: a model that
+    # believes it has seen everything answers about everything.
+    if len(paths) < len(attached):
+        note += (
+            f"\n({len(paths)} of {len(attached)} attached file(s) are readable; "
+            "the rest are not in the user's file store.)"
+        )
+    return note + "]"
 
 
