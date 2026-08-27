@@ -279,6 +279,23 @@ def normalize_unit(text: str | None) -> str | None:
 _VALUE_ANYWHERE = re.compile(r"[0-9]+(?:[.,][0-9]+)?")
 
 
+def _comparator_and_value(raw_cmp: str, raw_num: str) -> tuple[str, float | None]:
+    """Split a _VALUE_PREFIX match into (comparator, float value).
+
+    ``-``/``+`` are signs (part of the number), not comparators.
+    """
+    sign = ""
+    if raw_cmp == "-":
+        sign, raw_cmp = "-", ""
+    elif raw_cmp == "+":
+        raw_cmp = ""
+    try:
+        value: float | None = float((sign + raw_num).replace(",", "."))
+    except ValueError:
+        value = None
+    return raw_cmp, value
+
+
 # ``parse_value_unit`` expects a clean ``<value><unit>`` standalone
 # string; resolver / corpus-side users need to find ``75 g`` inside
 # longer text (LOINC names: ``--2 hours post 75 g glucose PO``). The
@@ -436,20 +453,28 @@ def parse_value_unit(text: str | None) -> ParsedQuantity:
     if direct is not None:
         return ParsedQuantity("", None, direct)
 
+    # ── Path B0: respect an explicit whitespace boundary ─────────────
+    # ``_clean`` collapses internal whitespace, which GLUES a numeric value
+    # onto a digit-leading unit: ``240 10⁹/L`` → NFKC ⁹→9 → ``240109/L``,
+    # after which Path B's greedy digit match reads value=240109, unit=/L —
+    # a platelet count corrupted by three orders of magnitude. The author's
+    # own separator is the strongest split signal, so before collapsing it,
+    # try: first token ENTIRELY comparator+number, remainder a unit on its
+    # own. Digit-leading units (10*9/L, 10¹²/L, …) resolve via the alias
+    # table exactly like the bare-unit Path A always has.
+    parts = text.split()
+    if len(parts) >= 2:
+        m0 = _VALUE_PREFIX.fullmatch(_clean(parts[0]))
+        if m0:
+            unit0 = _resolve_strict(_clean("".join(parts[1:])))
+            if unit0 is not None:
+                cmp0, value0 = _comparator_and_value(m0.group(1), m0.group(2))
+                return ParsedQuantity(cmp0, value0, unit0)
+
     # ── Path B: value at start (with optional comparator) ────────────
     m = _VALUE_PREFIX.match(cleaned)
     if m:
-        raw_cmp, raw_num = m.group(1), m.group(2)
-        # ``-``/``+`` are signs (part of the number), not comparators.
-        sign = ""
-        if raw_cmp == "-":
-            sign, raw_cmp = "-", ""
-        elif raw_cmp == "+":
-            raw_cmp = ""
-        try:
-            value: float | None = float((sign + raw_num).replace(",", "."))
-        except ValueError:
-            value = None
+        raw_cmp, value = _comparator_and_value(m.group(1), m.group(2))
         rest = cleaned[m.end():]
         if not rest:
             return ParsedQuantity(raw_cmp, value, None)
