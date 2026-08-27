@@ -59,6 +59,7 @@ __all__ = [
     "conversion_factor",
     "convert_value",
     "partition_units",
+    "pick_display_unit",
     "MOLAR_MASS",
 ]
 
@@ -270,3 +271,27 @@ def partition_units(units: Iterable[str], *, loinc_code: str = "") -> list[list[
         else:
             classes.append([unit])
     return classes
+
+
+def pick_display_unit(stats: Iterable[tuple[str, int, object]]) -> str:
+    """Display unit = the most frequent one; ties go to the latest measurement.
+
+    One indicator must render as one series in one unit, so the caller
+    converts every reading in a convertible class to the unit this picks.
+    `stats` rows are ``(unit, reading_count, latest_measured_at)`` triples;
+    the timestamp may be None (sorts oldest).
+    """
+    best: tuple[str, int, object] | None = None
+    for unit, count, latest in stats:
+        if not unit:
+            continue
+        if best is None:
+            best = (unit, count, latest)
+            continue
+        if count > best[1]:
+            best = (unit, count, latest)
+        elif count == best[1]:
+            # Same frequency: prefer the most recent measurement; None is oldest.
+            if latest is not None and (best[2] is None or latest > best[2]):
+                best = (unit, count, latest)
+    return best[0] if best else ""
