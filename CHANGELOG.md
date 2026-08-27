@@ -2,7 +2,30 @@
 
 ## 1.2.2 — unreleased
 
+### Added
+
+- **`indicator.fhir.units.pick_display_unit`** — pick the unit a merged series
+  displays in: the most frequent unit wins, ties go to the latest measurement.
+  One indicator must render as one series in one unit; this is the tie-break
+  callers were each reimplementing.
+
 ### Fixed
+
+- **`parse_value_unit` respects the author's whitespace boundary.** The
+  whitespace collapse used to glue a numeric value onto a digit-leading count
+  unit: `240 10⁹/L` became `240109/L` and parsed as value 240109, unit `/L` —
+  a platelet count corrupted by three orders of magnitude. The first token is
+  now tried as the whole value and the remainder as the whole unit before any
+  collapsing (Path B0). Golden vectors in `mirobody/test_units.py`.
+
+- **The pulse Collect tables no longer carry conversion constants of their
+  own.** `pulse.standardize.units` had drifted from the UCUM engine it
+  shadows: lb was 2.20462 there vs the exact 2.2046226… ([lb_av] =
+  453.59237 g), glucose said 18.0182 vs the engine's 18.016 (C6H12O6 =
+  180.16 g/mol). Imperial factors and the glucose/cholesterol/triglyceride
+  molar masses now derive from `indicator.fhir.units.convert` at import, and
+  `mirobody/test_units.py` walks the whole table asserting zero drift wherever
+  both sides know the pair.
 
 - **An attachment-only chat turn is a question.** Attaching a file and pressing
   send without typing anything was refused with `-3 Empty question.` before the

@@ -8,6 +8,14 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, Set, Tuple
 
+# The UCUM engine is the single source for every constant this module shares
+# with it: imperial mass/length definitions and substance molar masses. This
+# table used to carry its own literals and they had already drifted (lb was
+# 2.20462 here vs the NIST-exact 2.2046226… there; glucose said 18.0182 here
+# vs 18.016 there) — two conversions for the same physical fact in one
+# codebase. `mirobody/test_units.py` gates that the drift stays at zero.
+from ...indicator.fhir.units.convert import MOLAR_MASS, conversion_factor
+
 # Import StandardIndicator for type hints
 try:
     from .indicators_info import StandardIndicator
@@ -59,22 +67,21 @@ STANDARD_UNITS: Set[str] = {
 # Where: 1 base_unit = conversion_factor × target_unit
 # Example: 1 kg = 1000 g, so "kg": {"g": 1000}
 _RAW_UNIT_CONVERSIONS: Dict[str, Dict[str, float]] = {
-    # Mass: base unit kg
-    # 1 kg = 1000 g = 2.20462 lb = 35.274 oz
+    # Mass: base unit kg. Imperial factors come from the UCUM engine's exact
+    # definitions ([lb_av] = 453.59237 g), not rounded literals.
     "kg": {
         "g": 1000,
-        "lb": 2.20462,
-        "oz": 35.274,
+        "lb": conversion_factor("kg", "[lb_av]"),
+        "oz": conversion_factor("kg", "[oz_av]"),
     },
 
-    # Length: base unit m
-    # 1 m = 100 cm = 1000 mm = 0.001 km = 3.28084 ft = 39.3701 in
+    # Length: base unit m. ft/in likewise from the engine ([ft_i] = 0.3048 m).
     "m": {
         "cm": 100,
         "mm": 1000,
         "km": 0.001,
-        "ft": 3.28084,
-        "in": 39.3701,
+        "ft": conversion_factor("m", "[ft_i]"),
+        "in": conversion_factor("m", "[in_i]"),
     },
 
     # Time - milliseconds: base unit ms
@@ -320,30 +327,27 @@ def _populate_indicator_specific_conversions():
         }
     }
 
-    # Blood Glucose: standard unit is mg/dL
-    # mmol/L <-> mg/dL conversion (molar mass: ~180 g/mol)
-    # 1 mg/dL = 0.0555 mmol/L
-    # 1 mmol/L = 18.0182 mg/dL
+    # Blood Glucose: standard unit is mg/dL. Molar mass from the engine's
+    # MOLAR_MASS (C6H12O6 = 180.16 g/mol, keyed by LOINC): 1 mmol/L =
+    # 18.016 mg/dL. This block used to say 18.0182 — a fourth-copy drift.
+    glucose_g_per_mol = MOLAR_MASS["2345-7"][0]
     INDICATOR_SPECIFIC_CONVERSIONS[StandardIndicator.BLOOD_GLUCOSE] = {
         "conversions": {
             "mmol/L": {
-                "to_standard": lambda v: v * 18.0182,  # mmol/L -> mg/dL
-                "from_standard": lambda v: v * 0.0555,  # mg/dL -> mmol/L
+                "to_standard": lambda v: v * glucose_g_per_mol / 10.0,  # mmol/L -> mg/dL
+                "from_standard": lambda v: v * 10.0 / glucose_g_per_mol,  # mg/dL -> mmol/L
             }
         }
     }
 
-    # Cholesterol indicators: standard unit is mmol/L
-    # mg/dL <-> mmol/L conversion (molar mass: ~387 g/mol)
-    # 1 mg/dL = 0.02586 mmol/L
-    # 1 mmol/L = 38.67 mg/dL
-    # g/L <-> mmol/L conversion
-    # 1 g/L = 2.586 mmol/L
+    # Cholesterol indicators: standard unit is mmol/L. Molar mass from the
+    # engine's MOLAR_MASS (C27H46O = 386.65 g/mol): 1 mmol/L = 38.665 mg/dL.
     #
     # Triglycerides are NOT in this list. An earlier version applied the
     # cholesterol factor (387 g/mol) to triglycerides too, so TG 150 mg/dL
     # (upper normal) converted to 3.879 mmol/L — read as "severely elevated"
     # instead of the correct ~1.69 mmol/L (a 2.29x error).
+    cholesterol_g_per_mol = MOLAR_MASS["2093-3"][0]
     for cholesterol_indicator in [
         StandardIndicator.CHOLESTEROL_LDL,
         StandardIndicator.CHOLESTEROL_HDL,
@@ -352,30 +356,29 @@ def _populate_indicator_specific_conversions():
         INDICATOR_SPECIFIC_CONVERSIONS[cholesterol_indicator] = {
             "conversions": {
                 "mg/dL": {
-                    "to_standard": lambda v: v * 0.02586,  # mg/dL -> mmol/L
-                    "from_standard": lambda v: v * 38.67,  # mmol/L -> mg/dL
+                    "to_standard": lambda v: v * 10.0 / cholesterol_g_per_mol,  # mg/dL -> mmol/L
+                    "from_standard": lambda v: v * cholesterol_g_per_mol / 10.0,  # mmol/L -> mg/dL
                 },
                 "g/L": {
-                    "to_standard": lambda v: v * 2.586,  # g/L -> mmol/L
-                    "from_standard": lambda v: v * 0.387,  # mmol/L -> g/L
+                    "to_standard": lambda v: v * 1000.0 / cholesterol_g_per_mol,  # g/L -> mmol/L
+                    "from_standard": lambda v: v * cholesterol_g_per_mol / 1000.0,  # mmol/L -> g/L
                 }
             }
         }
 
     # Triglycerides: standard unit is mmol/L, but the molar mass is its own —
-    # a conventional average of ~885.4 g/mol (triolein), the same constant
-    # `indicator/fhir/units/convert.py` uses for LOINC 2571-8.
-    # 1 mg/dL = 10/885.4 = 0.011294 mmol/L
-    # 1 mmol/L = 88.54 mg/dL
+    # the conventional average the engine keys to LOINC 2571-8 (~885.4 g/mol,
+    # triolein): 1 mmol/L = 88.54 mg/dL.
+    tg_g_per_mol = MOLAR_MASS["2571-8"][0]
     INDICATOR_SPECIFIC_CONVERSIONS[StandardIndicator.CHOLESTEROL_TRIGLYCERIDES] = {
         "conversions": {
             "mg/dL": {
-                "to_standard": lambda v: v * (10.0 / 885.4),  # mg/dL -> mmol/L
-                "from_standard": lambda v: v * 88.54,  # mmol/L -> mg/dL
+                "to_standard": lambda v: v * 10.0 / tg_g_per_mol,  # mg/dL -> mmol/L
+                "from_standard": lambda v: v * tg_g_per_mol / 10.0,  # mmol/L -> mg/dL
             },
             "g/L": {
-                "to_standard": lambda v: v * (1000.0 / 885.4),  # g/L -> mmol/L
-                "from_standard": lambda v: v * 0.8854,  # mmol/L -> g/L
+                "to_standard": lambda v: v * 1000.0 / tg_g_per_mol,  # g/L -> mmol/L
+                "from_standard": lambda v: v * tg_g_per_mol / 1000.0,  # mmol/L -> g/L
             }
         }
     }
