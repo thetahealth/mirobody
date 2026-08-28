@@ -51,16 +51,26 @@ CLAUDE.md
 # anyone can run -> publishable; produced by `eval/` -> not.
 docs/internal-testing.md
 
-# Resolver evaluation harness — LOCAL ONLY, deliberately.
+# Resolver evaluation harness — the DATA is local only, the RUNNER is not.
 #
-# `eval/` holds the maintained test set, the runner, and every timestamped
-# result. It stays out of the repo for two reasons and neither is tidiness:
-# the test set is derived in part from a sibling private repo's curated seed,
-# and a published benchmark that ships alongside the thing it grades is an
-# invitation to tune against it. Kept on disk so a change to the resolver can
-# be re-scored against the same set and the same runner — reproducible,
-# upgradable, traceable — without becoming a public claim.
-eval/
+# The two used to be one decision and they are not the same thing. The test set
+# is derived in part from a sibling private repo's curated seed, and a
+# published benchmark shipped alongside the thing it grades is an invitation to
+# tune against it — so `testset.jsonl`, `build_testset.py` and every
+# timestamped result stay out.
+#
+# `run_eval.py` ships, and only it. It is the part other people need and cannot
+# write for themselves: it defines the four metrics, the analyte-level grading
+# rule and the strata, and it takes `--testset <path>`, so a downstream team can
+# grade the same resolver against their own distribution without their cases
+# ever reaching this repository. A harness nobody else can run is not a shared
+# harness.
+#
+# `README.md` stays out with the data: it names the set's provenance and prints
+# per-stratum result tables, both of which are exactly the "not a public claim"
+# half. The runner's own docstring carries what a user of it needs.
+eval/*
+!eval/run_eval.py
 
 # Local regression suite. Not published: the repository keeps only the tests
 # that are evidence for something it claims (see [tool.pytest.ini_options] in
