@@ -113,7 +113,7 @@ async def get_checkpointer():
     except ImportError:
         logger.warning(
             "langgraph-checkpoint-postgres is not installed; the agent will run "
-            "without cross-turn memory. Install the [agents] extra."
+            "without cross-turn memory. Install the [app] extra."
         )
         _unavailable = True
         return None

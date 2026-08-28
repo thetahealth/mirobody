@@ -4,7 +4,7 @@ Exports resolve lazily (PEP 562), and that is load-bearing, not style — the
 same reason `mirobody/agent/__init__.py` is lazy.
 
 This package's `email` module imports `mandrill` at module scope, `oauth_service`
-and `user_service` reach the database, and all three live in the `[server]`
+and `user_service` reach the database, and all three live in the `[app]`
 extra. The eager `from .email import MandrillEmailValidator` that used to sit
 here therefore made **mandrill a hard requirement of the engine**, through a
 chain nothing in the layering rules could see:

@@ -1,6 +1,9 @@
-# The FULL platform (engine + agent layer) — what compose.yaml and deploy.sh
-# install. A bare `pip install mirobody` / `pip install -e .` is the ENGINE as
-# a library (collect + standardize) and deliberately excludes the
-# LangChain/deepagents stack; the chat server needs it, hence the [agents]
-# extra here. See pyproject.toml.
--e .[agents]
+# The FULL platform — what compose.yaml and deploy.sh install. This file is the
+# only thing that installs `[app]`, which is the point: the Docker application
+# mounts the checkout and pip-installs from it, so PyPI is never a deployment
+# path and `[app]` never asks anyone to choose a backend.
+#
+# A bare `pip install mirobody` is the LIBRARY: ② Standardize (resolve, units,
+# lexical) on numpy alone. `pip install 'mirobody[parse]'` adds ① Collect's
+# single-file surface. See pyproject.toml for why there are only those two.
+-e .[app]

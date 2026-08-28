@@ -10,7 +10,7 @@ not two answers to one question — they are the project's two CONSUMPTION
 MODELS, and each is the reference implementation of one of them:
 
 * **DeepAgent — you run the whole engine.** Clone or `pip install
-  'mirobody[agents]'`, and the agent loop runs *here*: our LangChain/deepagents
+  'mirobody[app]'`, and the agent loop runs *here*: our LangChain/deepagents
   stack, our Postgres-backed virtual filesystem (`/uploads`, `/library`,
   `/memories`, `/skills`), our in-process QuickJS interpreter, our
   per-turn model-call budget, our Agent Skills. Maximum capability, and every

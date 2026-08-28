@@ -26,3 +26,11 @@ recursive-exclude frontend *
 # scripts/check_wheel_data.py checks BOTH artifacts.
 exclude mirobody/res/fhir_concept_graph.bin
 exclude mirobody/res/fhir_snomed_ct_bundle.tar.gz
+exclude mirobody/res/fhir_meta.csv.gz
+
+# The sdist half of _BUILD_ONLY_CODE — the bundle-build passes and the v2
+# semantic pipeline. Neither can run from an install: the first needs raw
+# LOINC/UMLS releases that are licensed per user, the second needs a multi-GB
+# embedding matrix that ships on a volume. Both stay in git for contributors.
+recursive-exclude mirobody/indicator/fhir/embeddings *
+recursive-exclude mirobody/indicator/fhir/resolve *

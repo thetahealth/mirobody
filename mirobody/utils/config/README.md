@@ -206,7 +206,7 @@ DeepAgent computes with an **in-process JS/TS interpreter** —
 `CodeInterpreterMiddleware`, which adds a persistent `eval` REPL tool. No API
 key, no network, no external sandbox service, nothing to provision.
 
-Nothing to configure — it is on whenever the `[agents]` extra is installed. To
+Nothing to configure — it is on whenever the `[app]` extra is installed. To
 turn it off, block the tool:
 
 ```yaml

@@ -29,7 +29,7 @@ def _shipped() -> dict:
 
 
 def test_both_default_chat_providers_exist_and_use_their_gateway_key():
-    pytest.importorskip("langchain_core", reason="chat defaults live in the [agents] extra")
+    pytest.importorskip("langchain_core", reason="chat defaults live in the [app] extra")
     from mirobody.agent.deep_agent import (
         _DEFAULT_PROVIDER_DEEP,
         _DEFAULT_PROVIDER_DEEP_FALLBACK,
@@ -65,7 +65,7 @@ def _no_config_keys(monkeypatch):
 
 
 def test_chat_default_follows_the_available_key(_no_config_keys, monkeypatch):
-    pytest.importorskip("langchain_core", reason="chat defaults live in the [agents] extra")
+    pytest.importorskip("langchain_core", reason="chat defaults live in the [app] extra")
     from mirobody.agent import deep_agent
 
     monkeypatch.setattr(deep_agent, "safe_read_cfg", _no_config_keys)

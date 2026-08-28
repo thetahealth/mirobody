@@ -7,7 +7,7 @@ from mirobody.utils.req_ctx import get_req_ctx
 from mirobody.pulse.file_parser.handlers.base import BaseFileHandler, FileProcessingContext
 from mirobody.pulse.file_parser.services.genetic_processor import process_genetic_file
 import asyncio
-# `fastapi` lives in the [server] extra, but file parsing is advertised engine
+# `fastapi` lives in the [app] extra, but file parsing is advertised engine
 # functionality — a bare `pip install mirobody` must import this module. Every
 # use below is an annotation, so PEP 563 (the __future__ import) keeps them as
 # strings and the real symbol is only needed by type checkers.

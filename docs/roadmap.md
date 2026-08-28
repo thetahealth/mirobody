@@ -199,7 +199,7 @@ grouping the rest under `vendor/` would churn every import path in the package
 to communicate what two paragraphs now communicate, so it is not carried here as
 pending work.
 
-### `[server]` extra — finish the dependency split
+### ~~`[server]` extra — finish the dependency split~~ (done in 1.3.0; base is `numpy`, extras are `[parse]` and `[app]`)
 
 **Status:** unblocked, awaiting a product decision.
 
@@ -577,7 +577,7 @@ copy-pasted numeric regexes, a README describing method names that moved).
 
 ### Dependency floor: 51 MB of the 77 MB is data
 
-After moving the server stack to `[server]`, the engine install is 90 packages
+Historical: after moving the server stack out of base, the engine install was 90 packages
 / 233 MB, and the theoretical floor — wheel plus numpy — is 2 packages / 77 MB,
 of which 51 MB is the shipped LOINC/SNOMED bundle.
 

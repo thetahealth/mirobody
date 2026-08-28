@@ -7,10 +7,11 @@ Commands:
 
 * ``mirobody parse <file>``             — the engine's party trick: lab report
   in, standardized LOINC table out. One LLM key, no database, no server.
+  Requires the ``[parse]`` extra.
 * ``mirobody resolve <terms...>``       — offline indicator-name resolution
   against the shipped bundles. Needs NOTHING: no key, no config, no network.
 * ``mirobody serve [config.yaml ...]``  — the full HTTP server (chat, MCP,
-  API). Requires the ``[agents]`` extra; checked up front with a plain message
+  API). Requires the ``[app]`` extra; checked up front with a plain message
   instead of a traceback from deep inside an import chain.
 * ``mirobody worker [config.yaml ...]`` — the background task worker
   (IndicatorSync, ProfileRefresh queues).
@@ -26,34 +27,38 @@ import os
 import sys
 
 
-def _require_agents_extra(command: str) -> None:
-    """Fail fast, and legibly, when the agent layer isn't installed.
+def _require_extra(command: str, extra: str, marker: str, what: str) -> None:
+    """Fail fast, and legibly, when *command*'s optional extra isn't installed.
 
-    Both ``serve`` and ``worker`` import ``mirobody.server``, which wires the
-    chat/agent stack; without the ``[agents]`` extra that import chain dies
-    several modules deep with an opaque ``ModuleNotFoundError: langchain``.
-    Check the one marker dependency here and say what to run instead.
+    Every command past ``resolve`` imports a stack the default install does not
+    carry, and each of those import chains dies several modules deep with an
+    opaque ``ModuleNotFoundError``. Checking one marker dependency up front and
+    naming the pip command is the entire fix.
+
+    ``pip install mirobody`` is ② Standardize — ``resolve``, units, lexical,
+    numpy and nothing else. That is deliberate: it is the surface other
+    software depends ON, and it used to drag 93 packages and 245 MB behind it.
     """
-    if importlib.util.find_spec("langchain") is None:
+    if importlib.util.find_spec(marker) is None:
         sys.exit(
-            f"mirobody {command} needs the agent layer, which is an optional extra:\n"
+            f"mirobody {command} needs {what}, which is an optional extra:\n"
             "\n"
-            "    pip install 'mirobody[agents]'\n"
+            f"    pip install 'mirobody[{extra}]'\n"
             "\n"
-            "The default install is the data ENGINE as a library "
-            "(collect + standardize); the chat server is the layer on top."
+            "The default install is the vocabulary layer — `mirobody resolve`\n"
+            "works with no extras, no key and no network."
         )
 
 
 def _cmd_serve(args: argparse.Namespace) -> None:
-    _require_agents_extra("serve")
+    _require_extra("serve", "app", "langchain", "the server and agent layer")
     from mirobody.server import Server
 
     asyncio.run(Server.start(yaml_files=args.configs, fastapi_routers=[]))
 
 
 def _cmd_worker(args: argparse.Namespace) -> None:
-    _require_agents_extra("worker")
+    _require_extra("worker", "app", "langchain", "the server and agent layer")
     from mirobody.server import Worker
 
     asyncio.run(Worker.start(yaml_files=args.configs))
@@ -94,14 +99,16 @@ def _cmd_resolve(args: argparse.Namespace) -> None:
 def _cmd_parse(args: argparse.Namespace) -> None:
     """Read a document into standardized readings. Needs one vision-capable key.
 
-    The no-key case gets the same treatment as the missing `[agents]` extra in
-    `_require_agents_extra`, and for the same reason. It used to surface as a
+    The no-key case gets the same treatment as the missing extra in
+    `_require_extra`, and for the same reason. It used to surface as a
     twenty-line traceback ending in a `ValueError` from four frames inside
     `unified_file_extract` — the message was correct and nobody would read it
     there. `parse` is the second command the README hands a new user, right
     after `resolve`, which needs no key at all; being told which environment
     variable to set is the entire content of the failure.
     """
+    _require_extra("parse", "parse", "pdfplumber", "the document extraction stack")
+
     from mirobody.engine import parse_file
 
     if not os.path.isfile(args.file):
@@ -146,7 +153,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_serve = sub.add_parser("serve", help="run the HTTP server (requires the [agents] extra)")
+    p_serve = sub.add_parser("serve", help="run the HTTP server (requires the [app] extra)")
     p_serve.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
     p_serve.set_defaults(func=_cmd_serve)
 
@@ -154,7 +161,7 @@ def main(argv: list[str] | None = None) -> None:
     p_worker.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
     p_worker.set_defaults(func=_cmd_worker)
 
-    p_parse = sub.add_parser("parse", help="parse a health document into standardized indicators (needs one LLM key)")
+    p_parse = sub.add_parser("parse", help="parse a health document into standardized indicators (requires the [parse] extra and one LLM key)")
     p_parse.add_argument("file", help="path to a lab report (pdf/png/jpg/txt/csv)")
     p_parse.add_argument("--no-resolve", action="store_true", help="skip offline code resolution")
     p_parse.set_defaults(func=_cmd_parse)
