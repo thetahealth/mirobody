@@ -86,9 +86,13 @@ resolve("血脂").resolved                                 # False    这是类�
 - **第二层语义召回，刻意保持可选。** 以上均为词法层能力，遇到未收录词汇即弃答——
   这是明确的能力边界。余弦召回（[`indicator/semantic.py`](mirobody/indicator/semantic.py)）
   可以越过该边界，但**它无法弃答**：面对从未见过的词汇，它会以与正确答案相同的置信度
-  返回最近邻，任何阈值都无法区分二者。仓库不包含预置向量矩阵，因此 `resolve()` 默认
-  不受影响；仅当显式配置 `MIROBODY_SEMANTIC_INDEX` 后启用——且只用于*建议*一个待人工
-  确认的码，绝不直接写入标准码。
+  返回最近邻，任何阈值都无法区分二者。**仓库不含向量矩阵，也没有可下载的现成版本**：
+  它是 108,248 条 LOINC 行 × 1024 维（约 221 MB），且与 (provider, model) 一一绑定，
+  需用 `scripts/build_loinc_embeddings.py` 针对你配置的 embedding 模型自行构建。换成
+  另一个模型的矩阵不会报错——它会在错误的向量空间里自信地排序，所以构建时会写出
+  `<matrix>.meta.json`，加载时校验不符即拒绝。在你把 `MIROBODY_SEMANTIC_INDEX` 指向
+  一个矩阵之前 `resolve()` 完全不受影响；指向之后，也只用于*建议*一个待人工确认的码，
+  绝不直接写入标准码。
   → [语义召回](https://docs.mirobody.ai/zh/concepts/semantic-recall/)：基准数字、两道轴向
   闸门，以及为什么 `min_score` 不是正确性阈值。
 - **上述能力经过量化验证，而非单方声明。**
@@ -100,6 +104,45 @@ resolve("血脂").resolved                                 # False    这是类�
 ```bash
 pytest mirobody/test_engine_coverage.py -s   # 离线，约一秒
 ```
+
+### 用的是哪一版 LOINC,它覆盖什么、不覆盖什么
+
+随包分发的语料切自 **LOINC 2.82**,而且这件事由运行时报出,不是写在一句会漂的注释里:
+
+```python
+>>> import mirobody; mirobody.BUNDLE_VERSION
+'loinc-2.82+2026.08.28-050559ecc200'
+```
+
+版本、切分日期,加上一段对语料成员本身算出的摘要——所以「构建期消费这份词表」和
+「运行时 pin 的这个包」是不是同一份语料,可以被断言;光看包版本永远看不出来。
+[LOINC 许可](https://loinc.org/license/)要求每一份拷贝都带上版本号,
+`res/fhir_loinc_bundle.NOTICE` 带了,`scripts/stamp_bundle_version.py --check` 保证它不撒谎。
+
+**为什么是 2.82 而不是 2.83。** axis 表与那 677k 行语料是通过折叠后的
+`LONG_COMMON_NAME` 绑在一起的,而 2.83 系统性改名了其中 2,842 条
+(`Cerebral spinal fluid` → `Cerebrospinal Fluid` 这一类)。实测:只升 axis 会丢
+**3,486** 条「语料名 → 码」的连接,且新增为零。真要升就得连语料一起重建——那份语料
+横跨 SNOMED CT、RxNorm、CVX、DCM,各自单独授权,都不可在此再分发。留在 2.82 的
+已知代价:650 个被 2.83 标为 DISCOURAGED / DEPRECATED 的码仍可被答出,反映到基准上
+是 6,815 条能解析的案例里的 52 条。「干脆拒答这些码」也量过,没有采纳——658 个里
+LOINC 只为 9 个给出了替代码,拒答基本等于把「一个有点旧但正确的码」变成「没有码」,
+而没有码的读数根本无法归组。
+
+**LOINC 对可穿戴领域的覆盖比多数人以为的宽。** 它不只是化验套餐:`BDYWGT.*` 编身体成分
+(`101685-6` 骨量、`73964-9` 肌肉量、`101684-9` 体水分率),`HRTRATE.*` 把静息心率
+(`40443-4`)与单次测量区分开,另有步数(`41950-7`)、睡眠分期(`93831-6` 深睡、
+`93830-8` 浅睡)、HRV SDNN(`112429-6`)、VO₂ peak、爬升高度等码。它停在厂商复合指标上
+——Garmin 的身体电量与压力分数没有码,而这是对的:那是一家公司的算法,不是一个测量。
+
+**覆盖不等于召回,而且这道差距是我们的、不是 LOINC 的**:`Body bone mass` 在这里能解析到
+`101685-6`,中文的 `骨量` 却落到一个牙科体积码上,因为没有别名把它路由过去。
+这正是 [`res/resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv) 存在的理由
+——一行由人写下的意图,永远赢过索引里的表面匹配。
+
+→ [loinc.org](https://loinc.org/) · [许可](https://loinc.org/license/) ·
+[发布说明](https://loinc.org/kb/) · 下载免费,但需要注册账号并同意条款,
+这也是随包分发派生语料、而不分发原始发布的原因。
 
 → [标准化](https://docs.mirobody.ai/zh/api-reference/standardization/) ·
 [架构](https://docs.mirobody.ai/zh/concepts/architecture/) ·
@@ -148,6 +191,11 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
 使用 Claude/GPT/DeepSeek，语义搜索使用开源权重的 Qwen3-Embedding-8B（支持自主
 部署：以任何 OpenAI 兼容的 `/v1/embeddings` 服务部署同一模型，并将
 `OPENROUTER_BASE_URL` 指向该服务即可）。
+
+指标搜索编码的是**你自己的指标名**，不是 LOINC 全表：worker 的
+`IndicatorSyncTask` 在每次 ingest 后写入 `th_series_dim.embedding_qwen3_8b`，
+查询即与之比对。它需要 `mirobody worker` 在跑，`./deploy.sh` 会一并启动。
+这与上文第二层要的那份「可下载的全表矩阵」是两个不同的索引，而这一个是白送的。
 
 若所在网络无法访问 openrouter.ai（中国大陆境内即属此情形），可将
 [DashScope（阿里云百炼）key](https://dashscope.console.aliyun.com/apiKey) 配置为
@@ -265,18 +313,26 @@ agent 的每个工具同时通过 `/mcp` 对外提供，并按用户进行访问
 
 ```
 mirobody/
+├── engine.py    正门 —— resolve() 与 parse_file()
+├── units/       UCUM 单位、unit_family、换算            ┐ 库的部分：
+├── lexical.py   表层折叠 + CJK 感知分词器                │ 只依赖 numpy，
+├── res/         随包分发的 LOINC 语料                    ┘ 共 2 个包
 ├── pulse/       ① 收集     —— provider、文件解析、聚合
-├── indicator/   ② 标准化   —— 解析器、单位、概念图（无 DB、无网络）
+├── indicator/   ② 标准化   —— 解析器内部、概念图、语料构建
 ├── agent/       ③ 回答     —— DeepAgent、工具、skills、chat
 ├── mcp/         MCP 服务
 ├── schema/      DDL，开发环境启动时重放
 └── demo/        关爱圈演示数据
 ```
 
-**一条由工具强制执行的规则**：`indicator/` 永不导入 agent 层，因此
-`pip install mirobody` 约为 200 MB、90 个左右的包，不包含任何 agent 框架依赖——
-加装 `[agents]` 后约增至三倍（约 600 MB；具体数字随平台与安装器有所差异）。该边界
-由 import-linter 契约在 CI 中强制执行，违反即构建失败。
+**两种形态，诉求正好相反。** PyPI 包是**库**，小到不必让人想起它：
+`pip install mirobody` 是 **2 个包、52 MB** —— 上面前四项，外加 numpy。
+`[parse]` 加上读文档的能力；`[app]` 是全部，而唯一安装它的是 `requirements.txt`
+—— Docker 应用是 `git clone && ./deploy.sh`，从来不是 pip 安装出来的。
+
+**由工具强制执行，而非写在文档里**：三条 import-linter 契约守住这两条线——库层除
+numpy 外不导入任何东西，引擎永不导入 agent 层——违反即 `lint-imports` 构建失败。第四道闸门 `scripts/check_wheel_data.py`
+把语料构建流程与 v2 语义管线——19,000 行装了也跑不了的代码——挡在产物之外。
 
 → [架构](https://docs.mirobody.ai/zh/concepts/architecture/) ·
 [CONTRIBUTING.md](CONTRIBUTING.md)

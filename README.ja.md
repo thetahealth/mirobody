@@ -86,8 +86,12 @@ resolve("血脂").resolved                                 # False    観測で�
 - **第2の層があり、意図的にオプトインのままだ。** 上のすべては語彙的で、知らない用語には
   棄権する ―― 正直な天井だ。コサイン検索([`indicator/semantic.py`](mirobody/indicator/semantic.py))
   はそれを越えるが、**棄権できない**：見たことのない用語に対して、正解と同じ確信度で最近傍を
-  返し、両者を分けるしきい値は存在しない。行列は同梱しないので `MIROBODY_SEMANTIC_INDEX`
-  を指すまで `resolve()` は変わらない ―― 指した後は、人が確認するコードを*提案*させるために
+  返し、両者を分けるしきい値は存在しない。**行列は同梱せず、配布もしていない**: LOINC
+  108,248行 × 1024次元(約221 MB)で、(provider, model)の組に固有なので、
+  `scripts/build_loinc_embeddings.py` で自分の埋め込みモデル向けに作る。別モデルの行列は
+  エラーにならず、間違ったベクトル空間で自信満々に並べる ―― だから構築時に
+  `<matrix>.meta.json` を刻み、読み込み時に不一致を拒否する。`MIROBODY_SEMANTIC_INDEX`
+  を指すまで `resolve()` は変わらない。指した後も、人が確認するコードを*提案*させるために
   使い、同一性を作るためには使わない。
   → [セマンティック検索](https://docs.mirobody.ai/en/concepts/semantic-recall/)：ベンチマーク、
   2つの軸ゲート、そして `min_score` が正しさのしきい値ではない理由。
@@ -101,6 +105,52 @@ resolve("血脂").resolved                                 # False    観測で�
 ```bash
 pytest mirobody/test_engine_coverage.py -s   # オフライン、約1秒
 ```
+
+### どのLOINCか、そして何を覆い何を覆わないか
+
+同梱バンドルは **LOINC 2.82** から切り出したもので、それを実行時に自分で名乗る ――
+ずれうるコメントに書いておくのではなく:
+
+```python
+>>> import mirobody; mirobody.BUNDLE_VERSION
+'loinc-2.82+2026.08.28-050559ecc200'
+```
+
+リリース、切り出し日、そしてバンドル自身のメンバーに対するダイジェスト ―― だから
+「ビルド時にこの語彙を使った成果物」と「実行時にpinしたパッケージ」が同じコーパスかを
+断言できる。パッケージのバージョンだけでは決して分からなかったことだ。
+[LOINCのライセンス](https://loinc.org/license/)は全ての複製にバージョン番号を求めており、
+`res/fhir_loinc_bundle.NOTICE` はそれを持ち、`scripts/stamp_bundle_version.py --check`
+がその正しさを保つ。
+
+**なぜ2.83ではなく2.82か。** 軸テーブルと677k行のコーパスは畳み込んだ
+`LONG_COMMON_NAME` で結ばれており、2.83はそのうち2,842件を改名した
+(`Cerebral spinal fluid` → `Cerebrospinal Fluid` の類)。実測: 軸だけ上げると
+「コーパス名 → コード」の対応が **3,486件** 失われ、増えるものは無い。本当に上げるには
+コーパスごと作り直すことになり、それはSNOMED CT・RxNorm・CVX・DCMにまたがる ――
+どれも個別にライセンスされ、ここから再配布できない。2.82に留まる既知のコスト:
+2.83がDISCOURAGED/DEPRECATEDとした650コードが今も返りうること。ベンチマークでは
+解決する6,815件のうち52件がこれに当たる。「いっそ返さない」も計測した上で採らなかった
+―― 658件のうちLOINCが代替を示すのは9件だけで、拒否はたいてい「少し古いが正しい
+コード」を「コード無し」に変えるだけであり、コードの無い測定値はそもそもまとめられない。
+
+**LOINCはウェアラブル領域を思われているより広く覆う。** 検査パネルだけではない:
+`BDYWGT.*` が体組成(`101685-6` 骨量、`73964-9` 筋肉量、`101684-9` 体水分率)、
+`HRTRATE.*` が安静時心拍(`40443-4`)を単発測定と区別し、歩数(`41950-7`)、
+睡眠ステージ(`93831-6` 深睡眠、`93830-8` 浅睡眠)、HRV SDNN(`112429-6`)、
+VO₂ peak、獲得標高にもコードがある。止まるのはベンダー独自の合成指標 ――
+GarminのBody Batteryやストレススコアにコードは無く、それは正しい:あれは一社の
+アルゴリズムであって、測定ではない。
+
+**カバレッジと再現率は別物で、その差はLOINC側ではなくこちら側にある**:
+`Body bone mass` はここで `101685-6` に解決するのに、日本語・中国語の `骨量` は
+歯科の体積コードに落ちる。そこへ導くエイリアスが無いからだ。
+[`res/resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv) はそのためにある ――
+人が書き下ろした一行は、索引の表層一致に常に勝つ。
+
+→ [loinc.org](https://loinc.org/) · [ライセンス](https://loinc.org/license/) ·
+[リリースノート](https://loinc.org/kb/) · ダウンロードは無料だが、アカウント登録と
+規約への同意が要る。派生バンドルを同梱し、原本を配布しないのはそのためだ。
 
 → [標準化](https://docs.mirobody.ai/en/api-reference/standardization/) ·
 [アーキテクチャ](https://docs.mirobody.ai/en/concepts/architecture/) ·
@@ -151,6 +201,12 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
 検索がすべて動き出す ―― 会話は Claude/GPT/DeepSeek、セマンティック検索は
 オープンウェイトの Qwen3-Embedding-8B（自前デプロイも可: OpenAI互換の
 `/v1/embeddings` で同じモデルをサーブし、`OPENROUTER_BASE_URL` を向ければよい）。
+
+指標検索がベクトル化するのは**あなた自身の指標名**で、LOINCコーパスではない:
+workerの `IndicatorSyncTask` が取り込みのたびに
+`th_series_dim.embedding_qwen3_8b` を書き、クエリはそれと突き合わされる。
+`mirobody worker` が動いている必要があり、`./deploy.sh` が一緒に起動する。
+上の「第2の層」が欲しがるコーパス行列とは別のインデックスで、こちらは無料で付いてくる。
 
 ネットワークから openrouter.ai に届かない場合（中国本土がその典型）は、
 [DashScopeのキー](https://dashscope.console.aliyun.com/apiKey)を
@@ -273,19 +329,29 @@ ESL-Bench向けに生成したものを同梱しているので、投入にネ�
 
 ```
 mirobody/
+├── engine.py    正面玄関 ―― resolve() と parse_file()
+├── units/       UCUM単位、unit_family、換算              ┐ ライブラリ部分:
+├── lexical.py   表層畳み込み + CJK対応トークナイザ         │ numpyのみ、
+├── res/         同梱のLOINCバンドル                       ┘ 計2パッケージ
 ├── pulse/       ① Collect     ―― provider、ファイル解析、集計
-├── indicator/   ② Standardize ―― リゾルバ、単位、概念グラフ(DBもネットワークも不要)
+├── indicator/   ② Standardize ―― リゾルバ内部、概念グラフ、バンドル構築
 ├── agent/       ③ Answers     ―― DeepAgent、ツール、skills、chat
-├── mcp/         MCPサーバー
-├── schema/      DDL。開発環境では起動時に再生される
+├── mcp/         MCPサーバ
+├── user/        アイデンティティとケアサークル ―― 誰が誰の記録を読めるか
+├── schema/      DDL、開発時は起動で再生
 └── demo/        ケアサークルのデモデータ
 ```
 
-**機械で強制される1つのルール**：`indicator/` はエージェント層を決してimportしない。
-だから `pip install mirobody` はおよそ200 MB・90パッケージ前後で、フレームワークの
-影もない ―― `[agents]` を足すとほぼ3倍の約600 MBになる（フレッシュなvenvでの実測。
-正確な数字はプラットフォームとインストーラで変わる）。2つのimport-linter契約が
-その線を守り、`lint-imports` がビルドを落とす。
+**二つの形態は、正反対のものを求める。** PyPIパッケージはライブラリであり、
+存在を意識せずに済むほど小さくあるべきだ ―― `pip install mirobody` は
+**2パッケージ、52 MB**、上の4項目とnumpyだけ。`[parse]` が文書読み取りを足し、
+`[app]` が全部入りで、それを入れるのは `requirements.txt` だけだ ―― Dockerアプリは
+`git clone && ./deploy.sh` であって、pipインストールではない。
+
+**ドキュメントではなくツールで強制**: 3本のimport-linter契約が2つの線を守る ――
+ライブラリ層はnumpy以外を一切importせず、エンジンはagent層をimportしない ――
+破れば `lint-imports` がビルドを落とす。4本目のゲート `scripts/check_wheel_data.py` が、バンドル構築パスとv2セマンティック
+パイプライン ―― インストールしても誰も動かせない19,000行 ―― を成果物から締め出す。
 
 → [アーキテクチャ](https://docs.mirobody.ai/en/concepts/architecture/) ·
 [CONTRIBUTING.md](CONTRIBUTING.md)

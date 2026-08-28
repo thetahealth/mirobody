@@ -1,6 +1,186 @@
 # Changelog
 
-## 1.2.2 — unreleased
+## 1.3.0
+
+**Breaking, and the whole point: `pip install mirobody` is now a library.** It
+was 93 packages and 245 MB, of which mirobody itself was 29 MB; it is now
+**2 packages and 52 MB** — the vocabulary layer on numpy. Everything that made
+up the other 216 MB moved behind two extras. If you were installing the default
+for document parsing or the server, add the bracket:
+
+| before | after |
+| --- | --- |
+| `pip install mirobody` (then `mirobody parse`) | `pip install 'mirobody[parse]'` |
+| `pip install 'mirobody[agents]'` | `pip install 'mirobody[app]'` |
+| `pip install 'mirobody[server]'` | `pip install 'mirobody[app]'` — `[server]` alone could never run `serve` or `worker` anyway |
+| `pip install 'mirobody[cn]'` | `pip install 'mirobody[app]'` — see below |
+
+### Changed
+
+- **Base dependencies are `["numpy"]`.** The extraction stack, the model SDKs
+  and the whole server/agent tree were base requirements, so a consumer of ②
+  Standardize paid for PowerPoint parsing and three LLM clients to resolve a
+  name. Worse than wasteful: `mcp>=2.0.0` in base made the package
+  **uninstallable** alongside `langchain-mcp-adapters` (which caps `mcp<2.0.0`),
+  and the only downstream workaround was to override this project's metadata in
+  a lockfile. `mcp` moved to `[app]` with `mirobody.mcp`, which is server-side
+  by construction (`mcp/service.py` imports psycopg_pool and redis at module
+  level), and the conflict is gone.
+
+- **Six extras became two.** `[parse]` is the one bracket a person types;
+  `[app]` is what the image installs and is the only consumer of `[server]`,
+  `[agents]` and `[cn]`, which are removed. Nothing referenced `[server]` or
+  `[cn]` anywhere in the repository, and `[cn]` was not an axis: it paired an
+  object-storage backend with a model vendor's SDK under a country name while
+  their siblings sat in `[server]` and base — so installing Aliyun OSS (0.3 MB)
+  also installed the Ark SDK (43 MB). `storage/factory.py` iterates
+  `AbstractStorage.__subclasses__()`; the backends are peers in the code and
+  were split by geography only in the packaging.
+
+- **`mirobody parse` checks for its extra up front**, the way `serve` and
+  `worker` already did, and prints the pip command instead of a
+  `ModuleNotFoundError` from four modules deep.
+
+- **The vocabulary layer moved to the package root.** `mirobody.units`,
+  `mirobody.lexical`, `mirobody.value_scale` and `mirobody.zh_fold` were under
+  `mirobody.indicator.fhir.units` and `mirobody.indicator.*`. The `fhir` in that
+  path was wrong for UCUM units, and the modules a `pip install` can actually
+  use now sit next to `engine.py` rather than inside the tree that is pruned
+  from the wheel.
+
+- **`requirements.txt` is `-e .[app]`.**
+
+### Added
+
+- **`mirobody/py.typed`.** The package is annotated throughout and, under
+  PEP 561, every type checker was ignoring all of it — a consumer got `Any` for
+  `Resolution` and `ParsedQuantity`.
+
+- **A declared public surface.** `from mirobody import resolve, resolve_reading,
+  parse_file, Resolution, Reading` — lazily (PEP 562), so `import mirobody`
+  stays at ~17 ms and pulls in neither numpy nor the data bundle. `__all__` in
+  `mirobody`, `mirobody.engine` and `mirobody.lexical` is the stable surface;
+  everything else is internal.
+
+- **`mirobody.BUNDLE_VERSION`** — which LOINC release the shipped bundle was cut
+  from, as `loinc-2.82+2026.08.28-<12 hex>` where the hex is a digest over the
+  bundle's own members. The package version and the corpus version are different facts, and
+  only the first existed: a consumer generating a seed from the bundle at build
+  time and pinning the package at runtime had nothing to assert the two agree
+  against. `scripts/stamp_bundle_version.py --check` is the CI gate.
+
+- **`eval/run_eval.py` ships.** It takes `--testset <path>`, so a downstream
+  team can score this resolver against their own distribution without their
+  cases reaching this repository. The maintained test set and its results stay
+  out, as before; only the harness — the four metrics, the analyte-level
+  grading rule, the strata — is the shared part.
+
+### Fixed
+
+- **The resolver holds 70% less and loads 3× faster.**
+
+      resident        514 MB  ->  152 MB
+      cold load       1.09 s  ->  0.28 s
+      resolve()       0.76 ms ->  0.07 ms
+      resolve_reading 1.60 ms ->  0.10 ms
+
+  None of that was about the amount of data — 77 MB of text. It was about the
+  shape the artifacts stored it in. `loinc_alias_index.npz` kept its 921,172
+  keys as a *pickled object array* and `fhir_meta.csv.gz` / `loinc_axis.csv`
+  are text, so reading them allocated roughly 1.6 million Python strings for
+  tables that answer a few hundred lookups per call, and no amount of care in
+  the loader could avoid it.
+
+  The bundle now carries the same content as byte blobs plus int32 offsets
+  (`scripts/build_runtime_index.py` cuts them; `mirobody/_strtab.py` reads
+  them). `_posting` bisects the alias blob, `_pick` runs its specimen regexes
+  against slices of the corpus-name blob, and only the row that wins is
+  decoded. `variant_for_reading` also stopped scanning all 97,314 axis rows to
+  find one code.
+
+  On disk this is close to a wash — the tarball compresses a blob about as
+  well as it compressed the pickle — and `fhir_meta.csv.gz` leaves the wheel
+  entirely, so the whole change costs +3.2 MB of wheel (23.6 -> 26.8 MB).
+  Deliberately NOT the memory-mapped variant, which would need the data
+  uncompressed on disk and take the installed `res/` from 22 MB to ~120 MB to
+  save the last few tens of MB.
+
+  Verified identical on all 7,354 eval cases — coverage 0.927, precision
+  0.967, wrong-rate 0.032, exact 0.698, unchanged to three decimals — and
+  every one of the 97,314 axis rows plus 677,643 corpus names round-trips
+  field-for-field against a fresh parse of the source it was cut from.
+
+- **The semantic tier can no longer lose its safety gates quietly.** It parsed
+  `loinc_axis.csv` into gate tables of its own and treated the file being
+  absent as "leave them empty" — survivable while that CSV shipped, silent
+  disaster once `axis_fields.bin` superseded it. Those gates are what stop
+  cosine answering `total cholesterol` with a PhenX self-report survey item.
+  `_bundle.load_axis()` is the one reader for both tiers now and raises,
+  naming the rebuild command.
+
+- **`resolve()` honours the skip list.** `loinc_skip.txt` is described in the
+  bundle NOTICE as "LOINC codes excluded from resolve" — non-clinical CLASS
+  (SURVEY, PHENX, DOC, ADMIN) plus DEPRECATED and DISCOURAGED status — and
+  `resolve()` never consulted it. Only `_component_index` did, so the list
+  gated which sibling a unit-aware lookup could switch TO while the first
+  answer stayed ungated: `呼吸次数` came back as *First Respiration rate Set*, a
+  nursing form field.
+
+  A skipped winner now re-picks rather than refusing the term, which is where
+  most of the value is: `已施用的药物` went from `27771-5 Medical social services
+  treatment plan, Medication administered` to `29303-5 Medication
+  administered`, the code that was sitting behind it all along. Free on the
+  benchmark — coverage, precision, recall and wrong-rate unchanged to three
+  decimals across all 7,354 eval cases, with exact-code agreement up from
+  0.698 to 0.699.
+
+- **`boto3` is declared.** `utils/config/llm.py::_build_bedrock` imports it for
+  the sync client and it was never in any dependency list; it arrived
+  transitively via `aioboto3`, the same class of bug as the undeclared
+  `python-multipart`, `starlette` and `anthropic` before it.
+
+- **One copy of the alias tables, not two.** `res/aliases_src/{lang}.tsv` was
+  also stored inside `fhir_loinc_bundle.tar.gz` as `aliases/{lang}.tsv`,
+  byte-identical, with the resolver reading the loose files and the lexicon
+  build reading the bundle members. They had drifted: four rows added to
+  `zh_curated.tsv` (DPA, DGLA, AA/EPA ×2) were live for the resolver and
+  invisible to the build. The bundle members are gone, `load_all_aliases` reads
+  the loose files, and a curated row now takes effect when it is written rather
+  than at the next bundle re-cut.
+
+- **The runtime no longer imports the build tooling.** `engine.py` read the
+  shipped bundle through `indicator/fhir/embeddings/bundle.py` and folded index
+  keys with the private `alias._normalize`. The read side is now
+  `mirobody/_bundle.py` and the fold is `mirobody.lexical.index_fold`, which the
+  build pass imports — one definition for a function the build and the runtime
+  must agree on exactly.
+
+### Removed
+
+- **17 MB of bundle members that no install can read.** The pickled alias
+  index, the axis CSV, and the dose/demote/analyte tables are inputs to the
+  build passes; the runtime reads the blobs derived from them.
+  `scripts/build_backend.py::_BUNDLE_RUNTIME_MEMBERS` repacks the shipped copy,
+  and `check_wheel_data.py` now checks members inside the bundle, not just the
+  bundle's presence. The full bundle stays in git — it is what a contributor
+  rebuilds from.
+
+- **19,000 lines that no install can run.** `indicator/fhir/embeddings/` (the
+  bundle-build passes, which need raw LOINC/UMLS releases licensed per user) and
+  `indicator/fhir/resolve/` (the v2 semantic pipeline, which needs a multi-GB
+  embedding matrix that ships on a volume) are pruned from the wheel and the
+  sdist. They stay in git for contributors. `scripts/check_wheel_data.py` fails
+  the build if either comes back — the same standard already applied to 28 MB of
+  data nothing reads.
+
+### Known limit
+
+The resolver's remaining 338 MB is 921k + 677k Python strings (the alias keys
+and the corpus names), materialized because the shipped `.npz` and `.csv.gz`
+store them as objects and text. Removing them needs the on-disk format to
+become a memory-mappable blob, which trades roughly +96 MB of installed disk
+for the RAM and is deliberately not in this release.
+## 1.2.2
 
 ### Added
 
@@ -183,7 +363,7 @@ things to know:
 ### Fixed
 
 - **The spelling no longer decides the answer.** New
-  `mirobody/indicator/lexical.py`: NFKC-lite folding (full-width, superscripts,
+  `mirobody/lexical.py`: NFKC-lite folding (full-width, superscripts,
   the six Unicode dash variants) and a CJK-aware tokenizer, used to derive extra
   candidate surfaces for a lookup. The bundle's own normalizer is NFKC +
   casefold and must stay that way — it folded the index keys at build time — so
