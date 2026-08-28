@@ -32,7 +32,7 @@ from argparse import Namespace
 
 import numpy as np
 
-from ..units import scan_value_units
+from mirobody.units import scan_value_units
 from .local import META_BASENAME, RES_DIR
 
 log = logging.getLogger(__name__)

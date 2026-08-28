@@ -768,7 +768,7 @@ class FhirAdapter(DomainAdapter):
 
         # Dose value+unit match. When the query carries a dose
         # specifier (``75 g``, ``100 mg``, ``50 mL``) parseable by
-        # :func:`mirobody.indicator.fhir.units.scan_value_units`, boost
+        # :func:`mirobody.units.scan_value_units`, boost
         # every corpus row whose name carries the same (value, UCUM)
         # tuple. Disambiguates OGTT challenge variants (75 g vs 100 g
         # vs unspecified) and drug strengths (500 mg vs 1 g) — neither
@@ -776,7 +776,7 @@ class FhirAdapter(DomainAdapter):
         # Bonus matches the axis-level magnitude; query without any
         # dose value leaves every row untouched.
         if dose_index is not None and query_texts is not None:
-            from .units import scan_value_units as _scan_value_units
+            from mirobody.units import scan_value_units as _scan_value_units
             from .resolve.challenge_time import context_implied_doses
             for b, qi in enumerate(valid_idx):
                 if qi >= len(query_texts):

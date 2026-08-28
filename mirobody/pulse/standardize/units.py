@@ -14,7 +14,7 @@ from typing import Any, Dict, Set, Tuple
 # 2.20462 here vs the NIST-exact 2.2046226… there; glucose said 18.0182 here
 # vs 18.016 there) — two conversions for the same physical fact in one
 # codebase. `mirobody/test_units.py` gates that the drift stays at zero.
-from ...indicator.fhir.units.convert import MOLAR_MASS, conversion_factor
+from mirobody.units.convert import MOLAR_MASS, conversion_factor
 
 # Import StandardIndicator for type hints
 try:

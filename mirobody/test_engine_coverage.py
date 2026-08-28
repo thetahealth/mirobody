@@ -148,7 +148,7 @@ CASES: list[tuple[str, str, str]] = [
     #
     # SCRIPT: 白細胞 / 總膽固醇 / 穀丙轉氨酶 are the same words in different
     # glyphs. `lexical.surface_variants` folds zh-Hant to zh-Hans on the way in
-    # (see indicator/zh_fold.py), which is the symmetric half of what the
+    # (see zh_fold.py), which is the symmetric half of what the
     # lexicon build already does to the corpus.
     #
     # VOCABULARY: Taiwan clinical usage picks DIFFERENT WORDS, and folding

@@ -119,7 +119,7 @@ class TerminologyService:
                 anything needing a molar mass this engine does not carry, land
                 here. `reason` says which case it was.
         """
-        from mirobody.indicator.fhir.units import (
+        from mirobody.units import (
             convert_value, normalize_unit as _norm,
         )
 
@@ -174,7 +174,7 @@ class TerminologyService:
             return {"success": False, "error": "Too many units in one call (max 200)."}
 
         try:
-            from mirobody.indicator.fhir.units import normalize_unit, unit_family
+            from mirobody.units import normalize_unit, unit_family
 
             results = []
             for raw in units:

@@ -182,7 +182,7 @@ When multiple codes survive every filter and rerank stage:
 `fhir/units/` parses free-text "value + unit" strings into structured `ParsedQuantity(comparator, value, canonical_ucum)` and looks up the corresponding LOINC PROPERTY family. Designed for ingesting clinical and wearable data where the same indicator gets written different ways across languages, locales, and devices. Pure local computation — no DB, no embedding API.
 
 ```python
-from mirobody.indicator.fhir.units import (
+from mirobody.units import (
     normalize_unit, parse_value_unit, unit_family, unit_families,
 )
 

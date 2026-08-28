@@ -1595,7 +1595,7 @@ def _property_family_from_value(value: str | None) -> str | None:
     """
     if not value:
         return None
-    from ..units import parse_value_unit, unit_families
+    from mirobody.units import parse_value_unit, unit_families
     parsed = parse_value_unit(value)
     if not parsed.unit:
         return None

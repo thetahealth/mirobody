@@ -2,13 +2,21 @@
 
 Pure Python, no dependencies, no data files — importable anywhere in the engine.
 
-**Why this is separate from ``fhir/embeddings/alias.py::_normalize``.** That one
-is the BUNDLE's normalizer: the keys in ``loinc_alias_index.npz`` were folded
-with it at build time, so changing it would silently stop those keys matching.
-It is therefore frozen by the artifact, and it is minimal — NFKC + casefold, and
-nothing else. This module is the LOOKUP side, free to be as thorough as the
-input deserves, and it is used to derive *additional* candidate surfaces that
-are then looked up with the bundle's own normalizer.
+**Two normalizers live here, and the split is load-bearing.**
+:func:`index_fold` is the BUNDLE's normalizer: the keys in
+``loinc_alias_index.npz`` were folded with it at build time, so changing it
+would silently stop those keys matching. It is therefore frozen by the
+artifact, and it is minimal — NFKC + casefold, and nothing else.
+:func:`normalize` is the LOOKUP side, free to be as thorough as the input
+deserves; it derives *additional* candidate surfaces that are then looked up
+with :func:`index_fold`.
+
+They used to sit in different packages — ``index_fold`` was a private
+``_normalize`` inside ``indicator/fhir/embeddings/alias.py``, i.e. inside the
+bundle-BUILD tooling, imported from there by ``engine.py``. One function that
+the build and the runtime must agree on exactly is precisely the function that
+must have one home, and that home has to be on the runtime side, because the
+build tooling does not ship.
 
 What that thoroughness buys, measured on real report text:
 
@@ -30,6 +38,16 @@ harmless in isolation changes which surface a term collides with.
 from __future__ import annotations
 
 import re
+import unicodedata
+
+__all__ = [
+    "TRAILING_PARENTHETICAL",
+    "index_fold",
+    "normalize",
+    "split_trailing_parenthetical",
+    "surface_variants",
+    "word_tokens",
+]
 
 # NFKC-lite: the 1:1 codepoint folds that actually occur in clinical surfaces.
 _SUPERSCRIPT = {
@@ -47,6 +65,24 @@ _ASCII_WS = frozenset(" \t\n\r\f\v")
 # A trailing parenthetical, in any of the bracket pairs a lab report uses.
 # Full-width（）is what a Chinese report prints; 【】appears in some templates.
 TRAILING_PARENTHETICAL = re.compile(r"[（(\[【]([^)）\]】]*)[)）\]】]\s*$")
+
+
+def index_fold(s: str) -> str:
+    """NFKC normalize + casefold. CJK passes through unchanged.
+
+    **The bundle's own key fold — do not "improve" it.** Every key in
+    ``loinc_alias_index.npz`` was written through this exact function, so any
+    change here stops those keys matching and the resolver silently loses
+    recall. The build pass that mints the index
+    (``indicator/fhir/embeddings/alias.py``) imports it from here rather than
+    keeping a second copy, which is what makes "the build and the runtime fold
+    identically" a fact instead of a convention.
+
+    ``casefold`` (not ``lower``) handles ß / İ correctly; CJK is unaffected.
+    """
+    if not s:
+        return ""
+    return unicodedata.normalize("NFKC", s).strip().casefold()
 
 
 def _fold_cp(ch: str) -> str:
@@ -152,7 +188,7 @@ def surface_variants(term: str) -> list[str]:
     before this: of eight common indicators whose Traditional spelling differs,
     two resolved and six returned nothing, with no rule distinguishing them.
     Folding the query is the symmetric half of what the build does to the
-    corpus. See :mod:`mirobody.indicator.zh_fold` for why folding is a script
+    corpus. See :mod:`mirobody.zh_fold` for why folding is a script
     transform and never a translation.
     """
     from .zh_fold import fold_to_hans

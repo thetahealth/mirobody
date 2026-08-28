@@ -469,7 +469,7 @@ def context_implied_doses(text: str) -> set[tuple[float, str]]:
 
     Emits the dose tuple when the query carries a context license
     marker AND (if the entry requires it) a time interval. Empty set
-    otherwise. Same shape as :func:`mirobody.indicator.fhir.units.scan_value_units`
+    otherwise. Same shape as :func:`mirobody.units.scan_value_units`
     so the adapter can union both into a single dose-index lookup pass.
     """
     if not text:
