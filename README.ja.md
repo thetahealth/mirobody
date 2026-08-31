@@ -117,7 +117,7 @@ pytest mirobody/test_engine_coverage.py -s   # オフライン、約1秒
 
 ```python
 >>> import mirobody; mirobody.BUNDLE_VERSION
-'loinc-2.82+2026.08.28-050559ecc200'
+'loinc-2.82+2026.08.28-af2524b7a285'
 ```
 
 リリース、切り出し日、そしてバンドル自身のメンバーに対するダイジェスト ―― だから
