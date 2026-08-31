@@ -4,7 +4,7 @@
 
 **AI 原生的健康資料引擎——收集、標準化，並針對檢驗報告、穿戴裝置與基因體資料進行推理。**
 
-Mirobody 正在支撐 **Theta Wellness**——一款已上線的消費級健康產品，擁有 5,000+ 註冊使用者、500+ 日活使用者。
+已上線的消費者健康產品 **Theta Wellness** 由 Mirobody 驅動——註冊使用者 5,000+，每日活躍 500+。
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-3776AB.svg?logo=python&logoColor=white)](pyproject.toml)
