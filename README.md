@@ -4,6 +4,8 @@
 
 **The AI-native health data engine — collect, standardize, and reason over labs, wearables & genomics.**
 
+Mirobody powers **Theta Wellness**, a live consumer health product used by 5,000+ registered users with 500+ daily active users.
+
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-3776AB.svg?logo=python&logoColor=white)](pyproject.toml)
 [![PyPI Downloads](https://img.shields.io/pepy/dt/mirobody?label=PyPI%20Downloads&color=orange)](https://pepy.tech/projects/mirobody)

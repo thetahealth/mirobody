@@ -4,6 +4,8 @@
 
 **AIネイティブな健康データエンジン ―― 検査値・ウェアラブル・ゲノムを収集し、標準化し、そこから推論する。**
 
+Mirobody は、5,000+ の登録ユーザーと 500+ のデイリーアクティブユーザーを持つ稼働中のコンシューマー向け健康プロダクト **Theta Wellness** を動かしている。
+
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-3776AB.svg?logo=python&logoColor=white)](pyproject.toml)
 [![PyPI Downloads](https://img.shields.io/pepy/dt/mirobody?label=PyPI%20Downloads&color=orange)](https://pepy.tech/projects/mirobody)
