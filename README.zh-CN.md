@@ -389,6 +389,20 @@ pip install -e '.[test]' && pytest -q && lint-imports
 
 ---
 
+## ⭐ Star 趋势
+
+<div align="center">
+<a href="https://star-history.com/#thetahealth/mirobody&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=thetahealth/mirobody&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=thetahealth/mirobody&type=Date" />
+    <img alt="Star 趋势图" src="https://api.star-history.com/svg?repos=thetahealth/mirobody&type=Date" />
+  </picture>
+</a>
+</div>
+
+---
+
 <div align="center">
 
 **[📚 文档](https://docs.mirobody.ai/)** · **[💬 Chat](https://chat.mirobody.ai/)** · **[🔌 平台](https://platform.mirobody.ai/)** · **[🧪 Eval](https://github.com/thetahealth/mirobody-eval)**
