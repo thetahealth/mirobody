@@ -1,24 +1,54 @@
-"""Single-file LOINC-derived resolver bundle (``fhir_loinc_bundle.tar.gz``)
-plus its SNOMED CT sibling (``fhir_snomed_ct_bundle.tar.gz``).
+"""Bundle MUTATION — the build side of ``fhir_loinc_bundle.tar.gz``, plus the
+SNOMED CT sibling (``fhir_snomed_ct_bundle.tar.gz``).
 
-The unified LOINC bundle holds every static LOINC-derived lookup the
-resolver needs:
+**The read side moved to** :mod:`mirobody._bundle`. Splitting them was the
+point: ``engine.py`` used to reach through this module (and into
+``alias._normalize``) for the data it serves on every ``resolve()`` call, so
+the runtime imported the build tooling and the build tooling could never be
+pruned from the wheel. Reads are runtime and live at the package root; writes
+are build-time and live here, next to the passes that mint the members.
 
-::
+Member layout, and which pass writes each::
 
     fhir_loinc_bundle.tar.gz
-    ├── loinc_axis.csv               # axis values per LOINC code
-    ├── loinc_skip.txt               # codes excluded from resolve
-    ├── loinc_demote.txt             # codes soft-demoted in sort
-    ├── loinc_rank_bonus.npy         # row-aligned float32 cosine bonus
-    ├── loinc_alias_index.npz        # multilingual lexical alias index
-    ├── fhir_dose_index.npz          # (value, UCUM unit) → corpus rows
-    └── aliases/{lang}.tsv           # per-language src→canonical-EN
+    ├── VERSION                # scripts/stamp_bundle_version.py
+    ├── loinc_axis.csv         # benchmarks/build_loinc_bundle.py   [input]
+    ├── loinc_skip.txt         #   "
+    ├── loinc_demote.txt       #   "
+    ├── loinc_rank_bonus.npy   # `loinc-rank`
+    ├── loinc_alias_index.npz  # `loinc-alias`                      [input]
+    ├── fhir_dose_index.npz    # `dose-index`
+    ├── alias_keys.bin         # scripts/build_runtime_index.py   [derived]
+    ├── alias_index.npz        #   "
+    ├── corpus_names.bin       #   "   (from res/fhir_meta.csv.gz)
+    ├── corpus_names.npz       #   "
+    ├── axis_fields.bin        #   "   (from loinc_axis.csv)
+    ├── axis_index.npz         #   "
+    └── runtime_index.inputs   #   "   digest of the [input] members
 
-Built by ``benchmarks/build_loinc_bundle.py`` (axis + skip + demote)
-followed by the ``loinc-rank``, ``loinc-alias``, ``dose-index``,
-``loinc-lexicon`` CLI subcommands which add their respective members in
-place.
+**The `[derived]` members are the ones the RUNTIME reads**; the `[input]` ones
+are what the build passes write. So the chain has an order, and getting it
+wrong is silent::
+
+    loinc-alias / loinc-rank / a new fhir_meta.csv.gz
+      -> scripts/build_runtime_index.py     re-cut the derived blobs
+      -> scripts/stamp_bundle_version.py    re-stamp VERSION
+
+Skip the middle step and the resolver keeps reading an index that is present,
+well-formed and stale. ``build_runtime_index.py --check`` catches exactly that:
+it hashes the inputs and compares against ``runtime_index.inputs``, which the
+last build recorded.
+
+All mutations are atomic via tempfile + ``os.replace``, so concurrent readers
+always see a consistent state.
+
+``aliases/{lang}.tsv`` used to be members here too, byte-identical to
+``mirobody/res/aliases_src/{lang}.tsv``. They are gone: two copies of one table
+had already drifted (see :mod:`mirobody._bundle`), and the loose files are the
+ones the resolver reads and ``scripts/check_wheel_data.py`` gates.
+:func:`.lexicon.load_all_aliases` reads them through
+:func:`mirobody._bundle.load_alias_sources`, which also means a curated row
+takes effect the moment it is written instead of at the next bundle re-cut.
 
 .. note::
    ``benchmarks/`` is a maintainer-side working directory and has never been
@@ -26,17 +56,7 @@ place.
    to CONSUME the bundle ships; the scripts that mint it from raw LOINC/UMLS
    releases do not, because those releases are licensed per user (see
    LICENSE-3RD-PARTY). The same caveat applies to every other
-   ``benchmarks/...`` path named in this package. All mutations atomic via tempfile + ``os.replace`` so concurrent
-readers always see a consistent state.
-
-``aliases/*.tsv`` are loaded as a single merged dict by
-:func:`.lexicon.load_all_aliases` and consumed by
-:func:`.preprocess.augment_zh_aliases` (the function is multilingual
-despite the legacy CN-only name in the docstring). Each ``{lang}.tsv``
-is the deterministic union of LOINC LinguisticVariant-derived pairs and
-the hand-edited ``mirobody/res/aliases_src/{lang}_curated.tsv`` source
-file (curated entries win on key collisions); rebuilt in full by
-``loinc-lexicon --lang X``.
+   ``benchmarks/...`` path named in this package.
 
 The SNOMED CT bundle ships separately because its Affiliate License
 obligations are scoped per artifact — see ``fhir_snomed_ct_bundle.NOTICE``:
@@ -58,90 +78,52 @@ import os
 import tarfile
 import tempfile
 
-from .local import RES_DIR
+from mirobody._bundle import (
+    BUNDLE_BASENAME,
+    BUNDLE_PATH,
+    RES_DIR,
+    bundle_path,
+    bundle_version,
+    is_lfs_pointer,
+    list_members,
+    read_member,
+    read_member_from,
+)
 
 log = logging.getLogger(__name__)
 
-BUNDLE_BASENAME = "fhir_loinc_bundle.tar.gz"
-BUNDLE_PATH = os.path.join(RES_DIR, BUNDLE_BASENAME)
-
-# Sibling bundle for SNOMED CT-derived runtime data (Body Structure
-# subtree mask, etc.). Separate file because the SNOMED license terms
-# differ from LOINC — shipping them apart keeps each NOTICE / Affiliate
-# License obligation scoped to its own artifact.
+# Sibling bundle for SNOMED CT-derived runtime data (Body Structure subtree
+# mask, etc.). Separate file because the SNOMED license terms differ from
+# LOINC — shipping them apart keeps each NOTICE / Affiliate License obligation
+# scoped to its own artifact. Only the build passes read it, so unlike the
+# LOINC reader it stays here.
 SNOMED_BUNDLE_BASENAME = "fhir_snomed_ct_bundle.tar.gz"
 SNOMED_BUNDLE_PATH = os.path.join(RES_DIR, SNOMED_BUNDLE_BASENAME)
 
+__all__ = [
+    "BUNDLE_BASENAME",
+    "BUNDLE_PATH",
+    "RES_DIR",
+    "SNOMED_BUNDLE_BASENAME",
+    "SNOMED_BUNDLE_PATH",
+    "bundle_path",
+    "bundle_version",
+    "is_lfs_pointer",
+    "list_members",
+    "read_member",
+    "read_member_from",
+    "read_snomed_member",
+    "remove_member",
+    "write_member",
+]
 
-def bundle_path() -> str:
-    return BUNDLE_PATH
 
-
-
-
-def read_member(name: str, *, bundle_path: str | None = None) -> bytes | None:
-    """Return the bytes of a member in the LOINC bundle, or None if missing.
-
-    *bundle_path* overrides the default location — used when the
-    runtime cache is loaded from a non-default ``res/`` directory.
-    """
-    return _read_member_from(name, bundle_path or BUNDLE_PATH)
-
-
-def read_snomed_member(
-    name: str, *, bundle_path: str | None = None,
-) -> bytes | None:
+def read_snomed_member(name: str, *, bundle_path: str | None = None) -> bytes | None:
     """Return the bytes of a member in the SNOMED bundle, or None if missing.
 
-    Mirrors :func:`read_member` for the sibling SNOMED CT bundle.
+    Mirrors :func:`mirobody._bundle.read_member` for the sibling bundle.
     """
-    return _read_member_from(name, bundle_path or SNOMED_BUNDLE_PATH)
-
-
-def _is_lfs_pointer(path: str) -> bool:
-    """True when the file at *path* is a Git LFS pointer stub, not real data.
-
-    A clone made without git-lfs leaves ~130 bytes of text where the tar.gz
-    should be; feeding that to tarfile produced a screenful of traceback
-    before the one line that mattered. Naming the stub is the whole fix."""
-    try:
-        with open(path, "rb") as fh:
-            return fh.read(24).startswith(b"version https://git-lfs")
-    except OSError:
-        return False
-
-
-def _read_member_from(name: str, path: str) -> bytes | None:
-    if not os.path.isfile(path):
-        return None
-    if _is_lfs_pointer(path):
-        log.error("%s is a Git LFS pointer stub, not the data bundle — run `git lfs pull`", path)
-        return None
-    try:
-        with tarfile.open(path, "r:gz") as tf:
-            try:
-                f = tf.extractfile(name)
-            except KeyError:
-                return None
-            if f is None:
-                return None
-            return f.read()
-    except Exception:
-        log.exception("failed to read %r from %s", name, path)
-        return None
-
-
-def list_members(*, bundle_path: str | None = None) -> list[str]:
-    """Return all member names in the bundle (or [] if absent)."""
-    path = bundle_path or BUNDLE_PATH
-    if not os.path.isfile(path) or _is_lfs_pointer(path):
-        return []
-    try:
-        with tarfile.open(path, "r:gz") as tf:
-            return [m.name for m in tf.getmembers()]
-    except Exception:
-        log.exception("failed to list %s", path)
-        return []
+    return read_member_from(name, bundle_path or SNOMED_BUNDLE_PATH)
 
 
 def write_member(

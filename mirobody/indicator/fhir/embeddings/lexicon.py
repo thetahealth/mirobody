@@ -95,32 +95,13 @@ import os
 import re
 from collections import Counter, defaultdict
 
-from .bundle import (
-    BUNDLE_BASENAME,
-    BUNDLE_PATH,
-    list_members,
-    read_member,
-    remove_member,
-    write_member,
-)
+from mirobody._bundle import load_alias_sources
+
+from .bundle import BUNDLE_BASENAME, BUNDLE_PATH, read_member
 from .local import RES_DIR
 
 log = logging.getLogger(__name__)
 
-
-# ── Bundle member naming ──────────────────────────────────────────────
-
-
-_MEMBER_PREFIX = "aliases/"
-_MEMBER_SUFFIX = ".tsv"
-
-
-def _member_name(lang: str) -> str:
-    return f"{_MEMBER_PREFIX}{lang}{_MEMBER_SUFFIX}"
-
-
-def _is_aliases_member(name: str) -> bool:
-    return name.startswith(_MEMBER_PREFIX) and name.endswith(_MEMBER_SUFFIX)
 
 
 # ── (De)serialization ─────────────────────────────────────────────────
@@ -155,26 +136,21 @@ def _decode_tsv(raw: bytes) -> dict[str, str]:
 # ── Loader (runtime) ──────────────────────────────────────────────────
 
 
-def load_all_aliases(bundle_path: str | None = None) -> dict[str, str]:
-    """Read every ``aliases/*.tsv`` member from the bundle, union into
-    one dict. Empty when the bundle is absent or has no aliases members.
+def load_all_aliases() -> dict[str, str]:
+    """Union every ``res/aliases_src/*.tsv`` into one ``src -> canonical`` dict.
 
-    Curated entries are merged into ``aliases/{lang}.tsv`` at build time
-    (see module docstring) — no overlay carve-out at load time.
-    Cross-language key collisions (one CJK term in zh.tsv vs ja.tsv,
-    say) are vanishingly rare and resolve via tar-member iteration
-    order — non-deterministic but inconsequential at the observed
-    overlap rate.
+    Reads the same loose files the resolver reads, through the same precedence
+    (curated ahead of machine-derived) — see
+    :func:`mirobody._bundle.alias_source_files`. It used to read byte-identical
+    copies stored as ``aliases/{lang}.tsv`` bundle members instead, and those
+    had drifted: four rows added to ``zh_curated.tsv`` were live for the
+    resolver and invisible here. One reader, one source.
+
+    Keys are the surfaces as written — no fold — because the build passes need
+    them that way. Cross-language key collisions (one CJK term in zh.tsv and
+    ja.tsv) resolve by filename order and are vanishingly rare.
     """
-    path = bundle_path or BUNDLE_PATH
-    members = [n for n in list_members(bundle_path=path) if _is_aliases_member(n)]
-    out: dict[str, str] = {}
-    for name in members:
-        raw = read_member(name, bundle_path=path)
-        if raw is None:
-            continue
-        out.update(_decode_tsv(raw))
-    return out
+    return load_alias_sources(include_overrides=False)
 
 
 
@@ -1176,13 +1152,6 @@ def cmd_loinc_lexicon(args: argparse.Namespace) -> None:
         f.write(payload)
     log.info("wrote %s (%d entries, %.1f KiB)", src_path, len(lex), len(payload) / 1024)
 
-    # Bundle member for production loading.
-    write_member(_member_name(args.lang), payload, bundle_path=bundle_path)
-
-    # Purge any stale curated-overlay member — its content is now baked
-    # into the merged main TSV. No-op when the member doesn't exist
-    # (first build for a new language, or already removed).
-    stale = f"{_MEMBER_PREFIX}{args.lang}_curated{_MEMBER_SUFFIX}"
-    if remove_member(stale, bundle_path=bundle_path):
-        log.info("purged stale bundle member %s (now merged into %s)",
-                 stale, _member_name(args.lang))
+    # No bundle member: `res/aliases_src/{lang}.tsv` above IS the artifact, and
+    # writing it twice is what let the two copies drift. Everything that reads
+    # aliases — the resolver and `load_all_aliases` — reads the loose files.

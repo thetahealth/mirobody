@@ -146,8 +146,17 @@ class SemanticIndex:
     def __init__(self, path: str):
         import numpy as np
 
+        from mirobody._bundle import (
+            AXIS_CODE,
+            AXIS_COMPONENT,
+            AXIS_LCN,
+            AXIS_PROPERTY,
+            AXIS_SCALE,
+            load_axis,
+            read_member,
+        )
+
         from .fhir.common import fhir_id_to_code
-        from .fhir.embeddings.bundle import read_member
 
         self._check_identity(path)
         raw = np.load(path, mmap_mode="r")
@@ -162,18 +171,27 @@ class SemanticIndex:
         bundle = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "..", "res", "fhir_loinc_bundle.tar.gz"
         )
-        axis_raw = read_member("loinc_axis.csv", bundle_path=os.path.normpath(bundle))
+        # The axis table, through the same reader the lexical resolver uses.
+        # This used to parse `loinc_axis.csv` into four dicts of its own, and
+        # tolerate the file being absent by leaving them EMPTY — which after
+        # 1.3.0 stopped shipping that CSV would have quietly disabled every
+        # gate below rather than failing. `load_axis` raises instead.
+        #
+        # COMPONENT arrives folded (NFKC + casefold). That is not a
+        # compromise: the only thing done with it is `word_tokens`, which
+        # lowercases ASCII itself, and the two agree on all 97,314 rows —
+        # asserted in tests/test_resolver_tables.py.
+        axis, _order_code, _order_name = load_axis(bundle_path=os.path.normpath(bundle))
         names: dict[str, str] = {}
         scales: dict[str, str] = {}
         properties: dict[str, str] = {}
         components: dict[str, str] = {}
-        if axis_raw is not None:
-            for row in csv.DictReader(io.StringIO(axis_raw.decode("utf-8"))):
-                code = row["LOINC_NUM"]
-                names[code] = row["LONG_COMMON_NAME"]
-                scales[code] = row.get("SCALE_TYP") or ""
-                properties[code] = row.get("PROPERTY") or ""
-                components[code] = row.get("COMPONENT") or ""
+        for i in range(len(axis)):
+            code = axis.field(i, AXIS_CODE)
+            names[code] = axis.field(i, AXIS_LCN)
+            scales[code] = axis.field(i, AXIS_SCALE)
+            properties[code] = axis.field(i, AXIS_PROPERTY)
+            components[code] = axis.field(i, AXIS_COMPONENT)
 
         # `loinc_skip.txt` ships in the bundle and lists the codes the lexical
         # resolver already refuses to answer with: non-clinical CLASS (SURVEY,
@@ -252,7 +270,7 @@ class SemanticIndex:
         # Analyte tokens per row, for the overlap gate. Built from COMPONENT
         # (the analyte axis) rather than the display name, which carries
         # specimen and method words that would match anything.
-        from .lexical import word_tokens
+        from mirobody.lexical import word_tokens
 
         self._component_tokens: list[frozenset[str]] = [
             frozenset(word_tokens(components.get(c, ""))) for c in self._codes
@@ -419,9 +437,9 @@ class SemanticIndex:
         constraint: an unclassifiable value, a unit the UCUM table does not
         know, and a query with no word tokens each simply contribute nothing.
         """
-        from .fhir.units import normalize_unit, unit_families
-        from .lexical import word_tokens
-        from .value_scale import scales_for_value
+        from mirobody.units import normalize_unit, unit_families
+        from mirobody.lexical import word_tokens
+        from mirobody.value_scale import scales_for_value
 
         ucum = normalize_unit(unit) if unit else None
         families = unit_families(ucum) if ucum else None
@@ -467,11 +485,26 @@ class SemanticIndex:
 def get_index(path: str | None = None) -> Optional[SemanticIndex]:
     """Load (and cache) the matrix, or None when there is none to load.
 
-    None is a normal outcome, not an error: the matrix is an optional download
-    and every caller has a lexical answer to fall back on.
+    None is a normal outcome, not an error: the matrix is an optional download,
+    it is absent on every `pip install`, and every caller has a lexical answer
+    to fall back on.
+
+    "Absent" and "you pointed me at one and it is not there" are NOT the same
+    outcome, though, and both used to return None in silence. A typo in
+    ``MIROBODY_SEMANTIC_INDEX`` looked exactly like not configuring it — the
+    caller asked for the semantic tier, got lexical-only answers, and nothing
+    said why.
     """
-    path = path or default_index_path()
-    if not path or not os.path.isfile(path):
+    requested = path or default_index_path()
+    if requested and not os.path.isfile(requested):
+        logger.warning(
+            "semantic index %s does not exist; answering from the lexical tier only. "
+            "Set %s to the matrix, or drop it at res/%s.",
+            requested, ENV_VAR, _DEFAULT_BASENAME,
+        )
+        return None
+    path = requested
+    if not path:
         return None
     try:
         return SemanticIndex(path)

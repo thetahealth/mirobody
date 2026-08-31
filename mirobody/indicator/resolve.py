@@ -24,41 +24,47 @@ log = logging.getLogger(__name__)
 
 @lru_cache(maxsize=4)
 def _load_alias_pairs(bundle_dir: str | None) -> tuple[tuple[str, str], ...]:
-    """Load CJK alias key→target pairs from the LOINC bundle's
-    ``aliases/<lang>.tsv`` members. Used by the axes-vs-legacy merger
-    to confirm an axes COMPONENT pick when an alias key from the query
-    maps to the same English term.
+    """Load CJK alias key -> target pairs from ``res/aliases_src/``.
 
-    Returns a tuple of ``(zh_key, en_target_lower)`` pairs across all
-    CJK languages (zh, ja, ko). Tuple form so the result is hashable
-    for ``lru_cache``. Empty tuple when the bundle is missing — caller
-    falls through to score-based arbitration.
+    Used by the axes-vs-legacy merger to confirm an axes COMPONENT pick when an
+    alias key from the query maps to the same English term.
+
+    Returns a tuple of ``(cjk_key, en_target_lower)`` pairs across zh/ja/ko.
+    Tuple form so the result is hashable for ``lru_cache``. Empty tuple when
+    the files are missing — caller falls through to score-based arbitration.
+
+    These used to be read as ``aliases/{lang}.tsv`` members inside the bundle,
+    byte-identical copies of the loose files; the copies had drifted and are
+    gone. Curated rows come first here, same as everywhere else.
     """
     import os
-    import tarfile
-    from .fhir.embeddings.bundle import BUNDLE_BASENAME
-    from .fhir.embeddings.local import RES_DIR
-    res_dir = bundle_dir or RES_DIR
-    bundle_path = os.path.join(res_dir, BUNDLE_BASENAME)
-    if not os.path.isfile(bundle_path):
-        return ()
+
+    from mirobody._bundle import ALIAS_SRC_DIR, alias_source_files
+
+    src_dir = os.path.join(bundle_dir, "aliases_src") if bundle_dir else ALIAS_SRC_DIR
+    if bundle_dir:
+        paths = [
+            os.path.join(src_dir, fn)
+            for fn in sorted(os.listdir(src_dir), key=lambda n: (0 if "_curated" in n else 1, n))
+            if fn.endswith(".tsv")
+        ] if os.path.isdir(src_dir) else []
+    else:
+        paths = alias_source_files(include_overrides=False)
+
     pairs: list[tuple[str, str]] = []
-    try:
-        with tarfile.open(bundle_path, "r:gz") as tf:
-            for lang in ("zh", "ja", "ko"):
-                member = f"aliases/{lang}.tsv"
-                try:
-                    f = tf.extractfile(member)
-                except KeyError:
-                    continue
-                if f is None:
-                    continue
-                for line in f.read().decode("utf-8").splitlines():
+    for path in paths:
+        # `zh.tsv` and `zh_curated.tsv` both belong to zh.
+        lang = os.path.basename(path).split(".")[0].removesuffix("_curated")
+        if lang not in ("zh", "ja", "ko"):
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                for line in f:
                     parts = line.split("\t", 1)
                     if len(parts) == 2:
                         pairs.append((parts[0], parts[1].strip().lower()))
-    except (tarfile.TarError, OSError):
-        return ()
+        except OSError:
+            return ()
     return tuple(pairs)
 
 
