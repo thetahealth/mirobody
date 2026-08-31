@@ -53,7 +53,14 @@ _SIMPLIFIED_ONLY = set(
 #   - the multilingual resolve demo, whose whole point is that a
 #     Simplified-Chinese term lands on the same LOINC code;
 #   - prose that names the Simplified script itself.
-_DELIBERATE_SIMPLIFIED = ("简体中文", "血红蛋白", "简体", "简→繁", "繁→简")
+# `中性粒细胞` joins `血红蛋白` for the same reason: the code block demonstrates
+# that a Simplified input resolves, and rewriting the demo into Traditional
+# would delete the thing being shown. The four READMEs run identical calls
+# by design — `test_readme_examples` pins that — so the input stays Hans in
+# all of them and only the comment beside it is translated.
+_DELIBERATE_SIMPLIFIED = (
+    "简体中文", "血红蛋白", "中性粒细胞", "简体", "简→繁", "繁→简",
+)
 
 
 def test_the_simplified_list_is_actually_simplified():

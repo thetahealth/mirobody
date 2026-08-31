@@ -56,6 +56,10 @@ resolve("血红蛋白").loinc                                # '718-7'   どの�
 resolve("total cholesterol").loinc                     # '2093-3'  [質量/体積]
 resolve_reading("total cholesterol", "5.0", "mmol/L")   # '14647-2' [モル/体積]
 resolve_reading("total cholesterol", "193", "mg/dL")    # '2093-3'  単位がコードを決める
+
+resolve("中性粒细胞百分比").loinc                          # '26511-6' 好中球/白血球
+resolve_reading("中性粒细胞", "62 %", None).loinc          # '26511-6' 百分率と……
+resolve_reading("中性粒细胞", "4.2", "10*9/L").loinc       # '26499-4' ……実数は別のコード
 resolve("血脂").resolved                                 # False    観測ではなくカテゴリ
 ```
 
@@ -332,6 +336,7 @@ mirobody/
 ├── engine.py    正面玄関 ―― resolve() と parse_file()
 ├── units/       UCUM単位、unit_family、換算              ┐ ライブラリ部分:
 ├── lexical.py   表層畳み込み + CJK対応トークナイザ         │ numpyのみ、
+├── bundle.py    ビルド時：軸テーブルとエイリアス元          │
 ├── res/         同梱のLOINCバンドル                       ┘ 計2パッケージ
 ├── pulse/       ① Collect     ―― provider、ファイル解析、集計
 ├── indicator/   ② Standardize ―― リゾルバ内部、概念グラフ、バンドル構築
@@ -382,7 +387,7 @@ mirobody/
 | ① ガイド | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [Apple Health API](docs/apple-health.md) |
 | ② 標準化 | [`indicator/`](mirobody/indicator/README.md) · [indicators & units](mirobody/pulse/standardize/README.md) |
 | ③ 回答 | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [ChatGPT widgets](mirobody/agent/resources/README.md) |
-| 下ばたらき | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [shipping the frontend](docs/frontend-shipping.md) |
+| 下ばたらき | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [the web client](docs/frontend.md) |
 | 開発に参加 | [CONTRIBUTING.md](CONTRIBUTING.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
 
 ---

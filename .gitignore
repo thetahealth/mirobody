@@ -42,14 +42,26 @@ package-lock.json
 CLAUDE.md
 **/CLAUDE.md
 
-# Internal testing results — LOCAL ONLY, deliberately.
+# Internal notes — LOCAL ONLY, deliberately. One directory, one rule.
 #
 # Our own measurements are not what an open-source reader needs. What they need
 # is a demo they can run (`examples/`) and a claim they can check themselves
 # (`pytest mirobody/test_engine_coverage.py -s` prints the published score). The
 # rule for which side a number falls on: backed by a test in the repo that
 # anyone can run -> publishable; produced by `eval/` -> not.
-docs/internal-testing.md
+#
+# The same rule sorts prose. `internal/` holds what is addressed to US:
+# `internal-testing.md` (our measurements), `library-surface-feedback.md` (a
+# defect list against our own release), `frontend-shipping.md` (a gap/bug
+# inventory of the current setup). A defect list is not documentation an
+# outside reader needs handed to them, and `docs/` is published.
+#
+# These used to be three separate decisions in three places, and only one of
+# them worked: `internal-testing.md` was ignored, while `frontend-shipping.md`
+# sat in `docs/` and shipped, and the header of `internal-testing.md` claimed
+# "Gitignored on purpose" for a rule that covered only itself. One directory
+# now, so the question is never asked per file again.
+internal/
 
 # Resolver evaluation harness — the DATA is local only, the RUNNER is not.
 #

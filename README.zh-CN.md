@@ -57,6 +57,10 @@ resolve("血红蛋白").loinc                                # '718-7'   任何�
 resolve("total cholesterol").loinc                     # '2093-3'  [质量/体积]
 resolve_reading("total cholesterol", "5.0", "mmol/L")   # '14647-2' [摩尔/体积]
 resolve_reading("total cholesterol", "193", "mg/dL")    # '2093-3'  单位决定了码
+
+resolve("中性粒细胞百分比").loinc                          # '26511-6' 中性粒细胞/白细胞
+resolve_reading("中性粒细胞", "62 %", None).loinc          # '26511-6' 百分比……
+resolve_reading("中性粒细胞", "4.2", "10*9/L").loinc       # '26499-4' ……与绝对值是两个码
 resolve("血脂").resolved                                 # False    这是类别，不是一次观测
 ```
 
@@ -316,6 +320,7 @@ mirobody/
 ├── engine.py    正门 —— resolve() 与 parse_file()
 ├── units/       UCUM 单位、unit_family、换算            ┐ 库的部分：
 ├── lexical.py   表层折叠 + CJK 感知分词器                │ 只依赖 numpy，
+├── bundle.py    构建期：轴表与别名源                        │
 ├── res/         随包分发的 LOINC 语料                    ┘ 共 2 个包
 ├── pulse/       ① 收集     —— provider、文件解析、聚合
 ├── indicator/   ② 标准化   —— 解析器内部、概念图、语料构建
@@ -363,7 +368,7 @@ numpy 外不导入任何东西，引擎永不导入 agent 层——违反即 `li
 | ① 指南 | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [Apple Health API](docs/apple-health.md) |
 | ② 标准化 | [`indicator/`](mirobody/indicator/README.md) · [indicators & units](mirobody/pulse/standardize/README.md) |
 | ③ 回答 | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [ChatGPT widgets](mirobody/agent/resources/README.md) |
-| 底层设施 | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [shipping the frontend](docs/frontend-shipping.md) |
+| 底层设施 | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [the web client](docs/frontend.md) |
 | 参与开发 | [CONTRIBUTING.md](CONTRIBUTING.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
 
 ---

@@ -477,7 +477,12 @@ BP	Blood pressure panel with all children optional
 乙肝表面抗原	Hepatitis B virus surface Ag
 HBsAg	Hepatitis B virus surface Ag
 乙肝表面抗体	Hepatitis B virus surface Ab
-乙肝e抗原	Hepatitis B virus e Ag
+# `Hepatitis B virus e Ag` is the LOINC COMPONENT, not a corpus name, so this
+# row pointed at nothing and 乙肝e抗原 answered nothing for as long as it
+# existed. Its four neighbours happen to name targets the corpus does carry,
+# which is why the file looked fine. `test_overrides_are_live` now checks
+# every row's target instead of trusting the shape.
+乙肝e抗原	HBeAg
 乙肝核心抗体	Hepatitis B virus core Ab
 丙肝抗体	Hepatitis C virus Ab
 anti-HCV	Hepatitis C virus Ab
@@ -492,3 +497,136 @@ blood type	ABO group
 blood group	ABO group
 Rh血型	Rh typing
 RhD血型	Rh typing
+
+# ── the CBC differential: percent vs absolute ────────────────────────────────
+#
+# LOINC models a differential percentage as a RATIO ANALYTE — COMPONENT
+# `neutrophils/leukocytes`, PROPERTY NFr — not as another property of
+# `neutrophils`. That is why `variant_for_reading` cannot reach it: it searches
+# siblings sharing the FULL component, which is right for cholesterol
+# (`cholesterol` MCnc vs SCnc, one component, two properties) and structurally
+# unable to cross from `neutrophils` to `neutrophils/leukocytes`.
+#
+# It cannot be inferred either: `neutrophils` has three NFr children —
+# `/cells`, `/leukocytes`, `/round cells` — and only clinical knowledge picks
+# the CBC one. So the mapping is written down, which is what this file is for.
+#
+# 中性粒细胞 was the odd one out: its four panel siblings all resolved to the
+# `X/Leukocytes` ratio while it resolved to `[#/volume]`. Five lines of one
+# panel now behave the same way, and a report that says 62 and one that says
+# 4.2 no longer land on one series in two units.
+#
+# Traditional spellings need no rows — `surface_variants` folds zh-Hant to
+# zh-Hans and finds these. `中性粒细胞%` needs none either: the bare form is
+# already one of its variants.
+中性粒细胞	neutrophils/leukocytes in blood
+中性粒细胞百分比	neutrophils/leukocytes in blood
+中性粒细胞比例	neutrophils/leukocytes in blood
+嗜酸性粒细胞百分比	Eosinophils/Leukocytes
+嗜酸性粒细胞比例	Eosinophils/Leukocytes
+淋巴细胞百分比	Lymphocytes/Leukocytes
+淋巴细胞比例	Lymphocytes/Leukocytes
+单核细胞百分比	Monocytes/Leukocytes
+单核细胞比例	Monocytes/Leukocytes
+嗜碱性粒细胞百分比	Basophils/Leukocytes
+嗜碱性粒细胞比例	Basophils/Leukocytes
+# The other half of the distinction. `绝对值` is one CJK token, so unlike `%`
+# it produces no bare-stem variant and needs its own row.
+#
+# The target names the METHOD-LESS code explicitly. Pointing at bare
+# `Neutrophils` lands on 751-8 `… by Automated count`, and the unit-driven
+# crossing in `variant_for_reading` prefers the method-less 26499-4 — so the
+# same measurement got two identities depending on whether the report spelled
+# out 绝对值 or printed a bare name with 10*9/L, which is exactly the split
+# these rows exist to prevent. Both routes now end on the same code, and it is
+# the method-less one for the reason that function already states: `by
+# Automated count` is a narrower claim than a report saying "4.2" supports.
+中性粒细胞绝对值	Neutrophils [#/volume] in Blood
+嗜酸性粒细胞绝对值	Eosinophils [#/volume] in Blood
+淋巴细胞绝对值	Lymphocytes [#/volume] in Blood
+单核细胞绝对值	Monocytes [#/volume] in Blood
+嗜碱性粒细胞绝对值	Basophils [#/volume] in Blood
+
+# `Hemoglobin A1c` — the full English name — was the only one of four spellings
+# that answered 41995-2 (a mass concentration almost no report means) while
+# 糖化血红蛋白 / HbA1c / A1c all answered 4548-4, the ratio every lab prints as a
+# percentage. The outlier was the spelling an English document is most likely
+# to print.
+Hemoglobin A1c	Hemoglobin A1c/Hemoglobin.total
+
+# 呼吸频率 is the standard Chinese vital-sign term and did not resolve at all;
+# 呼吸速率 resolved to 9278-3 `Breath rate special circumstances`, which is a
+# ventilator/exercise-protocol code, not the number on a vitals panel. Only the
+# bare 呼吸 worked, which is the spelling a report is least likely to print.
+呼吸次数	Respiratory rate
+呼吸频率	Respiratory rate
+呼吸速率	Respiratory rate
+
+# ── everyday panel terms, swept against a 132-term Chinese report vocabulary ─
+#
+# 27 of 132 did not resolve (20%), and the misses were not exotic: they were
+# the FULL spelling of a term whose abbreviation already worked. A formal
+# report prints 乙型肝炎表面抗原; a summary prints 乙肝表面抗原; only the second
+# resolved. Same shape for 丙型肝炎抗体/丙肝抗体, 血肌酐/肌酐, 三酰甘油/甘油三酯.
+#
+# The infectious-disease panel was the worst of it — 12 of its 26 spellings
+# missing — and it is on nearly every physical-examination report there is.
+乙型肝炎表面抗原	Hepatitis B virus surface Ag
+乙型肝炎表面抗体	Hepatitis B virus surface Ab
+乙肝表面抗原定量	Hepatitis B virus surface Ag
+乙型肝炎e抗原	HBeAg
+乙肝e抗体	HBeAb
+乙型肝炎e抗体	HBeAb
+乙型肝炎核心抗体	Hepatitis B virus core Ab
+丙型肝炎抗体	Hepatitis C virus Ab
+HCV抗体	Hepatitis C virus Ab
+抗HCV	Hepatitis C virus Ab
+抗-HCV	Hepatitis C virus Ab
+TPPA	Treponema pallidum Ab
+TRUST	RPR
+艾滋病抗体	HIV 1+2 Ab
+
+# `eGFR` answered 107231-3 `Natriuretic peptide B [Mass/volume] adjusted for
+# eGFR` — a heart-failure marker, for a kidney measure, because the acronym
+# appears inside that code's own name. A wrong answer, not a missing one, and
+# the only one this sweep found. `GFR` and 肾小球滤过率 were right all along.
+eGFR	Glomerular filtration rate
+估算肾小球滤过率	Glomerular filtration rate
+
+# The rest of the sweep. `碱性磷酸酶ALP` / `尿素氮BUN` / `总胆固醇TC` are the
+# same analyte-plus-acronym shape the trailing-acronym strip handles — but
+# written with NO space, which is how a table cell renders it, and which the
+# strip cannot see.
+白球比	Albumin/Globulin
+白球比值	Albumin/Globulin
+白蛋白球蛋白比值	Albumin/Globulin
+血肌酐	Creatinine
+血尿酸	Urate
+三酰甘油	Triglyceride
+脂蛋白a	Lipoprotein (a)
+餐后2小时血糖	Glucose^2H post meal
+γ-谷氨酰基转移酶	Gamma glutamyl transferase
+碱性磷酸酶ALP	Alkaline phosphatase
+尿素氮BUN	Urea nitrogen
+总胆固醇TC	Cholesterol
+血清铁	Iron
+血氯	Chloride
+血磷	Phosphate
+血镁	Magnesium
+血清氯	Chloride
+血清钙	Calcium
+平均血红蛋白量	MCH
+肌钙蛋白I	Troponin I
+高敏肌钙蛋白	Troponin I
+超敏肌钙蛋白	Troponin I
+甲状腺过氧化物酶抗体	Thyroperoxidase Ab
+TPOAb	Thyroperoxidase Ab
+甲状腺球蛋白抗体	Thyroglobulin Ab
+TgAb	Thyroglobulin Ab
+总三碘甲状腺原氨酸	Triiodothyronine
+总甲状腺素	Thyroxine
+糖类抗原199	Cancer Ag 19-9
+CA199	Cancer Ag 19-9
+尿pH	pH of Urine
+尿酸碱度	pH of Urine
+25羟基维生素D	25-hydroxyvitamin D3

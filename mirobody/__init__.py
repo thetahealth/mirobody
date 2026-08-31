@@ -14,10 +14,23 @@ key — ``pip install 'mirobody[parse]'``. The HTTP/chat/MCP server is the Docke
 application, not a library surface: ``git clone && ./deploy.sh``.
 
 **What is stable.** The names in ``__all__`` here, plus ``__all__`` in
-:mod:`mirobody.units`, :mod:`mirobody.lexical` and :mod:`mirobody.engine`.
-Everything else — ``mirobody.indicator``, ``mirobody.pulse``,
-``mirobody.server``, ``mirobody.agent``, anything underscore-prefixed — is
-internal and moves without notice.
+:mod:`mirobody.units`, :mod:`mirobody.lexical`, :mod:`mirobody.engine` and
+:mod:`mirobody.bundle`. Everything else — ``mirobody.indicator``,
+``mirobody.pulse``, ``mirobody.server``, ``mirobody.agent``, anything
+underscore-prefixed — is internal and moves without notice.
+
+:mod:`mirobody.bundle` is the build-time half of that surface: the axis table
+and the alias sources, for tools that generate a seed or a corpus from LOINC
+rather than asking for one answer. It is deliberately not re-exported here, so
+``import mirobody`` stays exactly as cheap as the paragraph below says.
+
+**One name here does nothing by default.**
+:func:`~mirobody.engine.resolve_with_semantic_fallback` is a coroutine, and in a
+plain ``pip install`` it returns the lexical answers unchanged — no embedding
+matrix ships and none is published to download. It is in ``__all__`` because
+the signature is stable for the deployments that do supply a matrix, not
+because a typical consumer calls it. If you are reaching for it to improve
+recall, the honest answer is a curated row in ``res/resolver_overrides.tsv``.
 
 Exports resolve lazily (PEP 562), and that is load-bearing rather than style:
 ``import mirobody`` must not import numpy, must not open the 15 MB data bundle,

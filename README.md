@@ -57,6 +57,10 @@ resolve("血红蛋白").loinc                                # '718-7'   any lan
 resolve("total cholesterol").loinc                     # '2093-3'  [Mass/volume]
 resolve_reading("total cholesterol", "5.0", "mmol/L")   # '14647-2' [Moles/volume]
 resolve_reading("total cholesterol", "193", "mg/dL")    # '2093-3'  the unit picks the code
+
+resolve("中性粒细胞百分比").loinc                          # '26511-6' Neutrophils/Leukocytes
+resolve_reading("中性粒细胞", "62 %", None).loinc          # '26511-6' a percentage...
+resolve_reading("中性粒细胞", "4.2", "10*9/L").loinc       # '26499-4' ...and a count are two codes
 resolve("血脂").resolved                                 # False    a category, not an observation
 ```
 
@@ -341,6 +345,7 @@ Every tool the agent has is also served over MCP at `/mcp`, gated per user.
 | --- | --- | --- |
 | `pip install mirobody` | Offline resolution and units — 2 packages, no key, no network | [Engine](https://docs.mirobody.ai/en/engine/) |
 | `pip install 'mirobody[parse]'` | The above, plus reading documents with one model key | [Engine](https://docs.mirobody.ai/en/engine/) |
+| `mirobody.bundle` | Build-time: the LOINC axis table and alias sources, for generating a seed or corpus | [`mirobody/bundle.py`](mirobody/bundle.py) |
 | HTTP API | Your app talking to a deployment | [API overview](https://docs.mirobody.ai/en/api-reference/overview/) · [Data](https://docs.mirobody.ai/en/api-reference/data/) |
 | MCP | Claude, Cursor, or any MCP client reading a user's record | [MCP servers](https://docs.mirobody.ai/en/api-reference/mcp-servers/) |
 | Backbone mode | Your own agent, our data layer | [Backbone](https://docs.mirobody.ai/en/api-reference/backbone-mode/) |
@@ -356,6 +361,7 @@ mirobody/
 ├── engine.py    the front door — resolve() and parse_file()
 ├── units/       UCUM units, unit_family, conversions          ┐ the library:
 ├── lexical.py   surface folding + the CJK-aware tokenizer     │ numpy only,
+├── bundle.py    build-time: the axis table and alias sources    │
 ├── res/         the shipped LOINC bundles                     ┘ 2 packages
 ├── pulse/       ① Collect     — providers, file parsing, aggregation
 ├── indicator/   ② Standardize — resolver internals, concept graph, bundle build
@@ -408,7 +414,7 @@ Each package carries a `README.md` saying what it is; long-form guides live in
 | ① guides | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [Apple Health API](docs/apple-health.md) |
 | ② Standardize | [`indicator/`](mirobody/indicator/README.md) · [indicators & units](mirobody/pulse/standardize/README.md) |
 | ③ Answers | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [ChatGPT widgets](mirobody/agent/resources/README.md) |
-| Plumbing | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [shipping the frontend](docs/frontend-shipping.md) |
+| Plumbing | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [the web client](docs/frontend.md) |
 | Working on it | [CONTRIBUTING.md](CONTRIBUTING.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
 
 ---

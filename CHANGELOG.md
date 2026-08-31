@@ -52,6 +52,21 @@ for document parsing or the server, add the bracket:
 
 ### Added
 
+- **`mirobody.bundle` — a stable build-time surface.** Generating a seed table,
+  a corpus or an embedding index from LOINC needs the axis table itself, not the
+  resolver's answer, and the only route was `mirobody._bundle`, whose underscore
+  declares it free to move. The helpers there were already the right ones, so
+  they are re-exported under a name that carries a promise: `load_axis`,
+  `read_member`, `list_members`, `bundle_version`, `is_lfs_pointer`,
+  `alias_source_files`, `load_alias_sources`, plus the three path constants.
+
+  It is deliberately **not** in `mirobody.__all__`, so `import mirobody` is
+  unchanged, and everything in it works from a plain `pip install` —
+  `load_axis()` reads the runtime blob, not the `loinc_axis.csv` the wheel gates
+  out. The one thing a wheel cannot give you is that CSV's extra columns
+  (`TIME_ASPCT`, `CLASS`, `CLASSTYPE`, `STATUS`); the module's docstring says so
+  and says what to do instead.
+
 - **`mirobody/py.typed`.** The package is annotated throughout and, under
   PEP 561, every type checker was ignoring all of it — a consumer got `Any` for
   `Resolution` and `ParsedQuantity`.
@@ -77,9 +92,96 @@ for document parsing or the server, add the bracket:
 
 ### Fixed
 
+- **A percentage and a count are two analytes, and the resolver now says so.**
+  LOINC models a differential percentage as COMPONENT `neutrophils/leukocytes`
+  (PROPERTY NFr), not as another property of `neutrophils` — so no amount of
+  variant-picking could cross between them. `中性粒细胞` answered the absolute
+  count while its four panel siblings answered ratios, and `中性粒细胞百分比`,
+  `中性粒细胞比例` and `中性粒细胞绝对值` did not resolve at all. All five cell
+  types now resolve consistently in all four spellings, and the **unit** picks
+  between them: `中性粒细胞` reported as `62 %` is 26511-6, the same term
+  reported as `4.2 10*9/L` is 26499-4. A report printing 62 and a report
+  printing 4.2 no longer land on one series in two units.
+
+  The unit is also read out of the value when it is written inline — `62 %`
+  and `("62", "%")` are the same reading, and `th_series_data.value` routinely
+  stores the first shape.
+
+- **`Hemoglobin A1c` answered a different code than `HbA1c`.** 41995-2, a mass
+  concentration almost no report means, against the 4548-4 that `HbA1c`, `A1c`
+  and `糖化血红蛋白` all answered. The outlier was the spelling an English
+  document is most likely to print.
+
+- **A trailing acronym on the INPUT is stripped — when it repeats the stem.**
+  `Fasting plasma glucose FPG`, `总胆固醇 TC` and `甘油三酯 TG` resolved to
+  nothing while their bare stems answered. The strip existed, but was applied to
+  the alias table's *target* — so it could only fire on inputs that already
+  resolved, and the comment beside it gave an input-side example for target-side
+  code. Both halves are live now.
+
+  **A trailing token that NARROWS the stem is not stripped**, and this is the
+  half that decides whether the feature helps or hurts. `Total cholesterol TC`
+  and `Protein CSF` are the same shape and opposite meanings: one repeats the
+  analyte, the other names a specimen. Stripping the second answered a serum
+  protein for a spinal-fluid one, and the code looked as confident as any other.
+  Two derived tests separate them — the token names a SYSTEM axis value (`CSF`
+  does, `TC`/`TG`/`FPG` do not, which is why "is the token in the axis table"
+  is too coarse and fires on the abbreviations), or the token resolves to a
+  *different* code than the stem (`HDL` answers 2085-9 against `胆固醇`'s
+  2093-3; `TC` answers exactly its stem's code, which is what makes it
+  redundant). So `Protein CSF`, `Calcium ION`, `胆固醇 HDL` and `Glucose OGTT`
+  abstain rather than answering the stem. Real Chinese writing was never
+  affected — `高密度脂蛋白胆固醇` was always 2085-9.
+
+- **`resolved=True, method="lexical", loinc=""` is no longer reachable.** The
+  corpus spans six vocabularies and carries 4,991 `Deprecated …` names, so a
+  candidate row could match lexically and carry no LOINC code at all; the
+  resolver answered with it instead of trying the next candidate. Finding the
+  LOINC-bearing row behind it is worth **+3.4 points of coverage and recall**
+  (0.927 → 0.962 and 0.896 → 0.931 on the 7,354-term eval) at an unchanged
+  wrong-rate.
+
+- **A switched variant reported the wrong name.** `resolve_reading("total
+  cholesterol", "5.0", "mmol/L")` returned 14647-2 labelled *Cholesterol
+  [Mass/volume]* — the pre-switch name, on every switched reading. A
+  docstring-only `_name_for` left behind by this release's own refactor shadowed
+  the real one and returned `None` for every code, and an `or hit.canonical`
+  fallback turned that into a name contradicting the code beside it. The
+  fallback is gone: the switched code comes out of the axis table, so the
+  lookup cannot miss.
+
+- **`呼吸频率` — the standard Chinese vital-sign term — did not resolve**, and
+  `呼吸速率` resolved to 9278-3 *Breath rate special circumstances*, a
+  ventilator code. Only the bare `呼吸` worked.
+
+- **One measurement had two identities.** The curated `X绝对值` rows landed on
+  `751-8 … by Automated count` while the unit-driven crossing preferred the
+  method-less `26499-4` — so `中性粒细胞绝对值` and a bare `中性粒细胞` reported
+  as `4.2 10*9/L`, the same measurement, answered two codes, and a consumer
+  grouping by LOINC split one series in two on nothing but how the report
+  printed the name. All five white-cell lines. Both routes now end on the
+  method-less code, for the reason the variant picker already gives: `by
+  Automated count` is a narrower claim than "4.2" supports.
+
+- **`eGFR` answered a heart-failure marker.** `107231-3 Natriuretic peptide B
+  [Mass/volume] adjusted for eGFR` — the acronym appears inside that code's own
+  name, so a substring match landed a kidney measure on the wrong organ system.
+  Found by a 132-term sweep of what a Chinese report actually prints, which also
+  took everyday panel coverage from 105/132 to 131/132: the misses were the FULL
+  spelling of an analyte whose abbreviation already worked (乙型肝炎表面抗原
+  against 乙肝表面抗原, 血肌酐 against 肌酐), and the infectious-disease panel,
+  on nearly every physical-examination report there is, was at 14/26.
+
+- **One curated row had been dead since it was written.** `乙肝e抗原 ->
+  Hepatitis B virus e Ag` named the LOINC COMPONENT rather than a corpus name,
+  so it pointed at nothing and the term never resolved. Its four neighbours are
+  valid, which is why the file looked right; only checking all 333 targets
+  finds it.
+
 - **The resolver holds 70% less and loads 3× faster.**
 
-      resident        514 MB  ->  152 MB
+      resident        514 MB  ->  156 MB   (165 MB once every lazy
+                                       table is built)
       cold load       1.09 s  ->  0.28 s
       resolve()       0.76 ms ->  0.07 ms
       resolve_reading 1.60 ms ->  0.10 ms
@@ -173,13 +275,6 @@ for document parsing or the server, add the bracket:
   the build if either comes back — the same standard already applied to 28 MB of
   data nothing reads.
 
-### Known limit
-
-The resolver's remaining 338 MB is 921k + 677k Python strings (the alias keys
-and the corpus names), materialized because the shipped `.npz` and `.csv.gz`
-store them as objects and text. Removing them needs the on-disk format to
-become a memory-mappable blob, which trades roughly +96 MB of installed disk
-for the RAM and is deliberately not in this release.
 ## 1.2.2
 
 ### Added

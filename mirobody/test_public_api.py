@@ -163,3 +163,52 @@ def test_there_are_two_user_facing_extras_and_two_development_ones():
         f"extras are {sorted(extras)}; expected parse/app for users and "
         "test/indicator-build for development"
     )
+
+
+# ── mirobody.bundle: the build-time surface ─────────────────────────────────
+def test_bundle_module_exports_what_it_promises():
+    """`_bundle` is internal; this module is the stable name over it.
+
+    Raised by a downstream consumer: generating a seed from LOINC needed the
+    axis table, and the only route was a module whose underscore says it moves
+    without notice.
+    """
+    from mirobody import bundle
+
+    assert set(bundle.__all__) == {
+        "ALIAS_SRC_DIR", "BUNDLE_PATH", "RES_DIR", "alias_source_files",
+        "bundle_version", "is_lfs_pointer", "list_members",
+        "load_alias_sources", "load_axis", "read_member",
+    }
+    for name in bundle.__all__:
+        assert getattr(bundle, name) is not None, name
+
+
+def test_bundle_is_not_in_the_runtime_surface():
+    """It must not join `mirobody.__all__` — `import mirobody` stays lazy."""
+    import mirobody
+
+    assert "bundle" not in mirobody.__all__
+
+
+def test_bundle_axis_reads_the_runtime_members_not_the_csv():
+    """`load_axis` must work from a wheel, where `loinc_axis.csv` is gated out.
+
+    The reader parses `axis_fields.bin` / `axis_index.npz`, which are runtime
+    members and ship. Documented in `mirobody/bundle.py`; asserted here because
+    the docstring is only as good as the member list it names.
+    """
+    from mirobody._bundle import AXIS_BLOB_MEMBER, AXIS_INDEX_MEMBER
+    from mirobody.bundle import load_axis
+
+    # Read from the wheel GATE, not from `build_backend` — that module imports
+    # setuptools at import time, which pip's build isolation need not leave in
+    # the runtime venv the minimal-install CI job uses.
+    from scripts.check_wheel_data import BUNDLE_FORBIDDEN, BUNDLE_REQUIRED
+
+    assert AXIS_BLOB_MEMBER in BUNDLE_REQUIRED
+    assert AXIS_INDEX_MEMBER in BUNDLE_REQUIRED
+    assert "loinc_axis.csv" in BUNDLE_FORBIDDEN
+
+    axis, by_code, by_name = load_axis()
+    assert len(by_code) > 90_000

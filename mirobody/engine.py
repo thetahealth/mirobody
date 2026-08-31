@@ -37,7 +37,6 @@ the count so callers know when a term was ambiguous.
 from __future__ import annotations
 
 import csv
-import gzip
 import io
 import json
 import logging
@@ -56,6 +55,7 @@ from ._bundle import (
     AXIS_COMPONENT as _COMPONENT,
     AXIS_FOLDED_LCN as _FOLDED_LCN,
     AXIS_LCN as _LCN,
+    AXIS_SYSTEM as _SYSTEM,
     bundle_version,
     load_alias_sources,
     load_axis,
@@ -82,8 +82,6 @@ __all__ = [
     "resolve_reading",
     "resolve_with_semantic_fallback",
 ]
-
-_META = os.path.join(_RES_DIR, "fhir_meta.csv.gz")
 
 #: Everything `OfflineResolver.__init__` reads, fetched in one tar pass. The
 #: axis field positions live in `_bundle` beside the loader, because the
@@ -156,7 +154,7 @@ class Reading:
 class OfflineResolver:
     """Lexical indicator-name resolution against the shipped bundles.
 
-    Construction is one pass over the bundle: about 0.33 s and 153 MB
+    Construction is one pass over the bundle: about 0.33 s and 156 MB
     resident. Use :func:`get_resolver` for the cached singleton.
 
     Both numbers were 1.09 s and 514 MB, and neither was about the amount of
@@ -207,6 +205,7 @@ class OfflineResolver:
         #      Their targets are descriptive phrases meant for the index BUILD,
         #      so they resolve only sometimes; that is why (1) exists.
         self._skip: set[bytes] | None = None
+        self._system_values: set[str] | None = None
         self._src = load_alias_sources(fold=index_fold)
 
         logger.info(
@@ -322,7 +321,82 @@ class OfflineResolver:
             for key in self._keys_for(self._normalize(surface)):
                 if key not in keys:
                     keys.append(key)
+
+        # "Total cholesterol TC" -> "Total cholesterol". A lab report prints the
+        # analyte and its abbreviation side by side constantly, and none of those
+        # strings resolved: `Fasting plasma glucose FPG`, `总胆固醇 TC`,
+        # `甘油三酯 TG` all returned nothing while their bare stems answered.
+        #
+        # The strip used to be applied to the alias table's TARGET value, inside
+        # `_keys_for` — so it could only fire on inputs that were already alias
+        # keys, which are exactly the inputs that already resolved. The comment
+        # there gave an input-side example for target-side code; this is that
+        # example, on the input, where it was always meant to be.
+        #
+        # Tested on the RAW term because the pattern is a case test and
+        # `normalize` lowercases. Appended LAST, after every other key has
+        # missed, so like the surface variants above it can only turn a miss
+        # into a hit — never overrule an answer that was already right.
+        stem = _TRAILING_ACRONYM.sub("", term).strip()
+        if stem and stem != term.strip():
+            if self._trailing_token_is_an_abbreviation(stem, term.strip()[len(stem):].strip()):
+                for key in self._keys_for(self._normalize(stem)):
+                    if key not in keys:
+                        keys.append(key)
         return keys
+
+    def _trailing_token_is_an_abbreviation(self, stem: str, token: str) -> bool:
+        """Is the trailing ALL-CAPS token a repeat of `stem`, or does it add to it?
+
+        `Total cholesterol TC` and `Protein CSF` are the same SHAPE and opposite
+        meanings. Stripping the first is lossless; stripping the second answers a
+        serum protein for a spinal-fluid one, and the answer looks confident.
+        Four such wrong answers came out of a LIS-style `analyte + qualifier`
+        export: `Protein CSF`, `Calcium ION`, `胆固醇 HDL`, `Glucose OGTT`.
+
+        Two questions separate them, and neither is a word list:
+
+        * **does the token name a SPECIMEN?** `CSF` is a SYSTEM axis value, so
+          dropping it changes what was measured, not how it was spelled. `TC`,
+          `TG` and `FPG` are not, which is why "is this token anywhere in the
+          axis table" is too coarse a test — it fires on the abbreviations too.
+        * **does the token mean something else on its own?** `HDL` answers
+          2085-9 against `胆固醇`'s 2093-3, `ION` answers ionized calcium
+          against total, `OGTT` answers a tolerance-test glucose against a
+          plain one. A token that resolves to a DIFFERENT code than the stem is
+          carrying information the stem does not have. `TC` and `TG` resolve to
+          exactly their stem's code, which is what makes them redundant.
+
+        A token that resolves to nothing and is no specimen is treated as an
+        abbreviation — `FPG` reaches its stem through the alias table, and
+        refusing the strip on "unknown" would give back the misses this exists
+        to fix. Recursion is not a concern: the pattern needs whitespace before
+        the token, and neither argument here has any.
+        """
+        if not token or token in self._systems():
+            return False
+        own = self._lookup(token)
+        if own is None or not own.loinc:
+            return True
+        base = self._lookup(stem)
+        return base is None or not base.loinc or base.loinc == own.loinc
+
+    def _systems(self) -> set[str]:
+        """Every SYSTEM axis value — the specimens a trailing token could name.
+
+        2,467 of them over 97k rows. Built on first use and only ever from the
+        trailing-token test, which is itself the coldest path in `resolve`:
+        it runs after every other candidate key has already missed.
+        """
+        if self._system_values is None:
+            self._system_values = {
+                v
+                for v in (
+                    self._axis.field(i, _SYSTEM) for i in range(len(self._order_code))
+                )
+                if v
+            }
+        return self._system_values
 
     def _is_blocked(self, term: str) -> bool:
         """True when ANY surface variant of the term is a deliberate
@@ -350,7 +424,12 @@ class OfflineResolver:
         eng = self._src.get(norm)
         if eng:
             keys.append(self._normalize(eng))
-            # "Fasting plasma glucose FPG" -> "fasting plasma glucose"
+            # The same strip on the alias table's TARGET: 429 of 48,366 targets
+            # end in an acronym, and the stem is sometimes the better index key.
+            # Its example used to be an INPUT ("Fasting plasma glucose FPG"),
+            # which is not what this line can see — that case is handled in
+            # `_candidate_keys`. Both are real: deleting this one costs 0.003
+            # coverage and RAISES the wrong-rate 0.032 -> 0.034.
             stripped = _TRAILING_ACRONYM.sub("", eng).strip()
             if stripped and stripped != eng:
                 keys.append(self._normalize(stripped))
@@ -512,10 +591,6 @@ class OfflineResolver:
             self._by_component = index
         return self._by_component
 
-    def _name_for(self, code: str) -> str:
-        """code -> LONG_COMMON_NAME, for reporting a switched variant."""
-
-
     def variant_for_reading(self, loinc: str, value: str | None, unit: str | None) -> str:
         """The code for the SAME measurement, in the form this reading took.
 
@@ -548,9 +623,15 @@ class OfflineResolver:
         """
         if not loinc:
             return loinc
-        from .units import normalize_unit, unit_families
+        from .units import normalize_unit, parse_value_unit, unit_families
         from .value_scale import scales_for_value
 
+        # `20%` and `("20", "%")` are the same reading written two ways, and a
+        # stored value routinely carries its unit inline — `th_series_data.value`
+        # holds "3.9 mmol/L". Without this the unit gate did not fire at all on
+        # half the shapes real data arrives in.
+        if not unit and value:
+            unit = parse_value_unit(value).unit or ""
         ucum = normalize_unit(unit) if unit else None
         families = frozenset(unit_families(ucum) or ()) if ucum else frozenset()
         scales = scales_for_value(value) or frozenset()
@@ -566,14 +647,33 @@ class OfflineResolver:
         if prop_ok and scale_ok:
             return loinc
 
-        siblings = [
-            r
-            for r in (
-                self._axis_row(i)
-                for i in self._component_index().get(current[1].encode("utf-8"), [])
-            )
-            if ((not families) or r[2] in families) and ((not scales) or r[3] in scales)
-        ]
+        def _matching(component: bytes) -> list:
+            return [
+                r
+                for r in (
+                    self._axis_row(i) for i in self._component_index().get(component, [])
+                )
+                if ((not families) or r[2] in families)
+                and ((not scales) or r[3] in scales)
+            ]
+
+        siblings = _matching(current[1].encode("utf-8"))
+        if not siblings:
+            # A differential percentage and a differential count are two
+            # COMPONENTs, not two properties of one: `neutrophils/leukocytes`
+            # (NFr) and `neutrophils` (NCnc). So `中性粒细胞` reported as
+            # `4.2 10*9/L` could not reach its own count code — the analyte
+            # resolves to the ratio, which is what a bare differential term
+            # means on a CBC, and the unit had no way to say otherwise.
+            #
+            # Dropping the denominator is well-determined; adding one is not.
+            # `neutrophils` has three NFr children (`/cells`, `/leukocytes`,
+            # `/round cells`) and only clinical knowledge picks the CBC one, so
+            # this crosses in the ratio -> count direction ONLY. The other
+            # direction stays curated, in `resolver_overrides.tsv`.
+            numerator, sep, _ = current[1].partition("/")
+            if sep:
+                siblings = _matching(numerator.encode("utf-8"))
         if not siblings:
             return loinc
         same_system = [r for r in siblings if r[4] == current[4]] or siblings
@@ -602,7 +702,22 @@ class OfflineResolver:
                     break
                 name = self._names.get(row)
                 code = self._loinc_for_name(name)
-                if code and code.encode("ascii") in skipped:
+                # Two ways a candidate cannot be an identity, and both mean
+                # "try the next one" rather than "answer with it":
+                #
+                #   - the bundle tells us not to answer with this code;
+                #   - the row has no LOINC code at all. The corpus spans six
+                #     vocabularies and carries 4,991 `Deprecated …` names, so a
+                #     tenth of all alias hits came back `resolved=True,
+                #     method="lexical", loinc=""`. A caller following this
+                #     module's own identity rule — accept only
+                #     `method == "lexical"` — got `""` as a grouping key and
+                #     merged every such reading into one bucket. Two consumers
+                #     in this repo read that state opposite ways:
+                #     `resolve_with_semantic_fallback` treated it as answered
+                #     and withheld the second tier, `eval/run_eval.py` scored
+                #     it as unanswered.
+                if not code or code.encode("ascii") in skipped:
                     exclude.add(row)
                     continue
                 return Resolution(
@@ -656,7 +771,15 @@ def resolve_reading(name: str, value: str | None = None, unit: str | None = None
         return hit
     return Resolution(
         term=hit.term,
-        canonical=resolver._name_for(switched) or hit.canonical,
+        # No `or hit.canonical` fallback: `switched` is a code read out of the
+        # axis table, so the lookup cannot miss — and the fallback was not
+        # inert, it was the mask. A duplicate docstring-only `_name_for` left
+        # behind by a refactor shadowed the real one and returned None for
+        # every code, so EVERY switched reading reported the pre-switch name:
+        # 14647-2 labelled "Cholesterol [Mass/volume]", the exact case this
+        # function's own docstring uses as its example. A fallback that yields
+        # a name contradicting the code is worse than no fallback.
+        canonical=resolver._name_for(switched),
         loinc=switched,
         candidates=hit.candidates,
         resolved=True,

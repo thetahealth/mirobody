@@ -132,7 +132,7 @@ async def get_shared_session(
 
 # The router prefix is already /api/share, so "/share/deactivate" published
 # this as /api/share/share/deactivate — clients call
-# /api/share/deactivate and got a 404 (docs/frontend-shipping.md, gap #2).
+# /api/share/deactivate and got a 404.
 # The double path stays as an alias until known deployments confirm nothing
 # adapted to it.
 @router.post("/deactivate", response_model=ShareSessionResponse)
