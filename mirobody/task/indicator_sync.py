@@ -304,14 +304,21 @@ class IndicatorSyncTask(BaseRedisTask):
         candidate set into memory; the next sweep picks up the rest
         (`ORDER BY dim.id` makes progress deterministic).
 
-        Provider selected by `EMBEDDING_PROVIDER` (default `gemini`).
+        Provider selected by `EMBEDDING_PROVIDER` (default `openrouter`).
         Per-batch embedding errors are logged and skipped; the loop continues.
 
         A provider with no `th_series_dim` vector column raises BEFORE the loop
         and is therefore not one of those skippable per-batch errors — it is a
         misconfiguration, and a sweep that quietly wrote nothing would look
-        exactly like a sweep with nothing to do. `openrouter` is the current
-        example: it can embed text, but its vectors have no column to land in.
+        exactly like a sweep with nothing to do.
+
+        This used to name `openrouter` as that example, and it stopped being
+        true when `th_series_dim.embedding_qwen3_8b` was added (01_basedata.sql)
+        — openrouter is the shipped default and lands in that column like any
+        other. Left corrected rather than deleted because the wrong version
+        read as "the default provider cannot embed", which is the opposite of
+        what happens: this task is what makes indicator search work at all, and
+        `resolve_dim_embedding_column` is where the whitelist actually lives.
         """
         from mirobody.indicator.fhir.common import resolve_dim_embedding_column
 

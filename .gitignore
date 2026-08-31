@@ -42,25 +42,47 @@ package-lock.json
 CLAUDE.md
 **/CLAUDE.md
 
-# Internal testing results — LOCAL ONLY, deliberately.
+# Internal notes — LOCAL ONLY, deliberately. One directory, one rule.
 #
 # Our own measurements are not what an open-source reader needs. What they need
 # is a demo they can run (`examples/`) and a claim they can check themselves
 # (`pytest mirobody/test_engine_coverage.py -s` prints the published score). The
 # rule for which side a number falls on: backed by a test in the repo that
 # anyone can run -> publishable; produced by `eval/` -> not.
-docs/internal-testing.md
-
-# Resolver evaluation harness — LOCAL ONLY, deliberately.
 #
-# `eval/` holds the maintained test set, the runner, and every timestamped
-# result. It stays out of the repo for two reasons and neither is tidiness:
-# the test set is derived in part from a sibling private repo's curated seed,
-# and a published benchmark that ships alongside the thing it grades is an
-# invitation to tune against it. Kept on disk so a change to the resolver can
-# be re-scored against the same set and the same runner — reproducible,
-# upgradable, traceable — without becoming a public claim.
-eval/
+# The same rule sorts prose. `internal/` holds what is addressed to US:
+# `internal-testing.md` (our measurements), `library-surface-feedback.md` (a
+# defect list against our own release), `frontend-shipping.md` (a gap/bug
+# inventory of the current setup). A defect list is not documentation an
+# outside reader needs handed to them, and `docs/` is published.
+#
+# These used to be three separate decisions in three places, and only one of
+# them worked: `internal-testing.md` was ignored, while `frontend-shipping.md`
+# sat in `docs/` and shipped, and the header of `internal-testing.md` claimed
+# "Gitignored on purpose" for a rule that covered only itself. One directory
+# now, so the question is never asked per file again.
+internal/
+
+# Resolver evaluation harness — the DATA is local only, the RUNNER is not.
+#
+# The two used to be one decision and they are not the same thing. The test set
+# is derived in part from a sibling private repo's curated seed, and a
+# published benchmark shipped alongside the thing it grades is an invitation to
+# tune against it — so `testset.jsonl`, `build_testset.py` and every
+# timestamped result stay out.
+#
+# `run_eval.py` ships, and only it. It is the part other people need and cannot
+# write for themselves: it defines the four metrics, the analyte-level grading
+# rule and the strata, and it takes `--testset <path>`, so a downstream team can
+# grade the same resolver against their own distribution without their cases
+# ever reaching this repository. A harness nobody else can run is not a shared
+# harness.
+#
+# `README.md` stays out with the data: it names the set's provenance and prints
+# per-stratum result tables, both of which are exactly the "not a public claim"
+# half. The runner's own docstring carries what a user of it needs.
+eval/*
+!eval/run_eval.py
 
 # Local regression suite. Not published: the repository keeps only the tests
 # that are evidence for something it claims (see [tool.pytest.ini_options] in

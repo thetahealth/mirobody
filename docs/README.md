@@ -23,7 +23,7 @@ notes to PyPI under a filename that told open-source readers to ignore it.
 | ① | [provider-guide.md](provider-guide.md) | writing a data provider end to end — the long one |
 | ① | [file-processing.md](file-processing.md) | the file-parsing pipeline (8 formats, LLM extraction) |
 | ① | [apple-health.md](apple-health.md) | Apple Health export + CDA import |
-| ③ | [frontend-shipping.md](frontend-shipping.md) | how the built web client ships and gets served |
+| ③ | [frontend.md](frontend.md) | how the bundled web client is served, and how to replace it |
 | | [testing.md](testing.md) | test layout, markers, snapshots, release gates |
 | | [aggregation-tests.md](aggregation-tests.md) | the daily-rollup test suite in detail |
 

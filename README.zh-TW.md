@@ -56,6 +56,10 @@ resolve("血红蛋白").loinc                                # '718-7'   任何�
 resolve("total cholesterol").loinc                     # '2093-3'  [質量/體積]
 resolve_reading("total cholesterol", "5.0", "mmol/L")   # '14647-2' [摩爾/體積]
 resolve_reading("total cholesterol", "193", "mg/dL")    # '2093-3'  單位決定了碼
+
+resolve("中性粒细胞百分比").loinc                          # '26511-6' 嗜中性球/白血球
+resolve_reading("中性粒细胞", "62 %", None).loinc          # '26511-6' 百分比……
+resolve_reading("中性粒细胞", "4.2", "10*9/L").loinc       # '26499-4' ……與絕對值是兩個碼
 resolve("血脂").resolved                                 # False    這是類別，不是一次觀測
 ```
 
@@ -84,8 +88,12 @@ resolve("血脂").resolved                                 # False    這是類�
 - **還有第二層，而且刻意保持可選。** 上面全是詞法的，遇到不認識的詞就棄答——這是個誠實
   的天花板。餘弦召回（[`indicator/semantic.py`](mirobody/indicator/semantic.py)）能越過
   它，但**它無法棄答**：面對從沒見過的詞，它會用和正確答案相同的信賴度返回最近鄰，沒有
-  任何閾值能把兩者分開。repo 裡不發布向量矩陣，所以 `resolve()` 不受影響，除非你把
-  `MIROBODY_SEMANTIC_INDEX` 指向一個——之後用它來*建議*一個由人確認的碼，絕不用它鑄造身分。
+  任何閾值能把兩者分開。**repo 裡沒有向量矩陣，也沒有現成的可供下載**：它是 108,248 條
+  LOINC 列 × 1024 維（約 221 MB），且和 (provider, model) 綁死，要用
+  `scripts/build_loinc_embeddings.py` 針對你設定的 embedding 模型自行建。換一個模型的
+  矩陣不會報錯——它會在錯的向量空間裡自信地排序，所以建置時會寫出 `<matrix>.meta.json`，
+  載入時對不上就拒絕。在你把 `MIROBODY_SEMANTIC_INDEX` 指向一個之前 `resolve()` 不受
+  影響；之後也只用它來*建議*一個由人確認的碼，絕不用它鑄造身分。
   → [語義召回](https://docs.mirobody.ai/zh/concepts/semantic-recall/)：基準數字、兩道軸向
   閘門，以及為什麼 `min_score` 不是正確性閾值。
 - **這個說法我們是量出來的，不是斷言的。**
@@ -97,6 +105,45 @@ resolve("血脂").resolved                                 # False    這是類�
 ```bash
 pytest mirobody/test_engine_coverage.py -s   # 離線，約一秒
 ```
+
+### 用的是哪一版 LOINC,它涵蓋什麼、不涵蓋什麼
+
+隨套件發布的語料切自 **LOINC 2.82**,而且這件事由執行期報出,不是寫在一句會漂的註解裡:
+
+```python
+>>> import mirobody; mirobody.BUNDLE_VERSION
+'loinc-2.82+2026.08.28-050559ecc200'
+```
+
+版本、切分日期,加上一段對語料成員本身算出的摘要——所以「建置期消費這份詞表」和
+「執行期 pin 的這個套件」是不是同一份語料,可以被斷言;只看套件版本永遠看不出來。
+[LOINC 授權](https://loinc.org/license/)要求每一份拷貝都帶版本號,
+`res/fhir_loinc_bundle.NOTICE` 帶了,`scripts/stamp_bundle_version.py --check` 保證它不說謊。
+
+**為什麼是 2.82 而不是 2.83。** axis 表與那 677k 列語料是透過折疊後的
+`LONG_COMMON_NAME` 綁在一起的,而 2.83 系統性改名了其中 2,842 條
+(`Cerebral spinal fluid` → `Cerebrospinal Fluid` 這一類)。實測:只升 axis 會丟
+**3,486** 條「語料名 → 碼」的連結,而且新增為零。真要升就得連語料一起重建——那份語料
+橫跨 SNOMED CT、RxNorm、CVX、DCM,各自單獨授權,都不可在此再散布。留在 2.82 的
+已知代價:650 個被 2.83 標為 DISCOURAGED / DEPRECATED 的碼仍可被答出,反映到基準上
+是 6,815 條能解析的案例裡的 52 條。「乾脆拒答這些碼」也量過,沒有採納——658 個裡
+LOINC 只為 9 個給出替代碼,拒答基本等於把「一個有點舊但正確的碼」變成「沒有碼」,
+而沒有碼的讀值根本無法歸組。
+
+**LOINC 對穿戴領域的涵蓋比多數人以為的寬。** 它不只是化驗套餐:`BDYWGT.*` 編身體組成
+(`101685-6` 骨量、`73964-9` 肌肉量、`101684-9` 體水分率),`HRTRATE.*` 把靜息心率
+(`40443-4`)和單次量測分開,另有步數(`41950-7`)、睡眠分期(`93831-6` 深睡、
+`93830-8` 淺睡)、HRV SDNN(`112429-6`)、VO₂ peak、爬升高度等碼。它停在廠商複合指標上
+——Garmin 的身體能量與壓力分數沒有碼,而這是對的:那是一家公司的演算法,不是一個量測。
+
+**涵蓋不等於召回,而且這道落差是我們的、不是 LOINC 的**:`Body bone mass` 在這裡能解析到
+`101685-6`,中文的 `骨量` 卻落到一個牙科體積碼上,因為沒有別名把它路由過去。
+這正是 [`res/resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv) 存在的理由
+——一行由人寫下的意圖,永遠贏過索引裡的表面匹配。
+
+→ [loinc.org](https://loinc.org/) · [授權](https://loinc.org/license/) ·
+[發布說明](https://loinc.org/kb/) · 下載免費,但需要註冊帳號並同意條款,
+這也是隨套件發布衍生語料、而不發布原始版本的原因。
 
 → [標準化](https://docs.mirobody.ai/zh/api-reference/standardization/) ·
 [架構](https://docs.mirobody.ai/zh/concepts/architecture/) ·
@@ -145,6 +192,11 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
 使用 Claude/GPT/DeepSeek，語義搜尋使用開源權重的 Qwen3-Embedding-8B（支援自主
 部署：以任何 OpenAI 相容的 `/v1/embeddings` 服務部署同一模型，並將
 `OPENROUTER_BASE_URL` 指向該服務即可）。
+
+指標搜尋編碼的是**你自己的指標名**，不是 LOINC 全表：worker 的
+`IndicatorSyncTask` 在每次 ingest 後寫入 `th_series_dim.embedding_qwen3_8b`，
+查詢就與之比對。它需要 `mirobody worker` 在跑，`./deploy.sh` 會一併啟動。
+這和上文第二層要的「可下載的全表矩陣」是兩個不同的索引，而這一個是白送的。
 
 若所在網路無法連上 openrouter.ai（中國大陸境內即屬此情形），可將
 [DashScope key](https://dashscope.console.aliyun.com/apiKey) 設定為
@@ -262,18 +314,27 @@ agent 擁有的每個工具同時透過 `/mcp` 對外提供，依使用者門控
 
 ```
 mirobody/
+├── engine.py    正門 —— resolve() 與 parse_file()
+├── units/       UCUM 單位、unit_family、換算            ┐ 函式庫的部分：
+├── lexical.py   表層折疊 + CJK 感知斷詞器                │ 只依賴 numpy，
+├── bundle.py    建置期：軸表與別名來源                      │
+├── res/         隨套件分發的 LOINC 語料                  ┘ 共 2 個套件
 ├── pulse/       ① 收集     —— provider、檔案解析、彙總
-├── indicator/   ② 標準化   —— 解析器、單位、概念圖（無 DB、無網路）
-├── agent/       ③ 回答     —— DeepAgent、工具、skills、chat
+├── indicator/   ② 標準化   —— 解析器內部、概念圖、語料建置
+├── agent/       ③ 解答     —— DeepAgent、工具、skills、chat
 ├── mcp/         MCP 服務
 ├── schema/      DDL，開發環境啟動時重放
-└── demo/        照護圈示範資料
+└── demo/        關愛圈示範資料
 ```
 
-**一條機器強制的規則**：`indicator/` 永不匯入 agent 層，所以
-`pip install mirobody` 約為 200 MB、90 個左右的套件，看不到任何框架——加上
-`[agents]` 後約增至三倍（約 600 MB；實際數字隨平台與安裝器有所差異）。兩條
-import-linter 契約守著這條線，`lint-imports` 會讓建置失敗。
+**兩種形態，訴求正好相反。** PyPI 套件是**函式庫**，小到不必讓人想起它：
+`pip install mirobody` 是 **2 個套件、52 MB** —— 上面前四項，加上 numpy。
+`[parse]` 加上讀文件的能力；`[app]` 是全部，而唯一安裝它的是 `requirements.txt`
+—— Docker 應用是 `git clone && ./deploy.sh`，從來不是 pip 安裝出來的。
+
+**由工具強制執行，而非寫在文件裡**：三條 import-linter 契約守住這兩條線——函式庫層除
+numpy 外不匯入任何東西，引擎永不匯入 agent 層——違反即 `lint-imports` 建置失敗。第四道閘門 `scripts/check_wheel_data.py`
+把語料建置流程與 v2 語義管線——19,000 行裝了也跑不了的程式碼——擋在產物之外。
 
 → [架構](https://docs.mirobody.ai/zh/concepts/architecture/) ·
 [CONTRIBUTING.md](CONTRIBUTING.md)
@@ -304,7 +365,7 @@ import-linter 契約守著這條線，`lint-imports` 會讓建置失敗。
 | ① 指南 | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [Apple Health API](docs/apple-health.md) |
 | ② 標準化 | [`indicator/`](mirobody/indicator/README.md) · [indicators & units](mirobody/pulse/standardize/README.md) |
 | ③ 回答 | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [ChatGPT widgets](mirobody/agent/resources/README.md) |
-| 底層設施 | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [shipping the frontend](docs/frontend-shipping.md) |
+| 底層設施 | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [the web client](docs/frontend.md) |
 | 參與開發 | [CONTRIBUTING.md](CONTRIBUTING.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
 
 ---

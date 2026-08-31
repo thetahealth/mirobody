@@ -1,4 +1,4 @@
-"""Regenerate ``mirobody/indicator/zh_fold.py`` — the zh-Hant → zh-Hans table.
+"""Regenerate ``mirobody/zh_fold.py`` — the zh-Hant → zh-Hans table.
 
     ./.venv/bin/python scripts/gen_zh_fold.py
 

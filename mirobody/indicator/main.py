@@ -89,7 +89,7 @@ def cmd_normalize(args) -> None:
     """
     import json
 
-    from .fhir.units import parse_value_unit, unit_family
+    from mirobody.units import parse_value_unit, unit_family
 
     terms = list(args.terms)
     if args.input:
@@ -256,7 +256,7 @@ def main() -> None:
     p_norm = sub.add_parser(
         "normalize",
         help="Parse free-text 'value + unit' strings via "
-             "mirobody.indicator.fhir.units. Emits one JSON line per input.",
+             "mirobody.units. Emits one JSON line per input.",
     )
     p_norm.add_argument(
         "terms", nargs="*",

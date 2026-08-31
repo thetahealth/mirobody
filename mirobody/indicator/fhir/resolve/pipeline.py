@@ -207,11 +207,11 @@ log = logging.getLogger(__name__)
 # cosine top-1 — scale is the softer constraint and relaxes first.
 
 # The value-kind vocabulary and the scale-compatibility table now live in
-# `mirobody.indicator.value_scale`, so the lexical resolver and the small
+# `mirobody.value_scale`, so the lexical resolver and the small
 # LOINC-only semantic tier gate on the same definitions this pipeline reranks
 # with, rather than on a second copy that drifts. Names are re-bound to the
 # module-private spellings the rest of this file uses.
-from mirobody.indicator.value_scale import (  # noqa: E402
+from mirobody.value_scale import (  # noqa: E402
     SCALE_COMPAT as _SCALE_COMPAT,
     VALUE_NOM_TOKENS as _VALUE_NOM_TOKENS,
     classify_value as _classify_value,
@@ -5316,7 +5316,7 @@ def _explicit_dose_keep(query_text: str, cache: dict) -> "np.ndarray | None":
     it strict so embedding-agnostic literal matching survives provider
     swaps.
     """
-    from ..units.normalize import scan_value_units
+    from mirobody.units.normalize import scan_value_units
 
     dose_index = cache.get("dose_index") or {}
     if not dose_index:

@@ -31,7 +31,13 @@ Bundle members and their LOINC sources:
                             CONSUMER_NAME) and all AccessoryFiles/
                             LinguisticVariants/*.csv.
 
-Source: LOINC release 2.82 or later (LoincTable/, LoincTableCore/,
-AccessoryFiles/).
+Source: LOINC release 2.82 (LoincTable/, LoincTableCore/, AccessoryFiles/).
+
+This used to read "2.82 or later". Section 9 of the LOINC license asks each
+copy to carry "the appropriate version number of the Licensed Materials", and a
+range is not one. It is determinable, and now determined: of the 3,081 codes
+ACTIVE in 2.83 that this bundle does not carry, 3,078 were first released in
+2.83 — so the cut is 2.82 exactly. `mirobody.BUNDLE_VERSION` reports it at
+runtime.
 
 Full LOINC license: https://loinc.org/license/

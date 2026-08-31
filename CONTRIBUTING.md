@@ -49,13 +49,14 @@ We love new ideas! Please open an issue to discuss your feature idea before impl
     lint-imports          # the engine/agent boundary, machine-checked
     ```
 
-    `'.[test]'` alone is enough to work on the **engine** — it runs the offline
-    tests and prints a header naming what it skipped. Server-layer tests need
-    `[server]` (fastapi, psycopg, mandrill) and agent-layer tests need
-    `[agents]`, which pulls `[server]` in with it. Both are dropped at
-    COLLECTION time rather than aborting the run: a module-level
-    `importorskip` is too late, because importing a test module imports its
-    parent package first and that is what pulls in the missing dependency.
+    `'.[test]'` alone is enough to work on the **library** — resolve, units,
+    lexical. On a clean clone that is 17 packages and runs 100 tests, printing
+    a header naming what it skipped. Add `[parse]` for the document-extraction
+    and model-client tests (166), and `[app]` for the server and agent layers
+    (the full 215). All three layers are dropped at COLLECTION time rather
+    than aborting the run: a module-level `importorskip` is too late, because
+    importing a test module imports its parent package first and that is what
+    pulls in the missing dependency.
 
     `lint-imports` must run against the repo source — inside a venv holding an
     installed older wheel it passes vacuously.

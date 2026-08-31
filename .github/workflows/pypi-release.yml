@@ -162,43 +162,66 @@ jobs:
         assert r.resolved and r.loinc, f'offline resolve is broken in the wheel: {r}'
         print('offline resolve OK:', r.loinc, r.canonical)
         "
-        # ① The BARE install must import every module the engine advertises —
-        # resolve, parse, vendors, file extraction — with no [server] extra, so
-        # no FastAPI. `mirobody.utils` is checked by name: it is the engine's
-        # own utils package (anything calling execute_query imports it), and a
-        # stray FastAPI-dependent import inside it would break the bare install
-        # without any other gate seeing it.
-        #
-        # This step was added after the last release and had never run; when it
-        # first did, it also asserted mirobody.task / mirobody.user here, which
-        # cannot hold — a Redis-backed task queue and a Mandrill mailer really
-        # do need [server]. Those moved to ② rather than being weakened away.
+        # ① The BARE install is the LIBRARY, and the gate says exactly that:
+        # numpy is the only third-party package it may reach for. This replaced
+        # a weaker check that only asserted "FastAPI is absent" while importing
+        # `mirobody.utils` / `pulse.file_parser` / `mcp` — modules that now need
+        # the [parse] and [app] extras, and that were only importable before
+        # because base carried 93 packages.
+        "$VPY" -c "
+        import sys
+        import mirobody, mirobody.engine, mirobody.units, mirobody.lexical
+        import mirobody.value_scale, mirobody.zh_fold
+        third = sorted({
+            m.split('.')[0] for m in sys.modules
+            if m.split('.')[0] not in sys.stdlib_module_names
+            and not m.startswith('_') and m.split('.')[0] != 'mirobody'
+        })
+        assert third in ([], ['numpy']), f'library install reaches beyond numpy: {third}'
+        assert mirobody.resolve('hemoglobin').loinc == '718-7'
+        assert mirobody.BUNDLE_VERSION, 'the shipped bundle carries no VERSION member'
+        print('library install clean; corpus', mirobody.BUNDLE_VERSION, '| deps', third)
+        "
+        # ② [parse] must import the ① Collect surface without pulling the
+        # server in — the extraction stack and the model clients, no FastAPI.
+        "$VPIP" install "${WHEEL}[parse]"
         "$VPY" -c "
         import importlib.util
         assert importlib.util.find_spec('fastapi') is None, (
-            'gate is vacuous: FastAPI is installed, so this cannot prove the '
-            'engine imports without the [server] extra'
+            'gate is vacuous: FastAPI is installed, so this cannot prove [parse] '
+            'stands on its own'
         )
-        import mirobody.utils
+        import mirobody.utils, mirobody.utils.llm
         import mirobody.pulse, mirobody.pulse.file_parser
-        import mirobody.indicator, mirobody.mcp, mirobody.engine
-        print('engine imports clean on a bare (FastAPI-free) install')
+        import mirobody.indicator
+        print('[parse] imports clean on a FastAPI-free install')
         "
-        # ② The engine/agent boundary, which needs [server] but must stay
-        # langchain-free. This catches the break import-linter provably cannot
-        # see: a module-scope import of mirobody.agent.chat.* executes
+        # ③ The engine/agent boundary, which needs the server stores but must
+        # stay langchain-free. This catches the break import-linter provably
+        # cannot see: a module-scope import of mirobody.agent.chat.* executes
         # agent/__init__, and if that __init__ is eager it drags langchain into
         # an engine import. Exactly this happened to pulse.file_parser once.
-        "$VPIP" install "${WHEEL}[server]"
+        #
+        # The server packages are spelled out rather than installed via an
+        # extra, and that is deliberate: [app] is everything INCLUDING the agent
+        # framework, so using it here would make the gate vacuous, and there is
+        # no longer a [server] extra to reach for — nothing ever installed one,
+        # and `serve`/`worker` refuse without the agent layer anyway. Keep this
+        # list in step with the store/HTTP half of [app] in pyproject.toml.
+        "$VPIP" install "${WHEEL}[parse]" \
+            fastapi python-multipart uvicorn \
+            "psycopg[binary]" "psycopg[pool]" sqlalchemy greenlet redis \
+            aioboto3 boto3 oss2 "mcp>=2.0.0" pyjwt pytz "webauthn>=2.0.0" mandrill \
+            requests-oauthlib
         "$VPY" -c "
         import importlib.util
         assert importlib.util.find_spec('langchain_core') is None, (
             'gate is vacuous: langchain is installed, so this cannot prove the '
             'agent layer stays out of engine imports'
         )
-        import mirobody.task.profile_refresh, mirobody.user
+        import mirobody.task.profile_refresh, mirobody.user, mirobody.mcp
         import mirobody.agent.chat.user_profile
-        print('engine/agent boundary holds on a langchain-free [server] install')
+        print('engine/agent boundary holds on a langchain-free server install')
         "
 
     # Upload to TestPyPI

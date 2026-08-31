@@ -57,6 +57,10 @@ resolve("血红蛋白").loinc                                # '718-7'   any lan
 resolve("total cholesterol").loinc                     # '2093-3'  [Mass/volume]
 resolve_reading("total cholesterol", "5.0", "mmol/L")   # '14647-2' [Moles/volume]
 resolve_reading("total cholesterol", "193", "mg/dL")    # '2093-3'  the unit picks the code
+
+resolve("中性粒细胞百分比").loinc                          # '26511-6' Neutrophils/Leukocytes
+resolve_reading("中性粒细胞", "62 %", None).loinc          # '26511-6' a percentage...
+resolve_reading("中性粒细胞", "4.2", "10*9/L").loinc       # '26499-4' ...and a count are two codes
 resolve("血脂").resolved                                 # False    a category, not an observation
 ```
 
@@ -93,9 +97,14 @@ Standardization here is not a lookup table but a complete terminology-normalizat
   ([`indicator/semantic.py`](mirobody/indicator/semantic.py)) reaches past it but
   **cannot abstain**: for a term it has never seen it returns its nearest
   neighbour with the confidence of a correct answer, and no threshold separates
-  the two. No matrix ships, so `resolve()` is unchanged until you point
-  `MIROBODY_SEMANTIC_INDEX` at one — then use it to *suggest* a code a human
-  confirms, never to mint an identity.
+  the two. **No matrix ships and none is published to download**: it is 108,248
+  LOINC rows × 1024 dims (~221 MB) and it is specific to one (provider, model)
+  pair, so `scripts/build_loinc_embeddings.py` builds yours against the
+  embedding model you configure. A matrix from a different model does not
+  error — it ranks confidently in the wrong space, which is why the build
+  stamps `<matrix>.meta.json` and loading refuses a mismatch. Until you point
+  `MIROBODY_SEMANTIC_INDEX` at one, `resolve()` is unchanged; after, use it to
+  *suggest* a code a human confirms, never to mint an identity.
   → [Semantic recall](https://docs.mirobody.ai/en/concepts/semantic-recall/) — the
   benchmark, the two axis gates, and why `min_score` is not a correctness threshold.
 - **We measure the claim instead of asserting it.**
@@ -109,6 +118,55 @@ Standardization here is not a lookup table but a complete terminology-normalizat
 ```bash
 pytest mirobody/test_engine_coverage.py -s   # offline, about a second
 ```
+
+### Which LOINC, and what it does and does not cover
+
+The shipped bundle is cut from **LOINC 2.82**, and the package says so at
+runtime rather than in a comment that can drift:
+
+```python
+>>> import mirobody; mirobody.BUNDLE_VERSION
+'loinc-2.82+2026.08.28-050559ecc200'
+```
+
+The release, the cut date, and a digest over the bundle's own members — so a
+build-time consumer of the vocabulary and a runtime `pip` pin can be asserted
+to be the same corpus, which the package version alone never told you.
+[LOINC's licence](https://loinc.org/license/) requires every copy to carry the
+version number; `res/fhir_loinc_bundle.NOTICE` does, and
+`scripts/stamp_bundle_version.py --check` keeps the stamp honest.
+
+**Why 2.82 and not 2.83.** The axis table and the 677k-row corpus are coupled
+through the folded `LONG_COMMON_NAME`, and 2.83 renamed 2,842 of them
+(`Cerebral spinal fluid` → `Cerebrospinal Fluid` and that family). Measured:
+upgrading the axis alone loses **3,486** name→code links and gains none, so a
+real upgrade means rebuilding the corpus — which spans SNOMED CT, RxNorm, CVX
+and DCM, each licensed separately and none redistributable here. The known
+cost of staying: 650 codes that 2.83 has marked DISCOURAGED or DEPRECATED are
+still answerable, which shows up as 52 of the 6,815 benchmark cases that
+resolve. Withholding them was measured too and not taken — LOINC offers a
+replacement for only 9 of the 658, so it would mostly turn a dated code into no
+code, and a reading with no code cannot be grouped at all.
+
+**LOINC covers more of the wearable world than people expect.** It is not only
+lab panels: `BDYWGT.*` codes body composition (`101685-6` body bone mass,
+`73964-9` body muscle mass, `101684-9` percentage of body water), `HRTRATE.*`
+distinguishes resting heart rate (`40443-4`) from a spot reading, and there are
+codes for step counts (`41950-7`), sleep stages (`93831-6` deep, `93830-8`
+light), HRV SDNN (`112429-6`), VO₂ peak and elevation climbed. Where it stops
+is vendor composites — Garmin's Body Battery and stress score have no code,
+correctly, because they are one company's formula rather than a measurement.
+
+**Coverage of a vocabulary is not the same as recall on it**, and the gap is
+ours, not LOINC's: `Body bone mass` resolves to `101685-6` here, while the
+Chinese `骨量` resolves to a dental volume code, because no alias routes it.
+That is what [`res/resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv)
+is for — a row written by a person beats a surface match in the index, every
+time.
+
+→ [loinc.org](https://loinc.org/) · [licence](https://loinc.org/license/) ·
+[release notes](https://loinc.org/kb/) · the download is free but requires an
+account, which is why the derived bundle ships and the source release does not.
 
 → [Standardization](https://docs.mirobody.ai/en/api-reference/standardization/) ·
 [Architecture](https://docs.mirobody.ai/en/concepts/architecture/) ·
@@ -163,6 +221,13 @@ indicator search are all live — chat via Claude/GPT/DeepSeek, embeddings via
 the open-weights Qwen3-Embedding-8B (self-hostable: serve the same model
 behind any OpenAI-compatible `/v1/embeddings` and point
 `OPENROUTER_BASE_URL` at it).
+
+Indicator search embeds **your own indicator names**, not the LOINC corpus:
+the worker's `IndicatorSyncTask` writes `th_series_dim.embedding_qwen3_8b` on
+each ingest, and the query is matched against that. It needs `mirobody worker`
+running, which `./deploy.sh` starts. That is a different index from the
+downloadable-corpus matrix the second tier wants, and it is the one that comes
+for free.
 
 If openrouter.ai is unreachable from your network (the case in mainland
 China), a [DashScope key](https://dashscope.console.aliyun.com/apiKey) in
@@ -278,7 +343,9 @@ Every tool the agent has is also served over MCP at `/mcp`, gated per user.
 
 | Surface | For | Docs |
 | --- | --- | --- |
-| `pip install mirobody` | Resolution and file parsing, no server | [Engine](https://docs.mirobody.ai/en/engine/) |
+| `pip install mirobody` | Offline resolution and units — 2 packages, no key, no network | [Engine](https://docs.mirobody.ai/en/engine/) |
+| `pip install 'mirobody[parse]'` | The above, plus reading documents with one model key | [Engine](https://docs.mirobody.ai/en/engine/) |
+| `mirobody.bundle` | Build-time: the LOINC axis table and alias sources, for generating a seed or corpus | [`mirobody/bundle.py`](mirobody/bundle.py) |
 | HTTP API | Your app talking to a deployment | [API overview](https://docs.mirobody.ai/en/api-reference/overview/) · [Data](https://docs.mirobody.ai/en/api-reference/data/) |
 | MCP | Claude, Cursor, or any MCP client reading a user's record | [MCP servers](https://docs.mirobody.ai/en/api-reference/mcp-servers/) |
 | Backbone mode | Your own agent, our data layer | [Backbone](https://docs.mirobody.ai/en/api-reference/backbone-mode/) |
@@ -291,8 +358,13 @@ Not sure which? → [Choose your API](https://docs.mirobody.ai/en/api-reference/
 
 ```
 mirobody/
+├── engine.py    the front door — resolve() and parse_file()
+├── units/       UCUM units, unit_family, conversions          ┐ the library:
+├── lexical.py   surface folding + the CJK-aware tokenizer     │ numpy only,
+├── bundle.py    build-time: the axis table and alias sources    │
+├── res/         the shipped LOINC bundles                     ┘ 2 packages
 ├── pulse/       ① Collect     — providers, file parsing, aggregation
-├── indicator/   ② Standardize — the resolver, units, concept graph (no DB, no network)
+├── indicator/   ② Standardize — resolver internals, concept graph, bundle build
 ├── agent/       ③ Answers     — DeepAgent, tools, skills, chat
 ├── mcp/         the MCP server
 ├── user/        identity and the care circle — who may read whose record
@@ -300,11 +372,18 @@ mirobody/
 └── demo/        care-circle demo data
 ```
 
-**One rule, machine-enforced:** `indicator/` never imports the agent layer, so
-`pip install mirobody` is roughly 200 MB across ~90 packages, with no framework
-in sight — adding `[agents]` roughly triples it, to ~600 MB (fresh-venv
-measurements; exact figures vary by platform and installer). Two import-linter
-contracts hold the line, and `lint-imports` fails the build.
+**Two forms, and they want opposite things.** The PyPI package is a LIBRARY and
+is meant to be small enough that nobody has to think about it: `pip install
+mirobody` is **2 packages, 52 MB** — the top four entries above, on numpy.
+`[parse]` adds document reading; `[app]` is everything, and the only thing that
+installs it is `requirements.txt`, because the Docker application is
+`git clone && ./deploy.sh` and never a pip install.
+
+**Machine-enforced, not documented:** three import-linter contracts hold the
+lines — the library layer imports nothing but numpy, and the engine never
+imports the agent layer — and `lint-imports` fails the build. A fourth gate, `scripts/check_wheel_data.py`, keeps the bundle-build passes and the
+v2 semantic pipeline — 19,000 lines nobody who installs the package can run —
+out of the artifact.
 
 → [Architecture](https://docs.mirobody.ai/en/concepts/architecture/) ·
 [CONTRIBUTING.md](CONTRIBUTING.md)
@@ -335,7 +414,7 @@ Each package carries a `README.md` saying what it is; long-form guides live in
 | ① guides | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [Apple Health API](docs/apple-health.md) |
 | ② Standardize | [`indicator/`](mirobody/indicator/README.md) · [indicators & units](mirobody/pulse/standardize/README.md) |
 | ③ Answers | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [ChatGPT widgets](mirobody/agent/resources/README.md) |
-| Plumbing | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [shipping the frontend](docs/frontend-shipping.md) |
+| Plumbing | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [the web client](docs/frontend.md) |
 | Working on it | [CONTRIBUTING.md](CONTRIBUTING.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
 
 ---

@@ -43,6 +43,15 @@ def test_member_series_is_thin_normal_and_tells_the_contrast_story():
 
 
 async def test_seed_gives_each_member_their_own_data(monkeypatch):
+    # The sibling test above runs on a bare `pip install mirobody`; this one
+    # monkeypatches `utils.execute_query` and `user.care_circle`, so it needs
+    # the parse and server stacks. Skipped here rather than gated in conftest,
+    # because a whole-file ignore would take the bare-install test with it.
+    # (`dotenv` is what is missing first: `mirobody.utils` imports config,
+    # which imports it at module scope.)
+    pytest.importorskip("dotenv", reason="mirobody.utils needs the [parse] stack")
+    pytest.importorskip("psycopg_pool", reason="care_circle needs the [app] stack")
+
     calls = {"series_batches": [], "files": [], "users": []}
 
     async def fake_execute_query(sql, params=None, log_sql=True, **kw):

@@ -1,6 +1,6 @@
 """Check whether this machine can run the full agent server — before you start it.
 
-    pip install 'mirobody[agents]'
+    pip install 'mirobody[app]'
     python examples/05_agent_server_preflight.py
 
 Examples 01–04 need nothing but the package. This one covers ③ Answers, which is
@@ -39,12 +39,12 @@ print("=" * 74)
 
 rows: list[tuple[str, bool, str]] = []
 
-# ── 1. the [agents] extra ────────────────────────────────────────────────────
+# ── 1. the [app] extra ────────────────────────────────────────────────────
 for mod, why in (("langchain", "the DeepAgent tool loop"),
                  ("deepagents", "middleware, skills, virtual filesystem"),
                  ("fastapi", "the HTTP surface")):
     rows.append((f"python: {mod}", importlib.util.find_spec(mod) is not None,
-                 f"{why} — pip install 'mirobody[agents]'"))
+                 f"{why} — pip install 'mirobody[app]'"))
 
 # ── 2. services ──────────────────────────────────────────────────────────────
 # Defaults match what this repo's compose.yaml maps onto the host

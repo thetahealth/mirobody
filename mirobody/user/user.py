@@ -26,7 +26,7 @@ import json, logging
 from typing import TYPE_CHECKING
 
 # Type-checking only: `AsyncConnectionPool` appears in three parameter
-# annotations, and psycopg_pool lives in the [server] extra. A module-scope
+# annotations, and psycopg_pool lives in the [app] extra. A module-scope
 # import here made `import mirobody.user.care_circle` — the pure authorization
 # rules examples/06 demonstrates — require the server extra.
 if TYPE_CHECKING:

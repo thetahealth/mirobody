@@ -6,7 +6,7 @@ claim shape live in `mirobody/user/jwt.py`; this module only consumes them.
 
 Was `utils_auth.py`, then `mirobody/utils/auth.py`. It is FastAPI all the way
 down — `Header` defaults, `HTTPException` — and FastAPI ships in the
-`[server]` extra, so it never belonged in the engine's utils package: every
+`[app]` extra, so it never belonged in the engine's utils package: every
 one of its live callers is a router right next door. `verify_token_string` is
 the one function with a non-router caller in history, and that caller — the
 care-circle permission check, then `utils/permissions.py`, now

@@ -16,7 +16,7 @@ from mirobody.utils.config import safe_read_cfg
 from .file_types import guess_mime
 
 # `aioboto3` is imported inside `get_s3_client`, not here: it ships with the
-# `[server]` extra only, while this module is imported (via `pulse/file_parser`)
+# `[app]` extra only, while this module is imported (via `pulse/file_parser`)
 # from the bare engine install, whose header contract says `pip install
 # mirobody` must be able to import it. A module-scope import made the whole
 # file_parser chain crash on ImportError in the bare install — and broke test

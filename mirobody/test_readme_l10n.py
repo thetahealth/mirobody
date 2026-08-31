@@ -36,10 +36,14 @@ pytestmark = pytest.mark.skipif(
 # exhaustive (no opencc dependency): every entry is unambiguous — a character
 # that standard Traditional Chinese text has no reason to contain. Characters
 # valid in BOTH scripts (你, 作, 依, 份, 中…) are deliberately absent.
+# Hand-typed, and `test_the_simplified_list_is_actually_simplified` keeps it
+# honest — `骨` used to be in here, swept in beside 驱驶 while someone typed the
+# 马 radical group, and it is the SAME character in Traditional (骨骼, 骨質).
+# The false positive only surfaced when a README first mentioned 骨量.
 _SIMPLIFIED_ONLY = set(
     "标图谱个总览词数据记录变设红蓝绿级别题细谁说话语请谢电见觉观频账历"
     "经过还进运银钱铁钟们时间东车书学习门问闻队阶阴阳阵际陆隐离难验预顾"
-    "风飞饭馆马驱驶骨简体汉无张归当岁币师应库废开异弃发汇圆单双报划义乐"
+    "风飞饭馆马驱驶简体汉无张归当岁币师应库废开异弃发汇圆单双报划义乐"
     "买卖万与专业丛两严亲亿从众优传伤础纸纯线组织终结给绝统继绩续维绿网"
     "罗节芦苏药虑虽装见规视览觉计订认讨让训议讯记讲许论设访证评识诊译试"
 )
@@ -49,7 +53,33 @@ _SIMPLIFIED_ONLY = set(
 #   - the multilingual resolve demo, whose whole point is that a
 #     Simplified-Chinese term lands on the same LOINC code;
 #   - prose that names the Simplified script itself.
-_DELIBERATE_SIMPLIFIED = ("简体中文", "血红蛋白", "简体", "简→繁", "繁→简")
+# `中性粒细胞` joins `血红蛋白` for the same reason: the code block demonstrates
+# that a Simplified input resolves, and rewriting the demo into Traditional
+# would delete the thing being shown. The four READMEs run identical calls
+# by design — `test_readme_examples` pins that — so the input stays Hans in
+# all of them and only the comment beside it is translated.
+_DELIBERATE_SIMPLIFIED = (
+    "简体中文", "血红蛋白", "中性粒细胞", "简体", "简→繁", "繁→简",
+)
+
+
+def test_the_simplified_list_is_actually_simplified():
+    """Every char in `_SIMPLIFIED_ONLY` must be the Hans side of a real fold
+    pair, checked against the DERIVED table in `mirobody/zh_fold.py`.
+
+    The list is typed by hand and the gate that uses it fails a README, so a
+    character that is shared between the scripts blocks correct Traditional
+    prose until someone argues with the test. One did: `骨`.
+    """
+    from mirobody.zh_fold import _TABLE
+
+    hans = {chr(v) for v in _TABLE.values()}
+    shared = sorted(c for c in _SIMPLIFIED_ONLY if c not in hans)
+    assert not shared, (
+        f"{''.join(shared)!r} in _SIMPLIFIED_ONLY, but nothing folds TO them — "
+        "they are the same character in both scripts, so flagging them rejects "
+        "correct zh-TW text"
+    )
 
 
 def test_zh_tw_readme_contains_no_stray_simplified_characters():

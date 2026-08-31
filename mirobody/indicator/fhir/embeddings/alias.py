@@ -34,11 +34,12 @@ import io
 import logging
 import os
 import re
-import unicodedata
 from argparse import Namespace
 from collections import defaultdict
 
 import numpy as np
+
+from mirobody.lexical import index_fold
 
 from ..common import (
     SYSTEM_TO_CODE,
@@ -93,13 +94,13 @@ _TOKEN_RE = re.compile(rf"[A-Za-z][A-Za-z0-9\-]*|[{_CJK_RANGE}]+")
 _CJK_CHAR_RE = re.compile(rf"[{_CJK_RANGE}]")
 
 
-def _normalize(s: str) -> str:
-    """NFKC normalize + casefold Latin. CJK passes through unchanged."""
-    if not s:
-        return ""
-    s = unicodedata.normalize("NFKC", s).strip()
-    # casefold handles ß / İ / etc. correctly. CJK is unaffected.
-    return s.casefold()
+# The key fold, imported rather than defined: this pass WRITES the index keys
+# and `engine.OfflineResolver` READS them, so the two must fold identically or
+# the resolver silently loses recall. The definition therefore lives on the
+# runtime side (`mirobody.lexical.index_fold`), which is the side that ships —
+# this module is pruned from the wheel. The local name stays `_normalize`
+# because four call sites below and the surrounding prose use it.
+_normalize = index_fold
 
 
 def _is_cjk(s: str) -> bool:

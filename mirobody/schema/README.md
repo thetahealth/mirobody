@@ -9,7 +9,7 @@ Gaps in the numbering are deletions, not mistakes — see "Pruning" below.
 
 The schema is **code, not documentation**: `mirobody serve` creates its own
 tables, so that ability has to travel with the package or
-`pip install 'mirobody[agents]'` cannot bootstrap anything.
+`pip install 'mirobody[app]'` cannot bootstrap anything.
 
 It deliberately does **not** sit under `mirobody/res/`. That directory is the
 licensed terminology data, and `LICENSE-3RD-PARTY` describes everything in it as
@@ -90,9 +90,63 @@ deployment may still hold. Production and staging provision their schema ahead o
 time (see "It only runs in dev"), so none of this touches them.
 
 Columns that are inert but harmless were left alone: `th_messages.user_name`,
-`group_id`, `updated_at`, `th_sessions.user_name`, and `preview`. A nullable
-column nobody writes costs no maintenance; removing it from a baseline that
-live databases already ran only buys divergence.
+`group_id`, `updated_at`, `th_sessions.user_name`, and `preview`. Removing one
+from a baseline that live databases already ran only buys divergence.
+
+**"Harmless" is about the INDEX and the insert rate, not about the column.**
+The obvious phrasing — "a nullable column nobody writes costs no maintenance"
+— is the rule this table's own two hardest cases contradict:
+`th_series_data.full_dim_id` and `th_messages.comment` were both nullable and
+both unwritten, and both had to go, because each carried an index over an
+always-NULL column on one of the two busiest tables here. An unindexed column
+really is free. An indexed one costs a write per insert, so its price is
+whatever that table's insert rate is — which is why the same emptiness that
+makes `fhir_indicators`' two hnsw indexes fine (see below) made
+`idx_th_series_data_full_dim_id` expensive.
+
+## Tables this project does not populate
+
+One table is created, indexed, joined from four code paths, and never written
+here. That is worth stating, because nothing about the DDL says so and the
+only way to find out is to trace all four readers.
+
+**`fhir_indicators`** — the code registry. `th_series_data.fhir_id` is a FK to
+it, and the join is how a reading's terminology identity reaches a user:
+`_coding_for` (agent/tools/health_indicator_service.py) hands the model a
+`{system, code}` per indicator through it, `FhirAdapter._fetch_db` and
+`_search_fhir` read it, and `IndicatorSyncTask.backfill_from_registry` fills
+`fhir_id` from it.
+
+Nothing fills the table. The external mapper that once did is retired; the
+only remaining INSERT is `FhirMapping._insert_indicator`, which is gated behind
+a `FHIR_TABLE_AUTO_W` that ships commented out and, when enabled, registers
+`indicator_standard = 'THETA'` rows whose `code` is the indicator's own name —
+an identity registry, not a terminology mapping. The three `embedding_*`
+columns are never written by anything.
+
+What follows from that, all of it by design rather than by breakage:
+
+- `th_series_data.fhir_id` stays NULL, so `_coding_for` returns no codings and
+  the agent sees indicator names without standard codes.
+- `FhirAdapter`'s primary (vector) channel returns nothing — and its
+  complement covers the gap exactly, because `_search_non_fhir` scopes to rows
+  where `fhir_id IS NULL`, which is all of them. Indicator search works, over
+  `th_series_dim.embedding_qwen3_8b`, which `IndicatorSyncTask.embed()` does
+  populate.
+- The two hnsw indexes on `fhir_indicators` cost nothing to maintain, because
+  a table with no inserts has no index maintenance. That is the whole reason
+  they stay while `idx_th_series_data_full_dim_id` went.
+
+**It is a hole, not dead weight, and the shape of the fix is already here.**
+This project ships an offline resolver that turns an indicator name in any of
+four languages into a real LOINC code with no key and no network
+(`mirobody.engine.resolve_reading`), and three call sites already use it — the
+records router, the MCP terminology tool, and the agent's keyword fallback.
+Registering what it resolves would fill this table with LOINC rows rather than
+THETA ones, and `backfill_from_registry` would have something to backfill from.
+Until then, do not drop the table: the schema is right and the writer is
+missing, which is the opposite problem from the ones in the pruning table
+above.
 
 ## Applying it by hand
 

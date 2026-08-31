@@ -10,7 +10,7 @@ paths re-serving index.html. Two failure modes, both observed:
 
 - the whitelist lagged the client's router: `/welcome`, `/chat/:sessionId`,
   `/developer`, `/indicator*` and client-side `/auth/*` routes all 404'd on direct
-  navigation or refresh (docs/frontend-shipping.md, route inventory of
+  navigation or refresh (inventoried against the client's router,
   2026-08-17);
 - the literal routes were folded into `FastAPI(routes=...)` at construction,
   before any `include_router` call, so a catch-all fallback could never be

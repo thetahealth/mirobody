@@ -5,17 +5,24 @@ pip install -e '.[agents,test]'
 pytest                    # the whole suite — seconds, no DB, no network, no API key
 ```
 
-`'.[test]'` alone is a supported smaller install: it runs the engine tests
-and prints a header naming the extras that were not installed. Server-layer
-tests need `[server]` (fastapi, psycopg, mandrill); agent-layer tests need
-`[agents]`, which pulls `[server]` in with it.
+`'.[test]'` alone is a supported smaller install: it runs the library tests
+and prints a header naming the layers that were not installed. There are three
+of them, and each abort was found the same way — in a clean clone, never in a
+long-lived venv:
 
-Both used to abort collection outright rather than skip — first with
-`ModuleNotFoundError: langchain_core`, and after that was fixed, still with
-`psycopg_pool` and `mandrill`, because `mirobody/server/__init__` and
-`mirobody/user/__init__` import them and any test module under those packages
-executes its parent package first. `conftest.py` decides at COLLECTION time,
-which is the only point early enough.
+| install | packages | tests |
+| --- | --- | --- |
+| `'.[test]'` | 17 | 100 — resolve, units, lexical, the README gates |
+| `'.[test,parse]'` | ~90 | 166 — + document extraction, model clients |
+| `'.[test,app]'` | ~190 | 215 — everything |
+
+They used to abort collection outright rather than skip — first with
+`ModuleNotFoundError: langchain_core`, then with `psycopg_pool` and `mandrill`
+because `mirobody/server/__init__` and `mirobody/user/__init__` import them,
+and in 1.3.0 with `dotenv` and `ruamel` after those left the base install. In
+every case a test module executes its parent package first, so a module-level
+`importorskip` is too late; `conftest.py` decides at COLLECTION time, which is
+the only point early enough.
 
 That is the entire happy path. `testpaths` is set, so bare `pytest` collects
 `mirobody/**/test_*.py`.

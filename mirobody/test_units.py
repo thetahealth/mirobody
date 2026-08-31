@@ -24,13 +24,13 @@ from datetime import datetime, timezone
 
 import pytest
 
-from mirobody.indicator.fhir.units import (
+from mirobody.units import (
     conversion_factor,
     normalize_unit,
     parse_value_unit,
     pick_display_unit,
 )
-from mirobody.indicator.fhir.units.convert import MOLAR_MASS
+from mirobody.units.convert import MOLAR_MASS
 
 
 # ── Path B0: the whitespace boundary is a split signal ──────────────────────

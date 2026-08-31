@@ -19,10 +19,11 @@ Deliberately not checked: the approximations ("~310 UCUM families", "4,000+",
 "two years", "50 pages"). They are round by intent, and pinning them would
 turn every rebuild into a README edit for no gain in truth.
 
-Also not checked, for a different reason: the install footprints (the ~200 MB
-engine and the ~600 MB [agents] install). Those are real measurements, but they
-move with every upstream release and differ per platform and installer, so a
-gate on them would fail for reasons that have nothing to do with this repo.
+Also not checked, for a different reason: the install footprint (2 packages /
+49 MB for the library). The package COUNT is a property of this project's own
+metadata and would be worth gating, but the megabytes move with every upstream
+release and differ per platform and installer, so a gate on the pair would fail
+for reasons that have nothing to do with this repo.
 """
 
 from __future__ import annotations
@@ -31,7 +32,6 @@ import gzip
 import json
 import pathlib
 import re
-import tarfile
 
 import pytest
 
@@ -59,18 +59,23 @@ def live() -> dict[str, int]:
     to mmap; every claim that depends on it shares the one load.
     """
     from mirobody.indicator.concept_graph import ConceptGraph
-    from mirobody.indicator.zh_fold import _TABLE
+    from mirobody.zh_fold import _TABLE
     from mirobody.pulse.standardize import StandardIndicator
     from mirobody.test_engine_coverage import CASES, MUST_NOT_RESOLVE
 
     graph = ConceptGraph.get(str(_ROOT / "mirobody" / "res" / "fhir_concept_graph.bin")).stats()
 
-    with tarfile.open(_ROOT / "mirobody" / "res" / "fhir_loinc_bundle.tar.gz") as tf:
-        aliases = {
-            m.name[len("aliases/"):-len(".tsv")]: sum(1 for _ in tf.extractfile(m))
-            for m in tf.getmembers()
-            if m.name.startswith("aliases/") and m.name.endswith(".tsv")
-        }
+    # `res/aliases_src/{lang}.tsv`, not the bundle: the byte-identical
+    # `aliases/{lang}.tsv` members are gone (they had drifted from the curated
+    # files by four rows), and these loose ones are what the resolver reads.
+    # `{lang}_curated.tsv` is excluded — its rows are merged into `{lang}.tsv`
+    # by the lexicon build, so counting both double-counts.
+    alias_dir = _ROOT / "mirobody" / "res" / "aliases_src"
+    aliases = {
+        p.stem: sum(1 for _ in p.open("rb"))
+        for p in alias_dir.glob("*.tsv")
+        if not p.stem.endswith("_curated")
+    }
 
     series = _fixture()["series"]
 

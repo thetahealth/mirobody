@@ -26,7 +26,7 @@ This is the deliberate small door into the first two engine stages (① Collect,
   embedding recall + family rerank but requires the multi-GB embedding matrix
   that does not ship in git. When a term misses here, the honest answer is
   ``unresolved`` — never a guess.
-* **Unit normalization** via :mod:`mirobody.indicator.fhir.units` (offline).
+* **Unit normalization** via :mod:`mirobody.units` (offline).
 
 The candidate picker is a lite heuristic (commonness prior, then a small
 preference for the plain Serum/Plasma/Blood variants over cord/capillary
@@ -37,32 +37,70 @@ the count so callers know when a term was ambiguous.
 from __future__ import annotations
 
 import csv
-import gzip
 import io
 import json
 import logging
 import os
 import re
+from array import array
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Optional
 
-from .indicator.lexical import split_trailing_parenthetical, surface_variants
+from ._bundle import BUNDLE_PATH as _BUNDLE
+from ._bundle import RES_DIR as _RES_DIR
+from ._bundle import (
+    AXIS_ANALYTE as _ANALYTE,
+    AXIS_CODE as _CODE,
+    AXIS_COMPONENT as _COMPONENT,
+    AXIS_FOLDED_LCN as _FOLDED_LCN,
+    AXIS_LCN as _LCN,
+    AXIS_SYSTEM as _SYSTEM,
+    bundle_version,
+    load_alias_sources,
+    load_axis,
+    read_member,
+    read_members,
+)
+from ._strtab import StringTable
+from .lexical import index_fold, split_trailing_parenthetical, surface_variants
 
 logger = logging.getLogger(__name__)
 
-_RES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "res")
-_BUNDLE = os.path.join(_RES_DIR, "fhir_loinc_bundle.tar.gz")
-_META = os.path.join(_RES_DIR, "fhir_meta.csv.gz")
-_ALIAS_SRC_DIR = os.path.join(_RES_DIR, "aliases_src")
-_OVERRIDES = os.path.join(_RES_DIR, "resolver_overrides.tsv")
+#: The stable surface of this module. `mirobody/__init__.py` re-exports all of
+#: it lazily, so `from mirobody import resolve` and `from mirobody.engine
+#: import resolve` are the same function; the short spelling is the documented
+#: one. Anything not listed here is internal — `OfflineResolver`'s underscore
+#: attributes especially, which are the loaded index and change shape freely.
+__all__ = [
+    "OfflineResolver",
+    "Reading",
+    "Resolution",
+    "get_resolver",
+    "parse_file",
+    "resolve",
+    "resolve_reading",
+    "resolve_with_semantic_fallback",
+]
+
+#: Everything `OfflineResolver.__init__` reads, fetched in one tar pass. The
+#: axis field positions live in `_bundle` beside the loader, because the
+#: semantic tier reads the same table.
+_RUNTIME_MEMBERS = (
+    "alias_keys.bin", "alias_index.npz",
+    "corpus_names.bin", "corpus_names.npz",
+    "axis_fields.bin", "axis_index.npz",
+    "loinc_rank_bonus.npy",
+)
 
 # Sentinel target in resolver_overrides.tsv meaning "deliberately unresolved".
 _BLOCK_SENTINEL = "!unresolved"
 
-# Prefer the everyday specimen variants when the commonness prior ties.
-_PLAIN_SPECIMEN = re.compile(r"in (Serum or Plasma|Blood)\b", re.I)
-_SPECIAL_SPECIMEN = re.compile(r"\b(cord|capillary|venous|arterial|dialysis)\b", re.I)
+# Prefer the everyday specimen variants when the commonness prior ties. Bytes,
+# not str: `_pick` matches these against slices of the corpus-name blob, so
+# decoding is paid only for the row that wins.
+_PLAIN_SPECIMEN = re.compile(rb"in (Serum or Plasma|Blood)\b", re.I)
+_SPECIAL_SPECIMEN = re.compile(rb"\b(cord|capillary|venous|arterial|dialysis)\b", re.I)
 # "Fasting plasma glucose FPG" -> "Fasting plasma glucose" (trailing acronym).
 _TRAILING_ACRONYM = re.compile(r"\s+[A-Z][A-Z0-9-]{1,7}$")
 
@@ -116,77 +154,49 @@ class Reading:
 class OfflineResolver:
     """Lexical indicator-name resolution against the shipped bundles.
 
-    Construction cost is a few seconds (rebuilding the 921k-alias dict);
-    use :func:`get_resolver` for the cached singleton.
+    Construction is one pass over the bundle: about 0.33 s and 156 MB
+    resident. Use :func:`get_resolver` for the cached singleton.
+
+    Both numbers were 1.09 s and 514 MB, and neither was about the amount of
+    data — 77 MB of text. They were about its SHAPE. The artifacts stored the
+    tables as things that become Python objects when you read them (a pickled
+    object array, two CSVs), so a load allocated roughly 1.6 million `str`
+    for tables that answer a few hundred lookups per call. They are byte blobs
+    plus offset arrays now (`scripts/build_runtime_index.py` cuts them, on
+    disk it is a wash), and nothing here allocates per entry: `_posting`
+    bisects the alias blob, `_pick` matches its regexes against slices of the
+    corpus-name blob, and only the row that wins is ever decoded.
     """
 
     def __init__(self) -> None:
         import numpy as np
 
-        from .indicator.fhir.embeddings.alias import _normalize
-        from .indicator.fhir.embeddings.bundle import read_member
+        self._normalize = index_fold
+        # One pass over the tarball for all five members the resolver needs;
+        # `loinc_skip.txt` stays out because `_component_index` is lazy.
+        blobs = read_members(_RUNTIME_MEMBERS, bundle_path=_BUNDLE)
 
-        self._normalize = _normalize
+        self._alias, alias_idx = self._table(blobs, "alias_keys.bin", "alias_index.npz")
+        self._alias_off = alias_idx["offsets"]
+        self._alias_rows = alias_idx["rows"]
 
-        raw = read_member("loinc_alias_index.npz", bundle_path=_BUNDLE)
-        if raw is None:
-            raise RuntimeError(
-                f"loinc_alias_index.npz not found in {_BUNDLE} — run `git lfs pull` "
-                "to fetch the data bundles (see README prerequisites)"
-            )
-        with np.load(io.BytesIO(raw), allow_pickle=True) as z:
-            aliases, offsets, rows = z["aliases"], z["offsets"], z["rows"]
-        self._alias: dict[str, "np.ndarray"] = {
-            str(a): rows[offsets[i]:offsets[i + 1]] for i, a in enumerate(aliases)
-        }
+        self._names, _ = self._table(blobs, "corpus_names.bin", "corpus_names.npz")
 
-        self._names: list[str] = []
-        with gzip.open(_META, "rt", encoding="utf-8", newline="") as f:
-            reader = csv.reader(f)
-            next(reader)
-            for row in reader:
-                self._names.append(row[0])
-
-        rank_raw = read_member("loinc_rank_bonus.npy", bundle_path=_BUNDLE)
+        rank_raw = blobs.get("loinc_rank_bonus.npy")
         self._rank = (
             np.load(io.BytesIO(rank_raw))
             if rank_raw is not None
             else np.zeros(len(self._names), dtype=np.float32)
         )
 
-        # name -> LOINC_NUM, and LOINC_NUM -> analyte head, from the axis
-        # table inside the bundle.
-        self._loinc_by_name: dict[str, str] = {}
-        self._analyte: dict[str, str] = {}
-        self._axis_rows: list[tuple[str, str, str, str, str, str, str]] = []
-        self._by_component: dict[str, list[tuple]] | None = None
-        axis_raw = read_member("loinc_axis.csv", bundle_path=_BUNDLE)
-        if axis_raw is not None:
-            for row in csv.DictReader(io.StringIO(axis_raw.decode("utf-8"))):
-                self._loinc_by_name[_normalize(row["LONG_COMMON_NAME"])] = row["LOINC_NUM"]
-                # COMPONENT is the analyte axis, and the part before `^` is the
-                # analyte itself with any challenge/timing modifier stripped:
-                # 1558-6 is `Glucose^post CFst`, 2339-0 is `Glucose`. Same head =
-                # same substance measured differently; different head = a
-                # different test. `resolve` uses it to decide whether the two
-                # halves of `名称(缩写)` are talking about one thing.
-                component = (row.get("COMPONENT") or "").split("^")[0].strip()
-                if component:
-                    self._analyte[row["LOINC_NUM"]] = _normalize(component)
-                # The FULL component (challenge suffix included) plus the two
-                # axes `resolve_reading` gates on. Kept from the pass that is
-                # already reading this file rather than re-parsing 97k rows.
-                self._axis_rows.append((
-                    row["LOINC_NUM"],
-                    _normalize(row.get("COMPONENT") or ""),
-                    row.get("PROPERTY") or "",
-                    row.get("SCALE_TYP") or "",
-                    row.get("SYSTEM") or "",
-                    row.get("METHOD_TYP") or "",
-                    row.get("LONG_COMMON_NAME") or "",
-                ))
+        self._axis, self._order_code, self._order_name = load_axis(
+            bundle_path=_BUNDLE, members=blobs
+        )
+        self._by_component: dict[bytes, list[int]] | None = None
 
-        # term -> a target the index resolves. Two sources, in precedence order:
+        # term -> a target the index resolves. Two sources, in precedence order
+        # (see `_bundle.alias_source_files` for the ordering rule and the bug
+        # that motivates it):
         #
         #   1. res/resolver_overrides.tsv — this resolver's own corrections,
         #      where the target is guaranteed to be an index key.
@@ -194,40 +204,89 @@ class OfflineResolver:
         #      reused here as a broad fallback (~48k foreign-language terms).
         #      Their targets are descriptive phrases meant for the index BUILD,
         #      so they resolve only sometimes; that is why (1) exists.
-        self._src: dict[str, str] = {}
-        for path in self._alias_source_files():
-            with open(path, encoding="utf-8") as f:
-                for line in f:
-                    if line.startswith("#"):
-                        continue
-                    parts = line.rstrip("\n").split("\t")
-                    if len(parts) == 2 and parts[0] and parts[1]:
-                        self._src.setdefault(_normalize(parts[0]), parts[1])
+        self._skip: set[bytes] | None = None
+        self._system_values: set[str] | None = None
+        self._src = load_alias_sources(fold=index_fold)
 
         logger.info(
-            "OfflineResolver ready: %d aliases, %d corpus names, %d LOINC axis rows",
-            len(self._alias), len(self._names), len(self._loinc_by_name),
+            "OfflineResolver ready: %d aliases, %d corpus names, %d LOINC axis rows (corpus %s)",
+            len(self._alias), len(self._names), len(self._axis),
+            bundle_version() or "unversioned",
         )
 
     @staticmethod
-    def _alias_source_files() -> list[str]:
-        """Alias TSVs in precedence order; earlier files win (setdefault).
+    def _table(blobs: dict, blob_member: str, index_member: str, *, raw: bool = False):
+        """Load one blob member plus its offset/order arrays.
 
-        Overrides first, then the bundle-build inputs — and within those, the
-        hand-written `*_curated.tsv` ahead of the machine-derived `<lang>.tsv`.
-        Plain sorted order put zh.tsv before zh_curated.tsv, which silently
-        discarded curated corrections: adding the right row changed nothing.
+        The blob is a plain tar member and arrives as `bytes` in one
+        allocation. Putting it inside the .npz instead would cost more than
+        twice its size in resident memory — `np.load` decompresses to an
+        ndarray and `.tobytes()` copies it, and the allocator keeps both
+        arenas. Measured at 75 MB versus 2 MB for the 30 MB alias blob, which
+        is why the offsets go in an .npz and the text does not.
         """
-        files = [_OVERRIDES] if os.path.isfile(_OVERRIDES) else []
-        if os.path.isdir(_ALIAS_SRC_DIR):
-            names = [fn for fn in os.listdir(_ALIAS_SRC_DIR) if fn.endswith(".tsv")]
-            files += [
-                os.path.join(_ALIAS_SRC_DIR, fn)
-                for fn in sorted(names, key=lambda n: (0 if "_curated" in n else 1, n))
-            ]
-        return files
+        import numpy as np
+
+        blob = blobs.get(blob_member)
+        index = blobs.get(index_member)
+        if blob is None or index is None:
+            raise RuntimeError(
+                f"{blob_member} / {index_member} not found in {_BUNDLE}. Run "
+                "`git lfs pull` for the data bundles; if the bundle predates "
+                "1.3.0, rebuild the runtime index with "
+                "`python scripts/build_runtime_index.py`."
+            )
+        with np.load(io.BytesIO(index)) as z:
+            arrays = {k: z[k] for k in z.files}
+        if raw:
+            return blob, arrays
+        # Two members, two names for the same thing: the corpus-name index
+        # calls it `off`, the alias index `keys_off` (it also carries the CSR
+        # arrays, which the caller keeps).
+        offsets = arrays.pop("off", None)
+        if offsets is None:
+            offsets = arrays.pop("keys_off")
+        return StringTable(blob, offsets), arrays
+
+    # -- the axis table --------------------------------------------------------
+
+    def _axis_row(self, row: int) -> tuple[str, str, str, str, str, str, str]:
+        """One axis row as the 7-tuple the callers below expect."""
+        return self._axis.row(row, 7)
+
+    def _row_for_code(self, code: str) -> int:
+        return self._axis.find_field(code.encode("utf-8"), self._order_code, _CODE)
+
+    def _analyte_of(self, code: str) -> str:
+        """LOINC_NUM -> folded analyte head, or "" when unknown."""
+        row = self._row_for_code(code)
+        return self._axis.field(row, _ANALYTE) if row >= 0 else ""
+
+    def _name_for(self, code: str) -> str:
+        """code -> LONG_COMMON_NAME, for reporting a switched variant."""
+        row = self._row_for_code(code)
+        return self._axis.field(row, _LCN) if row >= 0 else ""
+
+    def _loinc_for_name(self, name: str) -> str:
+        """Corpus long name -> LOINC_NUM, "" when the name is not a LOINC row."""
+        needle = self._normalize(name).encode("utf-8")
+        row = self._axis.find_field(needle, self._order_name, _FOLDED_LCN)
+        return self._axis.field(row, _CODE) if row >= 0 else ""
 
     # -- lookup ----------------------------------------------------------------
+
+    def _posting(self, key: str) -> "np.ndarray | None":
+        """Corpus rows for one already-folded alias key, or None.
+
+        Bisects the key blob rather than consulting a dict built from it: the
+        shipped table is already sorted, and materialising it as 921k Python
+        strings plus a dict cost 285 MB to turn a 0.9 us bisect into a 0.02 us
+        hash — inside a `resolve()` that takes tens of microseconds either way.
+        """
+        i = self._alias.find(key.encode("utf-8"))
+        if i < 0:
+            return None
+        return self._alias_rows[self._alias_off[i]:self._alias_off[i + 1]]
 
     def _candidate_keys(self, term: str) -> list[str]:
         """The lookup keys to try, most-specific first.
@@ -247,7 +306,7 @@ class OfflineResolver:
         largely to keep this class of near-miss from coming back.
 
         Both hops are then repeated for each surface variant from
-        :func:`mirobody.indicator.lexical.surface_variants`. The bundle's own
+        :func:`mirobody.lexical.surface_variants`. The bundle's own
         normalizer is NFKC + casefold and nothing more — it has to be, it folded
         the index keys at build time — so a full-width ``ＦＢＧ``, an en-dashed
         ``LDL–C`` and a snake_case ``fasting_glucose`` each sat one invisible
@@ -262,7 +321,82 @@ class OfflineResolver:
             for key in self._keys_for(self._normalize(surface)):
                 if key not in keys:
                     keys.append(key)
+
+        # "Total cholesterol TC" -> "Total cholesterol". A lab report prints the
+        # analyte and its abbreviation side by side constantly, and none of those
+        # strings resolved: `Fasting plasma glucose FPG`, `总胆固醇 TC`,
+        # `甘油三酯 TG` all returned nothing while their bare stems answered.
+        #
+        # The strip used to be applied to the alias table's TARGET value, inside
+        # `_keys_for` — so it could only fire on inputs that were already alias
+        # keys, which are exactly the inputs that already resolved. The comment
+        # there gave an input-side example for target-side code; this is that
+        # example, on the input, where it was always meant to be.
+        #
+        # Tested on the RAW term because the pattern is a case test and
+        # `normalize` lowercases. Appended LAST, after every other key has
+        # missed, so like the surface variants above it can only turn a miss
+        # into a hit — never overrule an answer that was already right.
+        stem = _TRAILING_ACRONYM.sub("", term).strip()
+        if stem and stem != term.strip():
+            if self._trailing_token_is_an_abbreviation(stem, term.strip()[len(stem):].strip()):
+                for key in self._keys_for(self._normalize(stem)):
+                    if key not in keys:
+                        keys.append(key)
         return keys
+
+    def _trailing_token_is_an_abbreviation(self, stem: str, token: str) -> bool:
+        """Is the trailing ALL-CAPS token a repeat of `stem`, or does it add to it?
+
+        `Total cholesterol TC` and `Protein CSF` are the same SHAPE and opposite
+        meanings. Stripping the first is lossless; stripping the second answers a
+        serum protein for a spinal-fluid one, and the answer looks confident.
+        Four such wrong answers came out of a LIS-style `analyte + qualifier`
+        export: `Protein CSF`, `Calcium ION`, `胆固醇 HDL`, `Glucose OGTT`.
+
+        Two questions separate them, and neither is a word list:
+
+        * **does the token name a SPECIMEN?** `CSF` is a SYSTEM axis value, so
+          dropping it changes what was measured, not how it was spelled. `TC`,
+          `TG` and `FPG` are not, which is why "is this token anywhere in the
+          axis table" is too coarse a test — it fires on the abbreviations too.
+        * **does the token mean something else on its own?** `HDL` answers
+          2085-9 against `胆固醇`'s 2093-3, `ION` answers ionized calcium
+          against total, `OGTT` answers a tolerance-test glucose against a
+          plain one. A token that resolves to a DIFFERENT code than the stem is
+          carrying information the stem does not have. `TC` and `TG` resolve to
+          exactly their stem's code, which is what makes them redundant.
+
+        A token that resolves to nothing and is no specimen is treated as an
+        abbreviation — `FPG` reaches its stem through the alias table, and
+        refusing the strip on "unknown" would give back the misses this exists
+        to fix. Recursion is not a concern: the pattern needs whitespace before
+        the token, and neither argument here has any.
+        """
+        if not token or token in self._systems():
+            return False
+        own = self._lookup(token)
+        if own is None or not own.loinc:
+            return True
+        base = self._lookup(stem)
+        return base is None or not base.loinc or base.loinc == own.loinc
+
+    def _systems(self) -> set[str]:
+        """Every SYSTEM axis value — the specimens a trailing token could name.
+
+        2,467 of them over 97k rows. Built on first use and only ever from the
+        trailing-token test, which is itself the coldest path in `resolve`:
+        it runs after every other candidate key has already missed.
+        """
+        if self._system_values is None:
+            self._system_values = {
+                v
+                for v in (
+                    self._axis.field(i, _SYSTEM) for i in range(len(self._order_code))
+                )
+                if v
+            }
+        return self._system_values
 
     def _is_blocked(self, term: str) -> bool:
         """True when ANY surface variant of the term is a deliberate
@@ -290,20 +424,69 @@ class OfflineResolver:
         eng = self._src.get(norm)
         if eng:
             keys.append(self._normalize(eng))
-            # "Fasting plasma glucose FPG" -> "fasting plasma glucose"
+            # The same strip on the alias table's TARGET: 429 of 48,366 targets
+            # end in an acronym, and the stem is sometimes the better index key.
+            # Its example used to be an INPUT ("Fasting plasma glucose FPG"),
+            # which is not what this line can see — that case is handled in
+            # `_candidate_keys`. Both are real: deleting this one costs 0.003
+            # coverage and RAISES the wrong-rate 0.032 -> 0.034.
             stripped = _TRAILING_ACRONYM.sub("", eng).strip()
             if stripped and stripped != eng:
                 keys.append(self._normalize(stripped))
         keys.append(norm)
         return keys
 
-    def _pick(self, rows) -> int:
-        """Best corpus row: commonness prior, nudged toward plain specimens."""
-        best_row, best_score = int(rows[0]), float("-inf")
+    def _skipped(self) -> set[bytes]:
+        """LOINC codes the bundle says not to answer with.
+
+        Non-clinical CLASS (SURVEY, PHENX, DOC, ADMIN, the PANEL.SURVEY.*
+        family) plus DEPRECATED and DISCOURAGED status. Loaded on first use:
+        `resolve()` needs it on every call, but importing the module should not
+        open the bundle. Kept as bytes, because `_component_index` compares it
+        against slices of the axis blob and decoding 97k codes to match a set
+        of strings would cost more than the check saves.
+
+        **It was built for `resolve()` and `resolve()` never consulted it.**
+        Only `_component_index` did, so the list gated which sibling a
+        unit-aware lookup could switch TO while leaving the first answer
+        ungated — `呼吸次数` came back as *First Respiration rate Set*, a nursing
+        documentation item, and 52 of the 7,354 eval cases answered with a code
+        LOINC has since retired.
+        """
+        if self._skip is None:
+            raw = read_member("loinc_skip.txt", bundle_path=_BUNDLE)
+            self._skip = {
+                line.strip()
+                for line in raw.splitlines()
+                if line.strip() and not line.startswith(b"#")
+            } if raw is not None else set()
+        return self._skip
+
+    def _pick(self, rows, exclude: frozenset[int] = frozenset()) -> int:
+        """Best corpus row: commonness prior, nudged toward plain specimens.
+
+        Matches the two specimen patterns against raw blob slices. A hit like
+        `血红蛋白` has 301 candidate rows, and decoding all of them to run a
+        regex that only ever looks at ASCII would be 301 throwaway strings per
+        call — the loser rows are never needed as text.
+        """
+        names = self._names
+        rank = self._rank
+        # -1 must mean "every candidate was excluded" and nothing else. Seeding
+        # `best_row` from the first surviving row rather than leaving it at -1
+        # is what keeps that true: a comparison against -inf can only fail on a
+        # NaN score, and then the caller would read a miss where the old code
+        # returned `rows[0]`. No shipped rank is NaN; the invariant should not
+        # depend on that.
+        best_row, best_score = -1, float("-inf")
         for r in rows:
             r = int(r)
-            name = self._names[r]
-            score = float(self._rank[r])
+            if r in exclude:
+                continue
+            if best_row < 0:
+                best_row = r
+            name = names.raw(r)
+            score = float(rank[r])
             if _PLAIN_SPECIMEN.search(name):
                 score += 0.25
             if _SPECIAL_SPECIMEN.search(name):
@@ -371,8 +554,8 @@ class OfflineResolver:
             #                  -> different analytes: two tests in one string,
             #                     and picking either files the reading into the
             #                     wrong series. Stays unresolved.
-            stem_analyte = self._analyte.get(stem_hit.loinc, "")
-            inside_analyte = self._analyte.get(inside_hit.loinc, "")
+            stem_analyte = self._analyte_of(stem_hit.loinc)
+            inside_analyte = self._analyte_of(inside_hit.loinc)
             if not stem_analyte or stem_analyte != inside_analyte:
                 return Resolution(term=term, method="refused")
             inside_hit = None
@@ -389,7 +572,7 @@ class OfflineResolver:
             method="lexical",
         )
 
-    def _component_index(self) -> dict[str, list[tuple]]:
+    def _component_index(self) -> dict[bytes, list[int]]:
         """component -> its rows, built on first use and then cached.
 
         Lazy because `resolve()` never needs it: a caller with no value and no
@@ -398,29 +581,15 @@ class OfflineResolver:
         library.
         """
         if self._by_component is None:
-            from .indicator.fhir.embeddings.bundle import read_member
-
-            skip: set[str] = set()
-            raw = read_member("loinc_skip.txt", bundle_path=_BUNDLE)
-            if raw is not None:
-                skip = {
-                    line.strip()
-                    for line in raw.decode("utf-8").splitlines()
-                    if line.strip() and not line.startswith("#")
-                }
-            index: dict[str, list[tuple]] = {}
-            for row in self._axis_rows:
-                code, component = row[0], row[1]
-                if component and code not in skip:
-                    index.setdefault(component, []).append(row)
+            skip = self._skipped()
+            index: dict[bytes, list[int]] = {}
+            axis = self._axis
+            for i in range(len(axis)):
+                component = axis.field_raw(i, _COMPONENT)
+                if component and axis.field_raw(i, _CODE) not in skip:
+                    index.setdefault(component, []).append(i)
             self._by_component = index
         return self._by_component
-
-    def _names_by_loinc(self) -> dict[str, str]:
-        """code -> LONG_COMMON_NAME, for reporting a switched variant."""
-        if not hasattr(self, "_name_by_code"):
-            self._name_by_code = {r[0]: r[6] for r in self._axis_rows}
-        return self._name_by_code
 
     def variant_for_reading(self, loinc: str, value: str | None, unit: str | None) -> str:
         """The code for the SAME measurement, in the form this reading took.
@@ -454,27 +623,57 @@ class OfflineResolver:
         """
         if not loinc:
             return loinc
-        from .indicator.fhir.units import normalize_unit, unit_families
-        from .indicator.value_scale import scales_for_value
+        from .units import normalize_unit, parse_value_unit, unit_families
+        from .value_scale import scales_for_value
 
+        # `20%` and `("20", "%")` are the same reading written two ways, and a
+        # stored value routinely carries its unit inline — `th_series_data.value`
+        # holds "3.9 mmol/L". Without this the unit gate did not fire at all on
+        # half the shapes real data arrives in.
+        if not unit and value:
+            unit = parse_value_unit(value).unit or ""
         ucum = normalize_unit(unit) if unit else None
         families = frozenset(unit_families(ucum) or ()) if ucum else frozenset()
         scales = scales_for_value(value) or frozenset()
         if not families and not scales:
             return loinc
 
-        current = next((r for r in self._axis_rows if r[0] == loinc), None)
-        if current is None:
+        row = self._row_for_code(loinc)
+        if row < 0:
             return loinc
+        current = self._axis_row(row)
         prop_ok = (not families) or current[2] in families
         scale_ok = (not scales) or current[3] in scales
         if prop_ok and scale_ok:
             return loinc
 
-        siblings = [
-            r for r in self._component_index().get(current[1], [])
-            if ((not families) or r[2] in families) and ((not scales) or r[3] in scales)
-        ]
+        def _matching(component: bytes) -> list:
+            return [
+                r
+                for r in (
+                    self._axis_row(i) for i in self._component_index().get(component, [])
+                )
+                if ((not families) or r[2] in families)
+                and ((not scales) or r[3] in scales)
+            ]
+
+        siblings = _matching(current[1].encode("utf-8"))
+        if not siblings:
+            # A differential percentage and a differential count are two
+            # COMPONENTs, not two properties of one: `neutrophils/leukocytes`
+            # (NFr) and `neutrophils` (NCnc). So `中性粒细胞` reported as
+            # `4.2 10*9/L` could not reach its own count code — the analyte
+            # resolves to the ratio, which is what a bare differential term
+            # means on a CBC, and the unit had no way to say otherwise.
+            #
+            # Dropping the denominator is well-determined; adding one is not.
+            # `neutrophils` has three NFr children (`/cells`, `/leukocytes`,
+            # `/round cells`) and only clinical knowledge picks the CBC one, so
+            # this crosses in the ratio -> count direction ONLY. The other
+            # direction stays curated, in `resolver_overrides.tsv`.
+            numerator, sep, _ = current[1].partition("/")
+            if sep:
+                siblings = _matching(numerator.encode("utf-8"))
         if not siblings:
             return loinc
         same_system = [r for r in siblings if r[4] == current[4]] or siblings
@@ -486,19 +685,49 @@ class OfflineResolver:
     def _lookup(self, term: str) -> Resolution | None:
         """First candidate key that hits the alias index, or None on a miss."""
         for key in self._candidate_keys(term):
-            rows = self._alias.get(key)
+            rows = self._posting(key)
             if rows is None or not len(rows):
                 continue
-            row = self._pick(rows)
-            name = self._names[row]
-            return Resolution(
-                term=term,
-                canonical=name,
-                loinc=self._loinc_by_name.get(self._normalize(name), ""),
-                candidates=int(len(rows)),
-                resolved=True,
-                method="lexical",
-            )
+            # Take the best candidate whose code the bundle does not tell us
+            # to avoid. Re-picking rather than giving up matters: an alias with
+            # 300 candidates usually has a good one behind the skipped one, and
+            # refusing the whole term would trade far more coverage than the
+            # one wrong answer is worth. Bounded by the candidate count, and in
+            # practice it runs once.
+            skipped = self._skipped()
+            exclude: set[int] = set()
+            while True:
+                row = self._pick(rows, frozenset(exclude))
+                if row < 0:
+                    break
+                name = self._names.get(row)
+                code = self._loinc_for_name(name)
+                # Two ways a candidate cannot be an identity, and both mean
+                # "try the next one" rather than "answer with it":
+                #
+                #   - the bundle tells us not to answer with this code;
+                #   - the row has no LOINC code at all. The corpus spans six
+                #     vocabularies and carries 4,991 `Deprecated …` names, so a
+                #     tenth of all alias hits came back `resolved=True,
+                #     method="lexical", loinc=""`. A caller following this
+                #     module's own identity rule — accept only
+                #     `method == "lexical"` — got `""` as a grouping key and
+                #     merged every such reading into one bucket. Two consumers
+                #     in this repo read that state opposite ways:
+                #     `resolve_with_semantic_fallback` treated it as answered
+                #     and withheld the second tier, `eval/run_eval.py` scored
+                #     it as unanswered.
+                if not code or code.encode("ascii") in skipped:
+                    exclude.add(row)
+                    continue
+                return Resolution(
+                    term=term,
+                    canonical=name,
+                    loinc=code,
+                    candidates=int(len(rows)),
+                    resolved=True,
+                    method="lexical",
+                )
         return None
 
 
@@ -542,7 +771,15 @@ def resolve_reading(name: str, value: str | None = None, unit: str | None = None
         return hit
     return Resolution(
         term=hit.term,
-        canonical=resolver._names_by_loinc().get(switched, hit.canonical),
+        # No `or hit.canonical` fallback: `switched` is a code read out of the
+        # axis table, so the lookup cannot miss — and the fallback was not
+        # inert, it was the mask. A duplicate docstring-only `_name_for` left
+        # behind by a refactor shadowed the real one and returned None for
+        # every code, so EVERY switched reading reported the pre-switch name:
+        # 14647-2 labelled "Cholesterol [Mass/volume]", the exact case this
+        # function's own docstring uses as its example. A fallback that yields
+        # a name contradicting the code is worse than no fallback.
+        canonical=resolver._name_for(switched),
         loinc=switched,
         candidates=hit.candidates,
         resolved=True,
