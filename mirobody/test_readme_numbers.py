@@ -218,3 +218,26 @@ def test_the_demo_file_the_readme_hands_you_is_shipped(name: str):
                 f"seeded history is dated {held_out} — the demo arc only works if "
                 "the upload is the exam the database is missing"
             )
+
+
+def test_the_readmes_print_the_real_bundle_version():
+    """`>>> mirobody.BUNDLE_VERSION` is the one interactive example the READMEs
+    show, and nothing checked its output.
+
+    It shipped wrong: the four files printed `…-050559ecc200`, the digest as of
+    when that section was drafted, while the bundle had since been restamped to
+    `…-af2524b7a285`. A reader pasting the line got a different string — from
+    the one paragraph whose whole point is that the package states its corpus
+    version rather than leaving it in a comment that can drift.
+
+    The digest is a hash over the bundle's own members, so it MUST change
+    whenever the bundle does; this test is what turns that into an edit here
+    instead of a wrong line in the README.
+    """
+    import mirobody
+
+    for name in _READMES:
+        assert mirobody.BUNDLE_VERSION in _text(name), (
+            f"{name} does not print {mirobody.BUNDLE_VERSION!r}; "
+            "restamped the bundle? update the four READMEs"
+        )

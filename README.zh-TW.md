@@ -112,7 +112,7 @@ pytest mirobody/test_engine_coverage.py -s   # 離線，約一秒
 
 ```python
 >>> import mirobody; mirobody.BUNDLE_VERSION
-'loinc-2.82+2026.08.28-050559ecc200'
+'loinc-2.82+2026.08.28-af2524b7a285'
 ```
 
 版本、切分日期,加上一段對語料成員本身算出的摘要——所以「建置期消費這份詞表」和
