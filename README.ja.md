@@ -409,6 +409,20 @@ pip install -e '.[test]' && pytest -q && lint-imports
 
 ---
 
+## ⭐ Star の推移
+
+<div align="center">
+<a href="https://star-history.dera.page/#thetahealth/mirobody&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=thetahealth/mirobody&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=thetahealth/mirobody&type=Date" />
+    <img alt="Star 推移グラフ" src="https://star-history.dera.page/svg?repos=thetahealth/mirobody&type=Date" />
+  </picture>
+</a>
+</div>
+
+---
+
 <div align="center">
 
 **[📚 ドキュメント](https://docs.mirobody.ai/)** · **[💬 Chat](https://chat.mirobody.ai/)** · **[🔌 プラットフォーム](https://platform.mirobody.ai/)** · **[🧪 Eval](https://github.com/thetahealth/mirobody-eval)**
