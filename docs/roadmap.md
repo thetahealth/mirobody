@@ -469,14 +469,16 @@ survive whichever option is picked.
 
 `utils/config/llm.py` (`LLMConfig`) and `utils/llm/config.py` (`AIConfig`) both
 answer "which provider, what base_url, what key", and both end up constructing
-an `AsyncOpenAI`. They overlap on openai / openrouter / dashscope / volcengine /
-gemini. The near-identical import paths make them easy to confuse, which is why
+an `AsyncOpenAI`. They overlap on openai / openrouter / dashscope /
+volcengine. The near-identical import paths make them easy to confuse, which is why
 both now carry docstrings pointing at each other.
 
 Merging is a behaviour change, not a tidy-up:
 
 * different provider sets — `LLMConfig` covers 11 (incl. deepseek, zhipu,
-  moonshot, anthropic, vertex_ai, azure), `AIConfig` covers 6;
+  moonshot, anthropic, vertex_ai, azure), `AIConfig` covers 4 (the
+  OpenAI-compatible ones: openai, openrouter, dashscope, volcengine) plus
+  gemini in its auto-selection order;
 * different construction paths — `LLMConfig` is YAML-driven through
   `global_config().get_llm()`; `AIConfig` pairs with `clients.py`'s
   `client_manager` and a hardcoded table;
