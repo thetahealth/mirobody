@@ -13,38 +13,14 @@ from .config import AIConfig
 # `PROJECT_DIR`, `os` and `uuid` used to be here to give `async_get_openai_tts`
 # somewhere to write its .mp3 — the only thing in this module that ever touched
 # the filesystem, and a function no caller ever invoked. All four went together.
+#
+# `get_openai_chat` went the same way, and was worse: it rejected every model
+# name outside a hardcoded `["gpt-4o", "gpt-4.1"]` allowlist, so the one thing
+# a caller would want it for — naming a current model — raised ValueError. Zero
+# callers, and the allowlist is the exact anti-pattern issue #52 was about: a
+# model id decided in code where no config can reach it.
 
 #-----------------------------------------------------------------------------
-
-async def get_openai_chat(model_name: str, messages: List[Dict], **kwargs) -> Optional[str]:
-    """
-    Get OpenAI chat response (compatible interface)
-
-    Args:
-        model_name: Model name
-        messages: Message list
-        **kwargs: Other parameters
-
-    Returns:
-        Response text or None
-    """
-    try:
-        if model_name not in ["gpt-4o", "gpt-4.1"]:
-            raise ValueError(f"Invalid model name: {model_name}")
-
-        from .clients import client_manager
-
-        client = client_manager.get_async_openai_client()
-
-        response = await client.chat.completions.create(model=model_name, messages=messages, **kwargs)
-
-        return response.choices[0].message.content
-
-    except Exception as e:
-        logging.error(f"OpenAI chat API error: {type(e).__name__}", stack_info=True)
-        return None
-
-
 
 async def async_get_doubao_structured_output(
     model_name: str, messages: List[Dict], response_format: Dict = None, **kwargs
