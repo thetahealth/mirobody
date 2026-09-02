@@ -15,7 +15,7 @@ streaming/agentic client stack with MCP tool calling.
 from .clients import client_manager
 
 # Configuration management
-from .config import AI_CONFIG, AIConfig
+from .config import AIConfig
 
 from .file_processors import (
     FileProcessor,
@@ -45,7 +45,6 @@ __author__ = "AI Team"
 __all__ = [
     # === Configuration and management ===
     "AIConfig",  # Configuration manager
-    "AI_CONFIG",  # Global config object
     "client_manager",  # Client manager
     # === File processing ===
     "FileProcessor",  # File processor

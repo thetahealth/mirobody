@@ -161,7 +161,7 @@ async def async_get_structured_output(
     """
     Unified structured output function, auto-selects provider based on available API keys
     
-    Priority: openai > openrouter > claude > gemini > volcengine > dashscope
+    Priority: openai > openrouter > gemini > volcengine > dashscope
     
     Args:
         messages: Message list
@@ -386,7 +386,7 @@ async def async_get_text_completion(
     
     For generating plain text (non-JSON), such as Markdown, plain text, etc.
     
-    Priority: openai > openrouter > claude > gemini > volcengine > dashscope
+    Priority: openai > openrouter > gemini > volcengine > dashscope
     
     Args:
         messages: Message list, format: [{"role": "system/user/assistant", "content": "..."}]
@@ -511,10 +511,6 @@ async def async_get_text_completion(
                 duration = time.time() - start_time
                 logging.info(f"✅ Gemini text generation completed, duration: {duration:.3f}s")
                 return response.text
-            return None
-            
-        elif provider == "claude":
-            logging.warning("Claude text generation not supported yet, please use other providers")
             return None
             
         else:
