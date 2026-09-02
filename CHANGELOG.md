@@ -47,6 +47,14 @@
   by construction — and a mismatch still fails loudly rather than ranking in
   the wrong vector space.
 
+- **Backup and restore are documented** ([docs/backup-restore.md](docs/backup-restore.md)),
+  with `shell/backup.sh` for the nightly job. It says which of the four compose
+  volumes actually hold irreplaceable data (Postgres and, only when files are
+  stored locally, the uploads) and which must never be restored (the
+  site-packages pip cache), and it takes `pg_dump` rather than tarring a
+  running cluster's data directory. Both directions were run end to end while
+  writing it, including a restore into a scratch database.
+
 ### Removed
 
 - **`volcengine-python-sdk[ark]` is no longer a dependency** of `[app]`. It

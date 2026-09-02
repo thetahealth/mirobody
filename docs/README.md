@@ -24,6 +24,7 @@ notes to PyPI under a filename that told open-source readers to ignore it.
 | ① | [file-processing.md](file-processing.md) | the file-parsing pipeline (8 formats, LLM extraction) |
 | ① | [apple-health.md](apple-health.md) | Apple Health export + CDA import |
 | ③ | [frontend.md](frontend.md) | how the bundled web client is served, and how to replace it |
+| | [backup-restore.md](backup-restore.md) | what to copy, how to get it back, and what changes on upgrade |
 | | [testing.md](testing.md) | test layout, markers, snapshots, release gates |
 | | [aggregation-tests.md](aggregation-tests.md) | the daily-rollup test suite in detail |
 
