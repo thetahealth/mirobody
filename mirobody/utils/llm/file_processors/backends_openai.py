@@ -5,6 +5,14 @@ implementation and differ only in client construction and a per-provider
 `extra_body` that turns "thinking" off (it costs latency and buys nothing for
 extraction). Gemini is NOT here: it has its own SDK and its own PDF handling,
 in `gemini.py`.
+
+Doubao used to be the exception, reached through volcengine-python-sdk's
+AsyncArk. It never needed to be: Ark's /api/v3 is an OpenAI-compatible
+endpoint (this repo's own sync volcengine client had always been a bare
+`OpenAI` pointed at it), the SDK was declared in the `[app]` extra but not
+installed in dev, and nothing here used a single Ark-only feature — so the
+whole tier raised ModuleNotFoundError on a normal install and no test could
+reach it.
 """
 
 from __future__ import annotations
@@ -14,14 +22,10 @@ import json
 import logging
 import pathlib
 import time
-from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
+from typing import Any, Dict, List, Optional
 
 from openai import AsyncOpenAI
 
-if TYPE_CHECKING:
-    from volcenginesdkarkruntime import AsyncArk
-
-from ..config import AIConfig
 from .media import (
     _build_vision_message,
     _convert_pdf_to_base64_images,
@@ -34,7 +38,10 @@ from ...file_types import IMAGE_EXTENSIONS
 PROVIDER_EXTRA_PARAMS: Dict[str, Dict[str, Any]] = {
     "openrouter": {"extra_body": {"reasoning": {"enabled": False}}},
     "qwen": {"extra_body": {"enable_thinking": False}},
-    "doubao": {"thinking": {"type": "disabled"}},
+    # extra_body, not a top-level kwarg: these are spread into
+    # `chat.completions.create(**api_params)`, and the OpenAI SDK rejects
+    # parameters it does not declare. AsyncArk tolerated `thinking=` there.
+    "doubao": {"extra_body": {"thinking": {"type": "disabled"}}},
 }
 
 # =============================================================================
@@ -42,7 +49,7 @@ PROVIDER_EXTRA_PARAMS: Dict[str, Dict[str, Any]] = {
 async def _openai_compatible_process_pdf(
     pdf_path: str,
     prompt: str,
-    client: Union[AsyncOpenAI, "AsyncArk"],
+    client: AsyncOpenAI,
     model: str,
     provider: str,
     max_concurrency: int = 5,
@@ -95,7 +102,7 @@ async def _openai_compatible_process_pdf(
 async def _openai_compatible_process_image(
     image_path: str,
     prompt: str,
-    client: Union[AsyncOpenAI, "AsyncArk"],
+    client: AsyncOpenAI,
     model: str,
     provider: str,
     json_mode: bool = True
@@ -130,7 +137,7 @@ async def _openai_compatible_file_extract(
     local_file_path: str,
     prompt: str,
     model: str,
-    client: Union[AsyncOpenAI, "AsyncArk"],
+    client: AsyncOpenAI,
     provider: str,
     response_schema: Optional[Any] = None,
     json_mode: bool = True
@@ -181,11 +188,11 @@ def _get_qwen_client() -> AsyncOpenAI:
     return client_manager.get_async_ai_client("dashscope")
 
 
-def _get_doubao_client() -> "AsyncArk":
-    """Get Doubao client."""
-    from volcenginesdkarkruntime import AsyncArk
-    config = AIConfig.get_provider_config("volcengine")
-    return AsyncArk(api_key=config["api_key"], base_url=config["api_base"])
+def _get_doubao_client() -> AsyncOpenAI:
+    """Get Doubao client (Ark's /api/v3 is OpenAI-compatible)."""
+    from ..clients import client_manager
+
+    return client_manager.get_async_ai_client("volcengine")
 
 
 # =============================================================================
@@ -196,7 +203,7 @@ async def doubao_file_extract(
     local_file_path: str,
     prompt: str = "Please extract all test indicators from this report and return the result in JSON format",
     model: str = "doubao-1-5-ui-tars-250428",
-    client: Optional["AsyncArk"] = None,
+    client: Optional[AsyncOpenAI] = None,
     json_mode: bool = True
 ) -> str:
     """Doubao file extraction, supports PDF and image files."""

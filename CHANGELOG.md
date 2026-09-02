@@ -13,11 +13,54 @@
   DashScope, OpenAI, Volcengine) now honor their `<PROVIDER>_BASE_URL`;
   `OPENAI_BASE_URL` also works from config, not just the environment.
 
+- **The Doubao/Volcengine tier had never run.** It was the one provider built
+  on a vendor SDK (`volcengine-python-sdk[ark]`), which is declared in `[app]`
+  but is not a base dependency, so vision extraction, structured output and
+  text completion all raised `ModuleNotFoundError` before building a request.
+  Ark's `/api/v3` is an OpenAI-compatible endpoint and nothing here used an
+  Ark-only feature, so all three now go through the same `AsyncOpenAI` client
+  as every other provider — which also means `VOLCENGINE_BASE_URL` and
+  `VOLCENGINE_MODEL` reach them (Ark serves its Coding and Agent plans from
+  `/api/coding/v3` and `/api/plan/v3`).
+
+- **An `ANTHROPIC_API_KEY`-only deployment got silence from the utility LLM
+  helpers.** `claude` sat third in the auto-selection order, but
+  `async_get_text_completion`'s claude arm logged "not supported yet" and
+  returned `None` without trying the next available provider, and
+  `async_get_structured_output` has no claude arm at all. It is out of the
+  auto-selection list, so such a deployment falls through to a provider that
+  answers. (Agent chat was never affected — it reaches Claude through
+  `PROVIDERS_DEEP`.)
+
 ### Added
 
 - **`<PROVIDER>_MODEL`** picks the chat/structured-extraction model per
   provider, mirroring the existing `<PROVIDER>_VISION_MODEL` — needed when a
   redirected endpoint does not serve the provider's default model id.
+
+- **`<PROVIDER>_EMBEDDING_MODEL`** picks the embedding model per provider, the
+  last table of model ids config could not reach: a deployment pointing
+  `OPENROUTER_BASE_URL` at its own vLLM/TEI serving could not tell mirobody
+  what that serving calls the model, and embeddings 404'd.
+  `scripts/build_loinc_embeddings.py` reads the same key (and
+  `<PROVIDER>_BASE_URL`), so a rebuilt matrix and the queries against it agree
+  by construction — and a mismatch still fails loudly rather than ranking in
+  the wrong vector space.
+
+### Removed
+
+- **`volcengine-python-sdk[ark]` is no longer a dependency** of `[app]`. It
+  ships every Volcengine product API: 138 `volcenginesdk*` packages, **245 MB
+  installed** (measured in a clean venv, 2026-09-02) to make one
+  chat/completions call that `openai` already makes.
+
+- Dead LLM-config surface that existed only to hold stale model ids and URLs:
+  `get_openai_chat` (rejected every model outside a hardcoded
+  `["gpt-4o", "gpt-4.1"]` allowlist, zero callers), `AIConfig`'s second
+  base_url table (`AI_PROVIDER`), its unread `api_path`/`type`/`model` fields
+  and unreachable entries, nine unused classmethods, and the sync half of
+  `AIClientManager` (every accessor had zero callers; `get_client`'s mapping
+  keyed model names like `gpt-4o` onto the OpenAI client).
 
 ## 1.3.0
 

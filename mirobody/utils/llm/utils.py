@@ -13,38 +13,14 @@ from .config import AIConfig
 # `PROJECT_DIR`, `os` and `uuid` used to be here to give `async_get_openai_tts`
 # somewhere to write its .mp3 — the only thing in this module that ever touched
 # the filesystem, and a function no caller ever invoked. All four went together.
+#
+# `get_openai_chat` went the same way, and was worse: it rejected every model
+# name outside a hardcoded `["gpt-4o", "gpt-4.1"]` allowlist, so the one thing
+# a caller would want it for — naming a current model — raised ValueError. Zero
+# callers, and the allowlist is the exact anti-pattern issue #52 was about: a
+# model id decided in code where no config can reach it.
 
 #-----------------------------------------------------------------------------
-
-async def get_openai_chat(model_name: str, messages: List[Dict], **kwargs) -> Optional[str]:
-    """
-    Get OpenAI chat response (compatible interface)
-
-    Args:
-        model_name: Model name
-        messages: Message list
-        **kwargs: Other parameters
-
-    Returns:
-        Response text or None
-    """
-    try:
-        if model_name not in ["gpt-4o", "gpt-4.1"]:
-            raise ValueError(f"Invalid model name: {model_name}")
-
-        from .clients import client_manager
-
-        client = client_manager.get_async_openai_client()
-
-        response = await client.chat.completions.create(model=model_name, messages=messages, **kwargs)
-
-        return response.choices[0].message.content
-
-    except Exception as e:
-        logging.error(f"OpenAI chat API error: {type(e).__name__}", stack_info=True)
-        return None
-
-
 
 async def async_get_doubao_structured_output(
     model_name: str, messages: List[Dict], response_format: Dict = None, **kwargs
@@ -74,15 +50,14 @@ async def async_get_doubao_structured_output(
     start_time = time.time()
     
     try:
-        from volcenginesdkarkruntime import AsyncArk
-        
-        # Get Doubao config
-        volcengine_config = AIConfig.get_provider_config("volcengine")
-        
-        client = AsyncArk(
-            api_key=volcengine_config["api_key"],
-            base_url=volcengine_config["api_base"],
-        )
+        # Ark's /api/v3 IS an OpenAI-compatible endpoint, so this needs no
+        # vendor SDK — and going through client_manager is what makes
+        # VOLCENGINE_BASE_URL reach it (Ark's own Coding and Agent plans are
+        # served from /api/coding/v3 and /api/plan/v3, so "the Ark URL" is
+        # already a deployment question, not a constant).
+        from .clients import client_manager
+
+        client = client_manager.get_async_ai_client("volcengine")
         
         request_params = {
             "model": model_name,
@@ -186,7 +161,7 @@ async def async_get_structured_output(
     """
     Unified structured output function, auto-selects provider based on available API keys
     
-    Priority: openai > openrouter > claude > gemini > volcengine > dashscope
+    Priority: openai > openrouter > gemini > volcengine > dashscope
     
     Args:
         messages: Message list
@@ -411,7 +386,7 @@ async def async_get_text_completion(
     
     For generating plain text (non-JSON), such as Markdown, plain text, etc.
     
-    Priority: openai > openrouter > claude > gemini > volcengine > dashscope
+    Priority: openai > openrouter > gemini > volcengine > dashscope
     
     Args:
         messages: Message list, format: [{"role": "system/user/assistant", "content": "..."}]
@@ -469,14 +444,15 @@ async def async_get_text_completion(
     logging.info(f"🔄 async_get_text_completion: Using {provider} provider, model: {actual_model}")
     
     try:
-        if provider in ["openai", "openrouter", "dashscope"]:
-            # OpenAI-compatible clients
+        if provider in ["openai", "openrouter", "dashscope", "volcengine"]:
+            # OpenAI-compatible clients — volcengine included: Ark's /api/v3
+            # speaks chat/completions, so it needs no vendor SDK.
             if provider == "openai":
                 client = client_manager.get_async_openai_client()
-            elif provider == "openrouter":
-                client = client_manager.get_async_ai_client("openrouter")
-            else:
+            elif provider == "dashscope":
                 client = client_manager.get_async_dashscope_client()
+            else:
+                client = client_manager.get_async_ai_client(provider)
             
             # Handle max_tokens vs max_completion_tokens for newer OpenAI models
             # Models that require max_completion_tokens: o1, o3, gpt-5.x, etc.
@@ -499,24 +475,6 @@ async def async_get_text_completion(
             content = response.choices[0].message.content
             duration = time.time() - start_time
             logging.info(f"✅ {provider} text generation completed, duration: {duration:.3f}s")
-            return content
-            
-        elif provider == "volcengine":
-            # Use Doubao
-            from volcenginesdkarkruntime import AsyncArk
-            volcengine_config = AIConfig.get_provider_config("volcengine")
-            client = AsyncArk(
-                api_key=volcengine_config["api_key"],
-                base_url=volcengine_config["api_base"],
-            )
-            response = await client.chat.completions.create(
-                model=actual_model,
-                messages=messages,
-                **kwargs
-            )
-            content = response.choices[0].message.content
-            duration = time.time() - start_time
-            logging.info(f"✅ Volcengine text generation completed, duration: {duration:.3f}s")
             return content
             
         elif provider == "gemini":
@@ -553,10 +511,6 @@ async def async_get_text_completion(
                 duration = time.time() - start_time
                 logging.info(f"✅ Gemini text generation completed, duration: {duration:.3f}s")
                 return response.text
-            return None
-            
-        elif provider == "claude":
-            logging.warning("Claude text generation not supported yet, please use other providers")
             return None
             
         else:

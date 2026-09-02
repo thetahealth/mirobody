@@ -26,18 +26,21 @@ class AIClientManager:
         
         dashscope_config = AIConfig.get_provider_config("dashscope")
         if dashscope_config["api_key"]:
-            self._clients["dashscope"] = OpenAI(api_key=dashscope_config["api_key"], base_url=dashscope_config["api_base"])
-            self._async_clients["dashscope"] = AsyncOpenAI(api_key=dashscope_config["api_key"], base_url=dashscope_config["api_base"])
+            self._async_clients["dashscope"] = AsyncOpenAI(
+                api_key=dashscope_config["api_key"], base_url=dashscope_config["api_base"]
+            )
 
-        # OpenAI client. base_url passed explicitly: the bare constructor reads
-        # only the OPENAI_BASE_URL *environment variable*, so an override set in
-        # config.yaml alone was silently ignored while every other provider's
-        # `<PROVIDER>_BASE_URL` worked. `or None` keeps the SDK default when unset.
-        openai_api_key = safe_read_cfg("OPENAI_API_KEY")
-        if openai_api_key:
-            openai_base_url = safe_read_cfg("OPENAI_BASE_URL") or None
-            self._clients["openai"] = OpenAI(api_key=openai_api_key, base_url=openai_base_url)
-            self._async_clients["openai"] = AsyncOpenAI(api_key=openai_api_key, base_url=openai_base_url)
+        # OpenAI client, through the same table as everyone else. It used to
+        # read the two keys itself, which had a bug of its own — the bare
+        # constructor honours only the OPENAI_BASE_URL *environment variable*,
+        # so an override set in config.yaml alone was silently ignored — and,
+        # more to the point, a second place where a provider's endpoint was
+        # decided is exactly how #52 came about.
+        openai_config = AIConfig.get_provider_config("openai")
+        if openai_config["api_key"]:
+            self._async_clients["openai"] = AsyncOpenAI(
+                api_key=openai_config["api_key"], base_url=openai_config["api_base"]
+            )
 
         # Google Gemini client — lock to AI Studio backend; without vertexai=False,
         # GOOGLE_GENAI_USE_VERTEXAI=true in env reroutes requests to aiplatform with
@@ -45,7 +48,6 @@ class AIClientManager:
         google_api_key = safe_read_cfg("GOOGLE_API_KEY")
         if google_api_key:
             try:
-                self._clients["gemini"] = genai.Client(api_key=google_api_key, vertexai=False)
                 self._async_clients["gemini"] = genai.Client(api_key=google_api_key, vertexai=False).aio
             except Exception as e:
                 import logging
@@ -53,42 +55,14 @@ class AIClientManager:
 
         self._initialized = True
 
-    def get_client(self, provider: str) -> Any:
-        """Get synchronous client"""
-        self._initialize_clients()
-
-        # For volcengine/doubao, use dynamically created OpenAI-compatible client
-        if provider in ["volcengine", "doubao-lite"]:
-            return self.get_ai_client(provider)
-
-        client_mapping = {
-            "openai": "openai",
-            "gpt-4o": "openai",
-            "gpt-4.1": "openai",
-            "gpt-o3": "openai",
-            "gpt4o-mini": "openai",
-            "gemini": "gemini",
-            "dashscope": "dashscope", # similar to openai but use different url
-        }
-
-        client_key = client_mapping.get(provider)
-        if not client_key or client_key not in self._clients:
-            raise ValueError(f"Unsupported client: {provider}")
-
-        return self._clients[client_key]
-
     def get_async_client(self, provider: str) -> Any:
         """Get asynchronous client"""
         self._initialize_clients()
 
         client_mapping = {
             "openai": "openai",
-            "gpt-4o": "openai",
-            "gpt-4.1": "openai",
-            "gpt-o3": "openai",
-            "gpt4o-mini": "openai",
             "gemini": "gemini",
-            "dashscope": "dashscope", # similar to openai but use different url
+            "dashscope": "dashscope",  # similar to openai but a different url
         }
 
         client_key = client_mapping.get(provider)
@@ -98,7 +72,13 @@ class AIClientManager:
         return self._async_clients[client_key]
 
     def get_ai_client(self, provider: str) -> OpenAI:
-        """Create AI client for specified provider (OpenAI-compatible)"""
+        """Create AI client for specified provider (OpenAI-compatible).
+
+        No caller today — every LLM path in the repo is async. Kept because it
+        is the sync entry point a future call site must use: the alternative it
+        replaces is `OpenAI(base_url="https://...")` written inline, which is
+        precisely how #52's hardcoded openrouter.ai got there.
+        """
         config = AIConfig.get_provider_config(provider)
 
         return OpenAI(api_key=config["api_key"], base_url=config["api_base"])
@@ -109,17 +89,9 @@ class AIClientManager:
 
         return AsyncOpenAI(api_key=config["api_key"], base_url=config["api_base"])
 
-    def get_openai_client(self) -> OpenAI:
-        """Get OpenAI client"""
-        return self.get_client("openai")
-
     def get_async_openai_client(self) -> AsyncOpenAI:
         """Get async OpenAI client"""
         return self.get_async_client("openai")
-    
-    def get_dashscope_client(self) -> OpenAI:
-        """Get DashScope client"""
-        return self.get_client("dashscope")
     
     def get_async_dashscope_client(self) -> AsyncOpenAI:
         """Get async DashScope client"""
@@ -128,12 +100,6 @@ class AIClientManager:
     @staticmethod
     def _use_vertex() -> bool:
         return os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "0").lower() in ("true", "1")
-
-    def get_gemini_client(self) -> genai.Client:
-        """Get Gemini client (auto-routes to Vertex when GOOGLE_GENAI_USE_VERTEXAI=true)."""
-        if self._use_vertex():
-            return self.get_vertex_gemini_client()
-        return self.get_client("gemini")
 
     def get_async_gemini_client(self):
         """Get async Gemini client (auto-routes to Vertex when GOOGLE_GENAI_USE_VERTEXAI=true)."""
@@ -167,30 +133,6 @@ class AIClientManager:
             self._async_clients["vertex_gemini"] = client.aio
         return self._async_clients["vertex_gemini"]
 
-    def is_client_available(self, provider: str) -> bool:
-        """Whether an async client for `provider` was successfully constructed."""
-        self._initialize_clients()
-        client_mapping = {
-            "openai": "openai",
-            "gemini": "gemini",
-            "dashscope": "dashscope",
-        }
-        client_key = client_mapping.get(provider)
-        return bool(client_key and client_key in self._async_clients)
-
-    def health_check(self) -> Dict[str, bool]:
-        """Check health status of all clients"""
-        health_status = {}
-
-        for provider in AIConfig.get_all_providers():
-            try:
-                config = AIConfig.get_provider_config(provider)
-                health_status[provider] = bool(config.get("api_key"))
-            except Exception:
-                health_status[provider] = False
-
-        return health_status
-
 
 # The one client entry point. Everything below it used to be a second,
 # never-wired one: a `_GlobalClients` lazy holder (whose `client_manager`
@@ -202,4 +144,12 @@ class AIClientManager:
 # `__all__` regardless: a documented public name whose value was permanently
 # None. A module-level `get_ai_client()` wrapper went the same way; the
 # METHOD of the same name on AIClientManager is live and stays.
+#
+# The class shrank the same way: every SYNC accessor (`get_client`,
+# `get_openai_client`, `get_dashscope_client`, `get_gemini_client`) had zero
+# callers — the whole repo's LLM traffic is async — as did `is_client_available`
+# and `health_check`, and `get_client`'s mapping keyed MODEL names ("gpt-4o",
+# "gpt-4.1") onto the openai client, so it carried stale model ids in code for
+# no one. Only `get_ai_client` stays sync, as the entry point a future sync
+# call site must use instead of constructing its own client.
 client_manager = AIClientManager()

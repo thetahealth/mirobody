@@ -15,7 +15,7 @@ streaming/agentic client stack with MCP tool calling.
 from .clients import client_manager
 
 # Configuration management
-from .config import AI_CONFIG, AIConfig
+from .config import AIConfig
 
 from .file_processors import (
     FileProcessor,
@@ -30,7 +30,6 @@ from .utils import (
     async_get_doubao_structured_output,
     async_get_structured_output,
     async_get_text_completion,
-    get_openai_chat,
 )
 
 # LLM provider config
@@ -46,7 +45,6 @@ __author__ = "AI Team"
 __all__ = [
     # === Configuration and management ===
     "AIConfig",  # Configuration manager
-    "AI_CONFIG",  # Global config object
     "client_manager",  # Client manager
     # === File processing ===
     "FileProcessor",  # File processor
@@ -55,7 +53,6 @@ __all__ = [
     "doubao_file_extract",  # Doubao file extraction
     "unified_file_extract",  # 🔥 Unified file extraction entry (auto-select model)
     # === Utility functions ===
-    "get_openai_chat",  # Get OpenAI chat
     "async_get_doubao_structured_output",  # Get Doubao structured output
     "async_get_structured_output",  # 🔥 Unified structured output (auto-select provider)
     "async_get_text_completion",  # 🔥 Unified text generation (auto-select provider)
