@@ -24,16 +24,20 @@ class AIClientManager:
         if self._initialized:
             return
         
-        dashscope_api_key = safe_read_cfg("DASHSCOPE_API_KEY")
-        if dashscope_api_key:
-            self._clients["dashscope"] = OpenAI(api_key=dashscope_api_key,base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
-            self._async_clients["dashscope"] = AsyncOpenAI(api_key=dashscope_api_key,base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
+        dashscope_config = AIConfig.get_provider_config("dashscope")
+        if dashscope_config["api_key"]:
+            self._clients["dashscope"] = OpenAI(api_key=dashscope_config["api_key"], base_url=dashscope_config["api_base"])
+            self._async_clients["dashscope"] = AsyncOpenAI(api_key=dashscope_config["api_key"], base_url=dashscope_config["api_base"])
 
-        # OpenAI client
+        # OpenAI client. base_url passed explicitly: the bare constructor reads
+        # only the OPENAI_BASE_URL *environment variable*, so an override set in
+        # config.yaml alone was silently ignored while every other provider's
+        # `<PROVIDER>_BASE_URL` worked. `or None` keeps the SDK default when unset.
         openai_api_key = safe_read_cfg("OPENAI_API_KEY")
         if openai_api_key:
-            self._clients["openai"] = OpenAI(api_key=openai_api_key)
-            self._async_clients["openai"] = AsyncOpenAI(api_key=openai_api_key)
+            openai_base_url = safe_read_cfg("OPENAI_BASE_URL") or None
+            self._clients["openai"] = OpenAI(api_key=openai_api_key, base_url=openai_base_url)
+            self._async_clients["openai"] = AsyncOpenAI(api_key=openai_api_key, base_url=openai_base_url)
 
         # Google Gemini client — lock to AI Studio backend; without vertexai=False,
         # GOOGLE_GENAI_USE_VERTEXAI=true in env reroutes requests to aiplatform with
@@ -99,6 +103,12 @@ class AIClientManager:
 
         return OpenAI(api_key=config["api_key"], base_url=config["api_base"])
 
+    def get_async_ai_client(self, provider: str) -> AsyncOpenAI:
+        """Create async AI client for specified provider (OpenAI-compatible)"""
+        config = AIConfig.get_provider_config(provider)
+
+        return AsyncOpenAI(api_key=config["api_key"], base_url=config["api_base"])
+
     def get_openai_client(self) -> OpenAI:
         """Get OpenAI client"""
         return self.get_client("openai")
@@ -156,14 +166,6 @@ class AIClientManager:
             client = self.get_vertex_gemini_client()
             self._async_clients["vertex_gemini"] = client.aio
         return self._async_clients["vertex_gemini"]
-
-    def get_async_openrouter_client(self) -> AsyncOpenAI:
-        """Get async OpenRouter client (OpenAI-compatible)"""
-        config = AIConfig.get_provider_config("openrouter")
-        return AsyncOpenAI(
-            api_key=config["api_key"],
-            base_url=config["api_base"]
-        )
 
     def is_client_available(self, provider: str) -> bool:
         """Whether an async client for `provider` was successfully constructed."""

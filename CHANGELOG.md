@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **`<PROVIDER>_BASE_URL` now reaches vision/file parsing and structured
+  extraction** ([#52](https://github.com/thetahealth/mirobody/issues/52)).
+  `OPENROUTER_BASE_URL` redirected embeddings but the file-extraction clients
+  were built from a hardcoded table, so an upload's OCR still called
+  `openrouter.ai` and failed against self-hosted gateways — the file saved,
+  but no indicators appeared. All OpenAI-compatible clients (OpenRouter,
+  DashScope, OpenAI, Volcengine) now honor their `<PROVIDER>_BASE_URL`;
+  `OPENAI_BASE_URL` also works from config, not just the environment.
+
+### Added
+
+- **`<PROVIDER>_MODEL`** picks the chat/structured-extraction model per
+  provider, mirroring the existing `<PROVIDER>_VISION_MODEL` — needed when a
+  redirected endpoint does not serve the provider's default model id.
+
 ## 1.3.0
 
 **Breaking, and the whole point: `pip install mirobody` is now a library.** It

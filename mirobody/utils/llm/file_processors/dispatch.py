@@ -45,7 +45,6 @@ class VisionProviderConfig:
             "name": "qwen",
             "api_key_env": "DASHSCOPE_API_KEY",
             "default_model": "qwen3-vl-flash",
-            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
             "description": "Qwen Vision (Alibaba Dashscope)",
         },
         {

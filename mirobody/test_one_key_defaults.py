@@ -150,3 +150,50 @@ def test_a_self_hosted_base_url_override_is_honored(monkeypatch):
     monkeypatch.delenv("OPENROUTER_BASE_URL")
     assert Config(yaml_filenames=str(_CONFIG)).get_llm(LLMProvider.OPENROUTER).base_url \
         == "https://openrouter.ai/api/v1", "unset override must fall back to the gateway"
+
+
+def test_base_url_override_reaches_the_file_extraction_clients(monkeypatch):
+    """Issue #52: the override above redirected embeddings, but the vision /
+    structured-extraction clients were built from AIConfig's hardcoded table —
+    an upload's OCR still called openrouter.ai and the report produced no
+    indicators. Pin every OpenAI-compatible construction path to the same
+    `<PROVIDER>_BASE_URL` rule, and the fallback when it is unset."""
+    import mirobody.utils.config.config as cfg_mod
+    from mirobody.utils.config.config import Config
+    from mirobody.utils.llm.clients import AIClientManager
+    from mirobody.utils.llm.file_processors.backends_openai import (
+        _get_openrouter_client,
+        _get_qwen_client,
+    )
+
+    monkeypatch.setattr(cfg_mod, "_global_config", cfg_mod._global_config)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-ds-test")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-oa-test")
+    for env, url in (
+        ("OPENROUTER_BASE_URL", "http://gateway.internal:8000/v1"),
+        ("DASHSCOPE_BASE_URL",  "http://gateway.internal:8001/v1"),
+        ("OPENAI_BASE_URL",     "http://gateway.internal:8002/v1"),
+    ):
+        monkeypatch.setenv(env, url)
+    Config(yaml_filenames=str(_CONFIG))
+
+    def base(client):
+        return str(client.base_url).rstrip("/")
+
+    # The exact constructors the vision path calls (fresh manager: the module
+    # singleton caches clients from whatever env earlier tests left behind).
+    manager = AIClientManager()
+    assert base(_get_openrouter_client()) == "http://gateway.internal:8000/v1"
+    assert base(_get_qwen_client()) == "http://gateway.internal:8001/v1"
+    assert base(manager.get_async_dashscope_client()) == "http://gateway.internal:8001/v1"
+    assert base(manager.get_async_openai_client()) == "http://gateway.internal:8002/v1", \
+        "OPENAI_BASE_URL must work from config too, not only as the SDK env var"
+
+    for env in ("OPENROUTER_BASE_URL", "DASHSCOPE_BASE_URL", "OPENAI_BASE_URL"):
+        monkeypatch.delenv(env)
+    manager = AIClientManager()
+    assert base(_get_openrouter_client()) == "https://openrouter.ai/api/v1"
+    assert base(_get_qwen_client()) == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    assert base(manager.get_async_openai_client()) == "https://api.openai.com/v1", \
+        "unset override must fall back to each provider's own gateway"
