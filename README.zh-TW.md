@@ -391,11 +391,11 @@ pip install -e '.[test]' && pytest -q && lint-imports
 ## ⭐ Star 趨勢
 
 <div align="center">
-<a href="https://star-history.dera.page/#thetahealth/mirobody&Date">
+<a href="https://github.com/thetahealth/mirobody/stargazers">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=thetahealth/mirobody&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=thetahealth/mirobody&type=Date" />
-    <img alt="Star 趨勢圖" src="https://star-history.dera.page/svg?repos=thetahealth/mirobody&type=Date" />
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/star-history-dark.zh-TW.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/star-history.zh-TW.svg" />
+    <img alt="Star 趨勢圖" src="docs/images/star-history.zh-TW.svg" />
   </picture>
 </a>
 </div>

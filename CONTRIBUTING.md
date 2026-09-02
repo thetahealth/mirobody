@@ -154,6 +154,20 @@ rename a module, grep the `.md` files.
 See [`docs/README.md`](docs/README.md) for which file a given piece of
 documentation belongs in.
 
+The README's star chart is generated, not embedded from a service: GitHub
+restricted the stargazers API to a repository's admins and collaborators on
+2026-06-30, so every third-party chart froze. Refresh it with
+
+```bash
+scripts/star_history.py            # fetch, then redraw all eight SVGs
+scripts/star_history.py --render   # redraw from the committed CSV, offline
+```
+
+`--fetch` needs an admin/collaborator credential (it reads `GH_TOKEN`,
+`GITHUB_TOKEN`, or `gh auth token`); `--render` needs nothing, because
+`docs/star-history.csv` is committed. Worth doing before a release, the way the
+README numbers are.
+
 ### Translations
 
 The README ships in English, 简体中文, 繁體中文 and 日本語; the web client ships
