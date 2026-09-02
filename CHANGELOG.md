@@ -47,6 +47,17 @@
   by construction — and a mismatch still fails loudly rather than ranking in
   the wrong vector space.
 
+- **The README's star chart is ours now** — `scripts/star_history.py` plus a
+  committed `docs/star-history.csv`, rendered in the same hand-drawn style in
+  four languages and two themes. GitHub restricted the stargazers API to a
+  repository's admins and collaborators on 2026-06-30, which blinded every
+  third-party chart service: star-history.com answers with an error card, and
+  the mirror the READMEs embedded served a frozen snapshot behind a 24-hour
+  cache — measured on 2026-09-02, its data ended at 1,061 stars while the
+  repository was at 1,202, so the two days that added 141 were simply missing.
+  The upstream workaround is to publish an access token in the README;
+  rendering it ourselves costs one script and no credential.
+
 ### Removed
 
 - **`volcengine-python-sdk[ark]` is no longer a dependency** of `[app]`. It

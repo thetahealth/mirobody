@@ -1,0 +1,61 @@
+name: Star History
+
+# Refreshes docs/star-history.csv and redraws the README's chart.
+#
+# Why this exists at all: GitHub restricted the stargazers API to a
+# repository's admins and collaborators on 2026-06-30, and every third-party
+# chart service reads that endpoint anonymously — so star-history.com answers
+# with an error card now, and the mirror the README used froze at a
+# pre-restriction snapshot. We render the chart ourselves.
+#
+# MEASURED, so nobody retries it: the default Actions GITHUB_TOKEN does NOT
+# work here. It gets `403 Resource not accessible by integration` on page 1
+# (run 33609019127). The restriction is about admin/collaborator identity, and
+# a GitHub App installation token is neither.
+#
+# So this job needs a real credential, and it is OPT-IN: without the secret it
+# prints why and exits green rather than failing every night. To turn it on,
+# add a fine-grained PAT with `Metadata: read` on this repository as the
+# STAR_HISTORY_TOKEN secret. Note what we are NOT doing: star-history's own
+# workaround is to publish a token IN the README for their service to use.
+on:
+  schedule:
+    - cron: '17 4 * * *'          # daily, 04:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write                 # commits the refreshed CSV and SVGs
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch stars and redraw the chart
+        env:
+          GH_TOKEN: ${{ secrets.STAR_HISTORY_TOKEN }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "STAR_HISTORY_TOKEN is not set, so there is no credential that"
+            echo "can read the stargazers API (the default GITHUB_TOKEN gets 403"
+            echo "— see this file's header). Skipping."
+            echo "Refresh it locally instead: scripts/star_history.py"
+            exit 0
+          fi
+          python scripts/star_history.py
+
+      - name: Commit if the chart moved
+        run: |
+          if git diff --quiet -- docs/star-history.csv docs/images; then
+            echo "no change"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/star-history.csv docs/images
+          git commit -m "chore: refresh the star history chart"
+          git push
