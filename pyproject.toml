@@ -185,10 +185,6 @@ app = [
     # is the same class of bug as the undeclared python-multipart / starlette /
     # anthropic before it. Named here so it stops being an accident.
     "boto3",
-    # Volcengine Ark — the one model vendor with its own SDK rather than an
-    # OpenAI-compatible endpoint (DashScope needs no SDK: it is reached through
-    # `AsyncOpenAI` pointed at its compatible-mode URL).
-    "volcengine-python-sdk[ark]>=3.0.1",
     # The official MCP SDK, for `mirobody.mcp` — which is server-side by
     # construction (`mcp/service.py` imports psycopg_pool and redis at module
     # level), so this cannot be a standalone extra and should not pretend to be.

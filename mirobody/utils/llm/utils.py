@@ -50,15 +50,14 @@ async def async_get_doubao_structured_output(
     start_time = time.time()
     
     try:
-        from volcenginesdkarkruntime import AsyncArk
-        
-        # Get Doubao config
-        volcengine_config = AIConfig.get_provider_config("volcengine")
-        
-        client = AsyncArk(
-            api_key=volcengine_config["api_key"],
-            base_url=volcengine_config["api_base"],
-        )
+        # Ark's /api/v3 IS an OpenAI-compatible endpoint, so this needs no
+        # vendor SDK — and going through client_manager is what makes
+        # VOLCENGINE_BASE_URL reach it (Ark's own Coding and Agent plans are
+        # served from /api/coding/v3 and /api/plan/v3, so "the Ark URL" is
+        # already a deployment question, not a constant).
+        from .clients import client_manager
+
+        client = client_manager.get_async_ai_client("volcengine")
         
         request_params = {
             "model": model_name,
@@ -445,14 +444,15 @@ async def async_get_text_completion(
     logging.info(f"🔄 async_get_text_completion: Using {provider} provider, model: {actual_model}")
     
     try:
-        if provider in ["openai", "openrouter", "dashscope"]:
-            # OpenAI-compatible clients
+        if provider in ["openai", "openrouter", "dashscope", "volcengine"]:
+            # OpenAI-compatible clients — volcengine included: Ark's /api/v3
+            # speaks chat/completions, so it needs no vendor SDK.
             if provider == "openai":
                 client = client_manager.get_async_openai_client()
-            elif provider == "openrouter":
-                client = client_manager.get_async_ai_client("openrouter")
-            else:
+            elif provider == "dashscope":
                 client = client_manager.get_async_dashscope_client()
+            else:
+                client = client_manager.get_async_ai_client(provider)
             
             # Handle max_tokens vs max_completion_tokens for newer OpenAI models
             # Models that require max_completion_tokens: o1, o3, gpt-5.x, etc.
@@ -475,24 +475,6 @@ async def async_get_text_completion(
             content = response.choices[0].message.content
             duration = time.time() - start_time
             logging.info(f"✅ {provider} text generation completed, duration: {duration:.3f}s")
-            return content
-            
-        elif provider == "volcengine":
-            # Use Doubao
-            from volcenginesdkarkruntime import AsyncArk
-            volcengine_config = AIConfig.get_provider_config("volcengine")
-            client = AsyncArk(
-                api_key=volcengine_config["api_key"],
-                base_url=volcengine_config["api_base"],
-            )
-            response = await client.chat.completions.create(
-                model=actual_model,
-                messages=messages,
-                **kwargs
-            )
-            content = response.choices[0].message.content
-            duration = time.time() - start_time
-            logging.info(f"✅ Volcengine text generation completed, duration: {duration:.3f}s")
             return content
             
         elif provider == "gemini":
