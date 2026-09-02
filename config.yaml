@@ -279,6 +279,19 @@ GOOGLE_API_KEY: ""
 OPENAI_API_KEY: ""
 OPENROUTER_API_KEY: ""
 
+# Any OpenAI-compatible provider can be redirected to a self-hosted or proxy
+# endpoint with `<PROVIDER>_BASE_URL` (OPENROUTER_BASE_URL, DASHSCOPE_BASE_URL,
+# OPENAI_BASE_URL, …) — chat, vision/file parsing, structured extraction and
+# embeddings all follow it. If the endpoint does not serve the default model
+# ids, pick the models with `<PROVIDER>_MODEL` (chat/structured extraction)
+# and `<PROVIDER>_VISION_MODEL` (image/PDF parsing). Example — everything
+# through DashScope while keeping the OpenRouter-style one-key setup:
+#   OPENROUTER_BASE_URL: https://dashscope.aliyuncs.com/compatible-mode/v1
+#   OPENROUTER_MODEL: qwen-flash
+#   OPENROUTER_VISION_MODEL: qwen3-vl-flash
+# The endpoint must tolerate the provider's request dialect (extra_body flags
+# such as OpenRouter's `reasoning`); gateways like LiteLLM/one-api do.
+
 # DashScope (OpenAI-compatible) API key — the fallback one-key path for
 # networks where openrouter.ai is unreachable (mainland China being the
 # common case). Covers chat (Qwen/DeepSeek/Kimi/GLM), vision (qwen3-vl,

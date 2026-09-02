@@ -263,7 +263,7 @@ async def async_get_structured_output(
                 if prov_name == "openai":
                     client = client_manager.get_async_openai_client()
                 else:
-                    client = client_manager.get_async_openrouter_client()
+                    client = client_manager.get_async_ai_client("openrouter")
 
                 # OpenAI newer models (GPT-4o+) use max_completion_tokens instead of max_tokens
                 provider_kwargs = {**kwargs}
@@ -372,7 +372,7 @@ async def async_get_structured_output(
         if not safe_read_cfg(provider_info["api_key_env"]):
             logging.error(f"Provider {provider} API Key not configured")
             return None
-        actual_model = model_name or provider_info["default_model"]
+        actual_model = model_name or safe_read_cfg(f"{provider.upper()}_MODEL") or provider_info["default_model"]
         logging.info(f"🔄 async_get_structured_output: Using {provider} provider, model: {actual_model}")
         return await _call_provider(provider, actual_model)
     else:
@@ -382,7 +382,12 @@ async def async_get_structured_output(
             if not safe_read_cfg(p["api_key_env"]):
                 continue
             prov_name = p["name"]
-            prov_model = p["default_model"]
+            # `<PROVIDER>_MODEL` overrides the default, mirroring
+            # `<PROVIDER>_VISION_MODEL` on the vision path. Needed whenever
+            # `<PROVIDER>_BASE_URL` points at a gateway that does not serve
+            # the default model id (e.g. OpenRouter redirected to DashScope:
+            # `google/gemini-3-flash-preview` 404s there).
+            prov_model = safe_read_cfg(f"{prov_name.upper()}_MODEL") or p["default_model"]
             logging.info(f"🔄 async_get_structured_output: Trying {prov_name} provider, model: {prov_model}")
             result = await _call_provider(prov_name, prov_model)
             if result is not None:
@@ -435,20 +440,20 @@ async def async_get_text_completion(
     """
     import time
     from .clients import client_manager
-    
+    from mirobody.utils.config import safe_read_cfg
+
     start_time = time.time()
-    
+
     # Determine provider to use
     if provider:
         provider_info = AIConfig.get_provider_by_priority_name(provider)
         if not provider_info:
             logging.error(f"Unknown provider: {provider}")
             return None
-        from mirobody.utils.config import safe_read_cfg
         if not safe_read_cfg(provider_info["api_key_env"]):
             logging.error(f"Provider {provider} API Key not configured")
             return None
-        actual_model = model_name or provider_info["default_model"]
+        actual_model = model_name or safe_read_cfg(f"{provider.upper()}_MODEL") or provider_info["default_model"]
     else:
         provider_info = AIConfig.get_available_provider()
         if not provider_info:
@@ -456,7 +461,8 @@ async def async_get_text_completion(
             logging.error(f"No available AI provider, please configure API Key: {status}")
             return None
         provider = provider_info["name"]
-        actual_model = provider_info["default_model"]
+        # Same `<PROVIDER>_MODEL` override as async_get_structured_output.
+        actual_model = safe_read_cfg(f"{provider.upper()}_MODEL") or provider_info["default_model"]
         if model_name:
             logging.warning(f"⚠️ model_name='{model_name}' ignored, using provider default model: {actual_model}")
     
@@ -468,7 +474,7 @@ async def async_get_text_completion(
             if provider == "openai":
                 client = client_manager.get_async_openai_client()
             elif provider == "openrouter":
-                client = client_manager.get_async_openrouter_client()
+                client = client_manager.get_async_ai_client("openrouter")
             else:
                 client = client_manager.get_async_dashscope_client()
             

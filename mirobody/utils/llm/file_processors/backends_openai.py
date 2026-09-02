@@ -21,8 +21,6 @@ from openai import AsyncOpenAI
 if TYPE_CHECKING:
     from volcenginesdkarkruntime import AsyncArk
 
-from mirobody.utils.config import safe_read_cfg
-
 from ..config import AIConfig
 from .media import (
     _build_vision_message,
@@ -173,18 +171,14 @@ def _get_openrouter_client() -> AsyncOpenAI:
     # extraction, which is the README's headline "one LLM key" command.
     from ..clients import client_manager
 
-    return client_manager.get_async_openrouter_client()
+    return client_manager.get_async_ai_client("openrouter")
 
 
 def _get_qwen_client() -> AsyncOpenAI:
     """Get Qwen client (OpenAI compatible)."""
-    api_key = safe_read_cfg("DASHSCOPE_API_KEY")
-    if not api_key:
-        raise ValueError("DASHSCOPE_API_KEY not configured")
-    return AsyncOpenAI(
-        api_key=api_key,
-        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-    )
+    from ..clients import client_manager
+
+    return client_manager.get_async_ai_client("dashscope")
 
 
 def _get_doubao_client() -> "AsyncArk":

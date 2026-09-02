@@ -153,6 +153,13 @@ class AIConfig:
             "api_path": "/chat/completions",
             "type": "openai",
         },
+        "dashscope": {
+            "model": "qwen-flash",
+            "api_key_env": "DASHSCOPE_API_KEY",
+            "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "api_path": "/chat/completions",
+            "type": "openai",
+        },
     }
 
     @classmethod
@@ -164,6 +171,16 @@ class AIConfig:
         config = cls._CONFIG[provider].copy()
         # Dynamically get API key
         config["api_key"] = safe_read_cfg(config["api_key_env"])
+        # `<PROVIDER>_BASE_URL` redirects the provider to any OpenAI-compatible
+        # endpoint — the rule Config.get_llm() already applies and config.yaml
+        # documents. Issue #52: embeddings honored OPENROUTER_BASE_URL while
+        # file extraction, built from this table, still called openrouter.ai,
+        # so a self-hosted gateway got the text requests but never the vision
+        # ones. `or` (not a default arg) so an empty env var also falls back.
+        config["api_base"] = (
+            safe_read_cfg(config["api_key_env"].replace("_API_KEY", "_BASE_URL"))
+            or config["api_base"]
+        )
         return config
 
     @classmethod
