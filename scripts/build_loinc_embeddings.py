@@ -68,19 +68,23 @@ DIM = 1024
 #: costs about $0.01 per million tokens — the whole 96k-row build is under two
 #: cents. Note the endpoint is NOT in OpenRouter's /models listing, which covers
 #: chat models only; /embeddings works regardless.
-# Model ids are imported from `mirobody.utils.embedding.EMBEDDING_MODEL_IDS` in
-# main() — the same table the runtime query side reads — so this script cannot
-# drift onto a model the deployed `text_embedding()` does not call.
+# Model ids come from `mirobody.utils.embedding.embedding_model_id()` in main()
+# — the same call the runtime query side makes, so this script cannot drift onto
+# a model the deployed `text_embedding()` does not call, and it picks up a
+# `<PROVIDER>_EMBEDDING_MODEL` override on both sides at once. The endpoints
+# below are likewise defaults: `<PROVIDER>_BASE_URL` redirects them, which a
+# deployment that self-hosts the embedding model MUST be able to do — corpus
+# and queries have to come out of one serving.
 PROVIDERS: dict[str, tuple[str, str | None, int, str]] = {
     "openrouter": (
         "https://openrouter.ai/api/v1/embeddings",
-        None,                    # filled from EMBEDDING_MODEL_IDS["openrouter"]
+        None,                    # filled from embedding_model_id("openrouter")
         256,
         "OPENROUTER_API_KEY",
     ),
     "qwen": (
         "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings",
-        None,                    # filled from EMBEDDING_MODEL_IDS["qwen"]
+        None,                    # filled from embedding_model_id("qwen")
         10,                      # DashScope caps a request at 10 inputs
         "DASHSCOPE_API_KEY",
     ),
@@ -143,10 +147,9 @@ async def main() -> int:
     from mirobody.indicator.fhir.common import SYSTEM_TO_CODE, code_to_fhir_id
     from mirobody.indicator.fhir.embeddings.bundle import read_member
     from mirobody.utils import Config
-    from mirobody.utils.embedding import EMBEDDING_MODEL_IDS
+    from mirobody.utils.embedding import embedding_model_id
 
     url0, _, batch0, key0 = PROVIDERS[args.provider]
-    PROVIDERS[args.provider] = (url0, EMBEDDING_MODEL_IDS[args.provider], batch0, key0)
 
     config = await Config.init(yaml_filenames=["config.yaml", "config.local.yaml"])
     key_name = PROVIDERS[args.provider][3]
@@ -154,6 +157,13 @@ async def main() -> int:
     if not key:
         print(f"{key_name} is not set", file=sys.stderr)
         return 1
+
+    # Same two overrides the runtime honours, read AFTER Config.init so a value
+    # in config.yaml counts and not just an env var.
+    base = (config.get(key_name.replace("_API_KEY", "_BASE_URL")) or "").strip()
+    if base:
+        url0 = base.rstrip("/") + "/embeddings"
+    PROVIDERS[args.provider] = (url0, embedding_model_id(args.provider), batch0, key0)
 
     res = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "mirobody", "res")
     axis_raw = read_member("loinc_axis.csv", bundle_path=os.path.join(res, "fhir_loinc_bundle.tar.gz"))

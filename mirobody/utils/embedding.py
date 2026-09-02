@@ -141,6 +141,29 @@ EMBEDDING_MODEL_IDS: dict[str, str] = {
     "openrouter": "qwen/qwen3-embedding-8b",
 }
 
+#: `<PROVIDER>_EMBEDDING_MODEL` overrides the default above, the way
+#: `<PROVIDER>_MODEL` and `<PROVIDER>_VISION_MODEL` do on the chat and vision
+#: paths. It exists for the same reason (issue #52): a deployment that points
+#: `OPENROUTER_BASE_URL` at its own vLLM/TEI serving cannot be expected to
+#: serve `qwen/qwen3-embedding-8b` under that exact id, and before this the
+#: default was unreachable from config — embeddings 404'd with no way out but
+#: switching provider.
+#:
+#: It reaches BOTH sides of the vector space at once: the factories below build
+#: the request from this function, and `indicator/semantic.py` stamps and checks
+#: matrix identity through it, so an override on a matrix built with the old
+#: model fails loudly ("built by X, queries embedded by Y") instead of returning
+#: confident nonsense. Changing it means re-embedding, exactly like changing
+#: EMBEDDING_PROVIDER.
+#:
+#: The 1024 `dimensions` in the factories is deliberately NOT config: it is the
+#: width of the database columns, a schema fact rather than a deployment one.
+def embedding_model_override(provider: str) -> str:
+    """`<PROVIDER>_EMBEDDING_MODEL` for this provider, or "" when unset."""
+    from .config import safe_read_cfg
+
+    return (safe_read_cfg(f"{provider.upper()}_EMBEDDING_MODEL", "") or "").strip()
+
 
 def resolve_embedding_provider() -> str:
     """`EMBEDDING_PROVIDER` if set; otherwise pick by which API key exists.
@@ -171,7 +194,7 @@ def embedding_model_id(provider: str | None = None) -> str:
     """The model id the given (or configured) provider embeds with."""
     if provider is None:
         provider = resolve_embedding_provider()
-    return EMBEDDING_MODEL_IDS.get(provider, "")
+    return embedding_model_override(provider) or EMBEDDING_MODEL_IDS.get(provider, "")
 
 
 def _emb_provider(name: str):
@@ -189,7 +212,7 @@ def _gemini():
 
     use_vertex = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "0").lower() in ("true", "1")
     llm = global_config().get_llm(LLMProvider.VERTEX_AI if use_vertex else LLMProvider.GEMINI)
-    model = EMBEDDING_MODEL_IDS["gemini"]
+    model = embedding_model_id("gemini")
 
     if use_vertex:
         # Vertex :predict accepts one input per request for this model;
@@ -231,7 +254,7 @@ def _qwen():
         "embeddings",
         10,  # DashScope caps a text-embedding-v4 request at 10 inputs
         1,  # max_concurrency
-        lambda chunk: {"model": EMBEDDING_MODEL_IDS["qwen"], "input": chunk, "dimensions": 1024},
+        lambda chunk: {"model": embedding_model_id("qwen"), "input": chunk, "dimensions": 1024},
         lambda data: [item["embedding"] for item in data["data"]],
     )
 
@@ -268,7 +291,7 @@ def _openrouter():
         256,
         4,  # max_concurrency
         lambda chunk: {
-            "model": EMBEDDING_MODEL_IDS["openrouter"],
+            "model": embedding_model_id("openrouter"),
             "input": chunk,
             "dimensions": 1024,
         },

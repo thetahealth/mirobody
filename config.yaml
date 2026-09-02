@@ -283,8 +283,10 @@ OPENROUTER_API_KEY: ""
 # endpoint with `<PROVIDER>_BASE_URL` (OPENROUTER_BASE_URL, DASHSCOPE_BASE_URL,
 # OPENAI_BASE_URL, …) — chat, vision/file parsing, structured extraction and
 # embeddings all follow it. If the endpoint does not serve the default model
-# ids, pick the models with `<PROVIDER>_MODEL` (chat/structured extraction)
-# and `<PROVIDER>_VISION_MODEL` (image/PDF parsing). Example — everything
+# ids, pick the models with `<PROVIDER>_MODEL` (chat/structured extraction),
+# `<PROVIDER>_VISION_MODEL` (image/PDF parsing) and `<PROVIDER>_EMBEDDING_MODEL`
+# (embeddings — see the EMBEDDING_PROVIDER block below, changing it means
+# re-embedding). Example — everything
 # through DashScope while keeping the OpenRouter-style one-key setup:
 #   OPENROUTER_BASE_URL: https://dashscope.aliyuncs.com/compatible-mode/v1
 #   OPENROUTER_MODEL: qwen-flash
@@ -522,9 +524,14 @@ ENABLE_INDICATOR_EXTRACTION: 1
 #               OPENROUTER_BASE_URL to it (any `<PROVIDER>_BASE_URL` key
 #               redirects its OpenAI-compatible provider) — corpus and queries
 #               stay in one
-#               vector space as long as ONE serving does both. (OpenRouter
-#               serves the 8B and 4B sizes; 0.6B returned 404 "No endpoints
-#               found" when checked on 2026-08-23.)
+#               vector space as long as ONE serving does both. If that serving
+#               publishes the model under a different id, name it with
+#               OPENROUTER_EMBEDDING_MODEL (`<PROVIDER>_EMBEDDING_MODEL`);
+#               scripts/build_loinc_embeddings.py reads the same two keys, so
+#               the matrix it builds and the queries agree by construction —
+#               and disagree LOUDLY if you change one without rebuilding.
+#               (OpenRouter serves the 8B and 4B sizes; 0.6B returned 404 "No
+#               endpoints found" when checked on 2026-08-23.)
 #   qwen        DASHSCOPE_API_KEY   text-embedding-v4 (the productized
 #               Qwen3-Embedding; batch cap 10, dimensions: 1024), columns
 #               embedding_qwen3 / embedding_qwen. The DashScope fallback path.
