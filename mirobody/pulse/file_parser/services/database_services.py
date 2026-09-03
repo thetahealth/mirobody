@@ -126,14 +126,27 @@ class FileParserDatabaseService:
 
     @staticmethod
     async def _save_to_series_data(db_params: List[Dict[str, Any]]) -> int:
-        """Parallel task: save to th_series_data table"""
+        """Parallel task: save to th_series_data table.
+
+        The unique (user, indicator, start, end) key counts soft-deleted rows,
+        and this used to be a bare ON CONFLICT DO NOTHING — so a report
+        re-uploaded after its file was deleted wrote NOTHING (every reading
+        collided with its own deleted copy) while the log said "Write
+        complete: 9 records" and the file row said 9 indicators. A collision
+        with a DELETED row now revives that row as the new reading; a
+        collision with a live row is still left alone.
+        """
         if not db_params:
             return 0
 
         await execute_query(
-            query="""INSERT INTO th_series_data (user_id, indicator, value, start_time, end_time, source_table, source_table_id, comment) 
+            query="""INSERT INTO th_series_data (user_id, indicator, value, start_time, end_time, source_table, source_table_id, comment)
                VALUES (:user_id, :indicator, :value, :start_time, :end_time, :source_table, :source_table_id, encrypt_content(:comment))
-               ON CONFLICT DO NOTHING""",
+               ON CONFLICT (user_id, indicator, start_time, end_time) DO UPDATE
+                  SET value = EXCLUDED.value, source_table = EXCLUDED.source_table,
+                      source_table_id = EXCLUDED.source_table_id, comment = EXCLUDED.comment,
+                      deleted = 0, update_time = CURRENT_TIMESTAMP
+                WHERE th_series_data.deleted = 1""",
             params=db_params,
         )
         logging.info(f"✅ {len(db_params)} indicator data saved to th_series_data")
