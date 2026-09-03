@@ -198,7 +198,7 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                     "type": "string", 
                     "description": "Content category in user's language (e.g., Laboratory Test, Imaging Examination, Pathology Report, or Non-health-related content)",
                 },
-                "date_time": {"type": "string", "description": "Relevant date and time (YYYY-MM-DD HH:MM:SS format). Date Priority: Sample Collection Date > Sample Receipt Date > Report Date > File Upload Date. Always use the highest priority date found in the document."},
+                "date_time": {"type": "string", "description": "Relevant date and time (YYYY-MM-DD HH:MM:SS format). Date Priority: Sample Collection Date > Sample Receipt Date > Report Date. Always use the highest priority date found in the document; empty string when the document shows no date — never invent one."},
                 "subject_info": {
                     "type": "object",
                     "properties": {
@@ -296,7 +296,7 @@ Return JSON Structure:
   "report_info": {
     "report_type": "Report type",
     "report_category": "Numerical/Descriptive/Mixed", 
-    "date_time": "Examination date (YYYY-MM-DD HH:MM:SS). Date Priority: Sample Collection Date > Sample Receipt Date > Report Date > File Upload Date",
+    "date_time": "Examination date (YYYY-MM-DD HH:MM:SS). Date Priority: Sample Collection Date > Sample Receipt Date > Report Date; empty when the document shows no date",
     "patient_info": {"name":"","gender":"","age":""},
     "hospital": "Hospital name",
     "exam_number": "Examination number",
