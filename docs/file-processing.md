@@ -437,6 +437,55 @@ ENABLE_INDICATOR_EXTRACTION: 1  # Set to 1 to enable indicator extraction
 }
 ```
 
+### Report Date
+
+`content_info.date_time` becomes the `start_time`/`end_time` of every reading
+extracted from the file. When the document shows no date (or one the parser
+cannot read), the readings are filed under the user's current time — and that
+fallback is **labelled**, not silent: each reading's `comment` JSON and the
+file row carry `date_source`:
+
+| `date_source` | Meaning |
+|---------------|---------|
+| `extracted` | Read off the document |
+| `upload_time` | The upload time stood in; nothing on the document gave a date |
+| `manual` | Set through the endpoint below |
+
+The labelling exists because extraction runs one file at a time. A report
+photographed as three screenshots shows its date on the first page only, and
+"page 2 of the same report" is indistinguishable from "a second report whose
+date did not come out" — so nothing is inherited automatically. The files
+listing (`GET /api/v1/data/uploaded-files`) exposes `report_date`,
+`date_source` and `date_confirmed` per file; the web client asks about
+`upload_time` files and offers the dates read from the other files of the same
+upload (same `created_source_id`, or uploaded within a few minutes of it — the
+web client opens one upload session per file).
+
+```http
+POST /api/v1/health-indicators/file-date
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{"file_key": "20260903103000_ab12cd34", "report_date": "2025-08-15"}
+```
+
+The date is looked up before the indicators, in its own small model call, and
+the upload WebSocket carries two events after `upload_completed`:
+`report_date_detected` (`file_key`, `report_date`, `date_source`, seconds after
+the upload) and `extraction_completed` (adds `indicators_count`); both carry
+the upload's `sessionId`, which is how the web client groups the files of one
+multi-select into one prompt. In chat, the agent's `ask_user` tool asks the
+question instead (naming the files in `report_date_for`); the reply is parsed
+and applied on resume — the same rule as the endpoint below.
+
+Moves every reading of that file to the date (`date_source: manual`) and
+answers `{"file_key", "report_date", "moved", "skipped"}` — `skipped` counts
+readings whose indicator already had a row on that date, which stay put rather
+than overwrite it. Omit `report_date` to keep the upload time and stop the
+prompt (`date_confirmed: true`). A file uploaded into someone else's record
+needs that member's care-circle **write** grant; otherwise the file is reported
+as not found.
+
 ### Data Storage
 
 Extracted indicator data is stored in the `th_series_data` table:
@@ -448,8 +497,9 @@ Extracted indicator data is stored in the `th_series_data` table:
 | value | Indicator value |
 | unit | Unit of measurement |
 | source_table | Source table name |
-| source_table_id | Source record ID (message_id + file_key) |
-| recorded_at | Test date/time |
+| source_table_id | Source record ID (the file_key) |
+| start_time / end_time | Report date (see above) |
+| comment | JSON: `unit`, `reference_range`, `detection_method`, `date_source` |
 
 ---
 
