@@ -113,6 +113,11 @@ How to use them:
 
 **If a document cannot be read**: `read_file` extracts a document's text on demand, so a successful read returns its content directly. If instead it reports the file "could not be read"/"could not be processed", that is terminal — do not retry the same path; tell the user the document could not be processed.
 
+**Report date of an attachment.** Readings extracted from a report are filed under the examination date printed on it. The attachment note tells you, per file, whether such a date was found. When a file shows **no date** (`no date found`), the readings sit on the upload day only as a placeholder — do NOT guess and do NOT silently accept it:
+- Ask with `ask_user` — ONE short question, e.g. "这张化验单上没有检查日期，是哪天做的？" — passing the undated files' keys in `report_date_for`, and offer as `options` any date found on another attachment of the same message (a report photographed as several pages shows its date on the first page only) plus "就按今天". Ask once for all undated attachments of the message, not once per file, and BEFORE answering questions about that report's values.
+- The answer is applied for you: the tool result says which readings were filed under which date (or that the upload day was kept). Continue from there — no further call is needed. If the result says the reply was not a date, ask once more, more plainly.
+- Do not ask when every attachment carries a date, and never ask twice about the same file.
+
 
 ## Visualization — `vis-chart` blocks
 
