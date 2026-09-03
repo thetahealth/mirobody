@@ -126,14 +126,27 @@ class FileParserDatabaseService:
 
     @staticmethod
     async def _save_to_series_data(db_params: List[Dict[str, Any]]) -> int:
-        """Parallel task: save to th_series_data table"""
+        """Parallel task: save to th_series_data table.
+
+        The unique (user, indicator, start, end) key counts soft-deleted rows,
+        and this used to be a bare ON CONFLICT DO NOTHING — so a report
+        re-uploaded after its file was deleted wrote NOTHING (every reading
+        collided with its own deleted copy) while the log said "Write
+        complete: 9 records" and the file row said 9 indicators. A collision
+        with a DELETED row now revives that row as the new reading; a
+        collision with a live row is still left alone.
+        """
         if not db_params:
             return 0
 
         await execute_query(
-            query="""INSERT INTO th_series_data (user_id, indicator, value, start_time, end_time, source_table, source_table_id, comment) 
+            query="""INSERT INTO th_series_data (user_id, indicator, value, start_time, end_time, source_table, source_table_id, comment)
                VALUES (:user_id, :indicator, :value, :start_time, :end_time, :source_table, :source_table_id, encrypt_content(:comment))
-               ON CONFLICT DO NOTHING""",
+               ON CONFLICT (user_id, indicator, start_time, end_time) DO UPDATE
+                  SET value = EXCLUDED.value, source_table = EXCLUDED.source_table,
+                      source_table_id = EXCLUDED.source_table_id, comment = EXCLUDED.comment,
+                      deleted = 0, update_time = CURRENT_TIMESTAMP
+                WHERE th_series_data.deleted = 1""",
             params=db_params,
         )
         logging.info(f"✅ {len(db_params)} indicator data saved to th_series_data")
@@ -184,25 +197,65 @@ class FileParserDatabaseService:
             return get_utc_now()
 
     @staticmethod
+    async def resolve_report_date(user_id: str, exam_date: str) -> tuple[datetime, str]:
+        """The date a file's readings are filed under, and where it came from.
+
+        Returns `(start_time, date_source)`; `date_source` is "extracted" when
+        the document carried a usable date and "upload_time" when the user's
+        current time stood in for it. The label is written on every reading
+        (comment JSON) and on the file row (th_files.file_content), because
+        without it a guessed date is indistinguishable from a real one: a
+        report photographed as several screenshots shows its date on the first
+        page only, so pages 2..n were filed under "today" and nothing recorded
+        that "today" was a fallback (issue #53). The Data page asks about
+        "upload_time" files, and `POST /health-indicators/file-date` answers.
+
+        A date the model wrote in a shape `parse_date` does not know counts as
+        no date. It used to raise, and the raise threw away every reading on
+        the file — an unknown date is a reason to ask, not to drop the data.
+        """
+        if exam_date and exam_date.strip():
+            start_time = parse_date(exam_date)
+            if start_time is not None:
+                return start_time, "extracted"
+            logging.warning(f"Unparseable report date {exam_date!r} for user_id {user_id}; filing under the upload time")
+        return await FileParserDatabaseService.get_user_current_time_with_timezone(user_id), "upload_time"
+
+    @staticmethod
+    async def manual_report_date(file_key: str) -> Optional[datetime]:
+        """The date the user set on this file, if they set one (`date_source:
+        manual` on the th_files row), else None. Read right before readings are
+        saved, because the answer can arrive while extraction is still running
+        and must not be overwritten by the document's own date."""
+        try:
+            from .file_db_service import FileDbService
+
+            row = await FileDbService.get_file_by_key(file_key)
+            content = (row or {}).get("file_content") or {}
+            if content.get("date_source") != "manual":
+                return None
+            return parse_date(str(content.get("report_date") or ""))
+        except Exception as e:
+            logging.warning(f"manual_report_date lookup failed for {file_key}: {e}")
+            return None
+
+    @staticmethod
     async def save_indicators_to_db(
         user_id: str,
         indicators: List[Dict[str, Any]],
-        exam_date: str,
+        start_time: datetime,
+        date_source: str,
         msg_id: str,
         comment: str = "",
         source_table: str = "th_files",
         file_key: str = None,
     ) -> int:
-        """Batch save health indicators to th_series_data table"""
-        try:
-            # Parse exam date or use current time
-            if not exam_date or not exam_date.strip():
-                start_time = await FileParserDatabaseService.get_user_current_time_with_timezone(user_id)
-            else:
-                start_time = parse_date(exam_date)
-                if start_time is None:
-                    raise ValueError(f"Failed to parse date format: {exam_date}")
+        """Batch save health indicators to th_series_data table.
 
+        `start_time` and `date_source` come from `resolve_report_date`; the
+        caller resolves them so the same answer can be recorded on the file row.
+        """
+        try:
             end_time = start_time
             db_params = []
 
@@ -216,12 +269,14 @@ class FileParserDatabaseService:
                 # Generate source_table_id with file-level precision
                 source_table_id = FileParserDatabaseService.generate_source_table_id(msg_id, file_key)
                 
-                # Build comment JSON with unit, reference_range, and detection_method
+                # Build comment JSON with unit, reference_range, detection_method
+                # and the date's provenance (see resolve_report_date).
                 try:
                     comment_data = {
                         "unit": indicator.get("unit", ""),
                         "reference_range": indicator.get("reference_range", ""),
                         "detection_method": indicator.get("detection_method", ""),
+                        "date_source": date_source,
                     }
                     comment_json = json.dumps(comment_data, ensure_ascii=False)
                 except Exception as e:

@@ -711,9 +711,14 @@ class DeepAgent():
             # (and so the subagent / excluded-tool decisions) is resolved.
             self._apply_harness_profile(llm_client)
 
+            from .deep.hitl import ASK_USER_INTERRUPT, ask_user
             agent_kwargs: dict[str, Any] = dict(
                 model=llm_client,
-                tools=tools,
+                # Agent-only tool (deep/hitl.py): the chat channel's "which
+                # date?" question; the answer is applied on resume, in
+                # generate_response. Never in the MCP tool directory — an MCP
+                # client has no widget to answer ask_user with.
+                tools=[*tools, ask_user],
                 system_prompt=system_prompt,
                 backend=backend,
                 middleware=middleware,
@@ -722,6 +727,7 @@ class DeepAgent():
                 # auto-added general-purpose subagent, and passing an explicit
                 # empty list guarantees we never hand it one of our own.
                 subagents=[],
+                interrupt_on=ASK_USER_INTERRUPT,
             )
             if permissions is not None:
                 agent_kwargs["permissions"] = permissions
@@ -757,12 +763,22 @@ class DeepAgent():
         config: dict,
         chat_context: Any = None,
         skip_tool_names: set[str] | None = None,
+        resume: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """
         Stream agent response with optional tool filtering.
+
+        `resume` is the user's answer to an open `ask_user` question: the
+        thread is paused on that interrupt, so the answer goes in as the
+        tool's result (`Command(resume=...)`) instead of as a new message.
         """
         logger.info("Starting DeepAgent stream")
         trace_id = get_req_ctx("trace_id") or str(uuid.uuid4())
+        if resume is not None:
+            from langgraph.types import Command
+            graph_input: Any = Command(resume={"decisions": [{"type": "respond", "message": resume}]})
+        else:
+            graph_input = {"messages": messages}
 
         # Track tool_ids that should be skipped (for filtering queryDetail)
         skipped_tool_ids: set[str] = set()
@@ -776,7 +792,7 @@ class DeepAgent():
             # tokens/tool-calls flow through process_stream_event into the existing
             # reply/queryTitle/queryDetail event types — no frontend change needed.
             async for stream_item in agent.astream(
-                {"messages": messages},
+                graph_input,
                 context=chat_context,
                 stream_mode=["messages", "updates"],
                 subgraphs=True,
@@ -787,6 +803,14 @@ class DeepAgent():
                     namespace, stream_type, stream_event = stream_item
                 else:
                     namespace, (stream_type, stream_event) = (), stream_item
+                # An `ask_user` call: the middleware paused the graph after the
+                # model step. Hand the question to the client as a widget and
+                # end the turn; the next user message resumes this thread.
+                if stream_type == "updates" and isinstance(stream_event, dict) and "__interrupt__" in stream_event:
+                    widget = _widget_chunk(stream_event["__interrupt__"])
+                    if widget:
+                        yield widget
+                    return
                 try:
                     async for event in StreamConverter.process_stream_event(
                         stream_type, stream_event, trace_id=trace_id, namespace=namespace
@@ -900,21 +924,26 @@ class DeepAgent():
             # silently misses one. Transient — appended to the run's messages
             # only, not the cached system prompt. Matches the list's element type
             # (BaseMessage vs dict) to avoid mixing forms.
-            reminder = await _attachment_reminder(backend, file_list)
-            if reminder:
-                if final_messages and isinstance(final_messages[-1], BaseMessage):
-                    from langchain_core.messages import HumanMessage
-                    final_messages = [*final_messages, HumanMessage(content=reminder)]
-                else:
-                    final_messages = [*final_messages, {"role": "user", "content": reminder}]
-
             token_counter = TokenUsageCallback()
             stream_config = self._create_stream_config(user_id, token_counter, session_id)
+
+            # A thread paused on `ask_user` takes this message as the answer;
+            # the attachment note belongs to a NEW turn only.
+            resume = await _pending_answer(agent, stream_config, messages, user_id)
+            if resume is None:
+                reminder = await _attachment_reminder(backend, file_list)
+                if reminder:
+                    if final_messages and isinstance(final_messages[-1], BaseMessage):
+                        from langchain_core.messages import HumanMessage
+                        final_messages = [*final_messages, HumanMessage(content=reminder)]
+                    else:
+                        final_messages = [*final_messages, {"role": "user", "content": reminder}]
 
             async for event in self._stream_agent_response(
                 agent=agent,
                 messages=final_messages,
                 config=stream_config,
+                resume=resume,
             ):
                 yield event
 
@@ -1092,6 +1121,111 @@ class DeepAgent():
         return llm_clients
 
 
+def _widget_chunk(interrupts: Any) -> dict[str, Any] | None:
+    """The `widget` chunk for a pending `ask_user` call, or None.
+
+    Shape mirrors the hosted product's widget frame so the same client code
+    renders both: `question`, `widget_type` ("single_select" when the tool
+    passed `options`, else "text") and `config.options`. Only `ask_user` can
+    pause this graph (deep/hitl.py), so the first pending action is the one.
+    """
+    try:
+        first = list(interrupts or [])[0]
+        value = getattr(first, "value", None) or {}
+        requests = value.get("action_requests") or []
+        args = (requests[0].get("args") or {}) if requests else {}
+    except (IndexError, AttributeError, TypeError):
+        return None
+    question = str(args.get("question") or "").strip()
+    if not question:
+        return None
+    options = [str(o) for o in (args.get("options") or []) if str(o).strip()]
+    payload = {
+        "widget_type": "single_select" if options else "text",
+        "question": question,
+        "config": {"options": options},
+    }
+    # `content` carries the same payload: the web client keeps every chunk as
+    # {type, content} (store/Chart/data.js), so a top-level-only shape would
+    # render as an empty message.
+    return {"type": "widget", "content": payload, **payload}
+
+
+async def _report_date_status(attached: list[dict[str, Any]]) -> str:
+    """One line per attachment: its file_key and whether a report date was
+    found — what the prompt's "Report date of an attachment" rule keys on.
+
+    Extraction starts when the chat request lands and the date probe answers
+    within seconds, but this note is built at the very start of the turn, so
+    the row may not know yet; the model then reads the document itself and
+    asks only if the text shows no examination date."""
+    from ..pulse.file_parser.services.file_db_service import FileDbService
+
+    lines = []
+    for f in attached:
+        key = f.get("file_key")
+        try:
+            row = await FileDbService.get_file_by_key(key)
+        except Exception:
+            row = None
+        content = (row or {}).get("file_content") or {}
+        source = content.get("date_source")
+        day = str(content.get("report_date") or "")[:10]
+        if source == "extracted":
+            status = f"report date {day} (found on the document)"
+        elif source == "manual":
+            status = f"report date {day} (set by the user)"
+        elif source == "upload_time":
+            status = "no date found — readings are on the upload day until you set one"
+        else:
+            status = "date not determined yet — read the document; if it shows no examination date, ask"
+        lines.append(f"- file_key={key}: {status}")
+    return "Report dates:\n" + "\n".join(lines)
+
+
+async def _pending_answer(agent: Any, config: dict, messages: Any, user_id: str = "") -> str | None:
+    """The user's message as the answer to an open `ask_user`, if one is open.
+
+    A thread paused on an interrupt has a next node to run and an interrupt on
+    its pending task. The client sends the answer as an ordinary chat message
+    (typed, or an option tapped in the widget), so nothing in the request says
+    "this is a resume" — the checkpointer's state does.
+
+    When the open question asked which date attachments are from
+    (`report_date_for`), the answer is applied here and what comes back is
+    the tool result the model reads — the filing already done, no second
+    tool call (deep/hitl.py).
+    """
+    if not config.get("configurable", {}).get("thread_id"):
+        return None
+    try:
+        state = await agent.aget_state(config)
+    except Exception as e:
+        logger.debug(f"no thread state to resume: {e}")
+        return None
+    if not getattr(state, "next", None):
+        return None
+    interrupts = None
+    for t in (getattr(state, "tasks", None) or ()):
+        if getattr(t, "interrupts", None):
+            interrupts = t.interrupts
+            break
+    if not interrupts:
+        return None
+    last = messages[-1] if messages else None
+    content = getattr(last, "content", None) if isinstance(last, BaseMessage) else (last or {}).get("content")
+    if isinstance(content, list):
+        content = " ".join(str(part.get("text", "")) if isinstance(part, dict) else str(part) for part in content)
+    answer = str(content or "").strip()
+    if not answer:
+        return None
+    from .deep.hitl import apply_report_date_answer, pending_report_date_files
+    file_keys = pending_report_date_files(interrupts)
+    if file_keys and user_id:
+        return await apply_report_date_answer(str(user_id), file_keys, answer)
+    return answer
+
+
 async def _attachment_reminder(backend: Any,
                                file_list: list[dict[str, Any]] | None) -> str | None:
     """A short note naming this turn's attachments and their `/uploads/` paths,
@@ -1153,7 +1287,8 @@ async def _attachment_reminder(backend: Any,
     note = (
         "[System note: the user attached file(s) to THIS message. "
         "Read the relevant one(s) with read_file before answering:\n"
-        f"{listing}"
+        f"{listing}\n"
+        f"{await _report_date_status(attached)}"
     )
     # Say so rather than quietly listing fewer than were sent: a model that
     # believes it has seen everything answers about everything.

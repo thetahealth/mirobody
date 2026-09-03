@@ -34,6 +34,35 @@
 
 ### Added
 
+- **Readings know where their date came from, and a file's date can be set
+  in one step** ([#53](https://github.com/thetahealth/mirobody/issues/53)).
+  A report photographed as several screenshots shows its date on the first
+  page only, so the other pages' readings were filed under the upload day and
+  the report's timeline split in two. Extraction cannot tell "page 2 of the
+  same report" from "a second report whose date did not come out", so it no
+  longer guesses: every reading's comment JSON and the file row
+  (`/api/v1/data/uploaded-files` → `report_date`, `date_source`,
+  `date_confirmed`) now say whether the date was `extracted`, is the
+  `upload_time` standing in, or was set by hand. New
+  `POST /api/v1/health-indicators/file-date` re-files all of one file's
+  readings under a chosen date (or confirms the upload time), with the
+  care-circle write grant for proxy uploads. The date is probed FIRST, with
+  one small model call, and pushed to the uploading client as
+  `report_date_detected` on the upload WebSocket seconds after the upload —
+  before the 15-25 s indicator extraction finishes (`extraction_completed`
+  follows with the count) — so the web client's Data page can ask right
+  away: a non-blocking bar offering the date another file of the same
+  multi-select carries, a date picker, or "keep the upload day", with undo.
+  In chat, the agent asks the same question itself with a new agent-only
+  `ask_user` tool (a deepagents human-in-the-loop interrupt rendered as a
+  `widget` chunk with one-tap options; the next message resumes the turn).
+  When the question names the attachments (`report_date_for`), the reply —
+  "2026-01-06", "1月6号", "就按今天" — is parsed and applied on resume,
+  through the same rule, before the model reads it: one tool, one round
+  trip. It is not on the MCP surface. A date the model wrote in an
+  unrecognised shape now files under the upload time with that label
+  instead of dropping every reading on the file.
+
 - **`<PROVIDER>_MODEL`** picks the chat/structured-extraction model per
   provider, mirroring the existing `<PROVIDER>_VISION_MODEL` — needed when a
   redirected endpoint does not serve the provider's default model id.

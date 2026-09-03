@@ -417,6 +417,13 @@ class FileDbService:
                     "processed": file_content.get("processed", False),
                     "file_abstract": file_content.get("file_abstract", ""),
                     "session_id": file_content.get("session_id", ""),
+                    # Where the readings' date came from (#53): "extracted" |
+                    # "upload_time" | "manual"; empty for files extracted before
+                    # the label existed. `date_confirmed` is the user saying the
+                    # upload time is right, so the page stops asking.
+                    "report_date": file_content.get("report_date", ""),
+                    "date_source": file_content.get("date_source", ""),
+                    "date_confirmed": bool(file_content.get("date_confirmed", False)),
                     # NOTE: status/error/progress fields are stored in file_content but not exposed in API
                     # to maintain backward compatibility with frontend
                 }

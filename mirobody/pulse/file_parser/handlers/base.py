@@ -90,6 +90,7 @@ class BaseFileHandler(abc.ABC):
                     user_id=int(ctx.target_user_id),
                     file_name=ctx.filename,
                     file_key=unique_filename,
+                    message_id=ctx.message_id,
                 )
 
             # 5. Abstract extraction (Common step, but check if already extracted)
@@ -430,8 +431,15 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         user_id: int,
         file_name: str,
         file_key: str,
+        message_id: Optional[str] = None,
     ):
-        """Start background indicator extraction with GC-safe task reference."""
+        """Start background indicator extraction with GC-safe task reference.
+
+        `message_id` is the upload session the file arrived in; it is how the
+        task's two progress events find the client's WebSocket (see
+        `_push_upload_event`). A chat-channel upload has no such session and
+        passes None — the agent asks about the date instead.
+        """
         if not self._indicator_extraction_enabled():
             logging.info(
                 f"⏭️  {self.get_type_name()} upload completed, indicator extraction "
@@ -445,6 +453,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
                 user_id=user_id,
                 file_name=file_name,
                 file_key=file_key,
+                message_id=message_id,
             )
         )
         self._background_tasks.add(task)
@@ -454,27 +463,72 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             f"background indicator extraction started: {file_key}"
         )
 
+    @staticmethod
+    async def _push_upload_event(message_id: Optional[str], event: Dict[str, Any]) -> None:
+        """Tell the client that uploaded this file what extraction found.
+
+        The upload socket is per user and outlives the upload (it heartbeats),
+        so a background task can still reach the page that sent the file —
+        which is what lets the Data page ask "which date?" the moment the
+        answer is known instead of on the next reload. Silent when the socket
+        is gone or the upload had no session (chat channel): the file row
+        carries the same facts and the page reads them on its next visit.
+        """
+        if not message_id:
+            return
+        try:
+            from mirobody.pulse.file_parser.file_upload_manager import get_websocket_file_upload_manager
+
+            manager = get_websocket_file_upload_manager()
+            session = manager.upload_sessions.get(message_id) or {}
+            payload = {**event, "messageId": message_id, "sessionId": session.get("session_id", "")}
+            await manager.send_message_by_message_id(message_id, payload)
+        except Exception as e:
+            logging.debug(f"upload event {event.get('type')} not delivered for {message_id}: {e}")
+
     async def _async_extract_indicators(
         self,
         original_text: str,
         user_id: int,
         file_name: str,
         file_key: str,
+        message_id: Optional[str] = None,
     ):
-        """Background task: extract indicators from text and update th_files."""
+        """Background task: extract indicators from text and update th_files.
+
+        Two steps, two events. The date is probed FIRST (one small model call,
+        a few seconds) and announced as `report_date_detected`, so the Data
+        page can ask about a missing date while the 15-25 s indicator
+        extraction is still running; `extraction_completed` follows with the
+        count and the date the readings were actually filed under.
+        """
         file_type = self.get_type_name()
         try:
             logging.info(f"🔄 Starting async indicator extraction for {file_type}: {file_key}")
 
             indicators = []
             llm_ret = {}
+            report = None
             formatted_raw = original_text
             extraction_failed_reason = ""
 
             try:
                 from mirobody.pulse.file_parser.services.content_formatter import ContentFormatter
+                from mirobody.pulse.file_parser.services.database_services import FileParserDatabaseService
+                from mirobody.pulse.file_parser.services.file_db_service import FileDbService
 
-                (indicators, llm_ret) = await self.indicator_extractor.extract_indicators_from_text(
+                probed = await self.indicator_extractor.probe_report_date(original_text)
+                probe_dt, probe_source = await FileParserDatabaseService.resolve_report_date(str(user_id), probed)
+                probe_report = {"report_date": probe_dt.strftime("%Y-%m-%d %H:%M:%S"), "date_source": probe_source}
+                # On the file row now, not after extraction: the bar's answer
+                # (set_file_report_date) reads and writes this row, and the
+                # readings that land later look here for a manual date.
+                await FileDbService.update_file_content(file_key, probe_report)
+                await self._push_upload_event(message_id, {
+                    "type": "report_date_detected", "file_key": file_key, "file_name": file_name, **probe_report,
+                })
+
+                (indicators, llm_ret, report) = await self.indicator_extractor.extract_indicators_from_text(
                     original_text=original_text,
                     user_id=user_id,
                     ocr_db_id=0,
@@ -482,6 +536,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
                     file_name=file_name,
                     file_key=file_key,
                     save_to_db=True,
+                    report_date=(probe_dt, probe_source),
                 )
                 count = len(indicators) if indicators else 0
 
@@ -529,7 +584,14 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
                 formatted_raw=formatted_raw,
                 indicators_count=len(indicators) if indicators else 0,
                 failed_reason=extraction_failed_reason,
+                report=report,
             )
+            await self._push_upload_event(message_id, {
+                "type": "extraction_completed", "file_key": file_key, "file_name": file_name,
+                "indicators_count": len(indicators) if indicators else 0,
+                "failed": bool(extraction_failed_reason),
+                **(report or {}),
+            })
 
             logging.info(f"Async indicator extraction finished for {file_type}: {file_key}")
 
@@ -575,6 +637,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         formatted_raw: str,
         indicators_count: int,
         failed_reason: str = "",
+        report: Optional[Dict[str, str]] = None,
     ):
         """Update th_files with indicator extraction results.
 
@@ -583,6 +646,12 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         e.g. zero LLM keys — is not presented as a processed file. A later
         successful extraction on the same file_key writes `completed`, which
         clears an earlier failure.
+
+        `report` (`report_date` + `date_source`) is the date the readings were
+        filed under and whether it was read off the document or is the upload
+        time standing in. Extraction runs after the upload has already
+        completed, so the file row is the only place the UI can learn this
+        from — it is what the Data page reads to ask "which date?" (#53).
         """
         try:
             from mirobody.pulse.file_parser.services.file_db_service import FileDbService
@@ -595,6 +664,8 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             }
             if failed_reason:
                 updates["error"] = failed_reason
+            if report:
+                updates.update(report)
 
             await FileDbService.update_file_content(
                 file_key=file_key,

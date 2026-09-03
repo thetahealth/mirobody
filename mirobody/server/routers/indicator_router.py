@@ -151,3 +151,67 @@ async def patch_reading(patch: ReadingPatch, user_id: str = Depends(verify_token
         return ErrorResponse(code=404, msg="No such reading.")
 
     return StandardResponse(data={"id": patch.id, "deleted": patch.delete})
+
+
+class FileDatePatch(BaseModel):
+    """Re-file every reading extracted from one uploaded file under a date.
+
+    A report photographed as several screenshots shows its date on the first
+    page only, so the other pages' readings were filed under the upload day
+    and the report's timeline split in two (#53). Extraction runs one file at
+    a time and cannot tell "page 2 of the same report" from "a second report
+    whose date did not come out", so it must not inherit a date on its own —
+    it labels the guess (`date_source: upload_time`, see
+    `FileParserDatabaseService.resolve_report_date`) and the Data page asks.
+    The three answers — a sibling file's extracted date, a typed date, or
+    "keep the upload time" — all land here.
+    """
+
+    file_key: str = Field(min_length=1, max_length=255)
+    report_date: Optional[str] = Field(
+        None,
+        description='"YYYY-MM-DD" (a time may follow). Omit to keep the upload time and stop asking.',
+    )
+
+
+@router.post("/health-indicators/file-date")
+async def patch_file_date(patch: FileDatePatch, user_id: str = Depends(verify_token)):
+    """Move a file's readings to `report_date`, or confirm the upload time.
+
+    The readings belong to the record the file was uploaded INTO
+    (`query_user_id` on a proxy upload), which is the `user_id` every
+    th_series_data row from that file carries; rewriting someone else's record
+    needs the care-circle write grant, the same rule the upload itself enforces.
+    What "set the date" means — including a reading whose indicator already
+    has a row on the target date staying put and being counted as `skipped` —
+    is `services.report_date.set_file_report_date`, shared with the agent tool.
+    """
+    from ...pulse.file_parser.services.db_utils import parse_date
+    from ...pulse.file_parser.services.file_db_service import FileDbService
+    from ...pulse.file_parser.services.report_date import set_file_report_date
+
+    row = await FileDbService.get_file_by_key(patch.file_key)
+    if not row:
+        return ErrorResponse(code=404, msg="No such file.")
+    owner = str(row.get("query_user_id") or row.get("user_id"))
+    if owner != str(user_id):
+        try:
+            await resolve_subject(user_id, owner, require_write=True)
+        except CareCircleDenied:
+            # Same answer as an absent key: file keys are second-resolution
+            # timestamps plus 8 hex, enumerable enough that "forbidden" would
+            # confirm one exists.
+            return ErrorResponse(code=404, msg="No such file.")
+
+    when = None
+    if patch.report_date is not None:
+        when = parse_date(patch.report_date)
+        if when is None:
+            return ErrorResponse(code=400, msg="report_date must be YYYY-MM-DD.")
+
+    try:
+        data = await set_file_report_date(owner, patch.file_key, when)
+    except Exception as e:
+        logging.error(f"[patch_file_date] {e}", exc_info=True)
+        return ErrorResponse(code=500, msg="This update could not complete.")
+    return StandardResponse(data=data)

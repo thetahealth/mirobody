@@ -19,8 +19,61 @@ from mirobody.pulse.file_parser.services.prompts.file_indicator_extract import (
 )
 
 
+#: What the date probe asks for. One field, one job: the full indicator
+#: extraction takes 15-25 s on a lab page, and the Data page cannot ask "which
+#: date?" until it knows there is no date — so the date is looked up first, on
+#: its own, in a few seconds. Sample collection outranks receipt outranks report
+#: date, the same priority the full extraction uses; empty when the document
+#: shows none, never invented.
+_DATE_PROBE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "date_time": {
+            "type": "string",
+            "description": (
+                "The examination date shown in the document, YYYY-MM-DD HH:MM:SS "
+                "(HH:MM:SS may be 00:00:00). Priority: sample collection date > "
+                "sample receipt date > report/review date. Empty string when the "
+                "document shows no such date — never invent one."
+            ),
+        },
+    },
+    "required": ["date_time"],
+}
+
+
 class IndicatorExtractor:
     """Indicator extraction service class"""
+
+    @staticmethod
+    async def probe_report_date(original_text: str) -> str:
+        """The document's examination date alone, ahead of the full extraction.
+
+        Returns the raw string the model gave (parsed by `resolve_report_date`),
+        or "" — for no date AND for any failure, so the caller falls through to
+        the full extraction's own date field either way.
+        """
+        if not original_text or not original_text.strip():
+            return ""
+        from mirobody.utils.llm import async_get_structured_output
+
+        try:
+            ret = await async_get_structured_output(
+                messages=[
+                    {"role": "system", "content": "You read medical documents and report ONE fact: the examination date."},
+                    {"role": "user", "content": f"Document:\n\n{original_text[:12000]}"},
+                ],
+                response_format={"type": "json_schema", "json_schema": {"name": "report_date", "schema": _DATE_PROBE_SCHEMA}},
+                temperature=0,
+                max_tokens=200,
+            )
+        except Exception as e:
+            logging.warning(f"[IndicatorExtractor] date probe failed: {e}")
+            return ""
+        if not ret:
+            return ""
+        result = ret if isinstance(ret, dict) else json.loads(ret)
+        return str(result.get("date_time") or "").strip()
 
     @staticmethod
     async def extract_indicators_from_text(
@@ -32,7 +85,8 @@ class IndicatorExtractor:
         file_key: str = None,
         save_to_db: bool = True,
         progress_callback: Optional[Callable[[int, str], None]] = None,
-    ) -> Tuple[List[Dict[str, Any]], Any]:
+        report_date: Optional[Tuple[Any, str]] = None,
+    ) -> Tuple[List[Dict[str, Any]], Any, Optional[Dict[str, str]]]:
         """
         Extract health indicators from pre-extracted original text.
         
@@ -49,9 +103,16 @@ class IndicatorExtractor:
             file_key: File key from files array
             save_to_db: Whether to save indicators to database
             progress_callback: Progress callback function
+            report_date: `(datetime, date_source)` already resolved by the
+                caller (the date probe). An "extracted" one wins over this
+                extraction's own date field; an "upload_time" one is only a
+                fallback, so a date this extraction finds still upgrades it.
 
         Returns:
-            Tuple[List[Dict[str, Any]], Any]: (List of extracted indicators, LLM response)
+            (indicators, LLM response, report) — `report` is
+            `{"report_date", "date_source"}` as resolved by
+            `FileParserDatabaseService.resolve_report_date` when readings were
+            saved, else None; the handler records it on the th_files row.
         """
         from mirobody.utils.llm import async_get_structured_output
         
@@ -61,7 +122,7 @@ class IndicatorExtractor:
         try:
             if not original_text or not original_text.strip():
                 logging.warning(f"[IndicatorExtractor] Empty original text provided for: {file_name}")
-                return [], {}
+                return [], {}, None
 
             language = get_req_ctx("language", "en")
             
@@ -98,7 +159,7 @@ class IndicatorExtractor:
 
             if not llm_ret:
                 logging.warning(f"[IndicatorExtractor] LLM returned empty response for text extraction - user_id: {user_id}")
-                return [], {}
+                return [], {}, None
 
             if progress_callback:
                 await progress_callback(75, t("parsing_indicator_data", language, "indicator_extractor"))
@@ -113,26 +174,40 @@ class IndicatorExtractor:
 
             if not indicators:
                 logging.info(f"[IndicatorExtractor] No indicators found in text - user_id: {user_id}, file_name: {file_name}")
-                return [], result
+                return [], result, None
 
             # Deduplicate indicators
             indicators = IndicatorExtractor._deduplicate_indicators(indicators)
 
             # Save to database if required
+            report = None
             if save_to_db and indicators:
                 if progress_callback:
                     await progress_callback(80, t("saving_indicators_to_database", language, "indicator_extractor", count=len(indicators)))
 
                 db_start_time = time.time()
+                if report_date and report_date[1] == "extracted":
+                    start_time_dt, date_source = report_date
+                else:
+                    start_time_dt, date_source = await FileParserDatabaseService.resolve_report_date(str(user_id), exam_date)
+                # The user may have answered "which date?" while this ran (the
+                # Data page bar, or the agent's set_report_date): the file row
+                # then already says `manual`, and that answer outranks anything
+                # read off the document.
+                manual = await FileParserDatabaseService.manual_report_date(file_key) if file_key else None
+                if manual is not None:
+                    start_time_dt, date_source = manual, "manual"
                 saved_count = await FileParserDatabaseService.save_indicators_to_db(
                     str(user_id),
                     indicators,
-                    exam_date,
+                    start_time_dt,
+                    date_source,
                     ocr_db_id,
                     "",
                     source_table=source_table,
                     file_key=file_key,
                 )
+                report = {"report_date": start_time_dt.strftime("%Y-%m-%d %H:%M:%S"), "date_source": date_source}
                 db_duration = time.time() - db_start_time
                 logging.info(f"[IndicatorExtractor] Database save completed - user_id: {user_id}, duration: {db_duration:.2f}s, saved: {saved_count}")
 
@@ -145,7 +220,7 @@ class IndicatorExtractor:
             total_duration = time.time() - start_time
             logging.info(f"[IndicatorExtractor] Text extraction completed: {file_name}, {len(indicators)} indicators, {total_duration:.2f}s")
 
-            return indicators, result
+            return indicators, result, report
 
         except json.JSONDecodeError as e:
             logging.error(f"[IndicatorExtractor] JSON parse failed for text extraction: {e}", exc_info=True)
