@@ -29,7 +29,7 @@ The engine does three things, and the codebase (and [Contributing](#-contributin
 
 | Stage                | What it means                                                                                                     | Where                                                   |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| **① Collect** | Pull signals in: 3 device providers + a SQL source · 7 file formats · Apple Health                                             | [`pulse/`](mirobody/pulse/) |
+| **① Collect** | Pull signals in: 3 device providers + a SQL source · 7 file formats · Apple Health (receive-only: a signed iOS client POSTs it in) | [`pulse/`](mirobody/pulse/) |
 | **② Standardize**    | One standard: resolve any reading to canonical codes (LOINC · SNOMED CT · RxNorm), normalize units, land against FHIR-recognized code systems | [`indicator/`](mirobody/indicator/)                    |
 | **③ Answers**  | Reason: agents read the*original documents* through a virtual filesystem and answer with charts & citations     | [`agent/`](mirobody/agent/)                  |
 
