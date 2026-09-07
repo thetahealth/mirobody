@@ -1,0 +1,306 @@
+member	name	display	category	standard_unit	unit_ucum	data_type	state_class	aggregation_policy	loinc	window	panel	aggregation_methods	derived	description	since
+ACTIVE_TIME	exerciseMinutes	Active Time	Activity Metrics	min	min	series	cumulative	sum_delta		00:00		total		Active exercise time	1.4.0
+DAILY_ACTIVITY_INTENSITY_HIGH	dailyActivityIntensityHigh	Daily Activity Intensity High	Activity Metrics	min	min	summary	provider_daily	provider_value		00:00				High intensity activity time	1.4.0
+DAILY_ACTIVITY_INTENSITY_MEDIUM	dailyActivityIntensityMedium	Daily Activity Intensity Medium	Activity Metrics	min	min	summary	provider_daily	provider_value		00:00				Medium intensity activity time	1.4.0
+DAILY_ACTIVITY_INTENSITY_LOW	dailyActivityIntensityLow	Daily Activity Intensity Low	Activity Metrics	min	min	summary	provider_daily	provider_value		00:00				Low intensity activity time	1.4.0
+ALTITUDE_CHANGE	altitudeChange	Altitude Change	Performance Metrics	m	m	series	instant	last		00:00				Net altitude change during exercise	1.4.0
+ALTITUDE_GAIN	altitudeGain	Altitude Gain	Performance Metrics	m	m	series	instant	last		00:00				Total altitude gain during exercise	1.4.0
+HOURLY_APNEA_INDEX	hourlyApneaIndex	Hourly Apnea Index	Medical Metrics	count/hour	/h	summary	provider_daily	provider_value		00:00				Number of apnea events per hour	1.4.0
+DAILY_APNEA_INDEX	dailyApneaIndex	Daily Apnea Index	Medical Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of apnea events per sleep	1.4.0
+AWAKE_TIME	sleepAnalysis_Awake	Awake Time	Sleep Metrics	ms	ms	series	session	duration_union		18:00		total		Awake time during sleep period	1.4.0
+BIA_RESISTANCE	biaResistance	BIA Resistance	Device Specific	Ω	Ohm	mix	instant	last		00:00	body_composition			Bioelectrical impedance analysis measurement value	1.4.0
+BIRTH_DATE	birthDate	Birth Date	Lifestyle	date	date	series	instant	last		00:00				User birth date	1.4.0
+BLOOD_GLUCOSE	bloodGlucoses	Blood Glucose	Metabolic Metrics	mg/dL	mg/dL	series	instant	last	2339-0	00:00		avg,max,min,last,stddev,time_of_max,time_of_min,tir_70_180,pct_below_70,pct_above_180,tir_70_140,pct_above_140,hypo_event_count,hypo_event_times,hypo_event_details,gmi_14d	time_of_max,time_of_min,tir_70_180,pct_below_70,pct_above_180,tir_70_140,pct_above_140,hypo_event_count,hypo_event_times,hypo_event_details,gmi_14d	Glucose concentration in blood	1.4.0
+BLOOD_OXYGEN	oxygenSaturations	Blood Oxygen	Vital Signs	%	%	series	instant	last	2708-6	00:00		avg,min,max		Oxygen saturation level in blood	1.4.0
+BLOOD_PRESSURE_DIASTOLIC	diastolicPressures	Blood Pressure Diastolic	Vital Signs	mmHg	mm[Hg]	mix	instant	last	8462-4	00:00	blood_pressure	avg,max		Blood pressure during heart diastole	1.4.0
+BLOOD_PRESSURE_SYSTOLIC	systolicPressures	Blood Pressure Systolic	Vital Signs	mmHg	mm[Hg]	mix	instant	last	8480-6	00:00	blood_pressure	avg,max		Blood pressure during heart systole	1.4.0
+BMI	bmis	BMI	Body Composition	count	{#}	series	instant	last	39156-5	00:00	body_composition	last		Ratio of weight to height	1.4.0
+BMR	basalMetabolicRate	BMR	Body Composition	kcal	kcal	mix	instant	last		00:00	body_composition			Energy required to maintain basic physiological functions	1.4.0
+BODY_AGE	bodyAge	Body Age	Body Composition	count	{#}	mix	instant	last		00:00	body_composition			Physiological age based on body composition	1.4.0
+BODY_FAT_PERCENTAGE	bodyFatPercentages	Body Fat Percentage	Body Composition	%	%	series	instant	last		00:00	body_composition	last		Percentage of body fat relative to total body weight	1.4.0
+BODY_SINEW	bodySinew	Body Sinew	Body Composition	count	{#}	series	instant	last		00:00	body_composition			Tendon mass	1.4.0
+BODY_TEMPERATURE	bodyTemperatures	Body Temperature	Vital Signs	°C	Cel	mix	instant	last	8310-5	00:00		avg		Human body core temperature	1.4.0
+BODY_WATER_PERCENTAGE	bodyWater	Body Water Percentage	Body Composition	%	%	mix	instant	last		00:00	body_composition			Percentage of body water relative to total body weight	1.4.0
+BONE_MASS	bodyBone	Bone Mass	Body Composition	kg	kg	mix	instant	last		00:00	body_composition			Bone mass weight	1.4.0
+CALORIES_ACTIVE	activeCalories	Calories Active	Activity Metrics	kcal	kcal	series	cumulative	sum_delta		00:00		total		Calories burned through exercise	1.4.0
+CALORIES_BASAL	basalCalories	Calories Basal	Activity Metrics	kcal	kcal	series	cumulative	sum_delta		00:00		total		Calories burned through basal metabolism	1.4.0
+DAILY_CALORIES_TOTAL	dailyTotalCalories	Daily Calories Total	Activity Metrics	kcal	kcal	summary	provider_daily	provider_value		00:00				Total calories including active and basal metabolism	1.4.0
+CHOLESTEROL_HDL	bodyCholesterolHDL	Cholesterol HDL	Metabolic Metrics	mmol/L	mmol/L	series	instant	last		00:00	lipids			High-density lipoprotein cholesterol level	1.4.0
+CHOLESTEROL_LDL	bodyCholesterolLDL	Cholesterol LDL	Metabolic Metrics	mmol/L	mmol/L	series	instant	last		00:00	lipids			Low-density lipoprotein cholesterol level	1.4.0
+CHOLESTEROL_TOTAL	bodyCholesterol	Cholesterol Total	Metabolic Metrics	mmol/L	mmol/L	series	instant	last		00:00	lipids			Total cholesterol level in blood	1.4.0
+CHOLESTEROL_TRIGLYCERIDES	bodyCholesterolTriglycerides	Cholesterol Triglycerides	Metabolic Metrics	mmol/L	mmol/L	series	instant	last		00:00	lipids			Triglyceride level in blood	1.4.0
+CYCLING_DISTANCE	cyclingDistances	Cycling Distance	Activity Metrics	m	m	series	cumulative	sum_delta		00:00		total		Total cycling distance	1.4.0
+CYCLING_DURATION	cyclingDuration	Cycling Duration	Activity Metrics	ms	ms	series	instant	last		00:00				Duration of cycling	1.4.0
+CYCLING_SPEED	cyclingSpeeds	Cycling Speed	Activity Metrics	m/s	m/s	series	instant	last		00:00				Average cycling speed	1.4.0
+DAILY_CALORIES_ACTIVE	dailyCaloriesActive	Daily Calories Active	Activity Metrics	kcal	kcal	summary	provider_daily	provider_value		00:00				Daily summary of calories burned through exercise	1.4.0
+DAILY_CALORIES_BASAL	dailyCaloriesBasal	Daily Calories Basal	Activity Metrics	kcal	kcal	summary	provider_daily	provider_value		00:00				Daily summary of calories burned through basal metabolism	1.4.0
+DAILY_DISTANCE	dailyDistance	Daily Distance	Activity Metrics	m	m	summary	provider_daily	provider_value		00:00				Daily summary of walking or exercise distance	1.4.0
+DEEP_SLEEP	sleepAnalysis_Asleep(Deep)	Deep Sleep	Sleep Metrics	ms	ms	series	session	duration_union		18:00		total		Deep sleep duration	1.4.0
+DIETARY_ALCOHOL	alcohol	Dietary Alcohol	Nutrition Intake	g	g	series	cumulative	sum_delta		00:00				Alcohol intake amount	1.4.0
+DIETARY_CAFFEINE	caffeine	Dietary Caffeine	Nutrition Intake	g	g	series	cumulative	sum_delta		00:00				Caffeine intake amount	1.4.0
+DIETARY_CARBS	carbohydrates	Dietary Carbs	Nutrition Intake	g	g	mix	cumulative	sum_delta		00:00				Carbohydrate intake amount	1.4.0
+DIETARY_CHOLESTEROL	cholesterol	Dietary Cholesterol	Nutrition Intake	g	g	series	cumulative	sum_delta		00:00				Dietary cholesterol intake amount	1.4.0
+DIETARY_SODIUM	sodium	Dietary Sodium	Nutrition Intake	mg	mg	mix	cumulative	sum_delta		00:00				Dietary sodium intake amount	1.4.0
+DIETARY_ENERGY	energyes	Dietary Energy	Nutrition Intake	kcal	kcal	mix	cumulative	sum_delta		00:00				Total energy intake amount	1.4.0
+DIETARY_FATS	fats	Dietary Fats	Nutrition Intake	g	g	mix	cumulative	sum_delta		00:00				Fat intake amount	1.4.0
+DIETARY_FIBRE	fibre	Dietary Fibre	Nutrition Intake	g	g	series	cumulative	sum_delta		00:00				Dietary fiber intake amount	1.4.0
+DIETARY_MONOUNSATURATED	monounsaturated	Dietary Monounsaturated	Nutrition Intake	g	g	series	cumulative	sum_delta		00:00				Monounsaturated fatty acid intake amount	1.4.0
+DIETARY_OMEGA3	omega3	Dietary Omega3	Nutrition Intake	g	g	series	cumulative	sum_delta		00:00				Omega-3 fatty acid intake amount	1.4.0
+DIETARY_OMEGA6	omega6	Dietary Omega6	Nutrition Intake	g	g	series	cumulative	sum_delta		00:00				Omega-6 fatty acid intake amount	1.4.0
+DIETARY_POLYUNSATURATED	polyunsaturated	Dietary Polyunsaturated	Nutrition Intake	g	g	series	cumulative	sum_delta		00:00				Polyunsaturated fatty acid intake amount	1.4.0
+DIETARY_PROTEIN	proteins	Dietary Protein	Nutrition Intake	g	g	mix	cumulative	sum_delta		00:00				Protein intake amount	1.4.0
+DIETARY_SATURATED	saturated	Dietary Saturated	Nutrition Intake	g	g	series	cumulative	sum_delta		00:00				Saturated fatty acid intake amount	1.4.0
+DIETARY_SUGAR	sugar	Dietary Sugar	Nutrition Intake	g	g	series	cumulative	sum_delta		00:00				Sugar intake amount	1.4.0
+DIETARY_WATER	waters	Dietary Water	Nutrition Intake	L	L	series	cumulative	sum_delta		00:00		total		Daily water intake	1.4.0
+DISTANCE	walkingRunningDistances	Distance	Activity Metrics	m	m	series	cumulative	sum_delta		00:00		total		Walking or exercise distance	1.4.0
+WALKING_RUNNING_DURATION	walkingRunningDuration	Walking Running Duration	Activity Metrics	ms	ms	series	instant	last		00:00				Duration of walking and running	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE	electrocardiogramVoltage	Electrocardiogram Voltage	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram voltage signal	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD1	electrocardiogramVoltageLead1	Electrocardiogram Voltage Lead1	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram lead I voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD2	electrocardiogramVoltageLead2	Electrocardiogram Voltage Lead2	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram lead II voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD3	electrocardiogramVoltageLead3	Electrocardiogram Voltage Lead3	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram lead III voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_AVF	electrocardiogramVoltageLeadAvf	Electrocardiogram Voltage Lead AVF	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram aVF lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_AVL	electrocardiogramVoltageLeadAvl	Electrocardiogram Voltage Lead AVL	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram aVL lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_AVR	electrocardiogramVoltageLeadAvr	Electrocardiogram Voltage Lead AVR	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram aVR lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_V1	electrocardiogramVoltageLeadV1	Electrocardiogram Voltage Lead V1	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram V1 lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_V2	electrocardiogramVoltageLeadV2	Electrocardiogram Voltage Lead V2	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram V2 lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_V3	electrocardiogramVoltageLeadV3	Electrocardiogram Voltage Lead V3	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram V3 lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_V3R	electrocardiogramVoltageLeadV3R	Electrocardiogram Voltage Lead V3R	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram V3R lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_V4	electrocardiogramVoltageLeadV4	Electrocardiogram Voltage Lead V4	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram V4 lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_V4R	electrocardiogramVoltageLeadV4R	Electrocardiogram Voltage Lead V4R	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram V4R lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_V5	electrocardiogramVoltageLeadV5	Electrocardiogram Voltage Lead V5	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram V5 lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_V5R	electrocardiogramVoltageLeadV5R	Electrocardiogram Voltage Lead V5R	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram V5R lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_V6	electrocardiogramVoltageLeadV6	Electrocardiogram Voltage Lead V6	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram V6 lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_V7	electrocardiogramVoltageLeadV7	Electrocardiogram Voltage Lead V7	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram V7 lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_V8	electrocardiogramVoltageLeadV8	Electrocardiogram Voltage Lead V8	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram V8 lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_LEAD_V9	electrocardiogramVoltageLeadV9	Electrocardiogram Voltage Lead V9	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram V9 lead voltage	1.4.0
+ELECTROCARDIOGRAM_VOLTAGE_POSTERIOR_LEADS	electrocardiogramVoltagePosteriorLeads	Electrocardiogram Voltage Posterior Leads	Medical Metrics	mV	mV	series	instant	last		00:00				Electrocardiogram posterior lead voltage	1.4.0
+FAT_FREE_WEIGHT	bodyFatFreeWeight	Fat Free Weight	Body Composition	kg	kg	mix	instant	last		00:00	body_composition			Fat-free body weight	1.4.0
+FLOORS_CLIMBED	floors	Floors Climbed	Activity Metrics	count	{#}	series	cumulative	sum_delta		00:00		total		Number of floors climbed	1.4.0
+FLOORS_CLIMBED_DURATION	floorsDuration	Floors Climbed Duration	Activity Metrics	ms	ms	series	instant	last		00:00				Duration of floors climbed	1.4.0
+DAILY_FLOORS_CLIMBED	dailyFloors	Daily Floors Climbed	Activity Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of floors climbed	1.4.0
+HEART_RATE	heartRates	Heart Rate	Vital Signs	count/min	/min	series	instant	mean_min_max	8867-4	00:00		avg,max,min,morning_hr_jump,nighttime_resting_hr	morning_hr_jump,nighttime_resting_hr	Number of heartbeats per minute	1.4.0
+HEART_RATE_MAX	heartRateMax	Heart Rate Max	Vital Signs	bpm	/min	series	instant	last		00:00				Maximum heart rate during time range	1.4.0
+DAILY_HEART_RATE_MAX	dailyHeartRateMax	Daily Heart Rate Max	Vital Signs	bpm	/min	summary	provider_daily	provider_value		00:00				Maximum heart rate during time range	1.4.0
+HEART_RATE_MIN	heartRateMin	Heart Rate Min	Vital Signs	bpm	/min	series	instant	last		00:00				Minimum heart rate during time range	1.4.0
+DAILY_HEART_RATE_MIN	dailyHeartRateMin	Daily Heart Rate Min	Vital Signs	bpm	/min	summary	provider_daily	provider_value		00:00				Minimum heart rate during time range	1.4.0
+DAILY_HEART_RATE_AVG	dailyHeartRateAvg	Daily Heart Rate Avg	Vital Signs	bpm	/min	summary	provider_daily	provider_value		00:00				Avg heart rate during time range	1.4.0
+RESTING_HEART_RATE	restingHeartRates	Resting Heart Rate	Vital Signs	count/min	/min	series	instant	mean_min_max	40443-4	00:00		avg,min,max		Heart rate at rest	1.4.0
+DAILY_HEART_RATE_RESTING	dailyRestingHeartRates	Daily Heart Rate Resting	Vital Signs	count/min	/min	summary	provider_daily	provider_value	40443-4	00:00				Heart rate at rest	1.4.0
+HEIGHT	heights	Height	Body Composition	m	m	series	instant	last	8302-2	00:00		last		Body height	1.4.0
+HRV	hrvDatas	HRV	Metabolic Metrics	ms	ms	series	instant	mean_min_max		00:00		avg		Heart rate variability	1.4.0
+HRV_RMSSD	hrvRMSSD	HRV Rmssd	Metabolic Metrics	ms	ms	series	instant	mean_min_max		00:00		avg		Root mean square of successive differences in heart rate	1.4.0
+IGE_BAHA_GRASS	igeBahaGrass	Ige Baha Grass	Medical Metrics	FSU	FSU	series	instant	last		00:00				Baha grass allergen-specific IgE antibody level	1.4.0
+IGG_DAIRY	iggDairy	Igg Dairy	Medical Metrics	FSU	FSU	series	instant	last		00:00				Dairy-specific IgG antibody level	1.4.0
+INSULIN_INJECTION_LONG_ACTING	insulinInjectionLongActing	Insulin Injection Long Acting	Medical Metrics	unit	U	series	instant	last		00:00				Long-acting insulin injection amount	1.4.0
+INSULIN_INJECTION_RAPID_ACTING	insulinInjectionRapidActing	Insulin Injection Rapid Acting	Medical Metrics	unit	U	series	instant	last		00:00				Rapid-acting insulin injection amount	1.4.0
+LIGHT_SLEEP	sleepAnalysis_Asleep(Core)	Light Sleep	Sleep Metrics	ms	ms	series	session	duration_union		18:00		total		Light sleep duration	1.4.0
+MAX_HEART_RATE_PROFILE	maxHeartRateProfile	Max Heart Rate Profile	Vital Signs	count/min	/min	series	instant	last		00:00				Maximum heart rate set in user profile	1.4.0
+MINDFULNESS_MINUTES	mindfulnessMinutes	Mindfulness Minutes	Lifestyle	min	min	series	instant	last		00:00				Mindfulness meditation time	1.4.0
+MUSCLE_PERCENTAGE	bodyMuscle	Muscle Percentage	Body Composition	%	%	mix	instant	last		00:00	body_composition			Percentage of muscle relative to total body weight	1.4.0
+PROTEIN_PERCENTAGE	bodyProtein	Protein Percentage	Body Composition	%	%	mix	instant	last		00:00	body_composition			Percentage of protein relative to total body weight	1.4.0
+RECOVERY_SCORE	recoveryScore	Recovery Score	Performance Metrics	%	%	series	instant	last		00:00				Body recovery status score percentage based on HRV, resting heart rate and other indicators	1.4.0
+RECOVERY_TIME	recoveryes	Recovery Time	Performance Metrics	count/min	/min	series	instant	last		00:00				Recommended recovery time	1.4.0
+REM_SLEEP	sleepAnalysis_Asleep(REM)	REM Sleep	Sleep Metrics	ms	ms	series	session	duration_union		18:00		total		Rapid eye movement sleep duration	1.4.0
+RESPIRATORY_RATE	respiratoryRates	Respiratory Rate	Vital Signs	count/min	/min	series	instant	mean_min_max	9279-1	00:00		avg		Number of breaths per minute	1.4.0
+RESPIRATORY_RATE_MIN	respiratoryRateMin	Respiratory Rate Min	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Minimum respiratory rate	1.4.0
+RESPIRATORY_RATE_MAX	respiratoryRateMax	Respiratory Rate Max	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Maximum respiratory rate	1.4.0
+RESPIRATORY_RATE_AVG	respiratoryRateAvg	Respiratory Rate Avg	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Average respiratory rate	1.4.0
+CADENCE	cadence	Cadence	Performance Metrics	steps/min	steps/min	summary	provider_daily	provider_value		00:00				Step cadence during exercise	1.4.0
+CADENCE_MIN	cadenceMin	Cadence Min	Performance Metrics	steps/min	steps/min	summary	provider_daily	provider_value		00:00				Minimum step cadence	1.4.0
+CADENCE_MAX	cadenceMax	Cadence Max	Performance Metrics	steps/min	steps/min	summary	provider_daily	provider_value		00:00				Maximum step cadence	1.4.0
+HRV_MIN	hrvMin	HRV Min	Metabolic Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Minimum heart rate variability	1.4.0
+HRV_MAX	hrvMax	HRV Max	Metabolic Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Maximum heart rate variability	1.4.0
+STRESS_LEVEL_MIN	stressLevelMin	Stress Level Min	Performance Metrics	score	{score}	summary	provider_daily	provider_value		00:00				Minimum stress level	1.4.0
+STRESS_LEVEL_MAX	stressLevelMax	Stress Level Max	Performance Metrics	score	{score}	summary	provider_daily	provider_value		00:00				Maximum stress level	1.4.0
+QTC_INTERVAL	qtcInterval	Qtc Interval	Medical Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Corrected QT interval (heart electrical activity)	1.4.0
+QTC_INTERVAL_MIN	qtcIntervalMin	Qtc Interval Min	Medical Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Minimum corrected QT interval	1.4.0
+QTC_INTERVAL_MAX	qtcIntervalMax	Qtc Interval Max	Medical Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Maximum corrected QT interval	1.4.0
+SHOCK_LEVEL	shockLevel	Shock Level	Performance Metrics	score	{score}	summary	provider_daily	provider_value		00:00				Exercise shock/impact level	1.4.0
+SHOCK_LEVEL_MIN	shockLevelMin	Shock Level Min	Performance Metrics	score	{score}	summary	provider_daily	provider_value		00:00				Minimum shock level	1.4.0
+SHOCK_LEVEL_MAX	shockLevelMax	Shock Level Max	Performance Metrics	score	{score}	summary	provider_daily	provider_value		00:00				Maximum shock level	1.4.0
+STRAIN_MIN	strainMin	Strain Min	Performance Metrics	score	{score}	summary	provider_daily	provider_value		00:00				Minimum strain level	1.4.0
+STRAIN_MAX	strainMax	Strain Max	Performance Metrics	score	{score}	summary	provider_daily	provider_value		00:00				Maximum strain level	1.4.0
+HR_ZONE_1_TIME	hrZone1Time	HR Zone 1 Time	Performance Metrics	s	s	summary	provider_daily	provider_value		00:00				Time spent in heart rate zone 1 (50-60% max HR)	1.4.0
+HR_ZONE_2_TIME	hrZone2Time	HR Zone 2 Time	Performance Metrics	s	s	summary	provider_daily	provider_value		00:00				Time spent in heart rate zone 2 (60-70% max HR)	1.4.0
+HR_ZONE_3_TIME	hrZone3Time	HR Zone 3 Time	Performance Metrics	s	s	summary	provider_daily	provider_value		00:00				Time spent in heart rate zone 3 (70-80% max HR)	1.4.0
+HR_ZONE_4_TIME	hrZone4Time	HR Zone 4 Time	Performance Metrics	s	s	summary	provider_daily	provider_value		00:00				Time spent in heart rate zone 4 (80-90% max HR)	1.4.0
+HR_ZONE_5_TIME	hrZone5Time	HR Zone 5 Time	Performance Metrics	s	s	summary	provider_daily	provider_value		00:00				Time spent in heart rate zone 5 (90-100% max HR)	1.4.0
+NORMAL_BEATS_COUNT	normalBeatsCount	Normal Beats Count	Medical Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of normal heartbeats	1.4.0
+ABNORMAL_BEATS_COUNT	abnormalBeatsCount	Abnormal Beats Count	Medical Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of abnormal heartbeats	1.4.0
+UNKNOWN_BEATS_COUNT	unknownBeatsCount	Unknown Beats Count	Medical Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of unrecognized heartbeats	1.4.0
+NORMAL_RHYTHM_PERCENTAGE	normalRhythmPercentage	Normal Rhythm Percentage	Medical Metrics	%	%	summary	provider_daily	provider_value		00:00				Percentage of normal heart rhythm	1.4.0
+ABNORMAL_RHYTHM_PERCENTAGE	abnormalRhythmPercentage	Abnormal Rhythm Percentage	Medical Metrics	%	%	summary	provider_daily	provider_value		00:00				Percentage of abnormal heart rhythm	1.4.0
+ARRHYTHMIA_NORMAL_SEGMENTS	arrhythmiaNormalSegments	Arrhythmia Normal Segments	Medical Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of normal rhythm segments	1.4.0
+ARRHYTHMIA_AFIB_SEGMENTS	arrhythmiaAfibSegments	Arrhythmia Afib Segments	Medical Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of atrial fibrillation segments detected	1.4.0
+ARRHYTHMIA_OTHER_SEGMENTS	arrhythmiaOtherSegments	Arrhythmia Other Segments	Medical Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of other arrhythmia segments	1.4.0
+ARRHYTHMIA_NOISE_SEGMENTS	arrhythmiaNoiseSegments	Arrhythmia Noise Segments	Medical Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of noise segments	1.4.0
+ARRHYTHMIA_AFIB_DURATION	arrhythmiaAfibDuration	Arrhythmia Afib Duration	Medical Metrics	s	s	summary	provider_daily	provider_value		00:00				Total duration of atrial fibrillation	1.4.0
+ARRHYTHMIA_AFIB_PERCENTAGE	arrhythmiaAfibPercentage	Arrhythmia Afib Percentage	Medical Metrics	%	%	summary	provider_daily	provider_value		00:00				Percentage of atrial fibrillation time	1.4.0
+SKIN_TEMPERATURE	skinTemperature	Skin Temperature	Vital Signs	°C	Cel	series	instant	last	8310-5	00:00				Skin surface temperature measurement	1.4.0
+SLEEP_ANALYSIS_ASLEEP_CORE	sleepAnalysis_Asleep(Core)	Sleep Analysis Asleep Core	Sleep Metrics	ms	ms	series	session	duration_union		18:00				Core sleep stage duration in sleep analysis	1.4.0
+SLEEP_ANALYSIS_ASLEEP_DEEP	sleepAnalysis_Asleep(Deep)	Sleep Analysis Asleep Deep	Sleep Metrics	ms	ms	series	session	duration_union		18:00				Deep sleep stage duration in sleep analysis	1.4.0
+SLEEP_ANALYSIS_ASLEEP_REM	sleepAnalysis_Asleep(REM)	Sleep Analysis Asleep REM	Sleep Metrics	ms	ms	series	session	duration_union		18:00				REM sleep stage duration in sleep analysis	1.4.0
+SLEEP_ANALYSIS_ASLEEP_UNSPECIFIED	sleepAnalysis_Asleep(Unspecified)	Sleep Analysis Asleep Unspecified	Sleep Metrics	ms	ms	series	interval	duration_union		18:00				Unspecified sleep stage duration in sleep analysis	1.4.0
+SLEEP_ANALYSIS_AWAKE	sleepAnalysis_Awake	Sleep Analysis Awake	Sleep Metrics	ms	ms	series	session	duration_union		18:00				Awake stage duration in sleep analysis	1.4.0
+SLEEP_ASLEEP_CORE	sleepAnalysis_Asleep(Core)	Sleep Asleep Core	Sleep Metrics	ms	ms	series	session	duration_union		18:00				Core sleep time	1.4.0
+SLEEP_ASLEEP_DEEP	sleepAnalysis_Asleep(Deep)	Sleep Asleep Deep	Sleep Metrics	ms	ms	series	session	duration_union		18:00				Deep sleep time	1.4.0
+SLEEP_ASLEEP_REM	sleepAnalysis_Asleep(REM)	Sleep Asleep REM	Sleep Metrics	ms	ms	series	session	duration_union		18:00				REM sleep time	1.4.0
+SLEEP_AWAKE	sleepAnalysis_Awake	Sleep Awake	Sleep Metrics	ms	ms	series	session	duration_union		18:00				Awake time during sleep period	1.4.0
+SLEEP_CONSISTENCY	sleepConsistency	Sleep Consistency	Sleep Metrics	%	%	series	session	duration_union		18:00				Sleep consistency percentage measuring sleep routine regularity	1.4.0
+SLEEP_DISTURBANCES	sleepDisturbances	Sleep Disturbances	Sleep Metrics	count	{#}	series	session	duration_union		18:00		total		Number of disturbances and awakenings during sleep	1.4.0
+SLEEP_DURATION	sleepDuration	Sleep Duration	Sleep Metrics	hours	h	series	instant	last		18:00				Total sleep time	1.4.0
+SLEEP_EFFICIENCY	sleepEfficiency	Sleep Efficiency	Sleep Metrics	%	%	series	session	duration_union		18:00		avg		Percentage of actual sleep time relative to time in bed	1.4.0
+SLEEP_IN_BED	sleepAnalysis_InBed	Sleep In Bed	Sleep Metrics	ms	ms	series	session	duration_union		18:00		total,sleep_onset_latency	sleep_onset_latency	Total time in bed	1.4.0
+SLEEP_LATENCY	sleepLatency	Sleep Latency	Sleep Metrics	seconds	s	series	session	duration_union		18:00				Time from lying down to falling asleep	1.4.0
+SLEEP_NAP	napDuration	Sleep Nap	Sleep Metrics	ms	ms	series	instant	last		18:00				Short daytime nap duration	1.4.0
+SLEEP_PERFORMANCE	sleepPerformance	Sleep Performance	Sleep Metrics	%	%	series	session	duration_union		18:00				Sleep performance score percentage based on actual vs needed sleep time	1.4.0
+SLEEP_QUALITY	sleepQuality	Sleep Quality	Sleep Metrics	%	%	series	instant	last		18:00				Sleep quality score	1.4.0
+SLEEP_UNSPECIFIED	sleepAnalysis_Asleep(Unspecified)	Sleep Unspecified	Sleep Metrics	ms	ms	series	interval	duration_union		18:00				Unclassified sleep time	1.4.0
+SPEED	speeds	Speed	Activity Metrics	m/s	m/s	series	instant	last		00:00				Exercise speed	1.4.0
+WALKING_SPEED	walkingSpeeds	Walking Speed	Activity Metrics	m/s	m/s	series	instant	mean_min_max		00:00		avg,max		Walking speed	1.4.0
+STEPS	steps	Steps	Activity Metrics	count	{#}	series	cumulative	sum_delta		00:00		total		Walking step count	1.4.0
+STEP_DURATION	stepDuration	Step Duration	Activity Metrics	ms	ms	series	instant	last		00:00				Walking step duration	1.4.0
+DAILY_STEPS	dailySteps	Daily Steps	Activity Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Daily total step count summary	1.4.0
+DAILY_AVG_HEART_RATE	dailyAvgHeartRate	Daily Avg Heart Rate	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Daily average heart rate summary	1.4.0
+DAILY_WEIGHT	dailyWeight	Daily Weight	Body Composition	kg	kg	summary	provider_daily	provider_value		00:00				Daily weight measurement summary	1.4.0
+DAILY_SLEEP_EFFICIENCY	dailySleepEfficiency	Daily Sleep Efficiency	Sleep Metrics	%	%	summary	provider_daily	provider_value		00:00				Daily sleep efficiency summary	1.4.0
+DAILY_SLEEP_DURATION	dailySleepDuration	Daily Sleep Duration	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Daily total time in bed	1.4.0
+DAILY_TOTAL_SLEEP_TIME	dailyTotalSleepTime	Daily Total Sleep Time	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Daily total sleep time	1.4.0
+DAILY_DEEP_SLEEP	dailyDeepSleep	Daily Deep Sleep	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Daily langchain sleep duration	1.4.0
+DAILY_LIGHT_SLEEP	dailyLightSleep	Daily Light Sleep	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Daily light sleep duration	1.4.0
+DAILY_REM_SLEEP	dailyRemSleep	Daily REM Sleep	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Daily REM sleep duration	1.4.0
+DAILY_AWAKE_TIME	dailyAwakeTime	Daily Awake Time	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Daily awake time during sleep	1.4.0
+DAILY_SLEEP_LATENCY	dailySleepLatency	Daily Sleep Latency	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Daily sleep onset latency	1.4.0
+DAILY_SLEEP_AVG_HEART_RATE	dailySleepAvgHeartRate	Daily Sleep Avg Heart Rate	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Daily average heart rate during sleep	1.4.0
+DAILY_SLEEP_LOWEST_HEART_RATE	dailySleepLowestHeartRate	Daily Sleep Lowest Heart Rate	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Daily lowest heart rate during sleep	1.4.0
+DAILY_SLEEP_AVG_HRV	dailySleepAvgHrv	Daily Sleep Avg HRV	Metabolic Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Daily average HRV during sleep	1.4.0
+DAILY_WORKOUT_AVG_HRV	dailyWorkoutAvgHrv	Daily Workout Avg HRV	Metabolic Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Daily average HRV during workout	1.4.0
+DAILY_SLEEP_RESPIRATORY_RATE	dailySleepRespiratoryRate	Daily Sleep Respiratory Rate	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Daily average respiratory rate during sleep	1.4.0
+DAILY_SLEEP_SKIN_TEMPERATURE	dailySleepSkinTemperature	Daily Sleep Skin Temperature	Vital Signs	°C	Cel	summary	provider_daily	provider_value		00:00				Daily average skin temperature during sleep	1.4.0
+DAILY_SLEEP_TEMPERATURE_DELTA	dailySleepTemperatureDelta	Daily Sleep Temperature Delta	Vital Signs	°C	Cel	summary	provider_daily	provider_value		00:00				Daily temperature deviation from baseline	1.4.0
+STRAIN	strain	Strain	Performance Metrics	score	{score}	summary	provider_daily	provider_value		00:00				Strain score, cardiovascular load indicator calculated from heart rate data	1.4.0
+STRESS_LEVEL	stressLevel	Stress Level	Performance Metrics	%	%	mix	instant	last		00:00				Body stress level score	1.4.0
+STRESS_HIGH_DURATION	stressHighDuration	Stress High Duration	Performance Metrics	min	min	summary	provider_daily	provider_value		00:00				Duration of high stress state per day (Oura daily_stress.stress_high, seconds→minutes)	1.4.0
+RECOVERY_HIGH_DURATION	recoveryHighDuration	Recovery High Duration	Performance Metrics	min	min	summary	provider_daily	provider_value		00:00				Duration of high recovery state per day (Oura daily_stress.recovery_high, seconds→minutes)	1.4.0
+SUBCUTANEOUS_FAT	bodySubFat	Subcutaneous Fat	Body Composition	%	%	mix	instant	last		00:00	body_composition			Subcutaneous fat percentage	1.4.0
+TEMPERATURE_DELTA	temperatureDelta	Temperature Delta	Vital Signs	°C	Cel	series	instant	last		00:00				Body temperature change during sleep	1.4.0
+TOTAL_SLEEP	sleepAnalysis_Asleep(Total)	Total Sleep	Sleep Metrics	ms	ms	series	interval	duration_union		18:00		total		Total actual sleep time	1.4.0
+TOTAL_SLEEP_TIME	totalSleepTime	Total Sleep Time	Sleep Metrics	seconds	s	series	instant	last		18:00				Total actual sleep time	1.4.0
+TRAINING_LOAD	trainingLoad	Training Load	Performance Metrics	score	{score}	series	instant	last		00:00				Training intensity and load score	1.4.0
+DAILY_TRAINING_LOAD	dailyTrainingLoad	Daily Training Load	Performance Metrics	score	{score}	summary	provider_daily	provider_value		00:00				Training intensity and load score	1.4.0
+USER_GENDER	userGender	User Gender	Lifestyle	enum	enum	mix	instant	last		00:00				User gender information	1.4.0
+USER_SEX	userSex	User Sex	Lifestyle	enum	enum	series	instant	last		00:00				User biological sex	1.4.0
+UV_EXPOSURE	uvExposures	Uv Exposure	Lifestyle	count	{#}	series	instant	last		00:00				UV exposure index	1.4.0
+VISCERAL_FAT	bodyVisFat	Visceral Fat	Body Composition	%	%	mix	instant	last		00:00	body_composition			Visceral fat level around organs	1.4.0
+VO2_MAX	vo2Maxs	VO2 Max	Performance Metrics	mL/min/kg	mL/min/kg	mix	instant	last	60842-2	00:00		avg,max		Maximum oxygen uptake capacity	1.4.0
+WAIST_CIRCUMFERENCE	waistCircumferences	Waist Circumference	Body Composition	m	m	series	instant	last		00:00		last		Waist circumference	1.4.0
+WALKING_HEART_RATE	walkingHeartRates	Walking Heart Rate	Vital Signs	count/min	/min	series	instant	mean_min_max		00:00		avg,min,max		Heart rate during walking	1.4.0
+DAILY_WALKING_HEART_RATE	dailyWalkingHeartRates	Daily Walking Heart Rate	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Heart rate during walking	1.4.0
+WEIGHT	bodyMasss	Weight	Body Composition	kg	kg	series	instant	last	29463-7	00:00	body_composition	last		Total body weight	1.4.0
+WHEELCHAIR_USE	wheelchairUse	Wheelchair Use	Lifestyle	boolean	boolean	series	instant	last		00:00				Whether wheelchair is used	1.4.0
+WORKOUT_DURATION	workoutDuration	Workout Duration	Performance Metrics	min	min	mix	session	duration_union		00:00				Total workout duration	1.4.0
+WORKOUT_DURATION_HIGH	workoutDurationHigh	Workout Duration High	Performance Metrics	min	min	series	session	duration_union		00:00				High-intensity workout duration	1.4.0
+WORKOUT_DURATION_LOW	workoutDurationLow	Workout Duration Low	Performance Metrics	min	min	series	session	duration_union		00:00				Low-intensity workout duration	1.4.0
+WORKOUT_DURATION_MEDIUM	workoutDurationMedium	Workout Duration Medium	Performance Metrics	min	min	series	session	duration_union		00:00				Medium-intensity workout duration	1.4.0
+WORKOUT_STRAIN	workoutStrain	Workout Strain	Performance Metrics	score	{score}	summary	provider_daily	provider_value		00:00				Body stress score for single workout	1.4.0
+WRIST_TEMPERATURE	wristTemperatures	Wrist Temperature	Vital Signs	°C	Cel	series	instant	last		00:00				Wrist skin temperature	1.4.0
+DAILY_DEEP_SLEEP_PERCENTAGE	dailyDeepSleepPercentage	Daily Deep Sleep Percentage	Sleep Metrics	%	%	summary	provider_daily	provider_value		00:00				Deep sleep percentage of total sleep	1.4.0
+DAILY_LIGHT_SLEEP_PERCENTAGE	dailyLightSleepPercentage	Daily Light Sleep Percentage	Sleep Metrics	%	%	summary	provider_daily	provider_value		00:00				Light sleep percentage of total sleep	1.4.0
+DAILY_REM_SLEEP_PERCENTAGE	dailyRemSleepPercentage	Daily REM Sleep Percentage	Sleep Metrics	%	%	summary	provider_daily	provider_value		00:00				REM sleep percentage of total sleep	1.4.0
+DAILY_SLEEP_CYCLE_TIMES	dailySleepCycleTimes	Daily Sleep Cycle Times	Sleep Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of sleep cycles	1.4.0
+DAILY_SLEEP_CONTINUITY	dailySleepContinuity	Daily Sleep Continuity	Sleep Metrics	ratio	1	summary	provider_daily	provider_value		00:00				Sleep continuity index	1.4.0
+DAILY_SLEEP_SFFCY	dailySleepSffcy	Daily Sleep Sffcy	Sleep Metrics	ratio	1	summary	provider_daily	provider_value		00:00				Sleep efficiency assessment indicator	1.4.0
+DAILY_RESPIRATORY_RATES	dailyRespiratoryRates	Daily Respiratory Rates	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Average respiratory rate during sleep	1.4.0
+DAILY_MAX_RESPIRATORY_RATES	dailyMaxRespiratoryRates	Daily Max Respiratory Rates	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Highest respiratory rate during sleep	1.4.0
+DAILY_MIN_RESPIRATORY_RATES	dailyMinRespiratoryRates	Daily Min Respiratory Rates	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Lowest respiratory rate during sleep	1.4.0
+DAILY_BASE_RESPIRATORY_RATES	dailyBaseRespiratoryRates	Daily Base Respiratory Rates	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Baseline respiratory rate for this sleep session	1.4.0
+DAILY_FAST_RESPIRATORY_DURATION	dailyFastRespiratoryDuration	Daily Fast Respiratory Duration	Vital Signs	ms	ms	summary	provider_daily	provider_value		00:00				Duration of fast respiratory rate	1.4.0
+DAILY_SLOW_RESPIRATORY_DURATION	dailySlowRespiratoryDuration	Daily Slow Respiratory Duration	Vital Signs	ms	ms	summary	provider_daily	provider_value		00:00				Duration of slow respiratory rate	1.4.0
+DAILY_HYPOPNEA_INDEX	dailyHypopneaIndex	Daily Hypopnea Index	Medical Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of hypopnea events during sleep	1.4.0
+DAILY_SLEEP_BASE_HEART_RATE	dailySleepBaseHeartRate	Daily Sleep Base Heart Rate	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Baseline heart rate for this sleep session	1.4.0
+DAILY_SLEEP_MAX_HEART_RATE	dailySleepMaxHeartRate	Daily Sleep Max Heart Rate	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Maximum heart rate during sleep	1.4.0
+DAILY_SLEEP_MIN_HEART_RATE	dailySleepMinHeartRate	Daily Sleep Min Heart Rate	Vital Signs	count/min	/min	summary	provider_daily	provider_value		00:00				Minimum heart rate during sleep	1.4.0
+DAILY_SLEEP_FAST_HEART_RATE_DURATION	dailySleepFastHeartRateDuration	Daily Sleep Fast Heart Rate Duration	Vital Signs	ms	ms	summary	provider_daily	provider_value		00:00				Duration of fast heart rate during sleep	1.4.0
+DAILY_SLEEP_SLOW_HEART_RATE_DURATION	dailySleepSlowHeartRateDuration	Daily Sleep Slow Heart Rate Duration	Vital Signs	ms	ms	summary	provider_daily	provider_value		00:00				Duration of slow heart rate during sleep	1.4.0
+DAILY_SLEEP_HEART_RATE_OVER_115PCT_DURATION	dailySleepHeartRateOver115pctDuration	Daily Sleep Heart Rate Over 115pct Duration	Vital Signs	ms	ms	summary	provider_daily	provider_value		00:00				Duration when heart rate exceeds 115% of baseline	1.4.0
+DAILY_SLEEP_HEART_RATE_OVER_125PCT_DURATION	dailySleepHeartRateOver125pctDuration	Daily Sleep Heart Rate Over 125pct Duration	Vital Signs	ms	ms	summary	provider_daily	provider_value		00:00				Duration when heart rate exceeds 125% of baseline	1.4.0
+DAILY_SLEEP_HEART_RATE_BELOW_75PCT_DURATION	dailySleepHeartRateBelow75pctDuration	Daily Sleep Heart Rate Below 75pct Duration	Vital Signs	ms	ms	summary	provider_daily	provider_value		00:00				Duration when heart rate is below 75% of baseline	1.4.0
+DAILY_SLEEP_HEART_RATE_BELOW_85PCT_DURATION	dailySleepHeartRateBelow85pctDuration	Daily Sleep Heart Rate Below 85pct Duration	Vital Signs	ms	ms	summary	provider_daily	provider_value		00:00				Duration when heart rate is below 85% of baseline	1.4.0
+SLEEP_LONG_TERM_BASE_SDNN	sleepLongTermBaseSDNN	Sleep Long Term Base Sdnn	Metabolic Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Long-term baseline SDNN for heart rate variability	1.4.0
+SLEEP_TOTAL_HEART_ENERGY	sleepTotalHeartEnergy	Sleep Total Heart Energy	Metabolic Metrics	ms²	ms²	summary	provider_daily	provider_value		00:00				Total heart energy measurement	1.4.0
+SLEEP_BASE_TOTAL_HEART_ENERGY	sleepBaseTotalHeartEnergy	Sleep Base Total Heart Energy	Metabolic Metrics	ms²	ms²	summary	provider_daily	provider_value		00:00				Baseline reference for total heart energy	1.4.0
+SLEEP_VAGAL_TONE_INDEX	sleepVagalToneIndex	Sleep Vagal Tone Index	Metabolic Metrics	ms²	ms²	summary	provider_daily	provider_value		00:00				Vagal tone index measurement	1.4.0
+SLEEP_BASE_VAGAL_TONE_INDEX	sleepBaseVagalToneIndex	Sleep Base Vagal Tone Index	Metabolic Metrics	ms²	ms²	summary	provider_daily	provider_value		00:00				Baseline reference for vagal tone index	1.4.0
+SLEEP_SYMPATHETIC_TONE_INDEX	sleepSympatheticToneIndex	Sleep Sympathetic Tone Index	Metabolic Metrics	ms²	ms²	summary	provider_daily	provider_value		00:00				Sympathetic tone index measurement	1.4.0
+SLEEP_BASE_SYMPATHETIC_TONE_INDEX	sleepBaseSympatheticToneIndex	Sleep Base Sympathetic Tone Index	Metabolic Metrics	ms²	ms²	summary	provider_daily	provider_value		00:00				Baseline reference for sympathetic tone index	1.4.0
+SLEEP_AUTONOMIC_BALANCE_INDEX	sleepAutonomicBalanceIndex	Sleep Autonomic Balance Index	Metabolic Metrics	ratio	1	summary	provider_daily	provider_value		00:00				Autonomic nervous system balance measurement	1.4.0
+SLEEP_BASE_AUTONOMIC_BALANCE_INDEX	sleepBaseAutonomicBalanceIndex	Sleep Base Autonomic Balance Index	Metabolic Metrics	ratio	1	summary	provider_daily	provider_value		00:00				Baseline reference for autonomic balance index	1.4.0
+SLEEP_HEART_RATE_DECELERATION_CAPACITY	sleepHeartRateDecelerationCapacity	Sleep Heart Rate Deceleration Capacity	Metabolic Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Heart rate deceleration capacity reflecting vagal nerve regulation ability	1.4.0
+SLEEP_LONG_TERM_HEART_RATE_DECELERATION_CAPACITY	sleepLongTermHeartRateDecelerationCapacity	Sleep Long Term Heart Rate Deceleration Capacity	Metabolic Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Long-term heart rate deceleration capacity	1.4.0
+SLEEP_ARRHYTHMIA_RISK_INDEX	sleepArrhythmiaRiskIndex	Sleep Arrhythmia Risk Index	Medical Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Arrhythmia risk index reflecting overall heart rhythm variability	1.4.0
+SLEEP_TEMP_VASOMOTOR_INDEX	sleepTempVasomotorIndex	Sleep Temp Vasomotor Index	Metabolic Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Temperature and vasomotor index	1.4.0
+SLEEP_BASE_TEMP_VASOMOTOR_INDEX	sleepBaseTempVasomotorIndex	Sleep Base Temp Vasomotor Index	Metabolic Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Baseline temperature and vasomotor index (30-day baseline)	1.4.0
+SLEEP_FEMALE_HORMONE_INDEX	sleepFemaleHormoneIndex	Sleep Female Hormone Index	Metabolic Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Female hormone index	1.4.0
+SLEEP_BASE_FEMALE_HORMONE_INDEX	sleepBaseFemaleHormoneIndex	Sleep Base Female Hormone Index	Metabolic Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Baseline female hormone index (30-day baseline)	1.4.0
+SLEEP_HEART_RATE_RMSSD	sleepHeartRateRMSSD	Sleep Heart Rate Rmssd	Metabolic Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Parasympathetic (vagal) regulation ability of the heart	1.4.0
+DAILY_SLEEP_IN_BED_PILLOW_OFF_COUNT	dailySleepInBedPillowOffCount	Daily Sleep In Bed Pillow Off Count	Sleep Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of times leaving pillow during sleep	1.4.0
+DAILY_SLEEP_TOTAL_PILLOW_OFF_COUNT	dailySleepTotalPillowOffCount	Daily Sleep Total Pillow Off Count	Sleep Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Total number of times leaving pillow	1.4.0
+DAILY_SLEEP_BODY_MOVEMENT_COUNT	dailySleepBodyMovementCount	Daily Sleep Body Movement Count	Sleep Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of body movements during sleep	1.4.0
+DAILY_SLEEP_AVG_BODY_MOVEMENT_DUR	dailySleepAvgBodyMovementDur	Daily Sleep Avg Body Movement Dur	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Average duration of body movements	1.4.0
+DAILY_AWAKE_TIMES	dailyAwakeTimes	Daily Awake Times	Sleep Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of awakenings during sleep	1.4.0
+DAILY_AWAKE_DURATION	dailyAwakeDuration	Daily Awake Duration	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Total duration of awake time	1.4.0
+DAILY_AWAKE_DURATION_PERCENTAGE	dailyAwakeDurationPercentage	Daily Awake Duration Percentage	Sleep Metrics	%	%	summary	provider_daily	provider_value		00:00				Percentage of awake time in total sleep	1.4.0
+SLEEP_END_TIME	sleepEndTime	Sleep End Time	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Sleep end timestamp	1.4.0
+SLEEP_START_TIME	sleepStartTime	Sleep Start Time	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Sleep start timestamp	1.4.0
+SLEEP_REPORT_TIME	sleepReportTime	Sleep Report Time	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Sleep report start timestamp	1.4.0
+IN_BED_START_TIME	inBedStartTime	In Bed Start Time	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Time when getting into bed	1.4.0
+END_SLEEP_REPORT_TIME_OFFSET	endSleepReportTimeOffset	End Sleep Report Time Offset	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Sleep end time offset from report start	1.4.0
+START_SLEEP_REPORT_TIME_OFFSET	startSleepReportTimeOffset	Start Sleep Report Time Offset	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Sleep start time offset from report start	1.4.0
+DAILY_IN_BED_DURATION	dailyInBedDuration	Daily In Bed Duration	Sleep Metrics	ms	ms	summary	provider_daily	provider_value		00:00				Total time in bed	1.4.0
+HEALTH_CORONARY_HEART_DISEASE	healthCoronaryHeartDisease	Health Coronary Heart Disease	Health Metrics	bool	bool	summary	provider_daily	provider_value		00:00				Whether user has coronary heart disease	1.4.0
+HEALTH_HYPERTENSION	healthHypertension	Health Hypertension	Health Metrics	bool	bool	summary	provider_daily	provider_value		00:00				Whether user has hypertension	1.4.0
+HEALTH_DIABETES_MELLITUS	healthDiabetesMellitus	Health Diabetes Mellitus	Health Metrics	bool	bool	summary	provider_daily	provider_value		00:00				Whether user has diabetes mellitus	1.4.0
+HEALTH_DISEASE_COUNT	healthDiseaseCount	Health Disease Count	Health Metrics	count	{#}	summary	provider_daily	provider_value		00:00				Number of diseases user has	1.4.0
+HEALTH_HYPERTENSION_CONTROL	healthHypertensionControl	Health Hypertension Control	Health Metrics	%	%	summary	provider_daily	provider_value		00:00				Hypertension control level assessment	1.4.0
+HEALTH_BLOOD_PRESSURE_REGULATION	healthBloodPressureRegulation	Health Blood Pressure Regulation	Health Metrics	%	%	summary	provider_daily	provider_value		00:00				Blood pressure regulation ability assessment	1.4.0
+HEALTH_CORONARY_DISEASE_CONTROL	healthCoronaryDiseaseControl	Health Coronary Disease Control	Health Metrics	%	%	summary	provider_daily	provider_value		00:00				Coronary disease control level assessment	1.4.0
+HEALTH_CORONARY_ARTERY_FUNCTION	healthCoronaryArteryFunction	Health Coronary Artery Function	Health Metrics	%	%	summary	provider_daily	provider_value		00:00				Coronary artery function assessment	1.4.0
+HEALTH_DIABETES_CONTROL	healthDiabetesControl	Health Diabetes Control	Health Metrics	%	%	summary	provider_daily	provider_value		00:00				Diabetes control level assessment	1.4.0
+HEALTH_BLOOD_SUGAR_BALANCE	healthBloodSugarBalance	Health Blood Sugar Balance	Health Metrics	%	%	summary	provider_daily	provider_value		00:00				Blood sugar regulation ability assessment	1.4.0
+HEALTH_CHRONIC_DISEASE_INDEX	healthChronicDiseaseIndex	Health Chronic Disease Index	Health Metrics	%	%	summary	provider_daily	provider_value		00:00				Chronic disease prevention and control ability assessment	1.4.0
+HEALTH_INFECTION_RISK	healthInfectionRisk	Health Infection Risk	Health Metrics	%	%	summary	provider_daily	provider_value		00:00				Infection risk assessment during sleep	1.4.0
+HEALTH_IMMUNE_BALANCE	healthImmuneBalance	Health Immune Balance	Health Metrics	%	%	summary	provider_daily	provider_value		00:00				Immune system balance level	1.4.0
+DAILY_SLEEP_ANXIETY_LEVEL	dailySleepAnxietyLevel	Daily Sleep Anxiety Level	Mental Health	%	%	summary	provider_daily	provider_value		00:00				Anxiety level assessment during sleep	1.4.0
+DAILY_SLEEP_EMOTIONAL_STRESS	dailySleepEmotionalStress	Daily Sleep Emotional Stress	Mental Health	%	%	summary	provider_daily	provider_value		00:00				Emotional stress level during sleep	1.4.0
+MENTAL_EMOTIONAL_STATE	mentalEmotionalState	Mental Emotional State	Mental Health	%	%	summary	provider_daily	provider_value		00:00				Emotional and mental state assessment	1.4.0
+MENTAL_STRESS_RESISTANCE	mentalStressResistance	Mental Stress Resistance	Mental Health	%	%	summary	provider_daily	provider_value		00:00				Stress resistance ability assessment	1.4.0
+HEALTH_OVERALL_SCORE	healthOverallScore	Health Overall Score	Health Metrics	%	%	summary	provider_daily	provider_value		00:00				Overall health status assessment score	1.4.0
+SLEEP_OVERALL_SCORE	sleepOverallScore	Sleep Overall Score	Sleep Metrics	%	%	summary	provider_daily	provider_value		00:00				Overall sleep quality assessment score	1.4.0
+FEMALE_CHARM_SCORE	femaleCharmScore	Female Charm Score	Lifestyle	%	%	summary	provider_daily	provider_value		00:00				Female user overall report score	1.4.0
+FEMALE_MOISTURE_INDEX	femaleMoistureIndex	Female Moisture Index	Lifestyle	ratio	1	summary	provider_daily	provider_value		00:00				Female user moisture index	1.4.0
+FEMALE_WEIGHT_GAIN_INDEX	femaleWeightGainIndex	Female Weight Gain Index	Lifestyle	ratio	1	summary	provider_daily	provider_value		00:00				Female user weight gain tendency index	1.4.0
+FEMALE_MENSTRUAL_CYCLE_PHASE	femaleMenstrualCyclePhase	Female Menstrual Cycle Phase	Body Composition	enum	enum	summary	provider_daily	provider_value		00:00				Current menstrual cycle phase	1.4.0
+FEMALE_IS_PREDICTED_OVULATION_DAY	femaleIsPredictedOvulationDay	Female Is Predicted Ovulation Day	Body Composition	bool	bool	summary	provider_daily	provider_value		00:00				Whether it is predicted ovulation day	1.4.0
+REPRODUCTIVE_BASAL_BODY_TEMPERATURE	reproductiveBasalBodyTemperature	Reproductive Basal Body Temperature	Reproductive Health	°C	Cel	summary	provider_daily	provider_value		00:00				Basal body temperature	1.4.0
+REPRODUCTIVE_CERVICAL_MUCUS_QUALITY	reproductiveCervicalMucusQuality	Reproductive Cervical Mucus Quality	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Cervical mucus quality	1.4.0
+REPRODUCTIVE_CONTRACEPTIVE	reproductiveContraceptive	Reproductive Contraceptive	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Contraceptive method	1.4.0
+REPRODUCTIVE_INFREQUENT_MENSTRUAL_CYCLES	reproductiveInfrequentMenstrualCycles	Reproductive Infrequent Menstrual Cycles	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Infrequent menstrual cycles	1.4.0
+REPRODUCTIVE_INTERMENTSTRUAL_BLEEDING	reproductiveIntermenstrualBleeding	Reproductive Intermentstrual Bleeding	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Intermenstrual bleeding	1.4.0
+REPRODUCTIVE_IRREGULAR_MENSTRUAL_CYCLES	reproductiveIrregularMenstrualCycles	Reproductive Irregular Menstrual Cycles	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Irregular menstrual cycles	1.4.0
+REPRODUCTIVE_LACTATION	reproductiveLactation	Reproductive Lactation	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Lactation	1.4.0
+REPRODUCTIVE_MENSTRUATION_FLOW	reproductiveMenstruationFlow	Reproductive Menstruation Flow	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Menstruation flow	1.4.0
+REPRODUCTIVE_OVULATION_TEST_RESULT	reproductiveOvulationTestResult	Reproductive Ovulation Test Result	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Ovulation test result	1.4.0
+REPRODUCTIVE_PERSISTENT_INTERMENSTRUCAL_BLEEDING	reproductivePersistentIntermenstrualBleeding	Reproductive Persistent Intermenstrucal Bleeding	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Persistent intermenstrual bleeding	1.4.0
+REPRODUCTIVE_PREGNANCY	reproductivePregnancy	Reproductive Pregnancy	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Pregnancy	1.4.0
+REPRODUCTIVE_PREGNANCY_TEST_RESULT	reproductivePregnancyTestResult	Reproductive Pregnancy Test Result	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Pregnancy test result	1.4.0
+REPRODUCTIVE_PROGESTERONE_TEST_RESULT	reproductiveProgEstrogenTestResult	Reproductive Progesterone Test Result	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Progesterone test result	1.4.0
+REPRODUCTIVE_PROLONGED_MENSTRUAL_PERIODS	reproductiveProlongedMenstrualPeriods	Reproductive Prolonged Menstrual Periods	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Prolonged menstrual periods	1.4.0
+REPRODUCTIVE_SEXUAL_ACTIVITY	reproductiveSexualActivity	Reproductive Sexual Activity	Reproductive Health	enum	enum	summary	provider_daily	provider_value		00:00				Sexual activity	1.4.0
+SEDENTARY_TIME	sedentaryTime	Sedentary Time	Activity Metrics	min	min	summary	provider_daily	provider_value		00:00				Total sedentary time during the day	1.4.0
+RESTING_TIME	restingTime	Resting Time	Activity Metrics	min	min	summary	provider_daily	provider_value		00:00				Total resting time during the day	1.4.0
+DAILY_ACTIVITY_SCORE	dailyActivityScore	Daily Activity Score	Activity Metrics	score	{score}	summary	provider_daily	provider_value		00:00				Daily activity score (0-100)	1.4.0
+BODY_FAT_MASS	bodyFatMass	Body Fat Mass	Body Composition	kg	kg	mix	instant	last		00:00	body_composition			Absolute fat mass from bioelectrical impedance; distinct from the fat percentage	1.4.0
+BODY_MUSCLE_MASS	bodyMuscleMass	Muscle Mass	Body Composition	kg	kg	mix	instant	last		00:00	body_composition			Absolute muscle mass; distinct from the muscle percentage	1.4.0
+BODY_SKELETAL_MUSCLE_MASS	bodySkeletalMuscleMass	Skeletal Muscle Mass	Body Composition	kg	kg	mix	instant	last		00:00	body_composition			Skeletal muscle mass	1.4.0
+BODY_VISCERAL_FAT_LEVEL	bodyVisFatLevel	Visceral Fat Level	Body Composition	count	{#}	mix	instant	last		00:00	body_composition			Visceral fat as a scale level (device index), distinct from the visceral fat percentage	1.4.0
+BODY_WATER_MASS	bodyWaterMass	Body Water Mass	Body Composition	kg	kg	mix	instant	last		00:00	body_composition			Absolute body water mass; distinct from the water percentage	1.4.0

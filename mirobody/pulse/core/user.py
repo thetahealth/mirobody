@@ -7,10 +7,12 @@ Provides core functions for user creation, authentication, and linking
 import hashlib
 import logging
 from mirobody.user import UserService as BaseUserService
-from mirobody.user.jwt import JwtTokenValidator
+from mirobody.user.auth.jwt import JwtTokenValidator
 from mirobody.utils.config import global_config
 from mirobody.utils import execute_query
-from typing import Optional, Dict, Any
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class PlatformUserService:
@@ -56,7 +58,7 @@ class PlatformUserService:
         self._ensure_initialized()
         return self._base_user_service
 
-    async def generate_token(self, user_id: str, additional_claims: Dict[str, Any] = None) -> str:
+    async def generate_token(self, user_id: str, additional_claims: dict[str, Any] = None) -> str:
 
         try:
             if additional_claims is None:
@@ -71,11 +73,11 @@ class PlatformUserService:
             theta_claims.update(additional_claims)
 
             token = self.jwt_validator.generate_token(user_id, theta_claims)
-            logging.info(f"Successfully generated token for user {user_id}")
+            logger.info(f"Successfully generated token for user {user_id}")
             return token
 
         except Exception as e:
-            logging.error(f"Failed to generate token for user {user_id}: {str(e)}")
+            logger.error(f"Failed to generate token for user {user_id}: {str(e)}")
             raise Exception(f"Token generation failed: {str(e)}")
 
     async def create_user(self, email: str, name: str = "", tz: str = "") -> str:
@@ -111,7 +113,7 @@ class PlatformUserService:
             user = existing_user[0]
             if not user["is_del"]:
                 # User exists and not deleted
-                logging.info(f"User already exists: {email}, user_id: {user['id']}")
+                logger.info(f"User already exists: {email}, user_id: {user['id']}")
                 return str(user["id"])
 
         # Create new user
@@ -141,12 +143,11 @@ class PlatformUserService:
             row = result[0]
             if "id" in row:
                 user_id = str(row["id"])
-                logging.info(f"Successfully created user: {email}, user_id: {user_id}")
+                logger.info(f"Successfully created user: {email}, user_id: {user_id}")
 
                 return user_id
-            else:
-                logging.error(f"Cannot find 'id' in result: {result}")
-                raise Exception("Cannot find user ID in database result")
+            logger.error(f"Cannot find 'id' in result: {result}")
+            raise Exception("Cannot find user ID in database result")
         raise Exception("Failed to create user - no result returned")
 
     async def link_user_provider(self, user_id: str, provider_slug: str, provider_user_id: str = "") -> bool:
@@ -176,24 +177,23 @@ class PlatformUserService:
                 if active:
                     if reconnect_status == 0:
                         # Link is active and normal, keep it
-                        logging.info(f"Existing valid link for user {user_id}, provider {provider_slug}")
+                        logger.info(f"Existing valid link for user {user_id}, provider {provider_slug}")
                         return True
-                    else:
-                        # Link is active but needs reconnection, recreate it
-                        logging.info(f"Recreating link for user {user_id}, provider {provider_slug} (reconnect={reconnect_status})")
-                        delete_query = """
+                    # Link is active but needs reconnection, recreate it
+                    logger.info(f"Recreating link for user {user_id}, provider {provider_slug} (reconnect={reconnect_status})")
+                    delete_query = """
                             UPDATE health_user_provider
                             SET is_del = TRUE, update_at = CURRENT_TIMESTAMP
                             WHERE id = :link_id
                         """
-                        await execute_query(
-                            query=delete_query,
-                            params={"link_id": link["id"]}
-                        )
-                        logging.info(f"Soft deleted old link for user {user_id}, provider {provider_slug}")
+                    await execute_query(
+                        query=delete_query,
+                        params={"link_id": link["id"]}
+                    )
+                    logger.info(f"Soft deleted old link for user {user_id}, provider {provider_slug}")
                 else:
                     # Link is inactive (deleted), recreate it
-                    logging.info(f"Recreating link for user {user_id}, provider {provider_slug} (inactive, active={active})")
+                    logger.info(f"Recreating link for user {user_id}, provider {provider_slug} (inactive, active={active})")
 
             create_query = """
                 INSERT INTO health_user_provider 
@@ -214,12 +214,12 @@ class PlatformUserService:
                 }
             )
 
-            logging.info(f"Successfully created link for user {user_id}, provider {provider_slug}")
+            logger.info(f"Successfully created link for user {user_id}, provider {provider_slug}")
             return True
 
         except Exception as e:
             error_msg = f"Failed to link user {user_id} to provider {provider_slug}: {str(e)}"
-            logging.error(error_msg)
+            logger.error(error_msg)
             raise Exception(error_msg)
 
     async def find_or_create_user_by_provider_id(self, provider_slug: str, provider_user_id: str, tz: str) -> str:
@@ -247,23 +247,22 @@ class PlatformUserService:
             if active:
                 # Found valid association, directly return user ID (regardless of reconnect status)
                 # reconnect only affects Pull task, does not affect webhook data reception
-                logging.info(
+                logger.info(
                     f"Found existing user for provider {provider_slug}, provider_user_id {provider_user_id}: {link['user_id']}")
                 return str(link["user_id"])
-            else:
-                # Association deleted, restore and reset reconnect=0
-                user_id = str(link["user_id"])
-                restore_query = """
+            # Association deleted, restore and reset reconnect=0
+            user_id = str(link["user_id"])
+            restore_query = """
                     UPDATE health_user_provider
                     SET is_del = FALSE, reconnect = 0, update_at = CURRENT_TIMESTAMP
                     WHERE provider = :provider AND username = :provider_user_id
                 """
-                await execute_query(
-                    query=restore_query,
-                    params={"provider": provider_slug, "provider_user_id": provider_user_id}
-                )
-                logging.info(f"Restored deleted link for provider {provider_slug}, provider_user_id {provider_user_id}: {user_id}")
-                return user_id
+            await execute_query(
+                query=restore_query,
+                params={"provider": provider_slug, "provider_user_id": provider_user_id}
+            )
+            logger.info(f"Restored deleted link for provider {provider_slug}, provider_user_id {provider_user_id}: {user_id}")
+            return user_id
 
         user_info = {}
         # Generate default email (if not provided)
@@ -289,11 +288,11 @@ class PlatformUserService:
             provider_user_id=provider_user_id,
         )
 
-        logging.info(
+        logger.info(
             f"Successfully created and linked new user for provider {provider_slug}, provider_user_id {provider_user_id}: {user_id}")
         return user_id
 
-    async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+    async def get_user_by_id(self, user_id: str) -> dict[str, Any] | None:
         """
         Get user information by user ID
         
@@ -309,10 +308,10 @@ class PlatformUserService:
             return await get_user(user_id=user_id)
 
         except Exception as e:
-            logging.error(f"Failed to get user {user_id}: {str(e)}")
+            logger.error(f"Failed to get user {user_id}: {str(e)}")
             return None
 
-    async def get_user_providers(self, user_id: str, provider_prefix: str = None) -> list[Dict[str, Any]]:
+    async def get_user_providers(self, user_id: str, provider_prefix: str = None) -> list[dict[str, Any]]:
         """
         Get user's Provider association list
         
@@ -343,7 +342,7 @@ class PlatformUserService:
             return [dict(row) for row in result] if result else []
 
         except Exception as e:
-            logging.error(f"Failed to get user providers for {user_id}: {str(e)}")
+            logger.error(f"Failed to get user providers for {user_id}: {str(e)}")
             return []
 
     def _generate_unique_email(self, provider_slug: str, provider_user_id: str) -> str:

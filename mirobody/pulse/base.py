@@ -3,7 +3,7 @@ Base classes and interfaces for Pulse system
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # from . import BasePullProvider  # Remove circular import
 # === Enum definitions ===
@@ -13,7 +13,7 @@ from .core import (
     ProviderInfo,
     UserProvider,
 )
-from .ingest.models.requests import StandardPulseData
+from .ingest.models.requests import FormatDataInput, StandardPulseData
 
 # Create AuthType alias for API compatibility
 AuthType = LinkType
@@ -35,7 +35,7 @@ class Provider(ABC):
             platform: The Platform instance this provider belongs to
         """
         self.platform = platform
-        self.platform_slug: Optional[str] = None
+        self.platform_slug: str | None = None
 
     def set_platform(self, platform_slug: str) -> None:
         """
@@ -50,10 +50,9 @@ class Provider(ABC):
     @abstractmethod
     def info(self) -> ProviderInfo:
         """Get Provider information"""
-        pass
 
     @abstractmethod
-    async def link(self, request: LinkRequest) -> Dict[str, Any]:
+    async def link(self, request: LinkRequest) -> dict[str, Any]:
         """
         Connect Provider
 
@@ -63,10 +62,9 @@ class Provider(ABC):
         Returns:
             Connection result data, throws exception on failure
         """
-        pass
 
     @abstractmethod
-    async def unlink(self, user_id: str) -> Dict[str, Any]:
+    async def unlink(self, user_id: str) -> dict[str, Any]:
         """
         Disconnect
 
@@ -76,9 +74,8 @@ class Provider(ABC):
         Returns:
             Disconnection result data, throws exception on failure
         """
-        pass
 
-    async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def save_raw_data_to_db(self, raw_data: dict[str, Any]) -> list[dict[str, Any]]:
         """
         Save raw data to database (optional, subclasses can override)
 
@@ -91,26 +88,20 @@ class Provider(ABC):
         return []
 
     @abstractmethod
-    async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:
+    async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
+        """Vendor payload -> `StandardPulseData`, the format every platform converges on.
+
+        `fmt_input.payload` is the source's data untouched; `fmt_input.context`
+        is what the caller already resolved (internal user id, vendor user id,
+        timezone, msg_id), so the transformation needs no I/O of its own.
+        StandardHealthService then processes the result uniformly.
         """
-        Format raw data to StandardPulseData format
 
-        **Core constraint**: All Providers must implement this method to convert
-        platform-specific raw data to unified StandardPulseData format,
-        subsequently processed uniformly by StandardHealthService
-
-        Args:
-            raw_data: Raw data
-
-        Returns:
-            StandardPulseData: Standardized platform data format
-        """
-        pass
 
 
 class Platform(ABC):
     def __init__(self):
-        self._providers: Dict[str, Provider] = {}
+        self._providers: dict[str, Provider] = {}
 
     @property
     @abstractmethod
@@ -142,42 +133,42 @@ class Platform(ABC):
         provider.set_platform(self.name)
         self._providers[provider.info.slug] = provider
 
-    def get_provider(self, provider_slug: str) -> Optional[Provider]:
+    def get_provider(self, provider_slug: str) -> Provider | None:
         return self._providers.get(provider_slug)
 
     @abstractmethod
-    async def get_providers(self, nocache: bool = False) -> List[ProviderInfo]:
+    async def get_providers(self, nocache: bool = False) -> list[ProviderInfo]:
         pass
 
     @abstractmethod
-    async def get_user_providers(self, user_id: str) -> List[UserProvider]:
+    async def get_user_providers(self, user_id: str) -> list[UserProvider]:
         pass
 
     @abstractmethod
-    async def link(self, request: LinkRequest) -> Dict[str, Any]:
+    async def link(self, request: LinkRequest) -> dict[str, Any]:
         pass
 
     @abstractmethod
-    async def unlink(self, user_id: str, provider_slug: str) -> Dict[str, Any]:
+    async def unlink(self, user_id: str, provider_slug: str) -> dict[str, Any]:
         pass
 
     @abstractmethod
-    async def post_data(self, provider_slug: str, data: Dict[str, Any], msg_id: str) -> bool:
+    async def post_data(self, provider_slug: str, data: dict[str, Any], msg_id: str) -> bool:
         pass
 
     @abstractmethod
-    async def update_llm_access(self, user_id: str, provider_slug: str, llm_access: int) -> Dict[str, Any]:
+    async def update_llm_access(self, user_id: str, provider_slug: str, llm_access: int) -> dict[str, Any]:
         pass
 
     async def get_webhooks(
         self,
         page: int = 1,
         page_size: int = 20,
-        provider: Optional[str] = None,
-        event_type: Optional[str] = None,
-        user_id: Optional[str] = None,
-        status: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        provider: str | None = None,
+        event_type: str | None = None,
+        user_id: str | None = None,
+        status: str | None = None,
+    ) -> dict[str, Any]:
         """
         Get webhook data with pagination and filters
         
@@ -200,7 +191,7 @@ class Platform(ABC):
         """
         raise NotImplementedError(f"Platform {self.name} does not support webhook management")
 
-    async def check_format(self, webhook_id: int, provider: Optional[str] = None) -> Dict[str, Any]:
+    async def check_format(self, webhook_id: int, provider: str | None = None) -> dict[str, Any]:
         """
         Check webhook format by simulating event provider processing
         

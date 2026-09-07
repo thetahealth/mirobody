@@ -1,22 +1,20 @@
-"""
-Unified database operations for chat adapters
-All adapters should use these functions to ensure consistency
+"""`th_messages` reads and writes for the chat layer.
+
+The durable, queryable transcript that `/api/history` and session sharing
+render. It is NOT the agent's conversation memory: that is the LangGraph
+checkpointer (agent/checkpointer.py), keyed on thread_id = session_id.
 """
 
 import json
 import logging
-import re
 import uuid
 
 from datetime import datetime
 from typing import Any
 
 from ...utils import execute_query
-from ..base.history_replay import fold_trace_into_text
 
-#-----------------------------------------------------------------------------
-
-
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -109,7 +107,7 @@ async def save_message(
         }
     )
     
-    logging.info(f"Saved message: id={msg_id}, role={role}, scene={scene}, session_id={session_id}")
+    logger.info(f"Saved message: id={msg_id}, role={role}, scene={scene}, session_id={session_id}")
     
     return msg_id
 
@@ -137,203 +135,7 @@ async def set_message_rating(user_id: str, message_id: str, rating: int) -> bool
 
 #-----------------------------------------------------------------------------
 
-async def get_last_message(user_id: str, query_user_id: str = None, session_id: str = None, scene="app") -> list:
-    """Recent turns of a conversation, flattened to text — BaseAgent's replay.
-
-    DeepAgent does NOT come through here: its history is the LangGraph
-    checkpointer (thread_id = session_id). This exists for BaseAgent, which has
-    no graph, and so the rows are flattened to ``{role, agent, content}`` — the
-    only fields ``compress_messages`` reads — plus ``created_at`` for the
-    resume-gap hint.
-
-    Trimmed of three dead parameters/fields in the process: ``include_all``
-    (a second, never-requested SQL branch dropping the query_user_id scope) and
-    ``db_mode`` (read by nothing at all) were never passed by any caller, and
-    the returned ``element_list``/``th_msg_id``/``reference_task_id`` lost their
-    only consumer when canonical replay moved to the checkpointer.
-    """
-    if query_user_id is None:
-        query_user_id = user_id
-
-    # session_id comes from the HTTP request (client-controlled) — must be a
-    # bind param, never f-string interpolated, to prevent SQL injection.
-    session_phrase = "and session_id = :session_id" if session_id else ""
-
-    messages = []
-    try:
-        sql = f"""
-            select role, agent, decrypt_content(content) as content, created_at
-            from th_messages
-            where user_id = :user_id and query_user_id = :query_user_id
-              and scene = :scene and is_del = false {session_phrase}
-            order by created_at desc limit 15
-        """
-        params = {"user_id": user_id, "query_user_id": query_user_id, "scene": scene}
-        if session_id:
-            params["session_id"] = session_id
-
-        rows = await execute_query(sql, params)
-
-        for i in range(len(rows) - 1, -1, -1):
-            m = rows[i]
-
-            # Assistant content is the persisted element_list; flatten it to the
-            # `reply` text. A plain string (the user's question, or a legacy row)
-            # parses to None and is used as-is.
-            element_list = parse_stored_content(m["content"])
-            if isinstance(element_list, list):
-                content = "".join(
-                    e.get("content", "")
-                    for e in element_list
-                    if isinstance(e, dict) and e.get("type") == "reply"
-                )
-                # Fold a one-line tool/file trace into the replayed assistant
-                # text so the next turn knows it already read /uploads/* and
-                # doesn't re-run read_file. Excerpt only, never the full payload.
-                if m["role"] == "assistant":
-                    content = fold_trace_into_text(content, element_list)
-            else:
-                content = m["content"]
-
-            messages.append(
-                dict(
-                    role        = m["role"],
-                    agent       = m["agent"],
-                    content     = content,
-                    created_at  = m["created_at"],
-                )
-            )
-
-        return messages
-
-    except Exception as e:
-        logging.error(str(e), exc_info=True)
-        return []
-
 #-----------------------------------------------------------------------------
-
-def compress_messages(agent, messages: list[dict[str, Any]], max_tokens: int = 4000) -> list[dict[str, Any]]:
-    """
-    Compress message history by keeping only the most recent messages when token limit is exceeded.
-    
-    Strategy:
-    1. First, filter to keep only messages from the specified agent
-    2. Calculate total token count for all messages
-    3. If limit is exceeded, keep only the most recent messages
-    4. Ensure final result is sorted chronologically (oldest to newest)
-    
-    Args:
-        agent: Agent identifier to filter messages by
-        messages: List of message dictionaries
-        max_tokens: Maximum token limit (default: 4000)
-        
-    Returns:
-        Compressed list of messages sorted chronologically
-    """
-    if not messages:
-        return []
-    
-    agent_messages = []
-    
-    # Process messages: user messages are added directly, 
-    # consecutive assistant messages are grouped, 
-    # from each group prioritize messages matching the agent field, 
-    # otherwise take the last message in the group
-    i = 0
-    while i < len(messages):
-        msg = messages[i]
-        
-        # Add user messages directly
-        if msg.get("role") == "user":
-            agent_messages.append(msg)
-            i += 1
-        # Group consecutive assistant messages
-        elif msg.get("role") == "assistant":
-            # Collect consecutive assistant messages
-            assistant_group = []
-            while i < len(messages) and messages[i].get("role") == "assistant":
-                assistant_group.append(messages[i])
-                i += 1
-            
-            # Select one message from this group
-            # Prioritize messages with matching agent field
-            selected_msg = None
-            for assistant_msg in assistant_group:
-                if assistant_msg.get("agent") == agent:
-                    selected_msg = assistant_msg
-                    break
-            
-            # If no matching agent found, select the last message in the group
-            if selected_msg is None and assistant_group:
-                selected_msg = assistant_group[-1]
-            
-            if selected_msg:
-                agent_messages.append(selected_msg)
-        else:
-            # Skip other message types
-            i += 1
-
-    # Estimate token count (rough estimate: ~1.5 tokens per Chinese character, ~1.3 tokens per English word)
-    def estimate_tokens(text: str) -> int:
-        chinese_chars = len(re.findall(r"[\u4e00-\u9fff]", text))
-        english_words = len(re.findall(r"\b\w+\b", text))
-        return int(chinese_chars * 1.5 + english_words * 1.3)
-
-    # Calculate token count for a single message
-    def count_message_tokens(message: dict[str, Any]) -> int:
-        content = message.get("content", "")
-        return estimate_tokens(content)
-
-    # Calculate total token count for all messages
-    total_tokens = sum(count_message_tokens(msg) for msg in agent_messages)
-
-    # R2: do NOT prefix each message with "[timestamp] ". The current time is
-    # already in the system prompt, and prefixing every history line with the
-    # *latest* message's timestamp (the old code reused the loop's trailing `msg`,
-    # so all lines got the same, newest stamp — a bug) made the history segment
-    # change byte-for-byte every turn, defeating prompt caching. Replayed history
-    # is now stable across turns so its prefix can be cached.
-
-    # If total tokens exceed limit, keep only the most recent messages
-    if total_tokens > max_tokens:
-        # Start from the most recent messages and add until approaching token limit
-        compressed_messages = []
-        current_tokens = 0
-
-        # Iterate from newest to oldest (reversed order)
-        for msg in reversed(agent_messages):
-            tokens = count_message_tokens(msg)
-            if current_tokens + tokens <= max_tokens:
-                compressed_messages.append(
-                    {
-                        "role": msg.get("role", "unknown"),
-                        "content": msg.get("content", ""),
-                    }
-                )
-                current_tokens += tokens
-            else:
-                # If a single message exceeds remaining limit, try truncating content
-                if tokens > (max_tokens - current_tokens) * 0.5:
-                    content = msg.get("content", "")
-                    # Keep the first half of the message
-                    truncated_content = content[: len(content) // 2] + "...(truncated)"
-                    compressed_messages.append(
-                        {
-                            "role": msg.get("role", "unknown"),
-                            "content": truncated_content,
-                        }
-                    )
-                break
-
-        # Reverse back to chronological order (oldest to newest)
-        compressed_messages = list(reversed(compressed_messages))
-    else:
-        # If limit not exceeded, keep only role and content fields
-        compressed_messages = [
-            {"role": msg.get("role", "unknown"), "content": msg.get("content", "")} for msg in agent_messages
-        ]
-
-    return compressed_messages
 
 #-----------------------------------------------------------------------------
 
@@ -355,7 +157,7 @@ async def _refresh_file_urls_in_content(content_json_obj: Any) -> None:
 
     There used to be a second branch here re-signing assistant "chart bubbles"
     (`{type: "image"}` chunks). Nothing emits those any more: the PNG-rendering
-    ChartService tools were removed and DeepAgent charts by writing a fenced
+    ChartService tools were removed and the agent charts by writing a fenced
     ```vis-chart``` block inline in its reply text, which needs no URL at all.
     """
     if not content_json_obj:
@@ -449,7 +251,7 @@ async def get_chat_history(user_id: str, session_id: str) -> list[dict[str, Any]
                 try:
                     await _refresh_file_urls_in_content(content_json_obj)
                 except Exception as e:
-                    logging.error(f"Error regenerating file URLs: {str(e)}")
+                    logger.error(f"Error regenerating file URLs: {str(e)}")
 
                 message = {
                     "role": msg.get("role", "assistant"),
@@ -508,10 +310,10 @@ async def get_chat_history(user_id: str, session_id: str) -> list[dict[str, Any]
                 elif msg_id in agent_responses:
                     history.extend(agent_responses[msg_id])
 
-            logging.info(f"session:{session_id}\tmessage_cnt:{len(history)} Successfully loaded")
+            logger.info(f"session:{session_id}\tmessage_cnt:{len(history)} Successfully loaded")
 
     except Exception as e:
-        logging.error(f"Error loading conversation history: {str(e)}", exc_info=True)
+        logger.error(f"Error loading conversation history: {str(e)}", exc_info=True)
 
     return history
 

@@ -110,6 +110,23 @@ def read_member_from(name: str, path: str) -> bytes | None:
         return None
 
 
+def read_code_list(name: str, *, bundle_path: str | None = None) -> list[str]:
+    """One member that is a list of codes, one per line → the codes.
+
+    Blank lines and ``#`` comments are dropped. Three readers parsed this
+    format independently — the resolver's skip set, the semantic tier's, and
+    the embedding index's mask builder — and the third did NOT drop comments,
+    so a commented line would have reached ``code_to_int`` and raised. The
+    member has no comments today, which is why nothing caught it; one
+    function is why nothing has to.
+    """
+    raw = read_member(name, bundle_path=bundle_path)
+    if raw is None:
+        return []
+    lines = (line.strip() for line in raw.decode("utf-8").splitlines())
+    return [line for line in lines if line and not line.startswith("#")]
+
+
 def read_members(names, *, bundle_path: str | None = None) -> dict[str, bytes]:
     """Read several members in ONE pass over the tarball.
 
@@ -217,6 +234,21 @@ def load_axis(*, bundle_path: str | None = None, members: dict[str, bytes] | Non
 # ``zh_curated.tsv`` (DPA, DGLA, AA/EPA ×2) were live for the resolver and
 # invisible to the build, because the tarball copy had not been re-cut since.
 # The tarball members are gone; this is the one reader.
+
+#: The sibling bundle holding SNOMED CT-derived runtime data (the Body
+#: Structure subtree mask, the axis aliases). A separate file because the
+#: SNOMED licence terms differ from LOINC's, so each NOTICE obligation stays
+#: scoped to its own artifact. The READER lives here for the same reason
+#: `read_member` does: `fhir/index.py` calls it on the semantic path, and the
+#: build package that writes it is pruned from the wheel.
+SNOMED_BUNDLE_BASENAME = "fhir_snomed_ct_bundle.tar.gz"
+SNOMED_BUNDLE_PATH = os.path.join(RES_DIR, SNOMED_BUNDLE_BASENAME)
+
+
+def read_snomed_member(name: str, *, bundle_path: str | None = None) -> bytes | None:
+    """One member of the SNOMED bundle, or ``None``. Mirrors :func:`read_member`."""
+    return read_member_from(name, bundle_path or SNOMED_BUNDLE_PATH)
+
 
 ALIAS_SRC_DIR = os.path.join(RES_DIR, "aliases_src")
 OVERRIDES_PATH = os.path.join(RES_DIR, "resolver_overrides.tsv")

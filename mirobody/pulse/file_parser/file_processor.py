@@ -7,7 +7,8 @@ Integrates various atomic services to provide complete file processing functiona
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, Optional
+from typing import Any
+from collections.abc import Callable
 
 # `fastapi` lives in the [app] extra, but file parsing is advertised engine
 # functionality — a bare `pip install mirobody` must import this module. Every
@@ -29,6 +30,8 @@ from mirobody.pulse.file_parser.services.file_abstract_extractor import FileAbst
 
 from mirobody.pulse.file_parser.handlers.factory import FileHandlerFactory
 from mirobody.pulse.file_parser.handlers.base import FileProcessingContext
+
+logger = logging.getLogger(__name__)
 
 
 class FileProcessor:
@@ -65,12 +68,12 @@ class FileProcessor:
         file: UploadFile,
         query: str,
         user_id: str,
-        message_id: Optional[str] = None,
+        message_id: str | None = None,
         query_user_id: str = "",
-        progress_callback: Optional[Callable[[int, str], None]] = None,
-        file_key: Optional[str] = None,  # S3 key if already uploaded
+        progress_callback: Callable[[int, str], None] | None = None,
+        file_key: str | None = None,  # S3 key if already uploaded
         skip_upload_oss: bool = False,  # Skip upload to OSS if already uploaded
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Process single uploaded file
 
@@ -92,7 +95,7 @@ class FileProcessor:
             target_user_id = query_user_id if query_user_id else user_id
             language = get_req_ctx("language", "en")
 
-            logging.info(f"Starting file processing: {file.filename}, operator_user_id: {user_id}, target_user_id: {target_user_id}, message_id: {message_id}")
+            logger.info(f"Starting file processing: {file.filename}, operator_user_id: {user_id}, target_user_id: {target_user_id}, message_id: {message_id}")
 
             # Initial progress: file upload completed
             if progress_callback:
@@ -125,7 +128,7 @@ class FileProcessor:
 
         except Exception as e:
             language = get_req_ctx("language", "en")
-            logging.error(f"File processing failed: {file.filename}, error: {e}", exc_info=True)
+            logger.error(f"File processing failed: {file.filename}, error: {e}", exc_info=True)
 
             # If there's a message ID, update message status to failed
             if message_id:
@@ -136,7 +139,7 @@ class FileProcessor:
                         reasoning=f"Error occurred during file processing: {str(e)}",
                     )
                 except Exception as update_error:
-                    logging.error(f"Failed to update message status: {str(update_error)}", exc_info=True)
+                    logger.error(f"Failed to update message status: {str(update_error)}", exc_info=True)
 
             return {
                 "success": False,

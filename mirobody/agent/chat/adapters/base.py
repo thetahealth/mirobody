@@ -7,30 +7,30 @@ Subclasses implement protocol-specific details (HTTP SSE, WebSocket, etc.).
 All user_id parameters are consistently typed as str throughout.
 """
 
-import asyncio, json, logging, uuid
+import asyncio
+import json
+import logging
+import uuid
 
 from abc import ABC, abstractmethod
-from typing import Any, AsyncGenerator
+from typing import Any
+from collections.abc import AsyncGenerator
 
-from langchain_core.messages import BaseMessage, HumanMessage
-
-from ..agent import agent_keeps_own_history, get_global_agent
+from ...registry import agent_name, new_agent
 from ..file import process_files_from_storage
-from ...base.history_replay import relative_time_hint
-from ...utils.errors import client_safe_error
+from ...errors import client_safe_error
 
-from ..message import (
-    compress_messages,
-    save_message,
-    get_last_message,
-)
+from ..message import save_message
 from ..model import ChatStreamRequest, has_attachment
 
 from ....user.care_circle import CareCircleDenied, resolve_subject
 from ....utils import execute_query, safe_read_cfg
+from ....utils.sse import heartbeat_seconds
 from ....utils.config import get_default_timezone
 from ....utils.i18n import t
 from ....utils.tasks import spawn
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 # Constants
@@ -38,6 +38,15 @@ from ....utils.tasks import spawn
 
 # Chunk types persisted into element_list but never streamed to the client.
 _NON_STREAMING_TYPES = {"food_snap", "report"}
+
+
+#: Why a turn ended. A closed set, because a client branches on it: `stop` is
+#: the model finishing, `error` is a fault the user was told about, and
+#: `unavailable` is never having started.
+FINISH_STOP = "stop"
+FINISH_ERROR = "error"
+FINISH_UNAVAILABLE = "unavailable"
+
 
 class ChunkAccumulator:
     """
@@ -49,13 +58,16 @@ class ChunkAccumulator:
         acc.reply_chunks.append("world")
         acc.flush_reply()  # Creates {"type": "reply", "content": "Hello world"}
     """
-    __slots__ = ('reply_chunks', 'thinking_chunks', 'element_list', 'stream_completed')
+    __slots__ = ('reply_chunks', 'thinking_chunks', 'element_list', 'stream_completed', 'finish_reason')
     
     def __init__(self):
         self.reply_chunks = []
         self.thinking_chunks = []
         self.element_list = []
         self.stream_completed = False
+        #: Why the turn ended, carried from the upstream `end` to the one this
+        #: adapter emits after saving. `stop` until something says otherwise.
+        self.finish_reason = FINISH_STOP
     
     def flush_reply(self) -> bool:
         """
@@ -189,7 +201,7 @@ class ChatProtocolAdapter(ABC):
         try:
             await resolve_subject(user_id, params.query_user_id)
         except CareCircleDenied as denied:
-            logging.error(
+            logger.error(
                 f"user {user_id} may not open a chat on {params.query_user_id}'s record: {denied}"
             )
             return False
@@ -220,7 +232,7 @@ class ChatProtocolAdapter(ABC):
             role='user',
             session_id=self.get_session_id(params),
             scene=self.get_scene(),
-            agent=params.agent,
+            agent=agent_name(),
             message_type="text",
             msg_id=params.msg_id,
             provider=params.provider
@@ -256,7 +268,7 @@ class ChatProtocolAdapter(ABC):
             role='assistant',
             session_id=self.get_session_id(params),
             scene=self.get_scene(),
-            agent=params.agent,
+            agent=agent_name(),
             msg_id=reply_id,
             question_id=question_msg_id,
             message_type="text",
@@ -265,80 +277,7 @@ class ChatProtocolAdapter(ABC):
     
     #-------------------------------------------------------------------------
 
-    async def get_message_history(
-        self,
-        user_id: str,
-        query_user_id: str | None = None,
-        session_id: str | None = None,
-        scene: str | None = None
-    ) -> list:
-        """
-        Get message history for a session.
-        
-        Processes raw messages to:
-        1. Extract file information from JSON content
-        2. Filter consecutive assistant messages
-        3. Remove trailing assistant message for web scene
-        
-        Args:
-            user_id: User ID (str)
-            query_user_id: Query user ID for help-ask scenarios
-            session_id: Session ID
-            scene: Scene identifier (uses adapter's scene if not provided)
-            
-        Returns:
-            Processed list of messages
-        """
-        effective_scene = scene or self.get_scene()
-        messages = await get_last_message(user_id, query_user_id, session_id, scene=effective_scene)
-        
-        # Process messages to extract files from JSON content
-        new_messages = []
-        for m in messages:
-            content = m.get("content", "")
-            role = m.get("role", "user")
-            
-            try:
-                data = json.loads(content)
-                if role == "user" and "files" in data:
-                    files = data["files"]
-                    new_msg = dict(
-                        role="user",
-                        files=[dict(
-                            s3_key=f["file_key"],
-                            file_name=f["filename"],
-                            file_type=f["type"]
-                        ) for f in files],
-                        type="file"
-                    )
-                    new_messages.append(new_msg)
-                else:
-                    new_messages.append(m)
-            except (json.JSONDecodeError, TypeError):
-                new_messages.append(m)
-        
-        # Filter out consecutive assistant messages, keeping only the last one in each sequence
-        filtered_messages = []
-        for i, msg in enumerate(new_messages):
-            if msg.get("role") != "assistant":
-                filtered_messages.append(msg)
-            else:
-                # Keep this assistant message if it's the last or next is not assistant
-                if i == len(new_messages) - 1 or new_messages[i + 1].get("role") != "assistant":
-                    filtered_messages.append(msg)
-                else:
-                    logging.debug(f"Skipping consecutive assistant message at index {i}")
-        
-        return filtered_messages
-    
-    #-------------------------------------------------------------------------
-
-    def _prepare_agent_kwargs(
-        self,
-        params: ChatStreamRequest,
-        messages: list,
-        current_turn_note: str = "",
-    ) -> dict[str, Any]:
+    def _prepare_agent_kwargs(self, params: ChatStreamRequest) -> dict[str, Any]:
         """Pack the request into the kwargs the agent receives — built ONCE.
 
         This used to be two packagings: this method produced a 16-field dict
@@ -347,22 +286,16 @@ class ChatProtocolAdapter(ABC):
         fields nothing consumed (``enable_mcp``, ``group_id``, the JWT
         ``user_id``). One dict, final names, only consumed fields.
 
-        current_turn_note: optional text appended to THIS turn's user message
-        (e.g. a resume/time-gap hint). It rides on the new, uncached turn so it
-        never invalidates the cached history/system prefix.
+        ``messages`` carries ONLY this turn. The agent's graph is compiled with
+        a LangGraph checkpointer keyed on ``thread_id = session_id``
+        (deep/checkpointer.py), so LangGraph holds the real AIMessage /
+        ToolMessage objects and replays the conversation itself. `th_messages`
+        stays authoritative for /api/history and sharing; it is not fed back
+        into the agent loop. (A second path used to replay flattened
+        `th_messages` rows for an agent without a checkpointer; that agent and
+        its replay went together.)
         """
-
-        # Append the current question (+ optional note). Match the element type of
-        # the replayed history: canonical replay yields LangChain BaseMessage
-        # objects, the legacy path yields {role, content} dicts. (astream coerces
-        # either, but keeping the list homogeneous avoids surprises downstream.)
-        question = params.question
-        if current_turn_note:
-            question = f"{question}\n\n{current_turn_note}" if question else current_turn_note
-        if messages and isinstance(messages[-1], BaseMessage):
-            messages = messages + [HumanMessage(content=question)]
-        else:
-            messages = messages + [dict(role="user", content=question)]
+        messages = [{"role": "user", "content": params.question}]
 
         return {
             # `user_id` is the person whose data the agent operates on: the
@@ -378,8 +311,7 @@ class ChatProtocolAdapter(ABC):
             "messages"      : messages,
             "file_list"     : params.file_list or [],
             "files_data"    : getattr(params, "files_data", None),  # Downloaded file content (avoids re-download)
-            # LLM.
-            "agent"         : params.agent,
+            # LLM. (`params.agent` is accepted and ignored: there is one agent.)
             "provider"      : params.provider,
             "prompt_name"   : params.prompt_name,
         }
@@ -402,49 +334,36 @@ class ChatProtocolAdapter(ABC):
         "queryDetail"|"costStatistics"|"error", ...}); `stream_output` owns
         accumulation and persistence.
         """
-        agent_name = agent_kwargs["agent"]
-
         try:
-            agent_instance = get_global_agent(agent_name=agent_name, **agent_kwargs)
-
+            # None means no agent class was found in AGENT_DIRS at startup. A
+            # constructor that RAISES does not land here; it propagates to the
+            # except below.
+            agent_instance = new_agent(**agent_kwargs)
             if not agent_instance:
-                # None means the NAME is not registered (unknown agent or a
-                # dangling alias) — that is the only case this fallback covers.
-                # A constructor that RAISES does not land here; it propagates
-                # to the except below and errors out without fallback.
-                # An EMPTY name is not a wrong name: it means "no specific
-                # agent requested", and announcing a fallback for it put a
-                # "[System] Agent '' unavailable" line into every chat.
-                if agent_name:
-                    logging.warning(
-                        f"⚠️ Agent '{agent_name}' is not registered "
-                        f"(user {agent_kwargs['user_id']}). Falling back to DeepAgent."
-                    )
+                yield {"type": "error", "content": "No agent is configured on this server"}
+                yield {"type": "end", "content": "", "finish_reason": FINISH_UNAVAILABLE}
+                return
 
-                    # Yield warning chunk so frontend knows about the fallback
-                    yield {
-                        "type": "thinking",
-                        "content": f"[System] Agent '{agent_name}' unavailable, using default agent."
-                    }
-
-                agent_instance = get_global_agent(agent_name="Deep", **agent_kwargs)
-
-                if not agent_instance:
-                    yield {"type": "error", "content": "No agent instance available"}
-                    yield {"type": "end", "content": ""}
-                    return
-
+            # Why a turn ENDED is a fact about the run, and the client had no way
+            # to tell "the model finished" from "the budget ran out" from "it
+            # crashed" — all three arrived as the same empty `end`. A reader that
+            # cannot distinguish them shows "Answer Completed" over a truncated
+            # reply, which is what it did. Additive: `content` is unchanged and a
+            # client that ignores the key behaves exactly as before.
+            finish_reason = FINISH_STOP
             async for chunk in agent_instance.generate_response(**agent_kwargs):
+                if isinstance(chunk, dict) and chunk.get("type") == "error":
+                    finish_reason = FINISH_ERROR
                 yield chunk
 
             # Signal end of stream
-            yield {"type": "end", "content": ""}
+            yield {"type": "end", "content": "", "finish_reason": finish_reason}
 
         except Exception as e:
-            logging.error(f"Error generating chat response: {str(e)}", exc_info=True)
+            logger.error(f"Error generating chat response: {str(e)}", exc_info=True)
 
             yield {"type": "error", "content": client_safe_error(e)}
-            yield {"type": "end", "content": ""}
+            yield {"type": "end", "content": "", "finish_reason": FINISH_ERROR}
 
     #-------------------------------------------------------------------------
 
@@ -486,10 +405,10 @@ class ChatProtocolAdapter(ABC):
             # that turn touches keys on that field: `_save_question_if_needed`
             # (so the turn leaves a user row and the session gets a title
             # instead of an assistant answer whose `question_id` points at a
-            # row that does not exist), the `question` kwarg BaseAgent renders
-            # its prompt from (`detect_language("")` is English, so a Chinese
-            # user who typed nothing got an English-instructed prompt), and the
-            # message the model receives. Substituting later, at message-build
+            # row that does not exist), the language the turn is answered in
+            # (an empty question reads as English, so a Chinese user who typed
+            # nothing got an English-instructed prompt), and the message the
+            # model receives. Substituting later, at message-build
             # time, fixed only the last of those — and even that only until a
             # `current_turn_note` was folded in ahead of it, which left the user
             # message a bare time hint asking nothing at all.
@@ -505,14 +424,11 @@ class ChatProtocolAdapter(ABC):
 
             question_msg_id = params.question_id or f"q_{uuid.uuid4()}"
             
-            parallel_tasks = [
+            # Independent I/O, run in parallel to cut time-to-first-byte.
+            files_data, saved_msg_id = await asyncio.gather(
                 self._process_files_if_needed(params, question_msg_id),
                 self._save_question_if_needed(params),
-                self.get_message_history(params.user_id, params.query_user_id, params.session_id),
-            ]
-            
-            # Execute all independent operations in parallel
-            files_data, saved_msg_id, messages = await asyncio.gather(*parallel_tasks)
+            )
             
             # Attach files_data to params for Agent to use (avoids re-downloading)
             if files_data:
@@ -535,36 +451,7 @@ class ChatProtocolAdapter(ABC):
                     )
                 )
             
-            # History. Who supplies it depends on the agent:
-            #
-            #   DeepAgent family — NOBODY here does. The graph is compiled with a
-            #     LangGraph checkpointer keyed on thread_id = session_id, so it
-            #     holds the real AIMessage/ToolMessage objects and replays them
-            #     itself. We hand in only THIS turn's message. The module that
-            #     used to rebuild history by parsing persisted UI chunks
-            #     (base/history_replay.py) is gone — the checkpointer's job,
-            #     and doing it by hand lost `thinking` and re-parsed tool args.
-            #
-            #   BaseAgent — still needs it: it has no graph and no checkpointer,
-            #     and its stateless providers (DeepSeek) get no history from the
-            #     provider side either. It keeps the flat {role, content} replay.
-            #
-            # `th_messages` is unchanged and still authoritative for /api/history
-            # and sharing; it is simply no longer fed back into the DeepAgent loop.
-            if agent_keeps_own_history(params.agent):
-                compressed_messages = []
-                time_note = ""
-            else:
-                compressed_messages = compress_messages(params.agent, messages, 4000)
-                # Temporal continuity on resume: the system prompt carries the
-                # (hour-rounded) current time, but flat replay drops the gap since
-                # the last turn. Surface it on the CURRENT user turn — after the
-                # cache breakpoint, so the cached prefix is untouched.
-                time_note = relative_time_hint(messages)
-
-            agent_kwargs = self._prepare_agent_kwargs(
-                params, compressed_messages, current_turn_note=time_note,
-            )
+            agent_kwargs = self._prepare_agent_kwargs(params)
 
             # Stream the response
             async for frame in self.stream_output(
@@ -574,14 +461,13 @@ class ChatProtocolAdapter(ABC):
                     'query_user_id': params.query_user_id,
                     'msg_id': params.question_id,
                     'session_id': params.session_id,
-                    'agent': params.agent,
                     'params': params
                 }
             ):
                 yield frame
 
         except Exception as e:
-            logging.error(f"Error in HTTP chat handler: {str(e)}", exc_info=True)
+            logger.error(f"Error in HTTP chat handler: {str(e)}", exc_info=True)
 
             # Yield error as SSE
             yield self.encode_chunk({"type": "error", "content": client_safe_error(e)})
@@ -609,7 +495,7 @@ class ChatProtocolAdapter(ABC):
         try:
             redis_client = await global_config().get_redis().get_async_client()
         except Exception as e:
-            logging.warning(f"Failed to get Redis client for file caching: {e}")
+            logger.warning(f"Failed to get Redis client for file caching: {e}")
 
         files_data = await process_files_from_storage(
             file_list=params.file_list,
@@ -655,9 +541,9 @@ class ChatProtocolAdapter(ABC):
                     session_id=session_id,
                     provider=None,
                 )
-                logging.info("✅ Summary generated (session=%s)", session_id)
+                logger.info("Summary generated (session=%s)", session_id)
         except Exception as summary_error:
-            logging.error("❌ Summary generation error: %s", summary_error, exc_info=True)
+            logger.error("Summary generation error: %s", summary_error, exc_info=True)
 
     async def stream_output(
         self,
@@ -699,8 +585,17 @@ class ChatProtocolAdapter(ABC):
                 return True  # Send to frontend
             
             def handle_end(chunk):
-                """Handle end chunk: mark stream completed, don't send to frontend yet"""
+                """Handle end chunk: mark stream completed, don't send to frontend yet.
+
+                The upstream `end` is swallowed here and a fresh one is emitted
+                after the response is saved, so WHY the turn ended has to be
+                carried across — otherwise the client always reads `stop`, which
+                is the bug this field exists to fix.
+                """
                 accumulator.stream_completed = True
+                reason = chunk.get("finish_reason")
+                if isinstance(reason, str):
+                    accumulator.finish_reason = reason
                 return False  # Don't send to frontend (will be sent after save)
 
             def handle_other(chunk):
@@ -748,66 +643,67 @@ class ChatProtocolAdapter(ABC):
                             content=element_list,
                             question_msg_id=context['msg_id']
                         )
-                        logging.info("✅ Response saved to database (reply_id=%s)", reply_id)
+                        logger.info("Response saved to database (reply_id=%s)", reply_id)
                     except Exception as save_error:
-                        logging.error("❌ Failed to save response: %s", save_error, exc_info=True)
+                        logger.error("Failed to save response: %s", save_error, exc_info=True)
                         # Even if save fails, send 'end' to avoid frontend hanging
                 elif not reply_id:
-                    logging.warning("⚠️ Missing reply_id, skip saving")
+                    logger.warning("Missing reply_id, skip saving")
                 
                 # Send 'end' chunk only after saving is complete (or if no save needed)
                 if accumulator.stream_completed:
-                    await output_queue.put({"type": "end", "content": ""})
-                    logging.info("✅ Stream ended, 'end' signal sent to frontend")
+                    await output_queue.put({
+                        "type": "end",
+                        "content": "",
+                        "finish_reason": accumulator.finish_reason,
+                    })
+                    logger.info("Stream ended, 'end' signal sent to frontend")
                     
             except Exception as e:
-                logging.error("Background processor error: %s", e, exc_info=True)
+                logger.error("Background processor error: %s", e, exc_info=True)
                 await output_queue.put({"type": "error", "content": client_safe_error(e)})
+                await output_queue.put({"type": "end", "content": "", "finish_reason": FINISH_ERROR})
             finally:
                 await output_queue.put(None)
-                logging.debug("Background task completed")
+                logger.debug("Background task completed")
         
         spawn(_background_processor())
         
-        HEARTBEAT_INTERVAL = int(safe_read_cfg("HEARTBEAT_INTERVAL", "10"))
-        HEARTBEAT_COUNTER_THRESHOLD = int(safe_read_cfg("HEARTBEAT_COUNTER_THRESHOLD", "3"))
-        heartbeat_counter = 0
+        # Silence-triggered keepalive (see `utils/sse.py` for why it must be
+        # silence-triggered and how short the interval has to be). The frame
+        # is a `heartbeat` chunk rather than an SSE comment because chunks are
+        # the adapter-neutral unit here — `encode_chunk` owns the wire — and
+        # the shipped web client drops `type: heartbeat` on sight. Two knobs
+        # used to multiply into a 40-second first ping (`HEARTBEAT_INTERVAL` ×
+        # `HEARTBEAT_COUNTER_THRESHOLD`), past most proxies' idle timeout; one
+        # key now, shared with every other streaming endpoint.
+        interval = heartbeat_seconds(read=safe_read_cfg)
         try:
             while True:
                 try:
                     chunk = await asyncio.wait_for(
                         output_queue.get(),
-                        timeout=HEARTBEAT_INTERVAL
+                        timeout=interval if interval > 0 else None,
                     )
-
-                    if chunk is None:
-                        break
-
-                    heartbeat_counter = 0
-
-                    chunk_type = chunk.get("type", "")
-                    if chunk_type == "error":
-                        logging.error(json.dumps(chunk, ensure_ascii=False))
-                    if chunk_type not in _NON_STREAMING_TYPES:
-                        yield self.encode_chunk(chunk)
-                    
-
-                except asyncio.TimeoutError:
-                    logging.debug(f"heartbeat_counter: {heartbeat_counter}")
-                    heartbeat_counter += 1
-                    if heartbeat_counter > HEARTBEAT_COUNTER_THRESHOLD:
-                        heartbeat_counter = 0
-
-                        yield self.encode_chunk({"type": "heartbeat", "content": ""})
-
+                except TimeoutError:
+                    yield self.encode_chunk({"type": "heartbeat", "content": ""})
                     continue
 
-            logging.info("Frontend stream completed")
+                if chunk is None:
+                    break
+
+                chunk_type = chunk.get("type", "")
+                if chunk_type == "error":
+                    logger.error(json.dumps(chunk, ensure_ascii=False))
+                if chunk_type not in _NON_STREAMING_TYPES:
+                    yield self.encode_chunk(chunk)
+
+            logger.info("Frontend stream completed")
             
         except (GeneratorExit, asyncio.CancelledError):
-            logging.warning("⚠️ Client disconnected, but background AI task continues")
+            logger.warning("Client disconnected, but background AI task continues")
             raise
             
         except Exception as e:
-            logging.error("Frontend stream error: %s", e, exc_info=True)
+            logger.error("Frontend stream error: %s", e, exc_info=True)
             yield self.encode_chunk({"type": "error", "content": client_safe_error(e)})

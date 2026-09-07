@@ -19,6 +19,8 @@ from .middlewares import (
     UserInfoUpdaterMiddleware,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def build_middlewares(
     *,
@@ -56,7 +58,7 @@ def build_middlewares(
         if allowed_origin == "*" and allow_credentials:
             # NOTE: do NOT `import logging` here. `logging` is imported at module
             # scope, and a function-local import rebinds the name for the WHOLE of
-            # __init__ — which made the `logging.info(...)` at the top of this same
+            # __init__ — which made the `logger.info(...)` at the top of this same
             # method raise UnboundLocalError and took the entire server down at
             # startup (introduced in 06e1ad9, the CORS refactor).
             logging.getLogger(__name__).warning(

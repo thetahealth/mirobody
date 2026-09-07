@@ -1,6 +1,8 @@
-import time, uuid
+import time
+import uuid
 
-from typing import Callable, Any
+from typing import Any
+from collections.abc import Callable
 
 from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
@@ -24,7 +26,7 @@ def get_request_info(request):
     method = request.method
     base_url = str(request.base_url)
 
-    return dict(url=url, base_url=base_url, path=path, method=method)
+    return {"url": url, "base_url": base_url, "path": path, "method": method}
 
 
 class JwtMiddleware(BaseHTTPMiddleware):

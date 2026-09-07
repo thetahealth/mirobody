@@ -32,7 +32,7 @@ class ChinaLocale(LocalePlugin):
         return "cn"
 
     @classmethod
-    def from_args(cls, args: Namespace) -> "ChinaLocale | None":
+    def from_args(cls, args: Namespace) -> ChinaLocale | None:
         path = getattr(args, "nhsa_catalog", "")
         if path and os.path.isfile(path):
             return cls(nhsa_catalog_path=path)
@@ -43,7 +43,7 @@ class ChinaLocale(LocalePlugin):
             return {}
 
         log.info(f"  Loading NHSA catalog: {self._nhsa_path}")
-        with open(self._nhsa_path, "r", encoding="utf-8") as f:
+        with open(self._nhsa_path, encoding="utf-8") as f:
             data = json.load(f)
 
         atc_cn: dict[str, set[str]] = defaultdict(set)

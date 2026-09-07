@@ -8,7 +8,7 @@ nothing from outside the project.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from mirobody.utils import execute_query
@@ -21,6 +21,8 @@ from .db_utils import (
     safe_json_dumps,
     safe_json_loads,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class FileDbService:
@@ -40,15 +42,15 @@ class FileDbService:
         file_key: str,
         file_name: str = "",
         file_type: str = "",
-        file_content: Optional[Dict[str, Any]] = None,
+        file_content: dict[str, Any] | None = None,
         scene: str = "web",
         created_source: str = "file_upload",
-        created_source_id: Optional[str] = None,
-        query_user_id: Optional[str] = None,
+        created_source_id: str | None = None,
+        query_user_id: str | None = None,
         original_text: str = "",
         text_length: int = 0,
         content_hash: str = "",
-    ) -> Optional[int]:
+    ) -> int | None:
         """
         Insert a new file record into th_files table.
         
@@ -117,25 +119,25 @@ class FileDbService:
             if result:
                 file_id = result[0].get("id")
                 if file_id:
-                    logging.info(f"File inserted: id={file_id}, file_key={file_key}")
+                    logger.info(f"File inserted: id={file_id}, file_key={file_key}")
                     return file_id
 
-            logging.warning(f"No id returned for file: file_key={file_key}")
+            logger.warning(f"No id returned for file: file_key={file_key}")
             return None
             
         except Exception as e:
-            logging.error(f"Failed to insert file: {str(e)}", stack_info=True)
+            logger.error(f"Failed to insert file: {str(e)}", stack_info=True)
             return None
     
     @staticmethod
     async def insert_files_batch(
         user_id: str,
-        files_info: List[Dict[str, Any]],
+        files_info: list[dict[str, Any]],
         scene: str = "web",
         created_source: str = "file_upload",
-        created_source_id: Optional[str] = None,
-        query_user_id: Optional[str] = None,
-    ) -> List[int]:
+        created_source_id: str | None = None,
+        query_user_id: str | None = None,
+    ) -> list[int]:
         """
         Insert multiple file records in batch.
         
@@ -161,7 +163,7 @@ class FileDbService:
         for file_info in files_info:
             file_key = file_info.get("file_key")
             if not file_key:
-                logging.warning(f"Skipping file without file_key: {file_info}")
+                logger.warning(f"Skipping file without file_key: {file_info}")
                 continue
             
             # Build file_content with all necessary metadata
@@ -204,7 +206,7 @@ class FileDbService:
             if file_id:
                 inserted_ids.append(file_id)
         
-        logging.info(f"Batch insert completed: {len(inserted_ids)}/{len(files_info)} files")
+        logger.info(f"Batch insert completed: {len(inserted_ids)}/{len(files_info)} files")
         return inserted_ids
     
     # ============== SELECT Operations ==============
@@ -212,8 +214,8 @@ class FileDbService:
     @staticmethod
     async def get_file_by_key(
         file_key: str,
-        user_id: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        user_id: str | None = None,
+    ) -> dict[str, Any] | None:
         """
         Get file record by file_key.
         
@@ -234,7 +236,7 @@ class FileDbService:
                 FROM th_files
                 WHERE file_key = :file_key AND is_del = false
             """
-            params: Dict[str, Any] = {"file_key": file_key}
+            params: dict[str, Any] = {"file_key": file_key}
             
             if user_id:
                 sql += " AND user_id = :user_id"
@@ -252,18 +254,18 @@ class FileDbService:
             return record
             
         except Exception as e:
-            logging.error(f"Failed to get file by key: {str(e)}", stack_info=True)
+            logger.error(f"Failed to get file by key: {str(e)}", stack_info=True)
             return None
     
     @staticmethod
     async def get_files_paginated(
         user_id: str,
-        query_user_id: Optional[str] = None,
-        scene: Optional[Union[str, List[str]]] = None,
-        created_source: Optional[str] = None,
+        query_user_id: str | None = None,
+        scene: str | list[str] | None = None,
+        created_source: str | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         List the files attached to a user's record, with pagination.
 
@@ -294,7 +296,7 @@ class FileDbService:
                 "is_del = false",
                 "(file_type IS NULL OR file_type NOT LIKE 'audio/%')"  # Exclude audio files
             ]
-            params: Dict[str, Any] = {
+            params: dict[str, Any] = {
                 "limit": limit,
                 "offset": offset,
             }
@@ -436,7 +438,7 @@ class FileDbService:
                 if first_row:
                     total = first_row.get("total", 0)
             
-            logging.info(f"Get files paginated: user_id={target_user_id}, total={total}, returned={len(files)}")
+            logger.info(f"Get files paginated: user_id={target_user_id}, total={total}, returned={len(files)}")
             
             return {
                 "files": files,
@@ -446,15 +448,15 @@ class FileDbService:
             }
             
         except Exception as e:
-            logging.error(f"Failed to get files paginated: {str(e)}", stack_info=True)
+            logger.error(f"Failed to get files paginated: {str(e)}", stack_info=True)
             raise Exception(f"Failed to get uploaded files: {str(e)}")
     
     @staticmethod
     async def get_files_by_source(
         user_id: str,
         created_source: str,
-        created_source_id: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        created_source_id: str | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Get files by created source.
         
@@ -478,7 +480,7 @@ class FileDbService:
                   AND created_source = :created_source
                   AND is_del = false
             """
-            params: Dict[str, Any] = {
+            params: dict[str, Any] = {
                 "user_id": str(user_id),
                 "created_source": created_source,
             }
@@ -497,7 +499,7 @@ class FileDbService:
             return files
             
         except Exception as e:
-            logging.error(f"Failed to get files by source: {str(e)}", stack_info=True)
+            logger.error(f"Failed to get files by source: {str(e)}", stack_info=True)
             return []
     
     # ============== UPDATE Operations ==============
@@ -505,8 +507,8 @@ class FileDbService:
     @staticmethod
     async def update_file_content(
         file_key: str,
-        updates: Dict[str, Any],
-        user_id: Optional[str] = None,
+        updates: dict[str, Any],
+        user_id: str | None = None,
     ) -> bool:
         """
         Update file_content JSON field.
@@ -525,7 +527,7 @@ class FileDbService:
             # First get current file_content
             current = await FileDbService.get_file_by_key(file_key, user_id)
             if not current:
-                logging.warning(f"File not found for update: file_key={file_key}")
+                logger.warning(f"File not found for update: file_key={file_key}")
                 return False
             
             # Merge updates into current content
@@ -551,7 +553,7 @@ class FileDbService:
                     WHERE file_key = :file_key AND is_del = false
                 """
             
-            params: Dict[str, Any] = {
+            params: dict[str, Any] = {
                 "file_key": file_key,
                 "file_content": safe_json_dumps(current_content),
             }
@@ -564,11 +566,11 @@ class FileDbService:
                 params["user_id"] = str(user_id)
             
             await execute_query(query=sql, params=params)
-            logging.info(f"File content updated: file_key={file_key}, updates={list(updates.keys())}")
+            logger.info(f"File content updated: file_key={file_key}, updates={list(updates.keys())}")
             return True
             
         except Exception as e:
-            logging.error(f"Failed to update file content: {str(e)}", stack_info=True)
+            logger.error(f"Failed to update file content: {str(e)}", stack_info=True)
             return False
     
     @staticmethod
@@ -576,8 +578,8 @@ class FileDbService:
         file_key: str,
         raw: str = "",
         file_abstract: str = "",
-        indicators: Optional[List[Dict]] = None,
-        file_name: Optional[str] = None,
+        indicators: list[dict] | None = None,
+        file_name: str | None = None,
         original_text: str = "",
         text_length: int = 0,
         content_hash: str = "",
@@ -602,7 +604,7 @@ class FileDbService:
             # Fetch current file to get decrypted file_content for merging
             current = await FileDbService.get_file_by_key(file_key)
             if not current:
-                logging.warning(f"File not found for update: file_key={file_key}")
+                logger.warning(f"File not found for update: file_key={file_key}")
                 return False
 
             current_content = current.get("file_content", {})
@@ -625,7 +627,7 @@ class FileDbService:
                 "UPDATE th_files SET",
                 "file_content = encrypt_content(:file_content)",
             ]
-            params: Dict[str, Any] = {
+            params: dict[str, Any] = {
                 "file_key": file_key,
                 "file_content": safe_json_dumps(current_content),
             }
@@ -659,7 +661,7 @@ class FileDbService:
             return True
 
         except Exception as e:
-            logging.error(f"Failed to update file processed: {file_key}, error: {e}")
+            logger.error(f"Failed to update file processed: {file_key}, error: {e}")
             return False
     
     # ============== DELETE Operations ==============
@@ -696,14 +698,14 @@ class FileDbService:
             )
             
             if result:
-                logging.info(f"File soft deleted: file_key={file_key}")
+                logger.info(f"File soft deleted: file_key={file_key}")
                 return True
             
-            logging.warning(f"File not found for deletion: file_key={file_key}")
+            logger.warning(f"File not found for deletion: file_key={file_key}")
             return False
             
         except Exception as e:
-            logging.error(f"Failed to soft delete file: {str(e)}", stack_info=True)
+            logger.error(f"Failed to soft delete file: {str(e)}", stack_info=True)
             return False
     
     # ============== URL Regeneration ==============

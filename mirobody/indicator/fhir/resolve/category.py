@@ -50,7 +50,10 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    import numpy as np
 
 log = logging.getLogger(__name__)
 
@@ -247,13 +250,13 @@ _SECTION_HEADER_PHRASES: frozenset[str] = frozenset({
     "预防接种史", "用药史", "饮食习惯", "婚姻状况",
     "职业", "喝酒史", "抽烟史",
     # Traditional Chinese
-    "討論", "診斷意見", "診斷印象", "隨訪", "總結", "概要", "結論", "備註",
+    "討論", "診斷意見", "診斷印象", "隨訪", "總結", "結論", "備註",
     "診斷", "影像表現", "影像所見", "檢查所見", "檢查結果",
     "主訴", "現病史", "病理診斷",
     # Japanese
-    "考察", "所見", "結論", "経過", "経過観察", "追跡",
+    "考察", "所見", "経過", "経過観察", "追跡",
     "コメント", "フォローアップ", "ディスカッション",
-    "画像所見", "検査所見", "検査結果", "主訴", "現病歴",
+    "画像所見", "検査所見", "検査結果", "現病歴",
     # Korean
     "토론", "결론", "요약", "추적", "추적관찰", "코멘트",
     "영상소견", "검사소견", "검사결과", "주소", "현병력",
@@ -365,10 +368,10 @@ _SECTION_HEADER_NAME_PATTERN = re.compile(
 )
 
 
-_section_header_mask_cache: dict[int, "np.ndarray"] = {}
+_section_header_mask_cache: dict[int, np.ndarray] = {}
 
 
-def section_header_pool_mask(cache: dict) -> "np.ndarray":
+def section_header_pool_mask(cache: dict) -> np.ndarray:
     """Boolean mask over ``cache['embs']`` rows: True iff the row is a
     section-header concept. Cached by cache instance id — the same loaded
     cache is reused across resolve_many calls, so the regex scan over
@@ -551,10 +554,10 @@ _ARCHETYPE_STRATEGIES: dict[str, ResolveStrategy] = {
 
 # Process-cached centroids. Each entry is a unit-L2-normalized 1024-dim
 # vector. Cache key is the embedding provider so a config change rebuilds.
-_centroids_cache: dict[str, dict[str, "np.ndarray"]] = {}
+_centroids_cache: dict[str, dict[str, np.ndarray]] = {}
 
 
-async def _load_centroids(provider: str) -> dict[str, "np.ndarray"]:
+async def _load_centroids(provider: str) -> dict[str, np.ndarray]:
     """Embed seeds and compute one unit-normalized centroid per archetype.
 
     Cached per provider for the process lifetime — seeds are static and

@@ -2,22 +2,19 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from hashlib import md5
-from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse, unquote
+from typing import Any
 from zoneinfo import ZoneInfo
 from mirobody.utils import execute_query
-from mirobody.utils.req_ctx import get_req_ctx
+
+from ...readings import upsert_readings
 
 from .db_utils import (
     safe_json_dumps,
-    safe_json_loads,
     parse_date,
     get_utc_now,
-    extract_first_record,
-    get_mime_type,
-    get_simple_file_type,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class FileParserDatabaseService:
@@ -62,10 +59,10 @@ class FileParserDatabaseService:
                 params=params,
             )
 
-            logging.info(f"💾 [DB] Updated message {message_id} with fields: {', '.join(update_fields)}, result: {update_result}")
+            logger.info(f"[DB] Updated message {message_id} with fields: {', '.join(update_fields)}, result: {update_result}")
             return True
         except Exception as e:
-            logging.error(f"Error updating message: {e}", stack_info=True)
+            logger.error(f"Error updating message: {e}", stack_info=True)
             return False
 
     @staticmethod
@@ -77,7 +74,7 @@ class FileParserDatabaseService:
     @staticmethod
     async def generate_and_save_summary(
         user_id: str, session_id: str, user_message: str, provider: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Asynchronously generate and save summary"""
         try:
             # Generate summary
@@ -86,11 +83,11 @@ class FileParserDatabaseService:
             # Save summary
             await FileParserDatabaseService.save_conversation_summary(user_id, session_id, summary)
 
-            logging.info(f"session:{session_id}\tSuccessfully saved conversation summary!")
+            logger.info(f"session:{session_id}\tSuccessfully saved conversation summary!")
             return {"event": "summary_generated", "session_id": session_id}
 
         except Exception as e:
-            logging.error(f"Error in generate_and_save_summary: {str(e)}", stack_info=True)
+            logger.error(f"Error in generate_and_save_summary: {str(e)}", stack_info=True)
 
             return None
 
@@ -98,7 +95,7 @@ class FileParserDatabaseService:
     async def save_conversation_summary(user_id: str, session_id: str, summary: str) -> bool:
         """Save conversation summary to database"""
         try:
-            logging.info(f"save_conversation_summary: {user_id}, {session_id}, {summary}")
+            logger.info(f"save_conversation_summary: {user_id}, {session_id}, {summary}")
             # Insert summary, do nothing on conflict
             summary_sql = """
                 INSERT INTO th_sessions (
@@ -121,11 +118,11 @@ class FileParserDatabaseService:
             return True
 
         except Exception as e:
-            logging.error(f"Error saving conversation summary: {str(e)}", stack_info=True)
+            logger.error(f"Error saving conversation summary: {str(e)}", stack_info=True)
             return False
 
     @staticmethod
-    async def _save_to_series_data(db_params: List[Dict[str, Any]]) -> int:
+    async def _save_to_series_data(db_params: list[dict[str, Any]]) -> int:
         """Parallel task: save to th_series_data table.
 
         The unique (user, indicator, start, end) key counts soft-deleted rows,
@@ -134,23 +131,13 @@ class FileParserDatabaseService:
         collided with its own deleted copy) while the log said "Write
         complete: 9 records" and the file row said 9 indicators. A collision
         with a DELETED row now revives that row as the new reading; a
-        collision with a live row is still left alone.
+        collision with a live row is still left alone — that is what
+        `on_conflict="revive_deleted"` means in `pulse/readings.py`.
         """
         if not db_params:
             return 0
 
-        await execute_query(
-            query="""INSERT INTO th_series_data (user_id, indicator, value, start_time, end_time, source_table, source_table_id, comment)
-               VALUES (:user_id, :indicator, :value, :start_time, :end_time, :source_table, :source_table_id, encrypt_content(:comment))
-               ON CONFLICT (user_id, indicator, start_time, end_time) DO UPDATE
-                  SET value = EXCLUDED.value, source_table = EXCLUDED.source_table,
-                      source_table_id = EXCLUDED.source_table_id, comment = EXCLUDED.comment,
-                      deleted = 0, update_time = CURRENT_TIMESTAMP
-                WHERE th_series_data.deleted = 1""",
-            params=db_params,
-        )
-        logging.info(f"✅ {len(db_params)} indicator data saved to th_series_data")
-        return len(db_params)
+        return await upsert_readings(db_params, on_conflict="revive_deleted")
 
     @staticmethod
     def generate_source_table_id(msg_id: str, file_key: str) -> str:
@@ -218,11 +205,11 @@ class FileParserDatabaseService:
             start_time = parse_date(exam_date)
             if start_time is not None:
                 return start_time, "extracted"
-            logging.warning(f"Unparseable report date {exam_date!r} for user_id {user_id}; filing under the upload time")
+            logger.warning(f"Unparseable report date {exam_date!r} for user_id {user_id}; filing under the upload time")
         return await FileParserDatabaseService.get_user_current_time_with_timezone(user_id), "upload_time"
 
     @staticmethod
-    async def manual_report_date(file_key: str) -> Optional[datetime]:
+    async def manual_report_date(file_key: str) -> datetime | None:
         """The date the user set on this file, if they set one (`date_source:
         manual` on the th_files row), else None. Read right before readings are
         saved, because the answer can arrive while extraction is still running
@@ -236,13 +223,13 @@ class FileParserDatabaseService:
                 return None
             return parse_date(str(content.get("report_date") or ""))
         except Exception as e:
-            logging.warning(f"manual_report_date lookup failed for {file_key}: {e}")
+            logger.warning(f"manual_report_date lookup failed for {file_key}: {e}")
             return None
 
     @staticmethod
     async def save_indicators_to_db(
         user_id: str,
-        indicators: List[Dict[str, Any]],
+        indicators: list[dict[str, Any]],
         start_time: datetime,
         date_source: str,
         msg_id: str,
@@ -280,7 +267,7 @@ class FileParserDatabaseService:
                     }
                     comment_json = json.dumps(comment_data, ensure_ascii=False)
                 except Exception as e:
-                    logging.warning(f"Failed to build comment JSON for indicator {original_indicator}: {str(e)}")
+                    logger.warning(f"Failed to build comment JSON for indicator {original_indicator}: {str(e)}")
                     comment_json = ""
                 
                 # Build th_series_data parameters
@@ -301,7 +288,7 @@ class FileParserDatabaseService:
             if db_params:
                 await FileParserDatabaseService._save_to_series_data(db_params)
 
-            logging.info(f"🚀 Write complete: {len(db_params)} records, user_id: {user_id}")
+            logger.info(f"Write complete: {len(db_params)} records, user_id: {user_id}")
 
             if db_params:
                 # Signal the worker to materialize th_series_dim + backfill
@@ -313,12 +300,12 @@ class FileParserDatabaseService:
                     await IndicatorSyncTask.enqueue("")
                     await ProfileRefreshTask.enqueue(str(user_id))
                 except Exception as e:
-                    logging.warning(f"Failed to enqueue indicator-sync/profile-refresh signals: {e}")
+                    logger.warning(f"Failed to enqueue indicator-sync/profile-refresh signals: {e}")
 
             return len(db_params)
 
         except Exception:
-            logging.error(f"Failed to save indicators to database, user_id: {user_id}", stack_info=True)
+            logger.error(f"Failed to save indicators to database, user_id: {user_id}", stack_info=True)
             return 0
 
     @staticmethod
@@ -351,11 +338,11 @@ class FileParserDatabaseService:
 
             await execute_query(query=sql, params=params,)
 
-            logging.info(f"Genetic data deleted successfully, user_id: {user_id}, source_table: {source_table}, source_table_id: {source_table_id}")
+            logger.info(f"Genetic data deleted successfully, user_id: {user_id}, source_table: {source_table}, source_table_id: {source_table_id}")
             return True
 
         except Exception:
-            logging.error(f"Failed to delete genetic data, user_id: {user_id}, source_table: {source_table}, source_table_id: {source_table_id}", stack_info=True)
+            logger.error(f"Failed to delete genetic data, user_id: {user_id}, source_table: {source_table}, source_table_id: {source_table_id}", stack_info=True)
             return False
 
     @staticmethod
@@ -380,7 +367,7 @@ class FileParserDatabaseService:
             storage = get_storage_client()
             storage_type = storage.get_storage_type()
             
-            logging.debug(f"Using {storage_type} storage for URL regeneration, key: {file_key}")
+            logger.debug(f"Using {storage_type} storage for URL regeneration, key: {file_key}")
             
             # Generate signed URL with 24 hours expiration
             url, err = await storage.generate_signed_url(
@@ -389,17 +376,16 @@ class FileParserDatabaseService:
                 content_type=content_type
             )
             if err:
-                logging.warning(f"URL generation returned empty for key '{file_key}': {err}")
+                logger.warning(f"URL generation returned empty for key '{file_key}': {err}")
                 return ""
 
             if url:
                 return url
-            else:
-                logging.warning(f"URL generation returned empty for key: {file_key}")
-                return ""
+            logger.warning(f"URL generation returned empty for key: {file_key}")
+            return ""
                     
         except Exception as e:
-            logging.error(f"URL regeneration failed for key {file_key}: {str(e)}", stack_info=True)
+            logger.error(f"URL regeneration failed for key {file_key}: {str(e)}", stack_info=True)
             return ""
 
 
@@ -419,15 +405,15 @@ class FileParserDatabaseService:
             if new_url:
                 file_info["url_full"] = new_url
         except Exception as e:
-            logging.warning(f"Failed to regenerate URL for {file_key}: {str(e)}", "_regenerate_urls")
+            logger.warning(f"Failed to regenerate URL for {file_key}: {str(e)}", "_regenerate_urls")
 
     @staticmethod
     async def get_uploaded_files_paginated(
         uploader_user_id: str,
-        target_user_id: Optional[str] = None,
+        target_user_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Get user's uploaded file history with pagination.
         
@@ -472,12 +458,12 @@ class FileParserDatabaseService:
                     f.get("scene", "")
                 )
             
-            logging.info(f"Success: query_user_id={target_user_id or uploader_user_id}, total={result.get('total', 0)}")
+            logger.info(f"Success: query_user_id={target_user_id or uploader_user_id}, total={result.get('total', 0)}")
             
             return result
             
         except Exception as e:
-            logging.error(f"Get uploaded files failed: {str(e)}", stack_info=True)
+            logger.error(f"Get uploaded files failed: {str(e)}", stack_info=True)
             raise Exception(f"Failed to get uploaded files: {str(e)}")
 
     @staticmethod
@@ -531,7 +517,7 @@ class FileParserDatabaseService:
         return "unknown"
 
     @staticmethod
-    async def get_user_data_distribution(user_id: str) -> Dict[str, Any]:
+    async def get_user_data_distribution(user_id: str) -> dict[str, Any]:
         """Return aggregate counts of the user's processed health data.
 
         Frontend (web Home DataBar / Drive "Clean data" panel) consumes only
@@ -541,7 +527,7 @@ class FileParserDatabaseService:
         try:
             user_id = str(user_id)
 
-            logging.info(f"Getting user data distribution: user_id={user_id}")
+            logger.info(f"Getting user data distribution: user_id={user_id}")
 
             # Aggregate counts from th_series_data + th_series_data_genetic.
             # Categories are derived from th_series_dim.department, with 'Other'
@@ -591,7 +577,7 @@ class FileParserDatabaseService:
                 total_records = 0
                 total_categories = 0
 
-            logging.info(
+            logger.info(
                 f"Query completed: user={user_id}, total_categories={total_categories}, total_records={total_records}"
             )
 
@@ -603,6 +589,6 @@ class FileParserDatabaseService:
             }
 
         except Exception as e:
-            logging.error(f"Failed to query data distribution: {str(e)}", stack_info=True)
+            logger.error(f"Failed to query data distribution: {str(e)}", stack_info=True)
             raise Exception(f"Failed to query data distribution: {str(e)}")
 

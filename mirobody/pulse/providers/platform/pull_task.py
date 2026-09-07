@@ -4,10 +4,11 @@ Pull task implementation for providers
 
 import logging
 
-from typing import Dict, Optional
 
 from mirobody.pulse.core.scheduler import PullTask, ScheduleType
 from .base import BasePullProvider
+
+logger = logging.getLogger(__name__)
 
 # Provider execution interval configuration (hours)
 PROVIDER_EXECUTION_INTERVALS = {
@@ -46,8 +47,8 @@ class ProviderPullTask(PullTask):
         self,
         provider: BasePullProvider,
         schedule_type: ScheduleType = ScheduleType.HOURLY,
-        custom_execution_interval: Optional[float] = None,
-        custom_lock_duration: Optional[float] = None,
+        custom_execution_interval: float | None = None,
+        custom_lock_duration: float | None = None,
     ):
         """
         Initialize Pull Task
@@ -71,7 +72,7 @@ class ProviderPullTask(PullTask):
             lock_duration_hours=lock_duration,
         )
 
-        logging.info(
+        logger.info(
             f"Initialized pull task for {self.provider_slug}: "
             f"execution_interval={execution_interval:.2f}h, "
             f"lock_duration={lock_duration:.2f}h, "
@@ -94,7 +95,7 @@ class ProviderPullTask(PullTask):
             Whether execution was successful
         """
         try:
-            logging.info(
+            logger.info(
                 f"Starting pull task for provider: {self.provider_slug} "
                 f"(execution_interval: {self.execution_interval_hours}h)"
             )
@@ -103,17 +104,17 @@ class ProviderPullTask(PullTask):
             success = await self.provider.pull_and_push()
 
             if success:
-                logging.info(f"Pull task completed successfully for provider: {self.provider_slug}")
+                logger.info(f"Pull task completed successfully for provider: {self.provider_slug}")
             else:
-                logging.error(f"Pull task failed for provider: {self.provider_slug}")
+                logger.error(f"Pull task failed for provider: {self.provider_slug}")
 
             return success
 
         except Exception as e:
-            logging.error(f"Pull task error for provider {self.provider_slug}: {str(e)}")
+            logger.error(f"Pull task error for provider {self.provider_slug}: {str(e)}")
             return False
 
-    def get_provider_config(self) -> Dict:
+    def get_provider_config(self) -> dict:
         """Get provider configuration information"""
         return {
             "provider_slug": self.provider_slug,
@@ -129,8 +130,8 @@ class ProviderPullTask(PullTask):
 def create_pull_task_for_provider(
     provider: BasePullProvider,
     schedule_type: ScheduleType = ScheduleType.HOURLY,
-    custom_execution_interval: Optional[float] = None,
-    custom_lock_duration: Optional[float] = None,
+    custom_execution_interval: float | None = None,
+    custom_lock_duration: float | None = None,
 ) -> ProviderPullTask:
     """
     Create Pull Task for provider

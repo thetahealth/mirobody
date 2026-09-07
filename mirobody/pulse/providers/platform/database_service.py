@@ -5,11 +5,13 @@ Database service for providers
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from mirobody.pulse.core import LinkType
 from mirobody.utils import execute_query
 from mirobody.utils.crypto import decrypt_string_aes_gcm, encrypt_string_aes_gcm
+
+logger = logging.getLogger(__name__)
 
 
 class ProviderDatabaseService:
@@ -21,20 +23,19 @@ class ProviderDatabaseService:
 
     def __init__(self):
         """Initialize database service"""
-        pass
 
     # Shared credentials payload for database operations
     @dataclass
     class Credentials:
-        username: Optional[str] = None
-        password: Optional[str] = None
-        access_token: Optional[str] = None
-        access_token_secret: Optional[str] = None
-        refresh_token: Optional[str] = None
-        expires_at: Optional[Union[int, Any]] = None
-        connect_info: Optional[Dict[str, Any]] = None  # Additional connection information
+        username: str | None = None
+        password: str | None = None
+        access_token: str | None = None
+        access_token_secret: str | None = None
+        refresh_token: str | None = None
+        expires_at: int | Any | None = None
+        connect_info: dict[str, Any] | None = None  # Additional connection information
 
-    def _decrypt_password_aes_gcm(self, encrypted_password: str, user_id: str) -> Optional[str]:
+    def _decrypt_password_aes_gcm(self, encrypted_password: str, user_id: str) -> str | None:
         """
         Decrypt password using AES-GCM algorithm (matching Go implementation)
 
@@ -48,32 +49,31 @@ class ProviderDatabaseService:
             Decrypted password or None if decryption fails
         """
         if not encrypted_password:
-            logging.info(f"Empty password for user {user_id}")
+            logger.info(f"Empty password for user {user_id}")
             return None
 
-        logging.info(f"Decrypting password for user {user_id} using AES-GCM (length: {len(encrypted_password)})")
+        logger.info(f"Decrypting password for user {user_id} using AES-GCM (length: {len(encrypted_password)})")
 
         try:
             decrypted = decrypt_string_aes_gcm(encrypted_password)
             if decrypted is not None:
-                logging.info(f"AES-GCM decryption successful for user {user_id}")
+                logger.info(f"AES-GCM decryption successful for user {user_id}")
                 return decrypted
-            else:
-                logging.error(f"AES-GCM decryption failed for user {user_id}: returned None")
-                return None
+            logger.error(f"AES-GCM decryption failed for user {user_id}: returned None")
+            return None
         except Exception as e:
             error_msg = str(e)
             if "InvalidTag" in error_msg:
-                logging.error(
+                logger.error(
                     f"AES-GCM InvalidTag error for user {user_id}: Authentication tag verification failed. "
                     + f"Encrypted data: {encrypted_password[:20]}... "
                     + "This may indicate data corruption or encryption key mismatch."
                 )
             else:
-                logging.error(f"AES-GCM decryption error for user {user_id}: {error_msg}")
+                logger.error(f"AES-GCM decryption error for user {user_id}: {error_msg}")
             return None
 
-    async def get_all_user_credentials_for_provider(self, provider_slug: str, link_type: LinkType) -> List[Dict[str, Any]]:
+    async def get_all_user_credentials_for_provider(self, provider_slug: str, link_type: LinkType) -> list[dict[str, Any]]:
         """
         Get all user credentials for a specified provider
         
@@ -123,7 +123,7 @@ class ProviderDatabaseService:
             )
 
             if not result:
-                logging.info(f"No users found for provider {provider_slug}")
+                logger.info(f"No users found for provider {provider_slug}")
                 return []
 
             # Decrypt corresponding fields and return credentials list
@@ -131,13 +131,13 @@ class ProviderDatabaseService:
             for row in result:
                 try:
                     user_id = row["user_id"]
-                    entry: Dict[str, Any] = {"user_id": user_id, "link_type": link_type.value.lower()}
+                    entry: dict[str, Any] = {"user_id": user_id, "link_type": link_type.value.lower()}
                     if link_type == LinkType.PASSWORD:
                         encrypted_password = row.get("password")
                         if encrypted_password:
                             decrypted_password = self._decrypt_password_aes_gcm(encrypted_password, user_id)
                             if decrypted_password is None:
-                                logging.error(f"Failed to decrypt password for user {user_id}: password is None after decryption")
+                                logger.error(f"Failed to decrypt password for user {user_id}: password is None after decryption")
                                 continue
                             entry["username"] = row.get("username")
                             entry["password"] = decrypted_password
@@ -162,14 +162,14 @@ class ProviderDatabaseService:
 
                     credentials.append(entry)
                 except Exception as e:
-                    logging.error(f"Failed to decrypt password for user {row['user_id']}: {str(e)}")
+                    logger.error(f"Failed to decrypt password for user {row['user_id']}: {str(e)}")
                     continue
 
-            logging.info(f"Found {len(credentials)} users with credentials for provider {provider_slug}")
+            logger.info(f"Found {len(credentials)} users with credentials for provider {provider_slug}")
             return credentials
 
         except Exception as e:
-            logging.error(f"Error getting user credentials for provider {provider_slug}: {str(e)}")
+            logger.error(f"Error getting user credentials for provider {provider_slug}: {str(e)}")
             return []
 
     async def save_user_theta_provider(
@@ -263,7 +263,7 @@ class ProviderDatabaseService:
 
         await execute_query(query=atomic_query, params=params)
 
-        logging.info(f"Successfully saved theta provider for user {app_user_id}, provider {provider_slug}, link_type={link_type}")
+        logger.info(f"Successfully saved theta provider for user {app_user_id}, provider {provider_slug}, link_type={link_type}")
         return True
 
     async def get_user_theta_providers(self, user_id: str) -> list[str]:
@@ -279,7 +279,7 @@ class ProviderDatabaseService:
             return [row["provider"] for row in result] if result else []
 
         except Exception as e:
-            logging.error(f"Error getting user theta providers for {user_id}: {str(e)}")
+            logger.error(f"Error getting user theta providers for {user_id}: {str(e)}")
             return []
 
     async def delete_user_theta_provider(self, user_id: str, provider_slug: str) -> bool:
@@ -294,7 +294,7 @@ class ProviderDatabaseService:
             params={"user_id": user_id, "provider": provider_slug},
         )
 
-        logging.info(f"Successfully deleted theta provider {provider_slug} for user {user_id}")
+        logger.info(f"Successfully deleted theta provider {provider_slug} for user {user_id}")
         return True
 
     async def update_llm_access(self, user_id: str, provider_slug: str, llm_access: int) -> bool:
@@ -316,7 +316,7 @@ class ProviderDatabaseService:
             WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
             """
 
-            result = await execute_query(
+            await execute_query(
                 query=query,
                 params={
                     "user_id": user_id,
@@ -325,14 +325,14 @@ class ProviderDatabaseService:
                 },
             )
 
-            logging.info(f"Successfully updated LLM access to {llm_access} for user {user_id}, provider {provider_slug}")
+            logger.info(f"Successfully updated LLM access to {llm_access} for user {user_id}, provider {provider_slug}")
             return True
 
         except Exception as e:
-            logging.error(f"Error updating LLM access for user {user_id}, provider {provider_slug}: {str(e)}")
+            logger.error(f"Error updating LLM access for user {user_id}, provider {provider_slug}: {str(e)}")
             return False
 
-    async def get_user_theta_providers_with_llm_access(self, user_id: str) -> Dict[str, Dict[str, int]]:
+    async def get_user_theta_providers_with_llm_access(self, user_id: str) -> dict[str, dict[str, int]]:
         """
         Get user's theta providers with their LLM access permissions and reconnect status
 
@@ -370,14 +370,14 @@ class ProviderDatabaseService:
                             "reconnect": reconnect
                         }
 
-            logging.info(f"Retrieved LLM access and reconnect status for {len(provider_info_map)} theta providers for user {user_id}")
+            logger.info(f"Retrieved LLM access and reconnect status for {len(provider_info_map)} theta providers for user {user_id}")
             return provider_info_map
 
         except Exception as e:
-            logging.error(f"Error getting theta providers info for user {user_id}: {str(e)}")
+            logger.error(f"Error getting theta providers info for user {user_id}: {str(e)}")
             return {}
 
-    async def get_user_credentials(self, user_id: str, provider_slug: str, link_type: LinkType) -> Optional[Dict[str, Any]]:
+    async def get_user_credentials(self, user_id: str, provider_slug: str, link_type: LinkType) -> dict[str, Any] | None:
         """Get user credentials for a given link_type (PASSWORD / OAUTH1 / OAUTH2 / CUSTOMIZED)."""
         try:
             if link_type == LinkType.CUSTOMIZED:
@@ -400,7 +400,7 @@ class ProviderDatabaseService:
                     "link_type": "customized"
                 }
 
-            elif link_type == LinkType.PASSWORD:
+            if link_type == LinkType.PASSWORD:
                 # Query password fields AND token fields (access_token, refresh_token, expires_at)
                 # Some PASSWORD providers (like FrontierX) also store OAuth2-style tokens
                 query = """
@@ -442,7 +442,7 @@ class ProviderDatabaseService:
 
                 return response
 
-            elif link_type == LinkType.OAUTH1:
+            if link_type == LinkType.OAUTH1:
                 query = """
                 SELECT username, access_token, access_token_secret
                 FROM health_user_provider
@@ -466,34 +466,34 @@ class ProviderDatabaseService:
                     "link_type": "oauth1",
                 }
 
-            else:  # OAUTH2
-                query = """
+            # OAUTH2
+            query = """
                 SELECT access_token, refresh_token, expires_at, username
                 FROM health_user_provider
                 WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
                 ORDER BY create_at DESC LIMIT 1
                 """
-                result = await execute_query(query, {"user_id": user_id, "provider": provider_slug})
-                if not result:
-                    return None
-                row = result[0]
-                if not row.get('access_token') or not row.get('refresh_token'):
-                    return None
-                access_token = self._decrypt_password_aes_gcm(row['access_token'], user_id)
-                refresh_token = self._decrypt_password_aes_gcm(row['refresh_token'], user_id)
-                if not access_token or not refresh_token:
-                    return None
+            result = await execute_query(query, {"user_id": user_id, "provider": provider_slug})
+            if not result:
+                return None
+            row = result[0]
+            if not row.get('access_token') or not row.get('refresh_token'):
+                return None
+            access_token = self._decrypt_password_aes_gcm(row['access_token'], user_id)
+            refresh_token = self._decrypt_password_aes_gcm(row['refresh_token'], user_id)
+            if not access_token or not refresh_token:
+                return None
 
-                return {
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "expires_at": row.get("expires_at"),
-                    "username": row.get("username"),
-                    "link_type": "oauth2",
-                }
+            return {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "expires_at": row.get("expires_at"),
+                "username": row.get("username"),
+                "link_type": "oauth2",
+            }
 
         except Exception as e:
-            logging.error(f"Failed to get user credentials for {provider_slug}: {str(e)}")
+            logger.error(f"Failed to get user credentials for {provider_slug}: {str(e)}")
             return None
 
     # _save_oauth_credentials_common removed after unification into save_user_theta_provider
@@ -504,7 +504,7 @@ class ProviderDatabaseService:
             provider_slug: str,
             access_token: str,
             access_token_secret: str,
-            user_name: Optional[str] = None
+            user_name: str | None = None
     ) -> bool:
         """Backward-compatible wrapper → unified save_user_theta_provider"""
         creds = ProviderDatabaseService.Credentials(
@@ -520,8 +520,8 @@ class ProviderDatabaseService:
             provider_slug: str,
             access_token: str,
             refresh_token: str,
-            expires_at: Optional[Any] = None,
-            user_name: Optional[str] = None
+            expires_at: Any | None = None,
+            user_name: str | None = None
     ) -> bool:
         """
         Backward-compatible wrapper → unified save_user_theta_provider
@@ -542,7 +542,7 @@ class ProviderDatabaseService:
                 # utcfromtimestamp ensures no local timezone conversion
                 expires_at_value = datetime.utcfromtimestamp(int(expires_at))
             except (ValueError, TypeError) as e:
-                logging.warning(f"Invalid expires_at timestamp {expires_at}: {str(e)}")
+                logger.warning(f"Invalid expires_at timestamp {expires_at}: {str(e)}")
                 expires_at_value = None
 
         creds = ProviderDatabaseService.Credentials(

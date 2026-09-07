@@ -165,10 +165,10 @@ _MIN_MARGIN: float = 0.03
 # Process-cached centroids — seeds are static and embedding is
 # deterministic, so one warmup call per process suffices. Key is the
 # embedding provider so a config change rebuilds.
-_centroids_cache: dict[str, dict[str, "np.ndarray"]] = {}
+_centroids_cache: dict[str, dict[str, np.ndarray]] = {}
 
 
-async def _load_centroids(provider: str) -> dict[str, "np.ndarray"]:
+async def _load_centroids(provider: str) -> dict[str, np.ndarray]:
     """Embed seeds and compute one unit-normalized centroid per tag.
 
     One flat batch is cheaper than per-tag calls (single API roundtrip vs
@@ -219,7 +219,7 @@ async def _load_centroids(provider: str) -> dict[str, "np.ndarray"]:
 # to :func:`category.section_header_pool_mask`, which already
 # maintains the record-artifact / narrative pattern with the right
 # breadth for the existing archetype router.
-TAG_NAME_PATTERNS: dict[str, "re.Pattern[str]"] = {
+TAG_NAME_PATTERNS: dict[str, re.Pattern[str]] = {
     "drug_allergy_panel": re.compile(r"\bIgE\b"),
     # ``vital_signs`` is INTENTIONALLY absent: its centroid sits too
     # close to generic "measurement on a person" lab analytes (blood
@@ -254,7 +254,7 @@ TAG_NAME_PATTERNS: dict[str, "re.Pattern[str]"] = {
 }
 
 
-def tag_pool_mask(tag: str, cache: dict) -> "np.ndarray | None":
+def tag_pool_mask(tag: str, cache: dict) -> np.ndarray | None:
     """Return the LOINC-row mask for *tag*, computed lazily and cached on *cache*.
 
     The mask is restricted to LOINC system rows whose display name
@@ -294,9 +294,9 @@ def tag_pool_mask(tag: str, cache: dict) -> "np.ndarray | None":
 
 
 def classify_sync(
-    query_embs: "np.ndarray",
-    centroids: dict[str, "np.ndarray"],
-) -> dict[str, "np.ndarray"]:
+    query_embs: np.ndarray,
+    centroids: dict[str, np.ndarray],
+) -> dict[str, np.ndarray]:
     """Per-tag bool flag for each query in *query_embs*.
 
     Sync because the caller preloads *centroids* once (async warmup via

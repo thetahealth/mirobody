@@ -1,15 +1,17 @@
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from mirobody.pulse.file_parser.handlers.base import BaseFileHandler, FileProcessingContext
 from mirobody.utils.i18n import t
+
+logger = logging.getLogger(__name__)
 
 
 class ImageHandler(BaseFileHandler):
     def get_type_name(self) -> str:
         return "image"
 
-    async def _process_content(self, ctx: FileProcessingContext, temp_file_path: str, unique_filename: str, full_url: str, language: str) -> Dict[str, Any]:
+    async def _process_content(self, ctx: FileProcessingContext, temp_file_path: str, unique_filename: str, full_url: str, language: str) -> dict[str, Any]:
         if ctx.progress_callback:
             await ctx.progress_callback(55, t("extracting_content", language, "file_processor"))
 
@@ -27,7 +29,7 @@ class ImageHandler(BaseFileHandler):
                 text_length=len(original_text),
                 content_hash=content_hash or "",
             )
-            logging.info(f"💾 Image original text saved to th_files: {unique_filename}, length: {len(original_text)}")
+            logger.info(f"Image original text saved to th_files: {unique_filename}, length: {len(original_text)}")
 
         if ctx.progress_callback:
             await ctx.progress_callback(70, t("extracting_abstract", language, "file_processor"))
@@ -42,9 +44,9 @@ class ImageHandler(BaseFileHandler):
                     filename=ctx.filename,
                     language=language,
                 )
-                logging.info(f"✅ Image abstract extraction completed: {unique_filename}")
+                logger.info(f"Image abstract extraction completed: {unique_filename}")
             except Exception as e:
-                logging.warning(f"⚠️ Image abstract extraction failed: {unique_filename}, error: {e}")
+                logger.warning(f"Image abstract extraction failed: {unique_filename}, error: {e}")
 
         if ctx.progress_callback:
             await ctx.progress_callback(85, t("image_upload_success", language, "file_processor"))

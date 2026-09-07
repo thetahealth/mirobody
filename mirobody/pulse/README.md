@@ -143,7 +143,7 @@ Always use top-level imports. Lazy imports (inside functions) hide import errors
 
 **Only use lazy import when**:
 1. Breaking a circular dependency (document which cycle it breaks)
-2. Optional heavy dependency that may not be installed (e.g. `pandas`)
+2. Optional heavy dependency that may not be installed (e.g. `openpyxl`)
 
 ```python
 # BAD: lazy import hides path errors

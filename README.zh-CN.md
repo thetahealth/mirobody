@@ -88,7 +88,7 @@ resolve("血脂").resolved                                 # False    这是类�
   `血紅素` 会得到 HbA1c 的码。此类词汇按繁体拼写单独收录，收录条目的优先级始终
   高于机械折叠。
 - **单位**归一到约 310 个 UCUM 家族，含量纲分析、按 LOINC 码索引的摩尔质量桥接，
-  以及对 `%` 与 `10*9/L` 的明确拒绝。300 个标准 pulse 指标。
+  以及对 `%` 与 `10*9/L` 的明确拒绝。305 个标准 pulse 指标。
 - **第二层语义召回，刻意保持可选。** 以上均为词法层能力，遇到未收录词汇即弃答——
   这是明确的能力边界。余弦召回（[`indicator/semantic.py`](mirobody/indicator/semantic.py)）
   可以越过该边界，但**它无法弃答**：面对从未见过的词汇，它会以与正确答案相同的置信度
@@ -175,7 +175,7 @@ LOINC 只为 9 个给出了替代码,拒答基本等于把「一个有点旧但�
 
 ```bash
 git clone https://github.com/thetahealth/mirobody.git && cd mirobody
-git lfs pull          # 引擎的数据包，`resolve` 需要它
+git lfs install && git lfs pull   # 引擎的数据包，`resolve` 需要它；先 `install`，否则新克隆里只有 LFS 指针
 ./deploy.sh           # Postgres + pgvector、Redis、服务、worker
 ```
 
@@ -256,7 +256,7 @@ DeepSeek/Kimi），视觉解析使用 qwen3-vl，语义搜索使用 text-embeddi
        alt="用中文询问共享记录的 HbA1c；agent 查询、把化验值与传感器序列画在一起、读出趋势" width="880">
 </p>
 
-**接着给它一个文件。** `mirobody/demo/lab_report_2025-10-15.pdf` 是她**下一次**的
+**接着给它一个文件。** `demo/lab_report_2025-10-15.pdf` 是她**下一次**的
 面板，刻意从灌入数据里留出，所以上传它不是空操作。拖到 Data 页，① 收集 和 ② 标准化
 在几秒内跑完：十二个分析物带着数值和单位出来，每一个都能点回它被读出来的那一页。
 
@@ -285,16 +285,17 @@ DeepSeek/Kimi），视觉解析使用 qwen3-vl，语义搜索使用 text-embeddi
 
 ## 🧩 扩展
 
-五个目录配置键分别指向插件根目录；放入文件并重启即可生效。新增工具会同时注册为
+四个目录配置键分别指向插件根目录；放入文件并重启即可生效，或者 `pip install` 一个声明了
+`mirobody.providers` / `mirobody.tools` / `mirobody.agents` entry point 的包。新增工具会同时注册为
 agent 工具与 MCP 工具，无需额外接线。
 
 | 扩展目标 | 放入位置 | 文档 |
 | --- | --- | --- |
 | 新增工具 | `mirobody/agent/tools/` | [添加工具](https://docs.mirobody.ai/zh/tools/adding-tools/) |
 | Agent Skill（SKILL.md） | `mirobody/agent/skills/` | [Skills](https://docs.mirobody.ai/zh/tools/skills/) |
-| 完整 agent | `mirobody/agent/` | [Agents](https://docs.mirobody.ai/zh/tools/agents/) |
+| 自己的 agent harness | `AGENT_DIRS` → 你的目录（替换自带 agent） | [`mirobody/agent/README.md`](mirobody/agent/README.md) |
 | 设备 provider | `mirobody/pulse/providers/` | [Provider 接入](https://docs.mirobody.ai/zh/development/provider-integration/) |
-| 外部 MCP 服务 | Settings → MCP | [MCP 集成](https://docs.mirobody.ai/zh/tools/mcp-integration/) |
+| 在 Claude Desktop、Cursor 或你自己的 agent 循环里用这些工具 | Settings → MCP（你的个人 `/mcp` URL） | [MCP 服务](https://docs.mirobody.ai/zh/api-reference/mcp-servers/) · [`examples/07_claude_agent_sdk.py`](examples/07_claude_agent_sdk.py) |
 
 agent 的每个工具同时通过 `/mcp` 对外提供，并按用户进行访问门控。
 → [内置工具](https://docs.mirobody.ai/zh/tools/built-in/) ·
@@ -306,7 +307,10 @@ agent 的每个工具同时通过 `/mcp` 对外提供，并按用户进行访问
 
 | 接口 | 适合 | 文档 |
 | --- | --- | --- |
-| `pip install mirobody` | 指标解析与文件解析，无需运行服务 | [引擎](https://docs.mirobody.ai/zh/engine/) |
+| `pip install mirobody` | 离线的指标解析与单位换算 —— 2 个包，无需 key，无需网络 | [引擎](https://docs.mirobody.ai/zh/engine/) |
+| `pip install 'mirobody[parse]'` | 在上一行之上，把文档变成读数 —— PDF、图片、Excel、Word、PowerPoint、文本；原生电子版报告只需一个文本模型的 key，只有扫描页才会送到视觉模型 | [引擎](https://docs.mirobody.ai/zh/engine/) |
+| `pip install 'mirobody[agent]'` | 把 deepagents harness 当库用 —— 中间件、虚拟文件系统后端、checkpointer、模型客户端 —— 装进你自己跑的 agent | [自带 agent](CONTRIBUTING.md#-bringing-your-own-agent) |
+| `mirobody.bundle` | 构建期：LOINC 轴表与别名源，用于生成种子或语料 | [`mirobody/bundle.py`](mirobody/bundle.py) |
 | HTTP API | 将你的应用对接到一个部署实例 | [API 总览](https://docs.mirobody.ai/zh/api-reference/overview/) · [数据](https://docs.mirobody.ai/zh/api-reference/data/) |
 | MCP | Claude、Cursor 或任何 MCP 客户端读取用户记录 | [MCP 服务](https://docs.mirobody.ai/zh/api-reference/mcp-servers/) |
 | Backbone 模式 | 你的 agent，配合本项目的数据层 | [Backbone](https://docs.mirobody.ai/zh/api-reference/backbone-mode/) |
@@ -323,22 +327,32 @@ mirobody/
 ├── units/       UCUM 单位、unit_family、换算            ┐ 库的部分：
 ├── lexical.py   表层折叠 + CJK 感知分词器                │ 只依赖 numpy，
 ├── bundle.py    构建期：轴表与别名源                        │
-├── res/         随包分发的 LOINC 语料                    ┘ 共 2 个包
-├── pulse/       ① 收集     —— provider、文件解析、聚合
+├── res/         随包分发的 LOINC 语料、res/metrics.tsv     │
+├── kernel/      健康数据的“含义”，全是纯函数：              │
+│                metrics · series · quality · overlay · meds ·  │
+│                query · tools · ops · connect · sink · events · │
+│                evidence · memory · vendors/                    ┘ 共 2 个包
+├── documents/   文件按类型变成文本：PDF 文本层、只对扫描页 OCR、Office、纯文本   [parse]
+├── pulse/       ① 收集     —— provider、文件解析、存储、聚合（Postgres）
 ├── indicator/   ② 标准化   —— 解析器内部、概念图、语料构建
-├── agent/       ③ 回答     —— DeepAgent、工具、skills、chat
+├── agent/       ③ 回答     —— agent：models/ fs/ wire/ middleware/ tools/ chat/
 ├── mcp/         MCP 服务
-├── schema/      DDL，开发环境启动时重放
-└── demo/        关爱圈演示数据
+├── server/      HTTP 应用 —— 路由、鉴权、随包的 web 客户端
+├── utils/       消费方绑定的机制：config、db、sse、net、llm_output、prompts、log
+├── user/        身份与关爱圈 —— 谁可以读谁的记录
+└── schema/      DDL，开发环境启动时重放
+
+demo/            关爱圈演示数据，和 frontend/ 并排 —— 二者都只在源码检出里，
+frontend/        随包分发的 web 客户端    pip 安装的库不需要它们
 ```
 
 **两种形态，诉求正好相反。** PyPI 包是**库**，小到不必让人想起它：
-`pip install mirobody` 是 **2 个包、52 MB** —— 上面前四项，外加 numpy。
-`[parse]` 加上读文档的能力；`[app]` 是全部，而唯一安装它的是 `requirements.txt`
+`pip install mirobody` 是 **2 个包、52 MB** —— `documents/` 那一行以上的各项，外加 numpy。
+`[parse]` 加上读文档的能力，`[agent]` 把 harness 当库用；`[app]` 是全部，而唯一安装它的是 `requirements.txt`
 —— Docker 应用是 `git clone && ./deploy.sh`，从来不是 pip 安装出来的。
 
-**由工具强制执行，而非写在文档里**：三条 import-linter 契约守住这两条线——库层除
-numpy 外不导入任何东西，引擎永不导入 agent 层——违反即 `lint-imports` 构建失败。第四道闸门 `scripts/check_wheel_data.py`
+**由工具强制执行，而非写在文档里**：四条 import-linter 契约守住这两条线——库层除
+numpy 外不导入任何东西，引擎永不导入 agent 层——违反即 `lint-imports` 构建失败。另一道闸门 `scripts/check_wheel_data.py`
 把语料构建流程与 v2 语义管线——19,000 行装了也跑不了的代码——挡在产物之外。
 
 → [架构](https://docs.mirobody.ai/zh/concepts/architecture/) ·
@@ -366,12 +380,13 @@ numpy 外不导入任何东西，引擎永不导入 agent 层——违反即 `li
 | | Where |
 | --- | --- |
 | 可运行示例 | [`examples/`](examples/README.md) |
+| 内核 | [`kernel/`](mirobody/kernel/__init__.py) —— 阶段 → 模块对照 · [pipeline](docs/pipeline.md) —— 十一个阶段、十条不变量 |
 | ① 收集 | [`pulse/`](mirobody/pulse/README.md) · [providers](mirobody/pulse/providers/README.md) · [aggregation](mirobody/pulse/aggregate/README.md) · [Apple Health](mirobody/pulse/apple/README.md) |
-| ① 指南 | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [Apple Health API](docs/apple-health.md) |
+| ① 指南 | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [`documents/`](mirobody/documents/__init__.py) · [Apple Health API](docs/apple-health.md) |
 | ② 标准化 | [`indicator/`](mirobody/indicator/README.md) · [indicators & units](mirobody/pulse/standardize/README.md) |
-| ③ 回答 | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [ChatGPT widgets](mirobody/agent/resources/README.md) |
-| 底层设施 | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [the web client](docs/frontend.md) |
-| 参与开发 | [CONTRIBUTING.md](CONTRIBUTING.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
+| ③ 回答 | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [the one data tool](docs/answers.md) · [medications](docs/medications.md) |
+| 底层设施 | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [the web client](docs/frontend.md) · [backup & restore](docs/backup-restore.md) |
+| 参与开发 | [CONTRIBUTING.md](CONTRIBUTING.md) · [AGENTS.md](AGENTS.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
 
 ---
 
@@ -390,6 +405,18 @@ pip install -e '.[test]' && pytest -q && lint-imports
 [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
+
+## 🙏 致谢
+
+mirobody 做的是健康数据的标准化与推理，不追求成为接入设备的最佳方式。以下项目塑造了内核的规则——本仓不包含它们的任何代码：
+
+- **[Open Wearables](https://github.com/the-momentum/open-wearables)**（MIT，© 2025 Momentum）——自托管的可穿戴设备接入平台，十二家厂商连接器与移动端 SDK。它的数据标准化文档列出的失败模式（日总量与自身明细相加、只有偏移没有时区的日界、静默的单位假设、读时择源），正是 `mirobody.kernel.series`、`mirobody.kernel.quality` 与 `res/metrics.tsv` 要关掉的洞。需要设备连接器时，请运行 Open Wearables，再用 mirobody 的解码器接它的 `/timeseries` API。
+- **[Home Assistant](https://github.com/home-assistant/core)**——指标目录里 `state_class` 的思想来源。
+- **[Open mHealth](https://github.com/openmhealth/schemas) / IEEE 1752**——事实上的 `effective_*` / `modality` 字段命名。
+- **[wearipedia](https://github.com/Stanford-Health/wearipedia)**——用带种子的合成厂商载荷代替真人数据。
+- **[dlt](https://github.com/dlt-hub/dlt)、[Airbyte](https://github.com/airbytehq/airbyte-python-cdk)、[Singer](https://github.com/meltano/sdk)**——写入语义与连接器的 check / discover / read 三段形态。
+- **[deepagents](https://github.com/langchain-ai/deepagents)、LangChain、[langchain-quickjs](https://github.com/langchain-ai/langchain-quickjs)**——agent 运行时、文件系统投影与 `eval` REPL。
+- **Regenstrief Institute（LOINC）、UCUM、HL7 FHIR、OHDSI OMOP**——目录与用药模型所锚定的编码系统与资源形状；见 `LICENSE-3RD-PARTY`。
 
 ## ⭐ Star 趋势
 

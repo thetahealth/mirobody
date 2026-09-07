@@ -33,7 +33,7 @@ from argparse import Namespace
 import numpy as np
 
 from mirobody.units import scan_value_units
-from .local import META_BASENAME, RES_DIR
+from ..index import META_BASENAME, RES_DIR
 
 log = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ def build_dose_index(meta_path: str) -> dict:
     }
 
     # Per-unit histogram for log diagnostics.
-    counts = {u: 0 for u in unique_units}
+    counts = dict.fromkeys(unique_units, 0)
     for u in unit_strs:
         counts[u] += 1
     by_count = ", ".join(

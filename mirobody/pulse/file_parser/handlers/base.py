@@ -6,7 +6,8 @@ import hashlib
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional, Set
+from typing import Any
+from collections.abc import Callable
 
 # `fastapi` lives in the [app] extra, but file parsing is advertised engine
 # functionality — a bare `pip install mirobody` must import this module. Every
@@ -19,6 +20,8 @@ if TYPE_CHECKING:
 from mirobody.utils.i18n import t
 from mirobody.utils.req_ctx import get_req_ctx
 
+logger = logging.getLogger(__name__)
+
 # Import services type hints (avoid circular imports if possible, or use Any)
 # In a real scenario, we might use Protocol or specific imports if avoiding circular deps.
 # For now we assume services are passed in and duck-typed or we use Any.
@@ -27,13 +30,13 @@ from mirobody.utils.req_ctx import get_req_ctx
 class FileProcessingContext:
     file: UploadFile
     user_id: str
-    message_id: Optional[str]
+    message_id: str | None
     query: str = ""
     query_user_id: str = ""
-    progress_callback: Optional[Callable[[int, str], None]] = None
-    file_key: Optional[str] = None
+    progress_callback: Callable[[int, str], None] | None = None
+    file_key: str | None = None
     skip_upload_oss: bool = False
-    original_filename: Optional[str] = None
+    original_filename: str | None = None
     
     @property
     def target_user_id(self) -> str:
@@ -62,9 +65,9 @@ class BaseFileHandler(abc.ABC):
         self.indicator_extractor = indicator_extractor
         self.abstract_extractor = abstract_extractor
         # Strong references to background tasks to prevent GC before completion
-        self._background_tasks: Set[asyncio.Task] = set()
+        self._background_tasks: set[asyncio.Task] = set()
 
-    async def process(self, ctx: FileProcessingContext) -> Dict[str, Any]:
+    async def process(self, ctx: FileProcessingContext) -> dict[str, Any]:
         """Template method for file processing"""
         unique_filename = None  # Track file_key even if processing fails
         try:
@@ -129,13 +132,13 @@ class BaseFileHandler(abc.ABC):
                 storage = get_storage_client()
                 full_url, err = await storage.generate_signed_url(unique_filename, content_type=ctx.content_type)
                 if err:
-                    logging.warning(err)
+                    logger.warning(err)
 
                 full_url = full_url or ""
-                logging.info(f"Skipping OSS upload, using existing file: {unique_filename}")
+                logger.info(f"Skipping OSS upload, using existing file: {unique_filename}")
                 return full_url
             except Exception as url_error:
-                logging.warning(f"Failed to get URL for existing file: {url_error}")
+                logger.warning(f"Failed to get URL for existing file: {url_error}")
                 return ""
         else:
             # Upload
@@ -143,15 +146,15 @@ class BaseFileHandler(abc.ABC):
                 full_url = await self.uploader.upload_file_and_get_url(
                     ctx.file, unique_filename, ctx.content_type
                 )
-                logging.info(f"File upload completed: {unique_filename}, URL: {full_url}")
+                logger.info(f"File upload completed: {unique_filename}, URL: {full_url}")
                 return full_url
             except Exception as e:
                 # Some handlers might want to proceed even if upload fails (like text), 
                 # others might fail. For now, log and return empty string.
-                logging.warning(f"File upload failed: {e}")
+                logger.warning(f"File upload failed: {e}")
                 return ""
 
-    async def _save_to_temp(self, ctx: FileProcessingContext, language: str) -> Optional[str]:
+    async def _save_to_temp(self, ctx: FileProcessingContext, language: str) -> str | None:
         if ctx.progress_callback:
             await ctx.progress_callback(45, t("saving_temp_file", language, "file_processor"))
             
@@ -162,7 +165,7 @@ class BaseFileHandler(abc.ABC):
         self,
         ctx: FileProcessingContext,
         file_type: str,
-    ) -> tuple[Optional[str], Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """
         Read the upload's bytes and extract original text.
 
@@ -181,7 +184,7 @@ class BaseFileHandler(abc.ABC):
             file_content = await ctx.file.read()
 
             if not file_content:
-                logging.warning(f"[BaseFileHandler] Empty file content: {ctx.filename}")
+                logger.warning(f"[BaseFileHandler] Empty file content: {ctx.filename}")
                 return None, None
 
             content_hash = hashlib.sha256(file_content).hexdigest()
@@ -195,7 +198,7 @@ class BaseFileHandler(abc.ABC):
             return original_text, content_hash
 
         except Exception as e:
-            logging.error(
+            logger.error(
                 f"[BaseFileHandler] Failed to extract original text for {ctx.filename}: {e}",
                 exc_info=True
             )
@@ -276,13 +279,13 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             if result and isinstance(result, dict):
                 file_abstract = result.get("file_abstract", "")[:200]
                 file_name = result.get("file_name", "") or filename
-                logging.info(f"✅ Abstract from text: {filename}, abstract_len={len(file_abstract)}")
+                logger.info(f"Abstract from text: {filename}, abstract_len={len(file_abstract)}")
                 return file_abstract, file_name
             
             return "", filename
             
         except Exception as e:
-            logging.warning(f"[BaseFileHandler] Failed to extract abstract from text: {e}")
+            logger.warning(f"[BaseFileHandler] Failed to extract abstract from text: {e}")
             return "", filename
 
     async def _extract_abstract(self, ctx: FileProcessingContext, unique_filename: str, language: str) -> tuple[str, str]:
@@ -312,9 +315,9 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             if extracted_name:
                 file_name = extracted_name
                 
-            logging.info(f"✅ {simple_type} abstract extracted: {ctx.filename}, abstract length: {len(file_abstract)}")
+            logger.info(f"{simple_type} abstract extracted: {ctx.filename}, abstract length: {len(file_abstract)}")
         except Exception as e:
-            logging.warning(f"⚠️ Abstract extraction failed: {ctx.filename}, error: {e}")
+            logger.warning(f"Abstract extraction failed: {ctx.filename}, error: {e}")
             # Fallback
             simple_type = self.get_type_name()
             fallback = self.abstract_extractor._create_fallback_abstract(ctx.filename, simple_type)
@@ -323,12 +326,11 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         return file_abstract, file_name
 
     @abc.abstractmethod
-    async def _process_content(self, ctx: FileProcessingContext, temp_file_path: str, unique_filename: str, full_url: str, language: str) -> Dict[str, Any]:
+    async def _process_content(self, ctx: FileProcessingContext, temp_file_path: str, unique_filename: str, full_url: str, language: str) -> dict[str, Any]:
         """
         Core logic to extract content/indicators.
         Should return a dict with keys like 'raw', 'indicators', 'llm_ret', etc.
         """
-        pass
 
     @abc.abstractmethod
     def get_type_name(self) -> str:
@@ -337,13 +339,13 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
     def _build_response(
         self, 
         ctx: FileProcessingContext, 
-        result_data: Dict[str, Any], 
+        result_data: dict[str, Any], 
         unique_filename: str, 
         full_url: str, 
         file_abstract: str, 
         file_name: str,
         language: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         
         response = {
             "success": True,
@@ -366,10 +368,10 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             
         return response
 
-    async def _handle_error(self, ctx: FileProcessingContext, e: Exception, file_key: Optional[str] = None) -> Dict[str, Any]:
+    async def _handle_error(self, ctx: FileProcessingContext, e: Exception, file_key: str | None = None) -> dict[str, Any]:
         language = get_req_ctx("language", "en")
         error_msg = str(e)
-        logging.error(f"File processing failed: {ctx.filename}, file_key: {file_key}, error: {error_msg}", exc_info=True)
+        logger.error(f"File processing failed: {ctx.filename}, file_key: {file_key}, error: {error_msg}", exc_info=True)
 
         if ctx.message_id:
             try:
@@ -380,7 +382,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
                     reasoning=f"Error occurred during file processing: {error_msg}",
                 )
             except Exception as update_error:
-                logging.error(f"Failed to update message status: {str(update_error)}", stack_info=True)
+                logger.error(f"Failed to update message status: {str(update_error)}", stack_info=True)
 
         user_message = t(f"{self.get_type_name()}_processing_failed", language, "file_processor")
         if not user_message:
@@ -431,7 +433,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         user_id: int,
         file_name: str,
         file_key: str,
-        message_id: Optional[str] = None,
+        message_id: str | None = None,
     ):
         """Start background indicator extraction with GC-safe task reference.
 
@@ -441,7 +443,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         passes None — the agent asks about the date instead.
         """
         if not self._indicator_extraction_enabled():
-            logging.info(
+            logger.info(
                 f"⏭️  {self.get_type_name()} upload completed, indicator extraction "
                 f"skipped (ENABLE_INDICATOR_EXTRACTION=0): {file_key}"
             )
@@ -458,13 +460,13 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         )
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
-        logging.info(
-            f"📤 {self.get_type_name()} upload completed, "
+        logger.info(
+            f"{self.get_type_name()} upload completed, "
             f"background indicator extraction started: {file_key}"
         )
 
     @staticmethod
-    async def _push_upload_event(message_id: Optional[str], event: Dict[str, Any]) -> None:
+    async def _push_upload_event(message_id: str | None, event: dict[str, Any]) -> None:
         """Tell the client that uploaded this file what extraction found.
 
         The upload socket is per user and outlives the upload (it heartbeats),
@@ -484,7 +486,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             payload = {**event, "messageId": message_id, "sessionId": session.get("session_id", "")}
             await manager.send_message_by_message_id(message_id, payload)
         except Exception as e:
-            logging.debug(f"upload event {event.get('type')} not delivered for {message_id}: {e}")
+            logger.debug(f"upload event {event.get('type')} not delivered for {message_id}: {e}")
 
     async def _async_extract_indicators(
         self,
@@ -492,7 +494,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         user_id: int,
         file_name: str,
         file_key: str,
-        message_id: Optional[str] = None,
+        message_id: str | None = None,
     ):
         """Background task: extract indicators from text and update th_files.
 
@@ -504,7 +506,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         """
         file_type = self.get_type_name()
         try:
-            logging.info(f"🔄 Starting async indicator extraction for {file_type}: {file_key}")
+            logger.info(f"Starting async indicator extraction for {file_type}: {file_key}")
 
             indicators = []
             llm_ret = {}
@@ -552,13 +554,13 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
                             "no LLM provider key configured — set "
                             "OPENROUTER_API_KEY (or DASHSCOPE_API_KEY) and re-upload"
                         )
-                        logging.warning(
-                            f"⚠️ Indicator extraction for {file_type} {file_key} produced 0 rows "
+                        logger.warning(
+                            f"Indicator extraction for {file_type} {file_key} produced 0 rows "
                             f"because {extraction_failed_reason}."
                         )
                 if not extraction_failed_reason:
-                    logging.info(
-                        f"✅ Async indicator extraction completed for {file_type}: {file_key}, "
+                    logger.info(
+                        f"Async indicator extraction completed for {file_type}: {file_key}, "
                         f"count: {count}"
                     )
 
@@ -576,7 +578,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
                     except Exception:
                         formatted_raw = original_text
             except Exception as e:
-                logging.warning(f"⚠️ Async indicator extraction failed for {file_type}: {file_key}, error: {e}")
+                logger.warning(f"Async indicator extraction failed for {file_type}: {file_key}, error: {e}")
 
             # Update th_files with indicator results
             await self._update_file_indicators(
@@ -593,10 +595,10 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
                 **(report or {}),
             })
 
-            logging.info(f"Async indicator extraction finished for {file_type}: {file_key}")
+            logger.info(f"Async indicator extraction finished for {file_type}: {file_key}")
 
         except Exception as e:
-            logging.error(f"❌ Async indicator extraction failed for {file_type} {file_key}: {e}", exc_info=True)
+            logger.error(f"Async indicator extraction failed for {file_type} {file_key}: {e}", exc_info=True)
 
     async def _save_original_text_to_db(
         self,
@@ -629,7 +631,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             )
 
         except Exception as e:
-            logging.warning(f"⚠️ Failed to save original text to th_files: {file_key}, error: {e}")
+            logger.warning(f"Failed to save original text to th_files: {file_key}, error: {e}")
 
     async def _update_file_indicators(
         self,
@@ -637,7 +639,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         formatted_raw: str,
         indicators_count: int,
         failed_reason: str = "",
-        report: Optional[Dict[str, str]] = None,
+        report: dict[str, str] | None = None,
     ):
         """Update th_files with indicator extraction results.
 
@@ -672,8 +674,8 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
                 updates=updates,
             )
 
-            logging.info(f"Updated th_files indicators: {file_key}")
+            logger.info(f"Updated th_files indicators: {file_key}")
 
         except Exception as e:
-            logging.warning(f"⚠️ Failed to update file indicators: {e}")
+            logger.warning(f"Failed to update file indicators: {e}")
 

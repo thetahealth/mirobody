@@ -11,8 +11,10 @@ class HttpConfig:
         port        : int = 0,
         uri_prefix  : str = "",
         htdoc       : str = "",
-        headers     : dict[str, str] = {}
+        headers     : dict[str, str] | None = None
     ):
+        if headers is None:
+            headers = {}
         self.name   = name
         self.version= version
 

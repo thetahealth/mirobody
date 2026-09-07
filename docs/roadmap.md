@@ -214,14 +214,14 @@ mechanical change: the README's Architecture section currently promises a bare i
 file parsing and FHIR output, both of which need the database. Either the
 dependency list or the promise has to move — a product call.
 
-### Seam #4 — `user_profile`
+### ~~Seam #4 — `user_profile`~~ — **closed in 1.4.0**
 
-**Status:** the last two `ignore_imports` entries in `pyproject.toml`.
-
-`pulse/file_parser` and `task/profile_refresh` both import
-`agent.chat.user_profile`, which is engine data living agent-side. It cannot
-simply move: profile *generation* calls an LLM through the agent stack. The
-split is read/store engine-side, generation agent-side.
+The health profile is `mirobody/user/profile.py` now. The reason it "could
+not simply move" — that generation calls an LLM through the agent stack — was
+not true: it reaches the model through `utils.llm.async_get_text_completion`,
+which is engine-side, and nothing in it imported LangChain. Moving the file
+emptied `ignore_imports` in `pyproject.toml`; the engine → agent contract has
+no seams left.
 
 ### MCP transport migration (step 2)
 
@@ -350,7 +350,7 @@ leak this closes.
 
 `utils/s3.get_content_type` (an 8-branch ladder that interpolated
 `f"application/{ext}"`), `utils/config/storage/abstract.get_content_type_from_filename`
-(bare `mimetypes`) and `agent/deep/filetype.guess_mime` (a small curated table)
+(bare `mimetypes`) and `agent/filesystem/naming.guess_mime` (a small curated table)
 all answered the same question and disagreed. `utils/file_types` is where the
 shared one lives, because object storage and the presigned-URL helper are engine
 layer and cannot import the agent layer.
@@ -379,7 +379,7 @@ the same extension depending on upload date.
 
 `test_content_type.py` pins all three entry points to the same answers and fails
 if an extension is added to `SUPPORTED_EXTENSIONS` or `MULTIMODAL_EXTS` without
-being pinned. Also deleted `agent/deep/backend._guess_mime`, a fourth copy with
+being pinned. Also deleted `agent/filesystem/backend._guess_mime`, a fourth copy with
 no callers.
 
 ### Task delivery is at-most-once, with no re-drive
@@ -429,15 +429,13 @@ Two facts, both verified rather than assumed:
   (`services.db_utils`, `services.file_processing_service`,
   `services.file_db_service`, `services.file_abstract_extractor`,
   `services.database_services`, `handlers.genetic`). Not a seam — six.
-* `pulse/file_parser/file_upload_manager.py` imports
-  `agent.chat.user_profile`, and `task/profile_refresh.py` does the same. Both
-  carry `ignore_imports` exemptions in pyproject, so the cycle is known and
-  sanctioned, not accidental.
+* `pulse/file_parser/file_upload_manager.py` and `task/profile_refresh.py`
+  imported `agent.chat.user_profile` under two `ignore_imports` exemptions —
+  closed in 1.4.0 by moving the module to `user/profile.py` (see seam #4).
 
 The direction is what makes it a cycle worth paying down: `pulse` is the data
-gateway and should not depend on the reasoning layer. The existing seam-#4
-plan (split `user_profile` into engine-side read/store and agent-side
-generation) fixes the pulse -> agent edge. It does not address agent -> pulse,
+gateway and should not depend on the reasoning layer. Seam #4 is
+closed, which fixes the pulse -> agent edge. That does not address agent -> pulse,
 where the fix is a narrow public surface on `file_parser` instead of six deep
 imports.
 
@@ -585,7 +583,7 @@ of which 51 MB is the shipped LOINC/SNOMED bundle.
 
 Getting below that means the Hugging Face dataset idea already recorded above:
 fetch the bundle into `~/.cache/mirobody/` on first use. A further `[parse]`
-extra (pandas, Pillow, the PDF stack, the three LLM SDKs) would take the
+extra (Pillow, pypdfium2, openpyxl, the three LLM SDKs) would take the
 default install to roughly the floor, but it changes what `pip install
 mirobody` delivers — `mirobody parse` would need an extra — so it is a product
 decision, not a cleanup.
@@ -595,11 +593,55 @@ decision, not a cleanup.
 
 ## Verification debt
 
-### `mirobody serve` end to end
+### ~~`mirobody serve` end to end~~ — **closed in 1.4.0**
 
-Every gate so far is import-level or protocol-level. Route mounting, Agent
-Skills reaching the system prompt, the OAuth flow and a real conversation have
-never been exercised together. Needs PostgreSQL, Redis and a model key.
+`scripts/e2e_docker.sh` exercises the running stack over HTTP: the login flow,
+the REST endpoint the web client uses, `tools/list` being exactly five names, a
+structured refusal, the in-process read-authority suite against the same
+database, and the container's logs. `scripts/e2e_health_data.py` is the
+in-process half — 22 cases and 4 invariants, runnable in CI by exit status.
+
+It earned its keep immediately: **the MCP handler was logging the first hundred
+serialised characters of every result at INFO**, which for `tools/call` are the
+person's readings. Nothing import-level or protocol-level could see it — the
+static lint had the statement baselined, and the runtime filter redacts by
+field name while this was a whole payload under a neutral one. Grepping a
+container after a real turn is what found it.
+
+What is still not covered by the script: a model conversation (needs a key, so
+it is run by hand — two turns were, for 1.4.0), an upload through the parser,
+and the Agent Skills path.
+
+### Rejected readings have nowhere to go
+
+`pulse/readings.py:gate` drops a row the quality gate rejects and logs the
+reason code and a count. That is the right log line and the wrong destination:
+a person whose scale sent a 150% body-fat reading, or whose export carried a
+48-hour "measurement", has no way to see that anything was refused. A
+quarantine table keyed by `(user_id, reason_code)` with the offending row's
+encrypted payload, and a line in the Data page, is the missing half. Until it
+exists the gate is deliberately narrow — only the physically impossible — so
+that what it drops is never something a person would want back.
+
+### The aggregation worker's statistics, against a live series
+
+`pulse/aggregate` computes about twenty statistics in SQL — percentiles,
+time-in-range, CGM event detection, the derived sleep-onset methods. 1.4.0 put
+the DAY BOUNDARY and the SOURCE ELECTION on the kernel and left those
+statistics where they were, deliberately: routing them through
+`series.aggregate`, which knows five policies, would have lost functionality.
+
+They have unit tests and no end-to-end one. `series_data` is empty in the demo
+record, so neither the rewritten trigger queries nor the statistics run against
+real rows in the shipped fixture — only against a deployment's own. A demo
+fixture that seeds `series_data` would close both at once.
+
+### Medications have one consumer
+
+The model, the arithmetic and the reference storage are pinned by 74 golden
+tests, and the reference application is the only thing that reads them. The
+shapes are marked `provisional` for that reason (`docs/medications.md`); a
+second production consumer is what would settle them.
 
 ---
 
@@ -736,27 +778,16 @@ mints a new one, plus a shorter default lifetime. It needs a UI affordance in
 the same change or nobody will find it, which is the part this repo cannot do
 alone — the web client ships as a build artifact from another repository.
 
-### User-defined MCP servers are write-only
+### ~~User-defined MCP servers are write-only~~ — **closed in 1.4.0, by deletion**
 
-`/api/user/mcp/*` stores, lists and deletes user-configured MCP servers, and
-`get_user_mcps` is called by exactly three functions: the list handler, the set
-handler and the delete handler. **Neither agent's tool loader ever reads it.**
-Compare `get_user_prompt_by_name` right beside it in the same module, which
-`deep_agent.py:259` genuinely consumes.
-
-So a user can add an MCP server in Settings, see it listed back, and nothing
-ever connects to it. That is worse than the feature being absent: it looks like
-it works.
-
-Two honest ways to close it, and the choice is a product one:
-
-  - load the enabled entries in `deep/tool_loader.py` alongside the built-in
-    MCP tools, with a per-server timeout and failures degrading to "that server
-    is unavailable" rather than failing the turn; or
-  - delete the three endpoints and the UI that feeds them.
-
-Not deleted unilaterally here because the endpoints are live API the shipped
-web client calls.
+`/api/user/mcp/*` stored a person's "external MCP servers" that nothing ever
+read. Reading the shipped web bundle settled the product question this entry
+deferred: its Settings → MCP page calls `POST /personal/mcp` — the personal URL
+a person pastes into Claude Desktop — and never touched `/api/user/mcp/*`.
+That is the MCP feature this project has: the tools go OUT to other runtimes
+(`examples/07_claude_agent_sdk.py` shows one); the agent itself is deepagents
+with the tools in-process and does not consume MCP. The three endpoints, the
+sibling per-user prompt store and `chat/user_config.py` are gone.
 
 ### The config encryption key needs a real KDF, and that is a migration
 
@@ -779,17 +810,22 @@ change can fix them, and a finding that lives only in the other repo's doc is a
 finding nobody here will act on.
 
 **Four of the five are FIXED** (`be5a897`): `/api/prompts` is agent-scoped and
-echoes the agent back; BaseAgent honours `PROMPTS_BASE`; a user prompt is
-appended to the agent's own prompt instead of replacing it. Behaviour verified
+echoes the agent back; BaseAgent honoured `PROMPTS_BASE` (BaseAgent has since
+been removed — `MirobodyAgent` is the one agent, see CHANGELOG 1.4.0); a user
+prompt is appended to the agent's own prompt instead of replacing it. Behaviour verified
 against the running deployment, and pinned by
-`mirobody/agent/test_prompt_resolution.py`. The prompt-selection design question
+`tests/agent/test_prompt_resolution.py`. The prompt-selection design question
 they exposed — that a prompt belongs to an agent and should not be a
 user-facing axis at all — was resolved on the client side: the shipped web
 client no longer offers a prompt picker.
 
-**One remains open:**
+**The fifth is FIXED too** (CHANGELOG "Unreleased" → Changed): `/mirobody.json`
+now derives `__IS_MOBILE_SOURCE_ON__` from the installed provider directories,
+puts `MCP` in `__IS_NEW_FEATURES_ON__` and turns `__IS_API_CONFIG_ON__` on, so
+the six flags the shipped client reads are all present. The original finding,
+kept for the record:
 
-- **`/mirobody.json` publishes 3 of the 12 flags the client reads.** It returns
+- **`/mirobody.json` published 3 of the 12 flags the client reads.** It returned
   `__IS_GOOGLE_LOGIN_ON__`, `__IS_APPLE_LOGIN_ON__`, `__IS_WEBAUTHN_ON__`; the
   client's `mirobody_config` also reads `__IS_EHR_CONFIG_ON__`,
   `__IS_API_CONFIG_ON__`, `__IS_HIE_CONFIG_ON__`, `__IS_MOBILE_SOURCE_ON__`,

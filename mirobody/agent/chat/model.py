@@ -30,11 +30,18 @@ class ChatFileObject:
 #-----------------------------------------------------------------------------
 
 class ChatStreamRequest:
-    """
-    Chat stream request from frontend.
-    
-    All parameters should be explicitly passed from the API request,
-    avoiding implicit context dependencies for thread safety and testability.
+    """Chat stream request from a client.
+
+    All parameters are passed explicitly from the API request — no implicit
+    context — for thread safety and testability.
+
+    `agent`, `enable_mcp`, `group_id` and `reference_task_id` are ACCEPTED AND
+    IGNORED: nothing reads them, but the shipped web client still sends
+    `agent` and `group_id` and `chat_handler` rejects unknown fields, so
+    removing them would turn a working client into a -4 on every message.
+    They stay as compatibility fields until the clients stop sending them
+    (`internal/frontend-single-agent-2026-09-05.md`). There is one agent;
+    `provider` picks the model.
     """
     
     def __init__(

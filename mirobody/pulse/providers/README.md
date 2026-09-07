@@ -77,12 +77,12 @@ Define how your provider appears in the UI and what credentials it needs.
         )
 ```
 
-### 3. Authentication (`_validate_credentials_v2`)
+### 3. Authentication (`_validate_credentials`)
 
 Validate that the user's credentials work.
 
 ```python
-    async def _validate_credentials_v2(self, credentials: dict) -> None:
+    async def _validate_credentials(self, credentials: dict) -> None:
         # For LinkType.PASSWORD
         username = credentials.get("username")
         password = credentials.get("password")

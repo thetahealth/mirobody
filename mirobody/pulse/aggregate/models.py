@@ -7,7 +7,7 @@ Defines core data structures including enums, dataclasses, and protocols.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 
 class TimeWindow(Enum):
@@ -75,21 +75,6 @@ class AggregationRule:
             raise ValueError("aggregation_type cannot be empty")
 
 
-@dataclass
-class AggregationContext:
-    """
-    Context for aggregation calculation
-    
-    Contains all information needed to execute aggregation for a user.
-    """
-    user_id: str
-    indicators: List[str]
-    day_start: datetime
-    day_end: datetime
-    timezone: str
-    aggregation_methods: Set[str]
-    metadata: Optional[Dict[str, Any]] = None
-
 
 @dataclass
 class CalculationTask:
@@ -116,21 +101,6 @@ class CalculationTask:
     update_time: datetime  # Update time from trigger record
 
 
-@dataclass
-class AggregationResult:
-    """Result of aggregation calculation"""
-    user_id: str
-    indicator: str
-    value: str
-    start_time: datetime
-    end_time: datetime
-    source: str = "aggregate_indicator"
-    task_id: str = "aggregate_indicator"
-    comment: str = ""
-    source_table: str = ""
-    source_table_id: str = ""
-    indicator_id: str = ""
-
 
 @dataclass
 class ProcessingStats:
@@ -140,9 +110,9 @@ class ProcessingStats:
     users_affected: int
     execution_time_ms: float
     mode: str = "normal"  # normal | force | cold_start
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization"""
         return {
             "executed_at": self.executed_at.isoformat(),

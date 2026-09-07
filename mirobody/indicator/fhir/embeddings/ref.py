@@ -56,7 +56,7 @@ from xml.etree import ElementTree as ET
 import numpy as np
 
 from ..common import EMBEDDING_DIM, SYSTEMS, SYSTEM_TO_CODE, code_to_fhir_id
-from .local import (
+from ..index import (
     EMB_BASENAME,
     EMB_DTYPE,
     META_BASENAME,
@@ -107,7 +107,7 @@ def _iter_snomed(snomed_dir: str) -> Iterator[tuple[str, str]]:
 
     fsn: dict[str, str] = {}
     synonyms: dict[str, set[str]] = defaultdict(set)
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         next(f)  # header
         for line in f:
             fields = line.rstrip("\n").split("\t")
@@ -153,7 +153,7 @@ def _iter_loinc(loinc_dir: str) -> Iterator[tuple[str, str]]:
 
     n = 0
     rows: list[tuple[str, str]] = []
-    with open(full_csv, "r", encoding="utf-8") as f:
+    with open(full_csv, encoding="utf-8") as f:
         for row in csv.DictReader(f):
             code = row["LOINC_NUM"]
             if code.startswith(skip_prefixes) or code in skip_codes:
@@ -214,7 +214,7 @@ def _iter_rxnorm(rxnorm_dir: str) -> Iterator[tuple[str, str]]:
             names[code].add(name)
 
     if os.path.isfile(rxnrel):
-        with open(rxnrel, "r", encoding="utf-8") as f:
+        with open(rxnrel, encoding="utf-8") as f:
             for line in f:
                 fields = line.split("|")
                 if len(fields) > 7 and fields[7] == "tradename_of":
@@ -448,7 +448,7 @@ async def _phase2_embed(
     texts_md5 = _file_md5(texts_path)
     resume_from = 0
     if os.path.isfile(partial_path) and os.path.isfile(progress_path):
-        with open(progress_path, "r", encoding="utf-8") as f:
+        with open(progress_path, encoding="utf-8") as f:
             prog = json.load(f)
         if prog.get("texts_md5") == texts_md5 and prog.get("n_rows") == n_rows:
             resume_from = int(prog.get("last_completed", 0))
@@ -480,7 +480,7 @@ async def _phase2_embed(
         # carries no record of the model that produced it, so a mismatched
         # corpus/query pair returns confident nonsense rather than an error.
         embs = await text_embedding(buf_text, provider=None)
-        for i, emb in zip(buf_idx, embs):
+        for i, emb in zip(buf_idx, embs, strict=False):
             if emb is None:
                 raise RuntimeError(
                     f"row {i}: text_embedding returned None; text likely empty/invalid"
@@ -503,7 +503,7 @@ async def _phase2_embed(
 
     # Phase 2 also walks in row-position order, matching the CSV's
     # in-file order — finalize relies on this alignment.
-    with open(texts_path, "r", encoding="utf-8") as f:
+    with open(texts_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for r, row in enumerate(reader):
             if r < resume_from:
@@ -530,7 +530,7 @@ async def _phase2_embed(
     canonicals = np.empty(n_rows, dtype=np.int64)
     names: list[str] = [""] * n_rows
     hash_codes: dict[int, str] = {}
-    with open(texts_path, "r", encoding="utf-8") as f:
+    with open(texts_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for r, row in enumerate(reader):
             if r >= n_rows:

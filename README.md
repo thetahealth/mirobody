@@ -31,7 +31,7 @@ The engine does three things, and the codebase (and [Contributing](#-contributin
 | -------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | **① Collect** | Pull signals in: 3 device providers + a SQL source · 7 file formats · Apple Health (receive-only: a signed iOS client POSTs it in) | [`pulse/`](mirobody/pulse/) |
 | **② Standardize**    | One standard: resolve any reading to canonical codes (LOINC · SNOMED CT · RxNorm), normalize units, land against FHIR-recognized code systems | [`indicator/`](mirobody/indicator/)                    |
-| **③ Answers**  | Reason: agents read the*original documents* through a virtual filesystem and answer with charts & citations     | [`agent/`](mirobody/agent/)                  |
+| **③ Answers**  | Reason: agents read the *original documents* through a virtual filesystem and answer with charts & citations     | [`agent/`](mirobody/agent/)                  |
 
 ---
 
@@ -93,7 +93,7 @@ Standardization here is not a lookup table but a complete terminology-normalizat
   beats a fold.
 - **Units** normalized to ~310 UCUM families, with dimensional analysis, a
   molar-mass bridge keyed by LOINC code, and an explicit refusal for `%` vs
-  `10*9/L`. 300 standard pulse indicators.
+  `10*9/L`. 305 standard pulse indicators.
 - **A second tier exists, and stays opt-in.** Everything above is lexical, so it
   abstains on terms it does not know — an honest ceiling. Cosine recall
   ([`indicator/semantic.py`](mirobody/indicator/semantic.py)) reaches past it but
@@ -197,7 +197,7 @@ seeds a deployment with synthetic (PHI-free) trajectories.
 
 ```bash
 git clone https://github.com/thetahealth/mirobody.git && cd mirobody
-git lfs pull          # the engine's data bundles; `resolve` needs them
+git lfs install && git lfs pull   # the engine's data bundles; `resolve` needs them — `install` first, or a fresh clone holds pointer stubs
 ./deploy.sh           # Postgres + pgvector, Redis, server, worker
 ```
 
@@ -290,7 +290,7 @@ lab-drawn HbA1c   7.2 % (2024-04)  →  6.5 % (2024-10)  →  6.6 % (2025-04)
 ```
 
 **3 · ① Collect + ② Standardize, on your own.**
-`mirobody/demo/lab_report_2025-10-15.pdf` is a panel deliberately held out of the
+`demo/lab_report_2025-10-15.pdf` is a panel deliberately held out of the
 seed, so uploading it is not a no-op. Drop it on the Data page and twelve
 analytes come out with their values and units in seconds, each linking back to
 the page it was read from.
@@ -324,16 +324,18 @@ over here.
 
 ## 🧩 Extend it
 
-Five directory keys point at plugin roots; drop a file in and restart. Tools
-become both agent tools and MCP tools with no extra wiring.
+Four directory keys point at plugin roots; drop a file in and restart — or
+`pip install` a package that declares a `mirobody.providers` / `mirobody.tools`
+/ `mirobody.agents` entry point. Tools become both agent tools and MCP tools
+with no extra wiring.
 
 | You want | Drop it in | Docs |
 | --- | --- | --- |
 | A new tool | `mirobody/agent/tools/` | [Adding tools](https://docs.mirobody.ai/en/tools/adding-tools/) |
 | An Agent Skill (SKILL.md) | `mirobody/agent/skills/` | [Skills](https://docs.mirobody.ai/en/tools/skills/) |
-| A whole agent | `mirobody/agent/` | [Agents](https://docs.mirobody.ai/en/tools/agents/) |
+| Your own agent harness | `AGENT_DIRS` → your directory (replaces the shipped agent) | [`mirobody/agent/README.md`](mirobody/agent/README.md) |
 | A device provider | `mirobody/pulse/providers/` | [Provider integration](https://docs.mirobody.ai/en/development/provider-integration/) |
-| Someone else's MCP server | Settings → MCP | [MCP integration](https://docs.mirobody.ai/en/tools/mcp-integration/) |
+| These tools in Claude Desktop, Cursor, or your own agent loop | Settings → MCP (your personal `/mcp` URL) | [MCP servers](https://docs.mirobody.ai/en/api-reference/mcp-servers/) · [`examples/07_claude_agent_sdk.py`](examples/07_claude_agent_sdk.py) |
 
 Every tool the agent has is also served over MCP at `/mcp`, gated per user.
 → [Built-in tools](https://docs.mirobody.ai/en/tools/built-in/) ·
@@ -346,7 +348,8 @@ Every tool the agent has is also served over MCP at `/mcp`, gated per user.
 | Surface | For | Docs |
 | --- | --- | --- |
 | `pip install mirobody` | Offline resolution and units — 2 packages, no key, no network | [Engine](https://docs.mirobody.ai/en/engine/) |
-| `pip install 'mirobody[parse]'` | The above, plus reading documents with one model key | [Engine](https://docs.mirobody.ai/en/engine/) |
+| `pip install 'mirobody[parse]'` | The above, plus turning a document into readings — PDF, image, Excel, Word, PowerPoint, text; a born-digital report needs a text model key only, and only a scanned page reaches a vision model | [Engine](https://docs.mirobody.ai/en/engine/) |
+| `pip install 'mirobody[agent]'` | The deepagents harness as a library — middleware, virtual-filesystem backends, checkpointer, model clients — for an agent you run yourself | [Bringing your own agent](CONTRIBUTING.md#-bringing-your-own-agent) |
 | `mirobody.bundle` | Build-time: the LOINC axis table and alias sources, for generating a seed or corpus | [`mirobody/bundle.py`](mirobody/bundle.py) |
 | HTTP API | Your app talking to a deployment | [API overview](https://docs.mirobody.ai/en/api-reference/overview/) · [Data](https://docs.mirobody.ai/en/api-reference/data/) |
 | MCP | Claude, Cursor, or any MCP client reading a user's record | [MCP servers](https://docs.mirobody.ai/en/api-reference/mcp-servers/) |
@@ -364,26 +367,37 @@ mirobody/
 ├── units/       UCUM units, unit_family, conversions          ┐ the library:
 ├── lexical.py   surface folding + the CJK-aware tokenizer     │ numpy only,
 ├── bundle.py    build-time: the axis table and alias sources    │
-├── res/         the shipped LOINC bundles                     ┘ 2 packages
-├── pulse/       ① Collect     — providers, file parsing, aggregation
+├── res/         the shipped LOINC bundles, res/metrics.tsv       │
+├── kernel/      what health data MEANS, as pure functions:       │
+│                metrics · series · quality · overlay · meds ·    │
+│                query · tools · ops · connect · sink · events ·  │
+│                evidence · memory · vendors/                     ┘ 2 packages
+├── documents/   a file becomes text, by kind — PDF text layer, OCR for scanned pages only, Office, text   [parse]
+├── pulse/       ① Collect     — providers, file parsing, store, aggregate, read (Postgres)
 ├── indicator/   ② Standardize — resolver internals, concept graph, bundle build
-├── agent/       ③ Answers     — DeepAgent, tools, skills, chat
+├── agent/       ③ Answers     — the agent: models/ fs/ wire/ middleware/ tools/ chat/
 ├── mcp/         the MCP server
+├── server/      the HTTP application — routers, auth, the bundled web client
+├── utils/       mechanisms a consumer binds: config, db, sse, net, llm_output, prompts, log
 ├── user/        identity and the care circle — who may read whose record
-├── schema/      the DDL, replayed at boot in dev
-└── demo/        care-circle demo data
+└── schema/      the DDL, replayed at boot in dev
+
+demo/            the care-circle demo fixture, beside frontend/ — a checkout
+frontend/        the bundled web client                          has them, a
+                                                                 pip install
+                                                                 does not
 ```
 
 **Two forms, and they want opposite things.** The PyPI package is a LIBRARY and
 is meant to be small enough that nobody has to think about it: `pip install
-mirobody` is **2 packages, 52 MB** — the top four entries above, on numpy.
-`[parse]` adds document reading; `[app]` is everything, and the only thing that
+mirobody` is **2 packages, 52 MB** — the entries above the `documents/` line, on numpy.
+`[parse]` adds document reading, `[agent]` the harness as a library; `[app]` is everything, and the only thing that
 installs it is `requirements.txt`, because the Docker application is
 `git clone && ./deploy.sh` and never a pip install.
 
-**Machine-enforced, not documented:** three import-linter contracts hold the
+**Machine-enforced, not documented:** four import-linter contracts hold the
 lines — the library layer imports nothing but numpy, and the engine never
-imports the agent layer — and `lint-imports` fails the build. A fourth gate, `scripts/check_wheel_data.py`, keeps the bundle-build passes and the
+imports the agent layer — and `lint-imports` fails the build. A separate gate, `scripts/check_wheel_data.py`, keeps the bundle-build passes and the
 v2 semantic pipeline — 19,000 lines nobody who installs the package can run —
 out of the artifact.
 
@@ -412,12 +426,13 @@ Each package carries a `README.md` saying what it is; long-form guides live in
 | | Where |
 | --- | --- |
 | Runnable examples | [`examples/`](examples/README.md) |
+| The kernel | [`kernel/`](mirobody/kernel/__init__.py) — the stage → module map · [pipeline](docs/pipeline.md) — eleven stages, ten invariants |
 | ① Collect | [`pulse/`](mirobody/pulse/README.md) · [providers](mirobody/pulse/providers/README.md) · [aggregation](mirobody/pulse/aggregate/README.md) · [Apple Health](mirobody/pulse/apple/README.md) |
-| ① guides | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [Apple Health API](docs/apple-health.md) |
+| ① guides | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [`documents/`](mirobody/documents/__init__.py) · [Apple Health API](docs/apple-health.md) |
 | ② Standardize | [`indicator/`](mirobody/indicator/README.md) · [indicators & units](mirobody/pulse/standardize/README.md) |
-| ③ Answers | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [ChatGPT widgets](mirobody/agent/resources/README.md) |
-| Plumbing | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [the web client](docs/frontend.md) |
-| Working on it | [CONTRIBUTING.md](CONTRIBUTING.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
+| ③ Answers | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [the one data tool](docs/answers.md) · [medications](docs/medications.md) |
+| Plumbing | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [the web client](docs/frontend.md) · [backup & restore](docs/backup-restore.md) |
+| Working on it | [CONTRIBUTING.md](CONTRIBUTING.md) · [AGENTS.md](AGENTS.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
 
 ---
 
@@ -437,6 +452,36 @@ pip install -e '.[test]' && pytest -q && lint-imports
 [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
+
+## 🙏 Acknowledgements
+
+Mirobody standardizes health data and reasons over it; it does not try to be
+the best way to connect a device. Projects that shaped the kernel's rules —
+none of their code is included here:
+
+- **[Open Wearables](https://github.com/the-momentum/open-wearables)** (MIT,
+  © 2025 Momentum) — a self-hosted wearable integration platform with twelve
+  provider connectors and mobile SDKs. Its data-standardization write-up
+  enumerates the failure modes (daily totals summed with their own samples,
+  offset-only day boundaries, silent unit assumptions, read-time election)
+  that `mirobody.kernel.series`, `mirobody.kernel.quality` and `res/metrics.tsv` exist to
+  close. If you need the connectors, run Open Wearables and point a mirobody
+  decoder at its `/timeseries` API.
+- **[Home Assistant](https://github.com/home-assistant/core)** — the
+  `state_class` idea behind the indicator catalogue.
+- **[Open mHealth](https://github.com/openmhealth/schemas) / IEEE 1752** —
+  the `effective_*` / `modality` field names on a fact.
+- **[wearipedia](https://github.com/Stanford-Health/wearipedia)** — seeded
+  synthetic vendor payloads instead of real people's data.
+- **[dlt](https://github.com/dlt-hub/dlt), [Airbyte](https://github.com/airbytehq/airbyte-python-cdk),
+  [Singer](https://github.com/meltano/sdk)** — write dispositions and the
+  check / discover / read shape of a connector.
+- **[deepagents](https://github.com/langchain-ai/deepagents), LangChain,
+  [langchain-quickjs](https://github.com/langchain-ai/langchain-quickjs)** —
+  the agent harness, the file-system projection and the `eval` REPL.
+- **Regenstrief Institute (LOINC), UCUM, HL7 FHIR, OHDSI OMOP** — the code
+  systems and resource shapes the catalogue and the medication model are
+  anchored to; see `LICENSE-3RD-PARTY`.
 
 ## ⭐ Star History
 

@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 
@@ -27,7 +29,7 @@ def clean_json_response(response: str) -> str:
     return response.strip()
 
 
-def _build_prompt_with_schema(prompt: str, response_schema: Optional[Any] = None) -> str:
+def _build_prompt_with_schema(prompt: str, response_schema: Any | None = None) -> str:
     """Embed response_schema into prompt for providers without native schema support."""
     if not response_schema:
         return prompt + "\n\nPlease return the result in JSON format."
@@ -50,11 +52,11 @@ Please return the result in JSON format that strictly follows this schema:
 {schema_str}
 ```"""
     except Exception as e:
-        logging.warning(f"Failed to serialize response_schema: {e}")
+        logger.warning(f"Failed to serialize response_schema: {e}")
         return prompt + "\n\nPlease return the result in JSON format."
 
 
-def _merge_json_results(json_strings: List[str]) -> str:
+def _merge_json_results(json_strings: list[str]) -> str:
     """Merge per-page JSON results into one combined result.
 
     Handles BOTH top-level shapes, because both are real. This used to be
@@ -73,15 +75,15 @@ def _merge_json_results(json_strings: List[str]) -> str:
     dropped, so a model that answers inconsistently across pages still costs
     nothing.
     """
-    merged_list: List[Any] = []
-    merged_dict: Dict[str, Any] = {}
+    merged_list: list[Any] = []
+    merged_dict: dict[str, Any] = {}
     dropped = 0
 
     for json_str in json_strings:
         try:
             data = json.loads(json_str)
         except json.JSONDecodeError as e:
-            logging.warning(f"Failed to parse JSON: {e}, content: {json_str[:100]}...")
+            logger.warning(f"Failed to parse JSON: {e}, content: {json_str[:100]}...")
             continue
 
         if isinstance(data, list):
@@ -107,13 +109,13 @@ def _merge_json_results(json_strings: List[str]) -> str:
             dropped += 1
 
     if dropped:
-        logging.warning(f"{dropped} page result(s) were neither array nor object; dropped")
+        logger.warning(f"{dropped} page result(s) were neither array nor object; dropped")
 
     if merged_list and merged_dict:
         # Genuinely mixed shapes across pages of one document. Keep both rather
         # than silently choosing: the array is the document, the object's keys
         # ride along beside it.
-        logging.warning(
+        logger.warning(
             "pages returned mixed JSON shapes; merging array under 'items' "
             f"alongside {len(merged_dict)} object key(s)"
         )
@@ -123,10 +125,10 @@ def _merge_json_results(json_strings: List[str]) -> str:
     return json.dumps(merged_dict, ensure_ascii=False)
 
 
-def _merge_page_results(all_results: List[Dict[str, Any]], json_mode: bool) -> str:
+def _merge_page_results(all_results: list[dict[str, Any]], json_mode: bool) -> str:
     """Merge page-by-page results into final output."""
     if not all_results:
-        logging.warning("No valid analysis results obtained")
+        logger.warning("No valid analysis results obtained")
         return ""
 
     valid_contents = []
@@ -134,10 +136,10 @@ def _merge_page_results(all_results: List[Dict[str, Any]], json_mode: bool) -> s
         if 'content' in result and result['content']:
             valid_contents.append({'page': result.get('page', 0), 'content': result['content']})
         elif 'error' in result:
-            logging.warning(f"Page {result.get('page', 0)} extraction failed: {result['error']}")
+            logger.warning(f"Page {result.get('page', 0)} extraction failed: {result['error']}")
 
     if not valid_contents:
-        logging.warning("No valid content extracted from any page")
+        logger.warning("No valid content extracted from any page")
         return ""
 
     # Single page: return directly
@@ -149,12 +151,11 @@ def _merge_page_results(all_results: List[Dict[str, Any]], json_mode: bool) -> s
     if json_mode:
         cleaned_contents = [clean_json_response(vc['content']) for vc in valid_contents]
         combined = _merge_json_results(cleaned_contents)
-        logging.info(f"Merged {len(valid_contents)} pages JSON results")
+        logger.info(f"Merged {len(valid_contents)} pages JSON results")
         return combined
-    else:
-        text_parts = [f"[Page {vc['page']}]\n{vc['content']}" for vc in valid_contents]
-        combined = "\n\n".join(text_parts)
-        logging.info(f"Combined {len(valid_contents)} pages, total {len(combined)} characters")
-        return combined
+    text_parts = [f"[Page {vc['page']}]\n{vc['content']}" for vc in valid_contents]
+    combined = "\n\n".join(text_parts)
+    logger.info(f"Combined {len(valid_contents)} pages, total {len(combined)} characters")
+    return combined
 
 

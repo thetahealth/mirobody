@@ -82,7 +82,6 @@ class DomainAdapter:
         end_time: str | None = None,
     ) -> tuple[dict[int, float], list[dict]]:
         """Vector recall. Returns (primary_scores, secondary_indicators)."""
-        ...
 
     async def fetch(
         self,
@@ -92,7 +91,6 @@ class DomainAdapter:
         end_time: str | None = None,
     ) -> list[dict] | None:
         """Fetch indicators by IDs."""
-        ...
 
     async def expand(self, top_ids: list[int]) -> list[int]:
         """Optional graph expansion of top-K vector hits before fetching.
@@ -125,7 +123,6 @@ class DomainAdapter:
         Not all domains implement this — domains without a canonical
         code system can leave it unimplemented.
         """
-        ...
 
 
 # ─── Search engine ─────────────────────────────────────────────────

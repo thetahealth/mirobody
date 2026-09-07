@@ -6,13 +6,15 @@ Responsible for genetic data management and querying
 
 import logging
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from mirobody.utils.data import DataConverter
 from mirobody.utils import execute_query
 
+logger = logging.getLogger(__name__)
 
-class GeneticService():
+
+class GeneticService:
     """Genetic data service"""
 
     def __init__(self):
@@ -26,12 +28,12 @@ class GeneticService():
     # read on every call. Removed rather than documented better.
     async def get_genetic_data(
         self,
-        rsid: Union[str, List[str]],
-        user_info: Dict[str, Any],
+        rsid: str | list[str],
+        user_info: dict[str, Any],
         limit: int = 100,
         include_nearby: bool = True,
         nearby_range: int = 1000000,  # Default search range: 1M base pairs before and after
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Look up this user's genotype at specific variants (rsIDs), optionally
         with nearby variants from the same region.
@@ -109,7 +111,7 @@ class GeneticService():
             result = await execute_query(sql, params)
 
             # Debug logging
-            logging.info(f"Query results type: {type(result)}, length: {len(result) if result else 0}")
+            logger.info(f"Query results type: {type(result)}, length: {len(result) if result else 0}")
 
             # Data conversion
             result = await self.data_converter.convert_list(result)
@@ -224,11 +226,11 @@ class GeneticService():
                                 compact_record = {k: v for k, v in compact_record.items() if v is not None}
                                 nearby_results.append(compact_record)
 
-            logging.info(f"Query completed, returning {len(result)} genetic records, {len(nearby_results)} nearby variants")
+            logger.info(f"Query completed, returning {len(result)} genetic records, {len(nearby_results)} nearby variants")
 
             # Fallback strategy: if no genetic data
             if not result:
-                logging.info("No genetic data found, returning structured no-data response")
+                logger.info("No genetic data found, returning structured no-data response")
 
                 return {
                     "success": True,
@@ -267,7 +269,7 @@ class GeneticService():
             return response_data
 
         except Exception as e:
-            logging.error(str(e), exc_info=True)
+            logger.error(str(e), exc_info=True)
 
             return {
                 "success": False,

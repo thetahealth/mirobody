@@ -32,8 +32,8 @@ should not claim to be versioned alongside it.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import datetime, UTC
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
@@ -41,8 +41,11 @@ from pydantic import BaseModel, Field
 
 from ...engine import resolve_reading as resolve_indicator_name
 from mirobody.units.normalize import normalize_unit, parse_value_unit
+from ...pulse.readings import upsert_readings
 from ...utils import execute_query
 from ..auth import verify_token
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["records"])
 
@@ -113,8 +116,8 @@ class StandardizeRequest(BaseModel):
     text: str = Field(min_length=1, description="Report text to standardize")
     store: bool = Field(False, description="Also write the readings as records")
     # Accepted and ignored; see the module docstring.
-    retention: Optional[str] = None
-    session_id: Optional[str] = None
+    retention: str | None = None
+    session_id: str | None = None
 
 
 @router.post("/standardize")
@@ -135,7 +138,7 @@ async def standardize(body: StandardizeRequest, user_id: str = Depends(verify_to
         # problem to act on, and neither is a server fault.
         return _error(400, str(e), "extraction_failed", "text")
     except Exception as e:
-        logging.error(f"[standardize] {e}", exc_info=True)
+        logger.error(f"[standardize] {e}", exc_info=True)
         return _error(500, "This extraction could not complete.", "internal_error")
 
     data: list[dict[str, Any]] = []
@@ -191,15 +194,15 @@ async def standardize(body: StandardizeRequest, user_id: str = Depends(verify_to
 class Record(BaseModel):
     indicator: str = Field(min_length=1, max_length=200)
     value: Any = Field(description="Reading value; stored as written")
-    unit: Optional[str] = Field(None, max_length=64)
+    unit: str | None = Field(None, max_length=64)
     # `measured_at` / `start_time` are accepted as aliases so a row handed back
     # from POST /standardize (which names the field `measured_at`) can be
     # forwarded here unchanged.
-    time: Optional[str] = None
-    measured_at: Optional[str] = None
-    start_time: Optional[str] = None
-    end_time: Optional[str] = Field(None, description="Closes an episode that starts at `time`")
-    source: Optional[str] = Field(None, max_length=128, description="Where the reading came from")
+    time: str | None = None
+    measured_at: str | None = None
+    start_time: str | None = None
+    end_time: str | None = Field(None, description="Closes an episode that starts at `time`")
+    source: str | None = Field(None, max_length=128, description="Where the reading came from")
 
     def when(self) -> str | None:
         return self.time or self.measured_at or self.start_time
@@ -207,19 +210,19 @@ class Record(BaseModel):
 
 class WriteRequest(BaseModel):
     records: list[Record] = Field(min_length=1, max_length=MAX_RECORDS_PER_REQUEST)
-    retention: Optional[str] = None      # accepted and ignored
-    session_id: Optional[str] = None     # accepted and ignored
+    retention: str | None = None      # accepted and ignored
+    session_id: str | None = None     # accepted and ignored
 
 
 def _parse_time(raw: str | None) -> datetime:
     if not raw:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
     text = raw.strip().replace("Z", "+00:00")
     try:
         parsed = datetime.fromisoformat(text)
     except ValueError:
-        return datetime.now(timezone.utc)
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        return datetime.now(UTC)
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
 async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source: str) -> tuple[int, int]:
@@ -229,7 +232,7 @@ async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source
     number with its own pass of `_standardize` over the same records, which
     resolved every indicator name twice per request.
 
-    `ON CONFLICT DO NOTHING` against the `(user_id, indicator, start_time,
+    `on_conflict="nothing"` against the `(user_id, indicator, start_time,
     end_time)` unique key: re-sending a batch after a timeout is a retry, not a
     request for a duplicate row.
     """
@@ -263,19 +266,7 @@ async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source
             }
         )
 
-    await execute_query(
-        query="""
-        INSERT INTO th_series_data (
-            user_id, indicator, value, start_time, end_time, source_table,
-            source_table_id, comment, indicator_id, source
-        ) VALUES (
-            :user_id, :indicator, :value, :start_time, :end_time, :source_table,
-            :source_table_id, encrypt_content(:comment), :indicator_id, :source
-        )
-        ON CONFLICT (user_id, indicator, start_time, end_time) DO NOTHING
-        """,
-        params=params,
-    )
+    await upsert_readings(params, on_conflict="nothing")
     return len(params), coded
 
 
@@ -296,14 +287,14 @@ async def write_records(body: WriteRequest, user_id: str = Depends(verify_token)
     try:
         written, coded = await _insert_records(user_id, records, source=_SOURCE_API)
     except Exception as e:
-        logging.error(f"[write_records] {e}", exc_info=True)
+        logger.error(f"[write_records] {e}", exc_info=True)
         return _error(500, "These records could not be written.", "internal_error")
     return {"status": "ok", "ingested": written, "standardized": coded}
 
 
 @router.get("/data")
 async def read_records(
-    indicator: Optional[str] = Query(None, description="Filter by name (substring match)"),
+    indicator: str | None = Query(None, description="Filter by name (substring match)"),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     user_id: str = Depends(verify_token),
@@ -315,30 +306,35 @@ async def read_records(
     readings in order, not a name-keyed map to flatten first.
     """
     # `value` is stored in the clear and every other reader selects it that way;
-    # `comment` is the encrypted one — all three writers wrap it in
-    # `encrypt_content`, so reading it raw would hand back ciphertext.
-    sql = """
+    # `comment` is the encrypted one — the one writer (`pulse/readings.py`)
+    # wraps it in `encrypt_content`, so reading it raw would hand back ciphertext.
+    #
+    # The filter is spliced in, not parameterised as `(:indicator IS NULL OR
+    # ...)`: with no filter psycopg binds NULL with no type and Postgres fails
+    # the whole statement with "could not determine data type of parameter",
+    # so the unfiltered listing — the common case — returned 500.
+    params = {
+        "uid": str(user_id),
+        "limit": limit + 1,          # one extra row answers `has_more`
+        "offset": offset,
+    }
+    filter_sql = ""
+    if indicator:
+        filter_sql = "AND indicator ILIKE :pattern"
+        params["pattern"] = f"%{indicator}%"
+    sql = f"""
     SELECT id, indicator, value, start_time, end_time,
            source, decrypt_content(comment) AS comment, indicator_id
       FROM th_series_data
      WHERE user_id = :uid AND deleted = 0
-       AND (:indicator IS NULL OR indicator ILIKE :pattern)
+       {filter_sql}
      ORDER BY start_time DESC, id DESC
      LIMIT :limit OFFSET :offset
     """
     try:
-        rows = await execute_query(
-            sql,
-            {
-                "uid": str(user_id),
-                "indicator": indicator,
-                "pattern": f"%{indicator}%" if indicator else None,
-                "limit": limit + 1,          # one extra row answers `has_more`
-                "offset": offset,
-            },
-        ) or []
+        rows = await execute_query(sql, params) or []
     except Exception as e:
-        logging.error(f"[read_records] {e}", exc_info=True)
+        logger.error(f"[read_records] {e}", exc_info=True)
         return _error(500, "This lookup could not complete.", "internal_error")
 
     has_more = len(rows) > limit
@@ -366,8 +362,8 @@ async def read_records(
 @router.delete("/data")
 async def erase_records(
     request: Request,
-    id: Optional[int] = Query(None, description="One row, from GET /api/data"),
-    indicator: Optional[str] = Query(None, description="One indicator (substring match)"),
+    id: int | None = Query(None, description="One row, from GET /api/data"),
+    indicator: str | None = Query(None, description="One indicator (substring match)"),
     user_id: str = Depends(verify_token),
 ):
     """Erase the caller's records — one row, one indicator, or all of them.
@@ -401,6 +397,6 @@ async def erase_records(
             params,
         ) or []
     except Exception as e:
-        logging.error(f"[erase_records] {e}", exc_info=True)
+        logger.error(f"[erase_records] {e}", exc_info=True)
         return _error(500, "This deletion could not complete.", "internal_error")
     return {"status": "ok", "deleted": len(rows)}

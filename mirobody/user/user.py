@@ -21,7 +21,7 @@ drop the `is_del` filter, and a lookup without it answers for deleted accounts
 
 from __future__ import annotations
 
-import json, logging
+import logging
 
 from typing import TYPE_CHECKING
 
@@ -33,6 +33,8 @@ if TYPE_CHECKING:
     from psycopg_pool import AsyncConnectionPool
 
 from ..utils.db import execute_query
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -137,7 +139,7 @@ async def add_or_get_user(
                     return row[0], None
 
     except Exception as e:
-        logging.error(str(e), extra={
+        logger.error(str(e), extra={
             "email": email, "apple": apple_subject
         })
 
@@ -165,7 +167,7 @@ async def get_user_via_apple_subject(
         return row["id"], row["email"], None
 
     except Exception as e:
-        logging.error(str(e), extra={"apple": apple_subject})
+        logger.error(str(e), extra={"apple": apple_subject})
 
         return 0, "", str(e)
 
@@ -202,7 +204,7 @@ async def update_user_name(
                 )
                 await conn.commit()
     except Exception as e:
-        logging.error(str(e), extra={"user_id": user_id})
+        logger.error(str(e), extra={"user_id": user_id})
         return str(e)
 
     return None
@@ -239,7 +241,7 @@ async def del_user(
 
 #-----------------------------------------------------------------------------
 
-class UserInfo():
+class UserInfo:
     def __init__(
         self,
         name: str,
@@ -263,7 +265,7 @@ async def get_user_info(
             return UserInfo(row["name"], row["lang"], row["tz"]), None
 
     except Exception as e:
-        logging.error(str(e), extra={"id": user_id})
+        logger.error(str(e), extra={"id": user_id})
 
         return None, str(e)
 

@@ -1,12 +1,9 @@
-import functools, logging
+import functools
+import logging
 
 from psycopg_pool import AsyncConnectionPool
 
-from .agent import (
-    load_agents_from_directories,
-    get_global_agents,
-    get_agents_with_llm_client_names
-)
+from ..registry import available_models, load_agent
 from .session import (
     create_session,
     get_session_summaries,
@@ -18,15 +15,6 @@ from .message import (
     get_chat_history,
     set_message_rating
 )
-from .user_config import (
-    get_user_mcps,
-    set_user_mcp,
-    delete_user_mcp,
-
-    get_user_prompts,
-    set_user_prompt,
-    delete_user_prompt
-)
 from .adapters import HTTPChatAdapter
 
 from ...user import (
@@ -34,6 +22,7 @@ from ...user import (
 )
 from ...user.user import get_user_info
 from ...user.care_circle import beneficiary_users
+from ...utils.sse import sse_headers
 from ...utils import (
     json_response_with_code,
     json_response,
@@ -45,6 +34,8 @@ from ...utils import (
     StreamingResponse,
     Route
 )
+
+logger = logging.getLogger(__name__)
 
 
 #-----------------------------------------------------------------------------
@@ -74,17 +65,12 @@ def public_endpoint(fn):
 def self_authenticating(fn):
     """Preflight only — the handler does its own, non-standard auth.
 
-    Two endpoints need this and neither fits `requires_auth`:
-
-    * `chat_handler` reads `request.state.user_id`, populated by middleware,
-      rather than verifying the header itself.
-    * `prompt_handler` verifies a token but must NOT 401 without one: it
-      returns the system prompt list to anonymous callers and merges in the
-      user's own prompts only when a token is present. Wrapping it in
-      `requires_auth` would 401 clients that legitimately have no session yet.
+    One endpoint needs this and it does not fit `requires_auth`: `chat_handler`
+    reads `request.state.user_id`, populated by middleware, rather than
+    verifying the header itself.
 
     Labelled separately from `public_endpoint` so the "reachable without a
-    token" set stays exactly three endpoints and stays checkable.
+    token" set stays small and stays checkable.
     """
     @functools.wraps(fn)
     async def wrapper(self, request: Request, *args, **kwargs) -> Response:
@@ -140,26 +126,20 @@ class ChatService:
 
         db_pool         : AsyncConnectionPool | None = None,
 
-        agent_dirs          : list[str] = [],
-        private_agent_dirs  : list[str] = [],
+        agent_dirs      : list[str] | None = None,
     ):
         self._token_validator = token_validator
         self._db_pool = db_pool
 
-        # Called for the side effect: both populate the module-global agent
-        # registry that `get_global_agent(s)` reads. The returned dicts used to
-        # be stored on self and counted into `_agent_count`, which nothing read.
-        cfg = global_config()
-        load_agents_from_directories(agent_dirs, config=cfg)
-        load_agents_from_directories(private_agent_dirs, private=True, config=cfg)
+        # Called for the side effect: the registry holds the one agent class
+        # and its LLM clients for the life of the process.
+        load_agent(agent_dirs or [], config=global_config())
 
         #-------------------------------------------------
 
         self.routes = routes if routes is not None else []
 
         for path, handler, methods in (
-            ("/api/agents",             self.agents_handler,                    ["GET"]),
-            ("/api/providers",          self.provider_handler,                  ["GET"]),
             ("/api/models",             self.model_handler,                     ["GET"]),
             ("/api/prompts",            self.prompt_handler,                    ["GET"]),
 
@@ -173,14 +153,6 @@ class ChatService:
             ("/api/chat",               self.chat_handler,                      ["POST"]),
 
             ("/api/beneficiary-users",  self.beneficiary_user_handler,          ["GET"]),
-
-            ("/api/user/mcp",           self.mcp_config_get_handler,            ["GET", "POST"]),
-            ("/api/user/mcp/set",       self.mcp_config_server_set_handler,     ["POST"]),
-            ("/api/user/mcp/delete",    self.mcp_config_server_delete_handler,  ["POST"]),
-
-            ("/api/user/prompt",        self.prompt_config_get_handler,         ["GET", "POST"]),
-            ("/api/user/prompt/set",    self.prompt_config_set_handler,         ["POST"]),
-            ("/api/user/prompt/delete", self.prompt_config_delete_handler,      ["POST"]),
         ):
             # OPTIONS on every route: each handler answers preflight via its
             # auth decorator, so the route must accept the method to reach it.
@@ -191,27 +163,14 @@ class ChatService:
     #-------------------------------------------------------------------------
 
     @public_endpoint
-    async def agents_handler(self, request: Request) -> Response:
-        data = []
-        for agent_name in get_global_agents(public=True):
-            if agent_name:
-                data.append({
-                    "name": agent_name,
-                    "description": "",
-                    "code": agent_name
-                })
-        data = sorted(data, key=lambda x: x["code"])
-
-        return json_response_with_code(
-            data=data,
-            request=request
-        )
-
-    #-------------------------------------------------------------------------
-
-    @public_endpoint
     async def model_handler(self, request: Request) -> Response:
-        data = get_agents_with_llm_client_names()
+        """Provider names whose key resolves — bare names, no `Agent/` prefix.
+
+        The shipped web client splits each entry on `/` into `{agent, provider}`
+        and falls back to the whole string as the provider when there is no
+        slash, so a bare name works unchanged.
+        """
+        data = available_models()
 
         return json_response_with_code(
             data=data,
@@ -221,49 +180,22 @@ class ChatService:
     #-------------------------------------------------------------------------
 
     @public_endpoint
-    async def provider_handler(self, request: Request) -> Response:
-        names = get_agents_with_llm_client_names()
-        data = [{"code": k.split("/")[1], "name": k} for k in names]
-
-        return json_response_with_code(
-            data=data,
-            request=request
-        )
-
-    #-------------------------------------------------------------------------
-
-    @self_authenticating
     async def prompt_handler(self, request: Request) -> Response:
-        """System prompts for ONE agent, plus the caller's own saved prompts.
+        """The `PROMPTS` templates a chat request may name with `prompt_name`.
 
-        The agent is a query parameter because a prompt belongs to an agent, not
-        to the deployment: `deep.jinja` describes a virtual filesystem, QuickJS
-        and chart tools that BaseAgent does not have, so offering it to a Base
-        session is offering instructions for tools that are not there. This
-        used to hardcode `get_options_for_agent("deep")` and answer every caller
-        with Deep's list whatever agent they had selected.
-
-        An agent with no configured templates gets an empty list — which is the
-        honest answer, and is what tells a client there is nothing to pick.
+        One list, from config, the same for every caller. `{"system": [...]}` is
+        the shape the shipped web client reads; it used to carry a `user` list
+        too (prompts a person saved through `/api/user/prompt/*`) — nothing in
+        the shipped client could create one, and a framework's system prompt is
+        not something a user edits from a settings box, so that surface is gone.
+        A deployment with no configured templates gets an empty list.
         """
-        agent = (request.query_params.get("agent") or "deep").strip().lower() or "deep"
+        options = global_config().get_agent_settings()
+        templates = options.get("prompt_templates") if isinstance(options, dict) else None
+        system_prompts = [{"name": name} for name in (templates or {})]
 
-        system_prompts = []
-        options = global_config().get_options_for_agent(agent)
-        if isinstance(options, dict) and "prompt_templates" in options:
-            system_prompts = [{"name": name} for name in options["prompt_templates"]]
-
-        user_prompts = []
-        user_id, err = self._token_validator.verify_http_token(request)
-        if not err and user_id:
-            user_prompts_dict, err = await get_user_prompts(user_id)
-            if not err and user_prompts_dict:
-                user_prompts = [{"name": name, "order": value.get("order", 0)} for name, value in user_prompts_dict.items()]
-
-        # Echo the agent back: the caller asked for one agent's prompts and a
-        # client that cannot tell which list it received is the bug above.
         return json_response_with_code(
-            data={"agent": agent, "system": system_prompts, "user": user_prompts},
+            data={"system": system_prompts},
             request=request,
         )
 
@@ -302,14 +234,13 @@ class ChatService:
                     },
                     request=request
                 )
-            else:
-                summaries = await get_session_summaries(user_id)
-                return json_response_with_code(
-                    data={
-                        "summaries": summaries
-                    },
-                    request=request
-                )
+            summaries = await get_session_summaries(user_id)
+            return json_response_with_code(
+                data={
+                    "summaries": summaries
+                },
+                request=request
+            )
         except Exception as e:
             return json_response_with_code(
                 code=-1,
@@ -420,7 +351,7 @@ class ChatService:
         if "timezone" not in params or "language" not in params:
             user_info, err = await get_user_info(user_id)
             if err:
-                logging.warning(err, extra={"user": user_id})
+                logger.warning(err, extra={"user": user_id})
             else:
                 if "timezone" not in params:
                     from mirobody.utils.config import get_default_timezone
@@ -450,10 +381,7 @@ class ChatService:
             adapter.handle_request(
                 params=ChatStreamRequest(**params),
             ),
-            headers={
-                "cache-control": "no-cache, no-transform",
-                "x-accel-buffering": "no",
-            },
+            headers=sse_headers(),
             media_type="text/event-stream"
         )
     
@@ -471,86 +399,6 @@ class ChatService:
 
     #-------------------------------------------------------------------------
 
-    @requires_auth
-    async def mcp_config_get_handler(self, request: Request, user_id: str) -> Response:
-        config, err = await get_user_mcps(user_id)
-        if err:
-            return json_response_with_code(-1, err, request=request)
-        
-        return json_response_with_code(data=config, request=request)
-    
-
-    @requires_auth
-    async def mcp_config_server_set_handler(self, request: Request, user_id: str) -> Response:
-        params, err_response = await _json_body(request)
-        if err_response:
-            return err_response
-
-        err = await set_user_mcp(
-            user_id,
-            params.get("name"),
-            params.get("url"),
-            params.get("token", ""),
-            params.get("enabled", True),
-            params.get("order", 0)
-        )
-        if err:
-            return json_response_with_code(-3, err, request=request)
-        
-        return json_response_with_code(request=request)
-
-
-    @requires_auth
-    async def mcp_config_server_delete_handler(self, request: Request, user_id: str) -> Response:
-        params, err_response = await _json_body(request)
-        if err_response:
-            return err_response
-
-        err = await delete_user_mcp(user_id, params.get("name"))
-        if err:
-            return json_response_with_code(-3, err, request=request)
-        
-        return json_response_with_code(request=request)
-
     #-------------------------------------------------------------------------
-
-    @requires_auth
-    async def prompt_config_get_handler(self, request: Request, user_id: str) -> Response:
-        prompts, err = await get_user_prompts(user_id)
-        if err:
-            return json_response_with_code(-2, err, request=request)
-        
-        prompts_list = []
-        for prompt_name, prompt_value in prompts.items():
-            prompt_value["name"] = prompt_name
-            prompts_list.append(prompt_value)
-
-        return json_response_with_code(data=prompts_list, request=request)
-
-
-    @requires_auth
-    async def prompt_config_set_handler(self, request: Request, user_id: str) -> Response:
-        params, err_response = await _json_body(request)
-        if err_response:
-            return err_response
-
-        err = await set_user_prompt(user_id, params.get("name"), params.get("prompt"), params.get("order"))
-        if err:
-            return json_response_with_code(-3, err, request=request)
-        
-        return json_response_with_code(request=request)
-
-
-    @requires_auth
-    async def prompt_config_delete_handler(self, request: Request, user_id: str) -> Response:
-        params, err_response = await _json_body(request)
-        if err_response:
-            return err_response
-
-        err = await delete_user_prompt(user_id, params.get("name"))
-        if err:
-            return json_response_with_code(-3, err, request=request)
-        
-        return json_response_with_code(request=request)
 
 #-----------------------------------------------------------------------------

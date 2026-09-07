@@ -1,21 +1,19 @@
-import logging, os
+import logging
+import os
 
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
 
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
 from starlette.routing import Route
-from starlette.middleware import Middleware
 
-from starlette.middleware.gzip import GZipMiddleware
-from starlette.middleware.cors import CORSMiddleware
 
 from .bootstrap import create_schema, enforce_production_auth_safety, seed_demo_data
 from .middleware_stack import build_middlewares
 from .htdoc import add_htdoc_routes
-from .middlewares import JwtMiddleware, UserInfoUpdaterMiddleware, RequestRateLimiterMiddleware
 
 from .. import __version__
 from ..user import (
@@ -26,6 +24,8 @@ from ..user import (
 )
 from ..mcp import McpService
 from ..agent.chat import ChatService
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -40,7 +40,6 @@ class Server:
         htdoc           : str = "",
 
         jwt_key         : str = "",
-        jwt_private_key : str = "",
         jwt_iss         : str = "",
         jwt_aud         : str = "",
         jwt_client_id   : str = "",
@@ -57,17 +56,15 @@ class Server:
         # The following parameters can be generated via
         #   config.get_mcp_options().
 
-        tool_dirs       : list[str] = [],
-        resource_dirs   : list[str] = [],
+        tool_dirs       : list[str] | None = None,
 
         mcp_server_url  : str = "",
 
         # The following parameters can be generated via
         #   config.get_agent_options().
 
-        agent_dirs      : list[str] = [],
-        private_agent_dirs  : list[str] = [],
-        api_keys        : dict[str, str] = {},
+        agent_dirs      : list[str] | None = None,
+        api_keys        : dict[str, str] | None = None,
 
         # The following parameters can be generated via
         #   config.get_email_options().
@@ -115,10 +112,16 @@ class Server:
 
         **kwargs
     ):
+        if api_keys is None:
+            api_keys = {}
+        if agent_dirs is None:
+            agent_dirs = []
+        if tool_dirs is None:
+            tool_dirs = []
         self._pg_pool = pg_pool
 
         self._redis = redis
-        logging.info(f"Server is running in {"Redis" if self._redis else "local memory"} mode.")
+        logger.info(f"Server is running in {"Redis" if self._redis else "local memory"} mode.")
 
         self._jwt_token_validator = jwt_token_validator \
             if jwt_token_validator \
@@ -152,10 +155,29 @@ class Server:
         if "__IS_WEBAUTHN_ON__" not in self._webpage_config:
             self._webpage_config["__IS_WEBAUTHN_ON__"] = True if webauthn_rp_id else False
 
+        # The shipped web client reads six flags off /mirobody.json and treats a
+        # MISSING key as an off switch. Only the three above were ever emitted,
+        # so `__IS_MOBILE_SOURCE_ON__` — which gates the whole device-provider
+        # UI (Garmin / Oura / Whoop / Apple Health) — read as False on every
+        # deployment, and ① Collect, the README's headline stage, was invisible
+        # in the client (docs/roadmap.md, 2026-08-17). Derive the defaults from
+        # what is actually installed rather than hardcoding them; an overlay's
+        # MIROBODY_WEB_CONFIG still wins.
+        if "__IS_MOBILE_SOURCE_ON__" not in self._webpage_config:
+            from ..pulse.providers.installed import installed_provider_slugs
+            self._webpage_config["__IS_MOBILE_SOURCE_ON__"] = bool(installed_provider_slugs())
+
+        if "__IS_NEW_FEATURES_ON__" not in self._webpage_config:
+            # MCP is always served (/mcp is registered unconditionally below).
+            self._webpage_config["__IS_NEW_FEATURES_ON__"] = ["MCP"]
+
+        if "__IS_API_CONFIG_ON__" not in self._webpage_config:
+            self._webpage_config["__IS_API_CONFIG_ON__"] = True
+
         #-------------------------------------------------
 
         os.environ.update([
-            ("USER_AGENT", f"{server_name if server_name else "Theta MCP Server"} {server_version if server_version else __version__}")
+            ("USER_AGENT", f"{server_name if server_name else "mirobody MCP Server"} {server_version if server_version else __version__}")
         ])
 
         #-------------------------------------------------
@@ -220,7 +242,6 @@ class Server:
             routes          = self._routes,
 
             tool_dirs       = tool_dirs,
-            resource_dirs   = resource_dirs,
 
             db_pool         = self._pg_pool,
             redis           = self._redis
@@ -234,8 +255,7 @@ class Server:
             uri_prefix      = uri_prefix,
             routes          = self._routes,
 
-            agent_dirs          = agent_dirs,
-            private_agent_dirs  = private_agent_dirs,
+            agent_dirs      = agent_dirs,
         )
 
         self._routes.append(Route(f"{uri_prefix}/api/health", endpoint=self.health_check_handler, methods=["GET"]))
@@ -287,11 +307,7 @@ class Server:
     #-----------------------------------------------------
 
     async def health_check_handler(self, request: Request) -> Response:
-        # `agents` reads the module-global agent registry rather than a count
-        # cached on ChatService: the registry is what `get_global_agent` resolves
-        # against, and the cached `_agent_count` attribute no longer exists —
-        # this handler raised AttributeError on every /api/health call.
-        from ..agent.chat.agent import get_global_agent_count
+        from ..agent.registry import agent_name
 
         return JSONResponse(
             content = {
@@ -300,8 +316,7 @@ class Server:
                 "tools"                 : self._mcp_service._tools_count,
                 "public_tools"          : (self._mcp_service._tools_count - self._mcp_service._auth_tools_count),
                 "authenticated_tools"   : self._mcp_service._auth_tools_count,
-                "resources"             : self._mcp_service._resources_count,
-                "agents"                : get_global_agent_count(),
+                "agent"                 : agent_name(),
             }
         )
 
@@ -316,9 +331,13 @@ class Server:
     #-----------------------------------------------------
 
     @staticmethod
-    async def start(yaml_files: list[str] = [], fastapi_routers: list = []):
+    async def start(yaml_files: list[str] | None = None, fastapi_routers: list | None = None):
         # Load configuration via file.
         from ..utils import Config
+        if fastapi_routers is None:
+            fastapi_routers = []
+        if yaml_files is None:
+            yaml_files = []
         config = await Config.init(yaml_filenames=yaml_files)
         config.print()
 
@@ -344,7 +363,6 @@ class Server:
             htdoc           = config.http.htdoc,
 
             # jwt_key         = config.jwt_key,
-            # jwt_private_key = config.jwt_private_key,
 
             pg_pool         = pg_pool,
             redis           = redis,
@@ -388,7 +406,7 @@ class Server:
 
         @app.exception_handler(CareCircleDenied)
         async def _care_circle_denied(request, exc: CareCircleDenied):
-            logging.warning("care-circle denial reached the app handler: %s %s — %s",
+            logger.warning("care-circle denial reached the app handler: %s %s — %s",
                             request.method, request.url.path, exc)
             return JSONResponse(status_code=403,
                                 content={"code": -403, "msg": str(exc), "data": {}})
@@ -397,7 +415,7 @@ class Server:
         app.state.redis = redis
         app.state.pg_pool = pg_pool
         
-        logging.info(f"Global resources stored in app.state: Redis={'enabled' if redis else 'disabled'}, PostgreSQL={'enabled' if pg_pool else 'disabled'}")
+        logger.info(f"Global resources stored in app.state: Redis={'enabled' if redis else 'disabled'}, PostgreSQL={'enabled' if pg_pool else 'disabled'}")
 
         #-----------------------------------------------------
         # Add other routers.

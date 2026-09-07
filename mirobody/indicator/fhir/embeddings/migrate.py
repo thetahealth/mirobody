@@ -30,7 +30,7 @@ import sys
 import numpy as np
 
 from ..common import SYSTEM_TO_CODE, SYSTEMS, code_to_fhir_id
-from .local import (
+from ..index import (
     EMB_BASENAME,
     EMB_DTYPE,
     ID_MAP_BASENAME,

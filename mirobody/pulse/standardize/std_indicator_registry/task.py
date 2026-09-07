@@ -13,12 +13,13 @@ migration 94 will simply skip registration on every tick.
 
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
 
 from ...aggregate.rule_generator import get_all_aggregation_rules
 from ..indicators_info import HealthDataType, StandardIndicator
 from ...core.scheduler import PullTask, ScheduleType
 from ....utils import execute_query
+
+logger = logging.getLogger(__name__)
 
 
 TABLE_NAME = "standard_indicators_device"
@@ -46,7 +47,7 @@ def _slugify_category(name: str) -> str:
     return name.strip().lower().replace(" ", "_")
 
 
-def _collect_source_rows() -> List[Dict]:
+def _collect_source_rows() -> list[dict]:
     """Build one row per StandardIndicator enum value.
 
     Skips pure-SERIES indicators (data_type == HealthDataType.SERIES): the
@@ -59,13 +60,13 @@ def _collect_source_rows() -> List[Dict]:
     SUMMARY and MIX indicators are kept — both land in th_series_data
     (MIX writes to both tables).
     """
-    rows: List[Dict] = []
+    rows: list[dict] = []
     for indicator in StandardIndicator:
         info = indicator.value
         if not info.name:
             # Defensive: every IndicatorInfo should have `name` set, but
             # skip anything malformed rather than crash the task.
-            logging.warning(
+            logger.warning(
                 f"[StdIndicatorRegistry] Skipping enum {indicator.name}: empty info.name"
             )
             continue
@@ -84,7 +85,7 @@ def _collect_source_rows() -> List[Dict]:
     return rows
 
 
-def _collect_aggregation_rows() -> List[Dict]:
+def _collect_aggregation_rows() -> list[dict]:
     """Build one row per derived aggregation rule (e.g. dailyAvgHeartRates)."""
     # Index source indicators by camelCase name for lookup.
     source_by_name = {
@@ -93,14 +94,14 @@ def _collect_aggregation_rows() -> List[Dict]:
         if ind.value.name
     }
 
-    rows: List[Dict] = []
+    rows: list[dict] = []
     for rule in get_all_aggregation_rules():
         source_info = source_by_name.get(rule.source_indicator)
         if source_info is None:
             # rule_generator only produces rules for known indicators, but
             # custom rules registered elsewhere could reference unknown
             # sources. Skip them so we don't write garbage `system`.
-            logging.warning(
+            logger.warning(
                 f"[StdIndicatorRegistry] Skipping rule with unknown source: "
                 f"{rule.source_indicator} -> {rule.target_indicator}"
             )
@@ -178,7 +179,7 @@ class RegisterStandardIndicatorsTask(PullTask):
     async def execute(self) -> bool:
         try:
             if not await _table_exists():
-                logging.info(
+                logger.info(
                     f"[StdIndicatorRegistry] Table {TABLE_NAME} not present; "
                     f"skipping registration (run migration 94 to enable)."
                 )
@@ -186,7 +187,7 @@ class RegisterStandardIndicatorsTask(PullTask):
 
             rows = _collect_source_rows() + _collect_aggregation_rows()
             if not rows:
-                logging.info("[StdIndicatorRegistry] No rows to register")
+                logger.info("[StdIndicatorRegistry] No rows to register")
                 return True
 
             # Dedupe by id — defensive: if a source and an aggregation
@@ -196,7 +197,7 @@ class RegisterStandardIndicatorsTask(PullTask):
             seen, deduped = set(), []
             for row in rows:
                 if row["id"] in seen:
-                    logging.warning(
+                    logger.warning(
                         f"[StdIndicatorRegistry] Duplicate id, keeping first: {row['id']}"
                     )
                     continue
@@ -213,7 +214,7 @@ class RegisterStandardIndicatorsTask(PullTask):
             }
             await self.save_task_stats(stats)
 
-            logging.info(
+            logger.info(
                 f"[StdIndicatorRegistry] Upserted {len(deduped)} rows into "
                 f"{TABLE_NAME} (sources={stats['source_rows']}, "
                 f"aggregations={stats['aggregation_rows']})"
@@ -221,10 +222,10 @@ class RegisterStandardIndicatorsTask(PullTask):
             return True
 
         except Exception as e:
-            logging.error(f"[StdIndicatorRegistry] Execution error: {e}")
+            logger.error(f"[StdIndicatorRegistry] Execution error: {e}")
             return False
 
-    async def get_task_info(self) -> Dict:
+    async def get_task_info(self) -> dict:
         full_status = await self.get_full_status()
         full_status.update({
             "task_name": "Standard Indicator Registry",

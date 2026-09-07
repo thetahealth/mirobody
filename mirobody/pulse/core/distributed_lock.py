@@ -2,11 +2,13 @@
 Distributed lock manager for provider pull tasks
 """
 
-import logging, uuid
+import logging
+import uuid
 import redis.asyncio
 
 from datetime import datetime
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -52,7 +54,7 @@ class PullTaskLockManager:
 
     async def try_acquire_execution_lock(
             self, provider_slug: str, lock_duration_hours: float = 23.5, force: bool = False
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Try to acquire execution lock
 
@@ -75,14 +77,14 @@ class PullTaskLockManager:
             # to come back is a delay; two instances double-pulling and
             # double-writing the same readings is the bug this class exists
             # to prevent.
-            logging.error(
+            logger.error(
                 f"Redis unavailable — refusing execution lock for {provider_slug} "
                 "(fail-closed; task will retry on its next schedule)"
             )
             return None
         # Force execution mode
         if force:
-            logging.warning(f"Force execution mode enabled for {provider_slug}, ignoring existing locks")
+            logger.warning(f"Force execution mode enabled for {provider_slug}, ignoring existing locks")
             # In force mode, delete existing lock first, then acquire new lock
             await redis_client.delete(lock_key)
 
@@ -94,26 +96,25 @@ class PullTaskLockManager:
             acquired = await redis_client.set(lock_key, lock_value, ex=lock_timeout_seconds, nx=True)
 
             if acquired:
-                logging.info(
+                logger.info(
                     f"Execution lock acquired for {provider_slug} "
                     f"(instance: {self.instance_id}, execution: {execution_id}, "
                     f"duration: {lock_duration_hours}h)"
                 )
                 return execution_id
+            # Failed to acquire lock, check existing lock info
+            existing_lock = await redis_client.get(lock_key)
+            if existing_lock:
+                logger.info(
+                    f"Execution lock already exists for {provider_slug}, "
+                    f"existing: {existing_lock.decode() if isinstance(existing_lock, bytes) else existing_lock}"
+                )
             else:
-                # Failed to acquire lock, check existing lock info
-                existing_lock = await redis_client.get(lock_key)
-                if existing_lock:
-                    logging.info(
-                        f"Execution lock already exists for {provider_slug}, "
-                        f"existing: {existing_lock.decode() if isinstance(existing_lock, bytes) else existing_lock}"
-                    )
-                else:
-                    logging.warning(f"Failed to acquire lock for {provider_slug}, unknown reason")
-                return None
+                logger.warning(f"Failed to acquire lock for {provider_slug}, unknown reason")
+            return None
 
         except Exception as e:
-            logging.error(f"Error acquiring execution lock for {provider_slug}: {str(e)}")
+            logger.error(f"Error acquiring execution lock for {provider_slug}: {str(e)}")
             return None
 
     async def release_execution_lock(self, provider_slug: str, execution_id: str) -> bool:
@@ -129,7 +130,7 @@ class PullTaskLockManager:
         """
         redis_client = await get_redis_client()
         if redis_client is None:
-            logging.warning("No redis return true")
+            logger.warning("No redis return true")
             return True
 
         lock_key = self._get_lock_key(provider_slug)
@@ -145,16 +146,16 @@ class PullTaskLockManager:
                 self._RELEASE_SCRIPT, 1, lock_key, self.instance_id, execution_id
             )
             if released:
-                logging.info(f"Released execution lock for {provider_slug} (execution: {execution_id})")
+                logger.info(f"Released execution lock for {provider_slug} (execution: {execution_id})")
                 return True
-            logging.warning(
+            logger.warning(
                 f"Lock ownership mismatch for {provider_slug}, "
                 f"expected instance {self.instance_id} / execution {execution_id} — not released"
             )
             return False
 
         except Exception as e:
-            logging.error(f"Error releasing execution lock for {provider_slug}: {str(e)}")
+            logger.error(f"Error releasing execution lock for {provider_slug}: {str(e)}")
             return False
 
     # Returns 1 when the lock is gone on exit (deleted by us, or already
@@ -174,7 +175,7 @@ class PullTaskLockManager:
     async def get_last_execution_timestamp(
         self,
         provider_slug: str
-    ) -> Optional[float]:
+    ) -> float | None:
         """
         Get last execution timestamp for incremental processing
 
@@ -189,7 +190,7 @@ class PullTaskLockManager:
         """
         redis_client = await get_redis_client()
         if redis_client is None:
-            logging.warning(f"Redis not available for {provider_slug}")
+            logger.warning(f"Redis not available for {provider_slug}")
             return None
 
         try:
@@ -206,7 +207,7 @@ class PullTaskLockManager:
             return None
             
         except Exception as e:
-            logging.error(
+            logger.error(
                 f"Error getting execution timestamp for {provider_slug}: {e}"
             )
             return None
@@ -226,17 +227,17 @@ class PullTaskLockManager:
         """
         redis_client = await get_redis_client()
         if redis_client is None:
-            logging.warning(f"Redis not available for {provider_slug}")
+            logger.warning(f"Redis not available for {provider_slug}")
             return False
         
         try:
             key = self._get_timestamp_key(provider_slug)
             await redis_client.delete(key)
-            logging.info(f"Cleared last execution timestamp for {provider_slug}")
+            logger.info(f"Cleared last execution timestamp for {provider_slug}")
             return True
             
         except Exception as e:
-            logging.error(
+            logger.error(
                 f"Error clearing execution timestamp for {provider_slug}: {e}"
             )
             return False
@@ -258,7 +259,7 @@ class PullTaskLockManager:
         """
         redis_client = await get_redis_client()
         if redis_client is None:
-            logging.warning(f"Redis not available for {provider_slug}")
+            logger.warning(f"Redis not available for {provider_slug}")
             return False
         
         try:
@@ -268,13 +269,13 @@ class PullTaskLockManager:
                 str(timestamp),
                 ex=604800  # 7 days TTL
             )
-            logging.debug(
+            logger.debug(
                 f"Updated execution timestamp for {provider_slug}: {timestamp}"
             )
             return True
             
         except Exception as e:
-            logging.error(
+            logger.error(
                 f"Error updating execution timestamp for {provider_slug}: {e}"
             )
             return False
@@ -283,7 +284,7 @@ class PullTaskLockManager:
         """Get Redis key for last successful execution wall-clock time."""
         return f"pull_task:last_run:{provider_slug}"
 
-    async def get_last_run(self, provider_slug: str) -> Optional[datetime]:
+    async def get_last_run(self, provider_slug: str) -> datetime | None:
         """Read the persisted PullTask.last_run for a provider.
 
         Returns None if redis is unavailable, the key is unset, or the
@@ -301,7 +302,7 @@ class PullTaskLockManager:
                 raw = raw.decode("utf-8")
             return datetime.fromisoformat(raw)
         except Exception as e:
-            logging.warning(f"Failed to read last_run for {provider_slug}: {e}")
+            logger.warning(f"Failed to read last_run for {provider_slug}: {e}")
             return None
 
     async def set_last_run(self, provider_slug: str, ts: datetime) -> bool:
@@ -322,7 +323,7 @@ class PullTaskLockManager:
             )
             return True
         except Exception as e:
-            logging.warning(f"Failed to persist last_run for {provider_slug}: {e}")
+            logger.warning(f"Failed to persist last_run for {provider_slug}: {e}")
             return False
 
     async def get_lock_status(self, provider_slug: str) -> dict:
@@ -337,7 +338,7 @@ class PullTaskLockManager:
         """
         redis_client = await get_redis_client()
         if redis_client is None:
-            logging.error(f"Redis client not initialized for {provider_slug}")
+            logger.error(f"Redis client not initialized for {provider_slug}")
             return {"locked": False, "error": "Redis client not initialized"}
 
         try:
@@ -358,19 +359,18 @@ class PullTaskLockManager:
                     "ttl_seconds": ttl if ttl > 0 else 0,
                     "is_current_instance": parts[0] == self.instance_id if len(parts) > 0 else False,
                 }
-            else:
-                return {
-                    "locked": False,
-                    "lock_value": None,
-                    "holder_instance": None,
-                    "lock_timestamp": None,
-                    "execution_id": None,
-                    "ttl_seconds": 0,
-                    "is_current_instance": False,
-                }
+            return {
+                "locked": False,
+                "lock_value": None,
+                "holder_instance": None,
+                "lock_timestamp": None,
+                "execution_id": None,
+                "ttl_seconds": 0,
+                "is_current_instance": False,
+            }
 
         except Exception as e:
-            logging.error(f"Error getting lock status for {provider_slug}: {str(e)}")
+            logger.error(f"Error getting lock status for {provider_slug}: {str(e)}")
             return {"locked": False, "error": str(e)}
 
 

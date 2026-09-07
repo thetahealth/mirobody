@@ -25,6 +25,8 @@ import time
 from typing import Any, ClassVar
 from redis.asyncio import Redis
 
+logger = logging.getLogger(__name__)
+
 #-----------------------------------------------------------------------------
 
 class BaseTask:
@@ -111,17 +113,17 @@ class BaseRedisTask(BaseTask):
 
             msg = payload if isinstance(payload, str) else json.dumps(payload)
             await redis.lpush(cls.queue_key, msg)
-            logging.info(f"{cls.__name__} enqueued: {payload}")
+            logger.info(f"{cls.__name__} enqueued: {payload}")
         except RuntimeError:
             raise  # queue-full surfaces to caller
         except Exception as e:
-            logging.error(f"{cls.__name__}.enqueue failed ({payload}): {e}")
+            logger.error(f"{cls.__name__}.enqueue failed ({payload}): {e}")
 
     # ---------- Consumer side ----------
 
     async def run(self, stop_event: asyncio.Event) -> None:
         cls = type(self)
-        logging.info(f"{cls.__name__} starting (queue={cls.queue_key}, heartbeat={cls.heartbeat_sec}s)")
+        logger.info(f"{cls.__name__} starting (queue={cls.queue_key}, heartbeat={cls.heartbeat_sec}s)")
 
         last_active = time.monotonic()
         while not stop_event.is_set():
@@ -130,19 +132,19 @@ class BaseRedisTask(BaseTask):
                 if not batch:
                     now = time.monotonic()
                     if now - last_active >= cls.heartbeat_sec:
-                        logging.info(f"{cls.__name__} alive (queue {cls.queue_key} empty, idle {int(now - last_active)}s)")
+                        logger.info(f"{cls.__name__} alive (queue {cls.queue_key} empty, idle {int(now - last_active)}s)")
                         last_active = now
                     continue
                 await self.consume(batch)
                 last_active = time.monotonic()
             except asyncio.CancelledError:
-                logging.info(f"{cls.__name__} cancelled")
+                logger.info(f"{cls.__name__} cancelled")
                 raise
             except Exception as e:
-                logging.error(f"{cls.__name__} loop error: {e}", stack_info=True)
+                logger.error(f"{cls.__name__} loop error: {e}", stack_info=True)
                 await asyncio.sleep(cls.retry_sleep_sec)
 
-        logging.info(f"{cls.__name__} stopped")
+        logger.info(f"{cls.__name__} stopped")
 
     async def _pop_batch(self) -> list[str]:
         cls = type(self)

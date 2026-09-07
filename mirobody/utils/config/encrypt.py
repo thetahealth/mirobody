@@ -1,6 +1,8 @@
-import base64, logging
+import logging
 
 from cryptography.fernet import Fernet
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -18,7 +20,7 @@ class FernetEncrypter:
         try:
             self._fernet = Fernet(self._key)
         except Exception as e:
-            logging.error(str(e), exc_info=True)
+            logger.error(str(e), exc_info=True)
             self._fernet = None
 
     #-----------------------------------------------------
@@ -35,7 +37,7 @@ class FernetEncrypter:
             return decrypted
 
         except Exception as e:
-            logging.error(str(e), extra={"s": s})
+            logger.error(str(e), extra={"s": s})
             
             return s
 
@@ -50,7 +52,7 @@ class FernetEncrypter:
             return encrypted
 
         except Exception as e:
-            logging.error(str(e), extra={"s": s})
+            logger.error(str(e), extra={"s": s})
 
             return s
 

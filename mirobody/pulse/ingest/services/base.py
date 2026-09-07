@@ -4,18 +4,20 @@ Base service class for health data processing
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Tuple, Union
+from typing import Any
 
 from ..models.requests import StandardPulseData
 from ..repositories.health_data import HealthDataRepository, health_data_repository
 from ...standardize.units import convert_to_standard
 from ...standardize.indicators_info import get_indicator_by_str
 
+logger = logging.getLogger(__name__)
+
 
 class BaseHealthService(ABC):
     """Health data service base class"""
 
-    def __init__(self, repository: Optional[HealthDataRepository] = None):
+    def __init__(self, repository: HealthDataRepository | None = None):
         """
         Initialize service
 
@@ -36,14 +38,12 @@ class BaseHealthService(ABC):
         Returns:
             bool: Whether processing succeeded
         """
-        pass
 
     @abstractmethod
     def get_service_name(self) -> str:
         """Get service name"""
-        pass
 
-    def normalize_health_data_unit(self, record_type: Union[str, Any], value: float, unit: Optional[str], percentage_handling: bool = False, ) -> Tuple[float, str]:
+    def normalize_health_data_unit(self, record_type: str | Any, value: float, unit: str | None, percentage_handling: bool = False, ) -> tuple[float, str]:
         """
         Generic health data unit normalization method
 
@@ -64,15 +64,15 @@ class BaseHealthService(ABC):
         indicator = get_indicator_by_str(record_type) if isinstance(record_type, str) else record_type
         
         if not indicator:
-            logging.warning(f"Unknown indicator: {record_type}, keeping original value")
+            logger.warning(f"Unknown indicator: {record_type}, keeping original value")
             return value, unit or ""
         
         # Convert to standard unit using new implementation
         try:
             converted_value, standard_unit = convert_to_standard(indicator, value, unit or "")
-            # logging.debug(f"Unit converted: {value} {unit} -> {converted_value} {standard_unit} for {record_type}")
+            # logger.debug(f"Unit converted: {value} {unit} -> {converted_value} {standard_unit} for {record_type}")
             return converted_value, standard_unit
         except Exception as e:
             # Conversion failed - keep original value and unit (fail gracefully)
-            logging.debug(f"Conversion not available for {record_type} {unit}: {e}, keeping original")
+            logger.debug(f"Conversion not available for {record_type} {unit}: {e}, keeping original")
             return value, unit or indicator.value.standard_unit

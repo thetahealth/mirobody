@@ -18,7 +18,10 @@ Measured coverage of the resolver these tools call: see
 中文 and 日本語).
 """
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class TerminologyService:
@@ -85,8 +88,7 @@ class TerminologyService:
                 "results": results,
             }
         except Exception as e:
-            import logging
-            logging.error(f"[resolve_indicator] {e}", exc_info=True)
+            logger.error(f"[resolve_indicator] {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     #-------------------------------------------------------------------------
@@ -194,6 +196,5 @@ class TerminologyService:
                 "results": results,
             }
         except Exception as e:
-            import logging
-            logging.error(f"[normalize_unit] {e}", exc_info=True)
+            logger.error(f"[normalize_unit] {e}", exc_info=True)
             return {"success": False, "error": str(e)}

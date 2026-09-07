@@ -1,4 +1,7 @@
-import json, logging, secrets, urllib
+import json
+import logging
+import secrets
+import urllib
 
 from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
@@ -20,8 +23,6 @@ from ..utils import (
 
     jsonrpc_result,
     jsonrpc_error,
-
-    global_config
 )
 
 from ..user import (
@@ -29,8 +30,9 @@ from ..user import (
     AbstractTokenValidator
 )
 
-from .resource import load_resources_from_directories
 from .tool import load_tools_from_directories, call_tool
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -66,23 +68,23 @@ _SUPPORTED_PROTOCOL_VERSIONS = (
 
 # Declared once: `initialize` and `server/discover` MUST advertise the same
 # capabilities, and they held separate copies of this dict that could drift.
-# An empty value means "supported, with no optional sub-capabilities" — so no
-# `subscribe`, no `listChanged` on resources, which is what makes
-# resources/subscribe and resources/templates/list correctly method-not-found.
+# An empty value means "supported, with no optional sub-capabilities". No
+# `resources` key at all: this server publishes tools and prompts, and a client
+# that asks for resources/list gets method-not-found, which is the spec's word
+# for "not offered". (It used to serve two ChatGPT Apps SDK widgets from here;
+# no tool ever pointed at them, and they are gone.)
 _CAPABILITIES = {
     "prompts": {},
-    "resources": {},
     "tools": {
         "listChanged": False,
     },
 }
 
 # 2026-07-28 caching metadata, emitted on the methods the spec marks cacheable.
-# Our tool/resource sets are built once at startup and never change while the
-# process runs (no listChanged notifications), so a client may hold them for a
-# few minutes. `private` because the tool list is filtered per agent and the
-# resources are templated per request — a shared cache must not serve one
-# caller's copy to another.
+# The tool set is built once at startup and never changes while the process
+# runs (no listChanged notifications), so a client may hold it for a few
+# minutes. `private` because the list is filtered per caller — a shared cache
+# must not serve one caller's copy to another.
 _LIST_CACHE_HINT = (300_000, "private")
 
 #-----------------------------------------------------------------------------
@@ -126,14 +128,15 @@ class McpService:
         uri_prefix              : str = "",
         routes                  : list | None = None,
 
-        tool_dirs               : list[str] = [],
-        resource_dirs           : list[str] = [],
+        tool_dirs               : list[str] | None = None,
 
         db_pool                 : AsyncConnectionPool[Any] | None = None,
         redis                   : Redis | None = None,
 
         **kwargs
     ):
+        if tool_dirs is None:
+            tool_dirs = []
         self._token_validator   = token_validator
 
         # Newest revision we implement. `initialize` negotiates DOWN to whatever
@@ -141,7 +144,7 @@ class McpService:
         # it used to ignore the client's request entirely and echo this back,
         # which is a spec violation in every revision.
         self._protocol_version  = protocol_version if protocol_version else _LATEST_PROTOCOL_VERSION
-        self._name              = name if name else "Theta MCP Server"
+        self._name              = name if name else "mirobody MCP Server"
         self._version           = version if version else "1.0.0"
 
         self._uri_prefix        = uri_prefix
@@ -150,15 +153,9 @@ class McpService:
 
         self._redis             = redis
         if self._redis:
-            self._mcp_url_keyprefix             = "mirobody:mcp:url:"
-            self._temporary_mcp_url_keyprefix   = "mirobody:mcp:url:temp:"
+            self._mcp_url_keyprefix = "mirobody:mcp:url:"
         else:
             self._mcp_urls = {}
-
-        #----------------------------------------------
-
-        self._resource_map, self._resources = load_resources_from_directories(resource_dirs)
-        self._resources_count = len(self._resources)
 
         #----------------------------------------------
 
@@ -252,7 +249,7 @@ class McpService:
             try:
                 return await self._redis.get(self._mcp_url_keyprefix + user_secret) or ""
             except Exception as e:
-                logging.warning("MCP: permanent URL lookup failed: %s", e)
+                logger.warning("MCP: permanent URL lookup failed: %s", e)
                 return ""
         return self._mcp_urls.get(user_secret, "")
 
@@ -263,8 +260,9 @@ class McpService:
             "SELECT 1 FROM th_series_data_genetic"
             " WHERE user_id = :uid AND is_deleted = false LIMIT 1",
         "query_health_indicators":
-            "SELECT 1 FROM th_series_data"
-            " WHERE user_id = :uid AND deleted = 0 LIMIT 1",
+            "SELECT 1 FROM th_series_data WHERE user_id = :uid AND deleted = 0 LIMIT 1",
+        "query_medications":
+            "SELECT 1 FROM th_medication_plan WHERE user_id = :uid AND deleted = 0 LIMIT 1",
     }
 
     async def _data_gated_tools(self, user_id: str) -> set[str]:
@@ -289,7 +287,7 @@ class McpService:
                 if not rows:
                     hidden.add(name)
             except Exception as e:
-                logging.warning("MCP: data gate check failed for %s: %s", name, e)
+                logger.warning("MCP: data gate check failed for %s: %s", name, e)
         return hidden
 
     #-----------------------------------------------------
@@ -327,7 +325,7 @@ class McpService:
             # Any unauthenticated caller could trigger it by posting invalid JSON,
             # making it both a bearer-token/PHI leak into the logs and a log-flood
             # DoS. Log the shape of the failure, never its credentials or content.
-            logging.warning(
+            logger.warning(
                 "MCP: malformed JSON-RPC body",
                 extra={
                     "path": request.url.path,
@@ -389,26 +387,13 @@ class McpService:
 
         #-------------------------------------------------
 
+        # The caller's identity, resolved per request: a JWT on the header, or a
+        # permanent personal-URL secret on the path. (A third source — a
+        # short-lived /mcp/<secret> minted per chat turn for BaseAgent, whose
+        # payload also carried an agent name that filtered tools/list — went
+        # with BaseAgent.)
         user_id     = ""
         session_id  = ""
-        agent_name  = ""
-
-        user_secret = request.path_params.get("secret", "")
-        if user_secret and self._redis:
-            try:
-                user_secret_payload = await self._redis.get(self._temporary_mcp_url_keyprefix + user_secret)
-                if user_secret_payload:
-                    user_secret_params = json.loads(user_secret_payload)
-
-                    if user_secret_params and isinstance(user_secret_params, dict):
-                        user_id     = user_secret_params.get("user_id", "")
-                        session_id  = user_secret_params.get("session_id", "")
-                        agent_name  = user_secret_params.get("agent_name", "")   
-            except Exception as e:
-                # An unreadable temp-URL payload means the caller silently ends
-                # up unauthenticated, which is a confusing failure to debug from
-                # the outside. Log the shape — never the secret itself.
-                logging.warning("MCP: temporary URL lookup failed: %s", e)
 
         #-------------------------------------------------
 
@@ -421,8 +406,6 @@ class McpService:
         #   IMPLEMENTED
         #     tools/list                 tool definitions with schemas
         #     tools/call                 execute one tool
-        #     resources/list             resource descriptors
-        #     resources/read             resource contents (templated per user)
         #     prompts/list               always [] — this server exposes none
         #     initialize                 handshake revisions only
         #     server/discover            2026-07-28 stateless discovery
@@ -431,10 +414,9 @@ class McpService:
         #   NOT IMPLEMENTED — method-not-found is the correct answer, not a gap:
         #     prompts/get                we advertise zero prompts, so there is
         #                                nothing any name could resolve to
-        #     resources/subscribe        we do not declare the subscribe
-        #     resources/templates/list   or listChanged capability in
-        #                                `_CAPABILITIES`, so a spec-conforming
-        #                                client never sends these
+        #     resources/*                `_CAPABILITIES` declares no resources,
+        #                                so a spec-conforming client never
+        #                                sends these
 
         if method == "tools/list":
             # Data-dependent exposure: get_genetic_data answers from the user's
@@ -452,38 +434,6 @@ class McpService:
             else:
                 base_tools = self._tool_descriptions
 
-            if agent_name and base_tools:
-                # Filter tools based on agent configuration
-
-                # Get agent options from config
-                config = global_config()
-                suffix = agent_name.strip().upper()
-
-                allowed_tools   = set(config.get_list(f"ALLOWED_TOOLS_{suffix}", []))
-                disallowed_tools= set(config.get_list(f"DISALLOWED_TOOLS_{suffix}", []))
-
-                # Apply filtering
-                if allowed_tools:
-                    # Whitelist mode: only include allowed tools
-                    tools = [tool for tool in base_tools if tool.get("name") in allowed_tools]
-                else:
-                    tools = []
-
-                # Apply blacklist (higher priority, can override whitelist)
-                if disallowed_tools:
-                    tools = [tool for tool in (tools if tools else base_tools) if tool.get("name") not in disallowed_tools]
-
-                return jsonrpc_result(
-                    id      = id,
-                    protocol_version = negotiated,
-                    result  = {
-                        "tools": _by_name(tools)
-                    },
-                    cache_hint = _LIST_CACHE_HINT,
-                    method  = method,
-                    request = request
-                )
-
             return jsonrpc_result(
                 id      = id,
                 protocol_version = negotiated,
@@ -495,7 +445,7 @@ class McpService:
                 request = request
             )
 
-        elif method == "prompts/list":
+        if method == "prompts/list":
             return jsonrpc_result(
                 id      = id,
                 protocol_version = negotiated,
@@ -507,21 +457,7 @@ class McpService:
                 request = request
             )
 
-        elif method == "resources/list":
-            return jsonrpc_result(
-                id      = id,
-                protocol_version = negotiated,
-                result  = {
-                    "resources": _by_name(self._resources, key="uri")
-                },
-                cache_hint = _LIST_CACHE_HINT,
-                method  = method,
-                request = request
-            )
-
-        #-------------------------------------------------
-
-        elif method == "tools/call":
+        if method == "tools/call":
 
             if "params" not in jsonrpc or not isinstance(jsonrpc["params"], dict):
                 return jsonrpc_error(
@@ -562,11 +498,11 @@ class McpService:
             if tool["auth"] and not user_id and jwt_token and self._token_validator:
                 payload, err = self._token_validator.verify_token(jwt_token)
                 if err:
-                    logging.warning(err)
+                    logger.warning(err)
                 elif not isinstance(payload, dict):
-                    logging.warning("Invalid token payload")
+                    logger.warning("Invalid token payload")
                 elif "sub" not in payload:
-                    logging.warning("No sub field found")
+                    logger.warning("No sub field found")
                 else:
                     user_id = payload["sub"]
 
@@ -581,7 +517,7 @@ class McpService:
                             # Same as above: Redis being down degrades to
                             # "unauthenticated" rather than an error, so without
                             # this line an outage looks like a permissions bug.
-                            logging.warning("MCP: permanent URL lookup failed: %s", e)
+                            logger.warning("MCP: permanent URL lookup failed: %s", e)
                             user_id = ""
                     else:
                         user_id = self._mcp_urls.get(user_secret, "")
@@ -717,74 +653,7 @@ class McpService:
 
         #-------------------------------------------------
 
-        elif method == "resources/read":
-            if "params" not in jsonrpc or not isinstance(jsonrpc["params"], dict):
-                return jsonrpc_error(
-                    id      = id,
-                    code    = CODE_INVALID_PARAMS,
-                    msg     = "Empty parameter",
-                    method  = "resources/read",
-                    request = request
-                )
-            params = jsonrpc["params"]
-
-            if "uri" not in params or not isinstance(params["uri"], str) or len(params["uri"]) == 0:
-                return jsonrpc_error(
-                    id      = id,
-                    code    = CODE_INVALID_PARAMS,
-                    msg     = "Empty parameter uri",
-                    method  = "resources/read",
-                    request = request
-                )
-
-            uri = params["uri"]
-            if uri not in self._resource_map:
-                return jsonrpc_result(
-                    id      = id,
-                    protocol_version = negotiated,
-                    result  = {
-                        "contents": [],
-                        "_meta": {
-                            "error": f"Unknown resource: {uri}"
-                        }
-                    },
-                    method  = method,
-                    request = request
-                )
-
-            # Copy before templating. `self._resource_map[uri]` is the SHARED,
-            # process-wide cache loaded once at startup; the placeholders below
-            # — including {{JWT_TOKEN}} — are per-REQUEST values. Templating the
-            # cached dict in place permanently baked the first caller's JWT into
-            # the widget: every later request found no {{JWT_TOKEN}} left to
-            # substitute and was served the first user's token instead. On an
-            # OAuth-protected server carrying personal health data that is a
-            # cross-user credential leak, and it survived until restart.
-            resource = dict(self._resource_map[uri])
-            if "text" in resource:
-                current_server = request_origin(request)
-                jwt_token = get_jwt_token(request) or ""
-                resource["text"] = resource["text"] \
-                    .replace("{{WEB_SERVER_URL}}", current_server) \
-                    .replace("{{MCP_SERVER_URL}}", current_server) \
-                    .replace("{{DATA_SERVER_URL}}", current_server) \
-                    .replace("{{JWT_TOKEN}}", jwt_token)
-
-            return jsonrpc_result(
-                id      = id,
-                protocol_version = negotiated,
-                result  = {
-                    "contents": [
-                        resource,
-                    ]
-                },
-                method  = method,
-                request = request
-            )
-
-        #-------------------------------------------------
-
-        elif method == "initialize":
+        if method == "initialize":
             # Negotiate: honour the client's requested revision when we speak it.
             # 2026-07-28 clients never send this at all — they carry the version
             # per request in `_meta` — so this branch exists purely for the
@@ -810,7 +679,7 @@ class McpService:
                 request = request
             )
 
-        elif method == "server/discover":
+        if method == "server/discover":
             # 2026-07-28's optional, stateless replacement for `initialize`:
             # a client MAY ask what the server supports, but is not required to
             # handshake before calling anything. Advertising the full supported
@@ -830,14 +699,14 @@ class McpService:
                 request = request
             )
 
-        elif method == "notifications/initialized":
+        if method == "notifications/initialized":
             return json_response(
                 content     = "",
                 status_code = 200,
                 request     = request
             )
 
-        elif method == "ping":
+        if method == "ping":
             return jsonrpc_result(
                 id      = id,
                 protocol_version = negotiated,
@@ -848,13 +717,12 @@ class McpService:
 
         #-------------------------------------------------
 
-        else:
-            return jsonrpc_error(
-                id      = id,
-                code    = CODE_METHOD_NOT_FOUND,
-                msg     = "MCP method not found",
-                request = request
-            )
+        return jsonrpc_error(
+            id      = id,
+            code    = CODE_METHOD_NOT_FOUND,
+            msg     = "MCP method not found",
+            request = request
+        )
 
     #-----------------------------------------------------
 
@@ -883,7 +751,7 @@ class McpService:
         except Exception as e:
             # Optional body: a request without one is legitimate, so this is
             # debug, not a warning.
-            logging.debug("MCP: no JSON body on personal-URL request: %s", e)
+            logger.debug("MCP: no JSON body on personal-URL request: %s", e)
             beneficiary_user_id = ""
 
         user_id = payload.get("sub")
@@ -912,7 +780,7 @@ class McpService:
             try:
                 user_secret = await self._redis.get(self._mcp_url_keyprefix+user_id)
             except Exception as e:
-                logging.warning(str(e))
+                logger.warning(str(e))
                 user_secret = ""
         else:
             user_secret = self._mcp_urls.get(user_id, "")
@@ -939,40 +807,5 @@ class McpService:
         return json_response_with_code(data={"url": f"{url_prefix}/mcp/{user_secret}"}, request=request)
 
     #-----------------------------------------------------
-
-    @classmethod
-    async def generate_temporary_personal_mcp(cls, user_id: str, session_id: str = "", agent_name: str = "", expiration: int = 60*10) -> tuple[str | None, str | None]:
-        if not user_id:
-            return None, "Empty user ID."
-
-        if not cls._global_instance:
-            return None, "Invalid MCP service."
-
-        service = cls._global_instance
-        if not service._redis:
-            return None, "Invalid redis connection."
-        
-        #-------------------------------------------------
-
-        user_secret = secrets.token_urlsafe(32)
-
-        payload = {
-            "user_id"   : user_id,
-            "session_id": session_id,
-            "agent_name": agent_name
-        }
-
-        try:
-            await service._redis.set(
-                name    = service._temporary_mcp_url_keyprefix + user_secret,
-                value   = json.dumps(payload, ensure_ascii=False, separators=(',', ':')),
-                ex      = expiration
-            )
-        except Exception as e:
-            return None, str(e)
-
-        #-------------------------------------------------
-
-        return f"{service._uri_prefix}/mcp/{user_secret}", None
 
 #-----------------------------------------------------------------------------

@@ -47,7 +47,7 @@ from ..common import (
     code_to_fhir_id,
     resolve_fhir_embedding_column,
 )
-from .local import (
+from ..index import (
     EMB_BASENAME,
     EMB_DTYPE,
     ID_MAP_BASENAME,
@@ -239,7 +239,7 @@ async def _export_embeddings_and_meta(
             and os.path.isfile(progress_path)
         )
         if resume_ok:
-            with open(progress_path, "r", encoding="utf-8") as f:
+            with open(progress_path, encoding="utf-8") as f:
                 prog = json.load(f)
             if (
                 prog.get("format_version") == _PROGRESS_VERSION
@@ -248,7 +248,7 @@ async def _export_embeddings_and_meta(
                 last_completed = int(prog.get("last_completed", 0))
                 last_db_id = int(prog.get("last_db_id", -1))
                 if os.path.isfile(partial_hash):
-                    with open(partial_hash, "r", encoding="utf-8") as f:
+                    with open(partial_hash, encoding="utf-8") as f:
                         hash_codes = {int(k): v for k, v in json.load(f).items()}
                 log.info("resuming from row %s/%s", f"{last_completed:,}", f"{n_rows:,}")
             else:

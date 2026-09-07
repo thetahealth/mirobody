@@ -48,12 +48,14 @@ historical rows already carry.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from typing import Any
 
 from .base import BaseRedisTask
 from ..utils import execute_query
 from ..utils.embedding import text_embedding
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -86,18 +88,18 @@ class IndicatorSyncTask(BaseRedisTask):
         try:
             pushed = await redis.eval(cls._COALESCED_PUSH_LUA, 1, cls.queue_key, "")
             if pushed:
-                logging.info(f"{cls.__name__} enqueued (queue was empty)")
+                logger.info(f"{cls.__name__} enqueued (queue was empty)")
         except Exception as e:
-            logging.error(f"{cls.__name__}.enqueue failed: {e}")
+            logger.error(f"{cls.__name__}.enqueue failed: {e}")
 
     async def consume(self, messages: list[str]) -> None:
-        logging.info(f"indicator_sync starting: {len(messages)} signal(s)")
+        logger.info(f"indicator_sync starting: {len(messages)} signal(s)")
         await self.backfill_from_registry()
         await self.backfill_from_history()
         await self.backfill_from_dominant()
         await self.insert()
         await self.embed()
-        logging.info("indicator_sync done")
+        logger.info("indicator_sync done")
 
     #-------------------------------------------------------------------------
 
@@ -154,7 +156,7 @@ class IndicatorSyncTask(BaseRedisTask):
               AND split_part(sd.indicator, '.', 1) = d.key
         """)
         count = result.get("record_count", 0) if isinstance(result, dict) else 0
-        logging.info(f"backfill_from_registry: {count} rows filled from THETA registry")
+        logger.info(f"backfill_from_registry: {count} rows filled from THETA registry")
 
     @classmethod
     async def backfill_from_history(cls) -> None:
@@ -189,7 +191,7 @@ class IndicatorSyncTask(BaseRedisTask):
               AND sd.indicator = m.indicator
         """)
         count = result.get("record_count", 0) if isinstance(result, dict) else 0
-        logging.info(f"backfill_from_history: {count} rows filled from unique historical mapping")
+        logger.info(f"backfill_from_history: {count} rows filled from unique historical mapping")
 
     @classmethod
     async def backfill_from_dominant(cls, threshold: float = 0.99) -> None:
@@ -247,7 +249,7 @@ class IndicatorSyncTask(BaseRedisTask):
               AND sd.indicator = d.indicator
         """, {"threshold_pct": threshold * 100})
         count = result.get("record_count", 0) if isinstance(result, dict) else 0
-        logging.info(
+        logger.info(
             f"backfill_from_dominant: {count} rows filled "
             f"(threshold={threshold:.2f})"
         )
@@ -285,7 +287,7 @@ class IndicatorSyncTask(BaseRedisTask):
             ON CONFLICT (original_indicator) DO NOTHING
         """)
         count = result.get("record_count", 0) if isinstance(result, dict) else 0
-        logging.info(f"insert: {count} placeholder dim rows created")
+        logger.info(f"insert: {count} placeholder dim rows created")
 
     @classmethod
     async def embed(cls, batch_size: int = 100, limit: int = 10_000) -> None:
@@ -343,10 +345,10 @@ class IndicatorSyncTask(BaseRedisTask):
 
         records = await execute_query(query)
         if not records:
-            logging.info(f"embed: no rows need {col_name}")
+            logger.info(f"embed: no rows need {col_name}")
             return
 
-        logging.info(f"embed: {len(records)} rows missing {col_name}")
+        logger.info(f"embed: {len(records)} rows missing {col_name}")
 
         update_query = f"""
             UPDATE th_series_dim
@@ -374,11 +376,11 @@ class IndicatorSyncTask(BaseRedisTask):
             for r in batch:
                 pipe.set(f"indicator_sync:embed:claim:{r['id']}", "1", nx=True, ex=claim_ttl)
             claim_results = await pipe.execute()
-            batch = [r for r, ok in zip(batch, claim_results) if ok]
+            batch = [r for r, ok in zip(batch, claim_results, strict=False) if ok]
             skipped = len(claim_results) - len(batch)
             total_skipped += skipped
             if not batch:
-                logging.info(f"embed: batch {batch_num} all {skipped} rows claimed by others")
+                logger.info(f"embed: batch {batch_num} all {skipped} rows claimed by others")
                 continue
 
             texts = [
@@ -389,7 +391,7 @@ class IndicatorSyncTask(BaseRedisTask):
             try:
                 embeddings = await text_embedding(texts, provider=dim_provider)
             except Exception as e:
-                logging.error(f"embed: batch {batch_num} failed: {e}")
+                logger.error(f"embed: batch {batch_num} failed: {e}")
                 total_failed += len(batch)
                 continue
 
@@ -401,13 +403,13 @@ class IndicatorSyncTask(BaseRedisTask):
                 params.append({
                     "record_id": r["id"],
                     "dim_emb": "[" + ",".join(str(x) for x in emb) + "]",
-                    "updated_at": datetime.now(timezone.utc).replace(tzinfo=None),
+                    "updated_at": datetime.now(UTC).replace(tzinfo=None),
                 })
 
             if params:
                 await execute_query(update_query, params)
                 total_updated += len(params)
-                logging.info(f"embed: batch {batch_num} updated {len(params)}/{len(batch)}")
+                logger.info(f"embed: batch {batch_num} updated {len(params)}/{len(batch)}")
                 # Release claims only for updated rows; rows with empty emb
                 # keep their claim until TTL so we don't hot-retry.
                 del_pipe = redis.pipeline()
@@ -415,7 +417,7 @@ class IndicatorSyncTask(BaseRedisTask):
                     del_pipe.delete(f"indicator_sync:embed:claim:{p['record_id']}")
                 await del_pipe.execute()
 
-        logging.info(
+        logger.info(
             f"embed done: {total_updated} updated, {total_failed} failed, "
             f"{total_skipped} claimed by others, of {len(records)}"
         )

@@ -182,12 +182,12 @@ _ASCII_ROMAN_AFTER_TYPE_EN = re.compile(
 )
 
 
-def _replace_ascii_roman_before_cjk(m: "re.Match[str]") -> str:
+def _replace_ascii_roman_before_cjk(m: re.Match[str]) -> str:
     roman = m.group(1)
     return f"{_ASCII_ROMAN_VALUES.get(roman, roman)}型"
 
 
-def _replace_ascii_roman_after_type(m: "re.Match[str]") -> str:
+def _replace_ascii_roman_after_type(m: re.Match[str]) -> str:
     label, roman = m.group(1), m.group(2)
     return f"{label} {_ASCII_ROMAN_VALUES.get(roman, roman)}"
 
@@ -216,7 +216,7 @@ def normalize_roman_numerals(text: str) -> str:
 
 
 @lru_cache(maxsize=1)
-def _zh_alias_data() -> tuple[dict[str, str], "re.Pattern | None"]:
+def _zh_alias_data() -> tuple[dict[str, str], re.Pattern | None]:
     """Load the multilingual alias lexicon plus a compiled scanner regex.
 
     Returns ``({}, None)`` when the bundle (or its ``aliases/*.tsv``

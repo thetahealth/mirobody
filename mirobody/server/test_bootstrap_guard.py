@@ -99,7 +99,7 @@ async def test_seed_demo_data_skips_under_production(monkeypatch):
     async def _must_not_run(members):
         raise AssertionError("demo seed ran under PRODUCTION")
 
-    import mirobody.demo as demo
+    import mirobody.server.demo as demo
     monkeypatch.setattr(demo, "seed", _must_not_run)
 
     await seed_demo_data(

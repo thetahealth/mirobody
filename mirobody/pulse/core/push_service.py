@@ -4,8 +4,12 @@ Encapsulated function call push service
 Used to simulate webhook pushes, avoiding HTTP overhead while providing the ability to switch to HTTP
 """
 
-import aiohttp, logging, uuid
-from typing import Any, Dict, Optional
+import aiohttp
+import logging
+import uuid
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 class PushService:
     """
@@ -22,14 +26,14 @@ class PushService:
             use_function_call: Whether to prioritize function call, False for HTTP
         """
         self.use_function_call = use_function_call
-        self._market_cache: Dict[str, Any] = {}
+        self._market_cache: dict[str, Any] = {}
 
     async def push_data(
         self,
         platform: str,
         provider_slug: str,
-        data: Dict[str, Any],
-        msg_id: Optional[str] = None,
+        data: dict[str, Any],
+        msg_id: str | None = None,
     ) -> bool:
         """
         Push data to specified platform
@@ -49,15 +53,14 @@ class PushService:
         try:
             if self.use_function_call:
                 return await self._push_via_function_call(platform, provider_slug, data, msg_id)
-            else:
-                return await self._push_via_http(platform, provider_slug, data, msg_id)
+            return await self._push_via_http(platform, provider_slug, data, msg_id)
 
         except Exception as e:
-            logging.error(f"Push data failed for {platform}/{provider_slug}: {str(e)}")
+            logger.error(f"Push data failed for {platform}/{provider_slug}: {str(e)}")
             return False
 
     async def _push_via_function_call(
-        self, platform: str, provider_slug: str, data: Dict[str, Any], msg_id: str
+        self, platform: str, provider_slug: str, data: dict[str, Any], msg_id: str
     ) -> bool:
         """
         Push data via function call
@@ -70,24 +73,24 @@ class PushService:
 
             platform_instance = platform_manager.get_platform(platform)
             if not platform_instance:
-                logging.error(f"platform not found in platformManager: {platform}")
+                logger.error(f"platform not found in platformManager: {platform}")
                 return False
 
             # Call platform's post_data method
             success = await platform_instance.post_data(provider_slug, data, msg_id)
 
             if success:
-                logging.info(f"Function call push successful: {platform}/{provider_slug}, msg_id: {msg_id}")
+                logger.info(f"Function call push successful: {platform}/{provider_slug}, msg_id: {msg_id}")
             else:
-                logging.error(f"Function call push failed: {platform}/{provider_slug}, msg_id: {msg_id}")
+                logger.error(f"Function call push failed: {platform}/{provider_slug}, msg_id: {msg_id}")
 
             return success
 
         except Exception as e:
-            logging.error(f"Function call push error for {platform}/{provider_slug}: {str(e)}")
+            logger.error(f"Function call push error for {platform}/{provider_slug}: {str(e)}")
             return False
 
-    async def _push_via_http(self, platform: str, provider_slug: str, data: Dict[str, Any], msg_id: str) -> bool:
+    async def _push_via_http(self, platform: str, provider_slug: str, data: dict[str, Any], msg_id: str) -> bool:
         """
         Push data via HTTP
 
@@ -105,29 +108,28 @@ class PushService:
             async with aiohttp.ClientSession() as session:
                 async with session.post(webhook_url, json=data, headers=headers) as response:
                     if response.status == 200:
-                        logging.info(f"HTTP push successful: {platform}/{provider_slug}, msg_id: {msg_id}")
+                        logger.info(f"HTTP push successful: {platform}/{provider_slug}, msg_id: {msg_id}")
                         return True
-                    else:
-                        response_text = await response.text()
+                    response_text = await response.text()
 
-                        logging.error(
-                            f"HTTP push failed: {platform}/{provider_slug}, status: {response.status}, response: {response_text}"
-                        )
-                        return False
+                    logger.error(
+                        f"HTTP push failed: {platform}/{provider_slug}, status: {response.status}, response: {response_text}"
+                    )
+                    return False
 
         except Exception as e:
-            logging.error(f"HTTP push error for {platform}/{provider_slug}: {str(e)}")
+            logger.error(f"HTTP push error for {platform}/{provider_slug}: {str(e)}")
             return False
 
     def use_http_push(self):
         """Switch to HTTP push mode"""
         self.use_function_call = False
-        logging.info("Switched to HTTP push mode")
+        logger.info("Switched to HTTP push mode")
 
     def use_function_call_push(self):
         """Switch to function call push mode"""
         self.use_function_call = True
-        logging.info("Switched to function call push mode")
+        logger.info("Switched to function call push mode")
 
 
 # Global push service instance

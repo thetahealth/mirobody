@@ -63,7 +63,7 @@ from argparse import Namespace
 from collections import defaultdict
 from collections.abc import Iterator
 
-from .local import RES_DIR
+from ..index import RES_DIR
 
 log = logging.getLogger(__name__)
 

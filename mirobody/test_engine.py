@@ -9,7 +9,7 @@ import os
 
 import pytest
 
-_BUNDLE = os.path.join(os.path.dirname(__file__), "res", "fhir_loinc_bundle.tar.gz")
+_BUNDLE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "mirobody", "res", "fhir_loinc_bundle.tar.gz")
 
 
 def _bundle_available() -> bool:

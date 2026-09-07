@@ -1,13 +1,15 @@
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from mirobody.pulse.file_parser.handlers.base import BaseFileHandler, FileProcessingContext
 from mirobody.utils.i18n import t
 from mirobody.utils.file_types import is_excel_file
 
+logger = logging.getLogger(__name__)
+
 
 class ExcelHandler(BaseFileHandler):
-    """Excel handler: built-in pandas/openpyxl extraction, nothing pluggable.
+    """Excel handler: built-in openpyxl extraction, nothing pluggable.
 
     An ``excel_processor`` injection point used to sit here — documented as
     "injected from mcp_server" so a downstream service could override
@@ -39,7 +41,7 @@ class ExcelHandler(BaseFileHandler):
         unique_filename: str,
         full_url: str,
         language: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if ctx.progress_callback:
             await ctx.progress_callback(55, t("extracting_text_content", language, "file_processor"))
 
@@ -56,8 +58,8 @@ class ExcelHandler(BaseFileHandler):
                 text_length=len(original_text),
                 content_hash=content_hash or "",
             )
-            logging.info(
-                f"💾 Excel original text saved to th_files: {unique_filename}, "
+            logger.info(
+                f"Excel original text saved to th_files: {unique_filename}, "
                 f"length: {len(original_text)}"
             )
 
@@ -75,7 +77,7 @@ class ExcelHandler(BaseFileHandler):
                     language=language,
                 )
             except Exception as e:
-                logging.warning(f"⚠️ Excel abstract extraction failed: {unique_filename}, error: {e}")
+                logger.warning(f"Excel abstract extraction failed: {unique_filename}, error: {e}")
 
         if ctx.progress_callback:
             await ctx.progress_callback(90, t("text_processing_success", language, "file_processor"))

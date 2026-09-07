@@ -114,7 +114,7 @@ def test_the_schema_pins_what_the_diagram_promises():
     import pathlib
     import re
 
-    ddl = pathlib.Path(__file__).resolve().parent.parent / "schema" / "a2_care_circles.sql"
+    ddl = pathlib.Path(__file__).resolve().parents[2] / "mirobody" / "schema" / "a2_care_circles.sql"
     sql = " ".join(ddl.read_text().split())          # column alignment is not the contract
 
     assert re.search(r"health_access\s+SMALLINT\s+NOT NULL DEFAULT 0", sql), "the switch must default to off"

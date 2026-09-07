@@ -2,11 +2,15 @@
 Unified task scheduler
 """
 
-import asyncio, json, logging
+import asyncio
+import json
+import logging
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 from ...utils.tasks import spawn
+
+logger = logging.getLogger(__name__)
 
 # Import distributed lock manager
 try:
@@ -14,7 +18,7 @@ try:
 except ImportError:
     # Fallback if distributed_lock is not available
     pull_task_lock_manager = None
-    logging.warning("Distributed lock manager not available, running without lock protection")
+    logger.warning("Distributed lock manager not available, running without lock protection")
 
 
 class ScheduleType(str, Enum):
@@ -32,7 +36,7 @@ class PullTask:
         schedule_type: ScheduleType = ScheduleType.HOURLY,
         interval_minutes: int = 30,
         execution_interval_hours: float = 1.0,  # New: actual execution interval
-        lock_duration_hours: Optional[float] = None,  # New: lock duration
+        lock_duration_hours: float | None = None,  # New: lock duration
     ):
         """
         Initialize Pull Task
@@ -55,18 +59,18 @@ class PullTask:
         else:
             self.lock_duration_hours = lock_duration_hours
 
-        self.last_run: Optional[datetime] = None
-        self.next_run: Optional[datetime] = None
+        self.last_run: datetime | None = None
+        self.next_run: datetime | None = None
         self.is_running = False
         self.error_count = 0
         self.success_count = 0
-        self.last_error: Optional[str] = None
+        self.last_error: str | None = None
         # Subclass-captured exception detail (TH-331). Subclasses that swallow
         # exceptions internally (try-except + return False) should call
         # self._capture_error(e) so the scheduler can surface a real traceback
         # in last_error instead of the generic "Task execution returned False".
-        self.last_internal_error: Optional[str] = None
-        self.current_execution_id: Optional[str] = None
+        self.last_internal_error: str | None = None
+        self.current_execution_id: str | None = None
 
         # Calculate initial run time
         self._calculate_next_run()
@@ -125,7 +129,7 @@ class PullTask:
             True if executed successfully, False if skipped or failed
         """
         if not pull_task_lock_manager:
-            logging.warning(f"No lock manager available for {self.provider_slug}, executing without lock")
+            logger.warning(f"No lock manager available for {self.provider_slug}, executing without lock")
             return await self._execute_internal()
 
         # Try to acquire distributed lock
@@ -137,15 +141,14 @@ class PullTask:
 
         if execution_id is None:
             if not force:
-                logging.info(f"Skipping execution for {self.provider_slug} - lock held by another instance")
+                logger.info(f"Skipping execution for {self.provider_slug} - lock held by another instance")
                 return False
-            else:
-                logging.error(f"Failed to acquire lock for {self.provider_slug} even in force mode")
-                return False
+            logger.error(f"Failed to acquire lock for {self.provider_slug} even in force mode")
+            return False
 
         try:
             self.current_execution_id = execution_id
-            logging.info(f"Starting execution for {self.provider_slug} (execution: {execution_id})")
+            logger.info(f"Starting execution for {self.provider_slug} (execution: {execution_id})")
             return await self._execute_internal()
         finally:
             # Ensure lock is released
@@ -156,7 +159,7 @@ class PullTask:
     async def _execute_internal(self) -> bool:
         """Internal execution logic without lock handling"""
         if self.is_running:
-            logging.warning(f"Task {self.provider_slug} is already running")
+            logger.warning(f"Task {self.provider_slug} is already running")
             return False
 
         self.is_running = True
@@ -169,7 +172,7 @@ class PullTask:
                     self.provider_slug, self.last_run
                 )
             except Exception as e:
-                logging.warning(
+                logger.warning(
                     f"Failed to persist last_run for {self.provider_slug}: {e}"
                 )
 
@@ -180,7 +183,7 @@ class PullTask:
                 self.success_count += 1
                 self.last_error = None
                 self.last_internal_error = None
-                logging.info(f"Task {self.provider_slug} completed successfully")
+                logger.info(f"Task {self.provider_slug} completed successfully")
             else:
                 self.error_count += 1
                 # Prefer the subclass-captured traceback (set via _capture_error)
@@ -189,7 +192,7 @@ class PullTask:
                     self.last_internal_error
                     or "Task execution returned False"
                 )
-                logging.error(f"Task {self.provider_slug} failed")
+                logger.error(f"Task {self.provider_slug} failed")
 
             self._calculate_next_run()
             return success
@@ -198,7 +201,7 @@ class PullTask:
             self.error_count += 1
             self._capture_error(e)
             self.last_error = self.last_internal_error or str(e)
-            logging.error(
+            logger.error(
                 f"Task {self.provider_slug} execution error: {str(e)}",
                 exc_info=True,
             )
@@ -218,22 +221,21 @@ class PullTask:
         Returns:
             True if executed successfully
         """
-        logging.info(f"Manual trigger for {self.provider_slug} (force: {force})")
+        logger.info(f"Manual trigger for {self.provider_slug} (force: {force})")
 
         if force:
             # Clear last execution timestamp to trigger 24h lookback
             await self.clear_last_execution_timestamp()
             # Force mode executes directly, ignoring execution interval check
             return await self.try_execute_with_lock(force=True)
-        else:
-            # Check execution interval
-            if self.last_run is not None:
-                time_since_last = datetime.now() - self.last_run
-                if time_since_last < timedelta(hours=self.execution_interval_hours):
-                    logging.info(f"Skipping manual trigger for {self.provider_slug} - execution interval not reached")
-                    return False
+        # Check execution interval
+        if self.last_run is not None:
+            time_since_last = datetime.now() - self.last_run
+            if time_since_last < timedelta(hours=self.execution_interval_hours):
+                logger.info(f"Skipping manual trigger for {self.provider_slug} - execution interval not reached")
+                return False
 
-            return await self.try_execute_with_lock(force=False)
+        return await self.try_execute_with_lock(force=False)
 
     def _calculate_next_run(self):
         """Calculate next run time based on schedule type"""
@@ -256,7 +258,7 @@ class PullTask:
                 else:
                     self.next_run = self.last_run + timedelta(minutes=self.interval_minutes)
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         """Get task status information (synchronous - scheduler info only)"""
         status = {
             "provider_slug": self.provider_slug,
@@ -274,7 +276,7 @@ class PullTask:
         }
         return status
 
-    async def get_lock_status(self) -> Dict:
+    async def get_lock_status(self) -> dict:
         """Get distributed lock status for this task"""
         if not pull_task_lock_manager:
             return {"error": "Lock manager not available"}
@@ -283,7 +285,7 @@ class PullTask:
     
     # ==================== Cache Service Interface ====================
     
-    async def get_last_execution_timestamp(self) -> Optional[float]:
+    async def get_last_execution_timestamp(self) -> float | None:
         """
         Get last execution timestamp for incremental processing
 
@@ -293,7 +295,7 @@ class PullTask:
             Unix timestamp (float, sub-second precision) or None
         """
         if not pull_task_lock_manager:
-            logging.warning(
+            logger.warning(
                 f"Lock manager not available for {self.provider_slug}"
             )
             return None
@@ -313,7 +315,7 @@ class PullTask:
             True if successful
         """
         if not pull_task_lock_manager:
-            logging.warning(
+            logger.warning(
                 f"Lock manager not available for {self.provider_slug}"
             )
             return False
@@ -335,7 +337,7 @@ class PullTask:
             True if successful
         """
         if not pull_task_lock_manager:
-            logging.warning(
+            logger.warning(
                 f"Lock manager not available for {self.provider_slug}"
             )
             return False
@@ -349,7 +351,7 @@ class PullTask:
         """Get Redis key for task statistics"""
         return f"task_stats:{self.provider_slug}"
     
-    async def get_task_stats(self) -> Optional[Dict[str, Any]]:
+    async def get_task_stats(self) -> dict[str, Any] | None:
         """
         Get task execution statistics from cache
         
@@ -378,14 +380,14 @@ class PullTask:
             return None
             
         except Exception as e:
-            logging.error(
+            logger.error(
                 f"Error getting stats for {self.provider_slug}: {e}"
             )
             return None
     
     async def save_task_stats(
         self, 
-        stats: Dict[str, Any], 
+        stats: dict[str, Any], 
         ttl: int = 86400
     ) -> bool:
         """
@@ -413,16 +415,16 @@ class PullTask:
             stats_json = json.dumps(stats)
             await redis_client.set(stats_key, stats_json, ex=ttl)
             
-            logging.debug(f"Saved stats for {self.provider_slug}")
+            logger.debug(f"Saved stats for {self.provider_slug}")
             return True
             
         except Exception as e:
-            logging.error(
+            logger.error(
                 f"Error saving stats for {self.provider_slug}: {e}"
             )
             return False
     
-    async def get_full_status(self) -> Dict:
+    async def get_full_status(self) -> dict:
         """
         Get full task status including cached data (async)
         
@@ -453,15 +455,15 @@ class Scheduler:
     """Unified background task scheduler with distributed lock support"""
 
     def __init__(self):
-        self.tasks: Dict[str, PullTask] = {}
+        self.tasks: dict[str, PullTask] = {}
         self.running = False
-        self._scheduler_task: Optional[asyncio.Task] = None
+        self._scheduler_task: asyncio.Task | None = None
 
     def register_task(self, task: PullTask):
         """Register a new task"""
         self.tasks[task.provider_slug] = task
 
-    def get_task(self, provider_slug: str) -> Optional[PullTask]:
+    def get_task(self, provider_slug: str) -> PullTask | None:
         """Get task by provider slug"""
         return self.tasks.get(provider_slug)
 
@@ -469,19 +471,19 @@ class Scheduler:
         """Manually trigger a specific task"""
         task = self.get_task(provider_slug)
         if not task:
-            logging.error(f"Task not found: {provider_slug}")
+            logger.error(f"Task not found: {provider_slug}")
             return False
 
         return await task.manual_trigger(force=force)
 
-    def get_tasks_status(self) -> Dict:
+    def get_tasks_status(self) -> dict:
         """Get status of all tasks"""
         return {
             "total_tasks": len(self.tasks),
             "tasks": {slug: task.get_status() for slug, task in self.tasks.items()},
         }
 
-    async def get_task_status(self, provider_slug: str) -> Optional[Dict]:
+    async def get_task_status(self, provider_slug: str) -> dict | None:
         """Get status of a specific task"""
         task = self.get_task(provider_slug)
         if not task:
@@ -497,11 +499,11 @@ class Scheduler:
     async def start(self):
         """Start the scheduler as a background task"""
         if self.running:
-            logging.warning("Scheduler is already running")
+            logger.warning("Scheduler is already running")
             return
 
         self.running = True
-        logging.info("Starting scheduler...")
+        logger.info("Starting scheduler...")
 
         # TH-416: restore each task's last_run from redis before scheduling,
         # so a service restart doesn't reset long-interval tasks
@@ -514,44 +516,44 @@ class Scheduler:
                     )
                     if persisted is not None:
                         task.last_run = persisted
-                        logging.info(
+                        logger.info(
                             f"Restored last_run for {task.provider_slug}: "
                             f"{persisted.isoformat()}"
                         )
                 except Exception as e:
-                    logging.warning(
+                    logger.warning(
                         f"Failed to restore last_run for {task.provider_slug}: {e}"
                     )
 
         # Start scheduler as a background task to avoid blocking startup
         self._scheduler_task = asyncio.create_task(self._run_scheduler())
-        logging.info("Scheduler started as background task")
+        logger.info("Scheduler started as background task")
 
     async def stop(self):
         """Stop the scheduler"""
         self.running = False
-        logging.info("Stopping scheduler...")
+        logger.info("Stopping scheduler...")
 
         if self._scheduler_task and not self._scheduler_task.done():
             self._scheduler_task.cancel()
             try:
                 await self._scheduler_task
             except asyncio.CancelledError:
-                logging.info("Scheduler task cancelled successfully")
+                logger.info("Scheduler task cancelled successfully")
 
     async def _run_scheduler(self):
         """Main scheduler loop"""
-        logging.info("Scheduler main loop started")
+        logger.info("Scheduler main loop started")
 
         while self.running:
             try:
                 current_time = datetime.now()
-                logging.debug(f"Scheduler check at {current_time.isoformat()}")
+                logger.debug(f"Scheduler check at {current_time.isoformat()}")
 
                 # Check all tasks
                 for task in self.tasks.values():
                     if task.should_run():
-                        logging.info(f"Executing scheduled task: {task.provider_slug}")
+                        logger.info(f"Executing scheduled task: {task.provider_slug}")
                         # Execute task with distributed lock
                         spawn(task.try_execute_with_lock(force=False))
 
@@ -559,10 +561,10 @@ class Scheduler:
                 await asyncio.sleep(60)
 
             except asyncio.CancelledError:
-                logging.info("Scheduler loop cancelled")
+                logger.info("Scheduler loop cancelled")
                 break
             except Exception as e:
-                logging.error(f"Scheduler loop error: {str(e)}")
+                logger.error(f"Scheduler loop error: {str(e)}")
                 await asyncio.sleep(60)
 
 

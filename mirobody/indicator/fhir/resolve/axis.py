@@ -6,7 +6,7 @@ Two layers in one module:
    (``fhir_loinc_bundle.tar.gz`` shipped with mirobody). The bundle holds the
    per-code axis tuple ``(COMPONENT, PROPERTY, TIME_ASPCT, SYSTEM,
    SCALE_TYP, METHOD_TYP)`` plus the skip / demote code lists. Consumed
-   by :mod:`embeddings.local` for skip/demote mask derivation and by
+   by :mod:`fhir.index` for skip/demote mask derivation and by
    the centroid builder below.
 
 2. **Per-axis-value centroids** — for each value V of each axis A
@@ -14,9 +14,11 @@ Two layers in one module:
    already captures it), the centroid is the unit-normalized mean
    embedding of every LOINC code carrying that value. At query time
    the resolver cosines the query against every axis-value centroid
-   and either applies a per-axis bonus to matching candidates
-   (:func:`axis_rerank_bonus`) or hard-selects a top-1 axis value
-   prediction (:func:`predict_axis_top1`).
+   and hard-selects a top-1 axis value prediction
+   (:func:`predict_axis_top1`). The soft per-axis bonus that sentence
+   used to offer as the alternative never had a caller — `adapter.py`
+   applies the hard-argmax bonus inline — and was deleted with its
+   superseded weight table.
 
 3. **Deterministic CLASS routing** (:func:`apply_deterministic_class_filter`)
    — CLASS is special-cased: not the soft +0.04 bonus the other axes
@@ -165,16 +167,6 @@ _AXIS_VALUE_SKIP = frozenset({""})
 # multi-axis match contributes up to ~0.15 to the combined score —
 # enough to flip a borderline candidate, not enough to swamp the flat
 # cosine signal.
-DEFAULT_AXIS_WEIGHTS: dict[str, float] = {
-    "PROPERTY":   0.04,
-    "TIME_ASPCT": 0.04,
-    "SCALE_TYP":  0.03,
-    "METHOD_TYP": 0.03,
-    "SYSTEM":     0.04,
-    "CLASS":      0.04,
-}
-
-
 def load_axis_centroids(cache: dict) -> dict | None:
     """Build per-axis-value centroids over LOINC corpus rows.
 
@@ -435,82 +427,6 @@ def predict_axis_top1(
     return predictions
 
 
-def axis_rerank_bonus(
-    query_embs: np.ndarray,
-    axis_data: dict,
-    weights: dict[str, float] | None = None,
-) -> np.ndarray:
-    """Per-row axis bonus matrix for a batch of queries.
-
-    *query_embs*: ``(B, D)`` unit-L2-normalized query embeddings.
-    *axis_data*: returned by :func:`load_axis_centroids`.
-    *weights*: per-axis bonus weight; defaults to :data:`DEFAULT_AXIS_WEIGHTS`.
-
-    Returns ``(B, N) float32`` zero-mean per query, where each entry
-    represents ``Σ_A w_A * cos(query_b, centroid[A][value_of_row_r_in_A])``
-    centered so the per-query mean across rows is zero. The centering
-    is essential: without it every row gains a roughly-uniform +0.08
-    shift (centroid cosines are all in the 0.5-0.7 band), which would
-    push borderline rows past the sleep_report 0.78 / clinical 0.65
-    null thresholds with semantically-wrong codes (e.g. PLMS-by-stage
-    rows that have no LOINC equivalent picking up "Light sleep duration").
-    Zero-centering keeps the discriminative tilt — rows whose axes
-    match the query get a positive bonus, rows whose axes don't match
-    get a negative bonus — without disturbing the absolute score band.
-
-    Rows missing an axis value contribute the per-query mean (i.e. 0
-    after centering) for that axis; non-LOINC rows (entirely missing
-    axes) end up with 0 bonus, leaving SNOMED/RxNorm scoring unaffected.
-    """
-    weights = weights or DEFAULT_AXIS_WEIGHTS
-    centroids = axis_data["centroids"]
-    row_value_idx = axis_data["row_value_idx"]
-    axis_names = axis_data["axis_names"]
-
-    B = int(query_embs.shape[0])
-    n_rows = int(next(iter(row_value_idx.values())).shape[0])
-    bonus = np.zeros((B, n_rows), dtype=np.float32)
-    # Per-row mask: True iff the row has ANY axis tagged (i.e. it's a
-    # LOINC row with axis data). Used to keep non-LOINC rows at exactly
-    # zero bonus regardless of centering — only LOINC rows should be
-    # re-ranked by axis cosine.
-    has_any_axis = np.zeros(n_rows, dtype=bool)
-
-    for axis in axis_names:
-        w = float(weights.get(axis, 0.0))
-        if w == 0.0:
-            continue
-        cent = centroids[axis]            # (K_A, D)
-        ridx = row_value_idx[axis]        # (N,) int32; -1 = missing
-        # Per-query × per-value cosine: (B, D) @ (D, K_A) → (B, K_A)
-        value_scores = query_embs @ cent.T
-        # Per-axis per-query mean: rows missing this axis (-1) get the
-        # mean instead of 0. Otherwise zero-centering globally would
-        # penalize METHOD-empty / SYSTEM-empty rows against METHOD-
-        # tagged / SYSTEM-tagged peers — biasing toward over-specific
-        # codes (``...by Radioallergosorbent`` over the vanilla
-        # ``IgE Ab in Serum``) even when the query gives no method hint.
-        per_axis_mean = value_scores.mean(axis=1, keepdims=True)  # (B, 1)
-        valid = ridx >= 0
-        has_any_axis |= valid
-        ridx_safe = np.where(valid, ridx, 0)
-        gathered = value_scores[:, ridx_safe]   # (B, N)
-        # Where invalid, substitute per_axis_mean (broadcasts (B,1) → (B,N)).
-        gathered = np.where(valid, gathered, per_axis_mean)
-        bonus += w * gathered
-
-    # Center per query over LOINC rows only — non-LOINC rows (SNOMED/
-    # RxNorm) stay at 0 bonus regardless. The mean over LOINC rows
-    # becomes the "neutral" baseline; rows tilt above (axes match
-    # query) or below (axes mismatch) the per-query average.
-    if has_any_axis.any():
-        loinc_idx = np.where(has_any_axis)[0]
-        loinc_mean = bonus[:, loinc_idx].mean(axis=1, keepdims=True)  # (B, 1)
-        bonus[:, loinc_idx] -= loinc_mean
-
-    return bonus
-
-
 # ── Per-CLASS-value keyword gate ──────────────────────────────────────
 
 
@@ -572,7 +488,7 @@ CLASS_KEYWORD_GATES: dict[str, list[str]] = {
 
 
 @lru_cache(maxsize=1)
-def _class_gate_res() -> dict[str, "object"]:
+def _class_gate_res() -> dict[str, object]:
     """Compile the gate keyword tables to regexes. Lazy to defer the
     specificity import (axis is imported during cache load before
     specificity)."""
@@ -608,7 +524,7 @@ _CLASS_GATE_DISABLERS: list[str] = [
 
 
 @lru_cache(maxsize=1)
-def _class_gate_disabler_re() -> "object":
+def _class_gate_disabler_re() -> object:
     from .specificity import _compile_marker_pattern
     return _compile_marker_pattern(_CLASS_GATE_DISABLERS)
 

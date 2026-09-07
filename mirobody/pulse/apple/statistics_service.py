@@ -8,8 +8,8 @@ and writes them to th_series_data via AggregateDatabaseService.
 import logging
 import time
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import datetime, UTC
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from .models import (
@@ -21,6 +21,8 @@ from .models import (
 from ..aggregate.naming import build_indicator_name
 from ..aggregate.database_service import AggregateDatabaseService
 
+logger = logging.getLogger(__name__)
+
 # Mapping from statistics payload fields to aggregation method keys
 STAT_FIELD_TO_METHOD = {
     "sum": "total",
@@ -31,7 +33,7 @@ STAT_FIELD_TO_METHOD = {
 }
 
 
-def _resolve_source_indicator(health_type: str) -> Optional[str]:
+def _resolve_source_indicator(health_type: str) -> str | None:
     """
     Resolve Flutter health type string to our source indicator name.
 
@@ -49,10 +51,10 @@ def _resolve_source_indicator(health_type: str) -> Optional[str]:
 
 
 def _statistics_to_summary_records(
-    statistics: List[AppleHealthStatistic],
+    statistics: list[AppleHealthStatistic],
     user_id: str,
     default_timezone: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Convert statistics list into summary records for th_series_data UPSERT.
 
@@ -73,7 +75,7 @@ def _statistics_to_summary_records(
     for stat in statistics:
         source_indicator = _resolve_source_indicator(stat.type)
         if not source_indicator:
-            logging.warning(f"Unmapped health type in statistics: {stat.type}")
+            logger.warning(f"Unmapped health type in statistics: {stat.type}")
             continue
 
         tz = stat.timezone or default_timezone
@@ -81,8 +83,8 @@ def _statistics_to_summary_records(
         # Convert epoch ms to user's local time (naive) for th_series_data storage.
         # th_series_data stores start_time/end_time as "timestamp without time zone"
         # representing user's local time. Same approach as upload_health.py:380-384.
-        start_time_utc = datetime.fromtimestamp(stat.dateFrom / 1000, tz=timezone.utc)
-        end_time_utc = datetime.fromtimestamp(stat.dateTo / 1000, tz=timezone.utc)
+        start_time_utc = datetime.fromtimestamp(stat.dateFrom / 1000, tz=UTC)
+        end_time_utc = datetime.fromtimestamp(stat.dateTo / 1000, tz=UTC)
         if tz == "UTC":
             start_time = start_time_utc.replace(tzinfo=None)
             end_time = end_time_utc.replace(tzinfo=None)
@@ -92,7 +94,7 @@ def _statistics_to_summary_records(
                 start_time = start_time_utc.astimezone(user_tz).replace(tzinfo=None)
                 end_time = end_time_utc.astimezone(user_tz).replace(tzinfo=None)
             except Exception:
-                logging.warning(f"Invalid timezone {tz!r}, falling back to UTC")
+                logger.warning(f"Invalid timezone {tz!r}, falling back to UTC")
                 start_time = start_time_utc.replace(tzinfo=None)
                 end_time = end_time_utc.replace(tzinfo=None)
 
@@ -104,7 +106,7 @@ def _statistics_to_summary_records(
             try:
                 indicator_name = build_indicator_name(stat.grouping, method, source_indicator)
             except ValueError as e:
-                logging.warning(f"Failed to build indicator name: {e}")
+                logger.warning(f"Failed to build indicator name: {e}")
                 continue
 
             records.append({
@@ -148,7 +150,7 @@ async def process_apple_health_statistics(
     records = _statistics_to_summary_records(request.statistics, user_id, default_tz)
     t2 = time.time()
 
-    logging.info(
+    logger.info(
         f"Statistics mapping: {len(request.statistics)} stats -> {len(records)} summary records, "
         f"user={user_id}, time={((t2 - t1) * 1e3):.1f}ms"
     )
@@ -160,7 +162,7 @@ async def process_apple_health_statistics(
     success = await db_service.batch_save_summary_data(records)
     t3 = time.time()
 
-    logging.info(
+    logger.info(
         f"Statistics save: {len(records)} records, success={success}, "
         f"user={user_id}, time={((t3 - t2) * 1e3):.1f}ms"
     )

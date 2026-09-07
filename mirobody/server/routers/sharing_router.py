@@ -25,40 +25,33 @@ integers the table stores. The wire stays; the storage got fixed.
 
 import logging
 
-from typing import Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from mirobody.server.auth import verify_token
+from mirobody.server.envelope import err, ok
 from fastapi import Depends
 
 from ...user import care_circle as cc
-from ...user.user import get_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/invitation", tags=["invitation"])
-
-
-def _ok(data=None, msg: str = "ok"):
-    return {"code": 0, "msg": msg, "data": data if data is not None else {}}
-
-
-def _err(code: int, msg: str):
-    return {"code": code, "msg": msg, "data": {}}
 
 
 # ── request models ───────────────────────────────────────────────────────────
 
 class InviteRequest(BaseModel):
     email: str = Field(..., description="Address to invite; a shell account is created if new")
-    nickname: Optional[str] = Field(None, description="Label this member carries in the circle")
+    nickname: str | None = Field(None, description="Label this member carries in the circle")
 
 
 class RemoveRequest(BaseModel):
     # `share_id` is the client's name for the membership handle. It used to be a
     # uuid on `th_share_relationship`; it is now `care_circle_members.id`.
-    share_id: Optional[str] = None
-    query_user_id: Optional[str] = None
+    share_id: str | None = None
+    query_user_id: str | None = None
 
 
 class RespondRequest(BaseModel):
@@ -73,8 +66,8 @@ class HealthAccessRequest(BaseModel):
 
 class NicknameRequest(BaseModel):
     share_id: str
-    nickname: Optional[str] = None
-    avatar_key: Optional[str] = None
+    nickname: str | None = None
+    avatar_key: str | None = None
 
 
 # ── the two the web client calls ─────────────────────────────────────────────
@@ -91,7 +84,7 @@ async def shared_by_me_list(user_id: str = Depends(verify_token)):
     try:
         rows = await cc.circle_members(user_id)
         me = int(user_id)
-        return _ok([
+        return ok([
             {
                 "share_id": str(r["member_row_id"]),
                 "query_user_id": str(r["user_id"]),
@@ -107,8 +100,8 @@ async def shared_by_me_list(user_id: str = Depends(verify_token)):
             for r in rows if int(r["user_id"]) != me
         ])
     except Exception as e:
-        logging.error(f"shared-by-me/list: {e}", exc_info=True)
-        return _err(-1, "Could not list your circle.")
+        logger.error(f"shared-by-me/list: {e}", exc_info=True)
+        return err(-1, "Could not list your circle.")
 
 
 @router.post("/shared-by-me/remove")
@@ -122,21 +115,21 @@ async def shared_by_me_remove(request: RemoveRequest, user_id: str = Depends(ver
     """
     handle = (request.share_id or "").strip()
     if not handle.isdigit():
-        return _err(-1, "A membership handle is required.")
+        return err(-1, "A membership handle is required.")
     resolved = await cc.resolve_member_row(int(handle))
     if resolved is None:
-        return _err(-2, "No such membership.")
+        return err(-2, "No such membership.")
     circle_id, member_user_id = resolved
     try:
         await cc.require_maintainer(user_id, circle_id)
     except cc.CareCircleDenied as denied:
         # Same answer for "not yours" and "does not exist", so the endpoint is
         # not an oracle for which handles are real.
-        logging.info(f"remove refused for user {user_id} on member {handle}: {denied}")
-        return _err(-2, "No such membership.")
+        logger.info(f"remove refused for user {user_id} on member {handle}: {denied}")
+        return err(-2, "No such membership.")
     if member_user_id == int(user_id):
-        return _err(-3, "Leave the circle from your own side instead.")
-    return _ok({"removed": await cc.remove_member(int(handle))})
+        return err(-3, "Leave the circle from your own side instead.")
+    return ok({"removed": await cc.remove_member(int(handle))})
 
 
 # ── invite and respond ───────────────────────────────────────────────────────
@@ -151,12 +144,12 @@ async def invite_member(request: InviteRequest, user_id: str = Depends(verify_to
     """
     member_id = await cc.resolve_email_to_user(request.email)
     if member_id is None:
-        return _err(-1, "A valid email address is required.")
+        return err(-1, "A valid email address is required.")
     if member_id == int(user_id):
-        return _err(-2, "You are already in your own circle.")
+        return err(-2, "You are already in your own circle.")
     circle_id = await cc.ensure_own_circle(user_id)
     handle = await cc.invite(circle_id, member_id, nickname=request.nickname)
-    return _ok({"share_id": str(handle), "circle_id": circle_id,
+    return ok({"share_id": str(handle), "circle_id": circle_id,
                 "query_user_id": str(member_id), "status": "pending"})
 
 
@@ -170,7 +163,7 @@ async def shared_with_me_list(user_id: str = Depends(verify_token)):
     rows = await cc.circle_members(user_id)
     me = int(user_id)
     mine = [r for r in rows if int(r["user_id"]) == me]
-    return _ok({
+    return ok({
         "invitations": [
             {"circle_id": r["circle_id"], "owner_user_id": str(r["owner_user_id"]),
              "status": cc.STATUS_NAMES[r["status"]], "nickname": r.get("nickname")}
@@ -198,8 +191,8 @@ async def respond(request: RespondRequest, user_id: str = Depends(verify_token))
     """
     moved = await cc.respond_to_invitation(user_id, request.circle_id, accept=request.accept)
     if not moved:
-        return _err(-1, "No pending invitation for you in that circle.")
-    return _ok({"status": "accepted" if request.accept else "declined"})
+        return err(-1, "No pending invitation for you in that circle.")
+    return ok({"status": "accepted" if request.accept else "declined"})
 
 
 # ── the switch the product promised ──────────────────────────────────────────
@@ -214,8 +207,8 @@ async def set_health_access(request: HealthAccessRequest, user_id: str = Depends
     """
     updated = await cc.set_health_access(user_id, request.circle_id, request.access)
     if not updated:
-        return _err(-1, "You are not an accepted member of that circle.")
-    return _ok({"circle_id": request.circle_id,
+        return err(-1, "You are not an accepted member of that circle.")
+    return ok({"circle_id": request.circle_id,
                 "health_access": request.access,
                 "meaning": cc.ACCESS_NAMES[request.access]})
 
@@ -231,17 +224,17 @@ async def update_label(request: NicknameRequest, user_id: str = Depends(verify_t
     `context` column nothing ever set to anything but `'default'`.
     """
     if not (request.share_id or "").strip().isdigit():
-        return _err(-1, "A membership handle is required.")
+        return err(-1, "A membership handle is required.")
     resolved = await cc.resolve_member_row(int(request.share_id))
     if resolved is None:
-        return _err(-2, "No such membership.")
+        return err(-2, "No such membership.")
     circle_id, member_user_id = resolved
     if member_user_id != int(user_id):
         try:
             await cc.require_maintainer(user_id, circle_id)
         except cc.CareCircleDenied:
-            return _err(-2, "No such membership.")
-    ok = await cc.set_member_label(
+            return err(-2, "No such membership.")
+    updated = await cc.set_member_label(
         int(request.share_id), nickname=request.nickname, avatar_key=request.avatar_key
     )
-    return _ok({"updated": ok})
+    return ok({"updated": updated})

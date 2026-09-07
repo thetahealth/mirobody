@@ -7,51 +7,52 @@ Provides base classes for database operations shared by all Platforms and Provid
 import logging
 
 from abc import ABC
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ...utils import execute_query
-from ...utils.db import global_engines, global_config
+from ...utils.db import engine_for
 
 from sqlalchemy import text
 
+logger = logging.getLogger(__name__)
 
-class BaseDatabaseService(ABC):
+
+class CacheableDatabaseService(ABC):
+    """`execute_query` plus a small TTL cache, for the management queries.
+
+    This was a three-level hierarchy — `BaseDatabaseService` (query + insert/
+    update/delete/table-info builders) → `CacheableDatabaseService` (cache) →
+    `ManageDatabaseService` — with exactly one leaf and no caller of the
+    generic builders. Folded into the one class the leaf actually uses.
     """
-    Base database service class
 
-    Provides common database operation methods, subclasses can inherit and extend
-    """
-
-    def __init__(self, db_config=None):
-        """
-        Initialize database service
-
-        Args:
-            db_config: Database configuration, defaults to core configuration
-        """
+    def __init__(self, db_config=None, cache_ttl: int = 300):
         self.db_config = db_config
+        self.cache_ttl = cache_ttl
+        self._cache: dict[str, Any] = {}
+        self._cache_timestamps: dict[str, float] = {}
 
     async def execute_query(
             self,
             query: str,
-            params: Optional[Dict[str, Any]] = None,
-            db_config: Optional[Any] = None,
-    ) -> List[Dict[str, Any]]:
+            params: dict[str, Any] | None = None,
+            db_config: Any | None = None,
+    ) -> list[dict[str, Any]]:
         try:
             result = await execute_query(
                 query=query, params=params or {}, db_config=db_config or self.db_config or ""
             )
             return result or []
         except Exception as e:
-            logging.error(f"Database query failed: {str(e)}")
+            logger.error(f"Database query failed: {str(e)}")
             raise
 
     async def execute_query_with_session_params(
             self,
             query: str,
-            params: Optional[Dict[str, Any]] = None,
-            session_params: Optional[List[str]] = None,
-    ) -> List[Dict[str, Any]]:
+            params: dict[str, Any] | None = None,
+            session_params: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Execute query with SET LOCAL session parameters in the same transaction.
 
@@ -64,15 +65,7 @@ class BaseDatabaseService(ABC):
         if not isinstance(db_config, str):
             db_config = ""
 
-        global global_engines
-        if db_config in global_engines:
-            engine = global_engines[db_config]
-        else:
-            config = global_config()
-            if not config:
-                raise ValueError("no configuration found")
-            engine = config.get_postgresql(db_config).get_async_engine()
-            global_engines[db_config] = engine
+        engine = engine_for(db_config)
 
         import time as _time
         conn = None
@@ -90,199 +83,17 @@ class BaseDatabaseService(ABC):
             logged_query = " ".join(query.split())
             if len(logged_query) > 512:
                 logged_query = logged_query[:512] + "..."
-            logging.info(logged_query, extra={"records": len(result), "time_cost": elapsed})
+            logger.info(logged_query, extra={"records": len(result), "time_cost": elapsed})
             return result
         except Exception as e:
             if conn:
                 await conn.rollback()
-            logging.error(f"Database query with session params failed: {str(e)}")
+            logger.error(f"Database query with session params failed: {str(e)}")
             raise
         finally:
             if conn:
                 await conn.close()
 
-    async def execute_insert(
-            self,
-            table: str,
-            data: Dict[str, Any],
-            schema: str = "",
-            returning: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Execute insert operation
-
-        Args:
-            table: Table name
-            data: Insert data
-            schema: Database schema
-            returning: Returning fields
-
-        Returns:
-            Insert result
-        """
-        try:
-            # Build insert SQL
-            columns = list(data.keys())
-            placeholders = [f":{col}" for col in columns]
-
-            query = f"""
-                INSERT INTO {table} ({", ".join(columns)})
-                VALUES ({", ".join(placeholders)})
-            """
-
-            if returning:
-                query += f" RETURNING {returning}"
-
-            result = await self.execute_query(query, data)
-            return result[0] if returning and result else None
-
-        except Exception as e:
-            logging.error(f"Database insert failed: {str(e)}")
-            raise
-
-    async def execute_update(
-            self,
-            table: str,
-            data: Dict[str, Any],
-            where_clause: str,
-            where_params: Dict[str, Any],
-            schema: str = "",
-    ) -> int:
-        """
-        Execute update operation
-
-        Args:
-            table: Table name
-            data: Update data
-            where_clause: WHERE clause
-            where_params: WHERE parameters
-            schema: Database schema
-
-        Returns:
-            Number of affected rows
-        """
-        try:
-            # Build update SQL
-            set_clauses = [f"{col} = :{col}" for col in data.keys()]
-
-            query = f"""
-                UPDATE {table} 
-                SET {", ".join(set_clauses)}
-                WHERE {where_clause}
-            """
-
-            # Merge parameters
-            all_params = {**data, **where_params}
-
-            result = await self.execute_query(query, all_params)
-            return len(result) if result else 0
-
-        except Exception as e:
-            logging.error(f"Database update failed: {str(e)}")
-            raise
-
-    async def execute_delete(
-            self,
-            table: str,
-            where_clause: str,
-            where_params: Dict[str, Any],
-            schema: str = "",
-    ) -> int:
-        """
-        Execute delete operation
-
-        Args:
-            table: Table name
-            where_clause: WHERE clause
-            where_params: WHERE parameters
-            schema: Database schema
-
-        Returns:
-            Number of affected rows
-        """
-        try:
-            query = f"""
-                DELETE FROM {table} 
-                WHERE {where_clause}
-            """
-
-            result = await self.execute_query(query, where_params)
-            return len(result) if result else 0
-
-        except Exception as e:
-            logging.error(f"Database delete failed: {str(e)}")
-            raise
-
-    async def check_table_exists(self, table: str, schema: str = "") -> bool:
-        """
-        Check if table exists
-
-        Args:
-            table: Table name
-            schema: Database schema
-
-        Returns:
-            Whether table exists
-        """
-        try:
-            query = """
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_name = :table
-                )
-            """
-            result = await self.execute_query(query, {"table": table})
-            return result[0]["exists"] if result else False
-        except Exception as e:
-            logging.error(f"Check table existence failed: {str(e)}")
-            return False
-
-    async def get_table_info(self, table: str, schema: str = "") -> List[Dict[str, Any]]:
-        """
-        Get table information
-
-        Args:
-            table: Table name
-            schema: Database schema
-
-        Returns:
-            List of table field information
-        """
-        try:
-            query = """
-                SELECT 
-                    column_name,
-                    data_type,
-                    is_nullable,
-                    column_default
-                FROM information_schema.columns 
-                WHERE table_name = :table
-                ORDER BY ordinal_position
-            """
-            result = await self.execute_query(query, {"table": table})
-            return result or []
-        except Exception as e:
-            logging.error(f"Get table info failed: {str(e)}")
-            return []
-
-
-class CacheableDatabaseService(BaseDatabaseService):
-    """
-    Cacheable database service base class
-    """
-
-    def __init__(self, db_config=None, cache_ttl: int = 300):
-        """
-        Initialize cacheable database service
-
-        Args:
-            db_config: Database configuration
-            cache_ttl: Cache time to live (seconds)
-        """
-        super().__init__(db_config)
-        self.cache_ttl = cache_ttl
-        self._cache: Dict[str, Any] = {}
-        self._cache_timestamps: Dict[str, float] = {}
 
     def _is_cache_valid(self, cache_key: str) -> bool:
         """Check if cache is valid"""
@@ -299,32 +110,19 @@ class CacheableDatabaseService(BaseDatabaseService):
         self._cache[cache_key] = value
         self._cache_timestamps[cache_key] = time.time()
 
-    def _get_cache(self, cache_key: str) -> Optional[Any]:
+    def _get_cache(self, cache_key: str) -> Any | None:
         """Get cache"""
         if self._is_cache_valid(cache_key):
             return self._cache.get(cache_key)
         return None
 
-    def _clear_cache(self, pattern: Optional[str] = None) -> None:
-        """Clear cache"""
-        if pattern:
-            # Clear caches matching pattern
-            keys_to_remove = [key for key in self._cache.keys() if pattern in key]
-            for key in keys_to_remove:
-                self._cache.pop(key, None)
-                self._cache_timestamps.pop(key, None)
-        else:
-            # Clear all caches
-            self._cache.clear()
-            self._cache_timestamps.clear()
-
     async def cached_query(
             self,
             cache_key: str,
             query: str,
-            params: Optional[Dict[str, Any]] = None,
+            params: dict[str, Any] | None = None,
             use_cache: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Cached query support
 
@@ -340,7 +138,7 @@ class CacheableDatabaseService(BaseDatabaseService):
         if use_cache:
             cached_result = self._get_cache(cache_key)
             if cached_result is not None:
-                logging.info(f"Cache hit for key: {cache_key}")
+                logger.info(f"Cache hit for key: {cache_key}")
                 return cached_result
 
         # Cache miss, execute query
@@ -348,7 +146,7 @@ class CacheableDatabaseService(BaseDatabaseService):
 
         if use_cache:
             self._set_cache(cache_key, result)
-            logging.info(f"Cache set for key: {cache_key}")
+            logger.info(f"Cache set for key: {cache_key}")
 
         return result
 
@@ -360,7 +158,7 @@ class ManageDatabaseService(CacheableDatabaseService):
     Specialized for handling database operations related to indicator management
     """
 
-    async def get_yearly_stats(self, start_time) -> List[Dict[str, Any]]:
+    async def get_yearly_stats(self, start_time) -> list[dict[str, Any]]:
         """
         Get yearly indicator statistics data from both series_data and th_series_data tables
 
@@ -434,7 +232,7 @@ class ManageDatabaseService(CacheableDatabaseService):
         combined.sort(key=lambda r: r.get("total_records", 0), reverse=True)
         return combined
     
-    async def get_indicator_record_info(self, indicator: str, source: str, indicator_type: str = None) -> Optional[Dict[str, Any]]:
+    async def get_indicator_record_info(self, indicator: str, source: str, indicator_type: str = None) -> dict[str, Any] | None:
         """
         Get indicator record information from appropriate table based on indicator type
         
@@ -588,7 +386,7 @@ class ManageDatabaseService(CacheableDatabaseService):
         )
         return verify_result
 
-    async def get_user_provider_stats_cached(self, user_id: str) -> Dict[str, Dict[str, Any]]:
+    async def get_user_provider_stats_cached(self, user_id: str) -> dict[str, dict[str, Any]]:
         """
         Get user provider statistics with caching - one query for all providers
         

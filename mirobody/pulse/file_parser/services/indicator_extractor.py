@@ -7,7 +7,8 @@ Responsible for extracting health indicators from medical documents
 import json
 import time
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
+from collections.abc import Callable
 
 from mirobody.utils.i18n import t
 from mirobody.utils.req_ctx import get_req_ctx
@@ -17,6 +18,8 @@ from mirobody.pulse.file_parser.services.prompts.file_indicator_extract import (
     get_extract_indicators_prompt,
     RESPONSE_SCHEMA_EXTRACT_INDICATORS,
 )
+
+logger = logging.getLogger(__name__)
 
 
 #: What the date probe asks for. One field, one job: the full indicator
@@ -68,7 +71,7 @@ class IndicatorExtractor:
                 max_tokens=200,
             )
         except Exception as e:
-            logging.warning(f"[IndicatorExtractor] date probe failed: {e}")
+            logger.warning(f"[IndicatorExtractor] date probe failed: {e}")
             return ""
         if not ret:
             return ""
@@ -84,9 +87,9 @@ class IndicatorExtractor:
         file_name: str = "",
         file_key: str = None,
         save_to_db: bool = True,
-        progress_callback: Optional[Callable[[int, str], None]] = None,
-        report_date: Optional[Tuple[Any, str]] = None,
-    ) -> Tuple[List[Dict[str, Any]], Any, Optional[Dict[str, str]]]:
+        progress_callback: Callable[[int, str], None] | None = None,
+        report_date: tuple[Any, str] | None = None,
+    ) -> tuple[list[dict[str, Any]], Any, dict[str, str] | None]:
         """
         Extract health indicators from pre-extracted original text.
         
@@ -121,7 +124,7 @@ class IndicatorExtractor:
 
         try:
             if not original_text or not original_text.strip():
-                logging.warning(f"[IndicatorExtractor] Empty original text provided for: {file_name}")
+                logger.warning(f"[IndicatorExtractor] Empty original text provided for: {file_name}")
                 return [], {}, None
 
             language = get_req_ctx("language", "en")
@@ -129,7 +132,7 @@ class IndicatorExtractor:
             if progress_callback:
                 await progress_callback(65, t("analyzing_medical_indicators", language, "indicator_extractor", filename=file_name))
 
-            logging.info(f"🔄 [IndicatorExtractor] Extracting indicators from text - user_id: {user_id}, text_length: {len(original_text)}")
+            logger.info(f"[IndicatorExtractor] Extracting indicators from text - user_id: {user_id}, text_length: {len(original_text)}")
 
             # Generate prompt dynamically based on user's language setting
             dynamic_prompt = get_extract_indicators_prompt(language=language)
@@ -155,10 +158,10 @@ class IndicatorExtractor:
                 max_tokens=32000
             )
             api_duration = time.time() - api_start_time
-            logging.info(f"✅ [IndicatorExtractor] LLM text extraction completed - user_id: {user_id}, duration: {api_duration:.2f}s")
+            logger.info(f"[IndicatorExtractor] LLM text extraction completed - user_id: {user_id}, duration: {api_duration:.2f}s")
 
             if not llm_ret:
-                logging.warning(f"[IndicatorExtractor] LLM returned empty response for text extraction - user_id: {user_id}")
+                logger.warning(f"[IndicatorExtractor] LLM returned empty response for text extraction - user_id: {user_id}")
                 return [], {}, None
 
             if progress_callback:
@@ -168,12 +171,11 @@ class IndicatorExtractor:
             result = llm_ret if isinstance(llm_ret, dict) else json.loads(llm_ret)
             indicators = result.get("indicators", [])
             exam_date = result.get("content_info", {}).get("date_time", "")
-            file_abstract = result.get("file_abstract", "")
 
-            logging.info(f"[IndicatorExtractor] Parsed {len(indicators)} indicators from text - user_id: {user_id}")
+            logger.info(f"[IndicatorExtractor] Parsed {len(indicators)} indicators from text - user_id: {user_id}")
 
             if not indicators:
-                logging.info(f"[IndicatorExtractor] No indicators found in text - user_id: {user_id}, file_name: {file_name}")
+                logger.info(f"[IndicatorExtractor] No indicators found in text - user_id: {user_id}, file_name: {file_name}")
                 return [], result, None
 
             # Deduplicate indicators
@@ -209,7 +211,7 @@ class IndicatorExtractor:
                 )
                 report = {"report_date": start_time_dt.strftime("%Y-%m-%d %H:%M:%S"), "date_source": date_source}
                 db_duration = time.time() - db_start_time
-                logging.info(f"[IndicatorExtractor] Database save completed - user_id: {user_id}, duration: {db_duration:.2f}s, saved: {saved_count}")
+                logger.info(f"[IndicatorExtractor] Database save completed - user_id: {user_id}, duration: {db_duration:.2f}s, saved: {saved_count}")
 
                 if progress_callback:
                     await progress_callback(85, t("database_save_completed", language, "indicator_extractor", count=saved_count))
@@ -218,18 +220,18 @@ class IndicatorExtractor:
                 await progress_callback(90, t("indicator_extraction_completed", language, "indicator_extractor", count=len(indicators)))
 
             total_duration = time.time() - start_time
-            logging.info(f"[IndicatorExtractor] Text extraction completed: {file_name}, {len(indicators)} indicators, {total_duration:.2f}s")
+            logger.info(f"[IndicatorExtractor] Text extraction completed: {file_name}, {len(indicators)} indicators, {total_duration:.2f}s")
 
             return indicators, result, report
 
         except json.JSONDecodeError as e:
-            logging.error(f"[IndicatorExtractor] JSON parse failed for text extraction: {e}", exc_info=True)
+            logger.error(f"[IndicatorExtractor] JSON parse failed for text extraction: {e}", exc_info=True)
             if progress_callback:
                 language = get_req_ctx("language", "en")
                 await progress_callback(90, t("json_parsing_failed", language, "indicator_extractor"))
             raise ValueError(f"JSON parsing failed: {str(e)}")
         except Exception as e:
-            logging.error(f"[IndicatorExtractor] Text extraction failed: {e}", exc_info=True)
+            logger.error(f"[IndicatorExtractor] Text extraction failed: {e}", exc_info=True)
             if progress_callback:
                 language = get_req_ctx("language", "en")
                 await progress_callback(90, t("indicator_extraction_error", language, "indicator_extractor"))
@@ -237,8 +239,8 @@ class IndicatorExtractor:
 
     @staticmethod
     def _deduplicate_indicators(
-        indicators: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        indicators: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """
         Deduplicate indicator data
 
@@ -268,6 +270,6 @@ class IndicatorExtractor:
                 seen.add(dedup_key)
                 unique_indicators.append(indicator)
 
-        logging.info(f"Indicator deduplication completed: {len(indicators)} -> {len(unique_indicators)}")
+        logger.info(f"Indicator deduplication completed: {len(indicators)} -> {len(unique_indicators)}")
         return unique_indicators
 

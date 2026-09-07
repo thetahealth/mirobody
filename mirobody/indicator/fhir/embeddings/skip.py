@@ -33,7 +33,7 @@ from ..common import (
     code_to_int,
     load_loinc_skip_codes,
 )
-from .local import EMB_BASENAME, EMB_DTYPE, RES_DIR
+from ..index import EMB_BASENAME, EMB_DTYPE, RES_DIR
 
 log = logging.getLogger(__name__)
 

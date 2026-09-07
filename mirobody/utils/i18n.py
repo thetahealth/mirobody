@@ -10,7 +10,9 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class I18n:
@@ -55,7 +57,7 @@ class I18n:
         else:
             self._translations_cache.clear()
 
-    def _load_translations(self, module_name: str) -> Dict[str, Any]:
+    def _load_translations(self, module_name: str) -> dict[str, Any]:
         """
         Load translation file for specified module
 
@@ -76,14 +78,14 @@ class I18n:
             return {}
 
         try:
-            with open(translation_file, "r", encoding="utf-8") as f:
+            with open(translation_file, encoding="utf-8") as f:
                 translations = json.load(f)
             self._translations_cache[module_name] = translations
             return translations
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             # print() bypassed the JSON log pipeline entirely — no level, no
             # trace_id correlation, straight to stdout.
-            logging.warning("Failed to load translations for %s: %s", module_name, e)
+            logger.warning("Failed to load translations for %s: %s", module_name, e)
             self._translations_cache[module_name] = {}
             return {}
 
@@ -114,7 +116,7 @@ class I18n:
                 caller_filename = os.path.basename(caller_frame.f_code.co_filename)
                 module = caller_filename.replace(".py", "")
             except Exception as e:
-                logging.error(f"Failed to get module name: {e}")
+                logger.error(f"Failed to get module name: {e}")
                 module = "default"
             finally:
                 del frame

@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import contextlib
 import csv
-import gzip
 import hashlib
 import logging
 import re
 
 from collections import defaultdict
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, NamedTuple, TypedDict
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     import polars as pl
@@ -39,6 +38,14 @@ SYSTEM_TO_CODE: dict[str, int] = {s: i for i, s in enumerate(SYSTEMS)}
 # Gemini text-embedding-004 / -qwen output dimensionality. Shared by
 # the DB and ~/ref embedding export paths so artifacts stay compatible.
 EMBEDDING_DIM = 1024
+
+# Output filename for the FHIR-vocabulary concept graph binary. Lives
+# under ``mirobody/res/`` at runtime; uses the ``fhir_`` content prefix
+# (matches ``fhir_embeddings.npy`` / ``fhir_id_map.npy`` /
+# ``fhir_meta.csv.gz`` — the file's contents are FHIR concept relations
+# indexed by canonical fhir_id). Other domains (e.g. finance) name their
+# graphs after their own content scheme.
+FHIR_GRAPH_BIN = "fhir_concept_graph.bin"
 
 
 # ─── Embedding provider → fhir_indicators column ────────────────────
@@ -290,7 +297,7 @@ _DEMOTE_CLASSES = {"LABORDERS.ONTOLOGY"}
 
 # Hand-curated demote patterns over LOINC display names. Apply
 # RUNTIME (see ``_augment_demote_with_names`` in
-# :mod:`mirobody.indicator.fhir.embeddings.local`) on top of the
+# :mod:`mirobody.indicator.fhir.index`) on top of the
 # tarball-shipped status/class-driven mask. Use this layer for codes
 # that LOINC still flags STATUS=ACTIVE but are clinically obsolete or
 # superseded by a same-vocabulary modern peer that should win top-1.
@@ -298,7 +305,7 @@ _DEMOTE_CLASSES = {"LABORDERS.ONTOLOGY"}
 # Demote (not skip): historical data still surfaces when a query
 # explicitly invokes the obsolete method (``antigen``) and no modern
 # peer competes.
-_HAND_DEMOTE_NAME_PATTERNS: tuple["re.Pattern[str]", ...] = (
+_HAND_DEMOTE_NAME_PATTERNS: tuple[re.Pattern[str], ...] = (
     # HPV antigen tests. Cervical HPV detection is uniformly DNA/RNA
     # probe in modern practice; the LOINC 17xxx ``HPV NN Ag [Presence]``
     # codes are 1990s serology kept ACTIVE for legacy interoperability.
@@ -371,19 +378,6 @@ def read_rrf(path: str, columns: list[str] | None = None) -> pl.DataFrame:
     return df
 
 
-# ─── Shared types ──────────────────────────────────────────────────
-
-class MappingRow(TypedDict):
-    snomed_code: str
-    snomed_name: str
-    cui: str
-    target_system: str
-    target_code: str
-    target_name: str
-    target_tty: str
-    path: str
-    distance: int
-
 
 class LoincAxisData(NamedTuple):
     """LOINC axis info parsed from LN (Long Name) format: COMPONENT:PROPERTY:TIME:SYSTEM:SCALE:METHOD."""
@@ -414,7 +408,7 @@ def parse_loinc_axes(
 
     if loinc_csv_path:
         log.info("Parsing LOINC axes from: %s", loinc_csv_path)
-        with open(loinc_csv_path, "r", encoding="utf-8") as f:
+        with open(loinc_csv_path, encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 code_str = row["LOINC_NUM"]
                 if code_str.startswith(skip_prefixes):

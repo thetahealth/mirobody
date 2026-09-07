@@ -18,7 +18,7 @@ import pytest
 
 from mirobody.user.user import get_user
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+ROOT = pathlib.Path(__file__).resolve().parents[2] / "mirobody"
 
 # The reads that legitimately do not go through get_user. Each entry is
 # (file suffix, a substring of the query itself) and each has a reason — an entry
@@ -31,6 +31,10 @@ ALLOWED = [
     # connection and reopen the race the transaction exists to close.
     ("user/user.py", "WHERE email=%s AND is_del=FALSE"),
     ("user/care_circle.py", "SELECT id FROM ins"),
+    # The demo seeder CREATES the sign-in accounts it then shares data between,
+    # by email, upserting them; `get_user` reads an id it does not have yet.
+    # Synthetic rows only, and only when SEED_DEMO_DATA is on.
+    ("server/demo.py", "SELECT id FROM health_app_user WHERE email"),
     # The password check IS the query: `password_hash = crypt(:password,
     # password_hash)` compares inside Postgres so the hash never crosses into
     # Python, and the call runs with log_sql=False.

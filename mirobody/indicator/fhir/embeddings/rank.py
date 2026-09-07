@@ -37,7 +37,7 @@ from ..common import (
     _CODE_MASK,
     code_to_int,
 )
-from .local import EMB_BASENAME, EMB_DTYPE, RES_DIR
+from ..index import EMB_BASENAME, EMB_DTYPE, RES_DIR
 
 log = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def build_loinc_rank_bonus(emb_path: str, loinc_csv: str) -> np.ndarray:
     ).filter(pl.col("COMMON_TEST_RANK") > 0)
 
     code_to_rank: dict[int, int] = {}
-    for code_str, rank in zip(df["LOINC_NUM"].to_list(), df["COMMON_TEST_RANK"].to_list()):
+    for code_str, rank in zip(df["LOINC_NUM"].to_list(), df["COMMON_TEST_RANK"].to_list(), strict=False):
         code_to_rank[code_to_int(code_str, "LOINC")] = int(rank)
 
     bonus = np.zeros(n, dtype=np.float32)
@@ -116,7 +116,7 @@ def build_loinc_rank_bonus(emb_path: str, loinc_csv: str) -> np.ndarray:
         "loinc rank bonus built: %d rows ranked, tiers=%s, source=%s, embeddings=%s",
         int((bonus > 0).sum()),
         ", ".join(
-            f"≤{t}:{c}" for (t, _), c in zip(_RANK_BONUS_TIERS, tier_counts)
+            f"≤{t}:{c}" for (t, _), c in zip(_RANK_BONUS_TIERS, tier_counts, strict=False)
         ),
         loinc_csv, emb_path,
     )

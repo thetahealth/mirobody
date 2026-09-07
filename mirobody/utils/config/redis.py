@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import logging
-import redis, redis.asyncio
+import redis
+import redis.asyncio
+
+logger = logging.getLogger(__name__)
 
 
 #-----------------------------------------------------------------------------
@@ -60,11 +63,11 @@ class RedisConfig:
             if not await client.ping():
                 await client.aclose()
 
-                logging.error(f"Failed to ping Redis server '{self.host}:{self.port}' asynchronously.")
+                logger.error(f"Failed to ping Redis server '{self.host}:{self.port}' asynchronously.")
                 return None
 
         except Exception as e:
-            logging.error(str(e), extra={"host": self.host, "port": self.port})
+            logger.error(str(e), extra={"host": self.host, "port": self.port})
             return None
 
         return client
@@ -88,7 +91,7 @@ class RedisConfig:
         if not client.ping():
             client.close()
 
-            logging.error(f"Failed to ping Redis server '{self.host}:{self.port}'.")
+            logger.error(f"Failed to ping Redis server '{self.host}:{self.port}'.")
             return None
 
         return client

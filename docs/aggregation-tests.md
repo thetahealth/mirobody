@@ -57,6 +57,17 @@ Next day     00:00:00 → value=999  (should be excluded)
 #### Test 3: Sleep Data 18:00 Boundary
 **Purpose**: Verify sleep data special window
 
+> **Which indicators get this window changed in 1.4.0.** It was
+> `LOWER(indicator) LIKE '%sleep%'`; it is now the catalogue's own
+> `metrics.METRICS[name].window`, generated into the SQL by
+> `pulse/aggregate/windows.py`. The predicate matched 58 `daily…Sleep…`
+> metrics that are `provider_daily` — a vendor's own figure, already dated —
+> and re-anchoring those moved every one of them a day; and it missed
+> `napDuration`, which is a real interval belonging to the night. A test that
+> feeds an indicator NAME to check the boundary should feed one the catalogue
+> declares as windowed (`totalSleepTime`, `sleepAnalysis_*`, `napDuration`),
+> not one whose name merely contains "sleep".
+
 **Test Cases**:
 ```
 Current day 17:59:59 → value=999  (should be excluded)

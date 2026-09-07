@@ -1,5 +1,125 @@
 # Provider Integration Guide
 
+## Before you write a provider: do you need one?
+
+A provider integration is two very different things glued together — the OAuth
+dance, token storage, rate limits and pull windows (IO, per deployment) and the
+translation of a vendor's JSON into standardised facts (a pure function of the
+payload). This project owns the second half properly and the first half only as
+far as its own reference application needs.
+
+**If you need broad device access** — eight or more vendors, a phone SDK,
+webhooks, multi-account fan-out — put
+[open-wearables](https://github.com/the-momentum/open-wearables) in front:
+twelve provider strategies, iOS/Android/Flutter/React Native SDKs, a developer
+portal, Celery sync. Then decode its API here (`mirobody.kernel.vendors.open_wearables`)
+and you get UCUM units, LOINC where the code is public, day windows that survive
+daylight saving, quality gates, corrections, medications and the two query
+tools on top. **Run open-wearables to connect devices; run
+mirobody to make the data mean one thing and answer questions about it.**
+
+Write a provider here when you need a vendor neither covers, or when the
+deployment must hold its own credentials.
+
+## What a provider is made of
+
+| Piece | Pure? | Where |
+|---|---|---|
+| **the decode table** | yes | `mirobody/kernel/vendors/<vendor>.py` |
+| **the IO shell** | no | `mirobody/pulse/providers/<vendor>/` |
+| **the samples** | data | `mirobody/kernel/vendors/samples/<vendor>/` |
+| **the coverage** | generated | `vendors.coverage_of("<vendor>")` |
+
+A provider does not have to live in this repository. Ship it as a package that
+declares a `mirobody.providers` entry point pointing at the module with your
+`BasePullProvider` subclass, `pip install` it next to mirobody, and the pull
+loop picks it up at boot with no config change — or drop the `mirobody_<slug>/`
+directory into a folder listed in `PROVIDER_DIRS`. Both paths call the same
+`create_provider(config)`. `examples/mirobody_example_plugin/` is a
+complete, installable example of the first.
+
+### 1. The decode table
+
+A dict from the vendor's field path to `(catalogue metric, a function that
+converts INTO the catalogue's unit)`:
+
+```python
+MAPPING = {
+    "sleep": {
+        "total_sleep_duration": ("dailyTotalSleepTime", s_to_ms),
+        "efficiency":           ("sleepEfficiency",     _same),
+    },
+}
+```
+
+**The unit is never written in the table.** It comes from the catalogue, so a
+decoder cannot disagree with the aggregator about what `ms` means. The table
+says only how to get there. (The one bug this rule would have prevented in this
+repository: a kJ→kcal conversion applied the wrong way round, invisible because
+the number stayed plausible.)
+
+Three more rules:
+
+* **Never fabricate a time.** A record without one decodes to nothing. A
+  synthetic timestamp is indistinguishable from a measured one afterwards.
+* **Never guess a metric.** A key the catalogue does not know returns nothing
+  and is quarantined. `metrics.mapping_for` returning `None` is an answer.
+* **Emit intervals as intervals.** A night's stages are spans, not one total;
+  two syncs of the same night overlap and adding their totals counts it twice.
+
+`decode(data_type, item, tz, *, pulled_at_ms, source_record_id, ingested_at_ms)
+-> list[series.Fact]`, pure — no clock, no database, no config.
+
+### 2. The IO shell
+
+`format_data(self, fmt_input: FormatDataInput) -> StandardPulseData` calls
+`vendors.decode` and wraps the facts with `records_from_facts`. Everything else
+in the class is authentication, pagination and storage. The credential state
+machine is `mirobody.kernel.connect`: the base pull loop already backs off after an
+authorization failure and stops after a threshold, so a changed password does
+not become an account lockout.
+
+### 3. The samples
+
+`mirobody/kernel/vendors/samples/<vendor>/*.json`: payloads shaped like the vendor's
+PUBLIC documentation, each with its expected facts **computed by hand**. Never
+by running the decoder — a sample generated from the code under test asserts
+that the code does what it does.
+
+They ship in the wheel, so a downstream repository can run
+`mirobody.testing.samples.run_samples` against its own decoders.
+
+### 4. Coverage — what the connector ACTUALLY carries
+
+"This platform supports Oura" and "this platform brings you your blood
+pressure" are different claims, and a person choosing a device wants the
+second. `connect.Coverage` is generated from the decode table, so a page built
+from it cannot promise data the code does not produce.
+
+<!-- coverage:start -->
+| Provider | Metrics | Data types |
+|---|---|---|
+| `garmin` | 47 | `activities`, `bloodPressures`, `bodyComps`, `dailies`, `hrv`, `pulseOx`, `respiration`, `skinTemp`, `sleeps`, `stress`, `userMetrics` |
+| `open_wearables` | 48 | `sleep`, `timeseries`, `workouts` |
+| `oura` | 36 | `daily_activity`, `daily_cardiovascular_age`, `daily_readiness`, `daily_sleep`, `daily_spo2`, `daily_stress`, `heartrate`, `personal_info`, `session`, `sleep`, `sleep_time`, `vo2_max`, `workout` |
+| `whoop` | 25 | `body`, `cycle`, `profile`, `recovery`, `sleep`, `workout` |
+<!-- coverage:end -->
+
+Regenerate with `mirobody.testing.coverage.gen_coverage(vendors.coverage_matrix())`
+and embed with `coverage.embed`; `coverage.stale` is the CI check that fails
+the build when a decoder gains a metric and this table has not caught up.
+
+A metric listed here is one the decoder can EMIT. Whether a given person's
+device records it is a further question, and no table can answer it.
+
+---
+
+## The long-form walkthrough
+
+Everything below is the full end-to-end guide: configuration, the OAuth flows,
+the core method reference, scopes, testing and troubleshooting. Start here if
+you are writing the IO shell rather than the decode table.
+
 This guide provides comprehensive instructions for integrating new device/service providers into the Mirobody Health platform.
 
 ## Table of Contents
@@ -147,6 +267,8 @@ from mirobody.pulse.standardize.indicators_info import StandardIndicator
 from mirobody.pulse.core.push_service import push_service
 from mirobody.pulse.standardize.units import UNIT_CONVERSIONS
 from mirobody.pulse.ingest.models.requests import (
+    FormatDataContext,
+    FormatDataInput,
     StandardPulseData,
     StandardPulseMetaInfo,
     StandardPulseRecord,
@@ -187,8 +309,8 @@ class YourProvider(BasePullProvider):
         """Unlink user connection"""
         pass
     
-    async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:
-        """Format raw data to standard format"""
+    async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
+        """Vendor payload (fmt_input.payload) -> StandardPulseData"""
         pass
     
     async def pull_from_vendor_api(self, *args, **kwargs) -> List[Dict[str, Any]]:
@@ -712,44 +834,46 @@ async def unlink(self, user_id: str) -> Dict[str, Any]:
 
 ---
 
-### 4.7 `format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData`
+### 4.7 `format_data(self, fmt_input: FormatDataInput) -> StandardPulseData`
 
-**Purpose**: Transform vendor-specific data to standardized format
+**Purpose**: Transform vendor-specific data to standardized format. A pure
+transformation: everything that needs a database (the internal user id behind a
+vendor id, the user's timezone) is resolved by the platform beforehand and
+arrives in `fmt_input.context`; the vendor payload is `fmt_input.payload`,
+untouched. That is what makes this method snapshot-testable against a recorded
+payload with no database at all.
 
 **Scope**: Called for every data batch received
 
 **Implementation**:
 ```python
-async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:
+async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
     """
-    Format raw data to StandardPulseData
-    
-    Args:
-        raw_data: Raw data from vendor, including:
-            - user_id: User identifier
-            - data_type: Type of data (e.g., 'sleeps', 'workouts')
-            - data: Actual data payload
-            - timestamp: Pull timestamp
-            - msg_id: Message ID for deduplication
-            
-    Returns:
-        StandardPulseData with formatted health records
+    Format one saved raw-data row into StandardPulseData
+
+    fmt_input.context (pre-resolved by the platform):
+        - theta_user_id: internal user id
+        - external_user_id: the vendor's user id
+        - user_timezone: IANA name, from the user's profile
+        - msg_id: message id for deduplication
+    fmt_input.payload: the vendor row as saved by save_raw_data_to_db, e.g.
+        - data_type: type of data (e.g., 'sleeps', 'workouts')
+        - data: actual data payload
     """
     start_time = time.time()
-    
+    raw_data = fmt_input.payload
+
     try:
         request_id = self.generate_request_id()
-        user_id = raw_data.get("user_id", "")
+        user_id = fmt_input.context.theta_user_id or ""
+        user_timezone = fmt_input.context.user_timezone
         data_type = raw_data.get("data_type", "unknown")
         data_content = raw_data.get("data", [])
-        
+
         if not user_id:
-            logging.error("No user_id in raw_data")
+            logging.error("No theta_user_id in format context")
             return self._create_empty_response(request_id, "")
-        
-        # Get user timezone
-        user_timezone = await self._get_user_timezone(user_id)
-        
+
         # Initialize processing context
         processing_info = {
             "provider": self.info.slug,
@@ -757,7 +881,7 @@ async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:
             "processed_indicators": 0,
             "skipped_indicators": 0,
             "errors": [],
-            "msg_id": raw_data.get("msg_id", ""),
+            "msg_id": fmt_input.context.msg_id or "",
             "user_timezone": user_timezone,
         }
         
@@ -809,7 +933,7 @@ async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:
     except Exception as e:
         logging.error(f"Error formatting data: {str(e)}")
         request_id = self.generate_request_id()
-        return self._create_empty_response(request_id, raw_data.get("user_id", ""))
+        return self._create_empty_response(request_id, fmt_input.context.theta_user_id or "")
 
 def _process_sleep_data(
     self, data: List[Dict], processing_info: Dict
@@ -1492,10 +1616,16 @@ async def test_link_generates_url(provider):
     assert result["link_web_url"].startswith("https://")
 
 @pytest.mark.asyncio
+def _fmt(payload: dict) -> FormatDataInput:
+    return FormatDataInput(
+        context=FormatDataContext(theta_user_id="test_user", user_timezone="UTC"),
+        payload=payload,
+    )
+
+@pytest.mark.asyncio
 async def test_format_data_empty(provider):
     """Test format_data with empty input"""
-    raw_data = {"user_id": "test_user", "data": []}
-    result = await provider.format_data(raw_data)
+    result = await provider.format_data(_fmt({"data": []}))
     assert result.metaInfo.userId == "test_user"
     assert len(result.healthData) == 0
 
@@ -1512,7 +1642,7 @@ async def test_format_data_with_samples(provider):
             }
         ]
     }
-    result = await provider.format_data(raw_data)
+    result = await provider.format_data(_fmt(raw_data))
     assert result.metaInfo.userId == "test_user"
     assert len(result.healthData) > 0
 ```
@@ -1571,8 +1701,9 @@ async def test_data_pipeline():
         assert len(saved) == 1
         assert "msg_id" in saved[0]
         
-        # Format data
-        formatted = await provider.format_data(saved[0])
+        # Format data — the platform builds the context from the saved row
+        ctx = await provider.build_format_context(saved[0])
+        formatted = await provider.format_data(FormatDataInput(context=ctx, payload=saved[0]))
         assert formatted.metaInfo.userId == "test_user"
 ```
 
@@ -1609,12 +1740,15 @@ async def test_data_pipeline():
    ```python
    # Format sample data
    sample_data = {
-       "user_id": "test_user",
        "data_type": "sleeps",
        "data": [...]
    }
    
-   formatted = asyncio.run(provider.format_data(sample_data))
+   fmt_input = FormatDataInput(
+       context=FormatDataContext(theta_user_id="test_user", user_timezone="UTC"),
+       payload=sample_data,
+   )
+   formatted = asyncio.run(provider.format_data(fmt_input))
    print(f"Formatted {len(formatted.healthData)} records")
    ```
 

@@ -1,14 +1,15 @@
-import jwt, logging
+import jwt
+import logging
 
 from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
 
-from .jwt import AbstractTokenValidator
-from .email import create_email_validator
-from .apple import AppleTokenValidator
-from .google import GoogleTokenValidator
-from .firebase import FirebaseTokenValidator
-from .webauthn import WebAuthnService
+from .auth.jwt import AbstractTokenValidator
+from .auth.email import create_email_validator
+from .auth.apple import AppleTokenValidator
+from .auth.google import GoogleTokenValidator
+from .auth.firebase import FirebaseTokenValidator
+from .auth.webauthn import WebAuthnService
 
 from .user import (
     add_or_get_user,
@@ -30,6 +31,8 @@ from ..utils import (
     Response,
     Route
 )
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -369,7 +372,7 @@ class UserService:
                 reason          = "email_link",
             )
             if err:
-                logging.error(
+                logger.error(
                     f"merge_accounts failed: losing={current_user_id} winning={existing_owner}: {err}",
                     extra={"affected": affected}
                 )
@@ -484,11 +487,11 @@ class UserService:
                 # tokens until it expires); fingerprint it like the JWT below
                 # instead of writing it verbatim — DEBUG logs are not a safe
                 # place for it either.
-                logging.debug("Apple authorization code: %s", secret_fingerprint(code))
+                logger.debug("Apple authorization code: %s", secret_fingerprint(code))
 
                 payload, err = await self._apple_validator.verify_authorization_code(code)
                 if err:
-                    logging.error(err, extra={"code": secret_fingerprint(code), "email": email})
+                    logger.error(err, extra={"code": secret_fingerprint(code), "email": email})
 
                     if not token:
                         return json_response_with_code(-2, err, request=request)
@@ -499,14 +502,13 @@ class UserService:
                 if not token:
                     return json_response_with_code(-3, "Apple ID token is required.", request=request)
 
-                else:
-                    logging.debug("Apple JWT token: %s", secret_fingerprint(token))
+                logger.debug("Apple JWT token: %s", secret_fingerprint(token))
 
-                    payload, err = await self._apple_validator.verify_token(token)
-                    if err:
-                        return json_response_with_code(-4, err, request=request)
-                    if not payload:
-                        return json_response_with_code(-5, "Empty payload.", request=request)
+                payload, err = await self._apple_validator.verify_token(token)
+                if err:
+                    return json_response_with_code(-4, err, request=request)
+                if not payload:
+                    return json_response_with_code(-5, "Empty payload.", request=request)
 
             #---------------------------------------------
 
@@ -516,7 +518,7 @@ class UserService:
 
             id, email, err = await get_user_via_apple_subject(apple_subject)
             if err:
-                logging.warning(err, extra={"apple_subject": apple_subject})
+                logger.warning(err, extra={"apple_subject": apple_subject})
 
                 email = payload.get("email")
                 if not email:
@@ -568,24 +570,24 @@ class UserService:
                 if self._firebase_validator:
                     payload, err = await self._firebase_validator.verify_token(token)
                     if err:
-                        logging.warning(err, extra={"token": secret_fingerprint(token)})
+                        logger.warning(err, extra={"token": secret_fingerprint(token)})
 
                 if not payload and self._google_validator:
                     payload, err = await self._google_validator.verify_token(token)
                     if err:
-                        logging.warning(err, extra={"token": secret_fingerprint(token)})
+                        logger.warning(err, extra={"token": secret_fingerprint(token)})
             
             else:
                 # Google validator first.
                 if self._google_validator:
                     payload, err = await self._google_validator.verify_token(token)
                     if err:
-                        logging.warning(err, extra={"token": secret_fingerprint(token)})
+                        logger.warning(err, extra={"token": secret_fingerprint(token)})
 
                 if not payload and self._firebase_validator:
                     payload, err = await self._firebase_validator.verify_token(token)
                     if err:
-                        logging.warning(err, extra={"token": secret_fingerprint(token)})
+                        logger.warning(err, extra={"token": secret_fingerprint(token)})
 
             if not payload:
                 return json_response_with_code(-2, "Invalid Google/Firebase ID token.", request=request)
@@ -623,7 +625,7 @@ class UserService:
                 # if user cancels WebAuthn (e.g. Touch ID dismissed).
                 fallback_token, fallback_refresh, _ = await self._token_validator.generate_tokens(
                     str(user_id), email, auth_method,
-                    gen_claims_func=lambda uid, em: {"aal": 1},
+                    gen_claims_func=lambda _uid, _em: {"aal": 1},
                 )
                 if fallback_token:
                     mfa_challenge["fallback_token"] = fallback_token
@@ -646,7 +648,7 @@ class UserService:
             str(user_id),
             email,
             auth_method,
-            gen_claims_func=(lambda uid, em: {"aal": aal_level}) if aal_level else None,
+            gen_claims_func=(lambda _uid, _em: {"aal": aal_level}) if aal_level else None,
         )
         if err:
             return json_response_with_code(-100, err, request=request)

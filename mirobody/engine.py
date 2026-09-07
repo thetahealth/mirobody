@@ -36,19 +36,16 @@ the count so callers know when a term was ambiguous.
 
 from __future__ import annotations
 
-import csv
 import io
 import json
 import logging
 import os
 import re
-from array import array
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
-from typing import Optional
+from typing import TYPE_CHECKING
 
 from ._bundle import BUNDLE_PATH as _BUNDLE
-from ._bundle import RES_DIR as _RES_DIR
 from ._bundle import (
     AXIS_ANALYTE as _ANALYTE,
     AXIS_CODE as _CODE,
@@ -59,11 +56,14 @@ from ._bundle import (
     bundle_version,
     load_alias_sources,
     load_axis,
-    read_member,
+    read_code_list,
     read_members,
 )
 from ._strtab import StringTable
 from .lexical import index_fold, split_trailing_parenthetical, surface_variants
+
+if TYPE_CHECKING:  # `_posting` names np.ndarray in its annotation; numpy itself
+    import numpy as np  # is imported lazily so `import mirobody.engine` stays cheap
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +148,7 @@ class Reading:
     value: str = ""
     unit: str = ""
     reference_range: str = ""
-    resolution: Optional[Resolution] = None
+    resolution: Resolution | None = None
 
 
 class OfflineResolver:
@@ -275,7 +275,7 @@ class OfflineResolver:
 
     # -- lookup ----------------------------------------------------------------
 
-    def _posting(self, key: str) -> "np.ndarray | None":
+    def _posting(self, key: str) -> np.ndarray | None:
         """Corpus rows for one already-folded alias key, or None.
 
         Bisects the key blob rather than consulting a dict built from it: the
@@ -454,12 +454,10 @@ class OfflineResolver:
         LOINC has since retired.
         """
         if self._skip is None:
-            raw = read_member("loinc_skip.txt", bundle_path=_BUNDLE)
             self._skip = {
-                line.strip()
-                for line in raw.splitlines()
-                if line.strip() and not line.startswith(b"#")
-            } if raw is not None else set()
+                code.encode("ascii")
+                for code in read_code_list("loinc_skip.txt", bundle_path=_BUNDLE)
+            }
         return self._skip
 
     def _pick(self, rows, exclude: frozenset[int] = frozenset()) -> int:
@@ -715,7 +713,7 @@ class OfflineResolver:
                 #     merged every such reading into one bucket. Two consumers
                 #     in this repo read that state opposite ways:
                 #     `resolve_with_semantic_fallback` treated it as answered
-                #     and withheld the second tier, `eval/run_eval.py` scored
+                #     and withheld the second tier, `mirobody/evals/run_eval.py` scored
                 #     it as unanswered.
                 if not code or code.encode("ascii") in skipped:
                     exclude.add(row)
@@ -833,7 +831,7 @@ async def resolve_with_semantic_fallback(
         return out
 
     ranked = await index.search([terms[i] for i in missed], top_k=1)
-    for i, candidates in zip(missed, ranked):
+    for i, candidates in zip(missed, ranked, strict=False):
         if not candidates:
             continue
         best = candidates[0]
@@ -860,15 +858,6 @@ Return ONLY a JSON array, no prose. Each element:
 Rules: keep the original language of names; do not translate; do not invent
 values; skip section headers and non-measurements."""
 
-_MIME = {
-    ".pdf": "application/pdf",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".webp": "image/webp",
-    ".txt": "text/plain",
-    ".csv": "text/csv",
-}
 
 
 async def parse_text(document: str, *, resolve_names: bool = True) -> list[Reading]:
@@ -895,30 +884,30 @@ async def parse_file(path: str, *, resolve_names: bool = True) -> list[Reading]:
     """Parse a lab report / health document into readings, optionally resolving
     each indicator name to its canonical LOINC identity (offline).
 
-    One LLM call via :func:`mirobody.utils.llm.unified_file_extract` (provider
-    auto-selected from whichever API key is present). Raises RuntimeError with
-    a plain message when no provider key is configured.
+    The document becomes TEXT first (`mirobody.documents.extract`): a PDF's
+    embedded text layer page by page, a spreadsheet or Word file as a table,
+    and only a scanned page or a photo through the vision provider — one image
+    at a time, never the whole file. Then the same one extraction call as
+    :func:`parse_text`. A born-digital PDF therefore needs a text model key
+    only. Raises RuntimeError with a plain message when no provider key is
+    configured or nothing readable was found.
     """
     # The provider auto-detection reads keys through the config system (which
     # also loads .env); standalone callers — the CLI, a bare library user —
     # haven't initialized it. Init is idempotent and works with zero yaml files.
     from .utils import Config
-    from .utils.llm import unified_file_extract
 
     await Config.init()
 
-    ext = os.path.splitext(path)[1].lower()
-    if ext in (".txt", ".csv", ".md", ".tsv"):
-        # Plain-text documents skip the vision path entirely: read the text and
-        # ask for the extraction directly (unified_file_extract is built for
-        # binary/vision inputs and returns nothing useful for text uploads).
-        with open(path, encoding="utf-8", errors="replace") as f:
-            document = f.read()
-        return await parse_text(document, resolve_names=resolve_names)
+    from .documents import extract as documents
+    from .documents.ocr import vision_ocr
 
-    content_type = _MIME.get(ext, "application/pdf")
-    raw = await unified_file_extract(path, _EXTRACT_PROMPT, content_type=content_type, json_mode=True)
-    return _readings_from_json(raw, resolve_names=resolve_names)
+    with open(path, "rb") as f:
+        data = f.read()
+    text = await documents.extract_text(os.path.basename(path), None, data, ocr=vision_ocr)
+    if not text.strip():
+        raise RuntimeError(f"no readable text could be extracted from {os.path.basename(path)}")
+    return await parse_text(text, resolve_names=resolve_names)
 
 
 def _readings_from_json(raw: str, *, resolve_names: bool) -> list[Reading]:

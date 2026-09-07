@@ -16,7 +16,7 @@ wrong timing — observed on indicators_excel: all four ``胰岛素(N小时)``
 queries landed on the same ``--1.5 hours post`` code).
 
 This module mirrors the ``dose_index`` pattern from
-:mod:`embeddings.local._load_dose_index` but runtime-built from LOINC
+:mod:`fhir.index._load_dose_index` but runtime-built from LOINC
 display names (no bundle artifact required). The query-side scanner
 handles CJK numerals (``半``→0.5, ``一``→1, ``两``→2, ``三``→3, ...)
 plus Arabic digits, both bracketed (``(一小时)``) and free
@@ -454,7 +454,7 @@ CONTEXT_DOSE_DEFAULTS: list[tuple[list[str], bool, tuple[float, str]]] = [
 
 
 @lru_cache(maxsize=1)
-def _context_dose_res() -> list[tuple["object", bool, tuple[float, str]]]:
+def _context_dose_res() -> list[tuple[object, bool, tuple[float, str]]]:
     """Compile context license markers to regex. Lazy to defer the
     specificity import."""
     from .specificity import _compile_marker_pattern

@@ -5,7 +5,7 @@ Common enums shared across data server modules
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 # Import standard enums from core module
@@ -164,44 +164,43 @@ class MetaInfo(BaseModel):
 
     # userId: str = Field(..., description="User ID")
     timezone: str = Field(default="UTC", description="timezone")
-    taskId: Optional[str] = Field(None, description="task id")
-    directly_from_watch: Optional[bool] = Field(False, description="Whether the data is directly from watch")
+    taskId: str | None = Field(None, description="task id")
+    directly_from_watch: bool | None = Field(False, description="Whether the data is directly from watch")
     # Data-repair window (epoch ms). For a repair batch (taskId starts with "repair-"),
     # the mark-and-sweep reconcile deletes stale rows ONLY within [windowFrom, windowTo].
     # If either is missing, the sweep is skipped (the upload is still upserted).
-    windowFrom: Optional[int] = Field(None, description="Repair window start (epoch ms)")
-    windowTo: Optional[int] = Field(None, description="Repair window end (epoch ms)")
+    windowFrom: int | None = Field(None, description="Repair window start (epoch ms)")
+    windowTo: int | None = Field(None, description="Repair window end (epoch ms)")
 
 
 class AppleHealthRecord(BaseModel):
     """Apple Health record"""
 
     uuid: str = Field(..., description="Unique record identifier")
-    sourceId: Optional[str] = Field(None, description="Data source ID")
-    sourceName: Optional[str] = Field(None, description="Data source name")
-    sourcePlatform: Optional[str] = Field(None, description="Data source platform")
-    sourceDeviceId: Optional[str] = Field(None, description="Device ID")
-    type: Union[FlutterHealthTypeEnum, str] = Field(..., description="Data type")
-    dateFrom: Optional[int] = Field(None, description="Start timestamp (milliseconds)")
-    dateTo: Optional[int] = Field(None, description="End timestamp (milliseconds)")
+    sourceId: str | None = Field(None, description="Data source ID")
+    sourceName: str | None = Field(None, description="Data source name")
+    sourcePlatform: str | None = Field(None, description="Data source platform")
+    sourceDeviceId: str | None = Field(None, description="Device ID")
+    type: FlutterHealthTypeEnum | str = Field(..., description="Data type")
+    dateFrom: int | None = Field(None, description="Start timestamp (milliseconds)")
+    dateTo: int | None = Field(None, description="End timestamp (milliseconds)")
     timezone: str = Field(default="UTC", description="Timezone")
-    value: Dict[str, Any] = Field(default_factory=dict, description="Numeric data")
-    unit: Optional[str] = Field(None, description="Unit")
-    unitSymbol: Optional[str] = Field(None, description="Unit symbol")
-    recordingMethod: Optional[str] = Field(None, description="Recording method")
-    createdAt: Optional[int] = Field(None, description="Creation timestamp (milliseconds)")
+    value: dict[str, Any] = Field(default_factory=dict, description="Numeric data")
+    unit: str | None = Field(None, description="Unit")
+    unitSymbol: str | None = Field(None, description="Unit symbol")
+    recordingMethod: str | None = Field(None, description="Recording method")
+    createdAt: int | None = Field(None, description="Creation timestamp (milliseconds)")
 
     @field_validator("type")
     @classmethod
-    def validate_type(cls, v: Union[FlutterHealthTypeEnum, str]) -> str:
+    def validate_type(cls, v: FlutterHealthTypeEnum | str) -> str:
         """Validate health data type, lenient mode: accept all types"""
         if isinstance(v, FlutterHealthTypeEnum):
             return v.value
-        elif isinstance(v, str):
+        if isinstance(v, str):
             # Lenient mode: silently accept all string types
             return v
-        else:
-            raise ValueError(f"Invalid type format: {v}")
+        raise ValueError(f"Invalid type format: {v}")
     
     def is_known_type(self) -> bool:
         """Check if it's a known health data type"""
@@ -215,9 +214,9 @@ class AppleHealthRecord(BaseModel):
 class AppleHealthRequest(BaseModel):
     """Apple Health data request"""
 
-    request_id: Optional[str] = Field(None, description="Request ID")
+    request_id: str | None = Field(None, description="Request ID")
     metaInfo: MetaInfo = Field(..., description="Metadata information")
-    healthData: List[AppleHealthRecord] = Field(..., description="Health data records")
+    healthData: list[AppleHealthRecord] = Field(..., description="Health data records")
 
 
 # ==================== Statistics Models ====================
@@ -226,36 +225,35 @@ class AppleHealthRequest(BaseModel):
 class StatisticsMetaInfo(BaseModel):
     """Metadata for statistics request"""
 
-    userId: Optional[str] = Field(None, description="User ID (ignored, extracted from token)")
+    userId: str | None = Field(None, description="User ID (ignored, extracted from token)")
     timezone: str = Field(default="UTC", description="Default timezone for statistics")
 
 
 class AppleHealthStatistic(BaseModel):
     """A single Apple Health statistic record (pre-aggregated by client)"""
 
-    type: Union[FlutterHealthTypeEnum, str] = Field(..., description="Health data type (e.g., STEPS, HEART_RATE)")
+    type: FlutterHealthTypeEnum | str = Field(..., description="Health data type (e.g., STEPS, HEART_RATE)")
     dateFrom: int = Field(..., description="Start timestamp in milliseconds")
     dateTo: int = Field(..., description="End timestamp in milliseconds")
-    timezone: Optional[str] = Field(None, description="Timezone for this statistic (overrides metaInfo)")
+    timezone: str | None = Field(None, description="Timezone for this statistic (overrides metaInfo)")
     grouping: str = Field(..., description="Time grouping: hour, day, week, month")
-    sum: Optional[float] = Field(None, description="Sum/total value")
-    average: Optional[float] = Field(None, description="Average value")
-    minimum: Optional[float] = Field(None, description="Minimum value")
-    maximum: Optional[float] = Field(None, description="Maximum value")
-    mostRecent: Optional[float] = Field(None, description="Most recent value")
-    unit: Optional[str] = Field(None, description="Unit type (e.g., COUNT, BEATS_PER_MINUTE)")
-    unitSymbol: Optional[str] = Field(None, description="Unit symbol (e.g., count, bpm)")
+    sum: float | None = Field(None, description="Sum/total value")
+    average: float | None = Field(None, description="Average value")
+    minimum: float | None = Field(None, description="Minimum value")
+    maximum: float | None = Field(None, description="Maximum value")
+    mostRecent: float | None = Field(None, description="Most recent value")
+    unit: str | None = Field(None, description="Unit type (e.g., COUNT, BEATS_PER_MINUTE)")
+    unitSymbol: str | None = Field(None, description="Unit symbol (e.g., count, bpm)")
 
     @field_validator("type")
     @classmethod
-    def validate_type(cls, v: Union[FlutterHealthTypeEnum, str]) -> str:
+    def validate_type(cls, v: FlutterHealthTypeEnum | str) -> str:
         """Validate health data type, lenient mode: accept all types"""
         if isinstance(v, FlutterHealthTypeEnum):
             return v.value
-        elif isinstance(v, str):
+        if isinstance(v, str):
             return v
-        else:
-            raise ValueError(f"Invalid type format: {v}")
+        raise ValueError(f"Invalid type format: {v}")
 
     @field_validator("grouping")
     @classmethod
@@ -271,4 +269,4 @@ class AppleHealthStatisticsRequest(BaseModel):
     """Apple Health statistics request"""
 
     metaInfo: StatisticsMetaInfo = Field(..., description="Metadata information")
-    statistics: List[AppleHealthStatistic] = Field(..., description="Statistics records")
+    statistics: list[AppleHealthStatistic] = Field(..., description="Statistics records")

@@ -69,11 +69,10 @@ from functools import lru_cache
 from .bundle import (
     BUNDLE_BASENAME,
     BUNDLE_PATH,
-    list_members,
     read_member,
     write_member,
 )
-from .local import RES_DIR
+from ..index import RES_DIR
 
 log = logging.getLogger(__name__)
 

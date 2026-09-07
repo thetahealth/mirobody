@@ -14,11 +14,13 @@ failing after an upload, which is the defect this replaces.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from mirobody.pulse.file_parser.handlers.base import BaseFileHandler, FileProcessingContext
 from mirobody.utils.file_types import is_document_file
 from mirobody.utils.i18n import t
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentHandler(BaseFileHandler):
@@ -38,7 +40,7 @@ class DocumentHandler(BaseFileHandler):
         unique_filename: str,
         full_url: str,
         language: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if ctx.progress_callback:
             await ctx.progress_callback(55, t("extracting_text_content", language, "file_processor"))
 
@@ -54,8 +56,8 @@ class DocumentHandler(BaseFileHandler):
                 text_length=len(original_text),
                 content_hash=content_hash or "",
             )
-            logging.info(
-                f"💾 Document original text saved to th_files: {unique_filename}, "
+            logger.info(
+                f"Document original text saved to th_files: {unique_filename}, "
                 f"length: {len(original_text)}"
             )
 
@@ -72,7 +74,7 @@ class DocumentHandler(BaseFileHandler):
                     language=language,
                 )
             except Exception as e:
-                logging.warning(f"⚠️ Document abstract extraction failed: {unique_filename}, error: {e}")
+                logger.warning(f"Document abstract extraction failed: {unique_filename}, error: {e}")
 
         if ctx.progress_callback:
             await ctx.progress_callback(90, t("text_processing_success", language, "file_processor"))

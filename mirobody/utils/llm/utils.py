@@ -6,9 +6,10 @@ Provides format conversion, helper functions and other common utilities.
 
 import json
 import logging
-from typing import Dict, List, Optional
 
 from .config import AIConfig
+
+logger = logging.getLogger(__name__)
 
 # `PROJECT_DIR`, `os` and `uuid` used to be here to give `async_get_openai_tts`
 # somewhere to write its .mp3 — the only thing in this module that ever touched
@@ -23,8 +24,8 @@ from .config import AIConfig
 #-----------------------------------------------------------------------------
 
 async def async_get_doubao_structured_output(
-    model_name: str, messages: List[Dict], response_format: Dict = None, **kwargs
-) -> Optional[Dict]:
+    model_name: str, messages: list[dict], response_format: dict = None, **kwargs
+) -> dict | None:
     """
     Get Doubao structured output response
     
@@ -87,7 +88,7 @@ async def async_get_doubao_structured_output(
         if extra_body:
             request_params["extra_body"] = extra_body
             
-        logging.info(f"Calling Doubao API - Model: {model_name}, Messages: {len(messages)}")
+        logger.info(f"Calling Doubao API - Model: {model_name}, Messages: {len(messages)}")
         
         # Record API call start time
         api_start_time = time.time()
@@ -97,14 +98,14 @@ async def async_get_doubao_structured_output(
         
         # Calculate API call duration
         api_duration = time.time() - api_start_time
-        logging.info(f"Doubao API call completed, duration: {api_duration:.3f}s")
+        logger.info(f"Doubao API call completed, duration: {api_duration:.3f}s")
         
         # Extract response content
         if response.choices and len(response.choices) > 0:
             finish_reason = getattr(response.choices[0], "finish_reason", None)
             if finish_reason == "length":
                 total_duration = time.time() - start_time
-                logging.error(f"Doubao response truncated (finish_reason=length), max_tokens too low. Total: {total_duration:.3f}s")
+                logger.error(f"Doubao response truncated (finish_reason=length), max_tokens too low. Total: {total_duration:.3f}s")
 
             content = response.choices[0].message.content
             if content:
@@ -121,13 +122,13 @@ async def async_get_doubao_structured_output(
                     # Calculate total duration
                     total_duration = time.time() - start_time
 
-                    logging.info(f"Doubao structured output success - Parse: {parse_duration:.3f}s, Total: {total_duration:.3f}s")
+                    logger.info(f"Doubao structured output success - Parse: {parse_duration:.3f}s, Total: {total_duration:.3f}s")
                     return final_result
 
                 except json.JSONDecodeError as json_error:
                     total_duration = time.time() - start_time
                     content_len = len(content) if content else 0
-                    logging.error(
+                    logger.error(
                         f"Doubao response JSON parse failed: {json_error}, "
                         f"finish_reason={finish_reason}, content_length={content_len}, "
                         f"Total: {total_duration:.3f}s, "
@@ -138,26 +139,26 @@ async def async_get_doubao_structured_output(
                     return None
             else:
                 total_duration = time.time() - start_time
-                logging.warning(f"Doubao API response content empty, Total: {total_duration:.3f}s")
+                logger.warning(f"Doubao API response content empty, Total: {total_duration:.3f}s")
                 return None
         else:
             total_duration = time.time() - start_time
-            logging.warning(f"Doubao API response choices empty, Total: {total_duration:.3f}s")
+            logger.warning(f"Doubao API response choices empty, Total: {total_duration:.3f}s")
             return None
             
     except Exception as e:
         total_duration = time.time() - start_time
-        logging.error(f"Doubao structured output API error: {type(e).__name__}: {str(e)}, Total: {total_duration:.3f}s", stack_info=True)
+        logger.error(f"Doubao structured output API error: {type(e).__name__}: {str(e)}, Total: {total_duration:.3f}s", stack_info=True)
         return None
 
 
 async def async_get_structured_output(
-    messages: List[Dict],
-    response_format: Dict,
-    model_name: Optional[str] = None,
-    provider: Optional[str] = None,
+    messages: list[dict],
+    response_format: dict,
+    model_name: str | None = None,
+    provider: str | None = None,
     **kwargs
-) -> Optional[Dict]:
+) -> dict | None:
     """
     Unified structured output function, auto-selects provider based on available API keys
     
@@ -231,7 +232,7 @@ async def async_get_structured_output(
     # Normalize max_tokens across providers
     max_tokens_value = kwargs.pop("max_tokens", None) or kwargs.pop("max_completion_tokens", None)
 
-    async def _call_provider(prov_name: str, prov_model: str) -> Optional[Dict]:
+    async def _call_provider(prov_name: str, prov_model: str) -> dict | None:
         """Call a specific provider. Returns result dict or None on failure."""
         try:
             if prov_name in ["openai", "openrouter"]:
@@ -255,11 +256,11 @@ async def async_get_structured_output(
                 if result.get("refusal") is None:
                     final_result = json.loads(result["content"])
                     duration = time.time() - start_time
-                    logging.info(f"✅ {prov_name} structured output completed, duration: {duration:.3f}s")
+                    logger.info(f"{prov_name} structured output completed, duration: {duration:.3f}s")
                     return final_result
                 return None
 
-            elif prov_name == "volcengine":
+            if prov_name == "volcengine":
                 volcengine_kwargs = {**kwargs}
                 if max_tokens_value:
                     volcengine_kwargs["max_tokens"] = max_tokens_value
@@ -270,7 +271,7 @@ async def async_get_structured_output(
                     **volcengine_kwargs
                 )
 
-            elif prov_name == "dashscope":
+            if prov_name == "dashscope":
                 dashscope_kwargs = {**kwargs}
                 if max_tokens_value:
                     dashscope_kwargs["max_tokens"] = max_tokens_value
@@ -285,11 +286,11 @@ async def async_get_structured_output(
                 if result.get("refusal") is None:
                     final_result = json.loads(result["content"])
                     duration = time.time() - start_time
-                    logging.info(f"✅ DashScope structured output completed, duration: {duration:.3f}s")
+                    logger.info(f"DashScope structured output completed, duration: {duration:.3f}s")
                     return final_result
                 return None
 
-            elif prov_name == "gemini":
+            if prov_name == "gemini":
                 client = client_manager.get_async_gemini_client()
                 from google.genai import types
                 gemini_config_params = {
@@ -323,17 +324,16 @@ async def async_get_structured_output(
                 if response and response.text:
                     final_result = json.loads(response.text)
                     duration = time.time() - start_time
-                    logging.info(f"✅ Gemini structured output completed, duration: {duration:.3f}s")
+                    logger.info(f"Gemini structured output completed, duration: {duration:.3f}s")
                     return final_result
                 return None
 
-            else:
-                logging.error(f"Unsupported provider: {prov_name}")
-                return None
+            logger.error(f"Unsupported provider: {prov_name}")
+            return None
 
         except Exception as e:
             duration = time.time() - start_time
-            logging.error(f"Structured output API error ({prov_name}): {type(e).__name__}: {str(e)}, duration: {duration:.3f}s")
+            logger.error(f"Structured output API error ({prov_name}): {type(e).__name__}: {str(e)}, duration: {duration:.3f}s")
             return None
 
     # Determine provider to use
@@ -341,46 +341,45 @@ async def async_get_structured_output(
         # User specified a provider — use it directly, no fallback
         provider_info = AIConfig.get_provider_by_priority_name(provider)
         if not provider_info:
-            logging.error(f"Unknown provider: {provider}")
+            logger.error(f"Unknown provider: {provider}")
             return None
 
         if not safe_read_cfg(provider_info["api_key_env"]):
-            logging.error(f"Provider {provider} API Key not configured")
+            logger.error(f"Provider {provider} API Key not configured")
             return None
         actual_model = model_name or safe_read_cfg(f"{provider.upper()}_MODEL") or provider_info["default_model"]
-        logging.info(f"🔄 async_get_structured_output: Using {provider} provider, model: {actual_model}")
+        logger.info(f"async_get_structured_output: Using {provider} provider, model: {actual_model}")
         return await _call_provider(provider, actual_model)
-    else:
-        # Auto-select: try each available provider in priority order, fallback on failure
-        tried_providers = []
-        for p in STRUCTURED_OUTPUT_PRIORITY:
-            if not safe_read_cfg(p["api_key_env"]):
-                continue
-            prov_name = p["name"]
-            # `<PROVIDER>_MODEL` overrides the default, mirroring
-            # `<PROVIDER>_VISION_MODEL` on the vision path. Needed whenever
-            # `<PROVIDER>_BASE_URL` points at a gateway that does not serve
-            # the default model id (e.g. OpenRouter redirected to DashScope:
-            # `google/gemini-3-flash-preview` 404s there).
-            prov_model = safe_read_cfg(f"{prov_name.upper()}_MODEL") or p["default_model"]
-            logging.info(f"🔄 async_get_structured_output: Trying {prov_name} provider, model: {prov_model}")
-            result = await _call_provider(prov_name, prov_model)
-            if result is not None:
-                return result
-            tried_providers.append(prov_name)
-            logging.warning(f"⚠️ Provider {prov_name} failed, trying next available provider...")
+    # Auto-select: try each available provider in priority order, fallback on failure
+    tried_providers = []
+    for p in STRUCTURED_OUTPUT_PRIORITY:
+        if not safe_read_cfg(p["api_key_env"]):
+            continue
+        prov_name = p["name"]
+        # `<PROVIDER>_MODEL` overrides the default, mirroring
+        # `<PROVIDER>_VISION_MODEL` on the vision path. Needed whenever
+        # `<PROVIDER>_BASE_URL` points at a gateway that does not serve
+        # the default model id (e.g. OpenRouter redirected to DashScope:
+        # `google/gemini-3-flash-preview` 404s there).
+        prov_model = safe_read_cfg(f"{prov_name.upper()}_MODEL") or p["default_model"]
+        logger.info(f"async_get_structured_output: Trying {prov_name} provider, model: {prov_model}")
+        result = await _call_provider(prov_name, prov_model)
+        if result is not None:
+            return result
+        tried_providers.append(prov_name)
+        logger.warning(f"Provider {prov_name} failed, trying next available provider...")
 
-        status = AIConfig.get_provider_status()
-        logging.error(f"All providers failed (tried: {tried_providers}), status: {status}")
-        return None
+    status = AIConfig.get_provider_status()
+    logger.error(f"All providers failed (tried: {tried_providers}), status: {status}")
+    return None
 
 
 async def async_get_text_completion(
-    messages: List[Dict],
-    model_name: Optional[str] = None,
-    provider: Optional[str] = None,
+    messages: list[dict],
+    model_name: str | None = None,
+    provider: str | None = None,
     **kwargs
-) -> Optional[str]:
+) -> str | None:
     """
     Unified text generation function, auto-selects provider based on available API keys
     
@@ -423,25 +422,25 @@ async def async_get_text_completion(
     if provider:
         provider_info = AIConfig.get_provider_by_priority_name(provider)
         if not provider_info:
-            logging.error(f"Unknown provider: {provider}")
+            logger.error(f"Unknown provider: {provider}")
             return None
         if not safe_read_cfg(provider_info["api_key_env"]):
-            logging.error(f"Provider {provider} API Key not configured")
+            logger.error(f"Provider {provider} API Key not configured")
             return None
         actual_model = model_name or safe_read_cfg(f"{provider.upper()}_MODEL") or provider_info["default_model"]
     else:
         provider_info = AIConfig.get_available_provider()
         if not provider_info:
             status = AIConfig.get_provider_status()
-            logging.error(f"No available AI provider, please configure API Key: {status}")
+            logger.error(f"No available AI provider, please configure API Key: {status}")
             return None
         provider = provider_info["name"]
         # Same `<PROVIDER>_MODEL` override as async_get_structured_output.
         actual_model = safe_read_cfg(f"{provider.upper()}_MODEL") or provider_info["default_model"]
         if model_name:
-            logging.warning(f"⚠️ model_name='{model_name}' ignored, using provider default model: {actual_model}")
+            logger.warning(f"model_name='{model_name}' ignored, using provider default model: {actual_model}")
     
-    logging.info(f"🔄 async_get_text_completion: Using {provider} provider, model: {actual_model}")
+    logger.info(f"async_get_text_completion: Using {provider} provider, model: {actual_model}")
     
     try:
         if provider in ["openai", "openrouter", "dashscope", "volcengine"]:
@@ -474,10 +473,10 @@ async def async_get_text_completion(
             )
             content = response.choices[0].message.content
             duration = time.time() - start_time
-            logging.info(f"✅ {provider} text generation completed, duration: {duration:.3f}s")
+            logger.info(f"{provider} text generation completed, duration: {duration:.3f}s")
             return content
             
-        elif provider == "gemini":
+        if provider == "gemini":
             # Gemini uses native client
             client = client_manager.get_async_gemini_client()
             from google.genai import types
@@ -509,15 +508,14 @@ async def async_get_text_completion(
             
             if response and response.text:
                 duration = time.time() - start_time
-                logging.info(f"✅ Gemini text generation completed, duration: {duration:.3f}s")
+                logger.info(f"Gemini text generation completed, duration: {duration:.3f}s")
                 return response.text
             return None
             
-        else:
-            logging.error(f"Unsupported provider: {provider}")
-            return None
+        logger.error(f"Unsupported provider: {provider}")
+        return None
             
     except Exception as e:
         duration = time.time() - start_time
-        logging.error(f"Text generation API error ({provider}): {type(e).__name__}: {str(e)}, duration: {duration:.3f}s", stack_info=True)
+        logger.error(f"Text generation API error ({provider}): {type(e).__name__}: {str(e)}, duration: {duration:.3f}s", stack_info=True)
         return None

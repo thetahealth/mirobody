@@ -2,7 +2,7 @@
 Health API request models
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -14,16 +14,16 @@ from pydantic import BaseModel, Field
 
 class FormatDataContext(BaseModel):
     """Pre-resolved context for format_data() — no DB calls needed inside."""
-    theta_user_id: Optional[str] = Field(default="", description="Internal platform user ID")
-    external_user_id: Optional[str] = Field(None, description="Vendor-side user ID (Garmin userId, Whoop numeric ID, Vital user_id)")
+    theta_user_id: str | None = Field(default="", description="Internal platform user ID")
+    external_user_id: str | None = Field(None, description="Vendor-side user ID (Garmin userId, Whoop numeric ID, Vital user_id)")
     user_timezone: str = Field(default="UTC", description="Pre-resolved user timezone")
-    msg_id: Optional[str] = Field(None, description="Message/request tracking ID")
+    msg_id: str | None = Field(None, description="Message/request tracking ID")
 
 
 class FormatDataInput(BaseModel):
-    """Structured input for format_data_v2(), replacing raw Dict[str, Any]."""
+    """The one argument of `Provider.format_data`: resolved context + untouched payload."""
     context: FormatDataContext
-    payload: Dict[str, Any] = Field(..., description="Original vendor data, untouched")
+    payload: dict[str, Any] = Field(..., description="Original vendor data, untouched")
 
 
 class VitalHealthRecord(BaseModel):
@@ -32,9 +32,9 @@ class VitalHealthRecord(BaseModel):
     source: str = Field(..., description="Data source")
     type: str = Field(..., description="Data type")
     timestamp: int = Field(..., description="Timestamp (milliseconds)")
-    unit: Optional[str] = Field(None, description="Unit")
+    unit: str | None = Field(None, description="Unit")
     value: float = Field(..., description="Value")
-    timezone: Optional[str] = Field("UTC", description="Timezone info, e.g. America/Los_Angeles")  # Add timezone field
+    timezone: str | None = Field("UTC", description="Timezone info, e.g. America/Los_Angeles")  # Add timezone field
 
 
 
@@ -47,15 +47,15 @@ class StandardPulseMetaInfo(BaseModel):
     """Pulse standard metadata format"""
 
     userId: str = Field(..., description="User ID")
-    requestId: Optional[str] = Field(None, description="Request ID")
-    timestamp: Optional[str] = Field(None, description="Request timestamp")
-    source: Optional[str] = Field(None, description="Data source")
+    requestId: str | None = Field(None, description="Request ID")
+    timestamp: str | None = Field(None, description="Request timestamp")
+    source: str | None = Field(None, description="Data source")
     timezone: str = Field(default="UTC", description="Timezone")
-    taskId: Optional[str] = Field(None, description="Task ID, used to identify data from the same batch")
+    taskId: str | None = Field(None, description="Task ID, used to identify data from the same batch")
     # Data-repair window (epoch ms); only meaningful for a repair batch. Both must be
     # present for the reconcile to sweep; otherwise the sweep is skipped.
-    windowFrom: Optional[int] = Field(None, description="Repair window start (epoch ms)")
-    windowTo: Optional[int] = Field(None, description="Repair window end (epoch ms)")
+    windowFrom: int | None = Field(None, description="Repair window start (epoch ms)")
+    windowTo: int | None = Field(None, description="Repair window end (epoch ms)")
 
 
 class StandardPulseRecord(BaseModel):
@@ -67,20 +67,20 @@ class StandardPulseRecord(BaseModel):
     source: str = Field(..., description="Data source, e.g. vital.garmin")
     type: str = Field(..., description="Data type, e.g. heartrate")
     timestamp: int = Field(..., description="Timestamp (milliseconds)")
-    unit: Optional[str] = Field(None, description="Unit")
-    value: Union[float, str] = Field(..., description="Value")  # Required field, consistent with VitalHealthRecord
-    timezone: Optional[str] = Field(default="UTC", description="Timezone info, e.g. America/Los_Angeles")
+    unit: str | None = Field(None, description="Unit")
+    value: float | str = Field(..., description="Value")  # Required field, consistent with VitalHealthRecord
+    timezone: str | None = Field(default="UTC", description="Timezone info, e.g. America/Los_Angeles")
 
     # Extended fields for complex data (VitalHealthRecord compatible, will be ignored)
-    startTime: Optional[int] = Field(None, description="Start timestamp (milliseconds)")
-    endTime: Optional[int] = Field(None, description="End timestamp (milliseconds)")
+    startTime: int | None = Field(None, description="Start timestamp (milliseconds)")
+    endTime: int | None = Field(None, description="End timestamp (milliseconds)")
 
     # Extended fields for apple health
-    source_id: Optional[str] = Field(None, description="Data source ID")
-    task_id: Optional[str] = Field(None, description="Task ID")
+    source_id: str | None = Field(None, description="Data source ID")
+    task_id: str | None = Field(None, description="Task ID")
     
     # Extended field for custom comment (e.g., meal details, food items)
-    comment: Optional[str] = Field(None, description="Custom comment to be merged with system-generated comment")
+    comment: str | None = Field(None, description="Custom comment to be merged with system-generated comment")
 
 
 class StandardPulseData(BaseModel):
@@ -91,8 +91,8 @@ class StandardPulseData(BaseModel):
     """
 
     metaInfo: StandardPulseMetaInfo = Field(..., description="Meta information")
-    healthData: List[StandardPulseRecord] = Field(..., description="Health data record list")
+    healthData: list[StandardPulseRecord] = Field(..., description="Health data record list")
 
     # Optional batch information
-    batchInfo: Optional[Dict[str, Any]] = Field(None, description="Batch processing information")
-    processingInfo: Optional[Dict[str, Any]] = Field(None, description="Processing status information")
+    batchInfo: dict[str, Any] | None = Field(None, description="Batch processing information")
+    processingInfo: dict[str, Any] | None = Field(None, description="Processing status information")

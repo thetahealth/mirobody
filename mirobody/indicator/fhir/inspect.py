@@ -22,10 +22,10 @@ from functools import lru_cache
 
 from ..concept_graph import ConceptGraph
 from .common import (
+    FHIR_GRAPH_BIN,
     SYSTEMS, _CODE_BITS, _CODE_MASK, code_to_fhir_id, int_to_code,
 )
-from .embeddings.local import RES_DIR as _RES_DIR, load as _load_local_fhir_cache
-from .graph_builder import FHIR_GRAPH_BIN
+from .index import RES_DIR as _RES_DIR, load as _load_local_fhir_cache
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def _load_loinc_axes(loinc_core_csv: str) -> dict[str, dict[str, str]]:
     """
     out: dict[str, dict[str, str]] = {}
     try:
-        with open(loinc_core_csv, "r", encoding="utf-8") as f:
+        with open(loinc_core_csv, encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 num = row.get("LOINC_NUM", "")
                 if not num:

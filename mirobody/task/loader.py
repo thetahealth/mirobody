@@ -12,12 +12,12 @@ the on-disk location. Every non-private `.py` module is imported, and any
 
 from __future__ import annotations
 
-import importlib
-import importlib.util
 import logging
 import os
 
 from ..utils.plugin_dirs import import_plugin_module, resolve_plugin_dir
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -48,16 +48,16 @@ def _load_tasks_from_directory(dir: str, skip: set[str] | None = None) -> None:
     target, module_prefix = resolve_plugin_dir(target)
 
     if not target:
-        logging.warning(f"No task directory found at {dir!r}")
+        logger.warning(f"No task directory found at {dir!r}")
         return
 
     try:
         entries = os.scandir(target)
     except Exception as e:
-        logging.warning(f"Error scanning task directory {target}: {e}")
+        logger.warning(f"Error scanning task directory {target}: {e}")
         return
 
-    logging.debug(f"Loading tasks from {target}")
+    logger.debug(f"Loading tasks from {target}")
 
     for entry in entries:
         if entry.is_dir() or \
@@ -72,8 +72,8 @@ def _load_tasks_from_directory(dir: str, skip: set[str] | None = None) -> None:
 
         try:
             module_name, _ = import_plugin_module(target, module_prefix, entry.name)
-            logging.info(f"Loaded task module: {module_name}")
+            logger.info(f"Loaded task module: {module_name}")
         except Exception as e:
-            logging.warning(f"Error importing task module {entry.name} from {target}: {e}")
+            logger.warning(f"Error importing task module {entry.name} from {target}: {e}")
 
 #-----------------------------------------------------------------------------

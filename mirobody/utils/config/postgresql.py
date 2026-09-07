@@ -1,10 +1,18 @@
 from __future__ import annotations
 
-import logging, time
-import psycopg, psycopg_pool, psycopg.abc
-import sqlalchemy, sqlalchemy.event, sqlalchemy.ext, sqlalchemy.ext.asyncio
+import logging
+import time
+import psycopg
+import psycopg_pool
+import psycopg.abc
+import sqlalchemy
+import sqlalchemy.event
+import sqlalchemy.ext
+import sqlalchemy.ext.asyncio
 
 from typing import Any, Self
+
+logger = logging.getLogger(__name__)
 
 
 #-----------------------------------------------------------------------------
@@ -22,7 +30,7 @@ class LoggedCursor(psycopg.Cursor):
         cur = super().execute(query, params, prepare=prepare, binary=binary)
         end_time = time.time()
 
-        logging.info(
+        logger.info(
             " ".join(str(query).split()),
             extra = {
                 "time_cost" : round((end_time-start_time)*1e3, 2),
@@ -55,7 +63,7 @@ class LoggedAsyncCursor(psycopg.AsyncCursor):
         cur = await super().execute(query, params, prepare=prepare, binary=binary)
         end_time = time.time()
 
-        logging.info(
+        logger.info(
             " ".join(str(query).split()),
             extra = {
                 "time_cost" : round((end_time-start_time)*1e3, 2),
@@ -83,7 +91,7 @@ def after_async_sqlarchemy_cursor_execute(conn, cursor, statement, parameters, c
     start_time = conn.info["query_start_time"].pop(-1)
     time_cost = round((time.time()-start_time)*1e3, 2)
 
-    logging.info(
+    logger.info(
         " ".join(statement.split()),
         extra = {
             "time_cost" : time_cost,
@@ -97,7 +105,7 @@ def after_sqlarchemy_cursor_execute(conn, cursor, statement, parameters, context
     start_time = conn.info["query_start_time"].pop(-1)
     time_cost = round((time.time()-start_time)*1e3, 2)
 
-    logging.info(
+    logger.info(
         " ".join(statement.split()),
         extra = {
             "time_cost" : time_cost,
@@ -180,11 +188,11 @@ class PostgreSQLConfig:
             open            = False,
             min_size        = self.minconn,
             max_size        = self.maxconn,
-            kwargs          = dict(
-                user    = self.user,
-                password= self.password,
-                options = f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}",
-            ),
+            kwargs          = {
+                "user": self.user,
+                "password": self.password,
+                "options": f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}",
+            },
         )
         await pool.open()
 
@@ -196,11 +204,11 @@ class PostgreSQLConfig:
             f"host={self.host} port={self.port} dbname={self.database}",
             min_size= self.minconn,
             max_size= self.maxconn,
-            kwargs  = dict(
-                user    = self.user,
-                password= self.password,
-                options = f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}",
-            ),
+            kwargs  = {
+                "user": self.user,
+                "password": self.password,
+                "options": f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}",
+            },
         )
     
     #-----------------------------------------------------

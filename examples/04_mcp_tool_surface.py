@@ -66,5 +66,5 @@ async def main():
 
 asyncio.run(main())
 
-print("\nThe other two tools (query_health_indicators, get_genetic_data) read a user's")
+print("\nThe other three tools (query_health_indicators, query_medications, get_genetic_data) read a user's")
 print("stored records, so they need `mirobody serve` and a database.")

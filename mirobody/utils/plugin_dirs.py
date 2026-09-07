@@ -1,6 +1,6 @@
 """Resolving a configured plugin directory to something importable.
 
-Three loaders — MCP tools (`mcp/tool.py`), chat agents (`agent/chat/agent.py`)
+Three loaders — MCP tools (`mcp/tool.py`), the agent (`agent/registry.py`)
 and background tasks (`task/loader.py`) — each took a directory string from
 config and turned it into module names the same way, and each carried the same
 two defects:
@@ -24,6 +24,23 @@ package keeps package semantics (so its modules may use relative imports); any
 other directory is loaded file by file, which is exactly the shape the docs
 describe for a plugin ("a tool is a plain Python function" in one `.py`).
 
+## Entry points
+
+Directory scanning is for a deployment that drops a file into a folder. A
+plugin that is `pip install`ed has no folder to point at, so the same three
+loaders also read `importlib.metadata` entry points:
+
+    [project.entry-points."mirobody.providers"]   # a module with a BasePullProvider subclass
+    fitbit = "mirobody_fitbit.provider"
+    [project.entry-points."mirobody.tools"]       # a module with tool classes
+    labs = "mirobody_fitbit.tools"
+    [project.entry-points."mirobody.agents"]      # a module with ONE agent class (replaces the shipped one)
+    mine = "my_harness.agent"
+
+The value is a MODULE, not an object — every loader already knows how to read
+a module, so an entry point is just one more place a module comes from. See
+`examples/mirobody_example_plugin/` for a complete installable example.
+
 Not merged with the provider loader in `pulse/providers/platform/platform.py`:
 that one discovers `mirobody_<slug>/provider_<slug>.py` SUBDIRECTORIES, not
 flat files, and its packaged branch must import by real dotted path for the
@@ -33,10 +50,41 @@ different anatomy; folding them together would fit neither.
 
 from __future__ import annotations
 
+import importlib
 import importlib.util
 import logging
 import os
+from importlib.metadata import entry_points
 from types import ModuleType
+
+logger = logging.getLogger(__name__)
+
+#: The entry-point groups the three loaders read.
+GROUP_PROVIDERS = "mirobody.providers"
+GROUP_TOOLS = "mirobody.tools"
+GROUP_AGENTS = "mirobody.agents"
+
+
+def entry_point_modules(group: str) -> list[ModuleType]:
+    """The modules every installed distribution registered under `group`.
+
+    Sorted by entry-point name so discovery order does not depend on the
+    order pip happened to install things. An entry point whose module fails
+    to import is logged (name and exception type, nothing else) and skipped:
+    one broken plugin must not take the others down.
+    """
+    modules: list[ModuleType] = []
+    for ep in sorted(entry_points(group=group), key=lambda e: e.name):
+        try:
+            obj = ep.load()
+        except Exception as e:
+            logger.warning("plugin entry point failed to load: group=%s name=%s error_type=%s", group, ep.name, type(e).__name__)
+            continue
+        if not isinstance(obj, ModuleType):
+            logger.warning("plugin entry point is not a module: group=%s name=%s value_kind=%s", group, ep.name, type(obj).__name__)
+            continue
+        modules.append(obj)
+    return modules
 
 
 def resolve_plugin_dir(configured: str) -> tuple[str | None, str | None]:

@@ -103,7 +103,7 @@ import logging
 import re
 import time
 import unicodedata
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 
@@ -178,11 +178,9 @@ from ..common import (
     SYSTEM_TO_CODE,
     SYSTEMS,
     _CODE_BITS,
-    _CODE_MASK,
     fhir_id_to_code,
-    int_to_code,
 )
-from ..embeddings.local import load as _load_local_cache
+from ..index import load as _load_local_cache
 
 log = logging.getLogger(__name__)
 
@@ -213,7 +211,6 @@ log = logging.getLogger(__name__)
 # module-private spellings the rest of this file uses.
 from mirobody.value_scale import (  # noqa: E402
     SCALE_COMPAT as _SCALE_COMPAT,
-    VALUE_NOM_TOKENS as _VALUE_NOM_TOKENS,
     classify_value as _classify_value,
 )
 
@@ -315,7 +312,7 @@ _QUALITATIVE_TRIGGER_MARKERS: list[str] = [
 ]
 
 
-def _qualitative_trigger_re() -> "re.Pattern[str]":
+def _qualitative_trigger_re() -> re.Pattern[str]:
     """Lazy-compile the multilingual qualitative-trigger pattern.
 
     Compiled at first call and cached on the function object — defers
@@ -353,7 +350,7 @@ _SEMIQUANTITATIVE_TRIGGER_MARKERS: list[str] = [
 ]
 
 
-def _semiquantitative_trigger_re() -> "re.Pattern[str]":
+def _semiquantitative_trigger_re() -> re.Pattern[str]:
     """Lazy-compile the semi-quantitative trigger pattern.
 
     Mirror of :func:`_qualitative_trigger_re` — same compile-once
@@ -369,7 +366,7 @@ def _semiquantitative_trigger_re() -> "re.Pattern[str]":
     return pat
 
 
-def _build_system_match_rank(cache: dict) -> "np.ndarray | None":
+def _build_system_match_rank(cache: dict) -> np.ndarray | None:
     """Build (N,) int8 rank array over the LOINC corpus, marking each
     row's tier within :data:`_SYSTEM_PREFERENCE`.
 
@@ -431,7 +428,7 @@ def _build_scale_match_rank(
     scale_class: str,
     axis_data: dict,
     n_rows: int,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Build (N,) int8 rank array flagging each LOINC row's tier within
     :data:`_SCALE_COMPAT` [*scale_class*].
 
@@ -617,7 +614,7 @@ def loinc_analyte_digits(name: str) -> frozenset[int]:
 # ``loinc_analyte_digits`` extractor handles them without aliasing.
 
 
-def _build_analyte_alias_re(alias_keys: list[str]) -> "re.Pattern | None":
+def _build_analyte_alias_re(alias_keys: list[str]) -> re.Pattern | None:
     """Compile a ``\\b``-anchored, case-insensitive alternation over
     the alias keys. Listed longest-first so Python's leftmost-first
     alternation produces leftmost-longest matches (avoids ``calciferol``
@@ -636,7 +633,7 @@ def _build_analyte_alias_re(alias_keys: list[str]) -> "re.Pattern | None":
     )
 
 
-def _analyte_alias_state() -> tuple[dict[str, int], "re.Pattern | None"]:
+def _analyte_alias_state() -> tuple[dict[str, int], re.Pattern | None]:
     """Lazy loader: returns the alias dict and compiled regex,
     materializing them on first call. Returns ``({}, None)`` when the
     bundle has no analyte-digit TSV — the pipeline degrades to the
@@ -930,7 +927,7 @@ def _build_deprecated_drop_mask(cache: dict, n_rows: int) -> np.ndarray:
 _LoincKeepFilter = Callable[[str, dict], "np.ndarray | None"]
 
 
-def _transfusion_subject_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _transfusion_subject_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """Drop ``from Donor`` / ``from Blood product unit`` LOINC rows
     when the query carries no transfusion-medicine license marker.
     Genuine blood-bank queries (``供血者 / 输血 / donor / transfusion
@@ -1009,7 +1006,7 @@ def _build_allergy_non_ige_mask(cache: dict) -> np.ndarray:
     return mask
 
 
-def _allergy_ige_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _allergy_ige_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """For ALLERGY-gated queries (CLASS_KEYWORD_GATES ``过敏 / allergen
     / atopic / ...``) carrying no explicit antibody-class or
     methodology marker, drop LOINC rows whose name carries IgG / IgM
@@ -1463,7 +1460,7 @@ def _build_coag_factor_ag_mask(cache: dict) -> np.ndarray:
 
 def _coag_factor_activity_keep(
     query_text: str, cache: dict
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Prefer the activity assay over the antigen assay for bare
     coagulation-factor queries. See :func:`_build_coag_factor_ag_mask`.
 
@@ -1584,7 +1581,7 @@ _CN_NO_LOINC_NULL_RE = re.compile(
 )
 
 
-def _cn_no_loinc_null(query_text: str, cache: dict) -> "np.ndarray | None":
+def _cn_no_loinc_null(query_text: str, cache: dict) -> np.ndarray | None:
     """Force-null for queries that LOINC truly doesn't cover.
     Returns an all-False mask so the picker yields no LOINC result,
     rather than cosine-falling onto a misleading nearby row."""
@@ -1594,7 +1591,7 @@ def _cn_no_loinc_null(query_text: str, cache: dict) -> "np.ndarray | None":
     return np.zeros(n, dtype=bool)
 
 
-def _sleep_focus_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _sleep_focus_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """For sleep-context queries (polysomnography / PLMS / arousal /
     apnea / hypopnea / snore / SpO2-time / sleep-stage breakdowns)
     carrying no explicit questionnaire / cardiology / imaging marker,
@@ -1773,11 +1770,11 @@ _PSG_ANALYTE_FAMILIES: tuple[tuple[str, str, str], ...] = (
     ),
 )
 # Compiled forms — pre-build once at import time.
-_PSG_QUERY_RES: tuple[tuple[int, "re.Pattern[str]"], ...] = tuple(
+_PSG_QUERY_RES: tuple[tuple[int, re.Pattern[str]], ...] = tuple(
     (1 << i, re.compile(qp, re.IGNORECASE))
     for i, (_, qp, _) in enumerate(_PSG_ANALYTE_FAMILIES)
 )
-_PSG_LCN_RES: tuple[tuple[int, "re.Pattern[str]"], ...] = tuple(
+_PSG_LCN_RES: tuple[tuple[int, re.Pattern[str]], ...] = tuple(
     (1 << i, re.compile(lp, re.IGNORECASE))
     for i, (_, _, lp) in enumerate(_PSG_ANALYTE_FAMILIES)
 )
@@ -2128,7 +2125,7 @@ def _build_sleep_wake_keep_mask(cache: dict) -> np.ndarray:
     return mask
 
 
-def _wake_duration_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _wake_duration_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """When a sleep-context query asks for wake/清醒 stage duration,
     restrict to the dedicated wake codes (103215-0 WASO / 103210-1
     Awakening duration / 93827-4 Nighttime awakening / 93828-2 Nighttime
@@ -2151,7 +2148,7 @@ def _wake_duration_keep(query_text: str, cache: dict) -> "np.ndarray | None":
 
 def _psg_no_loinc_extras_keep(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Force-null for PSG queries outside the analyte-family region:
     PSG signal artifact tracking, stage-stratified non-respiratory
     measurements (CO2 / HR / temperature / BP × REM / non-REM / N1-N4).
@@ -2236,7 +2233,7 @@ def should_force_null_loinc(query_text: str) -> bool:
     return (qbits & ~effective_no_loinc_bits) == 0
 
 
-def _sleep_analyte_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _sleep_analyte_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """When a sleep-context query names a specific PSG analyte (PLM /
     apnea / hypopnea / oxygen desaturation / respiration rate / body
     posture / snoring / arousal), require the LOINC row's LCN to
@@ -2383,7 +2380,7 @@ def _build_multi_hour_collection_mask(cache: dict) -> np.ndarray:
     return mask
 
 
-def _per_hour_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _per_hour_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """When the query carries an explicit ``每小时 / per hour /
     hourly`` marker, drop LOINC rows whose LCN encodes a multi-hour
     timed collection (``in 24 hour Urine``, ``in 12 hour Urine``,
@@ -2492,7 +2489,7 @@ _SOURCE_TO_SPECIMEN: dict[str, str] = {
 # ``2200 胃肠功能 - 粪便·Y``). Matched against the indicator portion
 # (post-source-comma). First-match wins, in declaration order — put
 # specific markers (``心包液``) before generic ones (``血``).
-_INDICATOR_TO_SPECIMEN: tuple[tuple["re.Pattern[str]", str], ...] = (
+_INDICATOR_TO_SPECIMEN: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"心包液|心包腔|pericardial\s+fluid"), "pericardial_fluid"),
     (re.compile(r"腹腔液|腹水|腹腔积液|peritoneal\s+fluid|ascit"), "peritoneal_fluid"),
     (re.compile(r"胸腔液|胸水|胸腔积液|pleural\s+fluid"), "pleural_fluid"),
@@ -2540,7 +2537,7 @@ _INDICATOR_TO_SPECIMEN: tuple[tuple["re.Pattern[str]", str], ...] = (
 # Specimen-family LCN regexes for the indicator-side detector. Single
 # specimen per family (no multi-fluid sites), so simpler than the
 # source-routed urine/stool/serum_or_blood patterns.
-_INDICATOR_SPECIMEN_LCN_RES: dict[str, "re.Pattern[str]"] = {
+_INDICATOR_SPECIMEN_LCN_RES: dict[str, re.Pattern[str]] = {
     "pericardial_fluid": re.compile(r"\bin\s+Pericardial\s+(?:fluid|fld)\b", re.IGNORECASE),
     "peritoneal_fluid":  re.compile(r"\bin\s+Peritoneal\s+(?:fluid|fld)\b|\bin\s+Ascites\b", re.IGNORECASE),
     "pleural_fluid":     re.compile(r"\bin\s+Pleural\s+(?:fluid|fld)\b", re.IGNORECASE),
@@ -2566,7 +2563,7 @@ _RANDOM_URINE_QUERY_RE = re.compile(
 # Specimen-family → LCN regex matching the ``in <specimen>`` qualifier.
 # ``in N hour <specimen>`` variants are caught by the same patterns —
 # the LCN word boundary is on the specimen token, not the time prefix.
-_SPECIMEN_LCN_RES: dict[str, "re.Pattern[str]"] = {
+_SPECIMEN_LCN_RES: dict[str, re.Pattern[str]] = {
     "urine": re.compile(
         r"\bin\s+(?:\d+\s+hour\s+)?Urine\b"
         r"|\bin\s+Urine\b|\bin\s+Random\s+urine\b"
@@ -2659,7 +2656,7 @@ _SOURCE_PREFIX_RE = re.compile(r"^\s*([^,，\n]+)[,，]")
 
 def _build_specimen_keep_mask(
     cache: dict, specimen_family: str,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Return a keep-mask matching LOINC rows whose LCN carries an
     ``in <specimen>`` qualifier compatible with *specimen_family*, OR
     rows with no specimen qualifier at all. Cached on *cache* keyed by
@@ -2728,7 +2725,7 @@ _ROLE_IDENTIFIER_LEAF_RE = re.compile(
 )
 
 
-def _role_identifier_null(query_text: str, cache: dict) -> "np.ndarray | None":
+def _role_identifier_null(query_text: str, cache: dict) -> np.ndarray | None:
     """Force-null for queries whose indicator is *entirely* a role /
     team / examiner identifier (``医生`` / ``医疗团队`` / ``care
     team`` / …). LOINC's note-class rows shadow these on cosine
@@ -2884,7 +2881,7 @@ _SECTION_DEMOTE_QUERY_LICENSE_RE = re.compile(
 
 def _section_demote_keep(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """When the query routes to section_header (last-segment is a
     multilingual section phrase) AND carries no specialty/condition
     licensing marker, drop the over-specialized section rows in
@@ -2939,7 +2936,7 @@ def _build_specimen_acceptable_mask(cache: dict) -> np.ndarray:
 
 def _specimen_acceptable_demote_keep(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Drop ``Specimen X acceptable`` QC rows for queries that don't
     carry a specimen-quality / acceptability marker. Silent when the
     query explicitly asks for QC."""
@@ -3010,7 +3007,7 @@ def _build_doc_ontology_mask(cache: dict) -> np.ndarray:
 
 def _doc_ontology_demote_keep(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Drop CLASS=DOC.ONTOLOGY note/report rows when the query carries
     no documentation marker. Wired into
     :data:`_TOPK_PROBE_FALLBACK_FILTERS` so queries whose body part has
@@ -3092,7 +3089,7 @@ def _build_lipoprotein_nonspecific_mask(cache: dict) -> np.ndarray:
 
 def _lipoprotein_nonspecific_demote_keep(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Drop ``Lipoprotein.{alpha,beta,pre-beta}`` / generic
     ``Lipoproteins`` / ``Lipoprotein fractions`` rows when the query
     carries an HDL/LDL density specifier but no electrophoresis
@@ -3106,7 +3103,7 @@ def _lipoprotein_nonspecific_demote_keep(
 
 def _build_indicator_specimen_keep_mask(
     cache: dict, specimen_family: str,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Indicator-side specimen keep-mask. Mirror of
     :func:`_build_specimen_keep_mask` for the
     :data:`_INDICATOR_SPECIMEN_LCN_RES` body-fluid families
@@ -3158,7 +3155,7 @@ def _build_multi_hour_urine_drop_mask(cache: dict) -> np.ndarray:
     return mask
 
 
-def _source_specimen_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _source_specimen_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """Source-prefix → specimen-family LOINC keep mask, with indicator-
     side specimen fallback.
 
@@ -3278,7 +3275,7 @@ _CHEMICAL_IRS_NO_LOINC_HAPTEN_RE = re.compile(
 )
 
 
-def _chemical_irs_no_loinc_null(query_text: str, cache: dict) -> "np.ndarray | None":
+def _chemical_irs_no_loinc_null(query_text: str, cache: dict) -> np.ndarray | None:
     """Force-null for chemical-IRS queries naming a hapten LOINC
     doesn't enumerate. Mirror of :func:`_cn_no_loinc_null` for the
     Cyrex-style chemical-immune-reactivity space — same idea (LOINC
@@ -3325,7 +3322,7 @@ _ACID_LEAF_SUFFIX = (
     r")?$"
 )
 _ACID_LEAF_PREFIX = r"^\s*(?:总|總|游离|游離)?"
-_NON_FA_ORGANIC_ACIDS: tuple[tuple["re.Pattern[str]", str], ...] = (
+_NON_FA_ORGANIC_ACIDS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(_ACID_LEAF_PREFIX + r"(?:甲酸|蚁酸|蟻酸|formic\s+acid|formate)"
                 + _ACID_LEAF_SUFFIX, re.IGNORECASE), "Formate"),
     (re.compile(_ACID_LEAF_PREFIX + r"(?:乙酸|醋酸|acetic\s+acid|acetate)"
@@ -3404,7 +3401,7 @@ _MICROBIOLOGY_LEAF_RE = re.compile(
 
 def _organic_acid_disambiguate_keep(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Restrict to COMPONENT=<organic-acid> rows when the query's *leaf*
     segment (after the last ``·``) names a specific non-FA organic
     acid (Formate / Acetate / Propanoate / Oxalate). Mirror of
@@ -3463,7 +3460,7 @@ _BICARBONATE_QUERY_RE = re.compile(
 )
 
 
-def _build_carbonate_component_mask(cache: dict) -> "np.ndarray | None":
+def _build_carbonate_component_mask(cache: dict) -> np.ndarray | None:
     """Tag LOINC rows whose COMPONENT axis is bare ``Carbonate`` (NOT
     ``Bicarbonate`` / ``Carbonate dehydratase`` / similar compounds).
     Cached on *cache*."""
@@ -3491,7 +3488,7 @@ def _build_carbonate_component_mask(cache: dict) -> "np.ndarray | None":
 
 def _bicarbonate_disambiguate_keep(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Drop COMPONENT=Carbonate rows when the query asks for bicarbonate.
     Silent otherwise.
     """
@@ -3511,7 +3508,7 @@ def _bicarbonate_disambiguate_keep(
 # subtype suffix) avoids over-firing on compound species names.
 #
 # Add new entries when an embedder-gap surfaces in sample review.
-_CN_ANALYTE_LCN_TABLE: tuple[tuple["re.Pattern[str]", str], ...] = (
+_CN_ANALYTE_LCN_TABLE: tuple[tuple[re.Pattern[str], str], ...] = (
     # NMP-22 — Nuclear matrix protein 22. ``核基质蛋白`` is unique
     # to this analyte in clinical Chinese (vs ``Neuronal nuclear``).
     # Anchor: bare ``核基质蛋白`` (no following digit), or with the
@@ -3559,7 +3556,7 @@ def _build_component_lcn_prefix_mask(
 
 def _cn_analyte_disambiguate_keep(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Restrict to LCN-prefix-matching rows when the query's *leaf*
     segment carries a CN analyte name that the embedder fails to map
     (``核基质蛋白`` / ``转谷氨酰胺酶`` / ``胰岛素瘤抗原 2``).
@@ -3635,7 +3632,7 @@ def _build_nkt_lcn_mask(cache: dict) -> np.ndarray:
 
 def _nkt_vs_nk_keep(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Restrict to CD3+CD56+ (NKT) LOINC rows when the query carries
     an NKT anchor — ``自然杀伤 T 细胞`` / ``NKT`` / ``natural killer T``.
     Drops the bare-NK rows (CD3-CD56+ / CD3-CD16+CD56+) which cosine
@@ -3696,7 +3693,7 @@ def _build_tcr_subset_mask(cache: dict) -> np.ndarray:
 
 def _tcr_subset_demote_keep(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Drop TCR αβ / γδ subset LOINC rows when the query carries no
     TCR-receptor license marker. Pan-T queries (``总 T 细胞数`` /
     ``Total T cell``) should land on the CD3 pan-T markers
@@ -4000,7 +3997,7 @@ _CONCEPT_NO_LOINC_QUERY_RE = re.compile(
 
 def _concept_no_loinc_null(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Force-null for queries naming concepts LOINC doesn't enumerate
     (sleep efficiency, generic Z-score, imaging section header,
     parvalbumin food panel, FGFR3 autoantibody, sleep-time-fraction-
@@ -4079,7 +4076,7 @@ def _build_rapid_immunoassay_mask(cache: dict) -> np.ndarray:
 
 def _rapid_immunoassay_keep(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Drop ``by Rapid immunoassay`` LOINC rows when (a) the query
     carries no rapid / POC / 快速 / 床旁 license AND (b) a non-Rapid
     sibling exists in the same method-stripped analyte family.
@@ -4149,7 +4146,7 @@ def _build_panel_class_mask(cache: dict) -> np.ndarray:
     return mask
 
 
-def _panel_demote_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _panel_demote_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """Drop PANEL.* CLASS rows when the query has no panel-license
     marker (``组合 / panel / profile / group / battery / etc.``).
     Wired into :data:`_TOPK_PROBE_FALLBACK_FILTERS` so true panel
@@ -4220,7 +4217,7 @@ def _build_micro_incompatible_class_mask(cache: dict) -> np.ndarray:
 
 def _micro_chem_demote_keep(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Drop CLASS=CHEM / PANEL.CHEM rows when the indicator leaf names
     a microorganism (``菌 / 球 / 杆 / 螺旋体 / 寄生虫 / 病毒 / 阿米巴
     / Bacterium sp``) via :data:`_MICROBIOLOGY_LEAF_RE`.
@@ -4450,7 +4447,7 @@ def _build_organism_anchor_mask(
 
 def _organism_anchor_keep(
     query_text: str, cache: dict,
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """Restrict LOINC rows to those whose LCN names the same organism
     the indicator leaf asks for.
 
@@ -4570,7 +4567,7 @@ _DURATION_ANALYTE_QUERY_RE = re.compile(
 )
 
 
-def _mean_time_aspect_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _mean_time_aspect_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """When the query asks for a mean / average value AND LOINC has at
     least one ``^mean`` TIME_ASPCT row in cosine reach, restrict to
     mean / median TIME_ASPCT rows. Wired into
@@ -4637,7 +4634,7 @@ def _build_semiqn_scale_mask(cache: dict) -> np.ndarray:
     return mask
 
 
-def _semiqn_scale_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _semiqn_scale_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """For queries carrying an explicit semi-quantitative marker
     (``半定量``, ``semi-quantitative``, ``titer``, ``滴度``, ``grade``),
     restrict candidates to LOINC rows whose SCALE_TYP is ``SemiQn`` or
@@ -4658,7 +4655,7 @@ def _semiqn_scale_keep(query_text: str, cache: dict) -> "np.ndarray | None":
     return _build_semiqn_scale_mask(cache)
 
 
-def _food_igg_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _food_igg_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """For food-sensitivity / chemical-immune-reactivity queries
     (``食物免疫反应筛查测试·X``, ``化学免疫反应筛查·X``, ``麸质
     交叉反应食物·X``), enforce antibody-class matching.
@@ -4692,7 +4689,7 @@ def _food_igg_keep(query_text: str, cache: dict) -> "np.ndarray | None":
     return ~_build_food_non_igg_mask(cache)
 
 
-def _predicted_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _predicted_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """Drop LOINC rows whose display name carries ``predicted`` /
     ``expected`` / 预计 / 参考值 / etc. when the query carries no
     such reference-value marker.
@@ -4754,7 +4751,7 @@ def _make_spec_mask_keep(family_key: str) -> _LoincKeepFilter:
     "no opinion" (pass through); a boolean ndarray is a row-keep
     mask. :func:`_compose_loinc_keep` AND-merges all returned masks.
     """
-    def _keep(query_text: str, cache: dict) -> "np.ndarray | None":
+    def _keep(query_text: str, cache: dict) -> np.ndarray | None:
         from .specificity import (
             _ensure_loinc_masks,
             query_licensed_families,
@@ -4771,7 +4768,7 @@ def _make_spec_mask_keep(family_key: str) -> _LoincKeepFilter:
     return _keep
 
 
-def _analyte_concept_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _analyte_concept_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """Drop LOINC rows whose name carries the opposite Ag/Ab token to
     the query's LAST marker. Multilingual (English / Chinese / Japanese
     / Korean / Spanish / German / French / Russian). Rows with neither
@@ -4853,7 +4850,7 @@ def _build_loinc_letter_index(cache: dict) -> dict[str, np.ndarray]:
     return index
 
 
-def _letter_analyte_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _letter_analyte_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """Require LOINC names to carry the query's standalone uppercase-
     letter analyte (e.g. ``抗D抗体`` → require ``D``; ``Hep B 表面
     抗原`` → require ``B``). Scoped to queries that already match
@@ -4972,7 +4969,7 @@ def _build_nonspecific_specimen_mask(cache: dict) -> np.ndarray:
     return mask
 
 
-def _nonspecific_specimen_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _nonspecific_specimen_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """Drop LOINC rows with SYSTEM='XXX' (``in Specimen``) when a
     same-COMPONENT peer with a specific specimen exists AND the query
     carries no specimen license.
@@ -5219,7 +5216,7 @@ def _ratio_side_tokens(side: str) -> tuple[set[str], bool]:
 
 def _build_loinc_ratio_orientations(
     cache: dict,
-) -> "list[tuple[str, str] | None]":
+) -> list[tuple[str, str] | None]:
     """For each corpus row, return ``(head, tail)`` from the row's
     COMPONENT axis split on the FIRST ``/``, or ``None`` if the row's
     COMPONENT is missing or doesn't carry a pair shape.
@@ -5264,7 +5261,7 @@ def _build_loinc_ratio_orientations(
 
 
 
-def _intake_recall_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _intake_recall_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """Drop LOINC rows whose name carries ``intake N hour Measured /
     Estimated`` (209 dietary-survey instrument codes — ``Vitamin B1
     (Thiamine) intake 24 hour Measured``, ``Iron intake 24 hour
@@ -5292,7 +5289,7 @@ def _intake_recall_keep(query_text: str, cache: dict) -> "np.ndarray | None":
     return ~m
 
 
-def _explicit_dose_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _explicit_dose_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """Match LOINC ``--post N <unit>`` dose qualifiers to explicit
     ``(value, unit)`` tokens in the query. Strict: when the query
     carries no explicit dose, every dose-qualified row is dropped —
@@ -5337,7 +5334,7 @@ def _explicit_dose_keep(query_text: str, cache: dict) -> "np.ndarray | None":
     return matching | ~has_dose
 
 
-def _xxx_challenge_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _xxx_challenge_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """Drop LOINC rows whose name carries the ``XXX challenge``
     placeholder. ``XXX`` is LOINC's parent-code marker for an
     unspecified challenge agent — virtually never the right pick for
@@ -5402,7 +5399,7 @@ def _build_hpv_ag_dna_index(cache: dict) -> tuple[dict[int, list[int]], frozense
     return cache["_hpv_ag_dna_index"]
 
 
-def _hpv_serology_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _hpv_serology_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """Drop legacy HPV serology Ag rows (``Human papilloma virus N
     Ag``, 17xxx range) for queries asking about a specific HPV type
     WHEN LOINC also has a molecular ``Human papilloma virus N
@@ -5429,7 +5426,7 @@ def _hpv_serology_keep(query_text: str, cache: dict) -> "np.ndarray | None":
     return mask
 
 
-def _post_meal_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _post_meal_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """Drop LOINC rows whose name ends in ``--post meal`` /
     ``--postprandial`` (a specific 75-g-glucose-vs-meal protocol
     distinction the embedding can't reliably make) when the query
@@ -5450,7 +5447,7 @@ def _post_meal_keep(query_text: str, cache: dict) -> "np.ndarray | None":
     return ~m
 
 
-def _challenge_time_keep(query_text: str, cache: dict) -> "np.ndarray | None":
+def _challenge_time_keep(query_text: str, cache: dict) -> np.ndarray | None:
     """Filter LOINC rows by ``--N hours? post X`` challenge-time match
     against the query's explicit time tokens. Hybrid strict-with-
     fallback semantics:
@@ -5688,9 +5685,9 @@ _TOPK_PROBE_FALLBACK_FILTERS = frozenset({
 def _compose_loinc_keep(
     query_text: str,
     cache: dict,
-    sims_row: "np.ndarray | None" = None,
-    loinc_idxs: "np.ndarray | None" = None,
-) -> "np.ndarray | None":
+    sims_row: np.ndarray | None = None,
+    loinc_idxs: np.ndarray | None = None,
+) -> np.ndarray | None:
     """Walk ``_LOINC_FILTERS`` and AND-merge every non-None keep mask.
     Returns ``None`` when no filter fires for the query (fast path —
     caller skips the mask intersection in ``_loinc_picks_topk``).
@@ -5713,8 +5710,8 @@ def _compose_loinc_keep(
     """
     from ..embeddings.preprocess import normalize_roman_numerals
     query_text = normalize_roman_numerals(query_text)
-    keep: "np.ndarray | None" = None
-    topk_idx: "np.ndarray | None" = None
+    keep: np.ndarray | None = None
+    topk_idx: np.ndarray | None = None
     if sims_row is not None and loinc_idxs is not None and len(loinc_idxs) > 0:
         k = min(10, len(loinc_idxs))
         topk_idx = loinc_idxs[
@@ -6001,7 +5998,7 @@ def _loinc_picks_topk(
     # units; the Chinese query (``神经递质·去甲肾上腺素``) doesn't
     # license either direction, so the right behavior is to preserve
     # whatever PROPERTY the picker's earlier stages chose.
-    property_ridx: "np.ndarray | None" = None
+    property_ridx: np.ndarray | None = None
     if cache is not None:
         from .axis import load_axis_centroids
         _axis_data_for_prop = load_axis_centroids(cache)
@@ -6420,7 +6417,7 @@ _HYBRID_LOINC_AXES: tuple[str, ...] = (
 # cache on the cache dict (``_snomed_spec_mod_<family>_mask``), so the
 # regex scan over ~38 k anatomy+specimen FSNs is paid once per
 # resolve_many call.
-_SNOMED_SPEC_MODIFIER_FAMILIES: tuple[tuple[str, "re.Pattern[str]", "re.Pattern[str]"], ...] = (
+_SNOMED_SPEC_MODIFIER_FAMILIES: tuple[tuple[str, re.Pattern[str], re.Pattern[str]], ...] = (
     # ── Time-qualified collection windows ───────────────────────────
     # SNOMED has 5 such specimens (12 h / 24 h / 48 h / 72 h urine,
     # 24 h / 48 h stool). Without the marker, indicator queries like
@@ -6480,7 +6477,7 @@ _SNOMED_SPEC_MODIFIER_FAMILIES: tuple[tuple[str, "re.Pattern[str]", "re.Pattern[
 
 
 def _ensure_snomed_spec_modifier_mask(
-    cache: dict, family: str, corpus_re: "re.Pattern[str]", names: list[str],
+    cache: dict, family: str, corpus_re: re.Pattern[str], names: list[str],
 ) -> np.ndarray:
     """Lazy-build per-family bool[N] mask flagging SNOMED specimen /
     anatomy FSNs that carry a modifier prefix / token. Cached on the
@@ -6533,8 +6530,8 @@ def _build_hybrid_axes(
     pos: int,
     pick_row: int,
     axis_data: dict,
-    sys_centroid_sims: "np.ndarray | None",
-    hybrid_snomed_bs_idxs: "np.ndarray | None",
+    sys_centroid_sims: np.ndarray | None,
+    hybrid_snomed_bs_idxs: np.ndarray | None,
     sims_row: np.ndarray,
     fhir_ids: np.ndarray,
     code_strs: dict,
@@ -6933,7 +6930,7 @@ async def resolve_many(
             _is_section_header_term,
             section_header_pool_mask,
         )
-        sh_mask_arr: "np.ndarray | None" = None
+        sh_mask_arr: np.ndarray | None = None
         sh_pos: list[bool] = [False] * len(queries)
         for _pos, _term in enumerate(queries):
             if not _is_section_header_term(_term):
@@ -6985,7 +6982,7 @@ async def resolve_many(
                     rank_cache[cls] = rank
                 scale_match_for_pos[pos] = rank
 
-        for pos, (slot, term) in enumerate(zip(slot_of, queries)):
+        for pos, (slot, term) in enumerate(zip(slot_of, queries, strict=False)):
             loinc_keep = _compose_loinc_keep(
                 term, cache, sims[pos], sys_indices.get("LOINC"),
             )

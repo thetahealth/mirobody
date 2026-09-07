@@ -12,9 +12,11 @@ import logging
 from ...pulse import setup_platform_system_async
 from ...pulse.providers.platform.startup import start_theta_pull_scheduler
 
+logger = logging.getLogger(__name__)
+
 
 async def init():
-    logging.info("start init db...")
+    logger.info("start init db...")
     await setup_platform_system_async()
     await start_theta_pull_scheduler()
     
@@ -22,9 +24,9 @@ async def init():
     try:
         from ...pulse.aggregate.startup import start_aggregate_indicator_scheduler
         await start_aggregate_indicator_scheduler(False)
-        logging.info("Aggregate indicator scheduler started")
+        logger.info("Aggregate indicator scheduler started")
     except Exception as e:
-        logging.error(f"Failed to start aggregate indicator scheduler: {str(e)}")
+        logger.error(f"Failed to start aggregate indicator scheduler: {str(e)}")
         raise  # Re-raise to prevent service from starting if tests fail
 
     # Start standard indicator registry task — publishes in-code
@@ -33,6 +35,6 @@ async def init():
     try:
         from ...pulse.standardize.std_indicator_registry.startup import start_std_indicator_registry
         await start_std_indicator_registry()
-        logging.info("Std indicator registry task started")
+        logger.info("Std indicator registry task started")
     except Exception as e:
-        logging.error(f"Failed to start std indicator registry task: {str(e)}")
+        logger.error(f"Failed to start std indicator registry task: {str(e)}")

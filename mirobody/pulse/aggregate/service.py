@@ -8,13 +8,15 @@ No longer manages locks, timestamps, or stats caching - these are handled by Tas
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .aggregators import SQLAggregator, AggregatorProtocol
 from .database_service import AggregateDatabaseService
 from .rule_generator import get_rules_by_source_indicator
 from ..standardize.fhir_mapping import get_fhir_id, FhirMapping
 from ..standardize.indicators_info import StandardIndicator
+
+logger = logging.getLogger(__name__)
 
 
 class AggregateIndicatorService:
@@ -33,8 +35,8 @@ class AggregateIndicatorService:
 
     def __init__(
             self,
-            aggregator: Optional[AggregatorProtocol] = None,
-            db_service: Optional[AggregateDatabaseService] = None,
+            aggregator: AggregatorProtocol | None = None,
+            db_service: AggregateDatabaseService | None = None,
     ):
         """
         Initialize service with dependency injection
@@ -46,15 +48,15 @@ class AggregateIndicatorService:
         self.db_service = db_service or AggregateDatabaseService()
         self.aggregator = aggregator or SQLAggregator()
 
-        logging.info(
+        logger.info(
             f"Initialized AggregateIndicatorService with {type(self.aggregator).__name__}"
         )
 
     async def process_incremental(
         self,
-        last_timestamp: Optional[float] = None,
-        user_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        last_timestamp: float | None = None,
+        user_id: str | None = None
+    ) -> dict[str, Any]:
         """
         Main incremental processing function - Pure business logic
 
@@ -84,7 +86,7 @@ class AggregateIndicatorService:
             else:
                 mode = "normal"
 
-            logging.info(
+            logger.info(
                 f"[AggregateIndicator] Processing mode={mode}, "
                 f"last_timestamp={last_timestamp}"
             )
@@ -95,10 +97,10 @@ class AggregateIndicatorService:
             )
 
             if not tasks:
-                logging.info("[AggregateIndicator] No trigger tasks found")
+                logger.info("[AggregateIndicator] No trigger tasks found")
                 return {"status": "no_data", "mode": mode}
 
-            logging.info(f"[AggregateIndicator] Found {len(tasks)} trigger tasks")
+            logger.info(f"[AggregateIndicator] Found {len(tasks)} trigger tasks")
 
             # Business logic: Calculate aggregations
             all_summaries = await self.aggregator.calculate_batch_aggregations(tasks)
@@ -114,8 +116,14 @@ class AggregateIndicatorService:
                     all_summaries
                 )
                 if not save_success:
-                    logging.error("[AggregateIndicator] Failed to save data")
+                    logger.error("[AggregateIndicator] Failed to save data")
                     return {"status": "save_failed", "mode": mode}
+
+                # Election runs HERE, once, on the write side: which source a
+                # day publishes from is one decision, and answering it at read
+                # time in two places is how a chat answer and a dashboard came
+                # to show two numbers for the same Tuesday. See election.py.
+                await self._elect_written_days(all_summaries)
 
             # Calculate new timestamp for Task to cache.
             # Keep sub-second precision: series_data.update_time is
@@ -129,10 +137,10 @@ class AggregateIndicatorService:
             # Calculate execution time
             execution_time_ms = (time.time() - start_time) * 1000
 
-            logging.info(
+            logger.info(
                 f"[AggregateIndicator] Completed: "
                 f"{len(all_summaries)} summaries created, "
-                f"{len(set(task.user_id for task in tasks))} users affected, "
+                f"{len({task.user_id for task in tasks})} users affected, "
                 f"execution_time={execution_time_ms:.1f}ms"
             )
 
@@ -140,17 +148,17 @@ class AggregateIndicatorService:
                 "status": "success",
                 "mode": mode,
                 "summaries_created": len(all_summaries),
-                "users_affected": len(set(task.user_id for task in tasks)),
+                "users_affected": len({task.user_id for task in tasks}),
                 "execution_time_ms": execution_time_ms,
                 "new_timestamp": new_timestamp  # Task will cache this
             }
 
         except Exception as e:
-            logging.error(f"[AggregateIndicator] Error during processing: {e}")
+            logger.error(f"[AggregateIndicator] Error during processing: {e}")
             return {"status": "error", "error": str(e)}
 
     @staticmethod
-    def _backfill_fhir_ids(summaries: List[Dict[str, Any]]):
+    def _backfill_fhir_ids(summaries: list[dict[str, Any]]):
         """Re-fill fhir_id on summaries that were None (cache was updated by register_missing)."""
         backfilled = 0
         for summary in summaries:
@@ -160,7 +168,7 @@ class AggregateIndicatorService:
                     summary["fhir_id"] = fhir_id
                     backfilled += 1
         if backfilled:
-            logging.info(f"[FhirMapping] Backfilled {backfilled} fhir_ids before save")
+            logger.info(f"[FhirMapping] Backfilled {backfilled} fhir_ids before save")
 
     async def _register_missing_fhir_indicators(self):
         """Register any pending FHIR indicators (auto_register mode only)."""
@@ -199,14 +207,14 @@ class AggregateIndicatorService:
 
             await instance.register_missing(info_map)
         except Exception as e:
-            logging.warning(f"[AggregateIndicator] FHIR registration skipped: {e}")
+            logger.warning(f"[AggregateIndicator] FHIR registration skipped: {e}")
 
     async def recalculate_date_range(
             self,
             start_date: datetime,
             end_date: datetime,
-            user_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+            user_id: str | None = None
+    ) -> dict[str, Any]:
         """
         Recalculate aggregations for a specific date range
         
@@ -234,7 +242,7 @@ class AggregateIndicatorService:
                     ),
                 }
 
-        logging.info(
+        logger.info(
             f"Starting historical recalculation: {start_date.isoformat()} to {end_date.isoformat()}, "
             f"user={user_id or 'all'}"
         )
@@ -256,8 +264,9 @@ class AggregateIndicatorService:
             save_success = await self.db_service.batch_save_summary_data(all_summaries)
             if not save_success:
                 return {"status": "error", "error": "Failed to save summary data"}
+            await self._elect_written_days(all_summaries)
 
-        logging.info(
+        logger.info(
             f"Historical recalculation completed: {len(all_summaries)} summaries created"
         )
 
@@ -267,6 +276,35 @@ class AggregateIndicatorService:
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat()
         }
+
+
+    async def _elect_written_days(self, summaries: list[dict]) -> None:
+        """Re-elect every (person, day) this pass wrote.
+
+        Scoped to what changed rather than to the whole history: a person's
+        day is a few hundred cells, and re-electing a year on every four-minute
+        tick would be a background job pretending to be an incremental one.
+
+        Failure is logged and swallowed. An unelected day still ANSWERS — the
+        readers fall back to the newest row and say so in the provenance — and
+        an aggregation pass that refuses to finish because of it would be a
+        worse outcome than a day that is merely not yet arbitrated.
+        """
+        from .election import elect_range
+        from ..readings import day_key
+
+        by_user: dict[str, list] = {}
+        for row in summaries:
+            day = day_key(str(row.get("indicator") or ""), row.get("start_time"), anchored=True)
+            if day is not None:
+                by_user.setdefault(str(row.get("user_id")), []).append(day)
+        for user_id, days in by_user.items():
+            try:
+                await elect_range(user_id, min(days), max(days))
+            except Exception as e:
+                logger.warning(
+                    "[AggregateIndicator] election skipped for one subject: error_type=%s", type(e).__name__
+                )
 
     # ========== Redis Operations ==========
 

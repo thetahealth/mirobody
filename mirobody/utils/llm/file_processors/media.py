@@ -12,10 +12,12 @@ import base64
 import io
 import logging
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import pypdfium2 as pdfium
 from PIL import Image
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 
@@ -28,7 +30,7 @@ class FileProcessor:
         max_dimension: int = 2048,
         quality: int = 85,
         format: str = "JPEG"
-    ) -> Tuple[bytes, dict]:
+    ) -> tuple[bytes, dict]:
         """Optimize image by reducing resolution and applying compression."""
         try:
             start_time = time.time()
@@ -53,7 +55,7 @@ class FileProcessor:
                 scale = min(max_dimension / width, max_dimension / height)
                 new_width, new_height = int(width * scale), int(height * scale)
                 img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-                logging.info(f"📐 Image resized: {original_width}x{original_height} → {new_width}x{new_height}")
+                logger.info(f"Image resized: {original_width}x{original_height} → {new_width}x{new_height}")
 
             # Save optimized image
             output = io.BytesIO()
@@ -73,12 +75,12 @@ class FileProcessor:
                 "optimized_dimensions": img.size,
                 "processing_time": time.time() - start_time
             }
-            logging.info(f"✅ Image optimized: {original_size/1024:.1f}KB → {len(optimized_data)/1024:.1f}KB "
+            logger.info(f"Image optimized: {original_size/1024:.1f}KB → {len(optimized_data)/1024:.1f}KB "
                         f"({compression_ratio:.1f}% reduction)")
             return optimized_data, stats
 
         except Exception as e:
-            logging.warning(f"Image optimization failed: {e}")
+            logger.warning(f"Image optimization failed: {e}")
             return image_data, {"error": str(e), "original_size": len(image_data)}
 
 
@@ -86,7 +88,7 @@ class FileProcessor:
 # Common Processing Utilities
 # =============================================================================
 
-def _convert_pdf_to_base64_images(pdf_path: str, scale: float = 1.5) -> List[Dict[str, Any]]:
+def _convert_pdf_to_base64_images(pdf_path: str, scale: float = 1.5) -> list[dict[str, Any]]:
     """Convert PDF pages to optimized base64 images."""
     pdf = pdfium.PdfDocument(pdf_path)
     page_images = []
@@ -113,13 +115,13 @@ def _convert_pdf_to_base64_images(pdf_path: str, scale: float = 1.5) -> List[Dic
             'conversion_time': conversion_time,
             'stats': stats
         })
-        logging.info(f"Page {page_num + 1} converted in {conversion_time:.2f}s")
+        logger.info(f"Page {page_num + 1} converted in {conversion_time:.2f}s")
 
     pdf.close()
     return page_images
 
 
-def _build_vision_message(base64_image: str, prompt: str, json_mode: bool) -> List[Dict]:
+def _build_vision_message(base64_image: str, prompt: str, json_mode: bool) -> list[dict]:
     """Build OpenAI-compatible vision message."""
     text_content = f"{prompt}. Please return the result in JSON format." if json_mode else prompt
     return [{
@@ -131,7 +133,7 @@ def _build_vision_message(base64_image: str, prompt: str, json_mode: bool) -> Li
     }]
 
 
-def _read_and_optimize_image(image_path: str) -> Tuple[str, dict]:
+def _read_and_optimize_image(image_path: str) -> tuple[str, dict]:
     """Read image file and return optimized base64 string."""
     with open(image_path, "rb") as f:
         img_data = f.read()

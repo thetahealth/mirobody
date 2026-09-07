@@ -26,7 +26,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Coroutine
+from typing import Any
+from collections.abc import Coroutine
+
+logger = logging.getLogger(__name__)
 
 # Strong references, per the documented pattern. Tasks remove themselves on
 # completion so this never grows without bound.
@@ -39,7 +42,7 @@ def _log_result(task: asyncio.Task) -> None:
         return
     exc = task.exception()
     if exc is not None:
-        logging.error(
+        logger.error(
             "background task %r failed: %s", task.get_name(), exc, exc_info=exc,
         )
 

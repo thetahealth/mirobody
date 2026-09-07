@@ -1,23 +1,22 @@
-"""Build backend: setuptools, minus the tests and the build-time-only data.
+"""Build backend: setuptools, minus the build-time-only data and code.
 
-Tests live beside the code they cover and are collected by `pytest` straight
-from the source tree. They must stay in git — `mirobody/test_engine_coverage.py`
-is the 98/98 resolver score the README publishes, and CI runs all of them — but
-they have no business in a consumer's `site-packages`: 33 modules plus 21
-recorded JSON fixtures, ~206 KB, none of it usable by someone who merely
-installed the library.
+The local regression suite lives in a gitignored `tests/` at the repo root and
+never reaches a build. What DOES reach one is the handful of test modules that
+stay inside `mirobody/` because they are EVIDENCE for a public claim — the
+resolver score the README links, the README gates, the export tables. Useful to
+anyone with a checkout, useless in someone's site-packages, so the hook prunes
+them (:func:`_is_test_artifact`), and `scripts/check_wheel_data.py` fails the
+build if one comes back. Also dropped: the terminology artifacts nothing at
+runtime reads (:data:`_BUILD_ONLY_DATA`) and the two bundle-build code trees
+nobody who installs the package can run (:data:`_BUILD_ONLY_CODE`).
 
-`[tool.setuptools.exclude-package-data]` cannot express this, because
-`test_*.py` files are package *code* rather than data. Hooking the build is the
-smallest thing that works, and it covers the wheel and the sdist alike.
-
-The same hook drops the four terminology artifacts nothing at runtime reads
-(:data:`_BUILD_ONLY_DATA`). They are DATA, so `exclude-package-data` ought to
-have handled them — it does not, because the broad `**/*.bin` / `**/*.npy`
-globs in `package-data` win, and the exclusion is not applied to files the
-include globs already matched. Rather than narrow the include globs (which is
-how a newly added data file gets silently forgotten), the exclusion happens
-here, where it is one list with the reason next to it.
+`[tool.setuptools.exclude-package-data]` cannot express the data half, because
+the broad `**/*.bin` / `**/*.npy` globs in `package-data` win, and the exclusion
+is not applied to files the include globs already matched. Rather than narrow
+the include globs (which is how a newly added data file gets silently
+forgotten), the exclusion happens here, where it is one list with the reason
+next to each entry, and `scripts/check_wheel_data.py` fails the build if any
+of it comes back.
 """
 
 from __future__ import annotations
@@ -43,8 +42,6 @@ build_editable = _orig.build_editable
 get_requires_for_build_editable = _orig.get_requires_for_build_editable
 prepare_metadata_for_build_editable = _orig.prepare_metadata_for_build_editable
 
-_EXCLUDED_NAMES = ("conftest.py",)
-
 #: 28 MB of `mirobody/res/` that NO runtime code path reads — grep server/,
 #: agent/, pulse/, mcp/ and task/ for `concept_graph` or `taxonomy` and it comes
 #: back empty. Their readers are `mirobody/indicator/`'s bundle-build tooling
@@ -60,6 +57,10 @@ _EXCLUDED_NAMES = ("conftest.py",)
 _BUILD_ONLY_DATA = frozenset({
     "mirobody/res/fhir_concept_graph.bin",
     "mirobody/res/fhir_snomed_ct_bundle.tar.gz",
+    # The curated analyte-digit table. `BUNDLE_FORBIDDEN` already strips it
+    # from inside the tarball; the loose copy beside it was still shipping,
+    # and its only reader is a pass under a pruned tree.
+    "mirobody/res/analyte_digit_src/analyte_digit_curated.tsv",
     # 1.3.0: the resolver reads `corpus_names.bin` out of the bundle instead of
     # parsing this on every load. `engine.py` was its only runtime reader; the
     # passes that still read it are bundle-build tooling, which does not ship.
@@ -134,12 +135,31 @@ def _slim_bundle(data: bytes) -> bytes:
 _BUILD_ONLY_CODE = (
     "mirobody/indicator/fhir/embeddings/",
     "mirobody/indicator/fhir/resolve/",
+    # …and the CLI that drives them, plus the passes it calls. Every entry
+    # below was SHIPPING while being unable to import from an install: three
+    # of them raise outright (`main.py` imports the two subtrees above;
+    # `bridge.py` and `siblings.py` import polars at module scope, which only
+    # `[indicator-build]` provides), and the rest are subcommand bodies whose
+    # only caller is `main.py`. What is left in the artifact is what an
+    # install can actually run: the resolver's semantic tier, the search
+    # engine, the concept-graph reader, and the FHIR adapter with the index
+    # reader it needs.
+    "mirobody/indicator/embed.py",
+    "mirobody/indicator/resolve.py",
+    "mirobody/indicator/fhir/bridge.py",
+    "mirobody/indicator/fhir/siblings.py",
+    "mirobody/indicator/fhir/merge.py",
+    "mirobody/indicator/fhir/inspect.py",
+    "mirobody/indicator/fhir/graph_builder.py",
+    # 98 KB of auto-generated multilingual LOINC Part tables. `loinc-axis-vocab`
+    # WRITES it and nothing in the repo imports it — it is a build output that
+    # was shipping to every install. Kept in git (a contributor can read it,
+    # and the next build rewrites it), out of the artifact.
+    "mirobody/indicator/fhir/loinc_lookups.py",
+    # The locale plugins for local drug names: their only reach is
+    # `siblings.py:cmd_siblings --nhsa-catalog`, one line above in this list.
+    "mirobody/indicator/fhir/locales/",
 )
-
-
-def _is_test_artifact(path: str) -> bool:
-    name = os.path.basename(path)
-    return name.startswith("test_") and name.endswith(".py") or name in _EXCLUDED_NAMES
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
@@ -234,12 +254,22 @@ def _rewrite_wheel(path: str) -> None:
         shutil.move(tmp_whl, path)
 
 
+#: `conftest.py` too: it is package *code* to setuptools, and a root conftest
+#: in someone's site-packages changes how THEIR pytest collects.
+_EXCLUDED_NAMES = ("conftest.py",)
+
+
+def _is_test_artifact(path: str) -> bool:
+    name = os.path.basename(path)
+    return name.startswith("test_") and name.endswith(".py") or name in _EXCLUDED_NAMES
+
+
 def _should_drop(member: str) -> bool:
     if member in _BUILD_ONLY_DATA:
         return True
     if member.startswith(_BUILD_ONLY_CODE):
         return True
     parts = member.split("/")
-    if "gate_tests" in parts or "fixtures" in parts:
+    if "goldens" in parts or "fixtures" in parts:
         return True
     return _is_test_artifact(member)

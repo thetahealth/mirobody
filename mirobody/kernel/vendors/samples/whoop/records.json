@@ -1,0 +1,66 @@
+{
+  "test_id": "whoop_v2_records",
+  "description": "WHOOP API v2 record shapes (public docs), synthetic values. Pins the two conversions that were wrong by a large factor: kJ → kcal is a division by 4.184; zone milliseconds → minutes is a division by 60,000.",
+  "vendor": "whoop",
+  "cases": [
+    {
+      "data_type": "cycle",
+      "tz": "America/New_York",
+      "input": {
+        "id": 1, "user_id": 7, "start": "2026-06-01T04:00:00.000Z", "end": "2026-06-02T04:00:00.000Z",
+        "score_state": "SCORED",
+        "score": {"strain": 12.3, "kilojoule": 8368.0, "average_heart_rate": 68, "max_heart_rate": 155}
+      },
+      "expected": {
+        "count": 4,
+        "values": {"activeCalories": 2000, "heartRates": 68, "heartRateMax": 155, "strain": 12.3},
+        "window": [1780286400000, 1780372800000]
+      }
+    },
+    {
+      "data_type": "workouts",
+      "tz": "America/New_York",
+      "input": {
+        "id": "w1", "start": "2026-06-01T10:00:00.000Z", "end": "2026-06-01T11:00:00.000Z", "sport_name": "running",
+        "score_state": "SCORED",
+        "score": {
+          "average_heart_rate": 150, "max_heart_rate": 178, "kilojoule": 2092.0, "distance_meter": 9000,
+          "altitude_gain_meter": 55, "altitude_change_meter": 5,
+          "zone_durations": {"zone_zero_milli": 60000, "zone_one_milli": 120000, "zone_two_milli": 600000, "zone_three_milli": 900000, "zone_four_milli": 1200000, "zone_five_milli": 720000}
+        }
+      },
+      "expected": {
+        "count": 9,
+        "values": {"workoutDurationLow": 3, "workoutDurationMedium": 25, "workoutDurationHigh": 32, "activeCalories": 500, "walkingRunningDistances": 9000, "heartRates": 150, "heartRateMax": 178, "altitudeGain": 55, "altitudeChange": 5}
+      }
+    },
+    {
+      "data_type": "recovery",
+      "tz": "America/New_York",
+      "input": {
+        "cycle_id": 1, "created_at": "2026-06-01T12:00:00.000Z", "score_state": "SCORED",
+        "score": {"recovery_score": 66, "resting_heart_rate": 54, "hrv_rmssd_milli": 48.5, "spo2_percentage": 97.2, "skin_temp_celsius": 33.4}
+      },
+      "expected": {"count": 5, "values": {"recoveryScore": 66, "restingHeartRates": 54, "hrvRMSSD": 48.5, "oxygenSaturations": 97.2, "skinTemperature": 33.4}, "start_ms": {"recoveryScore": 1780315200000}}
+    },
+    {
+      "data_type": "sleeps",
+      "tz": "America/New_York",
+      "input": {"id": "s1", "start": "2026-06-01T03:00:00.000Z", "end": "2026-06-01T11:00:00.000Z", "score_state": "PENDING_SCORE", "score": null},
+      "expected": {"count": 0}
+    },
+    {
+      "data_type": "body_measurement",
+      "tz": "America/New_York",
+      "pulled_at_ms": 1780400000000,
+      "input": {"height_meter": 1.78, "weight_kilogram": 72.5, "max_heart_rate": 190},
+      "expected": {"count": 3, "values": {"heights": 1.78, "bodyMasss": 72.5, "maxHeartRateProfile": 190}, "start_ms": {"bodyMasss": 1780400000000}}
+    },
+    {
+      "data_type": "profile",
+      "tz": "America/New_York",
+      "input": {"user_id": 7, "email": "x@example.com"},
+      "expected": {"count": 0}
+    }
+  ]
+}

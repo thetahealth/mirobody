@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import logging
 
-from typing import Optional
 
 # `fastapi` lives in the [app] extra, but file parsing is advertised engine
 # functionality — a bare `pip install mirobody` must import this module. Every
@@ -21,8 +19,6 @@ from mirobody.pulse.file_parser.handlers.audio import AudioHandler
 from mirobody.pulse.file_parser.handlers.text import TextHandler
 from mirobody.pulse.file_parser.handlers.genetic import GeneticHandler
 from mirobody.pulse.file_parser.handlers.excel import ExcelHandler
-from mirobody.utils.i18n import t
-from mirobody.utils.req_ctx import get_req_ctx
 
 class FileHandlerFactory:
     def __init__(
@@ -39,7 +35,7 @@ class FileHandlerFactory:
         self.indicator_extractor = indicator_extractor
         self.abstract_extractor = abstract_extractor
 
-    async def get_handler(self, file: UploadFile) -> Optional[BaseFileHandler]:
+    async def get_handler(self, file: UploadFile) -> BaseFileHandler | None:
         """
         Determine and return the appropriate handler for the file.
         """
@@ -118,7 +114,7 @@ class FileHandlerFactory:
                 abstract_extractor=self.abstract_extractor,
             )
 
-        # 7. Check for Excel — built-in pandas/openpyxl extraction. The
+        # 7. Check for Excel — built-in openpyxl extraction. The
         # `excel_processor` override parameter is gone with the same seam: it
         # was documented as "injected from mcp_server", and no such injector
         # exists here, so the branch was unreachable.

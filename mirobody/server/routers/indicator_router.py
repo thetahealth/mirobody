@@ -1,21 +1,22 @@
 """Health-indicator lookup over REST.
 
 The web client's Indicators tab needs the same answer the agent gets from the
-`query_health_indicators` MCP tool: what indicators does this user have, and
-what are the readings. That logic — the SQL, the terminology join, the
-keyword resolution, the server-side `limit` ceiling — already exists in
-`HealthIndicatorService`, so this router is a serialization boundary and
-nothing more. It must never grow a second copy of the query.
+`query_health_indicators` tool: what indicators does this person have, and what are
+the readings. Both go through the ONE read authority — `query.HealthQuery`,
+implemented by `PostgresHealthQuery` — so this router is a serialization
+boundary and nothing more. It must never grow a second copy of the query; when
+it did, the chat answer and the dashboard could disagree on screen about the
+same day.
 
-**Why a separate route at all, rather than pointing the browser at the MCP
-tool.** The tool answers a model, and its output is shaped for one: readings
-come back as a pipe-delimited table with constant columns hoisted into a
-`(constants: unit=mmol/L)` line, because repeating the unit on 200 rows is
-token cost a third-party MCP client pays for. It also carries prose written at
-the model ("pick from them via `indicators`"). A browser wants arrays of
-objects it can sort and paginate, and parsing that table back into the dicts it
-came from would be a strange thing to ask JavaScript to do. `service.query(...,
-compact=False)` stops before the compaction step; everything upstream is shared.
+**Why a separate route at all, rather than pointing the browser at the tool.**
+The tool answers a model, and its output is shaped for one: pipe-delimited
+tables with constant columns hoisted into a `(constants: unit=mmol/L)` line,
+because repeating the unit on 200 rows is token cost a third-party MCP client
+pays for, plus a methodology line written at the model. A browser wants arrays
+of objects it can sort and paginate, and parsing that table back into the dicts
+it came from would be a strange thing to ask JavaScript to do. `render_rest`
+and `render_compact` are the two serializations of one envelope; everything
+upstream of them is shared.
 
 Until this existed the Indicators tab showed "No indicators yet" while the tab
 badge — fed by a different endpoint that counts rows directly — said 21. The
@@ -26,23 +27,29 @@ contradiction on screen was the only symptom.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
-from ...agent.tools.health_indicator_service import HealthIndicatorService
+from ...pulse.query import REST_CATALOG_MAX, PostgresHealthQuery
+from ...agent.tools.health_indicators_service import HealthIndicatorsService, render_rest
 from ...utils import execute_query
 from ...user.care_circle import CareCircleDenied, resolve_subject
 from ..auth import verify_token
-from .public_router import ErrorResponse, StandardResponse
+from ..envelope import ErrorResponse, StandardResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["indicators"])
 
-_service = HealthIndicatorService()
+# The browser reads through the same authority the model does, with a larger
+# catalogue cap: a table the user scrolls is not a model's context window, and
+# capping it at one hid 44 of the demo user's 244 indicators while reporting
+# `count: 200` as though that were the total.
+_service = HealthIndicatorsService(PostgresHealthQuery(), catalog_cap=REST_CATALOG_MAX)
 
 
-def _split(value: Optional[str]) -> list[str] | None:
+def _split(value: str | None) -> list[str] | None:
     """`?keywords=a,b` or repeated `?keywords=a&keywords=b`, both flattened."""
     if not value:
         return None
@@ -52,13 +59,14 @@ def _split(value: Optional[str]) -> list[str] | None:
 
 @router.get("/health-indicators")
 async def health_indicators(
-    keywords: Optional[str] = Query(None, description="Fuzzy terms; omit for the catalog"),
-    indicators: Optional[str] = Query(None, description="Exact names from a previous call"),
-    start_time: Optional[str] = Query(None, description='Inclusive "YYYY-MM-DD"'),
-    end_time: Optional[str] = Query(None, description='Inclusive "YYYY-MM-DD"'),
-    aggregate: str = Query("none", description="none | stats | day | week | month"),
+    keywords: str | None = Query(None, description="Fuzzy terms; omit for the catalog"),
+    indicators: str | None = Query(None, description="Exact names from a previous call"),
+    start_time: str | None = Query(None, description='Inclusive "YYYY-MM-DD"'),
+    end_time: str | None = Query(None, description='Inclusive "YYYY-MM-DD"'),
+    resolution: str = Query("raw", description="raw | minute | hour | day | week | month"),
+    aggregate: str = Query("none", description="none | stats | latest"),
     limit: int = Query(50, ge=1, le=500),
-    target_user_id: Optional[str] = Query(None, description="Care-circle member to read"),
+    target_user_id: str | None = Query(None, description="Care-circle member to read"),
     user_id: str = Depends(verify_token),
 ):
     """Catalog when neither `keywords` nor `indicators` is given; readings otherwise.
@@ -80,25 +88,26 @@ async def health_indicators(
             return ErrorResponse(code=403, msg="Not permitted to read this member's health data.")
         owner_id = target_user_id
 
-    try:
-        result = await _service._query(
-            owner_id,
-            keywords=_split(keywords),
-            indicators=_split(indicators),
-            start_time=start_time,
-            end_time=end_time,
-            aggregate=aggregate,
-            limit=limit,
-            compact=False,
-        )
-    except Exception as e:
-        logging.error(f"[health_indicators] {e}", exc_info=True)
-        return ErrorResponse(code=500, msg="This lookup could not complete.")
+    args = {
+        "keywords": _split(keywords),
+        "indicators": _split(indicators),
+        "start": start_time,
+        "end": end_time,
+        "resolution": resolution,
+        "aggregate": aggregate,
+    }
+    # `limit` only applies to raw rows without aggregation — the same rule the
+    # model is held to, so the two surfaces cannot answer differently for the
+    # same arguments.
+    if (resolution, aggregate) == ("raw", "none"):
+        args["limit"] = limit
+    envelope = await _service.envelope({"user_id": owner_id}, **{k: v for k, v in args.items() if v})
 
-    if not result.get("success"):
-        return ErrorResponse(code=400, msg=result.get("error") or "This lookup could not complete.")
+    if envelope.status == "error":
+        code = 400 if envelope.error_class == "recoverable" else 500
+        return ErrorResponse(code=code, msg="; ".join(envelope.assumptions) or "This lookup could not complete.")
 
-    return StandardResponse(data={k: v for k, v in result.items() if k != "success"})
+    return StandardResponse(data=render_rest(envelope))
 
 
 class ReadingPatch(BaseModel):
@@ -111,7 +120,7 @@ class ReadingPatch(BaseModel):
     """
 
     id: int = Field(gt=0, description="th_series_data row id, from the readings payload")
-    value: Optional[str] = Field(None, max_length=200, description="Corrected value")
+    value: str | None = Field(None, max_length=200, description="Corrected value")
     delete: bool = Field(False, description="Soft-delete this reading instead")
 
 
@@ -144,7 +153,7 @@ async def patch_reading(patch: ReadingPatch, user_id: str = Depends(verify_token
     try:
         rows = await execute_query(sql, params)
     except Exception as e:
-        logging.error(f"[patch_reading] {e}", exc_info=True)
+        logger.error(f"[patch_reading] {e}", exc_info=True)
         return ErrorResponse(code=500, msg="This update could not complete.")
 
     if not rows:
@@ -168,7 +177,7 @@ class FileDatePatch(BaseModel):
     """
 
     file_key: str = Field(min_length=1, max_length=255)
-    report_date: Optional[str] = Field(
+    report_date: str | None = Field(
         None,
         description='"YYYY-MM-DD" (a time may follow). Omit to keep the upload time and stop asking.',
     )
@@ -212,6 +221,6 @@ async def patch_file_date(patch: FileDatePatch, user_id: str = Depends(verify_to
     try:
         data = await set_file_report_date(owner, patch.file_key, when)
     except Exception as e:
-        logging.error(f"[patch_file_date] {e}", exc_info=True)
+        logger.error(f"[patch_file_date] {e}", exc_info=True)
         return ErrorResponse(code=500, msg="This update could not complete.")
     return StandardResponse(data=data)

@@ -27,6 +27,7 @@ recursive-exclude frontend *
 exclude mirobody/res/fhir_concept_graph.bin
 exclude mirobody/res/fhir_snomed_ct_bundle.tar.gz
 exclude mirobody/res/fhir_meta.csv.gz
+exclude mirobody/res/analyte_digit_src/analyte_digit_curated.tsv
 
 # The sdist half of _BUILD_ONLY_CODE — the bundle-build passes and the v2
 # semantic pipeline. Neither can run from an install: the first needs raw
@@ -34,3 +35,12 @@ exclude mirobody/res/fhir_meta.csv.gz
 # embedding matrix that ships on a volume. Both stay in git for contributors.
 recursive-exclude mirobody/indicator/fhir/embeddings *
 recursive-exclude mirobody/indicator/fhir/resolve *
+exclude mirobody/indicator/embed.py
+exclude mirobody/indicator/resolve.py
+exclude mirobody/indicator/fhir/bridge.py
+exclude mirobody/indicator/fhir/siblings.py
+exclude mirobody/indicator/fhir/merge.py
+exclude mirobody/indicator/fhir/inspect.py
+exclude mirobody/indicator/fhir/graph_builder.py
+exclude mirobody/indicator/fhir/loinc_lookups.py
+recursive-exclude mirobody/indicator/fhir/locales *

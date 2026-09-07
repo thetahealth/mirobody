@@ -16,14 +16,16 @@ import json
 import logging
 import time
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import datetime, UTC
+from typing import Any
 from urllib.parse import urlencode, parse_qs
 
 import aiohttp
 
 from mirobody.pulse.core import LinkType
 from mirobody.utils.config import safe_read_cfg, global_config
+
+logger = logging.getLogger(__name__)
 
 
 def _to_epoch_seconds(value: Any) -> int:
@@ -42,7 +44,7 @@ def _to_epoch_seconds(value: Any) -> int:
     if isinstance(value, datetime):
         # Naive datetimes are assumed UTC (matches how we save them).
         if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
+            value = value.replace(tzinfo=UTC)
         return int(value.timestamp())
     if isinstance(value, str):
         s = value.strip()
@@ -54,7 +56,7 @@ def _to_epoch_seconds(value: Any) -> int:
             try:
                 dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
                 if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
+                    dt = dt.replace(tzinfo=UTC)
                 return int(dt.timestamp())
             except ValueError:
                 return 0
@@ -73,7 +75,7 @@ class OAuth2Client:
         token_url: str,
         scopes: str,
         request_timeout: int = 30,
-        refresh_extra_params: Optional[Dict[str, str]] = None,
+        refresh_extra_params: dict[str, str] | None = None,
     ):
         self.client_id = client_id
         self.client_secret = client_secret
@@ -95,8 +97,8 @@ class OAuth2Client:
     # ------------------------------------------------------------------
 
     async def generate_authorization_url(
-        self, user_id: str, options: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, user_id: str, options: dict[str, Any]
+    ) -> dict[str, Any]:
         """Generate OAuth2 authorization URL and store state in Redis."""
         if not self.client_id or not self.client_secret:
             raise ValueError("Missing OAuth2 client_id or client_secret")
@@ -115,7 +117,7 @@ class OAuth2Client:
             await redis_client.setex(f"oauth2:redir:{state}", self.oauth_temp_ttl, self.redirect_url)
             await redis_client.aclose()
         except Exception as e:
-            logging.warning(f"Failed to write oauth2 temp data to Redis: {e}")
+            logger.warning(f"Failed to write oauth2 temp data to Redis: {e}")
 
         params = {
             "client_id": self.client_id,
@@ -134,7 +136,7 @@ class OAuth2Client:
 
     async def exchange_code_for_tokens(
         self, code: str, state: str, db_service: Any, provider_slug: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Exchange authorization code for tokens, save to DB.
 
         Returns dict with keys: user_id, access_token, refresh_token,
@@ -169,7 +171,7 @@ class OAuth2Client:
             except Exception:
                 return_url = None
         except Exception as e:
-            logging.warning(f"Failed to read oauth2 temp data from Redis: {e}")
+            logger.warning(f"Failed to read oauth2 temp data from Redis: {e}")
 
         user_id = cached_user_id
         if not user_id:
@@ -224,7 +226,7 @@ class OAuth2Client:
         if not success:
             raise RuntimeError("Failed to save OAuth2 credentials")
 
-        logging.info(f"OAuth2 tokens saved for provider {provider_slug}, user {user_id}")
+        logger.info(f"OAuth2 tokens saved for provider {provider_slug}, user {user_id}")
 
         return {
             "user_id": user_id,
@@ -241,7 +243,7 @@ class OAuth2Client:
 
     async def get_valid_access_token(
         self, user_id: str, provider_slug: str, db_service: Any
-    ) -> Optional[str]:
+    ) -> str | None:
         """Get valid access token, auto-refresh if expired (5 min buffer)."""
         creds = await db_service.get_user_credentials(user_id, provider_slug, LinkType.OAUTH2)
         if not creds:
@@ -259,13 +261,13 @@ class OAuth2Client:
 
         # Refresh token
         if not refresh_token:
-            logging.warning(f"No refresh token for {provider_slug} user {user_id}, re-auth needed")
+            logger.warning(f"No refresh token for {provider_slug} user {user_id}, re-auth needed")
             return None
 
         try:
             new_tokens = await self.refresh_access_token(refresh_token)
         except Exception as e:
-            logging.error(f"Token refresh failed for {provider_slug} user {user_id}: {e}")
+            logger.error(f"Token refresh failed for {provider_slug} user {user_id}: {e}")
             return None
 
         new_access_token = new_tokens.get("access_token")
@@ -279,7 +281,7 @@ class OAuth2Client:
 
         return new_access_token
 
-    async def refresh_access_token(self, refresh_token: str) -> Dict[str, Any]:
+    async def refresh_access_token(self, refresh_token: str) -> dict[str, Any]:
         """Refresh access token using refresh_token grant."""
         data = {
             "grant_type": "refresh_token",

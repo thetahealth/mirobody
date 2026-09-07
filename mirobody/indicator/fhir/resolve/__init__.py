@@ -5,7 +5,7 @@ Two coexisting pipelines call into the modules here:
   * **v2** — :mod:`.pipeline` (``resolve_many``): deterministic cosine
     + LOINC keep-mask filter chain + family rerank + deterministic
     CLASS / section-header keyword routing. Used by the CLI
-    (``python -m mirobody.indicator resolve``) and the benchmark
+    (``python scripts/vocabulary_build.py resolve``) and the benchmark
     runner. No fitted weights; swappable embedding provider.
 
   * **v1** — :class:`mirobody.indicator.fhir.adapter.FhirAdapter`:
@@ -95,8 +95,6 @@ from .axis import (
     _BUNDLED_LOINC_BUNDLE,
     AXIS_THRESHOLDS,
     AXIS_WEIGHTS,
-    DEFAULT_AXIS_WEIGHTS,
-    axis_rerank_bonus,
     load_axis_centroids,
     predict_axis_top1,
 )
@@ -145,10 +143,8 @@ __all__ = [
     # Phase 2 — LOINC axis prediction
     "load_axis_centroids",
     "predict_axis_top1",
-    "axis_rerank_bonus",
     "AXIS_THRESHOLDS",
     "AXIS_WEIGHTS",
-    "DEFAULT_AXIS_WEIGHTS",
     # Phase 3 — functional tags
     "TAG_SEEDS",
     "classify_sync",
@@ -163,7 +159,7 @@ __all__ = [
     "query_analyte_concept",
     "analyte_loinc_concept_masks",
     "analyte_concept_keep_mask",
-    # Bundle path (used by embeddings.local for skip/demote derivation).
+    # Bundle path (used by fhir.index for skip/demote derivation).
     # Other callers should prefer ``embeddings.bundle.BUNDLE_PATH``.
     "_BUNDLED_LOINC_BUNDLE",
 ]

@@ -378,7 +378,7 @@ async def text_embedding(
                                 await asyncio.sleep(wait)
                                 continue
                             raise RuntimeError(f"{provider} embedding API error: {resp.status}, {resp_body}")
-                    except (asyncio.TimeoutError, aiohttp.ClientError) as e:
+                    except (TimeoutError, aiohttp.ClientError) as e:
                         if attempt < _EMB_MAX_RETRIES - 1:
                             wait = _EMB_RETRY_BACKOFF[attempt]
                             log.warning(f"{provider} embedding network error: {e!r}, retry in {wait}s (attempt {attempt + 1})")
@@ -406,12 +406,12 @@ async def text_embedding(
                 f"{provider} returned {len(embedded)} embeddings for {len(api_texts)} unique texts"
             )
 
-        for t, vec in zip(api_texts, embedded):
+        for t, vec in zip(api_texts, embedded, strict=False):
             text_to_embedding[t] = vec
 
         if cache:
             _cache_store(provider, {t: text_to_embedding[t] for t in api_texts})
 
-    for idx, text in zip(valid_indices, clean_texts):
+    for idx, text in zip(valid_indices, clean_texts, strict=False):
         results[idx] = text_to_embedding[text]
     return results

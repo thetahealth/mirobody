@@ -46,7 +46,7 @@ def _text(name: str) -> str:
 
 
 def _fixture() -> dict:
-    path = _ROOT / "mirobody" / "demo" / "care_circle_demo.json.gz"
+    path = _ROOT / "demo" / "care_circle_demo.json.gz"
     with gzip.open(path) as f:
         return json.load(f)
 
@@ -199,18 +199,21 @@ def test_the_demo_credential_is_one_the_server_accepts(name: str):
         )
 
 
-_DEMO_FILE = re.compile(r"mirobody/demo/([\w.-]+\.(?:pdf|json\.gz))")
+_DEMO_FILE = re.compile(r"(?<!\w)demo/([\w.-]+\.(?:pdf|json\.gz))")
 
 
 @pytest.mark.parametrize("name", _READMES)
 def test_the_demo_file_the_readme_hands_you_is_shipped(name: str):
-    """The upload step names a path; the wheel has to actually carry it."""
+    """The upload step names a path; the checkout has to actually carry it.
+
+    Not the wheel: the fixture lives in the repo-root `demo/`, because the
+    application is a checkout and the library install has no use for it."""
     referenced = set(_DEMO_FILE.findall(_text(name)))
     assert referenced, f"{name} no longer names the demo lab report"
     held_out = _fixture()["held_out_exam"]
     for filename in referenced:
-        assert (_ROOT / "mirobody" / "demo" / filename).exists(), (
-            f"{name} points at mirobody/demo/{filename}, which is not in the tree"
+        assert (_ROOT / "demo" / filename).exists(), (
+            f"{name} points at demo/{filename}, which is not in the tree"
         )
         if filename.endswith(".pdf"):
             assert held_out in filename, (

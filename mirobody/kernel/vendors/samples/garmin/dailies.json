@@ -1,0 +1,52 @@
+{
+  "test_id": "garmin_dailies_basic",
+  "description": "One Garmin Health API daily summary (field names per the public Wellness API docs), synthetic values. calendarDate is the user's local day; heart-rate samples are offsets from local midnight.",
+  "vendor": "garmin",
+  "data_type": "dailies",
+  "tz": "Asia/Shanghai",
+  "input": {
+    "summaryId": "x-dailies-1",
+    "calendarDate": "2026-06-01",
+    "startTimeInSeconds": 1780243200,
+    "startTimeOffsetInSeconds": 28800,
+    "activityType": "WALKING",
+    "durationInSeconds": 86400,
+    "steps": 8421,
+    "distanceInMeters": 6120.5,
+    "activeKilocalories": 512,
+    "bmrKilocalories": 1488,
+    "floorsClimbed": 12,
+    "activeTimeInSeconds": 3600,
+    "moderateIntensityDurationInSeconds": 1800,
+    "vigorousIntensityDurationInSeconds": 600,
+    "minHeartRateInBeatsPerMinute": 48,
+    "maxHeartRateInBeatsPerMinute": 142,
+    "averageHeartRateInBeatsPerMinute": 71,
+    "restingHeartRateInBeatsPerMinute": 52,
+    "timeOffsetHeartRateSamples": [
+      {"timestampOffsetInSeconds": 0, "heartRateInBeatsPerMinute": 55},
+      {"timestampOffsetInSeconds": 900, "heartRateInBeatsPerMinute": 58},
+      {"timestampOffsetInSeconds": 1800, "heartRateInBeatsPerMinute": 61}
+    ]
+  },
+  "expected": {
+    "count": 16,
+    "values": {
+      "dailySteps": 8421,
+      "dailyDistance": 6120.5,
+      "dailyCaloriesActive": 512,
+      "dailyCaloriesBasal": 1488,
+      "dailyTotalCalories": 2000,
+      "dailyFloors": 12,
+      "exerciseMinutes": 60,
+      "dailyActivityIntensityHigh": 30,
+      "dailyActivityIntensityMedium": 10,
+      "dailyHeartRateMin": 48,
+      "dailyHeartRateMax": 142,
+      "dailyAvgHeartRate": 71,
+      "dailyRestingHeartRates": 52
+    },
+    "series": {"heartRates": [55, 58, 61]},
+    "start_ms": {"dailySteps": 1780243200000, "heartRates[1]": 1780244100000}
+  }
+}

@@ -88,7 +88,7 @@ resolve("血脂").resolved                                 # False    観測で�
   `血紅素` を畳むとHbA1cのコードになる。その手の語は繁体表記で個別収録し、収録行は
   常に畳み込みに勝つ。
 - **単位**は約310のUCUMファミリーへ正規化。次元解析、LOINCコードをキーとするモル質量
-  ブリッジ、`%` と `10*9/L` に対する明示的な拒否を含む。標準pulse指標300種。
+  ブリッジ、`%` と `10*9/L` に対する明示的な拒否を含む。標準pulse指標305種。
 - **第2の層があり、意図的にオプトインのままだ。** 上のすべては語彙的で、知らない用語には
   棄権する ―― 正直な天井だ。コサイン検索([`indicator/semantic.py`](mirobody/indicator/semantic.py))
   はそれを越えるが、**棄権できない**：見たことのない用語に対して、正解と同じ確信度で最近傍を
@@ -184,7 +184,7 @@ GarminのBody Batteryやストレススコアにコードは無く、それは�
 
 ```bash
 git clone https://github.com/thetahealth/mirobody.git && cd mirobody
-git lfs pull          # エンジンのデータバンドル。`resolve` に必要
+git lfs install && git lfs pull   # エンジンのデータバンドル。`resolve` に必要。先に `install`、でないと LFS ポインタのまま
 ./deploy.sh           # Postgres + pgvector、Redis、サーバー、ワーカー
 ```
 
@@ -268,7 +268,7 @@ text-embedding-v4。
        alt="日本語で共有された記録のHbA1cを尋ねる。エージェントが照会し、検査値とセンサー系列を重ねて描き、傾向を読む" width="880">
 </p>
 
-**次にファイルを渡す。** `mirobody/demo/lab_report_2025-10-15.pdf` は彼女の*次の*
+**次にファイルを渡す。** `demo/lab_report_2025-10-15.pdf` は彼女の*次の*
 パネルで、投入からは意図的に外してある。だからアップロードは空振りではない。
 Dataページに落とせば ① Collect と ② Standardize が数秒で走り、12項目が値と単位を
 伴って出てくる。どれも読み取り元のページに戻れる。
@@ -301,16 +301,17 @@ ESL-Bench向けに生成したものを同梱しているので、投入にネ�
 
 ## 🧩 拡張する
 
-5つのディレクトリキーがプラグインのルートを指す。ファイルを置いて再起動するだけ。
+4つのディレクトリキーがプラグインのルートを指す。ファイルを置いて再起動するだけ――または
+`mirobody.providers` / `mirobody.tools` / `mirobody.agents` の entry point を宣言したパッケージを `pip install` する。
 ツールは追加配線なしでエージェントツールにもMCPツールにもなる。
 
 | やりたいこと | 置く場所 | ドキュメント |
 | --- | --- | --- |
 | 新しいツール | `mirobody/agent/tools/` | [ツールの追加](https://docs.mirobody.ai/en/tools/adding-tools/) |
 | Agent Skill(SKILL.md) | `mirobody/agent/skills/` | [Skills](https://docs.mirobody.ai/en/tools/skills/) |
-| エージェント丸ごと | `mirobody/agent/` | [Agents](https://docs.mirobody.ai/en/tools/agents/) |
+| 自前のエージェントハーネス | `AGENT_DIRS` → 自分のディレクトリ（同梱エージェントを置き換え） | [`mirobody/agent/README.md`](mirobody/agent/README.md) |
 | デバイスprovider | `mirobody/pulse/providers/` | [Provider統合](https://docs.mirobody.ai/en/development/provider-integration/) |
-| 他人のMCPサーバー | Settings → MCP | [MCP統合](https://docs.mirobody.ai/en/tools/mcp-integration/) |
+| Claude Desktop、Cursor、自作のエージェントループからこれらのツールを使う | Settings → MCP（自分用の `/mcp` URL） | [MCPサーバー](https://docs.mirobody.ai/en/api-reference/mcp-servers/) · [`examples/07_claude_agent_sdk.py`](examples/07_claude_agent_sdk.py) |
 
 エージェントが持つツールはすべて `/mcp` 経由でも提供され、ユーザー単位でゲートされる。
 → [組み込みツール](https://docs.mirobody.ai/en/tools/built-in/) ·
@@ -322,7 +323,10 @@ ESL-Bench向けに生成したものを同梱しているので、投入にネ�
 
 | 面 | 向いている用途 | ドキュメント |
 | --- | --- | --- |
-| `pip install mirobody` | 解決とファイル解析、サーバー不要 | [エンジン](https://docs.mirobody.ai/en/engine/) |
+| `pip install mirobody` | オフラインの指標解決と単位 ―― 2パッケージ、キー不要、ネットワーク不要 | [エンジン](https://docs.mirobody.ai/en/engine/) |
+| `pip install 'mirobody[parse]'` | 上に加えて、文書を測定値に ―― PDF、画像、Excel、Word、PowerPoint、テキスト。電子生成の報告書はテキストモデルのキー1つで足り、スキャンされたページだけがビジョンモデルに届く | [エンジン](https://docs.mirobody.ai/en/engine/) |
+| `pip install 'mirobody[agent]'` | deepagents ハーネスをライブラリとして ―― ミドルウェア、仮想ファイルシステムのバックエンド、チェックポインタ、モデルクライアント ―― 自分で動かすエージェントに | [自分のエージェントを持ち込む](CONTRIBUTING.md#-bringing-your-own-agent) |
+| `mirobody.bundle` | ビルド時：LOINCの軸テーブルとエイリアス元、シードやコーパスの生成に | [`mirobody/bundle.py`](mirobody/bundle.py) |
 | HTTP API | 自分のアプリからデプロイへ | [API概要](https://docs.mirobody.ai/en/api-reference/overview/) · [データ](https://docs.mirobody.ai/en/api-reference/data/) |
 | MCP | Claude、Cursor、任意のMCPクライアントが記録を読む | [MCPサーバー](https://docs.mirobody.ai/en/api-reference/mcp-servers/) |
 | Backboneモード | 自分のエージェント、こちらのデータ層 | [Backbone](https://docs.mirobody.ai/en/api-reference/backbone-mode/) |
@@ -339,25 +343,34 @@ mirobody/
 ├── units/       UCUM単位、unit_family、換算              ┐ ライブラリ部分:
 ├── lexical.py   表層畳み込み + CJK対応トークナイザ         │ numpyのみ、
 ├── bundle.py    ビルド時：軸テーブルとエイリアス元          │
-├── res/         同梱のLOINCバンドル                       ┘ 計2パッケージ
-├── pulse/       ① Collect     ―― provider、ファイル解析、集計
+├── res/         同梱のLOINCバンドル、res/metrics.tsv          │
+├── kernel/      健康データの「意味」を純関数で：              │
+│                metrics · series · quality · overlay · meds ·  │
+│                query · tools · ops · connect · sink · events · │
+│                evidence · memory · vendors/                    ┘ 計2パッケージ
+├── documents/   ファイルは種類ごとにテキストへ：PDFテキスト層、スキャン頁だけOCR、Office、テキスト   [parse]
+├── pulse/       ① Collect     ―― provider、ファイル解析、保存、集計（Postgres）
 ├── indicator/   ② Standardize ―― リゾルバ内部、概念グラフ、バンドル構築
-├── agent/       ③ Answers     ―― DeepAgent、ツール、skills、chat
+├── agent/       ③ Answers     ―― agent：models/ fs/ wire/ middleware/ tools/ chat/
 ├── mcp/         MCPサーバ
+├── server/      HTTPアプリ ―― ルータ、認証、同梱のwebクライアント
+├── utils/       利用側が束ねる仕組み：config、db、sse、net、llm_output、prompts、log
 ├── user/        アイデンティティとケアサークル ―― 誰が誰の記録を読めるか
-├── schema/      DDL、開発時は起動で再生
-└── demo/        ケアサークルのデモデータ
+└── schema/      DDL、開発時は起動で再生
+
+demo/            ケアサークルのデモ用データ。frontend/ の隣 ―― どちらもチェック
+frontend/        同梱のwebクライアント     アウトにだけあり、pip install には不要
 ```
 
 **二つの形態は、正反対のものを求める。** PyPIパッケージはライブラリであり、
 存在を意識せずに済むほど小さくあるべきだ ―― `pip install mirobody` は
-**2パッケージ、52 MB**、上の4項目とnumpyだけ。`[parse]` が文書読み取りを足し、
+**2パッケージ、52 MB**、`documents/` の行より上の項目とnumpyだけ。`[parse]` が文書読み取りを、`[agent]` がハーネスをライブラリとして足し、
 `[app]` が全部入りで、それを入れるのは `requirements.txt` だけだ ―― Dockerアプリは
 `git clone && ./deploy.sh` であって、pipインストールではない。
 
-**ドキュメントではなくツールで強制**: 3本のimport-linter契約が2つの線を守る ――
+**ドキュメントではなくツールで強制**: 4本のimport-linter契約が2つの線を守る ――
 ライブラリ層はnumpy以外を一切importせず、エンジンはagent層をimportしない ――
-破れば `lint-imports` がビルドを落とす。4本目のゲート `scripts/check_wheel_data.py` が、バンドル構築パスとv2セマンティック
+破れば `lint-imports` がビルドを落とす。もう一つのゲート `scripts/check_wheel_data.py` が、バンドル構築パスとv2セマンティック
 パイプライン ―― インストールしても誰も動かせない19,000行 ―― を成果物から締め出す。
 
 → [アーキテクチャ](https://docs.mirobody.ai/en/concepts/architecture/) ·
@@ -385,12 +398,13 @@ mirobody/
 | | Where |
 | --- | --- |
 | 実行できる例 | [`examples/`](examples/README.md) |
+| カーネル | [`kernel/`](mirobody/kernel/__init__.py) ―― 段階 → モジュール対応表 · [pipeline](docs/pipeline.md) ―― 11の段階と10の不変条件 |
 | ① 収集 | [`pulse/`](mirobody/pulse/README.md) · [providers](mirobody/pulse/providers/README.md) · [aggregation](mirobody/pulse/aggregate/README.md) · [Apple Health](mirobody/pulse/apple/README.md) |
-| ① ガイド | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [Apple Health API](docs/apple-health.md) |
+| ① ガイド | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [`documents/`](mirobody/documents/__init__.py) · [Apple Health API](docs/apple-health.md) |
 | ② 標準化 | [`indicator/`](mirobody/indicator/README.md) · [indicators & units](mirobody/pulse/standardize/README.md) |
-| ③ 回答 | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [ChatGPT widgets](mirobody/agent/resources/README.md) |
-| 下ばたらき | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [the web client](docs/frontend.md) |
-| 開発に参加 | [CONTRIBUTING.md](CONTRIBUTING.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
+| ③ 回答 | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [the one data tool](docs/answers.md) · [medications](docs/medications.md) |
+| 下ばたらき | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [the web client](docs/frontend.md) · [backup & restore](docs/backup-restore.md) |
+| 開発に参加 | [CONTRIBUTING.md](CONTRIBUTING.md) · [AGENTS.md](AGENTS.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
 
 ---
 
@@ -410,6 +424,18 @@ pip install -e '.[test]' && pytest -q && lint-imports
 [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
+
+## 🙏 謝辞
+
+mirobody は健康データの標準化と推論を行うものであり、デバイス接続の最良の手段になることは目指していません。以下のプロジェクトがカーネルのルールを形作りました。本リポジトリにはそれらのコードは一切含まれていません。
+
+- **[Open Wearables](https://github.com/the-momentum/open-wearables)**（MIT、© 2025 Momentum）——12 社のプロバイダ接続とモバイル SDK を備えたセルフホスト型ウェアラブル統合プラットフォーム。そのデータ標準化ドキュメントが列挙する失敗パターン（日次合計とその明細の二重加算、オフセットのみの日付境界、暗黙の単位仮定、読み取り時の優先ソース選択）こそ、`mirobody.kernel.series`、`mirobody.kernel.quality`、`res/metrics.tsv` が塞ぐために存在する穴です。コネクタが必要なら Open Wearables を動かし、その `/timeseries` API に mirobody のデコーダを向けてください。
+- **[Home Assistant](https://github.com/home-assistant/core)**——指標カタログの `state_class` の発想の源。
+- **[Open mHealth](https://github.com/openmhealth/schemas) / IEEE 1752**——ファクトの `effective_*` / `modality` フィールド名。
+- **[wearipedia](https://github.com/Stanford-Health/wearipedia)**——実在の人のデータではなく、シード付き合成ベンダーペイロードを使う発想。
+- **[dlt](https://github.com/dlt-hub/dlt)、[Airbyte](https://github.com/airbytehq/airbyte-python-cdk)、[Singer](https://github.com/meltano/sdk)**——書き込みディスポジションと、コネクタの check / discover / read の三段構成。
+- **[deepagents](https://github.com/langchain-ai/deepagents)、LangChain、[langchain-quickjs](https://github.com/langchain-ai/langchain-quickjs)**——エージェントハーネス、ファイルシステム投影、`eval` REPL。
+- **Regenstrief Institute（LOINC）、UCUM、HL7 FHIR、OHDSI OMOP**——カタログと服薬モデルが依拠するコード体系とリソース形状。`LICENSE-3RD-PARTY` を参照。
 
 ## ⭐ Star の推移
 

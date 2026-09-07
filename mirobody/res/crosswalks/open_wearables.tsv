@@ -1,0 +1,115 @@
+# open-wearables SeriesType → mirobody catalogue metric.
+#
+# open-wearables (MIT, github.com/the-momentum/open-wearables) is a device
+# ACCESS platform: twelve provider strategies, four mobile SDKs, webhooks,
+# multi-account sync. Its `SeriesType` enum is 93 stable integer ids with a
+# name and a free-text unit label, and deliberately no terminology system —
+# its own standardization document says so. This file is the seam: run
+# open-wearables to CONNECT devices, run mirobody to make the data mean one
+# thing and answer questions about it.
+#
+# Columns:
+#   ow_type      the SeriesType value, verbatim
+#   ow_unit      the unit label it publishes, verbatim
+#   metric       the mirobody catalogue name, or empty when we have none
+#   note         why, when the mapping is not an identity
+#
+# A row with an empty `metric` is an EXPLICIT decline, not an omission: the
+# decoder quarantines that type rather than guessing a name, and the note says
+# what a consumer would have to add to the catalogue to accept it. That is the
+# same rule `metrics.mapping_for` follows — a confident wrong code is worse
+# than an honest gap.
+ow_type	ow_unit	metric	note
+heart_rate	bpm	heartRates	
+resting_heart_rate	bpm	restingHeartRates	
+heart_rate_variability_sdnn	ms	hrvDatas	the catalogue's generic HRV series; SDNN and RMSSD are two statistics of it and only RMSSD has its own row
+heart_rate_variability_rmssd	ms	hrvRMSSD	
+heart_rate_recovery_one_minute	bpm		no catalogue metric for one-minute recovery
+walking_heart_rate_average	bpm	walkingHeartRates	
+oxygen_saturation	percent	oxygenSaturations	
+blood_glucose	mg_dl	bloodGlucoses	mg_dl is mg/dL, which is the catalogue unit too
+blood_pressure_systolic	mmHg	systolicPressures	
+blood_pressure_diastolic	mmHg	diastolicPressures	
+respiratory_rate	brpm	respiratoryRates	brpm is breaths/min; the engine does not know the spelling, so the table gives it
+sleeping_breathing_disturbances	count	sleepDisturbances	
+breathing_disturbance_index	score		a vendor index with no unit; not a measurement
+blood_alcohol_content	mg_dl		OW labels this mg_dl; blood alcohol is normally %BAC, so the label is not trusted
+peripheral_perfusion_index	score		no catalogue metric
+forced_vital_capacity	liters		spirometry is not in the catalogue yet
+forced_expiratory_volume_1	liters		spirometry is not in the catalogue yet
+peak_expiratory_flow_rate	L/min		spirometry is not in the catalogue yet
+height	cm	heights	
+weight	kg	dailyWeight	
+body_fat_percentage	percent	bodyFatPercentages	
+body_mass_index	kg_m2	bmis	kg_m2 is kg/m2
+lean_body_mass	kg	bodyFatFreeWeight	
+body_fat_mass	kg	bodyFatMass	
+skeletal_muscle_mass	kg	bodySkeletalMuscleMass	
+waist_circumference	cm	waistCircumferences	
+body_temperature	celsius	bodyTemperatures	
+skin_temperature	celsius	skinTemperature	
+skin_temperature_deviation	celsius	temperatureDelta	
+skin_temperature_trend_deviation	celsius		a trend of a deviation is a second derivative; no catalogue metric
+vo2_max	ml_kg_min	vo2Maxs	ml_kg_min is mL/kg/min; comparing the two catalogues is what found the catalogue's own row declaring an unparseable L/min/kg, a factor of 1000 out
+six_minute_walk_test_distance	meters		a clinical test result, not a device stream
+cardiovascular_age	years	bodyAge	
+steps	count	steps	
+energy	kcal	activeCalories	OW's `energy` is ACTIVE energy; `basal_energy` is the other half
+basal_energy	kcal	basalCalories	
+stand_time	minutes		no catalogue metric for stand time
+exercise_time	minutes	exerciseMinutes	
+physical_effort	score		a vendor score with no unit
+flights_climbed	count	floors	
+average_met	met		METs are a rate, not a count; no catalogue metric
+active_time	minutes	walkingRunningDuration	
+distance_walking_running	meters	walkingRunningDistances	
+distance_cycling	meters	cyclingDistances	
+distance_swimming	meters		no catalogue metric
+distance_downhill_snow_sports	meters		no catalogue metric
+distance_other	meters	dailyDistance	an unlabelled distance is the day's distance, not a discipline's
+walking_step_length	cm		no catalogue metric
+walking_speed	m_per_s	walkingSpeeds	m_per_s is m/s
+walking_double_support_percentage	percent		gait metrics are not in the catalogue yet
+walking_asymmetry_percentage	percent		gait metrics are not in the catalogue yet
+walking_steadiness	percent		gait metrics are not in the catalogue yet
+stair_descent_speed	m_per_s		no catalogue metric
+stair_ascent_speed	m_per_s		no catalogue metric
+running_power	watts		running dynamics are not in the catalogue yet
+running_speed	m_per_s	speeds	
+running_vertical_oscillation	cm		running dynamics are not in the catalogue yet
+running_ground_contact_time	ms		running dynamics are not in the catalogue yet
+running_stride_length	cm		running dynamics are not in the catalogue yet
+running_vertical_ratio	percent		running dynamics are not in the catalogue yet
+running_stance_time_balance	percent		running dynamics are not in the catalogue yet
+swimming_stroke_count	count		no catalogue metric
+underwater_depth	meters		no catalogue metric
+cadence	rpm	cadence	
+power	watts		no catalogue metric
+speed	m_per_s	speeds	
+workout_effort_score	score		a vendor score with no unit
+estimated_workout_effort_score	score		a vendor score with no unit
+environmental_audio_exposure	dB		no catalogue metric
+headphone_audio_exposure	dB		no catalogue metric
+environmental_sound_reduction	dB		no catalogue metric
+time_in_daylight	minutes		no catalogue metric
+water_temperature	celsius		an environment reading, not a person's
+uv_exposure	count	uvExposures	
+inhaler_usage	count		a medication event; belongs in meds, not in a series
+weather_temperature	celsius		an environment reading, not a person's
+weather_humidity	percent		an environment reading, not a person's
+elevation	meters		no catalogue metric
+latitude	degrees		location is not health data and is not standardised here
+longitude	degrees		location is not health data and is not standardised here
+air_temperature	celsius		an environment reading, not a person's
+garmin_stress_level	score	stressLevel	a vendor-specific spelling of a metric the catalogue has
+garmin_skin_temperature	celsius	skinTemperature	a vendor-specific spelling of a metric the catalogue has
+garmin_fitness_age	years	bodyAge	a vendor-specific spelling of a metric the catalogue has
+garmin_body_battery	percent		a vendor score with no unit
+electrodermal_activity	count		no catalogue metric
+push_count	count		wheelchair pushes; no catalogue metric
+atrial_fibrillation_burden	count	arrhythmiaAfibPercentage	OW labels the unit `count`; the value is a percentage
+insulin_delivery	count		a medication event; belongs in meds, not in a series
+number_of_times_fallen	count		no catalogue metric
+number_of_alcoholic_beverages	count	alcohol	
+nike_fuel	count		a proprietary score
+hydration	mL	waters	

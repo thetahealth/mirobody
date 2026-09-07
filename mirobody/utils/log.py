@@ -1,5 +1,14 @@
-import base64, datetime, hashlib, json, logging, os
+import base64
+import hmac
+import secrets
+from collections.abc import Callable
+import datetime
+import hashlib
+import json
+import logging
+import os
 
+from ..kernel.ops import PHIPolicy
 from .config import FernetEncrypter
 from .req_ctx import get_req_ctx
 
@@ -28,6 +37,49 @@ def secret_fingerprint(secret: str | None) -> str:
     return "sha256:" + hashlib.sha256(secret.encode("utf-8")).hexdigest()[:12]
 
 #-----------------------------------------------------------------------------
+
+#: How the pseudonym salt is found. A user id is a small integer, and any
+#: UNKEYED hash of it is reversed by enumerating 1..1e7 in milliseconds — so the
+#: salt must be a real secret. The reference server reads `LOG_PSEUDONYM_SALT`
+#: from the environment; a deployment with other secrets already in the process
+#: installs a reader with `use_pseudonym_salt` rather than adding a config key.
+_pseudonym_salt_reader: Callable[[], str | None] | None = None
+_pseudonym_fallback = secrets.token_hex(16)
+_pseudonym_warned = False
+
+
+def use_pseudonym_salt(reader: Callable[[], str | None] | None) -> None:
+    """Install how `user_tag` finds its salt (``None`` restores the default)."""
+    global _pseudonym_salt_reader
+    _pseudonym_salt_reader = reader
+
+
+def _pseudonym_salt() -> str:
+    global _pseudonym_warned
+    value = (_pseudonym_salt_reader() if _pseudonym_salt_reader else None) or os.environ.get("LOG_PSEUDONYM_SALT") or ""
+    if value:
+        return value
+    if not _pseudonym_warned:
+        _pseudonym_warned = True
+        logging.getLogger(__name__).warning("pseudonym: no salt configured; using a per-process one")
+    # Still aligns within one process (enough for one investigation) and dies with
+    # it — never the fixed-salt kind that is enumerable.
+    return _pseudonym_fallback
+
+
+def user_tag(user_id: int | str | None) -> str:
+    """``45`` → ``u#3f2a9c14``: a keyed pseudonym for LOG LINES only.
+
+    It aligns the same person across lines while a reader of the logs cannot
+    recover who. One-way by design: never use it to query or authorise —
+    operators look someone up by computing the tag from a known id and grepping,
+    not by decrypting. Empty input → ``u#-``; never raises.
+    """
+    if user_id is None or user_id == "":
+        return "u#-"
+    digest = hmac.new(_pseudonym_salt().encode(), str(user_id).encode(), hashlib.sha256).hexdigest()
+    return f"u#{digest[:8]}"
+
 
 class JsonEncoder(json.JSONEncoder):
     def default(self, o):
@@ -113,9 +165,9 @@ class JsonFormatter(logging.Formatter):
         function = None
         if hasattr(record, "function_name"):
             # Custom function name from our logger
-            function = getattr(record, "function_name")
+            function = record.function_name
         elif hasattr(record, "funcName"):
-            function = getattr(record, "funcName")
+            function = record.funcName
 
         # In case it is the module.
         if function and function != "<module>":
@@ -125,8 +177,8 @@ class JsonFormatter(logging.Formatter):
         # Filename and line number.
 
         if hasattr(record, "pathname") and hasattr(record, "lineno"):
-            filename = getattr(record, "pathname").removeprefix(os.getcwd()).removeprefix(os.sep)
-            json_record["file"] = f"{filename}:{getattr(record, 'lineno')}"
+            filename = record.pathname.removeprefix(os.getcwd()).removeprefix(os.sep)
+            json_record["file"] = f"{filename}:{record.lineno}"
         
         # Module name.
         if hasattr(record, "module") and record.module:
@@ -144,7 +196,6 @@ class JsonFormatter(logging.Formatter):
                 cls=JsonEncoder
             )
             
-            global _fernet_encryptor
             if _fernet_encryptor:
                 try:
                     encrypted_encrypted_info = _fernet_encryptor.encrypt(plain_encrypted_info)
@@ -240,7 +291,9 @@ def _silence_verbose_loggers(app_level: int):
             logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 
-def init_log_console(level: int = logging.INFO, extra: dict = {}, secret_key: str = ""):
+def init_log_console(level: int = logging.INFO, extra: dict | None = None, secret_key: str = ""):
+    if extra is None:
+        extra = {}
     if secret_key:
         global _fernet_encryptor
         _fernet_encryptor = FernetEncrypter(secret_key)
@@ -252,13 +305,16 @@ def init_log_console(level: int = logging.INFO, extra: dict = {}, secret_key: st
 
     logging.root.handlers = [stream_handler]
     logging.root.setLevel(level=level)
+    PHIPolicy().install(logging.root)
 
     # Silence verbose third-party library logs (especially in DEBUG mode)
     _silence_verbose_loggers(level)
 
 #-----------------------------------------------------------------------------
 
-def init_log_file(name: str, dir: str, level: int = logging.INFO, extra: dict = {}, secret_key: str = ""):
+def init_log_file(name: str, dir: str, level: int = logging.INFO, extra: dict | None = None, secret_key: str = ""):
+    if extra is None:
+        extra = {}
     if secret_key:
         global _fernet_encryptor
         _fernet_encryptor = FernetEncrypter(secret_key)
@@ -282,6 +338,7 @@ def init_log_file(name: str, dir: str, level: int = logging.INFO, extra: dict = 
 
     logging.root.handlers = [file_handler, stream_handler]
     logging.root.setLevel(level=level)
+    PHIPolicy().install(logging.root)
 
     # Silence verbose third-party library logs (especially in DEBUG mode)
     _silence_verbose_loggers(level)
@@ -297,7 +354,9 @@ def init_log_tqdm(level: int = logging.INFO):
 
 #-----------------------------------------------------------------------------
 
-def init_log(name: str = "", dir: str = "", level: int = logging.INFO, extra: dict = {}, secret_key: str = ""):
+def init_log(name: str = "", dir: str = "", level: int = logging.INFO, extra: dict | None = None, secret_key: str = ""):
+    if extra is None:
+        extra = {}
     if name:
         init_log_file(name, dir, level, extra, secret_key)
     else:

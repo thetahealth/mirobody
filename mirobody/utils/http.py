@@ -1,7 +1,11 @@
-import json, logging, time
+import json
+import logging
+import time
 
 from starlette.responses import Response
 from starlette.requests import Request
+
+logger = logging.getLogger(__name__)
 
 # MCP 2026-07-28 `_meta` keys, defined next to the code that writes them.
 # `mcp/service.py` used to keep its own copies while this module hardcoded the
@@ -101,9 +105,9 @@ def json_response(content: any, status_code: int = 200, request: Request = None,
                 message = content["msg"]
 
         if status_code >= 400:
-            logging.warning(message, stacklevel=2, extra=extra)
+            logger.warning(message, stacklevel=2, extra=extra)
         else:
-            logging.info(message, stacklevel=2, extra=extra)
+            logger.info(message, stacklevel=2, extra=extra)
 
     return Response(
         content     = json.dumps(
@@ -124,9 +128,9 @@ def json_response_with_code(code: int = 0, msg: str = "ok", data: any = None, re
         _fill_extra_log(request=request, extra=extra)
 
         if code != 0:
-            logging.warning(msg, stacklevel=2, extra=extra)
+            logger.warning(msg, stacklevel=2, extra=extra)
         else:
-            logging.info(msg, stacklevel=2, extra=extra)
+            logger.info(msg, stacklevel=2, extra=extra)
 
     content = {
         "success"   : True if code == 0 else False,
@@ -157,7 +161,7 @@ def redirect(url: str, status_code: int = 302, request: Request = None, disable_
         }
         _fill_extra_log(request=request, extra=extra)
 
-        logging.info("", stacklevel=2, extra=extra)
+        logger.info("", stacklevel=2, extra=extra)
 
     return Response(
         content     = "",
@@ -168,6 +172,32 @@ def redirect(url: str, status_code: int = 302, request: Request = None, disable_
     )
 
 #-----------------------------------------------------------------------------
+
+def _result_shape(result: any) -> dict:
+    """What a JSON-RPC result LOOKS like: sizes, kinds and counts.
+
+    Everything here is a number or a type name, which is the whole of what a
+    log line may carry about a payload. `result_bytes` answers "did it come
+    back empty"; `content_types` answers "was it text or a resource"; neither
+    answers "what did it say", and that is deliberate.
+    """
+    try:
+        size = len(json.dumps(result, ensure_ascii=False, separators=(',', ':'), default=str))
+    except (TypeError, ValueError):
+        size = -1
+    shape: dict = {"result_bytes": size, "result_type": type(result).__name__}
+    if isinstance(result, dict):
+        content = result.get("content")
+        if isinstance(content, list):
+            shape["content_count"] = len(content)
+            shape["content_types"] = ",".join(
+                sorted({str(c.get("type")) for c in content if isinstance(c, dict)})
+            )
+        for key in ("tools", "resources", "prompts", "resourceTemplates"):
+            if isinstance(result.get(key), list):
+                shape[f"{key}_count"] = len(result[key])
+    return shape
+
 
 def jsonrpc_result(
     id: any,
@@ -195,14 +225,10 @@ def jsonrpc_result(
 
     ``cache_hint`` is ``(ttl_ms, scope)`` and emits 2026-07-28's ``ttlMs`` /
     ``cacheScope`` — field names taken from the SDK's own `ListToolsResult`, not
-    guessed. The spec marks ``tools/list``, ``prompts/list``,
-    ``resources/list``, ``resources/templates/list``, ``resources/read`` and
-    ``server/discover`` as cacheable; we pass it on all of those we implement
-    EXCEPT ``resources/read``, deliberately. Our resource bodies are templated
-    per request with the caller's JWT (see the copy-before-templating note in
-    `mcp/service.py`), so a cached read is a cached credential — it would
-    outlive a logout by up to the TTL. Being spec-permitted is not the same as
-    being safe for this server's payloads.
+    guessed. The spec marks ``tools/list``, ``prompts/list`` and
+    ``server/discover`` (among others) as cacheable; we pass it on the ones we
+    implement. Nothing this server returns is templated per caller, so there is
+    no response a cache could leak from one caller to another.
 
     ``protocol_version`` echoes the revision this response is speaking. Under
     2026-07-28 there is no handshake, so a stateless client has no other way to
@@ -221,20 +247,18 @@ def jsonrpc_result(
         }
         _fill_extra_log(request=request, extra=extra)
 
-        log_message = json.dumps(
-            result,
-            ensure_ascii= False,
-            separators  = (',', ':')
-        )
-        if len(log_message) > 100:
-            log_message = log_message[0:100] + "..."
-
-        if result and isinstance(result, dict) and "isError" in result and \
-            isinstance(result["isError"], bool) and result["isError"]:
-            
-            logging.warning(log_message, stacklevel=2, extra=extra)
+        # The SHAPE of the result, never the result. This used to log its first
+        # hundred serialised characters, and for `tools/call` those are the
+        # person's readings — a health-data leak into the log on the one path
+        # the chat-side redaction did not cover, found by grepping a container
+        # after a real turn. A hundred characters is not a redaction; it is a
+        # smaller leak.
+        extra.update(_result_shape(result))
+        is_error = bool(isinstance(result, dict) and result.get("isError") is True)
+        if is_error:
+            logger.warning("mcp result", stacklevel=2, extra=extra)
         else:
-            logging.info(log_message, stacklevel=2, extra=extra)
+            logger.info("mcp result", stacklevel=2, extra=extra)
 
     #-----------------------------------------------------
 
@@ -282,7 +306,7 @@ def jsonrpc_error(id: any, code: int, msg: str = "", data: any = None, method: s
         }
         _fill_extra_log(request=request, extra=extra)
 
-        logging.warning(msg, stacklevel=2, extra=extra)
+        logger.warning(msg, stacklevel=2, extra=extra)
 
     content = {
         "jsonrpc"   : "2.0",

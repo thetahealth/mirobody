@@ -31,6 +31,12 @@ REQUIRED = {
     "mirobody/res/aliases_src/zh.tsv": 100_000,
     "mirobody/res/aliases_src/ja.tsv": 100_000,
     "mirobody/res/resolver_overrides.tsv": 1_000,
+    # 1.4.0: the indicator catalogue, its Chinese labels and the dose-form
+    # table are read at import time by `mirobody.kernel.metrics` / `mirobody.kernel.meds`.
+    "mirobody/res/metrics.tsv": 40_000,
+    "mirobody/res/labels/zh.tsv": 10_000,
+    "mirobody/res/dose_forms.tsv": 300,
+    "mirobody/kernel/vendors/samples/garmin/dailies.json": 500,
 }
 
 # The other direction, and it is worth a gate of its own: the package-data globs
@@ -47,9 +53,16 @@ FORBIDDEN = (
     # used to parse this CSV on every load, which is where 677,643 of its
     # Python strings came from.
     "mirobody/res/fhir_meta.csv.gz",
+    "mirobody/res/analyte_digit_src/analyte_digit_curated.tsv",
     # fhir_id_map.npy is not listed because it no longer exists: it mapped
     # canonical ids to `fhir_indicators.id`, one database's PRIMARY KEYS, and was
     # deleted rather than merely unshipped.
+    # 1.4.0: the care-circle demo fixture and the lab report it asks you to
+    # upload live in the repo-root `demo/`, beside `frontend/` and for the same
+    # reason — the application is a checkout, so a library install paid 230 KB
+    # for a demo it can never run.
+    "mirobody/demo/care_circle_demo.json.gz",
+    "mirobody/demo/lab_report_2025-10-15.pdf",
 )
 
 # Same standard, applied to CODE. These two subtrees are 19,000 lines nobody
@@ -65,6 +78,18 @@ FORBIDDEN = (
 FORBIDDEN_PREFIXES = (
     "mirobody/indicator/fhir/embeddings/",
     "mirobody/indicator/fhir/resolve/",
+    # The CLI that drives them and the passes it calls — see
+    # scripts/build_backend.py::_BUILD_ONLY_CODE for why each one cannot run
+    # from an install.
+    "mirobody/indicator/embed.py",
+    "mirobody/indicator/resolve.py",
+    "mirobody/indicator/fhir/bridge.py",
+    "mirobody/indicator/fhir/siblings.py",
+    "mirobody/indicator/fhir/merge.py",
+    "mirobody/indicator/fhir/inspect.py",
+    "mirobody/indicator/fhir/graph_builder.py",
+    "mirobody/indicator/fhir/loinc_lookups.py",
+    "mirobody/indicator/fhir/locales/",
 )
 
 # The bundle members a `pip install` must have, and the ones it must not. The
@@ -142,6 +167,18 @@ def check(path: str) -> list[str]:
             code_stowaways.append((name, size))
 
     problems: list[str] = []
+    # Tests and their snapshots live in `tests/` outside the package. A
+    # `test_*.py` or a `goldens/` inside the wheel means one was put back in the
+    # package tree; the build no longer prunes them, so this is the gate.
+    test_stowaways = [
+        name for name, _, _ in entries
+        if name.rsplit("/", 1)[-1].startswith("test_") or "/goldens/" in name or name.endswith("/conftest.py")
+    ]
+    if test_stowaways:
+        problems.append(
+            f"UNWANTED  {len(test_stowaways)} test file(s) inside the wheel — tests belong in "
+            f"tests/, outside the package (first: {test_stowaways[0]})"
+        )
     for name, size in stowaways:
         problems.append(
             f"UNWANTED  {name} — {size/1e6:.1f} MB that no runtime code path reads; "

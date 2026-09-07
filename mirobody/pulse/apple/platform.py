@@ -2,23 +2,24 @@
 Apple Health platform implementation
 """
 
-import asyncio
 import logging
 
-from typing import Any, Dict, List
+from typing import Any
 
 from .provider import AppleHealthProvider, CDAProvider
 from .services.database_service import AppleDatabaseService
 from ..base import LinkRequest, Platform, ProviderInfo
 from ..core import (
     CacheConfig,
-    UserProvider,
-    ProviderStatus
+    UserProvider
 )
 from ..aggregate.service import AggregateIndicatorService
 from ..core.distributed_lock import pull_task_lock_manager
-from ..ingest.services import VitalHealthService
+from ..ingest.models.requests import FormatDataContext, FormatDataInput
+from ..ingest.services import StandardHealthService
 from ...utils.tasks import spawn
+
+logger = logging.getLogger(__name__)
 
 
 class AppleHealthPlatform(Platform):
@@ -34,7 +35,7 @@ class AppleHealthPlatform(Platform):
         """Initialize Apple Health Platform"""
         super().__init__()
         self.db_service = AppleDatabaseService()
-        self.vital_health_service = VitalHealthService()
+        self.health_service = StandardHealthService()
 
         self._register_built_in_providers()
 
@@ -63,15 +64,15 @@ class AppleHealthPlatform(Platform):
         cda_provider = CDAProvider(self)
         self._providers[cda_provider.info.slug] = cda_provider
 
-        logging.info(f"Registered built-in providers for {self.name} platform")
+        logger.info(f"Registered built-in providers for {self.name} platform")
 
-    async def get_providers(self, nocache: bool = False) -> List[ProviderInfo]:
+    async def get_providers(self, nocache: bool = False) -> list[ProviderInfo]:
         return []
 
-    async def get_user_providers(self, user_id: str) -> List[UserProvider]:
+    async def get_user_providers(self, user_id: str) -> list[UserProvider]:
         return []
 
-    async def link(self, request: LinkRequest) -> Dict[str, Any]:
+    async def link(self, request: LinkRequest) -> dict[str, Any]:
         provider_slug = request.provider_slug
 
         provider = self.get_provider(provider_slug)
@@ -81,7 +82,7 @@ class AppleHealthPlatform(Platform):
         result = await provider.link(request)
         return result
 
-    async def unlink(self, user_id: str, provider_slug: str) -> Dict[str, Any]:
+    async def unlink(self, user_id: str, provider_slug: str) -> dict[str, Any]:
         provider = self.get_provider(provider_slug)
         if not provider:
             raise ValueError(f"Provider {provider_slug} not found in apple platform")
@@ -89,29 +90,33 @@ class AppleHealthPlatform(Platform):
         result = await provider.unlink(user_id)
         return result
 
-    async def post_data(self, provider_slug: str, data: Dict[str, Any], msg_id: str) -> bool:
+    async def post_data(self, provider_slug: str, data: dict[str, Any], msg_id: str) -> bool:
         try:
             provider = self.get_provider(provider_slug)
             if not provider:
-                logging.error(f"Provider {provider_slug} not found in apple platform")
+                logger.error(f"Provider {provider_slug} not found in apple platform")
                 return False
 
             user_id = data.get("user_id")
 
             if not user_id:
-                logging.error("Missing user_id in data")
+                logger.error("Missing user_id in data")
                 return False
 
             try:
-                standard_data = await provider.format_data(data)
+                fmt_input = FormatDataInput(
+                    context=FormatDataContext(theta_user_id=str(user_id), msg_id=msg_id),
+                    payload=data,
+                )
+                standard_data = await provider.format_data(fmt_input)
 
                 if not standard_data or not standard_data.healthData:
-                    logging.info(f"No data formatted by provider {provider_slug}")
+                    logger.info(f"No data formatted by provider {provider_slug}")
                     return True
 
-                success = await self.vital_health_service.process_standard_data(standard_data, user_id)
+                success = await self.health_service.process_standard_data(standard_data, user_id)
 
-                logging.info(f"Apple platform processed {len(standard_data.healthData)} records for user {user_id}, "
+                logger.info(f"Apple platform processed {len(standard_data.healthData)} records for user {user_id}, "
                     f"success: {success}")
 
                 # Fire-and-forget: kick incremental aggregation so the frontend
@@ -124,11 +129,11 @@ class AppleHealthPlatform(Platform):
                 return success
 
             except Exception as e:
-                logging.error(f"Error processing data: {str(e)}", stack_info=True)
+                logger.error(f"Error processing data: {str(e)}", stack_info=True)
                 return False
 
         except Exception as e:
-            logging.error(f"Error in post_data for provider {provider_slug}: {str(e)}", stack_info=True)
+            logger.error(f"Error in post_data for provider {provider_slug}: {str(e)}", stack_info=True)
             return False
 
     async def _trigger_aggregation_after_ingest(self, user_id: str) -> None:
@@ -161,7 +166,7 @@ class AppleHealthPlatform(Platform):
                 last_timestamp=last_ts,
                 user_id=None,
             )
-            logging.info(
+            logger.info(
                 f"[AppleHealth] Post-ingest aggregation triggered for user {user_id}: "
                 f"status={result.get('status')}, "
                 f"summaries={result.get('summaries_created', 0)}, "
@@ -170,12 +175,12 @@ class AppleHealthPlatform(Platform):
                 f"cursor={last_ts}"
             )
         except Exception as e:
-            logging.warning(
+            logger.warning(
                 f"[AppleHealth] Post-ingest aggregation failed (ignored, "
                 f"scheduled task will catch up): {e}"
             )
 
-    async def update_llm_access(self, user_id: str, provider_slug: str, llm_access: int) -> Dict[str, Any]:
+    async def update_llm_access(self, user_id: str, provider_slug: str, llm_access: int) -> dict[str, Any]:
         """
         Update LLM access permission for a apple provider
 

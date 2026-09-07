@@ -18,11 +18,10 @@ reach it.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import pathlib
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -34,8 +33,10 @@ from .media import (
 from .results import _build_prompt_with_schema, _merge_page_results, clean_json_response
 from ...file_types import IMAGE_EXTENSIONS
 
+logger = logging.getLogger(__name__)
+
 # Provider-specific extra parameters for API calls (no thinking, for latency).
-PROVIDER_EXTRA_PARAMS: Dict[str, Dict[str, Any]] = {
+PROVIDER_EXTRA_PARAMS: dict[str, dict[str, Any]] = {
     "openrouter": {"extra_body": {"reasoning": {"enabled": False}}},
     "qwen": {"extra_body": {"enable_thinking": False}},
     # extra_body, not a top-level kwarg: these are spread into
@@ -56,23 +57,23 @@ async def _openai_compatible_process_pdf(
     json_mode: bool = True
 ) -> str:
     """Process PDF with OpenAI-compatible API (OpenRouter/Qwen/Doubao)."""
-    logging.info(f"Processing PDF with {provider}: {pdf_path}, json_mode={json_mode}")
+    logger.info(f"Processing PDF with {provider}: {pdf_path}, json_mode={json_mode}")
     total_start = time.time()
 
     # Phase 1: Convert PDF to images
     conversion_start = time.time()
     page_images = _convert_pdf_to_base64_images(pdf_path)
-    logging.info(f"All {len(page_images)} pages converted in {time.time() - conversion_start:.2f}s")
+    logger.info(f"All {len(page_images)} pages converted in {time.time() - conversion_start:.2f}s")
 
     # Phase 2: Concurrent API calls
     semaphore = asyncio.Semaphore(max_concurrency)
     extra_params = PROVIDER_EXTRA_PARAMS.get(provider, {})
 
-    async def process_page(page_info: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_page(page_info: dict[str, Any]) -> dict[str, Any]:
         page_num = page_info['page_num']
         async with semaphore:
             try:
-                logging.info(f"Calling {provider} API for page {page_num}...")
+                logger.info(f"Calling {provider} API for page {page_num}...")
                 api_start = time.time()
 
                 messages = _build_vision_message(page_info['base64_image'], prompt, json_mode)
@@ -82,20 +83,20 @@ async def _openai_compatible_process_pdf(
 
                 response = await client.chat.completions.create(**api_params)
 
-                logging.info(f"Page {page_num} completed in {time.time() - api_start:.2f}s")
+                logger.info(f"Page {page_num} completed in {time.time() - api_start:.2f}s")
                 return {
                     'page': page_num,
                     'content': response.choices[0].message.content,
                     'api_duration': time.time() - api_start
                 }
             except Exception as e:
-                logging.error(f"Page {page_num} API call failed: {e}")
+                logger.error(f"Page {page_num} API call failed: {e}")
                 return {'page': page_num, 'error': str(e)}
 
     tasks = [process_page(page_info) for page_info in page_images]
     all_results = sorted(await asyncio.gather(*tasks), key=lambda x: x['page'])
 
-    logging.info(f"All {provider} API calls completed in {time.time() - total_start:.2f}s")
+    logger.info(f"All {provider} API calls completed in {time.time() - total_start:.2f}s")
     return _merge_page_results(all_results, json_mode)
 
 
@@ -108,11 +109,11 @@ async def _openai_compatible_process_image(
     json_mode: bool = True
 ) -> str:
     """Process image with OpenAI-compatible API (OpenRouter/Qwen/Doubao)."""
-    logging.info(f"Processing image with {provider}: {image_path}, json_mode={json_mode}")
+    logger.info(f"Processing image with {provider}: {image_path}, json_mode={json_mode}")
     start_time = time.time()
 
     base64_image, stats = _read_and_optimize_image(image_path)
-    logging.info(f"Image optimization took: {time.time() - start_time:.2f}s, {stats}")
+    logger.info(f"Image optimization took: {time.time() - start_time:.2f}s, {stats}")
 
     try:
         api_start = time.time()
@@ -124,12 +125,12 @@ async def _openai_compatible_process_image(
 
         response = await client.chat.completions.create(**api_params)
 
-        logging.info(f"{provider} API completed in {time.time() - api_start:.2f}s")
+        logger.info(f"{provider} API completed in {time.time() - api_start:.2f}s")
         result = response.choices[0].message.content
         return clean_json_response(result) if json_mode and result else (result or "")
 
     except Exception as e:
-        logging.error(f"{provider} API call failed: {e}")
+        logger.error(f"{provider} API call failed: {e}")
         return ""
 
 
@@ -139,13 +140,13 @@ async def _openai_compatible_file_extract(
     model: str,
     client: AsyncOpenAI,
     provider: str,
-    response_schema: Optional[Any] = None,
+    response_schema: Any | None = None,
     json_mode: bool = True
 ) -> str:
     """Unified file extraction for OpenAI-compatible providers."""
     file_path = pathlib.Path(local_file_path)
     if not file_path.exists():
-        logging.error(f"File not found: {local_file_path}")
+        logger.error(f"File not found: {local_file_path}")
         return ""
 
     # Embed schema in prompt if provided
@@ -156,13 +157,12 @@ async def _openai_compatible_file_extract(
         return await _openai_compatible_process_pdf(
             str(file_path), final_prompt, client, model, provider, json_mode=json_mode
         )
-    elif file_ext in IMAGE_EXTENSIONS:
+    if file_ext in IMAGE_EXTENSIONS:
         return await _openai_compatible_process_image(
             str(file_path), final_prompt, client, model, provider, json_mode=json_mode
         )
-    else:
-        logging.warning(f"Unsupported file type: {file_ext}")
-        return ""
+    logger.warning(f"Unsupported file type: {file_ext}")
+    return ""
 
 
 
@@ -203,7 +203,7 @@ async def doubao_file_extract(
     local_file_path: str,
     prompt: str = "Please extract all test indicators from this report and return the result in JSON format",
     model: str = "doubao-1-5-ui-tars-250428",
-    client: Optional[AsyncOpenAI] = None,
+    client: AsyncOpenAI | None = None,
     json_mode: bool = True
 ) -> str:
     """Doubao file extraction, supports PDF and image files."""
@@ -213,7 +213,7 @@ async def doubao_file_extract(
             local_file_path, prompt, model, client, "doubao", json_mode=json_mode
         )
     except Exception as e:
-        logging.error(f"Doubao extraction failed: {e}", stack_info=True)
+        logger.error(f"Doubao extraction failed: {e}", stack_info=True)
         raise ValueError(f"Doubao API failed: {e}") from e
 
 
@@ -221,8 +221,8 @@ async def qwen_file_extract(
     local_file_path: str,
     prompt: str = "Please extract all test indicators from this report and return the result in JSON format",
     model: str = "qwen3-vl-plus",
-    client: Optional[AsyncOpenAI] = None,
-    response_schema: Optional[Any] = None,
+    client: AsyncOpenAI | None = None,
+    response_schema: Any | None = None,
     json_mode: bool = True
 ) -> str:
     """Qwen file extraction using OpenAI-compatible API."""
@@ -233,7 +233,7 @@ async def qwen_file_extract(
             response_schema=response_schema, json_mode=json_mode
         )
     except Exception as e:
-        logging.error(f"Qwen extraction failed: {e}", stack_info=True)
+        logger.error(f"Qwen extraction failed: {e}", stack_info=True)
         raise ValueError(f"Qwen API failed: {e}") from e
 
 
@@ -241,8 +241,8 @@ async def vision_file_extract(
     local_file_path: str,
     prompt: str = "Please extract all test indicators from this report and return the result in JSON format",
     model: str = "google/gemini-3-flash-preview",
-    client: Optional[AsyncOpenAI] = None,
-    response_schema: Optional[Any] = None,
+    client: AsyncOpenAI | None = None,
+    response_schema: Any | None = None,
     json_mode: bool = True
 ) -> str:
     """OpenRouter file extraction using vision model."""
@@ -253,7 +253,7 @@ async def vision_file_extract(
             response_schema=response_schema, json_mode=json_mode
         )
     except Exception as e:
-        logging.error(f"OpenRouter extraction failed: {e}", stack_info=True)
+        logger.error(f"OpenRouter extraction failed: {e}", stack_info=True)
         raise ValueError(f"OpenRouter API failed: {e}") from e
 
 

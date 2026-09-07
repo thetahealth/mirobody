@@ -17,18 +17,48 @@ was the only thing pulling pycryptodome into the provider import path.
 
 import logging
 import time
-from datetime import datetime, timezone
-from typing import Optional
+from collections.abc import Iterable
+from datetime import datetime, UTC
 from zoneinfo import ZoneInfo
+
+from mirobody.pulse.ingest.models.requests import StandardPulseRecord
+from mirobody.kernel.series import Fact
+
+logger = logging.getLogger(__name__)
+
+
+def records_from_facts(facts: Iterable[Fact], *, slug: str, tz: str, source_id: str = "") -> list[StandardPulseRecord]:
+    """``mirobody.kernel.vendors`` facts → the ingest records this platform stores.
+
+    A fact's ``effective_start_ms`` is the record timestamp; an interval fact
+    (sleep stage, daily summary, workout) also carries ``startTime``/``endTime``
+    so the aggregator can attribute it to the right local day.
+    """
+    source = DataFormatter.format_source_name(slug)
+    out: list[StandardPulseRecord] = []
+    for f in facts:
+        value: float | str = f.value_num if f.value_num is not None else f.value_text
+        out.append(StandardPulseRecord(
+            source=source,
+            type=f.metric_key,
+            timestamp=f.effective_start_ms,
+            unit=f.unit,
+            value=value,
+            timezone=tz,
+            source_id=source_id,
+            startTime=f.effective_start_ms if f.is_interval else None,
+            endTime=f.effective_end_ms if f.is_interval else None,
+        ))
+    return out
 
 
 class TimeUtils:
 
     @staticmethod
-    def parse_time_to_timestamp(time_str: Optional[str]) -> int:
+    def parse_time_to_timestamp(time_str: str | None) -> int:
         try:
             if not time_str:
-                return int(datetime.now(timezone.utc).timestamp() * 1000)
+                return int(datetime.now(UTC).timestamp() * 1000)
             try:
                 num = float(time_str)
                 return int(num * 1000) if num <= 1e10 else int(num)
@@ -38,8 +68,7 @@ class TimeUtils:
             if isinstance(time_str, (int, float)):
                 if time_str > 1e10:
                     return int(time_str)
-                else:
-                    return int(time_str * 1000)
+                return int(time_str * 1000)
 
             if isinstance(time_str, str):
                 if time_str.endswith("Z"):
@@ -48,11 +77,11 @@ class TimeUtils:
                 dt = datetime.fromisoformat(time_str)
                 return int(dt.timestamp() * 1000)
 
-            return int(datetime.now(timezone.utc).timestamp() * 1000)
+            return int(datetime.now(UTC).timestamp() * 1000)
 
         except Exception as e:
-            logging.error(f"Error parsing time {time_str}: {str(e)}")
-            return int(datetime.now(timezone.utc).timestamp() * 1000)
+            logger.error(f"Error parsing time {time_str}: {str(e)}")
+            return int(datetime.now(UTC).timestamp() * 1000)
 
 
     @staticmethod
@@ -104,7 +133,7 @@ class TimeUtils:
             return int(dt_utc.timestamp() * 1000)
 
         except Exception as e:
-            logging.error(
+            logger.error(
                 f"Error parsing timestamp {timestamp_str} with timezone {effective_timezone}: {e}"
             )
             return int(time.time() * 1000)
@@ -114,7 +143,7 @@ class DataFormatter:
 
 
     @staticmethod
-    def format_source_name(provider_slug: str, device_info: Optional[str] = None) -> str:
+    def format_source_name(provider_slug: str, device_info: str | None = None) -> str:
         base_source = f"theta.{provider_slug}"
         if device_info:
             return f"{base_source}.{device_info}"
@@ -124,4 +153,5 @@ class DataFormatter:
 __all__ = [
     "TimeUtils",
     "DataFormatter",
+    "records_from_facts",
 ]
