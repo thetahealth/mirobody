@@ -9,7 +9,9 @@ Supports multi-page PDF aggregation and health indicator formatting.
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ContentFormatter:
@@ -17,10 +19,10 @@ class ContentFormatter:
 
     @staticmethod
     def format_parsed_content(
-        file_results: List[Dict[str, Any]],
-        file_names: List[str],
-        llm_responses: List[Any] = None,
-        indicators_list: List[List[Dict]] = None,
+        file_results: list[dict[str, Any]],
+        file_names: list[str],
+        llm_responses: list[Any] = None,
+        indicators_list: list[list[dict]] = None,
     ) -> str:
         """
         Format parsed content from multiple files (including multi-page PDFs)
@@ -46,7 +48,7 @@ class ContentFormatter:
             formatted_content.append("")
 
             # Process each file
-            for i, (file_result, file_name) in enumerate(zip(file_results, file_names)):
+            for i, (file_result, file_name) in enumerate(zip(file_results, file_names, strict=False)):
                 file_type = file_result.get("type", "unknown")
 
                 # Add file header
@@ -84,12 +86,12 @@ class ContentFormatter:
             return "\n".join(formatted_content)
 
         except Exception as e:
-            logging.error(f"Content formatting failed: {str(e)}", stack_info=True)
+            logger.error(f"Content formatting failed: {str(e)}", stack_info=True)
             # Return fallback content
             return ContentFormatter._create_fallback_content(file_results, file_names)
 
     @staticmethod
-    def _format_health_report_content(llm_response: Any, indicators: List[Dict]) -> List[str]:
+    def _format_health_report_content(llm_response: Any, indicators: list[dict]) -> list[str]:
         """
         Format health report content (adapted from _format_llm_response_for_display)
         """
@@ -198,7 +200,7 @@ class ContentFormatter:
                 content_lines.append("No valid health indicator data was identified in this analysis.")
 
         except Exception as e:
-            logging.warning(f"Health report formatting failed: {str(e)}")
+            logger.warning(f"Health report formatting failed: {str(e)}")
             content_lines.append("### Processing Result")
             content_lines.append("")
             content_lines.append(f"Found {len(indicators)} indicators from health document analysis.")
@@ -206,7 +208,7 @@ class ContentFormatter:
         return content_lines
 
     @staticmethod
-    def _format_excel_content(file_result: Dict) -> List[str]:
+    def _format_excel_content(file_result: dict) -> list[str]:
         """Format Excel file content"""
         content_lines = []
 
@@ -224,7 +226,7 @@ class ContentFormatter:
         return content_lines
 
     @staticmethod
-    def _format_multi_file_summary(file_results: List[Dict], indicators_list: List[List[Dict]] = None) -> List[str]:
+    def _format_multi_file_summary(file_results: list[dict], indicators_list: list[list[dict]] = None) -> list[str]:
         """Format summary for multiple files"""
         content_lines = []
 
@@ -256,7 +258,7 @@ class ContentFormatter:
         return content_lines
 
     @staticmethod
-    def _create_fallback_content(file_results: List[Dict], file_names: List[str]) -> str:
+    def _create_fallback_content(file_results: list[dict], file_names: list[str]) -> str:
         """Create fallback content when formatting fails"""
         try:
             content_lines = []
@@ -264,7 +266,7 @@ class ContentFormatter:
             content_lines.append("")
             content_lines.append(f"Processed {len(file_results)} files:")
 
-            for i, (result, name) in enumerate(zip(file_results, file_names)):
+            for i, (result, name) in enumerate(zip(file_results, file_names, strict=False)):
                 content_lines.append(f"{i + 1}. {name} ({result.get('type', 'unknown')})")
 
             return "\n".join(content_lines)

@@ -1,0 +1,62 @@
+{
+  "_note": "Synthetic Apple clinical-record medications. NOT a vendors/ decoder sample — those are payloads for `vendors.decode` and this is an IMPORT fixture for the CDA provider, which is why it lives next to that provider. Apple's HKClinicalRecord carries the FHIR resource the provider published, so a MedicationStatement arrives as itself; the flat shape below is what an exporter that flattens CDA XML produces. Both are read by pulse/apple/provider.py::_format_medications. No real person, no real prescription.",
+  "medications": [
+    {
+      "resourceType": "MedicationStatement",
+      "id": "ms-synthetic-1",
+      "status": "active",
+      "medicationCodeableConcept": {
+        "coding": [
+          {"system": "http://www.nlm.nih.gov/research/umls/rxnorm", "code": "860975", "display": "metformin hydrochloride 500 MG Oral Tablet"}
+        ],
+        "text": "Metformin 500 mg"
+      },
+      "effectivePeriod": {"start": "2026-01-05"},
+      "dateAsserted": "2026-01-06",
+      "dosage": [
+        {
+          "text": "500 mg twice daily with meals",
+          "timing": {"repeat": {"frequency": 2, "period": 1, "periodUnit": "d"}},
+          "doseAndRate": [{"doseQuantity": {"value": 500, "unit": "mg", "code": "mg"}}]
+        }
+      ]
+    },
+    {
+      "resourceType": "MedicationStatement",
+      "id": "ms-synthetic-2",
+      "status": "completed",
+      "medicationCodeableConcept": {"text": "Amoxicillin 500 mg"},
+      "effectivePeriod": {"start": "2025-09-01", "end": "2025-09-08"},
+      "dosage": [{"text": "1 capsule every 8 hours"}]
+    },
+    {
+      "resourceType": "MedicationStatement",
+      "id": "ms-synthetic-3",
+      "status": "entered-in-error",
+      "medicationCodeableConcept": {"text": "Recorded by mistake"}
+    },
+    {
+      "id": "cda-flat-1",
+      "name": "Atorvastatin",
+      "dose": 20,
+      "unit": "mg",
+      "frequency": "once daily at bedtime",
+      "start": "2025-11-02"
+    },
+    {
+      "name": "",
+      "dose": 1
+    }
+  ],
+  "expected": {
+    "plans_written": 3,
+    "concept_keys": ["rxnorm:860975", "text:*", "text:*"],
+    "notes": [
+      "ms-synthetic-3 is entered-in-error and must not be imported at all",
+      "the entry with no name and no code is unusable and is skipped without losing the rest",
+      "ms-synthetic-2 is completed, so it has an end date and is never open-ended",
+      "the flat entry parses 'once daily at bedtime' to nothing structured; the dose still lands",
+      "every imported plan is confirmed=False: it was imported, not entered by the person"
+    ]
+  }
+}

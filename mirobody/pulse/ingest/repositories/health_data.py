@@ -5,9 +5,11 @@ Health data repository
 import logging
 
 from datetime import datetime
-from typing import Any, Dict, List, Set
+from typing import Any
 
 from ....utils import execute_query
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -16,7 +18,7 @@ class HealthDataRepository:
 
     async def save_health_records(
         self,
-        records: list[Dict[str, Any]],
+        records: list[dict[str, Any]],
     ) -> bool:
         """
         Save health data records to database, supports single or batch processing, 1000 records per batch
@@ -34,7 +36,7 @@ class HealthDataRepository:
         """
         try:
             if not records:
-                logging.info("No records to save")
+                logger.info("No records to save")
                 return True
 
             # Batch insert SQL
@@ -97,20 +99,20 @@ class HealthDataRepository:
 
                 successfully_processed += len(batch_records)
 
-                logging.info(f"Successfully processed batch {i // batch_size + 1}: {len(batch_records)} records")
+                logger.info(f"Successfully processed batch {i // batch_size + 1}: {len(batch_records)} records")
 
-            logging.info(f"Successfully saved {successfully_processed} health records in {(total_records + batch_size - 1) // batch_size} batches")
+            logger.info(f"Successfully saved {successfully_processed} health records in {(total_records + batch_size - 1) // batch_size} batches")
             return True
 
         except Exception as e:
-            logging.error(f"Failed to save health records: {str(e)}, total_records={len(records)}", stack_info=True)
+            logger.error(f"Failed to save health records: {str(e)}, total_records={len(records)}", stack_info=True)
             return False
 
     async def sweep_series_data_repair(
         self,
         user_id: str,
-        sources: List[str],
-        indicators: Set[str],
+        sources: list[str],
+        indicators: set[str],
         window_from: datetime,
         window_to: datetime,
         repair_task_id: str,
@@ -138,7 +140,7 @@ class HealthDataRepository:
             int: number of rows deleted (best-effort; 0 if unavailable).
         """
         if not sources or not indicators:
-            logging.info("[RepairReconcile] series_data sweep skipped: empty sources/indicators")
+            logger.info("[RepairReconcile] series_data sweep skipped: empty sources/indicators")
             return 0
 
         # NOTE: this DELETE intentionally does NOT exclude task_id='filtered_out_of_range'.
@@ -169,21 +171,21 @@ class HealthDataRepository:
             result = await execute_query(query, params)
             # execute_query returns {"record_count": cur.rowcount} for DML with dict params
             deleted = result.get("record_count", 0) if isinstance(result, dict) else 0
-            logging.info(
+            logger.info(
                 f"[RepairReconcile] series_data swept (physical): user={user_id}, "
                 f"deleted~={deleted}, indicators={len(indicators)}, sources={sources}, "
                 f"window=[{window_from}, {window_to}], keep_task_id={repair_task_id}"
             )
             return deleted or 0
         except Exception as e:
-            logging.error(f"[RepairReconcile] series_data sweep failed: {e}", stack_info=True)
+            logger.error(f"[RepairReconcile] series_data sweep failed: {e}", stack_info=True)
             raise
 
     async def sweep_th_series_data_repair(
         self,
         user_id: str,
-        sources: List[str],
-        indicators: Set[str],
+        sources: list[str],
+        indicators: set[str],
         window_from: datetime,
         window_to: datetime,
         repair_task_id: str,
@@ -235,14 +237,14 @@ class HealthDataRepository:
         try:
             result = await execute_query(query, params)
             updated = result.get("record_count", 0) if isinstance(result, dict) else 0
-            logging.info(
+            logger.info(
                 f"[RepairReconcile] th_series_data swept (soft): user={user_id}, "
                 f"soft_deleted~={updated}, indicators={len(indicators)}, "
                 f"window=[{window_from}, {window_to}], keep_task_id={repair_task_id}"
             )
             return updated or 0
         except Exception as e:
-            logging.error(f"[RepairReconcile] th_series_data sweep failed: {e}", stack_info=True)
+            logger.error(f"[RepairReconcile] th_series_data sweep failed: {e}", stack_info=True)
             raise
 
 

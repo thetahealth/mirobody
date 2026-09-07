@@ -12,7 +12,6 @@ import re
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple
 
 # `fastapi` lives in the [app] extra, but file parsing is advertised engine
 # functionality — a bare `pip install mirobody` must import this module. Every
@@ -25,6 +24,8 @@ if TYPE_CHECKING:
 from mirobody.utils.config.storage import get_storage_client
 from mirobody.utils.i18n import t
 from mirobody.utils.req_ctx import get_req_ctx
+
+logger = logging.getLogger(__name__)
 
 
 # Supported file extensions. This gate must match what the handler factory can
@@ -124,7 +125,7 @@ class FileUploader:
 
             # Check if content is empty
             if not file_content or len(file_content) == 0:
-                logging.error(f"File content is empty: {filename}")
+                logger.error(f"File content is empty: {filename}")
                 raise ValueError(t("file_empty", language))
 
             file_size = len(file_content)
@@ -132,7 +133,7 @@ class FileUploader:
             # Get storage client at runtime (lazy initialization)
             storage = get_storage_client()
             
-            logging.info(f"Starting to upload file content using {storage.get_storage_type()} storage: {filename}, size: {file_size} bytes")
+            logger.info(f"Starting to upload file content using {storage.get_storage_type()} storage: {filename}, size: {file_size} bytes")
 
             # Set upload timeout based on file size
             upload_timeout = 30 if file_size <= 10 * 1024 * 1024 else 60  # 30s for <=10MB, 60s for >10MB
@@ -152,25 +153,25 @@ class FileUploader:
                 if error:
                     raise ValueError(f"Upload failed: {error}")
                     
-            except asyncio.TimeoutError:
-                logging.error(f"File upload timeout: {filename}, size: {file_size} bytes")
+            except TimeoutError:
+                logger.error(f"File upload timeout: {filename}, size: {file_size} bytes")
                 raise ValueError(t("file_upload_timeout", language))
 
             if not full_url:
                 raise ValueError(t("file_upload_failed", language))
 
-            logging.info(f"File uploaded successfully to {storage.get_storage_type()} storage: {full_url}")
+            logger.info(f"File uploaded successfully to {storage.get_storage_type()} storage: {full_url}")
 
             return full_url
 
         except Exception as e:
-            logging.error(f"File content upload failed: {str(e)}", stack_info=True)
+            logger.error(f"File content upload failed: {str(e)}", stack_info=True)
             raise
 
 
 # Utility functions for file upload operations
 
-def validate_file_extension(file: UploadFile) -> Tuple[bool, str]:
+def validate_file_extension(file: UploadFile) -> tuple[bool, str]:
     """
     Validate uploaded file extension
     
@@ -257,10 +258,9 @@ def get_file_type_category(content_type: str) -> str:
         
     if content_type.startswith("image/"):
         return "image"
-    elif content_type == "application/pdf":
+    if content_type == "application/pdf":
         return "pdf"
-    elif content_type in ["application/vnd.ms-excel", 
+    if content_type in ["application/vnd.ms-excel", 
                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]:
         return "excel"
-    else:
-        return "document"
+    return "document"

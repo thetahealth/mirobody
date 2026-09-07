@@ -6,7 +6,7 @@ Provides unit conversion functionality with automatic bidirectional conversion g
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, Set, Tuple
+from typing import Any
 
 # The UCUM engine is the single source for every constant this module shares
 # with it: imperial mass/length definitions and substance molar masses. This
@@ -22,11 +22,13 @@ try:
 except ImportError:
     StandardIndicator = None  # Fallback for circular import
 
+logger = logging.getLogger(__name__)
+
 # ============================================================================
 # STANDARD UNITS SET
 # ============================================================================
 
-STANDARD_UNITS: Set[str] = {
+STANDARD_UNITS: set[str] = {
     # Mass
     "kg", "g",
     # Length  
@@ -66,7 +68,7 @@ STANDARD_UNITS: Set[str] = {
 # Format: base_unit: {target_unit: conversion_factor}
 # Where: 1 base_unit = conversion_factor × target_unit
 # Example: 1 kg = 1000 g, so "kg": {"g": 1000}
-_RAW_UNIT_CONVERSIONS: Dict[str, Dict[str, float]] = {
+_RAW_UNIT_CONVERSIONS: dict[str, dict[str, float]] = {
     # Mass: base unit kg. Imperial factors come from the UCUM engine's exact
     # definitions ([lb_av] = 453.59237 g), not rounded literals.
     "kg": {
@@ -201,7 +203,7 @@ _RAW_UNIT_CONVERSIONS: Dict[str, Dict[str, float]] = {
 # AUTO-GENERATE COMPLETE CONVERSIONS
 # ============================================================================
 
-def _build_complete_conversions(raw_conversions: Dict[str, Dict[str, float]]) -> Dict[str, Dict[str, float]]:
+def _build_complete_conversions(raw_conversions: dict[str, dict[str, float]]) -> dict[str, dict[str, float]]:
     """
     Auto-generate complete bidirectional and transitive conversions from raw config
     
@@ -270,14 +272,14 @@ def _build_complete_conversions(raw_conversions: Dict[str, Dict[str, float]]) ->
 
 
 # Module-level auto-generation of complete conversions
-UNIT_CONVERSIONS: Dict[str, Dict[str, float]] = _build_complete_conversions(_RAW_UNIT_CONVERSIONS)
+UNIT_CONVERSIONS: dict[str, dict[str, float]] = _build_complete_conversions(_RAW_UNIT_CONVERSIONS)
 
 # ============================================================================
 # INDICATOR-SPECIFIC CONVERSIONS (Optional Special Cases)
 # ============================================================================
 
 # Only configure indicators that need special conversion logic
-INDICATOR_SPECIFIC_CONVERSIONS: Dict[Any, Dict[str, Any]] = {}
+INDICATOR_SPECIFIC_CONVERSIONS: dict[Any, dict[str, Any]] = {}
 
 
 # Populate at runtime to avoid circular import
@@ -388,7 +390,7 @@ def _populate_indicator_specific_conversions():
 # CORE API - Public Interface
 # ============================================================================
 
-def convert_to_standard(indicator: StandardIndicator, value: float, unit: str, ) -> Tuple[float, str]:
+def convert_to_standard(indicator: StandardIndicator, value: float, unit: str, ) -> tuple[float, str]:
     """
     Convert value to standard unit for the indicator (Core API)
     
@@ -428,7 +430,7 @@ def convert_to_standard(indicator: StandardIndicator, value: float, unit: str, )
 
     if not success:
         # Keep original value and unit (fail gracefully)
-        logging.debug(f"No conversion rule for {unit} -> {standard_unit}, keeping original")
+        logger.debug(f"No conversion rule for {unit} -> {standard_unit}, keeping original")
         return value, unit
 
     return converted_value, result_unit
@@ -453,7 +455,7 @@ class UnifiedUnitConverter:
             indicator: Any,  # StandardIndicator type
             value: float,
             from_unit: str
-    ) -> Tuple[float, str, bool]:
+    ) -> tuple[float, str, bool]:
         """
         Convert value to standard unit for the indicator
         
@@ -474,7 +476,7 @@ class UnifiedUnitConverter:
                 from .indicators_info import get_standard_unit
                 standard_unit = get_standard_unit(str(indicator))
         except Exception as e:
-            logging.error(f"Failed to get standard unit for indicator {indicator}: {e}")
+            logger.error(f"Failed to get standard unit for indicator {indicator}: {e}")
             return value, from_unit, False
 
         # Same unit, no conversion needed
@@ -501,23 +503,22 @@ class UnifiedUnitConverter:
                         converted_value = value * converter
                         return converted_value, standard_unit, True
                 except Exception as e:
-                    logging.warning(f"Indicator-specific conversion failed for {indicator}, falling back to generic: {e}")
+                    logger.warning(f"Indicator-specific conversion failed for {indicator}, falling back to generic: {e}")
 
         # Generic unit conversion with O(1) lookup
         converted_value, success = convert_unit(value, from_unit, standard_unit)
         if success:
             return converted_value, standard_unit, True
-        else:
-            # No conversion rule found, keep original
-            logging.debug(f"No conversion rule found for {from_unit} -> {standard_unit}")
-            return value, from_unit, False
+        # No conversion rule found, keep original
+        logger.debug(f"No conversion rule found for {from_unit} -> {standard_unit}")
+        return value, from_unit, False
 
 
 # ============================================================================
 # UNIT CONVERSION FUNCTIONS
 # ============================================================================
 
-def convert_unit(value: float, from_unit: str, to_unit: str) -> Tuple[float, bool]:
+def convert_unit(value: float, from_unit: str, to_unit: str) -> tuple[float, bool]:
     """
     Generic unit conversion with O(1) lookup (Internal utility function)
     
@@ -586,19 +587,18 @@ def _convert_temperature(value: float, from_unit: str, to_unit: str) -> float:
     # Convert from Celsius to target unit
     if to_unit == "°F":
         return celsius * 9 / 5 + 32
-    elif to_unit == "K":
+    if to_unit == "K":
         return celsius + 273.15
-    elif to_unit == "°C":
+    if to_unit == "°C":
         return celsius
-    else:
-        raise ValueError(f"Unknown temperature unit: {to_unit}")
+    raise ValueError(f"Unknown temperature unit: {to_unit}")
 
 
 # ============================================================================
 # UNIT INFORMATION FOR FRONTEND
 # ============================================================================
 
-def get_all_units_info() -> Dict[str, Any]:
+def get_all_units_info() -> dict[str, Any]:
     """
     Get all unit information (for frontend display)
     

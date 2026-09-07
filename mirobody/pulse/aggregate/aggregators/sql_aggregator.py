@@ -8,20 +8,39 @@ Handles all complex grouping and batching logic internally.
 import logging
 import re
 from collections import defaultdict
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Set, Tuple
+from datetime import datetime, timedelta, UTC
+from typing import Any
 
-import pytz
+from zoneinfo import ZoneInfo
 
 from ....utils import execute_query
+from .. import windows
 from ..models import CalculationTask
 from ..rule_generator import get_rules_by_source_indicator
 from .source_id_priority import APPLE_SOURCES, build_apple_priority_case
-from ...standardize.indicators_info import StandardIndicator, HealthDataType
+from ...standardize.indicators_info import StandardIndicator
 from ...standardize.fhir_mapping import get_fhir_id
 
+logger = logging.getLogger(__name__)
 
-def to_local_day_range(data_begin_utc: datetime, timezone: str) -> Tuple[datetime, datetime]:
+
+def _union_over_windows(branch_sql: str) -> str:
+    """One SELECT per day window the catalogue declares, UNION ALL'd.
+
+    `branch_sql` is the query with two holes: `{day_begin}`, the expression
+    that computes the local day's beginning as a UTC instant, and
+    `{window_predicate}`, the filter that selects the names on that window.
+    The branches partition the input — the last one is the negation of every
+    other — so every reading is counted exactly once.
+    """
+    parts = [
+        branch_sql.format(day_begin=windows.day_begin_expression(window), window_predicate=predicate)
+        for window, predicate, _params in windows.branches()
+    ]
+    return "\nUNION ALL\n".join(parts)
+
+
+def to_local_day_range(data_begin_utc: datetime, timezone: str) -> tuple[datetime, datetime]:
     """Convert a UTC day-begin instant to the user's local calendar-day boundaries.
 
     th_series_data.start_time/end_time store the user's local-timezone naive
@@ -43,14 +62,13 @@ def to_local_day_range(data_begin_utc: datetime, timezone: str) -> Tuple[datetim
         day_start_utc = data_begin_utc
 
     try:
-        tz = pytz.timezone(timezone)
-        day_start_local = pytz.utc.localize(day_start_utc).astimezone(tz).replace(tzinfo=None)
+        day_start_local = day_start_utc.replace(tzinfo=UTC).astimezone(ZoneInfo(timezone)).replace(tzinfo=None)
         local_date = day_start_local.date()
         day_start = datetime(local_date.year, local_date.month, local_date.day, 0, 0, 0)
         day_end = datetime(local_date.year, local_date.month, local_date.day, 23, 59, 59)
         return day_start, day_end
     except Exception as e:
-        logging.error(f"Error converting timezone {timezone}: {e}")
+        logger.error(f"Error converting timezone {timezone}: {e}")
         return day_start_utc, day_start_utc + timedelta(hours=24)
 
 
@@ -119,7 +137,7 @@ class SQLAggregator:
             'count': 'count',
         }
 
-    async def get_trigger_tasks(self, since_timestamp: float) -> List[CalculationTask]:
+    async def get_trigger_tasks(self, since_timestamp: float) -> list[CalculationTask]:
         """
         Get trigger tasks based on time range
 
@@ -136,54 +154,36 @@ class SQLAggregator:
         try:
             since_time = datetime.fromtimestamp(since_timestamp)
 
-            # Use UNION to separate sleep data and normal data
-            query = """
-            -- Sleep data query: data_begin_utc is 18:00 in user's local time, converted to UTC (naive)
-            -- Example: America/Los_Angeles user, local 2025-10-01 18:00 -> UTC 2025-10-02 04:00
-            -- Note: time field is stored as UTC timestamp, we explicitly specify 'UTC' first
-            SELECT 
-                user_id,
-                indicator,
-                timezone,
-                (((((time AT TIME ZONE 'UTC') AT TIME ZONE timezone) - INTERVAL '18 hours')::date::text || ' 18:00:00')::timestamp AT TIME ZONE timezone) AT TIME ZONE 'UTC' AS data_begin_utc,
-                MIN(update_time) as min_update_time,
-                MAX(update_time) as max_update_time
-            FROM series_data
-            WHERE update_time > :since_time
-              AND time >= NOW() - INTERVAL '3 months'
-              AND LOWER(indicator) LIKE '%sleep%'
-              AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
-            GROUP BY user_id, indicator, timezone, data_begin_utc
+            # One branch per day window the CATALOGUE declares, not per name
+            # that happens to contain "sleep" — see ../windows.py. `time` is a
+            # UTC timestamp, so each branch reads it in the subject's zone
+            # first.
+            query = _union_over_windows(
+                """
+                SELECT
+                    user_id,
+                    indicator,
+                    timezone,
+                    {day_begin} AS data_begin_utc,
+                    MIN(update_time) as min_update_time,
+                    MAX(update_time) as max_update_time
+                FROM series_data
+                WHERE update_time > :since_time
+                  AND time >= NOW() - INTERVAL '3 months'
+                  AND {window_predicate}
+                  AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+                GROUP BY user_id, indicator, timezone, data_begin_utc
+                """
+            ) + "\nORDER BY min_update_time ASC"
 
-            UNION ALL
-
-            -- Normal data query: data_begin_utc is 00:00 in user's local time, converted to UTC (naive)
-            -- Example: America/Los_Angeles user, local 2025-10-01 00:00 -> UTC 2025-10-01 08:00
-            -- Note: time field is stored as UTC timestamp, we explicitly specify 'UTC' first
-            SELECT
-                user_id,
-                indicator,
-                timezone,
-                ((((time AT TIME ZONE 'UTC') AT TIME ZONE timezone)::date::text || ' 00:00:00')::timestamp AT TIME ZONE timezone) AT TIME ZONE 'UTC' AS data_begin_utc,
-                MIN(update_time) as min_update_time,
-                MAX(update_time) as max_update_time
-            FROM series_data
-            WHERE update_time > :since_time
-              AND time >= NOW() - INTERVAL '3 months'
-              AND LOWER(indicator) NOT LIKE '%sleep%'
-              AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
-            GROUP BY user_id, indicator, timezone, data_begin_utc
-            
-            ORDER BY min_update_time ASC
-            """
-            
             params = {
                 "since_time": since_time,
+                **windows.branch_params(),
             }
 
             result = await execute_query(query, params)
 
-            logging.info(f"Fetched {len(result)} grouped series_data records since timestamp {since_timestamp} ({since_time.isoformat()})")
+            logger.info(f"Fetched {len(result)} grouped series_data records since timestamp {since_timestamp} ({since_time.isoformat()})")
 
             # Convert to CalculationTask objects
             tasks = []
@@ -218,10 +218,10 @@ class SQLAggregator:
             return tasks
 
         except Exception as e:
-            logging.error(f"Error fetching trigger tasks: {e}")
+            logger.error(f"Error fetching trigger tasks: {e}")
             return []
 
-    async def calculate_batch_aggregations(self, tasks: List[CalculationTask]) -> List[Dict[str, Any]]:
+    async def calculate_batch_aggregations(self, tasks: list[CalculationTask]) -> list[dict[str, Any]]:
         """
         Calculate aggregations for a batch of tasks
         
@@ -248,7 +248,7 @@ class SQLAggregator:
 
         # Step 2: Process each data_begin_utc group
         for data_begin_utc, data_begin_tasks in data_begin_groups.items():
-            logging.info(f"Processing {len(data_begin_tasks)} tasks for data_begin_utc {data_begin_utc}")
+            logger.info(f"Processing {len(data_begin_tasks)} tasks for data_begin_utc {data_begin_utc}")
             
             # Decide whether to use single SQL or split by indicator
             if len(data_begin_tasks) <= self.MAX_TASKS_PER_SQL:
@@ -260,15 +260,15 @@ class SQLAggregator:
                 summaries = await self._process_data_begin_split_aggregations(data_begin_tasks)
                 all_summaries.extend(summaries)
 
-        logging.info(f"Generated {len(all_summaries)} summary records from {len(tasks)} tasks")
+        logger.info(f"Generated {len(all_summaries)} summary records from {len(tasks)} tasks")
         return all_summaries
 
     async def calculate_time_range_aggregations(
             self,
             start_date: datetime,
             end_date: datetime,
-            user_id: Optional[str]
-    ) -> List[Dict[str, Any]]:
+            user_id: str | None
+    ) -> list[dict[str, Any]]:
         """
         Calculate aggregations over a time range.
 
@@ -281,15 +281,14 @@ class SQLAggregator:
 
         if days_diff > self.MAX_DAYS_PER_MONTH:
             return await self._process_30_day_chunks(start_date, end_date, user_id)
-        else:
-            return await self._process_single_user_range(start_date, end_date, user_id)
+        return await self._process_single_user_range(start_date, end_date, user_id)
 
     async def _process_30_day_chunks(
             self,
             start_date: datetime,
             end_date: datetime,
-            user_id: Optional[str]
-    ) -> List[Dict[str, Any]]:
+            user_id: str | None
+    ) -> list[dict[str, Any]]:
         """Process time range by splitting into 30-day chunks"""
 
         all_summaries = []
@@ -300,7 +299,7 @@ class SQLAggregator:
             # Calculate chunk end (30 days later or end_date, whichever is earlier)
             chunk_end = min(current_start + timedelta(days=self.MAX_DAYS_PER_MONTH - 1), end_date)
 
-            logging.info(f"Processing 30-day chunk: {current_start.strftime('%Y-%m-%d')} to {chunk_end.strftime('%Y-%m-%d')} for {user_label}")
+            logger.info(f"Processing 30-day chunk: {current_start.strftime('%Y-%m-%d')} to {chunk_end.strftime('%Y-%m-%d')} for {user_label}")
 
             # Recursively call calculate_time_range_aggregations for this chunk
             chunk_summaries = await self.calculate_time_range_aggregations(current_start, chunk_end, user_id)
@@ -315,8 +314,8 @@ class SQLAggregator:
             self,
             start_date: datetime,
             end_date: datetime,
-            user_id: Optional[str]
-    ) -> List[Dict[str, Any]]:
+            user_id: str | None
+    ) -> list[dict[str, Any]]:
         """Process data over a time range (≤30 days).
 
         user_id=None means all users; otherwise a single user.
@@ -325,7 +324,7 @@ class SQLAggregator:
         tasks = await self._get_tasks_for_user_date_range(start_date, end_date, user_id)
 
         if not tasks:
-            logging.debug(f"No tasks found for {user_id or 'all users'} from {start_date} to {end_date}")
+            logger.debug(f"No tasks found for {user_id or 'all users'} from {start_date} to {end_date}")
             return []
         
         # Use calculate_batch_aggregations to handle the tasks
@@ -336,8 +335,8 @@ class SQLAggregator:
             self,
             start_date: datetime,
             end_date: datetime,
-            user_id: Optional[str]
-    ) -> List[CalculationTask]:
+            user_id: str | None
+    ) -> list[CalculationTask]:
         """Get tasks for a date range.
 
         user_id=None means all users; otherwise filter to that user.
@@ -367,43 +366,24 @@ class SQLAggregator:
             #    half-open [start, end); the callers pass a date-only end, so `<=`
             #    matched only rows at exactly 00:00:00 on the last day and dropped the
             #    rest of it.
-            query = """
-            -- Sleep data query: data_begin_utc is 18:00 in user's local time, converted to UTC (naive)
-            SELECT
-                user_id,
-                indicator,
-                timezone,
-                (((((time AT TIME ZONE 'UTC') AT TIME ZONE timezone) - INTERVAL '18 hours')::date::text || ' 18:00:00')::timestamp AT TIME ZONE timezone) AT TIME ZONE 'UTC' AS data_begin_utc,
-                MIN(update_time) as min_update_time,
-                MAX(update_time) as max_update_time
-            FROM series_data
-            WHERE (CAST(:user_id AS text) IS NULL OR user_id = CAST(:user_id AS text))
-              AND time >= :start_date
-              AND time < :end_date
-              AND LOWER(indicator) LIKE '%sleep%'
-              AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
-            GROUP BY user_id, indicator, timezone, data_begin_utc
-
-            UNION ALL
-
-            -- Normal data query: data_begin_utc is 00:00 in user's local time, converted to UTC (naive)
-            SELECT
-                user_id,
-                indicator,
-                timezone,
-                ((((time AT TIME ZONE 'UTC') AT TIME ZONE timezone)::date::text || ' 00:00:00')::timestamp AT TIME ZONE timezone) AT TIME ZONE 'UTC' AS data_begin_utc,
-                MIN(update_time) as min_update_time,
-                MAX(update_time) as max_update_time
-            FROM series_data
-            WHERE (CAST(:user_id AS text) IS NULL OR user_id = CAST(:user_id AS text))
-              AND time >= :start_date
-              AND time < :end_date
-              AND LOWER(indicator) NOT LIKE '%sleep%'
-              AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
-            GROUP BY user_id, indicator, timezone, data_begin_utc
-
-            ORDER BY min_update_time ASC
-            """
+            query = _union_over_windows(
+                """
+                SELECT
+                    user_id,
+                    indicator,
+                    timezone,
+                    {day_begin} AS data_begin_utc,
+                    MIN(update_time) as min_update_time,
+                    MAX(update_time) as max_update_time
+                FROM series_data
+                WHERE (CAST(:user_id AS text) IS NULL OR user_id = CAST(:user_id AS text))
+                  AND time >= :start_date
+                  AND time < :end_date
+                  AND {window_predicate}
+                  AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+                GROUP BY user_id, indicator, timezone, data_begin_utc
+                """
+            ) + "\nORDER BY min_update_time ASC"
 
             # The public contract is INCLUSIVE of end_date's calendar day —
             # `calculate_time_range_aggregations` computes
@@ -421,11 +401,12 @@ class SQLAggregator:
                 "user_id": user_id,
                 "start_date": start_date,
                 "end_date": end_exclusive,
+                **windows.branch_params(),
             }
 
             result = await execute_query(query, params)
 
-            logging.info(f"Fetched {len(result)} grouped series_data records for {user_id or 'all users'} from {start_date.date()} to {end_date.date()}")
+            logger.info(f"Fetched {len(result)} grouped series_data records for {user_id or 'all users'} from {start_date.date()} to {end_date.date()}")
             
             # Convert to CalculationTask objects
             tasks = []
@@ -459,10 +440,10 @@ class SQLAggregator:
             return tasks
             
         except Exception as e:
-            logging.error(f"Error fetching tasks for user {user_id} date range: {e}")
+            logger.error(f"Error fetching tasks for user {user_id} date range: {e}")
             return []
 
-    async def _process_data_begin_aggregations(self, data_begin_tasks: List[CalculationTask]) -> List[Dict[str, Any]]:
+    async def _process_data_begin_aggregations(self, data_begin_tasks: list[CalculationTask]) -> list[dict[str, Any]]:
         """
         Process all tasks for a specific data_begin using single SQL query
         
@@ -496,10 +477,10 @@ class SQLAggregator:
 
             # Standard GROUP BY aggregation path
             if standard_tasks:
-                indicators = list(set(task.source_indicator for task in standard_tasks))
-                aggregation_methods = set(task.aggregation_type for task in standard_tasks)
+                indicators = list({task.source_indicator for task in standard_tasks})
+                aggregation_methods = {task.aggregation_type for task in standard_tasks}
 
-                logging.debug(
+                logger.debug(
                     f"Single SQL processing: user {user_id}, {len(indicators)} indicators, "
                     f"data_begin_utc: {data_begin_utc}"
                 )
@@ -512,7 +493,7 @@ class SQLAggregator:
                     summaries = self._convert_to_summary_records(agg_results, standard_tasks, data_begin_utc)
                     all_summaries.extend(summaries)
                 else:
-                    logging.debug(f"No aggregation results for user {user_id}, data_begin_utc {data_begin_utc}")
+                    logger.debug(f"No aggregation results for user {user_id}, data_begin_utc {data_begin_utc}")
 
             # CGM event detection path (hypo_event_count, hypo_event_times)
             if event_tasks:
@@ -539,8 +520,8 @@ class SQLAggregator:
 
     async def _process_data_begin_split_aggregations(
             self,
-            data_begin_tasks: List[CalculationTask]
-    ) -> List[Dict[str, Any]]:
+            data_begin_tasks: list[CalculationTask]
+    ) -> list[dict[str, Any]]:
         """
         Process all tasks for a specific data_begin by splitting into indicator groups
         
@@ -577,8 +558,8 @@ class SQLAggregator:
                 event_tasks = [t for t in user_tasks if t.aggregation_type in self._cgm_event_methods]
 
                 if standard_tasks:
-                    aggregation_methods = set(task.aggregation_type for task in standard_tasks)
-                    logging.debug(
+                    aggregation_methods = {task.aggregation_type for task in standard_tasks}
+                    logger.debug(
                         f"Split SQL processing: user {user_id}, indicator: {indicator}, "
                         f"data_begin_utc: {data_begin_utc}"
                     )
@@ -630,7 +611,7 @@ class SQLAggregator:
         # Default: inherit source indicator's standard_unit
         return self._indicator_units.get(source_indicator, '')
 
-    def _parse_threshold_method(self, method: str) -> Optional[Tuple[str, str, str]]:
+    def _parse_threshold_method(self, method: str) -> tuple[str, str, str] | None:
         """
         Parse parameterized threshold method name into SQL clause.
 
@@ -679,11 +660,11 @@ class SQLAggregator:
 
     async def _execute_single_sql_aggregation(
             self,
-            user_ids: List[str],
-            indicators: List[str],
+            user_ids: list[str],
+            indicators: list[str],
             data_begin_utc: datetime,
-            aggregation_methods: Set[str]
-    ) -> List[Dict[str, Any]]:
+            aggregation_methods: set[str]
+    ) -> list[dict[str, Any]]:
         """
         Execute single SQL query for all users and indicators
         
@@ -859,9 +840,9 @@ class SQLAggregator:
     async def _process_cgm_event_tasks(
             self,
             user_id: str,
-            event_tasks: List[CalculationTask],
+            event_tasks: list[CalculationTask],
             data_begin_utc: datetime,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Process CGM event detection tasks (hypo_event_count, hypo_event_times)
 
@@ -932,7 +913,7 @@ class SQLAggregator:
             source: str,
             day_start: datetime,
             day_end: datetime,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Detect hypoglycemic episodes using gap-and-islands algorithm.
 
@@ -1031,9 +1012,9 @@ class SQLAggregator:
     async def _process_gmi_tasks(
             self,
             user_id: str,
-            gmi_tasks: List[CalculationTask],
+            gmi_tasks: list[CalculationTask],
             data_begin_utc: datetime,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Process GMI tasks using 14-day rolling window on raw series_data.
 
@@ -1044,7 +1025,6 @@ class SQLAggregator:
             return []
 
         all_summaries = []
-        timezone = gmi_tasks[0].timezone
         source_indicator = gmi_tasks[0].source_indicator
 
         # Get distinct sources for this user/indicator
@@ -1090,7 +1070,7 @@ class SQLAggregator:
             indicator: str,
             source: str,
             data_begin_utc: datetime,
-    ) -> Optional[float]:
+    ) -> float | None:
         """
         Calculate GMI from raw CGM data over a 14-day window ending at data_begin_utc.
 
@@ -1167,7 +1147,7 @@ class SQLAggregator:
         coverage = estimated_active_min / total_window_min
 
         if coverage < 0.70:
-            logging.warning(
+            logger.warning(
                 f"[GMI] Insufficient sensor coverage for user {user_id}, source {source}: "
                 f"{coverage:.1%} (need ≥70%). Points={len(deduped)}, "
                 f"sampling_interval={sampling_interval_min}min, "
@@ -1185,7 +1165,7 @@ class SQLAggregator:
         # series_data stores blood glucose in mg/dL (StandardIndicator.BLOOD_GLUCOSE.standard_unit)
         gmi = round(3.31 + 0.02392 * mean_glucose, 2)
 
-        logging.info(
+        logger.info(
             f"[GMI] user={user_id}, source={source}: "
             f"mean={mean_glucose:.1f} mg/dL, GMI={gmi}%, "
             f"points={len(deduped)}, interval={sampling_interval_min}min, "
@@ -1201,9 +1181,9 @@ class SQLAggregator:
     async def _process_custom_derived_tasks(
             self,
             user_id: str,
-            tasks: List[CalculationTask],
+            tasks: list[CalculationTask],
             data_begin_utc: datetime,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Process W2.7 custom derived tasks that need raw series_data queries.
 
@@ -1251,7 +1231,6 @@ class SQLAggregator:
                 source = result.get('source', 'derived')
                 target_indicator = task.target_indicator
                 unit = result.get('unit', '')
-                comment = result.get('comment', '')
 
                 fhir_id = get_fhir_id(target_indicator)
                 fhir_info = f", fhir_id={fhir_id}" if fhir_id else ""
@@ -1272,7 +1251,7 @@ class SQLAggregator:
                 })
 
             except Exception as e:
-                logging.warning(
+                logger.warning(
                     f"[SQLAggregator] Custom derived {task.aggregation_type} failed "
                     f"for user={user_id}, day={query_start}: {e}"
                 )
@@ -1281,7 +1260,7 @@ class SQLAggregator:
 
     async def _execute_sleep_onset_latency(
             self, user_id: str, day_start: datetime, day_end: datetime
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Sleep Onset Latency = time from InBed start to first Asleep start.
 
@@ -1344,7 +1323,7 @@ class SQLAggregator:
 
     async def _execute_morning_hr_jump(
             self, user_id: str, day_start: datetime, day_end: datetime
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Morning HR Jump = max HR in morning window (6:00-8:00 local) - avg HR in sleep window (1:00-5:00 local).
 
@@ -1416,7 +1395,7 @@ class SQLAggregator:
 
     async def _execute_nighttime_resting_hr(
             self, user_id: str, day_start: datetime, day_end: datetime
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Nighttime Resting HR = 10th percentile of HR during 1:00-5:00 local time.
 
@@ -1487,14 +1466,12 @@ class SQLAggregator:
             Time string in HH:MM format (local time)
         """
         try:
-            import pytz
             hours, minutes = map(int, utc_time_str.split(':'))
             utc_dt = reference_date_utc.replace(hour=hours, minute=minutes, second=0, microsecond=0)
-            tz = pytz.timezone(timezone_str)
-            local_dt = pytz.utc.localize(utc_dt).astimezone(tz)
+            local_dt = utc_dt.replace(tzinfo=UTC).astimezone(ZoneInfo(timezone_str))
             return local_dt.strftime('%H:%M')
         except Exception as e:
-            logging.warning(f"Failed to convert UTC time {utc_time_str} to {timezone_str}: {e}")
+            logger.warning(f"Failed to convert UTC time {utc_time_str} to {timezone_str}: {e}")
             return utc_time_str
 
     @staticmethod
@@ -1546,15 +1523,15 @@ class SQLAggregator:
             ]
             return json.dumps(local_times)
         except Exception as e:
-            logging.warning(f"Failed to convert UTC times JSON to local: {e}")
+            logger.warning(f"Failed to convert UTC times JSON to local: {e}")
             return '[]'
 
     def _convert_to_summary_records(
             self,
-            agg_results: List[Dict[str, Any]],
-            tasks: List[CalculationTask],
+            agg_results: list[dict[str, Any]],
+            tasks: list[CalculationTask],
             data_begin_utc: datetime
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Convert aggregation results to summary records for th_series_data
         

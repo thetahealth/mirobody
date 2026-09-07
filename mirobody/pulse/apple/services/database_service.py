@@ -4,9 +4,10 @@ Database service for Vital providers
 
 import logging
 import traceback
-from typing import Dict
 
 from ....utils import execute_query
+
+logger = logging.getLogger(__name__)
 
 
 class AppleDatabaseService:
@@ -72,14 +73,14 @@ class AppleDatabaseService:
                     },
                 )
 
-            logging.info(f"Successfully updated LLM access to {llm_access} for user {user_id}, provider {provider_slug}")
+            logger.info(f"Successfully updated LLM access to {llm_access} for user {user_id}, provider {provider_slug}")
             return True
 
         except Exception as e:
-            logging.error(f"Error updating LLM access for user {user_id}, provider {provider_slug}: {str(e)}", extra={"error": traceback.format_exc()})
+            logger.error(f"Error updating LLM access for user {user_id}, provider {provider_slug}: {str(e)}", extra={"error": traceback.format_exc()})
             return False
 
-    async def get_user_apple_providers_with_llm_access(self, user_id: str) -> Dict[str, int]:
+    async def get_user_apple_providers_with_llm_access(self, user_id: str) -> dict[str, int]:
         """
         Get user's apple providers with their LLM access permissions
 
@@ -108,9 +109,9 @@ class AppleDatabaseService:
                     llm_access = row["llm_access"]
                     provider_llm_map[provider_slug] = llm_access
 
-            logging.info(f"Retrieved LLM access for {len(provider_llm_map)} apple providers for user {user_id}")
+            logger.info(f"Retrieved LLM access for {len(provider_llm_map)} apple providers for user {user_id}")
             return provider_llm_map
 
         except Exception as e:
-            logging.error(f"Error getting apple providers LLM access for user {user_id}: {str(e)}", extra={"error": traceback.format_exc()})
+            logger.error(f"Error getting apple providers LLM access for user {user_id}: {str(e)}", extra={"error": traceback.format_exc()})
             return {}

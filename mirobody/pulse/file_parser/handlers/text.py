@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 from mirobody.utils.i18n import t
 from mirobody.pulse.file_parser.handlers.base import BaseFileHandler, FileProcessingContext
 import uuid
@@ -15,7 +15,7 @@ class TextHandler(BaseFileHandler):
         file_extension = ctx.file.filename.split(".")[-1] if "." in ctx.file.filename else "txt"
         return f"{str(uuid.uuid4())}.{file_extension}"
 
-    async def _process_content(self, ctx: FileProcessingContext, temp_file_path: str, unique_filename: str, full_url: str, language: str) -> Dict[str, Any]:
+    async def _process_content(self, ctx: FileProcessingContext, temp_file_path: str, unique_filename: str, full_url: str, language: str) -> dict[str, Any]:
         if ctx.progress_callback:
              await ctx.progress_callback(70, t("extracting_text_content", language, "file_processor"))
 

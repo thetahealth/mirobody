@@ -27,8 +27,8 @@ CURRENT repair task_id are never touched (multi-batch safe).
 
 import logging
 
-from datetime import datetime, timedelta, timezone as dt_timezone
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta, UTC
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from ..repositories.health_data import HealthDataRepository
@@ -37,6 +37,8 @@ from ...standardize.indicators_info import (
     HealthDataType,
     get_indicators_in_same_categories,
 )
+
+logger = logging.getLogger(__name__)
 
 # Prefix that marks an upload batch as a data-repair re-sync (contract with iOS).
 REPAIR_TASK_ID_PREFIX = "repair-"
@@ -50,7 +52,7 @@ APPLE_REPAIR_SOURCES = {"apple_health", "apple_health_watch"}
 _AGGREGATE_WINDOW_PAD = timedelta(days=1)
 
 
-def detect_repair_task_id(records: List[Dict[str, Any]]) -> Optional[str]:
+def detect_repair_task_id(records: list[dict[str, Any]]) -> str | None:
     """Return the `repair-<uuid>` taskId if this batch is a repair batch, else None.
 
     All rows in a repair batch share the metaInfo taskId, except value-filtered rows
@@ -63,7 +65,7 @@ def detect_repair_task_id(records: List[Dict[str, Any]]) -> Optional[str]:
     return None
 
 
-def _apple_sources(records: List[Dict[str, Any]]) -> List[str]:
+def _apple_sources(records: list[dict[str, Any]]) -> list[str]:
     """Apple sources present in the batch, restricted to the repair-eligible set."""
     present = {r.get("source") for r in records if r.get("source")}
     return sorted(present & APPLE_REPAIR_SOURCES)
@@ -71,34 +73,34 @@ def _apple_sources(records: List[Dict[str, Any]]) -> List[str]:
 
 def _ms_to_naive_utc(ms: int) -> datetime:
     """epoch ms -> naive UTC datetime (matches series_data.time storage)."""
-    return datetime.fromtimestamp(ms / 1000, tz=dt_timezone.utc).replace(tzinfo=None)
+    return datetime.fromtimestamp(ms / 1000, tz=UTC).replace(tzinfo=None)
 
 
 def _ms_to_naive_local(ms: int, tz_name: str) -> datetime:
     """epoch ms -> naive local datetime (matches th_series_data.start_time storage)."""
-    dt = datetime.fromtimestamp(ms / 1000, tz=dt_timezone.utc)
+    dt = datetime.fromtimestamp(ms / 1000, tz=UTC)
     try:
         return dt.astimezone(ZoneInfo(tz_name)).replace(tzinfo=None)
     except Exception:
-        logging.warning(f"[RepairReconcile] bad timezone {tz_name!r}, using UTC for window")
+        logger.warning(f"[RepairReconcile] bad timezone {tz_name!r}, using UTC for window")
         return dt.replace(tzinfo=None)
 
 
 class RepairReconciler:
     """Orchestrates the mark-and-sweep reconcile for a single repair batch."""
 
-    def __init__(self, repository: Optional[HealthDataRepository] = None):
+    def __init__(self, repository: HealthDataRepository | None = None):
         self.repository = repository or HealthDataRepository()
 
     async def reconcile(
         self,
         user_id: str,
-        summary_records: List[Dict[str, Any]],
-        series_records: List[Dict[str, Any]],
-        window_from_ms: Optional[int] = None,
-        window_to_ms: Optional[int] = None,
+        summary_records: list[dict[str, Any]],
+        series_records: list[dict[str, Any]],
+        window_from_ms: int | None = None,
+        window_to_ms: int | None = None,
         user_timezone: str = "UTC",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Run the reconcile if this is a non-empty repair batch with a complete window.
 
         Args:
@@ -120,7 +122,7 @@ class RepairReconciler:
 
         # Safety rail: never sweep on an empty re-upload (would wipe good data).
         if not all_records:
-            logging.info(f"[RepairReconcile] empty repair batch, skip sweep: user={user_id}")
+            logger.info(f"[RepairReconcile] empty repair batch, skip sweep: user={user_id}")
             return {"status": "empty_batch", "repair_task_id": repair_task_id}
 
         # Window completeness guard: BOTH bounds required and ordered. If incomplete,
@@ -130,13 +132,13 @@ class RepairReconciler:
             or window_to_ms is None
             or window_from_ms > window_to_ms
         ):
-            logging.info(
+            logger.info(
                 f"[RepairReconcile] repair batch {repair_task_id} has incomplete window "
                 f"(from={window_from_ms}, to={window_to_ms}); skip sweep (upsert only)."
             )
             return {"status": "repair_no_window", "repair_task_id": repair_task_id}
 
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "status": "success",
             "repair_task_id": repair_task_id,
             "window_from_ms": window_from_ms,
@@ -193,11 +195,11 @@ class RepairReconciler:
                         repair_task_id=repair_task_id,
                     )
 
-            logging.info(f"[RepairReconcile] done: user={user_id}, {result}")
+            logger.info(f"[RepairReconcile] done: user={user_id}, {result}")
             return result
 
         except Exception as e:
-            logging.error(f"[RepairReconcile] failed: user={user_id}, error={e}", stack_info=True)
+            logger.error(f"[RepairReconcile] failed: user={user_id}, error={e}", stack_info=True)
             return {"status": "error", "repair_task_id": repair_task_id, "error": str(e)}
 
     async def _reaggregate(self, user_id: str, window_from: datetime, window_to: datetime) -> bool:
@@ -226,14 +228,14 @@ class RepairReconciler:
         # values, and surface it loudly so the repair isn't reported as fully done.
         ok = status == "success" and created > 0
         if status == "success" and created == 0:
-            logging.warning(
+            logger.warning(
                 f"[RepairReconcile] re-aggregate produced 0 summaries for user={user_id} "
                 f"[{start}, {end}] — derived th_series_data NOT refreshed. The series_data "
                 f"sweep still applied; aggregates will refresh on the next successful "
                 f"aggregation. NOTE: depends on TH-424 (recalculate-range AmbiguousParameter)."
             )
         else:
-            logging.info(
+            logger.info(
                 f"[RepairReconcile] re-aggregate user={user_id} [{start}, {end}]: "
                 f"status={status}, summaries_created={created}"
             )

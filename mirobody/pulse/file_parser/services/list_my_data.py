@@ -2,7 +2,7 @@
 My data service - user data distribution query
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from .database_services import FileParserDatabaseService
 
@@ -10,7 +10,7 @@ class MyDataService:
     """My data service class"""
 
     @staticmethod
-    async def get_user_data_distribution(user_id: str) -> Dict[str, Any]:
+    async def get_user_data_distribution(user_id: str) -> dict[str, Any]:
         """
         Get user data distribution
 

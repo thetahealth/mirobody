@@ -7,7 +7,7 @@ Validates and stores PostgreSQL connection credentials only.
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import psycopg
 
@@ -17,6 +17,8 @@ from mirobody.pulse.core.models import ConnectInfoField
 from mirobody.pulse.ingest.models.requests import FormatDataInput, StandardPulseData
 from mirobody.pulse.providers.platform.base import BasePullProvider
 from mirobody.utils.config import safe_read_cfg
+
+logger = logging.getLogger(__name__)
 
 
 class PgsqlProvider(BasePullProvider):
@@ -28,10 +30,10 @@ class PgsqlProvider(BasePullProvider):
         # Load default configuration
         self.connection_timeout = 15
 
-        logging.info("PostgreSQL provider initialized (connection validation only)")
+        logger.info("PostgreSQL provider initialized (connection validation only)")
 
     @classmethod
-    def create_provider(cls, config: Dict[str, Any]) -> Optional['PgsqlProvider']:
+    def create_provider(cls, config: dict[str, Any]) -> Optional['PgsqlProvider']:
         """
         Factory method to create PostgreSQL provider
         
@@ -43,7 +45,7 @@ class PgsqlProvider(BasePullProvider):
                 return None
             return cls()
         except Exception as e:
-            logging.warning(f"Failed to create PostgreSQL provider: {e}")
+            logger.warning(f"Failed to create PostgreSQL provider: {e}")
             return None
 
     def register_pull_task(self) -> bool:
@@ -107,7 +109,7 @@ class PgsqlProvider(BasePullProvider):
             ]
         )
 
-    async def _validate_credentials_v2(self, credentials: Dict[str, Any]) -> None:
+    async def _validate_credentials(self, credentials: dict[str, Any]) -> None:
         """
         Validate PostgreSQL connection credentials
         
@@ -141,7 +143,7 @@ class PgsqlProvider(BasePullProvider):
 
         try:
             # Test connection using psycopg (project's existing PostgreSQL driver)
-            logging.info(f"Validating PostgreSQL connection to {host}:{port}/{database}")
+            logger.info(f"Validating PostgreSQL connection to {host}:{port}/{database}")
 
             conn = await asyncio.wait_for(
                 psycopg.AsyncConnection.connect(
@@ -159,11 +161,11 @@ class PgsqlProvider(BasePullProvider):
                 await cur.execute("SELECT version()")
                 result = await cur.fetchone()
                 version = result[0] if result else "Unknown"
-                logging.info(f"PostgreSQL connection validated successfully: {version[:80]}...")
+                logger.info(f"PostgreSQL connection validated successfully: {version[:80]}...")
 
             await conn.close()
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise RuntimeError(f"Connection timeout after {self.connection_timeout} seconds")
         except psycopg.OperationalError as e:
             error_msg = str(e).lower()
@@ -176,25 +178,25 @@ class PgsqlProvider(BasePullProvider):
             else:
                 raise RuntimeError(f"Connection failed: {str(e)}")
         except Exception as e:
-            logging.error(f"PostgreSQL connection validation failed: {str(e)}")
+            logger.error(f"PostgreSQL connection validation failed: {str(e)}")
             raise RuntimeError(f"Connection failed: {str(e)}")
 
     # ===== Required abstract methods (no-op implementations) =====
 
-    async def format_data_v2(self, fmt_input: FormatDataInput) -> StandardPulseData:
+    async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
         """Not used - configuration only"""
         request_id = self.generate_request_id()
         user_id = fmt_input.context.theta_user_id
         return self._create_empty_response(request_id, user_id)
 
-    async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def save_raw_data_to_db(self, raw_data: dict[str, Any]) -> list[dict[str, Any]]:
         """Not used - configuration only"""
         return []
 
-    async def is_data_already_processed(self, raw_data: Dict[str, Any]) -> bool:
+    async def is_data_already_processed(self, raw_data: dict[str, Any]) -> bool:
         """Not used - configuration only"""
         return False
 
-    async def pull_from_vendor_api(self, username: str, password: str) -> List[Dict[str, Any]]:
+    async def pull_from_vendor_api(self, username: str, password: str) -> list[dict[str, Any]]:
         """Not used - configuration only"""
         return []

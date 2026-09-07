@@ -2,11 +2,13 @@
 
 import logging
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .base import LinkRequest, Platform, ProviderInfo, UserProvider
 from .core import LinkType
 from .core.database import ManageDatabaseService
+
+logger = logging.getLogger(__name__)
 
 
 class PlatformManager:
@@ -17,46 +19,46 @@ class PlatformManager:
     """
 
     def __init__(self):
-        self._platforms: Dict[str, Platform] = {}
+        self._platforms: dict[str, Platform] = {}
         self.db_service = ManageDatabaseService()  # Shared database service instance, maintains cache
 
     def register_platform(self, platform: Platform) -> None:
         """Register a platform"""
         self._platforms[platform.name] = platform
-        logging.info(f"Registered platform: {platform.name}")
+        logger.info(f"Registered platform: {platform.name}")
 
-    def get_platform(self, platform_name: str) -> Optional[Platform]:
+    def get_platform(self, platform_name: str) -> Platform | None:
         """Get platform by name"""
         return self._platforms.get(platform_name)
 
-    async def get_all_providers(self, nocache: bool = False) -> List[ProviderInfo]:
+    async def get_all_providers(self, nocache: bool = False) -> list[ProviderInfo]:
         """Get all providers from all platforms"""
         all_providers = []
         for platform_name, platform in self._platforms.items():
             try:
                 providers = await platform.get_providers(nocache=nocache)
                 all_providers.extend(providers)
-                logging.info(f"Got {len(providers)} providers from platform: {platform_name}")
+                logger.info(f"Got {len(providers)} providers from platform: {platform_name}")
             except Exception as e:
-                logging.error(f"Error getting providers from platform {platform_name}: {str(e)}")
+                logger.error(f"Error getting providers from platform {platform_name}: {str(e)}")
                 continue
 
-        logging.info(f"Total providers from all platforms: {len(all_providers)}")
+        logger.info(f"Total providers from all platforms: {len(all_providers)}")
         return all_providers
 
-    async def get_user_providers(self, user_id: str) -> List[UserProvider]:
+    async def get_user_providers(self, user_id: str) -> list[UserProvider]:
         """Get user providers from all platforms"""
         all_providers = []
         for platform_name, platform in self._platforms.items():
             try:
                 providers = await platform.get_user_providers(user_id)
                 all_providers.extend(providers)
-                logging.info(f"Got {len(providers)} providers from platform {platform_name} for user {user_id}")
+                logger.info(f"Got {len(providers)} providers from platform {platform_name} for user {user_id}")
             except Exception as e:
-                logging.error(f"Error getting user providers from platform {platform_name}: {str(e)}")
+                logger.error(f"Error getting user providers from platform {platform_name}: {str(e)}")
                 continue
 
-        logging.info(f"Total providers for user {user_id}: {len(all_providers)}")
+        logger.info(f"Total providers for user {user_id}: {len(all_providers)}")
         return all_providers
 
     async def link_provider(
@@ -65,9 +67,9 @@ class PlatformManager:
             provider_slug: str,
             platform: str,
             auth_type: str,
-            credentials: Dict[str, Any],
-            options: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+            credentials: dict[str, Any],
+            options: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Link provider through platform"""
         # 1. Validate authentication type
         auth_type_map = {
@@ -106,7 +108,6 @@ class PlatformManager:
                 raise ValueError("connect_info is required for customized auth")
             # Customized type: fields are directly in credentials (e.g., host, port, database)
             # No specific validation here - let provider validate
-            pass
 
         # 3. Build standard request object
         request = LinkRequest(
@@ -120,19 +121,19 @@ class PlatformManager:
 
         target_platform = self.get_platform(request.platform)
         if not target_platform:
-            logging.warning(f"Platform not found: {request.platform}")
+            logger.warning(f"Platform not found: {request.platform}")
             raise ValueError(f"Platform {request.platform} not found")
 
         try:
             result_data = await target_platform.link(request)
-            logging.info(f"Link successful for provider {request.provider_slug}")
+            logger.info(f"Link successful for provider {request.provider_slug}")
             return result_data
 
         except Exception as e:
-            logging.error(f"Error linking provider {request.provider_slug}: {str(e)}")
+            logger.error(f"Error linking provider {request.provider_slug}: {str(e)}")
             raise e
 
-    async def unlink_provider(self, user_id: str, provider_slug: str, platform: str) -> Dict[str, Any]:
+    async def unlink_provider(self, user_id: str, provider_slug: str, platform: str) -> dict[str, Any]:
         """
         Unlink Provider connection
 
@@ -146,41 +147,41 @@ class PlatformManager:
         """
         target_platform = self.get_platform(platform)
         if not target_platform:
-            logging.warning(f"Platform not found: {platform}")
+            logger.warning(f"Platform not found: {platform}")
             raise ValueError(f"Platform {platform} not found")
 
         try:
             result_data = await target_platform.unlink(user_id, provider_slug)
-            logging.info(f"Unlink successful for provider {provider_slug}")
+            logger.info(f"Unlink successful for provider {provider_slug}")
             return result_data
 
         except Exception as e:
-            logging.error(f"Error unlinking provider {provider_slug}: {str(e)}")
+            logger.error(f"Error unlinking provider {provider_slug}: {str(e)}")
             raise RuntimeError(f"Failed to unlink provider: {str(e)}")
 
     async def post_data(
             self,
             platform: str,
             provider_slug: str,
-            data: Dict[str, Any],
-            msg_id: Optional[str] = None,
+            data: dict[str, Any],
+            msg_id: str | None = None,
     ) -> bool:
         target_platform = self.get_platform(platform)
         if not target_platform:
-            logging.warning(f"Platform not found: {platform}")
+            logger.warning(f"Platform not found: {platform}")
             return False
 
         try:
             result = await target_platform.post_data(provider_slug, data, msg_id)
-            logging.info(f"Post data result for provider {provider_slug}: {result}")
+            logger.info(f"Post data result for provider {provider_slug}: {result}")
             return result
         except Exception as e:
-            logging.error(f"Error posting data to provider {provider_slug}: {str(e)}")
+            logger.error(f"Error posting data to provider {provider_slug}: {str(e)}")
             return False
 
     async def update_llm_access(
             self, user_id: str, provider_slug: str, platform: str, llm_access: int
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Update LLM access permission for a user's provider
 
@@ -203,19 +204,19 @@ class PlatformManager:
 
         target_platform = self.get_platform(platform)
         if not target_platform:
-            logging.warning(f"Platform not found: {platform}")
+            logger.warning(f"Platform not found: {platform}")
             raise ValueError(f"Platform {platform} not found")
 
         try:
             result_data = await target_platform.update_llm_access(user_id, provider_slug, llm_access)
-            logging.info(f"Updated LLM access successful for provider {provider_slug}")
+            logger.info(f"Updated LLM access successful for provider {provider_slug}")
             return result_data
 
         except Exception as e:
-            logging.error(f"Error updating LLM access for provider {provider_slug}: {str(e)}")
+            logger.error(f"Error updating LLM access for provider {provider_slug}: {str(e)}")
             raise RuntimeError(f"Failed to update LLM access: {str(e)}")
 
-    async def populate_provider_stats(self, user_id: str, providers: List[UserProvider]) -> List[UserProvider]:
+    async def populate_provider_stats(self, user_id: str, providers: list[UserProvider]) -> list[UserProvider]:
         """
        Populate provider statistics for all providers at once using cached query
 
@@ -225,7 +226,7 @@ class PlatformManager:
        """
         try:
             stats_dict = await self.db_service.get_user_provider_stats_cached(user_id)
-            logging.info(f"Got cached stats for {len(stats_dict)} sources for user {user_id} of {len(providers)}")
+            logger.info(f"Got cached stats for {len(stats_dict)} sources for user {user_id} of {len(providers)}")
 
             for provider in providers:
                 if provider.slug in stats_dict:
@@ -242,7 +243,7 @@ class PlatformManager:
                     continue
 
         except Exception as e:
-            logging.error(f"Error populating provider stats for user {user_id}: {str(e)}")
+            logger.error(f"Error populating provider stats for user {user_id}: {str(e)}")
 
         return providers
 

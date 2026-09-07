@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any
 from mirobody.utils.i18n import t
 from mirobody.pulse.file_parser.handlers.base import BaseFileHandler, FileProcessingContext
 
@@ -6,7 +6,7 @@ class AudioHandler(BaseFileHandler):
     def get_type_name(self) -> str:
         return "audio"
 
-    async def _process_content(self, ctx: FileProcessingContext, temp_file_path: str, unique_filename: str, full_url: str, language: str) -> Dict[str, Any]:
+    async def _process_content(self, ctx: FileProcessingContext, temp_file_path: str, unique_filename: str, full_url: str, language: str) -> dict[str, Any]:
         if ctx.progress_callback:
             await ctx.progress_callback(60, t("extracting_audio_content", language, "file_processor"))
 

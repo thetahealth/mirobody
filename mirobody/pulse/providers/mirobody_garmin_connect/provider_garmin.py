@@ -9,17 +9,15 @@ import json
 import logging
 import time
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple, Set
+from datetime import datetime, UTC
+from typing import Any, Optional
 from urllib.parse import parse_qs, urlencode
 
 from requests_oauthlib import OAuth1Session
 
 from mirobody.pulse.base import ProviderInfo
 from mirobody.pulse.core import LinkType, ProviderStatus
-from mirobody.pulse.standardize.indicators_info import StandardIndicator
 from mirobody.pulse.core.push_service import push_service
-from mirobody.pulse.standardize.units import UNIT_CONVERSIONS
 from mirobody.pulse.ingest.models.requests import (
     FormatDataInput,
     StandardPulseData,
@@ -27,174 +25,20 @@ from mirobody.pulse.ingest.models.requests import (
     StandardPulseRecord,
 )
 from mirobody.pulse.providers.platform.base import BasePullProvider
-from mirobody.pulse.providers.platform.normalize import DataFormatter, TimeUtils
+from mirobody.pulse.providers.platform.normalize import records_from_facts
+from mirobody.kernel import vendors
 from mirobody.utils import execute_query
 from mirobody.utils.config import safe_read_cfg, global_config
 from ....utils.tasks import spawn
 from mirobody.utils.log import secret_fingerprint
 
-SECONDS_TO_MILLISECONDS = UNIT_CONVERSIONS["s"]["ms"]  # 1000
+logger = logging.getLogger(__name__)
+
+SECONDS_TO_MILLISECONDS = 1000
 
 
 class GarminProvider(BasePullProvider):
     """Garmin Provider - Garmin OAuth Data Integration"""
-
-    # Unified Garmin data configuration - combines simple fields and time series
-    GARMIN_DATA_CONFIG = {
-        "dailies": {
-            "timestamp_source": "calendarDate",
-            "simple_fields": {
-                # Activity metrics
-                "steps": {"indicator": StandardIndicator.DAILY_STEPS.value.name, "converter": lambda x: x, "unit": "count"},
-                "distanceInMeters": {"indicator": StandardIndicator.DAILY_DISTANCE.value.name, "converter": lambda x: x, "unit": "m"},
-                "activeKilocalories": {"indicator": StandardIndicator.DAILY_CALORIES_ACTIVE.value.name, "converter": lambda x: x, "unit": "kcal"},
-                "bmrKilocalories": {"indicator": StandardIndicator.DAILY_CALORIES_BASAL.value.name, "converter": lambda x: x, "unit": "kcal"},
-                "floorsClimbed": {"indicator": StandardIndicator.DAILY_FLOORS_CLIMBED.value.name, "converter": lambda x: x, "unit": "count"},
-
-                # Time metrics - convert seconds to minutes
-                "activeTimeInSeconds": {"indicator": StandardIndicator.ACTIVE_TIME.value.name, "converter": lambda x: x / 60, "unit": "min"},
-                "moderateIntensityDurationInSeconds": {"indicator": StandardIndicator.DAILY_ACTIVITY_INTENSITY_HIGH.value.name, "converter": lambda x: x / 60, "unit": "min"},
-                "vigorousIntensityDurationInSeconds": {"indicator": StandardIndicator.DAILY_ACTIVITY_INTENSITY_MEDIUM.value.name, "converter": lambda x: x / 60, "unit": "min"},
-
-                # Heart rate metrics
-                "minHeartRateInBeatsPerMinute": {"indicator": StandardIndicator.DAILY_HEART_RATE_MIN.value.name, "converter": lambda x: x, "unit": "bpm"},
-                "maxHeartRateInBeatsPerMinute": {"indicator": StandardIndicator.DAILY_HEART_RATE_MAX.value.name, "converter": lambda x: x, "unit": "bpm"},
-                "averageHeartRateInBeatsPerMinute": {"indicator": StandardIndicator.DAILY_AVG_HEART_RATE.value.name, "converter": lambda x: x, "unit": "count/min"},
-                "restingHeartRateInBeatsPerMinute": {"indicator": StandardIndicator.DAILY_HEART_RATE_RESTING.value.name, "converter": lambda x: x, "unit": "count/min"},
-            },
-            "time_series": {
-                "timeOffsetHeartRateSamples": {
-                    "indicator": StandardIndicator.HEART_RATE.value.name,
-                    "unit": "count/min",
-                    "format": "list",
-                    "value_field": "heartRateInBeatsPerMinute",
-                    "offset_field": "timestampOffsetInSeconds",
-                    "filter_negative": False
-                }
-            },
-            "special_handler": "_compute_dailies_derived",
-        },
-        "sleeps": {
-            "timestamp_source": "calendarDate",
-            "simple_fields": {
-                # Sleep duration mapping - convert seconds to milliseconds (based on actual API response)
-                # Note: durationInSeconds is NOT mapped here as simple_field because its semantic meaning
-                # differs from the standard semantic. Instead, derived indicators are computed in _compute_sleeps_derived.
-                "awakeDurationInSeconds": {"indicator": StandardIndicator.DAILY_AWAKE_TIME.value.name, "converter": lambda x: x * SECONDS_TO_MILLISECONDS, "unit": "ms"},
-                "deepSleepDurationInSeconds": {"indicator": StandardIndicator.DAILY_DEEP_SLEEP.value.name, "converter": lambda x: x * SECONDS_TO_MILLISECONDS, "unit": "ms"},
-                "lightSleepDurationInSeconds": {"indicator": StandardIndicator.DAILY_LIGHT_SLEEP.value.name, "converter": lambda x: x * SECONDS_TO_MILLISECONDS, "unit": "ms"},
-                "remSleepInSeconds": {"indicator": StandardIndicator.DAILY_REM_SLEEP.value.name, "converter": lambda x: x * SECONDS_TO_MILLISECONDS, "unit": "ms"},
-            },
-            "special_handler": "_compute_sleeps_derived",
-        },
-        "hrv": {
-            "timestamp_source": "calendarDate",
-            "simple_fields": {
-                # HRV metrics (based on actual API response)
-            },
-            "time_series": {
-                "hrvValues": {
-                    "indicator": StandardIndicator.HRV.value.name,
-                    "unit": "ms",
-                    "format": "dict",  # dict format: offset_str -> value
-                    "filter_negative": False
-                }
-            }
-        },
-        "respiration": {
-            "timestamp_source": "startTimeInSeconds",
-            "time_series": {
-                "timeOffsetEpochToBreaths": {
-                    "indicator": StandardIndicator.RESPIRATORY_RATE.value.name,
-                    "unit": "count/min",
-                    "format": "dict",  # dict format: offset_str -> breaths_per_minute
-                    "filter_negative": False
-                }
-            }
-        },
-        "stress": {
-            "timestamp_source": "calendarDate",
-            "simple_fields": {
-                "overallStressLevel": {"indicator": StandardIndicator.STRESS_LEVEL.value.name, "converter": lambda x: x, "unit": "%"},
-            }
-        },
-        "bodyComps": {
-            # Field names are the Garmin Health API Body Composition summary
-            # VERBATIM — the same names the gate fixture's captured payload
-            # carries (weightInGrams, measurementTimeInSeconds, …InPercent,
-            # …InGrams). An earlier config invented names no Garmin payload
-            # has (`weight`, `bodyFatPercentage`, `boneMass`, `muscleMass`)
-            # and keyed the timestamp on `startTimeInSeconds` (bodyComps sends
-            # `measurementTimeInSeconds`), so every bodyComps push produced
-            # ZERO records with wall-clock fallback timestamps — and the gate
-            # fixture certified that zero output as golden.
-            "timestamp_source": "measurementTimeInSeconds",
-            "simple_fields": {
-                "weightInGrams": {"indicator": StandardIndicator.WEIGHT.value.name, "converter": lambda x: x / 1000.0, "unit": "kg"},
-                "bodyMassIndex": {"indicator": StandardIndicator.BMI.value.name, "converter": lambda x: x, "unit": "count"},
-                "bodyFatInPercent": {"indicator": StandardIndicator.BODY_FAT_PERCENTAGE.value.name, "converter": lambda x: x, "unit": "%"},
-                "bodyWaterInPercent": {"indicator": StandardIndicator.BODY_WATER_PERCENTAGE.value.name, "converter": lambda x: x, "unit": "%"},
-                "boneMassInGrams": {"indicator": StandardIndicator.BONE_MASS.value.name, "converter": lambda x: x / 1000.0, "unit": "kg"},
-                # muscleMassInGrams is deliberately unmapped: it is a MASS,
-                # and the catalogue's only muscle indicator is
-                # MUSCLE_PERCENTAGE (%). Mapping grams to a percent field is
-                # the silently-wrong-number failure this layer exists to
-                # prevent; add a muscle-mass indicator first if it is wanted.
-            }
-        },
-        "userMetrics": {
-            "timestamp_source": "calendarDate",
-            "simple_fields": {
-                "vo2Max": {"indicator": StandardIndicator.VO2_MAX.value.name, "converter": lambda x: x, "unit": "L/min/kg"},
-            }
-        },
-        "pulseOx": {
-            "timestamp_source": "startTimeInSeconds",
-            "simple_fields": {
-                # on-demand spot readings
-                "singleReadingSpO2": {"indicator": StandardIndicator.BLOOD_OXYGEN.value.name, "converter": lambda x: x, "unit": "%"},
-            },
-            "time_series": {
-                # monitoring mode (onDemand=false) — the payload shape the
-                # gate fixture captured, which used to fall through unmapped
-                # and certify zero output as golden
-                "timeOffsetSpo2Values": {
-                    "indicator": StandardIndicator.BLOOD_OXYGEN.value.name,
-                    "unit": "%",
-                    "format": "dict",  # offset_str -> SpO2 %
-                    "filter_negative": True
-                }
-            }
-        },
-        "bloodPressures": {
-            "timestamp_source": "startTimeInSeconds",
-            "simple_fields": {
-                "systolicPressure": {"indicator": StandardIndicator.BLOOD_PRESSURE_SYSTOLIC.value.name, "converter": lambda x: x, "unit": "mmHg"},
-                "diastolicPressure": {"indicator": StandardIndicator.BLOOD_PRESSURE_DIASTOLIC.value.name, "converter": lambda x: x, "unit": "mmHg"},
-            }
-        },
-        "skinTemp": {
-            "timestamp_source": "calendarDate",
-            "simple_fields": {
-                "nightlyValue": {"indicator": StandardIndicator.SKIN_TEMPERATURE.value.name, "converter": lambda x: x, "unit": "°C"},
-            }
-        },
-        "activities": {
-            "timestamp_source": "startTimeInSeconds",
-            "simple_fields": {
-                "averageHeartRateInBeatsPerMinute": {"indicator": StandardIndicator.HEART_RATE.value.name, "converter": lambda x: x, "unit": "count/min"},
-                "maxHeartRateInBeatsPerMinute": {"indicator": StandardIndicator.HEART_RATE_MAX.value.name, "converter": lambda x: x, "unit": "count/min"},
-                "calories": {"indicator": StandardIndicator.CALORIES_ACTIVE.value.name, "converter": lambda x: x, "unit": "kcal"},
-                "bmrCalories": {"indicator": StandardIndicator.CALORIES_BASAL.value.name, "converter": lambda x: x, "unit": "kcal"},
-                "steps": {"indicator": StandardIndicator.STEPS.value.name, "converter": lambda x: x, "unit": "count"},
-                "distanceInMeters": {"indicator": StandardIndicator.DISTANCE.value.name, "converter": lambda x: x, "unit": "m"},
-                "durationInSeconds": {"indicator": StandardIndicator.WORKOUT_DURATION.value.name, "converter": lambda x: x / 60, "unit": "min"},
-                "elevationGainInMeters": {"indicator": StandardIndicator.ALTITUDE_GAIN.value.name, "converter": lambda x: x, "unit": "m"},
-                "averageSpeedInMetersPerSecond": {"indicator": StandardIndicator.SPEED.value.name, "converter": lambda x: x, "unit": "m/s"},
-                "activityTrainingLoad": {"indicator": StandardIndicator.TRAINING_LOAD.value.name, "converter": lambda x: x, "unit": "score"},
-            }
-        },
-    }
 
     def __init__(self):
         super().__init__()
@@ -231,12 +75,12 @@ class GarminProvider(BasePullProvider):
 
         # Validate configuration
         if not self.client_id or not self.client_secret:
-            logging.error("Garmin OAuth credentials not configured. Please set GARMIN_CLIENT_ID and GARMIN_CLIENT_SECRET")
+            logger.error("Garmin OAuth credentials not configured. Please set GARMIN_CLIENT_ID and GARMIN_CLIENT_SECRET")
         else:
-            logging.info(f"Garmin OAuth configuration validated successfully, client_id:{self.client_id[:3]}, redirect_url:{self.redirect_url}")
+            logger.info(f"Garmin OAuth configuration validated successfully, client_id:{self.client_id[:3]}, redirect_url:{self.redirect_url}")
 
     @classmethod
-    def create_provider(cls, config: Dict[str, Any]) -> Optional['GarminProvider']:
+    def create_provider(cls, config: dict[str, Any]) -> Optional['GarminProvider']:
         """
         Factory method to create Garmin provider from config
 
@@ -254,17 +98,17 @@ class GarminProvider(BasePullProvider):
             # The vendor OAuth client_secret was in this line, at INFO, on every
             # provider init. Logging whether it is configured is the useful
             # part; the value never was.
-            logging.info(
+            logger.info(
                 "Garmin provider %s, secret %s",
                 client_id, secret_fingerprint(client_secret),
             )
             if not client_id or not client_secret:
-                logging.warning("Failed to create Garmin provider: unable to read config values")
+                logger.warning("Failed to create Garmin provider: unable to read config values")
                 return None
 
             return cls()
         except Exception as e:
-            logging.warning(f"Failed to create Garmin provider: {e}")
+            logger.warning(f"Failed to create Garmin provider: {e}")
             return None
 
     def register_pull_task(self) -> bool:
@@ -286,7 +130,7 @@ class GarminProvider(BasePullProvider):
             status=ProviderStatus.AVAILABLE,
         )
 
-    async def link(self, request: Any) -> Dict[str, Any]:
+    async def link(self, request: Any) -> dict[str, Any]:
         """
         Link Garmin OAuth Provider - Stage 1: Generate OAuth authorization URL
 
@@ -308,14 +152,14 @@ class GarminProvider(BasePullProvider):
 
         try:
             # Generate OAuth authorization URL (Stage 1 of OAuth flow)
-            logging.info(f"Generating OAuth authorization URL for user: {user_id}")
+            logger.info(f"Generating OAuth authorization URL for user: {user_id}")
             return await self._generate_authorization_url(user_id, options)
 
         except Exception as e:
-            logging.error(f"Error linking Garmin provider: {str(e)}")
+            logger.error(f"Error linking Garmin provider: {str(e)}")
             raise RuntimeError(str(e))
 
-    async def _generate_authorization_url(self, user_id: str, options: Dict[str, Any]) -> Dict[str, Any]:
+    async def _generate_authorization_url(self, user_id: str, options: dict[str, Any]) -> dict[str, Any]:
         """
         Generate OAuth authorization URL for user to grant permission
 
@@ -374,7 +218,7 @@ class GarminProvider(BasePullProvider):
                 )
                 await redis_client.aclose()
             except Exception as e:
-                logging.warning(f"Failed to write oauth temp data to Redis: {str(e)}")
+                logger.warning(f"Failed to write oauth temp data to Redis: {str(e)}")
 
             # Build authorization URL
             redirect_url = self.redirect_url
@@ -401,17 +245,17 @@ class GarminProvider(BasePullProvider):
 
             authorization_url = f"{self.auth_url}?{urlencode(auth_params)}"
 
-            logging.info(f"Generated OAuth authorization URL for user {user_id}")
+            logger.info(f"Generated OAuth authorization URL for user {user_id}")
 
             return {
                 "link_web_url": authorization_url
             }
 
         except Exception as e:
-            logging.error(f"Error generating authorization URL: {str(e)}")
+            logger.error(f"Error generating authorization URL: {str(e)}")
             raise
 
-    async def callback(self, oauth_token: str, oauth_verifier: str) -> Dict[str, Any]:
+    async def callback(self, oauth_token: str, oauth_verifier: str) -> dict[str, Any]:
         """
         Handle OAuth callback - Stage 2: Exchange tokens and complete authentication
 
@@ -430,17 +274,17 @@ class GarminProvider(BasePullProvider):
             RuntimeError: If token exchange fails or credentials cannot be saved
         """
         try:
-            logging.info("Processing OAuth callback")
+            logger.info("Processing OAuth callback")
             credentials = {
                 "oauth_token": oauth_token,
                 "oauth_verifier": oauth_verifier
             }
             return await self._handle_oauth_callback(None, credentials)
         except Exception as e:
-            logging.error(f"Error in OAuth callback: {str(e)}")
+            logger.error(f"Error in OAuth callback: {str(e)}")
             raise RuntimeError(str(e))
 
-    async def _handle_oauth_callback(self, user_id: Optional[str], credentials: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_oauth_callback(self, user_id: str | None, credentials: dict[str, Any]) -> dict[str, Any]:
         """
         Internal method to handle OAuth callback and exchange tokens
 
@@ -478,14 +322,14 @@ class GarminProvider(BasePullProvider):
                 if isinstance(cached_user_id, bytes):
                     cached_user_id = cached_user_id.decode("utf-8")
             except Exception as e:
-                logging.warning(f"Failed to read oauth temp data from Redis: {str(e)}")
+                logger.warning(f"Failed to read oauth temp data from Redis: {str(e)}")
                 oauth_token_secret = None
                 cached_user_id = None
 
             # Always rely on Redis-stored user_id to avoid spoofed params
             user_id = cached_user_id
             if user_id:
-                logging.info(f"Using user_id from Redis: {user_id}")
+                logger.info(f"Using user_id from Redis: {user_id}")
 
             if not oauth_token or not oauth_verifier:
                 raise ValueError("Missing oauth_token or oauth_verifier in callback")
@@ -528,10 +372,10 @@ class GarminProvider(BasePullProvider):
 
             # Redis keys already deleted above; no in-memory cleanup required
 
-            logging.info(f"Successfully linked Garmin provider for user {user_id}")
+            logger.info(f"Successfully linked Garmin provider for user {user_id}")
 
             # Build credentials payload directly from freshly obtained tokens
-            creds_payload: Dict[str, Any] = {
+            creds_payload: dict[str, Any] = {
                 "access_token": access_token,
                 "access_token_secret": access_token_secret,
                 "user_id": user_id,
@@ -547,10 +391,10 @@ class GarminProvider(BasePullProvider):
             }
 
         except Exception as e:
-            logging.error(f"Error handling OAuth callback: {str(e)}")
+            logger.error(f"Error handling OAuth callback: {str(e)}")
             raise
 
-    async def unlink(self, user_id: str) -> Dict[str, Any]:
+    async def unlink(self, user_id: str) -> dict[str, Any]:
         """
         Unlink Garmin provider by deleting user registration
 
@@ -564,13 +408,13 @@ class GarminProvider(BasePullProvider):
         api_error_message = None
 
         try:
-            logging.info(f"Unlinking Garmin provider for user: {user_id}")
+            logger.info(f"Unlinking Garmin provider for user: {user_id}")
 
             # Get stored credentials using new OAuth method
             credentials = await self.db_service.get_user_credentials(user_id, self.info.slug, self.info.auth_type)
             if not credentials:
                 await self.db_service.delete_user_theta_provider(user_id, self.info.slug)
-                logging.warning(f"No stored credentials found for user {user_id}")
+                logger.warning(f"No stored credentials found for user {user_id}")
                 return {"success": True, "message": "No credentials found; treated as unlinked"}
 
             # Use new OAuth1 format
@@ -578,7 +422,7 @@ class GarminProvider(BasePullProvider):
             token_secret = credentials.get("access_token_secret")
 
             if not access_token or not token_secret:
-                logging.warning(f"Invalid stored credentials for user {user_id}")
+                logger.warning(f"Invalid stored credentials for user {user_id}")
                 # Will be removed from database in finally block
             else:
                 # Create OAuth1Session for API calls
@@ -595,16 +439,16 @@ class GarminProvider(BasePullProvider):
 
                 if resp.status_code == 204:
                     api_unlink_success = True
-                    logging.info(f"Successfully unlinked Garmin provider for user {user_id}")
+                    logger.info(f"Successfully unlinked Garmin provider for user {user_id}")
                 else:
                     api_error_message = f"Garmin API unlink failed: {resp.status_code} - {resp.text}"
-                    logging.error(api_error_message)
+                    logger.error(api_error_message)
                     # Raise on API unlink failure as requested
                     raise RuntimeError(api_error_message)
 
         except Exception as e:
             api_error_message = str(e)
-            logging.error(f"Error unlinking Garmin provider: {str(e)}")
+            logger.error(f"Error unlinking Garmin provider: {str(e)}")
 
         # Always try to remove from database
         try:
@@ -612,493 +456,51 @@ class GarminProvider(BasePullProvider):
 
             if api_unlink_success:
                 return {"success": True, "message": "Successfully unlinked from Garmin"}
-            else:
-                # After cleanup, propagate API failure
-                raise RuntimeError(f"Failed to unlink from Garmin: {api_error_message}")
+            # After cleanup, propagate API failure
+            raise RuntimeError(f"Failed to unlink from Garmin: {api_error_message}")
 
         except Exception as db_error:
-            logging.error(f"Failed to remove from database: {str(db_error)}")
+            logger.error(f"Failed to remove from database: {str(db_error)}")
             raise RuntimeError(f"Failed to unlink provider: {api_error_message or 'Unknown error'}")
 
-    async def format_data_v2(self, fmt_input: FormatDataInput) -> StandardPulseData:
-        """
-        Format Garmin raw data to StandardPulseData format
+    async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
+        """Garmin summaries → standard records, via ``mirobody.kernel.vendors.garmin``.
 
-        Args:
-            fmt_input: Structured input with pre-resolved context and raw payload
-
-        Returns:
-            StandardPulseData: Standardized pulse data format
+        The payload is ``{data_type: [summary, ...], ...}`` for one user (a
+        webhook push or an active pull, already split per user). Every data
+        type Garmin sends is decoded by the shared table; ``activityDetails``
+        wraps an activity summary under ``summary``.
         """
-        start_time = time.time()
         ctx = fmt_input.context
-
-        try:
-            # Generate request ID
-            request_id = self.generate_request_id()
-
-            if not ctx.theta_user_id:
-                logging.error("No theta_user_id found in format context")
-                return self._create_empty_response(request_id, "")
-
-            logging.info(f"Using timezone {ctx.user_timezone} for user {ctx.theta_user_id}")
-
-            # Initialize processing_info
-            processing_info = {
-                "provider": "theta_garmin",
-                "start_time": start_time,
-                "processed_indicators": 0,
-                "skipped_indicators": 0,
-                "errors": [],
-                "msg_id": ctx.msg_id or "",
-                "user_timezone": ctx.user_timezone,
-            }
-
-            # Process all data types in a single loop
-            all_health_records = []
-            processed_data_types = []
-
-            for key, value in fmt_input.payload.items():
-                if key not in ["theta_user_id", "msg_id"] and isinstance(value, list) and value:
-                    processed_data_types.append(key)
-                    try:
-                        # Process this data type (user_timezone is in processing_info)
-                        health_records = await self._process_single_data_type(value, key, processing_info)
-                        all_health_records.extend(health_records)
-                        logging.info(f"Processed {len(health_records)} records for data type: {key}")
-                    except Exception as e:
-                        logging.error(f"Error processing data type {key}: {str(e)}")
-                        processing_info["errors"].append(f"Failed to process {key}: {str(e)}")
-
-            if not processed_data_types:
-                logging.info("No valid data content found in payload")
-                return self._create_empty_response(request_id, ctx.theta_user_id)
-
-            logging.info(f"Processing Garmin data for user: {ctx.theta_user_id}, types: {processed_data_types}")
-
-            # Note: dailySleepAvgHeartRate and dailySleepLowestHeartRate require cross-type
-            # computation (dailies HR samples + sleep time window). Since Garmin webhook sends
-            # each data type separately, these are deferred to the aggregator.
-
-            # Create final result with all health records
-            meta_info = StandardPulseMetaInfo(
-                userId=ctx.theta_user_id,
-                requestId=request_id,
-                source="theta",
-                timezone=ctx.user_timezone,
-            )
-
-            final_result = StandardPulseData(
-                metaInfo=meta_info,
-                healthData=all_health_records,
-                processingInfo=processing_info,
-            )
-
-            logging.info(f"Formatted total {len(all_health_records)} Garmin data records for user {ctx.theta_user_id}")
-            return final_result
-
-        except Exception as e:
-            processing_info.update({
-                "end_time": time.time(),
-                "processing_duration_ms": int((time.time() - start_time) * SECONDS_TO_MILLISECONDS),
-                "fatal_error": str(e),
-            })
-            logging.error(f"Error formatting Garmin data: {str(e)}")
-            request_id = self.generate_request_id()
+        request_id = self.generate_request_id()
+        if not ctx.theta_user_id:
+            logger.error("No theta_user_id found in format context")
+            return self._create_empty_response(request_id, "")
+        tz = ctx.user_timezone or "UTC"
+        msg_id = ctx.msg_id or ""
+        records: list[StandardPulseRecord] = []
+        types: list[str] = []
+        for key, items in fmt_input.payload.items():
+            if key in ("theta_user_id", "msg_id") or not isinstance(items, list) or not items:
+                continue
+            types.append(key)
+            for item in items:
+                if key == "activityDetails":
+                    item = item.get("summary") if isinstance(item, dict) else None
+                    facts = vendors.decode("garmin", "activities", item, tz, source_record_id=msg_id) if item else []
+                else:
+                    facts = vendors.decode("garmin", key, item, tz, source_record_id=msg_id)
+                records.extend(records_from_facts(facts, slug=self.info.slug, tz=tz, source_id=msg_id))
+        if not types:
             return self._create_empty_response(request_id, ctx.theta_user_id)
+        logger.info("Formatted %d Garmin records from %d data types", len(records), len(types))
+        return StandardPulseData(
+            metaInfo=StandardPulseMetaInfo(userId=ctx.theta_user_id, requestId=request_id, source="theta", timezone=tz),
+            healthData=records,
+            processingInfo={"provider": "theta_garmin", "data_types": types, "msg_id": msg_id, "user_timezone": tz},
+        )
 
-    def _process_sleep_data(self, data: List[Dict], processing_info: Dict) -> List[StandardPulseRecord]:
-        records: List[StandardPulseRecord] = []
-        for item in data:
-            records.extend(self._process_single_item("sleeps", item, processing_info))
-        return records
-
-    def _process_dailies_data(self, data: List[Dict], processing_info: Dict) -> List[StandardPulseRecord]:
-        records: List[StandardPulseRecord] = []
-        for item in data:
-            records.extend(self._process_single_item("dailies", item, processing_info))
-        return records
-
-    def _process_hrv_data(self, data: List[Dict], processing_info: Dict) -> List[StandardPulseRecord]:
-        records: List[StandardPulseRecord] = []
-        for item in data:
-            records.extend(self._process_single_item("hrv", item, processing_info))
-        return records
-
-    def _process_stress_data(self, data: List[Dict], processing_info: Dict) -> List[StandardPulseRecord]:
-        records: List[StandardPulseRecord] = []
-        for item in data:
-            records.extend(self._process_single_item("stress", item, processing_info))
-        return records
-
-    def _process_body_comps_data(self, data: Any, processing_info: Dict) -> List[StandardPulseRecord]:
-        items: List[Dict] = data if isinstance(data, list) else []
-        records: List[StandardPulseRecord] = []
-        for item in items:
-            records.extend(self._process_single_item("bodyComps", item, processing_info))
-        return records
-
-    def _process_user_metrics_data(self, data: Any, processing_info: Dict) -> List[StandardPulseRecord]:
-        items: List[Dict] = data if isinstance(data, list) else []
-        records: List[StandardPulseRecord] = []
-        for item in items:
-            records.extend(self._process_single_item("userMetrics", item, processing_info))
-        return records
-
-    def _process_pulse_ox_data(self, data: Any, processing_info: Dict) -> List[StandardPulseRecord]:
-        items: List[Dict] = data if isinstance(data, list) else []
-        records: List[StandardPulseRecord] = []
-        for item in items:
-            records.extend(self._process_single_item("pulseOx", item, processing_info))
-        return records
-
-    def _process_respiration_data(self, data: Any, processing_info: Dict) -> List[StandardPulseRecord]:
-        items: List[Dict] = data if isinstance(data, list) else []
-        records: List[StandardPulseRecord] = []
-        for item in items:
-            records.extend(self._process_single_item("respiration", item, processing_info))
-        return records
-
-    def _process_blood_pressures_data(self, data: Any, processing_info: Dict) -> List[StandardPulseRecord]:
-        items: List[Dict] = data if isinstance(data, list) else []
-        records: List[StandardPulseRecord] = []
-        for item in items:
-            records.extend(self._process_single_item("bloodPressures", item, processing_info))
-        return records
-
-    def _process_skin_temp_data(self, data: Any, processing_info: Dict) -> List[StandardPulseRecord]:
-        items: List[Dict] = data if isinstance(data, list) else []
-        records: List[StandardPulseRecord] = []
-        for item in items:
-            records.extend(self._process_single_item("skinTemp", item, processing_info))
-        return records
-
-    def _process_activities_data(self, data: Any, processing_info: Dict) -> List[StandardPulseRecord]:
-        items: List[Dict] = data if isinstance(data, list) else []
-        records: List[StandardPulseRecord] = []
-        for item in items:
-            records.extend(self._process_single_item("activities", item, processing_info))
-        return records
-
-    def _process_activity_details_data(self, data: Any, processing_info: Dict) -> List[StandardPulseRecord]:
-        # NOTE: Activity Details can contain both a summary and sample points.
-        # This simplified version primarily processes the summary.
-        items: List[Dict] = data if isinstance(data, list) else []
-        records: List[StandardPulseRecord] = []
-        for item in items:
-            if isinstance(item.get("summary"), dict):
-                records.extend(self._process_single_item("activities", item["summary"], processing_info))
-            # Future enhancement: Process the 'samples' array as a time series if needed.
-        return records
-
-    def _get_base_timestamp(self, item: Dict, timestamp_source: str) -> int:
-        """Determines the base timestamp in milliseconds from the item."""
-        ts_value = item.get(timestamp_source)
-        if not ts_value:
-            return int(time.time() * SECONDS_TO_MILLISECONDS)
-
-        if timestamp_source == "calendarDate":
-            return TimeUtils.parse_time_to_timestamp(str(ts_value))
-        elif isinstance(ts_value, (int, float)):
-            return int(ts_value * SECONDS_TO_MILLISECONDS)
-        return int(time.time() * SECONDS_TO_MILLISECONDS)
-
-    def _process_single_item(self, data_type: str, item: Dict, processing_info: Dict) -> List[StandardPulseRecord]:
-        """Process a single data item using the unified GARMIN_DATA_CONFIG."""
-        records = []
-
-        # Get configuration for this data type
-        config = self.GARMIN_DATA_CONFIG.get(data_type, {})
-        if not config:
-            logging.warning(f"No configuration found for data type: {data_type}")
-            return records
-
-        # Get user timezone from processing_info
-        user_timezone = processing_info.get("user_timezone", "UTC")
-
-        # Get base timestamp
-        timestamp_source = config.get("timestamp_source", "startTimeInSeconds")
-        base_timestamp = self._get_base_timestamp(item, timestamp_source)
-
-        # Process simple fields
-        simple_fields = config.get("simple_fields", {})
-        for field_name, field_config in simple_fields.items():
-            value = item.get(field_name)
-            if value is not None:
-                try:
-                    # Apply converter function
-                    converter = field_config.get("converter", lambda x: x)
-                    converted_value = float(converter(value))
-
-                    record = StandardPulseRecord(
-                        source=DataFormatter.format_source_name(self.info.slug),
-                        type=field_config["indicator"],
-                        timestamp=base_timestamp,
-                        unit=field_config["unit"],
-                        value=converted_value,
-                        timezone=user_timezone,
-                        source_id=processing_info.get("msg_id", ""),
-                    )
-                    records.append(record)
-                    processing_info["processed_indicators"] += 1
-
-                except (ValueError, TypeError) as e:
-                    logging.warning(f"Failed to process {field_name} -> {field_config['indicator']}: {str(e)}")
-                    processing_info["skipped_indicators"] += 1
-
-        # Process time series data
-        time_series_configs = config.get("time_series", {})
-        for series_key, series_config in time_series_configs.items():
-            time_series_data = item.get(series_key)
-            if not time_series_data:
-                continue
-
-            indicator = series_config["indicator"]
-            unit = series_config["unit"]
-            format_type = series_config["format"]
-            filter_negative = series_config.get("filter_negative", False)
-
-            try:
-                if format_type == "list":
-                    # Handle list format (e.g., heart rate samples)
-                    value_field = series_config["value_field"]
-                    offset_field = series_config["offset_field"]
-
-                    for sample in time_series_data:
-                        if isinstance(sample, dict):
-                            offset = sample.get(offset_field, 0)
-                            value = sample.get(value_field)
-
-                            if value is not None:
-                                if filter_negative and value < 0:
-                                    continue
-
-                                sample_timestamp = int(base_timestamp + (offset * SECONDS_TO_MILLISECONDS))
-
-                                record = StandardPulseRecord(
-                                    source=DataFormatter.format_source_name(self.info.slug),
-                                    type=indicator,
-                                    timestamp=sample_timestamp,
-                                    unit=unit,
-                                    value=float(value),
-                                    timezone=user_timezone,
-                                    source_id=processing_info.get("msg_id", ""),
-                                )
-                                records.append(record)
-                                processing_info["processed_indicators"] += 1
-
-                elif format_type == "dict":
-                    # Handle dict format (e.g., HRV values, respiration)
-                    for offset_str, value in time_series_data.items():
-                        if value is not None:
-                            offset = float(offset_str)  # Convert to float first to handle decimal offsets
-                            if filter_negative and value < 0:
-                                continue
-
-                            sample_timestamp = int(base_timestamp + (offset * SECONDS_TO_MILLISECONDS))
-
-                            record = StandardPulseRecord(
-                                source=DataFormatter.format_source_name(self.info.slug),
-                                type=indicator,
-                                timestamp=sample_timestamp,
-                                unit=unit,
-                                value=float(value),
-                                timezone=user_timezone,
-                                source_id=processing_info.get("msg_id", ""),
-                            )
-                            records.append(record)
-                            processing_info["processed_indicators"] += 1
-
-            except (ValueError, TypeError) as e:
-                logging.warning(f"Failed to process time series {series_key}: {str(e)}")
-                processing_info["skipped_indicators"] += 1
-
-        # Execute special handlers if they exist
-        if "special_handler" in config:
-            handler = getattr(self, config["special_handler"], None)
-            if handler:
-                try:
-                    special_records = handler(item, processing_info)
-                    records.extend(special_records)
-                except Exception as e:
-                    logging.warning(f"Special handler '{config['special_handler']}' failed: {e}")
-
-        return records
-
-    def _process_sleep_levels(self, item: Dict, processing_info: Dict) -> List[StandardPulseRecord]:
-        """Special handler for sleep stage data (sleepLevelsMap)."""
-        records = []
-        sleep_levels = item.get("sleepLevelsMap", {})
-        if not isinstance(sleep_levels, dict):
-            return records
-
-        # Get user timezone from processing_info
-        user_timezone = processing_info.get("user_timezone", "UTC")
-
-        for stage, intervals in sleep_levels.items():
-            if not isinstance(intervals, list):
-                continue
-
-            stage_name = f"sleep_stage_{stage}"  # e.g., sleep_stage_deep
-            for interval in intervals:
-                try:
-                    start_ts = int(interval["startTimeInSeconds"] * SECONDS_TO_MILLISECONDS)
-                    end_ts = int(interval["endTimeInSeconds"] * SECONDS_TO_MILLISECONDS)
-                    duration = (end_ts - start_ts) / 1000  # in seconds
-
-                    records.append(StandardPulseRecord(
-                        source=DataFormatter.format_source_name(self.info.slug),
-                        type=stage_name,
-                        timestamp=start_ts,
-                        unit="seconds",
-                        value=duration,
-                        timezone=user_timezone,
-                        source_id=processing_info.get("msg_id", ""),
-                        metadata={"end_timestamp": end_ts},
-                    ))
-                    processing_info["processed_indicators"] += 1
-                except (KeyError, ValueError, TypeError) as e:
-                    logging.warning(f"Skipping sleep stage interval: {interval}. Error: {e}")
-                    processing_info["skipped_indicators"] += 1
-        return records
-
-    def _compute_dailies_derived(self, item: Dict, processing_info: Dict) -> List[StandardPulseRecord]:
-        """Special handler for dailies: compute derived indicators."""
-        records = []
-        user_timezone = processing_info.get("user_timezone", "UTC")
-
-        # Get base timestamp
-        config = self.GARMIN_DATA_CONFIG["dailies"]
-        timestamp_source = config.get("timestamp_source", "calendarDate")
-        base_timestamp = self._get_base_timestamp(item, timestamp_source)
-
-        # dailyTotalCalories = activeKilocalories + bmrKilocalories
-        active_cal = item.get("activeKilocalories")
-        bmr_cal = item.get("bmrKilocalories")
-        if active_cal is not None and bmr_cal is not None:
-            try:
-                total_calories = float(active_cal) + float(bmr_cal)
-                records.append(StandardPulseRecord(
-                    source=DataFormatter.format_source_name(self.info.slug),
-                    type=StandardIndicator.DAILY_CALORIES_TOTAL.value.name,
-                    timestamp=base_timestamp,
-                    unit="kcal",
-                    value=total_calories,
-                    timezone=user_timezone,
-                    source_id=processing_info.get("msg_id", ""),
-                ))
-                processing_info["processed_indicators"] += 1
-            except (ValueError, TypeError) as e:
-                logging.warning(f"Failed to compute dailyTotalCalories: {e}")
-                processing_info["skipped_indicators"] += 1
-
-        return records
-
-    def _compute_sleeps_derived(self, item: Dict, processing_info: Dict) -> List[StandardPulseRecord]:
-        """Special handler for sleeps: compute derived indicators."""
-        records = []
-        user_timezone = processing_info.get("user_timezone", "UTC")
-
-        # Get base timestamp
-        config = self.GARMIN_DATA_CONFIG["sleeps"]
-        timestamp_source = config.get("timestamp_source", "calendarDate")
-        base_timestamp = self._get_base_timestamp(item, timestamp_source)
-
-        duration_secs = item.get("durationInSeconds")
-        awake_secs = item.get("awakeDurationInSeconds")
-
-        if duration_secs is None:
-            return records
-
-        try:
-            duration_secs = float(duration_secs)
-            awake_secs = float(awake_secs) if awake_secs is not None else 0.0
-            total_in_bed_secs = duration_secs + awake_secs
-
-            source = DataFormatter.format_source_name(self.info.slug)
-            msg_id = processing_info.get("msg_id", "")
-
-            # dailySleepDuration = total time in bed (duration + awake), in ms
-            records.append(StandardPulseRecord(
-                source=source,
-                type=StandardIndicator.DAILY_SLEEP_DURATION.value.name,
-                timestamp=base_timestamp,
-                unit="ms",
-                value=total_in_bed_secs * SECONDS_TO_MILLISECONDS,
-                timezone=user_timezone,
-                source_id=msg_id,
-            ))
-            processing_info["processed_indicators"] += 1
-
-            # dailyTotalSleepTime = actual sleep time (durationInSeconds), in ms
-            records.append(StandardPulseRecord(
-                source=source,
-                type=StandardIndicator.DAILY_TOTAL_SLEEP_TIME.value.name,
-                timestamp=base_timestamp,
-                unit="ms",
-                value=duration_secs * SECONDS_TO_MILLISECONDS,
-                timezone=user_timezone,
-                source_id=msg_id,
-            ))
-            processing_info["processed_indicators"] += 1
-
-            # dailySleepEfficiency = actual sleep / total in bed * 100
-            if total_in_bed_secs > 0:
-                efficiency = duration_secs / total_in_bed_secs * 100
-                records.append(StandardPulseRecord(
-                    source=source,
-                    type=StandardIndicator.DAILY_SLEEP_EFFICIENCY.value.name,
-                    timestamp=base_timestamp,
-                    unit="%",
-                    value=round(efficiency, 4),
-                    timezone=user_timezone,
-                    source_id=msg_id,
-                ))
-                processing_info["processed_indicators"] += 1
-
-        except (ValueError, TypeError) as e:
-            logging.warning(f"Failed to compute sleeps derived indicators: {e}")
-            processing_info["skipped_indicators"] += 1
-
-        return records
-
-    async def _process_single_data_type(
-            self,
-            user_data: List[Dict],
-            data_type: str,
-            base_processing_info: Dict
-    ) -> List[StandardPulseRecord]:
-        """Process single data type and return health records directly."""
-        # Create a copy of processing info for this operation
-        processing_info = base_processing_info.copy()
-
-        # Process the data using existing logic
-        health_records = []
-        process_function_map = {
-            "sleeps": self._process_sleep_data,
-            "dailies": self._process_dailies_data,
-            "bodyComps": self._process_body_comps_data,
-            "hrv": self._process_hrv_data,
-            "stress": self._process_stress_data,
-            "userMetrics": self._process_user_metrics_data,
-            "pulseOx": self._process_pulse_ox_data,
-            "respiration": self._process_respiration_data,
-            "bloodPressures": self._process_blood_pressures_data,
-            "skinTemp": self._process_skin_temp_data,
-            "activities": self._process_activities_data,
-            "activityDetails": self._process_activity_details_data,
-        }
-
-        process_func = process_function_map.get(data_type)
-        if process_func:
-            health_records.extend(process_func(user_data, processing_info))
-        else:
-            logging.warning(f"Unknown Garmin data type: {data_type}")
-
-        # Return health records directly
-        return health_records
-
-    def _get_api_endpoints_config(self, start_timestamp: int, end_timestamp: int) -> Dict[str, str]:
+    def _get_api_endpoints_config(self, start_timestamp: int, end_timestamp: int) -> dict[str, str]:
         """
         Get API endpoints with correct parameter names for each endpoint.
 
@@ -1190,7 +592,7 @@ class GarminProvider(BasePullProvider):
 
         return data_types
 
-    async def pull_from_vendor_api(self, access_token: str, token_secret: str, days: Optional[int] = 1) -> List[Dict[str, Any]]:
+    async def pull_from_vendor_api(self, access_token: str, token_secret: str, days: int | None = 1) -> list[dict[str, Any]]:
         """
         Pull data from Garmin API using OAuth credentials
 
@@ -1203,7 +605,7 @@ class GarminProvider(BasePullProvider):
             List of raw data
         """
         try:
-            logging.info("Starting Garmin data pull")
+            logger.info("Starting Garmin data pull")
 
             if not access_token or not token_secret:
                 raise ValueError("Access token and token secret are required")
@@ -1225,18 +627,18 @@ class GarminProvider(BasePullProvider):
 
             all_data = []
 
-            end_timestamp = int(datetime.now(timezone.utc).timestamp())  # utc, timestamp in seconds
+            end_timestamp = int(datetime.now(UTC).timestamp())  # utc, timestamp in seconds
             start_timestamp = end_timestamp - (days * 24 * 60 * 60)  # N days ago
 
-            logging.info(f"Pulling Garmin data for the last {days} days")
+            logger.info(f"Pulling Garmin data for the last {days} days")
 
             # Split into 1-day batches if days > 1 due to API limitation (max 86400 seconds)
             if days > 1:
-                logging.info(f"Splitting {days} days into daily batches due to API limitation")
+                logger.info(f"Splitting {days} days into daily batches due to API limitation")
                 for day_offset in range(days):
                     batch_end = end_timestamp - (day_offset * 24 * 60 * 60)
                     batch_start = batch_end - (24 * 60 * 60)
-                    logging.info(f"Pulling batch {day_offset + 1}/{days}: {batch_start} to {batch_end}")
+                    logger.info(f"Pulling batch {day_offset + 1}/{days}: {batch_start} to {batch_end}")
                     
                     batch_data = await asyncio.to_thread(
                         self._pull_data_batch, oauth, user_id, batch_start, batch_end)
@@ -1247,14 +649,14 @@ class GarminProvider(BasePullProvider):
                     self._pull_data_batch, oauth, user_id, start_timestamp, end_timestamp)
                 all_data.extend(batch_data)
 
-            logging.info(f"Completed Garmin data pull: {len(all_data)} data sets retrieved")
+            logger.info(f"Completed Garmin data pull: {len(all_data)} data sets retrieved")
             return all_data
 
         except Exception as e:
-            logging.error(f"Error in Garmin data pull: {str(e)}")
+            logger.error(f"Error in Garmin data pull: {str(e)}")
             return []
 
-    def _pull_data_batch(self, oauth: OAuth1Session, user_id: str, start_timestamp: int, end_timestamp: int) -> List[Dict[str, Any]]:
+    def _pull_data_batch(self, oauth: OAuth1Session, user_id: str, start_timestamp: int, end_timestamp: int) -> list[dict[str, Any]]:
         """
         Pull data for a single time batch (max 24 hours)
         
@@ -1274,7 +676,7 @@ class GarminProvider(BasePullProvider):
 
         for data_type, url in data_types.items():
             try:
-                logging.info(f"Pulling {data_type} data from Garmin API")
+                logger.info(f"Pulling {data_type} data from Garmin API")
                 resp = oauth.get(url)
 
                 if resp.status_code == 200:
@@ -1291,12 +693,12 @@ class GarminProvider(BasePullProvider):
                         "api_url": url
                     }
                     batch_data.append(raw_data)
-                    logging.info(f"Successfully pulled {data_type} data: {len(data) if isinstance(data, list) else 1} records")
+                    logger.info(f"Successfully pulled {data_type} data: {len(data) if isinstance(data, list) else 1} records")
                 else:
-                    logging.warning(f"Failed to pull {data_type} data: {resp.status_code} - {resp.text}")
+                    logger.warning(f"Failed to pull {data_type} data: {resp.status_code} - {resp.text}")
 
             except Exception as e:
-                logging.error(f"Error pulling {data_type} data: {str(e)}")
+                logger.error(f"Error pulling {data_type} data: {str(e)}")
                 continue
         
         return batch_data
@@ -1310,17 +712,16 @@ class GarminProvider(BasePullProvider):
             if resp.status_code == 200:
                 user_data = resp.json()
                 user_id = user_data.get("userId", "")
-                logging.info(f"Retrieved Garmin user ID: {user_id}")
+                logger.info(f"Retrieved Garmin user ID: {user_id}")
                 return str(user_id)
-            else:
-                logging.error(f"Failed to get user ID: {resp.status_code} - {resp.text}")
-                return ""
-
-        except Exception as e:
-            logging.error(f"Error getting user ID: {str(e)}")
+            logger.error(f"Failed to get user ID: {resp.status_code} - {resp.text}")
             return ""
 
-    def _detect_data_format(self, raw_data: Dict[str, Any]) -> str:
+        except Exception as e:
+            logger.error(f"Error getting user ID: {str(e)}")
+            return ""
+
+    def _detect_data_format(self, raw_data: dict[str, Any]) -> str:
         is_active_pull_format = (
                 "data" in raw_data and
                 "theta_user_id" in raw_data and
@@ -1330,7 +731,7 @@ class GarminProvider(BasePullProvider):
 
         return "active_pull" if is_active_pull_format else "webhook"
 
-    def _split_webhook_data_by_user_id(self, raw_data: Dict[str, Any]) -> Tuple[Dict[str, Dict[str, List[Dict]]], Set[str]]:
+    def _split_webhook_data_by_user_id(self, raw_data: dict[str, Any]) -> tuple[dict[str, dict[str, list[dict]]], set[str]]:
         """
 
         Args:
@@ -1344,7 +745,7 @@ class GarminProvider(BasePullProvider):
         user_data_map = {}  # {external_user_id: {data_type: [items...]}}
         external_user_ids = set()
 
-        logging.info("Processing existing webhook format")
+        logger.info("Processing existing webhook format")
 
         for data_type, data_list in raw_data.items():
             if not isinstance(data_list, list):
@@ -1371,7 +772,7 @@ class GarminProvider(BasePullProvider):
 
         return user_data_map, external_user_ids
 
-    async def _handle_deregistration(self, raw_data: Dict[str, Any]) -> None:
+    async def _handle_deregistration(self, raw_data: dict[str, Any]) -> None:
         """
         handle Garmin deregistration webhook
 
@@ -1380,7 +781,7 @@ class GarminProvider(BasePullProvider):
         """
         deregistrations = raw_data.get("deregistrations", [])
         if not isinstance(deregistrations, list):
-            logging.warning("Invalid deregistrations format")
+            logger.warning("Invalid deregistrations format")
             return
 
         # Try to get theta_user_id from raw_data (mapped by webhook upper layer)
@@ -1395,23 +796,23 @@ class GarminProvider(BasePullProvider):
                 continue
 
             try:
-                logging.info(f"Processing deregistration for external user: {external_user_id}")
+                logger.info(f"Processing deregistration for external user: {external_user_id}")
 
                 if not theta_user_id:
                     user_mapping = await self._batch_map_external_to_theta_user_ids([str(external_user_id)])
                     theta_user_id = user_mapping.get(str(external_user_id))
 
                 if not theta_user_id:
-                    logging.warning(f"No theta_user_id found for external user: {external_user_id}")
+                    logger.warning(f"No theta_user_id found for external user: {external_user_id}")
                     continue
 
                 await self.db_service.delete_user_theta_provider(theta_user_id, self.info.slug)
-                logging.info(f"Successfully deregistered user {theta_user_id} (external: {external_user_id})")
+                logger.info(f"Successfully deregistered user {theta_user_id} (external: {external_user_id})")
 
             except Exception as e:
-                logging.error(f"Error processing deregistration for {external_user_id}: {str(e)}")
+                logger.error(f"Error processing deregistration for {external_user_id}: {str(e)}")
 
-    def _split_active_pull_data_by_user_id(self, raw_data: Dict[str, Any]) -> Tuple[Dict[str, Dict[str, List[Dict]]], Set[str]]:
+    def _split_active_pull_data_by_user_id(self, raw_data: dict[str, Any]) -> tuple[dict[str, dict[str, list[dict]]], set[str]]:
         """Split active-pull format data by user.
 
         In active-pull format, theta_user_id is pre-injected by
@@ -1439,7 +840,7 @@ class GarminProvider(BasePullProvider):
         data_type = raw_data["data_type"]
         data_list = raw_data["data"]
 
-        logging.info(f"Processing active pull format for user {external_user_id}, data_type {data_type}")
+        logger.info(f"Processing active pull format for user {external_user_id}, data_type {data_type}")
 
         external_user_ids.add(external_user_id)
 
@@ -1456,11 +857,11 @@ class GarminProvider(BasePullProvider):
                         item["userId"] = external_user_id
                     user_data_map[external_user_id][data_type].append(item)
         else:
-            logging.warning(f"Data field is not a list for user {external_user_id}, data_type {data_type}")
+            logger.warning(f"Data field is not a list for user {external_user_id}, data_type {data_type}")
 
         return user_data_map, external_user_ids
 
-    def _split_data_by_user_id(self, raw_data: Dict[str, Any]) -> Tuple[Dict[str, Dict[str, List[Dict]]], Set[str], str]:
+    def _split_data_by_user_id(self, raw_data: dict[str, Any]) -> tuple[dict[str, dict[str, list[dict]]], set[str], str]:
         """
 
         Args:
@@ -1485,11 +886,10 @@ class GarminProvider(BasePullProvider):
         if data_format == "active_pull":
             user_data_map, user_ids = self._split_active_pull_data_by_user_id(raw_data)
             return user_data_map, user_ids, data_format
-        else:
-            user_data_map, user_ids = self._split_webhook_data_by_user_id(raw_data)
-            return user_data_map, user_ids, data_format
+        user_data_map, user_ids = self._split_webhook_data_by_user_id(raw_data)
+        return user_data_map, user_ids, data_format
 
-    async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def save_raw_data_to_db(self, raw_data: dict[str, Any]) -> list[dict[str, Any]]:
         """
         Args:
             raw_data: ：
@@ -1520,17 +920,17 @@ class GarminProvider(BasePullProvider):
             user_data_map, user_ids, data_format = self._split_data_by_user_id(raw_data)
 
             if not user_data_map:
-                logging.warning("No valid data found")
+                logger.warning("No valid data found")
                 return []
 
             if data_format == "active_pull":
                 user_id_to_theta_mapping = {user_id: user_id for user_id in user_ids}
-                logging.info(f"Using direct mapping for active pull format: {len(user_ids)} users")
+                logger.info(f"Using direct mapping for active pull format: {len(user_ids)} users")
             else:
                 user_id_to_theta_mapping = await self._batch_map_external_to_theta_user_ids(
                     list(user_ids)
                 )
-                logging.info(f"Mapped {len(user_id_to_theta_mapping)}/{len(user_ids)} external user IDs")
+                logger.info(f"Mapped {len(user_id_to_theta_mapping)}/{len(user_ids)} external user IDs")
 
             final_result_list = []
 
@@ -1538,11 +938,11 @@ class GarminProvider(BasePullProvider):
                 theta_user_id = user_id_to_theta_mapping.get(user_id)
 
                 if not theta_user_id:
-                    logging.warning(f"Failed to map user ID {user_id} to theta user ID")
+                    logger.warning(f"Failed to map user ID {user_id} to theta user ID")
                     continue
 
                 if not isinstance(user_data, dict):
-                    logging.error(f"Invalid user_data type for user {user_id}: {type(user_data)}, expected dict")
+                    logger.error(f"Invalid user_data type for user {user_id}: {type(user_data)}, expected dict")
                     continue
 
                 user_result = user_data.copy()
@@ -1577,27 +977,27 @@ class GarminProvider(BasePullProvider):
                         "external_user_id": external_user_id,
                     }
                     await execute_query(query=insert_sql, params=insert_params)
-                    logging.debug(f"Saved user data with msg_id: {data_key} for user: {theta_user_id}")
+                    logger.debug(f"Saved user data with msg_id: {data_key} for user: {theta_user_id}")
 
                     if "deregistrations" in user_result and isinstance(user_result.get("deregistrations"), list):
-                        logging.info("Executing deregistration actions after saving")
+                        logger.info("Executing deregistration actions after saving")
                         await self._handle_deregistration(user_result)
                         continue
 
                 except Exception as e:
-                    logging.error(f"Error saving user data for {user_id}: {str(e)}")
+                    logger.error(f"Error saving user data for {user_id}: {str(e)}")
                     continue
 
                 final_result_list.append(user_result)
 
-            logging.info(f"Successfully processed {len(final_result_list)} users with format: {data_format}")
+            logger.info(f"Successfully processed {len(final_result_list)} users with format: {data_format}")
             return final_result_list
 
         except Exception as e:
-            logging.error(f"Error saving Garmin raw data: {str(e)}")
+            logger.error(f"Error saving Garmin raw data: {str(e)}")
             return []
 
-    async def _batch_map_external_to_theta_user_ids(self, external_user_ids: List[str]) -> Dict[str, str]:
+    async def _batch_map_external_to_theta_user_ids(self, external_user_ids: list[str]) -> dict[str, str]:
         """
         Args:
             external_user_ids: external user ID
@@ -1634,22 +1034,22 @@ class GarminProvider(BasePullProvider):
                         mapping[username] = row["user_id"]
                         seen_usernames.add(username)
 
-            logging.info(f"Mapped {len(mapping)} out of {len(external_user_ids)} external user IDs to theta user IDs")
+            logger.info(f"Mapped {len(mapping)} out of {len(external_user_ids)} external user IDs to theta user IDs")
 
             unmapped = set(external_user_ids) - set(mapping.keys())
             if unmapped:
-                logging.warning(f"Failed to map external user IDs: {unmapped}")
+                logger.warning(f"Failed to map external user IDs: {unmapped}")
 
             return mapping
 
         except Exception as e:
-            logging.error(f"Error in batch mapping external to theta user IDs: {str(e)}")
+            logger.error(f"Error in batch mapping external to theta user IDs: {str(e)}")
             return {}
 
-    async def is_data_already_processed(self, raw_data: Dict[str, Any]) -> bool:
+    async def is_data_already_processed(self, raw_data: dict[str, Any]) -> bool:
         return False
 
-    async def _pull_and_push_for_user(self, credentials: Dict[str, Any]) -> bool:
+    async def _pull_and_push_for_user(self, credentials: dict[str, Any]) -> bool:
         """
         Override base implementation to pull with OAuth1 credentials and push to platform.
 
@@ -1662,22 +1062,22 @@ class GarminProvider(BasePullProvider):
         try:
             user_id = credentials.get("user_id")
             if not user_id:
-                logging.error("[_pull_and_push_for_user] Missing user_id in credentials")
+                logger.error("[_pull_and_push_for_user] Missing user_id in credentials")
                 return False
             access_token = credentials.get("access_token")
             token_secret = credentials.get("access_token_secret")
             if not access_token or not token_secret:
-                logging.error(f"[_pull_and_push_for_user] Invalid credentials for user {user_id} - missing token or secret")
+                logger.error(f"[_pull_and_push_for_user] Invalid credentials for user {user_id} - missing token or secret")
                 return False
 
             # Wait a few seconds for newly issued OAuth tokens to become effective on Garmin servers
-            logging.info(f"Waiting for OAuth tokens to become effective for user {user_id}")
+            logger.info(f"Waiting for OAuth tokens to become effective for user {user_id}")
             await asyncio.sleep(8)
 
             # Pull from vendor API
             raw_data_list = await self.pull_from_vendor_api(access_token, token_secret, days=7)
             if not raw_data_list:
-                logging.info(f"No data pulled for user {user_id}")
+                logger.info(f"No data pulled for user {user_id}")
                 return True
 
             success_count = 0
@@ -1703,15 +1103,15 @@ class GarminProvider(BasePullProvider):
                         success_count += 1
                     else:
                         error_count += 1
-                        logging.error(f"Failed to push data for user {user_id} with msg_id {msg_id}")
+                        logger.error(f"Failed to push data for user {user_id} with msg_id {msg_id}")
                 except Exception as e:
                     error_count += 1
-                    logging.error(f"Error processing data for user {user_id}: {str(e)}")
+                    logger.error(f"Error processing data for user {user_id}: {str(e)}")
                     continue
 
-            logging.info(f"Processed {success_count} records for user {user_id}; errors={error_count}")
+            logger.info(f"Processed {success_count} records for user {user_id}; errors={error_count}")
             return error_count == 0
 
         except Exception as e:
-            logging.error(f"Error in _pull_and_push_for_user: {str(e)}")
+            logger.error(f"Error in _pull_and_push_for_user: {str(e)}")
             return False

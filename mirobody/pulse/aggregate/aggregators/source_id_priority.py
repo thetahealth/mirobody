@@ -10,12 +10,11 @@ source_ids per (user, indicator, source); only the highest-ranked
 source_id's data is kept for aggregation.
 """
 
-from typing import List, Tuple
 
 # (pattern, priority, match_mode)
 # priority: smaller = more preferred
 # match_mode: 'prefix' = LIKE pattern%; 'exact' = full equality
-APPLE_SOURCE_ID_PRIORITY_RULES: List[Tuple[str, int, str]] = [
+APPLE_SOURCE_ID_PRIORITY_RULES: list[tuple[str, int, str]] = [
     # Apple Watch native (UUID class - every device has a unique UUID)
     ("com.apple.health.",     10, "prefix"),
     # Trusted 3rd-party devices/apps
@@ -29,7 +28,7 @@ APPLE_SOURCE_ID_PRIORITY_RULES: List[Tuple[str, int, str]] = [
 
 # Only apply source_id-level resolution to these sources.
 # Other sources (theta.*, vital.*) are not aggregator hubs.
-APPLE_SOURCES: Tuple[str, ...] = ("apple_health", "apple_health_watch")
+APPLE_SOURCES: tuple[str, ...] = ("apple_health", "apple_health_watch")
 
 # Default priority for unmapped source_ids. Falls between trusted apps and
 # known low-quality sources, so an unknown-but-active device still wins
@@ -63,7 +62,7 @@ def build_apple_priority_case(source_col: str, source_id_col: str) -> str:
         for aliasing it (e.g. ``AS sid_priority``).
     """
     apple_in = ",".join(f"'{_escape_sql_literal(s)}'" for s in APPLE_SOURCES)
-    when_clauses: List[str] = []
+    when_clauses: list[str] = []
     for pattern, prio, mode in APPLE_SOURCE_ID_PRIORITY_RULES:
         escaped = _escape_sql_literal(pattern)
         if mode == "prefix":

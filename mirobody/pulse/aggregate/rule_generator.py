@@ -6,18 +6,19 @@ Supports custom rule injection for special cases.
 """
 
 import logging
-from typing import List, Optional
 
 from .models import AggregationRule
 from .naming import build_indicator_name
 from ..standardize.indicators_info import StandardIndicator, HealthDataType
 
+logger = logging.getLogger(__name__)
+
 
 # Global custom rules registry
-_CUSTOM_RULES: List[AggregationRule] = []
+_CUSTOM_RULES: list[AggregationRule] = []
 
 # Cached rules (to avoid regenerating on every call)
-_CACHED_RULES: Optional[List[AggregationRule]] = None
+_CACHED_RULES: list[AggregationRule] | None = None
 
 
 def register_custom_rule(rule: AggregationRule):
@@ -41,13 +42,13 @@ def register_custom_rule(rule: AggregationRule):
         register_custom_rule(custom_rule)
     """
     _CUSTOM_RULES.append(rule)
-    logging.info(
+    logger.info(
         f"Registered custom rule: {rule.source_indicator} -> {rule.target_indicator} "
         f"({rule.aggregation_type})"
     )
 
 
-def generate_rules_from_indicators() -> List[AggregationRule]:
+def generate_rules_from_indicators() -> list[AggregationRule]:
     """
     Auto-generate aggregation rules from IndicatorInfo definitions
     
@@ -99,14 +100,14 @@ def generate_rules_from_indicators() -> List[AggregationRule]:
 
             rules.append(rule)
 
-    logging.info(
+    logger.info(
         f"Auto-generated {len(rules)} aggregation rules from IndicatorInfo definitions"
     )
 
     return rules
 
 
-def get_all_aggregation_rules() -> List[AggregationRule]:
+def get_all_aggregation_rules() -> list[AggregationRule]:
     """
     Get all aggregation rules (auto-generated + custom)
     
@@ -133,7 +134,7 @@ def get_all_aggregation_rules() -> List[AggregationRule]:
     # Cache the rules
     _CACHED_RULES = all_rules
 
-    logging.info(
+    logger.info(
         f"Generated and cached {len(all_rules)} aggregation rules "
         f"(auto: {len(auto_rules)}, custom: {len(_CUSTOM_RULES)})"
     )
@@ -141,7 +142,7 @@ def get_all_aggregation_rules() -> List[AggregationRule]:
     return all_rules
 
 
-def get_rules_by_source_indicator(source_indicator: str) -> List[AggregationRule]:
+def get_rules_by_source_indicator(source_indicator: str) -> list[AggregationRule]:
     """
     Get all rules for a specific source indicator
     
@@ -159,7 +160,7 @@ def get_rules_by_source_indicator(source_indicator: str) -> List[AggregationRule
     ]
 
 
-def get_source_indicators() -> List[str]:
+def get_source_indicators() -> list[str]:
     """
     Get list of all source indicators that have aggregation rules
     
@@ -169,6 +170,6 @@ def get_source_indicators() -> List[str]:
     all_rules = get_all_aggregation_rules()
 
     # Get unique source indicators
-    source_indicators = list(set(rule.source_indicator for rule in all_rules))
+    source_indicators = list({rule.source_indicator for rule in all_rules})
 
     return sorted(source_indicators)

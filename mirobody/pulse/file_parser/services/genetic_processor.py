@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 import asyncio
 import os
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Generator, List
+from typing import Any
+from collections.abc import Generator
 
 from mirobody.utils.i18n import clear_translation_cache, t
 from mirobody.utils import execute_query
 from mirobody.pulse.file_parser.services.file_db_service import FileDbService
+
+logger = logging.getLogger(__name__)
 
 
 class GeneticDataLoader:
@@ -38,11 +40,11 @@ class GeneticDataLoader:
         user_id: str,
         source_table: str = None,
         source_table_id: str = None,
-    ) -> Generator[Dict[str, Any], None, None]:
+    ) -> Generator[dict[str, Any], None, None]:
         """Parse genetic data file (generator version, yield line by line)"""
         import gc
 
-        with open(file_path, "r", encoding="utf-8") as file:
+        with open(file_path, encoding="utf-8") as file:
             data_started = False
             processed_lines = 0
             valid_records = 0
@@ -59,7 +61,7 @@ class GeneticDataLoader:
                 if not data_started:
                     if line.startswith("# rsid") and "chromosome" in line and "position" in line and "genotype" in line:
                         data_started = True
-                        logging.info(f"Found data start marker line: {line}")
+                        logger.info(f"Found data start marker line: {line}")
                         continue
                     else:
                         continue
@@ -92,10 +94,10 @@ class GeneticDataLoader:
                             "source_table_id": source_table_id,
                         }
                     except (ValueError, IndexError) as e:
-                        logging.warning(f"Data format error in line {line_num}: {line} - {e}")
+                        logger.warning(f"Data format error in line {line_num}: {line} - {e}")
                         continue
 
-            logging.info(f"Parsing complete: processed {processed_lines} lines total, generated {valid_records} valid records")
+            logger.info(f"Parsing complete: processed {processed_lines} lines total, generated {valid_records} valid records")
 
 
     async def update_progress(self, processed: int, saved: int, message: str, total: int = None):
@@ -132,7 +134,7 @@ class GeneticDataLoader:
                     }
                 )
             except Exception as e:
-                logging.warning(f"Failed to update th_files progress: {e}")
+                logger.warning(f"Failed to update th_files progress: {e}")
 
             # Send real-time progress updates via WebSocket
             if self.message_id:
@@ -160,9 +162,9 @@ class GeneticDataLoader:
         except ImportError:
             pass
         except Exception as e:
-            logging.error(f"Failed to update progress: {e}")
+            logger.error(f"Failed to update progress: {e}")
 
-    async def process_batch(self, batch: List[Dict], insert_sql: str) -> bool:
+    async def process_batch(self, batch: list[dict], insert_sql: str) -> bool:
         """Process single batch data insertion"""
         try:
             await execute_query(
@@ -171,7 +173,7 @@ class GeneticDataLoader:
             )
             return True
         except Exception as e:
-            logging.error(f"Batch insertion failed: {e}")
+            logger.error(f"Batch insertion failed: {e}")
             return False
 
     async def load_user_genetic_data(
@@ -194,7 +196,7 @@ class GeneticDataLoader:
         """
 
         batch, total_processed, total_saved, batch_count, failed_batches = [], 0, 0, 0, 0
-        estimated_total = sum(1 for _ in open(file_path, "r", encoding="utf-8"))
+        estimated_total = sum(1 for _ in open(file_path, encoding="utf-8"))
         
         if is_up_progress:
             await self.update_progress(0, 0, t("genetic_file_estimation", self.language, "load_genetic_data", total=estimated_total), estimated_total)
@@ -225,7 +227,7 @@ class GeneticDataLoader:
                     if await self.process_batch(batch, insert_sql):
                         total_saved += len(batch)
                         batch_count += 1
-                        logging.info(f"Batch {batch_count}: saved {len(batch)} records")
+                        logger.info(f"Batch {batch_count}: saved {len(batch)} records")
                     else:
                         failed_batches += 1
 
@@ -270,7 +272,7 @@ class GeneticDataLoader:
                     total_processed,
                 )
 
-            logging.info(f"✓ User {user_id} genetic data loading completed: processed {total_processed} records, saved {total_saved} records, failed batches {failed_batches}")
+            logger.info(f"User {user_id} genetic data loading completed: processed {total_processed} records, saved {total_saved} records, failed batches {failed_batches}")
             return total_saved
 
         except Exception as e:
@@ -281,7 +283,7 @@ class GeneticDataLoader:
                     f"❌ Processing error: {str(e)}",
                     estimated_total,
                 )
-            logging.error(f"Data loading failed: {e}", stack_info=True)
+            logger.error(f"Data loading failed: {e}", stack_info=True)
             raise
 
 
@@ -380,7 +382,7 @@ async def process_genetic_file(
                 except Exception:
                     pass  # WebSocket failure doesn't affect results
 
-        logging.info(f"Genetic processing completed: {loaded_records} records")
+        logger.info(f"Genetic processing completed: {loaded_records} records")
 
         # 🔧 Fix: Return correct original file information
         return {
@@ -397,7 +399,7 @@ async def process_genetic_file(
 
     except Exception as e:
         error_msg = f"Error processing genetic data file: {str(e)}"
-        logging.error(error_msg, stack_info=True)
+        logger.error(error_msg, stack_info=True)
 
         # 🔧 Fix: Use original filename, or temporary filename if not provided
         display_filename = original_filename or temp_file_path.name
@@ -451,19 +453,19 @@ async def process_genetic_file(
                                 },
                             )
                             if send_success:
-                                logging.info(f"✅ WebSocket failure status sent successfully: message_id={message_id}, error={str(e)}")
+                                logger.info(f"WebSocket failure status sent successfully: message_id={message_id}, error={str(e)}")
                             else:
-                                logging.info(f"📡 WebSocket failure status send failed (session not found): message_id={message_id}")
+                                logger.info(f"WebSocket failure status send failed (session not found): message_id={message_id}")
                         except Exception as ws_error:
-                            logging.info(f"📡 WebSocket failure status send exception: {ws_error}")
+                            logger.info(f"WebSocket failure status send exception: {ws_error}")
                     else:
-                        logging.warning("WebSocket failure status update skipped: message_id is empty")
+                        logger.warning("WebSocket failure status update skipped: message_id is empty")
 
                 except Exception as ws_error:
-                    logging.warning(f"⚠️ WebSocket module loading failed: {ws_error}")
+                    logger.warning(f"WebSocket module loading failed: {ws_error}")
 
             except Exception as update_error:
-                logging.error(f"Error updating failure status in th_files: {update_error}")
+                logger.error(f"Error updating failure status in th_files: {update_error}")
 
         return {
             "success": False,
@@ -478,9 +480,9 @@ async def process_genetic_file(
         if temp_file_path and os.path.exists(temp_file_path):
             try:
                 os.unlink(temp_file_path)
-                logging.info(f"Deleted temporary file: {temp_file_path}")
+                logger.info(f"Deleted temporary file: {temp_file_path}")
             except Exception as ex:
-                logging.error(f"Failed to delete temporary file: {str(ex)}")
+                logger.error(f"Failed to delete temporary file: {str(ex)}")
 
 
 # If running this file directly, execute all tests

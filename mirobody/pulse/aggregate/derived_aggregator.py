@@ -11,10 +11,13 @@ Data source priority:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
+from collections.abc import Callable
 
 from ...utils import execute_query
 from .database_service import AggregateDatabaseService
+
+logger = logging.getLogger(__name__)
 
 
 class DerivedRule:
@@ -25,8 +28,8 @@ class DerivedRule:
         name: str,
         output_indicator: str,
         output_unit: str,
-        input_indicators: List[str],
-        compute: Callable[[List[float]], Optional[float]],
+        input_indicators: list[str],
+        compute: Callable[[list[float]], float | None],
         description: str = "",
     ):
         self.name = name
@@ -37,7 +40,7 @@ class DerivedRule:
         self.description = description
 
 
-def _safe_divide_pct(numerator: float, denominator: float) -> Optional[float]:
+def _safe_divide_pct(numerator: float, denominator: float) -> float | None:
     """Divide and multiply by 100, with strict validation."""
     if denominator is None or denominator <= 0:
         return None
@@ -45,19 +48,19 @@ def _safe_divide_pct(numerator: float, denominator: float) -> Optional[float]:
         return None
     result = numerator / denominator * 100
     if result > 100:
-        logging.debug(f"[DerivedAggregator] Ratio exceeded 100%: {numerator}/{denominator} = {result:.1f}%")
+        logger.debug(f"[DerivedAggregator] Ratio exceeded 100%: {numerator}/{denominator} = {result:.1f}%")
         result = min(result, 100.0)
     return round(result, 2)
 
 
-def _safe_subtract(a: float, b: float) -> Optional[float]:
+def _safe_subtract(a: float, b: float) -> float | None:
     """Subtract with validation. Both inputs must be positive."""
     if a is None or b is None or a < 0 or b < 0:
         return None
     return round(a - b, 2)
 
 
-def _safe_divide(numerator: float, denominator: float) -> Optional[float]:
+def _safe_divide(numerator: float, denominator: float) -> float | None:
     """Divide without percentage multiplication."""
     if denominator is None or denominator <= 0:
         return None
@@ -77,7 +80,7 @@ def _safe_divide(numerator: float, denominator: float) -> Optional[float]:
 # checks both spellings. The values are therefore DATA, not naming
 # preference: do not "modernise" them.
 # ---------------------------------------------------------------------------
-LEGACY_DAILY_STATS_ALIASES: Dict[str, str] = {
+LEGACY_DAILY_STATS_ALIASES: dict[str, str] = {
     # Sleep
     "dailyTotalSleepAnalysis_Asleep(Total)": "daily_stats_sleepAnalysis_Asleep(Total)Sum",
     "dailyTotalSleepAnalysis_InBed": "daily_stats_sleepAnalysis_InBedSum",
@@ -106,7 +109,7 @@ LEGACY_DAILY_STATS_ALIASES: Dict[str, str] = {
 
 
 # Phase 1: Hard-coded derived rules (standard naming)
-DERIVED_RULES: List[DerivedRule] = [
+DERIVED_RULES: list[DerivedRule] = [
     DerivedRule(
         name="sleep_efficiency",
         output_indicator="derivedSleepEfficiency",
@@ -252,7 +255,7 @@ class DerivedAggregator:
         self.db_service = AggregateDatabaseService()
         self.rules = DERIVED_RULES
 
-    async def process(self, lookback_days: int = 7) -> Dict[str, Any]:
+    async def process(self, lookback_days: int = 7) -> dict[str, Any]:
         """
         Scan recent data and compute all derived indicators.
 
@@ -265,7 +268,7 @@ class DerivedAggregator:
         cutoff = datetime.utcnow() - timedelta(days=lookback_days)
         total_computed = 0
         total_skipped = 0
-        results_by_rule: Dict[str, int] = {}
+        results_by_rule: dict[str, int] = {}
 
         for rule in self.rules:
             computed, skipped = await self._process_rule(rule, cutoff)
@@ -273,7 +276,7 @@ class DerivedAggregator:
             total_skipped += skipped
             results_by_rule[rule.name] = computed
 
-        logging.info(
+        logger.info(
             f"[DerivedAggregator] Done: {total_computed} derived values computed, "
             f"{total_skipped} skipped (invalid inputs)"
         )
@@ -285,7 +288,7 @@ class DerivedAggregator:
             "lookback_days": lookback_days,
         }
 
-    async def _process_rule(self, rule: DerivedRule, cutoff: datetime) -> Tuple[int, int]:
+    async def _process_rule(self, rule: DerivedRule, cutoff: datetime) -> tuple[int, int]:
         """
         Process a single derived rule across all user-days.
 
@@ -296,7 +299,7 @@ class DerivedAggregator:
 
         # Build UNION ALL for each input: legacy alias (priority=0) + SQLAggregator (source priority)
         union_parts = []
-        params: Dict[str, Any] = {"cutoff": cutoff, "n_inputs": n_inputs}
+        params: dict[str, Any] = {"cutoff": cutoff, "n_inputs": n_inputs}
 
         for i, inp in enumerate(rule.input_indicators):
             alias = LEGACY_DAILY_STATS_ALIASES.get(inp)
@@ -355,7 +358,7 @@ class DerivedAggregator:
         try:
             rows = await execute_query(query, params)
         except Exception as e:
-            logging.error(f"[DerivedAggregator] Query failed for {rule.name}: {e}")
+            logger.error(f"[DerivedAggregator] Query failed for {rule.name}: {e}")
             return 0, 0
 
         computed = 0
@@ -370,7 +373,7 @@ class DerivedAggregator:
 
             # Map input indicators to their values in the correct order
             ind_val_map = {}
-            for ind, val in zip(indicators, raw_values):
+            for ind, val in zip(indicators, raw_values, strict=False):
                 try:
                     ind_val_map[ind] = float(val)
                 except (ValueError, TypeError):
@@ -394,7 +397,7 @@ class DerivedAggregator:
             try:
                 result = rule.compute(ordered_values)
             except Exception as e:
-                logging.warning(f"[DerivedAggregator] Compute error for {rule.name}, user={user_id}, day={day}: {e}")
+                logger.warning(f"[DerivedAggregator] Compute error for {rule.name}, user={user_id}, day={day}: {e}")
                 skipped += 1
                 continue
 
@@ -426,11 +429,11 @@ class DerivedAggregator:
         if records_to_save:
             try:
                 await self.db_service.batch_save_summary_data(records_to_save)
-                logging.info(
+                logger.info(
                     f"[DerivedAggregator] Rule '{rule.name}': {computed} computed, {skipped} skipped"
                 )
             except Exception as e:
-                logging.error(f"[DerivedAggregator] Save failed for {rule.name}: {e}")
+                logger.error(f"[DerivedAggregator] Save failed for {rule.name}: {e}")
                 return 0, skipped
 
         return computed, skipped

@@ -32,24 +32,12 @@ from typing import TYPE_CHECKING
 # simply pays its own import cost at first use.
 _EXPORTS = {
     'CacheConfig'             : 'constants',
-    'CommonConfig'            : 'constants',
-    'DataType'                : 'constants',
-    'DocStatus'               : 'constants',
-    'DocType'                 : 'constants',
     'LinkType'                : 'constants',
-    'ProcessAction'           : 'constants',
     'ProviderStatus'          : 'constants',
-    'ResourceType'            : 'constants',
-    'BaseDatabaseService'     : 'database',
     'CacheableDatabaseService': 'database',
-    'HealthDataBatch'         : 'models',
     'LinkRequest'             : 'models',
-    'ProcessingResult'        : 'models',
     'ProviderInfo'            : 'models',
-    'ProviderMetrics'         : 'models',
-    'StandardHealthData'      : 'models',
     'UserProvider'            : 'models',
-    'WebhookEvent'            : 'models',
     'PushService'             : 'push_service',
     'push_service'            : 'push_service',
     'PullTask'                : 'scheduler',
@@ -59,9 +47,9 @@ _EXPORTS = {
 __all__ = [*_EXPORTS]
 
 if TYPE_CHECKING:  # static analyzers resolve the real symbols
-    from .constants import CacheConfig, CommonConfig, DataType, DocStatus, DocType, LinkType, ProcessAction, ProviderStatus, ResourceType
-    from .database import BaseDatabaseService, CacheableDatabaseService
-    from .models import HealthDataBatch, LinkRequest, ProcessingResult, ProviderInfo, ProviderMetrics, StandardHealthData, UserProvider, WebhookEvent
+    from .constants import CacheConfig, LinkType, ProviderStatus
+    from .database import CacheableDatabaseService
+    from .models import LinkRequest, ProviderInfo, UserProvider
     from .push_service import PushService, push_service
     from .scheduler import PullTask, Scheduler, scheduler
 

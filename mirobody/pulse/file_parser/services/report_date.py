@@ -26,6 +26,8 @@ from mirobody.utils import execute_query
 
 from .file_db_service import FileDbService
 
+logger = logging.getLogger(__name__)
+
 # The comment column is encrypted JSON; only rows that are JSON get the
 # provenance merged in, anything else (an empty comment from a failed build)
 # starts fresh. `||` on jsonb replaces the key.
@@ -94,6 +96,6 @@ async def set_file_report_date(owner: str, file_key: str, when: datetime | None)
         from mirobody.task import ProfileRefreshTask
         await ProfileRefreshTask.enqueue(str(owner))
     except Exception as e:
-        logging.warning(f"[set_file_report_date] profile refresh not enqueued: {e}")
+        logger.warning(f"[set_file_report_date] profile refresh not enqueued: {e}")
 
     return {"file_key": file_key, "report_date": report_date, "moved": len(moved), "skipped": skipped}

@@ -3,10 +3,12 @@ Base classes for providers
 """
 
 import logging
+import time
 import uuid
 from abc import abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
+from mirobody.kernel import connect
 from mirobody.pulse import LinkRequest
 from mirobody.pulse.base import Provider
 from mirobody.pulse.core import LinkType
@@ -21,6 +23,8 @@ from mirobody.pulse.ingest.models.requests import (
 from mirobody.pulse.providers.platform.database_service import ProviderDatabaseService
 from mirobody.utils import execute_query
 
+logger = logging.getLogger(__name__)
+
 
 class BasePullProvider(Provider):
     """
@@ -34,7 +38,7 @@ class BasePullProvider(Provider):
         self.user_service = PlatformUserService()
 
     @classmethod
-    def create_provider(cls, config: Dict[str, Any]) -> Optional['BasePullProvider']:
+    def create_provider(cls, config: dict[str, Any]) -> Optional['BasePullProvider']:
         """
         Factory method to create provider instance from config
         
@@ -54,7 +58,7 @@ class BasePullProvider(Provider):
         try:
             return cls()
         except Exception as e:
-            logging.warning(f"Failed to create provider {cls.__name__}: {e}")
+            logger.warning(f"Failed to create provider {cls.__name__}: {e}")
             return None
 
     def register_pull_task(self) -> bool:
@@ -63,7 +67,7 @@ class BasePullProvider(Provider):
         """
         return True
 
-    async def link(self, request: LinkRequest) -> Dict[str, Any]:
+    async def link(self, request: LinkRequest) -> dict[str, Any]:
         user_id = request.user_id
         provider_slug = request.provider_slug
         auth_type = request.auth_type
@@ -74,7 +78,7 @@ class BasePullProvider(Provider):
                 raise ValueError(f"{auth_type} should use OAuth callback flow")
             
             # Validate credentials
-            await self._validate_credentials_v2(request.credentials)
+            await self._validate_credentials(request.credentials)
             
             # Build credentials based on auth_type
             connect_info = request.credentials.get("connect_info")
@@ -98,49 +102,38 @@ class BasePullProvider(Provider):
             if not success:
                 raise RuntimeError(f"Failed to link provider {provider_slug}")
             
-            logging.info(f"Successfully linked theta provider {provider_slug} ({auth_type.value}) for user {user_id}")
+            logger.info(f"Successfully linked theta provider {provider_slug} ({auth_type.value}) for user {user_id}")
             result = {"provider_slug": provider_slug, "msg": "ok", "connected": True}
             if username:
                 result["username"] = username
             return result
 
         except Exception as e:
-            logging.error(f"Error linking theta provider {provider_slug}: {str(e)}")
+            logger.error(f"Error linking theta provider {provider_slug}: {str(e)}")
             raise RuntimeError(str(e))
 
-    async def unlink(self, user_id: str) -> Dict[str, Any]:
+    async def unlink(self, user_id: str) -> dict[str, Any]:
         provider_slug = self.info.slug
 
         try:
             success = await self.db_service.delete_user_theta_provider(user_id, provider_slug)
 
             if success:
-                logging.info(f"Successfully unlinked theta provider {provider_slug} for user {user_id}")
+                logger.info(f"Successfully unlinked theta provider {provider_slug} for user {user_id}")
                 return {"provider_slug": provider_slug}
-            else:
-                raise RuntimeError(f"Failed to unlink provider {provider_slug}")
+            raise RuntimeError(f"Failed to unlink provider {provider_slug}")
 
         except Exception as e:
-            logging.error(f"Error unlinking theta provider {provider_slug}: {str(e)}")
+            logger.error(f"Error unlinking theta provider {provider_slug}: {str(e)}")
             raise RuntimeError(str(e))
 
-    async def _validate_credentials(self, username: str, password: str) -> None:
+    async def _validate_credentials(self, credentials: dict[str, Any]) -> None:
+        """Reject credentials that cannot work, by raising. Default: accept.
+
+        `credentials` is the LinkRequest's dict: `username`/`password` for
+        `LinkType.PASSWORD`, `connect_info` for `LinkType.CUSTOMIZED`. Override
+        to probe the vendor (pgsql opens a connection).
         """
-        This is the v1 interface. New providers should override _validate_credentials_v2 instead.
-
-        Args:
-            username: username
-            password: password
-
-        Raises:
-            Exception:
-        """
-        pass
-
-    async def _validate_credentials_v2(self, credentials: Dict[str, Any]) -> None:
-        username = credentials.get("username", "")
-        password = credentials.get("password", "")
-        await self._validate_credentials(username, password)
 
     async def _get_user_timezone(self, user_id: str) -> str:
         try:
@@ -148,17 +141,17 @@ class BasePullProvider(Provider):
             if user_info and user_info.get("tz"):
                 user_timezone = user_info.get("tz").strip()
                 if user_timezone:
-                    logging.info(f"Retrieved user timezone from database: user_id={user_id}, timezone={user_timezone}")
+                    logger.info(f"Retrieved user timezone from database: user_id={user_id}, timezone={user_timezone}")
                     return user_timezone
 
-            logging.info(f"No timezone found for user {user_id}, using default UTC")
+            logger.info(f"No timezone found for user {user_id}, using default UTC")
             return "UTC"
 
         except Exception as e:
-            logging.warning(f"Failed to get user timezone for user {user_id}: {str(e)}, using default UTC")
+            logger.warning(f"Failed to get user timezone for user {user_id}: {str(e)}, using default UTC")
             return "UTC"
 
-    def _extract_theta_user_id(self, saved_data: Dict[str, Any]) -> str:
+    def _extract_theta_user_id(self, saved_data: dict[str, Any]) -> str:
         """Extract internal system user ID from saved data.
 
         Tries 'theta_user_id' (this platform's own convention) then
@@ -167,7 +160,7 @@ class BasePullProvider(Provider):
         """
         return saved_data.get("theta_user_id", saved_data.get("app_user_id", ""))
 
-    def _extract_external_user_id(self, saved_data: Dict[str, Any]) -> str:
+    def _extract_external_user_id(self, saved_data: dict[str, Any]) -> str:
         """Extract vendor-side user ID from saved data.
 
         Default: reads top-level 'user_id' which by convention is the
@@ -177,7 +170,7 @@ class BasePullProvider(Provider):
         """
         return saved_data.get("user_id", "")
 
-    def _extract_msg_id(self, saved_data: Dict[str, Any]) -> str:
+    def _extract_msg_id(self, saved_data: dict[str, Any]) -> str:
         """Extract message/request tracking ID from saved data."""
         return saved_data.get("msg_id", "")
 
@@ -192,13 +185,13 @@ class BasePullProvider(Provider):
                 return None
         return value
 
-    async def build_format_context(self, saved_data: Dict[str, Any]) -> FormatDataContext:
+    async def build_format_context(self, saved_data: dict[str, Any]) -> FormatDataContext:
         """Build pre-resolved context from saved raw data.
 
         Extracts identity fields via overridable hooks, resolves timezone
         from DB, and returns a complete FormatDataContext.  Caller
         (Platform.post_data) passes the result inside FormatDataInput so
-        that format_data_v2 needs no DB access.
+        that format_data needs no DB access.
         """
         theta_user_id = self._extract_theta_user_id(saved_data)
         external_user_id = self._extract_external_user_id(saved_data)
@@ -211,39 +204,21 @@ class BasePullProvider(Provider):
             msg_id=msg_id,
         )
 
-    async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:
-        """Legacy entry — builds context from raw_data, then forwards to format_data_v2.
+    async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
+        """Vendor payload -> `StandardPulseData`. The one thing a provider must do.
 
-        Only forwards if the subclass has overridden format_data_v2.
-        Otherwise raises NotImplementedError to avoid infinite recursion.
+        `fmt_input.context` carries everything already resolved by the caller
+        (`build_format_context`: internal user id, vendor user id, timezone,
+        msg_id), so this method needs no database access and is a pure
+        transformation — which is what makes it snapshot-testable against a
+        recorded payload. `fmt_input.payload` is the vendor's data, untouched.
+
+        (This used to be two methods, `format_data(raw)` and `format_data_v2(
+        fmt_input)`, each detecting whether the subclass had overridden the other
+        and forwarding — a migration that stopped halfway. Every provider now
+        implements this signature and nothing else.)
         """
-        if type(self).format_data_v2 is BasePullProvider.format_data_v2:
-            raise NotImplementedError(
-                f"{type(self).__name__} must implement format_data_v2 or format_data"
-            )
-        ctx = await self.build_format_context(raw_data)
-        fmt_input = FormatDataInput(context=ctx, payload=raw_data)
-        return await self.format_data_v2(fmt_input)
-
-    async def format_data_v2(self, fmt_input: FormatDataInput) -> StandardPulseData:
-        """New entry — caller pre-builds FormatDataInput with resolved context.
-
-        Subclasses that override format_data() (legacy) instead of format_data_v2()
-        are handled gracefully: we fall back to calling format_data(payload).
-        """
-        # Check if the subclass has its own format_data (not the base-class forwarder)
-        if type(self).format_data is not BasePullProvider.format_data:
-            # Legacy provider: has custom format_data(), call it with payload
-            # Inject context fields into payload so legacy code can find user_id etc.
-            legacy_data = {**fmt_input.payload}
-            if fmt_input.context:
-                legacy_data.setdefault("user_id", fmt_input.context.theta_user_id or "")
-                legacy_data.setdefault("theta_user_id", fmt_input.context.theta_user_id or "")
-                legacy_data.setdefault("msg_id", fmt_input.context.msg_id or "")
-            return await self.format_data(legacy_data)
-        raise NotImplementedError(
-            f"{type(self).__name__} must implement format_data_v2 or format_data"
-        )
+        raise NotImplementedError(f"{type(self).__name__} must implement format_data")
 
     def generate_request_id(self) -> str:
         """Generate request ID"""
@@ -256,7 +231,7 @@ class BasePullProvider(Provider):
 
     # ========== Pull Related Methods ==========
 
-    async def get_all_user_credentials(self) -> List[Dict[str, Any]]:
+    async def get_all_user_credentials(self) -> list[dict[str, Any]]:
         try:
             # Explicitly pass link_type based on current provider's authentication method
             link_type = self.info.auth_type
@@ -264,22 +239,22 @@ class BasePullProvider(Provider):
                 return []
             return await self.db_service.get_all_user_credentials_for_provider(self.info.slug, link_type)
         except Exception as e:
-            logging.warning(f"Error getting user credentials for provider {self.info.slug}: {str(e)}")
+            logger.warning(f"Error getting user credentials for provider {self.info.slug}: {str(e)}")
             return []
 
     @abstractmethod
-    async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def save_raw_data_to_db(self, raw_data: dict[str, Any]) -> list[dict[str, Any]]:
         pass
 
     @abstractmethod
-    async def is_data_already_processed(self, raw_data: Dict[str, Any]) -> bool:
+    async def is_data_already_processed(self, raw_data: dict[str, Any]) -> bool:
         pass
 
     async def pull_and_push(self) -> bool:
         try:
             credentials = await self.get_all_user_credentials()
             if not credentials:
-                logging.info(f"No users found for provider {self.info.slug}")
+                logger.info(f"No users found for provider {self.info.slug}")
                 return True
 
             success_count = 0
@@ -293,19 +268,48 @@ class BasePullProvider(Provider):
                     else:
                         error_count += 1
                 except Exception as e:
-                    logging.error(f"Error processing user {cred['user_id']}: {str(e)}")
+                    logger.error(f"Error processing user {cred['user_id']}: {str(e)}")
                     error_count += 1
 
-            logging.info(
+            logger.info(
                 f"Pull and push completed for provider {self.info.slug}: {success_count} success, {error_count} errors"
             )
             return error_count == 0
 
         except Exception as e:
-            logging.error(f"Error in pull_and_push for provider {self.info.slug}: {str(e)}")
+            logger.error(f"Error in pull_and_push for provider {self.info.slug}: {str(e)}")
             return False
 
-    async def _pull_and_push_for_user(self, credentials: Dict[str, Any]) -> bool:
+
+    #: When to stop trying a credential that keeps failing, and for how long.
+    #: Three because a transient outage is one or two failures and a changed
+    #: password is every one; thirty minutes because the person who fixes it
+    #: does so by relinking, which resets the state anyway.
+    DEBOUNCE = connect.DebouncePolicy(threshold=3, cooldown_ms=30 * 60 * 1000)
+
+    def _now_ms(self) -> int:
+        """The clock, as one overridable call. A back-off is a decision about
+        elapsed time, and a test that cannot move time can only assert that
+        nothing happens yet."""
+        return int(time.time() * 1000)
+
+    def _debounce_state(self, user_id: str) -> connect.Credential:
+        states = self.__dict__.setdefault("_credential_states", {})
+        key = str(user_id)
+        if key not in states:
+            states[key] = connect.Credential(provider=self.info.slug, subject_id=key)
+        return states[key]
+
+    def _record_pull_outcome(self, user_id: str, *, ok: bool, now_ms: int) -> None:
+        states = self.__dict__.setdefault("_credential_states", {})
+        cred = self._debounce_state(user_id)
+        states[str(user_id)] = (
+            connect.record_success(cred)
+            if ok
+            else connect.record_failure(cred, now_ms=now_ms, policy=self.DEBOUNCE)
+        )
+
+    async def _pull_and_push_for_user(self, credentials: dict[str, Any]) -> bool:
         """
         Execute pull and push for a single user
 
@@ -320,15 +324,39 @@ class BasePullProvider(Provider):
             username = credentials["username"]
             password = credentials["password"]
 
-            # 1. Pull data from vendor API with optimization
-            # Use optimized version if available, fallback to regular version
-            if hasattr(self, "pull_from_vendor_api_optimized"):
-                raw_data_list = await self.pull_from_vendor_api_optimized(username, password, user_id)
-            else:
+            # A credential whose password the person changed fails on every
+            # tick, forever, at the loop's full rate — and some vendors count
+            # that as an attack and lock the account the person still uses.
+            # `mirobody.kernel.connect` is the state machine: consecutive
+            # authorization failures expire the credential, and a retry waits
+            # out a cooldown. Held in memory per worker, which is the right
+            # scope for "do not hammer this account right now"; the durable
+            # answer is the credential's own state, which relinking resets.
+            cred = self._debounce_state(user_id)
+            now_ms = self._now_ms()
+            if not connect.may_attempt(cred, now_ms=now_ms, policy=self.DEBOUNCE):
+                failure_count = cred.failures
+                logger.info(
+                    "skipping %s for one subject: credential state=%s failure_count=%d",
+                    self.info.slug, cred.state, failure_count,
+                )
+                return True  # not an error: deliberately not attempted
+
+            # 1. Pull data from vendor API.
+            try:
                 raw_data_list = await self.pull_from_vendor_api(username, password)
+            except Exception as e:
+                self._record_pull_outcome(user_id, ok=False, now_ms=now_ms)
+                failure_count = self._debounce_state(user_id).failures
+                logger.warning(
+                    "pull failed for %s: error_type=%s failure_count=%d",
+                    self.info.slug, type(e).__name__, failure_count,
+                )
+                return False
+            self._record_pull_outcome(user_id, ok=True, now_ms=now_ms)
 
             if not raw_data_list:
-                logging.info(f"No data pulled for user {user_id}")
+                logger.info(f"No data pulled for user {user_id}")
                 return True  # No data is not an error
 
             success_count = 0
@@ -341,7 +369,7 @@ class BasePullProvider(Provider):
 
                     # Check if already processed
                     if await self.is_data_already_processed(raw_data):
-                        logging.info(f"Data already processed for user {user_id}")
+                        logger.info(f"Data already processed for user {user_id}")
                         continue
 
                     # Push data (function call)
@@ -354,22 +382,22 @@ class BasePullProvider(Provider):
 
                     if push_success:
                         success_count += 1
-                        logging.info(f"Successfully pushed data for user {user_id}")
+                        logger.info(f"Successfully pushed data for user {user_id}")
                     else:
-                        logging.error(f"Failed to push data for user {user_id}")
+                        logger.error(f"Failed to push data for user {user_id}")
 
                 except Exception as e:
-                    logging.error(f"Error processing data for user {user_id}: {str(e)}")
+                    logger.error(f"Error processing data for user {user_id}: {str(e)}")
                     continue
 
-            logging.info(f"Processed {success_count} records for user {user_id}")
+            logger.info(f"Processed {success_count} records for user {user_id}")
             return True
 
         except Exception as e:
-            logging.error(f"Error in _pull_and_push_for_user: {str(e)}")
+            logger.error(f"Error in _pull_and_push_for_user: {str(e)}")
             return False
 
-    async def pull_from_vendor_api(self, username: str, password: str) -> List[Dict[str, Any]]:
+    async def pull_from_vendor_api(self, username: str, password: str) -> list[dict[str, Any]]:
         raise NotImplementedError("Subclasses must implement pull_from_vendor_api method")
 
     # ========== Raw Data Query Methods (for Management UI) ==========
@@ -402,7 +430,7 @@ class BasePullProvider(Provider):
         """
         return "theta_user_id"
 
-    def get_query_columns(self) -> List[str]:
+    def get_query_columns(self) -> list[str]:
         """
         Get the columns to select in raw data query
         
@@ -439,10 +467,10 @@ class BasePullProvider(Provider):
         self,
         page: int = 1,
         page_size: int = 20,
-        user_id: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        user_id: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict[str, Any]:
         """
         Query raw data records from provider's storage table
         
@@ -541,7 +569,7 @@ class BasePullProvider(Provider):
             }
             
         except Exception as e:
-            logging.error(f"Error querying raw data for provider {self.info.slug}: {str(e)}")
+            logger.error(f"Error querying raw data for provider {self.info.slug}: {str(e)}")
             return {
                 "records": [],
                 "total": 0,
@@ -552,7 +580,7 @@ class BasePullProvider(Provider):
                 "error": str(e)
             }
 
-    async def get_raw_data_by_id(self, record_id: int) -> Optional[Dict[str, Any]]:
+    async def get_raw_data_by_id(self, record_id: int) -> dict[str, Any] | None:
         """
         Get a single raw data record by ID
         
@@ -576,7 +604,7 @@ class BasePullProvider(Provider):
             records = await execute_query(query=query, params={"record_id": record_id})
             
             if not records or len(records) == 0:
-                logging.warning(f"Record with ID {record_id} not found in {table_name}")
+                logger.warning(f"Record with ID {record_id} not found in {table_name}")
                 return None
             
             record = records[0]
@@ -593,5 +621,5 @@ class BasePullProvider(Provider):
             return formatted_record
             
         except Exception as e:
-            logging.error(f"Error getting record {record_id} for provider {self.info.slug}: {str(e)}")
+            logger.error(f"Error getting record {record_id} for provider {self.info.slug}: {str(e)}")
             return None

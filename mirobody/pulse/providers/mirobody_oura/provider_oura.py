@@ -9,15 +9,13 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timezone, timedelta
-from zoneinfo import ZoneInfo
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta, UTC
+from typing import Any, Optional
 
 import aiohttp
 
 from mirobody.pulse.base import ProviderInfo
 from mirobody.pulse.core import LinkType, ProviderStatus
-from mirobody.pulse.standardize.indicators_info import StandardIndicator
 from mirobody.pulse.core.push_service import push_service
 from mirobody.pulse.ingest.models.requests import (
     FormatDataInput,
@@ -27,10 +25,13 @@ from mirobody.pulse.ingest.models.requests import (
 )
 from mirobody.pulse.providers.platform.base import BasePullProvider
 from mirobody.pulse.providers.platform.oauth2 import OAuth2Client
-from mirobody.pulse.providers.platform.normalize import DataFormatter, TimeUtils
+from mirobody.pulse.providers.platform.normalize import records_from_facts
+from mirobody.kernel import vendors
 from mirobody.utils import execute_query
 from mirobody.utils.config import safe_read_cfg
 from ....utils.tasks import spawn
+
+logger = logging.getLogger(__name__)
 
 
 class OuraProvider(BasePullProvider):
@@ -46,33 +47,24 @@ class OuraProvider(BasePullProvider):
     # e.g. curl -H "Authorization: Bearer test" https://api.ouraring.com/v2/sandbox/usercollection/sleep
     SANDBOX_API_PREFIX = "/v2/sandbox/usercollection"
 
-    # Endpoints configuration.
-    #
-    # time_strategy declares where each data_type's record timestamp comes from:
-    #   - "item_timestamp": take item["timestamp"] / item["bedtime_start"]
-    #     (event-style records with their own time field)
-    #   - "item_day":       take item["day"] (YYYY-MM-DD), interpreted at user
-    #     local 00:00 (daily summary aggregations)
-    #   - "sync_day_start": profile data without time field; use the sync
-    #     timestamp anchored to user-local 00:00, so a single user yields at
-    #     most one row per day under the (user, indicator, source, time)
-    #     unique constraint.
+    # Endpoints to pull. Where each document's time comes from is declared
+    # once, in ``mirobody.kernel.vendors.oura.STRATEGY``.
     API_ENDPOINTS = [
-        {"path": "/v2/usercollection/personal_info", "data_type": "personal_info", "paginated": False, "time_strategy": "sync_day_start"},
-        {"path": "/v2/usercollection/sleep", "data_type": "sleep", "paginated": True, "time_strategy": "item_timestamp"},
-        {"path": "/v2/usercollection/daily_sleep", "data_type": "daily_sleep", "paginated": True, "time_strategy": "item_day"},
-        {"path": "/v2/usercollection/daily_activity", "data_type": "daily_activity", "paginated": True, "time_strategy": "item_day"},
-        {"path": "/v2/usercollection/daily_readiness", "data_type": "daily_readiness", "paginated": True, "time_strategy": "item_day"},
-        {"path": "/v2/usercollection/heartrate", "data_type": "heartrate", "paginated": False, "time_strategy": "item_timestamp"},
-        {"path": "/v2/usercollection/daily_spo2", "data_type": "daily_spo2", "paginated": True, "time_strategy": "item_day"},
-        {"path": "/v2/usercollection/daily_stress", "data_type": "daily_stress", "paginated": True, "time_strategy": "item_day"},
+        {"path": "/v2/usercollection/personal_info", "data_type": "personal_info", "paginated": False},
+        {"path": "/v2/usercollection/sleep", "data_type": "sleep", "paginated": True},
+        {"path": "/v2/usercollection/daily_sleep", "data_type": "daily_sleep", "paginated": True},
+        {"path": "/v2/usercollection/daily_activity", "data_type": "daily_activity", "paginated": True},
+        {"path": "/v2/usercollection/daily_readiness", "data_type": "daily_readiness", "paginated": True},
+        {"path": "/v2/usercollection/heartrate", "data_type": "heartrate", "paginated": False},
+        {"path": "/v2/usercollection/daily_spo2", "data_type": "daily_spo2", "paginated": True},
+        {"path": "/v2/usercollection/daily_stress", "data_type": "daily_stress", "paginated": True},
         # Disabled: returns 401 — likely requires Oura Membership ($5.99/mo) subscription
-        # {"path": "/v2/usercollection/daily_resilience", "data_type": "daily_resilience", "paginated": True, "time_strategy": "item_day"},
-        # {"path": "/v2/usercollection/daily_cardiovascular_age", "data_type": "daily_cardiovascular_age", "paginated": True, "time_strategy": "item_day"},
-        {"path": "/v2/usercollection/vo2_max", "data_type": "vo2_max", "paginated": True, "time_strategy": "item_day"},
-        {"path": "/v2/usercollection/workout", "data_type": "workout", "paginated": True, "time_strategy": "item_timestamp"},
-        {"path": "/v2/usercollection/session", "data_type": "session", "paginated": True, "time_strategy": "item_timestamp"},
-        {"path": "/v2/usercollection/sleep_time", "data_type": "sleep_time", "paginated": True, "time_strategy": "item_day"},
+        # {"path": "/v2/usercollection/daily_resilience", "data_type": "daily_resilience", "paginated": True},
+        # {"path": "/v2/usercollection/daily_cardiovascular_age", "data_type": "daily_cardiovascular_age", "paginated": True},
+        {"path": "/v2/usercollection/vo2_max", "data_type": "vo2_max", "paginated": True},
+        {"path": "/v2/usercollection/workout", "data_type": "workout", "paginated": True},
+        {"path": "/v2/usercollection/session", "data_type": "session", "paginated": True},
+        {"path": "/v2/usercollection/sleep_time", "data_type": "sleep_time", "paginated": True},
     ]
 
     def __init__(self):
@@ -97,87 +89,22 @@ class OuraProvider(BasePullProvider):
         self.request_timeout = 30
 
         if not client_id or not client_secret:
-            logging.error("Oura OAuth credentials not configured. Please set OURA_CLIENT_ID and OURA_CLIENT_SECRET")
+            logger.error("Oura OAuth credentials not configured. Please set OURA_CLIENT_ID and OURA_CLIENT_SECRET")
         else:
-            logging.info(f"Oura OAuth configuration validated, client_id:{client_id[:3]}...")
-
-        # Oura → StandardIndicator mapping
-        # Format: "oura_field": StandardIndicator              — source unit == standard unit
-        #         "oura_field": (StandardIndicator, "src_unit") — downstream auto-converts src → standard
-        self.INDICATOR_MAPPING = {
-            "sleep": {
-                "total_sleep_duration": (StandardIndicator.DAILY_TOTAL_SLEEP_TIME, "s"),
-                "time_in_bed": (StandardIndicator.SLEEP_IN_BED, "s"),
-                "awake_time": (StandardIndicator.SLEEP_ANALYSIS_AWAKE, "s"),
-                "deep_sleep_duration": (StandardIndicator.SLEEP_ANALYSIS_ASLEEP_DEEP, "s"),
-                "light_sleep_duration": (StandardIndicator.SLEEP_ANALYSIS_ASLEEP_CORE, "s"),
-                "rem_sleep_duration": (StandardIndicator.SLEEP_ANALYSIS_ASLEEP_REM, "s"),
-                "efficiency": StandardIndicator.SLEEP_EFFICIENCY,
-                "latency": StandardIndicator.SLEEP_LATENCY,
-                "average_heart_rate": StandardIndicator.DAILY_HEART_RATE_AVG,
-                "lowest_heart_rate": StandardIndicator.DAILY_HEART_RATE_MIN,
-                "average_hrv": StandardIndicator.HRV_RMSSD,
-                "average_breath": StandardIndicator.RESPIRATORY_RATE,
-                "restless_periods": StandardIndicator.SLEEP_DISTURBANCES,
-                "temperature_delta": StandardIndicator.TEMPERATURE_DELTA,
-            },
-            "daily_sleep": {
-                "score": StandardIndicator.SLEEP_OVERALL_SCORE,
-            },
-            "daily_activity": {
-                "steps": StandardIndicator.DAILY_STEPS,
-                "active_calories": StandardIndicator.DAILY_CALORIES_ACTIVE,
-                "total_calories": StandardIndicator.DAILY_CALORIES_TOTAL,
-                "equivalent_walking_distance": StandardIndicator.DAILY_DISTANCE,
-                "high_activity_time": (StandardIndicator.DAILY_ACTIVITY_INTENSITY_HIGH, "s"),
-                "medium_activity_time": (StandardIndicator.DAILY_ACTIVITY_INTENSITY_MEDIUM, "s"),
-                "low_activity_time": (StandardIndicator.DAILY_ACTIVITY_INTENSITY_LOW, "s"),
-                "sedentary_time": (StandardIndicator.SEDENTARY_TIME, "s"),
-                "resting_time": (StandardIndicator.RESTING_TIME, "s"),
-                "score": StandardIndicator.DAILY_ACTIVITY_SCORE,
-            },
-            "daily_readiness": {
-                "score": StandardIndicator.RECOVERY_SCORE,
-                "temperature_deviation": StandardIndicator.TEMPERATURE_DELTA,
-            },
-            "heartrate": {
-                "bpm": StandardIndicator.HEART_RATE,
-            },
-            "daily_spo2": {
-                "spo2_percentage.average": StandardIndicator.BLOOD_OXYGEN,
-            },
-            "daily_stress": {
-                "stress_high": StandardIndicator.STRESS_HIGH_DURATION,
-                "recovery_high": StandardIndicator.RECOVERY_HIGH_DURATION,
-            },
-            "vo2_max": {
-                "vo2_max": StandardIndicator.VO2_MAX,
-            },
-            "daily_cardiovascular_age": {
-                "vascular_age": StandardIndicator.BODY_AGE,
-            },
-            "workout": {
-                "calories": StandardIndicator.CALORIES_ACTIVE,
-                "distance": StandardIndicator.DISTANCE,
-            },
-            "personal_info": {
-                "weight": StandardIndicator.WEIGHT,
-                "height": StandardIndicator.HEIGHT,
-            },
-        }
+            logger.info(f"Oura OAuth configuration validated, client_id:{client_id[:3]}...")
 
     @classmethod
-    def create_provider(cls, config: Dict[str, Any]) -> Optional['OuraProvider']:
+    def create_provider(cls, config: dict[str, Any]) -> Optional['OuraProvider']:
         """Factory method — return None if config insufficient"""
         try:
             client_id = safe_read_cfg("OURA_CLIENT_ID")
             client_secret = safe_read_cfg("OURA_CLIENT_SECRET")
             if not client_id or not client_secret:
-                logging.info("OuraProvider disabled: missing OURA_CLIENT_ID or OURA_CLIENT_SECRET")
+                logger.info("OuraProvider disabled: missing OURA_CLIENT_ID or OURA_CLIENT_SECRET")
                 return None
             return cls()
         except Exception as e:
-            logging.warning(f"Failed to create Oura provider: {e}")
+            logger.warning(f"Failed to create Oura provider: {e}")
             return None
 
     @property
@@ -197,13 +124,13 @@ class OuraProvider(BasePullProvider):
     # OAuth2 Flow — delegates to OAuth2Client
     # =========================================================================
 
-    async def link(self, request: Any) -> Dict[str, Any]:
+    async def link(self, request: Any) -> dict[str, Any]:
         """Generate OAuth2 authorization URL"""
         return await self.oauth.generate_authorization_url(
             request.user_id, request.options or {}
         )
 
-    async def callback(self, code: str, state: str) -> Dict[str, Any]:
+    async def callback(self, code: str, state: str) -> dict[str, Any]:
         """Exchange authorization code for tokens and trigger initial pull"""
         result = await self.oauth.exchange_code_for_tokens(
             code, state, self.db_service, self.info.slug
@@ -223,7 +150,7 @@ class OuraProvider(BasePullProvider):
             "return_url": result.get("return_url"),
         }
 
-    async def get_valid_access_token(self, user_id: str) -> Optional[str]:
+    async def get_valid_access_token(self, user_id: str) -> str | None:
         """Get valid access token, auto-refresh if expired"""
         return await self.oauth.get_valid_access_token(
             user_id, self.info.slug, self.db_service
@@ -236,11 +163,11 @@ class OuraProvider(BasePullProvider):
     def register_pull_task(self) -> bool:
         return True
 
-    async def _pull_and_push_for_user(self, credentials: Dict[str, Any]) -> bool:
+    async def _pull_and_push_for_user(self, credentials: dict[str, Any]) -> bool:
         """Pull data for a single user and push to processing pipeline"""
         user_id = credentials.get("user_id") or credentials.get("theta_user_id", "")
         if not user_id:
-            logging.error("No user_id in Oura credentials")
+            logger.error("No user_id in Oura credentials")
             return False
 
         try:
@@ -250,7 +177,7 @@ class OuraProvider(BasePullProvider):
             # silently slipped through and hit Oura with a dead Bearer header.
             access_token = await self.get_valid_access_token(user_id)
             if not access_token:
-                logging.error(f"No valid access token for Oura user {user_id}")
+                logger.error(f"No valid access token for Oura user {user_id}")
                 return False
 
             refresh_token = credentials.get("refresh_token", "")
@@ -275,23 +202,23 @@ class OuraProvider(BasePullProvider):
                     success_count += 1
                 except Exception as e:
                     error_count += 1
-                    logging.error(f"Failed to push Oura data for user {user_id}: {e}")
+                    logger.error(f"Failed to push Oura data for user {user_id}: {e}")
 
-            logging.info(f"Oura pull complete for user {user_id}: {success_count} success, {error_count} errors")
+            logger.info(f"Oura pull complete for user {user_id}: {success_count} success, {error_count} errors")
             return error_count == 0
 
         except Exception as e:
-            logging.error(f"Oura pull_and_push failed for user {user_id}: {e}")
+            logger.error(f"Oura pull_and_push failed for user {user_id}: {e}")
             return False
 
     async def pull_from_vendor_api(
-        self, access_token: str, refresh_token: str, days: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self, access_token: str, refresh_token: str, days: int | None = None
+    ) -> list[dict[str, Any]]:
         """Fetch data from all Oura API endpoints"""
         pull_days = days or 1
 
-        start_date = (datetime.now(timezone.utc) - timedelta(days=pull_days)).strftime("%Y-%m-%d")
-        end_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        start_date = (datetime.now(UTC) - timedelta(days=pull_days)).strftime("%Y-%m-%d")
+        end_date = datetime.now(UTC).strftime("%Y-%m-%d")
 
         headers = {"Authorization": f"Bearer {access_token}"}
         all_data = []
@@ -332,16 +259,16 @@ class OuraProvider(BasePullProvider):
                             "data": data if isinstance(data, list) else [data],
                             "timestamp": int(time.time() * 1000),
                         })
-                        logging.info(f"Fetched {len(data) if isinstance(data, list) else 1} {data_type} records")
+                        logger.info(f"Fetched {len(data) if isinstance(data, list) else 1} {data_type} records")
                 except Exception as e:
-                    logging.error(f"Failed to fetch Oura {data_type}: {e}")
+                    logger.error(f"Failed to fetch Oura {data_type}: {e}")
 
         return all_data
 
     async def _fetch_paginated_data(
         self, session: aiohttp.ClientSession, url: str,
         headers: dict, params: dict
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Handle Oura pagination (next_token)"""
         all_records = []
         next_token = None
@@ -354,13 +281,13 @@ class OuraProvider(BasePullProvider):
             async with session.get(url, headers=headers, params=req_params) as resp:
                 if resp.status == 429:
                     retry_after = int(resp.headers.get("Retry-After", 60))
-                    logging.warning(f"Oura rate limited, waiting {retry_after}s")
+                    logger.warning(f"Oura rate limited, waiting {retry_after}s")
                     await asyncio.sleep(retry_after)
                     continue
                 if resp.status == 401:
                     raise ValueError("Oura access token expired or invalid")
                 if resp.status != 200:
-                    logging.warning(f"Oura API error {resp.status} for {url}: {await resp.text()}")
+                    logger.warning(f"Oura API error {resp.status} for {url}: {await resp.text()}")
                     break
 
                 body = await resp.json()
@@ -375,27 +302,27 @@ class OuraProvider(BasePullProvider):
 
     async def _fetch_single_resource(
         self, session: aiohttp.ClientSession, url: str, headers: dict
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Fetch a single resource (e.g., personal_info)"""
         async with session.get(url, headers=headers) as resp:
             if resp.status != 200:
-                logging.error(f"Oura API error {resp.status} for {url}")
+                logger.error(f"Oura API error {resp.status} for {url}")
                 return None
             return await resp.json()
 
     async def _fetch_list_data(
         self, session: aiohttp.ClientSession, url: str,
         headers: dict, params: dict
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Fetch list data without pagination (e.g., heartrate)"""
         async with session.get(url, headers=headers, params=params) as resp:
             if resp.status == 429:
                 retry_after = int(resp.headers.get("Retry-After", 60))
-                logging.warning(f"Oura rate limited, waiting {retry_after}s")
+                logger.warning(f"Oura rate limited, waiting {retry_after}s")
                 await asyncio.sleep(retry_after)
                 return await self._fetch_list_data(session, url, headers, params)
             if resp.status != 200:
-                logging.warning(f"Oura API error {resp.status} for {url}: {await resp.text()}")
+                logger.warning(f"Oura API error {resp.status} for {url}: {await resp.text()}")
                 return []
             body = await resp.json()
             return body.get("data", [])
@@ -404,7 +331,7 @@ class OuraProvider(BasePullProvider):
     # Raw Data Storage
     # =========================================================================
 
-    async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def save_raw_data_to_db(self, raw_data: dict[str, Any]) -> list[dict[str, Any]]:
         """Save raw Oura data to health_data_oura table"""
         theta_user_id = self._extract_theta_user_id(raw_data)
         external_user_id = self._extract_external_user_id(raw_data)
@@ -426,209 +353,38 @@ class OuraProvider(BasePullProvider):
         raw_data["msg_id"] = msg_id
         return [raw_data]
 
-    async def is_data_already_processed(self, raw_data: Dict[str, Any]) -> bool:
+    async def is_data_already_processed(self, raw_data: dict[str, Any]) -> bool:
         return False
 
     # =========================================================================
     # Data Formatting
     # =========================================================================
 
-    async def format_data_v2(self, fmt_input: FormatDataInput) -> StandardPulseData:
-        """Transform Oura raw data → StandardPulseData"""
+    async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
+        """Oura documents → standard records, via ``mirobody.kernel.vendors.oura``.
+
+        The payload is ``{"data_type": ..., "data": [...], "timestamp": pulled_at_ms}``;
+        ``personal_info`` has no time of its own and is filed at the pull
+        instant's local midnight.
+        """
         ctx = fmt_input.context
-        payload = fmt_input.payload
-        data_type = payload.get("data_type", "unknown")
-        data_items = payload.get("data", [])
-        sync_timestamp_ms = payload.get("timestamp")
-
         request_id = self.generate_request_id()
-
-        if not isinstance(data_items, list):
-            data_items = [data_items]
-
-        processing_info = {
-            "provider": "theta_oura",
-            "data_type": data_type,
-            "raw_count": len(data_items),
-            "mapped_count": 0,
-            "msg_id": ctx.msg_id or "",
-        }
-
-        records = []
-        mapping = self.INDICATOR_MAPPING.get(data_type, {})
-
-        if not mapping:
-            logging.warning(f"No Oura indicator mapping for data_type: {data_type}")
-
-        # Heart rate is a special case: each item is a single reading
-        if data_type == "heartrate":
-            records = self._process_heartrate_data(data_items, ctx, mapping)
-            processing_info["mapped_count"] = len(records)
-        else:
-            for item in data_items:
-                item_records = self._process_data_item(
-                    item, data_type, ctx, mapping, sync_timestamp_ms
-                )
-                records.extend(item_records)
-                processing_info["mapped_count"] += len(item_records)
-
-        logging.info(
-            f"Oura format_data: type={data_type}, raw={len(data_items)}, "
-            f"mapped={processing_info['mapped_count']} for user {ctx.theta_user_id}"
-        )
-
+        payload = fmt_input.payload
+        data_type = str(payload.get("data_type", "unknown"))
+        items = payload.get("data") or []
+        if not isinstance(items, list):
+            items = [items]
+        tz = ctx.user_timezone or "UTC"
+        msg_id = ctx.msg_id or ""
+        pulled_at = int(payload.get("timestamp") or 0)
+        records: list[StandardPulseRecord] = []
+        for item in items:
+            facts = vendors.decode("oura", data_type, item, tz, pulled_at_ms=pulled_at, source_record_id=msg_id)
+            records.extend(records_from_facts(facts, slug=self.info.slug, tz=tz, source_id=msg_id))
+        logger.info("Formatted %d Oura records from %d %s items", len(records), len(items), data_type)
         return StandardPulseData(
-            metaInfo=StandardPulseMetaInfo(
-                userId=ctx.theta_user_id,
-                requestId=request_id,
-                source="theta",
-                timezone=ctx.user_timezone,
-            ),
+            metaInfo=StandardPulseMetaInfo(userId=ctx.theta_user_id, requestId=request_id, source="theta", timezone=tz),
             healthData=records,
-            processingInfo=processing_info,
+            processingInfo={"provider": "theta_oura", "data_type": data_type, "raw_count": len(items),
+                            "mapped_count": len(records), "msg_id": msg_id},
         )
-
-    @staticmethod
-    def _resolve_mapping_entry(entry):
-        """Unpack mapping entry into (indicator_name, unit).
-
-        Supported formats:
-          - StandardIndicator              → (name, standard_unit)
-          - (StandardIndicator, src_unit)  → (name, src_unit)  # downstream auto-converts
-        """
-        if isinstance(entry, tuple):
-            indicator, src_unit = entry
-            return indicator.value.name, src_unit
-        # bare StandardIndicator
-        return entry.value.name, entry.value.standard_unit
-
-    def _get_time_strategy(self, data_type: str) -> str:
-        """Look up time_strategy declared in API_ENDPOINTS for a data_type."""
-        for endpoint in self.API_ENDPOINTS:
-            if endpoint["data_type"] == data_type:
-                return endpoint.get("time_strategy", "item_timestamp")
-        return "item_timestamp"
-
-    def _resolve_item_timestamp(
-        self, item: Dict[str, Any], data_type: str,
-        user_tz: str, sync_timestamp_ms: Optional[int]
-    ) -> int:
-        """Resolve an item's record timestamp using the data_type's declared
-        time_strategy. Returns 0 to signal "skip this item" — never invents a
-        time value, so callers can rely on the falsy check.
-        """
-        strategy = self._get_time_strategy(data_type)
-
-        if strategy == "sync_day_start":
-            # Profile data has no time field. Anchor at user-local 00:00 of
-            # the sync moment, so the (user, indicator, source, time) unique
-            # constraint dedups repeated syncs to one row per day.
-            if not sync_timestamp_ms:
-                return 0
-            try:
-                tz = ZoneInfo(user_tz)
-                sync_dt = datetime.fromtimestamp(sync_timestamp_ms / 1000, tz=tz)
-                day_start = sync_dt.replace(hour=0, minute=0, second=0, microsecond=0)
-                return int(day_start.timestamp() * 1000)
-            except Exception as e:
-                logging.error(f"Oura sync_day_start resolve failed for tz={user_tz}: {e}")
-                return 0
-
-        if strategy == "item_day":
-            time_str = item.get("day", "")
-        else:  # item_timestamp
-            time_str = item.get("timestamp") or item.get("bedtime_start") or ""
-
-        if not time_str:
-            return 0
-        return TimeUtils.parse_timestamp_with_smart_timezone(time_str, user_tz)
-
-    def _process_data_item(
-        self, item: Dict[str, Any], data_type: str,
-        ctx: Any, mapping: Dict,
-        sync_timestamp_ms: Optional[int] = None
-    ) -> List[StandardPulseRecord]:
-        """Process a single data item using indicator mapping"""
-        records = []
-
-        user_tz = ctx.user_timezone or "UTC"
-        timestamp = self._resolve_item_timestamp(item, data_type, user_tz, sync_timestamp_ms)
-        if not timestamp:
-            return records
-
-        # For daily summary data, compute explicit startTime/endTime in user's local timezone
-        # so downstream doesn't fall back to UTC-based record_time date extraction.
-        start_time_ms = None
-        end_time_ms = None
-        if self._get_time_strategy(data_type) == "item_day":
-            try:
-                tz = ZoneInfo(user_tz)
-                local_dt = datetime.fromtimestamp(timestamp / 1000, tz=tz)
-                day_start = local_dt.replace(hour=0, minute=0, second=0, microsecond=0)
-                day_end = local_dt.replace(hour=23, minute=59, second=59, microsecond=999000)
-                start_time_ms = int(day_start.timestamp() * 1000)
-                end_time_ms = int(day_end.timestamp() * 1000)
-            except Exception:
-                pass
-
-        # Indicators that need seconds→minutes conversion (Oura API returns seconds)
-        SECONDS_TO_MINUTES = {"stressHighDuration", "recoveryHighDuration"}
-
-        for field_path, entry in mapping.items():
-            value = self._extract_nested_value(item, field_path)
-            if value is None:
-                continue
-
-            indicator_name, unit = self._resolve_mapping_entry(entry)
-
-            # Convert seconds to minutes for duration indicators
-            if indicator_name in SECONDS_TO_MINUTES and isinstance(value, (int, float)):
-                value = round(value / 60, 1)
-
-            records.append(StandardPulseRecord(
-                source=DataFormatter.format_source_name(self.info.slug),
-                type=indicator_name,
-                timestamp=timestamp,
-                unit=unit,
-                value=value,
-                timezone=ctx.user_timezone,
-                source_id=ctx.msg_id or "",
-                startTime=start_time_ms,
-                endTime=end_time_ms,
-            ))
-
-        return records
-
-    def _process_heartrate_data(
-        self, data_items: List[Dict[str, Any]], ctx: Any, mapping: Dict
-    ) -> List[StandardPulseRecord]:
-        """Process heart rate time series — each item has bpm, source, timestamp"""
-        records = []
-        hr_entry = mapping.get("bpm")
-        if not hr_entry:
-            return records
-
-        indicator_name, unit = self._resolve_mapping_entry(hr_entry)
-
-        for item in data_items:
-            bpm = item.get("bpm")
-            ts_str = item.get("timestamp")
-            if bpm is None or not ts_str:
-                continue
-
-            timestamp = TimeUtils.parse_timestamp_with_smart_timezone(ts_str, ctx.user_timezone or "UTC")
-            if not timestamp:
-                continue
-
-            records.append(StandardPulseRecord(
-                source=DataFormatter.format_source_name(self.info.slug),
-                type=indicator_name,
-                timestamp=timestamp,
-                unit=unit,
-                value=bpm,
-                timezone=ctx.user_timezone,
-                source_id=ctx.msg_id or "",
-            ))
-
-        return records
-

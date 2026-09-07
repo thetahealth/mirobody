@@ -36,7 +36,6 @@ import json
 import logging
 import uuid
 from datetime import datetime
-from typing import Dict, List
 
 # `fastapi` lives in the [app] extra, but file parsing is advertised engine
 # functionality — a bare `pip install mirobody` must import this module. Every
@@ -46,7 +45,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import WebSocket
-from mirobody.utils import get_req_ctx
 from mirobody.pulse.file_parser.file_processor import FileProcessor
 
 from mirobody.pulse.file_parser.services.database_services import FileParserDatabaseService
@@ -56,13 +54,15 @@ from mirobody.pulse.file_parser.handlers.genetic import GeneticHandler
 from ...utils.tasks import spawn
 from .memory_upload_file import MemoryUploadFile
 
+logger = logging.getLogger(__name__)
+
 
 class WebSocketFileUploadManager:
     """WebSocket file upload manager"""
 
     def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}  # user_id -> websocket
-        self.upload_sessions: Dict[str, Dict] = {}  # message_id -> session_info
+        self.active_connections: dict[str, WebSocket] = {}  # user_id -> websocket
+        self.upload_sessions: dict[str, dict] = {}  # message_id -> session_info
         self._file_processor = None  # Lazy initialization
         self.instance_id = f"ws_upload_{datetime.now().timestamp()}"
         # Database service will be initialized when needed
@@ -84,7 +84,7 @@ class WebSocketFileUploadManager:
         """
         await websocket.accept()
         self.active_connections[connection_id] = websocket
-        logging.info(f"🔗 WebSocket file upload connection established - connection_id: {connection_id}")
+        logger.info(f"WebSocket file upload connection established - connection_id: {connection_id}")
 
         # Send connection success message (include connection_id so frontend knows it)
         await self.send_message(
@@ -117,7 +117,7 @@ class WebSocketFileUploadManager:
         """Disconnect WebSocket connection"""
         if connection_id in self.active_connections:
             del self.active_connections[connection_id]
-            logging.info(f"🔌 WebSocket file upload connection disconnected - connection_id: {connection_id}")
+            logger.info(f"WebSocket file upload connection disconnected - connection_id: {connection_id}")
 
             # Clean up ALL of this connection's sessions, completed included:
             # get_upload_status is only reachable over this (now closed) socket,
@@ -131,15 +131,15 @@ class WebSocketFileUploadManager:
             for message_id in sessions_to_remove:
                 del self.upload_sessions[message_id]
 
-    async def send_message(self, connection_id: str, message: Dict):
+    async def send_message(self, connection_id: str, message: dict):
         """Send message to specified connection"""
         # Add detailed debug information
-        logging.debug(f"🔍 [WebSocket] Preparing to send message to connection {connection_id}, message type: {message.get('type', 'unknown')}")
-        logging.debug(f"🔍 [WebSocket] Current active connections: {list(self.active_connections.keys())}, total count: {len(self.active_connections)}")
+        logger.debug(f"[WebSocket] Preparing to send message to connection {connection_id}, message type: {message.get('type', 'unknown')}")
+        logger.debug(f"[WebSocket] Current active connections: {list(self.active_connections.keys())}, total count: {len(self.active_connections)}")
 
         if connection_id not in self.active_connections:
-            logging.info(f"Connection {connection_id} not found, cannot send message: {message.get('type', 'unknown')}")
-            logging.debug(f"[WebSocket] Connection {connection_id} not in active connections list: {list(self.active_connections.keys())}")
+            logger.info(f"Connection {connection_id} not found, cannot send message: {message.get('type', 'unknown')}")
+            logger.debug(f"[WebSocket] Connection {connection_id} not in active connections list: {list(self.active_connections.keys())}")
             return False
 
         try:
@@ -147,21 +147,21 @@ class WebSocketFileUploadManager:
 
             # Check WebSocket connection status, only send messages when in OPEN state
             if websocket.client_state.value != 1:  # Not in OPEN state
-                logging.info(f"[WebSocket] Connection closed, cannot send message to connection {connection_id}: {message.get('type', 'unknown')}")
+                logger.info(f"[WebSocket] Connection closed, cannot send message to connection {connection_id}: {message.get('type', 'unknown')}")
                 await self.disconnect(connection_id)
                 return False
 
             message_json = json.dumps(message, ensure_ascii=False)
             await websocket.send_text(message_json)
-            logging.debug(f"✅ Successfully sent WebSocket message to connection {connection_id}: {message.get('type', 'unknown')} - {message.get('message', '')}")
+            logger.debug(f"Successfully sent WebSocket message to connection {connection_id}: {message.get('type', 'unknown')} - {message.get('message', '')}")
             return True
         except Exception as e:
-            logging.debug(f"⚠️ Failed to send WebSocket message to connection {connection_id}: {e}")
+            logger.debug(f"Failed to send WebSocket message to connection {connection_id}: {e}")
             # Automatically clean up connection on send failure
             await self.disconnect(connection_id)
             return False
 
-    async def send_message_by_message_id(self, message_id: str, message: Dict) -> bool:
+    async def send_message_by_message_id(self, message_id: str, message: dict) -> bool:
         """Send message to connection associated with a message_id.
         
         This method looks up the connection_id from upload_sessions using message_id,
@@ -175,19 +175,19 @@ class WebSocketFileUploadManager:
             True if message sent successfully, False otherwise
         """
         if message_id not in self.upload_sessions:
-            logging.debug(f"Session not found for message_id={message_id}, cannot send message")
+            logger.debug(f"Session not found for message_id={message_id}, cannot send message")
             return False
         
         session = self.upload_sessions[message_id]
         connection_id = session.get("connection_id")
         
         if not connection_id:
-            logging.debug(f"No connection_id in session for message_id={message_id}")
+            logger.debug(f"No connection_id in session for message_id={message_id}")
             return False
         
         return await self.send_message(connection_id, message)
 
-    async def handle_upload_start(self, connection_id: str, message_data: Dict):
+    async def handle_upload_start(self, connection_id: str, message_data: dict):
         """Handle file upload start
         
         Now writes to th_files table instead of th_messages.
@@ -208,7 +208,7 @@ class WebSocketFileUploadManager:
             # Get real user_id from message_data (set by router) or extract from connection_id
             real_user_id = message_data.get("_real_user_id") or connection_id.split("_")[0]
 
-            logging.info(f"Starting file upload: connection_id={connection_id}, real_user_id={real_user_id}, message_id={message_id}, file_count={len(files_info)}, proxy_user_id={query_user_id}")
+            logger.info(f"Starting file upload: connection_id={connection_id}, real_user_id={real_user_id}, message_id={message_id}, file_count={len(files_info)}, proxy_user_id={query_user_id}")
 
             # AUTHORIZE a proxy upload before anything is written. `query_user_id`
             # is client-supplied: without this gate any authenticated user could
@@ -224,7 +224,7 @@ class WebSocketFileUploadManager:
                 try:
                     await resolve_subject(real_user_id, query_user_id, require_write=True)
                 except (CareCircleDenied, ValueError, TypeError) as e:
-                    logging.warning(
+                    logger.warning(
                         f"Rejected proxy upload: user {real_user_id} -> "
                         f"query_user_id {query_user_id!r}: {e}"
                     )
@@ -263,7 +263,7 @@ class WebSocketFileUploadManager:
                 # If message ID exists and status is incomplete, it might be a duplicate request
                 existing_session = self.upload_sessions[message_id]
                 if existing_session.get("status") in ["uploading", "processing"]:
-                    logging.warning(f"Message ID {message_id} already exists and is being processed, ignoring duplicate request")
+                    logger.warning(f"Message ID {message_id} already exists and is being processed, ignoring duplicate request")
                     await self.send_message(
                         connection_id,
                         {
@@ -277,8 +277,7 @@ class WebSocketFileUploadManager:
                         },
                     )
                     return True
-                else:
-                    logging.info(f"Message ID {message_id} exists but is completed, creating new upload session")
+                logger.info(f"Message ID {message_id} exists but is completed, creating new upload session")
 
             self.upload_sessions[message_id] = session_info
 
@@ -295,9 +294,9 @@ class WebSocketFileUploadManager:
                         user_message=summary_message,
                         provider="system",
                     )
-                    logging.info(f"Generated first message summary for session {session_id}")
+                    logger.info(f"Generated first message summary for session {session_id}")
                 except Exception as e:
-                    logging.error(f"Failed to generate first message summary: {e}")
+                    logger.error(f"Failed to generate first message summary: {e}")
 
             # NOTE: No longer write to th_messages table here
             # Files will be saved to th_files table after successful upload in process_files_async
@@ -319,7 +318,7 @@ class WebSocketFileUploadManager:
             return True
 
         except Exception as e:
-            logging.error(f"Failed to handle file upload start: {e}", stack_info=True)
+            logger.error(f"Failed to handle file upload start: {e}", stack_info=True)
             await self.send_message(
                 connection_id,
                 {
@@ -331,7 +330,7 @@ class WebSocketFileUploadManager:
             )
             return False
 
-    async def handle_file_chunk(self, connection_id: str, message_data: Dict):
+    async def handle_file_chunk(self, connection_id: str, message_data: dict):
         """Handle file data chunk"""
 
 
@@ -374,7 +373,7 @@ class WebSocketFileUploadManager:
                 )
                 return False
 
-            logging.info(f"filename: {filename}, chunk_index: {chunk_index}, total_chunks: {total_chunks}")
+            logger.info(f"filename: {filename}, chunk_index: {chunk_index}, total_chunks: {total_chunks}")
             # Check if data for this file already exists
             existing_file = None
             for uploaded_file in session["uploaded_files"]:
@@ -445,7 +444,7 @@ class WebSocketFileUploadManager:
                     },
                 )
 
-                logging.info(f"File received successfully: {filename}, actual size: {actual_file_size} bytes")
+                logger.info(f"File received successfully: {filename}, actual size: {actual_file_size} bytes")
 
             # Check if all files have been received
             all_files_received = all(f["received_chunks"] == f["total_chunks"] for f in session["uploaded_files"])
@@ -456,7 +455,7 @@ class WebSocketFileUploadManager:
             return True
 
         except Exception as e:
-            logging.error(f"Failed to handle file data chunk: {e}", stack_info=True)
+            logger.error(f"Failed to handle file data chunk: {e}", stack_info=True)
             await self.send_message(
                 connection_id,
                 {
@@ -478,7 +477,7 @@ class WebSocketFileUploadManager:
             query_user_id = session["query_user_id"]  # Get proxy upload user ID
             real_user_id = session["user_id"]  # Real user ID for business logic
 
-            logging.info(f"Starting file processing: connection_id={connection_id}, real_user_id={real_user_id}, message_id={message_id}, file_count={len(uploaded_files)}, proxy_user_id={query_user_id}")
+            logger.info(f"Starting file processing: connection_id={connection_id}, real_user_id={real_user_id}, message_id={message_id}, file_count={len(uploaded_files)}, proxy_user_id={query_user_id}")
 
             # Check for genetic files using MemoryUploadFile adapter
             has_genetic_files = False
@@ -490,20 +489,20 @@ class WebSocketFileUploadManager:
                     break
 
             # Let progress callback handle progress updates
-            logging.info(f"Starting file processing flow, genetic files: {has_genetic_files}")
+            logger.info(f"Starting file processing flow, genetic files: {has_genetic_files}")
 
             # Process files asynchronously - pass connection_id for WebSocket, real_user_id for business logic
             spawn(self.process_files_async(connection_id, message_id, uploaded_files, query, query_user_id, has_genetic_files, real_user_id))
 
         except Exception as e:
-            logging.error(f"Failed to start file processing: {e}", stack_info=True)
+            logger.error(f"Failed to start file processing: {e}", stack_info=True)
             await self.update_progress(connection_id, message_id, "failed", 0, f"Processing failed: {str(e)}")
 
     async def process_files_async(
         self,
         connection_id: str,
         message_id: str,
-        uploaded_files: List[Dict],
+        uploaded_files: list[dict],
         query: str,
         query_user_id: str,
         has_genetic_files: bool = False,
@@ -539,7 +538,7 @@ class WebSocketFileUploadManager:
             max_progress = progress_config["max_progress"]
             progress_per_file = progress_config["progress_per_file"]
 
-            logging.info(f"Progress allocation: base={base_progress}%, max={max_progress}%, per_file={progress_per_file}%, total_files={total_files}")
+            logger.info(f"Progress allocation: base={base_progress}%, max={max_progress}%, per_file={progress_per_file}%, total_files={total_files}")
 
             # Process each file
             for i, file_data in enumerate(uploaded_files):
@@ -548,7 +547,7 @@ class WebSocketFileUploadManager:
                     file_start_progress = base_progress + (i * progress_per_file)
                     file_end_progress = min(base_progress + ((i + 1) * progress_per_file), max_progress)
 
-                    logging.info(f"File {i + 1}/{total_files} ({file_data['filename']}): progress range {file_start_progress}%-{file_end_progress}%")
+                    logger.info(f"File {i + 1}/{total_files} ({file_data['filename']}): progress range {file_start_progress}%-{file_end_progress}%")
 
                     # Create progress callback for current file (use connection_id for WebSocket communication)
                     current_file_callback = self._create_progress_callback(
@@ -580,7 +579,7 @@ class WebSocketFileUploadManager:
                         type_list.append(result.get("type", "file"))
                         raws.append(self._normalize_raw_data(result.get("raw", "")))
 
-                        logging.info(f"File {i + 1} ({file_data['filename']}) processed successfully")
+                        logger.info(f"File {i + 1} ({file_data['filename']}) processed successfully")
                     else:
                         # Collect failed file info including file_key if available
                         error_message = result.get("message", "File processing failed") if result else "File processing failed"
@@ -594,7 +593,7 @@ class WebSocketFileUploadManager:
                             "type": result.get("type", "file") if result else "file",
                         }
                         failed_results.append(failed_info)
-                        logging.error(f"File {i + 1} ({file_data['filename']}) processing failed: {error_message}")
+                        logger.error(f"File {i + 1} ({file_data['filename']}) processing failed: {error_message}")
 
                 except Exception as e:
                     # Collect exception info as failed result
@@ -608,13 +607,13 @@ class WebSocketFileUploadManager:
                         "type": "file",
                     }
                     failed_results.append(failed_info)
-                    logging.error(f"Failed to process file {file_data['filename']}: {e}")
+                    logger.error(f"Failed to process file {file_data['filename']}: {e}")
 
             # Statistics of processing results
             successful_files = len(results)
             failed_files = total_files - successful_files
 
-            logging.info(f"Processing result statistics: {successful_files}/{total_files} files successful")
+            logger.info(f"Processing result statistics: {successful_files}/{total_files} files successful")
 
             # Abstract generation for files the handler didn't cover happens
             # synchronously in _build_return_info's fallback; the result is
@@ -659,7 +658,7 @@ class WebSocketFileUploadManager:
                 session["progress"] = 0
                 session["results"] = return_info
                 
-                logging.info(f"All files failed, saved complete file info to th_files: message_id={message_id}")
+                logger.info(f"All files failed, saved complete file info to th_files: message_id={message_id}")
                 return
 
             # Build return information (include failed_results for partial success scenarios)
@@ -683,13 +682,13 @@ class WebSocketFileUploadManager:
                 connection_id, message_id, session, return_info, has_genetic_files, successful_files, failed_files, total_files
             )
 
-            logging.info(f"File processing completed and final message sent: connection_id={connection_id}, message_id={message_id}, status={session['status']}")
+            logger.info(f"File processing completed and final message sent: connection_id={connection_id}, message_id={message_id}, status={session['status']}")
 
             # Start embedding update background task (use real user_id for business logic)
             await self._start_embedding_update_task(user_id_for_business, message_id, query_user_id)
 
         except Exception as e:
-            logging.error(f"Asynchronous file processing failed: {e}", exc_info=True)
+            logger.error(f"Asynchronous file processing failed: {e}", exc_info=True)
             await self.update_progress(connection_id, message_id, "failed", 0, f"Processing failed: {str(e)}")
 
     async def update_genetic_processing_complete(self, user_id: str, message_id: str):
@@ -699,17 +698,17 @@ class WebSocketFileUploadManager:
                 session = self.upload_sessions[message_id]
                 session["status"] = "completed"
                 session["progress"] = 100
-                logging.info(f"Genetic processing session status updated: user_id={user_id}, message_id={message_id}")
+                logger.info(f"Genetic processing session status updated: user_id={user_id}, message_id={message_id}")
             else:
-                logging.warning(f"Session information not found: user_id={user_id}, message_id={message_id}")
+                logger.warning(f"Session information not found: user_id={user_id}, message_id={message_id}")
         except Exception as e:
-            logging.error(f"Failed to update genetic processing completion status: {e}")
+            logger.error(f"Failed to update genetic processing completion status: {e}")
 
     # ==================== Helper Methods for process_files_async ====================
 
     async def _save_files_to_database(
         self,
-        return_info: Dict,
+        return_info: dict,
         message_id: str,
         user_id: str,
         query_user_id: str,
@@ -734,7 +733,7 @@ class WebSocketFileUploadManager:
         try:
             files_array = return_info.get("files", [])
             if not files_array:
-                logging.warning(f"No files to save to th_files: message_id={message_id}")
+                logger.warning(f"No files to save to th_files: message_id={message_id}")
                 return
             
             # Prepare files_info for batch insert
@@ -744,7 +743,7 @@ class WebSocketFileUploadManager:
                 
                 # Skip files without file_key (never uploaded to storage)
                 if not file_key:
-                    logging.warning(f"Skipping file without file_key: {file_entry.get('filename', 'unknown')}")
+                    logger.warning(f"Skipping file without file_key: {file_entry.get('filename', 'unknown')}")
                     continue
                 
                 # Determine status based on success flag
@@ -792,7 +791,7 @@ class WebSocketFileUploadManager:
                 files_info.append(file_info)
             
             if not files_info:
-                logging.warning(f"No valid files to save to th_files after filtering: message_id={message_id}")
+                logger.warning(f"No valid files to save to th_files after filtering: message_id={message_id}")
                 return
             
             # Determine target user for file ownership
@@ -830,12 +829,12 @@ class WebSocketFileUploadManager:
             if inserted_ids:
                 success_count = sum(1 for f in files_info if f.get("status") == "completed")
                 failed_count = sum(1 for f in files_info if f.get("status") == "failed")
-                logging.info(f"✅ Files saved to th_files: message_id={message_id}, inserted={len(inserted_ids)}, success={success_count}, failed={failed_count}")
+                logger.info(f"Files saved to th_files: message_id={message_id}, inserted={len(inserted_ids)}, success={success_count}, failed={failed_count}")
             else:
-                logging.warning(f"⚠️ No files inserted to th_files: message_id={message_id}")
+                logger.warning(f"No files inserted to th_files: message_id={message_id}")
                 
         except Exception as e:
-            logging.error(f"❌ Failed to save files to th_files: message_id={message_id}, error={str(e)}", stack_info=True)
+            logger.error(f"Failed to save files to th_files: message_id={message_id}, error={str(e)}", stack_info=True)
             # Don't raise - this is a secondary operation, the main upload was successful
 
     def _normalize_raw_data(self, raw_data, filename: str = "") -> str:
@@ -847,13 +846,13 @@ class WebSocketFileUploadManager:
             try:
                 return raw_data.decode("utf-8", errors="replace")
             except Exception as e:
-                logging.warning(f"Failed to decode raw data{f' for {filename}' if filename else ''}: {e}")
+                logger.warning(f"Failed to decode raw data{f' for {filename}' if filename else ''}: {e}")
                 return f"<File content decode failed: {str(e)}>"
         elif not isinstance(raw_data, str):
             return str(raw_data)
         return raw_data
 
-    def _calculate_progress_allocation(self, total_files: int, has_genetic_files: bool) -> Dict:
+    def _calculate_progress_allocation(self, total_files: int, has_genetic_files: bool) -> dict:
         """
         Calculate progress allocation for file processing.
         Returns dict with base_progress, max_progress, progress_per_file.
@@ -900,7 +899,7 @@ class WebSocketFileUploadManager:
                 progress_ratio = (progress - 30) / 70
                 mapped_progress = start_prog + int(progress_ratio * (end_prog - start_prog))
 
-            logging.info(f"File{file_index} ({file_name}): internal progress {progress}% -> mapped progress {mapped_progress}% | {message}")
+            logger.info(f"File{file_index} ({file_name}): internal progress {progress}% -> mapped progress {mapped_progress}% | {message}")
             await self.update_progress(
                 user_id,
                 message_id,
@@ -916,8 +915,8 @@ class WebSocketFileUploadManager:
         self,
         user_id: str,
         message_id: str,
-        session: Dict,
-        return_info: Dict,
+        session: dict,
+        return_info: dict,
         has_genetic_files: bool,
         successful_files: int,
         failed_files: int,
@@ -962,7 +961,7 @@ class WebSocketFileUploadManager:
                 final_status = "completed"
 
             # Smooth 90-100% progress transition
-            logging.info(f"Starting final completion transition: user_id={user_id}, message_id={message_id}")
+            logger.info(f"Starting final completion transition: user_id={user_id}, message_id={message_id}")
 
             await self.update_progress(user_id, message_id, "processing", 92, "Completing final processing...")
             await asyncio.sleep(0.1)
@@ -1007,7 +1006,7 @@ class WebSocketFileUploadManager:
         Includes indicator sync and user profile creation.
         """
         try:
-            logging.info(f"Starting embedding update background task: user_id={user_id}, message_id={message_id}")
+            logger.info(f"Starting embedding update background task: user_id={user_id}, message_id={message_id}")
 
             async def update_embedding_task():
                 try:
@@ -1022,30 +1021,30 @@ class WebSocketFileUploadManager:
                     # a bare engine install; function scope defers that cost
                     # to the moment a profile is actually (re)built, exactly
                     # like task/profile_refresh does.
-                    from ...agent.chat.user_profile import UserProfileService
+                    from ...user.profile import UserProfileService
 
                     owner_user_id = query_user_id if query_user_id else user_id
                     await UserProfileService.create_user_profile(owner_user_id)
 
-                    logging.info(f"Embedding update background task completed: user_id={user_id}, message_id={message_id}")
+                    logger.info(f"Embedding update background task completed: user_id={user_id}, message_id={message_id}")
                 except Exception as e:
-                    logging.error(f"Embedding update background task failed: {e}", stack_info=True)
+                    logger.error(f"Embedding update background task failed: {e}", stack_info=True)
 
             spawn(update_embedding_task())
 
-            logging.info(f"Embedding update background task started: user_id={user_id}, message_id={message_id}")
+            logger.info(f"Embedding update background task started: user_id={user_id}, message_id={message_id}")
         except Exception as e:
-            logging.error(f"Failed to start embedding update background task: {e}", stack_info=True)
+            logger.error(f"Failed to start embedding update background task: {e}", stack_info=True)
 
     def _build_return_info_for_failed(
         self,
-        uploaded_files: List[Dict],
-        failed_results: List[Dict],
+        uploaded_files: list[dict],
+        failed_results: list[dict],
         message_id: str,
         user_id: str,
         query_user_id: str,
-        session: Dict,
-    ) -> Dict:
+        session: dict,
+    ) -> dict:
         """
         Build return information for failed file processing.
         Ensures complete file info (including file_key) is saved even when all files fail.
@@ -1130,7 +1129,7 @@ class WebSocketFileUploadManager:
         user_id,
         query_user_id,
         session,
-        failed_results: List[Dict] = None,  # Optional: include failed file info for partial success
+        failed_results: list[dict] = None,  # Optional: include failed file info for partial success
     ):
         """Build return information"""
         import datetime
@@ -1208,7 +1207,7 @@ class WebSocketFileUploadManager:
                             from mirobody.pulse.file_parser.services.file_abstract_extractor import FileAbstractExtractor
                             extractor = FileAbstractExtractor()
                             
-                            logging.info(f"🔍 [WebSocket] Generating file abstract for {uploaded_files[i]['filename']}, type: {file_type}")
+                            logger.info(f"[WebSocket] Generating file abstract for {uploaded_files[i]['filename']}, type: {file_type}")
                             
                             result_data = await extractor.extract_file_abstract(
                                 file_content=uploaded_files[i]["content"],
@@ -1221,10 +1220,10 @@ class WebSocketFileUploadManager:
                             if generated_name and file_type in ["pdf", "image"]:
                                 file_name = generated_name
                             
-                            logging.info(f"✅ [WebSocket] Generated file abstract for {uploaded_files[i]['filename']}: '{file_abstract[:50]}...', file_name: '{file_name}'")
+                            logger.info(f"[WebSocket] Generated file abstract for {uploaded_files[i]['filename']}: '{file_abstract[:50]}...', file_name: '{file_name}'")
                             
                         except Exception as abstract_error:
-                            logging.warning(f"⚠️ [WebSocket] File abstract generation failed for {uploaded_files[i]['filename']}: {str(abstract_error)}")
+                            logger.warning(f"[WebSocket] File abstract generation failed for {uploaded_files[i]['filename']}: {str(abstract_error)}")
                             file_abstract = f"File: {uploaded_files[i]['filename']} - File uploaded successfully"
 
                     file_entry = {
@@ -1362,13 +1361,13 @@ class WebSocketFileUploadManager:
             await self.send_message(user_id, websocket_data)
 
         except Exception as e:
-            logging.error(f"Failed to update progress: {e}", stack_info=True)
+            logger.error(f"Failed to update progress: {e}", stack_info=True)
 
-    async def handle_upload_end(self, connection_id: str, message_data: Dict):
+    async def handle_upload_end(self, connection_id: str, message_data: dict):
         """Handle file upload end"""
         try:
             message_id = message_data.get("messageId")
-            logging.info(f"Handling upload end: connection_id={connection_id}, message_id={message_id}")
+            logger.info(f"Handling upload end: connection_id={connection_id}, message_id={message_id}")
 
             if message_id and message_id in self.upload_sessions:
                 session = self.upload_sessions[message_id]
@@ -1389,23 +1388,22 @@ class WebSocketFileUploadManager:
                     },
                 )
 
-                logging.info(f"Upload end processing completed: message_id={message_id}")
+                logger.info(f"Upload end processing completed: message_id={message_id}")
                 return True
-            else:
-                logging.warning(f"Upload session does not exist: message_id={message_id}")
-                await self.send_message(
-                    connection_id,
-                    {
-                        "type": "upload_end_response",
-                        "messageId": message_id,
-                        "status": "error",
-                        "message": "Upload session not found",
-                    },
-                )
-                return False
+            logger.warning(f"Upload session does not exist: message_id={message_id}")
+            await self.send_message(
+                connection_id,
+                {
+                    "type": "upload_end_response",
+                    "messageId": message_id,
+                    "status": "error",
+                    "message": "Upload session not found",
+                },
+            )
+            return False
 
         except Exception as e:
-            logging.error(f"Failed to handle upload end: {e}", stack_info=True)
+            logger.error(f"Failed to handle upload end: {e}", stack_info=True)
             await self.send_message(
                 connection_id,
                 {
@@ -1417,7 +1415,7 @@ class WebSocketFileUploadManager:
             )
             return False
 
-    async def get_upload_status(self, connection_id: str, message_id: str) -> Dict:
+    async def get_upload_status(self, connection_id: str, message_id: str) -> dict:
         """Get upload status"""
         try:
             if message_id in self.upload_sessions:
@@ -1430,15 +1428,14 @@ class WebSocketFileUploadManager:
                     "files": session.get("files", []),
                     "timestamp": datetime.now().isoformat(),
                 }
-            else:
-                return {
-                    "type": "upload_status",
-                    "messageId": message_id,
-                    "status": "not_found",
-                    "message": "Upload session not found",
-                }
+            return {
+                "type": "upload_status",
+                "messageId": message_id,
+                "status": "not_found",
+                "message": "Upload session not found",
+            }
         except Exception as e:
-            logging.error(f"Failed to get upload status: {e}")
+            logger.error(f"Failed to get upload status: {e}")
             return {
                 "type": "upload_status",
                 "messageId": message_id,

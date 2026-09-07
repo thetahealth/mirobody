@@ -4,19 +4,24 @@ Apple Health Provider implementations
 
 import logging
 import time
-from datetime import datetime
-from typing import Any, Dict, Optional, Union
+from dataclasses import replace
+from datetime import date, datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
+from ...kernel import meds
 from .models import FLUTTER_TO_RECORD_TYPE_MAPPING, AppleHealthRecord, MetaInfo
 from ..base import LinkRequest, Provider, ProviderInfo
 from ..core import LinkType, ProviderStatus
 from ..standardize.indicators_info import StandardIndicator
 from ..ingest.models.requests import (
+    FormatDataInput,
     StandardPulseData,
     StandardPulseMetaInfo,
     StandardPulseRecord,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class AppleHealthProvider(Provider):
@@ -43,17 +48,18 @@ class AppleHealthProvider(Provider):
             status=ProviderStatus.CONNECTED,
         )
 
-    async def link(self, request: LinkRequest) -> Dict[str, Any]:
-        logging.info(f"Apple Health provider does not require linking for user {request.user_id}")
+    async def link(self, request: LinkRequest) -> dict[str, Any]:
+        logger.info(f"Apple Health provider does not require linking for user {request.user_id}")
         return {
             "provider_slug": self.info.slug
         }
 
-    async def unlink(self, user_id: str) -> Dict[str, Any]:
-        logging.info(f"Apple Health provider does not require unlinking for user {user_id}")
+    async def unlink(self, user_id: str) -> dict[str, Any]:
+        logger.info(f"Apple Health provider does not require unlinking for user {user_id}")
         return {}
 
-    async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:
+    async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
+        raw_data = fmt_input.payload
         try:
             t1 = time.time()
 
@@ -72,7 +78,7 @@ class AppleHealthProvider(Provider):
             health_data = raw_data.get("health_data", [])
             total_count = len(health_data)
 
-            logging.info(f"Starting to process {total_count} Apple Health records for user {user_id}")
+            logger.info(f"Starting to process {total_count} Apple Health records for user {user_id}")
 
             batch_size = 1000
             all_records = []
@@ -81,7 +87,7 @@ class AppleHealthProvider(Provider):
                 batch_end = min(batch_start + batch_size, total_count)
                 current_batch = health_data[batch_start:batch_end]
 
-                logging.info(f"Processing batch {batch_start // batch_size + 1}/{(total_count - 1) // batch_size + 1}, records: {batch_start}-{batch_end - 1}")
+                logger.info(f"Processing batch {batch_start // batch_size + 1}/{(total_count - 1) // batch_size + 1}, records: {batch_start}-{batch_end - 1}")
 
                 batch_records = []
                 batch_t1 = time.time()
@@ -93,7 +99,7 @@ class AppleHealthProvider(Provider):
                         try:
                             record = AppleHealthRecord(**record_data)
                         except Exception as e:
-                            logging.error(f"Invalid record format: {str(e)}")
+                            logger.error(f"Invalid record format: {str(e)}")
                             continue
 
                     processed_record = self._prepare_record_optimized(record, user_id, meta_info_data.taskId, timezone_cache, meta_info_data.directly_from_watch)
@@ -121,13 +127,13 @@ class AppleHealthProvider(Provider):
                             batch_records.append(total_sleep_record)
 
                 batch_t2 = time.time()
-                logging.info(f"Batch {batch_start // batch_size + 1} processed: {len(batch_records)} records, "
+                logger.info(f"Batch {batch_start // batch_size + 1} processed: {len(batch_records)} records, "
                     f"time: {(batch_t2 - batch_t1) * 1000:.2f}ms")
 
                 all_records.extend(batch_records)
 
             t2 = time.time()
-            logging.info(f"Total processing time: {(t2 - t1) * 1000:.2f}ms for {len(all_records)} valid records")
+            logger.info(f"Total processing time: {(t2 - t1) * 1000:.2f}ms for {len(all_records)} valid records")
 
             meta_info = StandardPulseMetaInfo(
                 userId=user_id,
@@ -143,7 +149,7 @@ class AppleHealthProvider(Provider):
             return StandardPulseData(metaInfo=meta_info, healthData=all_records)
 
         except Exception as e:
-            logging.error(f"Error formatting Apple Health data: {str(e)}", stack_info=True)
+            logger.error(f"Error formatting Apple Health data: {str(e)}", stack_info=True)
             raise
 
     def _prepare_record_optimized(
@@ -151,9 +157,9 @@ class AppleHealthProvider(Provider):
             record: AppleHealthRecord, 
             user_id: str, 
             task_id: str,
-            timezone_cache: Optional[Dict[str, ZoneInfo]] = None,
-            directly_from_watch: Optional[bool] = False
-    ) -> Optional[StandardPulseRecord]:
+            timezone_cache: dict[str, ZoneInfo] | None = None,
+            directly_from_watch: bool | None = False
+    ) -> StandardPulseRecord | None:
 
         if timezone_cache is None:
             timezone_cache = {}
@@ -177,7 +183,7 @@ class AppleHealthProvider(Provider):
 
             mapped_enum_value = FLUTTER_TO_RECORD_TYPE_MAPPING.get(flutter_type)
             if mapped_enum_value is None:
-                logging.warning(f"UNMAPPED_HEALTH_TYPE: '{flutter_type}' not found in mapping. "
+                logger.warning(f"UNMAPPED_HEALTH_TYPE: '{flutter_type}' not found in mapping. "
                     f"Record details - UUID: {record.uuid}, Value: {value_data}, Unit: {unit_symbol}, "
                     f"Source_Id: {source_id}, Time: {date_from}-{date_to}. "
                     f"This record will be DISCARDED. Please add mapping to FLUTTER_TO_RECORD_TYPE_MAPPING if needed.")
@@ -248,10 +254,10 @@ class AppleHealthProvider(Provider):
             )
 
         except Exception as e:
-            logging.error(f"Error preparing record: {str(e)}", stack_info=True)
+            logger.error(f"Error preparing record: {str(e)}", stack_info=True)
             return None
 
-    def _extract_value(self, value_data: Any, record_type: str) -> Union[float, str]:
+    def _extract_value(self, value_data: Any, record_type: str) -> float | str:
         if record_type == StandardIndicator.REPRODUCTIVE_CERVICAL_MUCUS_QUALITY.value.name:
             return {
                 1: 'dry',
@@ -312,8 +318,124 @@ class AppleHealthProvider(Provider):
                 return float(value_data["numericValue"])
 
             return 1.0
-        else:
-            return 1.0  # Placeholder value
+        return 1.0  # Placeholder value
+
+
+def _sections(cda_data: Any) -> dict[str, list]:
+    """`cda_data` as `{section: entries}`, whether it arrived as that dict or
+    as the list of documents the client actually sends."""
+    if isinstance(cda_data, dict):
+        return {k: (v if isinstance(v, list) else [v]) for k, v in cda_data.items()}
+    out: dict[str, list] = {}
+    for document in cda_data if isinstance(cda_data, list) else []:
+        if not isinstance(document, dict):
+            continue
+        for key, value in document.items():
+            out.setdefault(key, []).extend(value if isinstance(value, list) else [value])
+    return out
+
+
+def _plan_from_entry(entry: dict, *, subject_id: str, today: date) -> "meds.MedicationPlan | None":
+    """One entry → a plan, from whichever of the two shapes it is."""
+    resource_type = str(entry.get("resourceType") or "")
+    if resource_type == "MedicationStatement":
+        # The plan_id is derived, never taken from the resource's own `id`. A
+        # FHIR resource id is unique within the server that issued it, and
+        # `th_medication_plan.plan_id` is the primary key across every person:
+        # two people importing documents from the same clinic would collide,
+        # and one person's medication list would overwrite another's.
+        concept = _concept_or_none(entry)
+        if concept is None:
+            return None
+        record_id = str(entry.get("id") or "")
+        return meds.from_fhir_medication_statement(
+            entry,
+            default_start=today,
+            today=today,
+            plan_id=meds.plan_id_for(subject_id, record_id, concept.concept_key),
+            subject_id=subject_id,
+        )
+    if resource_type == "MedicationRequest":
+        prescription = meds.from_fhir_medication_request(entry)
+        return _plan_from_prescription(prescription, subject_id=subject_id, today=today)
+    return _plan_from_flat(entry, subject_id=subject_id, today=today)
+
+
+def _concept_or_none(entry: dict) -> "meds.MedicationConcept | None":
+    """The entry's medication concept, or None when it names no drug at all.
+    Read before importing so the derived plan_id can include the concept key."""
+    try:
+        return meds.MedicationConcept(
+            text=str((entry.get("medicationCodeableConcept") or {}).get("text") or ""),
+            codes=tuple(
+                meds.Coding(str(c.get("system") or ""), str(c.get("code") or ""), str(c.get("display") or ""))
+                for c in ((entry.get("medicationCodeableConcept") or {}).get("coding") or [])
+                if isinstance(c, dict)
+            ),
+        )
+    except ValueError:
+        return None
+
+
+def _plan_from_prescription(prescription, *, subject_id: str, today: date):
+    """A clinician's ORDER is not yet a plan the person follows — but an order
+    imported from the person's own health record is the only evidence there is
+    that they were told to take it, so it lands as an unconfirmed plan for them
+    to accept or delete."""
+    if prescription is None:
+        return None
+    plan_id = meds.plan_id_for(subject_id, prescription.order_id, prescription.concept.concept_key)
+    return meds.MedicationPlan(
+        plan_id=plan_id,
+        concept=prescription.concept,
+        schedule=prescription.schedule or (meds.DoseInstruction(),),
+        start=today,
+        confirmed=False,
+        order_id=prescription.order_id,
+        source="apple:MedicationRequest",
+        subject_id=subject_id,
+    )
+
+
+def _plan_from_flat(entry: dict, *, subject_id: str, today: date):
+    """The flattened CDA shape: `{name, dose, unit, frequency, start, end}`."""
+    name = str(entry.get("name") or entry.get("medication") or "").strip()
+    if not name:
+        return None
+    concept = meds.MedicationConcept(text=name, strength=str(entry.get("strength") or ""))
+    # The sig is the whole instruction when the exporter kept one; the separate
+    # `dose`/`unit` fields fill in when it did not. `parse_dose_instruction`
+    # returns None rather than half a regimen, and an unparsed instruction is
+    # still a plan worth keeping — the text stays on the entry.
+    schedule = meds.parse_dose_instruction(str(entry.get("frequency") or entry.get("sig") or ""))
+    if schedule is None:
+        schedule = (meds.DoseInstruction(),)
+    dose = meds.dose_from_text(entry["dose"], str(entry.get("unit") or "")) if entry.get("dose") else None
+    if dose is not None and schedule[0].dose is None:
+        schedule = (replace(schedule[0], dose=dose), *schedule[1:])
+    start = _entry_date(entry.get("start")) or today
+    source_record_id = str(entry.get("id") or entry.get("source_record_id") or name)
+    return meds.MedicationPlan(
+        plan_id=meds.plan_id_for(subject_id, source_record_id, concept.concept_key),
+        concept=concept,
+        schedule=schedule,
+        start=start,
+        end=_entry_date(entry.get("end")),
+        confirmed=False,          # imported, not entered by the person
+        source="apple:cda",
+        source_record_id=source_record_id,
+        subject_id=subject_id,
+    )
+
+
+def _entry_date(value: Any) -> "date | None":
+    if isinstance(value, date):
+        return value
+    text = str(value or "")[:10]
+    try:
+        return date.fromisoformat(text) if text else None
+    except ValueError:
+        return None
 
 
 class CDAProvider(Provider):
@@ -330,23 +452,28 @@ class CDAProvider(Provider):
             status=ProviderStatus.CONNECTED,
         )
 
-    async def link(self, request: LinkRequest) -> Dict[str, Any]:
-        logging.info(f"CDA provider does not require linking for user {request.user_id}")
+    async def link(self, request: LinkRequest) -> dict[str, Any]:
+        logger.info(f"CDA provider does not require linking for user {request.user_id}")
         return {
             "provider_slug": self.info.slug
         }
 
-    async def unlink(self, user_id: str) -> Dict[str, Any]:
-        logging.info(f"CDA provider does not require unlinking for user {user_id}")
+    async def unlink(self, user_id: str) -> dict[str, Any]:
+        logger.info(f"CDA provider does not require unlinking for user {user_id}")
         return {}
 
-    async def format_data(self, raw_data: Dict[str, Any]) -> StandardPulseData:
+    async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
+        raw_data = fmt_input.payload
         try:
             user_id = raw_data.get("user_id")
             if not user_id:
                 raise ValueError("Missing user_id in raw data")
 
-            cda_data = raw_data.get("cda_data", {})
+            # `apple_router` forwards `cdaData` verbatim and the client sends a
+            # LIST of documents, while this method was written against a dict of
+            # sections. Both shapes arrive in the wild, so both are read here
+            # rather than in one of the two places that happen to produce one.
+            cda_data = _sections(raw_data.get("cda_data"))
             records = []
 
             if "vital_signs" in cda_data:
@@ -358,8 +485,11 @@ class CDAProvider(Provider):
                 records.extend(lab_records)
 
             if "medications" in cda_data:
-                med_records = await self._format_medications(cda_data["medications"], user_id)
-                records.extend(med_records)
+                # Medications are an ENTITY and are stored as one. Nothing is
+                # added to `records`: a plan has a schedule and a lifecycle, and
+                # filing it as a reading forces a choice between losing the
+                # schedule and inventing a value.
+                await self._format_medications(cda_data["medications"], user_id)
 
             meta_info = StandardPulseMetaInfo(
                 userId=user_id,
@@ -373,7 +503,7 @@ class CDAProvider(Provider):
             return StandardPulseData(metaInfo=meta_info, healthData=records)
 
         except Exception as e:
-            logging.error(f"Error formatting CDA data: {str(e)}", stack_info=True)
+            logger.error(f"Error formatting CDA data: {str(e)}", stack_info=True)
             raise
 
     async def _format_vital_signs(self, vital_signs_data: list, user_id: str) -> list:
@@ -384,6 +514,45 @@ class CDAProvider(Provider):
         records = []
         return records
 
-    async def _format_medications(self, med_data: list, user_id: str) -> list:
-        records = []
-        return records
+    async def _format_medications(self, med_data: list, user_id: str, store: Any = None) -> int:
+        """Medication entries from an Apple clinical record → medication plans.
+
+        Apple's clinical records ARE FHIR: `HKClinicalRecord` carries the
+        resource its provider published, so a `MedicationStatement` or a
+        `MedicationRequest` arrives as itself and
+        `meds.from_fhir_medication_statement` reads it. A CDA-flavoured dict
+        (`{name, dose, unit, frequency, start, end}`) is accepted too, because
+        an exporter that flattens the XML into that shape is the other thing
+        seen in the wild.
+
+        Returns how many plans were written. NOTHING goes to `th_series_data`:
+        a plan is not a reading, and `plan_id` is derived from
+        `(subject, source record, concept)` so re-importing the same document
+        updates rather than duplicating.
+        """
+        entries = med_data if isinstance(med_data, list) else [med_data]
+        if not entries:
+            return 0
+        if store is None:
+            from ..meds import PostgresMedicationStore
+            store = PostgresMedicationStore()
+
+        today = date.today()
+        written = 0
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            try:
+                plan = _plan_from_entry(entry, subject_id=str(user_id), today=today)
+            except (ValueError, KeyError, TypeError) as e:
+                # One unreadable entry must not lose the rest of the document.
+                # The reason code, never the entry: it holds a drug name.
+                logger.warning("CDA medication entry skipped: error_type=%s", type(e).__name__)
+                continue
+            if plan is None:
+                continue
+            await store.put(plan)
+            written += 1
+        written_count = written
+        logger.info("CDA import wrote %d medication plans", written_count)
+        return written

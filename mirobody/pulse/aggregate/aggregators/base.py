@@ -6,7 +6,7 @@ Uses Protocol (PEP 544) for duck typing instead of ABC for more flexibility.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Protocol, Set
+from typing import Any, Protocol
 
 from ..models import CalculationTask
 
@@ -22,8 +22,8 @@ class AggregatorProtocol(Protocol):
     async def get_trigger_tasks(
             self,
             since_timestamp: float,
-            user_id: Optional[str] = None
-    ) -> List[CalculationTask]:
+            user_id: str | None = None
+    ) -> list[CalculationTask]:
         """
         Get trigger tasks based on time range
 
@@ -42,8 +42,8 @@ class AggregatorProtocol(Protocol):
 
     async def calculate_batch_aggregations(
             self,
-            tasks: List[CalculationTask]
-    ) -> List[Dict[str, Any]]:
+            tasks: list[CalculationTask]
+    ) -> list[dict[str, Any]]:
         """
         Calculate aggregations for a batch of tasks
         
@@ -66,7 +66,7 @@ class AggregatorProtocol(Protocol):
             start_date: datetime,
             end_date: datetime,
             user_id: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Calculate aggregations for a time range
         

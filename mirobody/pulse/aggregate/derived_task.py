@@ -7,10 +7,11 @@ Independent from AggregateIndicatorTask.
 
 import logging
 from datetime import datetime
-from typing import Dict
 
 from ..core.scheduler import PullTask, ScheduleType
 from .derived_aggregator import DerivedAggregator
+
+logger = logging.getLogger(__name__)
 
 
 class DerivedCalculationTask(PullTask):
@@ -28,7 +29,7 @@ class DerivedCalculationTask(PullTask):
 
     async def execute(self) -> bool:
         try:
-            logging.info("[DerivedCalculationTask] Starting execution...")
+            logger.info("[DerivedCalculationTask] Starting execution...")
 
             result = await self.aggregator.process(lookback_days=90)
 
@@ -40,17 +41,17 @@ class DerivedCalculationTask(PullTask):
             }
             await self.save_task_stats(stats)
 
-            logging.info(
+            logger.info(
                 f"[DerivedCalculationTask] Done: {stats['total_computed']} computed, "
                 f"{stats['total_skipped']} skipped"
             )
             return True
 
         except Exception as e:
-            logging.error(f"[DerivedCalculationTask] Execution error: {e}")
+            logger.error(f"[DerivedCalculationTask] Execution error: {e}")
             return False
 
-    async def get_task_info(self) -> Dict:
+    async def get_task_info(self) -> dict:
         full_status = await self.get_full_status()
         full_status.update({
             "task_name": "Derived Indicator Calculation",

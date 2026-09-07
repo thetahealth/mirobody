@@ -8,11 +8,9 @@ Provides common utilities for:
 - Logging helpers
 """
 
-import functools
 import json
-import logging
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, TypeVar
+from typing import Any, TypeVar
 from zoneinfo import ZoneInfo
 from mirobody.utils.file_types import guess_mime
 
@@ -75,7 +73,7 @@ DATE_FORMATS = [
 ]
 
 
-def parse_date(date_str: str, default: Optional[datetime] = None) -> Optional[datetime]:
+def parse_date(date_str: str, default: datetime | None = None) -> datetime | None:
     """
     Parse date string with multiple format support
     
@@ -107,7 +105,7 @@ def get_utc_now() -> datetime:
     return datetime.now(ZoneInfo("UTC")).replace(tzinfo=None)
 
 
-def extract_first_record(result: Optional[List]) -> Optional[Dict]:
+def extract_first_record(result: list | None) -> dict | None:
     """
     Extract first record from query result
     

@@ -21,9 +21,12 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
+from collections.abc import Callable
 
 from ...utils import execute_query
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -32,7 +35,7 @@ class ValidationResult:
 
     is_valid: bool
     indicator: str
-    value: Optional[float] = None
+    value: float | None = None
     reason: str = ""
 
 
@@ -52,7 +55,7 @@ class ValueRangeValidator:
 
     _RULE_PATTERN = re.compile(r'^(>=|<=|>|<|=)\s*(-?[\d.]+)$')
 
-    _OPS: Dict[str, Callable[[float, float], bool]] = {
+    _OPS: dict[str, Callable[[float, float], bool]] = {
         '>':  lambda v, t: v > t,
         '>=': lambda v, t: v >= t,
         '<':  lambda v, t: v < t,
@@ -63,7 +66,7 @@ class ValueRangeValidator:
     def __init__(self, rule_set: str = "ingestion_filter"):
         self._rule_set = rule_set
         # indicator_name → list of (rule_str, op_fn, threshold)
-        self._rules: Dict[str, List[Tuple[str, Callable, float]]] = {}
+        self._rules: dict[str, list[tuple[str, Callable, float]]] = {}
         self._loaded = False
 
     async def load(self, db_config=None) -> int:
@@ -83,7 +86,7 @@ class ValueRangeValidator:
         try:
             rows = await execute_query(query, {"rule_set": self._rule_set}, db_config=db_config or "")
         except Exception as e:
-            logging.error(f"[ValueRangeValidator] Failed to load rules: {e}. All values will passthrough.")
+            logger.error(f"[ValueRangeValidator] Failed to load rules: {e}. All values will passthrough.")
             self._loaded = True
             return 0
 
@@ -99,18 +102,18 @@ class ValueRangeValidator:
                 try:
                     raw_rules = json.loads(raw_rules)
                 except json.JSONDecodeError:
-                    logging.warning(f"[ValueRangeValidator] Invalid JSON rules for {indicator}: {raw_rules}")
+                    logger.warning(f"[ValueRangeValidator] Invalid JSON rules for {indicator}: {raw_rules}")
                     continue
 
             if not isinstance(raw_rules, list):
-                logging.warning(f"[ValueRangeValidator] Rules for {indicator} is not a list: {raw_rules}")
+                logger.warning(f"[ValueRangeValidator] Rules for {indicator} is not a list: {raw_rules}")
                 continue
 
             parsed = []
             for rule_str in raw_rules:
                 result = self._parse_rule(rule_str)
                 if result is None:
-                    logging.warning(f"[ValueRangeValidator] Invalid rule '{rule_str}' for {indicator}")
+                    logger.warning(f"[ValueRangeValidator] Invalid rule '{rule_str}' for {indicator}")
                     continue
                 op_str, threshold = result
                 parsed.append((rule_str, self._OPS[op_str], threshold))
@@ -120,7 +123,7 @@ class ValueRangeValidator:
                 loaded += 1
 
         self._loaded = True
-        logging.info(f"[ValueRangeValidator] Loaded {loaded} indicators for rule_set '{self._rule_set}'")
+        logger.info(f"[ValueRangeValidator] Loaded {loaded} indicators for rule_set '{self._rule_set}'")
         return loaded
 
     def validate(self, indicator: str, value: Any) -> ValidationResult:
@@ -164,7 +167,7 @@ class ValueRangeValidator:
     def indicator_count(self) -> int:
         return len(self._rules)
 
-    def _parse_rule(self, rule: str) -> Optional[Tuple[str, float]]:
+    def _parse_rule(self, rule: str) -> tuple[str, float] | None:
         """Parse a rule string like '>0' into ('>', 0.0).
 
         Total: returns None for ANYTHING it cannot parse. `indicator_valid_rules`

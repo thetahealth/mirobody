@@ -11,10 +11,12 @@ Configuration (read via safe_read_cfg — environment > overlay > config.yaml):
 
 import logging
 import threading
-from typing import Dict, Optional, Set
+from typing import Optional
 
 from ...utils import execute_query
 from ...utils.config import safe_read_cfg
+
+logger = logging.getLogger(__name__)
 
 # Fixed constants
 FHIR_INDICATOR_STANDARD = "THETA"
@@ -34,8 +36,8 @@ class FhirMapping:
 
     def __init__(self, auto_register: bool = False):
         self._auto_register = auto_register
-        self._cache: Dict[str, int] = {}  # code -> fhir_id
-        self._pending: Set[str] = set()   # indicators not found in cache
+        self._cache: dict[str, int] = {}  # code -> fhir_id
+        self._pending: set[str] = set()   # indicators not found in cache
         self._lock = threading.Lock()
 
     @classmethod
@@ -57,7 +59,7 @@ class FhirMapping:
         """
         auto_read = safe_read_cfg("FHIR_TABLE_AUTO_R")
         if not auto_read:
-            logging.info(
+            logger.info(
                 "[FhirMapping] FHIR_TABLE_AUTO_R not configured; fhir_id "
                 "mapping stays off. Set `FHIR_TABLE_AUTO_R: true` in "
                 "config.yaml (or the environment) to enable it."
@@ -66,13 +68,13 @@ class FhirMapping:
             return None
 
         if auto_read.lower() != "true":
-            logging.info("[FhirMapping] FHIR_TABLE_AUTO_R is not 'true', skipping")
+            logger.info("[FhirMapping] FHIR_TABLE_AUTO_R is not 'true', skipping")
             cls._instance = None
             return None
 
         auto_write = safe_read_cfg("FHIR_TABLE_AUTO_W")
         if not auto_write:
-            logging.info(
+            logger.info(
                 "[FhirMapping] FHIR_TABLE_AUTO_W not configured. "
                 "Auto-registration disabled. Set `FHIR_TABLE_AUTO_W: true` in config.yaml (or the environment) to enable it."
             )
@@ -93,7 +95,7 @@ class FhirMapping:
             """
             results = await execute_query(query, {"standard": FHIR_INDICATOR_STANDARD})
 
-            new_cache: Dict[str, int] = {}
+            new_cache: dict[str, int] = {}
             for row in results:
                 code = row.get("code")
                 fhir_id = row.get("id")
@@ -105,16 +107,16 @@ class FhirMapping:
             with self._lock:
                 self._cache = new_cache
 
-            logging.info(
+            logger.info(
                 f"[FhirMapping] Loaded {len(new_cache)} indicators "
                 f"from {FHIR_TABLE_NAME} (standard={FHIR_INDICATOR_STANDARD}), "
                 f"auto_register={'enabled' if self._auto_register else 'disabled'}"
             )
 
         except Exception as e:
-            logging.error(f"[FhirMapping] Failed to load from {FHIR_TABLE_NAME}: {e}")
+            logger.error(f"[FhirMapping] Failed to load from {FHIR_TABLE_NAME}: {e}")
 
-    def get_fhir_id(self, indicator: str) -> Optional[int]:
+    def get_fhir_id(self, indicator: str) -> int | None:
         """
         Lookup fhir_id for an indicator name.
 
@@ -133,19 +135,19 @@ class FhirMapping:
         # Cache miss — record for background processing
         if base_indicator not in self._pending:
             self._pending.add(base_indicator)
-            logging.debug(f"[FhirMapping] Cache miss: {base_indicator}")
+            logger.debug(f"[FhirMapping] Cache miss: {base_indicator}")
 
         return None
 
-    def get_pending(self) -> Set[str]:
+    def get_pending(self) -> set[str]:
         """Get indicators that were not found in cache."""
         return self._pending.copy()
 
-    def clear_pending(self, indicators: Set[str]):
+    def clear_pending(self, indicators: set[str]):
         """Remove resolved indicators from pending set."""
         self._pending -= indicators
 
-    async def register_missing(self, indicator_info_map: Dict[str, dict]):
+    async def register_missing(self, indicator_info_map: dict[str, dict]):
         """
         Register missing indicators in fhir_indicators table.
         Only called if auto_register is enabled (FHIR_TABLE_AUTO_W=true).
@@ -155,7 +157,7 @@ class FhirMapping:
         """
         if not self._auto_register:
             if self._pending:
-                logging.info(
+                logger.info(
                     f"[FhirMapping] FHIR_TABLE_AUTO_W is off, unregistered indicators: "
                     f"{', '.join(sorted(self._pending))}"
                 )
@@ -175,22 +177,22 @@ class FhirMapping:
                     with self._lock:
                         self._cache[code] = new_id
                     registered.add(code)
-                    logging.info(f"[FhirMapping] Auto-registered: {code} -> {new_id}")
+                    logger.info(f"[FhirMapping] Auto-registered: {code} -> {new_id}")
                 else:
                     # ON CONFLICT DO NOTHING — already exists, fetch its id into cache
                     existing_id = await self._lookup_fhir_id(code)
                     if existing_id:
                         with self._lock:
                             self._cache[code] = existing_id
-                        logging.info(f"[FhirMapping] Loaded existing: {code} -> {existing_id}")
+                        logger.info(f"[FhirMapping] Loaded existing: {code} -> {existing_id}")
                     registered.add(code)
             except Exception as e:
-                logging.error(f"[FhirMapping] Failed to register {code}: {e}")
+                logger.error(f"[FhirMapping] Failed to register {code}: {e}")
 
         if registered:
             self.clear_pending(registered)
 
-    async def _lookup_fhir_id(self, code: str) -> Optional[int]:
+    async def _lookup_fhir_id(self, code: str) -> int | None:
         """Lookup fhir_id for a single code from database."""
         query = f"""
             SELECT id FROM {FHIR_TABLE_NAME}
@@ -203,7 +205,7 @@ class FhirMapping:
         return None
 
     async def _insert_indicator(self, code: str, short_name: str,
-                                description: str, unit: str) -> Optional[int]:
+                                description: str, unit: str) -> int | None:
         """Insert a new indicator into fhir_indicators and return its id.
 
         The column list used to end in ``update_time``, which
@@ -253,7 +255,7 @@ class FhirMapping:
         return indicator
 
 
-def get_fhir_id(indicator: str) -> Optional[int]:
+def get_fhir_id(indicator: str) -> int | None:
     """
     Convenience function for hot path usage.
     Returns fhir_id or None (if FhirMapping not initialized or indicator not found).

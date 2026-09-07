@@ -6,19 +6,21 @@ import json
 import logging
 import time
 
-from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List
+from datetime import datetime, UTC
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from .base import BaseHealthService
 from .repair_reconcile import RepairReconciler
 from ..models.requests import StandardPulseData
 from ..repositories.health_data import HealthDataRepository
+from ...readings import upsert_readings
 from ...standardize.indicators_info import is_summary_indicator, is_series_indicator, normalize_indicator_name
 from ...standardize.fhir_mapping import get_fhir_id
 from ...standardize.value_range_validator import ValueRangeValidator
 from ...core.user import PlatformUserService
-from ....utils import execute_query
+
+logger = logging.getLogger(__name__)
 
 
 class StandardHealthService(BaseHealthService):
@@ -63,14 +65,14 @@ class StandardHealthService(BaseHealthService):
             if user_info and user_info.get("tz"):
                 user_timezone = user_info.get("tz").strip()
                 if user_timezone:
-                    logging.info(f"Retrieved user timezone from database: user_id={user_id}, timezone={user_timezone}")
+                    logger.info(f"Retrieved user timezone from database: user_id={user_id}, timezone={user_timezone}")
                     return user_timezone
 
-            logging.info(f"No timezone found for user {user_id}, using default UTC")
+            logger.info(f"No timezone found for user {user_id}, using default UTC")
             return "UTC"
 
         except Exception as e:
-            logging.warning(f"Failed to get user timezone for user {user_id}: {str(e)}, using default UTC")
+            logger.warning(f"Failed to get user timezone for user {user_id}: {str(e)}, using default UTC")
             return "UTC"
 
     async def process_standard_data(self, standard_data: StandardPulseData, current_user: str) -> bool:
@@ -93,14 +95,14 @@ class StandardHealthService(BaseHealthService):
 
             user_id = current_user
             health_data = standard_data.healthData
-            logging.info(f"Starting to process data, user_id: {user_id}, count: {len(health_data)}")
+            logger.info(f"Starting to process data, user_id: {user_id}, count: {len(health_data)}")
             t1 = time.time()
 
             # Classify and preprocess data
             summary_records, series_records = await self._classify_and_prepare_records(health_data, user_id)
 
             t2 = time.time()
-            logging.info(f"Data classification and preparation: {(t2 - t1) * 1000}ms")
+            logger.info(f"Data classification and preparation: {(t2 - t1) * 1000}ms")
 
             # Batch process data
             summary_success, summary_count = await self._batch_save_summary_records(summary_records)
@@ -128,16 +130,16 @@ class StandardHealthService(BaseHealthService):
             overall_success = summary_success and series_success
             total_processed = summary_count + series_count
 
-            logging.info(f"Batch processing completed: {total_processed}/{len(health_data)} records for user {user_id} (summary: {summary_count}, series: {series_count}), timeCost={(t3 - t2) * 1e3}ms")
+            logger.info(f"Batch processing completed: {total_processed}/{len(health_data)} records for user {user_id} (summary: {summary_count}, series: {series_count}), timeCost={(t3 - t2) * 1e3}ms")
 
             return overall_success
 
         except Exception as e:
-            logging.error(f"Error processing StandardPulseData: {str(e)}", stack_info=True)
+            logger.error(f"Error processing StandardPulseData: {str(e)}", stack_info=True)
             return False
 
-    async def _classify_and_prepare_records(self, health_data: List, user_id: str) -> tuple[
-        List[Dict[str, Any]], List[Dict[str, Any]]]:
+    async def _classify_and_prepare_records(self, health_data: list, user_id: str) -> tuple[
+        list[dict[str, Any]], list[dict[str, Any]]]:
         """
         Classify and preprocess health data records
         
@@ -172,13 +174,13 @@ class StandardHealthService(BaseHealthService):
                         series_records.append(series_record)
 
             except Exception as e:
-                logging.warning(f"Failed to process single record: {str(record.model_dump())}, error: {e}")
+                logger.warning(f"Failed to process single record: {str(record.model_dump())}, error: {e}")
                 continue
 
-        logging.info(f"Classified records: {len(summary_records)} summary, {len(series_records)} series")
+        logger.info(f"Classified records: {len(summary_records)} summary, {len(series_records)} series")
         return summary_records, series_records
 
-    async def _prepare_common_record_data(self, record: Dict[str, Any], user_id: str, user_timezone: str = None) -> Dict[str, Any]:
+    async def _prepare_common_record_data(self, record: dict[str, Any], user_id: str, user_timezone: str = None) -> dict[str, Any]:
         try:
             source = record.get("source", "UNKNOWN")
             indicator = normalize_indicator_name(record.get("type", ""))
@@ -212,9 +214,9 @@ class StandardHealthService(BaseHealthService):
             vr = self._value_validator.validate(indicator, normalized_value)
             if not vr.is_valid:
                 task_id = "filtered_out_of_range"
-                logging.info(f"[ValidRange] {vr.reason}, source={source}")
+                logger.info(f"[ValidRange] {vr.reason}, source={source}")
 
-            record_time = datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc).replace(tzinfo=None)
+            record_time = datetime.fromtimestamp(timestamp / 1000, tz=UTC).replace(tzinfo=None)
             return {
                 "user_id": user_id,
                 "indicator": indicator,
@@ -233,10 +235,10 @@ class StandardHealthService(BaseHealthService):
             }
 
         except Exception as e:
-            logging.error(f"Error preparing common record data: {str(e)}", stack_info=True)
+            logger.error(f"Error preparing common record data: {str(e)}", stack_info=True)
             return None
 
-    def _prepare_summary_record(self, common_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _prepare_summary_record(self, common_data: dict[str, Any]) -> dict[str, Any]:
         """
         Prepare specific fields for Summary data
         
@@ -281,10 +283,10 @@ class StandardHealthService(BaseHealthService):
             }
 
         except Exception as e:
-            logging.error(f"Error preparing summary record: {str(e)}", stack_info=True)
+            logger.error(f"Error preparing summary record: {str(e)}", stack_info=True)
             return None
 
-    def _prepare_series_record(self, common_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _prepare_series_record(self, common_data: dict[str, Any]) -> dict[str, Any]:
         """
         Prepare specific fields for Series data
         
@@ -309,10 +311,10 @@ class StandardHealthService(BaseHealthService):
             }
 
         except Exception as e:
-            logging.error(f"Error preparing series record: {str(e)}", stack_info=True)
+            logger.error(f"Error preparing series record: {str(e)}", stack_info=True)
             return None
 
-    async def _batch_save_summary_records(self, summary_records: List[Dict[str, Any]]) -> tuple[bool, int]:
+    async def _batch_save_summary_records(self, summary_records: list[dict[str, Any]]) -> tuple[bool, int]:
         """
         Batch save Summary records to th_series_data table
         
@@ -326,57 +328,27 @@ class StandardHealthService(BaseHealthService):
             return True, 0
 
         try:
-            query = """
-            INSERT INTO th_series_data (
-                user_id, indicator, value, start_time, end_time, source_table,
-                source_table_id, comment, indicator_id, source, task_id,
-                fhir_id, fhir_mapping_info, create_time, update_time, deleted
-            ) VALUES (
-                :user_id, :indicator, :value, :start_time, :end_time, :source_table,
-                :source_table_id, encrypt_content(:comment), :indicator_id, :source, :task_id,
-                :fhir_id, :fhir_mapping_info, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0
-            )
-            ON CONFLICT (user_id, indicator, start_time, end_time)
-            DO UPDATE SET
-                value = EXCLUDED.value,
-                source_table = EXCLUDED.source_table,
-                source_table_id = EXCLUDED.source_table_id,
-                comment = EXCLUDED.comment,
-                source = EXCLUDED.source,
-                task_id = EXCLUDED.task_id,
-                fhir_id = COALESCE(EXCLUDED.fhir_id, th_series_data.fhir_id),
-                fhir_mapping_info = EXCLUDED.fhir_mapping_info,
-                update_time = CURRENT_TIMESTAMP
-            """
-
-            batch_size = 1000
-            total_processed = 0
-
-            logging.info(f"About to save {len(summary_records)} summary records to th_series_data")
+            logger.info(f"About to save {len(summary_records)} summary records to th_series_data")
             for record in summary_records[:2]:  # Log first 2 records for debugging
                 # `comment` (and the value itself) are user health data — the
-                # INSERT below encrypts `comment` at rest, so logging the full
-                # record would put in plaintext exactly what the column
-                # encryption is there to protect. Log structure, not content.
+                # write encrypts `comment` at rest, so logging the full record
+                # would put in plaintext exactly what the column encryption is
+                # there to protect. Log structure, not content.
                 redacted = {k: v for k, v in record.items() if k not in ("comment", "value")}
-                logging.info(f"Sample record (values redacted): {redacted}")
+                logger.info(f"Sample record (values redacted): {redacted}")
 
-            for i in range(0, len(summary_records), batch_size):
-                batch = summary_records[i:i + batch_size]
-                logging.info(f"Executing batch {i // batch_size + 1} with {len(batch)} records")
-                result = await execute_query(query=query, params=batch)
-                logging.info(f"Batch execution result: {result}")
-                total_processed += len(batch)
-                logging.info(f"Processed summary batch {i // batch_size + 1}: {len(batch)} records")
-
-            logging.info(f"Successfully batch saved {total_processed} summary records to th_series_data")
+            # A device sync re-sends the truth: a collision replaces the row.
+            # `anchored`: a summary record is the vendor's own DAILY figure and
+            # already carries the day it belongs to.
+            total_processed = await upsert_readings(summary_records, on_conflict="update", anchored=True)
+            logger.info(f"Successfully batch saved {total_processed} summary records to th_series_data")
             return True, total_processed
 
         except Exception as e:
-            logging.error(f"Error batch saving summary records: {str(e)}", stack_info=True)
+            logger.error(f"Error batch saving summary records: {str(e)}", stack_info=True)
             return False, 0
 
-    async def _batch_save_series_records(self, series_records: List[Dict[str, Any]]) -> tuple[bool, int]:
+    async def _batch_save_series_records(self, series_records: list[dict[str, Any]]) -> tuple[bool, int]:
         if not series_records:
             return True, 0
 
@@ -386,12 +358,11 @@ class StandardHealthService(BaseHealthService):
             return success, processed_count
 
         except Exception as e:
-            logging.error(f"Error batch saving series records: {str(e)}", stack_info=True)
+            logger.error(f"Error batch saving series records: {str(e)}", stack_info=True)
             return False, 0
 
-    def _calculate_summary_time_range_from_common(self, common_data: Dict[str, Any]) -> tuple:
+    def _calculate_summary_time_range_from_common(self, common_data: dict[str, Any]) -> tuple:
         try:
-            indicator = common_data["indicator"]
             user_timezone = common_data["timezone"]
             start_time_ms = common_data.get("original_start_time_ms")
             end_time_ms = common_data.get("original_end_time_ms")
@@ -406,8 +377,8 @@ class StandardHealthService(BaseHealthService):
             if end_time_ms is None:
                 end_time_ms = common_data["timestamp"]
 
-            start_time_utc = datetime.fromtimestamp(start_time_ms / 1000, tz=timezone.utc)
-            end_time_utc = datetime.fromtimestamp(end_time_ms / 1000, tz=timezone.utc)
+            start_time_utc = datetime.fromtimestamp(start_time_ms / 1000, tz=UTC)
+            end_time_utc = datetime.fromtimestamp(end_time_ms / 1000, tz=UTC)
 
             if user_timezone == "UTC":
                 return start_time_utc.replace(tzinfo=None), end_time_utc.replace(tzinfo=None)
@@ -417,11 +388,11 @@ class StandardHealthService(BaseHealthService):
                 return (start_time_utc.astimezone(user_tz).replace(tzinfo=None),
                         end_time_utc.astimezone(user_tz).replace(tzinfo=None))
             except Exception as e:
-                logging.warning(f"Failed to convert timezone {user_timezone}, using UTC: {str(e)}")
+                logger.warning(f"Failed to convert timezone {user_timezone}, using UTC: {str(e)}")
                 return start_time_utc.replace(tzinfo=None), end_time_utc.replace(tzinfo=None)
 
         except Exception as e:
-            logging.error(f"Error calculating summary time range: {str(e)}", stack_info=True)
+            logger.error(f"Error calculating summary time range: {str(e)}", stack_info=True)
             return None, None
 
 

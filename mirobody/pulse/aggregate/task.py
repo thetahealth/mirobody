@@ -7,10 +7,11 @@ Uses base class cache services for timestamp and stats management.
 
 import logging
 from datetime import datetime
-from typing import Dict
 
 from .service import AggregateIndicatorService
 from ..core.scheduler import PullTask, ScheduleType
+
+logger = logging.getLogger(__name__)
 
 
 class AggregateIndicatorTask(PullTask):
@@ -48,7 +49,7 @@ class AggregateIndicatorTask(PullTask):
             True if execution successful, False otherwise
         """
         try:
-            logging.info("[AggregateIndicatorTask] Starting execution...")
+            logger.info("[AggregateIndicatorTask] Starting execution...")
 
             # Use base class ability: get last timestamp
             last_timestamp = await self.get_last_execution_timestamp()
@@ -77,7 +78,7 @@ class AggregateIndicatorTask(PullTask):
                 }
                 await self.save_task_stats(stats_dict)
 
-                logging.info(
+                logger.info(
                     f"[AggregateIndicatorTask] Completed successfully: "
                     f"{stats_dict['summaries_created']} summaries, "
                     f"{stats_dict['users_affected']} users, "
@@ -85,20 +86,19 @@ class AggregateIndicatorTask(PullTask):
                 )
                 return True
 
-            elif status in ['no_data', 'skipped']:
-                logging.info(f"[AggregateIndicatorTask] {status}")
+            if status in ['no_data', 'skipped']:
+                logger.info(f"[AggregateIndicatorTask] {status}")
                 return True  # Not an error, just no work to do
 
-            else:
-                logging.error(f"[AggregateIndicatorTask] Failed: {status}")
-                return False
+            logger.error(f"[AggregateIndicatorTask] Failed: {status}")
+            return False
 
         except Exception as e:
-            logging.error(f"[AggregateIndicatorTask] Execution error: {e}", exc_info=True)
+            logger.error(f"[AggregateIndicatorTask] Execution error: {e}", exc_info=True)
             self._capture_error(e)
             return False
 
-    async def get_task_info(self) -> Dict:
+    async def get_task_info(self) -> dict:
         """
         Get comprehensive task information
         

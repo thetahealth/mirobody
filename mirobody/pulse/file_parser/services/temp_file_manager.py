@@ -24,6 +24,8 @@ if TYPE_CHECKING:
 from mirobody.utils.i18n import t
 from mirobody.utils.req_ctx import get_req_ctx
 
+logger = logging.getLogger(__name__)
+
 
 class TempFileManager:
     """Temporary file management service class"""
@@ -47,7 +49,7 @@ class TempFileManager:
 
             # Check if content is empty
             if not content or len(content) == 0:
-                logging.error(f"File content is empty: {upload_file.filename}")
+                logger.error(f"File content is empty: {upload_file.filename}")
                 raise ValueError(t("file_empty", language))
 
             # Get original filename and extension
@@ -68,13 +70,13 @@ class TempFileManager:
 
             return Path(temp_file_path), temp_file_path
         except Exception as e:
-            logging.error("Error creating temporary file", stack_info=True)
+            logger.error("Error creating temporary file", stack_info=True)
             # If error occurs, ensure to delete potentially created temporary file
             if temp_file_path and os.path.exists(temp_file_path):
                 try:
                     os.unlink(temp_file_path)
                 except Exception as ex:
-                    logging.error(f"Error deleting temporary file: {str(ex)}")
+                    logger.error(f"Error deleting temporary file: {str(ex)}")
             raise e
 
     @staticmethod
@@ -94,7 +96,7 @@ class TempFileManager:
             language = get_req_ctx("language", "en")
             # Check if content is empty
             if not content or len(content) == 0:
-                logging.error(f"File content is empty: {filename}")
+                logger.error(f"File content is empty: {filename}")
                 raise ValueError(t("file_empty", language))
 
             # Get original filename and extension
@@ -108,17 +110,17 @@ class TempFileManager:
                 temp_file.write(content)
                 temp_file_path = temp_file.name
 
-            logging.info(f"Created temporary file: {temp_file_path}")
+            logger.info(f"Created temporary file: {temp_file_path}")
             return Path(temp_file_path), temp_file_path
 
         except Exception as e:
-            logging.error(f"Failed to create temporary file: {filename}", stack_info=True)
+            logger.error(f"Failed to create temporary file: {filename}", stack_info=True)
             # If error occurs, ensure to delete potentially created temporary file
             if temp_file_path and os.path.exists(temp_file_path):
                 try:
                     os.unlink(temp_file_path)
                 except Exception as ex:
-                    logging.error(f"Error deleting temporary file: {str(ex)}")
+                    logger.error(f"Error deleting temporary file: {str(ex)}")
             raise e
 
     @staticmethod
@@ -137,9 +139,9 @@ class TempFileManager:
 
         try:
             os.unlink(temp_file_path)
-            logging.info(f"Temporary file deleted: {temp_file_path}")
+            logger.info(f"Temporary file deleted: {temp_file_path}")
             return True
         except Exception as e:
-            logging.error(f"Failed to delete temporary file: {temp_file_path}, error: {str(e)}", stack_info=True)
+            logger.error(f"Failed to delete temporary file: {temp_file_path}, error: {str(e)}", stack_info=True)
             return False
 

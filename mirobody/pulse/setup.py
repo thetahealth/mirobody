@@ -4,7 +4,6 @@ Setup functions for the Pulse system
 
 import asyncio
 import logging
-from typing import List, Optional
 
 from .apple.platform import AppleHealthPlatform
 
@@ -13,8 +12,10 @@ from mirobody.pulse.providers.platform.base import BasePullProvider
 from mirobody.pulse.providers.platform.platform import ProviderPlatform
 from ..utils.config import global_config
 
+logger = logging.getLogger(__name__)
 
-async def setup_platform_system_async(providers: Optional[List[BasePullProvider]] = None):
+
+async def setup_platform_system_async(providers: list[BasePullProvider] | None = None):
     """
     Asynchronously initialize Platform system
 
@@ -23,7 +24,7 @@ async def setup_platform_system_async(providers: Optional[List[BasePullProvider]
     Args:
         providers: List of additional BasePullProvider instances to register (optional)
     """
-    logging.info("Starting platform system setup...")
+    logger.info("Starting platform system setup...")
 
     # 1. Create and register Platforms
     # Config.init() has already run by this point (server startup); this is
@@ -50,20 +51,20 @@ async def setup_platform_system_async(providers: Optional[List[BasePullProvider]
     for provider in theta_providers:
         try:
             theta_platform.register_provider(provider)
-            logging.info(f"✅ Loaded provider: [{provider.info.slug}]")
+            logger.info(f"Loaded provider: [{provider.info.slug}]")
         except Exception as e:
-            logging.error(f"Error registering provider {provider.info.slug}: {str(e)}")
+            logger.error(f"Error registering provider {provider.info.slug}: {str(e)}")
             continue
 
     # 6. Initialize FHIR mapping (optional, config-driven)
     from .standardize.fhir_mapping import FhirMapping
     fhir_mapping = await FhirMapping.initialize()
     if fhir_mapping:
-        logging.info(f"  - FHIR mapping initialized")
+        logger.info("  - FHIR mapping initialized")
 
-    logging.info("Platform system setup completed:")
-    logging.info(f"  - provider platform loaded {len(theta_providers)} providers")
-    logging.info(f"  - Apple Health platform initialized with built-in providers")
+    logger.info("Platform system setup completed:")
+    logger.info(f"  - provider platform loaded {len(theta_providers)} providers")
+    logger.info("  - Apple Health platform initialized with built-in providers")
 
 
 def setup_platform_system():
