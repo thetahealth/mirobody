@@ -1,6 +1,9 @@
-import json, logging
+import json
+import logging
 
 from psycopg_pool import AsyncConnectionPool
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 # Tables where merging is a plain UPDATE col = winning WHERE col = losing.
@@ -187,33 +190,6 @@ async def _merge_th_user_avatar_managed(cur, losing_str: str, winning_str: str) 
     return total
 
 
-async def _merge_unique_user_id_table(cur, table: str, losing_str: str, winning_str: str) -> int:
-    """Tables with UNIQUE(user_id) — winning side keeps its config; losing
-    is discarded outright. Used for user_agent_prompt and user_mcp_config.
-    """
-    if not await _table_exists(cur, table):
-        return 0
-
-    # If the winning user already has a config row, drop the losing one;
-    # otherwise rewrite losing -> winning so the user keeps their settings.
-    await cur.execute(
-        f"""
-        DELETE FROM {table} l
-         WHERE l.user_id=%(losing)s
-           AND EXISTS (SELECT 1 FROM {table} w WHERE w.user_id=%(winning)s);
-        """,
-        {"losing": losing_str, "winning": winning_str}
-    )
-    deleted = cur.rowcount or 0
-
-    await cur.execute(
-        f"UPDATE {table} SET user_id=%s WHERE user_id=%s;",
-        [winning_str, losing_str]
-    )
-    updated = cur.rowcount or 0
-
-    return deleted + updated
-
 
 #-----------------------------------------------------------------------------
 
@@ -263,14 +239,6 @@ async def merge_accounts(
                     if n:
                         affected["th_user_avatar_managed"] = n
 
-                    n = await _merge_unique_user_id_table(cur, "user_agent_prompt", losing_str, winning_str)
-                    if n:
-                        affected["user_agent_prompt"] = n
-
-                    n = await _merge_unique_user_id_table(cur, "user_mcp_config", losing_str, winning_str)
-                    if n:
-                        affected["user_mcp_config"] = n
-
                     # 4. Soft-delete the losing health_app_user.
                     await cur.execute(
                         "UPDATE health_app_user SET is_del=TRUE, update_at=CURRENT_TIMESTAMP WHERE id=%s;",
@@ -289,7 +257,7 @@ async def merge_accounts(
                         )
 
     except Exception as e:
-        logging.error(str(e), extra={
+        logger.error(str(e), extra={
             "losing_user_id"  : losing_user_id,
             "winning_user_id" : winning_user_id,
             "reason"          : reason,

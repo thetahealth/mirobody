@@ -1,11 +1,16 @@
-import base64, json, logging, secrets, time, urllib.parse
+import base64
+import json
+import logging
+import secrets
+import time
+import urllib.parse
 
-from typing import Callable
+from collections.abc import Callable
 from redis.asyncio import Redis
 
 from .jwt import AbstractTokenValidator
 
-from ..utils import (
+from ...utils import (
     request_origin,
     secret_fingerprint,
     json_response,
@@ -17,6 +22,8 @@ from ..utils import (
     Response,
     Route
 )
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -191,7 +198,7 @@ class OAuthService:
             try:
                 raw = await self._redis.hget(self._client_keyprefix + client_id, "redirect_uris")
             except Exception as e:
-                logging.warning(str(e))
+                logger.warning(str(e))
         else:
             raw = (self._clients.get(client_id) or {}).get("redirect_uris")
 
@@ -212,7 +219,7 @@ class OAuthService:
 
         try:
             data = await request.json()
-            logging.debug(f"request.json: {data}")
+            logger.debug(f"request.json: {data}")
             client_id = f"mcp_client_{secrets.token_hex(16)}"
             client_secret = secrets.token_hex(32)
 
@@ -237,7 +244,7 @@ class OAuthService:
                     await self._redis.hset(self._client_keyprefix + client_id, mapping=cached_client)
 
                 except Exception as e:
-                    logging.warning(str(e))
+                    logger.warning(str(e))
             else:
                 if client_id in self._clients:
                     self._clients[client_id].update(cached_client)
@@ -267,7 +274,7 @@ class OAuthService:
                 "client_secret_expires_at": 0,
                 "created_at": time.time(),
             }
-            logging.info(f"Client registered: {client_id} with auth method: {requested_auth_method}")
+            logger.info(f"Client registered: {client_id} with auth method: {requested_auth_method}")
 
             return json_response(
                 content = client_info,
@@ -276,7 +283,7 @@ class OAuthService:
             )
         
         except Exception as e:
-            logging.error(f"Client registration failed: {e}")
+            logger.error(f"Client registration failed: {e}")
 
             return json_response(
                 content = {"error": "registration_failed", "message": str(e)},
@@ -314,7 +321,7 @@ class OAuthService:
 
             return redirect(f"{url_prefix}/mcplogin?{query_string}")
 
-        elif request.method == "POST":
+        if request.method == "POST":
             # Post from the device login url.
             form_data = await request.form()
 
@@ -338,25 +345,23 @@ class OAuthService:
                         request = request
                     )
                 
-                else:
-                    # For OOB or no redirect_uri, return JSON response
-                    return json_response_with_code(-1, "access_denied", request=request)
+                # For OOB or no redirect_uri, return JSON response
+                return json_response_with_code(-1, "access_denied", request=request)
 
             if err or not payload:
                 # For OOB, return JSON error
                 if redirect_uri == "urn:ietf:wg:oauth:2.0:oob":
                     return json_response_with_code(-2, "Authentication failed", request=request)
                 
-                else:
-                    return json_response(
-                        content = {
-                            "code"      : 0,
-                            "msg"       : "ok",
-                            "data"      : {},
-                            "location"  : f"{redirect_uri}?error=authentication_failed" + (f"&state={state}" if state else "")
-                        },
-                        request = request
-                    )
+                return json_response(
+                    content = {
+                        "code"      : 0,
+                        "msg"       : "ok",
+                        "data"      : {},
+                        "location"  : f"{redirect_uri}?error=authentication_failed" + (f"&state={state}" if state else "")
+                    },
+                    request = request
+                )
 
             #---------------------------------------------
 
@@ -369,7 +374,7 @@ class OAuthService:
             # prefix or host matching, both of which are routinely bypassed
             # (`https://good.example.evil.com`, `https://good.example/../..`).
             if not await self._is_registered_redirect_uri(client_id, redirect_uri):
-                logging.warning(
+                logger.warning(
                     "rejected unregistered redirect_uri for client %s", client_id
                 )
                 return json_response(
@@ -394,13 +399,13 @@ class OAuthService:
                     await self._redis.hset(redis_key, mapping=cached_auth_code)
                     await self._redis.expire(redis_key, _AUTH_CODE_TTL_SECONDS)
                 except Exception as e:
-                    logging.warning(str(e))
+                    logger.warning(str(e))
 
                 redis_key = self._client_keyprefix + client_id
                 try:
                     await self._redis.hset(redis_key, mapping=cached_client)
                 except Exception as e:
-                    logging.warning(str(e))
+                    logger.warning(str(e))
 
             else:
                 self._auth_codes[auth_code] = cached_auth_code
@@ -423,7 +428,7 @@ class OAuthService:
                         await self._redis.expire(redis_key, self._token_validator.get_expires_in())
 
                     except Exception as e:
-                        logging.warning(str(e))
+                        logger.warning(str(e))
 
                 else:
                     self._state_tokens[state] = initial_state
@@ -448,7 +453,7 @@ class OAuthService:
                         await self._redis.expire(redis_key, self._token_validator.get_expires_in())
                     
                     except Exception as e:
-                        logging.warning(str(e))
+                        logger.warning(str(e))
                 
                 else:
                     if state and state in self._state_tokens:
@@ -478,19 +483,17 @@ class OAuthService:
                     request = request
                 )
             
-            else:
-                return json_response(
-                    content = {
-                        "code"      : 0,
-                        "msg"       : "ok",
-                        "data"      : {},
-                        "location"  : f"{redirect_uri}?code={auth_code}" + (f"&state={state}" if state else "")
-                    },
-                    request = request
-                )
+            return json_response(
+                content = {
+                    "code"      : 0,
+                    "msg"       : "ok",
+                    "data"      : {},
+                    "location"  : f"{redirect_uri}?code={auth_code}" + (f"&state={state}" if state else "")
+                },
+                request = request
+            )
             
-        else:
-            return json_response_with_code()
+        return json_response_with_code()
 
     #-------------------------------------------------------------------------
 
@@ -518,7 +521,7 @@ class OAuthService:
                     state_info["expires_at"] = n
             
             except Exception as e:
-                logging.warning(str(e))
+                logger.warning(str(e))
                 state_info = {}
 
         else:
@@ -536,7 +539,7 @@ class OAuthService:
                 request     = request
             )
         
-        elif state_info.get("expires_at", 0) < time.time():
+        if state_info.get("expires_at", 0) < time.time():
             if not self._redis:
                 del self._state_tokens[state]
 
@@ -549,7 +552,7 @@ class OAuthService:
                 request     = request
             )
         
-        elif state_info["status"] == "pending":
+        if state_info["status"] == "pending":
             return json_response(
                 {
                     "status"    : "pending",
@@ -558,7 +561,7 @@ class OAuthService:
                 request     = request
             )
         
-        elif state_info["status"] == "completed":
+        if state_info["status"] == "completed":
             return json_response(
                 {
                     "status"    : "completed",
@@ -569,15 +572,14 @@ class OAuthService:
                 request     = request
             )
 
-        else:
-            return json_response(
-                {
-                    "status"    : "unknown", 
-                    "message"   : "Unknown authentication status"
-                },
-                status_code = 500,
-                request     = request
-            )
+        return json_response(
+            {
+                "status"    : "unknown", 
+                "message"   : "Unknown authentication status"
+            },
+            status_code = 500,
+            request     = request
+        )
 
     #-------------------------------------------------------------------------
 
@@ -607,14 +609,14 @@ class OAuthService:
                         client_id, client_secret = decoded.split(":", 1)
                     
                     except Exception as e:
-                        logging.warning(str(e))
+                        logger.warning(str(e))
 
             # `client_secret` was in this line, at INFO, in cleartext. It is a
             # long-lived credential: anyone with log read access could
             # impersonate the client. The fingerprint still answers the only
             # question this log line was ever used for — "did the client send
             # the secret we expect?".
-            logging.info(
+            logger.info(
                 "Token request - grant_type: %s, client_id: %s, client_secret: %s",
                 grant_type, client_id, secret_fingerprint(client_secret),
             )
@@ -637,7 +639,7 @@ class OAuthService:
                         stored_code = await self._redis.hgetall(key)
                         consumed = bool(await self._redis.delete(key))
                     except Exception as e:
-                        logging.warning(str(e))
+                        logger.warning(str(e))
                         stored_code = {}
                         consumed = False
 
@@ -700,7 +702,7 @@ class OAuthService:
 
                 access_token, refresh_token, err = await self._token_validator.generate_tokens(user_id, "", "mcp", client_id=client_id, scope=scope)
                 if err:
-                    logging.error(err)
+                    logger.error(err)
 
                     return json_response(
                         {
@@ -722,7 +724,7 @@ class OAuthService:
                     request=request
                 )
 
-            elif grant_type == "refresh_token":
+            if grant_type == "refresh_token":
                 if not client_id:
                     return json_response(
                         {
@@ -746,7 +748,7 @@ class OAuthService:
                 
                 payload, err = self._token_validator.verify_token(refresh_token)
                 if err or not payload:
-                    logging.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
+                    logger.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
 
                     return json_response(
                         {
@@ -759,7 +761,7 @@ class OAuthService:
                 
                 if not isinstance(payload, dict) or "sub" not in payload:
                     err = "No subject in refresh token."
-                    logging.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
+                    logger.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
 
                     return json_response(
                         {
@@ -772,7 +774,7 @@ class OAuthService:
 
                 new_access_token, new_refresh_token, err = await self._token_validator.generate_tokens(payload["sub"], "", "mcp", client_id=client_id)
                 if err:
-                    logging.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
+                    logger.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
 
                     return json_response(
                         {
@@ -806,7 +808,7 @@ class OAuthService:
                     request=request
                 )
 
-            elif grant_type == "credentials":
+            if grant_type == "credentials":
                 cached_client = None
                 if self._redis:
                     cached_client = await self._redis.hgetall(self._client_keyprefix + client_id)
@@ -830,7 +832,7 @@ class OAuthService:
                 
                 new_access_token, new_refresh_token, err = await self._token_validator.generate_tokens(cached_client["user_id"], "", "mcp", client_id=client_id)
                 if err:
-                    logging.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
+                    logger.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
 
                     return json_response(
                         {
@@ -864,18 +866,17 @@ class OAuthService:
                     request=request
                 )
 
-            else:
-                return json_response(
-                    content     = {
-                        "error": "unsupported_grant_type",
-                        "error_description": f"Grant type '{grant_type}' is not supported.",
-                    },
-                    status_code = 400,
-                    request     = request
-                )
+            return json_response(
+                content     = {
+                    "error": "unsupported_grant_type",
+                    "error_description": f"Grant type '{grant_type}' is not supported.",
+                },
+                status_code = 400,
+                request     = request
+            )
             
         except Exception as e:
-            logging.error(str(e))
+            logger.error(str(e))
 
             return json_response(
                 content     = {
@@ -896,12 +897,12 @@ class OAuthService:
         token   = data.get("token")
 
         if not token or not isinstance(token, str):
-            logging.error("No token found.")
+            logger.error("No token found.")
             return json_response({"active": False}, request=request)
         
         payload, err = self._token_validator.verify_token(token)
         if err:
-            logging.error(err, extra={"token": secret_fingerprint(token)})
+            logger.error(err, extra={"token": secret_fingerprint(token)})
             return json_response({"active": False}, request=request)
         
         return json_response(

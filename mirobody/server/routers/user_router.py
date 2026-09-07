@@ -6,74 +6,75 @@ User settings management module
 import logging
 import traceback
 
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from mirobody.user.jwt import validator_from_config
+from mirobody.user.auth.jwt import validator_from_config
 from mirobody.server.auth import verify_token
 from mirobody.utils import execute_query
 from mirobody.utils.config import get_default_timezone, global_config
 from ...user import care_circle as cc
 from ...user.user import get_user
 
+logger = logging.getLogger(__name__)
+
 # Create router
 router = APIRouter(prefix="/api")
 
 
 class ProfileSettings(BaseModel):
-    gender: Optional[str] = "other"
-    birth: Optional[str] = None
-    blood: Optional[str] = None
+    gender: str | None = "other"
+    birth: str | None = None
+    blood: str | None = None
 
 
 class PreferenceSettings(BaseModel):
-    language: Optional[str] = "en"  # "zh", "en", "ja", "fr", "es"
-    timezone: Optional[str] = None
-    dateFormat: Optional[str] = "YYYY-MM-DD"
+    language: str | None = "en"  # "zh", "en", "ja", "fr", "es"
+    timezone: str | None = None
+    dateFormat: str | None = "YYYY-MM-DD"
 
 
 class PrivacySettings(BaseModel):
-    dataSharing: Optional[bool] = True
-    aiAnalysis: Optional[bool] = True
-    analyticsTracking: Optional[bool] = True
+    dataSharing: bool | None = True
+    aiAnalysis: bool | None = True
+    analyticsTracking: bool | None = True
 
 
 class NotificationSettings(BaseModel):
-    email: Optional[bool] = True
-    push: Optional[bool] = True
-    healthAlerts: Optional[bool] = True
-    deviceSync: Optional[bool] = True
-    weeklyReport: Optional[bool] = True
+    email: bool | None = True
+    push: bool | None = True
+    healthAlerts: bool | None = True
+    deviceSync: bool | None = True
+    weeklyReport: bool | None = True
 
 
 class SecuritySettings(BaseModel):
-    mfa_enabled: Optional[bool] = None
+    mfa_enabled: bool | None = None
 
 
 class UserSettings(BaseModel):
-    profile: Optional[ProfileSettings] = None
-    preferences: Optional[PreferenceSettings] = None
-    privacy: Optional[PrivacySettings] = None
-    notifications: Optional[NotificationSettings] = None
-    security: Optional[SecuritySettings] = None
+    profile: ProfileSettings | None = None
+    preferences: PreferenceSettings | None = None
+    privacy: PrivacySettings | None = None
+    notifications: NotificationSettings | None = None
+    security: SecuritySettings | None = None
 
 
 class UserSettingsRequest(BaseModel):
     settings: UserSettings
 
 class PostUserSettingsRequest(BaseModel):
-    timezone: Optional[str] = None
-    mfa_enabled: Optional[bool] = None
+    timezone: str | None = None
+    mfa_enabled: bool | None = None
 
 class CreateVirtualUserRequest(BaseModel):
     name: str
     email: str
-    gender: Optional[str] = "other"  # "male", "female", "other"
-    birth: Optional[str] = None
-    blood: Optional[str] = None
+    gender: str | None = "other"  # "male", "female", "other"
+    birth: str | None = None
+    blood: str | None = None
 
 
 def gender_str_to_int(gender_str: str) -> int:
@@ -82,7 +83,7 @@ def gender_str_to_int(gender_str: str) -> int:
     return gender_map.get(gender_str, 0)
 
 
-def gender_int_to_str(gender_int: Optional[int]) -> str:
+def gender_int_to_str(gender_int: int | None) -> str:
     """Convert database integer to gender string"""
     gender_map = {1: "male", 2: "female", 0: "other"}
     return gender_map.get(gender_int, "other")
@@ -146,7 +147,7 @@ async def set_user_settings(
                     )
                 }
         except Exception as e:
-            logging.warning(f"Failed to generate AAL1 token on MFA disable: {e}")
+            logger.warning(f"Failed to generate AAL1 token on MFA disable: {e}")
 
     return JSONResponse(content={"code": 0, "msg": "Okay.", "data": response_data})
 
@@ -154,22 +155,22 @@ async def set_user_settings(
 @router.get("/user/settings")
 async def get_user_settings(
     user_id: str = Depends(verify_token),
-    accept_language: Optional[str] = Header(None),
-    timezone: Optional[str] = Header(None),
+    accept_language: str | None = Header(None),
+    timezone: str | None = Header(None),
 ):
     """Get user settings from database"""
     try:
-        logging.info(f"Getting settings for user: {user_id}, lang: {accept_language}, tz: {timezone}")
+        logger.info(f"Getting settings for user: {user_id}, lang: {accept_language}, tz: {timezone}")
 
         # Get user profile info from health_app_user table
         user_data = await get_user(user_id=user_id)
 
         # Check if user exists and extract data
         if user_data:
-            logging.info(f"Using user data: {user_data}")
+            logger.info(f"Using user data: {user_data}")
         else:
             # User not found or deleted
-            logging.warning(f"No user data found for user_id: {user_id}")
+            logger.warning(f"No user data found for user_id: {user_id}")
 
             return JSONResponse(
                 content={"code": -1, "msg": "User not found"},
@@ -230,7 +231,7 @@ async def get_user_settings(
 
 
     except Exception as e:
-        logging.error(f"Error getting user settings: {str(e)}\n{traceback.format_exc()}")
+        logger.error(f"Error getting user settings: {str(e)}\n{traceback.format_exc()}")
 
         # raise HTTPException(status_code=500, detail="Failed to get user settings")
         return JSONResponse(
@@ -243,12 +244,12 @@ async def get_user_settings(
 async def update_user_settings(
     request: UserSettingsRequest,
     user_id: str = Depends(verify_token),
-    accept_language: Optional[str] = Header(None),
-    timezone: Optional[str] = Header(None),
+    accept_language: str | None = Header(None),
+    timezone: str | None = Header(None),
 ):
     """Update user settings in database"""
     try:
-        logging.info(f"Updating settings for user: {user_id}, request: {request.dict()}")
+        logger.info(f"Updating settings for user: {user_id}, request: {request.dict()}")
 
         settings = request.settings
 
@@ -309,7 +310,7 @@ async def update_user_settings(
         )
 
     except Exception as e:
-        logging.error(f"Error updating user settings: {str(e)}\n{traceback.format_exc()}")
+        logger.error(f"Error updating user settings: {str(e)}\n{traceback.format_exc()}")
         # raise HTTPException(status_code=500, detail="Failed to update user settings")
 
         return JSONResponse(
@@ -324,7 +325,7 @@ async def create_virtual_user(
 ):
     """Create a virtual user and establish beneficiary relationship"""
     try:
-        logging.info(f"Creating virtual user for user: {current_user_id}, request: {request.dict()}")
+        logger.info(f"Creating virtual user for user: {current_user_id}, request: {request.dict()}")
 
         # Check if username already exists
         existing_user = await get_user(email=request.email)
@@ -382,7 +383,7 @@ async def create_virtual_user(
             circle_id, int(virtual_user_id), nickname=virtual_user_name
         )
 
-        logging.info(f"Successfully created virtual user {virtual_user_id} for user {current_user_id}")
+        logger.info(f"Successfully created virtual user {virtual_user_id} for user {current_user_id}")
 
         return JSONResponse(
             content={
@@ -397,7 +398,7 @@ async def create_virtual_user(
         )
 
     except Exception as e:
-        logging.error(f"Error creating virtual user: {str(e)}\n{traceback.format_exc()}")
+        logger.error(f"Error creating virtual user: {str(e)}\n{traceback.format_exc()}")
         
         return JSONResponse(
             content={"code": -1, "msg": f"Failed to create virtual user: {str(e)}"},

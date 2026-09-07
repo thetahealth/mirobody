@@ -1,6 +1,8 @@
-import jwt, secrets, time
+import jwt
+import secrets
+import time
 
-from typing import Callable
+from collections.abc import Callable
 
 from starlette.requests import Request
 
@@ -119,13 +121,15 @@ class JwtTokenValidator(AbstractTokenValidator):
     def __init__(
         self,
         key: str,
-        algorithms  : list[str] = [],
+        algorithms  : list[str] | None = None,
         iss         : str       = "",
         aud         : str       = "",
         client_id   : str       = "",
         scope       : str       = "",
         expires_in  : int       = 0
     ):
+        if algorithms is None:
+            algorithms = []
         self._key       = key
         self._algorithms= algorithms if algorithms else ["HS256"]
         self._iss       = iss if isinstance(iss, str) else "theta_oauth"
@@ -262,7 +266,7 @@ def validator_from_config() -> "JwtTokenValidator":
 
     Claim shape belongs in one place. This is that place.
     """
-    from ..utils.config import global_config
+    from ...utils.config import global_config
 
     opts = global_config().get_jwt_options()
     return JwtTokenValidator(

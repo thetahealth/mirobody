@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-import mirobody.demo as demo
+import mirobody.server.demo as demo
 
 
 def test_member_series_is_thin_normal_and_tells_the_contrast_story():

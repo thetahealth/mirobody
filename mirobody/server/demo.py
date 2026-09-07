@@ -17,8 +17,16 @@ is the point: ask about YOUR HbA1c and you get one normal value from your own
 data; ask about HERS and the answer comes from a record you merely have view
 access to — data isolation you can see, not just read about.
 
-The data is NOT generated here. `care_circle_demo.json.gz` was produced once
-from ESL-Bench (`healthmemoryarena/ESL-Bench`) via the sibling
+The data is NOT generated here and does NOT ship in the wheel. It lives in
+the repo-root `demo/` directory, beside `frontend/`, for the reason that one
+is there too: the application is `git clone && ./deploy.sh` (`requirements.txt`
+is `-e .[app]`), never a `pip install`, so a 230 KB fixture inside the package
+would only be dead weight for the far larger number of people who install the
+LIBRARY. `DEMO_DATA_DIR` overrides the location; a deployment with neither
+logs what it looked for and starts anyway.
+
+`care_circle_demo.json.gz` was produced once from ESL-Bench
+(`healthmemoryarena/ESL-Bench`) via the sibling
 [mirobody-eval](https://github.com/thetahealth/mirobody-eval) and vendored, for
 three reasons: container startup has no business downloading 20 MB from
 HuggingFace, `mirobody-eval` needs an embedding key this repo does not require,
@@ -41,13 +49,16 @@ import gzip
 import json
 import logging
 import os
+from pathlib import Path
 
-_FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "care_circle_demo.json.gz")
+logger = logging.getLogger(__name__)
 
-#: Batch size for the readings insert. `execute_query` with a list of dicts goes
-#: through SQLAlchemy executemany; 1000 keeps the round trips down without
-#: building a multi-megabyte statement.
-_BATCH = 1000
+#: Where the fixture lives: `DEMO_DATA_DIR`, else the repo-root `demo/` beside
+#: this checkout. `parents[2]` because the application always runs from a
+#: source tree (`requirements.txt` is `-e .[app]`); a `pip install` of the
+#: library has no demo data and is not meant to.
+DEMO_DIR = Path(os.environ.get("DEMO_DATA_DIR") or Path(__file__).resolve().parents[2] / "demo")
+FIXTURE = DEMO_DIR / "care_circle_demo.json.gz"
 
 _UPSERT_USER = """
 INSERT INTO health_app_user (is_del, email, name, tz)
@@ -57,22 +68,6 @@ RETURNING id
 """
 
 _SELECT_USER = "SELECT id FROM health_app_user WHERE email = :email AND is_del = FALSE LIMIT 1"
-
-_UPSERT_SERIES = """
-INSERT INTO th_series_data (
-    user_id, indicator, value, start_time, end_time, source_table,
-    source_table_id, comment, indicator_id, source, task_id,
-    fhir_mapping_info, create_time, update_time, deleted
-) VALUES (
-    :user_id, :indicator, :value, :start_time, :end_time, :source_table,
-    :source_table_id, :comment, :indicator_id, :source, :task_id,
-    :fhir_mapping_info, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0
-)
-ON CONFLICT (user_id, indicator, start_time, end_time) DO UPDATE SET
-    value       = EXCLUDED.value,
-    deleted     = 0,
-    update_time = CURRENT_TIMESTAMP
-"""
 
 _UPSERT_FILE = """
 INSERT INTO th_files (
@@ -105,6 +100,27 @@ def enabled() -> bool:
 # "her HbA1c?") answers from two different records with two different
 # stories. All values are ordinary-normal; dates are fixed so replays upsert
 # the same rows.
+
+#: The string the end-to-end PHI check greps the running container's logs for.
+#:
+#: The discipline has a static layer (`testing.phi_lint`, which reads the AST of
+#: every log statement) and a runtime one (`ops.PHIPolicy`, a logging filter).
+#: This is the third, and the only one that tests the SYSTEM: a redaction that
+#: holds in unit tests and not in the container is not a redaction.
+#:
+#: It is a STRING, not an odd number, on purpose. A leaked bare value is
+#: indistinguishable from any other number in a log; a leaked comment is
+#: unambiguous, and a comment is free-text health data — the thing the column
+#: encryption at rest exists to protect. It rides on an existing row's comment
+#: rather than on a row of its own, so the demo's charts are unchanged.
+#:
+#: Demo data only, and the demo never seeds under PRODUCTION.
+PHI_CANARY = "self-tracked PHI-CANARY-3f9a"
+
+#: Which row from the end carries it. The last one is the storyline's HbA1c and
+#: its comment is read by a walkthrough, so the canary sits one before.
+_CANARY_ROW = 3
+
 
 def _member_series(member_id: str, email: str) -> list[dict]:
     common = {
@@ -146,6 +162,8 @@ def _member_series(member_id: str, email: str) -> list[dict]:
     for day, pct in (("2024-11-12", 5.3), ("2025-05-06", 5.2)):
         rows.append(row("GlycatedHemoglobin-HbA1c", pct, day, "%",
                         "Annual checkup lab draw", time="09:15:00"))
+    # The PHI sentinel rides on one of these rows — see PHI_CANARY.
+    rows[-_CANARY_ROW]["comment"] = PHI_CANARY
     return rows
 
 
@@ -193,15 +211,19 @@ async def _put_blob(file_key: str, text: str) -> None:
             content_type="text/markdown",
         )
         if err:
-            logging.warning(f"demo seed: could not store blob {file_key}: {err}")
+            logger.warning("demo seed: could not store a blob: error_type=%s", type(err).__name__)
     except Exception as e:
-        logging.warning(f"demo seed: could not store blob {file_key}: {e}")
+        logger.warning("demo seed: could not store a blob: error_type=%s", type(e).__name__)
 
 
 async def _seed_member_own_data(execute_query, member_id: str, email: str) -> int:
     """Give a sign-in account its own thin record. Returns readings written."""
+    # Imported here, not at module top: the sibling `_member_series` test runs
+    # on a bare `pip install mirobody`, and `pulse.readings` pulls in `utils`.
+    from ..pulse.readings import upsert_readings
+
     rows = _member_series(member_id, email)
-    await execute_query(_UPSERT_SERIES, rows, log_sql=False)
+    await upsert_readings(rows, on_conflict="update_revive")
 
     body = _MEMBER_DOCUMENT["body"]
     member_file_key = f"demo/{email}/{_MEMBER_DOCUMENT['name']}"
@@ -236,11 +258,13 @@ async def seed(member_emails: list[str]) -> None:
     from ..user import care_circle as cc
     from ..utils import execute_query
 
-    if not os.path.isfile(_FIXTURE):
-        logging.warning("demo seed skipped: %s is missing", _FIXTURE)
+    if not FIXTURE.is_file():
+        # A pip install of the library, or a checkout without the fixture:
+        # say where it was looked for rather than starting an empty demo.
+        logger.warning("demo seed skipped: no care-circle fixture on disk (set DEMO_DATA_DIR)")
         return
 
-    with gzip.open(_FIXTURE, "rt", encoding="utf-8") as fh:
+    with gzip.open(FIXTURE, "rt", encoding="utf-8") as fh:
         fixture = json.load(fh)
 
     owner = fixture["owner"]
@@ -256,22 +280,15 @@ async def seed(member_emails: list[str]) -> None:
         row = await execute_query(_SELECT_USER, {"email": owner["email"]}, log_sql=False)
         owner_id = str(row[0]["id"]) if row else ""
     if not owner_id:
-        logging.error("demo seed aborted: could not resolve an id for %s", owner["email"])
+        logger.error("demo seed aborted: the owner account has no id")
         return
 
+    # A replay must bring the shared record back whatever a walkthrough did to
+    # it — hence "update_revive", not the device-sync "update".
+    from ..pulse.readings import upsert_readings
+
     series = fixture.get("series") or []
-    batch: list[dict] = []
-    written = 0
-    for r in series:
-        r = dict(r, user_id=owner_id)
-        batch.append(r)
-        if len(batch) >= _BATCH:
-            await execute_query(_UPSERT_SERIES, batch, log_sql=False)
-            written += len(batch)
-            batch.clear()
-    if batch:
-        await execute_query(_UPSERT_SERIES, batch, log_sql=False)
-        written += len(batch)
+    written_count = await upsert_readings([dict(r, user_id=owner_id) for r in series], on_conflict="update_revive")
 
     for doc in fixture.get("documents") or []:
         body = doc["body"]
@@ -326,12 +343,11 @@ async def seed(member_emails: list[str]) -> None:
         await _seed_member_own_data(execute_query, member_id, email)
         shared.append(email)
 
-    logging.info(
-        "demo seed: %s → %d readings, %d documents; care circle shared with %s "
-        "(each member also gets their own thin record: ~%d readings + 1 checkup "
-        "document). %s",
-        owner["email"], written, len(fixture.get("documents") or []),
-        ", ".join(shared) or "(nobody)",
+    logger.info(
+        "demo seed: %d readings, %d documents; care circle shared with %d member(s) "
+        "(each also gets their own thin record: ~%d readings + 1 checkup document)",
+        written_count,
+        len(fixture.get("documents") or []),
+        len(shared),
         len(_member_series("0", "x@x")),
-        fixture.get("note", ""),
     )

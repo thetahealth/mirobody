@@ -1,4 +1,10 @@
-import aiohttp, base64, jwt, logging, time
+import aiohttp
+import base64
+import jwt
+import logging
+import time
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -36,8 +42,7 @@ class AppleTokenValidator:
                 self.private_key = s
 
             except Exception as e:
-                logging.warning(e)
-                pass
+                logger.warning(e)
 
 
     #-------------------------------------------------------------------------

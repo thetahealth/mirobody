@@ -28,6 +28,8 @@ from __future__ import annotations
 import logging
 import os
 
+logger = logging.getLogger(__name__)
+
 _SCHEMA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "schema")
 
 
@@ -66,7 +68,7 @@ def enforce_production_auth_safety(config) -> None:
         # convention, and everything this guard prevents would sail through.
         env_name = (os.environ.get("ENV") or "").strip()
         if "prod" in env_name.lower():
-            logging.warning(
+            logger.warning(
                 "ENV=%s looks like a production deployment, but PRODUCTION is "
                 "not set — demo login codes and placeholder secrets are NOT "
                 "being rejected. Environment names carry no behavior; set "
@@ -118,16 +120,16 @@ async def create_schema(config) -> None:
                 if schema and isinstance(schema, str) and schema != "public":
                     try:
                         await cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema};")
-                        logging.info(f"Schema {schema} has been created.")
+                        logger.info(f"Schema {schema} has been created.")
                     except Exception as e:
-                        logging.error(str(e), exc_info=True)
+                        logger.error(str(e), exc_info=True)
 
             # The DDL ships INSIDE the package: `mirobody serve` creating its own
             # tables is a capability, so it has to travel with the wheel. It is
             # deliberately not under `mirobody/res/`, which LICENSE-3RD-PARTY
             # describes as derived from UMLS/SNOMED/LOINC — our DDL is not.
             if not os.path.isdir(_SCHEMA_DIR):
-                logging.warning(
+                logger.warning(
                     "schema bootstrap skipped: %s is missing. Provision the schema "
                     "yourself, or reinstall the package.", _SCHEMA_DIR,
                 )
@@ -136,17 +138,28 @@ async def create_schema(config) -> None:
             for filename in sorted(os.listdir(_SCHEMA_DIR)):
                 if not filename.endswith(".sql"):
                     continue
-                with open(os.path.join(_SCHEMA_DIR, filename), "r", encoding="utf-8") as f:
+                with open(os.path.join(_SCHEMA_DIR, filename), encoding="utf-8") as f:
                     statements = f.read()
                 try:
                     await cur.execute(statements)
                     await conn.commit()
-                    logging.info(f"SQL file {filename} executed successfully.")
+                    logger.info(f"SQL file {filename} executed successfully.")
                 except Exception as e:
-                    logging.error(str(e), exc_info=True, extra={"sql_filename": filename})
+                    logger.error(str(e), exc_info=True, extra={"sql_filename": filename})
                     await conn.rollback()
 
-            logging.info("SQL files initialization completed.")
+            logger.info("SQL files initialization completed.")
+
+    # The DDL adds the day columns; this fills them on the rows that predate
+    # them, so a day-grained read never has to fall back to padding a naive
+    # timestamp a day each way. Idempotent and bounded — see pulse/backfill.py.
+    try:
+        from ..pulse.backfill import backfill_day_columns
+        await backfill_day_columns()
+    except Exception as e:
+        # A history that is not backfilled still reads correctly, with
+        # `window_semantics="date_padded_naive"`. Never a boot failure.
+        logger.warning("day-column backfill skipped: error_type=%s", type(e).__name__)
 
 async def seed_demo_data(config) -> None:
     """Load the care-circle demo fixture when `SEED_DEMO_DATA` says so.
@@ -160,7 +173,7 @@ async def seed_demo_data(config) -> None:
     Failure is logged and swallowed. A demo that cannot load is a disappointing
     first run; a server that will not boot because of one is worse.
     """
-    from ..demo import enabled, seed
+    from .demo import enabled, seed
 
     if not enabled():
         return
@@ -169,14 +182,14 @@ async def seed_demo_data(config) -> None:
         # Synthetic patients do not belong in a store that also holds real
         # ones. (With EMAIL_PREDEFINE_CODES already rejected at boot under
         # PRODUCTION, the seed's care circle would have no owner anyway.)
-        logging.warning(
+        logger.warning(
             "SEED_DEMO_DATA is set but PRODUCTION is set too — skipping demo seed."
         )
         return
 
     members = list((config.get_dict("EMAIL_PREDEFINE_CODES", {}) or {}).keys())
     if not members:
-        logging.warning(
+        logger.warning(
             "SEED_DEMO_DATA is set but EMAIL_PREDEFINE_CODES is empty — seeded data "
             "would belong to a care circle nobody can sign in to. Skipping."
         )
@@ -185,4 +198,4 @@ async def seed_demo_data(config) -> None:
     try:
         await seed(members)
     except Exception as e:
-        logging.error("demo seed failed: %s", e, exc_info=True)
+        logger.error("demo seed failed: %s", e, exc_info=True)

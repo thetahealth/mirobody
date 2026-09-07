@@ -6,7 +6,7 @@ import logging
 import json
 import time
 import zlib
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, Header, Request, status
 from fastapi.responses import JSONResponse
@@ -16,15 +16,17 @@ from ...pulse.apple.statistics_service import process_apple_health_statistics
 from ...pulse.manager import platform_manager
 from ..auth import verify_token
 
+logger = logging.getLogger(__name__)
+
 # Create router
 router = APIRouter(prefix="/apple", tags=["apple_health"])
 
 
 async def _process_request_data(
         request: Request,
-        content_encoding: Optional[str] = Header(None, alias="content-encoding"),
-        content_type: Optional[str] = Header(None, alias="content-type"),
-) -> Dict[str, Any]:
+        content_encoding: str | None = Header(None, alias="content-encoding"),
+        content_type: str | None = Header(None, alias="content-type"),
+) -> dict[str, Any]:
     """
     Process request data, supports gzip compression
 
@@ -43,7 +45,7 @@ async def _process_request_data(
         # Read raw request body
         raw_body = await request.body()
         
-        logging.info(f"Raw body size: {len(raw_body)} bytes, content_encoding: {content_encoding}, content_type: {content_type}")
+        logger.info(f"Raw body size: {len(raw_body)} bytes, content_encoding: {content_encoding}, content_type: {content_type}")
 
         # If gzip compressed, decompress first — with a ceiling. A compressed
         # body is attacker-shaped input: gzip reaches ~1000:1, so a 100 MB
@@ -83,7 +85,7 @@ async def _process_request_data(
         return data
 
     except Exception as e:
-        logging.error(f"Failed to process request data: {str(e)}", stack_info=True)
+        logger.error(f"Failed to process request data: {str(e)}", stack_info=True)
         raise
 
 
@@ -91,8 +93,8 @@ async def _process_request_data(
 async def process_apple_health_data(
         request: Request,
         current_user: str = Depends(verify_token),
-        content_encoding: Optional[str] = Header(None, alias="content-encoding"),
-        content_type: Optional[str] = Header(None, alias="content-type"),
+        content_encoding: str | None = Header(None, alias="content-encoding"),
+        content_type: str | None = Header(None, alias="content-type"),
 ) -> JSONResponse:
     """
     Process Apple Health data
@@ -131,14 +133,14 @@ async def process_apple_health_data(
         try:
             validated_data = AppleHealthRequest(**raw_data)
         except Exception as e:
-            logging.error(f"Data validation failed: {str(e)}")
+            logger.error(f"Data validation failed: {str(e)}")
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={"success": False, "message": f"Invalid request data: {str(e)}"},
             )
 
         # Add debug log
-        logging.info(f"Validated data: request_id={validated_data.request_id}, "
+        logger.info(f"Validated data: request_id={validated_data.request_id}, "
             f"timezone={validated_data.metaInfo.timezone}, "
             f"time_cost={(t2 - t1) * 1e3}, "
             f"healthData_count={len(validated_data.healthData)}")
@@ -166,7 +168,7 @@ async def process_apple_health_data(
         t3 = time.time()
 
         # Add result log
-        logging.info(f"Processing result: success={success}, taskId={validated_data.metaInfo.taskId}, time_cost={(t3 - t2) * 1e3}")
+        logger.info(f"Processing result: success={success}, taskId={validated_data.metaInfo.taskId}, time_cost={(t3 - t2) * 1e3}")
 
         if success:
             return JSONResponse(
@@ -179,16 +181,15 @@ async def process_apple_health_data(
                     "msg": "Apple Health data processed successfully"
                 },
             )
-        else:
-            return JSONResponse(
-                status_code=status.HTTP_200_OK,
-                content={
-                    "success": False, 
-                    "code": 1,
-                    "message": "Apple Health data processing failed",
-                    "msg": "Apple Health data processing failed"
-                },
-            )
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "success": False, 
+                "code": 1,
+                "message": "Apple Health data processing failed",
+                "msg": "Apple Health data processing failed"
+            },
+        )
 
     except ValueError as e:
         # Data parsing error
@@ -202,7 +203,7 @@ async def process_apple_health_data(
             },
         )
     except Exception as e:
-        logging.error(f"Service error occurred: {str(e)}", stack_info=True)
+        logger.error(f"Service error occurred: {str(e)}", stack_info=True)
 
         return JSONResponse(
             status_code=status.HTTP_200_OK,
@@ -219,8 +220,8 @@ async def process_apple_health_data(
 async def process_apple_health_statistics_data(
         request: Request,
         current_user: str = Depends(verify_token),
-        content_encoding: Optional[str] = Header(None, alias="content-encoding"),
-        content_type: Optional[str] = Header(None, alias="content-type"),
+        content_encoding: str | None = Header(None, alias="content-encoding"),
+        content_type: str | None = Header(None, alias="content-type"),
 ) -> JSONResponse:
     """
     Process Apple Health pre-aggregated statistics data (TH-154)
@@ -257,13 +258,13 @@ async def process_apple_health_statistics_data(
         try:
             validated_data = AppleHealthStatisticsRequest(**raw_data)
         except Exception as e:
-            logging.error(f"Statistics data validation failed: {str(e)}")
+            logger.error(f"Statistics data validation failed: {str(e)}")
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={"code": 1, "data": None, "msg": f"Invalid request data: {str(e)}"},
             )
 
-        logging.info(
+        logger.info(
             f"Statistics request: user={current_user}, "
             f"statistics_count={len(validated_data.statistics)}, "
             f"default_tz={validated_data.metaInfo.timezone}"
@@ -282,7 +283,7 @@ async def process_apple_health_statistics_data(
             content={"code": 1, "data": None, "msg": f"Request data parsing failed: {str(e)}"},
         )
     except Exception as e:
-        logging.error(f"Statistics processing error: {str(e)}", stack_info=True)
+        logger.error(f"Statistics processing error: {str(e)}", stack_info=True)
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={"code": 1, "data": None, "msg": f"Processing failed: {str(e)}"},
@@ -293,8 +294,8 @@ async def process_apple_health_statistics_data(
 async def process_apple_cda_data(
         request: Request,
         current_user: str = Depends(verify_token),
-        content_encoding: Optional[str] = Header(None, alias="content-encoding"),
-        content_type: Optional[str] = Header(None, alias="content-type"),
+        content_encoding: str | None = Header(None, alias="content-encoding"),
+        content_type: str | None = Header(None, alias="content-type"),
 ) -> JSONResponse:
     """
     Process Apple Health CDA (Clinical Document Architecture) data
@@ -347,11 +348,10 @@ async def process_apple_cda_data(
                     "message": "Apple CDA data processed successfully",
                 },
             )
-        else:
-            return JSONResponse(
-                status_code=status.HTTP_200_OK,
-                content={"success": False, "message": "Apple CDA data processing failed"},
-            )
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"success": False, "message": "Apple CDA data processing failed"},
+        )
 
     except ValueError as e:
         # Data parsing error
@@ -360,7 +360,7 @@ async def process_apple_cda_data(
             content={"success": False, "message": f"Request data parsing failed: {str(e)}"},
         )
     except Exception as e:
-        logging.error(f"Service error occurred: {str(e)}", stack_info=True)
+        logger.error(f"Service error occurred: {str(e)}", stack_info=True)
 
         return JSONResponse(
             status_code=status.HTTP_200_OK, content={"success": False, "message": f"Processing failed: {str(e)}"}

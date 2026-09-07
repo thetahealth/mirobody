@@ -1,4 +1,8 @@
-import base64, json, logging, secrets, time
+import base64
+import json
+import logging
+import secrets
+import time
 
 from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
@@ -21,9 +25,8 @@ from webauthn.helpers.structs import (
 )
 
 from .jwt import AbstractTokenValidator
-from .user import add_or_get_user
 
-from ..utils import (
+from ...utils import (
     json_response_with_code,
     json_response,
     get_jwt_token,
@@ -32,7 +35,9 @@ from ..utils import (
     Route,
 )
 
-from .user import get_user
+from ..user import get_user
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -123,7 +128,7 @@ class WebAuthnService:
         self.routes.append(Route(f"{uri_prefix}/auth/session/reauth/options", endpoint=self.session_reauth_options_handler, methods=["POST", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/auth/session/reauth/verify", endpoint=self.session_reauth_verify_handler, methods=["POST", "OPTIONS"]))
 
-        logging.info(f"WebAuthn enabled: rp_id={self._rp_id}, origin={self._origin}")
+        logger.info(f"WebAuthn enabled: rp_id={self._rp_id}, origin={self._origin}")
 
     #-------------------------------------------------------------------------
     # Database operations
@@ -174,7 +179,7 @@ class WebAuthnService:
                     (user_id, credential_id, public_key, sign_count, transports, aaguid)
                 )
         except Exception as e:
-            logging.error(f"Failed to save WebAuthn credential: {e}")
+            logger.error(f"Failed to save WebAuthn credential: {e}")
             return str(e)
 
         return None
@@ -193,7 +198,7 @@ class WebAuthnService:
                     (new_sign_count, credential_id)
                 )
         except Exception as e:
-            logging.error(f"Failed to update sign count: {e}")
+            logger.error(f"Failed to update sign count: {e}")
 
     #-------------------------------------------------------------------------
     # Challenge storage (Redis)
@@ -271,7 +276,7 @@ class WebAuthnService:
             row = await get_user(user_id=user_id)
             return bool(row and row["mfa_enabled"])
         except Exception as e:
-            logging.warning(f"Failed to check mfa_enabled for user {user_id}: {e}")
+            logger.warning(f"Failed to check mfa_enabled for user {user_id}: {e}")
             return False
 
     async def check_mfa_required(self, user_id: int, email: str) -> dict | None:
@@ -393,7 +398,7 @@ class WebAuthnService:
                 require_user_verification=True,
             )
         except Exception as e:
-            logging.error(f"WebAuthn registration verification failed: {e}")
+            logger.error(f"WebAuthn registration verification failed: {e}")
             return json_response_with_code(-3, str(e), request=request)
 
         # Extract transports from the original request (not from verification result).
@@ -424,7 +429,7 @@ class WebAuthnService:
         access_token, refresh_token, err = await self._token_validator.generate_tokens(
             str(user_id),
             email,
-            gen_claims_func=lambda uid, em: _aal2_claims(),
+            gen_claims_func=lambda _uid, _em: _aal2_claims(),
             expires_in=AAL2_SESSION_IDLE_TIMEOUT,
         )
         if err:
@@ -561,7 +566,7 @@ class WebAuthnService:
                 require_user_verification=True,
             )
         except Exception as e:
-            logging.error(f"WebAuthn authentication verification failed: {e}")
+            logger.error(f"WebAuthn authentication verification failed: {e}")
             return json_response_with_code(-5, str(e), request=request)
 
         # Update sign count.
@@ -574,7 +579,7 @@ class WebAuthnService:
         access_token, refresh_token, err = await self._token_validator.generate_tokens(
             str(user_id),
             email,
-            gen_claims_func=lambda uid, em: _aal2_claims(),
+            gen_claims_func=lambda _uid, _em: _aal2_claims(),
             expires_in=AAL2_SESSION_IDLE_TIMEOUT,
         )
         if err:
@@ -693,7 +698,7 @@ class WebAuthnService:
                 require_user_verification=True,
             )
         except Exception as e:
-            logging.error(f"WebAuthn upgrade verification failed: {e}")
+            logger.error(f"WebAuthn upgrade verification failed: {e}")
             return json_response_with_code(-5, str(e), request=request)
 
         await self.update_sign_count(
@@ -705,7 +710,7 @@ class WebAuthnService:
         access_token, refresh_token, err = await self._token_validator.generate_tokens(
             str(user_id),
             email,
-            gen_claims_func=lambda uid, em: _aal2_claims(),
+            gen_claims_func=lambda _uid, _em: _aal2_claims(),
             expires_in=AAL2_SESSION_IDLE_TIMEOUT,
         )
         if err:
@@ -769,7 +774,7 @@ class WebAuthnService:
         access_token, _, err = await self._token_validator.generate_tokens(
             str(user_id),
             email,
-            gen_claims_func=lambda uid, em: _aal2_claims(session_start=session_start),
+            gen_claims_func=lambda _uid, _em: _aal2_claims(session_start=session_start),
             expires_in=AAL2_SESSION_IDLE_TIMEOUT,
         )
         if err:
@@ -901,7 +906,7 @@ class WebAuthnService:
                 require_user_verification=True,
             )
         except Exception as e:
-            logging.error(f"WebAuthn session re-auth verification failed: {e}")
+            logger.error(f"WebAuthn session re-auth verification failed: {e}")
             return json_response_with_code(-5, str(e), request=request)
 
         await self.update_sign_count(
@@ -913,7 +918,7 @@ class WebAuthnService:
         access_token, refresh_token, err = await self._token_validator.generate_tokens(
             str(user_id),
             email,
-            gen_claims_func=lambda uid, em: _aal2_claims(),
+            gen_claims_func=lambda _uid, _em: _aal2_claims(),
             expires_in=AAL2_SESSION_IDLE_TIMEOUT,
         )
         if err:

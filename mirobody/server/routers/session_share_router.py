@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 from mirobody.agent.chat import session as chat_session
 from mirobody.server.auth import verify_token
 
+logger = logging.getLogger(__name__)
+
 # Create router
 router = APIRouter(prefix="/api/share", tags=["session-share"])
 
@@ -58,7 +60,7 @@ async def create_share_session(
         Response containing share_session_id
     """
     try:
-        logging.info(f"User {current_user} requesting share session for session {request.session_id}")
+        logger.info(f"User {current_user} requesting share session for session {request.session_id}")
         
         result = await chat_session.create_or_get_share_session(
             user_id=current_user,
@@ -68,7 +70,7 @@ async def create_share_session(
         return ShareSessionResponse(**result)
         
     except Exception as e:
-        logging.error(f"Error in create_share_session endpoint: {str(e)}", exc_info=True)
+        logger.error(f"Error in create_share_session endpoint: {str(e)}", exc_info=True)
         return ShareSessionResponse(
             code=-1,
             msg=f"Internal error: {str(e)}",
@@ -113,7 +115,7 @@ async def get_shared_session(
         Response containing chat history in the same format as /api/history
     """
     try:
-        logging.info(f"Public access to share session {share_session_id}")
+        logger.info(f"Public access to share session {share_session_id}")
         
         result = await chat_session.get_shared_session_history(
             share_session_id=share_session_id
@@ -122,7 +124,7 @@ async def get_shared_session(
         return ShareSessionResponse(**result)
         
     except Exception as e:
-        logging.error(f"Error in get_shared_session endpoint: {str(e)}", exc_info=True)
+        logger.error(f"Error in get_shared_session endpoint: {str(e)}", exc_info=True)
         return ShareSessionResponse(
             code=-1,
             msg=f"Internal error: {str(e)}",
@@ -156,7 +158,7 @@ async def deactivate_share_session(
         Response indicating success or failure
     """
     try:
-        logging.info(f"User {current_user} deactivating share session for session {request.session_id}")
+        logger.info(f"User {current_user} deactivating share session for session {request.session_id}")
         
         result = await chat_session.deactivate_share_session(
             user_id=current_user,
@@ -166,7 +168,7 @@ async def deactivate_share_session(
         return ShareSessionResponse(**result)
         
     except Exception as e:
-        logging.error(f"Error in deactivate_share_session endpoint: {str(e)}", exc_info=True)
+        logger.error(f"Error in deactivate_share_session endpoint: {str(e)}", exc_info=True)
         return ShareSessionResponse(
             code=-1,
             msg=f"Internal error: {str(e)}",

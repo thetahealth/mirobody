@@ -20,8 +20,8 @@ the web client called neither, and there is no mobile client. food_router's
 writes were also unreachable by design — it stored records as
 `th_messages.message_type = 'food'`, which `get_chat_history` filters out — so
 only its own /history endpoint could ever read them. skill_router was a CRUD
-API over `th_user_custom_skills`, a table nothing read: DeepAgent's Agent
-Skills come from SKILL_DIRS on disk (see agent/deep_agent._build_backend).
+API over `th_user_custom_skills`, a table nothing read: the agent's Agent
+Skills come from SKILL_DIRS on disk (see agent/agent.py `_build_backend`).
 """
 
 from .apple_router import router as apple_router

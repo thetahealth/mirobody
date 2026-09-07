@@ -1,7 +1,12 @@
 # `mirobody/schema` — the database schema
 
-25 SQL files, applied in filename order by `Server.start()` at boot. Four
+27 SQL files, applied in filename order by `Server.start()` at boot. Four
 baselines (`00`–`10`) create the tables; the rest are incremental `ALTER`s.
+
+The two newest are `a4_series_data_day_authority.sql` (the columns that make a
+day of readings answerable without guessing — see `docs/pipeline.md` §6) and
+`a5_medications.sql` (medications as an entity, because a plan has a schedule
+and a lifecycle and a reading has neither — see `docs/medications.md`).
 
 Gaps in the numbering are deletions, not mistakes — see "Pruning" below.
 
@@ -78,7 +83,8 @@ checking every table and column against the code:
 | `health_vital_webhook` | No query anywhere touched it. |
 | `th_task_flow` | Same; `th_messages.reference_task_id` is read but never written. |
 | `th_user_avatar_managed` | Avatars live in `care_circle_members.avatar_key`, which is what the sharing endpoints actually use. |
-| `th_user_custom_skills` (`31_…`) | Its CRUD router is gone: DeepAgent loads Agent Skills from `SKILL_DIRS` on disk, so nothing ever read this table. |
+| `user_agent_prompt`, `user_mcp_config` (`02_`) | Their six `/api/user/{prompt,mcp}/*` endpoints are gone. Nothing in the shipped client could create a saved prompt (the system prompt has one source, `PROMPTS` in config), and nothing — not the client, not the tool loader — ever read a saved MCP server. The MCP feature this project keeps is the other direction: `POST /personal/mcp` mints the URL a person pastes into Claude Desktop. Existing rows are left in place; the baseline stops creating the tables. |
+| `th_user_custom_skills` (`31_…`) | Its CRUD router is gone: the agent loads Agent Skills from `SKILL_DIRS` on disk, so nothing ever read this table. |
 | `27_add_tags_to_sessions`, `34_add_session_status_fields`, `44_th_sessions_add_status` | `tags`, `read_status`, `write_status`, `ai_status`, `status` — a notes/journal feature that does not exist here. `category` survived (a live `IS NULL` filter) and moved to its owning baseline. |
 | `th_messages.comment` + its GIN trigram index | Never read; its only writer was an argument no caller passed. The index paid trigram maintenance on every insert into the busiest table. |
 | `th_series_data.full_dim_id` + `idx_th_series_data_full_dim_id` (`42_`) | The second key `42_` added beside `fhir_id`, into `indicator_full_dim` — a dimension table no baseline here creates, owned by a service this project no longer runs. Nothing here read or wrote the column, so the index kept a b-tree over an always-NULL column on every insert into `th_series_data`. `fhir_id` stayed: it is live (`_coding_for`). |
@@ -112,8 +118,10 @@ only way to find out is to trace all four readers.
 
 **`fhir_indicators`** — the code registry. `th_series_data.fhir_id` is a FK to
 it, and the join is how a reading's terminology identity reaches a user:
-`_coding_for` (agent/tools/health_indicator_service.py) hands the model a
-`{system, code}` per indicator through it, `FhirAdapter._fetch_db` and
+`_coding_for` (pulse/query.py) hands the model a
+`{system, code}` per indicator through it — falling back to the catalogue's own
+answer (`metrics.canonical`) when the join is empty, so an identity is never
+blank, `FhirAdapter._fetch_db` and
 `_search_fhir` read it, and `IndicatorSyncTask.backfill_from_registry` fills
 `fhir_id` from it.
 
@@ -153,13 +161,24 @@ above.
 If you need to manually initialize the database (e.g., for production):
 
 1.  Ensure the database exists.
-2.  Run the SQL files in order using `psql`:
+2.  Run the SQL files in order using `psql`, **with `search_path` set**:
 
 ```bash
-psql -h $PG_HOST -U $PG_USER -d $PG_DBNAME -f mirobody/schema/00_init_schema.sql
-psql -h $PG_HOST -U $PG_USER -d $PG_DBNAME -f mirobody/schema/01_basedata.sql
-# ... run remaining files
+export PGOPTIONS="-c search_path=$PG_SCHEMA"     # theta_ai, unless you changed it
+for f in mirobody/schema/*.sql; do
+    psql -v ON_ERROR_STOP=1 -h "$PG_HOST" -U "$PG_USER" -d "$PG_DBNAME" -f "$f" || break
+done
 ```
+
+`PGOPTIONS` is the whole point of that first line and it is easy to skip.
+**None of these files name a schema**, because `mirobody serve` connects with
+`-c search_path=<PG_SCHEMA>` already set (`utils/config/postgresql.py`) and a
+hard-coded `theta_ai.` would break any deployment that chose a different one.
+Applied by hand without it, every `CREATE TABLE` lands in `public` while the
+application keeps reading `theta_ai` — and the failure surfaces far away, as
+`relation "th_medication_plan" does not exist` from a tool that looks fine.
+(Written down because it happened: `a5_medications.sql` was applied by hand,
+landed in `public`, and the medications tool reported an internal error.)
 
 ## Adding a change
 

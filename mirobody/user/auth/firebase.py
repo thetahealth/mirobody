@@ -1,8 +1,13 @@
-import aiohttp, jwt, logging, time
+import aiohttp
+import jwt
+import logging
+import time
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -73,7 +78,7 @@ class FirebaseTokenValidator:
                         try:
                             max_age = int(cache_control.split("max-age=")[1].split(",")[0])
                         except Exception as e:
-                            logging.warning(str(e))
+                            logger.warning(str(e))
                     
                     # Get certificates.
                     certs = await response.json()
@@ -96,7 +101,7 @@ class FirebaseTokenValidator:
                             self._public_keys_cache[cert_kid] = pem
 
                         except Exception as e:
-                            logging.error(f"Failed to parse certificate for kid {cert_kid}: {e}")
+                            logger.error(f"Failed to parse certificate for kid {cert_kid}: {e}")
 
                     self._cache_expiry = time.time() + max_age
                     

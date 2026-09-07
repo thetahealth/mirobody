@@ -26,9 +26,9 @@ import json
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
@@ -38,6 +38,8 @@ from ...pulse.core.user import get_platform_user_service
 # Import platform manager
 from ...pulse.manager import platform_manager
 from ..auth import verify_token, verify_token_optional
+
+logger = logging.getLogger(__name__)
 
 # Create router
 router = APIRouter(prefix="/api/v1/pulse", tags=["pulse"])
@@ -60,16 +62,16 @@ class LinkProviderRequest(BaseModel):
     auth_type: AuthType = Field(..., description="Authentication type")
 
     # Authentication credentials (optional)
-    username: Optional[str] = Field(None, description="Username for auth")
-    password: Optional[str] = Field(None, description="Password for auth")
-    token: Optional[str] = Field(None, description="Token for auth")
-    email: Optional[str] = Field(None, description="Email for auth")
-    connect_info: Dict[str, Any] = Field(default_factory=dict, description="Authentication credentials for customized")
+    username: str | None = Field(None, description="Username for auth")
+    password: str | None = Field(None, description="Password for auth")
+    token: str | None = Field(None, description="Token for auth")
+    email: str | None = Field(None, description="Email for auth")
+    connect_info: dict[str, Any] = Field(default_factory=dict, description="Authentication credentials for customized")
 
     # Additional options (optional)
-    redirect_url: Optional[str] = Field(None, description="Redirect URL for OAuth")
-    return_url: Optional[str] = Field(None, description="Frontend return URL after OAuth completes")
-    owner_user_id: Optional[str] = Field(None, description="if sharing device,help link")
+    redirect_url: str | None = Field(None, description="Redirect URL for OAuth")
+    return_url: str | None = Field(None, description="Frontend return URL after OAuth completes")
+    owner_user_id: str | None = Field(None, description="if sharing device,help link")
 
 
 class UnlinkProviderRequest(BaseModel):
@@ -77,7 +79,7 @@ class UnlinkProviderRequest(BaseModel):
 
     provider_slug: str = Field(..., description="Provider slug")
     platform: str = Field(..., description="Platform name")
-    owner_user_id: Optional[str] = Field(None, description="if sharing device, help unlink")
+    owner_user_id: str | None = Field(None, description="if sharing device, help unlink")
 
 
 
@@ -105,28 +107,12 @@ class ProviderWebhookData(BaseModel):
     value: float = Field(..., description="Measurement value")
     unit: str = Field(..., description="Unit of measurement")
     timestamp: int = Field(..., description="Measurement timestamp in milliseconds")
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Optional metadata")
+    metadata: dict[str, Any] | None = Field(default_factory=dict, description="Optional metadata")
 
 
 
 
-# ===== Unified Response Models =====
-
-
-class StandardResponse(BaseModel):
-    """Standard response format"""
-
-    code: int = Field(default=0, description="Response code, 0 indicates success")
-    msg: str = Field(default="ok", description="Response message")
-    data: Dict[str, Any] = Field(default_factory=dict, description="Response data")
-
-
-class ErrorResponse(BaseModel):
-    """Error response format"""
-
-    code: int = Field(default=500, description="Error code")
-    msg: str = Field(..., description="Error details")
-
+from ..envelope import ErrorResponse, StandardResponse
 
 # Import ConnectInfoField for type hints
 from mirobody.user.care_circle import CareCircleDenied, resolve_subject
@@ -140,16 +126,16 @@ class ProviderInfo(BaseModel):
     slug: str = Field(..., description="Provider slug")
     name: str = Field(..., description="Provider name")
     description: str = Field(..., description="Provider description")
-    logo: Optional[str] = Field(None, description="Provider logo URL")
+    logo: str | None = Field(None, description="Provider logo URL")
     supported: bool = Field(default=True, description="Whether supported")
     auth_type: str = Field(default="oauth", description="Authentication type")
     status: str = Field(default=ProviderStatus.AVAILABLE.value, description="Connection status")
     platform: str = Field(..., description="Platform name")
-    connected_at: Optional[str] = Field(default=None, description="Connection time")
-    last_sync_at: Optional[str] = Field(default=None, description="Last sync time")
-    record_count: Optional[int] = Field(default=0, description="Data record count")
-    allow_llm_access: Optional[bool] = Field(default=False, description="AI access permission")
-    connect_info_fields: Optional[List[CoreConnectInfoField]] = Field(
+    connected_at: str | None = Field(default=None, description="Connection time")
+    last_sync_at: str | None = Field(default=None, description="Last sync time")
+    record_count: int | None = Field(default=0, description="Data record count")
+    allow_llm_access: bool | None = Field(default=False, description="AI access permission")
+    connect_info_fields: list[CoreConnectInfoField] | None = Field(
         default=None,
         description="Extra connection fields (e.g., host, port for database providers)"
     )
@@ -160,7 +146,7 @@ class ProviderInfo(BaseModel):
 # User-facing interfaces
 
 
-def _sort_providers_by_priority(providers: List[ProviderInfo]) -> List[ProviderInfo]:
+def _sort_providers_by_priority(providers: list[ProviderInfo]) -> list[ProviderInfo]:
     """
     Sort providers list by priority slugs
     
@@ -225,13 +211,13 @@ def handle_redirect(request: Request, return_url: str, success: bool, platform: 
     return RedirectResponse(url=redirect_url, status_code=302)
 
 
-@router.get("/providers", response_model=Union[StandardResponse, ErrorResponse])
+@router.get("/providers", response_model=StandardResponse | ErrorResponse)
 async def get_providers(
-        current_user: Optional[str] = Depends(verify_token_optional),
-        owner_user_id: Optional[str] = None,
+        current_user: str | None = Depends(verify_token_optional),
+        owner_user_id: str | None = None,
         nocache: bool = False,
-        platform: Optional[str] = None,
-        status: Optional[str] = None
+        platform: str | None = None,
+        status: str | None = None
 ):
     """
     Get available providers list with optional sharing support
@@ -254,11 +240,11 @@ async def get_providers(
                 )
 
             query_user_id = owner_user_id
-            logging.info(f"User {current_user} querying providers for shared user {owner_user_id}")
+            logger.info(f"User {current_user} querying providers for shared user {owner_user_id}")
 
         platform_filter = platform  # Rename to avoid variable shadowing
         all_providers = []
-        logging.info(f"get_providers platform: {len(platform_manager._platforms.items())}, filter: {platform_filter}")
+        logger.info(f"get_providers platform: {len(platform_manager._platforms.items())}, filter: {platform_filter}")
 
         for platform_name, platform_obj in platform_manager._platforms.items():
             if platform_filter and platform_filter != platform_name:
@@ -277,7 +263,7 @@ async def get_providers(
                         platform=platform_name,
                     )
                     all_providers.append(virtual_provider)
-                    logging.info(f"Added virtual provider for solo platform {platform_name}")
+                    logger.info(f"Added virtual provider for solo platform {platform_name}")
                 else:
                     platform_providers = await platform_obj.get_providers(nocache=nocache)
                     for provider in platform_providers:
@@ -296,7 +282,7 @@ async def get_providers(
                         )
                         all_providers.append(provider_info)
             except Exception as e:
-                logging.error(f"Error getting providers from platform {platform_name}: {str(e)}")
+                logger.error(f"Error getting providers from platform {platform_name}: {str(e)}")
                 continue
 
         connected_providers = []
@@ -306,9 +292,9 @@ async def get_providers(
         if query_user_id:
             try:
                 user_providers = await platform_manager.get_user_providers(query_user_id)
-                logging.info(f"Updated connection status for user {query_user_id}")
+                logger.info(f"Updated connection status for user {query_user_id}")
             except Exception as e:
-                logging.error(f"Error getting user providers for {query_user_id}: {str(e)}")
+                logger.error(f"Error getting user providers for {query_user_id}: {str(e)}")
 
         # Create connection info mapping
         user_provider_map = {up.slug: up for up in user_providers}
@@ -345,20 +331,20 @@ async def get_providers(
             await platform_manager.populate_provider_stats(query_user_id, all_providers)
 
         user_info = f" for user {query_user_id}" if query_user_id else " (no user context)"
-        logging.info(f"Retrieved {len(all_providers)} providers{user_info}")
+        logger.info(f"Retrieved {len(all_providers)} providers{user_info}")
         return StandardResponse(
             data={"providers": all_providers, "total": len(all_providers)},
         )
 
     except Exception as e:
-        logging.error(f"Error getting providers: {str(e)}")
+        logger.error(f"Error getting providers: {str(e)}")
         return ErrorResponse(code=500, msg=f"Failed to get providers: {str(e)}")
 
 
-@router.get("/user/providers", response_model=Union[StandardResponse, ErrorResponse])
+@router.get("/user/providers", response_model=StandardResponse | ErrorResponse)
 async def get_user_providers(
         current_user: str = Depends(verify_token),
-        owner_user_id: Optional[str] = None
+        owner_user_id: str | None = None
 ):
     """
     Get user's connected Provider list with optional sharing support
@@ -384,7 +370,7 @@ async def get_user_providers(
                 )
 
             query_user_id = owner_user_id
-            logging.info(f"User {current_user} querying user providers for shared user {owner_user_id}")
+            logger.info(f"User {current_user} querying user providers for shared user {owner_user_id}")
 
         # Get user connections across all Platforms through PlatformManager
         provider_list = await platform_manager.get_user_providers(query_user_id)
@@ -395,11 +381,11 @@ async def get_user_providers(
         )
 
     except Exception as e:
-        logging.error(f"Error getting user providers: {str(e)}")
+        logger.error(f"Error getting user providers: {str(e)}")
         return ErrorResponse(code=500, msg=f"Failed to get user providers: {str(e)}")
 
 
-@router.post("/user/providers/link", response_model=Union[StandardResponse, ErrorResponse])
+@router.post("/user/providers/link", response_model=StandardResponse | ErrorResponse)
 async def link_provider(request: LinkProviderRequest, req: Request, current_user: str = Depends(verify_token)):
     """
     Connect Provider
@@ -427,7 +413,7 @@ async def link_provider(request: LinkProviderRequest, req: Request, current_user
                 )
 
             query_user_id = request.owner_user_id
-            logging.info(f"User {current_user} linking provider for shared user {request.owner_user_id}")
+            logger.info(f"User {current_user} linking provider for shared user {request.owner_user_id}")
 
         # Auto-detect correct platform (based on provider_slug prefix)
         actual_platform = request.platform
@@ -436,7 +422,7 @@ async def link_provider(request: LinkProviderRequest, req: Request, current_user
         # provider platform: theta_ prefix
         if provider_slug.startswith("theta_"):
             actual_platform = "theta"
-            logging.info(f"Auto-detected platform 'theta' from provider_slug '{provider_slug}'")
+            logger.info(f"Auto-detected platform 'theta' from provider_slug '{provider_slug}'")
 
         # Build credentials dictionary
         credentials = {}
@@ -470,11 +456,11 @@ async def link_provider(request: LinkProviderRequest, req: Request, current_user
             credentials=credentials,
             options=options,
         )
-        logging.info(f"Link successful for provider {provider_slug}")
+        logger.info(f"Link successful for provider {provider_slug}")
         return StandardResponse(code=0, msg="ok", data=result_data)
 
     except Exception as e:
-        logging.error(f"Unexpected error: {str(e)}")
+        logger.error(f"Unexpected error: {str(e)}")
         return ErrorResponse(code=400, msg=f"{str(e)}")
 
 
@@ -551,7 +537,7 @@ async def oauth_callback(platform: str, provider: str, request: Request):
     try:
         params = dict(request.query_params)
 
-        logging.info(f"OAuth callback received - platform: {platform}, provider: {provider}")
+        logger.info(f"OAuth callback received - platform: {platform}, provider: {provider}")
 
         # Validation delegated to provider
 
@@ -596,13 +582,13 @@ async def oauth_callback(platform: str, provider: str, request: Request):
         return HTMLResponse(content=_generate_oauth_completion_html(platform, provider, True, result, None))
 
     except Exception as e:
-        logging.error(f"OAuth callback error for {platform}/{provider}: {str(e)}")
+        logger.error(f"OAuth callback error for {platform}/{provider}: {str(e)}")
 
         # Return OAuth error HTML
         return HTMLResponse(content=_generate_oauth_completion_html(platform, provider, False, None, str(e)))
 
 
-@router.post("/user/providers/unlink", response_model=Union[StandardResponse, ErrorResponse])
+@router.post("/user/providers/unlink", response_model=StandardResponse | ErrorResponse)
 async def unlink_provider(request: UnlinkProviderRequest, current_user: str = Depends(verify_token)):
     """
     Unlink Provider connection with optional sharing support
@@ -626,7 +612,7 @@ async def unlink_provider(request: UnlinkProviderRequest, current_user: str = De
                 )
 
             query_user_id = request.owner_user_id
-            logging.info(f"User {current_user} unlinking provider for shared user {request.owner_user_id}")
+            logger.info(f"User {current_user} unlinking provider for shared user {request.owner_user_id}")
 
         # Auto-detect correct platform (based on provider_slug prefix)
         actual_platform = request.platform
@@ -635,10 +621,10 @@ async def unlink_provider(request: UnlinkProviderRequest, current_user: str = De
         # provider platform: theta_ prefix
         if provider_slug.startswith("theta_"):
             actual_platform = "theta"
-            logging.info(f"Auto-detected platform 'theta' from provider_slug '{provider_slug}'")
+            logger.info(f"Auto-detected platform 'theta' from provider_slug '{provider_slug}'")
         # Other cases use platform passed from frontend
         elif actual_platform != request.platform:
-            logging.info(f"Using platform '{actual_platform}' from request")
+            logger.info(f"Using platform '{actual_platform}' from request")
 
         # Call PlatformManager interface
         result_data = await platform_manager.unlink_provider(
@@ -647,26 +633,26 @@ async def unlink_provider(request: UnlinkProviderRequest, current_user: str = De
             platform=actual_platform,
         )
 
-        logging.info(f"Unlink successful for provider {provider_slug}")
+        logger.info(f"Unlink successful for provider {provider_slug}")
         return StandardResponse(code=0, msg="ok", data=result_data)
 
     except ValueError as e:
         # Parameter validation error (400)
-        logging.error(f"Validation error: {str(e)}")
+        logger.error(f"Validation error: {str(e)}")
         return ErrorResponse(code=400, msg=str(e))
     except RuntimeError as e:
         # Business logic error (500)
-        logging.error(f"Runtime error: {str(e)}")
+        logger.error(f"Runtime error: {str(e)}")
         return ErrorResponse(code=500, msg=str(e))
     except Exception as e:
         # Other unknown errors (500)
-        logging.error(f"Unexpected error: {str(e)}")
+        logger.error(f"Unexpected error: {str(e)}")
         return ErrorResponse(code=500, msg=f"Failed to unlink provider: {str(e)}")
 
 
 @router.post(
     "/user/providers/update-llm-access",
-    response_model=Union[StandardResponse, ErrorResponse],
+    response_model=StandardResponse | ErrorResponse,
 )
 async def update_llm_access(request: UpdateLlmAccessRequest, current_user: str = Depends(verify_token)):
     """
@@ -685,7 +671,7 @@ async def update_llm_access(request: UpdateLlmAccessRequest, current_user: str =
         # provider platform: theta_ prefix
         if provider_slug.startswith("theta_"):
             actual_platform = "theta"
-            logging.info(f"Auto-detected platform 'theta' from provider_slug '{provider_slug}'")
+            logger.info(f"Auto-detected platform 'theta' from provider_slug '{provider_slug}'")
 
         llm_access = 0
         if request.llm_access:
@@ -698,26 +684,26 @@ async def update_llm_access(request: UpdateLlmAccessRequest, current_user: str =
             llm_access=llm_access,
         )
 
-        logging.info(
+        logger.info(
             f"Updated LLM access for provider {provider_slug} to {request.llm_access} for user {current_user}"
         )
         return StandardResponse(code=0, msg="ok", data=result_data)
 
     except ValueError as e:
         # Parameter validation error (400)
-        logging.error(f"Validation error: {str(e)}")
+        logger.error(f"Validation error: {str(e)}")
         return ErrorResponse(code=400, msg=str(e))
     except RuntimeError as e:
         # Business logic error (500)
-        logging.error(f"Runtime error: {str(e)}")
+        logger.error(f"Runtime error: {str(e)}")
         return ErrorResponse(code=500, msg=str(e))
     except Exception as e:
         # Other unknown errors (500)
-        logging.error(f"Unexpected error: {str(e)}")
+        logger.error(f"Unexpected error: {str(e)}")
         return ErrorResponse(code=500, msg=f"Failed to update LLM access: {str(e)}")
 
 
-@router.post("/vital/generate-sign-in-token", response_model=Union[StandardResponse, ErrorResponse])
+@router.post("/vital/generate-sign-in-token", response_model=StandardResponse | ErrorResponse)
 async def generate_vital_sign_in_token(
         current_user: str = Depends(verify_token)
 ):
@@ -758,7 +744,7 @@ async def generate_vital_sign_in_token(
 
         if not token_result.get("success"):
             error_msg = token_result.get("error", "Unknown error")
-            logging.error(f"Failed to generate vital sign-in token: {error_msg}")
+            logger.error(f"Failed to generate vital sign-in token: {error_msg}")
             return ErrorResponse(code=500, msg=f"Failed to generate sign-in token: {error_msg}")
 
         # 4. Build response data matching Junction docs format
@@ -769,7 +755,7 @@ async def generate_vital_sign_in_token(
             "sign_in_token": token_data.get("sign_in_token")
         }
 
-        logging.info(f"Generated vital sign-in token for user {current_user}")
+        logger.info(f"Generated vital sign-in token for user {current_user}")
 
         return StandardResponse(
             code=0,
@@ -779,19 +765,19 @@ async def generate_vital_sign_in_token(
 
     except ValueError as e:
         # Parameter validation error
-        logging.error(f"Validation error generating vital sign-in token: {str(e)}")
+        logger.error(f"Validation error generating vital sign-in token: {str(e)}")
         return ErrorResponse(code=400, msg=str(e))
     except RuntimeError as e:
         # Business logic error
-        logging.error(f"Runtime error generating vital sign-in token: {str(e)}")
+        logger.error(f"Runtime error generating vital sign-in token: {str(e)}")
         return ErrorResponse(code=500, msg=str(e))
     except Exception as e:
         # Other unknown errors
-        logging.error(f"Unexpected error generating vital sign-in token: {str(e)}")
+        logger.error(f"Unexpected error generating vital sign-in token: {str(e)}")
         return ErrorResponse(code=500, msg=f"Internal error: {str(e)}")
 
 
-@router.post("/{platform}/webhook", response_model=Union[StandardResponse, ErrorResponse])
+@router.post("/{platform}/webhook", response_model=StandardResponse | ErrorResponse)
 async def universal_webhook(platform: str, request: Request):
     """
     Universal Platform Webhook Interface
@@ -814,9 +800,9 @@ async def universal_webhook(platform: str, request: Request):
         provider_slug = await get_provider_slug(platform, event_data)
 
         # Log request
-        logging.info(f"Universal webhook received - platform: {platform}, provider_slug: {provider_slug}, msg_id: {msg_id}")
+        logger.info(f"Universal webhook received - platform: {platform}, provider_slug: {provider_slug}, msg_id: {msg_id}")
         if not provider_slug:
-            logging.warning("provider_slug is None")
+            logger.warning("provider_slug is None")
         # Call PlatformManager to process data (built-in idempotency based on msg_id)
         success = await platform_manager.post_data(platform, provider_slug, event_data, msg_id)
         if success:
@@ -828,21 +814,20 @@ async def universal_webhook(platform: str, request: Request):
                     "msg_id": msg_id,
                 }
             )
-        else:
-            return ErrorResponse(code=500, msg="Failed to process webhook data")
+        return ErrorResponse(code=500, msg="Failed to process webhook data")
 
     except json.JSONDecodeError as e:
         error_msg = f"JSON parse error: {str(e)}"
-        logging.error(error_msg)
+        logger.error(error_msg)
         return ErrorResponse(code=400, msg=error_msg)
 
     except Exception as e:
         error_msg = f"Error processing webhook: {str(e)}"
-        logging.error(error_msg)
+        logger.error(error_msg)
         return ErrorResponse(code=500, msg=error_msg)
 
 
-@router.post("/{platform}/{provider}/webhook", response_model=Union[StandardResponse, ErrorResponse])
+@router.post("/{platform}/{provider}/webhook", response_model=StandardResponse | ErrorResponse)
 async def provider_specific_webhook(platform: str, provider: str, request: Request):
     """
     Provider-Specific Platform Webhook Interface
@@ -865,7 +850,7 @@ async def provider_specific_webhook(platform: str, provider: str, request: Reque
         event_data = json.loads(raw_body_str)
 
         # Log request with explicit provider info and complete raw data
-        logging.info(f"Provider-specific webhook received - platform: {platform}, provider: {provider}, msg_id: {msg_id}")
+        logger.info(f"Provider-specific webhook received - platform: {platform}, provider: {provider}, msg_id: {msg_id}")
 
         # Call PlatformManager to process data with explicit provider
         success = await platform_manager.post_data(platform, provider, event_data, msg_id)
@@ -879,21 +864,20 @@ async def provider_specific_webhook(platform: str, provider: str, request: Reque
                     "msg_id": msg_id,
                 }
             )
-        else:
-            return ErrorResponse(code=500, msg="Failed to process provider webhook data")
+        return ErrorResponse(code=500, msg="Failed to process provider webhook data")
 
     except json.JSONDecodeError as e:
         error_msg = f"JSON parse error: {str(e)}"
-        logging.error(error_msg)
+        logger.error(error_msg)
         return ErrorResponse(code=400, msg=error_msg)
 
     except Exception as e:
         error_msg = f"Error processing provider webhook: {str(e)}"
-        logging.error(error_msg)
+        logger.error(error_msg)
         return ErrorResponse(code=500, msg=error_msg)
 
 
-async def get_provider_slug(platform: str, event_data: Dict[str, Any]) -> Optional[str]:
+async def get_provider_slug(platform: str, event_data: dict[str, Any]) -> str | None:
     try:
         # Top-level `source`: some platforms send it as a bare string.
         top_level_source = event_data.get("source")
@@ -906,12 +890,12 @@ async def get_provider_slug(platform: str, event_data: Dict[str, Any]) -> Option
             s = source_info.get("slug")
             p = source_info.get("provider", s)
             if s and p and s != p:
-                logging.error(f"{platform} slug not equal provider {s} != {p}")
+                logger.error(f"{platform} slug not equal provider {s} != {p}")
             return p
 
         return None
     except Exception as e:
-        logging.error(f"Error extracting provider_slug for platform {platform}: {str(e)}")
+        logger.error(f"Error extracting provider_slug for platform {platform}: {str(e)}")
         return None
 
 
@@ -922,7 +906,7 @@ async def get_msg_id(request: Request) -> str:
     return msg_id
 
 
-@router.post("/{platform}/token", response_model=Union[StandardResponse, ErrorResponse])
+@router.post("/{platform}/token", response_model=StandardResponse | ErrorResponse)
 async def get_theta_token(platform: str, request: ProviderTokenRequest):
     """
     Get Provider user token API
@@ -943,20 +927,20 @@ async def get_theta_token(platform: str, request: ProviderTokenRequest):
         user_id = request.user_id
         certification = request.certification
 
-        logging.info(f"Get theta token request - provider_slug: {provider_slug}, user_id: {user_id}")
+        logger.info(f"Get theta token request - provider_slug: {provider_slug}, user_id: {user_id}")
 
         platform_entity = platform_manager.get_platform(platform)
         if not platform_entity:
-            logging.error("platform not available")
+            logger.error("platform not available")
             return ErrorResponse(code=503, msg="provider platform not available")
 
         provider = platform_entity.get_provider(provider_slug)
         if not provider:
-            logging.error(f"Provider {provider_slug} not found")
+            logger.error(f"Provider {provider_slug} not found")
             return ErrorResponse(code=404, msg=f"Provider {provider_slug} not found")
 
 
-        await provider._validate_credentials(user_id, certification)
+        await provider._validate_credentials({"username": user_id, "password": certification})
         user = get_platform_user_service()
         from mirobody.utils.config import get_default_timezone
         app_user_id = await user.find_or_create_user_by_provider_id(provider_slug, user_id, get_default_timezone())
@@ -971,7 +955,7 @@ async def get_theta_token(platform: str, request: ProviderTokenRequest):
             "provider_slug": provider_slug
         }
 
-        logging.info(f"Successfully generated token for user {user_id} with provider {provider_slug}")
+        logger.info(f"Successfully generated token for user {user_id} with provider {provider_slug}")
 
         return StandardResponse(
             code=0,
@@ -980,17 +964,17 @@ async def get_theta_token(platform: str, request: ProviderTokenRequest):
         )
 
     except ValueError as e:
-        logging.error(f"Validation error in get_theta_token: {str(e)}")
+        logger.error(f"Validation error in get_theta_token: {str(e)}")
         return ErrorResponse(code=400, msg=str(e))
     except Exception as e:
-        logging.error(
+        logger.error(
             f"Unexpected error in get_theta_token: {type(e).__name__}: {str(e)}",
             exc_info=True,
         )
         return ErrorResponse(code=500, msg=f"Internal error: {type(e).__name__}: {str(e)}")
 
 
-@router.get("/theta/indicators", response_model=Union[StandardResponse, ErrorResponse])
+@router.get("/theta/indicators", response_model=StandardResponse | ErrorResponse)
 async def get_theta_indicators():
     """
     Get supported indicators information for provider platform
@@ -1071,7 +1055,7 @@ async def get_theta_indicators():
                             indicators_info.append(indicator_info)
 
                         except Exception as e:
-                            logging.error(f"Error processing indicator {indicator_data.get('key', 'unknown')}: {str(e)}")
+                            logger.error(f"Error processing indicator {indicator_data.get('key', 'unknown')}: {str(e)}")
                             continue
 
         # Build response data
@@ -1081,7 +1065,7 @@ async def get_theta_indicators():
             "total": len(indicators_info)
         }
 
-        logging.info(f"Successfully retrieved {len(indicators_info)} indicators information using manage data source")
+        logger.info(f"Successfully retrieved {len(indicators_info)} indicators information using manage data source")
 
         return StandardResponse(
             code=0,
@@ -1090,6 +1074,6 @@ async def get_theta_indicators():
         )
 
     except Exception as e:
-        logging.error(f"Unexpected error in get_theta_indicators: {str(e)}")
+        logger.error(f"Unexpected error in get_theta_indicators: {str(e)}")
         return ErrorResponse(code=500, msg=f"Failed to get indicators information: {str(e)}")
 

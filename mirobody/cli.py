@@ -107,7 +107,7 @@ def _cmd_parse(args: argparse.Namespace) -> None:
     after `resolve`, which needs no key at all; being told which environment
     variable to set is the entire content of the failure.
     """
-    _require_extra("parse", "parse", "pdfplumber", "the document extraction stack")
+    _require_extra("parse", "parse", "pypdfium2", "the document extraction stack")
 
     from mirobody.engine import parse_file
 

@@ -1,4 +1,9 @@
-import mandrill, redis, redis.asyncio, secrets, smtplib, time
+import mandrill
+import redis
+import redis.asyncio
+import secrets
+import smtplib
+import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -266,8 +271,7 @@ class MandrillEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator)
                     
             return None
         
-        else:
-            return f"Failed to send email to {lower_email}: {result}"
+        return f"Failed to send email to {lower_email}: {result}"
 
     #-----------------------------------------------------
 

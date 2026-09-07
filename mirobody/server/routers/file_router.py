@@ -7,10 +7,10 @@ import json
 import logging
 import uuid
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Union
+from typing import Any
 from fastapi import Request
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 from mirobody.utils import execute_query
@@ -31,6 +31,8 @@ from mirobody.pulse.file_parser.services.file_processing_service import (
 from mirobody.pulse.file_parser.services.file_processing_service import FileUploadData
 from mirobody.utils.log import secret_fingerprint
 
+logger = logging.getLogger(__name__)
+
 # Import for direct S3 upload endpoint (now using universal service)
 # Note: FileUploader, validate_file_extension, generate_file_key are used via upload_files_to_storage
 
@@ -48,14 +50,14 @@ class FileUploadResponse(BaseModel):
     
     code: int
     msg: str
-    data: Optional[List[FileUploadData]]
+    data: list[FileUploadData] | None
 
 
 class FileDeleteRequest(BaseModel):
     """File deletion request model"""
     
-    message_id: Union[str, int]
-    file_keys: Optional[List[str]] = None  # If None, delete all files
+    message_id: str | int
+    file_keys: list[str] | None = None  # If None, delete all files
     
     @field_validator('message_id', mode='before')
     @classmethod
@@ -69,7 +71,7 @@ class FileDeleteResponse(BaseModel):
     
     code: int
     msg: str
-    data: Optional[Dict[str, Any]]
+    data: dict[str, Any] | None
 
 
 my_data_service = MyDataService()
@@ -120,8 +122,8 @@ async def _authorize_file_read(file_key: str, caller_id: str) -> bool:
 @router.get("/files/{file_path:path}", tags=["files"])
 async def serve_storage_file(
     file_path: str,
-    authorization: Optional[str] = Header(None),
-    access_token: Optional[str] = Query(
+    authorization: str | None = Header(None),
+    access_token: str | None = Query(
         None, description="Bearer token, for browser contexts that cannot set a header"
     ),
 ):
@@ -150,7 +152,7 @@ async def serve_storage_file(
     try:
         # Security check: prevent path traversal
         if ".." in file_path or file_path.startswith("/"):
-            logging.warning(f"Attempted path traversal: {file_path}")
+            logger.warning(f"Attempted path traversal: {file_path}")
             raise HTTPException(status_code=403, detail="Access denied")
 
         caller_id = await verify_token_string(authorization or access_token or "")
@@ -158,7 +160,7 @@ async def serve_storage_file(
         if not await _authorize_file_read(file_path, caller_id):
             # 404, not 403: a 403 confirms the key exists, which turns this
             # route back into the enumeration oracle it just stopped being.
-            logging.warning(
+            logger.warning(
                 "unauthorized file read: user=%s key=%s", caller_id, file_path
             )
             raise HTTPException(status_code=404, detail="File not found")
@@ -169,10 +171,10 @@ async def serve_storage_file(
         # Get file from storage
         content, err = await storage.get(file_path)
         if err:
-            logging.warning(err)
+            logger.warning(err)
         
         if content is None:
-            logging.warning(f"File not found in storage: {file_path}")
+            logger.warning(f"File not found in storage: {file_path}")
             raise HTTPException(status_code=404, detail="File not found")
         
         # Determine content type from filename
@@ -181,7 +183,7 @@ async def serve_storage_file(
         # Extract filename for Content-Disposition header
         filename = file_path.split("/")[-1] if "/" in file_path else file_path
         
-        logging.debug(f"Serving file from storage: {file_path}, size: {len(content)} bytes")
+        logger.debug(f"Serving file from storage: {file_path}, size: {len(content)} bytes")
         
         # Return file as streaming response
         return StreamingResponse(
@@ -202,7 +204,7 @@ async def serve_storage_file(
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error serving file {file_path}: {str(e)}")
+        logger.error(f"Error serving file {file_path}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -233,7 +235,7 @@ async def websocket_upload_health_report(
         "endpoint": "/ws/upload-health-report",
     }
 
-    logging.info("🔗 WebSocket file upload connection initiated")
+    logger.info("WebSocket file upload connection initiated")
 
 
     with set_req_ctx(ctx):
@@ -245,7 +247,7 @@ async def websocket_upload_health_report(
                     await websocket.close(code=1008, reason="Invalid token")
                     return
             except Exception as e:
-                logging.error(
+                logger.error(
                     "Token verification failed: %s", e,
                     extra={"token": secret_fingerprint(token)},
                 )
@@ -256,18 +258,18 @@ async def websocket_upload_health_report(
             if connectionId:
                 # Validate that connectionId starts with user_id (security check)
                 if not connectionId.startswith(f"{user_id}_") and connectionId != str(user_id):
-                    logging.warning(f"Invalid connectionId format: {connectionId}, expected prefix: {user_id}_ or exact match: {user_id}")
+                    logger.warning(f"Invalid connectionId format: {connectionId}, expected prefix: {user_id}_ or exact match: {user_id}")
                     # Fall back to user_id for backward compatibility
                     connection_id = str(user_id)
                 else:
                     connection_id = connectionId
-                    logging.info(f"🔗 Using client-provided connectionId: {connection_id}")
+                    logger.info(f"Using client-provided connectionId: {connection_id}")
             else:
                 # Default to user_id for backward compatibility (single tab per user)
                 # If frontend wants multi-tab support, it should provide a unique connectionId
                 connection_id = str(user_id)
             
-            logging.info(f"🔗 WebSocket file upload connection established: user_id={user_id}, connection_id={connection_id}")
+            logger.info(f"WebSocket file upload connection established: user_id={user_id}, connection_id={connection_id}")
 
             # Establish connection using connection_id (not just user_id) to support multiple tabs
             await websocket_file_upload_manager.connect(websocket, connection_id)
@@ -291,7 +293,7 @@ async def websocket_upload_health_report(
                         message_data = json.loads(message)
                         message_type = message_data.get("type")
 
-                        logging.info(f"Received message type: {message_type}")
+                        logger.info(f"Received message type: {message_type}")
 
                         # Handle different types of messages
                         # Note: use connection_id for WebSocket operations, but pass user_id for business logic
@@ -311,23 +313,23 @@ async def websocket_upload_health_report(
                                 "type": "pong",
                                 "timestamp": datetime.now().isoformat(),
                             }))
-                            logging.info(f"Sent pong to user {user_id}")
+                            logger.info(f"Sent pong to user {user_id}")
                         elif message_type == "get_status":
                             message_id = message_data.get("messageId")
                             if message_id:
                                 status = await websocket_file_upload_manager.get_upload_status(connection_id, message_id)
                                 await websocket_file_upload_manager.send_message(connection_id, status)
                         else:
-                            logging.warning(f"Unknown message type: {message_type}")
+                            logger.warning(f"Unknown message type: {message_type}")
 
                     except json.JSONDecodeError:
-                        logging.error(f"Invalid JSON message: {message}")
+                        logger.error(f"Invalid JSON message: {message}")
                         await websocket_file_upload_manager.send_message(
                             connection_id,
                             {"type": "error", "message": "Invalid JSON message format"},
                         )
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Receive timeout, check if idle time limit exceeded
                     current_time = datetime.now()
                     idle_seconds = (current_time - last_activity_time).total_seconds()
@@ -341,7 +343,7 @@ async def websocket_upload_health_report(
                     active_uploads_count = websocket_file_upload_manager.get_active_uploads_count(connection_id)
 
                     if idle_seconds >= timeout_threshold:
-                        logging.info(f"⏰ [DataService] File upload WebSocket {timeout_type} timeout ({idle_seconds:.1f}s/{timeout_threshold}s) for user {user_id} connection {connection_id} (active uploads: {active_uploads_count}), closing connection")
+                        logger.info(f"⏰ [DataService] File upload WebSocket {timeout_type} timeout ({idle_seconds:.1f}s/{timeout_threshold}s) for user {user_id} connection {connection_id} (active uploads: {active_uploads_count}), closing connection")
 
                         # Check if WebSocket connection is still active before sending notification
                         try:
@@ -357,36 +359,36 @@ async def websocket_upload_health_report(
                                     },
                                 )
                             else:
-                                logging.debug(f"⚠️ [DataService] WebSocket already closed for user {user_id}, skipping timeout notification")
+                                logger.debug(f"[DataService] WebSocket already closed for user {user_id}, skipping timeout notification")
                         except Exception as send_error:
-                            logging.debug(f"⚠️ [DataService] Failed to send timeout notification to user {user_id}: {send_error}")
+                            logger.debug(f"[DataService] Failed to send timeout notification to user {user_id}: {send_error}")
 
                         # Ensure connection is closed
                         try:
                             if websocket.client_state.value == 1:  # OPEN state
                                 await websocket.close(code=1000, reason="Idle timeout")
                         except Exception as close_error:
-                            logging.debug(f"⚠️ [DataService] Error closing WebSocket for user {user_id}: {close_error}")
+                            logger.debug(f"[DataService] Error closing WebSocket for user {user_id}: {close_error}")
                         break
                     else:
                         # Not timeout yet, continue listening
-                        logging.debug(f"🕐 [DataService] File upload WebSocket {timeout_type} check for user {user_id}: {idle_seconds:.1f}s/{timeout_threshold}s (active uploads: {active_uploads_count})")
+                        logger.debug(f"[DataService] File upload WebSocket {timeout_type} check for user {user_id}: {idle_seconds:.1f}s/{timeout_threshold}s (active uploads: {active_uploads_count})")
 
                 except WebSocketDisconnect:
-                    logging.info(f"WebSocket connection normally disconnected: user_id={user_id}")
+                    logger.info(f"WebSocket connection normally disconnected: user_id={user_id}")
                     break
                 except Exception as e:
-                    logging.error(f"WebSocket message processing exception: {e}", stack_info=True)
+                    logger.error(f"WebSocket message processing exception: {e}", stack_info=True)
                     break
 
         except Exception as e:
-            logging.error(f"WebSocket connection exception: {e}", stack_info=True)
+            logger.error(f"WebSocket connection exception: {e}", stack_info=True)
         finally:
             # Clean up connection using connection_id
             try:
                 if connection_id:
                     await websocket_file_upload_manager.disconnect(connection_id)
-                    logging.info(f"🔌 WebSocket file upload connection disconnected: user_id={user_id}, connection_id={connection_id}")
+                    logger.info(f"WebSocket file upload connection disconnected: user_id={user_id}, connection_id={connection_id}")
             except NameError:
                 # connection_id not defined (token verification failed before connection_id was set)
                 pass
@@ -394,7 +396,7 @@ async def websocket_upload_health_report(
 
 @router.get("/api/v1/data/data-distribution")
 async def get_data_distribution(
-    user_id: Optional[str] = Query(None, description="User ID"),
+    user_id: str | None = Query(None, description="User ID"),
     current_user: str = Depends(verify_token),
 ) -> JSONResponse:
     """
@@ -430,7 +432,7 @@ async def get_data_distribution(
                     content={"code": -2, "msg": "No permission to query this user's data"},
                 )
 
-        logging.info(f"Get data distribution: user_id={target_user_id}")
+        logger.info(f"Get data distribution: user_id={target_user_id}")
 
         # Call service to get data distribution
         result = await my_data_service.get_user_data_distribution(target_user_id)
@@ -440,7 +442,7 @@ async def get_data_distribution(
         )
 
     except Exception as e:
-        logging.error(f"Failed to get data distribution: {str(e)}", stack_info=True)
+        logger.error(f"Failed to get data distribution: {str(e)}", stack_info=True)
         return JSONResponse(
             content={"code": -2, "msg": str(e)},
         )
@@ -448,9 +450,9 @@ async def get_data_distribution(
 
 @router.get("/api/v1/data/uploaded-files")
 async def get_uploaded_files(
-    target_user_id: Optional[str] = Query(None, description="Target user ID - view files uploaded for which user"),
-    limit: Optional[int] = Query(100, description="Maximum number of files to return"),
-    offset: Optional[int] = Query(0, description="Pagination offset"),
+    target_user_id: str | None = Query(None, description="Target user ID - view files uploaded for which user"),
+    limit: int | None = Query(100, description="Maximum number of files to return"),
+    offset: int | None = Query(0, description="Pagination offset"),
     current_user: str = Depends(verify_token),
 ) -> JSONResponse:
     """
@@ -474,7 +476,7 @@ async def get_uploaded_files(
     """
 
     try:
-        logging.info(f"Query uploaded files: current_user={current_user}, target_user_id={target_user_id}")
+        logger.info(f"Query uploaded files: current_user={current_user}, target_user_id={target_user_id}")
 
         if target_user_id and target_user_id != str(current_user):
             try:
@@ -498,7 +500,7 @@ async def get_uploaded_files(
         )
 
     except Exception as e:
-        logging.error(f"Failed to get uploaded file history: {str(e)}", stack_info=True)
+        logger.error(f"Failed to get uploaded file history: {str(e)}", stack_info=True)
         return JSONResponse(
             content={"code": -1, "msg": f"Failed to get uploaded files: {str(e)}"},
         )
@@ -507,9 +509,9 @@ async def get_uploaded_files(
 @router.post("/files/upload", response_model=FileUploadResponse)
 async def upload_files(
     request: Request,
-    files: List[UploadFile] = File(..., description="Files to upload (PDF, images, documents, etc.)"),
+    files: list[UploadFile] = File(..., description="Files to upload (PDF, images, documents, etc.)"),
     user_id: str = Depends(verify_token),
-    folder: Optional[str] = Query(None, description="Custom folder prefix for uploaded files, defaults to 'uploads'")
+    folder: str | None = Query(None, description="Custom folder prefix for uploaded files, defaults to 'uploads'")
 ) -> FileUploadResponse:
     """
     Upload multiple files directly to S3
@@ -571,7 +573,7 @@ async def delete_uploaded_files(
         FileDeleteResponse: Response containing deletion results
     """
     try:
-        logging.info(f"File deletion request: message_id={request.message_id}, file_keys={request.file_keys}, user_id={user_id}")
+        logger.info(f"File deletion request: message_id={request.message_id}, file_keys={request.file_keys}, user_id={user_id}")
         
         # Validate input
         if not request.message_id:
@@ -627,7 +629,7 @@ async def delete_uploaded_files(
         )
         
     except Exception as e:
-        logging.error(f"Error in delete_uploaded_files endpoint: {str(e)}", stack_info=True)
+        logger.error(f"Error in delete_uploaded_files endpoint: {str(e)}", stack_info=True)
         return FileDeleteResponse(
             code=1,
             msg=f"Internal server error: {str(e)}",

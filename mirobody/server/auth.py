@@ -20,13 +20,14 @@ Two functions did not come along, both with zero callers anywhere:
 import jwt
 import logging
 
-from typing import Optional
 from urllib.parse import unquote
 from fastapi import Header, HTTPException
 
 from ..utils.config import global_config
 from ..utils.log import secret_fingerprint
 from ..utils.req_ctx import get_req_ctx, update_req_ctx
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -35,21 +36,21 @@ async def verify_token_string(token_string: str) -> str:
     try:
         # Decode it beforehand.
         token = unquote(token_string)
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=401, detail="Failed to decode authorization header")
 
     if not isinstance(token, str):
-        logging.warning(f"Invalid token type: {type(token)}")
+        logger.warning(f"Invalid token type: {type(token)}")
         raise HTTPException(status_code=401, detail="Invalid authorization header")
 
     # Remove Bearer prefix.
     while token.startswith("Bearer "):
         token = token[7:]
-        logging.debug(f"Remove one Bearer prefix, and the length of rest token: '{token[:50]}...'")
+        logger.debug(f"Remove one Bearer prefix, and the length of rest token: '{token[:50]}...'")
 
     jwt_key = global_config().get("JWT_KEY")
     if not jwt_key:
-        logging.error("Invalid JWT key")
+        logger.error("Invalid JWT key")
         raise HTTPException(status_code=500, detail="JWT key not configured")
 
     #-----------------------------------------------------
@@ -70,7 +71,7 @@ async def verify_token_string(token_string: str) -> str:
         )
 
     except Exception as e:
-        logging.warning(f"Failed to decode JWT token: {str(e)}")
+        logger.warning(f"Failed to decode JWT token: {str(e)}")
         decoded = None
 
     if not decoded:
@@ -78,7 +79,7 @@ async def verify_token_string(token_string: str) -> str:
         # BODY — to the caller, and onward into their proxy logs, browser
         # console and error tracker. A 401 must not hand back the credential it
         # just rejected; the fingerprint goes to our log instead.
-        logging.warning("JWT decode failed", extra={"token": secret_fingerprint(token)})
+        logger.warning("JWT decode failed", extra={"token": secret_fingerprint(token)})
         raise HTTPException(status_code=401, detail="Token decode failed")
     
     #-----------------------------------------------------
@@ -104,7 +105,7 @@ async def verify_token_string(token_string: str) -> str:
 
 #-----------------------------------------------------------------------------
 
-async def verify_token_optional(authorization: Optional[str] = Header(None)) -> Optional[str]:
+async def verify_token_optional(authorization: str | None = Header(None)) -> str | None:
     if not authorization:
         return None
 
@@ -113,7 +114,7 @@ async def verify_token_optional(authorization: Optional[str] = Header(None)) -> 
         return str(user_id)
     
     except Exception as e:
-        logging.warning(str(e))
+        logger.warning(str(e))
         return None
 
 
@@ -124,7 +125,7 @@ async def verify_token(authorization: str = Header(...)) -> str:
             return str(cached_user_id)
         
     except Exception as e:
-        logging.warning(str(e))
+        logger.warning(str(e))
 
     user_id = await verify_token_string(authorization)
     return str(user_id)
