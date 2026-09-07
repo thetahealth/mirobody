@@ -31,7 +31,7 @@ class StringTable:
 
     __slots__ = ("_blob", "_off", "_n")
 
-    def __init__(self, blob: bytes, off: "np.ndarray") -> None:
+    def __init__(self, blob: bytes, off: np.ndarray) -> None:
         self._blob = blob
         self._off = off
         self._n = len(off) - 1
@@ -46,7 +46,7 @@ class StringTable:
     def get(self, i: int) -> str:
         return self.raw(i).decode("utf-8")
 
-    def find(self, needle: bytes, order: "np.ndarray | None" = None) -> int:
+    def find(self, needle: bytes, order: np.ndarray | None = None) -> int:
         """Index of *needle*, or -1.
 
         Without *order* the table is assumed sorted and the answer is the entry
@@ -87,7 +87,7 @@ class FieldTable(StringTable):
 
     __slots__ = ("_width",)
 
-    def __init__(self, blob: bytes, off: "np.ndarray", width: int) -> None:
+    def __init__(self, blob: bytes, off: np.ndarray, width: int) -> None:
         super().__init__(blob, off)
         self._width = width
         self._n = self._n // width
@@ -102,7 +102,7 @@ class FieldTable(StringTable):
         base = row * self._width
         return tuple(StringTable.get(self, base + f) for f in range(upto))
 
-    def find_field(self, needle: bytes, order: "np.ndarray", field: int) -> int:
+    def find_field(self, needle: bytes, order: np.ndarray, field: int) -> int:
         """Row whose *field* equals *needle*, or -1. *order* sorts rows by it."""
         blob, off, w = self._blob, self._off, self._width
         lo, hi = 0, self._n

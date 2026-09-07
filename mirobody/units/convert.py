@@ -48,7 +48,7 @@ this one to compare two readings.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from .families import UCUM_FAMILY
 
@@ -106,7 +106,7 @@ _DIMENSIONLESS = "1"
 DimScale = tuple[tuple[tuple[str, int], ...], float]
 
 
-def _atom(token: str) -> Optional[tuple[str, float]]:
+def _atom(token: str) -> tuple[str, float] | None:
     """One UCUM atom → (dimension tag, factor); None when unrecognized."""
     if not token:
         return None
@@ -130,7 +130,7 @@ def _atom(token: str) -> Optional[tuple[str, float]]:
     return None
 
 
-def scale(ucum: str | None) -> Optional[DimScale]:
+def scale(ucum: str | None) -> DimScale | None:
     """UCUM string → (dimension signature, factor), or None when unparseable.
 
     Only units :data:`~.families.UCUM_FAMILY` already knows are parsed, so noise
@@ -211,7 +211,7 @@ _MASS_PER_VOLUME = (("M", 1), ("V", -1))
 _SUBSTANCE_PER_VOLUME = (("N", 1), ("V", -1))
 
 
-def conversion_factor(from_unit: str, to_unit: str, *, loinc_code: str = "") -> Optional[float]:
+def conversion_factor(from_unit: str, to_unit: str, *, loinc_code: str = "") -> float | None:
     """`value_in_to_unit = value_in_from_unit * factor`; None when not convertible.
 
     T1 compares factors within one dimension; T2 crosses M/V ↔ N/V when
@@ -242,7 +242,7 @@ def convertible(from_unit: str, to_unit: str, *, loinc_code: str = "") -> bool:
     return conversion_factor(from_unit, to_unit, loinc_code=loinc_code) is not None
 
 
-def convert_value(value: float, from_unit: str, to_unit: str, *, loinc_code: str = "") -> Optional[float]:
+def convert_value(value: float, from_unit: str, to_unit: str, *, loinc_code: str = "") -> float | None:
     """Convert one number; None when not convertible.
 
     **Nothing is rounded.** Full precision is kept; format at the output layer,

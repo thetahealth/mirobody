@@ -1,0 +1,67 @@
+{
+  "test_id": "oura_v2_documents",
+  "description": "Oura API v2 document shapes (public docs), synthetic values. Daily documents span the whole local day; a sleep document spans bedtime_start..bedtime_end; personal_info is filed at the pull instant's local midnight.",
+  "vendor": "oura",
+  "cases": [
+    {
+      "data_type": "daily_activity",
+      "tz": "Asia/Tokyo",
+      "input": {
+        "id": "d1", "day": "2026-06-01", "score": 82, "steps": 9120, "active_calories": 480, "total_calories": 2210,
+        "equivalent_walking_distance": 7300, "high_activity_time": 600, "medium_activity_time": 1800, "low_activity_time": 7200,
+        "sedentary_time": 30000, "resting_time": 28800
+      },
+      "expected": {
+        "count": 10,
+        "values": {"dailySteps": 9120, "dailyCaloriesActive": 480, "dailyTotalCalories": 2210, "dailyDistance": 7300, "dailyActivityIntensityHigh": 10, "dailyActivityIntensityMedium": 30, "dailyActivityIntensityLow": 120, "sedentaryTime": 500, "restingTime": 480, "dailyActivityScore": 82},
+        "window": [1780239600000, 1780325999999]
+      }
+    },
+    {
+      "data_type": "sleep",
+      "tz": "Asia/Tokyo",
+      "input": {
+        "id": "s1", "day": "2026-06-01", "bedtime_start": "2026-05-31T23:30:00+09:00", "bedtime_end": "2026-06-01T07:00:00+09:00",
+        "type": "long_sleep", "total_sleep_duration": 25200, "time_in_bed": 27000, "awake_time": 1800, "deep_sleep_duration": 6000,
+        "light_sleep_duration": 14400, "rem_sleep_duration": 4800, "efficiency": 93, "latency": 600, "average_heart_rate": 56.5,
+        "lowest_heart_rate": 49, "average_hrv": 42, "average_breath": 14.2, "restless_periods": 3, "temperature_delta": -0.1
+      },
+      "expected": {
+        "count": 14,
+        "values": {"dailyTotalSleepTime": 25200000, "sleepAnalysis_InBed": 27000000, "sleepAnalysis_Awake": 1800000, "sleepAnalysis_Asleep(Deep)": 6000000, "sleepAnalysis_Asleep(Core)": 14400000, "sleepAnalysis_Asleep(REM)": 4800000, "sleepEfficiency": 93, "sleepLatency": 600, "dailyHeartRateAvg": 56.5, "dailyHeartRateMin": 49, "hrvRMSSD": 42, "respiratoryRates": 14.2, "sleepDisturbances": 3, "temperatureDelta": -0.1},
+        "window": [1780237800000, 1780264800000]
+      }
+    },
+    {
+      "data_type": "heartrate",
+      "tz": "Asia/Tokyo",
+      "input": {"bpm": 61, "source": "awake", "timestamp": "2026-06-01T08:15:00+09:00"},
+      "expected": {"count": 1, "values": {"heartRates": 61}, "start_ms": {"heartRates": 1780269300000}}
+    },
+    {
+      "data_type": "daily_spo2",
+      "tz": "Asia/Tokyo",
+      "input": {"id": "o1", "day": "2026-06-01", "spo2_percentage": {"average": 97.4}},
+      "expected": {"count": 1, "values": {"oxygenSaturations": 97.4}}
+    },
+    {
+      "data_type": "daily_stress",
+      "tz": "Asia/Tokyo",
+      "input": {"id": "st1", "day": "2026-06-01", "stress_high": 5400, "recovery_high": 7200},
+      "expected": {"count": 2, "values": {"stressHighDuration": 90, "recoveryHighDuration": 120}}
+    },
+    {
+      "data_type": "personal_info",
+      "tz": "Asia/Tokyo",
+      "pulled_at_ms": 1780290000000,
+      "input": {"id": "u1", "age": 40, "weight": 68.2, "height": 1.72, "biological_sex": "male"},
+      "expected": {"count": 2, "values": {"bodyMasss": 68.2, "heights": 1.72}, "start_ms": {"bodyMasss": 1780239600000}}
+    },
+    {
+      "data_type": "personal_info",
+      "tz": "Asia/Tokyo",
+      "input": {"id": "u1", "weight": 68.2},
+      "expected": {"count": 0}
+    }
+  ]
+}

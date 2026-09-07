@@ -25,7 +25,7 @@ import sys
 
 import mirobody
 
-_ROOT = pathlib.Path(__file__).resolve().parent
+_ROOT = pathlib.Path(__file__).resolve().parents[1] / "mirobody"
 
 
 def _in_subprocess(code: str) -> str:
@@ -151,16 +151,19 @@ def test_the_default_install_is_one_dependency():
     )
 
 
-def test_there_are_two_user_facing_extras_and_two_development_ones():
+def test_the_extras_are_parse_agent_app_and_two_development_ones():
     """`[server]`, `[agents]` and `[cn]` were removed in 1.3.0 — the first two
-    merged into `[app]`, and `[cn]` was not an axis at all. A re-added extra is
-    a re-added decision for everyone installing this, so it gets a gate."""
+    merged into `[app]`, and `[cn]` was not an axis at all. 1.4.0 added one
+    axis back: `[agent]` is the agent layer as a library, for a consumer that
+    runs its own deepagents agent and never starts this server; `[app]` is
+    `[parse]` + `[agent]` + the server. A further extra is a further decision
+    for everyone installing this, so the set is a gate."""
     import tomllib
 
     with (_ROOT.parent / "pyproject.toml").open("rb") as fh:
         extras = set(tomllib.load(fh)["project"]["optional-dependencies"])
-    assert extras == {"parse", "app", "test", "indicator-build"}, (
-        f"extras are {sorted(extras)}; expected parse/app for users and "
+    assert extras == {"parse", "agent", "app", "test", "indicator-build"}, (
+        f"extras are {sorted(extras)}; expected parse/agent/app for users and "
         "test/indicator-build for development"
     )
 
@@ -174,7 +177,6 @@ def test_bundle_module_exports_what_it_promises():
     without notice.
     """
     from mirobody import bundle
-
     assert set(bundle.__all__) == {
         "ALIAS_SRC_DIR", "BUNDLE_PATH", "RES_DIR", "alias_source_files",
         "bundle_version", "is_lfs_pointer", "list_members",

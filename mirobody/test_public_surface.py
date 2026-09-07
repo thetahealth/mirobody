@@ -16,7 +16,7 @@ import pathlib
 
 import pytest
 
-ROOT = pathlib.Path(__file__).resolve().parent
+ROOT = pathlib.Path(__file__).resolve().parents[1] / "mirobody"
 
 
 def _modules_with_all() -> list[tuple[str, list[str]]]:
@@ -64,7 +64,20 @@ def test_every_advertised_name_resolves(module: str, names: list[str]):
     except Exception as exc:  # an optional-extra module; other tests cover importability
         pytest.skip(f"{module} not importable here: {type(exc).__name__}")
 
-    missing = [n for n in names if not hasattr(mod, n)]
+    # `hasattr` only swallows AttributeError. On a lazy PEP 562 package the
+    # attribute access RUNS the deferred import, so on an install without the
+    # extra it raises ModuleNotFoundError straight through `hasattr` and the
+    # test errors instead of skipping — which is what a `[test]`-only install
+    # saw for `mirobody.agent.chat`. Resolve each name explicitly.
+    missing = []
+    for n in names:
+        try:
+            getattr(mod, n)
+        except AttributeError:
+            missing.append(n)
+        except Exception as exc:
+            pytest.skip(f"{module}.{n} needs an extra that is not installed: {type(exc).__name__}")
+
     assert not missing, (
         f"{module}.__all__ advertises {missing}, which the module does not define — "
         f"`from {module} import *` raises AttributeError"

@@ -20,7 +20,7 @@ instead of a silent regression:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 import pytest
 
@@ -57,8 +57,8 @@ def test_parse_value_unit_golden(text, comparator, value, unit):
 # ── pick_display_unit: majority, then recency ────────────────────────────────
 
 def test_pick_display_unit_majority_then_recency():
-    t1 = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    t2 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    t1 = datetime(2024, 1, 1, tzinfo=UTC)
+    t2 = datetime(2026, 1, 1, tzinfo=UTC)
     # Most readings wins outright, even against a newer minority.
     assert pick_display_unit([("mmol/L", 5, t1), ("mg/dL", 2, t2)]) == "mmol/L"
     # Ties go to the latest measurement; a None timestamp sorts oldest.

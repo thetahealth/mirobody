@@ -1,0 +1,45 @@
+{
+  "test_id": "garmin_sleeps_stages",
+  "description": "One Garmin sleep summary with a sleepLevelsMap (public docs shape), synthetic values. Two 'light' spans overlap on purpose: the decoder emits them as intervals; unioning is the aggregator's job, not the decoder's.",
+  "vendor": "garmin",
+  "data_type": "sleeps",
+  "tz": "Asia/Shanghai",
+  "input": {
+    "summaryId": "x-sleep-1",
+    "calendarDate": "2026-06-01",
+    "startTimeInSeconds": 1780268400,
+    "durationInSeconds": 25200,
+    "awakeDurationInSeconds": 1800,
+    "deepSleepDurationInSeconds": 7200,
+    "lightSleepDurationInSeconds": 12600,
+    "remSleepInSeconds": 5400,
+    "sleepLevelsMap": {
+      "deep": [{"startTimeInSeconds": 1780268400, "endTimeInSeconds": 1780275600}],
+      "light": [
+        {"startTimeInSeconds": 1780275600, "endTimeInSeconds": 1780282800},
+        {"startTimeInSeconds": 1780279200, "endTimeInSeconds": 1780286400}
+      ],
+      "rem": [{"startTimeInSeconds": 1780286400, "endTimeInSeconds": 1780291800}],
+      "awake": [{"startTimeInSeconds": 1780291800, "endTimeInSeconds": 1780293600}],
+      "unmeasurable": [{"startTimeInSeconds": 1780293600, "endTimeInSeconds": 1780294200}]
+    }
+  },
+  "expected": {
+    "count": 12,
+    "values": {
+      "dailyAwakeTime": 1800000,
+      "dailyDeepSleep": 7200000,
+      "dailyLightSleep": 12600000,
+      "dailyRemSleep": 5400000,
+      "dailySleepDuration": 27000000,
+      "dailyTotalSleepTime": 25200000,
+      "dailySleepEfficiency": 93.3333
+    },
+    "intervals": {
+      "sleepAnalysis_Asleep(Deep)": [[1780268400000, 1780275600000]],
+      "sleepAnalysis_Asleep(Core)": [[1780275600000, 1780282800000], [1780279200000, 1780286400000]],
+      "sleepAnalysis_Asleep(REM)": [[1780286400000, 1780291800000]],
+      "sleepAnalysis_Awake": [[1780291800000, 1780293600000]]
+    }
+  }
+}

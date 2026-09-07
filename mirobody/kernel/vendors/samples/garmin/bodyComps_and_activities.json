@@ -1,0 +1,67 @@
+{
+  "test_id": "garmin_bodycomps_and_activities",
+  "description": "Two records: a body-composition summary with Garmin's verbatim field names (weightInGrams, measurementTimeInSeconds) and an activity that must decode as a session spanning its duration. Synthetic values.",
+  "vendor": "garmin",
+  "cases": [
+    {
+      "data_type": "bodyComps",
+      "tz": "Europe/Berlin",
+      "input": {
+        "summaryId": "x-bc-1",
+        "measurementTimeInSeconds": 1780300000,
+        "weightInGrams": 70400,
+        "bodyMassIndex": 22.9,
+        "bodyFatInPercent": 18.5,
+        "bodyWaterInPercent": 55.1,
+        "boneMassInGrams": 3100,
+        "muscleMassInGrams": 31000
+      },
+      "expected": {
+        "count": 5,
+        "values": {"bodyMasss": 70.4, "bmis": 22.9, "bodyFatPercentages": 18.5, "bodyWater": 55.1, "bodyBone": 3.1},
+        "absent": ["bodyMuscle"],
+        "start_ms": {"bodyMasss": 1780300000000},
+        "panel_shared": ["bodyMasss", "bmis", "bodyBone"]
+      }
+    },
+    {
+      "data_type": "activities",
+      "tz": "Europe/Berlin",
+      "input": {
+        "summaryId": "x-act-1",
+        "activityType": "RUNNING",
+        "startTimeInSeconds": 1780300000,
+        "durationInSeconds": 1800,
+        "averageHeartRateInBeatsPerMinute": 150,
+        "maxHeartRateInBeatsPerMinute": 172,
+        "calories": 320,
+        "steps": 4200,
+        "distanceInMeters": 5000,
+        "averageSpeedInMetersPerSecond": 2.78,
+        "elevationGainInMeters": 40
+      },
+      "expected": {
+        "count": 8,
+        "values": {"heartRates": 150, "heartRateMax": 172, "activeCalories": 320, "steps": 4200, "walkingRunningDistances": 5000, "workoutDuration": 30, "speeds": 2.78, "altitudeGain": 40},
+        "window": [1780300000000, 1780301800000]
+      }
+    },
+    {
+      "data_type": "pulseOx",
+      "tz": "Europe/Berlin",
+      "input": {
+        "summaryId": "x-ox-1",
+        "startTimeInSeconds": 1780300000,
+        "onDemand": false,
+        "timeOffsetSpo2Values": {"0": 96, "60": 97, "120": -1}
+      },
+      "expected": {"count": 2, "series": {"oxygenSaturations": [96, 97]}}
+    },
+    {
+      "data_type": "dailies",
+      "tz": "Europe/Berlin",
+      "input": {"summaryId": "x-no-time", "steps": 100},
+      "expected": {"count": 0}
+    }
+  ]
+}
