@@ -1,9 +1,12 @@
-import logging, uuid
+import logging
+import uuid
 
 from datetime import datetime
 
 from ...utils import execute_query
 from ...user.care_circle import CareCircleDenied, resolve_subject
+
+logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
@@ -80,7 +83,7 @@ async def create_session(
         }
         
     except Exception as e:
-        logging.error(f"Error creating empty session: {str(e)}", exc_info=True)
+        logger.error(f"Error creating empty session: {str(e)}", exc_info=True)
 
         return {
             "code"  : -2,
@@ -92,7 +95,7 @@ async def create_session(
 
 async def get_session_summaries(user_id: str) -> list[dict[str, any]]:
     """Get all conversation summaries for user from database, only including sessions with text messages"""
-    logging.info(f"get_session_summaries: {user_id}")
+    logger.info(f"get_session_summaries: {user_id}")
     try:
         # Modified SQL to only return sessions that contain text messages
         summary_sql = """
@@ -122,18 +125,18 @@ async def get_session_summaries(user_id: str) -> list[dict[str, any]]:
             }
             formatted_summaries.append(formatted_summary)
 
-        logging.info(f"Retrieved {len(formatted_summaries)} text conversation summaries for user {user_id}")
+        logger.info(f"Retrieved {len(formatted_summaries)} text conversation summaries for user {user_id}")
         return formatted_summaries
     
     except Exception as e:
-        logging.error(f"Error loading conversation summaries: {str(e)}", exc_info=True)
+        logger.error(f"Error loading conversation summaries: {str(e)}", exc_info=True)
         return []
 
 #-----------------------------------------------------------------------------
 
 async def get_session_summaries_by_person(user_id: str) -> list[dict[str, any]]:
     """Get session summaries by person"""
-    logging.info(f"get_session_summaries_by_person: {user_id}")
+    logger.info(f"get_session_summaries_by_person: {user_id}")
     try:
         
         summary_sql = """
@@ -167,7 +170,7 @@ async def get_session_summaries_by_person(user_id: str) -> list[dict[str, any]]:
             # old, in the profile block that goes into the agent's context.
             # `_calculate_age` compares (month, day) and already existed; this path
             # simply wasn't using it.
-            from .user_profile import BasicInfoService
+            from ...user.profile import BasicInfoService
             user_age = BasicInfoService._calculate_age(user_birth)
             if user_age is None:
                 user_age = ""
@@ -198,37 +201,37 @@ async def get_session_summaries_by_person(user_id: str) -> list[dict[str, any]]:
                     user_name = nickname_map[query_user_id]
             
             session_by_person.setdefault((user_name, user_gender, user_age, user_blood), []).append(
-                dict(
-                    session_id=_session.get("session_id"),
-                    query_user_id=_session.get("query_user_id"),
-                    timestamp=_session.get("created_at").isoformat() if _session.get("created_at") else datetime.now().isoformat(),
-                    summary=_session.get("summary", ""),
-                )
+                {
+                    "session_id": _session.get("session_id"),
+                    "query_user_id": _session.get("query_user_id"),
+                    "timestamp": _session.get("created_at").isoformat() if _session.get("created_at") else datetime.now().isoformat(),
+                    "summary": _session.get("summary", ""),
+                }
             )
             
-        return dict(
-            code=0,
-            msg="ok",
-            data=[
-                dict(
-                    person_name=person_name,
-                    gender=user_gender,
-                    age=user_age,
-                    blood=user_blood,
-                    sessions=sessions,
-                )
+        return {
+            "code": 0,
+            "msg": "ok",
+            "data": [
+                {
+                    "person_name": person_name,
+                    "gender": user_gender,
+                    "age": user_age,
+                    "blood": user_blood,
+                    "sessions": sessions,
+                }
                 for (person_name, user_gender, user_age, user_blood), sessions in session_by_person.items()
             ]
-        )
+        }
 
     except Exception as e:
-        logging.error(f"Error loading conversation summaries: {str(e)}", exc_info=True)
+        logger.error(f"Error loading conversation summaries: {str(e)}", exc_info=True)
 
-        return dict(
-            code=1,
-            msg=str(e),
-            data=[]
-        )
+        return {
+            "code": 1,
+            "msg": str(e),
+            "data": []
+        }
 
 #-----------------------------------------------------------------------------
 
@@ -254,7 +257,7 @@ async def delete_session(user_id: str, session_id: str) -> str | None:
             params={"user_id": user_id, "session_id": session_id}
         )
 
-        # And the agent's own copy. DeepAgent's conversation memory is the
+        # And the agent's own copy. The agent's conversation memory is the
         # LangGraph checkpointer keyed on thread_id = session_id, so the two
         # deletes above would otherwise leave the same turns — the health
         # questions and the tool results answering them — sitting in the
@@ -262,7 +265,7 @@ async def delete_session(user_id: str, session_id: str) -> str | None:
         # to delete it, not just stop listing it. Best-effort by design (see
         # deep.checkpointer.delete_thread): the user-visible rows are already
         # gone, and a checkpoint-cleanup failure must not turn that into an error.
-        from ..deep.checkpointer import delete_thread
+        from ..checkpointer import delete_thread
         await delete_thread(session_id)
 
         return None
@@ -308,7 +311,7 @@ async def create_or_get_share_session(user_id: str, session_id: str) -> dict:
             share_session_id = str(result[0].get("share_session_id"))
             created_at = result[0].get("created_at")
 
-            logging.info(f"Returning existing share session {share_session_id} for session {session_id}")
+            logger.info(f"Returning existing share session {share_session_id} for session {session_id}")
 
             return {
                 "code": 0,
@@ -340,7 +343,7 @@ async def create_or_get_share_session(user_id: str, session_id: str) -> dict:
             }
         )
 
-        logging.info(f"Created new share session {share_session_id} for session {session_id}")
+        logger.info(f"Created new share session {share_session_id} for session {session_id}")
 
         return {
             "code": 0,
@@ -354,7 +357,7 @@ async def create_or_get_share_session(user_id: str, session_id: str) -> dict:
         }
 
     except Exception as e:
-        logging.error(f"Error creating/getting share session: {str(e)}", exc_info=True)
+        logger.error(f"Error creating/getting share session: {str(e)}", exc_info=True)
         return {"code": -3, "msg": f"Internal error: {str(e)}", "data": {}}
 
 #-----------------------------------------------------------------------------
@@ -389,12 +392,12 @@ async def get_shared_session_history(share_session_id: str) -> dict:
 
         history = await get_chat_history(user_id, session_id)
 
-        logging.info(f"Retrieved {len(history)} messages for share session {share_session_id}")
+        logger.info(f"Retrieved {len(history)} messages for share session {share_session_id}")
 
         return {"code": 0, "msg": "ok", "data": {"history": history}}
 
     except Exception as e:
-        logging.error(f"Error getting shared session history: {str(e)}", exc_info=True)
+        logger.error(f"Error getting shared session history: {str(e)}", exc_info=True)
         return {"code": -4, "msg": f"Internal error: {str(e)}", "data": {}}
 
 #-----------------------------------------------------------------------------
@@ -423,12 +426,12 @@ async def deactivate_share_session(user_id: str, session_id: str) -> dict:
             params={"session_id": session_id, "updated_at": datetime.now()}
         )
 
-        logging.info(f"Deactivated share session for session {session_id}")
+        logger.info(f"Deactivated share session for session {session_id}")
 
         return {"code": 0, "msg": "Share session deactivated successfully", "data": {}}
 
     except Exception as e:
-        logging.error(f"Error deactivating share session: {str(e)}", exc_info=True)
+        logger.error(f"Error deactivating share session: {str(e)}", exc_info=True)
         return {"code": -3, "msg": f"Internal error: {str(e)}", "data": {}}
 
 #-----------------------------------------------------------------------------

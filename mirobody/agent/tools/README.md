@@ -17,6 +17,18 @@ MCP_TOOL_DIRS:
   - my_tools          # yours, relative to the working directory
 ```
 
+**Or ship them as a package.** A distribution that declares a `mirobody.tools`
+entry point pointing at a module of tool classes is loaded at boot the moment
+it is `pip install`ed — same registry, same schema generation, served over
+`/mcp` and handed to the agent like the built-ins:
+
+```toml
+[project.entry-points."mirobody.tools"]
+labs = "my_plugin.tools"
+```
+
+`examples/mirobody_example_plugin/` is a complete example.
+
 ### Discovery Rules
 
 1. **File Location**: Must be a `.py` file inside a configured tool directory.

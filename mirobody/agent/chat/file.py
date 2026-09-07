@@ -10,23 +10,29 @@ import base64
 import logging
 
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 from ...pulse.file_parser.services.file_processing_service import process_files_async
 from ...pulse.file_parser.services.file_db_service import FileDbService
 from ...pulse.file_parser.services.db_utils import get_mime_type
 from ...utils.config.storage import get_storage_client
-from ..utils.cache_config import CACHE_TTL_REDIS
 from ...utils.tasks import spawn
+
+logger = logging.getLogger(__name__)
+
+#: How long Redis holds a rendered file. One hour: long enough that a turn
+#: re-reading the same attachment costs one fetch, short enough that a
+#: corrected extraction is not served for a day.
+CACHE_TTL_REDIS = 3600
 
 #-----------------------------------------------------------------------------
 
 async def _download_single_file(
-    file_dict: Dict[str, Any],
+    file_dict: dict[str, Any],
     storage: Any,
     session_id: str,
-    redis_client: Optional[Any] = None
-) -> Optional[Dict[str, Any]]:
+    redis_client: Any | None = None
+) -> dict[str, Any] | None:
     """
     Download single file from storage and return file content.
 
@@ -52,7 +58,7 @@ async def _download_single_file(
         file_size = file_dict.get("file_size", 0)
 
         if not file_key or not file_name:
-            logging.warning(f"Missing file_key or file_name in file dict: {file_dict}")
+            logger.warning(f"Missing file_key or file_name in file dict: {file_dict}")
             return None
 
         if not file_type or "/" not in file_type:
@@ -71,18 +77,18 @@ async def _download_single_file(
                         cached_b64 = cached_b64.decode('utf-8')
                     file_content = base64.b64decode(cached_b64)
                     content_b64 = cached_b64  # Reuse cached base64
-                    logging.info(f"🎯 Cache HIT: {file_name} ({len(file_content)} bytes)")
+                    logger.info(f"Cache HIT: {file_name} ({len(file_content)} bytes)")
             except Exception as e:
-                logging.warning(f"Redis cache read failed for {file_name}: {e}")
+                logger.warning(f"Redis cache read failed for {file_name}: {e}")
 
         # Download from S3/OSS if not cached
         if not file_content:
             file_content, _ = await storage.get(file_key)
             if not file_content:
-                logging.warning(f"Failed to download file content for key: {file_key}")
+                logger.warning(f"Failed to download file content for key: {file_key}")
                 return None
 
-            logging.info(f"📥 Downloaded {file_name} from S3 ({len(file_content)} bytes)")
+            logger.info(f"Downloaded {file_name} from S3 ({len(file_content)} bytes)")
 
             # Encode to base64 once (used for both Redis cache and content_b64)
             content_b64 = base64.b64encode(file_content).decode('utf-8')
@@ -91,9 +97,9 @@ async def _download_single_file(
             if redis_client:
                 try:
                     await redis_client.set(cache_key, content_b64, ex=CACHE_TTL_REDIS)
-                    logging.info(f"💾 Cached to Redis: {file_name}")
+                    logger.info(f"Cached to Redis: {file_name}")
                 except Exception as e:
-                    logging.warning(f"Redis cache write failed for {file_name}: {e}")
+                    logger.warning(f"Redis cache write failed for {file_name}: {e}")
 
         # Unified structure: file_info with content fields added
         # Used for both DB storage (insert_files_batch) and Agent processing
@@ -118,7 +124,7 @@ async def _download_single_file(
         }
 
     except Exception as file_error:
-        logging.error(
+        logger.error(
             f"Failed to process file {file_dict.get('file_name', 'unknown')}: {str(file_error)}",
             exc_info=True
         )
@@ -127,7 +133,7 @@ async def _download_single_file(
 #-----------------------------------------------------------------------------
 
 async def schedule_file_processing_tasks(
-    files_data: List[Dict[str, Any]],
+    files_data: list[dict[str, Any]],
     user_id: str,
     msg_id: str,
     language: str = "en"
@@ -157,11 +163,11 @@ async def schedule_file_processing_tasks(
         )
     )
     
-    logging.info(f"Scheduled file processing tasks via asyncio.create_task: msg_id={msg_id}, files_count={len(files_data)}")
+    logger.info(f"Scheduled file processing tasks via asyncio.create_task: msg_id={msg_id}, files_count={len(files_data)}")
 
 #-----------------------------------------------------------------------------
 
-def _detect_batch_scene(files_info: List[Dict[str, Any]]) -> str:
+def _detect_batch_scene(files_info: list[dict[str, Any]]) -> str:
     """Pick the th_files ``scene`` for a chat upload batch.
 
     Mirrors the drive upload path (``file_upload_manager``): priority
@@ -193,14 +199,14 @@ def _detect_batch_scene(files_info: List[Dict[str, Any]]) -> str:
 
 
 async def process_files_from_storage(
-    file_list: List[Dict[str, Any]],
+    file_list: list[dict[str, Any]],
     user_id: str,
     msg_id: str,
     session_id: str = None,
     query_user_id: str = None,
     language: str = "en",
-    redis_client: Optional[Any] = None
-) -> List[Dict[str, Any]]:
+    redis_client: Any | None = None
+) -> list[dict[str, Any]]:
     """
     Process files from storage with concurrent downloads for better performance.
     
@@ -224,7 +230,7 @@ async def process_files_from_storage(
     """
     try:
         if not file_list:
-            logging.warning(f"Empty file_list provided for msg_id: {msg_id}")
+            logger.warning(f"Empty file_list provided for msg_id: {msg_id}")
             return []
         
         # Use explicit defaults (no get_req_ctx)
@@ -249,14 +255,14 @@ async def process_files_from_storage(
             if result and isinstance(result, dict):
                 files_info.append(result)
             elif isinstance(result, Exception):
-                logging.error(f"Download task failed with exception: {result}")
+                logger.error(f"Download task failed with exception: {result}")
 
         if not files_info:
-            logging.warning(f"No valid files to process for msg_id: {msg_id}")
+            logger.warning(f"No valid files to process for msg_id: {msg_id}")
             return []
 
-        logging.info(
-            f"✅ Concurrent download completed: {len(files_info)}/{len(file_list)} files successful"
+        logger.info(
+            f"Concurrent download completed: {len(files_info)}/{len(file_list)} files successful"
         )
 
         # Save files to th_files table (uses same unified structure).
@@ -275,7 +281,7 @@ async def process_files_from_storage(
         )
 
         if inserted_ids:
-            logging.info(
+            logger.info(
                 f"Files saved to th_files with msg_id: {msg_id}, "
                 f"inserted: {len(inserted_ids)}/{len(files_info)} files"
             )
@@ -288,13 +294,13 @@ async def process_files_from_storage(
             language=language
         )
 
-        logging.info(f"Successfully scheduled processing for {len(files_info)} files with msg_id: {msg_id}")
+        logger.info(f"Successfully scheduled processing for {len(files_info)} files with msg_id: {msg_id}")
 
         # Return unified files_info for Agent to use (includes content + metadata)
         return files_info
             
     except Exception as e:
-        logging.error(f"Error in process_files_from_storage: {str(e)}", exc_info=True)
+        logger.error(f"Error in process_files_from_storage: {str(e)}", exc_info=True)
         return []
 
 #-----------------------------------------------------------------------------
