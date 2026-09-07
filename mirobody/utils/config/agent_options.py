@@ -1,18 +1,14 @@
-"""Parsing for the per-agent config keys: ``PROMPTS_<AGENT>`` / ``PROVIDERS_<AGENT>``.
+"""Parsing for the agent's config keys: ``PROMPTS`` and ``PROVIDERS``.
 
-These two are the only parts of `Config` that know anything about agents, and
-they are the only parts that do real work rather than read a key: one resolves
+These two are the only parts of `Config` that know anything about the agent,
+and the only parts that do real work rather than read a key: one resolves
 prompt-template *references* into template *text* (from the working directory
 or from the installed package), the other normalises a provider table that YAML
-may legitimately express three different ways. Together they were ~95 of the
-130 lines of `Config.get_options_for_agent`, which made the method both the
-longest in the class and the only untestable one — its logic could not be
-reached without constructing a Config and a filesystem around it.
+may legitimately express three different ways.
 
-They are plain functions here, taking the reader they need (`get`, i.e. any
+They are plain functions, taking the reader they need (`get`, i.e. any
 `Config`) rather than the whole object, so a test can pass a dict-backed stub.
-`Config.get_options_for_agent` keeps its signature, its cache and its
-behaviour, and is now the ~20 lines that do the caching.
+`Config.get_agent_settings` is the caching around them.
 """
 
 from __future__ import annotations
@@ -21,7 +17,9 @@ import importlib.resources
 import json
 import logging
 import os
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
+
+logger = logging.getLogger(__name__)
 
 
 class _Reader(Protocol):
@@ -57,7 +55,7 @@ def _as_list(raw: Any) -> list:
         try:
             parsed = json.loads(raw)
         except Exception as e:
-            logging.error(str(e), exc_info=True)
+            logger.error(str(e), exc_info=True)
         else:
             if isinstance(parsed, list):
                 return parsed
@@ -65,8 +63,8 @@ def _as_list(raw: Any) -> list:
     return raw if isinstance(raw, list) else []
 
 
-def load_prompt_templates(cfg: _Reader, suffix: str) -> dict[str, str]:
-    """Resolve ``PROMPTS_<suffix>`` entries into ``{name: template_text}``.
+def load_prompt_templates(cfg: _Reader, key: str = "PROMPTS") -> dict[str, str]:
+    """Resolve ``PROMPTS`` entries into ``{name: template_text}``.
 
     Each entry is a path, optionally ``path@name`` to override the key (the
     default key is the basename without ``.jinja``). A path is looked up on the
@@ -76,7 +74,7 @@ def load_prompt_templates(cfg: _Reader, suffix: str) -> dict[str, str]:
     Entries that resolve to no name at all are numbered ``Prompt_1``, ``…_2``.
     """
     templates: dict[str, str] = {}
-    entries = _as_list(cfg.get(f"PROMPTS_{suffix}"))
+    entries = _as_list(cfg.get(key))
     if not entries:
         return templates
 
@@ -97,11 +95,11 @@ def load_prompt_templates(cfg: _Reader, suffix: str) -> dict[str, str]:
 
         if os.path.isfile(file_path):
             try:
-                with open(file_path, "r") as f:
+                with open(file_path) as f:
                     value = f.read()
                 key = explicit_key or _default_key(file_path)
             except Exception as e:
-                logging.warning(str(e), exc_info=True)
+                logger.warning(str(e), exc_info=True)
                 value = file_path
 
         elif dist and dist.is_dir():
@@ -109,7 +107,7 @@ def load_prompt_templates(cfg: _Reader, suffix: str) -> dict[str, str]:
                 value = dist.joinpath(file_path).read_text(encoding="utf-8")
                 key = explicit_key or _default_key(file_path)
             except Exception as e:
-                logging.warning(str(e), exc_info=True)
+                logger.warning(str(e), exc_info=True)
                 value = file_path
 
         if not key:
@@ -125,8 +123,8 @@ def _default_key(file_path: str) -> str:
     return os.path.basename(file_path).removesuffix(".jinja").strip()
 
 
-def parse_providers(cfg: _Reader, suffix: str) -> dict[str, dict]:
-    """Normalise ``PROVIDERS_<suffix>`` into ``{provider_name: settings}``.
+def parse_providers(cfg: _Reader, key: str = "PROVIDERS") -> dict[str, dict]:
+    """Normalise ``PROVIDERS`` into ``{provider_name: settings}``.
 
     Three accepted shapes, because all three appear in the wild:
       * a mapping of name → settings (what config.yaml uses), taken as-is;
@@ -134,7 +132,7 @@ def parse_providers(cfg: _Reader, suffix: str) -> dict[str, dict]:
         it and is then removed from the settings;
       * a JSON string of either, for environment-variable configuration.
     """
-    raw = cfg.get(f"PROVIDERS_{suffix}")
+    raw = cfg.get(key)
     if not raw:
         return {}
 
@@ -142,7 +140,7 @@ def parse_providers(cfg: _Reader, suffix: str) -> dict[str, dict]:
         try:
             parsed = json.loads(raw)
         except Exception as e:
-            logging.error(str(e), exc_info=True)
+            logger.error(str(e), exc_info=True)
         else:
             if isinstance(parsed, (dict, list)):
                 raw = parsed

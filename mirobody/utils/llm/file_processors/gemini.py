@@ -13,7 +13,7 @@ import io
 import logging
 import pathlib
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pypdfium2 as pdfium
 from google.genai import types
@@ -21,6 +21,8 @@ from google.genai import types
 from ..clients import client_manager
 from .media import FileProcessor
 from .results import _merge_page_results
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 
@@ -33,7 +35,7 @@ async def _gemini_process_pdf_by_pages(
     max_concurrency: int = 8
 ) -> str:
     """Process PDF page-by-page with Gemini API."""
-    logging.info(f"Processing PDF with Gemini: {pdf_path}")
+    logger.info(f"Processing PDF with Gemini: {pdf_path}")
     total_start = time.time()
 
     # Extract each page as separate PDF
@@ -49,12 +51,12 @@ async def _gemini_process_pdf_by_pages(
         new_pdf.close()
 
     pdf.close()
-    logging.info(f"Extracted {len(page_pdfs)} pages")
+    logger.info(f"Extracted {len(page_pdfs)} pages")
 
     # Concurrent API calls
     semaphore = asyncio.Semaphore(max_concurrency)
 
-    async def process_page(page_info: Dict[str, Any]) -> Dict[str, Any]:
+    async def process_page(page_info: dict[str, Any]) -> dict[str, Any]:
         page_num = page_info['page_num']
         async with semaphore:
             try:
@@ -76,17 +78,17 @@ async def _gemini_process_pdf_by_pages(
                     if finish_reason in ["SAFETY", "BLOCKED"]:
                         return {'page': page_num, 'error': 'Safety blocked'}
 
-                logging.info(f"Page {page_num} completed in {time.time() - api_start:.2f}s")
+                logger.info(f"Page {page_num} completed in {time.time() - api_start:.2f}s")
                 return {'page': page_num, 'content': response.text}
 
             except Exception as e:
-                logging.error(f"Page {page_num} failed: {e}")
+                logger.error(f"Page {page_num} failed: {e}")
                 return {'page': page_num, 'error': str(e)}
 
     tasks = [process_page(page_info) for page_info in page_pdfs]
     all_results = sorted(await asyncio.gather(*tasks), key=lambda x: x['page'])
 
-    logging.info(f"Gemini processing completed in {time.time() - total_start:.2f}s")
+    logger.info(f"Gemini processing completed in {time.time() - total_start:.2f}s")
 
     # Determine JSON mode from config
     is_json_mode = config and hasattr(config, 'response_mime_type') and config.response_mime_type == "application/json"
@@ -113,14 +115,14 @@ async def gemini_file_extract(
     file_path: str,
     content_type: str,
     prompt: str,
-    config: Optional[types.GenerateContentConfig] = None,
+    config: types.GenerateContentConfig | None = None,
     model: str = "gemini-3-flash-preview"
 ) -> str:
     """Extract file content using Gemini model (supports PDF natively)."""
     try:
         filepath = pathlib.Path(file_path)
         if not filepath.exists():
-            logging.error(f"File not found: {file_path}")
+            logger.error(f"File not found: {file_path}")
             return ""
 
         client = client_manager.get_async_gemini_client()
@@ -143,7 +145,7 @@ async def gemini_file_extract(
             file_data, stats = FileProcessor.optimize_image_for_llm(
                 file_data, max_dimension=1536, quality=85
             )
-            logging.info(f"Gemini: Image optimized, {stats}")
+            logger.info(f"Gemini: Image optimized, {stats}")
 
         response = await client.models.generate_content(
             model=model,
@@ -153,20 +155,20 @@ async def gemini_file_extract(
 
         # Validate response
         if not response or not hasattr(response, "text") or response.text is None:
-            logging.error("Gemini API returned empty response")
+            logger.error("Gemini API returned empty response")
             return ""
 
         if hasattr(response, "candidates") and response.candidates:
             finish_reason = getattr(response.candidates[0], "finish_reason", None)
             if finish_reason in ["SAFETY", "BLOCKED", "OTHER"]:
-                logging.warning(f"Content blocked: {finish_reason}")
+                logger.warning(f"Content blocked: {finish_reason}")
                 return ""
 
         return response.text or ""
 
     except Exception as e:
         error_msg = str(e)
-        logging.error(f"Gemini processing failed: {type(e).__name__}: {error_msg}", stack_info=True)
+        logger.error(f"Gemini processing failed: {type(e).__name__}: {error_msg}", stack_info=True)
         raise _handle_gemini_error(error_msg) from e
 
 

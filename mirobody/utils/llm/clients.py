@@ -1,7 +1,7 @@
 
 import logging
 import os
-from typing import Any, Dict
+from typing import Any
 
 from google import genai
 from openai import AsyncOpenAI, OpenAI
@@ -15,8 +15,8 @@ class AIClientManager:
     """AI client manager"""
 
     def __init__(self):
-        self._clients: Dict[str, Any] = {}
-        self._async_clients: Dict[str, Any] = {}
+        self._clients: dict[str, Any] = {}
+        self._async_clients: dict[str, Any] = {}
         self._initialized = False
 
     def _initialize_clients(self):
@@ -50,8 +50,7 @@ class AIClientManager:
             try:
                 self._async_clients["gemini"] = genai.Client(api_key=google_api_key, vertexai=False).aio
             except Exception as e:
-                import logging
-                logging.warning(f"Failed to initialize Gemini client, skipping: {e}")
+                logger.warning(f"Failed to initialize Gemini client, skipping: {e}")
 
         self._initialized = True
 

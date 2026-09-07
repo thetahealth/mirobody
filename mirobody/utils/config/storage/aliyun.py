@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from typing import IO, Dict, Any
+from typing import IO, Any
 from functools import partial
 
 from .abstract import AbstractStorage
@@ -116,7 +116,7 @@ class AliyunStorage(AbstractStorage):
         key: str, 
         content: bytes | IO,
         content_type: str | None = None,
-        metadata: Dict[str, str] | None = None,
+        metadata: dict[str, str] | None = None,
         expires: int = 7200
     ) -> tuple[str | None, str | None]:
         """Upload file to Aliyun OSS"""
@@ -143,17 +143,17 @@ class AliyunStorage(AbstractStorage):
             loop = asyncio.get_running_loop()
             
             if isinstance(content, bytes):
-                result = await loop.run_in_executor(
+                await loop.run_in_executor(
                     None,
                     partial(self._bucket.put_object, object_key, content, headers=headers)
                 )
             elif isinstance(content, bytearray):
-                result = await loop.run_in_executor(
+                await loop.run_in_executor(
                     None,
                     partial(self._bucket.put_object, object_key, bytes(content), headers=headers)
                 )
             elif hasattr(content, "read"):
-                result = await loop.run_in_executor(
+                await loop.run_in_executor(
                     None,
                     partial(self._bucket.put_object, object_key, content, headers=headers)
                 )
@@ -267,7 +267,7 @@ class AliyunStorage(AbstractStorage):
 
     #-----------------------------------------------------
 
-    async def get_file_info(self, key: str) -> tuple[Dict[str, Any] | None, str | None]:
+    async def get_file_info(self, key: str) -> tuple[dict[str, Any] | None, str | None]:
         """Get file metadata from Aliyun OSS"""
         try:
             self._ensure_initialized()

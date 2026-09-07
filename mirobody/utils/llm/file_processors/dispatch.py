@@ -14,7 +14,8 @@ touches this file and one backend, never the callers.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
+from collections.abc import Callable
 
 from google.genai import types
 
@@ -24,11 +25,13 @@ from .backends_openai import doubao_file_extract, qwen_file_extract, vision_file
 from .gemini import gemini_file_extract
 from .results import _build_prompt_with_schema
 
+logger = logging.getLogger(__name__)
+
 
 class VisionProviderConfig:
     """Vision provider configuration with auto-selection based on API keys."""
 
-    VISION_PROVIDERS: List[Dict[str, Any]] = [
+    VISION_PROVIDERS: list[dict[str, Any]] = [
         {
             "name": "gemini",
             "api_key_env": "GOOGLE_API_KEY",
@@ -56,16 +59,16 @@ class VisionProviderConfig:
     ]
 
     @classmethod
-    def get_available_provider(cls) -> Optional[Dict[str, Any]]:
+    def get_available_provider(cls) -> dict[str, Any] | None:
         """Get first available provider with configured API key."""
         for provider in cls.VISION_PROVIDERS:
             if safe_read_cfg(provider["api_key_env"]):
-                logging.info(f"🔍 Vision provider selected: {provider['name']} ({provider['description']})")
+                logger.info(f"Vision provider selected: {provider['name']} ({provider['description']})")
                 return provider
         return None
 
     @classmethod
-    def get_provider_by_name(cls, name: str) -> Optional[Dict[str, Any]]:
+    def get_provider_by_name(cls, name: str) -> dict[str, Any] | None:
         """Get provider configuration by name."""
         for provider in cls.VISION_PROVIDERS:
             if provider["name"] == name:
@@ -73,12 +76,12 @@ class VisionProviderConfig:
         return None
 
     @classmethod
-    def list_available_providers(cls) -> List[str]:
+    def list_available_providers(cls) -> list[str]:
         """List all providers with configured API keys."""
         return [p["name"] for p in cls.VISION_PROVIDERS if safe_read_cfg(p["api_key_env"])]
 
     @classmethod
-    def get_provider_status(cls) -> Dict[str, bool]:
+    def get_provider_status(cls) -> dict[str, bool]:
         """Get availability status of all providers."""
         return {p["name"]: bool(safe_read_cfg(p["api_key_env"])) for p in cls.VISION_PROVIDERS}
 
@@ -142,7 +145,7 @@ async def _handle_doubao(
     )
 
 
-PROVIDER_HANDLERS: Dict[str, Callable] = {
+PROVIDER_HANDLERS: dict[str, Callable] = {
     "gemini": _handle_gemini,
     "openrouter": _handle_openrouter,
     "qwen": _handle_qwen,
@@ -154,10 +157,10 @@ async def unified_file_extract(
     file_path: str,
     prompt: str,
     content_type: str = "image/jpeg",
-    model: Optional[str] = None,
-    config: Optional[types.GenerateContentConfig] = None,
-    provider: Optional[str] = None,
-    json_mode: Optional[bool] = None
+    model: str | None = None,
+    config: types.GenerateContentConfig | None = None,
+    provider: str | None = None,
+    json_mode: bool | None = None
 ) -> str:
     """
     Unified file extraction that auto-selects provider based on API keys.
@@ -201,7 +204,7 @@ async def unified_file_extract(
     # Extract response_schema from config
     response_schema = getattr(config, 'response_schema', None) if config else None
     if response_schema and provider_name != "gemini":
-        logging.info(f"📋 Embedding response_schema into prompt for {provider_name}")
+        logger.info(f"Embedding response_schema into prompt for {provider_name}")
 
     # Auto-detect json_mode from config
     if json_mode is None:
@@ -210,7 +213,7 @@ async def unified_file_extract(
             (config and getattr(config, 'response_mime_type', None) == "application/json")
         )
 
-    logging.info(f"unified_file_extract: {provider_name}, model={actual_model}, json_mode={json_mode}")
+    logger.info(f"unified_file_extract: {provider_name}, model={actual_model}, json_mode={json_mode}")
 
     # Dispatch to handler
     handler = PROVIDER_HANDLERS.get(provider_name)

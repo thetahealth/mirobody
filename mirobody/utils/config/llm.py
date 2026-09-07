@@ -256,6 +256,5 @@ class LLMConfig:
         if sync:
             import boto3
             return boto3.client("bedrock-runtime", region_name=self.aws_region)
-        else:
-            import aioboto3
-            return aioboto3.Session().client("bedrock-runtime", region_name=self.aws_region)
+        import aioboto3
+        return aioboto3.Session().client("bedrock-runtime", region_name=self.aws_region)

@@ -7,8 +7,8 @@ and the `adapters/` stack — was deleted along with its single caller,
 /ws/upload-with-llm-analysis flow). The streaming half had already been
 removed earlier for the same reason (no callers).
 
-Not to be confused with `agent/base/clients.py`, which is the separate
-streaming/agentic client stack with MCP tool calling.
+The agent's own model access goes through LangChain (`agent/agent.py`);
+this package is the direct-SDK path for extraction and utility calls.
 """
 
 # Client management

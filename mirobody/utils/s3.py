@@ -15,6 +15,8 @@ from contextlib import asynccontextmanager
 from mirobody.utils.config import safe_read_cfg
 from .file_types import guess_mime
 
+logger = logging.getLogger(__name__)
+
 # `aioboto3` is imported inside `get_s3_client`, not here: it ships with the
 # `[app]` extra only, while this module is imported (via `pulse/file_parser`)
 # from the bare engine install, whose header contract says `pip install
@@ -102,7 +104,7 @@ async def aget_s3_url(key, file_name, content_type=None, expires_in=3600, bucket
     except Exception:
         # Said "file upload to S3" — a leftover from before the upload helpers
         # were removed from this module. This call only ever signs a GET.
-        logging.warning("Failed to generate a presigned S3 URL", stack_info=True)
+        logger.warning("Failed to generate a presigned S3 URL", stack_info=True)
         return ""
 
 

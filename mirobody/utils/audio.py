@@ -1,7 +1,9 @@
 """Audio duration, read from the container header without decoding.
 
-Three fallbacks in order (tinytag, a hand-rolled MP4 atom walk, mutagen)
-because no single one covers every format a user uploads.
+Two readers in order — tinytag, then a hand-rolled MP4 atom walk for the
+Android M4A/3GP containers tinytag misses. A third library (mutagen) used to
+sit behind them as "fallback for other formats"; tinytag already reads every
+format the upload surface accepts, so the second library only added an install.
 
 Was `utils_audio.py` (`mirobody.utils.utils_audio`).
 """
@@ -9,10 +11,11 @@ Was `utils_audio.py` (`mirobody.utils.utils_audio`).
 import logging
 import struct
 from io import BytesIO
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
-def _get_duration_with_tinytag(file_content: bytes, content_type: str) -> Optional[int]:
+def _get_duration_with_tinytag(file_content: bytes, content_type: str) -> int | None:
     """
     Calculate audio duration using tinytag library (pure Python, no external dependencies)
     
@@ -32,23 +35,22 @@ def _get_duration_with_tinytag(file_content: bytes, content_type: str) -> Option
         if tag.duration is not None and tag.duration > 0:
             duration_ms = int(tag.duration * 1000)
             if duration_ms < 200:
-                logging.info(f"Audio duration too short ({duration_ms}ms), using minimum 200ms for type {content_type}")
+                logger.info(f"Audio duration too short ({duration_ms}ms), using minimum 200ms for type {content_type}")
                 return 200
-            logging.info(f"TinyTag calculated audio duration: {duration_ms}ms ({tag.duration:.2f}s) for type {content_type}")
+            logger.info(f"TinyTag calculated audio duration: {duration_ms}ms ({tag.duration:.2f}s) for type {content_type}")
             return duration_ms
-        else:
-            logging.warning(f"TinyTag: duration is zero or invalid for content_type: {content_type}")
-            return None
+        logger.warning(f"TinyTag: duration is zero or invalid for content_type: {content_type}")
+        return None
             
     except ImportError:
-        logging.warning("tinytag library is not installed. Trying fallback method.")
+        logger.warning("tinytag library is not installed. Trying fallback method.")
         return None
     except Exception as e:
-        logging.warning(f"TinyTag error: {str(e)}")
+        logger.warning(f"TinyTag error: {str(e)}")
         return None
 
 
-def _parse_mp4_duration(file_content: bytes, content_type: str) -> Optional[int]:
+def _parse_mp4_duration(file_content: bytes, content_type: str) -> int | None:
     """
     Parse MP4/M4A/3GP file header to extract duration (zero dependencies)
     
@@ -78,7 +80,7 @@ def _parse_mp4_duration(file_content: bytes, content_type: str) -> Optional[int]
                 return size, atom_type, start + 16
             return size, atom_type, start + 8
         
-        def find_atom(start: int, end: int, target: bytes) -> Optional[int]:
+        def find_atom(start: int, end: int, target: bytes) -> int | None:
             """Find atom within range, return content start position"""
             pos = start
             while pos < end:
@@ -94,7 +96,7 @@ def _parse_mp4_duration(file_content: bytes, content_type: str) -> Optional[int]
         moov_start = find_atom(0, data_len, b'moov')
         if moov_start is None:
             # moov might be at the end, search backwards or just fail
-            logging.warning(f"MP4 parser: moov atom not found for {content_type}")
+            logger.warning(f"MP4 parser: moov atom not found for {content_type}")
             return None
         
         # Get moov atom size to limit search
@@ -105,7 +107,7 @@ def _parse_mp4_duration(file_content: bytes, content_type: str) -> Optional[int]
         # Find mvhd atom inside moov
         mvhd_start = find_atom(moov_start, moov_end, b'mvhd')
         if mvhd_start is None:
-            logging.warning(f"MP4 parser: mvhd atom not found for {content_type}")
+            logger.warning(f"MP4 parser: mvhd atom not found for {content_type}")
             return None
         
         # Parse mvhd atom
@@ -132,82 +134,35 @@ def _parse_mp4_duration(file_content: bytes, content_type: str) -> Optional[int]
             timescale = struct.unpack('>I', data[offset:offset+4])[0]
             duration = struct.unpack('>Q', data[offset+4:offset+12])[0]
         else:
-            logging.warning(f"MP4 parser: unknown mvhd version {version} for {content_type}")
+            logger.warning(f"MP4 parser: unknown mvhd version {version} for {content_type}")
             return None
         
         if timescale == 0:
-            logging.warning(f"MP4 parser: timescale is 0 for {content_type}")
+            logger.warning(f"MP4 parser: timescale is 0 for {content_type}")
             return None
         
         duration_seconds = duration / timescale
         duration_ms = int(duration_seconds * 1000)
         
         if duration_ms < 200:
-            logging.info(f"Audio duration too short ({duration_ms}ms), using minimum 200ms for type {content_type}")
+            logger.info(f"Audio duration too short ({duration_ms}ms), using minimum 200ms for type {content_type}")
             return 200
             
-        logging.info(f"MP4 parser calculated audio duration: {duration_ms}ms ({duration_seconds:.2f}s) for type {content_type}")
+        logger.info(f"MP4 parser calculated audio duration: {duration_ms}ms ({duration_seconds:.2f}s) for type {content_type}")
         return duration_ms
         
     except Exception as e:
-        logging.warning(f"MP4 parser error: {str(e)}")
+        logger.warning(f"MP4 parser error: {str(e)}")
         return None
 
 
-def _get_duration_with_mutagen(file_content: bytes, content_type: str) -> Optional[int]:
-    """
-    Calculate audio duration using mutagen library (fallback method)
-    
-    Args:
-        file_content: Audio file content as bytes
-        content_type: MIME type of the audio file
-        
-    Returns:
-        int: Audio duration in milliseconds, or None if failed
-    """
-    try:
-        from mutagen import File as MutagenFile
-        
-        audio_buffer = BytesIO(file_content)
-        audio = MutagenFile(audio_buffer)
-        
-        if audio is None:
-            logging.warning(f"Mutagen could not identify audio format for content_type: {content_type}")
-            return None
-        
-        if hasattr(audio, 'info') and hasattr(audio.info, 'length'):
-            duration = audio.info.length
-            
-            if duration and duration > 0:
-                duration_ms = int(duration * 1000)
-                if duration_ms < 200:
-                    logging.info(f"Audio duration too short ({duration_ms}ms), using minimum 200ms for type {content_type}")
-                    return 200
-                logging.info(f"Mutagen calculated audio duration: {duration_ms}ms ({duration:.2f}s) for type {content_type}")
-                return duration_ms
-            else:
-                logging.warning(f"Audio duration is zero or invalid for content_type: {content_type}")
-                return None
-        else:
-            logging.warning(f"Audio file does not have duration info for content_type: {content_type}")
-            return None
-            
-    except ImportError:
-        logging.warning("mutagen library is not installed.")
-        return None
-    except Exception as e:
-        logging.warning(f"Mutagen error: {str(e)}")
-        return None
-
-
-def get_audio_duration_from_bytes(file_content: bytes, content_type: str) -> Optional[int]:
+def get_audio_duration_from_bytes(file_content: bytes, content_type: str) -> int | None:
     """
     Calculate audio duration from file bytes
     
-    Uses multiple methods in order:
+    Uses two methods in order:
     1. TinyTag (pure Python, supports common formats)
     2. MP4 header parser (zero dependencies, for Android M4A/3GP)
-    3. Mutagen (fallback for other formats)
     
     Args:
         file_content: Audio file content as bytes
@@ -224,7 +179,7 @@ def get_audio_duration_from_bytes(file_content: bytes, content_type: str) -> Opt
         - OGG (audio/ogg)
         - FLAC (audio/flac)
         - WMA (audio/x-ms-wma)
-        - Other formats supported by tinytag/mutagen
+        - Other formats supported by tinytag
         
     Note:
         - Returns None for corrupted files or unsupported formats
@@ -233,13 +188,13 @@ def get_audio_duration_from_bytes(file_content: bytes, content_type: str) -> Opt
     """
     # Validate input
     if not file_content or len(file_content) == 0:
-        logging.warning("Cannot calculate duration: file content is empty")
+        logger.warning("Cannot calculate duration: file content is empty")
         return None
         
     # Skip duration calculation for very large files (> 500MB)
     file_size_mb = len(file_content) / (1024 * 1024)
     if file_size_mb > 500:
-        logging.info(f"Skipping duration calculation for large file: {file_size_mb:.2f}MB")
+        logger.info(f"Skipping duration calculation for large file: {file_size_mb:.2f}MB")
         return None
     
     # Try tinytag first (pure Python, common formats)
@@ -254,17 +209,11 @@ def get_audio_duration_from_bytes(file_content: bytes, content_type: str) -> Opt
         "video/mp4", "application/mp4"
     }
     if content_type in mp4_types or file_content[:8].find(b'ftyp') != -1:
-        logging.info("TinyTag failed, trying MP4 header parser")
+        logger.info("TinyTag failed, trying MP4 header parser")
         duration = _parse_mp4_duration(file_content, content_type)
         if duration is not None:
             return duration
     
-    # Fallback to mutagen
-    logging.info("Previous methods failed, falling back to mutagen")
-    duration = _get_duration_with_mutagen(file_content, content_type)
-    if duration is not None:
-        return duration
-    
-    # All methods failed
-    logging.warning(f"All methods failed to calculate duration for content_type: {content_type}")
+    # Both methods failed
+    logger.warning(f"All methods failed to calculate duration for content_type: {content_type}")
     return None

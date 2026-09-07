@@ -1,5 +1,7 @@
 import logging
 
+logger = logging.getLogger(__name__)
+
 # tiktoken downloads its o200k_base BPE file from an OpenAI CDN
 # (openaipublic.blob.core.windows.net) on first use and caches it under
 # TIKTOKEN_CACHE_DIR. That CDN is unreachable from some networks — mainland
@@ -25,7 +27,7 @@ def _num_tokens(text: str) -> int:
             _ENCODING = tiktoken.get_encoding("o200k_base")
         except Exception as e:
             _ENCODING_UNAVAILABLE = True
-            logging.warning(
+            logger.warning(
                 "tiktoken could not load its BPE file (%s: %s); token counts "
                 "fall back to a character estimate. For exact counts on a host "
                 "that cannot reach openaipublic.blob.core.windows.net, set "
@@ -81,10 +83,9 @@ def split_by_tokens(
             else:
                 current_idx += 1
             continue
-        else:
-            current_snippets.append(snippet)
-            current_tokens += r_tokens
-            current_idx += 1
+        current_snippets.append(snippet)
+        current_tokens += r_tokens
+        current_idx += 1
 
     if current_snippets:
         splits.append(current_snippets)

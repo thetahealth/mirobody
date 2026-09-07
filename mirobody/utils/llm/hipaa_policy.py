@@ -34,7 +34,6 @@ the kind of line someone handling PHI would reasonably rely on.
 import logging
 import os
 import re
-from typing import Optional
 
 from mirobody.utils.config import global_config, safe_read_cfg
 
@@ -118,7 +117,7 @@ def export_to_env() -> None:
             logger.info(f"export_to_env: {key}={value[:30]}{'...' if len(value) > 30 else ''}")
 
 
-def get_azure_deployment(model_hint: Optional[str] = None) -> str:
+def get_azure_deployment(model_hint: str | None = None) -> str:
     """Resolve Azure deployment name for a model.
 
     1. YAML explicit overrides take priority (for custom deployment names).

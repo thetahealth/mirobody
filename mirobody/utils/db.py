@@ -1,119 +1,132 @@
-import logging, time
+"""One `execute_query` for every Postgres access.
 
-from .config import global_config
+The contract every caller relies on:
 
-#-----------------------------------------------------------------------------
+* ``:name`` bound parameters, through SQLAlchemy ``text()``;
+* a statement that returns rows (SELECT, ``… RETURNING``) gives ``list[dict]``;
+* DML without a result set gives ``{"record_count": n}``;
+* ``params`` is a dict (bind once) or a list of dicts (executemany).
 
-global_engines  = {}
+Where the ENGINE comes from is the one thing that differs between deployments,
+so it is injected: `use_engines(provider)` installs a callable
+``(db_config) -> AsyncEngine``. The reference server installs nothing and gets
+the default — ``global_config().get_postgresql(db_config).get_async_engine()``;
+a consumer with its own DSN, ``search_path`` GUC and encryption key installs
+its own at startup, and every module that imported `execute_query` keeps
+working. Engines are cached here per ``db_config`` name; `reset_engines()`
+forgets them after their owner has disposed them.
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+from collections.abc import Callable
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+_engines: dict[str, Any] = {}
+_provider: Callable[[str], Any] | None = None
 
 
-def _summarize_for_log(v, max_len: int = 512, max_rows: int = 5):
-    """Truncate a value so an error log line can't blow up to MBs or leak
-    full row contents (e.g. plaintext fed to encrypt_content)."""
-    if isinstance(v, str):
-        return v if len(v) <= max_len else v[:max_len] + "..."
-    if isinstance(v, list):
-        if len(v) > max_rows:
-            return f"[{len(v)} rows]"
-        return [_summarize_for_log(x, max_len, max_rows) for x in v]
-    if isinstance(v, dict):
-        return {k: _summarize_for_log(val, max_len, max_rows) for k, val in v.items()}
-    return v
+def use_engines(provider: Callable[[str], Any] | None) -> None:
+    """Install how an engine is obtained for a ``db_config`` name (``None``
+    restores the reference server's default). Forgets cached engines."""
+    global _provider
+    _provider = provider
+    _engines.clear()
+
+
+def reset_engines() -> None:
+    """Forget the cached engines — call after disposing them."""
+    _engines.clear()
+
+
+def _default_provider(db_config: str) -> Any:
+    from .config import global_config
+
+    config = global_config()
+    if not config:
+        raise ValueError("no configuration found")
+    return config.get_postgresql(db_config).get_async_engine()
+
+
+def engine_for(db_config: str = "") -> Any:
+    """The async engine for ``db_config``, built once per name.
+
+    The check-then-set is safe only because every provider is synchronous, so
+    asyncio cannot switch coroutines mid-block; a provider that awaits would
+    need a lock here.
+    """
+    engine = _engines.get(db_config)
+    if engine is None:
+        engine = (_provider or _default_provider)(db_config)
+        _engines[db_config] = engine
+    return engine
+
+
+def _summarize_sql(query: str, max_len: int = 512) -> str:
+    text = " ".join(query.split())
+    return text if len(text) <= max_len else text[:max_len] + "..."
 
 
 async def execute_query(
-    query       : str,
-    params      : dict | list[dict] | None = None,
-    db_config   : str = "",
-    trace_id    : str = "",
-    log_sql     : bool = True,
-    **kwargs
+    query: str,
+    params: dict | list[dict] | None = None,
+    db_config: str = "",
+    trace_id: str = "",
+    log_sql: bool = True,
+    **kwargs,
 ):
-    # Check SQL statement.
     if not query:
         raise ValueError("SQL script cannot be empty")
 
-    # Engine cache: this check-then-set is safe only because every call below
-    # (global_config / get_postgresql / get_async_engine) is synchronous, so
-    # asyncio cannot switch coroutines mid-block. If any of them ever becomes
-    # async, two coroutines could both miss the cache and create duplicate
-    # engines (the loser leaks its connection pool) — add a lock at that point.
-    if db_config in global_engines:
-        engine = global_engines[db_config]
-    else:
-        config = global_config()
-        if not config:
-            raise ValueError("no configuration found")
-
-        engine = config.get_postgresql(db_config).get_async_engine()
-        global_engines[db_config] = engine
-
-    #-----------------------------------------------------
-
-    start_time = time.perf_counter()
+    engine = engine_for(db_config)
+    start = time.perf_counter()
     try:
-        # async with engine.begin() handles commit on success, rollback on
-        # exception, and close in both cases. Don't reintroduce manual
-        # commit/rollback/close here.
-        # Imported here rather than at module scope: `mirobody.utils` re-exports
-        # `execute_query`, so a top-level `from sqlalchemy import text` made
-        # SQLAlchemy a hard requirement of `import mirobody.utils` — and through
-        # it, of the whole offline engine, which never opens a connection.
-        # Anything that reaches this line already has a live engine.
+        # Imported here rather than at module scope so that importing
+        # `mirobody.utils.db` — which `mirobody.utils` re-exports from — does
+        # not make SQLAlchemy a requirement of code that never opens a connection.
         from sqlalchemy import text
 
+        # `engine.begin()` commits on success, rolls back on exception and
+        # closes either way; no manual commit/rollback/close belongs here.
         async with engine.begin() as conn:
-            # params=list[dict] triggers SQLAlchemy executemany; dict/None binds once.
+            # params=list[dict] is SQLAlchemy executemany; dict/None binds once.
             cur = await conn.execute(text(query), params)
-
-            # Decide branch by whether the cursor actually has a result set,
-            # not by lexically matching the SQL prefix — that breaks for
-            # `WITH ... UPDATE`, `UPDATE ... RETURNING`, etc.
+            # Branch on whether the cursor HAS a result set, never on the SQL
+            # prefix — `WITH … UPDATE`, `UPDATE … RETURNING` break the latter.
             if cur.returns_rows:
-                # SELECT or DML...RETURNING — both return list[dict].
-                # Callers expecting a single row should do `result[0]` after a
-                # truthy check (empty list is falsy). This avoids silently
-                # dropping extra rows from bulk INSERT/UPDATE/DELETE...RETURNING.
-                ret = [dict(row._mapping) for row in cur.fetchall()]
-
+                ret: list[dict] | dict = [dict(row._mapping) for row in cur.fetchall()]
             elif isinstance(params, list):
-                # cur.rowcount under executemany is per-driver unreliable —
-                # some report only the last execution. Use the input batch
-                # size, which is what the caller actually submitted.
+                # rowcount under executemany is per-driver unreliable; the input
+                # batch size is what the caller actually submitted.
                 ret = {"record_count": len(params)}
-
             else:
                 ret = {"record_count": cur.rowcount}
 
-        end_time = time.perf_counter()
-        extra = {
-            "records"   : len(ret) if isinstance(ret, list) else ret["record_count"],
-            "time_cost" : round((end_time-start_time)*1e3, 2)
-        }
-        if trace_id:
-            extra["trace_id"] = trace_id
-
         if log_sql:
-            logged_query = " ".join(query.split())
-            if len(logged_query) > 512:
-                logged_query = logged_query[:512] + "..."
-            logging.info(logged_query, extra=extra, stacklevel=2)
-
+            extra: dict[str, Any] = {
+                "records": len(ret) if isinstance(ret, list) else ret["record_count"],
+                "time_cost": round((time.perf_counter() - start) * 1e3, 2),
+            }
+            if trace_id:
+                extra["trace_id"] = trace_id
+            logged_query = _summarize_sql(query)  # the statement text: placeholders, no values
+            logger.info(logged_query, extra=extra, stacklevel=2)
         return ret
 
     except Exception as e:
-        end_time = time.perf_counter()
+        # Counts and a type only — never the parameter VALUES, which are the row
+        # being written; the traceback and `stacklevel` name the statement, and
+        # the INFO line above already carried its text when `log_sql` is on.
         extra = {
-            "sql"       : _summarize_for_log(" ".join(query.split())),
-            "params"    : _summarize_for_log(params),
-            "time_cost" : round((end_time-start_time)*1e3, 2)
+            "error_type": type(e).__name__,
+            "param_count": len(params) if isinstance(params, list) else (len(params) if params else 0),
+            "time_cost": round((time.perf_counter() - start) * 1e3, 2),
         }
         if trace_id:
             extra["trace_id"] = trace_id
-
-        logging.error(str(e), extra=extra, stacklevel=2, exc_info=True)
-
+        logger.error("execute_query failed", extra=extra, stacklevel=2, exc_info=True)
         raise
-
-
-#-----------------------------------------------------------------------------

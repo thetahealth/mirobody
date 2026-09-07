@@ -21,7 +21,7 @@ See its docstring for the full comparison and why the two have not been merged.
 """
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mirobody.utils.config import safe_read_cfg
 
@@ -34,7 +34,7 @@ class AIConfig:
     """AI model configuration manager"""
 
     # Used for auto-selecting available providers
-    _DEFAULT_PROVIDER_PRIORITY: List[Dict[str, Any]] = [
+    _DEFAULT_PROVIDER_PRIORITY: list[dict[str, Any]] = [
         {
             "name": "openai",
             "api_key_env": "OPENAI_API_KEY",
@@ -75,10 +75,10 @@ class AIConfig:
     # WITHOUT trying the next available provider, and async_get_structured_output
     # has no claude arm at all. Removing it is what makes such a deployment fall
     # through to a provider that answers. Chat is unaffected: the agent reaches
-    # Claude through config.yaml's PROVIDERS_DEEP, not this table.
+    # Claude through config.yaml's PROVIDERS, not this table.
 
     # Where each OpenAI-compatible provider lives, when nothing overrides it.
-    _CONFIG: Dict[str, Dict[str, str]] = {
+    _CONFIG: dict[str, dict[str, str]] = {
         "openai": {
             "api_key_env": "OPENAI_API_KEY",
             "api_base": "https://api.openai.com/v1",
@@ -101,7 +101,7 @@ class AIConfig:
     }
 
     @classmethod
-    def get_provider_config(cls, provider: str) -> Dict[str, Any]:
+    def get_provider_config(cls, provider: str) -> dict[str, Any]:
         """Get configuration for specified provider"""
         if provider not in cls._CONFIG:
             raise ValueError(f"Unsupported AI provider: {provider}")
@@ -124,14 +124,14 @@ class AIConfig:
     # ========== Auto-select provider methods ==========
 
     @staticmethod
-    def _resolve_provider(provider: Dict[str, Any]) -> Dict[str, Any]:
+    def _resolve_provider(provider: dict[str, Any]) -> dict[str, Any]:
         """Return a copy of the priority entry with default_model resolved against current env."""
         if provider["name"] == "gemini" and _vertex_ai_enabled():
             return {**provider, "default_model": provider["vertex_default_model"]}
         return provider
 
     @classmethod
-    def get_available_provider(cls) -> Optional[Dict[str, Any]]:
+    def get_available_provider(cls) -> dict[str, Any] | None:
         """
         Get first available provider (based on configured API keys)
 
@@ -148,7 +148,7 @@ class AIConfig:
         return None
 
     @classmethod
-    def get_provider_by_priority_name(cls, name: str) -> Optional[Dict[str, Any]]:
+    def get_provider_by_priority_name(cls, name: str) -> dict[str, Any] | None:
         """
         Get provider config by name from priority list
 
@@ -164,7 +164,7 @@ class AIConfig:
         return None
 
     @classmethod
-    def get_provider_status(cls) -> Dict[str, bool]:
+    def get_provider_status(cls) -> dict[str, bool]:
         """
         Get configuration status of all providers
 

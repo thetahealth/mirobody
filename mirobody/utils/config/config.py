@@ -1,4 +1,10 @@
-import base64, dotenv, importlib, importlib.resources, importlib.metadata, io, json, logging, os, re
+import base64
+import dotenv
+import io
+import json
+import logging
+import os
+import re
 
 from ruamel.yaml import YAML
 from typing import Any
@@ -15,6 +21,8 @@ if TYPE_CHECKING:  # heavy drivers — imported lazily inside the accessors belo
     from .postgresql import PostgreSQLConfig
     from .redis import RedisConfig
 
+logger = logging.getLogger(__name__)
+
 #-----------------------------------------------------------------------------
 
 _global_config = None
@@ -25,6 +33,86 @@ _global_config = None
 #: never changed), and `PRODUCTION: true` refuses to start while any key still
 #: carries it (see `server/bootstrap.py`).
 PLACEHOLDER_SENTINEL = "REPLACE_THIS_VALUE_IN_PRODUCTION"
+
+#-----------------------------------------------------------------------------
+# Keys 1.4.0 renamed, and the one place that knows both spellings.
+#
+# When the agent stopped being "the DeepAgent" its config keys lost the `_DEEP`
+# suffix. The upgrade failure that motivates this table was SILENT: an overlay
+# written for 1.3.x still said `PROVIDERS_DEEP`, the new `PROVIDERS` was simply
+# absent from it, and the agent booted with zero providers and an empty
+# `/api/models` — nothing raised, nothing logged, and the deployment looked
+# healthy. Owner's call (2026-09-07): map the old spelling onto the new one.
+#
+# It has to happen at LOAD time, not read time. The shipped `config.yaml`
+# declares `PROVIDERS`, `PROMPTS`, `ALLOWED_TOOLS` and `DISALLOWED_TOOLS`
+# itself, so a "fall back when the new key is missing" alias would never fire —
+# the shipped default shadows the user's overlay, which is the whole bug.
+# Renaming as each file merges means ordinary layering decides: a later file's
+# old spelling overrides an earlier file's new one, exactly as it did in 1.3.x.
+_RENAMED_KEYS = {
+    "PROVIDERS_DEEP": "PROVIDERS",
+    "PROMPTS_DEEP": "PROMPTS",
+    "ALLOWED_TOOLS_DEEP": "ALLOWED_TOOLS",
+    "DISALLOWED_TOOLS_DEEP": "DISALLOWED_TOOLS",
+    "DEFAULT_PROVIDER_DEEP": "DEFAULT_PROVIDER",
+}
+
+#: new spelling -> the 1.3.x one, for the environment-variable half.
+_RENAMED_FROM = {new: old for old, new in _RENAMED_KEYS.items()}
+
+#: Keys 1.4.0 REMOVED, with what replaced them. Deliberately not aliased:
+#: `SSE_HEARTBEAT_SECONDS` is not `HEARTBEAT_INTERVAL` under a new name (the
+#: old pair multiplied to a first ping at 40 s; the new one fires on silence),
+#: and the two directory keys have no successor. Silently ignoring them is what
+#: makes an upgrade look fine while behaving differently, so they are named.
+_REMOVED_KEYS = {
+    "PRIVATE_AGENT_DIRS": "removed; `AGENT_DIRS` is the one agent search path",
+    "MCP_RESOURCE_DIRS": "removed with the MCP `resources` capability",
+    "HEARTBEAT_INTERVAL": "replaced by `SSE_HEARTBEAT_SECONDS` (seconds of silence, default 8)",
+    "HEARTBEAT_COUNTER_THRESHOLD": "replaced by `SSE_HEARTBEAT_SECONDS`",
+}
+
+#: Keys already warned about, so an overlay layered over three files says it
+#: once. Module-level because `Config` is instantiated more than once in a
+#: process (tests, and the worker's own reload).
+_warned_keys: set[str] = set()
+
+
+def _warn_renamed(old_key: str, new_key: str) -> None:
+    if old_key in _warned_keys:
+        return
+    _warned_keys.add(old_key)
+    logger.warning(
+        "config key %s was renamed to %s in 1.4.0; the old spelling is being "
+        "read as the new one. Rename it in your overlay — this alias is a "
+        "migration courtesy, not the contract.", old_key, new_key,
+    )
+
+
+def _warn_removed(key: str, reason: str) -> None:
+    """`reason` is passed in rather than looked up here: `phi_lint` flags every
+    subscript inside a `logger.*` call, and a table lookup at the call site is
+    not a log statement."""
+    if key in _warned_keys:
+        return
+    _warned_keys.add(key)
+    logger.warning("config key %s is %s; it is being ignored.", key, reason)
+
+
+def _legacy_env(upper_key: str) -> str | None:
+    """The 1.3.x environment variable for `upper_key`, if that is where the
+    value is. `None` when the key was never renamed or the old one is unset,
+    so a deployment on the current spelling pays one dict lookup and warns
+    never."""
+    old = _RENAMED_FROM.get(upper_key)
+    if old is None:
+        return None
+    s = os.environ.get(old)
+    if s is None:
+        return None
+    _warn_renamed(old, upper_key)
+    return s
 
 #-----------------------------------------------------------------------------
 
@@ -75,7 +163,9 @@ class Config:
 
     #-----------------------------------------------------
 
-    def refresh(self, data: dict = {}):
+    def refresh(self, data: dict | None = None):
+        if data is None:
+            data = {}
         if data:
             self._raw.update(data)
 
@@ -105,11 +195,8 @@ class Config:
         self.jwt_private_key    = self.get_str("JWT_PRIVATE_KEY")
 
         self.mcp_tool_dirs      = self.get_dirs("MCP_TOOL_DIRS", [])
-        self.mcp_resource_dirs  = self.get_dirs("MCP_RESOURCE_DIRS", [])
         self.agent_dirs         = self.get_dirs("AGENT_DIRS", [])
         self.task_dirs          = self.get_dirs("TASK_DIRS", [])
-
-        self.private_agent_dirs         = self.get_dirs("PRIVATE_AGENT_DIRS", [])
 
         self.mcp_server_url = self.get_str("MCP_PUBLIC_URL")
 
@@ -125,12 +212,12 @@ class Config:
         if isinstance(file, str):
             # Filename.
             try:
-                with open(file, "r", encoding="utf-8") as f:
+                with open(file, encoding="utf-8") as f:
                     s = f.read()
                     stream = io.StringIO(s)
 
             except Exception as e:
-                logging.warning(f"Failed to load YAML file '{file}': {str(e)}")
+                logger.warning(f"Failed to load YAML file '{file}': {str(e)}")
                 return
 
         elif isinstance(file, io.StringIO):
@@ -156,6 +243,19 @@ class Config:
 
             upper_key = key.upper()
 
+            if upper_key in _REMOVED_KEYS:
+                _warn_removed(upper_key, _REMOVED_KEYS[upper_key])
+                continue
+
+            renamed = _RENAMED_KEYS.get(upper_key)
+            if renamed:
+                if any(isinstance(k, str) and k.upper() == renamed for k in data):
+                    # This file spells it both ways. The current name wins,
+                    # rather than whichever `data` happened to yield last.
+                    continue
+                _warn_renamed(upper_key, renamed)
+                upper_key = renamed
+
             if self._encrypter and isinstance(value, str) and len(value) > 0:
                 # Check non-empty strings.
 
@@ -179,7 +279,7 @@ class Config:
                     # alone and say so.
                     encrypted = self._encrypter.encrypt(value)
                     if not encrypted:
-                        logging.error(
+                        logger.error(
                             "refusing to write config: %s could not be "
                             "encrypted (encryption key unusable). The value on "
                             "disk is left untouched and remains in plaintext.",
@@ -196,12 +296,12 @@ class Config:
 
         if isinstance(file, str) and modified:
             try:
-                with open(file, "w+t", encoding="utf-8") as f:
+                with open(file, "w+", encoding="utf-8") as f:
                     if f.writable():
                         Config.yaml.dump(data, f)
 
             except Exception as e:
-                logging.warning(f"Failed to update YAML file '{file}': {str(e)}")
+                logger.warning(f"Failed to update YAML file '{file}': {str(e)}")
 
     #-----------------------------------------------------
 
@@ -218,6 +318,14 @@ class Config:
         # Check key in upper case again.
         upper_key = stripped_key.upper()
         s = os.environ.get(upper_key)
+        if s is not None:
+            return s
+
+        # The pre-1.4.0 spelling, if the deployment sets it in the environment
+        # rather than in an overlay. Before `self._raw`, because environment
+        # beats file — and the shipped `config.yaml` declares four of these, so
+        # checking after would mean the default always won.
+        s = _legacy_env(upper_key)
         if s is not None:
             return s
 
@@ -238,6 +346,11 @@ class Config:
         # Check key in upper case again.
         upper_key = stripped_key.upper()
         s = os.environ.get(upper_key)
+        if s is not None:
+            return s
+
+        # The pre-1.4.0 spelling — see `get`.
+        s = _legacy_env(upper_key)
         if s is not None:
             return s
 
@@ -364,7 +477,7 @@ class Config:
         s = self.get_str(key).strip()
 
         if not s:
-            logging.error(
+            logger.error(
                 "%s is not set. Config secrets will be 'encrypted' with a "
                 "fixed, publicly-known key and are effectively plaintext. Set "
                 "it to a random 32-character value.", key,
@@ -378,7 +491,7 @@ class Config:
         except Exception as e:
             # Deliberately not logging `s`: it is the encryption passphrase,
             # and the old version put it in the log line verbatim.
-            logging.error("could not derive a Fernet key from %s: %s", key, e)
+            logger.error("could not derive a Fernet key from %s: %s", key, e)
             return ""
 
 
@@ -425,54 +538,39 @@ class Config:
     def get_mcp_options(self) -> dict[str, str | list[str]]:
         return {
             "tool_dirs"         : self.mcp_tool_dirs,
-            "resource_dirs"     : self.mcp_resource_dirs,
         }
 
 
     def get_agent_options(self) -> dict[str, list[str] | dict[str, str]]:
         return {
             "agent_dirs"        : self.agent_dirs,
-            "private_agent_dirs": self.private_agent_dirs,
             "api_keys"          : self.api_keys
         }
 
 
-    def get_options_for_agent(self, agent_name: str) -> dict[str, Any]:
-        """Everything configured under the `*_<AGENT>` keys, cached per agent.
+    def get_agent_settings(self) -> dict[str, Any]:
+        """The agent's runtime settings from the four plain keys, cached.
 
-        The two halves that do real work — resolving `PROMPTS_<AGENT>` path
-        references into template text, and normalising the three accepted
-        shapes of `PROVIDERS_<AGENT>` — live in `agent_options.py`. They were
-        ~95 of this method's 130 lines and are the only agent-specific logic in
-        this class; out there they are testable without a Config or a
-        filesystem. What is left here is the caching, which is this method's
-        actual job.
+        `PROVIDERS`, `PROMPTS`, `ALLOWED_TOOLS`, `DISALLOWED_TOOLS` — one agent,
+        one set of keys (they used to carry the agent's name as a suffix). The
+        two halves that do real work — resolving `PROMPTS` path references into
+        template text, and normalising the three accepted shapes of `PROVIDERS`
+        — live in `agent_options.py`, testable without a Config or a
+        filesystem. What is left here is the caching.
         """
         if self._agent_options:
-            result = self._agent_options.get(agent_name)
-            if result:
-                return result
-
-        options = {
-            "allowed_tools"     : [],
-            "disallowed_tools"  : [],
-            "prompt_templates"  : {},
-            "providers"         : {}
-        }
-
-        suffix = agent_name.strip().upper()
-        if not suffix:
-            self._agent_options[agent_name] = options
-            return options
+            return self._agent_options
 
         from .agent_options import load_prompt_templates, parse_providers
 
-        options["allowed_tools"]    = self.get_list(f"ALLOWED_TOOLS_{suffix}", [])
-        options["disallowed_tools"] = self.get_list(f"DISALLOWED_TOOLS_{suffix}", [])
-        options["prompt_templates"] = load_prompt_templates(self, suffix)
-        options["providers"]        = parse_providers(self, suffix)
+        options = {
+            "allowed_tools"     : self.get_list("ALLOWED_TOOLS", []),
+            "disallowed_tools"  : self.get_list("DISALLOWED_TOOLS", []),
+            "prompt_templates"  : load_prompt_templates(self),
+            "providers"         : parse_providers(self),
+        }
 
-        self._agent_options[agent_name] = options
+        self._agent_options = options
         return options
 
     #-----------------------------------------------------
@@ -560,7 +658,7 @@ class Config:
             minconn     = self.get_int(f"PG_MIN_CONNECTION{suffix}"),
             maxconn     = self.get_int(f"PG_MAX_CONNECTION{suffix}"),
             timeout     = self.get_int(f"PG_TIMEOUT{suffix}"),
-            encrypt_key = self.get_str(f"PG_ENCRYPTION_KEY"),
+            encrypt_key = self.get_str("PG_ENCRYPTION_KEY"),
         )
 
         self._postgresqls[upper_key] = pg_config
@@ -672,12 +770,8 @@ class Config:
             print(f"mcp             : {self.mcp_server_url}")
         if self.mcp_tool_dirs:
             print(f"tools           : {self.mcp_tool_dirs}")
-        if self.mcp_resource_dirs:
-            print(f"resources       : {self.mcp_resource_dirs}")
         if self.agent_dirs:
             print(f"agents          : {self.agent_dirs}")
-        if self.private_agent_dirs:
-            print(f"private agents  : {self.private_agent_dirs}")
         if self.task_dirs:
             print(f"tasks           : {self.task_dirs}")
 
@@ -762,9 +856,13 @@ class Config:
     @staticmethod
     async def init(
         yaml_filenames  : str | list[str] | None = None,
-        dotenv_filenames: str | list[str] = [".env"],
-        log_extra       : dict | None = {}
+        dotenv_filenames: str | list[str] = None,
+        log_extra       : dict | None = None
     ):
+        if log_extra is None:
+            log_extra = {}
+        if dotenv_filenames is None:
+            dotenv_filenames = [".env"]
         log_extra = dict(log_extra) if log_extra else {}
 
         # `.env` first, because ENV feeds the log fields below and the formatter
@@ -825,7 +923,7 @@ class Config:
         default_yaml = "config.yaml"
         if os.path.exists(default_yaml) and default_yaml not in yaml_file_list:
             final_yaml_file_list.append(default_yaml)
-            logging.info("Default config has been loaded.")
+            logger.info("Default config has been loaded.")
 
         for yaml_filename in yaml_file_list:
             if os.path.exists(yaml_filename):
@@ -862,7 +960,6 @@ def global_config() -> Config | None:
 #-----------------------------------------------------------------------------
 
 def safe_read_cfg(key: str, default: str = "") -> str:
-    global _global_config
     if not _global_config:
         return default
 

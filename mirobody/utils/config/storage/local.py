@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 from pathlib import Path
-from typing import IO, Optional, Dict, Any
+from typing import IO, Any
 from datetime import datetime
 
 from .abstract import AbstractStorage
@@ -116,15 +116,14 @@ class LocalStorage(AbstractStorage):
         if self.proxy_url:
             # Use proxy URL: http://localhost:18060/files/uploads/file.pdf
             return f"{self.proxy_url.rstrip('/')}/{object_key}"
-        else:
-            # No MCP_PUBLIC_URL configured → RELATIVE URL. The comment here
-            # always said "relative" but the code returned an absolute
-            # http://localhost:18080/... — on any deployment whose port is not
-            # 18080 (config.local.yaml runs 18090; an ssh tunnel held 18080)
-            # every "View file" click landed on a dead host, silently. The
-            # frontend is same-origin with this server (htdoc-hosted in prod,
-            # vite-proxied in dev), so a relative /files/ path works in both.
-            return f"/files/{object_key}"
+        # No MCP_PUBLIC_URL configured → RELATIVE URL. The comment here
+        # always said "relative" but the code returned an absolute
+        # http://localhost:18080/... — on any deployment whose port is not
+        # 18080 (config.local.yaml runs 18090; an ssh tunnel held 18080)
+        # every "View file" click landed on a dead host, silently. The
+        # frontend is same-origin with this server (htdoc-hosted in prod,
+        # vite-proxied in dev), so a relative /files/ path works in both.
+        return f"/files/{object_key}"
     
     #-----------------------------------------------------
 
@@ -132,8 +131,8 @@ class LocalStorage(AbstractStorage):
         self, 
         key: str, 
         content: bytes | IO,
-        content_type: Optional[str] = None,
-        metadata: Optional[Dict[str, str]] = None,
+        content_type: str | None = None,
+        metadata: dict[str, str] | None = None,
         expires: int = 7200
     ) -> tuple[str | None, str | None]:
         """
@@ -304,7 +303,7 @@ class LocalStorage(AbstractStorage):
 
     #-----------------------------------------------------
 
-    async def get_file_info(self, key: str) -> tuple[Dict[str, Any] | None, str | None]:
+    async def get_file_info(self, key: str) -> tuple[dict[str, Any] | None, str | None]:
         """
         Get file metadata from local storage
 

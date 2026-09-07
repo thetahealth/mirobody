@@ -70,23 +70,54 @@ Core system settings found in `config.yaml`.
 
 ## 🤖 Agent Configuration
 
-Agents are configured using a specific naming convention: `KEY_{AGENT_NAME}`.
+One agent, one set of keys — no agent-name suffix (before 1.4.0 these were
+`PROVIDERS_DEEP`, `PROMPTS_DEEP`, `ALLOWED_TOOLS_DEEP`, `DISALLOWED_TOOLS_DEEP`,
+`DEFAULT_PROVIDER_DEEP`).
 
-### 1. Providers (`PROVIDERS_{NAME}`)
+**Upgrading from 1.3.x?** The old spelling still works. Each `*_DEEP` key is
+renamed onto its current name as the config file merges, and the log says so
+once. Rename them anyway — the alias is a migration courtesy, not the contract.
 
-Defines the LLM clients available to the agent. Passed to the agent's `load_llm_clients` method.
+Renaming happens at LOAD time, and that placement is the whole point: the
+shipped `config.yaml` declares `PROVIDERS`, `PROMPTS`, `ALLOWED_TOOLS` and
+`DISALLOWED_TOOLS` itself, so an alias that only filled in when the new key
+was *missing* would never have fired — the shipped default shadowed the
+overlay, which is exactly how a 1.3.x deployment came up with zero providers
+and an empty `/api/models` and nothing in the log. Because the rename happens
+as each file merges, ordinary layering still decides: a later file's old
+spelling overrides an earlier file's new one. Environment variables alias the
+same way, and the current spelling always wins when both are set.
+
+Four keys are **not** aliased, and a config that still carries one is named in
+the log rather than ignored: `PRIVATE_AGENT_DIRS` (use `AGENT_DIRS`),
+`MCP_RESOURCE_DIRS` (removed with the MCP `resources` capability), and
+`HEARTBEAT_INTERVAL` / `HEARTBEAT_COUNTER_THRESHOLD` — `SSE_HEARTBEAT_SECONDS`
+is not those under a new name, since the old pair multiplied to a first ping at
+40 s while the new one fires on silence.
+
+### 1. Providers (`PROVIDERS`)
+
+The LLM clients the model picker offers. Each entry becomes a LangChain chat
+model at startup (`mirobody/agent/models/clients.py`); `api_key` names the config or
+environment key that holds the secret, and an entry whose key is absent is
+listed as unusable rather than failing the boot.
 
 ```yaml
-PROVIDERS_DEEP:
-  gemini-3-flash:
-    llm_type: google-genai
-    api_key: GOOGLE_API_KEY  # References env var
-    model: gemini-2.0-flash-exp
-  gpt-4o:
+PROVIDERS:
+  claude-sonnet:
     llm_type: openai
-    api_key: OPENAI_API_KEY
-    model: gpt-4o
+    api_key: OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+    model: anthropic/claude-sonnet-5
+  gemini-flash:
+    llm_type: google-genai
+    api_key: GOOGLE_API_KEY
+    model: gemini-3.5-flash
 ```
+
+`DEFAULT_PROVIDER` names the entry a chat uses when the client sends none;
+unset, the agent picks by which key is present (OpenRouter first, then
+DashScope).
 
 #### Multimodal capability (`supports_pdf` / `supports_image`)
 
@@ -101,7 +132,7 @@ Declare it only for **OpenAI-compatible endpoints** whose profile is unknown
 (DashScope, Volcengine, OpenRouter-proxied models, …):
 
 ```yaml
-PROVIDERS_DEEP:
+PROVIDERS:
   qwen-vl:                     # a vision model on DashScope
     llm_type: openai
     api_key: DASHSCOPE_API_KEY
@@ -126,54 +157,30 @@ Notes:
 - `PPT`/`PPTX` always read as extracted text (no provider accepts them as a file block).
 - Advanced: a raw `profile: { … }` dict of [`ModelProfile`](https://reference.langchain.com/python/langchain_core/language_models/#langchain_core.language_models.ModelProfile) fields is also honored and overrides the friendly flags.
 
-### 2. Tools (`ALLOWED_TOOLS_{NAME}` / `DISALLOWED_TOOLS_{NAME}`)
+### 2. Tools (`ALLOWED_TOOLS` / `DISALLOWED_TOOLS`)
 
-Control which tools an agent can access using whitelist or blacklist configurations.
-
-#### Whitelist Configuration
-
-Explicitly specify allowed tools - agent can only use these tools:
+Which MCP tools the agent may call. A whitelist names the only tools allowed;
+a blacklist removes tools from the full set; when both are given the whitelist
+wins. Neither set means every tool.
 
 ```yaml
-ALLOWED_TOOLS_DEEP:
-  - web_search
-  - calculator
-  - file_reader
+ALLOWED_TOOLS:
+  - query_health_indicators
+  - resolve_indicator
+
+DISALLOWED_TOOLS:
+  - get_genetic_data
 ```
 
-#### Blacklist Configuration
+### 3. Prompts (`PROMPTS`)
 
-Specify disallowed tools - agent can use all tools except these:
-
-```yaml
-DISALLOWED_TOOLS_DEEP:
-  - dangerous_tool
-  - deprecated_tool
-```
-
-#### Combined Configuration
-
-When both are specified, whitelist takes precedence:
+Jinja2 templates for the system prompt. The first entry is the default; a
+client can ask for another by name (`prompt_name`).
 
 ```yaml
-ALLOWED_TOOLS_DEEP:
-  - web_search
-  - calculator
-  - file_reader
-
-DISALLOWED_TOOLS_DEEP:
-  - file_reader  # This will be ignored - whitelist has priority
-```
-
-**Note**: If neither is specified, the agent has access to all available tools.
-
-### 3. Prompts (`PROMPTS_{NAME}`)
-
-Path to Jinja2 template files used for system prompts.
-
-```yaml
-PROMPTS_DEEP:
-- agent/prompts/deep.jinja
+PROMPTS:
+- agent/prompts/mirobody.jinja
+- /path/to/your/own.jinja@concise      # path@name overrides the key
 ```
 
 Paths are resolved twice: first as `os.path.isfile(path)` relative to the
@@ -183,25 +190,20 @@ and from a `pip install` — which is why `config.yaml` uses that form — while
 your own templates outside the package should use an absolute path, or one
 relative to wherever you launch the server.
 
-(This section documented `mirobody/agent/deep/prompts/default.jinja` and
-`simple.jinja`. Neither the directory nor the files exist; the shipped
-templates are under `agent/prompts/`.)
+`AGENT_NAME` is the persona name the template addresses the model by
+(default `Mirobody`).
 
-#### Path with Suffix Format
+### 4. The agent itself (`AGENT_DIRS`)
 
-You can specify a custom key name using `path@suffix` format:
-
-```yaml
-PROMPTS_DEEP:
-- agent/prompts/deep.jinja@main
-- /path/to/your/own.jinja@simple
-```
-
-This will create `prompt_templates` with keys `main` and `simple` instead of deriving from file names.
+The directories scanned for the agent class; an installed `mirobody.agents`
+entry point is looked at first, then these, and the first class with
+`generate_response` wins. This is how a deployment **replaces** the shipped
+agent with its own — see `mirobody/agent/README.md`. There is no second agent
+and no switching.
 
 ## 🧪 Code Execution (QuickJS)
 
-DeepAgent computes with an **in-process JS/TS interpreter** —
+The agent computes with an **in-process JS/TS interpreter** —
 [langchain-quickjs](https://pypi.org/project/langchain-quickjs/)'
 `CodeInterpreterMiddleware`, which adds a persistent `eval` REPL tool. No API
 key, no network, no external sandbox service, nothing to provision.
@@ -210,7 +212,7 @@ Nothing to configure — it is on whenever the `[app]` extra is installed. To
 turn it off, block the tool:
 
 ```yaml
-DISALLOWED_TOOLS_DEEP:
+DISALLOWED_TOOLS:
   - eval
 ```
 
@@ -448,7 +450,7 @@ Bare `pytest` from the repo root is the whole suite — seconds, no
 database, no network, no API key:
 
 ```bash
-pip install -e '.[agents,test]'
+pip install -e '.[app,test]'
 pytest
 ```
 

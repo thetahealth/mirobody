@@ -3,7 +3,7 @@
 Single source of truth for "what kind of file is this extension" lookups —
 including :func:`guess_mime`, which every layer now calls: object storage when it
 sets `Content-Type` on a PUT, `s3.get_content_type` for presigned URLs, and the
-DeepAgent VFS when it decides whether to serve a row as text or base64. Those
+the agent's VFS when it decides whether to serve a row as text or base64. Those
 were three implementations of the same question, and they disagreed.
 
 A FIFTH implementation turned up after the first four were merged, and it was
@@ -27,7 +27,7 @@ from one deployment and as a download from another.
 
 `MIME_BY_EXT` therefore pins every extension this project accepts (uploads:
 `file_parser/services/file_uploader.SUPPORTED_EXTENSIONS`; agent serving:
-`agent/deep/filetype.MULTIMODAL_EXTS`) and `mimetypes` is only the fallback for
+`agent/filesystem/naming.MULTIMODAL_EXTS`) and `mimetypes` is only the fallback for
 everything else. The values are the ones this project already stores — the
 legacy `x-` forms (`audio/x-aac`, `video/x-flv`) are kept rather than modernized
 to their newer IANA names, because changing one would leave a deployment serving
@@ -36,7 +36,6 @@ two different content-types for the same extension depending on upload date.
 
 import mimetypes
 import os
-import re
 from pathlib import PurePosixPath
 
 

@@ -60,8 +60,8 @@ def test_one_implementation_answers_for_every_caller():
     PUT and `s3.get_content_type` puts it on the presigned URL; two independent
     implementations would let the stored type and the served type diverge.
 
-    The DeepAgent VFS is the third caller and is checked in
-    `agent/deep/test_filetype.py` — this file is engine layer and may not import
+    The agent's VFS is the third caller and is checked in
+    `agent/test_filetype.py` — this file is engine layer and may not import
     the agent layer (`lint-imports` enforces exactly that boundary).
     """
     from mirobody.utils.config.storage.abstract import AbstractStorage
