@@ -58,7 +58,7 @@ jobs:
     # what stands between that and PyPI, so it runs, and it can fail.
     - name: Install package dependencies
       run: |
-        pip install -e '.[agents,test]'
+        pip install -e '.[app,test]'
 
     - name: Test suite and import contracts
       run: |
@@ -141,7 +141,7 @@ jobs:
     # README promises, from a directory that is NOT the source checkout.
     #
     # A FRESH venv is load-bearing here. The earlier "Install package
-    # dependencies" step did `pip install -e '.[agents,test]'` into the job's
+    # dependencies" step did `pip install -e '.[app,test]'` into the job's
     # global environment, so FastAPI and langchain are already importable
     # there — the bare-install gates below would be vacuous (and their own
     # asserts fail) if they ran against it. The sdist step isolates for the
@@ -213,7 +213,7 @@ jobs:
         "$VPIP" install "${WHEEL}[parse]" \
             fastapi python-multipart uvicorn \
             "psycopg[binary]" "psycopg[pool]" sqlalchemy greenlet redis \
-            aioboto3 boto3 oss2 "mcp>=2.0.0" pyjwt pytz "webauthn>=2.0.0" mandrill \
+            aioboto3 boto3 oss2 "mcp>=2.0.0" pyjwt "webauthn>=2.0.0" mandrill \
             requests-oauthlib
         "$VPY" -c "
         import importlib.util
@@ -222,7 +222,7 @@ jobs:
             'agent layer stays out of engine imports'
         )
         import mirobody.task.profile_refresh, mirobody.user, mirobody.mcp
-        import mirobody.agent.chat.user_profile
+        import mirobody.user.profile
         print('engine/agent boundary holds on a langchain-free server install')
         "
 

@@ -36,6 +36,7 @@ CI never caught it because CI never ran pytest at all.
 from __future__ import annotations
 
 import importlib.util
+import pathlib
 
 def _installed(*modules: str) -> bool:
     """All of `modules` importable? `find_spec` raises for a missing PARENT
@@ -52,33 +53,48 @@ def _installed(*modules: str) -> bool:
 _HAS_AGENTS = _installed("langchain_core")
 _HAS_SERVER = _installed("fastapi", "psycopg_pool", "mandrill")
 # The [parse] layer: document extraction and the model-client factory. Probed
-# on `dotenv`/`ruamel` rather than on pdfplumber because `mirobody/utils/config`
+# on `dotenv`/`ruamel` as well as the PDF library because `mirobody/utils/config`
 # is what most of these reach through, and it is the first thing to be missing.
-_HAS_PARSE = _installed("dotenv", "ruamel.yaml", "pdfplumber")
+_HAS_PARSE = _installed("dotenv", "ruamel.yaml", "pypdfium2")
 
 # Tests that import the agent layer, directly or through their parent package.
+#
+# TWO ROOTS, and both must be listed. The suite moved from `mirobody/` to
+# `tests/` and these globs did not follow: on `pip install -e '.[test]'` —
+# the command CONTRIBUTING documents and CI's minimal job runs — collection
+# aborted with sixteen errors and zero tests, the exact failure this file
+# exists to prevent. A glob that matches nothing fails silently, so when a
+# test moves, grep this list.
 _AGENT_ONLY = [
-    "mirobody/agent/*",
-    "mirobody/agent/**/*",
-    "mirobody/server/test_htdoc.py",
+    "tests/agent/*",
+    "tests/agent/**/*",
+    "tests/test_plugin_entry_points.py",
+    "tests/server/test_htdoc.py",
 ]
 
 # Tests that import the server layer, directly or through their parent package.
-# `mirobody/user/*` is here in full because `mirobody/user/__init__` imports
-# `.email`, which imports mandrill at module scope — a test of pure token logic
-# still needs the extra.
+# `*/user/*` is here in full because `mirobody/user/__init__` imports `.auth`,
+# which imports mandrill at module scope — a test of pure token logic still
+# needs the extra. `utils/test_db.py` needs sqlalchemy, which arrives with the
+# same extra.
 _SERVER_ONLY = [
     "mirobody/server/*",
     "mirobody/server/**/*",
     "mirobody/user/*",
     "mirobody/user/**/*",
-    "mirobody/mcp/test_protocol.py",
+    "tests/server/*",
+    "tests/server/**/*",
+    "tests/user/*",
+    "tests/user/**/*",
+    "tests/mcp/*",
+    "tests/mcp/**/*",
+    "tests/utils/test_db.py",
 ]
 
 # Tests that import the [parse] layer, directly or through their parent
 # package. This third bucket arrived with 1.3.0: `dotenv`, `ruamel.yaml` and
-# the extraction stack left base, so on a `pip install -e '.[test]'` the five
-# modules below now abort collection the same way the server ones used to.
+# the extraction stack left base, so on a `pip install -e '.[test]'` the
+# modules below abort collection the same way the server ones used to.
 # Found the only way this class is ever found — in a clean clone, not in a
 # long-lived venv that has everything.
 _PARSE_ONLY = [
@@ -87,6 +103,13 @@ _PARSE_ONLY = [
     "mirobody/utils/test_content_type.py",
     "mirobody/test_one_key_defaults.py",
     "mirobody/test_readme_numbers.py",
+    "tests/pulse/file_parser/*",
+    "tests/pulse/file_parser/**/*",
+    "tests/pulse/aggregate/*",
+    "tests/documents/*",
+    "tests/documents/**/*",
+    "tests/utils/test_prompts.py",
+    "tests/utils/test_user_tag.py",
 ]
 
 collect_ignore_glob: list[str] = []
@@ -100,9 +123,14 @@ if not _HAS_PARSE:
 
 def pytest_report_header(config) -> str:
     """Say which layers are running, so a short run is never mistaken for a
-    full pass — the failure mode this whole file exists to prevent."""
+    full pass — the failure mode this whole file exists to prevent.
+
+    It also prints how many test ROOTS exist, because the other way to get a
+    short run is a clone: `tests/` is gitignored, so a contributor's checkout
+    has only the evidence tests inside `mirobody/`."""
+    roots = "two roots" if pathlib.Path(config.rootpath, "tests").is_dir() else "evidence tests only (no local tests/)"
     if _HAS_AGENTS and _HAS_SERVER and _HAS_PARSE:
-        return "mirobody: library + parse + server + agent tests (all extras installed)"
+        return f"mirobody: library + parse + server + agent tests, {roots}"
 
     missing = [
         name for name, present in (("the parse stack", _HAS_PARSE),
@@ -111,6 +139,6 @@ def pytest_report_header(config) -> str:
         if not present
     ]
     return (
-        f"mirobody: PARTIAL RUN — {' and '.join(missing)} not installed, so those "
-        "tests are not collected. `pip install -e '.[app,test]'` runs everything."
+        f"mirobody: PARTIAL RUN ({roots}) — {' and '.join(missing)} not installed, "
+        "so those tests are not collected. `pip install -e '.[app,test]'` runs everything."
     )

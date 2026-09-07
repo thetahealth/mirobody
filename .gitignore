@@ -60,8 +60,12 @@ CLAUDE.md
 # them worked: `internal-testing.md` was ignored, while `frontend-shipping.md`
 # sat in `docs/` and shipped, and the header of `internal-testing.md` claimed
 # "Gitignored on purpose" for a rule that covered only itself. One directory
-# now, so the question is never asked per file again.
+# now, so the question is never asked per file again. The archive form too:
+# `internal/` as a rule does not cover `internal.zip`, and a `git add -A`
+# pushed 12 of those documents to a public remote once (2026-09-06).
 internal/
+internal*.zip
+internal*.tar.gz
 
 # Resolver evaluation harness — the DATA is local only, the RUNNER is not.
 #
@@ -88,4 +92,16 @@ eval/*
 # that are evidence for something it claims (see [tool.pytest.ini_options] in
 # pyproject.toml). Everything else lives here so it can be thorough without
 # being public API.
+#
+# This rule was deleted once, on `refactor/deep-agent-only`, when the suite
+# moved out of the package: 92 test files went to the public remote, 73 of them
+# never public before. Nothing secret was in them — but the local suite is
+# where a gate may name a customer, a hospital's report shape or an unreleased
+# defect, and "nothing secret THIS time" is not a policy. The move itself was
+# right (a test module inside `mirobody/` drags pytest into the library layer);
+# what was wrong was un-ignoring the destination. Evidence tests live inside
+# `mirobody/` and are pruned from the artifact by `scripts/build_backend.py`.
 /tests/
+
+# Local virtualenvs under any suffix (.venv-dev, .venv-py313, ...).
+.venv*/

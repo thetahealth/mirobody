@@ -58,7 +58,7 @@ jobs:
     # external reviewer found a `[test]`-only install aborting at collection;
     # a CI run would have caught it the day it appeared.
     #
-    # `[test]` alone here on purpose, NOT `[agents,test]`: this job is the
+    # `[test]` alone here on purpose, NOT `[app,test]`: this job is the
     # closest thing to a fresh contributor's machine, and it is where a missing
     # or newly-eager dependency shows up. The full run happens below.
     - name: Engine tests on a minimal install
@@ -68,11 +68,25 @@ jobs:
 
     - name: Full suite and the import contracts
       run: |
-        pip install -e '.[agents,test]'
+        pip install -e '.[app,test]'
         pytest -q
         # Must run against the repo source. In a venv holding an installed
         # older wheel it passes vacuously.
         lint-imports
+
+    # The lint gate. The rule set lives in pyproject.toml ([tool.ruff]) and is
+    # narrow by design: undefined names, unused imports, duplicate definitions,
+    # mutable defaults, and the PEP 585/604 spellings the 3.12 floor makes
+    # unambiguous. It passes on this tree today; a new finding is a new defect.
+    - name: Lint gate
+      run: |
+        pip install ruff
+        # `examples` as well as the package: those files are the README's
+        # walkthrough, so a broken one is documentation that does not run, and
+        # `tests/test_examples.py` executes them. The local battery has always
+        # linted both; CI checking only `mirobody` meant an examples-only
+        # regression was invisible here.
+        ruff check mirobody examples
 
     - name: Set test version
       run: |
