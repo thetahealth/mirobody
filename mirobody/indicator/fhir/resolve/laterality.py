@@ -434,7 +434,7 @@ def _ensure_axis_masks(cache: dict) -> dict[str, dict[str, np.ndarray]]:
 
 def axis_filter_keep(
     query_text: str, cache: dict
-) -> "np.ndarray | None":
+) -> np.ndarray | None:
     """AND-merge the keep mask across every configured axis.
 
     Returns ``None`` when no axis fires (no opinion → caller skips the
@@ -444,7 +444,7 @@ def axis_filter_keep(
     all_masks = _ensure_axis_masks(cache)
     if not all_masks:
         return None
-    keep: "np.ndarray | None" = None
+    keep: np.ndarray | None = None
     for axis_name in AXES:
         state = query_axis_state(query_text, axis_name)
         if state is None:

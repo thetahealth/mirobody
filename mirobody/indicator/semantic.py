@@ -69,13 +69,10 @@ config answered ``空腹血糖`` with *"Widespread delusions [DI-PAD]"*).
 
 from __future__ import annotations
 
-import csv
-import io
 import logging
 import os
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -148,12 +145,13 @@ class SemanticIndex:
 
         from mirobody._bundle import (
             AXIS_CODE,
+            BUNDLE_PATH,
             AXIS_COMPONENT,
             AXIS_LCN,
             AXIS_PROPERTY,
             AXIS_SCALE,
             load_axis,
-            read_member,
+            read_code_list,
         )
 
         from .fhir.common import fhir_id_to_code
@@ -168,9 +166,6 @@ class SemanticIndex:
         self._emb /= np.maximum(norms, 1e-9)
         self.dim = int(self._emb.shape[1])
 
-        bundle = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "..", "res", "fhir_loinc_bundle.tar.gz"
-        )
         # The axis table, through the same reader the lexical resolver uses.
         # This used to parse `loinc_axis.csv` into four dicts of its own, and
         # tolerate the file being absent by leaving them EMPTY — which after
@@ -181,7 +176,7 @@ class SemanticIndex:
         # compromise: the only thing done with it is `word_tokens`, which
         # lowercases ASCII itself, and the two agree on all 97,314 rows —
         # asserted in tests/test_resolver_tables.py.
-        axis, _order_code, _order_name = load_axis(bundle_path=os.path.normpath(bundle))
+        axis, _order_code, _order_name = load_axis(bundle_path=BUNDLE_PATH)
         names: dict[str, str] = {}
         scales: dict[str, str] = {}
         properties: dict[str, str] = {}
@@ -213,14 +208,9 @@ class SemanticIndex:
         #
         # It does NOT make the tier able to abstain — `the quick brown fox`
         # still reaches "Freckles" — see the module docstring.
-        skip: set[str] = set()
-        skip_raw = read_member("loinc_skip.txt", bundle_path=os.path.normpath(bundle))
-        if skip_raw is not None:
-            skip = {
-                line.strip()
-                for line in skip_raw.decode("utf-8").splitlines()
-                if line.strip() and not line.startswith("#")
-            }
+        skip: set[str] = set(
+            read_code_list("loinc_skip.txt", bundle_path=BUNDLE_PATH)
+        )
 
         keep: list[int] = []
         self._codes: list[str] = []
@@ -283,7 +273,7 @@ class SemanticIndex:
             int((scale_codes == self._scale_ids.get("Qn", -1)).sum()), path,
         )
 
-    def _admissible(self, gate: "Gate"):
+    def _admissible(self, gate: Gate):
         """Row mask for a reading: what could have produced this value+unit.
 
         None means no constraint at all — nothing was known about the reading.
@@ -377,7 +367,7 @@ class SemanticIndex:
         self,
         query_vectors,
         top_k: int = 1,
-        gates: list["Gate"] | None = None,
+        gates: list[Gate] | None = None,
     ) -> list[list[Candidate]]:
         """Rank the corpus against already-embedded queries.
 
@@ -430,7 +420,7 @@ class SemanticIndex:
         value: str | None,
         unit: str | None,
         term: str | None = None,
-    ) -> "Gate":
+    ) -> Gate:
         """A reading as written -> the constraints it implies.
 
         Every clause degrades to "says nothing" rather than to a wrong
@@ -453,7 +443,7 @@ class SemanticIndex:
         self,
         terms: list[str],
         top_k: int = 1,
-        gates: list["Gate"] | None = None,
+        gates: list[Gate] | None = None,
     ) -> list[list[Candidate]]:
         """Embed `terms` with the configured provider, then rank.
 
@@ -475,14 +465,14 @@ class SemanticIndex:
             top_k=top_k,
             gates=[gates[i] for i, _ in embedded] if gates else None,
         )
-        by_index = dict(zip((i for i, _ in embedded), ranked))
+        by_index = dict(zip((i for i, _ in embedded), ranked, strict=False))
         for i in range(len(terms)):
             results.append(by_index.get(i, []))
         return results
 
 
 @lru_cache(maxsize=4)
-def get_index(path: str | None = None) -> Optional[SemanticIndex]:
+def get_index(path: str | None = None) -> SemanticIndex | None:
     """Load (and cache) the matrix, or None when there is none to load.
 
     None is a normal outcome, not an error: the matrix is an optional download,

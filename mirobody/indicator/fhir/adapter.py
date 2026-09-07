@@ -17,12 +17,12 @@ from mirobody.utils.embedding import text_embedding
 from ..concept_graph import ConceptGraph
 from ..search import DomainAdapter, ResolveResult
 from .common import (
+    FHIR_GRAPH_BIN,
     SYSTEMS, SYSTEM_TO_CODE, _CODE_BITS, _CODE_MASK, int_to_code,
     resolve_dim_embedding_column,
     resolve_fhir_embedding_column,
 )
-from .embeddings.local import RES_DIR as _RES_DIR, load as _load_local_fhir_cache
-from .graph_builder import FHIR_GRAPH_BIN
+from .index import RES_DIR as _RES_DIR, load as _load_local_fhir_cache
 
 log = logging.getLogger(__name__)
 
@@ -568,7 +568,7 @@ class FhirAdapter(DomainAdapter):
         # section_header strategy restricts the candidate pool to the
         # ~1.8k record-artifact / narrative-section rows; everything
         # else passes ``None`` so the full corpus competes.
-        pool_masks: list["np.ndarray | None"] | None = None
+        pool_masks: list[np.ndarray | None] | None = None
         if any(s.name == STRATEGY_SECTION_HEADER.name for s in strategies):
             sh_mask = section_header_pool_mask(cache)
             pool_masks = [
@@ -591,7 +591,7 @@ class FhirAdapter(DomainAdapter):
         # candidate in that system (lower-ranked candidates are by
         # definition weaker than the top-1 already deemed insufficient).
         out = []
-        for results, strat in zip(raw, strategies):
+        for results, strat in zip(raw, strategies, strict=False):
             gated: list[ResolveResult] = []
             for r in results:
                 if r.system in strat.excluded:
@@ -605,15 +605,6 @@ class FhirAdapter(DomainAdapter):
             out.append(gated)
         return out
 
-    def _resolve_local(
-        self,
-        cache: dict,
-        emb: list[float],
-        top_k: int,
-        systems: list[str] | None,
-    ) -> list[ResolveResult]:
-        return self._resolve_local_batch(cache, [emb], top_k, systems)[0]
-
     def _resolve_local_batch(
         self,
         cache: dict,
@@ -621,8 +612,8 @@ class FhirAdapter(DomainAdapter):
         top_k: int,
         systems: list[str] | None,
         *,
-        tag_centroids: dict[str, "np.ndarray"] | None = None,
-        pool_masks: list["np.ndarray | None"] | None = None,
+        tag_centroids: dict[str, np.ndarray] | None = None,
+        pool_masks: list[np.ndarray | None] | None = None,
         query_texts: list[str] | None = None,
     ) -> list[list[ResolveResult]]:
         """Batched cosine search with stage-1 axis rerank + stage-2 tag gates.
@@ -709,7 +700,6 @@ class FhirAdapter(DomainAdapter):
         # net-negative). Sum across 4 contributing axes peaks at +0.15.
         from .resolve import AXIS_WEIGHTS, load_axis_centroids, predict_axis_top1
         from .resolve.axis import apply_deterministic_class_filter
-        from .common import SYSTEM_TO_CODE
         axis_data = load_axis_centroids(cache)
         if axis_data is not None and axis_data["axis_names"]:
             # CLASS is no longer a soft +0.04 axis bonus: it's a hard
@@ -895,7 +885,7 @@ class FhirAdapter(DomainAdapter):
         # bare-analyte name embeds slightly closer than the
         # compound-name ratio code. The corpus-side mask is
         # pre-computed at meta load (see
-        # ``embeddings.local._compute_ratio_code_mask``).
+        # ``index._compute_ratio_code_mask``).
         if ratio_code_mask is not None and query_texts is not None:
             for b, qi in enumerate(valid_idx):
                 if qi >= len(query_texts):
@@ -931,7 +921,7 @@ class FhirAdapter(DomainAdapter):
         # is cache-keyed, so the first query of each tag pays the regex
         # scan (~150 ms over ~700K names); every subsequent query and
         # batch reuses the result.
-        tag_pool_cache: dict[str, "np.ndarray"] = {}
+        tag_pool_cache: dict[str, np.ndarray] = {}
         if tags:
             from .resolve import tag_pool_mask as _tag_pool_mask
             for tag, flag_arr in tags.items():
@@ -954,7 +944,7 @@ class FhirAdapter(DomainAdapter):
             # Empty intersection means no LOINC candidate competes for
             # this query → caller sees empty LOINC (the desired null
             # behavior when query semantics rule out the entire pool).
-            tag_loinc_mask: "np.ndarray | None" = None
+            tag_loinc_mask: np.ndarray | None = None
             for tag, flag_arr in tags.items():
                 if not bool(flag_arr[b]):
                     continue

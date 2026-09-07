@@ -82,23 +82,23 @@ from mirobody._bundle import (
     BUNDLE_BASENAME,
     BUNDLE_PATH,
     RES_DIR,
+    SNOMED_BUNDLE_BASENAME,
+    SNOMED_BUNDLE_PATH,
     bundle_path,
     bundle_version,
     is_lfs_pointer,
     list_members,
     read_member,
     read_member_from,
+    read_snomed_member,
 )
 
 log = logging.getLogger(__name__)
 
-# Sibling bundle for SNOMED CT-derived runtime data (Body Structure subtree
-# mask, etc.). Separate file because the SNOMED license terms differ from
-# LOINC — shipping them apart keeps each NOTICE / Affiliate License obligation
-# scoped to its own artifact. Only the build passes read it, so unlike the
-# LOINC reader it stays here.
-SNOMED_BUNDLE_BASENAME = "fhir_snomed_ct_bundle.tar.gz"
-SNOMED_BUNDLE_PATH = os.path.join(RES_DIR, SNOMED_BUNDLE_BASENAME)
+# The SNOMED sibling bundle's READER moved to `mirobody._bundle` alongside the
+# LOINC one: `fhir/index.py` calls it on the semantic path, and that path ships
+# while this module does not. Re-exported here so the write passes keep one
+# import for both halves.
 
 __all__ = [
     "BUNDLE_BASENAME",
@@ -116,14 +116,6 @@ __all__ = [
     "remove_member",
     "write_member",
 ]
-
-
-def read_snomed_member(name: str, *, bundle_path: str | None = None) -> bytes | None:
-    """Return the bytes of a member in the SNOMED bundle, or None if missing.
-
-    Mirrors :func:`mirobody._bundle.read_member` for the sibling bundle.
-    """
-    return read_member_from(name, bundle_path or SNOMED_BUNDLE_PATH)
 
 
 def write_member(

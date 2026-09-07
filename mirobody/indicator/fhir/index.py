@@ -1,4 +1,21 @@
-"""Loader for the local FHIR artifact bundle in ``mirobody/res``.
+"""Read the embedding index — ``mirobody/res/fhir_embeddings.npy`` and the
+masks derived from the shipped bundles.
+
+**Why this module is on the runtime side rather than inside
+``fhir/embeddings/``, where it used to live.** It is the READER: `load()` and
+its dozen `_load_*` helpers answer what `FhirAdapter` asks on every semantic
+lookup, and `adapter.py` ships in the wheel. `fhir/embeddings/` does not — it
+is pruned from the artifact, being the passes that MINT what this reads. So a
+`pip install mirobody` shipped an adapter that raised `ModuleNotFoundError` on
+import, and the one caller (`pulse/query.py`) swallowed it and quietly fell
+back to lexical recall.
+
+This is the same split :mod:`mirobody._bundle` records for the tarball: reads
+are runtime, writes are build-time. That surgery was done for the LOINC bundle
+and stopped one module short. The atomic-write helpers here
+(`open_gz_text_write`, `tmp_path`, `atomic_swap_keep_backup`) are used only by
+the producers, and they stay because the producers may import this side; the
+reverse is what breaks.
 
 Layout produced by the ``embeddings`` / ``id-map`` / ``code-names``
 subcommands (or one-shot :mod:`migrate_fhir_id`):
@@ -33,14 +50,14 @@ import re
 
 import numpy as np
 
-from ..common import EMBEDDING_DIM
+from .common import EMBEDDING_DIM
 
 log = logging.getLogger(__name__)
 
 # This module lives at mirobody/indicator/fhir/embeddings/local.py;
 # the bundle dir is mirobody/res/ — three levels up.
 RES_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "res")
+    os.path.join(os.path.dirname(__file__), "..", "..", "res")
 )
 # One bundle per deployment — provider is fixed by config at build
 # time, so file layout doesn't carry it. Switching provider means
@@ -307,15 +324,12 @@ def _load_loinc_code_mask(cache: dict, member: str, *, kind: str) -> None:
     both have the same code-list format. *kind* is the cache-key suffix
     (``skip`` or ``demote``).
     """
-    from .bundle import BUNDLE_BASENAME, read_member
+    from ..._bundle import BUNDLE_BASENAME, read_code_list
     bundle_path = os.path.join(cache["_bundle_dir"], BUNDLE_BASENAME)
-    raw = read_member(member, bundle_path=bundle_path)
-    if raw is None:
-        return
-    codes = [c for c in (line.strip() for line in raw.decode("utf-8").splitlines()) if c]
+    codes = read_code_list(member, bundle_path=bundle_path)
     if not codes:
         return
-    from ..common import _CODE_BITS, _CODE_MASK, SYSTEM_TO_CODE, code_to_int
+    from .common import _CODE_BITS, _CODE_MASK, SYSTEM_TO_CODE, code_to_int
     canonical = cache["canonical"]
     sys_arr = ((canonical >> _CODE_BITS) & 0x7).astype(np.int8)
     loinc_idx = SYSTEM_TO_CODE["LOINC"]
@@ -362,7 +376,7 @@ def _load_snomed_body_structure(cache: dict) -> None:
     Returns silently when the SNOMED bundle is absent (e.g. stripped
     deployment that doesn't carry SNOMED data).
     """
-    from .bundle import SNOMED_BUNDLE_BASENAME, read_snomed_member
+    from ..._bundle import SNOMED_BUNDLE_BASENAME, read_snomed_member
     bundle_path = os.path.join(cache["_bundle_dir"], SNOMED_BUNDLE_BASENAME)
     raw = read_snomed_member("snomed_body_structure.txt", bundle_path=bundle_path)
     if raw is None:
@@ -370,7 +384,7 @@ def _load_snomed_body_structure(cache: dict) -> None:
     codes = [c for c in (line.strip() for line in raw.decode("utf-8").splitlines()) if c]
     if not codes:
         return
-    from ..common import _CODE_BITS, _CODE_MASK, SYSTEM_TO_CODE, code_to_int
+    from .common import _CODE_BITS, _CODE_MASK, SYSTEM_TO_CODE, code_to_int
     canonical = cache["canonical"]
     sys_arr = ((canonical >> _CODE_BITS) & 0x7).astype(np.int8)
     snomed_idx = SYSTEM_TO_CODE.get("SNOMED_CT")
@@ -421,7 +435,7 @@ def _load_snomed_axes_mask(
                     sct_ids.append(cid)
     if not sct_ids:
         return
-    from ..common import _CODE_BITS, _CODE_MASK, SYSTEM_TO_CODE, code_to_int
+    from .common import _CODE_BITS, _CODE_MASK, SYSTEM_TO_CODE, code_to_int
     snomed_idx = SYSTEM_TO_CODE.get("SNOMED_CT")
     if snomed_idx is None:
         return
@@ -446,7 +460,7 @@ def _load_loinc_rank(cache: dict) -> None:
     bonus (0.0 for non-LOINC and unranked LOINC rows). Sets
     ``cache["loinc_rank_bonus"]``. Silently skipped when the member is
     absent — resolve works without rank tie-breaking."""
-    from .bundle import BUNDLE_BASENAME, read_member
+    from ..._bundle import BUNDLE_BASENAME, read_member
     import io as _io
     n = int(cache["arr"].shape[0])
     bundle_path = os.path.join(cache["_bundle_dir"], BUNDLE_BASENAME)
@@ -481,7 +495,7 @@ def _load_dose_index(cache: dict) -> None:
     canonical ``(value, ucum_unit)`` tuple, which is what the resolver
     actually intersects against per-query dose sets.
     """
-    from .bundle import BUNDLE_BASENAME, read_member
+    from ..._bundle import BUNDLE_BASENAME, read_member
     import io as _io
     bundle_path = os.path.join(cache["_bundle_dir"], BUNDLE_BASENAME)
     raw = read_member("fhir_dose_index.npz", bundle_path=bundle_path)
@@ -519,7 +533,7 @@ def _load_alias_index(cache: dict) -> None:
     three arrays (``aliases`` object, ``offsets`` int32, ``rows``
     int32) — see :mod:`.alias`. Silently skipped when the member is
     absent — resolve falls back to embedding-only scoring."""
-    from .bundle import BUNDLE_BASENAME, read_member
+    from ..._bundle import BUNDLE_BASENAME, read_member
     import io as _io
     bundle_path = os.path.join(cache["_bundle_dir"], BUNDLE_BASENAME)
     raw = read_member("loinc_alias_index.npz", bundle_path=bundle_path)

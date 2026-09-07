@@ -29,7 +29,7 @@ def _load_siblings(path: str) -> dict[str, set[str]]:
     """Load a siblings CSV (name, codes) into {name: {codes}} dict."""
     result: dict[str, set[str]] = defaultdict(set)
     if os.path.isfile(path):
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 name = row.get("name", "").strip()
                 if name:
@@ -41,7 +41,7 @@ def _load_bridge(path: str, src_col: str, tgt_col: str) -> dict[str, set[str]]:
     """Load a bridge CSV into {src_code: {tgt_codes}} dict."""
     result: dict[str, set[str]] = defaultdict(set)
     if os.path.isfile(path):
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 s_codes = [c for c in row.get(src_col, "").split("|") if c]
                 t_codes = [c for c in row.get(tgt_col, "").split("|") if c]
@@ -174,7 +174,7 @@ def merge_siblings(out_dir: str, loinc_dir: str = "") -> None:
         bridged_snomed: set[str] = set()
         bridge_set_path = os.path.join(out_dir, "_bridged_snomed.csv")
         if os.path.isfile(bridge_set_path):
-            with open(bridge_set_path, "r", encoding="utf-8") as f:
+            with open(bridge_set_path, encoding="utf-8") as f:
                 for row in csv.DictReader(f):
                     code = row.get("snomed_code", "").strip()
                     if code:
@@ -198,7 +198,7 @@ def merge_siblings(out_dir: str, loinc_dir: str = "") -> None:
         loinc_core = os.path.join(loinc_dir, "LoincTableCore", "LoincTableCore.csv") if loinc_dir else ""
         if loinc_core and os.path.isfile(loinc_core):
             loinc_skip = _load_loinc_skip_codes(loinc_core)
-            with open(loinc_core, "r", encoding="utf-8") as f:
+            with open(loinc_core, encoding="utf-8") as f:
                 for row in csv.DictReader(f):
                     code = row.get("LOINC_NUM", "")
                     if code.startswith(skip_prefixes) or code in covered_loinc or code in loinc_skip:

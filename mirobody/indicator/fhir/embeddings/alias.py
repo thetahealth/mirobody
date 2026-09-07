@@ -47,7 +47,7 @@ from ..common import (
     _CODE_MASK,
     code_to_int,
 )
-from .local import EMB_BASENAME, EMB_DTYPE, RES_DIR
+from ..index import EMB_BASENAME, EMB_DTYPE, RES_DIR
 
 log = logging.getLogger(__name__)
 

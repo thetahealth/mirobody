@@ -97,8 +97,8 @@ from collections import Counter, defaultdict
 
 from mirobody._bundle import load_alias_sources
 
-from .bundle import BUNDLE_BASENAME, BUNDLE_PATH, read_member
-from .local import RES_DIR
+from .bundle import BUNDLE_BASENAME
+from ..index import RES_DIR
 
 log = logging.getLogger(__name__)
 
@@ -363,7 +363,7 @@ _POSITION_DETECT_RE = re.compile(
 
 def _detect_position_row(
     zh_seg: str, en_seg: str, src_tail: frozenset,
-) -> tuple[str, "str | None", str, str] | None:
+) -> tuple[str, str | None, str, str] | None:
     """Return ``(greek_word, digit_or_None, zh_base, en_canonical)`` if
     *zh_seg* + *en_seg* form a positional-isomer pair, else ``None``.
 
@@ -398,7 +398,7 @@ _POSITION_SEPS = ("", "-", " ")
 
 
 def _position_marked_aliases(
-    greek_word: str, digit: "str | None", zh_base: str,
+    greek_word: str, digit: str | None, zh_base: str,
 ) -> list[str]:
     """All position-marked alias keys for a row. Covers Greek-letter
     (lowercase) + ``Alpha``/``alpha`` word forms × separator variants.
@@ -523,7 +523,7 @@ def _mine_rn2_pairs(
     joined,
     lang: str,
     src_tail: frozenset,
-    pass1_keys: "set[str] | None" = None,
+    pass1_keys: set[str] | None = None,
 ) -> list[tuple[str, str]]:
     """Mine analyte aliases from LOINC LinguisticVariant ``RELATEDNAMES2``
     for mixed-script COMPONENT segments. Two sub-paths depending on
@@ -831,7 +831,6 @@ def _derive_pairs_from_umls(
     walks via CUI would conflate concepts the source vocab considers
     distinct, so we keep the join tight.
     """
-    from collections import defaultdict
     src_pref: dict[str, dict[str, str]] = {}     # cui → {sab_root: src_str}
     eng_pref: dict[str, dict[str, str]] = {}     # cui → {sab: eng_str}
     sab_root = {sab: sab.replace("JPN", "") or sab for sab in jpn_sources}

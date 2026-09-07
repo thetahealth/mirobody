@@ -1,0 +1,17 @@
+annotation	aliases
+{tablet}	tablet|tablets|tab|tabs|tbl|片
+{capsule}	capsule|capsules|cap|caps|胶囊|粒
+{drop}	drop|drops|gtt|滴
+{puff}	puff|puffs|inhalation|inhalations|吸
+{actuat}	actuat|actuation|actuations
+{spray}	spray|sprays|喷
+{patch}	patch|patches|贴|贴片
+{sachet}	sachet|sachets|packet|packets|袋|包
+{suppository}	suppository|suppositories|栓
+{ampule}	ampule|ampoule|ampoules|支|瓶
+{vial}	vial|vials
+{pill}	pill|pills|丸|颗
+{lozenge}	lozenge|lozenges|含片
+{scoop}	scoop|scoops|勺
+{dose}	dose|doses|剂
+{application}	application|applications

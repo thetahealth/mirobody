@@ -508,7 +508,7 @@ async def _emit_axes_only(terms, values, args, bundle_dir, resolve_axes_many) ->
             log.info(f"resume: {len(done)} records already in {args.output}")
 
     remaining_idx = [
-        i for i, (t, v) in enumerate(zip(terms, values)) if (t, v) not in done
+        i for i, (t, v) in enumerate(zip(terms, values, strict=False)) if (t, v) not in done
     ]
     if not remaining_idx:
         log.info(f"all {len(terms)} records already resolved, nothing to do")
@@ -529,7 +529,7 @@ async def _emit_axes_only(terms, values, args, bundle_dir, resolve_axes_many) ->
                 batch_terms, batch_values,
             )
             for term, value, axes_r, legacy_r in zip(
-                batch_terms, batch_values, axes_results, legacy_results,
+                batch_terms, batch_values, axes_results, legacy_results, strict=False,
             ):
                 rec = _build_rec(term, axes_r, legacy_r)
                 if value is not None:
@@ -649,7 +649,7 @@ async def cmd_resolve(args: Namespace) -> None:
             log.info(f"resume: {len(done)} records already in {args.output}")
 
     remaining_idx = [
-        i for i, (t, v) in enumerate(zip(terms, values)) if (t, v) not in done
+        i for i, (t, v) in enumerate(zip(terms, values, strict=False)) if (t, v) not in done
     ]
     if not remaining_idx:
         log.info(f"all {len(terms)} records already resolved, nothing to do")
@@ -675,7 +675,7 @@ async def cmd_resolve(args: Namespace) -> None:
                 bundle_dir=bundle_dir,
                 emit_axes=args.axes,
             )
-            for term, value, results in zip(batch_terms, batch_values, batch_results):
+            for term, value, results in zip(batch_terms, batch_values, batch_results, strict=False):
                 rec: dict = {"term": term}
                 if value is not None:
                     rec["value"] = value

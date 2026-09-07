@@ -32,7 +32,7 @@ class LocalePlugin(ABC):
 
     @classmethod
     @abstractmethod
-    def from_args(cls, args: Namespace) -> "LocalePlugin | None":
+    def from_args(cls, args: Namespace) -> LocalePlugin | None:
         """Try to construct this locale from CLI args.
 
         Return an instance if the required data is available, or None to skip.

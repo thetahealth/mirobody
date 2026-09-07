@@ -140,7 +140,7 @@ def build_bridge(
     log.info(f"Bridge: scanning MRREL ({len(snomed_cuis) + len(loinc_cuis) + len(icd_cuis) + len(rxnorm_cuis):,} relevant CUIs)")
 
     relevant_cuis = snomed_cuis | icd_cuis | loinc_cuis | rxnorm_cuis
-    with open(mrrel_path, "r", encoding="utf-8") as f:
+    with open(mrrel_path, encoding="utf-8") as f:
         for line in f:
             # Extract CUI1 without splitting — ~80% of lines are skipped here,
             # so avoiding the full split() on irrelevant lines is a major speedup.
@@ -388,7 +388,7 @@ def build_jaccard_bridge(
     snomed_entries: list[tuple[str, set[str], set[str]]] = []
     snomed_path = os.path.join(out_dir, "_siblings_snomed.csv")
     if os.path.isfile(snomed_path):
-        with open(snomed_path, "r", encoding="utf-8") as f:
+        with open(snomed_path, encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 name = row.get("name", "").strip()
                 if not name:
@@ -404,7 +404,7 @@ def build_jaccard_bridge(
     loinc_core = os.path.join(loinc_dir, "LoincTableCore", "LoincTableCore.csv") if loinc_dir else ""
     if loinc_core and os.path.isfile(loinc_core):
         loinc_skip = load_loinc_skip_codes(loinc_core)
-        with open(loinc_core, "r", encoding="utf-8") as f:
+        with open(loinc_core, encoding="utf-8") as f:
             for row in csv.DictReader(f):
                 code = row.get("LOINC_NUM", "")
                 if code.startswith(skip_prefixes) or code in loinc_skip:
@@ -489,7 +489,7 @@ def cmd_bridge(args: Namespace) -> None:
         for bridge_file in ("_bridges_icd.csv", "_bridges_mrrel.csv", "_bridges_jaccard.csv", "_bridges_rxnorm.csv"):
             bridge_path = os.path.join(out_dir, bridge_file)
             if os.path.isfile(bridge_path):
-                with open(bridge_path, "r", encoding="utf-8") as f:
+                with open(bridge_path, encoding="utf-8") as f:
                     for row in csv.DictReader(f):
                         bridged_snomed.update(c for c in row["snomed_codes"].split("|") if c)
         bridge_set_path = os.path.join(out_dir, "_bridged_snomed.csv")
@@ -510,7 +510,7 @@ def cmd_bridge(args: Namespace) -> None:
         ]:
             bridge_path = os.path.join(out_dir, bridge_file)
             if os.path.isfile(bridge_path):
-                with open(bridge_path, "r", encoding="utf-8") as f:
+                with open(bridge_path, encoding="utf-8") as f:
                     for row in csv.DictReader(f):
                         bridged_loinc.update(c for c in row.get(code_col, "").split("|") if c)
 
@@ -518,9 +518,9 @@ def cmd_bridge(args: Namespace) -> None:
     loinc_sib_path = os.path.join(out_dir, "_siblings_loinc.csv")
     unbridged_loinc: dict[str, tuple[str, str]] = {}
     if os.path.isfile(loinc_sib_path):
-        with open(loinc_sib_path, "r", encoding="utf-8") as f:
+        with open(loinc_sib_path, encoding="utf-8") as f:
             for row in csv.DictReader(f):
-                codes = set(c for c in row.get("codes", "").split("|") if c)
+                codes = {c for c in row.get("codes", "").split("|") if c}
                 name = row.get("name", "")
                 if codes and not (codes & bridged_loinc) and name not in unbridged_loinc:
                     unbridged_loinc[name] = (row.get("codes", ""), row.get("note", ""))
@@ -542,16 +542,16 @@ def cmd_bridge(args: Namespace) -> None:
     ]:
         bridge_path = os.path.join(out_dir, bridge_file)
         if os.path.isfile(bridge_path):
-            with open(bridge_path, "r", encoding="utf-8") as f:
+            with open(bridge_path, encoding="utf-8") as f:
                 for row in csv.DictReader(f):
                     bridged_rxnorm.update(c for c in row.get("rxnorm_codes", "").split("|") if c)
 
     rxnorm_sib_path = os.path.join(out_dir, "_siblings_rxnorm.csv")
     unbridged_rxnorm: dict[str, tuple[str, str]] = {}
     if os.path.isfile(rxnorm_sib_path):
-        with open(rxnorm_sib_path, "r", encoding="utf-8") as f:
+        with open(rxnorm_sib_path, encoding="utf-8") as f:
             for row in csv.DictReader(f):
-                codes = set(c for c in row.get("codes", "").split("|") if c)
+                codes = {c for c in row.get("codes", "").split("|") if c}
                 name = row.get("name", "")
                 if codes and not (codes & bridged_rxnorm) and name not in unbridged_rxnorm:
                     unbridged_rxnorm[name] = (row.get("codes", ""), row.get("note", ""))

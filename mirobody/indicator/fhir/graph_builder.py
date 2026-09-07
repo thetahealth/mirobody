@@ -20,17 +20,10 @@ import os
 from collections.abc import Iterator
 
 from ..concept_graph import ConceptGraphBuilder
-from .common import code_to_fhir_id
+from .common import FHIR_GRAPH_BIN, code_to_fhir_id
 
 log = logging.getLogger(__name__)
 
-# Output filename for the FHIR-vocabulary concept graph binary. Lives
-# under ``mirobody/res/`` at runtime; uses the ``fhir_`` content prefix
-# (matches ``fhir_embeddings.npy`` / ``fhir_id_map.npy`` /
-# ``fhir_meta.csv.gz`` — the file's contents are FHIR concept relations
-# indexed by canonical fhir_id). Other domains (e.g. finance) name their
-# graphs after their own content scheme.
-FHIR_GRAPH_BIN = "fhir_concept_graph.bin"
 
 # Bridge files: (filename, [(column, system), ...], max_codes)
 _BRIDGE_FILES = [
@@ -86,7 +79,7 @@ class FhirGraphBuilder(ConceptGraphBuilder):
             path = os.path.join(src_dir, filename)
             if not os.path.exists(path):
                 continue
-            with _csv_field_size_limit(), open(path, "r", encoding="utf-8") as f:
+            with _csv_field_size_limit(), open(path, encoding="utf-8") as f:
                 for row in csv.DictReader(f):
                     groups: list[list[int]] = []
                     total = 0
@@ -122,7 +115,7 @@ class FhirGraphBuilder(ConceptGraphBuilder):
             if not os.path.exists(path):
                 continue
             n_groups = 0
-            with _csv_field_size_limit(), open(path, "r", encoding="utf-8") as f:
+            with _csv_field_size_limit(), open(path, encoding="utf-8") as f:
                 for row in csv.DictReader(f):
                     codes = [c for c in row.get("codes", "").split("|") if c]
                     if len(codes) < 2:

@@ -29,7 +29,7 @@ from ..common import (
     csv_field_size_limit,
     int_to_code,
 )
-from .local import EMB_BASENAME, EMB_DTYPE, META_BASENAME, RES_DIR, open_gz_text_write, tmp_path
+from ..index import EMB_BASENAME, EMB_DTYPE, META_BASENAME, RES_DIR, open_gz_text_write, tmp_path
 
 log = logging.getLogger(__name__)
 
@@ -220,8 +220,8 @@ def _fill_meta_names(
 
     canonical = arr["fhir_id"]
     names: list[str] = [""] * n_rows
-    hit = {sys_int: 0 for sys_int in sources}
-    miss = {sys_int: 0 for sys_int in sources}
+    hit = dict.fromkeys(sources, 0)
+    miss = dict.fromkeys(sources, 0)
     for r in range(n_rows):
         fid = int(canonical[r])
         sys_int = fid >> _CODE_BITS

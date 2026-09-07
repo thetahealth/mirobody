@@ -17,7 +17,6 @@ import polars as pl
 
 from .common import (
     LoincAxisData,
-    MappingRow,
     TARGET_SYSTEMS,
     code_to_int,
     int_to_code,
@@ -165,13 +164,13 @@ def _load_part_display(loinc_dir: str, loinc_axes: LoincAxisData) -> dict[str, s
     parts = pl.read_csv(part_csv).select(["PartNumber", "PartDisplayName"]).drop_nulls()
     pn_to_display = dict(zip(
         parts["PartNumber"].to_list(),
-        parts["PartDisplayName"].to_list(),
+        parts["PartDisplayName"].to_list(), strict=False,
     ))
 
     # Build display mapping from PartLink
     part_display: dict[str, str] = {}
     # PartLink uses plain csv.reader because column positions matter more than names
-    with open(partlink_csv, "r", encoding="utf-8") as f:
+    with open(partlink_csv, encoding="utf-8") as f:
         import csv
         for row in csv.reader(f):
             if len(row) < 6:
@@ -244,7 +243,7 @@ def build_siblings_loinc(
             cn_df = read_rrf(mrconso_path, ["SAB", "CODE", "STR"])
             cn_df = cn_df.filter(pl.col("SAB") == "LNC-ZH-CN") \
                 .unique(subset=["CODE"], keep="first")
-            loinc_cn = dict(zip(cn_df["CODE"].to_list(), cn_df["STR"].to_list()))
+            loinc_cn = dict(zip(cn_df["CODE"].to_list(), cn_df["STR"].to_list(), strict=False))
             log.info(f"  LOINC Chinese names: {len(loinc_cn):,}")
 
     # Exclude non-lab/non-clinical codes: surveys, attachments, PhenX, docs, admin
@@ -466,7 +465,7 @@ def build_siblings_snomed(snomed_dir: str, out_dir: str) -> None:
     concept_names: dict[str, str] = {}
     if desc_file:
         log.info(f"Loading concept names from: {desc_file}")
-        with open(desc_file, "r", encoding="utf-8") as f:
+        with open(desc_file, encoding="utf-8") as f:
             next(f)  # header
             for line in f:
                 fields = line.split("\t")
@@ -545,7 +544,7 @@ def build_siblings_rxnorm(
     # Add brand names via tradename_of in RXNREL (IN RXCUI → BN RXCUI)
     rxnrel_path = os.path.join(rxnorm_dir, "rrf", "RXNREL.RRF")
     if os.path.isfile(rxnrel_path):
-        with open(rxnrel_path, "r", encoding="utf-8") as f:
+        with open(rxnrel_path, encoding="utf-8") as f:
             for line in f:
                 fields = line.split("|")
                 if fields[7] == "tradename_of":
@@ -657,7 +656,7 @@ def enrich_siblings_with_cui(
         (pl.col("ISPREF") == "Y") &
         (pl.col("STT") == "PF")
     ).select(["CUI", "STR"]).unique(subset=["CUI"], keep="first")
-    cui_pref_name = dict(zip(pref_df["CUI"].to_list(), pref_df["STR"].to_list()))
+    cui_pref_name = dict(zip(pref_df["CUI"].to_list(), pref_df["STR"].to_list(), strict=False))
 
     def _append_cui_siblings(groups_df: pl.DataFrame, csv_path: str, label: str) -> None:
         if len(groups_df) == 0:
