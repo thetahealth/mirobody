@@ -19,10 +19,14 @@ notes to PyPI under a filename that told open-source readers to ignore it.
 
 | | Guide | For |
 | --- | --- | --- |
+| | [pipeline.md](pipeline.md) | the eleven stages a reading passes through, the invariant each holds, and what is deliberately NOT done |
 | ① | [provider-setup.md](provider-setup.md) | turning ON Garmin / Oura / Whoop — credentials, callback URLs, boot-log truth |
 | ① | [provider-guide.md](provider-guide.md) | writing a data provider end to end — the long one |
-| ① | [file-processing.md](file-processing.md) | the file-parsing pipeline (8 formats, LLM extraction) |
+| ① | [file-processing.md](file-processing.md) | a file becomes text by kind (`mirobody/documents/`: PDF text layer, OCR for scanned pages only, Office, text), then LLM extraction |
 | ① | [apple-health.md](apple-health.md) | Apple Health export + CDA import |
+| ② | [vocabulary-build.md](vocabulary-build.md) | rebuilding `mirobody/res/` from the raw LOINC / SNOMED CT / RxNorm releases — needs a UMLS licence |
+| ③ | [answers.md](answers.md) | the one health-data tool: its matrix, its envelope, its governance, and the PHI discipline |
+| ③ | [medications.md](medications.md) | the medication model, its state tables and its instruction grammar (provisional) |
 | ③ | [frontend.md](frontend.md) | how the bundled web client is served, and how to replace it |
 | | [backup-restore.md](backup-restore.md) | what to copy, how to get it back, and what changes on upgrade |
 | | [testing.md](testing.md) | test layout, markers, snapshots, release gates |
@@ -40,13 +44,15 @@ Short, and about *that package only*:
 - [`mirobody/indicator/`](../mirobody/indicator/README.md) — ② Standardize
 - [`mirobody/agent/`](../mirobody/agent/README.md) — ③ Answers
 - [`mirobody/agent/tools/`](../mirobody/agent/tools/README.md) — the MCP tool surface
-- [`mirobody/agent/resources/`](../mirobody/agent/resources/README.md) — ChatGPT Apps widgets
 - [`mirobody/pulse/apple/`](../mirobody/pulse/apple/README.md) — Apple Health import
 - [`mirobody/pulse/aggregate/`](../mirobody/pulse/aggregate/README.md) — daily rollups
 - [`mirobody/pulse/standardize/`](../mirobody/pulse/standardize/README.md) — health indicators, units & standardization
 - [`mirobody/schema/`](../mirobody/schema/README.md) — database schema, contract and bootstrap
 - [`mirobody/pulse/providers/`](../mirobody/pulse/providers/README.md) — provider directory layout
 - [`mirobody/utils/config/`](../mirobody/utils/config/README.md) — configuration
+- [`mirobody/units/`](../mirobody/units/README.md) — UCUM units, families, conversions
+- [`mirobody/kernel/`](../mirobody/kernel/__init__.py) — the kernel; the module docstring is its README (the stage → module map)
+- [`mirobody/documents/`](../mirobody/documents/__init__.py) — documents → text; likewise
 
 ## Adding documentation
 

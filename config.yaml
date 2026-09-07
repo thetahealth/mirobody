@@ -238,15 +238,13 @@ JWT_SCOPE: "mcp:read mcp:write"
 
 MCP_TOOL_DIRS:
   - mirobody/agent/tools
-MCP_RESOURCE_DIRS:
-  - mirobody/agent/resources
 AGENT_DIRS:
   - mirobody/agent
 PROVIDER_DIRS:
   - mirobody/pulse/providers
 
 # Agent Skills (https://agentskills.io/) — directories of SKILL.md skill
-# packages, served to DeepAgent via deepagents' native SkillsMiddleware: the
+# packages, served to the agent via deepagents' native SkillsMiddleware: the
 # first entry that exists is mounted read-only at /skills/ in the agent's
 # virtual filesystem, and skills load with progressive disclosure (frontmatter
 # at startup, full body only when the task needs it). Put deployment-specific
@@ -269,7 +267,7 @@ SKILL_DIRS:
 # the same way; EMBEDDING_PROVIDER, when unset, resolves openrouter →
 # qwen(DashScope) → gemini by key. That is the point of a gateway: one key,
 # many models (DashScope also hosts DeepSeek/Kimi/GLM — see the
-# `# —— DashScope fallback ——` block under PROVIDERS_DEEP; every model id
+# `# —— DashScope fallback ——` block under PROVIDERS; every model id
 # there was verified against the live endpoint on 2026-08-23). The other keys
 # below are for deployments that prefer a direct provider.
 #   OPENROUTER_API_KEY -> https://openrouter.ai/keys   (one key, many models)
@@ -300,24 +298,26 @@ OPENROUTER_API_KEY: ""
 # auto-selected when this is the only key present) and embeddings
 # (EMBEDDING_PROVIDER: qwen) via
 # https://dashscope.aliyuncs.com/compatible-mode/v1. See the
-# `# —— DashScope fallback ——` block under PROVIDERS_DEEP below.
+# `# —— DashScope fallback ——` block under PROVIDERS below.
 #   Get a key -> https://dashscope.console.aliyun.com/apiKey
 DASHSCOPE_API_KEY: ""
 
-# DeepSeek API key — used by BaseAgent's DeepSeek Responses provider.
+# DeepSeek API key — for a direct DeepSeek endpoint (`LLMProvider.DEEPSEEK` in
+# utils/config/llm.py). Chat via OpenRouter's `deepseek` entry above needs no
+# separate key.
 #   Get a key -> https://platform.deepseek.com
 DEEPSEEK_API_KEY: ""
 
 #---------------------------------------------------------
 # Agent conversation memory.
 #
-# DeepAgent's graph is compiled with a LangGraph Postgres checkpointer keyed on
+# The agent's graph is compiled with a LangGraph Postgres checkpointer keyed on
 # thread_id = session_id, so LangGraph stores the real message objects and
 # replays the conversation itself — the caller passes only the new turn.
 # The four checkpoint_* tables are created by the saver's own setup() on first
 # use, in PG_SCHEMA; no migration file is needed.
 #
-# Set to false to run DeepAgent with no cross-turn memory (each turn starts
+# Set to false to run the agent with no cross-turn memory (each turn starts
 # fresh). Useful if the agent's DB role may not create tables, or to stage the
 # rollout. Failure to reach the database degrades to the same behaviour rather
 # than failing the request.
@@ -325,14 +325,29 @@ AGENT_CHECKPOINTER: true
 
 #---------------------------------------------------------
 
-ALLOWED_TOOLS_DEEP:
+# The agent's own settings. One agent, so the keys carry no agent-name suffix
+# (they were PROVIDERS_DEEP / PROMPTS_DEEP / ... before 1.4.0). An overlay that
+# still uses the old spelling keeps working — each `*_DEEP` key is read as its
+# current name and the log says so once — but rename them: the alias is a
+# migration courtesy, not the contract.
+#
+# ALLOWED_TOOLS  — whitelist: the agent may use ONLY these MCP tools.
+# DISALLOWED_TOOLS — blacklist: everything except these. Whitelist wins when both
+#                    are set. `eval` here turns off the in-process REPL.
+# PROMPTS        — system prompt templates (path, or path@name); the first is
+#                  the default. Package-relative paths work from a pip install.
+# PROVIDERS      — the model picker: one entry per LLM client, `api_key` naming
+#                  the config/env key that holds the secret.
+# AGENT_NAME     — the persona name the prompt addresses the model by.
 
-DISALLOWED_TOOLS_DEEP:
+ALLOWED_TOOLS:
 
-PROMPTS_DEEP:
-  - agent/prompts/deep.jinja
+DISALLOWED_TOOLS:
 
-PROVIDERS_DEEP:
+PROMPTS:
+  - agent/prompts/mirobody.jinja
+
+PROVIDERS:
   gemini-flash:
     llm_type: google-genai
     api_key: GOOGLE_API_KEY
@@ -364,8 +379,7 @@ PROVIDERS_DEEP:
   # embeddings follow the key automatically too (qwen3-vl-flash;
   # text-embedding-v4). Model ids verified against the live endpoint
   # 2026-08-23. qwen3.5-flash rather than qwen-plus/qwen-flash: the latter two
-  # hit DashScope's legacy backend that rejects function results (see the
-  # PROVIDERS_BASE note below). DashScope also hosts DeepSeek and Kimi —
+  # hit DashScope's legacy backend that rejects function results. DashScope also hosts DeepSeek and Kimi —
   # uncomment to offer them in the model picker.
   qwen:
     llm_type: openai
@@ -386,57 +400,6 @@ PROVIDERS_DEEP:
   #   model: kimi-k2.5
   #   temperature: 0.1
 
-#---------------------------------------------------------
-
-ALLOWED_TOOLS_RTC:
-
-DISALLOWED_TOOLS_RTC:
-
-PROMPTS_RTC:
-
-#---------------------------------------------------------
-
-# BaseAgent is OFF by default — every entry here is commented out, so
-# `/api/models` offers only `Deep/*` and the web client shows no Base tab.
-#
-# Not because it does not work: `Base/gpt-5-nano` was tested against the real
-# Responses API alongside `Deep/claude-sonnet` on the same question, and it
-# answered correctly (HbA1c 7.2% → 6.5% → 6.6%, and it flagged that the eA1C
-# series is an estimate rather than a lab draw). It works.
-#
-# It is off because of WHOSE behaviour it is. BaseAgent hands the tool loop to
-# the provider: it has no filesystem, no QuickJS, no chart tool, and no
-# InvalidToolCallRepairMiddleware, so what a visitor sees is that provider's
-# tool-calling quality, not this project's. Two answers to one question showed
-# it plainly — Deep charted the series and read the trend, Base listed three
-# numbers. A demo that varies with someone else's model release is not a demo
-# of this repo.
-#
-# Uncomment an entry and set its key to turn it on. Only Responses-style APIs
-# belong here; a Chat-Completions provider goes under PROVIDERS_DEEP (see
-# BaseAgent's client-admission rule in base_agent.py).
-PROVIDERS_BASE:
-  # gpt-5-nano:
-  #   api_key: OPENAI_API_KEY
-  #   model: gpt-5-nano
-  # gemini-2.5-flash:
-  #   api_key: GOOGLE_API_KEY
-  #   model: gemini-2.5-flash
-  # dashscope:
-  #   api_key: DASHSCOPE_API_KEY
-  #   # qwen-plus/qwen-flash hit a legacy backend that rejects function results;
-  #   # see DashScopeClient docstring. Keep a new-backend model here.
-  #   model: qwen3.5-flash
-
-ALLOWED_TOOLS_BASE:
-
-DISALLOWED_TOOLS_BASE:
-
-# Empty = BaseAgent uses its packaged `agent/prompts/base.jinja`. Set a path to
-# override it. Unlike PROMPTS_DEEP this takes effect but is not selectable
-# per-request: BaseAgent hands the tool loop to the provider and has nowhere to
-# branch on a prompt name, so the FIRST entry wins.
-PROMPTS_BASE:
 
 #-----------------------------------------------------------------------------
 # Third-Party Platform Integrations (Health Devices and Services).

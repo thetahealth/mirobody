@@ -13,6 +13,32 @@ If you find a bug, please create a new issue on GitHub. include:
 ### Suggesting Features
 We love new ideas! Please open an issue to discuss your feature idea before implementing it. This helps ensure your time is well spent and the feature aligns with the project's goals.
 
+## 🤖 Bringing your own agent
+
+mirobody ships **one** agent — `MirobodyAgent` in `mirobody/agent/agent.py`,
+built on [deepagents](https://github.com/langchain-ai/deepagents), which is the
+most complete Python harness of the coding-agent kind (virtual filesystem,
+in-process REPL, skills, human-in-the-loop, checkpointed memory). It is the
+reference implementation of the answer layer, not a menu entry: there is no
+switching between agents at request time and no per-agent configuration.
+
+If you want a different harness or a Responses-API-style loop, you are welcome
+to write one — as a **replacement**, not a sibling. Point `AGENT_DIRS` in your
+config overlay at a directory holding one class with `generate_response`
+(see `mirobody/agent/registry.py` for the two-method contract) and the chat
+endpoints run yours instead. Contributions that improve the shipped agent are
+welcome here; a second built-in agent will not be merged. Every other agent
+runtime — Claude Desktop, Cursor, your own — reaches the same tools over
+`/mcp`, which is the seam that is meant for it.
+
+If your agent lives in its own service rather than inside this server,
+`pip install 'mirobody[agent]'` installs the harness as a library — the
+middleware (fault containment, invalid-call repair, retry governance, prompt
+caching), the virtual-filesystem backends, the Postgres checkpointer, the
+model-client factory, the human-in-the-loop helpers, the strict prompt
+renderer and the tool surface — without the HTTP server, the object stores and
+the mail client.
+
 ## 🛠️ Development Workflow
 
 1.  **Fork the Repository**
@@ -42,18 +68,20 @@ We love new ideas! Please open an issue to discuss your feature idea before impl
     you had broken something. The real gates:
 
     ```bash
-    pip install -e '.[agents,test]'    # everything
+    pip install -e '.[app,test]'    # everything
 
     pytest                # the tests this repo ships: the resolver
                           # benchmark and the README gates
     lint-imports          # the engine/agent boundary, machine-checked
+    ruff check mirobody   # the lint gate; its rule set is in pyproject.toml
     ```
 
     `'.[test]'` alone is enough to work on the **library** — resolve, units,
-    lexical. On a clean clone that is 17 packages and runs 100 tests, printing
-    a header naming what it skipped. Add `[parse]` for the document-extraction
-    and model-client tests (166), and `[app]` for the server and agent layers
-    (the full 215). All three layers are dropped at COLLECTION time rather
+    lexical. On a clean clone that is 17 packages and runs 189 tests (16
+    skipped), printing a header naming what it skipped. Add `[parse]` for the
+    document-extraction and model-client tests (77 packages, 260) and `[app]`
+    for the server and agent layers (147 packages, the full 305, nothing
+    skipped). All three layers are dropped at COLLECTION time rather
     than aborting the run: a module-level `importorskip` is too late, because
     importing a test module imports its parent package first and that is what
     pulls in the missing dependency.

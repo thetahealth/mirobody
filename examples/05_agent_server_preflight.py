@@ -40,7 +40,7 @@ print("=" * 74)
 rows: list[tuple[str, bool, str]] = []
 
 # ── 1. the [app] extra ────────────────────────────────────────────────────
-for mod, why in (("langchain", "the DeepAgent tool loop"),
+for mod, why in (("langchain", "the agent loop"),
                  ("deepagents", "middleware, skills, virtual filesystem"),
                  ("fastapi", "the HTTP surface")):
     rows.append((f"python: {mod}", importlib.util.find_spec(mod) is not None,

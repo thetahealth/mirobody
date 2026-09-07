@@ -1,0 +1,33 @@
+# A complete third-party plugin for mirobody, small enough to read in a minute.
+#
+#     pip install examples/mirobody_example_plugin
+#
+# Once installed, the running server finds all three without any config change:
+# the provider joins the pull loop, the tool is served over /mcp and handed to
+# the agent, and the agent REPLACES the shipped one (there is one agent slot).
+# Each entry point names a MODULE; the loaders read it the way they read a file
+# dropped into MCP_TOOL_DIRS / PROVIDER_DIRS / AGENT_DIRS.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mirobody-example-plugin"
+version = "0.1.0"
+description = "Example: extend mirobody by installing a package, not by editing it"
+requires-python = ">=3.12"
+dependencies = ["mirobody"]
+
+[project.entry-points."mirobody.providers"]
+example = "mirobody_example_plugin.provider"
+
+[project.entry-points."mirobody.tools"]
+example = "mirobody_example_plugin.tools"
+
+# Commented out on purpose: installing this would replace the shipped agent
+# for the whole deployment. Uncomment to try the replacement path.
+# [project.entry-points."mirobody.agents"]
+# example = "mirobody_example_plugin.agent"
+
+[tool.setuptools.packages.find]
+include = ["mirobody_example_plugin*"]

@@ -30,19 +30,19 @@ def _shipped() -> dict:
 
 def test_both_default_chat_providers_exist_and_use_their_gateway_key():
     pytest.importorskip("langchain_core", reason="chat defaults live in the [app] extra")
-    from mirobody.agent.deep_agent import (
-        _DEFAULT_PROVIDER_DEEP,
-        _DEFAULT_PROVIDER_DEEP_FALLBACK,
+    from mirobody.agent.agent import (
+        _DEFAULT_PROVIDER,
+        _DEFAULT_PROVIDER_FALLBACK,
     )
 
-    deep = _shipped().get("PROVIDERS_DEEP") or {}
+    deep = _shipped().get("PROVIDERS") or {}
     for default, expected_key in (
-        (_DEFAULT_PROVIDER_DEEP, "OPENROUTER_API_KEY"),
-        (_DEFAULT_PROVIDER_DEEP_FALLBACK, "DASHSCOPE_API_KEY"),
+        (_DEFAULT_PROVIDER, "OPENROUTER_API_KEY"),
+        (_DEFAULT_PROVIDER_FALLBACK, "DASHSCOPE_API_KEY"),
     ):
         assert default in deep, (
-            f"DeepAgent's default {default!r} is not a key of the shipped "
-            f"PROVIDERS_DEEP ({sorted(deep)}) — a chat call with no explicit "
+            f"the agent's default {default!r} is not a key of the shipped "
+            f"PROVIDERS ({sorted(deep)}) — a chat call with no explicit "
             "provider raises ConfigError on an untouched config"
         )
         assert deep[default].get("api_key") == expected_key, (
@@ -56,7 +56,10 @@ def _no_config_keys(monkeypatch):
     """Config-file lookups see only os.environ (the real safe_read_cfg checks
     the environment first), so each test controls exactly which keys exist."""
     import mirobody.utils.config as cfg
-    fake = lambda key, default="": os.environ.get(key, default)
+
+    def fake(key, default=""):
+        return os.environ.get(key, default)
+
     monkeypatch.setattr(cfg, "safe_read_cfg", fake)
     for key in ("OPENROUTER_API_KEY", "DASHSCOPE_API_KEY", "GOOGLE_API_KEY",
                 "EMBEDDING_PROVIDER"):
@@ -66,14 +69,14 @@ def _no_config_keys(monkeypatch):
 
 def test_chat_default_follows_the_available_key(_no_config_keys, monkeypatch):
     pytest.importorskip("langchain_core", reason="chat defaults live in the [app] extra")
-    from mirobody.agent import deep_agent
+    from mirobody.agent import agent as agent_module
 
-    monkeypatch.setattr(deep_agent, "safe_read_cfg", _no_config_keys)
+    monkeypatch.setattr(agent_module, "safe_read_cfg", _no_config_keys)
     monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-x")
-    assert deep_agent._default_provider() == deep_agent._DEFAULT_PROVIDER_DEEP_FALLBACK
+    assert agent_module._default_provider() == agent_module._DEFAULT_PROVIDER_FALLBACK
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-y")  # openrouter outranks
-    assert deep_agent._default_provider() == deep_agent._DEFAULT_PROVIDER_DEEP
+    assert agent_module._default_provider() == agent_module._DEFAULT_PROVIDER
 
 
 def test_embedding_provider_follows_the_available_key(_no_config_keys, monkeypatch):

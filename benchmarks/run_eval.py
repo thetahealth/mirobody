@@ -1,8 +1,14 @@
 """Score every resolver tier and every fusion of them, per stratum.
 
-    python eval/run_eval.py --no-embed                # lexical tiers, offline, ~1s
-    python eval/run_eval.py --matrix <path.npy>       # + the embedding tiers
-    python eval/run_eval.py --testset <cases.jsonl>   # grade your own distribution
+    python benchmarks/run_eval.py --no-embed              # lexical tiers, offline, ~1s
+    python benchmarks/run_eval.py --matrix <path.npy>     # + the embedding tiers
+    python benchmarks/run_eval.py --testset <cases.jsonl> # grade your own distribution
+
+Runs from a checkout with `mirobody` installed (`pip install -e .`). It is a
+benchmark runner, not a test (nothing here asserts) and not library code
+(nothing imports it), which is why it lives beside `tests/` and `examples/`
+rather than inside the package — the same place starlette, deepagents and
+langchain keep theirs.
 
 **This runner is the shared asset; the cases are not.** The maintained test set
 is not in this repository and neither are its results — see `.gitignore` for
@@ -67,7 +73,7 @@ RESULTS = REPO / "eval" / "results"
 
 # The embedding matrix is multi-GB and ships on a volume, never in git, so
 # there is no defensible default path — it used to be one maintainer's Desktop,
-# which meant `run_eval.py` with no flags only ran on one machine.
+# which meant the runner with no flags only ran on one machine.
 # MIROBODY_EVAL_MATRIX keeps that machine's convenience without hardcoding it.
 DEFAULT_MATRIX = os.environ.get("MIROBODY_EVAL_MATRIX", "")
 
@@ -170,9 +176,7 @@ async def main() -> int:
 
     analyte_of = _analyte_table()
 
-    from mirobody.engine import get_resolver, resolve, resolve_reading
-
-    resolver = get_resolver()
+    from mirobody.engine import resolve, resolve_reading
 
     # ── tier decisions, computed once each ───────────────────────────────────
     t0 = time.time()
@@ -203,7 +207,7 @@ async def main() -> int:
         ]
         plain = index.search_vectors([v for _, v in usable], top_k=1)
         gated = index.search_vectors([v for _, v in usable], top_k=1, gates=gates)
-        for (i, _), p, g in zip(usable, plain, gated):
+        for (i, _), p, g in zip(usable, plain, gated, strict=True):
             sem_plain[i] = p[0].loinc if p else None
             sem_gated[i] = g[0].loinc if g else None
 
@@ -220,20 +224,20 @@ async def main() -> int:
         # and the eval is what caught it: the embedding tier answered all nine
         # refusals and got all nine wrong.
         configs["T2+T3 -> T4 gated, no refusal guard"] = [
-            (r.loinc or None) or s for r, s in zip(lex_unit, sem_gated)
+            (r.loinc or None) or s for r, s in zip(lex_unit, sem_gated, strict=True)
         ]
         # What `resolve_with_semantic_fallback` actually does: a refusal is a
         # decision and stays a refusal; only genuine misses go on to the second
         # tier.
         configs["T2+T3 -> T4 gated  [PROPOSED]"] = [
             (r.loinc or None) or (None if r.method == "refused" else s)
-            for r, s in zip(lex_unit, sem_gated)
+            for r, s in zip(lex_unit, sem_gated, strict=True)
         ]
 
     scorers = {}
     for name, codes in configs.items():
         sc = Scorer(name)
-        for case, code in zip(cases, codes):
+        for case, code in zip(cases, codes, strict=True):
             sc.add(case, code, analyte_of)
         scorers[name] = sc
 

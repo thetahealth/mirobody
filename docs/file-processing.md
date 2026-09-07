@@ -44,11 +44,22 @@ This module provides comprehensive health data file processing capabilities, inc
 | Audio | `audio/*` | `AudioHandler` | Speech-to-text conversion for extracting verbal health information |
 | Genetic Data | Specific formats | `GeneticHandler` | Genetic test report parsing |
 | Text | `text/*` | `TextHandler` | `.txt`, `.md`, `.csv`, `.json`, `.xml`, `.html`, `.log` — decoded directly, same extraction path as PDF |
-| Excel | `application/vnd.ms-excel`, OOXML | `ExcelHandler` | `.xlsx`, `.xls`, `.xlsm`, `.xlsb` via pandas/openpyxl, converted to text then extracted |
+| Excel | OOXML | `ExcelHandler` | `.xlsx`, `.xlsm` read with openpyxl as markdown tables under a row budget; the pre-2007 binary `.xls` is not read |
+| Word / PowerPoint | OOXML | `DocumentHandler` | `.docx`, `.pptx` as markdown (headings, paragraphs, tables, slides) |
 
 The routing table itself lives in `mirobody/utils/file_types.py`, so this list
 can lag it — when in doubt, that module is the contract (it is the one place
 the handler that accepts a file and the extractor that parses it both read).
+
+Whatever the handler, the TEXT of a document comes from one place:
+`mirobody/documents/` (`detect.kind` by extension, content type and, when
+those lie, the bytes; `extract.extract_text` by kind). A PDF gives up its
+embedded text layer page by page and only the pages that have none — scans —
+are rendered and handed to the vision model, one image at a time; a photo is
+downscaled and OCR'd; a spreadsheet or Word file never reaches a model at
+all. The result is cached by content hash through `th_files`, so the same
+bytes are never OCR'd twice, and the file summary is generated from that text
+rather than from the file.
 
 ---
 
@@ -488,7 +499,11 @@ as not found.
 
 ### Data Storage
 
-Extracted indicator data is stored in the `th_series_data` table:
+Extracted indicator data is stored in the `th_series_data` table. The write goes
+through `pulse/readings.py:upsert_readings(rows, on_conflict="revive_deleted")`
+— the one writer of that table — which means a report re-uploaded after its
+file was deleted revives its own soft-deleted rows, while a collision with a
+live reading leaves the live reading alone:
 
 | Field | Description |
 |-------|-------------|

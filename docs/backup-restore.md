@@ -20,7 +20,7 @@ treating them alike is how people back up a pip cache and miss their uploads.
 | `mirobody_site_packages` | A pip cache, keyed on a hash of `pyproject.toml` + `requirements.txt`. | **Never.** It is derived, and restoring it reinstates dependencies the current code no longer imports — the release that dropped a 245 MB vendor SDK would get it back. Delete the volume and the next start reinstalls. |
 
 There is **no `mirobody_charts` volume**. The `ChartService` MCP tools that
-rendered PNGs through a Node toolchain were removed; DeepAgent now writes a
+rendered PNGs through a Node toolchain were removed; the agent now writes a
 fenced ```vis-chart``` data block that the frontend renders, so nothing writes
 chart files at all.
 
