@@ -91,7 +91,9 @@ _OPENAI_COMPAT = {
 #: A `None` vision default means the provider has no vision path here.
 _PROVIDER_DEFAULTS: dict[LLMProvider, tuple[str, str, str | None]] = {
     LLMProvider.GEMINI:     ("GOOGLE_API_KEY",     "gemini-3.8-flash",         "gemini-3.8-flash"),
-    LLMProvider.OPENAI:     ("OPENAI_API_KEY",     "gpt-5.6-terra",            None),
+    # gpt-5.6-terra reads images as well as text, so an OPENAI_API_KEY-only
+    # deployment has a vision path instead of a hole where one should be.
+    LLMProvider.OPENAI:     ("OPENAI_API_KEY",     "gpt-5.6-terra",            "gpt-5.6-terra"),
     LLMProvider.OPENROUTER: ("OPENROUTER_API_KEY", "google/gemini-3.8-flash",  "google/gemini-3.8-flash"),
     # qwen3.5-flash, not qwen-flash: the latter reaches DashScope's legacy
     # backend, which rejects function results (config.yaml, verified 2026-08-23).
@@ -103,6 +105,28 @@ _PROVIDER_DEFAULTS: dict[LLMProvider, tuple[str, str, str | None]] = {
 _PROVIDER_ALIASES: dict[str, LLMProvider] = {
     "qwen": LLMProvider.DASHSCOPE,
 }
+
+
+#: Env names that mean the same key. Google's own docs and SDK say
+#: `GEMINI_API_KEY`; this project's tables say `GOOGLE_API_KEY`, and a key
+#: pasted under the name its vendor documents must not read as "no key".
+_KEY_ALIASES: dict[str, tuple[str, ...]] = {
+    "GOOGLE_API_KEY": ("GOOGLE_API_KEY", "GEMINI_API_KEY"),
+}
+
+
+def read_api_key(env_name: str) -> str:
+    """The value of `env_name`, or of any name that means the same thing.
+
+    Every surface that decides "is this provider usable" goes through here, so
+    the four one-key paths agree on what counts as a key being present.
+    """
+    from . import safe_read_cfg
+
+    for name in _KEY_ALIASES.get(env_name, (env_name,)):
+        if value := (safe_read_cfg(name, "") or "").strip():
+            return value
+    return ""
 
 
 def canonical_provider(name: str) -> LLMProvider | None:

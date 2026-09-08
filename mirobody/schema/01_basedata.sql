@@ -96,6 +96,12 @@ CREATE INDEX IF NOT EXISTS idx_fhir_indicators_embedding_qwen3
 -- ALTER (not just the CREATE above) because this schema is replayed at boot
 -- against databases created before the column existed.
 ALTER TABLE fhir_indicators ADD COLUMN IF NOT EXISTS embedding_qwen3_8b vector(1024);
+
+-- EMBEDDING_PROVIDER=openai (text-embedding-3-small at 1024 dimensions). Its
+-- own column for the reason every other one has its own: vectors are only
+-- comparable within one (provider, model) pair, and sharing a column across two
+-- models does not fail, it returns confident nonsense.
+ALTER TABLE fhir_indicators ADD COLUMN IF NOT EXISTS embedding_openai_3_small vector(1024);
 CREATE INDEX IF NOT EXISTS idx_fhir_indicators_embedding_qwen3_8b
     ON fhir_indicators USING hnsw (embedding_qwen3_8b vector_cosine_ops);
 
@@ -166,6 +172,7 @@ CREATE INDEX IF NOT EXISTS idx_th_series_dim_embedding_gemini
 
 --  Add embedding_qwen field for Qwen 1024-dimension vector search (selected via EMBEDDING_PROVIDER=qwen)
 ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS embedding_qwen vector(1024);
+ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS embedding_openai_3_small vector(1024);
 COMMENT ON COLUMN th_series_dim.embedding_qwen IS 'Qwen embedding (1024 dimensions) for semantic search';
 
 --  EMBEDDING_PROVIDER=openrouter (qwen/qwen3-embedding-8b) — the shipped

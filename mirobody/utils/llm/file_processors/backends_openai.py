@@ -1,6 +1,6 @@
-"""The OpenAI-compatible vision path — OpenRouter and Qwen.
+"""The OpenAI-compatible vision path — OpenRouter, Qwen and OpenAI itself.
 
-Both speak chat/completions with an image_url part, so they share one
+All three speak chat/completions with an image_url part, so they share one
 implementation and differ only in client construction and a per-provider
 `extra_body` that turns "thinking" off (it costs latency and buys nothing for
 extraction). Gemini is NOT here: it has its own SDK and its own PDF handling,
@@ -29,7 +29,12 @@ logger = logging.getLogger(__name__)
 
 # Provider-specific extra parameters for API calls (no thinking, for latency).
 PROVIDER_EXTRA_PARAMS: dict[str, dict[str, Any]] = {
-    "openrouter": {"extra_body": {"reasoning": {"enabled": False}}},
+    # `effort: minimal`, not `enabled: false`: OpenRouter answers 400
+    # "Reasoning is mandatory for this endpoint and cannot be disabled" for
+    # gemini-3.8-flash, and sending no reasoning field at all spends the whole
+    # token budget thinking and returns empty content. Measured against the
+    # live endpoint on all three shapes.
+    "openrouter": {"extra_body": {"reasoning": {"effort": "minimal"}}},
     "qwen": {"extra_body": {"enable_thinking": False}},
     # extra_body, not a top-level kwarg: these are spread into
     # `chat.completions.create(**api_params)`, and the OpenAI SDK rejects
@@ -220,4 +225,28 @@ async def vision_file_extract(
         logger.error(f"OpenRouter extraction failed: {e}", stack_info=True)
         raise ValueError(f"OpenRouter API failed: {e}") from e
 
+def _get_openai_client() -> AsyncOpenAI:
+    """OpenAI's own endpoint, honouring OPENAI_BASE_URL like every other."""
+    from mirobody.utils.llm.clients import client_manager
 
+    return client_manager.get_async_ai_client("openai")
+
+
+async def openai_file_extract(
+    local_file_path: str,
+    prompt: str = "Please extract all test indicators from this report and return the result in JSON format",
+    model: str = "gpt-5.6-terra",
+    client: AsyncOpenAI | None = None,
+    response_schema: Any | None = None,
+    json_mode: bool = True
+) -> str:
+    """OpenAI file extraction using the same OpenAI-compatible path."""
+    try:
+        client = client or _get_openai_client()
+        return await _openai_compatible_file_extract(
+            local_file_path, prompt, model, client, "openai",
+            response_schema=response_schema, json_mode=json_mode
+        )
+    except Exception as e:
+        logger.error(f"OpenAI extraction failed: {e}", stack_info=True)
+        raise ValueError(f"OpenAI API failed: {e}")

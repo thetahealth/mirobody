@@ -139,6 +139,7 @@ EMBEDDING_MODEL_IDS: dict[str, str] = {
     "gemini": "gemini-embedding-001",
     "qwen": "text-embedding-v4",
     "openrouter": "qwen/qwen3-embedding-8b",
+    "openai": "text-embedding-3-small",
 }
 
 #: `<PROVIDER>_EMBEDDING_MODEL` overrides the default above, the way
@@ -169,13 +170,15 @@ def resolve_embedding_provider() -> str:
     """`EMBEDDING_PROVIDER` if set; otherwise pick by which API key exists.
 
     The auto path mirrors the vision pipeline's select-by-available-key: the
-    promise is that ONE key — OPENROUTER_API_KEY or DASHSCOPE_API_KEY — runs
-    every feature with zero further configuration. Explicit config always
-    wins; openrouter outranks the others when several keys are present.
+    promise is that ONE key — any of OPENROUTER, DASHSCOPE, GOOGLE or OPENAI —
+    runs every feature with zero further configuration. Explicit config always
+    wins; openrouter outranks the others when several keys are present, and
+    openai comes last because the other three cost less per million tokens.
     (Vision keeps its own priority order — gemini first — so the two lists
     agree on the promise, not on the sequence.)
     """
     from .config import safe_read_cfg
+    from .config.llm import read_api_key
 
     explicit = (safe_read_cfg("EMBEDDING_PROVIDER", "") or "").strip().lower()
     if explicit:
@@ -184,8 +187,9 @@ def resolve_embedding_provider() -> str:
         ("OPENROUTER_API_KEY", "openrouter"),
         ("DASHSCOPE_API_KEY", "qwen"),
         ("GOOGLE_API_KEY", "gemini"),
+        ("OPENAI_API_KEY", "openai"),
     ):
-        if os.environ.get(key) or safe_read_cfg(key, ""):
+        if read_api_key(key):
             return provider
     return "openrouter"
 
@@ -415,3 +419,31 @@ async def text_embedding(
     for idx, text in zip(valid_indices, clean_texts, strict=False):
         results[idx] = text_to_embedding[text]
     return results
+
+
+@_emb_provider("openai")
+def _openai():
+    """`text-embedding-3-small` at 1024 dimensions.
+
+    Last resort by design — OpenRouter's open-weights Qwen3 is two orders of
+    magnitude cheaper for the same 96k-row corpus — but without it a deployment
+    holding only an OPENAI_API_KEY had no embedding path at all, so
+    `resolve_embedding_provider()` answered "openrouter" and every call failed
+    on a key that was not there. v3 embeddings accept `dimensions`, which is
+    what lets these vectors share the 1024-wide column shape.
+    """
+    from mirobody.utils.config import global_config
+    from mirobody.utils.config.llm import LLMProvider
+
+    return (
+        global_config().get_llm(LLMProvider.OPENAI),
+        "embeddings",
+        256,
+        4,  # max_concurrency
+        lambda chunk: {
+            "model": embedding_model_id("openai"),
+            "input": chunk,
+            "dimensions": 1024,
+        },
+        lambda data: [item["embedding"] for item in data["data"]],
+    )

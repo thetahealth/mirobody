@@ -194,14 +194,14 @@ def available_models() -> list[str]:
     """
     if not _llm_clients:
         return []
-    from ..utils.config import safe_read_cfg
+    from ..utils.config.llm import read_api_key
 
     cfg = global_config()
     providers = (cfg.get_agent_settings() or {}).get("providers") or {} if cfg else {}
     names = []
     for name in _llm_clients:
         key_name = (providers.get(name) or {}).get("api_key", "")
-        if key_name and not safe_read_cfg(key_name):
+        if key_name and not read_api_key(key_name):
             continue
         names.append(name)
     return sorted(names)

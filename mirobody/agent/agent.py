@@ -50,29 +50,35 @@ logger = logging.getLogger(__name__)
 
 # The default LLM provider when the caller names none.
 #
-# Both values must be KEYS of the shipped PROVIDERS in config.yaml —
-# these strings are looked up in that dict, not resolved as model names. An
-# earlier value, "gemini-3.5-flash", was a model name matching no shipped key
-# (the entry is called "gemini-flash"), so a call with no provider raised
+# Each value must be a KEY of the shipped PROVIDERS in config.yaml — these
+# strings are looked up in that dict, not resolved as model names. An earlier
+# value, "gemini-3.5-flash", was a model name matching no shipped key (the
+# entry is called "gemini-flash"), so a call with no provider raised
 # ConfigError on an untouched config.
 #
-# Two defaults because the repo promises TWO one-key paths: "claude-sonnet"
-# routes through OPENROUTER_API_KEY (the recommended default), "qwen" through
-# DASHSCOPE_API_KEY (the fallback for networks where openrouter.ai is
-# unreachable).
-# `_default_provider()` picks by which key is actually present — the same
-# select-by-available-key idea the vision pipeline already uses — so a bare
-# DASHSCOPE_API_KEY deployment chats without touching DEFAULT_PROVIDER.
-_DEFAULT_PROVIDER = "claude-sonnet"
-_DEFAULT_PROVIDER_FALLBACK = "qwen"
+# One table, in priority order, because the project promises that ANY ONE of
+# four keys runs the whole stack. Same order as the vision and embedding
+# pickers, so the three agree on which key wins when several are present.
+_DEFAULT_PROVIDERS: tuple[tuple[str, str], ...] = (
+    ("OPENROUTER_API_KEY", "claude-sonnet"),
+    ("DASHSCOPE_API_KEY",  "qwen"),
+    ("GOOGLE_API_KEY",     "gemini-flash"),
+    ("OPENAI_API_KEY",     "openai"),
+)
+_DEFAULT_PROVIDER = _DEFAULT_PROVIDERS[0][1]
 
 
 def _default_provider() -> str:
-    if os.environ.get("OPENROUTER_API_KEY") or safe_read_cfg("OPENROUTER_API_KEY", ""):
-        return _DEFAULT_PROVIDER
-    if os.environ.get("DASHSCOPE_API_KEY") or safe_read_cfg("DASHSCOPE_API_KEY", ""):
-        return _DEFAULT_PROVIDER_FALLBACK
+    """The provider to chat with when the caller names none: the first one
+    whose key is actually present. A bare key of any of the four is enough —
+    no DEFAULT_PROVIDER line needed."""
+    from ..utils.config.llm import read_api_key
+
+    for env_name, provider in _DEFAULT_PROVIDERS:
+        if os.environ.get(env_name) or read_api_key(env_name):
+            return provider
     return _DEFAULT_PROVIDER
+
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel

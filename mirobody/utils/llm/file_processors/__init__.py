@@ -26,6 +26,7 @@ from .dispatch import (
 )
 from .backends_openai import (
     PROVIDER_EXTRA_PARAMS,
+    openai_file_extract,
     qwen_file_extract,
     vision_file_extract,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "PROVIDER_HANDLERS",
     "clean_json_response",
     "gemini_file_extract",
+    "openai_file_extract",
     "qwen_file_extract",
     "vision_file_extract",
     "unified_file_extract",

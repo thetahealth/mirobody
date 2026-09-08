@@ -66,6 +66,7 @@ FHIR_EMBEDDING_COLUMN: dict[str, str] = {
     # Open-weights qwen/qwen3-embedding-8b via OpenRouter (or self-hosted —
     # same weights, same column), one OPENROUTER_API_KEY for agent + embeddings.
     "openrouter": "embedding_qwen3_8b",
+    "openai": "embedding_openai_3_small",
 }
 
 #: provider → the `th_series_dim` vector column. **A separate map, because the
@@ -82,6 +83,7 @@ DIM_EMBEDDING_COLUMN: dict[str, str] = {
     "gemini": "embedding_gemini",
     "qwen": "embedding_qwen",
     "openrouter": "embedding_qwen3_8b",
+    "openai": "embedding_openai_3_small",
 }
 
 

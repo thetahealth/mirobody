@@ -19,15 +19,15 @@ from collections.abc import Callable
 
 from google.genai import types
 
-from mirobody.utils.config import safe_read_cfg
 from mirobody.utils.config.llm import (
     LLMProvider,
     canonical_provider,
     provider_api_key_env,
     provider_model,
+    read_api_key,
 )
 
-from .backends_openai import qwen_file_extract, vision_file_extract
+from .backends_openai import openai_file_extract, qwen_file_extract, vision_file_extract
 from .gemini import gemini_file_extract
 
 logger = logging.getLogger(__name__)
@@ -45,6 +45,7 @@ class VisionProviderConfig:
         LLMProvider.GEMINI,
         LLMProvider.OPENROUTER,
         LLMProvider.DASHSCOPE,
+        LLMProvider.OPENAI,
     )
 
     @classmethod
@@ -64,7 +65,7 @@ class VisionProviderConfig:
     def get_available_provider(cls) -> dict[str, Any] | None:
         """Get first available provider with configured API key."""
         for provider in cls.providers():
-            if safe_read_cfg(provider["api_key_env"]):
+            if read_api_key(provider["api_key_env"]):
                 # Bound to a name `phi_lint` recognises rather than
                 # interpolating the subscript: the rule refuses `x["k"]`
                 # because it cannot tell a provider name from a row value.
@@ -84,12 +85,12 @@ class VisionProviderConfig:
     @classmethod
     def list_available_providers(cls) -> list[str]:
         """List all providers with configured API keys."""
-        return [p["name"] for p in cls.providers() if safe_read_cfg(p["api_key_env"])]
+        return [p["name"] for p in cls.providers() if read_api_key(p["api_key_env"])]
 
     @classmethod
     def get_provider_status(cls) -> dict[str, bool]:
         """Get availability status of all providers."""
-        return {p["name"]: bool(safe_read_cfg(p["api_key_env"])) for p in cls.providers()}
+        return {p["name"]: bool(read_api_key(p["api_key_env"])) for p in cls.providers()}
 
 
 
@@ -137,6 +138,22 @@ async def _handle_qwen(
     )
 
 
+async def _handle_openai(
+    file_path: str, prompt: str, content_type: str, model: str,
+    config: Any, response_schema: Any, json_mode: bool
+) -> str:
+    """Handler for OpenAI itself. Last in priority — the other three cost less
+    for this workload — but it exists so a deployment holding only
+    OPENAI_API_KEY can still read a report."""
+    return await openai_file_extract(
+        local_file_path=file_path,
+        prompt=prompt,
+        model=model,
+        response_schema=response_schema,
+        json_mode=json_mode
+    )
+
+
 #: Keyed by the CANONICAL provider name (`LLMProvider`'s value). `qwen` was the
 #: old key, which `canonical_provider` still maps, so a caller passing it keeps
 #: working.
@@ -144,6 +161,7 @@ PROVIDER_HANDLERS: dict[str, Callable] = {
     LLMProvider.GEMINI.value: _handle_gemini,
     LLMProvider.OPENROUTER.value: _handle_openrouter,
     LLMProvider.DASHSCOPE.value: _handle_qwen,
+    LLMProvider.OPENAI.value: _handle_openai,
 }
 
 
@@ -159,7 +177,7 @@ async def unified_file_extract(
     """
     Unified file extraction that auto-selects provider based on API keys.
 
-    Provider priority: gemini > openrouter > qwen
+    Provider priority: gemini > openrouter > qwen > openai
 
     Args:
         file_path: Path to the file
@@ -180,7 +198,7 @@ async def unified_file_extract(
         provider_config = VisionProviderConfig.get_provider_by_name(provider)
         if not provider_config:
             raise ValueError(f"Unknown provider: {provider}. Available: {list(PROVIDER_HANDLERS.keys())}")
-        if not safe_read_cfg(provider_config["api_key_env"]):
+        if not read_api_key(provider_config["api_key_env"]):
             raise ValueError(f"API key not configured for '{provider}' (env: {provider_config['api_key_env']})")
     else:
         provider_config = VisionProviderConfig.get_available_provider()
@@ -188,7 +206,7 @@ async def unified_file_extract(
             status = VisionProviderConfig.get_provider_status()
             raise ValueError(
                 f"No vision provider available. Configure one of: "
-                f"GOOGLE_API_KEY, OPENROUTER_API_KEY, DASHSCOPE_API_KEY. "
+                f"GOOGLE_API_KEY, OPENROUTER_API_KEY, DASHSCOPE_API_KEY, OPENAI_API_KEY. "
                 f"Current status: {status}"
             )
 

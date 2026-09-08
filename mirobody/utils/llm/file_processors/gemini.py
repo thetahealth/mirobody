@@ -61,7 +61,8 @@ async def _gemini_process_pdf_by_pages(
         async with semaphore:
             try:
                 api_start = time.time()
-                response = await client.models.generate_content(
+                response = await _generate(
+                    client,
                     model=model,
                     contents=[
                         types.Part.from_bytes(data=page_info['pdf_data'], mime_type="application/pdf"),
@@ -111,6 +112,30 @@ def _handle_gemini_error(error_msg: str) -> ValueError:
     return ValueError(f"Gemini API failed: {error_msg}")
 
 
+#: Gemini rejects a thinking level a given model does not implement —
+#: "Thinking level MINIMAL is not supported for this model. Please retry with
+#: other thinking level." — and which levels a model takes changes with every
+#: Flash release. Rather than pin a level per model id (a table that goes stale
+#: the week after it is written), ask for the cheap one and drop the request if
+#: the model says no. Measured: gemini-3.8-flash refuses MINIMAL.
+_THINKING_REFUSED = "thinking level"
+
+
+async def _generate(client, *, model, contents, config):
+    """`generate_content`, retried once without the thinking config if the
+    model refuses the level we asked for."""
+    try:
+        return await client.models.generate_content(model=model, contents=contents, config=config)
+    except Exception as e:
+        if _THINKING_REFUSED not in str(e).lower() or getattr(config, "thinking_config", None) is None:
+            raise
+        logger.info("gemini refused the thinking level; retrying without it: model_name=%s", model)
+        retry = types.GenerateContentConfig(**{
+            k: v for k, v in config.model_dump(exclude_none=True).items() if k != "thinking_config"
+        })
+        return await client.models.generate_content(model=model, contents=contents, config=retry)
+
+
 async def gemini_file_extract(
     file_path: str,
     content_type: str,
@@ -147,7 +172,8 @@ async def gemini_file_extract(
             )
             logger.info(f"Gemini: Image optimized, {stats}")
 
-        response = await client.models.generate_content(
+        response = await _generate(
+            client,
             model=model,
             contents=[types.Part.from_bytes(data=file_data, mime_type=content_type), prompt],
             config=config,

@@ -8,7 +8,7 @@ import json
 import logging
 
 from .config import AIConfig
-from ..config.llm import LLMProvider, provider_api_key_env, provider_model
+from ..config.llm import LLMProvider, provider_api_key_env, provider_model, read_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +185,7 @@ async def async_get_structured_output(
             logger.error(f"Unknown provider: {provider}")
             return None
 
-        if not safe_read_cfg(provider_info["api_key_env"]):
+        if not read_api_key(provider_info["api_key_env"]):
             logger.error(f"Provider {provider} API Key not configured")
             return None
         actual_model = model_name or safe_read_cfg(f"{provider.upper()}_MODEL") or provider_info["default_model"]
@@ -194,7 +194,7 @@ async def async_get_structured_output(
     # Auto-select: try each available provider in priority order, fallback on failure
     tried_providers = []
     for canon in STRUCTURED_OUTPUT_PRIORITY:
-        if not safe_read_cfg(provider_api_key_env(canon)):
+        if not read_api_key(provider_api_key_env(canon)):
             continue
         prov_name = canon.value
         # `<PROVIDER>_MODEL` overrides the default, mirroring
