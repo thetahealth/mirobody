@@ -164,6 +164,26 @@ evaluation is bit-identical to 1.4.0 (coverage 0.9631, wrong-rate 0.0322).
 
 ### Added
 
+- **Any ONE of four keys now runs every surface.** The promise was two one-key
+  paths (OpenRouter, DashScope) plus a line saying direct Google/OpenAI keys
+  "remain supported". Measured, an `OPENAI_API_KEY`-only deployment had no chat
+  provider, no vision provider and no embedding provider — its embedding
+  resolver answered "openrouter" and failed on a key that was not there — and a
+  `GOOGLE_API_KEY`-only one had no chat provider either. Each key now reaches
+  chat, vision, structured extraction and embeddings; `config.yaml` carries the
+  table of what each one picks. `GEMINI_API_KEY` is accepted wherever
+  `GOOGLE_API_KEY` is, because that is the name Google's own docs and SDK use.
+  Verified with real calls one key at a time — OpenRouter, DashScope and OpenAI
+  4/4 each; Google's direct API is region-blocked from the machine this was
+  measured on, which is the reason the OpenRouter route to Gemini exists.
+- **Two request-shape fixes those calls turned up**, neither visible to a test
+  that stays on the machine: OpenRouter refuses `reasoning: {enabled: false}`
+  on gemini-3.8-flash ("Reasoning is mandatory for this endpoint") and returns
+  empty content when the field is absent entirely, so the vision path asks for
+  `effort: minimal`; and Gemini refuses "Thinking level MINIMAL" for that same
+  model, so the call now drops the thinking config and retries once rather than
+  pinning a level per model id.
+
 - **`mirobody dev`** — the server in one process, with no config file, no Redis
   requirement and dev secrets generated per run:
 
