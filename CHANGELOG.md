@@ -140,9 +140,27 @@ evaluation is bit-identical to 1.4.0 (coverage 0.9631, wrong-rate 0.0322).
   `VitalHealthRecord` model; `StandardPulseRecord` keeps the field set (rows in
   `th_series_data` were written against it) and now says why in its own words
   instead of pointing at a class that is gone.
-- 36 `raise` statements inside `except` blocks lost their cause
-  (`raise ... from`), so a traceback stopped at the re-raise. One loop-bound
-  closure (`indicator/fhir/adapter.py`) now binds its arrays explicitly.
+- One loop-bound closure (`indicator/fhir/adapter.py`) now binds its arrays
+  explicitly.
+
+### Removed
+
+- **The Doubao/Volcengine tier**, across the whole surface: the defaults table,
+  both priority lists, the vision handler and backend client, the
+  structured-output branch and its function, the two export lists, the AIConfig
+  entry, the enum member, the CLI hint and the docs. It had never run — its
+  vendor SDK was never a base dependency — and nothing called it directly.
+- **The pgsql provider** (202 lines). It validated a PostgreSQL credential and
+  pulled nothing: `pull_from_vendor_api` and `save_raw_data_to_db` both
+  `return []`. Providers here fetch from a wearable's cloud; a remote database
+  is not one. The docs' zero-credential smoke test goes with it, and the
+  smallest provider reference is now Whoop.
+- **`B904` and `B007`** are no longer enforced, and their 38 edits are reverted.
+  Both change only how code reads: `raise ... from e` alters what a traceback
+  prints (the original is in the chain either way), and `for k, v in d.items()`
+  names the key for the next reader even where the code ignores it. The reason
+  is in `pyproject.toml` so it does not get re-litigated; the rest of
+  flake8-bugbear stays.
 
 ### Added
 
@@ -173,8 +191,17 @@ evaluation is bit-identical to 1.4.0 (coverage 0.9631, wrong-rate 0.0322).
 
 ### Changed
 
+- **The default model ids**, each verified with a live call to its own endpoint:
+  `gemini-3-flash-preview` → `gemini-3.8-flash`, `gpt-5.2` → `gpt-5.6-terra`,
+  `google/gemini-3-flash-preview` → `google/gemini-3.8-flash`, and `qwen-flash`
+  → `qwen3.5-flash`. The last is not just age: this file already records, from a
+  live measurement, that `qwen-flash` reaches a DashScope backend which rejects
+  function results — so it was the wrong default for structured extraction.
+  `qwen3-vl-flash` stays as the vision default.
+
 - **The ruff rule set grows by six**, each catching a class of defect rather
-  than a style: `B` (bugbear), `ISC`, `C4`, `PIE`, `PLE`, `RUF100`. `PLE0604`
+  than a style: `B` (bugbear, minus `B904`/`B007` — see Removed), `ISC`, `C4`,
+  `PIE`, `PLE`, `RUF100`. `PLE0604`
   is excluded (it cannot see through a dynamically built `__all__`), and the
   reasons `G004`, `DTZ` and `TID252` are NOT selected are written down —
   `DTZ` in particular would ask us to break the naive-local-time storage
