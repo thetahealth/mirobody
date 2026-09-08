@@ -64,7 +64,7 @@ evaluation is bit-identical to 1.4.0 (coverage 0.9631, wrong-rate 0.0322).
   (`index-DqMMF6sB.js`, 1.37 MB) verbatim, and the segmented control is in the
   model-picker chunk (`index-DocncKpd.js`), legacy build included.
 
-  Fixed in `mirobody-web-rebuild` and rebuilt into `frontend/`: the model id IS
+  Fixed in the client repo and rebuilt into `frontend/`: the model id IS
   the provider name, the agent tabs and their styles are gone,
   `getModelShowName` takes one argument, the compare pane key drops to
   `provider`, and `POST /api/chat` / `POST /api/rating` stop sending `agent`
@@ -79,6 +79,38 @@ evaluation is bit-identical to 1.4.0 (coverage 0.9631, wrong-rate 0.0322).
   `reference_task_id` for one more release: a browser holding a cached older
   bundle still sends two of them, and `chat_handler` rejects unknown fields, so
   dropping them now would answer every message from such a client with -4.
+- **The Indicators tab listed nothing, against a healthy endpoint (#62).**
+  `c470b3d` reshaped `GET /api/v1/health-indicators` around one envelope on
+  2026-09-07; the shipped bundle was built on 09-04 and read `catalog` /
+  `indicators`, keys the route has never sent. It rendered "No indicators yet"
+  over 35 indicators. Three reads were wrong, not the one the report found: the
+  list, the readings drawer (`indicators[0].readings`, now `rows`), and the
+  per-reading **edit and delete buttons — a reading's key is `row_id` and the
+  client looked for `id`, so owner-only correction had quietly disappeared from
+  every row**. The client repo now pins each field mapping against fixtures
+  copied from this repo's `_catalog_row` / `_reading_row`, so the next shape
+  change fails a test rather than a page. A contract test on this side is still
+  worth having.
+
+  Two notes for anyone changing that route again. It answers in two grains from
+  one path — catalog without `keywords`/`indicators`, readings with them — and
+  a search that matches nothing answers with the CATALOG, so a client cannot
+  infer the grain from its own request. And `truncated` arrives `true` with
+  `rows == total`, so it is not on its own a statement that anything was left
+  out.
+- **`POST /invitation/shared-by-me/list` failed 100% of calls.** It returned
+  `ok([...])`, and `StandardResponse.data` is `dict[str, Any]` — pydantic
+  refused the list, the handler's own `except Exception` caught the refusal, and
+  the route answered `{"code": -1, "msg": "Could not list your circle."}`,
+  which reads like a database fault. Nobody noticed because on an empty circle
+  the failure is indistinguishable from success: the web client merges this
+  list into "people I can ask for", so members an owner created never appeared
+  in that selector and one generic line went to the log. It answers
+  `{"members": [...]}` now — the shape `shared-with-me/list` next door already
+  uses — and the bundle in this release reads it. Changing the wire shape cost
+  nothing: a route that always fails has no working consumer.
+  `tests/test_response_envelopes.py` grew an `ast` walk for the class of
+  mistake, since it can never crash loudly.
 - **A route whose only possible answer was 503.**
   `POST /vital/generate-sign-in-token` calls
   `platform_manager.get_platform("vital")`, and the installed providers are
