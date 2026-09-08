@@ -59,7 +59,8 @@ rd_port = int(os.environ.get("REDIS_PORT", "18069"))
 rows.append((f"postgres {pg_host}:{pg_port}", _port_open(pg_host, pg_port),
              "docker compose up -d pg   (schema is created on first start)"))
 rows.append((f"redis {rd_host}:{rd_port}", _port_open(rd_host, rd_port),
-             "docker compose up -d redis   (sessions, locks, OAuth codes)"))
+             ("docker compose up -d redis   — or skip it: `mirobody dev` runs "
+              "without Redis (in-process memory)")))
 
 # ── 3. secrets ───────────────────────────────────────────────────────────────
 model_keys = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_API_KEY",
@@ -68,15 +69,16 @@ present = [k for k in model_keys if os.environ.get(k)]
 rows.append(("a model API key", bool(present),
              "set one of: " + ", ".join(model_keys[:3]) + ", …"))
 rows.append(("JWT_KEY", bool(os.environ.get("JWT_KEY")),
-             "openssl rand -hex 32   (signs session tokens)"))
+             "openssl rand -hex 32   — or let `mirobody dev` generate one per run"))
 rows.append(("CONFIG_ENCRYPTION_KEY", bool(os.environ.get("CONFIG_ENCRYPTION_KEY")),
-             "openssl rand -hex 32   (encrypts config values at rest)"))
+             "openssl rand -hex 32   — or let `mirobody dev` generate one per run"))
 
 # ── 4. config file ───────────────────────────────────────────────────────────
 env_name = (os.environ.get("ENV") or "").strip()
 cfg = f"config.{env_name}.yaml" if env_name else None
 rows.append(("ENV + config.{ENV}.yaml", bool(cfg and os.path.isfile(cfg)),
-             "echo 'ENV=localdb' > .env, then create config.localdb.yaml next to config.yaml"))
+             ("echo 'ENV=localdb' > .env, then create config.localdb.yaml — or skip "
+              "the file entirely: `mirobody dev` configures itself in memory")))
 
 # ── 5. docker, for the one-command path ──────────────────────────────────────
 rows.append(("docker (optional)", shutil.which("docker") is not None,
@@ -90,9 +92,20 @@ blocking = [n for n, ok, _ in rows if not ok and not n.endswith("(optional)")]
 print("=" * 74)
 if blocking:
     print(f"{len(blocking)} prerequisite(s) missing: {', '.join(blocking)}")
-    print("\nThe fastest path past all of them is the Docker one:\n    ./deploy.sh")
-    print("which generates .env with fresh secrets, writes config.localdb.yaml,")
-    print("and starts Postgres, Redis and Mirobody together.")
+    # Four of the seven are things `mirobody dev` produces for you: Redis
+    # (optional there), both secrets (generated per run) and the config file
+    # (built in memory — `config.yaml` is not in the wheel, so on a
+    # `pip install` there is no file to find).
+    dev_handles = {"JWT_KEY", "CONFIG_ENCRYPTION_KEY", "ENV + config.{ENV}.yaml"}
+    dev_handles |= {n for n in blocking if n.startswith("redis ")}
+    left = [n for n in blocking if n not in dev_handles]
+    print("\nTwo paths past them:")
+    print("    mirobody dev --pg-url postgres://user:pw@localhost:5432/mirobody")
+    print("      one process, no config file, no Redis needed, secrets generated per run.")
+    print(f"      still needs: {', '.join(left) if left else 'nothing else'}")
+    print("    ./deploy.sh")
+    print("      the Docker path: writes .env and config.localdb.yaml, starts")
+    print("      Postgres, Redis and Mirobody together.")
 else:
     print("Everything needed is present. Start the server with:\n")
     print("    mirobody serve\n")

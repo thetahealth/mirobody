@@ -926,7 +926,10 @@ class Config:
             logger.info("Default config has been loaded.")
 
         for yaml_filename in yaml_file_list:
-            if os.path.exists(yaml_filename):
+            # A stream (config built in memory) has no path to stat. Only a
+            # filename is checked for existence — dropping the stream here was
+            # the second half of why an in-memory overlay never applied.
+            if not isinstance(yaml_filename, str) or os.path.exists(yaml_filename):
                 final_yaml_file_list.append(yaml_filename)
 
         config = Config(yaml_filenames=final_yaml_file_list)
