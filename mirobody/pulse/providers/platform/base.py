@@ -110,7 +110,7 @@ class BasePullProvider(Provider):
 
         except Exception as e:
             logger.error(f"Error linking theta provider {provider_slug}: {str(e)}")
-            raise RuntimeError(str(e)) from e
+            raise RuntimeError(str(e))
 
     async def unlink(self, user_id: str) -> dict[str, Any]:
         provider_slug = self.info.slug
@@ -125,14 +125,14 @@ class BasePullProvider(Provider):
 
         except Exception as e:
             logger.error(f"Error unlinking theta provider {provider_slug}: {str(e)}")
-            raise RuntimeError(str(e)) from e
+            raise RuntimeError(str(e))
 
     async def _validate_credentials(self, credentials: dict[str, Any]) -> None:
         """Reject credentials that cannot work, by raising. Default: accept.
 
         `credentials` is the LinkRequest's dict: `username`/`password` for
         `LinkType.PASSWORD`, `connect_info` for `LinkType.CUSTOMIZED`. Override
-        to probe the vendor (pgsql opens a connection).
+        to probe the vendor.
         """
 
     async def _get_user_timezone(self, user_id: str) -> str:

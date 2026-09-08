@@ -142,28 +142,7 @@ which is the endpoint you give the vendor for push notifications.
 
 ---
 
-## The zero-credential check
-
-`mirobody_pgsql` is the smallest provider in the tree and needs no vendor at
-all. Use it to confirm discovery, registration and config plumbing work before
-you spend time on a developer-programme application:
-
-```yaml
-ENABLE_PGSQL_DEVICE: 1
-```
-
-Restart, and the boot log should read:
-
-```
-Loaded provider from …/mirobody_pgsql/provider_pgsql.py
-Do not register pull task for provider theta_pgsql
-  - provider platform loaded 1 providers
-```
-
-That second line is correct: this provider validates connection credentials and
-has nothing to poll.
-
----
+## Troubleshooting
 
 ## Troubleshooting
 
@@ -191,9 +170,9 @@ scope configured.
 The provider contract is one directory:
 `mirobody_<slug>/provider_<slug>.py`, exporting a `BasePullProvider` subclass
 with `create_provider(config)` returning `None` when unconfigured.
-[`mirobody_pgsql/`](../mirobody/pulse/providers/mirobody_pgsql/) is the smallest
-reference; [`mirobody_whoop/`](../mirobody/pulse/providers/mirobody_whoop/) is
-the OAuth2 one. Full guide: [provider-guide.md](provider-guide.md).
+[`mirobody_whoop/`](../mirobody/pulse/providers/mirobody_whoop/) is the OAuth2
+reference; [`mirobody_oura/`](../mirobody/pulse/providers/mirobody_oura/) is the
+same shape with a different vendor. Full guide: [provider-guide.md](provider-guide.md).
 
 Providers outside the package go in `PROVIDER_DIRS`; those are loaded by file
 location, so use absolute imports in them.
