@@ -92,8 +92,7 @@ class FileHandlerFactory:
         # while `SUPPORTED_EXTENSIONS` accepted `.csv` and
         # `file_types.TEXT_MIME_TYPES` already called it text. A lab CSV is text:
         # extract it, then run the same indicator extraction as everything else.
-        if (content_type.startswith("text/plain")
-                or content_type.startswith("text/markdown")
+        if (content_type.startswith(("text/plain", "text/markdown"))
                 or is_text_file(filename, content_type)):
              return TextHandler(
                 self.uploader, 

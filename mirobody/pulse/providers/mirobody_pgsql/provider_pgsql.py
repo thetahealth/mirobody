@@ -166,20 +166,20 @@ class PgsqlProvider(BasePullProvider):
             await conn.close()
 
         except TimeoutError:
-            raise RuntimeError(f"Connection timeout after {self.connection_timeout} seconds")
+            raise RuntimeError(f"Connection timeout after {self.connection_timeout} seconds") from None
         except psycopg.OperationalError as e:
             error_msg = str(e).lower()
             if "password" in error_msg or "authentication" in error_msg:
-                raise ValueError("Invalid username or password")
+                raise ValueError("Invalid username or password") from e
             elif "database" in error_msg and "does not exist" in error_msg:
-                raise ValueError(f"Database '{database}' does not exist")
+                raise ValueError(f"Database '{database}' does not exist") from e
             elif "connection" in error_msg or "host" in error_msg:
-                raise RuntimeError(f"Cannot connect to {host}:{port} - check host/port and network")
+                raise RuntimeError(f"Cannot connect to {host}:{port} - check host/port and network") from e
             else:
-                raise RuntimeError(f"Connection failed: {str(e)}")
+                raise RuntimeError(f"Connection failed: {str(e)}") from e
         except Exception as e:
             logger.error(f"PostgreSQL connection validation failed: {str(e)}")
-            raise RuntimeError(f"Connection failed: {str(e)}")
+            raise RuntimeError(f"Connection failed: {str(e)}") from e
 
     # ===== Required abstract methods (no-op implementations) =====
 

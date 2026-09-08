@@ -561,7 +561,7 @@ def _is_text_mime(mime_type: str | None, path: str = "") -> bool:
         m = mime_type.lower()
         if m.startswith("text/"):
             return True
-        if m in ("application/json", "application/xml") or m.endswith("+json") or m.endswith("+xml"):
+        if m in ("application/json", "application/xml") or m.endswith(("+json", "+xml")):
             return True
         if m.startswith(("image/", "audio/", "video/", "application/pdf")):
             return False

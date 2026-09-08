@@ -53,7 +53,7 @@ def parse_ts_smart(text: str | None, tz: str) -> int:
         if "T" in text:
             dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
         else:
-            dt = datetime.strptime(text, "%Y-%m-%d")  # noqa: DTZ007 — localised below
+            dt = datetime.strptime(text, "%Y-%m-%d")
     except ValueError:
         return 0
     if dt.tzinfo is not None and dt.utcoffset() and int(dt.utcoffset().total_seconds()) != 0:

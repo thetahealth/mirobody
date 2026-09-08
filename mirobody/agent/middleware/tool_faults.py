@@ -172,7 +172,8 @@ class InvalidToolCallRepairMiddleware(AgentMiddleware):
     """
 
     @hook_config(can_jump_to=["model"])
-    def after_model(self, state, runtime):  # noqa: ARG002 — runtime is the hook signature
+    # `runtime` is part of the hook signature; this middleware does not read it.
+    def after_model(self, state, runtime):
         messages = state.get("messages") or []
         last = messages[-1] if messages else None
         if not isinstance(last, AIMessage):

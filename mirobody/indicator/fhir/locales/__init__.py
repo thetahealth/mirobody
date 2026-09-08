@@ -59,7 +59,7 @@ def discover_locales(args: Namespace) -> list[LocalePlugin]:
     locales: list[LocalePlugin] = []
     package_dir = os.path.dirname(__file__)
 
-    for finder, module_name, _ in pkgutil.iter_modules([package_dir]):
+    for _, module_name, _ in pkgutil.iter_modules([package_dir]):
         if module_name.startswith("_"):
             continue
         module = importlib.import_module(f".{module_name}", __package__)

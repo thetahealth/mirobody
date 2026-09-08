@@ -9,6 +9,7 @@ from typing import Any
 
 from mirobody.pulse.core import LinkType
 from mirobody.utils import execute_query
+from mirobody.utils.log import secret_fingerprint
 from mirobody.utils.crypto import decrypt_string_aes_gcm, encrypt_string_aes_gcm
 
 logger = logging.getLogger(__name__)
@@ -64,10 +65,16 @@ class ProviderDatabaseService:
         except Exception as e:
             error_msg = str(e)
             if "InvalidTag" in error_msg:
+                # The first 20 characters of the ciphertext used to be in this
+                # line. `phi_baseline.txt` had grandfathered it, and the entry
+                # read as one long f-string rather than as the slice it
+                # interpolated, so nothing pointed at it. A fingerprint answers
+                # the only question a log can honestly ask here — "is this the
+                # same stored value as last time?" — without carrying the value.
                 logger.error(
-                    f"AES-GCM InvalidTag error for user {user_id}: Authentication tag verification failed. "
-                    + f"Encrypted data: {encrypted_password[:20]}... "
-                    + "This may indicate data corruption or encryption key mismatch."
+                    "AES-GCM InvalidTag for user %s: authentication tag verification failed "
+                    "(ciphertext len=%d, fingerprint=%s). Data corruption or a key mismatch.",
+                    user_id, len(encrypted_password), secret_fingerprint(encrypted_password),
                 )
             else:
                 logger.error(f"AES-GCM decryption error for user {user_id}: {error_msg}")

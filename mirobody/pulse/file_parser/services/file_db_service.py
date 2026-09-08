@@ -449,7 +449,7 @@ class FileDbService:
             
         except Exception as e:
             logger.error(f"Failed to get files paginated: {str(e)}", stack_info=True)
-            raise Exception(f"Failed to get uploaded files: {str(e)}")
+            raise Exception(f"Failed to get uploaded files: {str(e)}") from e
     
     @staticmethod
     async def get_files_by_source(

@@ -70,7 +70,7 @@ except ImportError:
     print("\nclaude-agent-sdk is not installed — it is Anthropic's, not a mirobody")
     print("dependency, so this example asks for it rather than shipping it:")
     print("\n    pip install claude-agent-sdk")
-    raise SystemExit(0)
+    raise SystemExit(0) from None
 
 
 async def main() -> int:

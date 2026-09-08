@@ -347,7 +347,6 @@ mirobody/pulse/providers/mirobody_garmin_connect/provider_garmin.py	interpolatio
 mirobody/pulse/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	data_key
 mirobody/pulse/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	e
 mirobody/pulse/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	resp.text
-mirobody/pulse/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	secret_fingerprint(client_secret)
 mirobody/pulse/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	self.client_id[:3]
 mirobody/pulse/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	self.redirect_url
 mirobody/pulse/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	str(db_error)
@@ -371,7 +370,6 @@ mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	error_de
 mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	id_field
 mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	raw_data
 mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	retry_after
-mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	secret_fingerprint(client_secret)
 mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	self.client_id[:3]
 mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	self.redirect_url
 mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	str(e)
@@ -384,7 +382,6 @@ mirobody/pulse/providers/platform/base.py	interpolation	table_name
 mirobody/pulse/providers/platform/base.py	interpolation	user_timezone
 mirobody/pulse/providers/platform/database_service.py	interpolation	error_msg
 mirobody/pulse/providers/platform/database_service.py	interpolation	expires_at
-mirobody/pulse/providers/platform/database_service.py	interpolation	f"AES-GCM InvalidTag error for user {user_id}: Authentication tag verification f
 mirobody/pulse/providers/platform/database_service.py	interpolation	llm_access
 mirobody/pulse/providers/platform/database_service.py	interpolation	row['user_id']
 mirobody/pulse/providers/platform/database_service.py	interpolation	str(e)
@@ -533,7 +530,6 @@ mirobody/user/auth/oauth_service.py	extra_key	token
 mirobody/user/auth/oauth_service.py	interpolation	data
 mirobody/user/auth/oauth_service.py	interpolation	e
 mirobody/user/auth/oauth_service.py	interpolation	err
-mirobody/user/auth/oauth_service.py	interpolation	secret_fingerprint(client_secret)
 mirobody/user/auth/oauth_service.py	interpolation	str(e)
 mirobody/user/auth/webauthn.py	interpolation	e
 mirobody/user/auth/webauthn.py	interpolation	self._origin
@@ -555,8 +551,6 @@ mirobody/user/user_service.py	extra_key	email
 mirobody/user/user_service.py	extra_key	token
 mirobody/user/user_service.py	interpolation	err
 mirobody/user/user_service.py	interpolation	existing_owner
-mirobody/user/user_service.py	interpolation	secret_fingerprint(code)
-mirobody/user/user_service.py	interpolation	secret_fingerprint(token)
 mirobody/utils/audio.py	interpolation	file_size_mb
 mirobody/utils/audio.py	interpolation	str(e)
 mirobody/utils/config/agent_options.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
@@ -621,8 +615,6 @@ mirobody/utils/llm/file_processors/backends_openai.py	interpolation	time.time() 
 mirobody/utils/llm/file_processors/backends_openai.py	interpolation	time.time() - start_time
 mirobody/utils/llm/file_processors/backends_openai.py	interpolation	time.time() - total_start
 mirobody/utils/llm/file_processors/dispatch.py	interpolation	actual_model
-mirobody/utils/llm/file_processors/dispatch.py	interpolation	provider['description']
-mirobody/utils/llm/file_processors/dispatch.py	interpolation	provider['name']
 mirobody/utils/llm/file_processors/gemini.py	interpolation	e
 mirobody/utils/llm/file_processors/gemini.py	interpolation	error_msg
 mirobody/utils/llm/file_processors/gemini.py	interpolation	file_path

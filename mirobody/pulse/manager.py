@@ -157,7 +157,7 @@ class PlatformManager:
 
         except Exception as e:
             logger.error(f"Error unlinking provider {provider_slug}: {str(e)}")
-            raise RuntimeError(f"Failed to unlink provider: {str(e)}")
+            raise RuntimeError(f"Failed to unlink provider: {str(e)}") from e
 
     async def post_data(
             self,
@@ -214,7 +214,7 @@ class PlatformManager:
 
         except Exception as e:
             logger.error(f"Error updating LLM access for provider {provider_slug}: {str(e)}")
-            raise RuntimeError(f"Failed to update LLM access: {str(e)}")
+            raise RuntimeError(f"Failed to update LLM access: {str(e)}") from e
 
     async def populate_provider_stats(self, user_id: str, providers: list[UserProvider]) -> list[UserProvider]:
         """

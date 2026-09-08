@@ -6,7 +6,6 @@ Provides base classes for database operations shared by all Platforms and Provid
 
 import logging
 
-from abc import ABC
 from typing import Any
 
 from ...utils import execute_query
@@ -17,13 +16,17 @@ from sqlalchemy import text
 logger = logging.getLogger(__name__)
 
 
-class CacheableDatabaseService(ABC):
+class CacheableDatabaseService:
     """`execute_query` plus a small TTL cache, for the management queries.
 
     This was a three-level hierarchy — `BaseDatabaseService` (query + insert/
     update/delete/table-info builders) → `CacheableDatabaseService` (cache) →
     `ManageDatabaseService` — with exactly one leaf and no caller of the
     generic builders. Folded into the one class the leaf actually uses.
+
+    Not an ABC: after that fold it declared no abstract method, so `ABC` bought
+    nothing an ordinary base class does not (a no-abstract ABC is instantiable
+    anyway) while telling a reader to look for a contract that is not there.
     """
 
     def __init__(self, db_config=None, cache_ttl: int = 300):

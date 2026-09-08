@@ -26,19 +26,6 @@ class FormatDataInput(BaseModel):
     payload: dict[str, Any] = Field(..., description="Original vendor data, untouched")
 
 
-class VitalHealthRecord(BaseModel):
-    """Vital health record"""
-
-    source: str = Field(..., description="Data source")
-    type: str = Field(..., description="Data type")
-    timestamp: int = Field(..., description="Timestamp (milliseconds)")
-    unit: str | None = Field(None, description="Unit")
-    value: float = Field(..., description="Value")
-    timezone: str | None = Field("UTC", description="Timezone info, e.g. America/Los_Angeles")  # Add timezone field
-
-
-
-
 # ==================== StandardPulseData Series Models ====================
 # Migrated from pulse/core/models.py to solve circular dependency issues
 
@@ -59,19 +46,25 @@ class StandardPulseMetaInfo(BaseModel):
 
 
 class StandardPulseRecord(BaseModel):
-    """Pulse standard data record format
+    """Pulse standard data record format.
 
-    Compatible with VitalHealthRecord to avoid unnecessary format conversion
+    The first six fields are the record shape the Vital vendor's API used,
+    kept verbatim so its payloads needed no conversion. Vital is no longer a
+    provider here — the installed four are Garmin, Oura, WHOOP and pgsql — and
+    the `VitalHealthRecord` model that documented that shape is gone with it.
+    The field set stays because rows in `th_series_data` were written against
+    it: that is why `value` is required and why `source` still reads
+    `vital.garmin` in historical data.
     """
 
     source: str = Field(..., description="Data source, e.g. vital.garmin")
     type: str = Field(..., description="Data type, e.g. heartrate")
     timestamp: int = Field(..., description="Timestamp (milliseconds)")
     unit: str | None = Field(None, description="Unit")
-    value: float | str = Field(..., description="Value")  # Required field, consistent with VitalHealthRecord
+    value: float | str = Field(..., description="Value")  # required, as the vendor shape had it
     timezone: str | None = Field(default="UTC", description="Timezone info, e.g. America/Los_Angeles")
 
-    # Extended fields for complex data (VitalHealthRecord compatible, will be ignored)
+    # Extended fields for complex data (outside the vendor shape; ignored there)
     startTime: int | None = Field(None, description="Start timestamp (milliseconds)")
     endTime: int | None = Field(None, description="End timestamp (milliseconds)")
 

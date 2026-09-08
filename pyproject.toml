@@ -643,12 +643,49 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "UP", "B006", "B905", "RET505", "RET507", "PIE790", "PLW0602"]
+# Narrow by design, and every addition below earns its place by catching a class
+# of DEFECT rather than a style preference:
+#   B    flake8-bugbear — late-binding closures, mutable defaults, `raise` that
+#        loses the cause. B904 alone fixed 36 tracebacks that hid their origin.
+#   ISC  implicit string concatenation — the missing comma in a list literal.
+#   PLE  pylint errors. PLE0604 is excluded below: it cannot see through a
+#        dynamically built `__all__`, which is how the lazy (PEP 562) packages
+#        here export.
+#   RUF100  a `noqa` that no longer suppresses anything. A stale one silently
+#        swallows the NEXT finding on that line.
+#   C4, PIE  comprehension and simplification defects, three findings between them.
+select = [
+    "E4", "E7", "E9", "F", "UP",
+    "B", "ISC", "C4", "PIE", "PLE", "RUF100",
+    "RET505", "RET507", "PLW0602",
+]
 ignore = [
     "E402",   # imports after code: three routers register models before importing helpers on purpose
     "E701",   # `if x: return` one-liners in the strtab/bundle readers
     "E741",   # `l` as a variable in a few tight loops
     "UP042",  # (str, Enum) -> StrEnum: the enum values are persisted wire strings; not worth the diff
+    "PLE0604",  # `__all__` built with `*_EXPORTS`: the lazy packages compute it, and
+                # the linter cannot prove the members are strings. `test_public_surface.py`
+                # checks the real invariant — every name in every `__all__` resolves.
+]
+# NOT selected, each for a reason, so the next person does not re-litigate it:
+#   G004 (1,110 findings) f-string in a log call. Worth doing — lazy formatting
+#        and the PHI policy both want %-style — but 1,110 mechanical edits would
+#        bury any real change in the same commit. Its own PR.
+#   DTZ  (68) `datetime.now()` without a tz. DELIBERATE here: `th_series_data.
+#        start_time` is a NAIVE LOCAL wall clock, and `schema/a4_series_data_day_
+#        authority.sql` plus `pulse/readings.py` are built on that. Selecting DTZ
+#        would ask us to break the storage contract to satisfy a linter.
+#   TID252 (408) relative imports. The package uses them throughout by choice;
+#        import-linter is what actually guards the layering here.
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares a parameter's SOURCE in its default: `file: UploadFile =
+# File(...)`, `user = Depends(auth)`. B008 is right about mutable defaults in
+# general and wrong about this framework's entire calling convention.
+extend-immutable-calls = [
+    "fastapi.File", "fastapi.Form", "fastapi.Body", "fastapi.Query",
+    "fastapi.Path", "fastapi.Header", "fastapi.Cookie", "fastapi.Depends",
 ]
 
 [tool.ruff.lint.per-file-ignores]

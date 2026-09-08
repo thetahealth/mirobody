@@ -32,6 +32,12 @@ package-lock.json
 .env
 *.*.yaml
 *.env
+# `*.*.yaml` is here for `config.{env}.yaml` and its `.key.yaml` sibling — the
+# per-deployment overlays that carry secrets. It also matched
+# `.pre-commit-config.yaml`, which is the opposite kind of file: the gate every
+# contributor is meant to install. It was written, ignored, and invisible in
+# `git status` until someone thought to run `git check-ignore` on it.
+!.pre-commit-config.yaml
 
 # AI assistant working notes (local only, never published).
 # Bare `CLAUDE.md` at the root is the intended one; the `**/` pattern is because

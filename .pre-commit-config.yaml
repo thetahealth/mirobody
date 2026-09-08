@@ -1,0 +1,51 @@
+# The same two gates CI runs, moved to the moment they are cheapest to fix.
+#
+# Deliberately NOT the whole battery. `pytest`, `lint-imports` and the wheel
+# gates need the repo's venv and take tens of seconds to minutes; a pre-commit
+# hook that slow gets bypassed with `--no-verify` and then guards nothing.
+# These two are sub-second and catch the two classes that otherwise reach CI:
+# a lint finding, and a log line that would carry health data.
+#
+#   pre-commit install     # once per clone
+#   pre-commit run -a      # what CI will say, before pushing
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.14
+    hooks:
+      # The rule set lives in pyproject.toml [tool.ruff.lint] — not here, so
+      # that `ruff check` on the command line, in CI and in this hook cannot
+      # disagree about what the rules are.
+      - id: ruff
+        args: [--fix]
+        files: ^(mirobody|examples)/
+
+  - repo: local
+    hooks:
+      # `mirobody.testing.phi_lint` is shipped code, so this needs no network:
+      # it runs the package in the repo. `--baseline` makes it report only what
+      # is NEW; `tests/test_phi_baseline.py` is what enforces shrink-only.
+      #
+      # NO tree arguments on purpose: with none, the CLI scans
+      # `phi_lint.DEFAULT_TREES`, the same constant the test reads. Spelling the
+      # trees out here instead would give the gate two lists to keep in step,
+      # and scanning a WIDER tree than the baseline covers reports hundreds of
+      # pre-existing lines as new.
+      - id: phi-lint
+        name: log lines carry ids, counts and type names only
+        entry: python -m mirobody.testing.phi_lint
+        args: [--root, ., --baseline, mirobody/testing/phi_baseline.txt]
+        language: system
+        pass_filenames: false
+        files: \.py$
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+        # `compose.yaml` and the workflows are the ones that hurt when broken.
+        exclude: ^frontend/
+      - id: check-toml
+      - id: end-of-file-fixer
+        exclude: ^(frontend/|mirobody/res/|demo/)
+      - id: trailing-whitespace
+        exclude: ^(frontend/|mirobody/res/|demo/)

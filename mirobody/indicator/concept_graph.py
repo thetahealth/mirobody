@@ -256,7 +256,7 @@ class ConceptGraph:
         sib_data = array('Q')
         sib_off = array('I')
         sib_member_count: dict[int, int] = defaultdict(int)
-        for gi in range(n_siblings):
+        for _ in range(n_siblings):
             (n_ids,) = struct.unpack_from("<H", data, pos)
             pos += 2
             ids = struct.unpack_from(f"<{n_ids}Q", data, pos)
