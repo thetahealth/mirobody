@@ -1,5 +1,42 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **The Indicators tab listed nothing, against a healthy endpoint**
+  ([#62](https://github.com/thetahealth/mirobody/issues/62)). `c470b3d`
+  reshaped `GET /api/v1/health-indicators` around one envelope on 2026-09-07;
+  the shipped bundle was built on 09-04 and read `catalog` / `indicators`, keys
+  the route has never sent. It rendered "No indicators yet" over an account
+  with data, while the Files tab, the tab badges and the chat beside it worked.
+  Client-side only — the endpoint is unchanged.
+
+  Three reads were wrong, not the one reported: the list, the readings drawer
+  (`indicators[0].readings`, now `rows`), and the per-reading **edit and delete
+  buttons — a reading's key is `row_id` and the client looked for `id`, so
+  owner-only correction had quietly disappeared from every row**. The client
+  repo pins each mapping against fixtures copied from `_catalog_row` /
+  `_reading_row`, and `mirobody/server/routers/test_indicator_contract.py` pins
+  the same key sets here, so the next reshape fails a test rather than a page.
+
+  Two traps for anyone changing that route. It answers in two grains from one
+  path — catalog without `keywords`/`indicators`, readings with them — and a
+  search matching nothing answers with the CATALOG, so a client cannot infer
+  the grain from its own request. And `truncated` arrives `true` on a COMPLETE
+  catalog, because `_per_indicator_truncated` compares each row's `total` (the
+  count over that indicator's whole series) against the one row carrying it, so
+  it is not on its own a statement that anything was left out.
+
+  `frontend/` is build output and this replaces the directory with a fresh
+  build, so the bundle also carries two changes that are not this issue: the
+  model picker stops splitting `/api/models` provider names into bogus "Agent"
+  tabs, and the care-circle list reads `data.members`. The second needs a
+  server fix that is not in this branch — `POST /invitation/shared-by-me/list`
+  hands a bare list to a `dict`-typed envelope and answers `code: -1` on every
+  call — which changes nothing for a reader, since that route has never
+  returned a usable answer.
+
 ## 1.4.0
 
 **One framework, three installs.** The pure rules live in `mirobody.kernel`;
