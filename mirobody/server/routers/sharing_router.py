@@ -84,7 +84,13 @@ async def shared_by_me_list(user_id: str = Depends(verify_token)):
     try:
         rows = await cc.circle_members(user_id)
         me = int(user_id)
-        return ok([
+        # `ok({"members": [...]})`, not `ok([...])`: `StandardResponse.data` is
+        # typed `dict[str, Any]`, so a bare list raised a validation error that
+        # the `except` below turned into "Could not list your circle." — every
+        # single call, since this router was written. The symptom was an empty
+        # managed-members list in the UI and one generic line in the log.
+        # `shared-with-me/list` next door already answers with named lists.
+        return ok({"members": [
             {
                 "share_id": str(r["member_row_id"]),
                 "query_user_id": str(r["user_id"]),
@@ -98,7 +104,7 @@ async def shared_by_me_list(user_id: str = Depends(verify_token)):
                 "email": r.get("email"),
             }
             for r in rows if int(r["user_id"]) != me
-        ])
+        ]})
     except Exception as e:
         logger.error(f"shared-by-me/list: {e}", exc_info=True)
         return err(-1, "Could not list your circle.")
