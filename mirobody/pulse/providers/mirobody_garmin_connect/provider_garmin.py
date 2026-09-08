@@ -157,7 +157,7 @@ class GarminProvider(BasePullProvider):
 
         except Exception as e:
             logger.error(f"Error linking Garmin provider: {str(e)}")
-            raise RuntimeError(str(e)) from e
+            raise RuntimeError(str(e))
 
     async def _generate_authorization_url(self, user_id: str, options: dict[str, Any]) -> dict[str, Any]:
         """
@@ -282,7 +282,7 @@ class GarminProvider(BasePullProvider):
             return await self._handle_oauth_callback(None, credentials)
         except Exception as e:
             logger.error(f"Error in OAuth callback: {str(e)}")
-            raise RuntimeError(str(e)) from e
+            raise RuntimeError(str(e))
 
     async def _handle_oauth_callback(self, user_id: str | None, credentials: dict[str, Any]) -> dict[str, Any]:
         """

@@ -203,7 +203,7 @@ class OAuth2Client:
                 try:
                     token_json = json.loads(raw_text)
                 except Exception:
-                    raise RuntimeError("Token endpoint returned non-JSON body") from None
+                    raise RuntimeError("Token endpoint returned non-JSON body")
 
         access_token = token_json.get("access_token")
         refresh_token = token_json.get("refresh_token", "")

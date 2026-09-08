@@ -205,7 +205,7 @@ async def serve_storage_file(
         raise
     except Exception as e:
         logger.error(f"Error serving file {file_path}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error") from e
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # === WebSocket Routes ===

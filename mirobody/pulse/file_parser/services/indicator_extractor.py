@@ -229,7 +229,7 @@ class IndicatorExtractor:
             if progress_callback:
                 language = get_req_ctx("language", "en")
                 await progress_callback(90, t("json_parsing_failed", language, "indicator_extractor"))
-            raise ValueError(f"JSON parsing failed: {str(e)}") from e
+            raise ValueError(f"JSON parsing failed: {str(e)}")
         except Exception as e:
             logger.error(f"[IndicatorExtractor] Text extraction failed: {e}", exc_info=True)
             if progress_callback:

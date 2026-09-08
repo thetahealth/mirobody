@@ -645,8 +645,8 @@ extend-exclude = [
 [tool.ruff.lint]
 # Narrow by design, and every addition below earns its place by catching a class
 # of DEFECT rather than a style preference:
-#   B    flake8-bugbear — late-binding closures, mutable defaults, `raise` that
-#        loses the cause. B904 alone fixed 36 tracebacks that hid their origin.
+#   B    flake8-bugbear — late-binding closures, mutable defaults, mutable
+#        class attributes. B904 and B007 are ignored below.
 #   ISC  implicit string concatenation — the missing comma in a list literal.
 #   PLE  pylint errors. PLE0604 is excluded below: it cannot see through a
 #        dynamically built `__all__`, which is how the lazy (PEP 562) packages
@@ -660,6 +660,13 @@ select = [
     "RET505", "RET507", "PLW0602",
 ]
 ignore = [
+    "B007",   # unused loop variable. `for k, v in d.items()` when only `v` is read
+              # names the key for a reader even when the code does not use it;
+              # rewriting it to `.values()` is churn, not a fix. (owner, 2026-09-08)
+    "B904",   # `raise ... from` inside `except`. It only changes what a traceback
+              # PRINTS ("during handling of the above" vs "direct cause"), and the
+              # original is in the chain either way — not worth 33 mechanical
+              # edits across the tree. (owner, 2026-09-08)
     "E402",   # imports after code: three routers register models before importing helpers on purpose
     "E701",   # `if x: return` one-liners in the strtab/bundle readers
     "E741",   # `l` as a variable in a few tight loops

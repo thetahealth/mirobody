@@ -78,7 +78,7 @@ class PlatformUserService:
 
         except Exception as e:
             logger.error(f"Failed to generate token for user {user_id}: {str(e)}")
-            raise Exception(f"Token generation failed: {str(e)}") from e
+            raise Exception(f"Token generation failed: {str(e)}")
 
     async def create_user(self, email: str, name: str = "", tz: str = "") -> str:
 
@@ -220,7 +220,7 @@ class PlatformUserService:
         except Exception as e:
             error_msg = f"Failed to link user {user_id} to provider {provider_slug}: {str(e)}"
             logger.error(error_msg)
-            raise Exception(error_msg) from e
+            raise Exception(error_msg)
 
     async def find_or_create_user_by_provider_id(self, provider_slug: str, provider_user_id: str, tz: str) -> str:
         if not provider_slug or not provider_user_id:

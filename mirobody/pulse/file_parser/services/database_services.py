@@ -464,7 +464,7 @@ class FileParserDatabaseService:
             
         except Exception as e:
             logger.error(f"Get uploaded files failed: {str(e)}", stack_info=True)
-            raise Exception(f"Failed to get uploaded files: {str(e)}") from e
+            raise Exception(f"Failed to get uploaded files: {str(e)}")
 
     @staticmethod
     def _convert_mime_to_file_type(mime_type: str, scene: str = "") -> str:
@@ -590,5 +590,5 @@ class FileParserDatabaseService:
 
         except Exception as e:
             logger.error(f"Failed to query data distribution: {str(e)}", stack_info=True)
-            raise Exception(f"Failed to query data distribution: {str(e)}") from e
+            raise Exception(f"Failed to query data distribution: {str(e)}")
 

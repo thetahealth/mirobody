@@ -387,7 +387,7 @@ def _resolve_result_to_dict(r) -> dict:
         d["score"] = round(float(d["score"]), 4)
     axes = d.get("axes")
     if isinstance(axes, dict):
-        for v in list(axes.values()):
+        for k, v in list(axes.items()):
             if isinstance(v, dict) and "score" in v:
                 v["score"] = round(float(v["score"]), 4)
     return d

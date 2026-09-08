@@ -37,7 +37,7 @@ async def verify_token_string(token_string: str) -> str:
         # Decode it beforehand.
         token = unquote(token_string)
     except Exception:
-        raise HTTPException(status_code=401, detail="Failed to decode authorization header") from None
+        raise HTTPException(status_code=401, detail="Failed to decode authorization header")
 
     if not isinstance(token, str):
         logger.warning(f"Invalid token type: {type(token)}")

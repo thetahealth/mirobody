@@ -199,7 +199,7 @@ class MirobodyAgent:
             base_prompt = self.prompt_templates.get(prompt_name) or ""
             if base_prompt:
                 return base_prompt
-            for value in self.prompt_templates.values():
+            for key, value in self.prompt_templates.items():
                 if value:
                     logger.info("using the first configured prompt template")
                     return value
@@ -531,7 +531,7 @@ class MirobodyAgent:
             raise
         except Exception as e:
             logger.error(f"Agent building failed: {str(e)}")
-            raise AgentError(f"Failed to build agent: {str(e)}") from e
+            raise AgentError(f"Failed to build agent: {str(e)}")
             
     async def _stream_agent_response(
         self,

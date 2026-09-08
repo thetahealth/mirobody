@@ -42,7 +42,7 @@ async def start_aggregate_indicator_scheduler(run_integration_test: bool = False
             logger.info("Integration test passed, continuing with scheduler startup")
         except Exception as e:
             logger.error(f"Integration test failed: {e}")
-            raise RuntimeError(f"Integration test failed, aborting scheduler startup: {e}") from e
+            raise RuntimeError(f"Integration test failed, aborting scheduler startup: {e}")
 
     logger.info("Registering aggregate indicator task with scheduler...")
 
