@@ -271,15 +271,25 @@ SKILL_DIRS:
 #                for networks where openrouter.ai is unreachable
 #                (mainland China being the common case)
 #
-# Whichever single key is present, chat, vision/file parsing AND embeddings
-# all follow it automatically: the chat default picks claude-sonnet (via
-# OpenRouter) or qwen (via DashScope) by which key exists; vision auto-selects
-# the same way; EMBEDDING_PROVIDER, when unset, resolves openrouter →
-# qwen(DashScope) → gemini by key. That is the point of a gateway: one key,
-# many models (DashScope also hosts DeepSeek/Kimi/GLM — see the
-# `# —— DashScope fallback ——` block under PROVIDERS; every model id
-# there was verified against the live endpoint on 2026-08-23). The other keys
-# below are for deployments that prefer a direct provider.
+# ANY ONE of four keys runs the whole stack — chat, vision/file parsing,
+# structured extraction and embeddings all follow the key that exists, with no
+# further configuration:
+#
+#   key                  chat           vision         structured     embeddings
+#   OPENROUTER_API_KEY   claude-sonnet  gemini-3.8     gemini-3.8     qwen3-embedding-8b
+#   DASHSCOPE_API_KEY    qwen           qwen3-vl       qwen3.5-flash  text-embedding-v4
+#   GOOGLE_API_KEY       gemini-flash   gemini-3.8     gemini-3.8     gemini-embedding-001
+#   OPENAI_API_KEY       openai         gpt-5.6-terra  gpt-5.6-terra  text-embedding-3-small
+#
+# All four pickers share one priority order (openrouter → dashscope → google →
+# openai) so they cannot disagree about which key wins when several are set.
+# `GEMINI_API_KEY` is accepted wherever `GOOGLE_API_KEY` is, because that is the
+# name Google's own docs and SDK use.
+#
+# A gateway key is still the most for the least: DashScope also hosts
+# DeepSeek/Kimi/GLM and OpenRouter hosts everything — see the
+# `# —— DashScope fallback ——` block under PROVIDERS, whose model ids were
+# verified against the live endpoint on 2026-08-23.
 #   OPENROUTER_API_KEY -> https://openrouter.ai/keys   (one key, many models)
 #   GOOGLE_API_KEY     -> https://aistudio.google.com/apikey
 #   OPENAI_API_KEY     -> https://platform.openai.com/api-keys
@@ -360,14 +370,24 @@ PROMPTS:
 PROVIDERS:
   gemini-flash:
     llm_type: google-genai
-    api_key: GOOGLE_API_KEY
-    model: gemini-3.5-flash
+    api_key: GOOGLE_API_KEY   # GEMINI_API_KEY is accepted too — Google's own docs use that name
+    model: gemini-3.8-flash
     temperature: 1.0
+  # `gpt` is GPT *through OpenRouter*; `openai` talks to OpenAI directly. Both
+  # ship because `/api/models` hides whichever provider's key is absent, so a
+  # deployment sees only what it can actually call — and an OPENAI_API_KEY-only
+  # deployment now has a chat provider at all, which it did not before.
   gpt:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
-    model: openai/gpt-5.4-mini
+    model: openai/gpt-5.6-terra
+    temperature: 0.1
+  openai:
+    llm_type: openai
+    api_key: OPENAI_API_KEY
+    base_url: https://api.openai.com/v1
+    model: gpt-5.6-terra
     temperature: 0.1
   claude-sonnet:
     llm_type: openai
@@ -524,5 +544,5 @@ ENABLE_INDICATOR_EXTRACTION: 1
 # Vision model for image/PDF parsing (unified_file_extract). The vision provider
 # auto-selects 'gemini' when GOOGLE_API_KEY is set; this overrides its default
 # (gemini-3.8-flash). Key name = <PROVIDER>_VISION_MODEL, provider='gemini'.
-GEMINI_VISION_MODEL: gemini-3.5-flash
+GEMINI_VISION_MODEL: gemini-3.8-flash
 #-----------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-"""ONE key must run the whole shipped project — either gateway.
+"""ONE key must run the whole shipped project — any of the four.
 
 Two one-key paths, same promise: `OPENROUTER_API_KEY` (the recommended
 default) or `DASHSCOPE_API_KEY` (the fallback for networks where
@@ -28,26 +28,30 @@ def _shipped() -> dict:
     return YAML(typ="safe").load(_CONFIG.read_text(encoding="utf-8")) or {}
 
 
-def test_both_default_chat_providers_exist_and_use_their_gateway_key():
-    pytest.importorskip("langchain_core", reason="chat defaults live in the [app] extra")
-    from mirobody.agent.agent import (
-        _DEFAULT_PROVIDER,
-        _DEFAULT_PROVIDER_FALLBACK,
-    )
+def _shipped_providers() -> dict:
+    return _shipped().get("PROVIDERS") or {}
 
-    deep = _shipped().get("PROVIDERS") or {}
-    for default, expected_key in (
-        (_DEFAULT_PROVIDER, "OPENROUTER_API_KEY"),
-        (_DEFAULT_PROVIDER_FALLBACK, "DASHSCOPE_API_KEY"),
-    ):
-        assert default in deep, (
-            f"the agent's default {default!r} is not a key of the shipped "
-            f"PROVIDERS ({sorted(deep)}) — a chat call with no explicit "
-            "provider raises ConfigError on an untouched config"
+
+def test_every_one_key_path_has_a_chat_provider():
+    """Each of the four keys maps to a shipped provider that reads THAT key.
+
+    `openai` was missing entirely: the `gpt` entry routes through OpenRouter,
+    so an OPENAI_API_KEY-only deployment had no chat provider at all — the
+    default fell back to `claude-sonnet`, whose key it did not have.
+    """
+    pytest.importorskip("langchain_core", reason="chat defaults live in the [app] extra")
+    from mirobody.agent.agent import _DEFAULT_PROVIDERS
+
+    deep = _shipped_providers()
+    assert len(_DEFAULT_PROVIDERS) == 4, "the promise is four one-key paths"
+    for env_name, provider in _DEFAULT_PROVIDERS:
+        assert provider in deep, (
+            f"{provider!r} (the default for {env_name}) is not a key of the shipped "
+            f"PROVIDERS ({sorted(deep)}) — a chat call with no explicit provider "
+            "raises ConfigError on an untouched config"
         )
-        assert deep[default].get("api_key") == expected_key, (
-            f"default {default!r} must route through {expected_key} — that is "
-            "the one key its path's quickstart asks for"
+        assert deep[provider].get("api_key") == env_name, (
+            f"{provider!r} must read {env_name}, not {deep[provider].get('api_key')!r}"
         )
 
 
@@ -62,21 +66,46 @@ def _no_config_keys(monkeypatch):
 
     monkeypatch.setattr(cfg, "safe_read_cfg", fake)
     for key in ("OPENROUTER_API_KEY", "DASHSCOPE_API_KEY", "GOOGLE_API_KEY",
-                "EMBEDDING_PROVIDER"):
+                "OPENAI_API_KEY", "GEMINI_API_KEY", "EMBEDDING_PROVIDER"):
         monkeypatch.delenv(key, raising=False)
     return fake
 
 
-def test_chat_default_follows_the_available_key(_no_config_keys, monkeypatch):
+@pytest.mark.parametrize("key,provider", [
+    ("OPENAI_API_KEY", "openai"),
+    ("GOOGLE_API_KEY", "gemini-flash"),
+    ("GEMINI_API_KEY", "gemini-flash"),   # Google's own name for the same key
+    ("DASHSCOPE_API_KEY", "qwen"),
+    ("OPENROUTER_API_KEY", "claude-sonnet"),
+])
+def test_chat_default_follows_the_available_key(_no_config_keys, monkeypatch, key, provider):
     pytest.importorskip("langchain_core", reason="chat defaults live in the [app] extra")
     from mirobody.agent import agent as agent_module
 
     monkeypatch.setattr(agent_module, "safe_read_cfg", _no_config_keys)
-    monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-x")
-    assert agent_module._default_provider() == agent_module._DEFAULT_PROVIDER_FALLBACK
+    monkeypatch.setenv(key, "sk-x")
+    assert agent_module._default_provider() == provider
 
-    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-y")  # openrouter outranks
-    assert agent_module._default_provider() == agent_module._DEFAULT_PROVIDER
+
+def test_no_surface_is_missing_a_one_key_path():
+    """Chat, vision and structured extraction must each cover all four keys.
+
+    They order their own priority lists, but a key that appears in one list and
+    not another is a hole: the deployment chats fine and then cannot read an
+    uploaded report. OPENAI_API_KEY was exactly that — chat and vision both had
+    nothing for it.
+    """
+    pytest.importorskip("langchain_core", reason="chat defaults live in the [app] extra")
+    from mirobody.agent.agent import _DEFAULT_PROVIDERS
+    from mirobody.utils.config.llm import provider_api_key_env
+    from mirobody.utils.llm.file_processors import VisionProviderConfig
+    from mirobody.utils.llm.utils import STRUCTURED_OUTPUT_PRIORITY
+
+    chat_keys = {env for env, _ in _DEFAULT_PROVIDERS}
+    vision_keys = {p["api_key_env"] for p in VisionProviderConfig.providers()}
+    structured_keys = {provider_api_key_env(p) for p in STRUCTURED_OUTPUT_PRIORITY}
+    for surface, keys in (("vision", vision_keys), ("structured", structured_keys)):
+        assert chat_keys <= keys, f"{surface} has no provider for {chat_keys - keys}"
 
 
 def test_embedding_provider_follows_the_available_key(_no_config_keys, monkeypatch):
