@@ -157,7 +157,7 @@ class GarminProvider(BasePullProvider):
 
         except Exception as e:
             logger.error(f"Error linking Garmin provider: {str(e)}")
-            raise RuntimeError(str(e))
+            raise RuntimeError(str(e)) from e
 
     async def _generate_authorization_url(self, user_id: str, options: dict[str, Any]) -> dict[str, Any]:
         """
@@ -282,7 +282,7 @@ class GarminProvider(BasePullProvider):
             return await self._handle_oauth_callback(None, credentials)
         except Exception as e:
             logger.error(f"Error in OAuth callback: {str(e)}")
-            raise RuntimeError(str(e))
+            raise RuntimeError(str(e)) from e
 
     async def _handle_oauth_callback(self, user_id: str | None, credentials: dict[str, Any]) -> dict[str, Any]:
         """
@@ -461,7 +461,7 @@ class GarminProvider(BasePullProvider):
 
         except Exception as db_error:
             logger.error(f"Failed to remove from database: {str(db_error)}")
-            raise RuntimeError(f"Failed to unlink provider: {api_error_message or 'Unknown error'}")
+            raise RuntimeError(f"Failed to unlink provider: {api_error_message or 'Unknown error'}") from db_error
 
     async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
         """Garmin summaries → standard records, via ``mirobody.kernel.vendors.garmin``.

@@ -100,7 +100,7 @@ class WebSocketFileUploadManager:
 
     def has_active_uploads(self, connection_id: str) -> bool:
         """Check if connection has active uploads"""
-        for message_id, session in self.upload_sessions.items():
+        for session in self.upload_sessions.values():
             if session.get("connection_id") == connection_id and session.get("status") in ["uploading", "processing"]:
                 return True
         return False
@@ -108,7 +108,7 @@ class WebSocketFileUploadManager:
     def get_active_uploads_count(self, connection_id: str) -> int:
         """Get count of connection's active uploads"""
         count = 0
-        for message_id, session in self.upload_sessions.items():
+        for session in self.upload_sessions.values():
             if session.get("connection_id") == connection_id and session.get("status") in ["uploading", "processing"]:
                 count += 1
         return count

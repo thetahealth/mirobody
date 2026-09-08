@@ -359,9 +359,9 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # as positive cases above.
     ("lipid panel", "four analytes, not one observation"),
     ("血脂", "the same lipid panel in Chinese"),
-    ("血脂肪", "the same lipid panel, 台灣 wording — needs its own refusal row: "
-               "the zh-Hant fold reaches nothing here, and without the row the "
-               "semantic tier would answer it"),
+    ("血脂肪", ("the same lipid panel, 台灣 wording — needs its own refusal row: "
+                "the zh-Hant fold reaches nothing here, and without the row the "
+                "semantic tier would answer it")),
     ("绝对不存在的指标名xyzzy", "pure nonsense must never resolve"),
     # "名称(缩写)" where the two halves mean DIFFERENT tests. The parenthetical
     # strip must not silently prefer the stem: filing an HbA1c reading into the

@@ -66,7 +66,9 @@ def test_readme_resolver_examples_produce_what_they_claim(name):
     from mirobody.engine import resolve, resolve_reading  # noqa: F401
 
     for expr, expected in _examples(name):
-        got = eval(expr)  # noqa: S307 — the input is this repo's own README
+        # `eval` on purpose, and safe for one reason only: the expression comes
+        # from this repo's own README, which the same test suite gates.
+        got = eval(expr)
         # Two lines write the call without `.loinc` and comment it with the
         # code. That is what they mean, so read the code off the Resolution.
         code = getattr(got, "loinc", got)

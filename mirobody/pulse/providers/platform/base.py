@@ -110,7 +110,7 @@ class BasePullProvider(Provider):
 
         except Exception as e:
             logger.error(f"Error linking theta provider {provider_slug}: {str(e)}")
-            raise RuntimeError(str(e))
+            raise RuntimeError(str(e)) from e
 
     async def unlink(self, user_id: str) -> dict[str, Any]:
         provider_slug = self.info.slug
@@ -125,7 +125,7 @@ class BasePullProvider(Provider):
 
         except Exception as e:
             logger.error(f"Error unlinking theta provider {provider_slug}: {str(e)}")
-            raise RuntimeError(str(e))
+            raise RuntimeError(str(e)) from e
 
     async def _validate_credentials(self, credentials: dict[str, Any]) -> None:
         """Reject credentials that cannot work, by raising. Default: accept.

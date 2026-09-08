@@ -1019,7 +1019,11 @@ class FhirAdapter(DomainAdapter):
             # Deprecated / demote-masked rows fall behind any
             # non-demoted peer of comparable cosine. Symmetric -2.0
             # penalty keeps the sort key in a well-defined band.
-            def _gsort(r: int) -> float:
+            # The three loop variables are bound as defaults, not closed over.
+            # `_gsort` is consumed on this iteration so late binding is harmless
+            # today; binding them says so, and stops a future `sort(key=...)`
+            # that outlives the iteration from reading the next one's arrays.
+            def _gsort(r: int, scores=scores, demote_mask=demote_mask, names=names) -> float:
                 s = float(scores[r])
                 if demote_mask is not None and demote_mask[r]:
                     s -= 2.0

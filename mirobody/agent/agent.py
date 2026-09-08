@@ -157,7 +157,7 @@ class MirobodyAgent:
             _ = agent_llm_client.invoke
         except AttributeError as attr_error:
             logger.error(f"Provider validation failed: {attr_error}")
-            raise ConfigError(f"Provider initialization failed: {attr_error}")
+            raise ConfigError(f"Provider initialization failed: {attr_error}") from attr_error
         
         # Extract model name
         model_name = getattr(agent_llm_client, "model_name", None) or getattr(agent_llm_client, "model", "Unknown")
@@ -199,7 +199,7 @@ class MirobodyAgent:
             base_prompt = self.prompt_templates.get(prompt_name) or ""
             if base_prompt:
                 return base_prompt
-            for key, value in self.prompt_templates.items():
+            for value in self.prompt_templates.values():
                 if value:
                     logger.info("using the first configured prompt template")
                     return value
@@ -236,7 +236,7 @@ class MirobodyAgent:
             raise AgentError(
                 f"System prompt construction failed: {str(e)}",
                 user_message=f"Failed to build the agent's system prompt. Details: {str(e)}"
-            )
+            ) from e
     
     @staticmethod
     def _skills_source_dir() -> str:
@@ -531,7 +531,7 @@ class MirobodyAgent:
             raise
         except Exception as e:
             logger.error(f"Agent building failed: {str(e)}")
-            raise AgentError(f"Failed to build agent: {str(e)}")
+            raise AgentError(f"Failed to build agent: {str(e)}") from e
             
     async def _stream_agent_response(
         self,

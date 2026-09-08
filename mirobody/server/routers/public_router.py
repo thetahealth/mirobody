@@ -14,7 +14,6 @@ SECTION INDEX (line numbers are approximate):
     ~565  GET  /{platform}/{provider}/callback — OAuth callback handler
     ~626  POST /user/providers/unlink  — unlink a provider
     ~701  POST /user/providers/llm-access — update LLM access permission
-    ~754  POST /vital/generate-sign-in-token — generate Vital sign-in token
     ~828  POST /{platform}/webhook     — universal webhook receiver
     ~879  POST /{platform}/{provider}/webhook — provider-specific webhook
     ~930  Helper: get_provider_slug(), get_msg_id()
@@ -701,80 +700,6 @@ async def update_llm_access(request: UpdateLlmAccessRequest, current_user: str =
         # Other unknown errors (500)
         logger.error(f"Unexpected error: {str(e)}")
         return ErrorResponse(code=500, msg=f"Failed to update LLM access: {str(e)}")
-
-
-@router.post("/vital/generate-sign-in-token", response_model=StandardResponse | ErrorResponse)
-async def generate_vital_sign_in_token(
-        current_user: str = Depends(verify_token)
-):
-    """
-    Generate Vital sign-in token for client
-
-    According to Junction docs, this is for mobile SDK to sign in to Vital system, not for connecting specific devices
-
-    Reference: https://docs.junction.com/wearables/sdks/authentication#vital-sign-in-token
-
-    Args:
-        current_user: Current user ID
-
-    Returns:
-        StandardResponse: Response containing sign_in_token
-        ErrorResponse: Error response
-    """
-    try:
-        # 1. Get vital platform
-        vital_platform = platform_manager.get_platform("vital")
-        if not vital_platform:
-            return ErrorResponse(code=503, msg="Vital platform not available")
-
-        # 2. Ensure user exists in Vital system
-        vital_user = await vital_platform.db_service.get_user_by_app_user_id(current_user)
-        if not vital_user:
-            # Create new user
-            await vital_platform.user_service.create_new_user(current_user)
-            vital_user = await vital_platform.db_service.get_user_by_app_user_id(current_user)
-
-            if not vital_user:
-                return ErrorResponse(code=500, msg="Failed to create vital user")
-
-        # 3. Call Vital API to generate Sign-In Token
-        # According to Junction docs, should call POST /v2/user/{user_id}/sign_in_token
-
-        token_result = vital_platform.vital_client.generate_sign_in_token(vital_user.vital_user_id)
-
-        if not token_result.get("success"):
-            error_msg = token_result.get("error", "Unknown error")
-            logger.error(f"Failed to generate vital sign-in token: {error_msg}")
-            return ErrorResponse(code=500, msg=f"Failed to generate sign-in token: {error_msg}")
-
-        # 4. Build response data matching Junction docs format
-        # Reference: https://docs.junction.com/wearables/sdks/authentication#vital-sign-in-token
-        token_data = token_result.get("data", {})
-        response_data = {
-            "user_id": vital_user.vital_user_id,
-            "sign_in_token": token_data.get("sign_in_token")
-        }
-
-        logger.info(f"Generated vital sign-in token for user {current_user}")
-
-        return StandardResponse(
-            code=0,
-            msg="ok",
-            data=response_data
-        )
-
-    except ValueError as e:
-        # Parameter validation error
-        logger.error(f"Validation error generating vital sign-in token: {str(e)}")
-        return ErrorResponse(code=400, msg=str(e))
-    except RuntimeError as e:
-        # Business logic error
-        logger.error(f"Runtime error generating vital sign-in token: {str(e)}")
-        return ErrorResponse(code=500, msg=str(e))
-    except Exception as e:
-        # Other unknown errors
-        logger.error(f"Unexpected error generating vital sign-in token: {str(e)}")
-        return ErrorResponse(code=500, msg=f"Internal error: {str(e)}")
 
 
 @router.post("/{platform}/webhook", response_model=StandardResponse | ErrorResponse)

@@ -129,7 +129,7 @@ class ProviderPlatform(Platform):
                         sys.modules[module_name] = module
                         spec.loader.exec_module(module)
                     else:
-                        raise ImportError(f"Cannot load module from {provider_file}")
+                        raise ImportError(f"Cannot load module from {provider_file}") from None
                 finally:
                     if add_to_path and parent_dir in sys.path:
                         sys.path.remove(parent_dir)
@@ -300,7 +300,7 @@ class ProviderPlatform(Platform):
             return result_data
         except Exception as e:
             logger.error(f"Error unlinking theta provider {provider_slug}: {str(e)}")
-            raise RuntimeError(f"Failed to unlink provider: {str(e)}")
+            raise RuntimeError(f"Failed to unlink provider: {str(e)}") from e
 
     async def post_data(self, provider_slug: str, data: dict[str, Any], msg_id: str) -> bool:
         provider = self.get_provider(provider_slug)

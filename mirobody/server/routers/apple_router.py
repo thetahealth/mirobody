@@ -65,7 +65,7 @@ async def _process_request_data(
             except ValueError:
                 raise
             except Exception as e:
-                raise ValueError(f"Failed to decompress gzip data: {str(e)}")
+                raise ValueError(f"Failed to decompress gzip data: {str(e)}") from e
         else:
             decompressed_body = raw_body
 
@@ -74,13 +74,13 @@ async def _process_request_data(
             try:
                 data = json.loads(decompressed_body.decode("utf-8"))
             except Exception as e:
-                raise ValueError(f"Failed to parse JSON data: {str(e)}")
+                raise ValueError(f"Failed to parse JSON data: {str(e)}") from e
         else:
             # Try to parse directly as JSON (backward compatible)
             try:
                 data = json.loads(decompressed_body.decode("utf-8"))
             except Exception as e:
-                raise ValueError(f"Failed to parse data as JSON: {str(e)}")
+                raise ValueError(f"Failed to parse data as JSON: {str(e)}") from e
 
         return data
 

@@ -157,7 +157,7 @@ class WhoopProvider(BasePullProvider):
             return await self.oauth.generate_authorization_url(user_id, options)
         except Exception as e:
             logger.error(f"Error linking Whoop provider: {str(e)}")
-            raise RuntimeError(str(e))
+            raise RuntimeError(str(e)) from e
 
     async def callback(self, code: str, state: str) -> dict[str, Any]:
         """Handle OAuth2 callback - exchange authorization code for tokens."""
@@ -183,7 +183,7 @@ class WhoopProvider(BasePullProvider):
             }
         except Exception as e:
             logger.error(f"Error in OAuth2 callback: {str(e)}")
-            raise RuntimeError(str(e))
+            raise RuntimeError(str(e)) from e
 
     async def unlink(self, user_id: str) -> dict[str, Any]:
         """
@@ -206,7 +206,7 @@ class WhoopProvider(BasePullProvider):
 
         except Exception as e:
             logger.error(f"Failed to unlink Whoop provider: {str(e)}")
-            raise RuntimeError(f"Failed to unlink provider: {str(e)}")
+            raise RuntimeError(f"Failed to unlink provider: {str(e)}") from e
 
     def _extract_external_user_id(self, saved_data: dict[str, Any]) -> str:
         """Extract Whoop numeric user ID from data records."""

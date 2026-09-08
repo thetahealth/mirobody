@@ -155,7 +155,7 @@ class FileUploader:
                     
             except TimeoutError:
                 logger.error(f"File upload timeout: {filename}, size: {file_size} bytes")
-                raise ValueError(t("file_upload_timeout", language))
+                raise ValueError(t("file_upload_timeout", language)) from None
 
             if not full_url:
                 raise ValueError(t("file_upload_failed", language))

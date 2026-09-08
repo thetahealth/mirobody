@@ -121,6 +121,12 @@ def is_safe_expr(node: ast.AST) -> bool:
         fn = _dotted(node.func)
         if fn == "len":
             return True
+        # The one call whose PURPOSE is to make a secret loggable: a digest
+        # prefix that answers "same stored value as last time?" and carries
+        # none of it. Refusing it pushed one call site into logging
+        # `ciphertext[:20]` instead, which the baseline then grandfathered.
+        if fn in ("secret_fingerprint", "log.secret_fingerprint", "utils.secret_fingerprint"):
+            return True
         if fn in ("str", "int", "float", "bool", "repr", "round", "abs", "sorted", "list", "tuple"):
             return all(is_safe_expr(a) for a in node.args)
         if fn in ("type", "getattr") or (fn or "").endswith(".get"):
@@ -203,7 +209,8 @@ class _Visitor(ast.NodeVisitor):
         line = self.lines[lineno - 1] if 0 < lineno <= len(self.lines) else ""
         return bool(ESCAPE.search(line))
 
-    def visit_Call(self, node: ast.Call) -> None:  # noqa: N802 — ast visitor API
+    # `visit_Call` is `ast.NodeVisitor`'s spelling, not ours.
+    def visit_Call(self, node: ast.Call) -> None:
         method = _is_logger_call(node)
         if method and not self._escaped(node.lineno):
             msg, rest = _message_parts(node, method)
@@ -256,6 +263,25 @@ def lint_paths(paths: Iterable[Path | str], *, root: Path | None = None) -> tupl
     return tuple(out)
 
 
+#: The trees the shipped baseline covers, and the ONE place that list lives.
+#:
+#: It is not "all of `mirobody`". `indicator/` and `kernel/` are excluded on
+#: purpose: the baseline predates them, and `baseline_lines` over a WIDER tree
+#: writes a LONGER file — which is how a "clean-up" ends up growing the thing
+#: it was meant to shrink. The test and the pre-commit hook both read this
+#: constant rather than each spelling the list out, because two copies of a
+#: list like this drift and the drift is silent.
+DEFAULT_TREES: tuple[str, ...] = (
+    "mirobody/agent",
+    "mirobody/mcp",
+    "mirobody/pulse",
+    "mirobody/server",
+    "mirobody/task",
+    "mirobody/user",
+    "mirobody/utils",
+)
+
+
 def baseline_lines(findings: Iterable[Finding]) -> list[str]:
     return sorted({f.key() for f in findings})
 
@@ -266,22 +292,30 @@ def new_findings(findings: Iterable[Finding], baseline: Iterable[str]) -> tuple[
     return tuple(f for f in findings if f.key() not in known)
 
 
-__all__ = ["Finding", "SAFE_NAME", "baseline_lines", "is_safe_expr", "lint_paths", "lint_source", "new_findings"]
+__all__ = [
+    "DEFAULT_TREES", "Finding", "SAFE_NAME", "baseline_lines",
+    "is_safe_expr", "lint_paths", "lint_source", "new_findings",
+]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """``python -m mirobody.testing.phi_lint PATH... [--root R] [--baseline F] [--write-baseline]``"""
+    """``python -m mirobody.testing.phi_lint [PATH...] [--root R] [--baseline F] [--write-baseline]``
+
+    With no PATH, scans :data:`DEFAULT_TREES` — the same trees the shipped
+    baseline covers, so the CLI, the test and the pre-commit hook cannot
+    disagree about scope.
+    """
     import argparse
     import sys
 
     ap = argparse.ArgumentParser(description="log statements must carry ids, counts and type names only")
-    ap.add_argument("paths", nargs="+")
+    ap.add_argument("paths", nargs="*", help="default: DEFAULT_TREES")
     ap.add_argument("--root", default=".")
     ap.add_argument("--baseline", default="")
     ap.add_argument("--write-baseline", action="store_true")
     ns = ap.parse_args(argv)
     root = Path(ns.root).resolve()
-    findings = lint_paths([root / p for p in ns.paths], root=root)
+    findings = lint_paths([root / p for p in (ns.paths or DEFAULT_TREES)], root=root)
     if ns.write_baseline:
         target = Path(ns.baseline or root / "mirobody" / "testing" / "phi_baseline.txt")
         target.write_text("\n".join(baseline_lines(findings)) + "\n", encoding="utf-8")

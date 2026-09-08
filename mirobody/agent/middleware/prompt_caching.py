@@ -72,7 +72,7 @@ class UniversalPromptCachingMiddleware(AgentMiddleware):
 
     def __init__(
         self,
-        type: Literal["ephemeral"] = "ephemeral",  # noqa: A002
+        type: Literal["ephemeral"] = "ephemeral",
         ttl: Literal["5m", "1h"] | None = "5m",
         min_messages_to_cache: int = 0,
         unsupported_model_behavior: Literal["ignore", "warn", "raise"] = "ignore",

@@ -72,7 +72,7 @@ def parse_bound(text: str, tz: str, *, end_of_day: bool = False) -> datetime | N
     z = zone(tz)
     try:
         if len(text) == 10:
-            d = datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=z)  # noqa: DTZ007 — localised on the same line
+            d = datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=z)
             return d + timedelta(days=1) if end_of_day else d
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
         return parsed if parsed.tzinfo else parsed.replace(tzinfo=z)

@@ -426,7 +426,7 @@ def parse_loinc_axes(
                     code_to_method[code_int] = method
     elif targets_by_cui is not None:
         code_ln: dict[int, str] = {}
-        for cui, entries in targets_by_cui.items():
+        for entries in targets_by_cui.values():
             for code_int, tty, name in entries:
                 if tty == "LN" and name and ":" in name:
                     code_ln[code_int] = name

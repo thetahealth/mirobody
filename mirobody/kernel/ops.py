@@ -118,7 +118,7 @@ class PHIFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         if getattr(record, "_phi_seen", False):  # installed on the logger and its handlers: filter once
             return True
-        record._phi_seen = True  # noqa: SLF001 — our own marker
+        record._phi_seen = True
         for key in list(vars(record)):
             if key == "_phi_seen":
                 continue
