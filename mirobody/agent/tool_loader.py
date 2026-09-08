@@ -15,6 +15,11 @@ from langchain_core.tools import StructuredTool
 from mirobody.kernel import meds, query
 from mirobody.kernel.ops import is_driver_exception
 
+# The genetics tool's contract lives with its service (there is one query
+# shape and one table, so no kernel module), and this needs its name at LOAD
+# time to wire `response_format`.
+from .tools import genetic_service as genetics
+
 logger = logging.getLogger(__name__)
 
 # Tool names reserved by the native deepagents harness. The agent gets these
@@ -74,7 +79,7 @@ def _filtered(kwargs: dict, valid: set[str], takes_kwargs: bool) -> dict:
 #: Tools that answer with a `mirobody.kernel.tools.Envelope` and are therefore wired as
 #: `content_and_artifact`. A name, not a duck-type check, because the decision
 #: has to be made at LOAD time — `response_format` is a constructor argument.
-_ENVELOPE_TOOLS = frozenset({query.TOOL_NAME, meds.TOOL_NAME})
+_ENVELOPE_TOOLS = frozenset({query.TOOL_NAME, meds.TOOL_NAME, genetics.TOOL_NAME})
 
 
 def _envelope_wrapper(bound_method, user_info: dict):
@@ -95,14 +100,15 @@ def _envelope_wrapper(bound_method, user_info: dict):
 
     from .tools.health_indicators_service import render_compact
 
-    # A medications answer names its columns per view; a readings answer
-    # derives them from the row shape.
-    columns_for = getattr(type(service), "input_schema", None) is meds.TOOL_SCHEMA
+    # Which columns the rendering shows is the service's call, not the
+    # adapter's: medications name them per view and genetics has one fixed
+    # set, while a readings answer derives them from its row shape. A service
+    # that says nothing (`columns` absent) gets that derivation.
+    columns_of = getattr(service, "columns", None)
 
     async def wrapper(**kwargs):
         envelope = await service.envelope(user_info, **kwargs)
-        columns = meds.VIEW_COLUMNS.get(str(kwargs.get("view") or meds.VIEW_PLAN)) if columns_for else None
-        return render_compact(envelope, columns), envelope
+        return render_compact(envelope, columns_of(kwargs) if columns_of else None), envelope
 
     return wrapper
 

@@ -26,7 +26,9 @@ Three things make the flat schema safe:
 columns hoisted into one `(constants: unit=mmol/L)` line, because a third-party
 MCP client pays per token for the unit repeated on 200 rows. `render_rest` is
 what a browser gets: arrays of objects it can sort and paginate. Both are
-generic over an envelope, so the medications tool renders through them too.
+generic over an envelope, so the medications and genetics tools render through
+them too — each says which columns its rows have (`columns`), or lets the
+readings shapes be derived.
 
 ## It never raises
 
@@ -386,8 +388,14 @@ def _render_error(envelope: tools.Envelope) -> str:
 
 
 def _meta_line(meta: tools.Meta) -> str:
-    span = f"{meta.window[0]}..{meta.window[1]}" if any(meta.window) else "all recorded data"
-    bits = [f"window={span}", f"tz={meta.tz}", f"dates={meta.window_semantics}"]
+    # A tool whose data has no time axis (genetics) reports no zone, and gets
+    # no window line: "window=all recorded data, tz=, dates=tz_exact" on a
+    # genotype answer is three tokens of noise and one false claim — a
+    # genotype is not dated at all, exactly or otherwise.
+    bits: list[str] = []
+    if meta.tz or any(meta.window):
+        span = f"{meta.window[0]}..{meta.window[1]}" if any(meta.window) else "all recorded data"
+        bits += [f"window={span}", f"tz={meta.tz}", f"dates={meta.window_semantics}"]
     if meta.resolution:
         bits.append(f"resolution={meta.resolution}")
     if meta.aggregate and meta.aggregate != "none":

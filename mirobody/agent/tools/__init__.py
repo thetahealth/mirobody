@@ -40,8 +40,9 @@ The loader scans this directory with the following rules:
      dict; it is published VERBATIM as the tool's `inputSchema` and reaches
      the chat model unchanged, instead of being generated from the signature.
    - That is for a tool whose parameters are a CONTRACT shared with other
-     surfaces — `query_health_indicators` publishes `kernel.query.TOOL_SCHEMA`
-     and `query_medications` publishes `kernel.meds.TOOL_SCHEMA`, so the MCP
+     surfaces — `query_health_indicators` publishes `kernel.query.TOOL_SCHEMA`,
+     `query_medications` publishes `kernel.meds.TOOL_SCHEMA` and
+     `query_genetic_data` publishes `genetic_service.TOOL_SCHEMA`, so the MCP
      tool and the chat tool cannot drift apart. Such a method takes
      `**kwargs`, and the schema's property names become its accepted
      arguments.
@@ -57,8 +58,10 @@ tools/
 ├── health_indicators_service.py     # query_health_indicators — readings: catalogue,
 │                                    #   raw rows, buckets, stats, latest (8 parameters)
 ├── medications_service.py           # query_medications — plan / log / history (5 parameters)
-├── _authz.py                        # who a read is about (shared, not a tool)
-└── genetic_service.py               # get_genetic_data
+├── genetic_service.py               # query_genetic_data — genotype calls at named
+│                                    #   rsIDs, plus the typed neighbours of each
+│                                    #   hit (5 parameters)
+└── _authz.py                        # who a read is about (shared, not a tool)
 
 Every file here IS a tool. The implementations they read through are not:
 `query.HealthQuery` over `th_series_data` is `mirobody/pulse/query.py`, beside

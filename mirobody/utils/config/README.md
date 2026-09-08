@@ -169,7 +169,7 @@ ALLOWED_TOOLS:
   - resolve_indicator
 
 DISALLOWED_TOOLS:
-  - get_genetic_data
+  - query_genetic_data
 ```
 
 ### 3. Prompts (`PROMPTS`)

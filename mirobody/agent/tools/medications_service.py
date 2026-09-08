@@ -75,8 +75,13 @@ class MedicationsService:
             - A dose missing from the log is not evidence it was not taken.
         """
         envelope = await self.envelope(user_info, **args)
-        view = str(args.get("view") or meds.VIEW_PLAN)
-        return {"result": render_compact(envelope, meds.VIEW_COLUMNS.get(view)), **envelope_meta(envelope)}
+        return {"result": render_compact(envelope, self.columns(args)), **envelope_meta(envelope)}
+
+    def columns(self, args: Mapping[str, Any]) -> tuple[str, ...] | None:
+        """Which columns one answer renders — a plan, a dose log and a course
+        history share no shape. Read by the chat adapter too (`tool_loader`),
+        so both surfaces render the same table; not a tool (`__tools__`)."""
+        return meds.VIEW_COLUMNS.get(str(args.get("view") or meds.VIEW_PLAN))
 
     async def envelope(self, user_info: Mapping[str, Any], **args: Any) -> tools.Envelope:
         caller_id = caller_of(user_info)

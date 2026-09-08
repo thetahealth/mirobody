@@ -1,279 +1,376 @@
-#!/usr/bin/env python3
+"""`query_genetic_data` — the one tool for a person's genotype calls.
+
+Genetics is a third data class, next to readings
+(`health_indicators_service.py`) and medications (`medications_service.py`),
+and it gets its own tool for the same reason they do: its grammar shares
+nothing with theirs. A genotype has no window, no resolution and no
+aggregate — a call is "what did this person's array call at these rsIDs",
+plus optionally the neighbours of each hit. Five parameters, every one
+applicable to every call.
+
+The tool shell is the same three steps as its siblings — authorize, run,
+render — and the same envelope: the model reads a rendered table, and
+everything a *program* needs (did it work, is a retry pointless, how much was
+cut) travels beside it in a `tools.Envelope`.
+
+Two facts about the data that the tool has to say out loud on every answer,
+because a reader that is not told them draws the opposite conclusion:
+
+* **Absent is not negative.** This reads THEIR uploaded genotype file, not a
+  reference database. A consumer array types a small fraction of the genome,
+  so an rsID missing from the result was not typed.
+* **Near is not linked.** `include_nearby` returns variants near by POSITION.
+  Proximity is not linkage disequilibrium and says nothing about the queried
+  variant's trait.
+
+It never raises, for the same reason as the readings tool: the `eval` REPL can
+call it directly (PTC), and a PTC call has nothing above it to contain a fault.
 """
-Genetic Service
-Responsible for genetic data management and querying
-"""
+
+from __future__ import annotations
 
 import logging
-
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
-from mirobody.utils.data import DataConverter
-from mirobody.utils import execute_query
+from ...kernel import query, tools
+from ...kernel.ops import is_driver_exception
+from ._authz import caller_of, denied, refused, subject_for
+from .health_indicators_service import envelope_meta, render_compact
 
 logger = logging.getLogger(__name__)
 
+TOOL_NAME = "query_genetic_data"
+
+#: rsIDs one call may name. The list becomes an `IN` clause of bound
+#: parameters, and a model that wants a whole panel should ask twice.
+MAX_RSIDS = 50
+#: Variants one answer may carry, and the default. Direct hits only — the
+#: neighbours of each hit are capped separately.
+MAX_LIMIT = 500
+DEFAULT_LIMIT = 100
+#: Neighbours returned per hit. A megabase window on a dense array holds
+#: hundreds of typed variants; twenty is a neighbourhood, not a dump.
+MAX_NEARBY_PER_HIT = 20
+#: Half-window for `include_nearby`, in base pairs.
+DEFAULT_NEARBY_RANGE = 1_000_000
+
+#: Columns the answer renders, in order. `distance` and `near` are empty on a
+#: direct hit, and `render_compact` drops a column no row fills — so an exact
+#: lookup renders four columns, not six.
+COLUMNS: tuple[str, ...] = ("rsid", "chromosome", "position", "genotype", "distance", "near")
+
+#: Said on every genetics answer. See the module docstring: a reader who is
+#: not told these two things concludes the opposite of what the data supports.
+_ABSENCE_NOTE = (
+    "a consumer array types a fraction of the genome: an rsID missing here was not typed, "
+    "which is not evidence about the allele"
+)
+_UNPHASED_NOTE = "genotypes are unphased: \"AG\" does not say which parent contributed which allele"
+_PROXIMITY_NOTE = "nearby variants are near by POSITION only; proximity is not linkage — do not tie them to the queried variant's trait"
+
+TOOL_SCHEMA: dict[str, object] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["rsids"],
+    "properties": {
+        "rsids": {
+            "type": "array",
+            "items": {"type": "string"},
+            "maxItems": MAX_RSIDS,
+            "description": (
+                "dbSNP identifiers to look up, e.g. [\"rs4988235\", \"rs1801133\"]. Required: this reads the "
+                "person's own genotype file, which has no catalogue to browse."
+            ),
+        },
+        "include_nearby": {
+            "type": "boolean",
+            "default": True,
+            "description": (
+                "Also return typed variants within nearby_range of each hit (at most "
+                f"{MAX_NEARBY_PER_HIT} per hit). False for exact lookups only."
+            ),
+        },
+        "nearby_range": {
+            "type": "integer",
+            "minimum": 1,
+            "default": DEFAULT_NEARBY_RANGE,
+            "description": "Half-window for include_nearby, in base pairs (default 1,000,000).",
+        },
+        "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": MAX_LIMIT,
+            "default": DEFAULT_LIMIT,
+            "description": "Direct hits returned, ordered by chromosome and position. Name fewer rsIDs instead of raising it.",
+        },
+        "member": {
+            "type": "string",
+            "description": "Read another person's genotype you are authorised to see (a care-circle member id). Omit for the caller.",
+        },
+    },
+}
+
+
+@dataclass(frozen=True)
+class GeneticRequest:
+    """The tool's arguments after normalisation. Built by :func:`parse_query`."""
+
+    rsids: tuple[str, ...] = ()
+    include_nearby: bool = True
+    nearby_range: int = DEFAULT_NEARBY_RANGE
+    limit: int = DEFAULT_LIMIT
+    member: str = ""
+
+
+def validate_query(args: Mapping[str, Any]) -> tuple:
+    """Everything wrong with the raw arguments (``query.Rejection`` rows);
+    empty means :func:`parse_query` will succeed."""
+    out = query.reject_unknown(args, TOOL_SCHEMA)
+    rsids = query.normalize_list_arg(args.get("rsids"))
+    if not rsids:
+        out.append(query.Rejection("rsids", "name at least one rsID; this tool has no catalogue to browse"))
+    elif len(rsids) > MAX_RSIDS:
+        out.append(query.Rejection("rsids", f"at most {MAX_RSIDS} rsIDs per call"))
+    lim = args.get("limit")
+    if lim not in (None, "") and (not isinstance(lim, int) or not 1 <= lim <= MAX_LIMIT):
+        out.append(query.Rejection("limit", f"must be an integer between 1 and {MAX_LIMIT}"))
+    rng = args.get("nearby_range")
+    if rng not in (None, "") and (not isinstance(rng, int) or rng < 1):
+        out.append(query.Rejection("nearby_range", "must be a positive number of base pairs"))
+    near = args.get("include_nearby")
+    if near not in (None, "") and not isinstance(near, bool):
+        out.append(query.Rejection("include_nearby", "must be true or false"))
+    return tuple(out)
+
+
+def parse_query(args: Mapping[str, Any]) -> GeneticRequest:
+    """Raw arguments → a :class:`GeneticRequest`; ``ValueError`` when
+    :func:`validate_query` finds anything."""
+    problems = validate_query(args)
+    if problems:
+        raise ValueError("; ".join(f"{r.parameter}: {r.reason}" for r in problems))
+    near = args.get("include_nearby")
+    return GeneticRequest(
+        # A bare string is split on commas and a JSON-stringified list is
+        # parsed, the same normalisation the readings tool's name lists get:
+        # an untreated `"rs1,rs2"` matches no rsID and answers "not typed".
+        rsids=query.normalize_list_arg(args.get("rsids")),
+        include_nearby=near if isinstance(near, bool) else True,
+        nearby_range=int(args.get("nearby_range") or DEFAULT_NEARBY_RANGE),
+        limit=int(args.get("limit") or DEFAULT_LIMIT),
+        member=str(args.get("member") or ""),
+    )
+
 
 class GeneticService:
-    """Genetic data service"""
+    """The tool body. `__tools__` is the whole published surface; `envelope`
+    is API for the chat adapter, not a tool."""
 
-    def __init__(self):
-        self.name = "Genetic Service"
-        self.version = "1.0.0"
-        self.data_converter = DataConverter()
+    __tools__ = (TOOL_NAME,)
+    input_schema = TOOL_SCHEMA
 
-    # The tool signature used to also take chromosome / position / genotype /
-    # offset. All four "narrow an already-matched set" — with rsid required
-    # they had no realistic use, and every parameter is schema the model must
-    # read on every call. Removed rather than documented better.
-    async def get_genetic_data(
-        self,
-        rsid: str | list[str],
-        user_info: dict[str, Any],
-        limit: int = 100,
-        include_nearby: bool = True,
-        nearby_range: int = 1000000,  # Default search range: 1M base pairs before and after
-    ) -> dict[str, Any]:
+    def __init__(self, execute: Any = None) -> None:
+        # Injected so a test can answer without a database; the shared pool
+        # otherwise. There is no `HealthQuery`-style port here because there is
+        # one query shape and one table.
+        self._execute = execute
+
+    async def query_genetic_data(self, user_info: dict[str, Any], **args: Any) -> dict[str, Any]:
         """
-        Look up this user's genotype at specific variants (rsIDs), optionally
-        with nearby variants from the same region.
+        Read this person's genotype calls at named variants (rsIDs), from the
+        raw genotype file they uploaded.
 
-        Reads THEIR uploaded genotype file, not a reference database. Consumer
-        arrays type a small fraction of the genome, so absent ≠ negative: an
-        rsID missing from the result was not typed, it says nothing about the
-        allele.
+        USE IT when the question names variants or asks what this person
+        carries at one — "what is my rs4988235", "am I a C677T carrier". With
+        include_nearby it also returns the typed variants around each hit.
 
-        Args:
-            rsid: dbSNP identifiers, e.g. "rs4988235" or ["rs1801133", "rs429358"].
-                A comma-separated string also works.
-            limit: Max variants returned (default 100).
-            include_nearby: Also return variants within `nearby_range` of each
-                hit, capped at 20 per hit. Set false for exact lookups only.
-            nearby_range: Half-window in base pairs (default 1,000,000).
+        DO NOT use it for readings (`query_health_indicators`), for
+        medications (`query_medications`), for what a variant MEANS (that is
+        knowledge, not this person's data), or for a person outside the
+        caller's care circle. It has no catalogue: name the rsIDs.
+
+        The parameters are documented in the schema (`input_schema` IS
+        `TOOL_SCHEMA`, published verbatim).
 
         Returns:
-            success: whether the lookup completed.
-            data: matched variants — rsid, chromosome, position, genotype call.
-            nearby: neighbours by POSITION only. Proximity is not linkage —
-                do not present them as related to the queried variant's trait.
+            A compact table — rsid, chromosome, position, genotype, and for a
+            neighbour its distance and which query it is near — plus a `meta`
+            block. Absence means "not typed", never "does not carry it".
 
         Notes for LLMs:
-            - Report genotypes; do not interpret risk. Genotype calls are not
-              diagnoses; direct clinical questions to a genetic counsellor.
+            - Report genotypes; do not interpret risk. A genotype call is not a
+              diagnosis; direct clinical questions to a genetic counsellor.
             - Genotypes are unphased: "AG" does not say which parent
               contributed which allele.
+            - Nearby variants are near by POSITION. Proximity is not linkage;
+              never present one as related to the queried variant's trait.
         """
+        envelope = await self.envelope(user_info, **args)
+        return {"result": render_compact(envelope, self.columns(args)), **envelope_meta(envelope)}
+
+    def columns(self, args: Mapping[str, Any]) -> tuple[str, ...]:
+        """Which columns one answer renders. Read by the chat adapter too
+        (`tool_loader`), so both surfaces render the same table; not a tool
+        (`__tools__`). Fixed here — a genotype row has one shape."""
+        return COLUMNS
+
+    async def envelope(self, user_info: Mapping[str, Any], **args: Any) -> tools.Envelope:
+        caller_id = caller_of(user_info)
+        if not caller_id:
+            return denied("authorization required")
         try:
-            # Get user ID from user_info
-            user_id = user_info.get("user_id")
-
-            # Build basic query
-            sql = """
-            SELECT id, user_id, rsid, chromosome, position, genotype, 
-                   create_time, update_time
-            FROM th_series_data_genetic
-            WHERE user_id = :user_id AND is_deleted = false
-            """
-
-            # Build parameter dictionary
-            params = {"user_id": user_id}
-
-            # Handle rsid parameter (supports list or comma-separated string)
-            if isinstance(rsid, str) and "," in rsid:
-                # Handle comma-separated string
-                rsid_list = [r.strip() for r in rsid.split(",") if r.strip()]
-                placeholders = [f":rsid_{i}" for i in range(len(rsid_list))]
-                sql += f" AND rsid IN ({', '.join(placeholders)})"
-                for i, r in enumerate(rsid_list):
-                    params[f"rsid_{i}"] = r
-            elif isinstance(rsid, list):
-                if len(rsid) == 1:
-                    # If only one element, use equals operator directly
-                    sql += " AND rsid = :rsid"
-                    params["rsid"] = rsid[0]
-                else:
-                    # Use IN operator to support multiple rsids
-                    placeholders = [f":rsid_{i}" for i in range(len(rsid))]
-                    sql += f" AND rsid IN ({', '.join(placeholders)})"
-                    for i, r in enumerate(rsid):
-                        params[f"rsid_{i}"] = r
-            else:
-                # Single rsid
-                sql += " AND rsid = :rsid"
-                params["rsid"] = rsid
-
-            # Add sorting and pagination
-            sql += " ORDER BY chromosome, position"
-            sql += " LIMIT :limit"
-            params["limit"] = limit
-
-            # Execute query
-            result = await execute_query(sql, params)
-
-            # Debug logging
-            logger.info(f"Query results type: {type(result)}, length: {len(result) if result else 0}")
-
-            # Data conversion
-            result = await self.data_converter.convert_list(result)
-
-            # Convert to compact format
-            compact_result = []
-            for record in result:
-                compact_record = {
-                    "r": record.get("rsid"),  # rsid
-                    "c": record.get("chromosome"),  # chromosome
-                    "p": record.get("position"),  # position
-                    "g": record.get("genotype"),  # genotype
-                }
-                # Keep only non-null values
-                compact_record = {k: v for k, v in compact_record.items() if v is not None}
-                compact_result.append(compact_record)
-
-            # Collect queried variant information
-            queried_positions = {}
-            queried_rsids = set()
-            for record in result:
-                if record.get("chromosome") and record.get("position"):
-                    chr_key = record["chromosome"]
-                    if chr_key not in queried_positions:
-                        queried_positions[chr_key] = []
-                    queried_positions[chr_key].append(record["position"])
-                    queried_rsids.add(record.get("rsid"))
-
-            # If need to include nearby variants and have query results
-            nearby_results = []
-            if include_nearby and queried_positions:
-                for chr_key, positions in queried_positions.items():
-                    for pos in positions:
-                        # Build SQL to query nearby variants
-                        nearby_sql = """
-                        SELECT id, user_id, rsid, chromosome, position, genotype, 
-                               create_time, update_time
-                        FROM th_series_data_genetic
-                        WHERE user_id = :user_id 
-                          AND is_deleted = false
-                          AND chromosome = :chromosome
-                          AND position BETWEEN :min_pos AND :max_pos
-                          AND rsid NOT IN :exclude_rsids
-                        ORDER BY ABS(position - :target_pos)
-                        LIMIT :nearby_limit
-                        """
-
-                        nearby_params = {
-                            "user_id": user_id,
-                            "chromosome": chr_key,
-                            "min_pos": pos - nearby_range,
-                            "max_pos": pos + nearby_range,
-                            "target_pos": pos,
-                            "nearby_limit": min(20, limit),  # Return at most 20 nearby variants per variant
-                        }
-
-                        # One bind parameter per excluded rsid.
-                        #
-                        # This previously interpolated the rsids straight into the
-                        # SQL text ("Use raw SQL to avoid parameterized IN clause
-                        # issues"), which was a STORED SQL injection: rsids are
-                        # parsed out of a user-uploaded genotype file in
-                        # genetic_processor.py (`rsid, chromosome, position_str,
-                        # genotype = parts[:4]` then `.strip()` — no format
-                        # validation whatsoever), stored via a safe parameterized
-                        # INSERT, and then spliced into a query string on read. A
-                        # single quote inside an uploaded file was enough to break
-                        # out of the literal. Expanding the IN clause into named
-                        # parameters leaves quoting to the driver.
-                        exclude_keys = []
-                        for i, rsid_val in enumerate(queried_rsids):
-                            key = f"excl_{i}"
-                            nearby_params[key] = rsid_val
-                            exclude_keys.append(f":{key}")
-                        nearby_sql_final = nearby_sql.replace(
-                            ":exclude_rsids",
-                            f"({', '.join(exclude_keys)})" if exclude_keys else "('')",
-                        )
-
-                        nearby_data = await execute_query(nearby_sql_final, nearby_params)
-
-                        if nearby_data:
-                            nearby_converted = await self.data_converter.convert_list(nearby_data)
-                            # Add distance information for nearby variants and simplify data structure
-                            for nearby_record in nearby_converted:
-                                distance = abs(nearby_record.get("position", 0) - pos)
-                                # `next(..., None)` rather than `[...][0]`: `result` and the
-                                # nearby rows come from two separate queries against a table a
-                                # concurrent upload can extend, so the position/chromosome pair
-                                # is not guaranteed to still be present. The bare index raised
-                                # IndexError out of the tool and lost the whole response,
-                                # including the variants that HAD resolved.
-                                query_rsid = next(
-                                    (
-                                        r.get("rsid")
-                                        for r in result
-                                        if r.get("position") == pos and r.get("chromosome") == chr_key
-                                    ),
-                                    None,
-                                )
-
-                                # Create more compact record format
-                                compact_record = {
-                                    "r": nearby_record.get("rsid"),  # rsid
-                                    "c": nearby_record.get("chromosome"),  # chromosome
-                                    "p": nearby_record.get("position"),  # position
-                                    "g": nearby_record.get("genotype"),  # genotype
-                                    "d": distance,  # distance
-                                    "q": query_rsid,  # query rsid
-                                }
-                                # Keep only non-null values
-                                compact_record = {k: v for k, v in compact_record.items() if v is not None}
-                                nearby_results.append(compact_record)
-
-            logger.info(f"Query completed, returning {len(result)} genetic records, {len(nearby_results)} nearby variants")
-
-            # Fallback strategy: if no genetic data
-            if not result:
-                logger.info("No genetic data found, returning structured no-data response")
-
-                return {
-                    "success": True,
-                    "message": "No genetic data found. To access genetic analysis including SNPs, genotypes, chromosomes, and positions, please upload your genetic information first.",
-                    "data": "No genetic data available for the requested variant(s). Please upload your genetic test results from services like 23andMe, AncestryDNA, or medical genetic testing to access personalized genetic insights.",
-                    "limit": limit,
-                    "redirect_to_upload": True,
-                }
-
-            # Apply data truncation with compact format
-            response_data = {
-                "success": True,
-                "data": {
-                    "q": compact_result,  # queried variants
-                    "n": nearby_results if include_nearby else [],  # nearby variants
-                    "s": {  # summary
-                        "tq": len(result),  # total queried
-                        "tn": len(nearby_results) if include_nearby else 0,  # total nearby
-                        "chr": list(queried_positions.keys()),  # chromosomes
-                        "range_kb": nearby_range // 1000 if include_nearby else 0,  # range in kb
-                    },
-                    "_legend": {
-                        "r": "rsid",
-                        "c": "chromosome",
-                        "p": "position",
-                        "g": "genotype",
-                        "d": "distance_from_query",
-                        "q": "query_rsid",
-                        "tq": "total_queried",
-                        "tn": "total_nearby",
-                        "chr": "chromosomes",
-                    },
-                },
-                "limit": limit,
-            }
-            return response_data
-
+            return await self._run(caller_id, args)
+        except query.Denied:
+            return denied("you may not read this person's data")
         except Exception as e:
-            logger.error(str(e), exc_info=True)
+            # Never hand the raw exception to the model: driver messages quote
+            # the SQL with its bound parameters, and a model echoes what it is
+            # given. The type goes to the log, the class to the envelope.
+            tool_name = TOOL_NAME  # a local the PHI log lint can see is a name, not a value
+            logger.error("[%s] error_type=%s", tool_name, type(e).__name__, exc_info=not is_driver_exception(e))
+            return tools.fault_envelope(e)
 
-            return {
-                "success": False,
-                "error": f"Failed to get genetic data: {str(e)}",
-                "data": None,
-                "redirect_to_upload": True,
-            }
+    # --- the run ------------------------------------------------------------
+
+    async def _run(self, caller_id: str, args: Mapping[str, Any]) -> tools.Envelope:
+        problems = validate_query(args)
+        if problems:
+            return refused(problems)
+        request = parse_query(args)
+        subject_id = await subject_for(caller_id, request.member)
+        fetched = await self._variants(subject_id, request)
+        # One row over the limit is how "cut" is KNOWN rather than guessed:
+        # `len(rows) == limit` is the shape of both a full answer and a cut one,
+        # and reporting `partial` on the first is as wrong as missing the second.
+        hits, truncated = fetched[: request.limit], len(fetched) > request.limit
+        nearby = await self._neighbours(subject_id, request, hits) if request.include_nearby and hits else []
+        return _envelope_for(request, hits, nearby, truncated=truncated)
+
+    async def _variants(self, subject_id: str, request: GeneticRequest) -> list[dict[str, Any]]:
+        binds, params = _in_clause("rsid", request.rsids)
+        rows = await self._read(
+            "SELECT rsid, chromosome, position, genotype"
+            " FROM th_series_data_genetic"
+            " WHERE user_id = :user_id AND is_deleted = false"
+            f" AND rsid IN ({binds})"
+            " ORDER BY chromosome, position"
+            " LIMIT :limit",
+            {**params, "user_id": subject_id, "limit": request.limit + 1},
+        )
+        return [_row(r) for r in rows]
+
+    async def _neighbours(
+        self, subject_id: str, request: GeneticRequest, hits: Sequence[Mapping[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """The typed variants around each hit, nearest first, labelled with the
+        query they belong to. Every rsID the caller named is excluded, so a hit
+        never comes back a second time as its own neighbour."""
+        binds, excluded = _in_clause("excl", request.rsids)
+        out: list[dict[str, Any]] = []
+        for hit in hits:
+            rows = await self._read(
+                "SELECT rsid, chromosome, position, genotype"
+                " FROM th_series_data_genetic"
+                " WHERE user_id = :user_id AND is_deleted = false"
+                " AND chromosome = :chromosome"
+                " AND position BETWEEN :min_pos AND :max_pos"
+                f" AND rsid NOT IN ({binds})"
+                " ORDER BY ABS(position - :target_pos)"
+                " LIMIT :nearby_limit",
+                {
+                    **excluded,
+                    "user_id": subject_id,
+                    "chromosome": hit["chromosome"],
+                    "min_pos": hit["position"] - request.nearby_range,
+                    "max_pos": hit["position"] + request.nearby_range,
+                    "target_pos": hit["position"],
+                    "nearby_limit": MAX_NEARBY_PER_HIT,
+                },
+            )
+            out.extend(
+                {**_row(r), "distance": abs(int(r["position"]) - hit["position"]), "near": hit["rsid"]} for r in rows
+            )
+        return out
+
+    async def _read(self, sql: str, params: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+        if self._execute is None:
+            from ...utils import execute_query
+
+            self._execute = execute_query
+        return list(await self._execute(sql, dict(params)) or [])
+
+
+# --- pure --------------------------------------------------------------------
+
+
+def _in_clause(prefix: str, values: Sequence[str]) -> tuple[str, dict[str, Any]]:
+    """An `IN` list as named binds.
+
+    rsIDs are BOUND, never interpolated. They come out of a user-uploaded
+    genotype file that is split on whitespace with no format validation
+    (`pulse/file_parser/services/genetic_processor.py`), so a single quote in
+    an uploaded file breaks out of an interpolated literal — a stored SQL
+    injection on the read path, which is what this was.
+    """
+    params = {f"{prefix}_{i}": v for i, v in enumerate(values)}
+    return ", ".join(f":{k}" for k in params), params
+
+
+def _row(record: Mapping[str, Any]) -> dict[str, Any]:
+    """One database row → one rendered row. All four columns are `NOT NULL`,
+    and none of them is a `Decimal` or a timestamp, so nothing here needs the
+    JSON coercion the readings path does."""
+    return {k: record[k] for k in ("rsid", "chromosome", "position", "genotype")}
+
+
+def _envelope_for(
+    request: GeneticRequest,
+    hits: Sequence[Mapping[str, Any]],
+    nearby: Sequence[Mapping[str, Any]],
+    *,
+    truncated: bool = False,
+) -> tools.Envelope:
+    """One table for both halves: a neighbour is a row with `distance` and
+    `near` filled in. Two lists would make the model join them itself, and the
+    renderer would have to be told which is which."""
+    rows = [*hits, *nearby]
+    untyped = tuple(r for r in request.rsids if r not in {str(h["rsid"]) for h in hits})
+    notes = [_ABSENCE_NOTE, _UNPHASED_NOTE]
+    if nearby:
+        notes.append(_PROXIMITY_NOTE)
+    if untyped:
+        notes.append("not typed in this person's file: " + ", ".join(untyped))
+    if not hits:
+        notes.append("nothing typed for any of these rsIDs; the person may have uploaded no genotype file at all")
+    if truncated:
+        notes.append(f"cut at limit={request.limit}; name fewer rsIDs rather than raising it")
+    return tools.Envelope(
+        tools.STATUS_PARTIAL if truncated else tools.STATUS_OK,
+        data=rows,
+        meta=tools.Meta(row_count=len(rows), truncated=truncated),
+        provenance={str(r["rsid"]): "measured" for r in rows},
+        assumptions=tuple(notes),
+    )
+
+
+#: This module's tool surface: nothing at module level. The schema, the
+#: validator and the parser are the tool's CONTRACT, imported by name — a
+#: module-level function without this list would be published as a tool.
+__tools__: tuple[str, ...] = ()
+
+__all__ = [
+    "COLUMNS",
+    "DEFAULT_LIMIT",
+    "DEFAULT_NEARBY_RANGE",
+    "GeneticRequest",
+    "GeneticService",
+    "MAX_LIMIT",
+    "MAX_NEARBY_PER_HIT",
+    "MAX_RSIDS",
+    "TOOL_NAME",
+    "TOOL_SCHEMA",
+    "parse_query",
+    "validate_query",
+]

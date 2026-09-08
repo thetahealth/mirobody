@@ -5,6 +5,30 @@
 Consolidation. Nothing here changes an answer: the 7,354-case resolver
 evaluation is bit-identical to 1.4.0 (coverage 0.9631, wrong-rate 0.0322).
 
+### Breaking
+
+- **`get_genetic_data` is `query_genetic_data`, and it answers like its two
+  siblings.** It was the one data tool that had not been through the 1.4.0
+  tool-shell work: a hand-rolled signature instead of a declared schema, no
+  care-circle `member`, no envelope, and a bespoke compact payload
+  (`{"q": …, "n": …, "s": …, "_legend": …}`) the model had to learn a legend
+  for. It is now the same three steps as `query_health_indicators` and
+  `query_medications` — authorize, run, envelope — publishing
+  `genetic_service.TOOL_SCHEMA` verbatim to the MCP and chat surfaces and
+  rendering through the same `render_compact`, with the hits and their
+  neighbours as ONE table (`distance` and `near` say which query a neighbour
+  belongs to). The `rsid` parameter is `rsids`, an array like `indicators`,
+  and a call that names none is refused rather than answered.
+  What an answer says out loud, on every call: an rsID that is absent was not
+  typed, and a nearby variant is near by POSITION — proximity is not linkage.
+  `redirect_to_upload` is gone, and with it the branch in `mcp/service.py`
+  that let any tool result replace the whole reply with "open /drive and
+  upload": that redirect had one producer (this tool's no-rows path), and
+  `_DATA_GATED` already hides the tool from a user with no genetic rows — so
+  the only caller who could still see it was one who HAD uploaded a genotype
+  file and asked about rsIDs it does not carry, where "upload your data first"
+  is the wrong answer.
+
 ### Fixed
 
 - **A credential slice was in the logs, and the PHI baseline was hiding it.**

@@ -276,7 +276,7 @@ class McpService:
     # Tools whose only possible answer without the corresponding data is
     # "no data": each maps to the EXISTS probe that decides its visibility.
     _DATA_GATED = {
-        "get_genetic_data":
+        "query_genetic_data":
             "SELECT 1 FROM th_series_data_genetic"
             " WHERE user_id = :uid AND is_deleted = false LIMIT 1",
         "query_health_indicators":
@@ -439,7 +439,7 @@ class McpService:
         #                                sends these
 
         if method == "tools/list":
-            # Data-dependent exposure: get_genetic_data answers from the user's
+            # Data-dependent exposure: query_genetic_data answers from the user's
             # uploaded genotype file, and most users never upload one. Listing
             # the tool anyway makes every external MCP client carry its schema
             # and lets a model call it just to learn "no data" — so when the
@@ -610,35 +610,17 @@ class McpService:
                 session_id  = session_id
             )
 
+            # A tool answer used to be able to hijack this reply: any result
+            # carrying `redirect_to_upload` was replaced by an "open /drive and
+            # upload" message. Its only producer was the genetics tool's no-rows
+            # branch, and `_DATA_GATED` already hides that tool from a user with
+            # no genetic rows — so the redirect could only fire for a user who
+            # HAS uploaded a genotype file and asked about rsIDs it does not
+            # carry, where "upload your data first" is the wrong answer. The
+            # tool now says "not typed" in its envelope and this branch is gone.
             is_error = False
             data = result
             if isinstance(result, dict):
-                if "redirect_to_upload" in result:
-                    return jsonrpc_result(
-                        id      = id,
-                        protocol_version = negotiated,
-                        result  = {
-                            "content": [
-                                {
-                                    "type": "text",
-                                    "text": json.dumps(
-                                        {
-                                            "success": True,
-                                            "message": "Health Data uploading URL generated. Client should open browser automatically",
-                                            "open_url": f"{url_prefix}/drive",
-                                            "auto_open_browser": True,
-                                            "client_instructions": "No health data found. To access comprehensive health data including medical records, functional examinations, and device-generated data, please upload your health information first",
-                                        },
-                                        ensure_ascii=False,
-                                        separators=(',', ':')
-                                    )
-                                }
-                            ]
-                        },
-                        method  = params["name"],
-                        request = request
-                    )
-
                 if "success" in result and isinstance(result["success"], bool):
                     is_error = not result["success"]
 

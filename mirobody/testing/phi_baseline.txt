@@ -58,9 +58,6 @@ mirobody/agent/middleware/tool_faults.py	interpolation	[{"name": c.get("name"), 
 mirobody/agent/middleware/tool_faults.py	interpolation	name
 mirobody/agent/middleware/tool_faults.py	interpolation	repairs
 mirobody/agent/models/clients.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/tools/genetic_service.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/tools/genetic_service.py	interpolation	str(e)
-mirobody/agent/tools/genetic_service.py	interpolation	type(result)
 mirobody/agent/tools/terminology_service.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/agent/tools/terminology_service.py	interpolation	e
 mirobody/mcp/service.py	extra_key	path

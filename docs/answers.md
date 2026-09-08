@@ -10,7 +10,7 @@ stops it looping.
 ## One tool per data class, every parameter applicable to every call
 
 The model gets **`query_health_indicators`** for readings and
-**`query_medications`** for medications. Genetics is `get_genetic_data`. Three
+**`query_medications`** for medications. Genetics is `query_genetic_data`. Three
 classes of data, three grammars, three tools — and inside each, search and
 read are ONE call.
 
@@ -44,13 +44,13 @@ the person can read, not an opaque handle.
 The MCP surface is exactly six tools:
 
 ```
-query_health_indicators  query_medications  get_genetic_data
+query_health_indicators  query_medications  query_genetic_data
 resolve_indicator  convert_unit  normalize_unit
 ```
 
 `tools/list` hides a data tool from a user who has none of that data
 (`mcp/service.py::_DATA_GATED`): no readings, no `query_health_indicators`; no
-plans, no `query_medications`; no genotype, no `get_genetic_data`. A chat turn
+plans, no `query_medications`; no genotype, no `query_genetic_data`. A chat turn
 gets all six plus the harness's own: `ls read_file write_file edit_file glob
 grep`, the `eval` REPL, and `ask_user`. `ask_user` is never an MCP tool — an
 MCP client has no widget to answer a question with.

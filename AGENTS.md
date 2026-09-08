@@ -21,7 +21,7 @@ suffix. A deployment that wants its own harness REPLACES `MirobodyAgent` by
 pointing `AGENT_DIRS` at its own directory (`agent/registry.py`). External
 clients get the engine through `mirobody/mcp/` (six tools: `resolve_indicator`,
 `convert_unit`, `normalize_unit`, `query_health_indicators`, `query_medications`,
-`get_genetic_data`) —
+`query_genetic_data`) —
 and that list is asserted exactly, in `tests/agent/test_tool_surface.py`.
 The agent's config keys are `PROVIDERS`, `PROMPTS`, `ALLOWED_TOOLS`,
 `DISALLOWED_TOOLS`, `DEFAULT_PROVIDER`, `AGENT_NAME` — no suffix.
