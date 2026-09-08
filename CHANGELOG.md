@@ -1,5 +1,159 @@
 # Changelog
 
+## 1.4.1
+
+Consolidation. Nothing here changes an answer: the 7,354-case resolver
+evaluation is bit-identical to 1.4.0 (coverage 0.9631, wrong-rate 0.0322).
+
+### Fixed
+
+- **A credential slice was in the logs, and the PHI baseline was hiding it.**
+  `providers/platform/database_service.py` logged the first 20 characters of a
+  stored AES-GCM ciphertext on an `InvalidTag`. `phi_baseline.txt` carried the
+  line as one long f-string rather than as the slice it interpolated, so
+  nothing pointed at it; enabling `ISC` turned the explicit `+` concatenation
+  into an implicit one and the linter finally saw the expression. It is a
+  `secret_fingerprint` now — the same digest handle the OAuth paths use, which
+  answers "is this the same stored value?" and carries none of it.
+  `phi_lint` learned that `secret_fingerprint(...)` is safe, which made five
+  OTHER call sites' baseline entries stale: they had been using it correctly all
+  along and the baseline was grandfathering them as violations. Baseline
+  661 → 653.
+- **`Config.init` silently dropped an in-memory config.** `Config.__init__`
+  has always accepted an `io.StringIO`, but `expand_yaml_filenames` skipped
+  every non-string entry and `Config.init` then filtered on `os.path.exists`.
+  A caller passing an overlay got the shipped defaults with nothing logged —
+  found by `mirobody dev` coming up on `pg 127.0.0.1:5432` while printing the
+  port it had been asked for. A readable stream now passes through; `None` and
+  other garbage are still dropped.
+- **`<PROVIDER>_MODEL` / `<PROVIDER>_VISION_MODEL` did not work uniformly.**
+  `config.yaml` documents them as one scheme, and for two providers it was
+  false: the vision table called Alibaba `qwen` and Volcengine `doubao` while
+  every other table used the `LLMProvider` names, and each derived its override
+  key from its own spelling — so structured extraction read `DASHSCOPE_MODEL`
+  and vision read `QWEN_VISION_MODEL`. One table now names them
+  (`config/llm._PROVIDER_DEFAULTS`), the canonical name is the enum value
+  everywhere, and both old spellings still resolve for `provider=` and for the
+  config key.
+- **`.pre-commit-config.yaml` was gitignored.** `*.*.yaml` is there for the
+  per-deployment `config.{env}.yaml` overlays that carry secrets; it also
+  matched the one config file every contributor is supposed to install.
+- **A personal MCP URL could not be taken back.** `POST /personal/mcp` mints
+  `{origin}/mcp/{secret}`, and that secret is the whole credential —
+  `/mcp/{secret}` needs no JWT and grants read access to that person's health
+  record. It is a bearer token carried in a URL, so it ends up in desktop-client
+  config files, screenshots and shell history. It was stored with a **hardcoded
+  365-day** expiry and there was no revoke path; re-minting could not rotate it
+  either, because the mint path returns the stored secret. `DELETE
+  /personal/mcp` revokes one (idempotent, and it deletes the
+  secret → user mapping first so the credential stops working even if the
+  second delete fails), the next mint issues a fresh secret, and the TTL is
+  `MCP_URL_TTL_DAYS` with a 30-day default. Mint and revoke share one
+  authorization path so the two cannot drift on who may act on whose record.
+  (`framework-optimization-proposal` P0-C item 3, filed as a security-audit
+  leftover.)
+- **The shipped web bundle is rebuilt, and the model picker had four bogus
+  "Agent" tabs.** `GET /api/models` has answered with bare provider names since
+  1.4.0, and the web client still split each one on `/` into
+  `(agent, provider)` — so `"gpt"` parsed as `agent: "gpt"`, four models became
+  four "agents", and the dropdown rendered a segmented control of four tabs
+  with one model under each, captioning a tab labelled `gpt` with "Deep runs
+  the tool loop here — virtual filesystem, QuickJS, charts". Measured by
+  executing the old parse against the live response, not inferred — and it was
+  SHIPPED, not latent: the parse is in the previous artifact's main chunk
+  (`index-DqMMF6sB.js`, 1.37 MB) verbatim, and the segmented control is in the
+  model-picker chunk (`index-DocncKpd.js`), legacy build included.
+
+  Fixed in `mirobody-web-rebuild` and rebuilt into `frontend/`: the model id IS
+  the provider name, the agent tabs and their styles are gone,
+  `getModelShowName` takes one argument, the compare pane key drops to
+  `provider`, and `POST /api/chat` / `POST /api/rating` stop sending `agent`
+  and `group_id`. Bindings for `/api/agents`, `/api/providers` and
+  `/api/user/prompt*` — all removed in 1.4.0, all defined and never called,
+  which is why nothing broke and nobody noticed — are deleted, and six i18n
+  keys with no code reference go from all four languages. A stored model id
+  from before this keeps its provider half rather than resetting the user's
+  choice.
+
+  `ChatStreamRequest` still ACCEPTS `agent`, `enable_mcp`, `group_id` and
+  `reference_task_id` for one more release: a browser holding a cached older
+  bundle still sends two of them, and `chat_handler` rejects unknown fields, so
+  dropping them now would answer every message from such a client with -4.
+- **A route whose only possible answer was 503.**
+  `POST /vital/generate-sign-in-token` calls
+  `platform_manager.get_platform("vital")`, and the installed providers are
+  Garmin, Oura, WHOOP and pgsql — there is no `vital` platform in this
+  repository, and no `vital_client` outside that one reference. Neither the
+  shipped web bundle nor the frontend source calls it. Removed with the dead
+  `VitalHealthRecord` model; `StandardPulseRecord` keeps the field set (rows in
+  `th_series_data` were written against it) and now says why in its own words
+  instead of pointing at a class that is gone.
+- 36 `raise` statements inside `except` blocks lost their cause
+  (`raise ... from`), so a traceback stopped at the re-raise. One loop-bound
+  closure (`indicator/fhir/adapter.py`) now binds its arrays explicitly.
+
+### Added
+
+- **`mirobody dev`** — the server in one process, with no config file, no Redis
+  requirement and dev secrets generated per run:
+
+      pip install 'mirobody[app]'
+      mirobody dev --pg-url postgres://user:pw@localhost:5432/mirobody
+
+  `config.yaml` is not in the wheel, so this is the only shape in which a plain
+  `pip install` can start something. Redis was already optional
+  (`RedisConfig.get_async_client` returns None when it cannot ping and the
+  server logs "local memory mode"); `dev` stops treating that as a blocker.
+  The generated `JWT_KEY` / `CONFIG_ENCRYPTION_KEY` / `LOG_ENCRYPTION_KEY` go
+  into the ENVIRONMENT, because `Config.__init__` builds its encrypter before
+  it reads any YAML — a value in config could never satisfy them.
+  `examples/05_agent_server_preflight.py` now reports which of its
+  prerequisites `dev` produces for you: six missing becomes two.
+- **A pre-commit config** with the two gates that are sub-second — `ruff` and
+  `phi_lint` — deliberately not the whole battery, because a slow hook gets
+  bypassed. `phi_lint.DEFAULT_TREES` is now the one place the baseline's tree
+  list lives; the test and the hook both read it, because scanning a wider tree
+  than the baseline covers reports hundreds of pre-existing lines as new.
+- **`mcp.reset_global_tools()`** — the tool registry is an object with a
+  `reset()`, not two module dicts that could only grow. A test can now load a
+  directory, assert, and start clean instead of inheriting every tool a
+  previous test published.
+
+### Changed
+
+- **The ruff rule set grows by six**, each catching a class of defect rather
+  than a style: `B` (bugbear), `ISC`, `C4`, `PIE`, `PLE`, `RUF100`. `PLE0604`
+  is excluded (it cannot see through a dynamically built `__all__`), and the
+  reasons `G004`, `DTZ` and `TID252` are NOT selected are written down —
+  `DTZ` in particular would ask us to break the naive-local-time storage
+  contract to satisfy a linter. CI lints `examples` as well as `mirobody`.
+- **`CacheableDatabaseService` is no longer an `ABC`.** After 1.4.0 folded the
+  three-level hierarchy it declared no abstract method, so `ABC` told a reader
+  to look for a contract that was not there.
+- `STRUCTURED_OUTPUT_PRIORITY` moved out of a function body to module scope. It
+  was rebuilt on every call and no test could see it.
+
+### Not done, and why
+
+- **The three response envelopes stay three.** Converging them is a WIRE
+  change with two different clients on the other side: the shipped web bundle
+  reads `success` off the chat and user endpoints, and `apple_router`'s three
+  POST endpoints are the mobile client's ingest path. Both need a coordinated
+  client release. `tests/test_response_envelopes.py` pins which layer speaks
+  which shape so a fourth cannot appear by accident.
+- **The four soft-delete predicates stay four.** They are four different
+  COLUMNS on eighteen different tables with zero overlap — no table carries two
+  — so "converging" means renaming columns across fourteen tables including
+  `health_app_user`, `th_files` and `th_series_data`, in a project that replays
+  DDL at every boot with no ledger. All 91 SQL blocks agree with their table
+  today, so there is no defect to fix and a real data-visibility failure mode
+  to risk. A test pins the agreement instead.
+- Recorded while measuring the above: **a passkey, once registered, cannot be
+  deleted.** `webauthn_credentials` declares `is_del`, `deleted_at` and
+  `deleted_by`; the first is filtered on but never set and the other two are
+  never touched, because `webauthn.py` exposes no revoke path. Adding one is
+  security-sensitive design, not consolidation.
+
 ## 1.4.0
 
 **One framework, three installs.** The pure rules live in `mirobody.kernel`;

@@ -36,12 +36,17 @@ class ChatStreamRequest:
     context — for thread safety and testability.
 
     `agent`, `enable_mcp`, `group_id` and `reference_task_id` are ACCEPTED AND
-    IGNORED: nothing reads them, but the shipped web client still sends
-    `agent` and `group_id` and `chat_handler` rejects unknown fields, so
-    removing them would turn a working client into a -4 on every message.
-    They stay as compatibility fields until the clients stop sending them
-    (`internal/frontend-single-agent-2026-09-05.md`). There is one agent;
-    `provider` picks the model.
+    IGNORED: nothing reads them, and `chat_handler` rejects unknown fields, so
+    removing them turns a client that still sends one into a -4 on every
+    message. There is one agent; `provider` picks the model.
+
+    **As of 1.4.1 the shipped `frontend/` bundle sends none of them** — the web
+    client was rebuilt from `mirobody-web-rebuild` in the same release. They
+    still stay, for one release, because a browser holding a cached older
+    bundle keeps sending `agent` and `group_id`, and the mobile client is not
+    this repository's to rebuild. Drop them once neither is in the wild; that
+    is the only thing left in
+    `internal/frontend-single-agent-2026-09-05.md` §3.
     """
     
     def __init__(
