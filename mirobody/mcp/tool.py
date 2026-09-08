@@ -15,9 +15,40 @@ logger = logging.getLogger(__name__)
 # the verified JWT; the rest are the footgun this warns about.
 _CALLER_IDENTITY_PARAMS = {"user_id", "userid", "uid", "current_user"}
 
-# For MCP tools.
-global_tools = {}
-global_descriptions = []
+class _ToolRegistry:
+    """What the tool loaders discovered, in one object instead of two module
+    dicts.
+
+    The dicts were module-level and only ever added to, so discovery results
+    outlived whatever imported them: a test could not load one directory,
+    assert, and load another — it inherited every tool the previous test had
+    published, and the only reliable isolation was a fresh process. `reset()`
+    is the whole reason this is a class.
+
+    The accessor functions below are unchanged and remain the public API;
+    nothing outside this module touches the containers.
+    """
+
+    __slots__ = ("tools", "descriptions")
+
+    def __init__(self) -> None:
+        self.tools: dict = {}
+        self.descriptions: list = []
+
+    def publish(self, tools: dict, descriptions: list) -> None:
+        if tools:
+            self.tools.update(tools)
+        if descriptions:
+            self.descriptions.extend(descriptions)
+
+    def reset(self) -> None:
+        self.tools.clear()
+        self.descriptions.clear()
+
+
+#: The process-wide registry. One instance, because the MCP surface a client
+#: sees is process-wide; `reset_global_tools()` is how a test gets a clean one.
+_registry = _ToolRegistry()
 
 #-----------------------------------------------------------------------------
 
@@ -67,7 +98,7 @@ def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
     # argument of such a tool comes back as "unknown argument".
     declared_schema = getattr(function, "input_schema", None)
     if isinstance(declared_schema, dict) and declared_schema.get("properties"):
-        parameters = {name: None for name in declared_schema["properties"]}
+        parameters = dict.fromkeys(declared_schema["properties"])
         if require_user_info:
             parameters["user_info"] = None
 
@@ -452,10 +483,7 @@ def _register_module(module: ModuleType, module_name: str, tools: dict, descript
 
 
 def _publish(tools: dict, descriptions: list) -> None:
-    if tools:
-        global_tools.update(tools)
-    if descriptions:
-        global_descriptions.extend(descriptions)
+    _registry.publish(tools, descriptions)
 
 
 def load_tools_from_entry_points() -> tuple[dict, list]:
@@ -576,11 +604,11 @@ async def call_tool(tools: dict, tool_name: str, arguments: dict | None = None, 
 
 
 async def call_global_tool(tool_name: str, arguments: dict | None = None, user_id: str = "", session_id: str = ""):
-    return await call_tool(global_tools, tool_name=tool_name, arguments=arguments, user_id=user_id, session_id=session_id)
+    return await call_tool(_registry.tools, tool_name=tool_name, arguments=arguments, user_id=user_id, session_id=session_id)
 
 
 def get_global_tool_count() -> int:
-    return len(global_tools)
+    return len(_registry.tools)
 
 
 def get_global_descriptions() -> list:
@@ -593,11 +621,21 @@ def get_global_descriptions() -> list:
     every `Returns:` section, and the four types the old schema generator got
     wrong. Removing it once cost real debugging time; don't remove it again.
     """
-    return global_descriptions
+    return _registry.descriptions
 
 
 def get_global_tools() -> dict:
-    return global_tools
+    return _registry.tools
+
+
+def reset_global_tools() -> None:
+    """Forget everything the loaders discovered.
+
+    For tests: the module dicts this replaced could only grow, so a test that
+    loaded a tool directory changed what every later test saw. Not used by the
+    package itself — discovery happens once, at start-up.
+    """
+    _registry.reset()
 
 
 

@@ -19,13 +19,14 @@ _EXPORTS = {
     'get_global_tool_count'          : 'tool',
     'get_global_tools'               : 'tool',
     'get_global_descriptions'        : 'tool',
+    'reset_global_tools'             : 'tool',
     'McpService'                     : 'service',
 }
 __all__ = [*_EXPORTS]
 
 if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .service import McpService
-    from .tool import call_global_tool, call_tool, get_global_descriptions, get_global_tool_count, get_global_tools, load_tools_from_directories, load_tools_from_directory, load_tools_from_module
+    from .tool import call_global_tool, call_tool, get_global_descriptions, get_global_tool_count, get_global_tools, load_tools_from_directories, load_tools_from_directory, load_tools_from_module, reset_global_tools
 
 
 def __getattr__(name: str):

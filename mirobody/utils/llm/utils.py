@@ -8,6 +8,7 @@ import json
 import logging
 
 from .config import AIConfig
+from ..config.llm import LLMProvider, provider_api_key_env, provider_model
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,20 @@ async def async_get_doubao_structured_output(
         return None
 
 
+#: Priority order for structured extraction. Gemini first: its JSON-schema
+#: support is the strictest of the five. The api key and the model default come
+#: from `config.llm._PROVIDER_DEFAULTS`, not from here — this list used to carry
+#: its own copy of both, INSIDE the function body, so it was rebuilt per call
+#: and no test could see it.
+STRUCTURED_OUTPUT_PRIORITY: tuple[LLMProvider, ...] = (
+    LLMProvider.GEMINI,
+    LLMProvider.OPENAI,
+    LLMProvider.OPENROUTER,
+    LLMProvider.VOLCENGINE,
+    LLMProvider.DASHSCOPE,
+)
+
+
 async def async_get_structured_output(
     messages: list[dict],
     response_format: dict,
@@ -194,40 +209,6 @@ async def async_get_structured_output(
     from mirobody.utils.config import safe_read_cfg
     
     start_time = time.time()
-    
-    # Structured output priority list (Gemini first for best JSON schema support)
-    STRUCTURED_OUTPUT_PRIORITY = [
-        {
-            "name": "gemini",
-            "api_key_env": "GOOGLE_API_KEY",
-            "default_model": "gemini-3-flash-preview",
-            "description": "Google Gemini (Best for structured output)",
-        },
-        {
-            "name": "openai",
-            "api_key_env": "OPENAI_API_KEY",
-            "default_model": "gpt-5.2",
-            "description": "OpenAI GPT Models",
-        },
-        {
-            "name": "openrouter",
-            "api_key_env": "OPENROUTER_API_KEY",
-            "default_model": "google/gemini-3-flash-preview",
-            "description": "OpenRouter (Multi-model Gateway)",
-        },
-        {
-            "name": "volcengine",
-            "api_key_env": "VOLCENGINE_API_KEY",
-            "default_model": "doubao-seed-1-8-251228",
-            "description": "Volcengine Doubao Seed 1.8",
-        },
-        {
-            "name": "dashscope",
-            "api_key_env": "DASHSCOPE_API_KEY",
-            "default_model": "qwen-flash",
-            "description": "Aliyun DashScope (Qwen Flash)",
-        },
-    ]
     
     # Normalize max_tokens across providers
     max_tokens_value = kwargs.pop("max_tokens", None) or kwargs.pop("max_completion_tokens", None)
@@ -352,16 +333,16 @@ async def async_get_structured_output(
         return await _call_provider(provider, actual_model)
     # Auto-select: try each available provider in priority order, fallback on failure
     tried_providers = []
-    for p in STRUCTURED_OUTPUT_PRIORITY:
-        if not safe_read_cfg(p["api_key_env"]):
+    for canon in STRUCTURED_OUTPUT_PRIORITY:
+        if not safe_read_cfg(provider_api_key_env(canon)):
             continue
-        prov_name = p["name"]
+        prov_name = canon.value
         # `<PROVIDER>_MODEL` overrides the default, mirroring
         # `<PROVIDER>_VISION_MODEL` on the vision path. Needed whenever
         # `<PROVIDER>_BASE_URL` points at a gateway that does not serve
         # the default model id (e.g. OpenRouter redirected to DashScope:
         # `google/gemini-3-flash-preview` 404s there).
-        prov_model = safe_read_cfg(f"{prov_name.upper()}_MODEL") or p["default_model"]
+        prov_model = provider_model(canon)
         logger.info(f"async_get_structured_output: Trying {prov_name} provider, model: {prov_model}")
         result = await _call_provider(prov_name, prov_model)
         if result is not None:

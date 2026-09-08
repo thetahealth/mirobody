@@ -236,6 +236,16 @@ JWT_SCOPE: "mcp:read mcp:write"
 #-----------------------------------------------------------------------------
 # LLM Configuration.
 
+# How long a personal MCP URL stays valid, in days (default 30).
+#
+# `POST /personal/mcp` mints `{origin}/mcp/{secret}`, and that secret is the
+# WHOLE credential — `/mcp/{secret}` needs no JWT and grants read access to
+# that person's health record. It is a bearer token carried in a URL, so it
+# ends up in desktop-client config files, screenshots and shell history. This
+# was a hardcoded 365 days with no way to revoke; `DELETE /personal/mcp`
+# revokes one now, and the next mint issues a fresh secret.
+MCP_URL_TTL_DAYS: 30
+
 MCP_TOOL_DIRS:
   - mirobody/agent/tools
 AGENT_DIRS:

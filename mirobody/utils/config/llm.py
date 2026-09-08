@@ -73,6 +73,80 @@ _OPENAI_COMPAT = {
 }
 
 #-----------------------------------------------------------------------------
+# The ONE table that names a model literal.
+#
+# Issue #52's rule (owner, 2026-09-02): anything that names a model or an
+# endpoint must be overridable from config, and a literal in code is only ever
+# a fallback default living in ONE table. There were three, and the third was a
+# LOCAL variable inside `utils/llm/utils.py:async_get_structured_output` —
+# rebuilt on every call, impossible to inspect or test.
+#
+# The two that carried model ids also disagreed on what a provider is CALLED:
+# vision said `qwen`/`doubao`, structured said `dashscope`/`volcengine`, and
+# both derive their override key from that name. `config.yaml` documents
+# `<PROVIDER>_MODEL` / `<PROVIDER>_VISION_MODEL` as one uniform scheme, so for
+# Alibaba and Volcengine the documented promise was simply false: structured
+# read `DASHSCOPE_MODEL` while vision read `QWEN_VISION_MODEL`. The canonical
+# name is now the `LLMProvider` value everywhere, and the old spellings are
+# accepted as aliases (`_PROVIDER_ALIASES`) so nothing that set the old key or
+# passed the old name breaks.
+#
+#: provider → (api key config key, chat/structured default, vision default)
+#: A `None` vision default means the provider has no vision path here.
+_PROVIDER_DEFAULTS: dict[LLMProvider, tuple[str, str, str | None]] = {
+    LLMProvider.GEMINI:     ("GOOGLE_API_KEY",     "gemini-3-flash-preview",       "gemini-3-flash-preview"),
+    LLMProvider.OPENAI:     ("OPENAI_API_KEY",     "gpt-5.2",                      None),
+    LLMProvider.OPENROUTER: ("OPENROUTER_API_KEY", "google/gemini-3-flash-preview", "google/gemini-3-flash-preview"),
+    LLMProvider.DASHSCOPE:  ("DASHSCOPE_API_KEY",  "qwen-flash",                   "qwen3-vl-flash"),
+    LLMProvider.VOLCENGINE: ("VOLCENGINE_API_KEY", "doubao-seed-1-8-251228",       "doubao-seed-1-6-vision-250815"),
+}
+
+#: The spellings that reached the callable surface before the tables agreed:
+#: `unified_file_extract(provider="doubao")` and `QWEN_VISION_MODEL`. Kept
+#: because a user who set the old config key would otherwise lose it silently.
+_PROVIDER_ALIASES: dict[str, LLMProvider] = {
+    "qwen":   LLMProvider.DASHSCOPE,
+    "doubao": LLMProvider.VOLCENGINE,
+}
+
+
+def canonical_provider(name: str) -> LLMProvider | None:
+    """The `LLMProvider` a name or alias refers to, or None."""
+    key = (name or "").strip().lower()
+    if not key:
+        return None
+    try:
+        return LLMProvider(key)
+    except ValueError:
+        return _PROVIDER_ALIASES.get(key)
+
+
+def provider_model(provider: LLMProvider | str, *, vision: bool = False) -> str | None:
+    """The model id for `provider`, config first and the table's default last.
+
+    Reads `<PROVIDER>_VISION_MODEL` / `<PROVIDER>_MODEL` under the CANONICAL
+    name, then under any alias, so both spellings of the key keep working.
+    """
+    from .config import safe_read_cfg
+
+    canon = provider if isinstance(provider, LLMProvider) else canonical_provider(provider)
+    if canon is None or canon not in _PROVIDER_DEFAULTS:
+        return None
+    suffix = "_VISION_MODEL" if vision else "_MODEL"
+    names = [canon.value] + [a for a, c in _PROVIDER_ALIASES.items() if c is canon]
+    for name in names:
+        if configured := safe_read_cfg(f"{name.upper()}{suffix}"):
+            return configured
+    _, chat_default, vision_default = _PROVIDER_DEFAULTS[canon]
+    return vision_default if vision else chat_default
+
+
+def provider_api_key_env(provider: LLMProvider | str) -> str | None:
+    """The config key holding this provider's credential."""
+    canon = provider if isinstance(provider, LLMProvider) else canonical_provider(provider)
+    return _PROVIDER_DEFAULTS[canon][0] if canon in _PROVIDER_DEFAULTS else None
+
+#-----------------------------------------------------------------------------
 
 class LLMConfig:
     """
