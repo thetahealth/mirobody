@@ -5,7 +5,7 @@ along are the ones that already existed inside it as comment banners:
 
     results.py          prompt shaping + result merging (pure; no I/O)
     media.py            file -> model-ready bytes (image optimisation, PDF pages)
-    backends_openai.py  the OpenAI-compatible path: OpenRouter / Qwen / Doubao
+    backends_openai.py  the OpenAI-compatible path: OpenRouter / Qwen
     gemini.py           the Gemini path (own SDK, own page loop)
     dispatch.py         provider-selection policy + the unified entry point
 
@@ -19,7 +19,6 @@ merge rules they implement are the ones a multi-page extraction bug lands in.
 from .dispatch import (
     PROVIDER_HANDLERS,
     VisionProviderConfig,
-    _handle_doubao,
     _handle_gemini,
     _handle_openrouter,
     _handle_qwen,
@@ -27,7 +26,6 @@ from .dispatch import (
 )
 from .backends_openai import (
     PROVIDER_EXTRA_PARAMS,
-    doubao_file_extract,
     qwen_file_extract,
     vision_file_extract,
 )
@@ -47,7 +45,6 @@ __all__ = [
     "PROVIDER_HANDLERS",
     "clean_json_response",
     "gemini_file_extract",
-    "doubao_file_extract",
     "qwen_file_extract",
     "vision_file_extract",
     "unified_file_extract",

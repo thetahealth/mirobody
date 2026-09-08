@@ -129,7 +129,7 @@ so for first-party models (Gemini, OpenAI, Anthropic, Vertex) you configure
 **nothing**.
 
 Declare it only for **OpenAI-compatible endpoints** whose profile is unknown
-(DashScope, Volcengine, OpenRouter-proxied models, …):
+(DashScope, OpenRouter-proxied models, …):
 
 ```yaml
 PROVIDERS:
@@ -258,7 +258,6 @@ These providers all return `OpenAI` / `AsyncOpenAI` clients:
 | OpenAI | `OPENAI` | `OPENAI_API_KEY` | `https://api.openai.com/v1` |
 | OpenRouter | `OPENROUTER` | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` |
 | DashScope (Qwen) | `DASHSCOPE` | `DASHSCOPE_API_KEY` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
-| Volcengine (Doubao) | `VOLCENGINE` | `VOLCENGINE_API_KEY` | `https://ark.cn-beijing.volces.com/api/v3` |
 | DeepSeek | `DEEPSEEK` | `DEEPSEEK_API_KEY` | `https://api.deepseek.com/v1` |
 | Zhipu (GLM) | `ZHIPU` | `ZHIPU_API_KEY` | `https://open.bigmodel.cn/api/paas/v4` |
 | Moonshot (Kimi) | `MOONSHOT` | `MOONSHOT_API_KEY` | `https://api.moonshot.cn/v1` |

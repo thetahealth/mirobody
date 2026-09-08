@@ -38,35 +38,29 @@ class AIConfig:
         {
             "name": "openai",
             "api_key_env": "OPENAI_API_KEY",
-            "default_model": "gpt-5.2",
+            "default_model": "gpt-5.6-terra",
             "description": "OpenAI GPT Models",
         },
         {
             "name": "openrouter",
             "api_key_env": "OPENROUTER_API_KEY",
-            "default_model": "google/gemini-3-flash-preview",
+            "default_model": "google/gemini-3.8-flash",
             "description": "OpenRouter (Multi-model Gateway)",
         },
         {
             "name": "gemini",
             "api_key_env": "GOOGLE_API_KEY",
             # default_model is resolved at read time via _resolve_provider();
-            # Vertex AI backend doesn't yet serve gemini-3-flash-preview.
-            "default_model": "gemini-3-flash-preview",
+            # The Vertex backend lags the direct API on new Flash releases.
+            "default_model": "gemini-3.8-flash",
             "vertex_default_model": "gemini-2.5-flash",
             "description": "Google Gemini",
         },
         {
-            "name": "volcengine",
-            "api_key_env": "VOLCENGINE_API_KEY",
-            "default_model": "doubao-seed-1-8-251228",
-            "description": "Volcengine Doubao Seed 1.8",
-        },
-        {
             "name": "dashscope",
             "api_key_env": "DASHSCOPE_API_KEY",
-            "default_model": "qwen-flash",
-            "description": "Aliyun DashScope (Qwen Flash)",
+            "default_model": "qwen3.5-flash",
+            "description": "Aliyun DashScope (Qwen 3.5 Flash)",
         },
     ]
     # `claude` used to sit third in this list, and an ANTHROPIC_API_KEY-only
@@ -90,13 +84,6 @@ class AIConfig:
         "dashscope": {
             "api_key_env": "DASHSCOPE_API_KEY",
             "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        },
-        # Ark speaks chat/completions; its Coding and Agent plans are served
-        # from /api/coding/v3 and /api/plan/v3, which is why the URL below is a
-        # default and not a constant.
-        "volcengine": {
-            "api_key_env": "VOLCENGINE_API_KEY",
-            "api_base": "https://ark.cn-beijing.volces.com/api/v3",
         },
     }
 
@@ -135,7 +122,7 @@ class AIConfig:
         """
         Get first available provider (based on configured API keys)
 
-        Priority: openai > openrouter > gemini > volcengine > dashscope
+        Priority: openai > openrouter > gemini > dashscope
 
         Returns:
             Provider config dict with name, api_key_env, default_model, description
@@ -153,7 +140,7 @@ class AIConfig:
         Get provider config by name from priority list
 
         Args:
-            name: Provider name (openai/openrouter/gemini/volcengine/dashscope)
+            name: Provider name (openai/openrouter/gemini/dashscope)
 
         Returns:
             Provider config dict

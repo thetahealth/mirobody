@@ -1,18 +1,10 @@
-"""The OpenAI-compatible vision path — OpenRouter, Qwen and Doubao.
+"""The OpenAI-compatible vision path — OpenRouter and Qwen.
 
-All three speak chat/completions with an image_url part, so they share one
+Both speak chat/completions with an image_url part, so they share one
 implementation and differ only in client construction and a per-provider
 `extra_body` that turns "thinking" off (it costs latency and buys nothing for
 extraction). Gemini is NOT here: it has its own SDK and its own PDF handling,
 in `gemini.py`.
-
-Doubao used to be the exception, reached through volcengine-python-sdk's
-AsyncArk. It never needed to be: Ark's /api/v3 is an OpenAI-compatible
-endpoint (this repo's own sync volcengine client had always been a bare
-`OpenAI` pointed at it), the SDK was declared in the `[app]` extra but not
-installed in dev, and nothing here used a single Ark-only feature — so the
-whole tier raised ModuleNotFoundError on a normal install and no test could
-reach it.
 """
 
 from __future__ import annotations
@@ -42,7 +34,6 @@ PROVIDER_EXTRA_PARAMS: dict[str, dict[str, Any]] = {
     # extra_body, not a top-level kwarg: these are spread into
     # `chat.completions.create(**api_params)`, and the OpenAI SDK rejects
     # parameters it does not declare. AsyncArk tolerated `thinking=` there.
-    "doubao": {"extra_body": {"thinking": {"type": "disabled"}}},
 }
 
 # =============================================================================
@@ -56,7 +47,7 @@ async def _openai_compatible_process_pdf(
     max_concurrency: int = 5,
     json_mode: bool = True
 ) -> str:
-    """Process PDF with OpenAI-compatible API (OpenRouter/Qwen/Doubao)."""
+    """Process PDF with OpenAI-compatible API (OpenRouter/Qwen)."""
     logger.info(f"Processing PDF with {provider}: {pdf_path}, json_mode={json_mode}")
     total_start = time.time()
 
@@ -108,7 +99,7 @@ async def _openai_compatible_process_image(
     provider: str,
     json_mode: bool = True
 ) -> str:
-    """Process image with OpenAI-compatible API (OpenRouter/Qwen/Doubao)."""
+    """Process image with OpenAI-compatible API (OpenRouter/Qwen)."""
     logger.info(f"Processing image with {provider}: {image_path}, json_mode={json_mode}")
     start_time = time.time()
 
@@ -188,33 +179,6 @@ def _get_qwen_client() -> AsyncOpenAI:
     return client_manager.get_async_ai_client("dashscope")
 
 
-def _get_doubao_client() -> AsyncOpenAI:
-    """Get Doubao client (Ark's /api/v3 is OpenAI-compatible)."""
-    from ..clients import client_manager
-
-    return client_manager.get_async_ai_client("volcengine")
-
-
-# =============================================================================
-# Public API - Provider-Specific Extractors
-# =============================================================================
-
-async def doubao_file_extract(
-    local_file_path: str,
-    prompt: str = "Please extract all test indicators from this report and return the result in JSON format",
-    model: str = "doubao-1-5-ui-tars-250428",
-    client: AsyncOpenAI | None = None,
-    json_mode: bool = True
-) -> str:
-    """Doubao file extraction, supports PDF and image files."""
-    try:
-        client = client or _get_doubao_client()
-        return await _openai_compatible_file_extract(
-            local_file_path, prompt, model, client, "doubao", json_mode=json_mode
-        )
-    except Exception as e:
-        logger.error(f"Doubao extraction failed: {e}", stack_info=True)
-        raise ValueError(f"Doubao API failed: {e}") from e
 
 
 async def qwen_file_extract(
@@ -240,7 +204,7 @@ async def qwen_file_extract(
 async def vision_file_extract(
     local_file_path: str,
     prompt: str = "Please extract all test indicators from this report and return the result in JSON format",
-    model: str = "google/gemini-3-flash-preview",
+    model: str = "google/gemini-3.8-flash",
     client: AsyncOpenAI | None = None,
     response_schema: Any | None = None,
     json_mode: bool = True

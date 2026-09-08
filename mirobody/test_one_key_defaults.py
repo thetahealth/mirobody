@@ -176,7 +176,6 @@ def test_base_url_override_reaches_the_file_extraction_clients(monkeypatch):
     from mirobody.utils.config.config import Config
     from mirobody.utils.llm.clients import AIClientManager
     from mirobody.utils.llm.file_processors.backends_openai import (
-        _get_doubao_client,
         _get_openrouter_client,
         _get_qwen_client,
     )
@@ -185,12 +184,10 @@ def test_base_url_override_reaches_the_file_extraction_clients(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
     monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-ds-test")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-oa-test")
-    monkeypatch.setenv("VOLCENGINE_API_KEY", "sk-ve-test")
     for env, url in (
         ("OPENROUTER_BASE_URL", "http://gateway.internal:8000/v1"),
         ("DASHSCOPE_BASE_URL",  "http://gateway.internal:8001/v1"),
         ("OPENAI_BASE_URL",     "http://gateway.internal:8002/v1"),
-        ("VOLCENGINE_BASE_URL", "http://gateway.internal:8003/v1"),
     ):
         monkeypatch.setenv(env, url)
     Config(yaml_filenames=str(_CONFIG))
@@ -206,17 +203,11 @@ def test_base_url_override_reaches_the_file_extraction_clients(monkeypatch):
     assert base(manager.get_async_dashscope_client()) == "http://gateway.internal:8001/v1"
     assert base(manager.get_async_openai_client()) == "http://gateway.internal:8002/v1", \
         "OPENAI_BASE_URL must work from config too, not only as the SDK env var"
-    # Doubao/Ark is in this list because it is no longer a vendor-SDK special
-    # case: Ark's own Coding and Agent plans live at /api/coding/v3 and
-    # /api/plan/v3, so its URL is a deployment question like everyone else's.
-    assert base(_get_doubao_client()) == "http://gateway.internal:8003/v1"
 
-    for env in ("OPENROUTER_BASE_URL", "DASHSCOPE_BASE_URL", "OPENAI_BASE_URL",
-                "VOLCENGINE_BASE_URL"):
+    for env in ("OPENROUTER_BASE_URL", "DASHSCOPE_BASE_URL", "OPENAI_BASE_URL"):
         monkeypatch.delenv(env)
     manager = AIClientManager()
     assert base(_get_openrouter_client()) == "https://openrouter.ai/api/v1"
     assert base(_get_qwen_client()) == "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    assert base(manager.get_async_openai_client()) == "https://api.openai.com/v1"
-    assert base(_get_doubao_client()) == "https://ark.cn-beijing.volces.com/api/v3", \
+    assert base(manager.get_async_openai_client()) == "https://api.openai.com/v1", \
         "unset override must fall back to each provider's own gateway"

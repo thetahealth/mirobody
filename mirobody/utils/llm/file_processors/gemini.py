@@ -116,7 +116,7 @@ async def gemini_file_extract(
     content_type: str,
     prompt: str,
     config: types.GenerateContentConfig | None = None,
-    model: str = "gemini-3-flash-preview"
+    model: str = "gemini-3.8-flash"
 ) -> str:
     """Extract file content using Gemini model (supports PDF natively)."""
     try:

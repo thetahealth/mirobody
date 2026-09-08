@@ -24,134 +24,6 @@ logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
-async def async_get_doubao_structured_output(
-    model_name: str, messages: list[dict], response_format: dict = None, **kwargs
-) -> dict | None:
-    """
-    Get Doubao structured output response
-    
-    Args:
-        model_name: Doubao model name (e.g., doubao-1.5-vision-pro-250328, doubao-1-5-ui-tars-250428)
-        messages: Message list, OpenAI-compatible format. Passed through unchanged.
-        response_format: Response format config (Doubao auto-supports JSON output, this param for compatibility)
-        **kwargs: Other parameters:
-            - temperature: Randomness control (0-1)
-            - max_tokens: Max output tokens
-            - top_p: Nucleus sampling
-            - thinking: Deep thinking config, e.g., {"type": "disabled/enabled/auto"}
-            - thinking_type: Simplified thinking param, pass "disabled"/"enabled"/"auto"
-        
-    Returns:
-        Structured JSON response dict, or None on failure
-        
-
-    """
-    import time
-    
-    # Record start time
-    start_time = time.time()
-    
-    try:
-        # Ark's /api/v3 IS an OpenAI-compatible endpoint, so this needs no
-        # vendor SDK — and going through client_manager is what makes
-        # VOLCENGINE_BASE_URL reach it (Ark's own Coding and Agent plans are
-        # served from /api/coding/v3 and /api/plan/v3, so "the Ark URL" is
-        # already a deployment question, not a constant).
-        from .clients import client_manager
-
-        client = client_manager.get_async_ai_client("volcengine")
-        
-        request_params = {
-            "model": model_name,
-            "messages": messages,
-            "response_format": response_format,  # Force JSON output
-        }
-        
-        # Add optional params
-        if "temperature" in kwargs:
-            request_params["temperature"] = kwargs["temperature"]
-        if "max_tokens" in kwargs:
-            request_params["max_tokens"] = kwargs["max_tokens"]
-        if "top_p" in kwargs:
-            request_params["top_p"] = kwargs["top_p"]
-        
-        # Handle thinking param (via extra_body)
-        extra_body = {}
-        if "thinking" in kwargs:
-            extra_body["thinking"] = kwargs["thinking"]
-        elif "thinking_type" in kwargs:
-            # Support simplified thinking_type param
-            extra_body["thinking"] = {"type": kwargs["thinking_type"]}
-        else:
-            # Default disable thinking (avoid unnecessary computation)
-            extra_body["thinking"] = {"type": "disabled"}
-        
-        if extra_body:
-            request_params["extra_body"] = extra_body
-            
-        logger.info(f"Calling Doubao API - Model: {model_name}, Messages: {len(messages)}")
-        
-        # Record API call start time
-        api_start_time = time.time()
-        
-        # Call Doubao API
-        response = await client.chat.completions.create(**request_params)
-        
-        # Calculate API call duration
-        api_duration = time.time() - api_start_time
-        logger.info(f"Doubao API call completed, duration: {api_duration:.3f}s")
-        
-        # Extract response content
-        if response.choices and len(response.choices) > 0:
-            finish_reason = getattr(response.choices[0], "finish_reason", None)
-            if finish_reason == "length":
-                total_duration = time.time() - start_time
-                logger.error(f"Doubao response truncated (finish_reason=length), max_tokens too low. Total: {total_duration:.3f}s")
-
-            content = response.choices[0].message.content
-            if content:
-                try:
-                    # Record JSON parse start time
-                    parse_start_time = time.time()
-
-                    # Try to parse JSON
-                    final_result = json.loads(content)
-
-                    # Calculate JSON parse duration
-                    parse_duration = time.time() - parse_start_time
-
-                    # Calculate total duration
-                    total_duration = time.time() - start_time
-
-                    logger.info(f"Doubao structured output success - Parse: {parse_duration:.3f}s, Total: {total_duration:.3f}s")
-                    return final_result
-
-                except json.JSONDecodeError as json_error:
-                    total_duration = time.time() - start_time
-                    content_len = len(content) if content else 0
-                    logger.error(
-                        f"Doubao response JSON parse failed: {json_error}, "
-                        f"finish_reason={finish_reason}, content_length={content_len}, "
-                        f"Total: {total_duration:.3f}s, "
-                        f"Original content (first 500): {content[:500]}... "
-                        f"Original content (last 200): ...{content[-200:] if content_len > 200 else content}",
-                        stack_info=True
-                    )
-                    return None
-            else:
-                total_duration = time.time() - start_time
-                logger.warning(f"Doubao API response content empty, Total: {total_duration:.3f}s")
-                return None
-        else:
-            total_duration = time.time() - start_time
-            logger.warning(f"Doubao API response choices empty, Total: {total_duration:.3f}s")
-            return None
-            
-    except Exception as e:
-        total_duration = time.time() - start_time
-        logger.error(f"Doubao structured output API error: {type(e).__name__}: {str(e)}, Total: {total_duration:.3f}s", stack_info=True)
-        return None
-
 
 #: Priority order for structured extraction. Gemini first: its JSON-schema
 #: support is the strictest of the five. The api key and the model default come
@@ -162,7 +34,6 @@ STRUCTURED_OUTPUT_PRIORITY: tuple[LLMProvider, ...] = (
     LLMProvider.GEMINI,
     LLMProvider.OPENAI,
     LLMProvider.OPENROUTER,
-    LLMProvider.VOLCENGINE,
     LLMProvider.DASHSCOPE,
 )
 
@@ -177,7 +48,7 @@ async def async_get_structured_output(
     """
     Unified structured output function, auto-selects provider based on available API keys
     
-    Priority: openai > openrouter > gemini > volcengine > dashscope
+    Priority: openai > openrouter > gemini > dashscope
     
     Args:
         messages: Message list
@@ -240,17 +111,6 @@ async def async_get_structured_output(
                     logger.info(f"{prov_name} structured output completed, duration: {duration:.3f}s")
                     return final_result
                 return None
-
-            if prov_name == "volcengine":
-                volcengine_kwargs = {**kwargs}
-                if max_tokens_value:
-                    volcengine_kwargs["max_tokens"] = max_tokens_value
-                return await async_get_doubao_structured_output(
-                    model_name=prov_model,
-                    messages=messages,
-                    response_format=response_format,
-                    **volcengine_kwargs
-                )
 
             if prov_name == "dashscope":
                 dashscope_kwargs = {**kwargs}
@@ -341,7 +201,7 @@ async def async_get_structured_output(
         # `<PROVIDER>_VISION_MODEL` on the vision path. Needed whenever
         # `<PROVIDER>_BASE_URL` points at a gateway that does not serve
         # the default model id (e.g. OpenRouter redirected to DashScope:
-        # `google/gemini-3-flash-preview` 404s there).
+        # `google/gemini-3.8-flash` 404s there).
         prov_model = provider_model(canon)
         logger.info(f"async_get_structured_output: Trying {prov_name} provider, model: {prov_model}")
         result = await _call_provider(prov_name, prov_model)
@@ -366,7 +226,7 @@ async def async_get_text_completion(
     
     For generating plain text (non-JSON), such as Markdown, plain text, etc.
     
-    Priority: openai > openrouter > gemini > volcengine > dashscope
+    Priority: openai > openrouter > gemini > dashscope
     
     Args:
         messages: Message list, format: [{"role": "system/user/assistant", "content": "..."}]
@@ -424,8 +284,8 @@ async def async_get_text_completion(
     logger.info(f"async_get_text_completion: Using {provider} provider, model: {actual_model}")
     
     try:
-        if provider in ["openai", "openrouter", "dashscope", "volcengine"]:
-            # OpenAI-compatible clients — volcengine included: Ark's /api/v3
+        if provider in ["openai", "openrouter", "dashscope"]:
+            # OpenAI-compatible clients
             # speaks chat/completions, so it needs no vendor SDK.
             if provider == "openai":
                 client = client_manager.get_async_openai_client()

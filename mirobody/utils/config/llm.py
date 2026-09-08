@@ -9,9 +9,9 @@ and the object hands back a ready client.
 
 NOT the same thing as `mirobody/utils/llm/config.py`, despite the near-identical
 path. The two coexist and overlap on openai / openrouter / dashscope /
-volcengine / gemini:
+gemini:
 
-  utils/config/llm.py   (this file)  `LLMConfig`  — YAML-driven, 11 providers,
+  utils/config/llm.py   (this file)  `LLMConfig`  — YAML-driven, 10 providers,
                                      reached through `global_config().get_llm()`.
                                      Used by `utils/embedding.py`.
   utils/llm/config.py                `AIConfig`   — a hardcoded provider table
@@ -49,7 +49,6 @@ class LLMProvider(str, Enum):
     OPENAI     = "openai"
     OPENROUTER = "openrouter"
     DASHSCOPE  = "dashscope"
-    VOLCENGINE = "volcengine"
     DEEPSEEK   = "deepseek"
     ZHIPU      = "zhipu"
     MOONSHOT   = "moonshot"
@@ -66,7 +65,6 @@ _OPENAI_COMPAT = {
     LLMProvider.OPENAI:     ("OPENAI_API_KEY",     "https://api.openai.com/v1"),
     LLMProvider.OPENROUTER: ("OPENROUTER_API_KEY", "https://openrouter.ai/api/v1"),
     LLMProvider.DASHSCOPE:  ("DASHSCOPE_API_KEY",  "https://dashscope.aliyuncs.com/compatible-mode/v1"),
-    LLMProvider.VOLCENGINE: ("VOLCENGINE_API_KEY", "https://ark.cn-beijing.volces.com/api/v3"),
     LLMProvider.DEEPSEEK:   ("DEEPSEEK_API_KEY",   "https://api.deepseek.com/v1"),
     LLMProvider.ZHIPU:      ("ZHIPU_API_KEY",      "https://open.bigmodel.cn/api/paas/v4"),
     LLMProvider.MOONSHOT:   ("MOONSHOT_API_KEY",   "https://api.moonshot.cn/v1"),
@@ -82,31 +80,28 @@ _OPENAI_COMPAT = {
 # rebuilt on every call, impossible to inspect or test.
 #
 # The two that carried model ids also disagreed on what a provider is CALLED:
-# vision said `qwen`/`doubao`, structured said `dashscope`/`volcengine`, and
-# both derive their override key from that name. `config.yaml` documents
-# `<PROVIDER>_MODEL` / `<PROVIDER>_VISION_MODEL` as one uniform scheme, so for
-# Alibaba and Volcengine the documented promise was simply false: structured
-# read `DASHSCOPE_MODEL` while vision read `QWEN_VISION_MODEL`. The canonical
-# name is now the `LLMProvider` value everywhere, and the old spellings are
-# accepted as aliases (`_PROVIDER_ALIASES`) so nothing that set the old key or
-# passed the old name breaks.
+# vision said `qwen` where everything else said `dashscope`, and both derive
+# their override key from that name — so the uniform `<PROVIDER>_MODEL` /
+# `<PROVIDER>_VISION_MODEL` scheme `config.yaml` documents was false for
+# Alibaba: structured read `DASHSCOPE_MODEL`, vision read `QWEN_VISION_MODEL`.
+# The canonical name is the `LLMProvider` value everywhere now, with `qwen`
+# kept as an alias so a deployment that set the old key does not lose it.
 #
 #: provider → (api key config key, chat/structured default, vision default)
 #: A `None` vision default means the provider has no vision path here.
 _PROVIDER_DEFAULTS: dict[LLMProvider, tuple[str, str, str | None]] = {
-    LLMProvider.GEMINI:     ("GOOGLE_API_KEY",     "gemini-3-flash-preview",       "gemini-3-flash-preview"),
-    LLMProvider.OPENAI:     ("OPENAI_API_KEY",     "gpt-5.2",                      None),
-    LLMProvider.OPENROUTER: ("OPENROUTER_API_KEY", "google/gemini-3-flash-preview", "google/gemini-3-flash-preview"),
-    LLMProvider.DASHSCOPE:  ("DASHSCOPE_API_KEY",  "qwen-flash",                   "qwen3-vl-flash"),
-    LLMProvider.VOLCENGINE: ("VOLCENGINE_API_KEY", "doubao-seed-1-8-251228",       "doubao-seed-1-6-vision-250815"),
+    LLMProvider.GEMINI:     ("GOOGLE_API_KEY",     "gemini-3.8-flash",         "gemini-3.8-flash"),
+    LLMProvider.OPENAI:     ("OPENAI_API_KEY",     "gpt-5.6-terra",            None),
+    LLMProvider.OPENROUTER: ("OPENROUTER_API_KEY", "google/gemini-3.8-flash",  "google/gemini-3.8-flash"),
+    # qwen3.5-flash, not qwen-flash: the latter reaches DashScope's legacy
+    # backend, which rejects function results (config.yaml, verified 2026-08-23).
+    LLMProvider.DASHSCOPE:  ("DASHSCOPE_API_KEY",  "qwen3.5-flash",            "qwen3-vl-flash"),
 }
 
-#: The spellings that reached the callable surface before the tables agreed:
-#: `unified_file_extract(provider="doubao")` and `QWEN_VISION_MODEL`. Kept
-#: because a user who set the old config key would otherwise lose it silently.
+#: `QWEN_VISION_MODEL` was the key vision used before the tables agreed on the
+#: enum value; kept so a deployment that set it does not lose it silently.
 _PROVIDER_ALIASES: dict[str, LLMProvider] = {
-    "qwen":   LLMProvider.DASHSCOPE,
-    "doubao": LLMProvider.VOLCENGINE,
+    "qwen": LLMProvider.DASHSCOPE,
 }
 
 

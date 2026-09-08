@@ -271,7 +271,7 @@ def _cmd_parse(args: argparse.Namespace) -> None:
             "needs one API key:\n"
             "\n"
             "    export OPENROUTER_API_KEY=...     # or GOOGLE_API_KEY,\n"
-            "                                      # DASHSCOPE_API_KEY, VOLCENGINE_API_KEY\n"
+            "                                      # DASHSCOPE_API_KEY\n"
             "\n"
             "`mirobody resolve` needs no key and no network — try that first if you "
             "only want to see indicator resolution."

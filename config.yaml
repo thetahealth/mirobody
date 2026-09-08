@@ -486,7 +486,7 @@ ENABLE_INDICATOR_EXTRACTION: 1
 #
 # UNSET BY DEFAULT: when this key is absent the provider follows whichever
 # API key exists (openrouter → qwen/DashScope → gemini; vision auto-selects
-# by key too, in its own order — gemini → openrouter → qwen → doubao), so
+# by key too, in its own order — gemini → openrouter → qwen), so
 # either one-key path gets embeddings with no
 # extra line. Set it explicitly to pin one.
 #
@@ -523,6 +523,6 @@ ENABLE_INDICATOR_EXTRACTION: 1
 
 # Vision model for image/PDF parsing (unified_file_extract). The vision provider
 # auto-selects 'gemini' when GOOGLE_API_KEY is set; this overrides its default
-# (gemini-3-flash-preview). Key name = <PROVIDER>_VISION_MODEL, provider='gemini'.
+# (gemini-3.8-flash). Key name = <PROVIDER>_VISION_MODEL, provider='gemini'.
 GEMINI_VISION_MODEL: gemini-3.5-flash
 #-----------------------------------------------------------------------------

@@ -340,7 +340,7 @@ class FileAbstractExtractor:
         generate_filename: bool = True
     ) -> dict[str, str]:
         """
-        Generate abstract and filename using LLM file extract service (Gemini or Doubao based on environment)
+        Generate abstract and filename using the LLM file extract service (provider auto-selected by available key)
         
         Args:
             temp_file_path: Path to temporary file

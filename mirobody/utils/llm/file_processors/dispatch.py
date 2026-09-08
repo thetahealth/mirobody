@@ -27,9 +27,8 @@ from mirobody.utils.config.llm import (
     provider_model,
 )
 
-from .backends_openai import doubao_file_extract, qwen_file_extract, vision_file_extract
+from .backends_openai import qwen_file_extract, vision_file_extract
 from .gemini import gemini_file_extract
-from .results import _build_prompt_with_schema
 
 logger = logging.getLogger(__name__)
 
@@ -39,14 +38,13 @@ class VisionProviderConfig:
 
     #: Priority order only. The api key, the default model and what a provider
     #: is CALLED all come from `config.llm._PROVIDER_DEFAULTS` — this list used
-    #: to carry its own copy of them, under names (`qwen`, `doubao`) that
-    #: disagreed with every other table, which broke the documented
-    #: `<PROVIDER>_VISION_MODEL` scheme for exactly those two providers.
+    #: to carry its own copy of them, under a name (`qwen`) that disagreed with
+    #: every other table, which broke the documented `<PROVIDER>_VISION_MODEL`
+    #: scheme for that provider.
     VISION_PRIORITY: tuple[LLMProvider, ...] = (
         LLMProvider.GEMINI,
         LLMProvider.OPENROUTER,
         LLMProvider.DASHSCOPE,
-        LLMProvider.VOLCENGINE,
     )
 
     @classmethod
@@ -139,29 +137,13 @@ async def _handle_qwen(
     )
 
 
-async def _handle_doubao(
-    file_path: str, prompt: str, content_type: str, model: str,
-    config: Any, response_schema: Any, json_mode: bool
-) -> str:
-    """Handler for Doubao provider."""
-    final_prompt = _build_prompt_with_schema(prompt, response_schema) if response_schema else prompt
-    return await doubao_file_extract(
-        local_file_path=file_path,
-        prompt=final_prompt,
-        model=model,
-        json_mode=json_mode
-    )
-
-
-#: Keyed by the CANONICAL provider name (`LLMProvider`'s value). `qwen` and
-#: `doubao` were the old keys; `unified_file_extract(provider="doubao")` is a
-#: real call in this repo's tests, so `canonical_provider` maps them here
-#: rather than the names being dropped.
+#: Keyed by the CANONICAL provider name (`LLMProvider`'s value). `qwen` was the
+#: old key, which `canonical_provider` still maps, so a caller passing it keeps
+#: working.
 PROVIDER_HANDLERS: dict[str, Callable] = {
     LLMProvider.GEMINI.value: _handle_gemini,
     LLMProvider.OPENROUTER.value: _handle_openrouter,
     LLMProvider.DASHSCOPE.value: _handle_qwen,
-    LLMProvider.VOLCENGINE.value: _handle_doubao,
 }
 
 
@@ -177,7 +159,7 @@ async def unified_file_extract(
     """
     Unified file extraction that auto-selects provider based on API keys.
 
-    Provider priority: gemini > openrouter > qwen > doubao
+    Provider priority: gemini > openrouter > qwen
 
     Args:
         file_path: Path to the file
@@ -206,7 +188,7 @@ async def unified_file_extract(
             status = VisionProviderConfig.get_provider_status()
             raise ValueError(
                 f"No vision provider available. Configure one of: "
-                f"GOOGLE_API_KEY, OPENROUTER_API_KEY, DASHSCOPE_API_KEY, VOLCENGINE_API_KEY. "
+                f"GOOGLE_API_KEY, OPENROUTER_API_KEY, DASHSCOPE_API_KEY. "
                 f"Current status: {status}"
             )
 

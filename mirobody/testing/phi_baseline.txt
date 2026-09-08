@@ -355,12 +355,6 @@ mirobody/pulse/providers/mirobody_oura/provider_oura.py	interpolation	client_id[
 mirobody/pulse/providers/mirobody_oura/provider_oura.py	interpolation	e
 mirobody/pulse/providers/mirobody_oura/provider_oura.py	interpolation	retry_after
 mirobody/pulse/providers/mirobody_oura/provider_oura.py	interpolation	url
-mirobody/pulse/providers/mirobody_pgsql/provider_pgsql.py	interpolation	database
-mirobody/pulse/providers/mirobody_pgsql/provider_pgsql.py	interpolation	e
-mirobody/pulse/providers/mirobody_pgsql/provider_pgsql.py	interpolation	host
-mirobody/pulse/providers/mirobody_pgsql/provider_pgsql.py	interpolation	port
-mirobody/pulse/providers/mirobody_pgsql/provider_pgsql.py	interpolation	str(e)
-mirobody/pulse/providers/mirobody_pgsql/provider_pgsql.py	interpolation	version[:80]
 mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	e
 mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	endpoint
 mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	error_details
@@ -636,9 +630,6 @@ mirobody/utils/llm/file_processors/results.py	interpolation	result.get('page', 0
 mirobody/utils/llm/file_processors/results.py	interpolation	result['error']
 mirobody/utils/llm/hipaa_policy.py	interpolation	value[:30]
 mirobody/utils/llm/utils.py	interpolation	actual_model
-mirobody/utils/llm/utils.py	interpolation	content[-200:] if content_len > 200 else content
-mirobody/utils/llm/utils.py	interpolation	content[:500]
-mirobody/utils/llm/utils.py	interpolation	json_error
 mirobody/utils/llm/utils.py	interpolation	prov_model
 mirobody/utils/llm/utils.py	interpolation	prov_name
 mirobody/utils/llm/utils.py	interpolation	str(e)
