@@ -84,7 +84,10 @@ async def shared_by_me_list(user_id: str = Depends(verify_token)):
     try:
         rows = await cc.circle_members(user_id)
         me = int(user_id)
-        return ok([
+        # A named key, not a bare list: `data` is `dict[str, Any]`, so `ok([...])`
+        # raised a validation error the `except` below reported as "Could not
+        # list your circle." — every call, since this router was written.
+        return ok({"members": [
             {
                 "share_id": str(r["member_row_id"]),
                 "query_user_id": str(r["user_id"]),
@@ -98,7 +101,7 @@ async def shared_by_me_list(user_id: str = Depends(verify_token)):
                 "email": r.get("email"),
             }
             for r in rows if int(r["user_id"]) != me
-        ])
+        ]})
     except Exception as e:
         logger.error(f"shared-by-me/list: {e}", exc_info=True)
         return err(-1, "Could not list your circle.")
