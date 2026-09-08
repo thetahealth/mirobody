@@ -20,6 +20,12 @@ from collections.abc import Callable
 from google.genai import types
 
 from mirobody.utils.config import safe_read_cfg
+from mirobody.utils.config.llm import (
+    LLMProvider,
+    canonical_provider,
+    provider_api_key_env,
+    provider_model,
+)
 
 from .backends_openai import doubao_file_extract, qwen_file_extract, vision_file_extract
 from .gemini import gemini_file_extract
@@ -31,59 +37,61 @@ logger = logging.getLogger(__name__)
 class VisionProviderConfig:
     """Vision provider configuration with auto-selection based on API keys."""
 
-    VISION_PROVIDERS: list[dict[str, Any]] = [
-        {
-            "name": "gemini",
-            "api_key_env": "GOOGLE_API_KEY",
-            "default_model": "gemini-3-flash-preview",
-            "description": "Google Gemini (Direct API)",
-        },
-        {
-            "name": "openrouter",
-            "api_key_env": "OPENROUTER_API_KEY",
-            "default_model": "google/gemini-3-flash-preview",
-            "description": "OpenRouter (OpenAI Compatible)",
-        },
-        {
-            "name": "qwen",
-            "api_key_env": "DASHSCOPE_API_KEY",
-            "default_model": "qwen3-vl-flash",
-            "description": "Qwen Vision (Alibaba Dashscope)",
-        },
-        {
-            "name": "doubao",
-            "api_key_env": "VOLCENGINE_API_KEY",
-            "default_model": "doubao-seed-1-6-vision-250815",
-            "description": "Doubao/Volcengine Vision",
-        },
-    ]
+    #: Priority order only. The api key, the default model and what a provider
+    #: is CALLED all come from `config.llm._PROVIDER_DEFAULTS` — this list used
+    #: to carry its own copy of them, under names (`qwen`, `doubao`) that
+    #: disagreed with every other table, which broke the documented
+    #: `<PROVIDER>_VISION_MODEL` scheme for exactly those two providers.
+    VISION_PRIORITY: tuple[LLMProvider, ...] = (
+        LLMProvider.GEMINI,
+        LLMProvider.OPENROUTER,
+        LLMProvider.DASHSCOPE,
+        LLMProvider.VOLCENGINE,
+    )
+
+    @classmethod
+    def _entry(cls, provider: LLMProvider) -> dict[str, Any]:
+        return {
+            "name": provider.value,
+            "api_key_env": provider_api_key_env(provider),
+            "default_model": provider_model(provider, vision=True),
+        }
+
+    @classmethod
+    def providers(cls) -> list[dict[str, Any]]:
+        """The vision providers, in priority order, resolved against config."""
+        return [cls._entry(p) for p in cls.VISION_PRIORITY]
 
     @classmethod
     def get_available_provider(cls) -> dict[str, Any] | None:
         """Get first available provider with configured API key."""
-        for provider in cls.VISION_PROVIDERS:
+        for provider in cls.providers():
             if safe_read_cfg(provider["api_key_env"]):
-                logger.info(f"Vision provider selected: {provider['name']} ({provider['description']})")
+                # Bound to a name `phi_lint` recognises rather than
+                # interpolating the subscript: the rule refuses `x["k"]`
+                # because it cannot tell a provider name from a row value.
+                provider_name = provider["name"]
+                logger.info("Vision provider selected: %s", provider_name)
                 return provider
         return None
 
     @classmethod
     def get_provider_by_name(cls, name: str) -> dict[str, Any] | None:
         """Get provider configuration by name."""
-        for provider in cls.VISION_PROVIDERS:
-            if provider["name"] == name:
-                return provider
-        return None
+        canon = canonical_provider(name)
+        if canon is None or canon not in cls.VISION_PRIORITY:
+            return None
+        return cls._entry(canon)
 
     @classmethod
     def list_available_providers(cls) -> list[str]:
         """List all providers with configured API keys."""
-        return [p["name"] for p in cls.VISION_PROVIDERS if safe_read_cfg(p["api_key_env"])]
+        return [p["name"] for p in cls.providers() if safe_read_cfg(p["api_key_env"])]
 
     @classmethod
     def get_provider_status(cls) -> dict[str, bool]:
         """Get availability status of all providers."""
-        return {p["name"]: bool(safe_read_cfg(p["api_key_env"])) for p in cls.VISION_PROVIDERS}
+        return {p["name"]: bool(safe_read_cfg(p["api_key_env"])) for p in cls.providers()}
 
 
 
@@ -145,11 +153,15 @@ async def _handle_doubao(
     )
 
 
+#: Keyed by the CANONICAL provider name (`LLMProvider`'s value). `qwen` and
+#: `doubao` were the old keys; `unified_file_extract(provider="doubao")` is a
+#: real call in this repo's tests, so `canonical_provider` maps them here
+#: rather than the names being dropped.
 PROVIDER_HANDLERS: dict[str, Callable] = {
-    "gemini": _handle_gemini,
-    "openrouter": _handle_openrouter,
-    "qwen": _handle_qwen,
-    "doubao": _handle_doubao,
+    LLMProvider.GEMINI.value: _handle_gemini,
+    LLMProvider.OPENROUTER.value: _handle_openrouter,
+    LLMProvider.DASHSCOPE.value: _handle_qwen,
+    LLMProvider.VOLCENGINE.value: _handle_doubao,
 }
 
 
@@ -199,7 +211,9 @@ async def unified_file_extract(
             )
 
     provider_name = provider_config["name"]
-    actual_model = model or safe_read_cfg(f"{provider_name.upper()}_VISION_MODEL", provider_config["default_model"])
+    # `provider_model` already applied `<PROVIDER>_VISION_MODEL` (canonical name
+    # and alias) over the one table's default; an explicit `model=` still wins.
+    actual_model = model or provider_config["default_model"]
 
     # Extract response_schema from config
     response_schema = getattr(config, 'response_schema', None) if config else None
