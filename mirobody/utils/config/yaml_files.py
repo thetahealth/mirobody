@@ -30,11 +30,24 @@ _YAML_SUFFIX_LEN = len(".yaml")
 _KEY_YAML_SUFFIX_LEN = len(".key.yaml")
 
 
-def _clean(names) -> list[str]:
-    """Non-empty stripped strings, in order, without duplicates."""
-    out: list[str] = []
+def _clean(names) -> list:
+    """Non-empty stripped strings, in order, without duplicates.
+
+    A READABLE entry — an ``io.StringIO`` holding config built in memory — is
+    passed THROUGH rather than dropped. `Config.__init__` has always accepted a
+    stream, and this function discarding one meant `Config.init` (and so
+    `Server.start`) could only ever be given files: `mirobody dev` handed it an
+    overlay and got the shipped defaults, with nothing logged. Streams have no
+    `.key.yaml` sibling and no path to stat, so `_with_key_files` and the
+    existence filter skip them too.
+
+    Anything else non-string (``None``, an int) is still dropped: that is
+    garbage in the caller's list, not a config source."""
+    out: list = []
     for n in names or []:
         if not isinstance(n, str):
+            if hasattr(n, "read"):
+                out.append(n)
             continue
         n = n.strip()
         if n and n not in out:
@@ -51,8 +64,11 @@ def _with_key_files(names: list[str]) -> list[str]:
     behaviour, which quietly ignores a non-YAML entry rather than failing the
     boot on it.
     """
-    out: list[str] = []
+    out: list = []
     for name in names:
+        if not isinstance(name, str):
+            out.append(name)   # a stream (already filtered by `_clean`)
+            continue
         if name in out:
             continue
         out.append(name)
@@ -70,9 +86,14 @@ def _with_env_files(names: list[str], env: str) -> list[str]:
 
     `config.yaml` -> `config.{env}.yaml`,
     `config.key.yaml` -> `config.{env}.key.yaml`.
+
+    A stream has no name to build a variant from, so it passes through.
     """
-    out: list[str] = []
+    out: list = []
     for name in names:
+        if not isinstance(name, str):
+            out.append(name)
+            continue
         if name in out:
             continue
         out.append(name)
