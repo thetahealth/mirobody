@@ -440,11 +440,11 @@ mirobody は健康データの標準化と推論を行うものであり、デ�
 ## ⭐ Star の推移
 
 <div align="center">
-<a href="https://star-history.dera.page/#thetahealth/mirobody&Date">
+<a href="https://www.star-history.com/#thetahealth/mirobody&Date">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=thetahealth/mirobody&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=thetahealth/mirobody&type=Date" />
-    <img alt="Star 推移グラフ" src="https://star-history.dera.page/svg?repos=thetahealth/mirobody&type=Date" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=thetahealth/mirobody&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=thetahealth/mirobody&type=Date" />
+    <img alt="Star 推移グラフ" src="https://api.star-history.com/svg?repos=thetahealth/mirobody&type=Date" />
   </picture>
 </a>
 </div>

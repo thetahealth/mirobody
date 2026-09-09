@@ -421,11 +421,11 @@ mirobody 做的是健康数据的标准化与推理，不追求成为接入设�
 ## ⭐ Star 趋势
 
 <div align="center">
-<a href="https://star-history.dera.page/#thetahealth/mirobody&Date">
+<a href="https://www.star-history.com/#thetahealth/mirobody&Date">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=thetahealth/mirobody&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=thetahealth/mirobody&type=Date" />
-    <img alt="Star 趋势图" src="https://star-history.dera.page/svg?repos=thetahealth/mirobody&type=Date" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=thetahealth/mirobody&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=thetahealth/mirobody&type=Date" />
+    <img alt="Star 趋势图" src="https://api.star-history.com/svg?repos=thetahealth/mirobody&type=Date" />
   </picture>
 </a>
 </div>
