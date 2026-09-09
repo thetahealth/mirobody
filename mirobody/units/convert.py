@@ -41,7 +41,7 @@ which is a different job on the other side of the pipeline: it takes a
 ``StandardIndicator`` enum member and converts to *that device indicator's*
 declared canonical unit (① Collect, one target per indicator). This module takes
 two arbitrary UCUM strings and asks whether they are interconvertible at all
-(② Standardize, no target). Use that one to canonicalize a device sample; use
+(② Translate, no target). Use that one to canonicalize a device sample; use
 this one to compare two readings.
 """
 

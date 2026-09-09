@@ -50,7 +50,7 @@ five:
 | Suite | Covers | Notes |
 | --- | --- | --- |
 | `mirobody/test_engine_coverage.py` | **the published accuracy number** | the case table: the panels an ordinary checkup includes, in en / 简体中文 / 繁體中文 / 日本語, plus device vocabulary, report shapes (`名称(缩写)`, `Name-ABBREV`, snake_case, full-width), unit-dependent codes and non-numeric readings. Run with `-s` to print the score; `COVERAGE_FLOOR = 1.0` |
-| `mirobody/test_engine.py` | golden LOINC codes for ② Standardize | pins the whole chain: alias index → commonness prior → axis table |
+| `mirobody/test_engine.py` | golden LOINC codes for ② Translate | pins the whole chain: alias index → commonness prior → axis table |
 | `mirobody/test_readme_numbers.py` | every figure the four READMEs publish | each one re-derived from the artifact or code that defines it, so a number cannot drift silently |
 | `mirobody/test_readme_links.py` | every link and demo asset in the four READMEs | a dead relative link is a broken promise on the front page; localized GIFs must be referenced by their own translations |
 | `mirobody/test_readme_l10n.py` | the translations themselves | script hygiene (no Simplified characters in 繁體中文), and every language shows the same demo |

@@ -1,6 +1,6 @@
 # Units
 
-UCUM units, unit families and conversions — the half of ② Standardize that
+UCUM units, unit families and conversions — the half of ② Translate that
 answers "is this number comparable to that one". Pure Python, no data bundle,
 no network: `pip install mirobody` gets all of it.
 

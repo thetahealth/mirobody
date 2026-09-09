@@ -1,4 +1,4 @@
-"""③ Answers: the agent, its tools, and the chat surface.
+"""③ Answer: the agent, its tools, and the chat surface.
 
     agent.py        `MirobodyAgent` — one turn, end to end (LangChain +
                     deepagents)

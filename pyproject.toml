@@ -46,7 +46,7 @@ classifiers = [
 # about it. The Docker application is a PRODUCT and wants everything in the
 # box. Until 1.3.0 the pyproject described only the second: base carried the
 # whole ① Collect extraction stack and three LLM SDKs, so a consumer who wanted
-# ② Standardize — offline name → LOINC, UCUM units — installed 93 packages and
+# ② Translate — offline name → LOINC, UCUM units — installed 93 packages and
 # 245 MB, of which mirobody itself was 29 MB.
 #
 # That was not merely wasteful. `mcp>=2.0.0` in base made the package
@@ -59,7 +59,7 @@ classifiers = [
 # is numpy and nothing else (measured — `import mirobody.engine` pulls zero
 # third-party packages; numpy is imported inside `OfflineResolver.__init__`).
 dependencies = [
-    # ② Standardize. The offline resolver rebuilds the 921k-alias index from
+    # ② Translate. The offline resolver rebuilds the 921k-alias index from
     # .npz on every construction, and `mirobody/units/` reads none of it — but
     # 20 modules under indicator/ import numpy at module level. It went
     # undeclared for a long time and worked only because pandas (since
@@ -320,7 +320,7 @@ include = ["mirobody", "mirobody.*"]
     "**/*.so",
     # ── engine data bundles (Git LFS) ────────────────────────────────────────
     # These are not optional extras: `mirobody.engine.resolve` — the front door
-    # of ② Standardize, and the one line the README leads with — reads
+    # of ② Translate, and the one line the README leads with — reads
     # res/fhir_loinc_bundle.tar.gz, res/fhir_meta.csv.gz and res/aliases_src/*.tsv
     # at import time. Until 1.0.62 only *.bin was listed here, so every published
     # wheel shipped an engine that could not resolve anything. Keep .gz/.npy/.tsv
@@ -384,9 +384,9 @@ markers = [
 # ── Architectural boundary, machine-enforced (run: lint-imports) ─────────────
 #
 # The engine follows the langchain / langchain-core layering: the DATA ENGINE
-# (① Collect: pulse · ② Standardize: indicator, plus the shared utils/user/mcp/task
+# (① Collect: pulse · ② Translate: indicator, plus the shared utils/user/mcp/task
 # infra) must stay importable without any agent framework, while the AGENT
-# LAYER (③ Answers: agent, server) is the only place LangChain and friends
+# LAYER (③ Answer: agent, server) is the only place LangChain and friends
 # may appear. These contracts turn that rule from a convention into a CI check.
 # import-linter parses function-local imports too, so lazy imports can't sneak
 # a violation past it.

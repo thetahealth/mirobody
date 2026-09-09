@@ -35,7 +35,7 @@ def _require_extra(command: str, extra: str, marker: str, what: str) -> None:
     opaque ``ModuleNotFoundError``. Checking one marker dependency up front and
     naming the pip command is the entire fix.
 
-    ``pip install mirobody`` is ② Standardize — ``resolve``, units, lexical,
+    ``pip install mirobody`` is ② Translate — ``resolve``, units, lexical,
     numpy and nothing else. That is deliberate: it is the surface other
     software depends ON, and it used to drag 93 packages and 245 MB behind it.
     """

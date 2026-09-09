@@ -1,4 +1,4 @@
-"""Terminology tools — ② Standardize, exposed over MCP.
+"""Terminology tools — ② Translate, exposed over MCP.
 
 This is the engine's differentiator on the tool surface. Every other health MCP
 server hands the model *vendor-shaped* data and leaves naming to chance:
