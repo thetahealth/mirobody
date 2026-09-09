@@ -78,7 +78,7 @@ resolve("血脂").resolved                                 # False    类别，�
 
 | 阶段 | 含义 | 位置 |
 | --- | --- | --- |
-| **① 收集 Collect** | 接入数据：3 家设备提供者 + 1 个 SQL 数据源 · 7 种文件格式 · Apple Health（只接收：由已签名的 iOS 客户端推送进来） | [`pulse/`](mirobody/pulse/) |
+| **① 收集 Collect** | 接入数据：3 家设备提供者 · 7 种文件格式 · Apple Health（只接收：由已签名的 iOS 客户端推送进来） | [`pulse/`](mirobody/pulse/) |
 | **② 转译 Translate**（standardize） | 一套标准：把任意读数解析为标准编码（LOINC · SNOMED CT · RxNorm），单位统一到 UCUM，落入 FHIR 认可的码制 | [`indicator/`](mirobody/indicator/) |
 | **③ 回答 Answer**（agent） | 推理：agent 通过虚拟文件系统读取*原始文件*，以图表和引用来源作答 | [`agent/`](mirobody/agent/) |
 
