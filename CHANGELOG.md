@@ -227,6 +227,21 @@ evaluation is bit-identical to 1.4.0 (coverage 0.9631, wrong-rate 0.0322).
 
 ### Changed
 
+- **The README is a first screen, and the stages are Collect · Translate
+  (standardize) · Answer (agent).** Both live editions — `README.md` and
+  `README.zh-CN.md`, 267 and 240 lines against 510 and 445 — open on the offline
+  resolver and the care circle; the vocabulary deep-dive, the directory map and
+  the four-scene walkthrough moved to `docs/standardization.md`,
+  `docs/repository-layout.md` and `docs/walkthrough.md`. `README.zh-TW.md` and
+  `README.ja.md` are frozen at 1.4.0 under `archived/`: in the fourteen days
+  before the freeze each drew under 9 unique visitors against 263 for zh-CN. The
+  four README gates check the two live editions. The one-key paragraph
+  recommends any OpenAI-compatible endpoint and says the model must be
+  multimodal; `test_every_readme_hands_out_both_key_links` is
+  `test_every_live_readme_hands_out_the_openai_compatible_path`. Comments and
+  docstrings carry the new stage names too — names only; no module, slug or
+  identifier moved. (#67, #69)
+
 - **The default model ids**, each verified with a live call to its own endpoint:
   `gemini-3-flash-preview` → `gemini-3.8-flash`, `gpt-5.2` → `gpt-5.6-terra`,
   `google/gemini-3-flash-preview` → `google/gemini-3.8-flash`, and `qwen-flash`
