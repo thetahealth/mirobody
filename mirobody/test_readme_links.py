@@ -1,6 +1,6 @@
 """Every relative link in every README points at something that exists.
 
-The four READMEs carry ~50 relative targets each — module paths, docs, images,
+The two live READMEs carry ~50 relative targets each — module paths, docs, images,
 each other. CONTRIBUTING says "if you rename a module, grep the `.md` files",
 which is a rule that depends on someone remembering. This is the same rule,
 enforced.
@@ -17,7 +17,10 @@ import re
 import pytest
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-_READMES = ["README.md", "README.zh-CN.md", "README.zh-TW.md", "README.ja.md"]
+# The two LIVE editions. 繁體中文 and 日本語 are frozen at 1.4.0 under `archived/`
+# (each drew under 9 unique visitors in the 14 days before the freeze, against
+# 263 for zh-CN) and are not gated; `archived/README.md` says how to revive one.
+_READMES = ["README.md", "README.zh-CN.md"]
 
 pytestmark = pytest.mark.skipif(
     not (_ROOT / "README.md").is_file(),
@@ -45,8 +48,10 @@ def test_every_relative_link_resolves(name):
     assert not missing, f"{name} links to nonexistent paths: {missing}"
 
 
-def test_all_four_languages_exist_and_cross_link():
-    """The switcher must offer four working links from every language.
+def test_both_live_editions_exist_and_cross_link():
+    """The switcher must offer a working link to the other live edition, and
+    the frozen editions must still be on disk under `archived/` (unadvertised —
+    the archive is deliberately not linked from the live pages).
 
     A translated README that links a sibling which was never written is worse
     than not offering the switcher: it looks finished and 404s.
@@ -61,6 +66,8 @@ def test_all_four_languages_exist_and_cross_link():
             assert f"]({other})" in text, f"{name} does not link to {other}"
         # and the current language is plain text, not a link to itself
         assert f"]({name})" not in text, f"{name} links to itself in the switcher"
+    for frozen in ("README.zh-TW.md", "README.ja.md"):
+        assert (_ROOT / "archived" / frozen).is_file(), f"archived/{frozen} is missing"
 
 
 @pytest.mark.parametrize("name", _READMES)
@@ -91,10 +98,12 @@ def test_a_translated_readme_uses_its_own_diagrams(name):
     # language that has not been recorded yet still passes on the English file.
     # Adding `docs/images/<stem>.<lang>.gif` is therefore what makes this test
     # start demanding it.
-    # All FIVE scenes: a scene absent from a translation is a silently shorter
-    # narrative — the reader of that language never learns the capability
-    # exists.
-    for stem in ("care-circle-demo", "upload-demo", "ask-circle-demo", "ask-own-demo"):
+    # The README shows three of the four walkthrough scenes since 1.4.1 — the
+    # care circle you arrive in, ① Collect + ② Translate on an upload, ③ Answer
+    # on the shared record — and links docs/walkthrough.md for the fourth. A
+    # scene absent from a translation is still a silently shorter narrative, so
+    # both live editions must carry the same three.
+    for stem in ("care-circle-demo", "upload-demo", "ask-circle-demo"):
         localized = f"docs/images/{stem}{lang}.gif"
         if lang and (_ROOT / localized).is_file():
             assert localized in text, (
@@ -105,10 +114,8 @@ def test_a_translated_readme_uses_its_own_diagrams(name):
             assert f"docs/images/{stem}.gif" in text, f"{name} should embed {stem}.gif"
 
 
-# The docs site carries en and zh only. A Japanese reader therefore belongs on
-# /en/ — /zh/ would be worse than English, not better.
-_DOCS_LOCALE = {"README.md": "en", "README.zh-CN.md": "zh",
-                "README.zh-TW.md": "zh", "README.ja.md": "en"}
+# The docs site carries en and zh only, matching the two live editions.
+_DOCS_LOCALE = {"README.md": "en", "README.zh-CN.md": "zh"}
 _DOCS_LINK = re.compile(r"https://docs\.mirobody\.ai/([a-z-]+)/")
 
 

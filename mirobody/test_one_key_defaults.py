@@ -121,15 +121,26 @@ def test_both_gateway_paths_are_fully_wired_for_embeddings():
             )
 
 
-def test_every_readme_hands_out_both_key_links():
-    """The README's job is to hand a visitor a working path — OpenRouter
-    first, DashScope when openrouter.ai is unreachable — with the actual
-    place to get the key."""
-    for name in ("README.md", "README.zh-CN.md", "README.zh-TW.md", "README.ja.md"):
+def test_every_live_readme_hands_out_the_openai_compatible_path():
+    """The README's job is to hand a visitor a working path with the actual
+    place to get the key. Since 1.4.1 the path it recommends is any
+    OpenAI-compatible endpoint — OpenAI or OpenRouter, each with its key page,
+    or another gateway through `<PROVIDER>_BASE_URL` / `<PROVIDER>_MODEL` —
+    and it must say the model has to be multimodal, because report photos and
+    scanned pages go through the vision path (`<PROVIDER>_VISION_MODEL`).
+
+    DashScope stays a fully wired fallback (`config.yaml` and the gates above
+    check it); the README just no longer singles it out by link. The two frozen
+    editions under `archived/` are not checked here.
+    """
+    for name in ("README.md", "README.zh-CN.md"):
         text = (_ROOT / name).read_text(encoding="utf-8")
         assert "openrouter.ai/keys" in text, f"{name}: no OpenRouter key link"
-        assert "dashscope.console.aliyun.com/apiKey" in text, (
-            f"{name}: no DashScope key link — the fallback path is a dead end"
+        assert "platform.openai.com/api-keys" in text, f"{name}: no OpenAI key link"
+        for var in ("<PROVIDER>_BASE_URL", "<PROVIDER>_MODEL", "<PROVIDER>_VISION_MODEL"):
+            assert var in text, f"{name}: does not name {var}"
+        assert "OPENAI_API_KEY" in text and "OPENROUTER_API_KEY" in text, (
+            f"{name}: does not name both OpenAI-compatible key variables"
         )
 
 

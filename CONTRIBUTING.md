@@ -184,10 +184,12 @@ documentation belongs in.
 
 ### Translations
 
-The README ships in English, 简体中文, 繁體中文 and 日本語; the web client ships
-the same four. **English is the source of truth** — change it first, then the
-others, and if you only change English say so in the PR so the drift is visible
-instead of silent.
+The README ships in English and Chinese; the web client ships four languages.
+**English is the source of truth** — change it first, then Chinese, and if you
+only change English say so in the PR so the drift is visible instead of silent.
+The 繁體中文 and 日本語 READMEs are frozen at 1.4.0 under
+[`archived/`](archived/README.md); the engine's Traditional Chinese and Japanese
+support is unaffected and still gated by `test_engine_coverage.py`.
 
 Two rules that are specific to this project:
 
@@ -211,8 +213,9 @@ while looking correct.
 
 UI strings are **not** in this repo. `frontend/` holds the built web client, not
 its source, so there is no `i18n/` here to edit. What is translatable here is the
-four READMEs — `README.md` plus `.zh-CN` / `.zh-TW` / `.ja` — and they are checked
-as a set by `mirobody/test_readme_links.py` and `mirobody/test_readme_numbers.py`.
+two live READMEs — `README.md` and `README.zh-CN.md` — and they are checked as a
+set by `mirobody/test_readme_links.py`, `mirobody/test_readme_numbers.py`,
+`mirobody/test_readme_examples.py` and `mirobody/test_readme_l10n.py`.
 Everything under `docs/` and every in-package `README.md` stays English.
 
 ### Commits

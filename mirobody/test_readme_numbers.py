@@ -2,14 +2,14 @@
 
 ``test_readme_links.py`` guards the links and the per-language diagrams; this
 file gates the figures — alias counts, graph sizes, the resolver score. They
-are quoted in four files and derived in none, so nothing short of a gate keeps
+are quoted in two files and derived in none, so nothing short of a gate keeps
 them honest.
 
 The check is presence of today's value, not parsing of the prose: for each
 claim the README must contain the number the code currently produces, written
 the way the READMEs write numbers (thousands separated). A bundle rebuild that
 moves an alias count therefore turns these red, which is the point — those
-counts are quoted in four files and derived in none.
+counts are quoted in two files and derived in none.
 
 Two claims cannot be checked by presence alone and get a regex instead: the
 pulse-indicator count, because a bare ``300`` also matches inside ``4,300+``;
@@ -38,7 +38,7 @@ import pytest
 from ruamel.yaml import YAML
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-_READMES = ["README.md", "README.zh-CN.md", "README.zh-TW.md", "README.ja.md"]
+_READMES = ["README.md", "README.zh-CN.md"]  # the live editions; see archived/README.md
 
 
 def _text(name: str) -> str:
