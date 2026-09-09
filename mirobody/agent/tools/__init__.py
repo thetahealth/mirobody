@@ -52,7 +52,7 @@ DIRECTORY STRUCTURE
 
 tools/
 ├── __init__.py                      # This documentation
-├── terminology_service.py           # ② Standardize over MCP: resolve_indicator, normalize_unit
+├── terminology_service.py           # ② Translate over MCP: resolve_indicator, normalize_unit
 │                                    #   (offline, no user data — works anonymously)
 ├── health_indicators_service.py     # query_health_indicators — readings: catalogue,
 │                                    #   raw rows, buckets, stats, latest (8 parameters)

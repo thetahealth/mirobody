@@ -25,7 +25,7 @@ class I18n:
         "zh-hans": "zh",
         "zh_hans": "zh",
         # Traditional variants map to the Simplified bundle: we ship a
-        # README.zh-TW.md, and Chinese text is closer than the English default.
+        # archived/README.zh-TW.md, and Chinese text is closer than the English default.
         "zh-tw": "zh",
         "zh_tw": "zh",
         "zh-hant": "zh",

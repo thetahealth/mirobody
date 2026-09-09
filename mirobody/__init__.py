@@ -2,7 +2,7 @@
 
 The public surface of a `pip install mirobody`, in three imports::
 
-    from mirobody import resolve, resolve_reading   # ② Standardize, offline
+    from mirobody import resolve, resolve_reading   # ② Translate, offline
     from mirobody.units import normalize_unit, unit_family
     from mirobody.lexical import normalize, word_tokens
 

@@ -6,10 +6,10 @@ missing step.
 
 | | Example | Needs | Shows |
 |---|---|---|---|
-| 01 | [`01_resolve_offline.py`](01_resolve_offline.py) | `pip install mirobody` | ② Standardize: name → LOINC, any language, fully offline |
+| 01 | [`01_resolve_offline.py`](01_resolve_offline.py) | `pip install mirobody` | ② Translate: name → LOINC, any language, fully offline |
 | 02 | [`02_standardize_a_reading.py`](02_standardize_a_reading.py) | `pip install mirobody` | ① Collect: unit conversion + the indicator catalogue |
 | 03 | [`03_parse_a_lab_report.py`](03_parse_a_lab_report.py) | + one model key | a document → standardized readings in one call |
-| 04 | [`04_mcp_tool_surface.py`](04_mcp_tool_surface.py) | `pip install 'mirobody[parse]'` | ③ Answers: exactly what an external MCP client receives |
+| 04 | [`04_mcp_tool_surface.py`](04_mcp_tool_surface.py) | `pip install 'mirobody[parse]'` | ③ Answer: exactly what an external MCP client receives |
 | 05 | [`05_agent_server_preflight.py`](05_agent_server_preflight.py) | `pip install 'mirobody[app]'` | whether this machine can run the full server, and what is missing |
 | 06 | [`06_care_circle_rules.py`](06_care_circle_rules.py) | `pip install mirobody` | who may read whose record — the rule behind the README's demo |
 | 07 | [`07_claude_agent_sdk.py`](07_claude_agent_sdk.py) | a running mirobody + `pip install claude-agent-sdk` + a model key | another agent runtime answering from this data over `/mcp` — no mirobody import at all |

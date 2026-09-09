@@ -3,7 +3,7 @@
 # mounts the checkout and pip-installs from it, so PyPI is never a deployment
 # path and `[app]` never asks anyone to choose a backend.
 #
-# A bare `pip install mirobody` is the LIBRARY: ② Standardize (resolve, units,
+# A bare `pip install mirobody` is the LIBRARY: ② Translate (resolve, units,
 # lexical) on numpy alone. `pip install 'mirobody[parse]'` adds ① Collect's
 # single-file surface. See pyproject.toml for why there are only those two.
 -e .[app]

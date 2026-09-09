@@ -11,7 +11,7 @@ credentials at all (pure offline lookup against the shipped data bundles);
     await parse_file("labs.pdf")       # -> readings + resolutions, one LLM call
 
 This is the deliberate small door into the first two engine stages (① Collect,
-② Standardize) — the same machinery the full platform uses, minus its persistence:
+② Translate) — the same machinery the full platform uses, minus its persistence:
 
 * **Lexical resolution** rides the shipped LOINC bundle: the 921k-entry
   multilingual alias index (``loinc_alias_index.npz``), the 677k-name corpus

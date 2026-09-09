@@ -10,9 +10,9 @@ machine-checked (`lint-imports`, contracts in `pyproject.toml`):
 
 | Layer | Where | Installs with | May import |
 |---|---|---|---|
-| ② Standardize + the kernel (the library) | vocabulary: `engine.py`, `lexical.py`, `units/`, `value_scale.py`, `zh_fold.py`, `_bundle.py`, `_strtab.py`; semantics: **`kernel/`** (`metrics`, `series`, `quality`, `overlay`, `meds`, `query`, `tools`, `ops`, `connect`, `sink`, `events`, `evidence`, `memory`, `vendors/`); toolbox: `testing/` | `pip install mirobody` (numpy only) | each other, nothing else |
+| ② Translate + the kernel (the library) | vocabulary: `engine.py`, `lexical.py`, `units/`, `value_scale.py`, `zh_fold.py`, `_bundle.py`, `_strtab.py`; semantics: **`kernel/`** (`metrics`, `series`, `quality`, `overlay`, `meds`, `query`, `tools`, `ops`, `connect`, `sink`, `events`, `evidence`, `memory`, `vendors/`); toolbox: `testing/` | `pip install mirobody` (numpy only) | each other, nothing else |
 | ① Collect + storage + MCP | `mirobody/documents/`, `pulse/`, `indicator/`, `utils/`, `user/`, `task/`, `mcp/` | `[parse]` / `[app]` | no `langchain*`, `langgraph`, `deepagents` |
-| ③ Answers | `mirobody/agent/` (one agent: `MirobodyAgent`, on `deepagents`), `server/` | `[agent]` (the harness as a library) / `[app]` | anything |
+| ③ Answer | `mirobody/agent/` (one agent: `MirobodyAgent`, on `deepagents`), `server/` | `[agent]` (the harness as a library) / `[app]` | anything |
 
 There is one agent, and it is not switched at request time. `BaseAgent`,
 the `agent/base` package and the ChatGPT Apps widgets under `agent/resources`

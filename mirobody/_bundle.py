@@ -14,7 +14,7 @@ resolver needs::
 
 **Why this module is at the package root rather than inside
 ``indicator/fhir/embeddings/``, where it used to live.** ``engine.py`` — the
-front door of ② Standardize, and the one thing a `pip install mirobody`
+front door of ② Translate, and the one thing a `pip install mirobody`
 actually runs — read its data through the bundle-BUILD package, and reached
 into it for a private symbol (``alias._normalize``) besides. So the runtime
 depended on the build tooling, which meant the build tooling could never be
