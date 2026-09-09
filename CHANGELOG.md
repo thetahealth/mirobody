@@ -131,6 +131,22 @@ evaluation is bit-identical to 1.4.0 (coverage 0.9631, wrong-rate 0.0322).
   fresh build, so the bundle also carries two reads that are not this issue:
   the model picker (the entry above) and the care-circle list reading
   `data.members`, which pairs with the `shared-by-me/list` fix below.
+- **`POST /invitation/shared-by-me/list` failed 100% of calls.** It returned
+  `ok([...])` and `StandardResponse.data` is `dict[str, Any]`, so pydantic
+  refused the list, the handler's own `except Exception` caught the refusal, and
+  the route answered `{"code": -1, "msg": "Could not list your circle."}` —
+  which reads like a database fault. Every call, since the router was written.
+  Measured against a running server: HTTP 200 carrying `code: -1`, with the
+  pydantic `dict_type` error in the log once per call.
+
+  Nobody noticed because on an empty circle the failure is indistinguishable
+  from success: the web client merges this list into "people I can ask for", so
+  members an owner created never appeared in that selector and one generic line
+  went to the log. It answers `{"members": [...]}` now — the shape
+  `shared-with-me/list` next door already uses — and this release's bundle reads
+  it. Changing the wire shape cost nothing, because a route that fails every
+  call has no working consumer. `tests/test_response_envelopes.py` grew an `ast`
+  walk for the class of mistake, since it can never crash loudly.
 - **A route whose only possible answer was 503.**
   `POST /vital/generate-sign-in-token` calls
   `platform_manager.get_platform("vital")`, and the installed providers are
