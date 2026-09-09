@@ -6,8 +6,8 @@
 
 稼働中のコンシューマー向け健康プロダクト **Theta Wellness** は、Mirobody の上で動いている ―― 登録ユーザー 5,000+、DAU 500+。
 
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-3776AB.svg?logo=python&logoColor=white)](pyproject.toml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](../LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-3776AB.svg?logo=python&logoColor=white)](../pyproject.toml)
 [![PyPI Downloads](https://img.shields.io/pepy/dt/mirobody?label=PyPI%20Downloads&color=orange)](https://pepy.tech/projects/mirobody)
 [![Benchmarks](https://img.shields.io/badge/%F0%9F%A4%97_Benchmarks-4k%2B_downloads_each-FFD21E.svg)](https://huggingface.co/healthmemoryarena)
 [![arXiv](https://img.shields.io/badge/arXiv-2604.02834-b31b1b.svg)](https://arxiv.org/abs/2604.02834)
@@ -15,13 +15,13 @@
 
 **[📚 ドキュメント](https://docs.mirobody.ai/)** · **[💬 ホスト型チャット — chat.mirobody.ai](https://chat.mirobody.ai/)** · **[🔌 APIプラットフォーム — platform.mirobody.ai](https://platform.mirobody.ai/)**
 
-**[English](README.md)** · **[简体中文](README.zh-CN.md)** · **[繁體中文](README.zh-TW.md)** · **日本語**
+**[English](../README.md)** · **[简体中文](../README.zh-CN.md)** · **[繁體中文](README.zh-TW.md)** · **日本語**
 
 *血液検査、ウェアラブル、ゲノム、画像診断 ―― どれも断片化していて、互換性がない。
 AIが健康データを理解する前に、まずこれらの信号を統合し、AIが実際に読める単一の標準に
 落とし込む必要がある。それがこのエンジンの仕事である。*
 
-<img src="docs/images/where-your-data-comes-from.ja.svg" alt="ウェアラブルから食事の写真まで —— ひとつの標準形式に、AI が読める形で。" width="920">
+<img src="../docs/images/where-your-data-comes-from.ja.svg" alt="ウェアラブルから食事の写真まで —— ひとつの標準形式に、AI が読める形で。" width="920">
 
 </div>
 
@@ -29,9 +29,9 @@ AIが健康データを理解する前に、まずこれらの信号を統合し
 
 | 段階                | 意味                                                                                                     | 場所                                                   |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| **① Collect(収集)** | 信号を取り込む:デバイスプロバイダ3種 + SQLソース・ファイル形式7種・Apple Health(受信のみ:署名済みiOSクライアントから送信) | [`pulse/`](mirobody/pulse/) |
-| **② Standardize(標準化)**    | 単一標準への統一:任意の測定値を正規コード(LOINC・SNOMED CT・RxNorm)に解決し、単位を正規化し、FHIRが認めるコード体系に載せる | [`indicator/`](mirobody/indicator/)                    |
-| **③ Answers(応答)**  | 推論:エージェントが仮想ファイルシステム経由で*元の文書*を読み、グラフと引用付きで回答     | [`agent/`](mirobody/agent/)                  |
+| **① Collect(収集)** | 信号を取り込む:デバイスプロバイダ3種 + SQLソース・ファイル形式7種・Apple Health(受信のみ:署名済みiOSクライアントから送信) | [`pulse/`](../mirobody/pulse/) |
+| **② Standardize(標準化)**    | 単一標準への統一:任意の測定値を正規コード(LOINC・SNOMED CT・RxNorm)に解決し、単位を正規化し、FHIRが認めるコード体系に載せる | [`indicator/`](../mirobody/indicator/)                    |
+| **③ Answers(応答)**  | 推論:エージェントが仮想ファイルシステム経由で*元の文書*を読み、グラフと引用付きで回答     | [`agent/`](../mirobody/agent/)                  |
 
 ---
 
@@ -45,11 +45,11 @@ mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン "空腹血糖
 ```
 
 <p align="center">
-  <img src="docs/images/resolve-demo.ja.gif"
+  <img src="../docs/images/resolve-demo.ja.gif"
        alt="mirobody resolve：4つの言語が1つのLOINCコードに落ちる、完全オフライン" width="880">
 </p>
 
-> これは実際の出力で、GIFはビルド成果物だ ―― [`docs/demo/resolve.html`](docs/demo/resolve.html) を [`scripts/make_demo_gifs.py`](scripts/make_demo_gifs.py) が描画するので、示すと主張しているコマンドから離れていくことがない。
+> これは実際の出力で、GIFはビルド成果物だ ―― [`docs/demo/resolve.html`](../docs/demo/resolve.html) を [`scripts/make_demo_gifs.py`](../scripts/make_demo_gifs.py) が描画するので、示すと主張しているコマンドから離れていくことがない。
 
 ```python
 from mirobody.engine import resolve, resolve_reading
@@ -90,7 +90,7 @@ resolve("血脂").resolved                                 # False    観測で�
 - **単位**は約310のUCUMファミリーへ正規化。次元解析、LOINCコードをキーとするモル質量
   ブリッジ、`%` と `10*9/L` に対する明示的な拒否を含む。標準pulse指標305種。
 - **第2の層があり、意図的にオプトインのままだ。** 上のすべては語彙的で、知らない用語には
-  棄権する ―― 正直な天井だ。コサイン検索([`indicator/semantic.py`](mirobody/indicator/semantic.py))
+  棄権する ―― 正直な天井だ。コサイン検索([`indicator/semantic.py`](../mirobody/indicator/semantic.py))
   はそれを越えるが、**棄権できない**：見たことのない用語に対して、正解と同じ確信度で最近傍を
   返し、両者を分けるしきい値は存在しない。**行列は同梱せず、配布もしていない**: LOINC
   108,248行 × 1024次元(約221 MB)で、(provider, model)の組に固有なので、
@@ -102,7 +102,7 @@ resolve("血脂").resolved                                 # False    観測で�
   → [セマンティック検索](https://docs.mirobody.ai/en/concepts/semantic-recall/)：ベンチマーク、
   2つの軸ゲート、そして `min_score` が正しさのしきい値ではない理由。
 - **この主張は断言ではなく計測している。**
-  [`test_engine_coverage.py`](mirobody/test_engine_coverage.py) は健診が実際に出す
+  [`test_engine_coverage.py`](../mirobody/test_engine_coverage.py) は健診が実際に出す
   パネルでオフラインリゾルバを採点する。報告書が実際に印字する書き方で、英語・
   简体中文・繁體中文・日本語、さらにプラットフォームAPIが教えるウェアラブル語彙も。
   **今日は211/211。書いた日は32/94だった。** 採点するのは*臨床的*正しさで、
@@ -151,7 +151,7 @@ GarminのBody Batteryやストレススコアにコードは無く、それは�
 **カバレッジと再現率は別物で、その差はLOINC側ではなくこちら側にある**:
 `Body bone mass` はここで `101685-6` に解決するのに、日本語・中国語の `骨量` は
 歯科の体積コードに落ちる。そこへ導くエイリアスが無いからだ。
-[`res/resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv) はそのためにある ――
+[`res/resolver_overrides.tsv`](../mirobody/res/resolver_overrides.tsv) はそのためにある ――
 人が書き下ろした一行は、索引の表層一致に常に勝つ。
 
 → [loinc.org](https://loinc.org/) · [ライセンス](https://loinc.org/license/) ·
@@ -242,12 +242,12 @@ text-embedding-v4。
 2年分の記録から回答が返る。データ分離がそのまま画面上で確認できる。
 
 <p align="center">
-  <img src="docs/images/care-circle-demo.ja.gif"
+  <img src="../docs/images/care-circle-demo.ja.gif"
        alt="自分のアカウントの指標とアップロードした文書、Demoの共有記録へ切り替え、2年分のHbA1cを開く" width="880">
 </p>
 
 <div align="center">
-<img src="docs/images/your-care-circle.ja.svg" alt="自分の薄い記録の隣に、彼女の厚い記録 ―― 後者は閲覧のみ。" width="820">
+<img src="../docs/images/your-care-circle.ja.svg" alt="自分の薄い記録の隣に、彼女の厚い記録 ―― 後者は閲覧のみ。" width="820">
 </div>
 
 最初に開くべき系列は彼女のHbA1cだ ―― 良くなって、そのあと保たなかった:
@@ -264,7 +264,7 @@ text-embedding-v4。
 限界も自分から言う ―― 検査は2回しかなく、CGM推定と検査値は同じものではない。
 
 <p align="center">
-  <img src="docs/images/ask-circle-demo.ja.gif"
+  <img src="../docs/images/ask-circle-demo.ja.gif"
        alt="日本語で共有された記録のHbA1cを尋ねる。エージェントが照会し、検査値とセンサー系列を重ねて描き、傾向を読む" width="880">
 </p>
 
@@ -274,7 +274,7 @@ Dataページに落とせば ① Collect と ② Standardize が数秒で走り�
 伴って出てくる。どれも読み取り元のページに戻れる。
 
 <p align="center">
-  <img src="docs/images/upload-demo.ja.gif"
+  <img src="../docs/images/upload-demo.ja.gif"
        alt="検査報告のPDFをDataページに落とす。12項目が抽出され、どれも元ファイルにリンクする" width="880">
 </p>
 
@@ -284,7 +284,7 @@ Dataページに落とせば ① Collect と ② Standardize が数秒で走り�
 はっきり言う。
 
 <p align="center">
-  <img src="docs/images/ask-own-demo.ja.gif"
+  <img src="../docs/images/ask-own-demo.ja.gif"
        alt="自分がアップロードしたパネルを尋ねる。エージェントがレポート本体を読み、すべての結果を基準範囲と照合する" width="880">
 </p>
 
@@ -295,7 +295,7 @@ Dataページに落とせば ① Collect と ② Standardize が数秒で走り�
 ESL-Bench向けに生成したものを同梱しているので、投入にネットワークもキーも要らない。
 実データを載せるデプロイでは `SEED_DEMO_DATA=false` に。抽出の段がその12件の読み取りに
 対して**まだできていないこと**は、ここで曖昧にせず
-[docs/roadmap.md](docs/roadmap.md) に書いてある。
+[docs/roadmap.md](../docs/roadmap.md) に書いてある。
 
 ---
 
@@ -309,9 +309,9 @@ ESL-Bench向けに生成したものを同梱しているので、投入にネ�
 | --- | --- | --- |
 | 新しいツール | `mirobody/agent/tools/` | [ツールの追加](https://docs.mirobody.ai/en/tools/adding-tools/) |
 | Agent Skill(SKILL.md) | `mirobody/agent/skills/` | [Skills](https://docs.mirobody.ai/en/tools/skills/) |
-| 自前のエージェントハーネス | `AGENT_DIRS` → 自分のディレクトリ（同梱エージェントを置き換え） | [`mirobody/agent/README.md`](mirobody/agent/README.md) |
+| 自前のエージェントハーネス | `AGENT_DIRS` → 自分のディレクトリ（同梱エージェントを置き換え） | [`mirobody/agent/README.md`](../mirobody/agent/README.md) |
 | デバイスprovider | `mirobody/pulse/providers/` | [Provider統合](https://docs.mirobody.ai/en/development/provider-integration/) |
-| Claude Desktop、Cursor、自作のエージェントループからこれらのツールを使う | Settings → MCP（自分用の `/mcp` URL） | [MCPサーバー](https://docs.mirobody.ai/en/api-reference/mcp-servers/) · [`examples/07_claude_agent_sdk.py`](examples/07_claude_agent_sdk.py) |
+| Claude Desktop、Cursor、自作のエージェントループからこれらのツールを使う | Settings → MCP（自分用の `/mcp` URL） | [MCPサーバー](https://docs.mirobody.ai/en/api-reference/mcp-servers/) · [`examples/07_claude_agent_sdk.py`](../examples/07_claude_agent_sdk.py) |
 
 エージェントが持つツールはすべて `/mcp` 経由でも提供され、ユーザー単位でゲートされる。
 → [組み込みツール](https://docs.mirobody.ai/en/tools/built-in/) ·
@@ -325,8 +325,8 @@ ESL-Bench向けに生成したものを同梱しているので、投入にネ�
 | --- | --- | --- |
 | `pip install mirobody` | オフラインの指標解決と単位 ―― 2パッケージ、キー不要、ネットワーク不要 | [エンジン](https://docs.mirobody.ai/en/engine/) |
 | `pip install 'mirobody[parse]'` | 上に加えて、文書を測定値に ―― PDF、画像、Excel、Word、PowerPoint、テキスト。電子生成の報告書はテキストモデルのキー1つで足り、スキャンされたページだけがビジョンモデルに届く | [エンジン](https://docs.mirobody.ai/en/engine/) |
-| `pip install 'mirobody[agent]'` | deepagents ハーネスをライブラリとして ―― ミドルウェア、仮想ファイルシステムのバックエンド、チェックポインタ、モデルクライアント ―― 自分で動かすエージェントに | [自分のエージェントを持ち込む](CONTRIBUTING.md#-bringing-your-own-agent) |
-| `mirobody.bundle` | ビルド時：LOINCの軸テーブルとエイリアス元、シードやコーパスの生成に | [`mirobody/bundle.py`](mirobody/bundle.py) |
+| `pip install 'mirobody[agent]'` | deepagents ハーネスをライブラリとして ―― ミドルウェア、仮想ファイルシステムのバックエンド、チェックポインタ、モデルクライアント ―― 自分で動かすエージェントに | [自分のエージェントを持ち込む](../CONTRIBUTING.md#-bringing-your-own-agent) |
+| `mirobody.bundle` | ビルド時：LOINCの軸テーブルとエイリアス元、シードやコーパスの生成に | [`mirobody/bundle.py`](../mirobody/bundle.py) |
 | HTTP API | 自分のアプリからデプロイへ | [API概要](https://docs.mirobody.ai/en/api-reference/overview/) · [データ](https://docs.mirobody.ai/en/api-reference/data/) |
 | MCP | Claude、Cursor、任意のMCPクライアントが記録を読む | [MCPサーバー](https://docs.mirobody.ai/en/api-reference/mcp-servers/) |
 | Backboneモード | 自分のエージェント、こちらのデータ層 | [Backbone](https://docs.mirobody.ai/en/api-reference/backbone-mode/) |
@@ -374,7 +374,7 @@ frontend/        同梱のwebクライアント     アウトにだけあり、p
 パイプライン ―― インストールしても誰も動かせない19,000行 ―― を成果物から締め出す。
 
 → [アーキテクチャ](https://docs.mirobody.ai/en/concepts/architecture/) ·
-[CONTRIBUTING.md](CONTRIBUTING.md)
+[CONTRIBUTING.md](../CONTRIBUTING.md)
 
 ---
 
@@ -392,19 +392,19 @@ frontend/        同梱のwebクライアント     アウトにだけあり、p
 
 ### リポジトリ内、コントリビューター向け
 
-各パッケージはそれが何であるかを述べる `README.md` を持ち、長文のガイドは [`docs/`](docs/) にある。
+各パッケージはそれが何であるかを述べる `README.md` を持ち、長文のガイドは [`docs/`](../docs/) にある。
 どの言語のREADMEから来ても、これらはすべて英語だ。
 
 | | Where |
 | --- | --- |
-| 実行できる例 | [`examples/`](examples/README.md) |
-| カーネル | [`kernel/`](mirobody/kernel/__init__.py) ―― 段階 → モジュール対応表 · [pipeline](docs/pipeline.md) ―― 11の段階と10の不変条件 |
-| ① 収集 | [`pulse/`](mirobody/pulse/README.md) · [providers](mirobody/pulse/providers/README.md) · [aggregation](mirobody/pulse/aggregate/README.md) · [Apple Health](mirobody/pulse/apple/README.md) |
-| ① ガイド | [connect a wearable](docs/provider-setup.md) · [write a provider](docs/provider-guide.md) · [file processing](docs/file-processing.md) · [`documents/`](mirobody/documents/__init__.py) · [Apple Health API](docs/apple-health.md) |
-| ② 標準化 | [`indicator/`](mirobody/indicator/README.md) · [indicators & units](mirobody/pulse/standardize/README.md) |
-| ③ 回答 | [`agent/`](mirobody/agent/README.md) · [tools](mirobody/agent/tools/README.md) · [the one data tool](docs/answers.md) · [medications](docs/medications.md) |
-| 下ばたらき | [configuration](mirobody/utils/config/README.md) · [database schema](mirobody/schema/README.md) · [the web client](docs/frontend.md) · [backup & restore](docs/backup-restore.md) |
-| 開発に参加 | [CONTRIBUTING.md](CONTRIBUTING.md) · [AGENTS.md](AGENTS.md) · [testing](docs/testing.md) · [aggregator script](docs/aggregation-tests.md) · [roadmap](docs/roadmap.md) · [CHANGELOG](CHANGELOG.md) · [SECURITY](SECURITY.md) |
+| 実行できる例 | [`examples/`](../examples/README.md) |
+| カーネル | [`kernel/`](../mirobody/kernel/__init__.py) ―― 段階 → モジュール対応表 · [pipeline](../docs/pipeline.md) ―― 11の段階と10の不変条件 |
+| ① 収集 | [`pulse/`](../mirobody/pulse/README.md) · [providers](../mirobody/pulse/providers/README.md) · [aggregation](../mirobody/pulse/aggregate/README.md) · [Apple Health](../mirobody/pulse/apple/README.md) |
+| ① ガイド | [connect a wearable](../docs/provider-setup.md) · [write a provider](../docs/provider-guide.md) · [file processing](../docs/file-processing.md) · [`documents/`](../mirobody/documents/__init__.py) · [Apple Health API](../docs/apple-health.md) |
+| ② 標準化 | [`indicator/`](../mirobody/indicator/README.md) · [indicators & units](../mirobody/pulse/standardize/README.md) |
+| ③ 回答 | [`agent/`](../mirobody/agent/README.md) · [tools](../mirobody/agent/tools/README.md) · [the one data tool](../docs/answers.md) · [medications](../docs/medications.md) |
+| 下ばたらき | [configuration](../mirobody/utils/config/README.md) · [database schema](../mirobody/schema/README.md) · [the web client](../docs/frontend.md) · [backup & restore](../docs/backup-restore.md) |
+| 開発に参加 | [CONTRIBUTING.md](../CONTRIBUTING.md) · [AGENTS.md](../AGENTS.md) · [testing](../docs/testing.md) · [aggregator script](../docs/aggregation-tests.md) · [roadmap](../docs/roadmap.md) · [CHANGELOG](../CHANGELOG.md) · [SECURITY](../SECURITY.md) |
 
 ---
 
@@ -412,8 +412,8 @@ frontend/        同梱のwebクライアント     アウトにだけあり、p
 
 最もレバレッジが高い貢献は、リゾルバが間違える用語ひとつだ。
 `mirobody resolve "<用語>"` を走らせ、答えが間違いか空なら
-[`resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv) に1行、
-[`test_engine_coverage.py`](mirobody/test_engine_coverage.py) にケースを1つ追加する
+[`resolver_overrides.tsv`](../mirobody/res/resolver_overrides.tsv) に1行、
+[`test_engine_coverage.py`](../mirobody/test_engine_coverage.py) にケースを1つ追加する
 ―― カバレッジのスコアがレビューだ。
 
 ```bash
@@ -421,7 +421,7 @@ pip install -e '.[test]' && pytest -q && lint-imports
 ```
 
 → [コントリビュートガイド](https://docs.mirobody.ai/en/development/contributing/) ·
-[CONTRIBUTING.md](CONTRIBUTING.md)
+[CONTRIBUTING.md](../CONTRIBUTING.md)
 
 ---
 

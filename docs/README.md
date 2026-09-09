@@ -24,15 +24,18 @@ notes to PyPI under a filename that told open-source readers to ignore it.
 | ① | [provider-guide.md](provider-guide.md) | writing a data provider end to end — the long one |
 | ① | [file-processing.md](file-processing.md) | a file becomes text by kind (`mirobody/documents/`: PDF text layer, OCR for scanned pages only, Office, text), then LLM extraction |
 | ① | [apple-health.md](apple-health.md) | Apple Health export + CDA import |
+| ② | [standardization.md](standardization.md) | the long form of ② Translate (standardize): the concept graph, the alias tiers, LOINC 2.82 vs 2.83, the opt-in semantic tier — moved out of the README in 1.4.1 |
 | ② | [vocabulary-build.md](vocabulary-build.md) | rebuilding `mirobody/res/` from the raw LOINC / SNOMED CT / RxNorm releases — needs a UMLS licence |
 | ③ | [answers.md](answers.md) | the one health-data tool: its matrix, its envelope, its governance, and the PHI discipline |
 | ③ | [medications.md](medications.md) | the medication model, its state tables and its instruction grammar (provisional) |
 | ③ | [frontend.md](frontend.md) | how the bundled web client is served, and how to replace it |
+| ③ | [walkthrough.md](walkthrough.md) | the four-minute care-circle walkthrough, all four scenes |
+| | [repository-layout.md](repository-layout.md) | the directory map and the two forms the code ships in (library vs application) |
 | | [backup-restore.md](backup-restore.md) | what to copy, how to get it back, and what changes on upgrade |
 | | [testing.md](testing.md) | test layout, markers, snapshots, release gates |
 | | [aggregation-tests.md](aggregation-tests.md) | the daily-rollup test suite in detail |
 
-Start at the README's **Repository layout** section ([README.md](../README.md)) if you want the map rather than a
+Start at [repository-layout.md](repository-layout.md) if you want the map rather than a
 specific subsystem, and [roadmap.md](roadmap.md) for known gaps and deferred
 work — each entry states the measurement that motivated it.
 
@@ -41,8 +44,8 @@ work — each entry states the measurement that motivated it.
 Short, and about *that package only*:
 
 - [`mirobody/pulse/`](../mirobody/pulse/README.md) — ① Collect
-- [`mirobody/indicator/`](../mirobody/indicator/README.md) — ② Standardize
-- [`mirobody/agent/`](../mirobody/agent/README.md) — ③ Answers
+- [`mirobody/indicator/`](../mirobody/indicator/README.md) — ② Translate (standardize)
+- [`mirobody/agent/`](../mirobody/agent/README.md) — ③ Answer (agent)
 - [`mirobody/agent/tools/`](../mirobody/agent/tools/README.md) — the MCP tool surface
 - [`mirobody/pulse/apple/`](../mirobody/pulse/apple/README.md) — Apple Health import
 - [`mirobody/pulse/aggregate/`](../mirobody/pulse/aggregate/README.md) — daily rollups

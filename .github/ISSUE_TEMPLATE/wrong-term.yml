@@ -1,0 +1,51 @@
+name: The resolver got a term wrong
+description: "`mirobody resolve <term>` answered the wrong code, or nothing, for a term a real report prints."
+title: "resolve: <term> → <what you got>"
+labels: ["resolver", "good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the highest-leverage report the project takes. A fix is one row in
+        `mirobody/res/resolver_overrides.tsv` plus one case in
+        `mirobody/test_engine_coverage.py`; the coverage score is the review.
+  - type: input
+    id: term
+    attributes:
+      label: The term, exactly as the report prints it
+      placeholder: "Lipid-Small Dense Low-Density Lipoprotein Cholesterol"
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language of the term
+      options: [English, 简体中文, 繁體中文, 日本語, Other]
+    validations:
+      required: true
+  - type: input
+    id: got
+    attributes:
+      label: What `mirobody resolve` answered
+      description: Paste the line it printed, or "unresolved".
+    validations:
+      required: true
+  - type: input
+    id: expected
+    attributes:
+      label: The LOINC code you expected (if you know it)
+      placeholder: "718-7"
+  - type: input
+    id: unit
+    attributes:
+      label: Unit and a sample value, if the report shows one
+      placeholder: "4.2 10*9/L"
+  - type: dropdown
+    id: source
+    attributes:
+      label: Where the term comes from
+      options: [Checkup / lab report, Hospital record, Wearable or app export, Other]
+  - type: input
+    id: version
+    attributes:
+      label: "`mirobody --version` and `python -c 'import mirobody; print(mirobody.BUNDLE_VERSION)'`"

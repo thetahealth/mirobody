@@ -1,6 +1,6 @@
-"""Run the resolver examples the four READMEs print, and check their answers.
+"""Run the resolver examples the two live READMEs print, and check their answers.
 
-The READMEs quote eight `resolve(...)` / `resolve_reading(...)` results with the
+Both READMEs quote eight `resolve(...)` / `resolve_reading(...)` results with the
 LOINC code written in the trailing comment. Nothing checked them. Every other
 number in those files is guarded (`test_readme_numbers.py`), so the examples —
 the part a reader actually copies — were the one unguarded claim, and this repo's
@@ -27,7 +27,7 @@ import re
 import pytest
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_READMES = ["README.md", "README.zh-CN.md", "README.zh-TW.md", "README.ja.md"]
+_READMES = ["README.md", "README.zh-CN.md"]  # the live editions; see archived/README.md
 
 # `resolve("x").loinc   # '718-7'  comment` / `resolve("血脂").resolved  # False`
 #
@@ -75,7 +75,7 @@ def test_readme_resolver_examples_produce_what_they_claim(name):
         )
 
 
-def test_all_four_readmes_run_the_same_calls():
+def test_both_readmes_run_the_same_calls():
     """Translations may reword the comment; they must not diverge on the call."""
     baseline = [expr for expr, _ in _examples("README.md")]
     for name in _READMES[1:]:
