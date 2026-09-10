@@ -15,6 +15,10 @@ Commands:
   instead of a traceback from deep inside an import chain.
 * ``mirobody worker [config.yaml ...]`` — the background task worker
   (IndicatorSync, ProfileRefresh queues).
+* ``mirobody doctor [config.yaml ...]`` — which LLM provider each surface
+  (chat, vision, structured extraction, text, embeddings) would select with
+  the current configuration, and what to set where one has none. Needs no
+  database and no extra.
 """
 
 from __future__ import annotations
@@ -62,6 +66,20 @@ def _cmd_worker(args: argparse.Namespace) -> None:
     from mirobody.server import Worker
 
     asyncio.run(Worker.start(yaml_files=args.configs))
+
+
+def _cmd_doctor(args: argparse.Namespace) -> None:
+    """The provider self-check, on demand. Exit status 1 when NO surface has a
+    provider, so a deploy script can gate on it; a partial deployment (a key
+    with no embedding model, say) exits 0 with the gap named in the table."""
+    from mirobody.utils.config import Config
+    from mirobody.utils.config.doctor import format_report, provider_report
+
+    asyncio.run(Config.init(yaml_filenames=args.configs))
+    rows = provider_report()
+    print(format_report(rows))
+    if not any(r.provider for r in rows):
+        sys.exit(1)
 
 
 def _width(text: str) -> int:
@@ -116,19 +134,19 @@ def _cmd_parse(args: argparse.Namespace) -> None:
 
     try:
         readings = asyncio.run(parse_file(args.file, resolve_names=not args.no_resolve))
-    except ValueError as e:
-        if "vision provider" not in str(e).lower():
-            raise
-        sys.exit(
-            "mirobody parse reads the document with a vision-capable model, so it "
-            "needs one API key:\n"
-            "\n"
-            "    export OPENROUTER_API_KEY=...     # or GOOGLE_API_KEY,\n"
-            "                                      # DASHSCOPE_API_KEY, VOLCENGINE_API_KEY\n"
-            "\n"
-            "`mirobody resolve` needs no key and no network — try that first if you "
-            "only want to see indicator resolution."
-        )
+    except (ValueError, RuntimeError) as e:
+        # A provider problem is one sentence for the person at the terminal,
+        # not a traceback: no key at all (the registry's message names the
+        # five and where to get them), a key whose model cannot read images
+        # (a 404/400 from the gateway, naming UTILS_VISION_MODEL), or a
+        # document nothing could read.
+        message = str(e)
+        if "none of these keys is set" in message:
+            message += (
+                "\n\nPut ONE key in the .env next to compose.yaml (or export it) — config.llm.yaml "
+                "says which model each key selects. `mirobody resolve` needs no key and no network."
+            )
+        sys.exit(f"mirobody parse: {message}")
     if not readings:
         print("No indicator measurements found in the document.")
         return
@@ -160,6 +178,10 @@ def main(argv: list[str] | None = None) -> None:
     p_worker = sub.add_parser("worker", help="run the background task worker")
     p_worker.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
     p_worker.set_defaults(func=_cmd_worker)
+
+    p_doctor = sub.add_parser("doctor", help="show which LLM provider each surface selects with the current config, and what is missing")
+    p_doctor.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
+    p_doctor.set_defaults(func=_cmd_doctor)
 
     p_parse = sub.add_parser("parse", help="parse a health document into standardized indicators (requires the [parse] extra and one LLM key)")
     p_parse.add_argument("file", help="path to a lab report (pdf/png/jpg/txt/csv)")

@@ -341,6 +341,11 @@ class Server:
         config = await Config.init(yaml_filenames=yaml_files)
         config.print()
 
+        # Which LLM surfaces have a provider, before the first request finds
+        # out. A zero-key server used to boot in silence (#68).
+        from ..utils.config.doctor import log_report, provider_report
+        log_report(provider_report(config), logger)
+
         # Fail fast, before any socket is bound: a production ENV that still
         # carries demo login codes must not come up at all.
         enforce_production_auth_safety(config)
