@@ -1,4 +1,4 @@
-"""The `Content-Type` a presigned URL carries has to be a real MIME type.
+"""The `Content-Type` stored on an uploaded object has to be a real MIME type.
 
 Office formats have vendor media types, not invented `application/<ext>` ones,
 and a fallback to `application/octet-stream` is a forced download — for exactly
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from mirobody.utils.s3 import get_content_type
+from mirobody.utils.file_types import guess_mime
 
 
 @pytest.mark.parametrize("ext, expected", [
@@ -35,14 +35,14 @@ from mirobody.utils.s3 import get_content_type
     ("json", "application/json"),
 ])
 def test_known_extensions_get_their_real_media_type(ext, expected):
-    assert get_content_type(ext) == expected
+    assert guess_mime(ext) == expected
 
 
 @pytest.mark.parametrize("given", ["xlsx", ".xlsx", "XLSX", ".XLSX"])
 def test_a_leading_dot_and_upper_case_are_accepted(given):
     """Callers pass `name.split(".")[-1]`, a `PurePosixPath.suffix`, or a raw
     extension. All three shapes reach this function in the codebase."""
-    assert get_content_type(given) == \
+    assert guess_mime(given) == \
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
@@ -50,17 +50,17 @@ def test_a_leading_dot_and_upper_case_are_accepted(given):
 def test_the_unknown_case_is_still_octet_stream(given):
     """octet-stream is the right answer when there is no answer — it is only
     wrong as a catch-all for extensions the table knows."""
-    assert get_content_type(given) == "application/octet-stream"
+    assert guess_mime(given) == "application/octet-stream"
 
 
 def test_one_implementation_answers_for_every_caller():
     """The entry points must agree, because they describe the same object.
 
     `AbstractStorage.get_content_type_from_filename` writes `Content-Type` on the
-    PUT and `s3.get_content_type` puts it on the presigned URL; two independent
+    PUT and `guess_mime` answers for every other caller; two independent
     implementations would let the stored type and the served type diverge.
 
-    The agent's VFS is the third caller and is checked in
+    The agent's VFS is the other caller and is checked in
     `agent/test_filetype.py` — this file is engine layer and may not import
     the agent layer (`lint-imports` enforces exactly that boundary).
     """
@@ -71,7 +71,7 @@ def test_one_implementation_answers_for_every_caller():
         name = f"report{ext}"
         assert guess_mime(name) == expected
         assert AbstractStorage.get_content_type_from_filename(name) == expected
-        assert get_content_type(ext.lstrip(".")) == expected
+        assert guess_mime(ext.lstrip(".")) == expected
 
 
 def test_the_answer_does_not_depend_on_the_host():
