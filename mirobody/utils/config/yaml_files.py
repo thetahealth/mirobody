@@ -134,11 +134,35 @@ def expand_yaml_filenames(yaml_filenames: str | list[str] | None, env: str) -> l
     else:
         requested = []
 
-    names = _with_key_files(_clean(requested))
+    # An open STREAM is a candidate too, and `_clean` used to drop it for not
+    # being a string — so `Config.init(yaml_filenames=[some_io])` silently
+    # loaded the shipped defaults instead, while `Config(...)`, which has
+    # always accepted one, honoured it. Passed through in place: a stream has
+    # no `.key.yaml` sibling and no `{env}` variant, and its POSITION is what
+    # decides whether it wins (later wins), so it cannot just be appended.
+    # "Readable" is the test, not "not a string": a `None` or an int in the
+    # list is still junk and still dropped, as it always was.
+    out: list = []
+    batch: list[str] = []
 
-    if env:
-        if not names:
-            return [f"config.{env}.yaml", f"config.{env}.key.yaml"]
-        names = _with_env_files(names, env)
+    def flush() -> None:
+        if not batch:
+            return
+        names = _with_key_files(_clean(batch))
+        if env:
+            names = _with_env_files(names, env)
+        out.extend(n for n in names if n not in out)
+        batch.clear()
 
-    return names
+    for item in requested:
+        if isinstance(item, str):
+            batch.append(item)
+        elif hasattr(item, "read"):
+            flush()
+            if item not in out:
+                out.append(item)
+    flush()
+
+    if env and not out:
+        return [f"config.{env}.yaml", f"config.{env}.key.yaml"]
+    return out
