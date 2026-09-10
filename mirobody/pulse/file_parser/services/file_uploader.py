@@ -126,7 +126,7 @@ class FileUploader:
             # Check if content is empty
             if not file_content or len(file_content) == 0:
                 logger.error(f"File content is empty: {filename}")
-                raise ValueError(t("file_empty", language))
+                raise ValueError(t("file_empty", language, "file_uploader"))
 
             file_size = len(file_content)
             
@@ -155,10 +155,10 @@ class FileUploader:
                     
             except TimeoutError:
                 logger.error(f"File upload timeout: {filename}, size: {file_size} bytes")
-                raise ValueError(t("file_upload_timeout", language))
+                raise ValueError(t("file_upload_timeout", language, "file_uploader"))
 
             if not full_url:
-                raise ValueError(t("file_upload_failed", language))
+                raise ValueError(t("file_upload_failed", language, "file_uploader"))
 
             logger.info(f"File uploaded successfully to {storage.get_storage_type()} storage: {full_url}")
 

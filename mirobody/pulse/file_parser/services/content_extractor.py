@@ -50,11 +50,11 @@ class ContentExtractor:
         try:
             language = get_req_ctx("language", "en")
             texts = ContentExtractor.extract_from_audio_urls([audio_url])
-            return texts.get(audio_url, t("audio_recognition_failed", language))
+            return texts.get(audio_url, t("audio_recognition_failed", language, "content_extractor"))
         except Exception as e:
             language = get_req_ctx("language", "en")
             logger.error(f"Audio content extraction error: {str(e)}", stack_info=True)
-            return t("audio_processing_error", language)
+            return t("audio_processing_error", language, "content_extractor")
 
     @staticmethod
     async def extract_from_text_file(file_path: Path) -> str:
