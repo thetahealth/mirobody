@@ -202,41 +202,6 @@
     "ja": "PDF処理に失敗しました",
     "es": "Procesamiento PDF falló"
   },
-  "uploading_audio": {
-    "en": "Uploading audio file",
-    "zh": "正在上传音频文件",
-    "fr": "Téléchargement du fichier audio",
-    "ja": "音声ファイルをアップロード中",
-    "es": "Subiendo archivo de audio"
-  },
-  "extracting_audio_content": {
-    "en": "Extracting audio content",
-    "zh": "正在提取音频内容",
-    "fr": "Extraction du contenu audio",
-    "ja": "音声コンテンツを抽出中",
-    "es": "Extrayendo contenido de audio"
-  },
-  "saving_audio_results": {
-    "en": "Saving audio results",
-    "zh": "正在保存音频结果",
-    "fr": "Sauvegarde des résultats audio",
-    "ja": "音声結果を保存中",
-    "es": "Guardando resultados de audio"
-  },
-  "audio_processing_success": {
-    "en": "Audio processing completed",
-    "zh": "音频处理完成",
-    "fr": "Traitement audio terminé",
-    "ja": "音声処理が完了しました",
-    "es": "Procesamiento de audio completado"
-  },
-  "audio_processing_failed": {
-    "en": "Audio processing failed",
-    "zh": "音频处理失败",
-    "fr": "Échec du traitement audio",
-    "ja": "音声処理に失敗しました",
-    "es": "Procesamiento de audio falló"
-  },
   "extracting_text_content": {
     "en": "Extracting text content",
     "zh": "正在提取文本内容",

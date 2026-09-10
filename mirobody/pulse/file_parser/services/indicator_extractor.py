@@ -116,6 +116,13 @@ class IndicatorExtractor:
             `{"report_date", "date_source"}` as resolved by
             `FileParserDatabaseService.resolve_report_date` when readings were
             saved, else None; the handler records it on the th_files row.
+
+            The LLM response is ``None`` when the extraction call itself
+            produced nothing (no provider, or every provider failed) and a
+            dict — possibly with zero indicators — when a model answered. The
+            two used to come back identical (``[], {}``), so "this deployment
+            cannot extract" rendered exactly like "this document has no
+            indicators" (#68).
         """
         from mirobody.utils.llm import async_get_structured_output
         
@@ -162,7 +169,7 @@ class IndicatorExtractor:
 
             if not llm_ret:
                 logger.warning(f"[IndicatorExtractor] LLM returned empty response for text extraction - user_id: {user_id}")
-                return [], {}, None
+                return [], None, None
 
             if progress_callback:
                 await progress_callback(75, t("parsing_indicator_data", language, "indicator_extractor"))

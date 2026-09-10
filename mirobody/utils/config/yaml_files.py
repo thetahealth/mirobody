@@ -1,11 +1,20 @@
 """Which YAML files a run loads, and in what order.
 
-The project's config is deliberately split four ways, and the rules compose:
+The project's config is deliberately split, and the rules compose:
 
-    config.yaml            the defaults, checked into git
+    config.yaml            the defaults, checked into git; its INCLUDE list
+                           names the sibling files that load right after it
+                           (config.llm.yaml, config.devices.yaml)
     config.key.yaml        its secrets, which are not
     config.{env}.yaml      per-environment overrides
     config.{env}.key.yaml  their secrets
+
+`INCLUDE` is Home Assistant's `!include`, spelled as a plain list so any YAML
+loader reads it: the file a newcomer reads holds what a newcomer needs, the
+model table has its own file, and the wearable-vendor OAuth apps have theirs.
+An explicit list rather than a directory scan, so a `config.prod.yaml` sitting
+next to the files is never mistaken for a concern file when ENV is something
+else, and the reader sees the order.
 
 So one requested filename fans out to as many as four candidates, order
 matters (later wins), and duplicates must not be loaded twice. That expansion
@@ -21,6 +30,7 @@ fan-out, dedup, and the "no env" and "no filenames" paths.
 
 from __future__ import annotations
 
+import os
 import re
 
 _YAML_RE = re.compile(r".*\.yaml$", re.IGNORECASE)
@@ -89,6 +99,25 @@ def _with_env_files(names: list[str], env: str) -> list[str]:
     return out
 
 
+def include_paths(base: str | None, includes) -> list[str]:
+    """The files an `INCLUDE` list names, resolved next to the file that
+    declared them (or against the working directory when the declaring
+    "file" was a stream), in the order written, without duplicates. Neither
+    `.key.yaml` siblings nor `{env}` variants are expanded for an included
+    file — it is a plain file; environment differences go in the overlay."""
+    if not isinstance(includes, list):
+        return []
+    directory = os.path.dirname(base) if isinstance(base, str) else ""
+    out: list[str] = []
+    for name in includes:
+        if not isinstance(name, str) or not name.strip() or not _YAML_RE.match(name.strip()):
+            continue
+        path = os.path.normpath(os.path.join(directory, name.strip()))
+        if path not in out:
+            out.append(path)
+    return out
+
+
 def expand_yaml_filenames(yaml_filenames: str | list[str] | None, env: str) -> list[str]:
     """The ordered candidate list for `yaml_filenames` under `env`.
 
@@ -105,11 +134,35 @@ def expand_yaml_filenames(yaml_filenames: str | list[str] | None, env: str) -> l
     else:
         requested = []
 
-    names = _with_key_files(_clean(requested))
+    # An open STREAM is a candidate too, and `_clean` used to drop it for not
+    # being a string — so `Config.init(yaml_filenames=[some_io])` silently
+    # loaded the shipped defaults instead, while `Config(...)`, which has
+    # always accepted one, honoured it. Passed through in place: a stream has
+    # no `.key.yaml` sibling and no `{env}` variant, and its POSITION is what
+    # decides whether it wins (later wins), so it cannot just be appended.
+    # "Readable" is the test, not "not a string": a `None` or an int in the
+    # list is still junk and still dropped, as it always was.
+    out: list = []
+    batch: list[str] = []
 
-    if env:
-        if not names:
-            return [f"config.{env}.yaml", f"config.{env}.key.yaml"]
-        names = _with_env_files(names, env)
+    def flush() -> None:
+        if not batch:
+            return
+        names = _with_key_files(_clean(batch))
+        if env:
+            names = _with_env_files(names, env)
+        out.extend(n for n in names if n not in out)
+        batch.clear()
 
-    return names
+    for item in requested:
+        if isinstance(item, str):
+            batch.append(item)
+        elif hasattr(item, "read"):
+            flush()
+            if item not in out:
+                out.append(item)
+    flush()
+
+    if env and not out:
+        return [f"config.{env}.yaml", f"config.{env}.key.yaml"]
+    return out

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from typing import IO, Any
+from typing import IO
 from functools import partial
 
 from .abstract import AbstractStorage
@@ -21,8 +21,7 @@ class AliyunStorage(AbstractStorage):
         bucket              : str = "",
         prefix              : str = "",
         cdn                 : str = "",
-        endpoint            : str = "",
-        storage_name        : str = ""
+        endpoint            : str = ""
     ):
         if not access_key_id or \
             not secret_access_key or \
@@ -32,22 +31,18 @@ class AliyunStorage(AbstractStorage):
             from ..config import global_config
             config = global_config()
             if config:
-                storage_name = storage_name.strip()
-                if storage_name:
-                    storage_name = "_" + storage_name
-
                 if not access_key_id:
-                    access_key_id = config.get_str(f"ALI_OSS_ACCESS_KEY{storage_name}")
+                    access_key_id = config.get_str("ALI_OSS_ACCESS_KEY")
                 if not secret_access_key:
-                    secret_access_key = config.get_str(f"ALI_OSS_SECRET_KEY{storage_name}")
+                    secret_access_key = config.get_str("ALI_OSS_SECRET_KEY")
                 if not endpoint:
-                    endpoint = config.get_str(f"ALI_OSS_ENDPOINT{storage_name}")
+                    endpoint = config.get_str("ALI_OSS_ENDPOINT")
                 if not bucket:
-                    bucket = config.get_str(f"ALI_OSS_BUCKET_NAME{storage_name}")
+                    bucket = config.get_str("ALI_OSS_BUCKET_NAME")
                 if not prefix:
-                    prefix = config.get_str(f"ALI_OSS_PREFIX{storage_name}")
+                    prefix = config.get_str("ALI_OSS_PREFIX")
                 if not cdn:
-                    cdn = config.get_str(f"ALI_OSS_DOMAIN{storage_name}")
+                    cdn = config.get_str("ALI_OSS_DOMAIN")
 
         super().__init__(access_key_id, secret_access_key, region, bucket, prefix, cdn, endpoint)
 
@@ -266,37 +261,5 @@ class AliyunStorage(AbstractStorage):
             return None, error_msg
 
     #-----------------------------------------------------
-
-    async def get_file_info(self, key: str) -> tuple[dict[str, Any] | None, str | None]:
-        """Get file metadata from Aliyun OSS"""
-        try:
-            self._ensure_initialized()
-
-            object_key = self._build_object_key(key)
-
-            loop = asyncio.get_running_loop()
-            file_info = await loop.run_in_executor(
-                None,
-                partial(self._bucket.get_object_meta, object_key)
-            )
-
-            return {
-                "success": True,
-                "size": file_info.content_length,
-                "content_type": file_info.content_type,
-                "last_modified": file_info.last_modified,
-                "etag": file_info.etag,
-                "request_id": file_info.request_id,
-                "metadata": {
-                    k.replace("x-oss-meta-", ""): v
-                    for k, v in file_info.headers.items()
-                    if k.startswith("x-oss-meta-")
-                }
-            }, None
-
-        except Exception as e:
-            error_msg = f"Failed to get file info from OSS: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            return None, error_msg
 
 #-----------------------------------------------------------------------------

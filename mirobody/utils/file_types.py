@@ -2,9 +2,10 @@
 
 Single source of truth for "what kind of file is this extension" lookups —
 including :func:`guess_mime`, which every layer now calls: object storage when it
-sets `Content-Type` on a PUT, `s3.get_content_type` for presigned URLs, and the
-the agent's VFS when it decides whether to serve a row as text or base64. Those
-were three implementations of the same question, and they disagreed.
+sets `Content-Type` on a PUT and the agent's VFS when it decides whether to
+serve a row as text or base64. Those were three implementations of the same
+question (the third was the presigned-URL helper, since deleted), and they
+disagreed.
 
 A FIFTH implementation turned up after the first four were merged, and it was
 the one that mattered most: `file_parser/services/db_utils.get_mime_type`, read
@@ -37,29 +38,6 @@ two different content-types for the same extension depending on upload date.
 import mimetypes
 import os
 from pathlib import PurePosixPath
-
-
-# Extension → short type tag for file metadata / display.
-FILE_TYPE_MAP: dict[str, str] = {
-    ".pdf":  "PDF",
-    ".docx": "DOCX",
-    ".doc":  "DOC",
-    ".png":  "IMAGE",
-    ".jpg":  "IMAGE",
-    ".jpeg": "IMAGE",
-    ".gif":  "IMAGE",
-    ".webp": "IMAGE",
-    ".bmp":  "IMAGE",
-    ".txt":  "TEXT",
-    ".md":   "TEXT",
-    ".csv":  "CSV",
-    ".xlsx": "EXCEL",
-    ".xls":  "EXCEL",
-    ".html": "HTML",
-    ".htm":  "HTML",
-    ".json": "JSON",
-    ".xml":  "XML",
-}
 
 
 # Extension → MIME, pinned so the answer does not depend on the host's
@@ -107,8 +85,8 @@ def guess_mime(filename_or_ext: str | None) -> str:
     """MIME type for a filename, a suffix, or a bare extension.
 
     All three shapes reach this in the codebase — a full path from the VFS, a
-    `PurePosixPath.suffix`, and `name.split(".")[-1]` from the presigned-URL
-    helper — so all three are accepted. Unknown types get
+    `PurePosixPath.suffix`, and a bare extension from callers that only hold
+    the suffix text — so all three are accepted. Unknown types get
     `application/octet-stream`, which is the right answer when there is no
     answer; it was only wrong as a catch-all for extensions we do know.
     """
@@ -195,16 +173,3 @@ def is_document_file(filename: str, content_type: str | None = None) -> bool:
 def is_text_file(filename: str, content_type: str | None = None) -> bool:
     """True for plain-text-ish uploads we can decode without a parser."""
     return _matches(filename, content_type, TEXT_EXTENSIONS, TEXT_MIME_TYPES)
-
-
-def get_file_type(extension: str) -> str:
-    """Look up `FILE_TYPE_MAP` for an extension; returns ``"UNKNOWN"`` on miss.
-
-    The argument may be passed with or without a leading dot.
-    """
-    ext = extension.lower()
-    if not ext.startswith("."):
-        ext = "." + ext
-    return FILE_TYPE_MAP.get(ext, "UNKNOWN")
-
-

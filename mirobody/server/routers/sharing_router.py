@@ -84,7 +84,12 @@ async def shared_by_me_list(user_id: str = Depends(verify_token)):
     try:
         rows = await cc.circle_members(user_id)
         me = int(user_id)
-        return ok([
+        # Under a NAMED key, like shared-with-me/list's `invitations`:
+        # `StandardResponse.data` is `dict[str, Any]`, so a bare list failed
+        # validation, the `except` below caught it, and every single call
+        # answered `code: -1, "Could not list your circle."` — invisible
+        # because on an empty circle a failure and a success look alike.
+        return ok({"members": [
             {
                 "share_id": str(r["member_row_id"]),
                 "query_user_id": str(r["user_id"]),
@@ -98,7 +103,7 @@ async def shared_by_me_list(user_id: str = Depends(verify_token)):
                 "email": r.get("email"),
             }
             for r in rows if int(r["user_id"]) != me
-        ])
+        ]})
     except Exception as e:
         logger.error(f"shared-by-me/list: {e}", exc_info=True)
         return err(-1, "Could not list your circle.")

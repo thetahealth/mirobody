@@ -1,179 +1,72 @@
-"""
-Multi-language internationalization module
+"""Translated user-facing strings, one JSON file per calling module.
 
-Supports 5 languages: Chinese, English, French, Japanese, Spanish
-Uses a design where one program file corresponds to one translation file for easy maintenance
-Default language: English
+`t("file_empty", language, "file_uploader")` reads `locales/file_uploader.json`,
+whose entries are `{key: {lang: text}}` in five languages (en/zh/fr/ja/es), and
+falls back requested language → en → zh → the key itself. Language codes come
+from the request's `Accept-Language` (`server/middlewares.py`) through the
+request context, and `LANGUAGE_CODES` folds their spellings.
+
+This used to be an `I18n` class with a global instance, a module-level wrapper
+around each method and — when `module` was omitted — an `inspect` walk up the
+stack to guess the calling file from its filename. Every caller now names its
+module. The JSON never changes while the process runs, so the cache is a
+`functools.cache` and the `clear_translation_cache` that one upload path called on
+every request had nothing to clear.
 """
 
 import json
 import logging
-import os
+from functools import cache
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
+_LOCALES_DIR = Path(__file__).with_name("locales")
 
-class I18n:
-    """Multi-language internationalization class"""
+LANGUAGE_CODES = {
+    "zh": "zh",
+    "zh-cn": "zh",
+    "zh_cn": "zh",
+    "zh-hans": "zh",
+    "zh_hans": "zh",
+    # Traditional variants map to the Simplified bundle: we ship a
+    # archived/README.zh-TW.md, and Chinese text is closer than the English default.
+    "zh-tw": "zh",
+    "zh_tw": "zh",
+    "zh-hant": "zh",
+    "zh_hant": "zh",
+    "en": "en",
+    "fr": "fr",
+    "ja": "ja",
+    "es": "es",
+    "chinese": "zh",
+    "english": "en",
+    "french": "fr",
+    "japanese": "ja",
+    "spanish": "es",
+}
 
-    LANGUAGE_CODES = {
-        "zh": "zh",
-        "zh-cn": "zh",
-        "zh_cn": "zh",
-        "zh-hans": "zh",
-        "zh_hans": "zh",
-        # Traditional variants map to the Simplified bundle: we ship a
-        # archived/README.zh-TW.md, and Chinese text is closer than the English default.
-        "zh-tw": "zh",
-        "zh_tw": "zh",
-        "zh-hant": "zh",
-        "zh_hant": "zh",
-        "en": "en",
-        "fr": "fr",
-        "ja": "ja",
-        "es": "es",
-        "chinese": "zh",
-        "english": "en",
-        "french": "fr",
-        "japanese": "ja",
-        "spanish": "es",
-    }
 
-    def __init__(self):
-        self._translations_cache = {}
-        self._locales_dir = Path(__file__).parent.parent / "utils" / "locales"
+@cache
+def _translations(module: str) -> dict[str, dict[str, str]]:
+    path = _LOCALES_DIR / f"{module}.json"
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("Failed to load translations for %s: %s", module, e)  # phi: ok a module name and a JSON/OS error from our own locales tree
+        return {}
 
-    def clear_cache(self, module_name: str = None):
-        """
-        Clear translation cache
 
-        Args:
-            module_name: Specify module name, if None clears all cache
-        """
-        if module_name:
-            self._translations_cache.pop(module_name, None)
-        else:
-            self._translations_cache.clear()
-
-    def _load_translations(self, module_name: str) -> dict[str, Any]:
-        """
-        Load translation file for specified module
-
-        Args:
-            module_name: Module name (corresponds to translation file name)
-
-        Returns:
-            Dict[str, Any]: Translation dictionary
-        """
-        if module_name in self._translations_cache:
-            return self._translations_cache[module_name]
-
-        translation_file = self._locales_dir / f"{module_name}.json"
-
-        if not translation_file.exists():
-            # If translation file doesn't exist, return empty dict
-            self._translations_cache[module_name] = {}
-            return {}
-
+def t(key: str, language: str, module: str, **kwargs) -> str:
+    """The text for `key` in `language`, from `locales/<module>.json`."""
+    lang_code = LANGUAGE_CODES.get(language.lower(), "en")
+    text_dict = _translations(module).get(key, {})
+    text = text_dict.get(lang_code) or text_dict.get("en") or text_dict.get("zh") or key
+    if kwargs:
         try:
-            with open(translation_file, encoding="utf-8") as f:
-                translations = json.load(f)
-            self._translations_cache[module_name] = translations
-            return translations
-        except (OSError, json.JSONDecodeError) as e:
-            # print() bypassed the JSON log pipeline entirely — no level, no
-            # trace_id correlation, straight to stdout.
-            logger.warning("Failed to load translations for %s: %s", module_name, e)
-            self._translations_cache[module_name] = {}
-            return {}
-
-    def get_text(self, key: str, language: str = "en", module: str = None, **kwargs) -> str:
-        """
-        Get multi-language text
-
-        Args:
-            key: Text key
-            language: Language code, default English
-            module: Module name, if not provided will try to get from call stack
-            **kwargs: Format parameters
-
-        Returns:
-            str: Text in corresponding language
-        """
-        # Normalize language code
-        lang_code = self.LANGUAGE_CODES.get(language.lower(), "en")
-
-        # If module not specified, try to get from call stack
-        if module is None:
-            import inspect
-
-            frame = inspect.currentframe()
-            try:
-                # Get caller's filename as module name
-                caller_frame = frame.f_back
-                caller_filename = os.path.basename(caller_frame.f_code.co_filename)
-                module = caller_filename.replace(".py", "")
-            except Exception as e:
-                logger.error(f"Failed to get module name: {e}")
-                module = "default"
-            finally:
-                del frame
-
-        # Load translations
-        translations = self._load_translations(module)
-
-        text_dict = translations.get(key, {})
-
-        # Get text in corresponding language, priority: specified language -> English -> Chinese -> key itself
-        text = text_dict.get(lang_code) or text_dict.get("en") or text_dict.get("zh") or key
-
-        # Format text
-        if kwargs:
-            try:
-                text = text.format(**kwargs)
-            except (KeyError, ValueError):
-                # Return original text if formatting fails
-                pass
-
-        return text
-
-    def t(self, key: str, language: str = "en", module: str = None, **kwargs) -> str:
-        """
-        Shorthand for get_text
-        """
-        return self.get_text(key, language, module, **kwargs)
-
-
-# Create global instance
-i18n = I18n()
-
-
-# Convenience functions
-def t(key: str, language: str = "en", module: str = None, **kwargs) -> str:
-    """
-    Global translation function
-
-    Args:
-        key: Text key
-        language: Language code, default English
-        module: Module name, if not provided will automatically get from call stack
-        **kwargs: Format parameters
-
-    Returns:
-        str: Text in corresponding language
-    """
-    return i18n.get_text(key, language, module, **kwargs)
-
-
-def clear_translation_cache(module_name: str = None):
-    """
-    Convenience function to clear translation cache
-
-    Args:
-        module_name: Specify module name, if None clears all cache
-    """
-    i18n.clear_cache(module_name)
-
-
+            text = text.format(**kwargs)
+        except (KeyError, ValueError):
+            pass  # a placeholder mismatch is the JSON's bug; the raw text still says something
+    return text

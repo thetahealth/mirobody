@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 
-from ..utils.file_types import DOCUMENT_MIME_TYPES, TEXT_EXTENSIONS, TEXT_MIME_TYPES
+from ..utils.file_types import TEXT_EXTENSIONS, TEXT_MIME_TYPES
 
 KIND_PDF = "pdf"
 KIND_IMAGE = "image"
@@ -73,11 +73,6 @@ def is_docx(filename: str | None, content_type: str | None = None) -> bool:
 
 def is_pptx(filename: str | None, content_type: str | None = None) -> bool:
     return _ct(content_type) == _PPTX_MIME or _ext(filename) in PPTX_SUFFIXES
-
-
-def is_office(filename: str | None, content_type: str | None = None) -> bool:
-    """Word or PowerPoint (the zip formats — `DOCUMENT_MIME_TYPES`)."""
-    return is_docx(filename, content_type) or is_pptx(filename, content_type) or _ct(content_type) in DOCUMENT_MIME_TYPES
 
 
 def is_text(filename: str | None, content_type: str | None = None) -> bool:

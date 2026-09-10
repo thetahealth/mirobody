@@ -555,13 +555,16 @@ Please return strictly in JSON format, do not include any markdown code block ma
         page by page with only scanned pages OCR'd, images downscaled then
         OCR'd, spreadsheets and Word/PowerPoint as markdown, text decoded — cached
         by content hash through `th_files`, so the same bytes are never OCR'd
-        twice. ``""`` for a kind nothing reads, or on failure (logged by type)."""
-        try:
-            hint = content_type or ({"pdf": "application/pdf", "image": "image/jpeg"}.get((file_type or "").lower()))
-            text = await documents.extract_text(filename, hint, file_content, ocr=vision_ocr, cache=ThFilesTextCache())
-            logger.info("[Original Text] extracted: file_type=%s char_count=%d", file_type, len(text))
-            return text
-        except Exception as e:
-            logger.error("[Original Text] extraction failed: file_type=%s error_type=%s", file_type, type(e).__name__)
-            return ""
+        twice. ``""`` for a kind nothing reads.
+
+        Failures RAISE. This used to catch everything and return "", so a
+        photo uploaded to a deployment with no vision provider — or with a
+        text-only model as the vision default — was indistinguishable from a
+        blank photo, and the upload above it reported success (#68). The
+        callers decide what a failure means for them: the upload handler fails
+        the file with the reason, the agent's file reader answers ""."""
+        hint = content_type or ({"pdf": "application/pdf", "image": "image/jpeg"}.get((file_type or "").lower()))
+        text = await documents.extract_text(filename, hint, file_content, ocr=vision_ocr, cache=ThFilesTextCache())
+        logger.info("[Original Text] extracted: file_type=%s char_count=%d", file_type, len(text))
+        return text
 

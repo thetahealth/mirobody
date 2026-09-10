@@ -79,39 +79,3 @@ class AppleDatabaseService:
         except Exception as e:
             logger.error(f"Error updating LLM access for user {user_id}, provider {provider_slug}: {str(e)}", extra={"error": traceback.format_exc()})
             return False
-
-    async def get_user_apple_providers_with_llm_access(self, user_id: str) -> dict[str, int]:
-        """
-        Get user's apple providers with their LLM access permissions
-
-        Args:
-            user_id: User ID
-
-        Returns:
-            Dict mapping provider_slug (without apple prefix) to llm_access level
-        """
-        try:
-            query = """
-            SELECT provider, llm_access
-            FROM health_user_provider
-            WHERE user_id = :user_id AND provider in ('apple_health', 'cda') AND is_del = FALSE
-            """
-
-            result = await execute_query(
-                query=query,
-                params={"user_id": user_id},
-            )
-
-            provider_llm_map = {}
-            if result:
-                for row in result:
-                    provider_slug = row["provider"]
-                    llm_access = row["llm_access"]
-                    provider_llm_map[provider_slug] = llm_access
-
-            logger.info(f"Retrieved LLM access for {len(provider_llm_map)} apple providers for user {user_id}")
-            return provider_llm_map
-
-        except Exception as e:
-            logger.error(f"Error getting apple providers LLM access for user {user_id}: {str(e)}", extra={"error": traceback.format_exc()})
-            return {}

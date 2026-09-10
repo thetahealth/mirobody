@@ -6854,7 +6854,7 @@ async def resolve_many(
                 flat_inputs.append(_augment(s))
                 flat_to_qi.append(qi)
 
-        # provider=None reads EMBEDDING_PROVIDER (default openrouter). It was
+        # provider=None reads UTILS_EMBEDDING_MODEL. It was
         # hardcoded to "gemini", which meant the corpus matrix and the query
         # vectors could silently disagree: a deployment configured for any other
         # provider still embedded its QUERIES with gemini, and cosine against a

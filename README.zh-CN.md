@@ -148,13 +148,16 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
 [`examples/06_care_circle_rules.py`](examples/06_care_circle_rules.py) 能离线打印整张决策表。
 要保存真实数据时，设 `SEED_DEMO_DATA=false`。
 
-**一把 key 跑通全部。** 浏览种子记录不需要 key；下面的上传和提问需要一把。我们推荐走
-OpenAI 兼容的接入方式：把 [OpenAI key](https://platform.openai.com/api-keys) 写进 `OPENAI_API_KEY`，
-或把 [OpenRouter key](https://openrouter.ai/keys) 写进 `OPENROUTER_API_KEY`，或者用
-`<PROVIDER>_BASE_URL` 和 `<PROVIDER>_MODEL` 指向任何兼容的网关。写进 `compose.yaml` 旁边的
-`.env`，然后 `docker compose restart`——这一步就够了，应用会重新读取 `/app/.env`；shell 里的
-`export` 到不了容器。请选**多模态模型**：报告照片和扫描页走的是视觉通道
-（`<PROVIDER>_VISION_MODEL`），纯文本模型解析不了它们。其他直连 key 见 `config.yaml`。
+**一把 key 跑通全部。** 浏览种子记录不需要 key；下面的上传和提问需要一把。把**一把** key
+写进 `compose.yaml` 旁边的 `.env`，然后 `docker compose restart`——应用会重新读取 `/app/.env`，
+shell 里的 `export` 到不了容器。key 只写在 `.env` 里：`config.llm.yaml` 只写变量名
+（`api_key: OPENROUTER_API_KEY`），不放密钥本身。推荐 [OpenRouter key](https://openrouter.ai/keys)（`OPENROUTER_API_KEY`）；
+openrouter.ai 在你的网络不可达时用 DashScope 的 key；Google、[OpenAI](https://platform.openai.com/api-keys)
+（`OPENAI_API_KEY`）、[Anthropic](https://platform.claude.com/settings/keys)（`ANTHROPIC_API_KEY`）
+或 DeepSeek 的 key 单独一把也都能跑通。每一个模型决定——聊天用哪个、报告照片
+用哪个读、指标用哪个抽、向量用哪个——都是 [`config.llm.yaml`](config.llm.yaml) 里的一行，看得见、
+改得动（自建网关只需在 `.env` 里加一行 `<PREFIX>_BASE_URL`）。启动日志和 `mirobody doctor`
+会列出每个环节选到了什么，缺的地方直接给出补法。
 
 **① 收集 + ② 转译。** 把 [`demo/lab_report_2025-10-15.pdf`](demo/lab_report_2025-10-15.pdf)
 拖到 Data 页，十二个分析物连同数值和单位被抽出来，每一个都链回它所在的那一页：

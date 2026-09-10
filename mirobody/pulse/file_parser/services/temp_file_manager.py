@@ -50,7 +50,7 @@ class TempFileManager:
             # Check if content is empty
             if not content or len(content) == 0:
                 logger.error(f"File content is empty: {upload_file.filename}")
-                raise ValueError(t("file_empty", language))
+                raise ValueError(t("file_empty", language, "temp_file_manager"))
 
             # Get original filename and extension
             filename = upload_file.filename
@@ -97,7 +97,7 @@ class TempFileManager:
             # Check if content is empty
             if not content or len(content) == 0:
                 logger.error(f"File content is empty: {filename}")
-                raise ValueError(t("file_empty", language))
+                raise ValueError(t("file_empty", language, "temp_file_manager"))
 
             # Get original filename and extension
             suffix = os.path.splitext(filename)[1] if filename else ""

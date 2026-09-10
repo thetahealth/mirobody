@@ -23,8 +23,9 @@ clients get the engine through `mirobody/mcp/` (six tools: `resolve_indicator`,
 `convert_unit`, `normalize_unit`, `query_health_indicators`, `query_medications`,
 `get_genetic_data`) —
 and that list is asserted exactly, in `tests/agent/test_tool_surface.py`.
-The agent's config keys are `PROVIDERS`, `PROMPTS`, `ALLOWED_TOOLS`,
-`DISALLOWED_TOOLS`, `DEFAULT_PROVIDER`, `AGENT_NAME` — no suffix.
+The agent's config keys are `MODELS`, `PROMPTS`, `ALLOWED_TOOLS`,
+`DISALLOWED_TOOLS`, `DEFAULT_MODEL`, `AGENT_NAME` — no suffix, and no "provider"
+(in this project a provider is a device; `PROVIDERS` was the 1.4.0 spelling).
 
 ## Setup that actually works from a source clone
 

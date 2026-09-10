@@ -20,6 +20,8 @@ from typing import Literal
 
 import aiohttp
 
+from .config.llm import LLMProvider, model_entries, no_provider_message, resolve_route
+
 log = logging.getLogger(__name__)
 
 # ── Retry settings ───────────────────────────────────────────────────
@@ -135,66 +137,54 @@ _EMB_PROVIDERS: dict[str, callable] = {}
 #:     embedding model is served by BOTH gateways today (bge-m3 came closest:
 #:     OpenRouter yes, DashScope present-but-gated), so each gateway runs its
 #:     own model; vectors never cross deployments, so this costs nothing.
-EMBEDDING_MODEL_IDS: dict[str, str] = {
-    "gemini": "gemini-embedding-001",
-    "qwen": "text-embedding-v4",
-    "openrouter": "qwen/qwen3-embedding-8b",
-}
-
-#: `<PROVIDER>_EMBEDDING_MODEL` overrides the default above, the way
-#: `<PROVIDER>_MODEL` and `<PROVIDER>_VISION_MODEL` do on the chat and vision
-#: paths. It exists for the same reason (issue #52): a deployment that points
-#: `OPENROUTER_BASE_URL` at its own vLLM/TEI serving cannot be expected to
-#: serve `qwen/qwen3-embedding-8b` under that exact id, and before this the
-#: default was unreachable from config — embeddings 404'd with no way out but
-#: switching provider.
 #:
+#: The ids themselves are configuration: the `MODELS` entries in config.llm.yaml
+#: that carry `embedding: <family>`, and `UTILS_EMBEDDING_MODEL` names which of
+#: them to use (the first whose key is present). This layer keeps the FAMILY
+#: names because the database columns carry them (`embedding_qwen3_8b`,
+#: `embedding_gemini`), and a column name is not something a rename may move.
+
+#: An embedding entry's `model` in config.llm.yaml is the id (issue #52: a
+#: deployment that points `OPENROUTER_BASE_URL` at its own vLLM/TEI serving
+#: cannot be expected to serve `qwen/qwen3-embedding-8b` under that exact id).
 #: It reaches BOTH sides of the vector space at once: the factories below build
-#: the request from this function, and `indicator/semantic.py` stamps and checks
-#: matrix identity through it, so an override on a matrix built with the old
-#: model fails loudly ("built by X, queries embedded by Y") instead of returning
-#: confident nonsense. Changing it means re-embedding, exactly like changing
-#: EMBEDDING_PROVIDER.
+#: the request from `embedding_model_id`, and `indicator/semantic.py` stamps and
+#: checks matrix identity through it, so a changed id against a matrix built
+#: with the old one fails loudly ("built by X, queries embedded by Y") instead
+#: of returning confident nonsense. Changing it means re-embedding, exactly like
+#: changing UTILS_EMBEDDING_MODEL.
 #:
 #: The 1024 `dimensions` in the factories is deliberately NOT config: it is the
 #: width of the database columns, a schema fact rather than a deployment one.
-def embedding_model_override(provider: str) -> str:
-    """`<PROVIDER>_EMBEDDING_MODEL` for this provider, or "" when unset."""
-    from .config import safe_read_cfg
-
-    return (safe_read_cfg(f"{provider.upper()}_EMBEDDING_MODEL", "") or "").strip()
-
-
 def resolve_embedding_provider() -> str:
-    """`EMBEDDING_PROVIDER` if set; otherwise pick by which API key exists.
+    """The vector-column family `UTILS_EMBEDDING_MODEL` routes to — the
+    `embedding:` of the first listed entry whose key is present (that is how
+    one key runs everything); "" when none.
 
-    The auto path mirrors the vision pipeline's select-by-available-key: the
-    promise is that ONE key — OPENROUTER_API_KEY or DASHSCOPE_API_KEY — runs
-    every feature with zero further configuration. Explicit config always
-    wins; openrouter outranks the others when several keys are present.
-    (Vision keeps its own priority order — gemini first — so the two lists
-    agree on the promise, not on the sequence.)
+    "" rather than a default: this used to answer "openrouter" with zero keys,
+    which turned "no provider" into "a provider you cannot call" and moved the
+    failure to the first request (a 401 from a gateway the deployment never
+    chose). A DEEPSEEK_API_KEY-only deployment also lands here — DeepSeek
+    serves no embedding model — and semantic search degrades to the lexical
+    index rather than to a 401; `mirobody doctor` says which.
     """
-    from .config import safe_read_cfg
-
-    explicit = (safe_read_cfg("EMBEDDING_PROVIDER", "") or "").strip().lower()
-    if explicit:
-        return explicit
-    for key, provider in (
-        ("OPENROUTER_API_KEY", "openrouter"),
-        ("DASHSCOPE_API_KEY", "qwen"),
-        ("GOOGLE_API_KEY", "gemini"),
-    ):
-        if os.environ.get(key) or safe_read_cfg(key, ""):
-            return provider
-    return "openrouter"
+    spec = resolve_route("embedding")
+    return (spec.embedding or "") if spec else ""
 
 
 def embedding_model_id(provider: str | None = None) -> str:
-    """The model id the given (or configured) provider embeds with."""
+    """The model id the given (or routed) family embeds with: the routed
+    entry's model when it writes that family, else the first `MODELS` entry
+    with `embedding: <family>`; "" when none."""
     if provider is None:
         provider = resolve_embedding_provider()
-    return embedding_model_override(provider) or EMBEDDING_MODEL_IDS.get(provider, "")
+    spec = resolve_route("embedding")
+    if spec is not None and spec.embedding == provider:
+        return spec.model
+    for entry in model_entries().values():
+        if str((entry or {}).get("embedding") or "").strip().lower() == (provider or "").lower():
+            return str((entry or {}).get("model") or "").strip()
+    return ""
 
 
 def _emb_provider(name: str):
@@ -299,6 +289,33 @@ def _openrouter():
     )
 
 
+@_emb_provider("openai")
+def _openai():
+    """`text-embedding-3-small` at 1024 dimensions.
+
+    Last resort by design — OpenRouter's open-weights Qwen3 is two orders of
+    magnitude cheaper for the same 96k-row corpus — but without it a deployment
+    holding only an OPENAI_API_KEY had no embedding path at all, so
+    `resolve_embedding_provider()` answered "openrouter" and every call failed
+    on a key that was not there. v3 embeddings accept `dimensions`, which is
+    what lets these vectors share the 1024-wide column shape.
+    """
+    from mirobody.utils.config import global_config
+
+    return (
+        global_config().get_llm(LLMProvider.OPENAI),
+        "embeddings",
+        256,
+        4,  # max_concurrency
+        lambda chunk: {
+            "model": embedding_model_id("openai"),
+            "input": chunk,
+            "dimensions": 1024,
+        },
+        lambda data: [item["embedding"] for item in data["data"]],
+    )
+
+
 # ── Public API ───────────────────────────────────────────────────────
 
 # Snapshot of provider names registered above. Callers that need to validate
@@ -309,16 +326,17 @@ EMBEDDING_PROVIDERS: frozenset[str] = frozenset(_EMB_PROVIDERS)
 
 async def text_embedding(
     texts: list[str],
-    provider: Literal["gemini", "qwen", "openrouter"] | None = None,
+    provider: Literal["gemini", "qwen", "openrouter", "openai"] | None = None,
     *,
     cache: bool = False,
 ) -> list[list[float] | None]:
     """Compute 1024-dim embeddings via *provider*.
 
     Supported providers: ``"gemini"`` (auto Vertex AI), ``"qwen"``
-    (DashScope), ``"openrouter"`` (open-weights Qwen3-Embedding-8B).
+    (DashScope), ``"openrouter"`` (open-weights Qwen3-Embedding-8B),
+    ``"openai"`` (text-embedding-3-small).
     When *provider* is ``None``, uses :func:`resolve_embedding_provider`
-    (explicit ``EMBEDDING_PROVIDER``, else picked by which API key exists).
+    (explicit ``UTILS_EMBEDDING_MODEL``, else picked by which API key exists).
     Long input lists are chunked per provider batch limit.
     Invalid entries (non-str / blank) yield ``None`` at the same index.
 
@@ -332,6 +350,8 @@ async def text_embedding(
     """
     if provider is None:
         provider = resolve_embedding_provider()
+    if not provider:
+        raise ValueError(no_provider_message("embedding"))
 
     if isinstance(texts, str):
         texts = [texts]

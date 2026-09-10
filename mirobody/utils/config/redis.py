@@ -41,8 +41,9 @@ class RedisConfig:
         print(f"redis           : {self.host}:{self.port}/{self.database}")
 
     # -----------------------------------------------------
-    # redis.Redis handles connection pooling automatically, thus
-    #   use getAioClient() or getClient() as possible as you can.
+    # redis.asyncio.Redis handles connection pooling itself; every caller in
+    # the project goes through get_async_client(). The sync client and the two
+    # bare ConnectionPool builders that used to sit below it had no callers.
 
     async def get_async_client(self) -> redis.asyncio.Redis | None:
         client = await redis.asyncio.Redis(
@@ -71,57 +72,5 @@ class RedisConfig:
             return None
 
         return client
-
-
-    def get_client(self) -> redis.Redis | None:
-        client = redis.Redis(
-            host                = self.host,
-            port                = self.port,
-            db                  = self.database,
-            password            = self.password,
-            ssl                 = self.ssl,
-            ssl_check_hostname  = self.ssl_check_hostname,
-            ssl_cert_reqs       = self.ssl_cert_reqs,
-            decode_responses    = True,
-            socket_timeout      = self.timeout,
-            max_connections     = self.maxconn,
-        )
-
-        # Check it beforehand.
-        if not client.ping():
-            client.close()
-
-            logger.error(f"Failed to ping Redis server '{self.host}:{self.port}'.")
-            return None
-
-        return client
-
-    #-----------------------------------------------------
-
-    def get_async_pool(self) -> redis.asyncio.ConnectionPool:
-        return redis.asyncio.ConnectionPool(
-            connection_class    = redis.asyncio.SSLConnection if self.ssl else redis.asyncio.Connection,
-            host                = self.host,
-            port                = self.port,
-            db                  = self.database,
-            password            = self.password,
-            ssl_check_hostname  = self.ssl_check_hostname,
-            ssl_cert_reqs       = self.ssl_cert_reqs,
-            decode_responses    = True,
-            socket_timeout      = self.timeout,
-        )
-
-    def get_pool(self) -> redis.ConnectionPool:
-        return redis.ConnectionPool(
-            connection_class    = redis.SSLConnection if self.ssl else redis.Connection,
-            host                = self.host,
-            port                = self.port,
-            db                  = self.database,
-            password            = self.password,
-            ssl_check_hostname  = self.ssl_check_hostname,
-            ssl_cert_reqs       = self.ssl_cert_reqs,
-            decode_responses    = True,
-            socket_timeout      = self.timeout,
-        )
 
 #-----------------------------------------------------------------------------

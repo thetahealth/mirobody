@@ -31,9 +31,7 @@ logger = logging.getLogger(__name__)
 # Supported file extensions. This gate must match what the handler factory can
 # actually route, in BOTH directions, and it has been wrong both ways:
 #
-#   too narrow — it rejected every audio extension while AudioHandler sat
-#                unreachable behind it, and rejected .md while TextHandler
-#                happily parses it; the web client advertised audio anyway.
+#   too narrow — it rejected .md while TextHandler happily parses it.
 #   too wide   — .doc/.docx/.ppt/.pptx were accepted here with no handler in
 #                existence, so the picker let you choose one, the upload ran,
 #                and `file_processor` then answered "file not supported". They
@@ -54,8 +52,6 @@ SUPPORTED_EXTENSIONS = {
     # Plain text: lab exports, genetic raw data, notes. `.csv` belongs here —
     # TextHandler owns it now that the never-injected CSVHandler is gone.
     ".txt", ".md", ".markdown", ".csv", ".json", ".xml",
-    # Audio (AudioHandler)
-    ".wav", ".mp3", ".aiff", ".aac", ".ogg", ".flac", ".m4a",
     # Archives: accepted for their contents, not parsed as themselves
     ".zip", ".rar",
 }
@@ -126,7 +122,7 @@ class FileUploader:
             # Check if content is empty
             if not file_content or len(file_content) == 0:
                 logger.error(f"File content is empty: {filename}")
-                raise ValueError(t("file_empty", language))
+                raise ValueError(t("file_empty", language, "file_uploader"))
 
             file_size = len(file_content)
             
@@ -155,10 +151,10 @@ class FileUploader:
                     
             except TimeoutError:
                 logger.error(f"File upload timeout: {filename}, size: {file_size} bytes")
-                raise ValueError(t("file_upload_timeout", language))
+                raise ValueError(t("file_upload_timeout", language, "file_uploader"))
 
             if not full_url:
-                raise ValueError(t("file_upload_failed", language))
+                raise ValueError(t("file_upload_failed", language, "file_uploader"))
 
             logger.info(f"File uploaded successfully to {storage.get_storage_type()} storage: {full_url}")
 
@@ -241,26 +237,3 @@ def generate_file_key(filename: str, folder_prefix: str = "uploads") -> str:
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     unique_id = uuid.uuid4().hex[:8]
     return f"{folder_prefix}/{timestamp}_{unique_id}{file_extension}"
-
-
-def get_file_type_category(content_type: str) -> str:
-    """
-    Determine file type category from content type
-    
-    Args:
-        content_type: MIME content type
-        
-    Returns:
-        str: File category (image, pdf, excel, document)
-    """
-    if not content_type:
-        return "file"
-        
-    if content_type.startswith("image/"):
-        return "image"
-    if content_type == "application/pdf":
-        return "pdf"
-    if content_type in ["application/vnd.ms-excel", 
-                          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]:
-        return "excel"
-    return "document"

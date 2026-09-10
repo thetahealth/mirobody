@@ -6,12 +6,29 @@ Responsible for genetic data management and querying
 
 import logging
 
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
-from mirobody.utils.data import DataConverter
 from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
+
+
+def _json_safe(data: Any) -> Any:
+    """psycopg hands back datetime/date/Decimal, which json.dumps refuses; tool
+    results go out over JSON-RPC, so coerce before the wire. Was
+    `utils.data.DataConverter` — a class with one static method and an `async`
+    wrapper that awaited nothing — and this module was its only caller."""
+    if isinstance(data, (datetime, date)):
+        return data.isoformat()
+    if isinstance(data, Decimal):
+        return float(data)
+    if isinstance(data, dict):
+        return {k: _json_safe(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_json_safe(item) for item in data]
+    return data
 
 
 class GeneticService:
@@ -20,7 +37,6 @@ class GeneticService:
     def __init__(self):
         self.name = "Genetic Service"
         self.version = "1.0.0"
-        self.data_converter = DataConverter()
 
     # The tool signature used to also take chromosome / position / genotype /
     # offset. All four "narrow an already-matched set" — with rsid required
@@ -111,10 +127,11 @@ class GeneticService:
             result = await execute_query(sql, params)
 
             # Debug logging
-            logger.info(f"Query results type: {type(result)}, length: {len(result) if result else 0}")
+            result_type = type(result).__name__
+            logger.info(f"Query results type: {result_type}, length: {len(result) if result else 0}")
 
             # Data conversion
-            result = await self.data_converter.convert_list(result)
+            result = _json_safe(result) if result else []
 
             # Convert to compact format
             compact_result = []
@@ -194,7 +211,7 @@ class GeneticService:
                         nearby_data = await execute_query(nearby_sql_final, nearby_params)
 
                         if nearby_data:
-                            nearby_converted = await self.data_converter.convert_list(nearby_data)
+                            nearby_converted = _json_safe(nearby_data)
                             # Add distance information for nearby variants and simplify data structure
                             for nearby_record in nearby_converted:
                                 distance = abs(nearby_record.get("position", 0) - pos)
@@ -269,7 +286,11 @@ class GeneticService:
             return response_data
 
         except Exception as e:
-            logger.error(str(e), exc_info=True)
+            # The TYPE, not the message, and no traceback: this is the answer
+            # path for a person's genome, and a psycopg error quotes the
+            # statement WITH its bound parameters — here, their rsIDs.
+            error_type = type(e).__name__
+            logger.error("get_genetic_data failed: %s", error_type)
 
             return {
                 "success": False,

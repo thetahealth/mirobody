@@ -327,7 +327,7 @@ class SemanticIndex:
         different Qwen3-Embedding serving config once answered ``空腹血糖``
         with *"Widespread delusions"* at a plausible score. The build script
         stamps ``<matrix>.meta.json``; queries here are embedded with the
-        configured ``EMBEDDING_PROVIDER``, so the two identities must agree.
+        configured ``UTILS_EMBEDDING_MODEL``, so the two identities must agree.
 
         A matrix WITHOUT a sidecar (built before stamping existed) loads with
         a warning: refusing it would brick every existing download, and the
@@ -340,7 +340,7 @@ class SemanticIndex:
         if not os.path.isfile(meta_path):
             logger.warning(
                 "semantic matrix %s has no .meta.json identity stamp; cannot "
-                "verify it matches EMBEDDING_PROVIDER. Rebuild with "
+                "verify it matches UTILS_EMBEDDING_MODEL. Rebuild with "
                 "scripts/build_loinc_embeddings.py to silence this.", path,
             )
             return
@@ -356,11 +356,11 @@ class SemanticIndex:
             raise ValueError(
                 f"semantic matrix {path} was built by "
                 f"{meta.get('provider')}/{meta.get('model')} but queries are "
-                f"embedded by {provider}/{model} (EMBEDDING_PROVIDER). A "
+                f"embedded by {provider}/{model} (UTILS_EMBEDDING_MODEL). A "
                 "cross-model cosine is confident nonsense, not a looser "
                 "match — rebuild the matrix with "
                 f"scripts/build_loinc_embeddings.py --provider {provider}, "
-                "or set EMBEDDING_PROVIDER to match the matrix."
+                "or set UTILS_EMBEDDING_MODEL to match the matrix."
             )
 
     def search_vectors(

@@ -1,4 +1,4 @@
-"""Parsing for the agent's config keys: ``PROMPTS`` and ``PROVIDERS``.
+"""Parsing for the agent's config keys: ``PROMPTS`` and ``MODELS``.
 
 These two are the only parts of `Config` that know anything about the agent,
 and the only parts that do real work rather than read a key: one resolves
@@ -123,8 +123,9 @@ def _default_key(file_path: str) -> str:
     return os.path.basename(file_path).removesuffix(".jinja").strip()
 
 
-def parse_providers(cfg: _Reader, key: str = "PROVIDERS") -> dict[str, dict]:
-    """Normalise ``PROVIDERS`` into ``{provider_name: settings}``.
+def parse_providers(cfg: _Reader, key: str = "MODELS") -> dict[str, dict]:
+    """Normalise ``MODELS`` (the model table; ``PROVIDERS`` before 1.4.1, when the
+    word was freed for devices) into ``{alias: settings}``.
 
     Three accepted shapes, because all three appear in the wild:
       * a mapping of name → settings (what config.yaml uses), taken as-is;

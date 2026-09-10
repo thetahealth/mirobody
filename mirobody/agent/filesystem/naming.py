@@ -24,8 +24,8 @@ from pathlib import PurePosixPath
 
 from deepagents.backends.utils import _EXTENSION_TO_FILE_TYPE, _VIDEO_EXTRA_EXTENSIONS
 
-# `guess_mime` lives in the engine layer, because object storage and the
-# presigned-URL helper need the same answers and cannot import the agent layer.
+# `guess_mime` lives in the engine layer, because object storage needs the
+# same answers and cannot import the agent layer.
 from ...utils.file_types import guess_mime as guess_mime
 
 #: The suffixes deepagents treats as binary — derived from its own table, not

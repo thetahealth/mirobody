@@ -4,7 +4,7 @@ import logging
 
 from typing import Any
 
-from .base import LinkRequest, Platform, ProviderInfo, UserProvider
+from .base import LinkRequest, Platform, UserProvider
 from .core import LinkType
 from .core.database import ManageDatabaseService
 
@@ -30,21 +30,6 @@ class PlatformManager:
     def get_platform(self, platform_name: str) -> Platform | None:
         """Get platform by name"""
         return self._platforms.get(platform_name)
-
-    async def get_all_providers(self, nocache: bool = False) -> list[ProviderInfo]:
-        """Get all providers from all platforms"""
-        all_providers = []
-        for platform_name, platform in self._platforms.items():
-            try:
-                providers = await platform.get_providers(nocache=nocache)
-                all_providers.extend(providers)
-                logger.info(f"Got {len(providers)} providers from platform: {platform_name}")
-            except Exception as e:
-                logger.error(f"Error getting providers from platform {platform_name}: {str(e)}")
-                continue
-
-        logger.info(f"Total providers from all platforms: {len(all_providers)}")
-        return all_providers
 
     async def get_user_providers(self, user_id: str) -> list[UserProvider]:
         """Get user providers from all platforms"""

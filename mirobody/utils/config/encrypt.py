@@ -6,13 +6,6 @@ logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
-class AbstractEncrypter:
-    def decrypt(self, s: str) -> str: ...
-    def encrypt(self, s: str) -> str: ...
-    def is_encrypted(self, s: str) -> bool: ...
-
-#-----------------------------------------------------------------------------
-
 class FernetEncrypter:
     def __init__(self, key: str):
         self._key = key.strip()

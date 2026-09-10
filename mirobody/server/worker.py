@@ -38,6 +38,11 @@ class Worker:
             config = await Config.init(yaml_filenames=yaml_files)
         config.print()
 
+        # The worker runs the extraction queues, so it has the same question
+        # the server asks at boot: which surfaces have a provider.
+        from ..utils.config.doctor import log_report, provider_report
+        log_report(provider_report(config), logger)
+
         logger.info("Worker runner starting")
 
         # One redis client shared by all consumers — redis.asyncio.Redis has

@@ -2,8 +2,7 @@ import asyncio
 import logging
 
 from pathlib import Path
-from typing import IO, Any
-from datetime import datetime
+from typing import IO
 
 from .abstract import AbstractStorage
 
@@ -302,44 +301,5 @@ class LocalStorage(AbstractStorage):
             return None, error_msg
 
     #-----------------------------------------------------
-
-    async def get_file_info(self, key: str) -> tuple[dict[str, Any] | None, str | None]:
-        """
-        Get file metadata from local storage
-
-        Args:
-            key: File key/path
-
-        Returns:
-            (file_info, error). If successful, error is None.
-        """
-        try:
-            file_path = self._get_file_path(key)
-
-            if not file_path.exists():
-                logger.warning(f"File not found: {file_path}")
-                return None, f"File not found: {key}"
-
-            loop = asyncio.get_running_loop()
-
-            def get_stat():
-                stat = file_path.stat()
-                content_type = self.get_content_type_from_filename(file_path.name)
-
-                return {
-                    "success": True,
-                    "size": stat.st_size,
-                    "content_type": content_type,
-                    "last_modified": datetime.fromtimestamp(stat.st_mtime),
-                    "created": datetime.fromtimestamp(stat.st_ctime),
-                    "path": str(file_path)
-                }
-
-            return await loop.run_in_executor(None, get_stat), None
-
-        except Exception as e:
-            error_msg = f"Failed to get file info from local storage: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            return None, error_msg
 
 #-----------------------------------------------------------------------------

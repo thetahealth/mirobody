@@ -1,5 +1,5 @@
 
-from typing import Any, BinaryIO
+from typing import BinaryIO
 
 from ...file_types import guess_mime
 
@@ -88,17 +88,6 @@ class AbstractStorage:
 
         Returns:
             (signed_url, error). If successful, error is None.
-        """
-
-    async def get_file_info(self, key: str) -> tuple[dict[str, Any] | None, str | None]:
-        """
-        Get file metadata information
-
-        Args:
-            key: File key/path
-
-        Returns:
-            (file_info, error). If successful, error is None.
         """
 
     def get_storage_type(self) -> str:

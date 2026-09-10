@@ -66,6 +66,7 @@ FHIR_EMBEDDING_COLUMN: dict[str, str] = {
     # Open-weights qwen/qwen3-embedding-8b via OpenRouter (or self-hosted —
     # same weights, same column), one OPENROUTER_API_KEY for agent + embeddings.
     "openrouter": "embedding_qwen3_8b",
+    "openai": "embedding_openai_3_small",
 }
 
 #: provider → the `th_series_dim` vector column. **A separate map, because the
@@ -82,23 +83,27 @@ DIM_EMBEDDING_COLUMN: dict[str, str] = {
     "gemini": "embedding_gemini",
     "qwen": "embedding_qwen",
     "openrouter": "embedding_qwen3_8b",
+    "openai": "embedding_openai_3_small",
 }
 
 
 def resolve_dim_embedding_column() -> tuple[str, str]:
-    """``EMBEDDING_PROVIDER`` → ``(provider, th_series_dim column)``.
+    """``UTILS_EMBEDDING_MODEL`` → ``(provider, th_series_dim column)``.
 
     Providers with no column raise here rather than composing SQL against one
     that does not exist. (That decision was taken deliberately for openrouter
     when it became the shipped default: the model is settled —
     qwen/qwen3-embedding-8b — and both tables carry `embedding_qwen3_8b`.)
     """
+    from mirobody.utils.config.llm import no_provider_message
     from mirobody.utils.embedding import EMBEDDING_PROVIDERS, resolve_embedding_provider
 
     provider = resolve_embedding_provider()
+    if not provider:
+        raise ValueError(no_provider_message("embedding"))
     if provider not in EMBEDDING_PROVIDERS:
         raise ValueError(
-            f"EMBEDDING_PROVIDER invalid: {provider!r} "
+            f"UTILS_EMBEDDING_MODEL invalid: {provider!r} "
             f"(available: {sorted(EMBEDDING_PROVIDERS)})"
         )
     if provider not in DIM_EMBEDDING_COLUMN:
@@ -112,19 +117,22 @@ def resolve_dim_embedding_column() -> tuple[str, str]:
 
 
 def resolve_fhir_embedding_column() -> tuple[str, str]:
-    """Resolve ``EMBEDDING_PROVIDER`` to ``(provider, fhir_indicators column)``.
+    """Resolve ``UTILS_EMBEDDING_MODEL`` to ``(provider, fhir_indicators column)``.
 
-    Read from a single config key — ``EMBEDDING_PROVIDER`` (default
+    Read from a single config key — ``UTILS_EMBEDDING_MODEL`` (default
     ``openrouter``). Validated against both :data:`FHIR_EMBEDDING_COLUMN` and the
     embedding-API provider registry, since the column name is interpolated
     into SQL.
     """
+    from mirobody.utils.config.llm import no_provider_message
     from mirobody.utils.embedding import EMBEDDING_PROVIDERS, resolve_embedding_provider
 
     provider = resolve_embedding_provider()
+    if not provider:
+        raise ValueError(no_provider_message("embedding"))
     if provider not in EMBEDDING_PROVIDERS:
         raise ValueError(
-            f"EMBEDDING_PROVIDER invalid: {provider!r} "
+            f"UTILS_EMBEDDING_MODEL invalid: {provider!r} "
             f"(available: {sorted(EMBEDDING_PROVIDERS)})"
         )
     if provider not in FHIR_EMBEDDING_COLUMN:
@@ -137,7 +145,7 @@ def resolve_fhir_embedding_column() -> tuple[str, str]:
             f"provider {provider!r} has no fhir_indicators vector column. "
             f"Database vector search supports {sorted(FHIR_EMBEDDING_COLUMN)}; "
             f"{provider!r} is for the file-based semantic tier and for "
-            f"text_embedding() callers. Either set EMBEDDING_PROVIDER to one of "
+            f"text_embedding() callers. Either set UTILS_EMBEDDING_MODEL to one of "
             f"the former, or use the file matrix."
         )
     return provider, FHIR_EMBEDDING_COLUMN[provider]

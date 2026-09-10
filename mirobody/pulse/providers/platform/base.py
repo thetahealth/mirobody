@@ -132,7 +132,7 @@ class BasePullProvider(Provider):
 
         `credentials` is the LinkRequest's dict: `username`/`password` for
         `LinkType.PASSWORD`, `connect_info` for `LinkType.CUSTOMIZED`. Override
-        to probe the vendor (pgsql opens a connection).
+        to probe the vendor.
         """
 
     async def _get_user_timezone(self, user_id: str) -> str:

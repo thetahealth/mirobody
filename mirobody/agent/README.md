@@ -27,7 +27,7 @@ Adding capability means adding a **tool** or a **skill**, not another agent.
 One agent, so the keys carry no agent-name suffix (`config.yaml`):
 
 ```yaml
-PROVIDERS:            # the model picker: one LangChain chat model per entry
+MODELS:            # the model picker: one LangChain chat model per entry
   claude-sonnet:
     llm_type: openai
     api_key: OPENROUTER_API_KEY     # the config/env key that holds the secret
@@ -37,11 +37,11 @@ PROMPTS:
   - agent/prompts/mirobody.jinja   # path, or path@name; the first is the default
 ALLOWED_TOOLS:        # whitelist, or
 DISALLOWED_TOOLS:     # blacklist (`eval` here turns the REPL off)
-DEFAULT_PROVIDER:     # else: the entry whose key is present
+DEFAULT_MODEL:     # else: the entry whose key is present
 AGENT_NAME:           # the persona name in the prompt; default "Mirobody"
 ```
 
-`/api/models` lists the `PROVIDERS` entries whose key resolves, as bare names.
+`/api/models` lists the `MODELS` entries whose key resolves, as bare names.
 A chat request picks one with `provider`.
 
 ## Replacing the agent
@@ -59,7 +59,7 @@ The contract is two methods:
 
 ```python
 class MyAgent:
-    def __init__(self, **kwargs): ...          # receives PROVIDERS / PROMPTS / tool lists + the turn's kwargs
+    def __init__(self, **kwargs): ...          # receives MODELS / PROMPTS / tool lists + the turn's kwargs
 
     @classmethod
     def load_llm_clients(cls, providers: dict) -> dict:   # optional; {name: client}

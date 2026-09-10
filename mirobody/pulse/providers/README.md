@@ -112,4 +112,4 @@ If your provider pulls data periodically, implement `pull_from_vendor_api`.
 ## 🧩 Reference
 
 - **Base Class**: [`mirobody/pulse/providers/platform/base.py`](platform/base.py)
-- **Example**: [`mirobody/pulse/providers/mirobody_pgsql/provider_pgsql.py`](mirobody_pgsql/provider_pgsql.py)
+- **Example**: [`mirobody/pulse/providers/mirobody_whoop/provider_whoop.py`](mirobody_whoop/provider_whoop.py)

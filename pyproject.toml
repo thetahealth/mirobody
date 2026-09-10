@@ -110,13 +110,12 @@ parse = [
     # Documents. Every entry here is imported by name somewhere under
     # mirobody/; a package that only *typed* a file (rarfile, py7zr — archives
     # are recognised, never opened), a second library for a job one already
-    # does (mutagen beside tinytag, pypdf beside pypdfium2 + pdfplumber), or a
+    # does (pypdf beside pypdfium2 + pdfplumber), or a
     # 68 MB dependency for two functions (pandas, for turning a sheet into
     # text) has been removed — see CHANGELOG 1.4.0.
     # The one PDF library: text layer AND page rendering (`documents/extract.py`).
     "pypdfium2>=4.30.0",
     "Pillow>=11.1.0",
-    "tinytag>=1.6.0",
     # `.xlsx` read directly (file_abstract_extractor.py); the pre-2007 binary
     # `.xls` is not supported, and never was — the old xlrd fallback was not
     # installed either.
@@ -134,12 +133,15 @@ parse = [
     # `_build_anthropic` did a bare `import anthropic` that only resolved
     # because langchain-anthropic dragged it in, so configuring an Anthropic key
     # without the agent layer failed at client construction.
-    "anthropic",
+    # Floor at 0.121: `utils/llm/backends_anthropic` needs `output_config` on
+    # `messages.create` and the `transform_schema` helper. Both verified against
+    # the live API on 0.121.0 and on 1.4.0 (what a clean install resolves), which
+    # produce byte-identical transformed schemas — so no upper cap.
+    "anthropic>=0.121",
     # Floor at 2.0: the Interactions API server dropped the legacy turn-list
     # schema (breaking change, May 2026) and now requires the 2.x 'steps' schema,
     # which only the >=2.0 SDK can send/parse. No upper cap.
     "google-genai>=2.0.0",
-    "tiktoken>=0.9.0",  # history truncation (utils/truncate.py)
     # `utils/config` is on the parse path (the client factory reads config), and
     # it needs these four.
     "python-dotenv",
@@ -571,8 +573,6 @@ forbidden_modules = [
     "sentry_sdk",
     "sqlalchemy",
     "starlette",
-    "tiktoken",
-    "tinytag",
     "tqdm",
     "uvicorn",
     "webauthn",

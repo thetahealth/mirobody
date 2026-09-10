@@ -1,7 +1,7 @@
 """Turn a lab report into standardized indicators — one LLM call, no server.
 
     pip install mirobody
-    export OPENAI_API_KEY=...          # or ANTHROPIC_API_KEY / GOOGLE_API_KEY
+    export OPENROUTER_API_KEY=...      # or DASHSCOPE / GOOGLE / OPENAI / DEEPSEEK _API_KEY
     python examples/03_parse_a_lab_report.py path/to/report.pdf
 
 This is ① Collect + ② Translate in a single function. `parse_file()` sends the
@@ -41,9 +41,9 @@ def show(readings):
 
 if len(sys.argv) > 1:
     path = sys.argv[1]
-    if not any(os.environ.get(k) for k in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_API_KEY")):
-        sys.exit("Set OPENAI_API_KEY (or ANTHROPIC_API_KEY / GOOGLE_API_KEY) first — "
-                 "extraction is the one step that needs a model.")
+    keys = ("OPENROUTER_API_KEY", "DASHSCOPE_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY")
+    if not any(os.environ.get(k) for k in keys):
+        sys.exit(f"Set one of {', '.join(keys)} first — extraction is the one step that needs a model.")
     print(f"Parsing {path} …")
     show(parse_file(path))
     raise SystemExit

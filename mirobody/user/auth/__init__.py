@@ -4,7 +4,6 @@
     email.py          an emailed code, and the Mandrill validator behind it
     apple.py          Sign in with Apple
     google.py         Google identity tokens
-    firebase.py       Firebase identity tokens
     webauthn.py       passkeys
     oauth_service.py  the OAuth flow a third-party client runs
 

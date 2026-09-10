@@ -27,7 +27,6 @@ from mirobody.pulse.file_parser.services.file_uploader import (
     validate_file_extension,
 )
 from mirobody.utils.config.storage import get_storage_client
-from mirobody.utils.audio import get_audio_duration_from_bytes
 from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
@@ -41,7 +40,6 @@ class FileUploadData(BaseModel):
     file_size: int              # File size in bytes
     file_type: str              # File MIME type
     upload_time: datetime       # Upload timestamp
-    duration: int | None = None  # Audio duration in milliseconds (only for audio files)
 
 
 async def process_files_async(
@@ -754,16 +752,6 @@ async def upload_files_to_storage(
                 except Exception as cache_error:
                     logger.warning(f"Failed to cache file for {file.filename}: {cache_error}")
             
-            # Calculate audio duration if file is audio type
-            audio_duration = 0
-            if content_type and content_type.startswith("audio/"):
-                try:
-                    audio_duration = get_audio_duration_from_bytes(file_content, content_type)
-                    if audio_duration:
-                        logger.info(f"Calculated audio duration for {file.filename}: {audio_duration}ms")
-                except Exception as duration_error:
-                    logger.warning(f"Failed to calculate duration for {file.filename}: {str(duration_error)}")
-            
             # Create upload result data using FileUploadData structure
             upload_data = FileUploadData(
                 file_url=file_url,
@@ -772,7 +760,6 @@ async def upload_files_to_storage(
                 file_size=file_size,
                 file_type=content_type,
                 upload_time=upload_time,
-                duration=audio_duration
             )
             successful_uploads.append(upload_data.model_dump())
             

@@ -474,7 +474,7 @@ async def _phase2_embed(
     async def flush() -> None:
         if not buf_text:
             return
-        # provider=None reads EMBEDDING_PROVIDER. Hardcoding gemini here meant
+        # provider=None reads UTILS_EMBEDDING_MODEL. Hardcoding gemini here meant
         # this exporter built a GEMINI matrix whatever the deployment was
         # configured for, and nothing downstream could tell: the artifact
         # carries no record of the model that produced it, so a mismatched

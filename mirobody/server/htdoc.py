@@ -23,15 +23,7 @@ requests that accept text/html, so an API client still gets a real 404.
 `app.frontend()` routes match only after every path operation regardless of
 registration order, which is what removes both failure modes structurally.
 
-Two things stay hand-rolled:
-
-- The `__/` tree (Firebase's popup-auth helper pages, snapshotted into
-  `frontend/__/` because the client build does not produce them): `handler`
-  and `iframe` have no file extension, so `StaticFiles` would serve them as
-  text/plain and the browser would not render them. They get explicit routes
-  with explicit media types, and `handler` keeps its `{{POST_BODY}}`
-  templating for the POST leg of the popup flow.
-- API-prefix 404 guards: the html-only fallback already protects API clients,
+One thing stays hand-rolled — API-prefix 404 guards: the html-only fallback already protects API clients,
   but a *browser* navigating to a mistyped backend path (`/api/...`, `/mcp/...`)
   would otherwise receive the SPA shell with a 200. Real backend routes are
   registered before this is called, so they win by order; the guards only
@@ -46,9 +38,6 @@ import os
 
 from fastapi import FastAPI, HTTPException
 from starlette.datastructures import MutableHeaders
-from starlette.requests import Request
-from starlette.responses import Response
-from starlette.routing import Route
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 # Backend-owned URL prefixes (from the manually-built service routes and every
@@ -68,13 +57,6 @@ _API_PREFIXES = (
     "/auth/webauthn",
     "/.well-known",
 )
-
-_MEDIA_TYPES = {
-    "js": "application/javascript",
-    "json": "application/json",
-    "css": "text/css",
-}
-
 
 class _CacheControl:
     """Cache headers the static routes cannot set themselves.
@@ -113,52 +95,6 @@ class _CacheControl:
         await self.app(scope, receive, send_with_cache_headers)
 
 
-def _build_firebase_helper_routes(dir: str) -> list[Route]:
-    routes: list[Route] = []
-    helper_dir = os.path.join(dir, "__")
-    if not os.path.isdir(helper_dir):
-        return routes
-
-    for root, _dirs, files in os.walk(helper_dir):
-        for file in files:
-            full_path = os.path.join(root, file)
-            route_path = "/" + os.path.relpath(full_path, dir)
-
-            with open(full_path, "rb") as f:
-                content = f.read()
-
-            suffix = file.rsplit(".", 1)[-1] if "." in file else ""
-            # Extensionless helpers (handler, iframe) are pages the browser
-            # must render — hence the text/html default.
-            media_type = _MEDIA_TYPES.get(suffix, "text/html")
-
-            if route_path == "/__/auth/handler":
-
-                async def handler_endpoint(request: Request, content=content) -> Response:
-                    if request.method == "OPTIONS":
-                        return Response(status_code=204)
-                    body = content
-                    if request.method == "POST":
-                        body = body.replace(b"{{POST_BODY}}", await request.body())
-                    return Response(content=body, media_type="text/html")
-
-                routes.append(
-                    Route(route_path, endpoint=handler_endpoint,
-                          methods=["GET", "HEAD", "POST", "OPTIONS"])
-                )
-            else:
-
-                async def file_endpoint(request: Request, content=content,
-                                        media_type=media_type) -> Response:
-                    return Response(content=content, media_type=media_type)
-
-                routes.append(
-                    Route(route_path, endpoint=file_endpoint, methods=["GET", "HEAD"])
-                )
-
-    return routes
-
-
 async def _api_not_found(_path: str) -> None:
     raise HTTPException(status_code=404)
 
@@ -180,9 +116,6 @@ def add_htdoc_routes(app: FastAPI, dir: str) -> None:
             methods=["GET", "HEAD"],
             include_in_schema=False,
         )
-
-    for route in _build_firebase_helper_routes(dir):
-        app.router.routes.append(route)
 
     app.frontend("/", directory=dir, fallback="index.html")
     app.add_middleware(_CacheControl)

@@ -62,8 +62,9 @@ rows.append((f"redis {rd_host}:{rd_port}", _port_open(rd_host, rd_port),
              "docker compose up -d redis   (sessions, locks, OAuth codes)"))
 
 # ── 3. secrets ───────────────────────────────────────────────────────────────
-model_keys = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_API_KEY",
-              "OPENROUTER_API_KEY", "DASHSCOPE_API_KEY", "VOLCENGINE_API_KEY")
+# The five one-key providers (config.yaml's table); any one runs every surface.
+model_keys = ("OPENROUTER_API_KEY", "DASHSCOPE_API_KEY", "GOOGLE_API_KEY",
+              "OPENAI_API_KEY", "DEEPSEEK_API_KEY")
 present = [k for k in model_keys if os.environ.get(k)]
 rows.append(("a model API key", bool(present),
              "set one of: " + ", ".join(model_keys[:3]) + ", …"))

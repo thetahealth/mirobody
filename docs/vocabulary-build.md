@@ -323,7 +323,7 @@ corpus/query pair does not fail — it returns confident nonsense. A matrix buil
 by one Qwen3-Embedding serving config, queried with another, answered `空腹血糖`
 with *"Widespread delusions [DI-PAD]"*. When swapping providers, re-export
 **all three** files together against the same `fhir_indicators` snapshot, and
-keep the query side on the same `EMBEDDING_PROVIDER`.
+keep the query side on the same `UTILS_EMBEDDING_MODEL`.
 
 All three files are **row-aligned by index** to the active emb npy — the i-th meta row and the i-th id_map entry describe the same concept as `arr[i]`. Loaders abort if row counts disagree; never half-aligned.
 
@@ -338,7 +338,7 @@ python scripts/vocabulary_build.py embeddings --from-db    # writes all three ar
 python scripts/vocabulary_build.py code-names              # fills name column from ~/ref
 ```
 
-`embeddings --from-db` streams `fhir_indicators` rows with the active provider's embedding column set (`embedding_gemini` / `embedding_qwen3`, selected via `EMBEDDING_PROVIDER` through `resolve_fhir_embedding_column`) in a **single pass** that produces all three artifacts at once: each fetched row contributes its embedding (→ npy `emb`), canonical fhir_id (→ npy `fhir_id`), DB pk (→ id_map `db_pks[r]`), and original code string for hash rows (→ meta `code_str`).
+`embeddings --from-db` streams `fhir_indicators` rows with the active provider's embedding column set (`embedding_gemini` / `embedding_qwen3`, selected via `UTILS_EMBEDDING_MODEL` through `resolve_fhir_embedding_column`) in a **single pass** that produces all three artifacts at once: each fetched row contributes its embedding (→ npy `emb`), canonical fhir_id (→ npy `fhir_id`), DB pk (→ id_map `db_pks[r]`), and original code string for hash rows (→ meta `code_str`).
 
 Embedding download is checkpoint-resumable via memmap partials + `progress.json` in `out/` (handles Ctrl-C / DB disconnects across hours).
 
@@ -354,7 +354,7 @@ Use for fresh deployments where `fhir_indicators` is empty:
 python scripts/vocabulary_build.py embeddings --from-ref
 ```
 
-Phase 1 parses ~/ref (SNOMED + LOINC + RxNorm + DCM, ~677K concepts) and writes `out/fhir_ref_texts.csv`. Phase 2 calls the embedding API of the configured `EMBEDDING_PROVIDER` (default: openrouter — this sentence used to hardcode "the Gemini embedding API", which `ref.py` itself no longer does), resumable via memmap partials. Display names are filled inline (no separate `code-names` step). **No** `fhir_id_map.npy` — there is no DB pk to bridge, so upstream code (the part that writes `th_series_data.fhir_id`) **must** populate that column with `code_to_fhir_id(system, code)` directly.
+Phase 1 parses ~/ref (SNOMED + LOINC + RxNorm + DCM, ~677K concepts) and writes `out/fhir_ref_texts.csv`. Phase 2 calls the embedding API of the configured `UTILS_EMBEDDING_MODEL` (default: openrouter — this sentence used to hardcode "the Gemini embedding API", which `ref.py` itself no longer does), resumable via memmap partials. Display names are filled inline (no separate `code-names` step). **No** `fhir_id_map.npy` — there is no DB pk to bridge, so upstream code (the part that writes `th_series_data.fhir_id`) **must** populate that column with `code_to_fhir_id(system, code)` directly.
 
 ### 3.3 Recovery utilities
 

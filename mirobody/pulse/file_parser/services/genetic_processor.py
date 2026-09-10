@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 from collections.abc import Generator
 
-from mirobody.utils.i18n import clear_translation_cache, t
+from mirobody.utils.i18n import t
 from mirobody.utils import execute_query
 from mirobody.pulse.file_parser.services.file_db_service import FileDbService
 
@@ -311,8 +311,6 @@ async def process_genetic_file(
     try:
         # Import websocket manager locally to avoid circular import
         from ..file_upload_manager import websocket_file_upload_manager
-
-        clear_translation_cache("load_genetic_data")
 
         # 🔧 Fix: Use original filename, or temporary filename if not provided
         display_filename = original_filename or temp_file_path.name

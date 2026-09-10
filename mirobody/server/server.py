@@ -95,14 +95,6 @@ class Server:
         webauthn_origin         : str = "",
         webauthn_mfa_ticket_ttl : int = 300,
 
-        firebase_project_id     : str = "",
-        firebase_api_key        : str = "",
-        firebase_auth_domain    : str = "",
-        firebase_storage_bucket : str = "",
-        firebase_messaging_sender_id: str = "",
-        firebase_app_id         : str = "",
-        firebase_measurement_id : str = "",
-
         webpage_config          : dict[str, Any] | None = None,
 
         url_paths_for_user_info_updater     : list[str] | None = None,      # ["url_path"]
@@ -140,14 +132,8 @@ class Server:
         if not self._webpage_config:
             self._webpage_config = {}
 
-        if not firebase_project_id:
-            if "__FIREBASE_PROJECT_ID__" in self._webpage_config:
-                firebase_project_id = self._webpage_config["__FIREBASE_PROJECT_ID__"]
-                if firebase_project_id and not isinstance(firebase_project_id, str):
-                    firebase_project_id = None
-
         if "__IS_GOOGLE_LOGIN_ON__" not in self._webpage_config:
-            self._webpage_config["__IS_GOOGLE_LOGIN_ON__"] = True if google_client_id or firebase_project_id else False
+            self._webpage_config["__IS_GOOGLE_LOGIN_ON__"] = bool(google_client_id)
 
         if "__IS_APPLE_LOGIN_ON__" not in self._webpage_config:
             self._webpage_config["__IS_APPLE_LOGIN_ON__"] = True if apple_client_id else False
@@ -222,7 +208,6 @@ class Server:
 
             # Google login.
             google_client_id    = google_client_id,
-            firebase_project_id = firebase_project_id,
 
 
             # WebAuthn (AAL2).
@@ -269,29 +254,10 @@ class Server:
                 )
             )
 
-            async def auth_init_endpoint(request: Request) -> Response:
-                return JSONResponse(
-                    content={
-                        "apiKey": firebase_api_key,
-                        "authDomain": firebase_auth_domain if request.url.hostname == "localhost" else request.url.hostname,
-                        "projectId": firebase_project_id,
-                        "storageBucket": firebase_storage_bucket,
-                        "messagingSenderId": firebase_messaging_sender_id,
-                        "appId": firebase_app_id,
-                        "measurementId": firebase_measurement_id
-                    }
-                )
-            self._routes.append(
-                Route("/__/auth/init.json", endpoint=auth_init_endpoint, methods=["GET", "HEAD"])
-            )
-            self._routes.append(
-                Route("/__/firebase/init.json", endpoint=auth_init_endpoint, methods=["GET", "HEAD"])
-            )
-
             # The static client itself is mounted by `add_htdoc_routes` in
             # `start()`, after every router — its SPA fallback must lose to
-            # all real routes. Only the config endpoints the client fetches
-            # at boot (/mirobody.json, the Firebase init) live here.
+            # all real routes. Only the config endpoint the client fetches
+            # at boot (/mirobody.json) lives here.
 
         #-------------------------------------------------
 
@@ -341,6 +307,11 @@ class Server:
         config = await Config.init(yaml_filenames=yaml_files)
         config.print()
 
+        # Which LLM surfaces have a provider, before the first request finds
+        # out. A zero-key server used to boot in silence (#68).
+        from ..utils.config.doctor import log_report, provider_report
+        log_report(provider_report(config), logger)
+
         # Fail fast, before any socket is bound: a production ENV that still
         # carries demo login codes must not come up at all.
         enforce_production_auth_safety(config)
@@ -381,7 +352,6 @@ class Server:
             **config.get_email_options(),
             **config.get_apple_options(),
             **config.get_google_options(),
-            **config.get_firebase_options()
         )
 
         #-----------------------------------------------------

@@ -1,10 +1,12 @@
-"""
-Encapsulated function call push service
+"""In-process push of pulled provider data to its platform.
 
-Used to simulate webhook pushes, avoiding HTTP overhead while providing the ability to switch to HTTP
+`push_data` hands a provider's payload to the registered platform's `post_data`,
+the shape a webhook delivery would have taken. There used to be an HTTP twin
+(`_push_via_http`, POSTing to a hardcoded `http://localhost:18060`) behind a
+`use_function_call` switch; the switch was constructed True and the two methods
+that flipped it had no callers, so the HTTP branch was unreachable.
 """
 
-import aiohttp
 import logging
 import uuid
 from typing import Any
@@ -12,22 +14,6 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 class PushService:
-    """
-    Push service
-
-    Encapsulates function call and HTTP push, providing unified push interface
-    """
-
-    def __init__(self, use_function_call: bool = True):
-        """
-        Initialize push service
-
-        Args:
-            use_function_call: Whether to prioritize function call, False for HTTP
-        """
-        self.use_function_call = use_function_call
-        self._market_cache: dict[str, Any] = {}
-
     async def push_data(
         self,
         platform: str,
@@ -51,9 +37,7 @@ class PushService:
             msg_id = str(uuid.uuid4())
 
         try:
-            if self.use_function_call:
-                return await self._push_via_function_call(platform, provider_slug, data, msg_id)
-            return await self._push_via_http(platform, provider_slug, data, msg_id)
+            return await self._push_via_function_call(platform, provider_slug, data, msg_id)
 
         except Exception as e:
             logger.error(f"Push data failed for {platform}/{provider_slug}: {str(e)}")
@@ -90,47 +74,6 @@ class PushService:
             logger.error(f"Function call push error for {platform}/{provider_slug}: {str(e)}")
             return False
 
-    async def _push_via_http(self, platform: str, provider_slug: str, data: dict[str, Any], msg_id: str) -> bool:
-        """
-        Push data via HTTP
-
-        As an alternative to function call
-        """
-        try:
-            base_url = "http://localhost:18060"
-            webhook_url = f"{base_url}/api/v1/pulse/{platform}/webhook"
-
-            headers = {
-                "Content-Type": "application/json",
-                "X-Message-ID": msg_id,
-            }
-
-            async with aiohttp.ClientSession() as session:
-                async with session.post(webhook_url, json=data, headers=headers) as response:
-                    if response.status == 200:
-                        logger.info(f"HTTP push successful: {platform}/{provider_slug}, msg_id: {msg_id}")
-                        return True
-                    response_text = await response.text()
-
-                    logger.error(
-                        f"HTTP push failed: {platform}/{provider_slug}, status: {response.status}, response: {response_text}"
-                    )
-                    return False
-
-        except Exception as e:
-            logger.error(f"HTTP push error for {platform}/{provider_slug}: {str(e)}")
-            return False
-
-    def use_http_push(self):
-        """Switch to HTTP push mode"""
-        self.use_function_call = False
-        logger.info("Switched to HTTP push mode")
-
-    def use_function_call_push(self):
-        """Switch to function call push mode"""
-        self.use_function_call = True
-        logger.info("Switched to function call push mode")
-
 
 # Global push service instance
-push_service = PushService(use_function_call=True)
+push_service = PushService()

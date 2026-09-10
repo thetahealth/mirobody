@@ -876,7 +876,20 @@ async def parse_text(document: str, *, resolve_names: bool = True) -> list[Readi
             {"role": "system", "content": _EXTRACT_PROMPT},
             {"role": "user", "content": document},
         ]
-    ) or ""
+    )
+    if raw is None:
+        # `None` is "no model answered", not "the model answered nothing":
+        # either no provider is configured, or every configured one failed.
+        # Feeding it to the JSON parser produced "extraction returned non-JSON
+        # output: " — an empty quote where the cause should be.
+        from .utils.config.llm import no_provider_message, resolve_route
+
+        if resolve_route("text") is None:
+            raise RuntimeError(no_provider_message("text"))
+        raise RuntimeError(
+            "extraction failed: every configured provider returned an error "
+            "(the server log has the provider's message)"
+        )
     return _readings_from_json(raw, resolve_names=resolve_names)
 
 

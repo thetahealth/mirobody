@@ -2,7 +2,7 @@
 
 Two methods are the whole contract. This one answers without a model so the
 replacement path can be exercised with no key; a real harness would build a
-model client in `load_llm_clients` from the `PROVIDERS` table it is handed.
+model client in `load_llm_clients` from the `MODELS` table it is handed.
 """
 
 from __future__ import annotations

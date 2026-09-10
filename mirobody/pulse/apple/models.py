@@ -202,13 +202,6 @@ class AppleHealthRecord(BaseModel):
             return v
         raise ValueError(f"Invalid type format: {v}")
     
-    def is_known_type(self) -> bool:
-        """Check if it's a known health data type"""
-        try:
-            FlutterHealthTypeEnum(self.type)
-            return True
-        except ValueError:
-            return False
 
 
 class AppleHealthRequest(BaseModel):

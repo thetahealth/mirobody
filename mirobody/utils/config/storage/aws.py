@@ -1,6 +1,6 @@
 import logging
 
-from typing import Any, BinaryIO  # noqa: F401 – BinaryIO used in type hints
+from typing import BinaryIO  # noqa: F401 – BinaryIO used in type hints
 
 from .abstract import AbstractStorage
 
@@ -19,8 +19,7 @@ class AwsStorage(AbstractStorage):
         bucket              : str = "",
         prefix              : str = "",
         cdn                 : str = "",
-        endpoint            : str = "",
-        storage_name        : str = ""
+        endpoint            : str = ""
     ):
         if not access_key_id or \
             not secret_access_key or \
@@ -30,22 +29,18 @@ class AwsStorage(AbstractStorage):
             from ..config import global_config
             config = global_config()
             if config:
-                storage_name = storage_name.strip()
-                if storage_name:
-                    storage_name = "_" + storage_name
-
                 if not access_key_id:
-                    access_key_id = config.get_str(f"S3_KEY{storage_name}")
+                    access_key_id = config.get_str("S3_KEY")
                 if not secret_access_key:
-                    secret_access_key = config.get_str(f"S3_TOKEN{storage_name}")
+                    secret_access_key = config.get_str("S3_TOKEN")
                 if not region:
-                    region = config.get_str(f"S3_REGION{storage_name}")
+                    region = config.get_str("S3_REGION")
                 if not bucket:
-                    bucket = config.get_str(f"S3_BUCKET{storage_name}")
+                    bucket = config.get_str("S3_BUCKET")
                 if not prefix:
-                    prefix = config.get_str(f"S3_PREFIX{storage_name}")
+                    prefix = config.get_str("S3_PREFIX")
                 if not cdn:
-                    cdn = config.get_str(f"S3_CDN{storage_name}")
+                    cdn = config.get_str("S3_CDN")
 
         super().__init__(access_key_id, secret_access_key, region, bucket, prefix, cdn, endpoint)
 
@@ -86,14 +81,6 @@ class AwsStorage(AbstractStorage):
         self._client = await self._client_ctx.__aenter__()
         self._initialized = True
         logger.info(f"AWS S3 client initialized: bucket={self.bucket}, region={self.region}")
-
-    async def close(self):
-        """Close the persistent S3 client"""
-        if self._client_ctx:
-            await self._client_ctx.__aexit__(None, None, None)
-            self._client = None
-            self._client_ctx = None
-            self._initialized = False
 
     #-----------------------------------------------------
 
@@ -229,28 +216,5 @@ class AwsStorage(AbstractStorage):
             return None, error_msg
 
     #-----------------------------------------------------
-
-    async def get_file_info(self, key: str) -> tuple[dict[str, Any] | None, str | None]:
-        """Get file metadata from AWS S3"""
-        try:
-            await self._ensure_initialized()
-
-            object_key = self._build_object_key(key)
-
-            response = await self._client.head_object(Bucket=self.bucket, Key=object_key)
-
-            return {
-                "success": True,
-                "size": response.get("ContentLength"),
-                "content_type": response.get("ContentType"),
-                "last_modified": response.get("LastModified"),
-                "etag": response.get("ETag"),
-                "metadata": response.get("Metadata", {})
-            }, None
-
-        except Exception as e:
-            error_msg = f"Failed to get file info from S3: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            return None, error_msg
 
 #-----------------------------------------------------------------------------
