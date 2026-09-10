@@ -1,4 +1,3 @@
-import jwt
 import logging
 
 from psycopg_pool import AsyncConnectionPool
@@ -8,7 +7,6 @@ from .auth.jwt import AbstractTokenValidator
 from .auth.email import create_email_validator
 from .auth.apple import AppleTokenValidator
 from .auth.google import GoogleTokenValidator
-from .auth.firebase import FirebaseTokenValidator
 from .auth.webauthn import WebAuthnService
 
 from .user import (
@@ -63,7 +61,6 @@ class UserService:
         apple_auth_client_id: str = "",
 
         google_client_id    : str = "",
-        firebase_project_id : str = "",
 
         # WebAuthn (AAL2).
         webauthn_rp_id      : str = "",
@@ -101,11 +98,6 @@ class UserService:
             self._google_validator = GoogleTokenValidator(google_client_id)
         else:
             self._google_validator = None
-
-        if firebase_project_id:
-            self._firebase_validator = FirebaseTokenValidator(firebase_project_id)
-        else:
-            self._firebase_validator = None
 
          #-------------------------------------------------
 
@@ -146,7 +138,7 @@ class UserService:
         if self._apple_validator:
             self.routes.append(Route(f"{uri_prefix}/apple/verify", endpoint=self.apple_verify_handler, methods=["POST", "OPTIONS"]))
 
-        if self._google_validator or self._firebase_validator:
+        if self._google_validator:
             self.routes.append(Route(f"{uri_prefix}/google/verify", endpoint=self.google_verify_handler, methods=["POST", "OPTIONS"]))
 
     #-------------------------------------------------------------------------
@@ -552,45 +544,11 @@ class UserService:
 
             #---------------------------------------------
 
-            try:
-                unverified_payload = jwt.decode(
-                    token,
-                    options = {
-                        "verify_signature" : False
-                    }
-                )
-                token_issuer = unverified_payload.get("iss", "")
-            except Exception:
-                token_issuer = ""
-
-            payload = None
-
-            if "securetoken.google.com" in token_issuer:
-                # Firebase validator first.
-                if self._firebase_validator:
-                    payload, err = await self._firebase_validator.verify_token(token)
-                    if err:
-                        logger.warning(err, extra={"token": secret_fingerprint(token)})
-
-                if not payload and self._google_validator:
-                    payload, err = await self._google_validator.verify_token(token)
-                    if err:
-                        logger.warning(err, extra={"token": secret_fingerprint(token)})
-            
-            else:
-                # Google validator first.
-                if self._google_validator:
-                    payload, err = await self._google_validator.verify_token(token)
-                    if err:
-                        logger.warning(err, extra={"token": secret_fingerprint(token)})
-
-                if not payload and self._firebase_validator:
-                    payload, err = await self._firebase_validator.verify_token(token)
-                    if err:
-                        logger.warning(err, extra={"token": secret_fingerprint(token)})
-
+            payload, err = await self._google_validator.verify_token(token)
+            if err:
+                logger.warning(err, extra={"token": secret_fingerprint(token)})
             if not payload:
-                return json_response_with_code(-2, "Invalid Google/Firebase ID token.", request=request)
+                return json_response_with_code(-2, "Invalid Google ID token.", request=request)
 
             #---------------------------------------------
 

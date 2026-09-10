@@ -525,9 +525,6 @@ mirobody/task/profile_refresh.py	interpolation	result.get('version')
 mirobody/user/account_merge.py	extra_key	affected_so_far
 mirobody/user/account_merge.py	interpolation	str(e)
 mirobody/user/auth/apple.py	interpolation	e
-mirobody/user/auth/firebase.py	interpolation	cert_kid
-mirobody/user/auth/firebase.py	interpolation	e
-mirobody/user/auth/firebase.py	interpolation	str(e)
 mirobody/user/auth/oauth_service.py	extra_key	refresh_token
 mirobody/user/auth/oauth_service.py	extra_key	token
 mirobody/user/auth/oauth_service.py	interpolation	data

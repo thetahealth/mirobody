@@ -51,7 +51,6 @@ DATABASE_DECRYPTION_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
 # Google / Apple sign-in and the web/mobile client settings.
 
 # GOOGLE_CLIENT_ID: ''
-# FIREBASE_PROJECT_ID: ''
 
 # APPLE_TEAM_ID: ''
 # APPLE_KEY_ID: ''
@@ -62,7 +61,7 @@ DATABASE_DECRYPTION_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
 # Apple authorization code client ID; omit if the two client IDs above are identical.
 # APPLE_AUTH_CLIENT_ID: ''
 
-# Web frontend feature flags and Firebase settings, injected at runtime.
+# Web frontend feature flags, injected at runtime.
 # MIROBODY_WEB_CONFIG:
 #   __IS_API_CONFIG_ON__: true
 #   __IS_QR_LOGIN_ON__: false
@@ -71,10 +70,3 @@ DATABASE_DECRYPTION_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
 #   __IS_NEW_FEATURES_ON__:
 #     - MCP
 #   __IS_MOBILE_SOURCE_ON__: true
-#   __FIREBASE_API_KEY__: ""
-#   __FIREBASE_AUTH_DOMAIN__: ""
-#   __FIREBASE_PROJECT_ID__: ""
-#   __FIREBASE_STORAGE_BUCKET__: ""
-#   __FIREBASE_MESSAGING_SENDER_ID__: ""
-#   __FIREBASE_APP_ID__: ""
-#   __FIREBASE_MEASUREMENT_ID__: ""

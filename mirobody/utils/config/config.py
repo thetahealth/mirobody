@@ -647,19 +647,6 @@ class Config:
             "webauthn_mfa_ticket_ttl"   : self.get_int("WEBAUTHN_MFA_TICKET_TTL", 300),
         }
 
-    def get_firebase_options(self) -> dict[str, str]:
-        return {
-            "firebase_project_id"       : self.get_str("FIREBASE_PROJECT_ID"),
-            "firebase_api_key"          : self.get_str("FIREBASE_API_KEY"),
-            "firebase_auth_domain"      : self.get_str("FIREBASE_AUTH_DOMAIN"),
-            "firebase_storage_bucket"   : self.get_str("FIREBASE_STORAGE_BUCKET"),
-            "firebase_messaging_sender_id": self.get_str("FIREBASE_MESSAGING_SENDER_ID"),
-            "firebase_app_id"           : self.get_str("FIREBASE_APP_ID"),
-            "firebase_measurement_id"   : self.get_str("FIREBASE_MEASUREMENT_ID")
-        }
-
-    #-----------------------------------------------------
-
     def get_postgresql(self, key: str="") -> "PostgreSQLConfig":
         # Imported here, not at module scope. `mirobody.utils.config` is on the
         # import path of the whole ENGINE — `mirobody.engine`, `indicator`,
