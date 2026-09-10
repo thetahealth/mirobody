@@ -100,18 +100,6 @@ class ProviderTokenRequest(BaseModel):
     certification: str = Field(..., description="Authentication credentials from device manufacturer")
 
 
-class ProviderWebhookData(BaseModel):
-    """Provider webhook data model"""
-
-    type: str = Field(..., description="Indicator type")
-    value: float = Field(..., description="Measurement value")
-    unit: str = Field(..., description="Unit of measurement")
-    timestamp: int = Field(..., description="Measurement timestamp in milliseconds")
-    metadata: dict[str, Any] | None = Field(default_factory=dict, description="Optional metadata")
-
-
-
-
 from ..envelope import ErrorResponse, StandardResponse
 
 # Import ConnectInfoField for type hints

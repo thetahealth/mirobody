@@ -241,26 +241,3 @@ def generate_file_key(filename: str, folder_prefix: str = "uploads") -> str:
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     unique_id = uuid.uuid4().hex[:8]
     return f"{folder_prefix}/{timestamp}_{unique_id}{file_extension}"
-
-
-def get_file_type_category(content_type: str) -> str:
-    """
-    Determine file type category from content type
-    
-    Args:
-        content_type: MIME content type
-        
-    Returns:
-        str: File category (image, pdf, excel, document)
-    """
-    if not content_type:
-        return "file"
-        
-    if content_type.startswith("image/"):
-        return "image"
-    if content_type == "application/pdf":
-        return "pdf"
-    if content_type in ["application/vnd.ms-excel", 
-                          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]:
-        return "excel"
-    return "document"
