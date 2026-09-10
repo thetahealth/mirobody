@@ -1,6 +1,6 @@
 """LLM client construction — one builder for every provider family.
 
-`build_chat_model(entry)` turns one provider entry (the shape of a `PROVIDERS`
+`build_chat_model(entry)` turns one provider entry (the shape of a `MODELS`
 row in config.yaml) into a LangChain chat model; `build_llm_clients(table)`
 does it for the whole table and stands in a `_PlaceholderClient` where a key
 is missing, so a zero-key deployment boots and the picker can say what is
@@ -32,12 +32,22 @@ into each family's dialect here, so every surface that accepts a thinking hint
 means the same thing by "high". Only the families the shipped configuration
 uses are declared dependencies; `init_chat_model` names the missing package
 for any other.
+
+What an entry DECLARES, this module keeps (#70). An entry's own `thinking`
+block, `reasoning` dict or `output_config` is never overwritten by the
+translation of an effort level — the level fills in what the entry left
+unsaid (`setdefault`, the way `cache_control` was always applied). Before
+this, `_vertex_anthropic_kwargs` assigned `thinking` unconditionally, so an
+entry that declared the adaptive shape for Claude Opus 4.7+ had it replaced
+with `{"type": "enabled", "budget_tokens": N}` — which those models reject
+with a 400 — and no configuration could avoid it.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import re
 from collections.abc import Callable
 from typing import Any
 
@@ -53,6 +63,8 @@ NON_INIT_CONFIG_KEYS = frozenset({
     "model", "llm_type", "response_with_tools",
     "profile", "supports_pdf", "supports_image",
     "thinking_style", "auth_type", "prompt_cache",
+    # read by the utility surfaces (config.llm), never by a chat constructor
+    "chat", "json_schema",
 })
 
 OPENAI_COMPATIBLE_TYPES = frozenset({"openai", "openrouter"})
@@ -94,8 +106,14 @@ def thinking_dialect(entry: dict | None, model_name: str, base_url: str = "") ->
     The qwen ``enable_thinking``/``thinking_budget`` shape is DashScope's, and
     applies to whatever DashScope hosts (qwen, kimi, a hosted deepseek), so it
     is keyed on the base_url; a qwen served by another host does not speak it.
+
+    ``thinking_style: anthropic_budget`` / ``anthropic_adaptive`` both mean the
+    Anthropic family here; which of its two shapes is sent is
+    `anthropic_thinking_shape`'s question.
     """
     explicit = str((entry or {}).get("thinking_style") or "").strip().lower()
+    if explicit.startswith("anthropic"):
+        return "anthropic"
     if explicit:
         return explicit
     model = (model_name or "").lower()
@@ -113,11 +131,69 @@ def thinking_dialect(entry: dict | None, model_name: str, base_url: str = "") ->
     return "none"
 
 
+#: Claude models that still take the fixed thinking budget: the 3.x line and
+#: the 4.0 / 4.1 / 4.5 releases (Vertex spells them `claude-sonnet-4-5@date`).
+#: From 4.6 on the shape is `{"type": "adaptive"}` + `output_config.effort`;
+#: 4.7 and later REJECT `budget_tokens` with a 400 (Anthropic's thinking
+#: troubleshooting page, and issue #70's exact error text).
+_ANTHROPIC_BUDGET_MODELS = re.compile(r"claude-3|-4-[015](?!\d)")
+
+
+def anthropic_thinking_shape(entry: dict | None, model_name: str) -> str:
+    """``"budget"`` or ``"adaptive"``: the entry's ``thinking_style``
+    (``anthropic_budget`` / ``anthropic_adaptive``) if it says, else a guess
+    from the model name. The guess is a fallback, not the contract — a
+    deployment on an unlisted spelling declares the style."""
+    explicit = str((entry or {}).get("thinking_style") or "").strip().lower()
+    if explicit == "anthropic_budget":
+        return "budget"
+    if explicit == "anthropic_adaptive":
+        return "adaptive"
+    return "budget" if _ANTHROPIC_BUDGET_MODELS.search((model_name or "").lower()) else "adaptive"
+
+
+def _apply_anthropic_thinking(kwargs: dict, entry: dict, model_name: str, effort: str | None, *, request: dict) -> None:
+    """Translate an effort level into the Anthropic request shape, in place.
+
+    ``request`` is the dict the parameters travel in: ``kwargs`` itself for
+    `ChatAnthropic` (native parameters) and ``model_kwargs`` for
+    `ChatAnthropicVertex` (which forwards that dict and drops unknown
+    top-level kwargs). Everything is `setdefault`: an entry's own ``thinking``
+    block or ``output_config`` stands, and the effort only fills what the
+    entry left unsaid (#70).
+
+    ``off`` sends nothing, on both shapes: omitting ``thinking`` is accepted by
+    every Claude model, while ``{"type": "disabled"}`` is rejected by some of
+    the newest ones.
+    """
+    if not effort or effort == "off":
+        return
+    if anthropic_thinking_shape(entry, model_name) == "budget":
+        budget = THINKING_BUDGET_TOKENS[effort]
+        request.setdefault("thinking", {"type": "enabled", "budget_tokens": budget})
+        kwargs.pop("temperature", None)  # must be unset (or 1) with extended thinking
+        if int(kwargs.get("max_tokens") or 0) <= budget:
+            kwargs["max_tokens"] = budget + 4096
+        return
+    # `display: summarized` because this product SHOWS the reasoning channel;
+    # the newer models default to `omitted`, which streams empty thinking
+    # blocks and reads as a long pause before the answer.
+    request.setdefault("thinking", {"type": "adaptive", "display": "summarized"})
+    output_config = dict(request.get("output_config") or {})
+    output_config.setdefault("effort", effort)
+    request["output_config"] = output_config
+    # Sampling parameters are rejected alongside thinking on the models that
+    # take this shape (Opus 4.7+, Sonnet 5).
+    for field in ("temperature", "top_p", "top_k"):
+        kwargs.pop(field, None)
+
+
 def _openai_thinking_kwargs(entry: dict, model_name: str, base_url: str, effort: str | None) -> dict:
     """The ChatOpenAI kwarg fragment for an effort level on an OpenAI-compatible
     endpoint. qwen's dialect rides in ``extra_body`` and is merged into the
     entry's own; OpenAI's is ``reasoning_effort`` (which a reasoning-native
-    model cannot switch off — ``off`` leaves the default)."""
+    model cannot switch off — ``off`` leaves the default) — or, when the entry
+    already carries a ``reasoning`` dict, the effort folded into that dict."""
     if not effort:
         return {}
     dialect = thinking_dialect(entry, model_name, base_url)
@@ -133,6 +209,15 @@ def _openai_thinking_kwargs(entry: dict, model_name: str, base_url: str, effort:
         if effort == "off":
             logger.info("thinking=off ignored for an openai-dialect model (model_name=%s)", model_name)
             return {}
+        reasoning = entry.get("reasoning")
+        if isinstance(reasoning, dict):
+            # An entry on the Responses API declares `reasoning: {summary:
+            # auto}`; langchain-openai 1.5 then passes a separate
+            # `reasoning_effort` through as a bare kwarg, and
+            # `Responses.create()` raises TypeError before any request is sent
+            # (#70). Either parameter alone works; the effort goes INTO the
+            # dict, and a declared effort wins.
+            return {"reasoning": {**reasoning, "effort": reasoning.get("effort", effort)}}
         # NB `reasoning_effort` together with function tools is rejected on
         # /v1/chat/completions by some reasoning families; the fix is model
         # choice in the configuration, not a code switch.
@@ -213,6 +298,23 @@ def _resolve_ref(value: Any, resolve: Resolver) -> Any:
     if value.startswith(("http://", "https://")):
         return value
     return resolve(value) or value
+
+
+def _base_url_override(entry: dict, resolve: Resolver) -> str | None:
+    """`<PREFIX>_BASE_URL`, derived from the entry's ``api_key`` NAME: an
+    entry reading ``OPENROUTER_API_KEY`` follows ``OPENROUTER_BASE_URL``.
+
+    Chat was the one surface that did not. A literal URL passed `_resolve_ref`
+    untouched, so "point the whole stack at one self-hosted gateway" meant
+    editing the YAML for the agent while vision, extraction and embeddings all
+    followed the variable — the rule `config.llm.yaml` documents for every
+    entry. The MODEL is not overridden this way: a model belongs to an entry,
+    and a gateway that serves different ids gets its own entry.
+    """
+    ref = entry.get("api_key")
+    if not isinstance(ref, str) or not ref.endswith("_API_KEY"):
+        return None
+    return resolve(ref[: -len("_API_KEY")] + "_BASE_URL") or None
 
 
 def _resolve_key(alias: str, entry: dict, resolve: Resolver) -> str | None:
@@ -299,7 +401,7 @@ def _openai_kwargs(alias: str, entry: dict, thinking: str | None, resolve: Resol
     kwargs.pop("stream_options", None)
     kwargs.setdefault("streaming", True)
     kwargs.setdefault("stream_usage", True)
-    base_url = _resolve_ref(entry.get("base_url"), resolve)
+    base_url = _base_url_override(entry, resolve) or _resolve_ref(entry.get("base_url"), resolve)
     if base_url:
         kwargs["base_url"] = base_url
     else:
@@ -367,12 +469,7 @@ def _vertex_anthropic_kwargs(alias: str, entry: dict, thinking: str | None, reso
         # ChatAnthropic, which ChatAnthropicVertex is not — so without this
         # breakpoint Claude-on-Vertex runs with zero cache, every tool round.
         model_kwargs.setdefault("cache_control", {"type": "ephemeral", "ttl": "5m"})
-    if thinking and thinking != "off":
-        budget = THINKING_BUDGET_TOKENS[thinking]
-        model_kwargs["thinking"] = {"type": "enabled", "budget_tokens": budget}
-        kwargs.pop("temperature", None)  # must be unset (or 1) with extended thinking
-        if int(kwargs.get("max_tokens") or 0) <= budget:
-            kwargs["max_tokens"] = budget + 4096
+    _apply_anthropic_thinking(kwargs, entry, str(entry["model"]), thinking, request=model_kwargs)
     if model_kwargs:
         kwargs["model_kwargs"] = model_kwargs
     return kwargs
@@ -408,14 +505,10 @@ def _gemini_kwargs(alias: str, entry: dict, thinking: str | None, resolve: Resol
 
 
 def _anthropic_kwargs(alias: str, entry: dict, thinking: str | None, resolve: Resolver) -> dict[str, Any]:
-    """The direct Anthropic API: thinking is a native top-level parameter."""
+    """The direct Anthropic API: ``thinking`` and ``output_config`` are native
+    `ChatAnthropic` parameters, so the request dict IS ``kwargs``."""
     kwargs = _generic_kwargs(alias, entry, resolve)
-    if thinking and thinking != "off":
-        budget = THINKING_BUDGET_TOKENS[thinking]
-        kwargs["thinking"] = {"type": "enabled", "budget_tokens": budget}
-        kwargs.pop("temperature", None)
-        if int(kwargs.get("max_tokens") or 0) <= budget:
-            kwargs["max_tokens"] = budget + 4096
+    _apply_anthropic_thinking(kwargs, entry, str(entry["model"]), thinking, request=kwargs)
     return kwargs
 
 
@@ -516,7 +609,7 @@ def build_llm_clients(
     *,
     resolve: Resolver | None = None,
 ) -> dict[str, Any]:
-    """One chat model per `PROVIDERS` entry.
+    """One chat model per `MODELS` entry.
 
     A provider whose key is not set becomes a `_PlaceholderClient` rather than
     an error, so a zero-key deployment still boots and the model picker can
