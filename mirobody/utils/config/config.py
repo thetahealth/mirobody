@@ -35,31 +35,40 @@ _global_config = None
 PLACEHOLDER_SENTINEL = "REPLACE_THIS_VALUE_IN_PRODUCTION"
 
 #-----------------------------------------------------------------------------
-# Keys 1.4.0 renamed, and the one place that knows both spellings.
+# Keys 1.4.0 and 1.4.1 renamed, and the one place that knows every spelling.
 #
 # When the agent stopped being "the DeepAgent" its config keys lost the `_DEEP`
-# suffix. The upgrade failure that motivates this table was SILENT: an overlay
-# written for 1.3.x still said `PROVIDERS_DEEP`, the new `PROVIDERS` was simply
-# absent from it, and the agent booted with zero providers and an empty
-# `/api/models` — nothing raised, nothing logged, and the deployment looked
-# healthy. Owner's call (2026-09-07): map the old spelling onto the new one.
+# suffix (1.4.0); when the model table stopped being called `PROVIDERS` — in
+# this project a provider is a device — it became `MODELS` (1.4.1). The upgrade
+# failure that motivates this table was SILENT: an overlay written for 1.3.x
+# still said `PROVIDERS_DEEP`, the new key was simply absent from it, and the
+# agent booted with zero models and an empty `/api/models` — nothing raised,
+# nothing logged, and the deployment looked healthy. Owner's call
+# (2026-09-07): map the old spelling onto the new one.
 #
-# It has to happen at LOAD time, not read time. The shipped `config.yaml`
-# declares `PROVIDERS`, `PROMPTS`, `ALLOWED_TOOLS` and `DISALLOWED_TOOLS`
-# itself, so a "fall back when the new key is missing" alias would never fire —
-# the shipped default shadows the user's overlay, which is the whole bug.
+# It has to happen at LOAD time, not read time. The shipped `config.llm.yaml`
+# declares `MODELS`, `PROMPTS`, `ALLOWED_TOOLS` and `DISALLOWED_TOOLS` itself,
+# so a "fall back when the new key is missing" alias would never fire — the
+# shipped default shadows the user's overlay, which is the whole bug.
 # Renaming as each file merges means ordinary layering decides: a later file's
 # old spelling overrides an earlier file's new one, exactly as it did in 1.3.x.
 _RENAMED_KEYS = {
-    "PROVIDERS_DEEP": "PROVIDERS",
+    "PROVIDERS_DEEP": "MODELS",
     "PROMPTS_DEEP": "PROMPTS",
     "ALLOWED_TOOLS_DEEP": "ALLOWED_TOOLS",
     "DISALLOWED_TOOLS_DEEP": "DISALLOWED_TOOLS",
-    "DEFAULT_PROVIDER_DEEP": "DEFAULT_PROVIDER",
+    "DEFAULT_PROVIDER_DEEP": "DEFAULT_MODEL",
+    # 1.4.1: in this project a "provider" is a device or data source
+    # (PROVIDER_DIRS, mirobody/pulse/providers); the model table is MODELS.
+    "PROVIDERS": "MODELS",
+    "DEFAULT_PROVIDER": "DEFAULT_MODEL",
+    "EMBEDDING_PROVIDER": "UTILS_EMBEDDING_MODEL",
 }
 
-#: new spelling -> the 1.3.x one, for the environment-variable half.
-_RENAMED_FROM = {new: old for old, new in _RENAMED_KEYS.items()}
+#: new spelling -> its old spellings, for the environment-variable half.
+_RENAMED_FROM: dict[str, tuple[str, ...]] = {}
+for _old, _new in _RENAMED_KEYS.items():
+    _RENAMED_FROM[_new] = (*_RENAMED_FROM.get(_new, ()), _old)
 
 #: Keys 1.4.0 REMOVED, with what replaced them. Deliberately not aliased:
 #: `SSE_HEARTBEAT_SECONDS` is not `HEARTBEAT_INTERVAL` under a new name (the
@@ -84,7 +93,7 @@ def _warn_renamed(old_key: str, new_key: str) -> None:
         return
     _warned_keys.add(old_key)
     logger.warning(
-        "config key %s was renamed to %s in 1.4.0; the old spelling is being "
+        "config key %s was renamed to %s; the old spelling is being "
         "read as the new one. Rename it in your overlay — this alias is a "
         "migration courtesy, not the contract.", old_key, new_key,
     )
@@ -105,14 +114,12 @@ def _legacy_env(upper_key: str) -> str | None:
     value is. `None` when the key was never renamed or the old one is unset,
     so a deployment on the current spelling pays one dict lookup and warns
     never."""
-    old = _RENAMED_FROM.get(upper_key)
-    if old is None:
-        return None
-    s = os.environ.get(old)
-    if s is None:
-        return None
-    _warn_renamed(old, upper_key)
-    return s
+    for old in _RENAMED_FROM.get(upper_key, ()):
+        s = os.environ.get(old)
+        if s is not None:
+            _warn_renamed(old, upper_key)
+            return s
+    return None
 
 #-----------------------------------------------------------------------------
 
@@ -152,9 +159,11 @@ class Config:
 
         #-------------------------------------------------
 
-        # Load YAML files.
+        # Load YAML files. A file's INCLUDE list loads right after it and
+        # before the next file, so a later overlay still wins over everything
+        # an earlier file pulled in.
         for yaml_filename in self._yaml_filenames:
-            self.load_yaml(yaml_filename)
+            self._load_with_includes(yaml_filename)
 
         self.refresh()
 
@@ -203,9 +212,25 @@ class Config:
         self.api_keys = self.get_api_keys()
 
 
-    def load_yaml(self, file: str | io.StringIO):
-        if not file:
+    def _load_with_includes(self, file: str | io.StringIO, depth: int = 0) -> None:
+        from .yaml_files import include_paths
+
+        includes = self.load_yaml(file)
+        if depth >= 3:
+            if includes:
+                logger.warning("INCLUDE nesting deeper than 3 in %s is ignored", file)
             return
+        for path in include_paths(file if isinstance(file, str) else None, includes):
+            if not os.path.exists(path):
+                logger.warning("INCLUDE names %s, which does not exist; skipped", path)
+                continue
+            self._load_with_includes(path, depth + 1)
+
+    def load_yaml(self, file: str | io.StringIO) -> list:
+        """Merge one YAML document into the configuration. Returns the file's
+        `INCLUDE` list (empty when it has none) for the caller to load next."""
+        if not file:
+            return []
 
         stream = None
 
@@ -218,14 +243,14 @@ class Config:
 
             except Exception as e:
                 logger.warning(f"Failed to load YAML file '{file}': {str(e)}")
-                return
+                return []
 
         elif isinstance(file, io.StringIO):
             # File content from StringIO (e.g., remote config)
             stream = file
 
         if stream is None:
-            return
+            return []
 
         #-------------------------------------------------
 
@@ -235,13 +260,21 @@ class Config:
 
         data = Config.yaml.load(stream)
         if not isinstance(data, dict):
-            return
+            return []
 
+        includes: list = []
         for key, value in data.items():
             if not isinstance(key, str):
                 continue
 
             upper_key = key.upper()
+
+            if upper_key == "INCLUDE":
+                # A loading instruction, not a setting: consumed here, never
+                # stored, so an overlay's own INCLUDE adds files rather than
+                # "overriding" a value nothing reads.
+                includes = list(value) if isinstance(value, list) else []
+                continue
 
             if upper_key in _REMOVED_KEYS:
                 _warn_removed(upper_key, _REMOVED_KEYS[upper_key])
@@ -302,6 +335,8 @@ class Config:
 
             except Exception as e:
                 logger.warning(f"Failed to update YAML file '{file}': {str(e)}")
+
+        return includes
 
     #-----------------------------------------------------
 
@@ -551,10 +586,10 @@ class Config:
     def get_agent_settings(self) -> dict[str, Any]:
         """The agent's runtime settings from the four plain keys, cached.
 
-        `PROVIDERS`, `PROMPTS`, `ALLOWED_TOOLS`, `DISALLOWED_TOOLS` — one agent,
+        `MODELS`, `PROMPTS`, `ALLOWED_TOOLS`, `DISALLOWED_TOOLS` — one agent,
         one set of keys (they used to carry the agent's name as a suffix). The
         two halves that do real work — resolving `PROMPTS` path references into
-        template text, and normalising the three accepted shapes of `PROVIDERS`
+        template text, and normalising the three accepted shapes of `MODELS`
         — live in `agent_options.py`, testable without a Config or a
         filesystem. What is left here is the caching.
         """
@@ -925,6 +960,7 @@ class Config:
             final_yaml_file_list.append(default_yaml)
             logger.info("Default config has been loaded.")
 
+
         for yaml_filename in yaml_file_list:
             if os.path.exists(yaml_filename):
                 final_yaml_file_list.append(yaml_filename)
@@ -960,8 +996,19 @@ def global_config() -> Config | None:
 #-----------------------------------------------------------------------------
 
 def safe_read_cfg(key: str, default: str = "") -> str:
+    """A config value as a string, or `default`.
+
+    With no Config loaded — a library caller, `mirobody parse`, a test — the
+    ENVIRONMENT still answers, as it does first when a Config is loaded
+    (`Config.get_str`). Before this the no-Config case returned the default
+    outright, so `OPENROUTER_API_KEY=... mirobody parse x.pdf` needed a
+    second lookup path in every caller that wanted to work without config.yaml
+    (`_default_provider`, `resolve_embedding_provider` each grew their own
+    `os.environ.get(...) or safe_read_cfg(...)`). One rule, here.
+    """
     if not _global_config:
-        return default
+        value = os.environ.get(key.strip()) or os.environ.get(key.strip().upper())
+        return value.strip() if value is not None else default
 
     return _global_config.get_str(key, default).strip()
 

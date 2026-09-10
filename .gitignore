@@ -31,6 +31,8 @@ package-lock.json
 # config
 .env
 *.*.yaml
+!config.devices.yaml
+!config.llm.yaml
 *.env
 
 # AI assistant working notes (local only, never published).

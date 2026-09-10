@@ -306,7 +306,7 @@ class IndicatorSyncTask(BaseRedisTask):
         candidate set into memory; the next sweep picks up the rest
         (`ORDER BY dim.id` makes progress deterministic).
 
-        Provider selected by `EMBEDDING_PROVIDER` (default `openrouter`).
+        Provider selected by `UTILS_EMBEDDING_MODEL`.
         Per-batch embedding errors are logged and skipped; the loop continues.
 
         A provider with no `th_series_dim` vector column raises BEFORE the loop

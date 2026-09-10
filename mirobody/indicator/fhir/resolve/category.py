@@ -655,10 +655,12 @@ async def strategies_for_terms(
     if not terms:
         return []
 
-    from mirobody.utils.config import safe_read_cfg
-    from mirobody.utils.embedding import text_embedding
+    from mirobody.utils.config.llm import no_provider_message
+    from mirobody.utils.embedding import resolve_embedding_provider, text_embedding
 
-    provider = provider or safe_read_cfg("EMBEDDING_PROVIDER", "openrouter")
+    provider = provider or resolve_embedding_provider()
+    if not provider:
+        raise ValueError(no_provider_message("embedding"))
     centroids = await _load_centroids(provider)
     archetypes = list(centroids)
     cmat = np.stack([centroids[a] for a in archetypes])  # (K, D)

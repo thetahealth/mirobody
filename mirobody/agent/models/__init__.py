@@ -1,6 +1,6 @@
 """The chat model seam: building one, reading its messages, counting its tokens.
 
-    clients.py   one `PROVIDERS` entry → a LangChain chat model, for every
+    clients.py   one `MODELS` entry → a LangChain chat model, for every
                  provider family (OpenAI-compatible with reasoning capture,
                  Azure WIF, Claude on Vertex with the cache breakpoint and the
                  thinking budget, Gemini on Vertex or AI Studio)

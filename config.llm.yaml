@@ -1,0 +1,208 @@
+# Models — the one file to open after `./deploy.sh`.
+#
+# THE API KEY GOES IN .env, NOT HERE. Put ONE of these five in the `.env` next to
+# compose.yaml, then `docker compose restart`; every surface follows it:
+#
+#   OPENROUTER_API_KEY -> https://openrouter.ai/keys                  (recommended: one key, every model)
+#   DASHSCOPE_API_KEY  -> https://dashscope.console.aliyun.com/apiKey (when openrouter.ai is unreachable)
+#   GOOGLE_API_KEY     -> https://aistudio.google.com/apikey          (GEMINI_API_KEY is read as the same key)
+#   OPENAI_API_KEY     -> https://platform.openai.com/api-keys
+#   DEEPSEEK_API_KEY   -> https://platform.deepseek.com/api_keys
+#
+# This file says which MODEL each key uses, per surface (names are MODELS entries):
+#
+#   key in .env          chat (picker)   vision + text (utils)   embeddings
+#   OPENROUTER_API_KEY   claude-sonnet   openrouter-utils        openrouter-embed
+#   DASHSCOPE_API_KEY    qwen            qwen-utils              qwen-embed
+#   GOOGLE_API_KEY       gemini-flash    gemini-utils            gemini-embed
+#   OPENAI_API_KEY       openai          openai-utils            openai-embed
+#   DEEPSEEK_API_KEY     deepseek        deepseek-utils          — (no embedding model: lexical search)
+#
+# `mirobody doctor` (and the boot log) prints what the current config selects.
+# mirobody/test_one_key_defaults.py checks this table against the entries below.
+# Model ids verified against each vendor's catalogue on 2026-09-10.
+
+#-----------------------------------------------------------------------------
+# MODELS — one entry per model you want to call. (Not "providers": in this
+# project a provider is a device or data source, see PROVIDER_DIRS.)
+#
+#   llm_type        openai = any OpenAI-compatible endpoint (all five vendors here).
+#                   Chat entries may also use google-genai / anthropic / vertex types.
+#   api_key         NAME of the .env variable holding the secret — never the secret
+#   base_url        the endpoint; `<PREFIX>_BASE_URL` in .env redirects every entry
+#                   reading that key to another gateway (PREFIX = api_key name minus _API_KEY)
+#   supports_image  true = reads images. REQUIRED for anything UTILS_VISION_MODEL names:
+#                   report photos and scanned pages are images.
+#   supports_pdf    true = takes a PDF natively in chat
+#   json_schema     false = endpoint rejects response_format json_schema (schema goes in the prompt)
+#   chat            false = utility surfaces only, hidden from the chat picker
+#   embedding       the vector-column family this entry writes (openrouter | qwen | gemini | openai);
+#                   only on embedding entries
+#   extra_body      forwarded as-is (vendor thinking switches etc.)
+#
+# The chat picker shows the entries whose key is present, in this order; the
+# FIRST is the default (or set DEFAULT_MODEL).
+MODELS:
+  claude-sonnet:
+    llm_type: openai
+    api_key: OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+    model: anthropic/claude-sonnet-5
+    temperature: 0.1
+    supports_image: true
+    supports_pdf: true
+  qwen:
+    llm_type: openai
+    api_key: DASHSCOPE_API_KEY
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: qwen3.8-flash          # multimodal, tool calls verified 2026-09-10
+    temperature: 0.1
+    supports_image: true
+  gemini-flash:
+    llm_type: openai              # Google's OpenAI-compatible endpoint (images yes, PDF parts no)
+    api_key: GOOGLE_API_KEY
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    model: gemini-3.8-flash
+    temperature: 1.0
+    supports_image: true
+  openai:
+    llm_type: openai
+    api_key: OPENAI_API_KEY
+    base_url: https://api.openai.com/v1
+    model: gpt-5.6-terra
+    temperature: 0.1
+    supports_image: true
+  deepseek:
+    llm_type: openai
+    api_key: DEEPSEEK_API_KEY
+    base_url: https://api.deepseek.com/v1
+    model: deepseek-flash         # V4.1 Flash: text + image; thinking on by default (ignores temperature)
+    supports_image: true
+    json_schema: false            # DeepSeek's JSON mode is json_object only
+  gpt:
+    llm_type: openai
+    api_key: OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+    model: openai/gpt-5.6-terra
+    temperature: 0.1
+    supports_image: true
+
+  # Utility entries (chat: false) — the models behind file parsing, indicator
+  # extraction, titles and summaries. MULTIMODAL, one per key, thinking off:
+  # extraction reads report photos and needs no reasoning trace.
+  openrouter-utils:
+    llm_type: openai
+    api_key: OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+    model: google/gemini-3.8-flash
+    supports_image: true
+    chat: false
+    extra_body:
+      reasoning:
+        enabled: false
+  qwen-utils:
+    llm_type: openai
+    api_key: DASHSCOPE_API_KEY
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: qwen3.8-flash
+    supports_image: true
+    chat: false
+    extra_body:
+      enable_thinking: false
+  gemini-utils:
+    llm_type: openai
+    api_key: GOOGLE_API_KEY
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    model: gemini-3.8-flash
+    supports_image: true
+    chat: false
+    reasoning_effort: low
+  openai-utils:
+    llm_type: openai
+    api_key: OPENAI_API_KEY
+    base_url: https://api.openai.com/v1
+    model: gpt-5.6-terra
+    supports_image: true
+    chat: false
+  deepseek-utils:
+    llm_type: openai
+    api_key: DEEPSEEK_API_KEY
+    base_url: https://api.deepseek.com/v1
+    model: deepseek-flash
+    supports_image: true
+    json_schema: false
+    chat: false
+    extra_body:
+      thinking:
+        type: disabled
+
+  # Embedding entries — one per vector-column family. Vectors from different
+  # models are not comparable, so changing a model here means re-embedding
+  # (`python -m mirobody.indicator embed`).
+  openrouter-embed:
+    llm_type: openai
+    api_key: OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+    model: qwen/qwen3-embedding-8b   # open weights; self-host it behind OPENROUTER_BASE_URL
+    embedding: openrouter
+    chat: false
+  qwen-embed:
+    llm_type: openai
+    api_key: DASHSCOPE_API_KEY
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: text-embedding-v4
+    embedding: qwen
+    chat: false
+  gemini-embed:
+    llm_type: google-genai        # Google's REST embedding endpoint (output_dimensionality)
+    api_key: GOOGLE_API_KEY
+    model: gemini-embedding-001
+    embedding: gemini
+    chat: false
+  openai-embed:
+    llm_type: openai
+    api_key: OPENAI_API_KEY
+    base_url: https://api.openai.com/v1
+    model: text-embedding-3-small
+    embedding: openai
+    chat: false
+  # More models on a key you already have — add an entry, e.g. Kimi on DashScope:
+  # kimi: {llm_type: openai, api_key: DASHSCOPE_API_KEY, base_url: https://dashscope.aliyuncs.com/compatible-mode/v1, model: kimi-k2.5, temperature: 0.1}
+
+#-----------------------------------------------------------------------------
+# Which entry each surface uses.
+#
+# A value is an entry name, a list of names (the FIRST whose key is present wins
+# — how one key runs everything), `provider/model` (openai/…, openrouter/…,
+# dashscope/…, gemini/…, deepseek/…), or an inline spec shaped like an entry.
+# The same-named environment variable overrides the file:
+#   UTILS_VISION_MODEL=dashscope/qwen3.8-flash
+# Selection happens once; a failed call is reported, never retried elsewhere.
+
+# Report photos and scanned PDF pages. Entries MUST be multimodal (supports_image: true).
+UTILS_VISION_MODEL: [gemini-utils, openrouter-utils, qwen-utils, openai-utils, deepseek-utils]
+
+# Indicator extraction from text, file titles/summaries, conversation titles.
+# Not the chat default on purpose: reordering the picker must not change extraction.
+UTILS_TEXT_MODEL: [openrouter-utils, qwen-utils, gemini-utils, openai-utils, deepseek-utils]
+
+# Embeddings for indicator search. DeepSeek has no embedding model: with that
+# key alone, search uses the lexical index.
+UTILS_EMBEDDING_MODEL: [openrouter-embed, qwen-embed, gemini-embed, openai-embed]
+
+#-----------------------------------------------------------------------------
+# The agent.
+#   ALLOWED_TOOLS / DISALLOWED_TOOLS — MCP tool whitelist / blacklist (whitelist wins)
+#   PROMPTS — system prompt templates (path, or path@name); the first is the default
+#   DEFAULT_MODEL — a MODELS entry; unset = first entry whose key is present
+#   AGENT_NAME — the persona name in the prompt
+#   AGENT_CHECKPOINTER — LangGraph Postgres memory per session; false = every turn fresh
+
+ALLOWED_TOOLS:
+
+DISALLOWED_TOOLS:
+
+PROMPTS:
+  - agent/prompts/mirobody.jinja
+
+AGENT_CHECKPOINTER: true

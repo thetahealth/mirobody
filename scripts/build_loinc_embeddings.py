@@ -71,7 +71,7 @@ DIM = 1024
 # Model ids come from `mirobody.utils.embedding.embedding_model_id()` in main()
 # — the same call the runtime query side makes, so this script cannot drift onto
 # a model the deployed `text_embedding()` does not call, and it picks up a
-# `<PROVIDER>_EMBEDDING_MODEL` override on both sides at once. The endpoints
+# the `MODELS` entry's `model` (config.llm.yaml) on both sides at once. The endpoints
 # below are likewise defaults: `<PROVIDER>_BASE_URL` redirects them, which a
 # deployment that self-hosts the embedding model MUST be able to do — corpus
 # and queries have to come out of one serving.
@@ -214,7 +214,7 @@ async def main() -> int:
     # returns confident nonsense ("空腹血糖" once answered as "Widespread
     # delusions" off a matrix from a different serving config). SemanticIndex
     # refuses to load a matrix whose stamp disagrees with the configured
-    # EMBEDDING_PROVIDER, and warns when the stamp is missing.
+    # UTILS_EMBEDDING_MODEL, and warns when the stamp is missing.
     meta_path = f"{args.out}.meta.json"
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump({

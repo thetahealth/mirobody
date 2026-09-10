@@ -1,11 +1,20 @@
 """Which YAML files a run loads, and in what order.
 
-The project's config is deliberately split four ways, and the rules compose:
+The project's config is deliberately split, and the rules compose:
 
-    config.yaml            the defaults, checked into git
+    config.yaml            the defaults, checked into git; its INCLUDE list
+                           names the sibling files that load right after it
+                           (config.llm.yaml, config.devices.yaml)
     config.key.yaml        its secrets, which are not
     config.{env}.yaml      per-environment overrides
     config.{env}.key.yaml  their secrets
+
+`INCLUDE` is Home Assistant's `!include`, spelled as a plain list so any YAML
+loader reads it: the file a newcomer reads holds what a newcomer needs, the
+model table has its own file, and the wearable-vendor OAuth apps have theirs.
+An explicit list rather than a directory scan, so a `config.prod.yaml` sitting
+next to the files is never mistaken for a concern file when ENV is something
+else, and the reader sees the order.
 
 So one requested filename fans out to as many as four candidates, order
 matters (later wins), and duplicates must not be loaded twice. That expansion
@@ -21,6 +30,7 @@ fan-out, dedup, and the "no env" and "no filenames" paths.
 
 from __future__ import annotations
 
+import os
 import re
 
 _YAML_RE = re.compile(r".*\.yaml$", re.IGNORECASE)
@@ -86,6 +96,25 @@ def _with_env_files(names: list[str], env: str) -> list[str]:
 
         if variant not in out:
             out.append(variant)
+    return out
+
+
+def include_paths(base: str | None, includes) -> list[str]:
+    """The files an `INCLUDE` list names, resolved next to the file that
+    declared them (or against the working directory when the declaring
+    "file" was a stream), in the order written, without duplicates. Neither
+    `.key.yaml` siblings nor `{env}` variants are expanded for an included
+    file — it is a plain file; environment differences go in the overlay."""
+    if not isinstance(includes, list):
+        return []
+    directory = os.path.dirname(base) if isinstance(base, str) else ""
+    out: list[str] = []
+    for name in includes:
+        if not isinstance(name, str) or not name.strip() or not _YAML_RE.match(name.strip()):
+            continue
+        path = os.path.normpath(os.path.join(directory, name.strip()))
+        if path not in out:
+            out.append(path)
     return out
 
 

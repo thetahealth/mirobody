@@ -30,6 +30,7 @@ from ..kernel import query
 from ..kernel.ops import is_driver_exception
 from ..utils.log import get_req_ctx
 from ..utils.config import safe_read_cfg
+from ..utils.config.llm import chat_default, chat_entries
 
 from . import harness
 from .errors import AgentError, ConfigError, client_safe_error
@@ -48,31 +49,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# The default LLM provider when the caller names none.
-#
-# Both values must be KEYS of the shipped PROVIDERS in config.yaml —
-# these strings are looked up in that dict, not resolved as model names. An
-# earlier value, "gemini-3.5-flash", was a model name matching no shipped key
-# (the entry is called "gemini-flash"), so a call with no provider raised
-# ConfigError on an untouched config.
-#
-# Two defaults because the repo promises TWO one-key paths: "claude-sonnet"
-# routes through OPENROUTER_API_KEY (the recommended default), "qwen" through
-# DASHSCOPE_API_KEY (the fallback for networks where openrouter.ai is
-# unreachable).
-# `_default_provider()` picks by which key is actually present — the same
-# select-by-available-key idea the vision pipeline already uses — so a bare
-# DASHSCOPE_API_KEY deployment chats without touching DEFAULT_PROVIDER.
-_DEFAULT_PROVIDER = "claude-sonnet"
-_DEFAULT_PROVIDER_FALLBACK = "qwen"
-
-
 def _default_provider() -> str:
-    if os.environ.get("OPENROUTER_API_KEY") or safe_read_cfg("OPENROUTER_API_KEY", ""):
-        return _DEFAULT_PROVIDER
-    if os.environ.get("DASHSCOPE_API_KEY") or safe_read_cfg("DASHSCOPE_API_KEY", ""):
-        return _DEFAULT_PROVIDER_FALLBACK
-    return _DEFAULT_PROVIDER
+    """The model to chat with when the caller names none: the first
+    `MODELS` entry (config order, utility-only entries excluded) whose key is
+    present — the order of that table is the contract, as it is in mirovital's
+    `MODEL_PROVIDERS`. With no key present, the first entry, so the error a
+    chat then raises names a real entry and its missing key."""
+    return chat_default() or next(iter(chat_entries()), "")
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -103,7 +86,7 @@ class MirobodyAgent:
         # The persona name the prompt addresses the model by. Configurable so a
         # deployment can brand it; it is not an identifier anywhere else.
         self.agent_name = safe_read_cfg("AGENT_NAME") or "Mirobody"
-        self.default_provider = safe_read_cfg("DEFAULT_PROVIDER") or _default_provider()
+        self.default_provider = safe_read_cfg("DEFAULT_MODEL") or _default_provider()
         self.file_parse_cache_ttl = int(safe_read_cfg("FILE_CACHE_TTL") or 300)
         self.file_parse_cache_maxsize = int(safe_read_cfg("FILE_CACHE_MAXSIZE") or 100)
         # Two layers, and they are not interchangeable (see `_build_agent`):
@@ -398,7 +381,7 @@ class MirobodyAgent:
 
         Single source of truth is LangChain's normalized ``model.profile``
         (a ``ModelProfile``, populated by the partner package from models.dev and
-        **overridable per-provider in the PROVIDERS config via a ``profile:``
+        **overridable per-provider in the MODELS config via a ``profile:``
         merge** — see ``load_llm_clients``). This replaces any hand-maintained
         provider allow-list: capability now travels with the model.
 
@@ -746,5 +729,5 @@ class MirobodyAgent:
 
     @classmethod
     def load_llm_clients(cls, llm_client_config: dict[str, Any]) -> dict[str, Any]:
-        """The registry's hook: one chat model per `PROVIDERS` entry."""
+        """The registry's hook: one chat model per `MODELS` entry."""
         return build_llm_clients(llm_client_config, owner=cls.__name__)

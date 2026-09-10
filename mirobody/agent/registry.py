@@ -13,7 +13,7 @@ tools, the chat endpoints, the wire format — is the same.
 
 The contract a replacement has to meet is the two methods on `AbstractAgent`.
 The per-agent config keys that used to be suffixed with the agent's name
-(`PROVIDERS_<NAME>`, `PROMPTS_<NAME>`, ...) are plain `PROVIDERS`, `PROMPTS`,
+(`PROVIDERS_<NAME>`, `PROMPTS_<NAME>`, ...) are plain `MODELS`, `PROMPTS`,
 `ALLOWED_TOOLS`, `DISALLOWED_TOOLS`: one agent, one set of keys.
 
 This module holds the process-wide state the chat layer reads — the agent
@@ -44,7 +44,7 @@ class AbstractAgent:
     `ChatProtocolAdapter._prepare_agent_kwargs` builds (`user_id`, `session_id`,
     `messages`, `provider`, `prompt_name`, `file_list`, ...) and yields chunk
     dicts `{"type": ..., "content": ...}` — see `agent/README.md` for the types.
-    `load_llm_clients` is optional: given the `PROVIDERS` table it returns
+    `load_llm_clients` is optional: given the `MODELS` table it returns
     `{provider_name: client}`; an agent that needs no model returns `{}`.
     """
 
@@ -85,7 +85,7 @@ def load_agent(dirs: list[str], config: Config | None = None) -> type | None:
     first agent class found becomes THE agent.
 
     Every further candidate is logged by name and ignored — there is no second
-    slot. Loads the agent's LLM clients from the `PROVIDERS` table when the
+    slot. Loads the agent's LLM clients from the `MODELS` table when the
     class offers `load_llm_clients`. Returns the class, or None when no
     directory yielded one (the chat endpoints then answer "no agent").
     """
@@ -134,6 +134,11 @@ def load_agent(dirs: list[str], config: Config | None = None) -> type | None:
     cfg = config or global_config()
     if callable(loader) and cfg:
         providers = (cfg.get_agent_settings() or {}).get("providers") or {}
+        # `chat: false` entries (utility and embedding models) are not chat
+        # models and must not reach the picker or be built as one.
+        providers = {n: e for n, e in providers.items()
+                     if str((e or {}).get("chat", "")).strip().lower() not in ("false", "0", "no", "off")
+                     and not (e or {}).get("embedding")}
         try:
             clients = loader(providers) or {}
         except Exception as e:
@@ -160,7 +165,7 @@ def agent_name() -> str:
 
 
 def new_agent(**kwargs) -> AbstractAgent | None:
-    """A fresh agent instance for one turn, built on the `PROVIDERS` /
+    """A fresh agent instance for one turn, built on the `MODELS` /
     `PROMPTS` / `ALLOWED_TOOLS` / `DISALLOWED_TOOLS` settings plus `kwargs`."""
     if _agent_class is None:
         return None

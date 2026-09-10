@@ -932,7 +932,7 @@ class UserProfileGenerator:
         """
         Generate a single chunk of user profile using LLM
         
-        自动选择提供商: OPENAI_API_KEY -> OpenAI | OPENROUTER_API_KEY -> OpenRouter | GOOGLE_API_KEY -> Gemini | ...
+        自动选择提供商：按 mirobody/utils/config/llm.py 注册表的 text 面顺序，取第一个有 key 的 provider。
         
         Args:
             basic_info: User basic information
@@ -980,7 +980,7 @@ class UserProfileGenerator:
         """
         Merge multiple profile chunk results
         
-        自动选择提供商: OPENAI_API_KEY -> OpenAI | OPENROUTER_API_KEY -> OpenRouter | GOOGLE_API_KEY -> Gemini | ...
+        自动选择提供商：按 mirobody/utils/config/llm.py 注册表的 text 面顺序，取第一个有 key 的 provider。
         
         Args:
             results: List of multiple profile results

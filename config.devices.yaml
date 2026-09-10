@@ -1,0 +1,80 @@
+# Devices and mobile sign-in — Garmin, Oura, Whoop; Google / Apple sign-in for
+# the mobile clients. Optional: a `git clone` + `./deploy.sh` deployment uses
+# none of this. Loaded through the INCLUDE list in config.yaml.
+#
+# Each wearable provider is an OAuth app you register with the vendor (the
+# credentials are yours, they cannot ship here); a provider with empty
+# credentials declines to start — normal, not an error. The vendor endpoints
+# below are the defaults; change one only to pin another environment. Full
+# walkthrough, including the callback URL to register: docs/provider-setup.md.
+
+#-----------------------------------------------------------------------------
+# Oura (OAuth 2.0) — https://cloud.ouraring.com/oauth/applications
+# Redirect URI: {your-https-host}/api/v1/pulse/theta/theta_oura/callback
+OURA_CLIENT_ID: ""
+OURA_CLIENT_SECRET: ""
+OURA_REDIRECT_URL: ""
+
+#-----------------------------------------------------------------------------
+# Whoop (OAuth 2.0) — https://developer.whoop.com/
+# Redirect URI: {your-https-host}/api/v1/pulse/theta/theta_whoop/callback
+WHOOP_CLIENT_ID: ""
+WHOOP_CLIENT_SECRET: ""
+WHOOP_REDIRECT_URL: ""
+WHOOP_AUTH_URL: https://api.prod.whoop.com/oauth/oauth2/auth
+WHOOP_TOKEN_URL: https://api.prod.whoop.com/oauth/oauth2/token
+WHOOP_API_BASE_URL: https://api.prod.whoop.com/developer/v2
+WHOOP_SCOPES:
+  offline read:recovery read:sleep read:cycles read:profile read:workout
+  read:body_measurement
+# WHOOP_REQUEST_TIMEOUT: 30
+# WHOOP_CONCURRENT_REQUESTS: 5
+# WHOOP_MAX_DETAIL_RECORDS: 50
+
+#-----------------------------------------------------------------------------
+# Garmin (OAuth 1.0a) — https://developer.garmin.com/gc-developer-program/
+# Redirect URI: {your-https-host}/api/v1/pulse/theta/theta_garmin/callback
+GARMIN_CLIENT_ID: ""
+GARMIN_CLIENT_SECRET: ""
+GARMIN_REDIRECT_URL: ""
+GARMIN_TOKEN_URL: https://connectapi.garmin.com/oauth-service/oauth/request_token
+GARMIN_AUTH_URL: https://connect.garmin.com/oauthConfirm/
+GARMIN_ACCESS_TOKEN_URL: https://connectapi.garmin.com/oauth-service/oauth/access_token
+GARMIN_API_BASE_URL: https://apis.garmin.com/wellness-api/rest
+# Seconds a Garmin request token waits for the user's approval.
+OAUTH_TEMP_TTL_SECONDS: 900
+
+# Device credentials the platform stores are encrypted with this AES-GCM key (hex).
+DATABASE_DECRYPTION_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
+
+#-----------------------------------------------------------------------------
+# Google / Apple sign-in and the web/mobile client settings.
+
+# GOOGLE_CLIENT_ID: ''
+# FIREBASE_PROJECT_ID: ''
+
+# APPLE_TEAM_ID: ''
+# APPLE_KEY_ID: ''
+# APPLE_PRIVATE_KEY: ''
+# Apple OAuth client IDs for JWT token generation.
+# APPLE_CLIENT_ID: ''
+# APPLE_CLIENT_ID_APP: ''
+# Apple authorization code client ID; omit if the two client IDs above are identical.
+# APPLE_AUTH_CLIENT_ID: ''
+
+# Web frontend feature flags and Firebase settings, injected at runtime.
+# MIROBODY_WEB_CONFIG:
+#   __IS_API_CONFIG_ON__: true
+#   __IS_QR_LOGIN_ON__: false
+#   __IS_GOOGLE_LOGIN_ON__: true
+#   __IS_APPLE_LOGIN_ON__: true
+#   __IS_NEW_FEATURES_ON__:
+#     - MCP
+#   __IS_MOBILE_SOURCE_ON__: true
+#   __FIREBASE_API_KEY__: ""
+#   __FIREBASE_AUTH_DOMAIN__: ""
+#   __FIREBASE_PROJECT_ID__: ""
+#   __FIREBASE_STORAGE_BUCKET__: ""
+#   __FIREBASE_MESSAGING_SENDER_ID__: ""
+#   __FIREBASE_APP_ID__: ""
+#   __FIREBASE_MEASUREMENT_ID__: ""

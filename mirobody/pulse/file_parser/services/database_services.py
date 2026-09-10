@@ -292,7 +292,7 @@ class FileParserDatabaseService:
 
             if db_params:
                 # Signal the worker to materialize th_series_dim + backfill
-                # embeddings (embedding_<EMBEDDING_PROVIDER>), then refresh the
+                # embeddings (embedding_<UTILS_EMBEDDING_MODEL>), then refresh the
                 # user profile. Both enqueues are coalescing + self-guarded, so a
                 # Redis hiccup never fails the ingest write above.
                 try:

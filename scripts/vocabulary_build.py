@@ -572,7 +572,7 @@ def main() -> None:
     p_axis_emb.add_argument(
         "--provider", default=None,
         help="Embedding provider override (gemini / qwen). Default: "
-             "config key EMBEDDING_PROVIDER (falls back to openrouter).",
+             "config key UTILS_EMBEDDING_MODEL (the first listed entry whose key is present).",
     )
 
     # ── snomed-axis-aliases ───────────────────────────────────────────

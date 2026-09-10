@@ -512,7 +512,7 @@ class FhirAdapter(DomainAdapter):
 
         # Provider must match the column we'll query (see _resolve_db /
         # _resolve_local_batch). Both the embedding API and the column
-        # name are now keyed off the same ``EMBEDDING_PROVIDER`` config
+        # name are now keyed off the same ``UTILS_EMBEDDING_MODEL`` config
         # so they can't drift — pass through ``resolve_fhir_embedding_column``
         # so the column→provider mapping stays a single source of truth.
         provider, _ = resolve_fhir_embedding_column()
