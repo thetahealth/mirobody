@@ -1,12 +1,13 @@
 # Models — the one file to open after `./deploy.sh`.
 #
-# THE API KEY GOES IN .env, NOT HERE. Put ONE of these five in the `.env` next to
+# THE API KEY GOES IN .env, NOT HERE. Put ONE of these six in the `.env` next to
 # compose.yaml, then `docker compose restart`; every surface follows it:
 #
 #   OPENROUTER_API_KEY -> https://openrouter.ai/keys                  (recommended: one key, every model)
 #   DASHSCOPE_API_KEY  -> https://dashscope.console.aliyun.com/apiKey (when openrouter.ai is unreachable)
 #   GOOGLE_API_KEY     -> https://aistudio.google.com/apikey          (GEMINI_API_KEY is read as the same key)
 #   OPENAI_API_KEY     -> https://platform.openai.com/api-keys
+#   ANTHROPIC_API_KEY  -> https://platform.claude.com/settings/keys
 #   DEEPSEEK_API_KEY   -> https://platform.deepseek.com/api_keys
 #
 # This file says which MODEL each key uses, per surface (names are MODELS entries):
@@ -16,6 +17,7 @@
 #   DASHSCOPE_API_KEY    qwen            qwen-utils              qwen-embed
 #   GOOGLE_API_KEY       gemini-flash    gemini-utils            gemini-embed
 #   OPENAI_API_KEY       openai          openai-utils            openai-embed
+#   ANTHROPIC_API_KEY    claude          anthropic-utils         — (no embedding model: lexical search)
 #   DEEPSEEK_API_KEY     deepseek        deepseek-utils          — (no embedding model: lexical search)
 #
 # `mirobody doctor` (and the boot log) prints what the current config selects.
@@ -26,15 +28,19 @@
 # MODELS — one entry per model you want to call. (Not "providers": in this
 # project a provider is a device or data source, see PROVIDER_DIRS.)
 #
-#   llm_type        openai = any OpenAI-compatible endpoint (all five vendors here).
+#   llm_type        openai = any OpenAI-compatible endpoint (every vendor here but one).
 #                   Chat entries may also use google-genai / anthropic / vertex types.
 #   api_key         NAME of the .env variable holding the secret — never the secret
 #   base_url        the endpoint; `<PREFIX>_BASE_URL` in .env redirects every entry
-#                   reading that key to another gateway (PREFIX = api_key name minus _API_KEY)
+#                   reading that key to another gateway (PREFIX = api_key name minus _API_KEY).
+#                   NB `ANTHROPIC_BASE_URL` is also what Anthropic's own SDK and Claude Code
+#                   read, so a developer machine running either already has it pointed
+#                   somewhere — `mirobody doctor` prints the endpoint each surface resolved.
 #   supports_image  true = reads images. REQUIRED for anything UTILS_VISION_MODEL names:
 #                   report photos and scanned pages are images.
 #   supports_pdf    true = takes a PDF natively in chat
-#   json_schema     false = endpoint rejects response_format json_schema (schema goes in the prompt)
+#   response_format json_schema (default) | json_object | none — what the endpoint
+#                   accepts. Below json_schema the schema is written into the prompt
 #   chat            false = utility surfaces only, hidden from the chat picker
 #   embedding       the vector-column family this entry writes (openrouter | qwen | gemini | openai);
 #                   only on embedding entries
@@ -72,13 +78,27 @@ MODELS:
     model: gpt-5.6-terra
     temperature: 0.1
     supports_image: true
+    reasoning_effort: none        # REQUIRED for an agent: "Function tools with reasoning_effort
+                                  # are not supported for gpt-5.6-terra in /v1/chat/completions"
+                                  # — and with reasoning on, temperature must be 1 (measured
+                                  # 2026-09-10). Without this the picker's OpenAI entry cannot
+                                  # call a single tool.
+  claude:
+    llm_type: anthropic           # the vendor's own API, not its OpenAI-compatible layer:
+                                  # prompt caching and the thinking channel are only there
+    api_key: ANTHROPIC_API_KEY
+    model: claude-sonnet-5
+    supports_image: true
+    supports_pdf: true
+    # No `temperature`: Claude Sonnet 5 answers 400 "`temperature` is
+    # deprecated for this model" (measured 2026-09-10).
   deepseek:
     llm_type: openai
     api_key: DEEPSEEK_API_KEY
     base_url: https://api.deepseek.com/v1
     model: deepseek-flash         # V4.1 Flash: text + image; thinking on by default (ignores temperature)
     supports_image: true
-    json_schema: false            # DeepSeek's JSON mode is json_object only
+    response_format: json_object  # DeepSeek's JSON mode refuses a schema
   gpt:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
@@ -98,8 +118,9 @@ MODELS:
     supports_image: true
     chat: false
     extra_body:
-      reasoning:
-        enabled: false
+      reasoning:                  # `enabled: false` is a 400 here — "Reasoning is mandatory
+        effort: minimal           # for this endpoint and cannot be disabled" (measured
+        exclude: true             # 2026-09-10). The least it allows, and no trace returned.
   qwen-utils:
     llm_type: openai
     api_key: DASHSCOPE_API_KEY
@@ -124,13 +145,24 @@ MODELS:
     model: gpt-5.6-terra
     supports_image: true
     chat: false
+    reasoning_effort: none        # thinking off, like every utility entry
+  anthropic-utils:
+    llm_type: anthropic           # the vendor's own API, not its OpenAI-compatible layer: only
+                                  # here does `output_config.format` GUARANTEE schema-valid JSON
+    api_key: ANTHROPIC_API_KEY
+    model: claude-haiku-4-5-20251001
+    supports_image: true
+    chat: false
+    extra_body:                   # an anthropic entry's extra_body is native top-level parameters
+      thinking:
+        type: disabled
   deepseek-utils:
     llm_type: openai
     api_key: DEEPSEEK_API_KEY
     base_url: https://api.deepseek.com/v1
     model: deepseek-flash
     supports_image: true
-    json_schema: false
+    response_format: json_object
     chat: false
     extra_body:
       thinking:
@@ -154,9 +186,15 @@ MODELS:
     embedding: qwen
     chat: false
   gemini-embed:
-    llm_type: google-genai        # Google's REST embedding endpoint (output_dimensionality)
+    llm_type: google-genai        # Google's REST embedding endpoint (output_dimensionality);
+                                  # the compatibility endpoint documents no `dimensions`
     api_key: GOOGLE_API_KEY
-    model: gemini-embedding-001
+    model: gemini-embedding-001   # NOT gemini-embedding-2-preview (owner's call, 2026-09-10):
+                                  # it is preview, and the two embedding spaces are
+                                  # incompatible — adopting it re-embeds every stored row.
+                                  # Google does not renormalise a truncated vector from this
+                                  # model; mirobody L2-normalises both sides anyway
+                                  # (semantic.py, adapter.py), so 1024 dims are safe here.
     embedding: gemini
     chat: false
   openai-embed:
@@ -180,14 +218,18 @@ MODELS:
 # Selection happens once; a failed call is reported, never retried elsewhere.
 
 # Report photos and scanned PDF pages. Entries MUST be multimodal (supports_image: true).
-UTILS_VISION_MODEL: [gemini-utils, openrouter-utils, qwen-utils, openai-utils, deepseek-utils]
+# Same order as UTILS_TEXT_MODEL, deliberately: with several keys present, the
+# surface that reads a photo and the surface that reads its text should land on
+# the same vendor, so one unreachable gateway degrades both together instead of
+# leaving a deployment that extracts text but cannot open an image.
+UTILS_VISION_MODEL: [openrouter-utils, qwen-utils, gemini-utils, openai-utils, anthropic-utils, deepseek-utils]
 
 # Indicator extraction from text, file titles/summaries, conversation titles.
 # Not the chat default on purpose: reordering the picker must not change extraction.
-UTILS_TEXT_MODEL: [openrouter-utils, qwen-utils, gemini-utils, openai-utils, deepseek-utils]
+UTILS_TEXT_MODEL: [openrouter-utils, qwen-utils, gemini-utils, openai-utils, anthropic-utils, deepseek-utils]
 
-# Embeddings for indicator search. DeepSeek has no embedding model: with that
-# key alone, search uses the lexical index.
+# Embeddings for indicator search. Neither DeepSeek nor Anthropic serves an
+# embedding model: with one of those keys alone, search uses the lexical index.
 UTILS_EMBEDDING_MODEL: [openrouter-embed, qwen-embed, gemini-embed, openai-embed]
 
 #-----------------------------------------------------------------------------

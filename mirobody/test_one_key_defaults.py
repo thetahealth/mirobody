@@ -1,7 +1,8 @@
-"""ONE key must run the whole shipped project — any of the five, from config alone.
+"""ONE key must run the whole shipped project — any of the six, from config alone.
 
 The promise `config.llm.yaml` makes: put ONE of OPENROUTER_API_KEY,
-DASHSCOPE_API_KEY, GOOGLE_API_KEY, OPENAI_API_KEY or DEEPSEEK_API_KEY in .env
+DASHSCOPE_API_KEY, GOOGLE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY or
+DEEPSEEK_API_KEY in .env
 and chat, vision/file parsing, text extraction and (where the vendor serves
 one) embeddings all work, with zero further configuration — and every one of
 those decisions is written in that file, where a user can read and change it.
@@ -28,7 +29,8 @@ import pytest
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _LLM_YAML = _ROOT / "config.llm.yaml"
 
-ONE_KEY = ("OPENROUTER_API_KEY", "DASHSCOPE_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY")
+ONE_KEY = ("OPENROUTER_API_KEY", "DASHSCOPE_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY",
+           "ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY")
 
 
 @pytest.fixture
@@ -111,6 +113,7 @@ def test_each_table_row_matches_the_entries_and_routes(shipped):
     ("GOOGLE_API_KEY", "GOOGLE_API_KEY"),
     ("GEMINI_API_KEY", "GOOGLE_API_KEY"),   # Google's own name for the same key
     ("OPENAI_API_KEY", "OPENAI_API_KEY"),
+    ("ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY"),
     ("DEEPSEEK_API_KEY", "DEEPSEEK_API_KEY"),
 ])
 def test_one_key_alone_routes_chat_vision_and_text(only_env, monkeypatch, key, alias_key):
@@ -133,6 +136,8 @@ def test_embedding_follows_the_key_and_is_honest_about_deepseek(only_env, monkey
     assert resolve_embedding_provider() == "", "zero keys must not pretend to be openrouter"
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-d")
     assert resolve_embedding_provider() == "", "DeepSeek serves no embedding model — say so, do not borrow another gateway"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant")
+    assert resolve_embedding_provider() == "", "Anthropic serves no embedding model either (/v1/embeddings is a 404)"
     monkeypatch.setenv("DASHSCOPE_API_KEY", "sk-x")
     assert resolve_embedding_provider() == "qwen"
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-y")  # first in the list wins

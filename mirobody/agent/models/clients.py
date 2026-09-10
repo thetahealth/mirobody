@@ -64,7 +64,7 @@ NON_INIT_CONFIG_KEYS = frozenset({
     "profile", "supports_pdf", "supports_image",
     "thinking_style", "auth_type", "prompt_cache",
     # read by the utility surfaces (config.llm), never by a chat constructor
-    "chat", "json_schema",
+    "chat", "response_format",
 })
 
 OPENAI_COMPATIBLE_TYPES = frozenset({"openai", "openrouter"})
@@ -218,9 +218,12 @@ def _openai_thinking_kwargs(entry: dict, model_name: str, base_url: str, effort:
             # (#70). Either parameter alone works; the effort goes INTO the
             # dict, and a declared effort wins.
             return {"reasoning": {**reasoning, "effort": reasoning.get("effort", effort)}}
-        # NB `reasoning_effort` together with function tools is rejected on
-        # /v1/chat/completions by some reasoning families; the fix is model
-        # choice in the configuration, not a code switch.
+        if "reasoning_effort" in entry:
+            # The entry decided (#70). It has to be able to: `reasoning_effort:
+            # none` is what lets an OpenAI reasoning model call a function tool
+            # on /v1/chat/completions at all, and a thinking hint from the UI
+            # must not silently undo it.
+            return {}
         return {"reasoning_effort": effort}
     thinking_level, thinking_mode = effort, dialect
     logger.info("thinking ignored: thinking_level=%s model_name=%s thinking_mode=%s", thinking_level, model_name, thinking_mode)
@@ -286,7 +289,19 @@ class MissingKeyError(RuntimeError):
 
 
 def default_resolver(name: str) -> str | None:
-    """The reference server's lookup: the environment, then `safe_read_cfg`."""
+    """The reference server's lookup: the environment, then `safe_read_cfg`.
+
+    An `_API_KEY` name goes through `read_api_key`, so the vendor-documented
+    aliases count here too. They did not: a deployment holding only
+    `GEMINI_API_KEY` — the name Google's own docs use — had every route resolve
+    (`read_api_key` knows the alias) while the agent built a `_PlaceholderClient`
+    and the chat picker offered nothing, with `mirobody doctor` reporting the
+    chat surface healthy. One key, two answers, is #68.
+    """
+    if name.endswith("_API_KEY"):
+        from ...utils.config.llm import read_api_key
+
+        return read_api_key(name) or None
     return os.environ.get(name) or safe_read_cfg(name) or None
 
 
@@ -517,6 +532,12 @@ def _generic_kwargs(alias: str, entry: dict, resolve: Resolver) -> dict[str, Any
     for field in ("base_url", "project", "location"):
         if field in kwargs:
             kwargs[field] = _resolve_ref(kwargs[field], resolve)
+    # The same redirect the OpenAI-compatible family follows: an entry reading
+    # ANTHROPIC_API_KEY follows ANTHROPIC_BASE_URL. Only ever set when the
+    # variable is, so a family that takes no base_url is untouched unless the
+    # deployment asked for one.
+    if override := _base_url_override(entry, resolve):
+        kwargs["base_url"] = override
     key = _resolve_key(alias, entry, resolve)
     if key:
         kwargs["api_key"] = key

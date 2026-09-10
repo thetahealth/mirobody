@@ -54,12 +54,19 @@ def _route(provider: str | None, model_name: str | None, surface: str) -> RouteS
     return spec
 
 
-def _json_object_fallback(messages: list[dict], response_format: dict) -> tuple[list[dict], dict]:
-    """For an endpoint that rejects `json_schema` (DeepSeek: "This
-    response_format type is unavailable now"): `json_object`, with the schema
-    written into the system prompt. DeepSeek's JSON mode additionally requires
-    the word "json" and an example in the prompt, which the schema text
-    provides."""
+def _for_endpoint(spec: RouteSpec, messages: list[dict], response_format: dict) -> tuple[list[dict], dict | None]:
+    """The caller asked for a `json_schema`; return what this endpoint takes.
+
+    `json_schema` passes through. Otherwise the schema goes into the system
+    prompt and the parameter is downgraded to `json_object` (DeepSeek, whose
+    JSON mode also REQUIRES the word "json" and an example in the prompt —
+    which the schema text provides) or dropped entirely (`none`: Anthropic's
+    compatibility endpoint rejects `json_object`, so the prompt is the only
+    channel left).
+    """
+    if spec.response_format == "json_schema":
+        return messages, response_format
+
     from .file_processors.results import _build_prompt_with_schema
 
     schema = (response_format.get("json_schema") or {}).get("schema")
@@ -69,7 +76,7 @@ def _json_object_fallback(messages: list[dict], response_format: dict) -> tuple[
         out[0]["content"] = f"{out[0].get('content', '')}\n\n{instruction}"
     else:
         out.insert(0, {"role": "system", "content": instruction})
-    return out, {"type": "json_object"}
+    return out, ({"type": "json_object"} if spec.response_format == "json_object" else None)
 
 
 def _request_kwargs(spec: RouteSpec, kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -105,24 +112,36 @@ async def async_get_structured_output(
     """
     import time
     from .clients import client_manager
+    from .file_processors.results import clean_json_response
 
     start_time = time.time()
     spec = _route(provider, model_name, "text")
     if spec is None:
         return None
 
-    if not spec.json_schema and (response_format or {}).get("type") == "json_schema":
-        messages, response_format = _json_object_fallback(messages, response_format)
+    if spec.llm_type == "anthropic":
+        from . import backends_anthropic
+
+        return await backends_anthropic.structured_output(
+            spec, messages, (response_format or {}).get("json_schema", {}).get("schema"), **kwargs
+        )
+
+    if (response_format or {}).get("type") == "json_schema":
+        messages, response_format = _for_endpoint(spec, messages, response_format)
 
     provider_name, model_name = spec.alias, spec.model
     logger.info(f"async_get_structured_output: {provider_name}, model: {model_name}")
     try:
         client = client_manager.for_spec(spec)
+        params = _request_kwargs(spec, kwargs)
+        if response_format:
+            # Omitted, never `None`: the SDK sends an explicit null, and an
+            # endpoint that validates the field 400s on it.
+            params["response_format"] = response_format
         response = await client.chat.completions.create(
             model=spec.model,
             messages=messages,
-            response_format=response_format,
-            **_request_kwargs(spec, kwargs),
+            **params,
         )
         result = response.choices[0].message.to_dict()
         if result.get("refusal") is not None:
@@ -135,7 +154,12 @@ async def async_get_structured_output(
             # document.
             logger.error(f"structured output from {provider_name} ({model_name}) was empty")
             return None
-        final_result = json.loads(content)
+        # A model told to answer in JSON by the PROMPT (every entry below
+        # `response_format: json_schema`) wraps it in a ```json fence — measured
+        # on Anthropic's compatibility endpoint, 2026-09-10. The vision path has
+        # always stripped it; this one used to hand the fence to `json.loads`.
+        # A no-op on a real json_schema answer, which never starts with a fence.
+        final_result = json.loads(clean_json_response(content))
         duration = time.time() - start_time
         logger.info(f"{provider_name} structured output completed, duration: {duration:.3f}s")
         return final_result
@@ -160,6 +184,10 @@ async def async_get_text_completion(
     spec = _route(provider, model_name, "text")
     if spec is None:
         return None
+    if spec.llm_type == "anthropic":
+        from . import backends_anthropic
+
+        return await backends_anthropic.text_completion(spec, messages, **kwargs)
     provider_name, model_name = spec.alias, spec.model
     logger.info(f"async_get_text_completion: {provider_name}, model: {model_name}")
     try:

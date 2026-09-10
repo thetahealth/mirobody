@@ -133,7 +133,11 @@ parse = [
     # `_build_anthropic` did a bare `import anthropic` that only resolved
     # because langchain-anthropic dragged it in, so configuring an Anthropic key
     # without the agent layer failed at client construction.
-    "anthropic",
+    # Floor at 0.121: `utils/llm/backends_anthropic` needs `output_config` on
+    # `messages.create` and the `transform_schema` helper. Both verified against
+    # the live API on 0.121.0 and on 1.4.0 (what a clean install resolves), which
+    # produce byte-identical transformed schemas — so no upper cap.
+    "anthropic>=0.121",
     # Floor at 2.0: the Interactions API server dropped the legacy turn-list
     # schema (breaking change, May 2026) and now requires the 2.x 'steps' schema,
     # which only the >=2.0 SDK can send/parse. No upper cap.

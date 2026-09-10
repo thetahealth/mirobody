@@ -43,7 +43,10 @@ def _api_params(spec: RouteSpec, messages: list[dict], json_mode: bool) -> dict[
     params: dict[str, Any] = {"model": spec.model, "messages": messages}
     if spec.extra_body:
         params["extra_body"] = dict(spec.extra_body)
-    if json_mode:
+    if json_mode and spec.takes_json_object:
+        # An entry that says `response_format: none` gets the JSON instruction
+        # from the prompt only — Anthropic's compatibility endpoint answers
+        # `json_object` with a 400 rather than ignoring it.
         params["response_format"] = {"type": "json_object"}
     return params
 

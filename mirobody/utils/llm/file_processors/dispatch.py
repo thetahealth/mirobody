@@ -93,6 +93,12 @@ async def unified_file_extract(
 
     provider_name, model_name = spec.alias, spec.model
     logger.info(f"unified_file_extract: {provider_name}, model={model_name}, json_mode={json_mode}")
+    if spec.llm_type == "anthropic":
+        # The native API, for the structured outputs its OpenAI-compatible
+        # endpoint does not serve — see `utils/llm/backends_anthropic`.
+        from ..backends_anthropic import file_extract
+
+        return await file_extract(spec, file_path, prompt, response_schema=response_schema, json_mode=json_mode)
     return await openai_compatible_file_extract(
         local_file_path=file_path,
         prompt=prompt,

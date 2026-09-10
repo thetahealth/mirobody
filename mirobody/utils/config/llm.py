@@ -74,14 +74,17 @@ class LLMProvider(str, Enum):
 
 #: Where a bare `provider/model` route value points, and which key it reads.
 #: The one table of endpoint literals outside config.yaml; each URL is the
-#: fallback for `<PREFIX>_BASE_URL`. Gemini is Google's OpenAI-compatible
-#: endpoint — the SDK-native path is gone from the utility surfaces.
+#: fallback for `<PREFIX>_BASE_URL`. Gemini's is Google's OpenAI-COMPATIBLE
+#: endpoint; Anthropic's is its NATIVE base (the SDK appends `/v1/messages`),
+#: because `anthropic` is a family the utility surfaces call directly —
+#: its compatibility endpoint cannot serve schema-constrained JSON.
 KNOWN_ENDPOINTS: dict[str, tuple[str, str]] = {
     "openai":     ("OPENAI_API_KEY",     "https://api.openai.com/v1"),
     "openrouter": ("OPENROUTER_API_KEY", "https://openrouter.ai/api/v1"),
     "dashscope":  ("DASHSCOPE_API_KEY",  "https://dashscope.aliyuncs.com/compatible-mode/v1"),
     "deepseek":   ("DEEPSEEK_API_KEY",   "https://api.deepseek.com/v1"),
     "gemini":     ("GOOGLE_API_KEY",     "https://generativelanguage.googleapis.com/v1beta/openai/"),
+    "anthropic":  ("ANTHROPIC_API_KEY",  "https://api.anthropic.com"),
 }
 
 #: Where to get each key — for the message a person reads when none is set.
@@ -91,6 +94,7 @@ KEYS_URL: dict[str, str] = {
     "GOOGLE_API_KEY":     "https://aistudio.google.com/apikey",
     "OPENAI_API_KEY":     "https://platform.openai.com/api-keys",
     "DEEPSEEK_API_KEY":   "https://platform.deepseek.com/api_keys",
+    "ANTHROPIC_API_KEY":  "https://platform.claude.com/settings/keys",
 }
 
 #: Env names that mean the same key. Google's own docs and SDK say
@@ -100,6 +104,13 @@ KEY_ALIASES: dict[str, tuple[str, ...]] = {
     "GOOGLE_API_KEY": ("GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"),
 }
 
+#: The `llm_type` values a utility surface (vision, text, structured) can call.
+#: `openai`/`openrouter` go through `utils.llm.clients`, `anthropic` through
+#: `utils.llm.backends_anthropic`. A chat-only family (google_genai,
+#: google_anthropic_vertex) is not one of these: it reaches models through
+#: LangChain, which is the agent's path, not extraction's.
+UTILITY_FAMILIES = ("openai", "openrouter", "anthropic")
+
 #: surface → the config key that routes it.
 ROUTE_KEYS: dict[str, str] = {
     "vision": "UTILS_VISION_MODEL",
@@ -107,12 +118,16 @@ ROUTE_KEYS: dict[str, str] = {
     "embedding": "UTILS_EMBEDDING_MODEL",
 }
 
+#: The two vendors `Config.get_llm` does NOT reach with an OpenAI client.
+#: Gemini: the embedding factory needs `output_dimensionality`, so it goes to
+#: the REST API with `x-goog-api-key`. Anthropic: its row above is the native
+#: base, and `LLMConfig._build_anthropic` builds the native SDK client.
+_NOT_OPENAI_CLIENT = ("gemini", "anthropic")
+
 #: provider → (api key config key, default base_url), the shape `Config.get_llm`
-#: reads. Gemini is deliberately absent: `LLMConfig` reaches it through its
-#: REST API with `x-goog-api-key` (the embedding factory needs
-#: `output_dimensionality`, which the compatibility endpoint may ignore).
+#: reads.
 _OPENAI_COMPAT: dict[LLMProvider, tuple[str, str]] = {
-    LLMProvider(name): (key, url) for name, (key, url) in KNOWN_ENDPOINTS.items() if name != "gemini"
+    LLMProvider(name): (key, url) for name, (key, url) in KNOWN_ENDPOINTS.items() if name not in _NOT_OPENAI_CLIENT
 }
 
 
@@ -171,10 +186,16 @@ class RouteSpec:
     llm_type: str = "openai"
     supports_image: bool | None = None   # None = the entry does not say
     supports_pdf: bool | None = None
-    json_schema: bool = True       # False: response_format json_schema is rejected here
+    response_format: str = "json_schema"   # what this endpoint accepts; see RESPONSE_FORMATS
     extra_body: dict[str, Any] = field(default_factory=dict)
     temperature: float | None = None
     embedding: str | None = None   # the vector-column family an embedding entry writes
+
+    @property
+    def takes_json_object(self) -> bool:
+        """Whether `response_format: {"type": "json_object"}` may be sent — the
+        vision path's only use of the parameter."""
+        return self.response_format in ("json_schema", "json_object")
 
     @property
     def key(self) -> str:
@@ -187,6 +208,35 @@ class RouteSpec:
     @property
     def label(self) -> str:
         return f"{self.alias} ({self.model})" if self.alias != self.model else self.model
+
+
+#: What an entry's `response_format` may say, and what each means at the call
+#: site. Not a capability ladder — measured behaviour, one vendor per value:
+#:
+#:   json_schema   OpenAI structured outputs (the default; OpenAI, OpenRouter,
+#:                 DashScope, Google's compatibility endpoint)
+#:   json_object   only the loose JSON mode. DeepSeek answers "This
+#:                 response_format type is unavailable now" to a schema.
+#:   none          the parameter cannot be sent at all, and the schema goes into
+#:                 the prompt. Anthropic's compatibility endpoint REJECTS
+#:                 `json_object` outright ("Input should be 'json_schema'") and
+#:                 takes a schema only in OpenAI strict mode — `strict: true`
+#:                 plus `additionalProperties: false` on every object, which the
+#:                 extraction schemas do not carry (measured 2026-09-10).
+RESPONSE_FORMATS = ("json_schema", "json_object", "none")
+
+
+def _response_format(alias: str, value: Any) -> str:
+    if value is None:
+        return "json_schema"
+    text = str(value).strip().lower()
+    if text in RESPONSE_FORMATS:
+        return text
+    logger.warning(  # phi: ok configuration identifiers: an entry name, the bad value, the accepted spellings
+        "MODELS entry %s: response_format %r is not one of %s — treating it as json_schema",
+        alias, value, ", ".join(RESPONSE_FORMATS),
+    )
+    return "json_schema"
 
 
 def _flag(value: Any) -> bool | None:
@@ -203,10 +253,12 @@ def _spec_from_mapping(alias: str, entry: dict[str, Any]) -> RouteSpec | None:
     model = str(entry.get("model") or "").strip()
     llm_type = str(entry.get("llm_type") or "openai").strip().lower().replace("-", "_")
     embedding = str(entry.get("embedding") or "").strip().lower() or None
-    # Chat/vision/text entries must be OpenAI-compatible here; an embedding
-    # entry may name another family (Gemini's REST embedding endpoint), the
-    # embedding factory for that family decides how to call it.
-    if not model or (llm_type not in ("openai", "openrouter") and not embedding):
+    # A utility surface can call two families: any OpenAI-compatible endpoint,
+    # and Anthropic's own API (`backends_anthropic`, for the structured
+    # outputs its compatibility endpoint does not serve). An embedding entry
+    # may name a third (Gemini's REST embedding endpoint); the embedding
+    # factory for that family decides how to call it.
+    if not model or (llm_type not in UTILITY_FAMILIES and not embedding):
         return None
     api_key_env = str(entry.get("api_key") or "").strip()
     base_url = str(entry.get("base_url") or "").strip()
@@ -220,7 +272,7 @@ def _spec_from_mapping(alias: str, entry: dict[str, Any]) -> RouteSpec | None:
     return RouteSpec(
         alias=alias, model=model, api_key_env=api_key_env, base_url=base_url, llm_type=llm_type,
         supports_image=_flag(entry.get("supports_image")), supports_pdf=_flag(entry.get("supports_pdf")),
-        json_schema=_flag(entry.get("json_schema")) is not False,
+        response_format=_response_format(alias, entry.get("response_format")),
         extra_body=dict(entry.get("extra_body") or {}),
         temperature=float(temperature) if isinstance(temperature, (int, float)) else None,
         embedding=embedding,
@@ -246,10 +298,18 @@ def _spec_from_string(value: str, entries: dict[str, dict], surface: str = "") -
         return _spec_from_mapping(value, entries[value] or {})
     if "/" in value:
         provider, model = value.split("/", 1)
-        known = KNOWN_ENDPOINTS.get(provider.strip().lower())
+        name = provider.strip().lower()
+        known = KNOWN_ENDPOINTS.get(name)
         if known and model.strip():
             key, url = known
-            return RouteSpec(alias=value, model=model.strip(), api_key_env=key, base_url=base_url_override(key) or url)
+            return RouteSpec(
+                alias=value, model=model.strip(), api_key_env=key,
+                base_url=base_url_override(key) or url,
+                # `anthropic/claude-…` means the native family, the same as an
+                # entry writing `llm_type: anthropic`: the shorthand must not
+                # be the one spelling that lands on the weaker endpoint.
+                llm_type="anthropic" if name == "anthropic" else "openai",
+            )
     return None
 
 
@@ -578,7 +638,9 @@ class LLMConfig:
     def _build_anthropic(self, *, sync: bool) -> Anthropic | AsyncAnthropic:
         import anthropic
         cls = anthropic.Anthropic if sync else anthropic.AsyncAnthropic
-        return cls(api_key=self.api_key)
+        # `base_url` only when ANTHROPIC_BASE_URL says so: the SDK's own
+        # default is the right one, and `None` is how you ask for it.
+        return cls(api_key=self.api_key, base_url=self.base_url or None)
 
     def _build_gemini(self, *, sync: bool) -> GenaiClient | AsyncGenaiClient:
         from google import genai

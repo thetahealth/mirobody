@@ -222,7 +222,7 @@ class Config:
             return
         for path in include_paths(file if isinstance(file, str) else None, includes):
             if not os.path.exists(path):
-                logger.warning("INCLUDE names %s, which does not exist; skipped", path)
+                logger.warning("INCLUDE names %s, which does not exist; skipped", path)  # phi: ok a filename from our own INCLUDE list
                 continue
             self._load_with_includes(path, depth + 1)
 
@@ -736,6 +736,7 @@ class Config:
             llm_config = LLMConfig(
                 provider = provider,
                 api_key  = self.get_str("ANTHROPIC_API_KEY"),
+                base_url = self.get_str("ANTHROPIC_BASE_URL"),
             )
         elif provider == LLMProvider.GEMINI:
             llm_config = LLMConfig(
