@@ -55,7 +55,7 @@ def _translations(module: str) -> dict[str, dict[str, str]]:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
-        logger.warning("Failed to load translations for %s: %s", module, e)
+        logger.warning("Failed to load translations for %s: %s", module, e)  # phi: ok a module name and a JSON/OS error from our own locales tree
         return {}
 
 

@@ -43,7 +43,8 @@ def encrypt_string_aes_gcm(plaintext: str, key_hex: str | None = None) -> str | 
         sealed = AESGCM(_key(key_hex)).encrypt(nonce, plaintext.encode("utf-8"), None)
         return base64.b64encode(nonce + sealed).decode("utf-8")
     except Exception as e:
-        logger.error(f"AES-GCM encryption failed: {type(e).__name__}: {e}")
+        # Without the reason the caller sees only None.
+        logger.error(f"AES-GCM encryption failed: {type(e).__name__}: {e}")  # phi: ok cipher error (key/nonce length), never the plaintext
         return None
 
 
@@ -53,10 +54,10 @@ def decrypt_string_aes_gcm(ciphertext_base64: str, key_hex: str | None = None) -
     try:
         blob = base64.b64decode(ciphertext_base64)
         if len(blob) < _NONCE_BYTES:
-            logger.error(f"Ciphertext too short: {len(blob)} < {_NONCE_BYTES}")
+            logger.error(f"Ciphertext too short: {len(blob)} < {_NONCE_BYTES}")  # phi: ok two lengths
             return None
         plain = AESGCM(_key(key_hex)).decrypt(blob[:_NONCE_BYTES], blob[_NONCE_BYTES:], None)
         return plain.decode("utf-8")
     except Exception as e:
-        logger.error(f"AES-GCM decryption failed: {type(e).__name__}: {e} (b64_len={len(ciphertext_base64)})")
+        logger.error(f"AES-GCM decryption failed: {type(e).__name__}: {e} (b64_len={len(ciphertext_base64)})")  # phi: ok cipher error and a length, never the ciphertext
         return None

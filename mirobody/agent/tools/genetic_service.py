@@ -127,7 +127,8 @@ class GeneticService:
             result = await execute_query(sql, params)
 
             # Debug logging
-            logger.info(f"Query results type: {type(result)}, length: {len(result) if result else 0}")
+            result_type = type(result).__name__
+            logger.info(f"Query results type: {result_type}, length: {len(result) if result else 0}")
 
             # Data conversion
             result = _json_safe(result) if result else []
@@ -285,7 +286,11 @@ class GeneticService:
             return response_data
 
         except Exception as e:
-            logger.error(str(e), exc_info=True)
+            # The TYPE, not the message, and no traceback: this is the answer
+            # path for a person's genome, and a psycopg error quotes the
+            # statement WITH its bound parameters — here, their rsIDs.
+            error_type = type(e).__name__
+            logger.error("get_genetic_data failed: %s", error_type)
 
             return {
                 "success": False,

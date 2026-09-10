@@ -58,9 +58,6 @@ mirobody/agent/middleware/tool_faults.py	interpolation	[{"name": c.get("name"), 
 mirobody/agent/middleware/tool_faults.py	interpolation	name
 mirobody/agent/middleware/tool_faults.py	interpolation	repairs
 mirobody/agent/models/clients.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/tools/genetic_service.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/tools/genetic_service.py	interpolation	str(e)
-mirobody/agent/tools/genetic_service.py	interpolation	type(result)
 mirobody/agent/tools/terminology_service.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/agent/tools/terminology_service.py	interpolation	e
 mirobody/mcp/service.py	extra_key	path
@@ -165,7 +162,6 @@ mirobody/pulse/core/distributed_lock.py	interpolation	e
 mirobody/pulse/core/distributed_lock.py	interpolation	existing_lock.decode() if isinstance(existing_lock, bytes) else existing_lock
 mirobody/pulse/core/distributed_lock.py	interpolation	str(e)
 mirobody/pulse/core/distributed_lock.py	interpolation	timestamp
-mirobody/pulse/core/push_service.py	interpolation	response_text
 mirobody/pulse/core/push_service.py	interpolation	str(e)
 mirobody/pulse/core/scheduler.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/pulse/core/scheduler.py	interpolation	current_time.isoformat()
@@ -236,7 +232,6 @@ mirobody/pulse/file_parser/handlers/image.py	interpolation	unique_filename
 mirobody/pulse/file_parser/handlers/pdf.py	interpolation	e
 mirobody/pulse/file_parser/handlers/pdf.py	interpolation	unique_filename
 mirobody/pulse/file_parser/services/content_extractor.py	interpolation	str(e)
-mirobody/pulse/file_parser/services/content_extractor.py	interpolation	urls
 mirobody/pulse/file_parser/services/content_formatter.py	interpolation	str(e)
 mirobody/pulse/file_parser/services/database_services.py	interpolation	', '.join(update_fields)
 mirobody/pulse/file_parser/services/database_services.py	interpolation	e
@@ -277,7 +272,6 @@ mirobody/pulse/file_parser/services/file_processing_service.py	interpolation	fil
 mirobody/pulse/file_parser/services/file_processing_service.py	interpolation	result.get('success')
 mirobody/pulse/file_parser/services/file_processing_service.py	interpolation	scene
 mirobody/pulse/file_parser/services/file_processing_service.py	interpolation	storage.get_storage_type()
-mirobody/pulse/file_parser/services/file_processing_service.py	interpolation	str(duration_error)
 mirobody/pulse/file_parser/services/file_processing_service.py	interpolation	str(e)
 mirobody/pulse/file_parser/services/file_processing_service.py	interpolation	str(file_error)
 mirobody/pulse/file_parser/services/file_processing_service.py	interpolation	total_files
@@ -359,12 +353,6 @@ mirobody/pulse/providers/mirobody_oura/provider_oura.py	interpolation	client_id[
 mirobody/pulse/providers/mirobody_oura/provider_oura.py	interpolation	e
 mirobody/pulse/providers/mirobody_oura/provider_oura.py	interpolation	retry_after
 mirobody/pulse/providers/mirobody_oura/provider_oura.py	interpolation	url
-mirobody/pulse/providers/mirobody_pgsql/provider_pgsql.py	interpolation	database
-mirobody/pulse/providers/mirobody_pgsql/provider_pgsql.py	interpolation	e
-mirobody/pulse/providers/mirobody_pgsql/provider_pgsql.py	interpolation	host
-mirobody/pulse/providers/mirobody_pgsql/provider_pgsql.py	interpolation	port
-mirobody/pulse/providers/mirobody_pgsql/provider_pgsql.py	interpolation	str(e)
-mirobody/pulse/providers/mirobody_pgsql/provider_pgsql.py	interpolation	version[:80]
 mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	e
 mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	endpoint
 mirobody/pulse/providers/mirobody_whoop/provider_whoop.py	interpolation	error_details
@@ -554,8 +542,6 @@ mirobody/user/user_service.py	interpolation	err
 mirobody/user/user_service.py	interpolation	existing_owner
 mirobody/user/user_service.py	interpolation	secret_fingerprint(code)
 mirobody/user/user_service.py	interpolation	secret_fingerprint(token)
-mirobody/utils/audio.py	interpolation	file_size_mb
-mirobody/utils/audio.py	interpolation	str(e)
 mirobody/utils/config/agent_options.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/utils/config/agent_options.py	interpolation	str(e)
 mirobody/utils/config/config.py	interpolation	e
@@ -568,7 +554,6 @@ mirobody/utils/config/encrypt.py	interpolation	str(e)
 mirobody/utils/config/postgresql.py	extra_key	params
 mirobody/utils/config/postgresql.py	extra_key	records
 mirobody/utils/config/postgresql.py	extra_key	time_cost
-mirobody/utils/config/postgresql.py	interpolation	" ".join(statement.split())
 mirobody/utils/config/postgresql.py	interpolation	" ".join(str(query).split())
 mirobody/utils/config/redis.py	extra_key	host
 mirobody/utils/config/redis.py	extra_key	port
@@ -596,20 +581,14 @@ mirobody/utils/config/storage/local.py	interpolation	self.base_path
 mirobody/utils/config/storage/local.py	interpolation	self.proxy_url
 mirobody/utils/config/storage/local.py	interpolation	str(e)
 mirobody/utils/config/storage/local.py	interpolation	url
-mirobody/utils/crypto.py	interpolation	str(e)
 mirobody/utils/db.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/utils/db.py	interpolation	logged_query
 mirobody/utils/embedding.py	interpolation	e
 mirobody/utils/embedding.py	interpolation	wait
 mirobody/utils/http.py	interpolation	message
 mirobody/utils/http.py	interpolation	msg
-mirobody/utils/i18n.py	interpolation	e
-mirobody/utils/i18n.py	interpolation	module_name
-mirobody/utils/llm/clients.py	interpolation	e
 mirobody/utils/llm/file_processors/backends_openai.py	interpolation	e
-mirobody/utils/llm/file_processors/backends_openai.py	interpolation	file_ext
 mirobody/utils/llm/file_processors/backends_openai.py	interpolation	image_path
-mirobody/utils/llm/file_processors/backends_openai.py	interpolation	local_file_path
 mirobody/utils/llm/file_processors/backends_openai.py	interpolation	page_num
 mirobody/utils/llm/file_processors/backends_openai.py	interpolation	pdf_path
 mirobody/utils/llm/file_processors/backends_openai.py	interpolation	stats
@@ -617,17 +596,6 @@ mirobody/utils/llm/file_processors/backends_openai.py	interpolation	time.time() 
 mirobody/utils/llm/file_processors/backends_openai.py	interpolation	time.time() - conversion_start
 mirobody/utils/llm/file_processors/backends_openai.py	interpolation	time.time() - start_time
 mirobody/utils/llm/file_processors/backends_openai.py	interpolation	time.time() - total_start
-mirobody/utils/llm/file_processors/dispatch.py	interpolation	actual_model
-mirobody/utils/llm/file_processors/dispatch.py	interpolation	provider['description']
-mirobody/utils/llm/file_processors/dispatch.py	interpolation	provider['name']
-mirobody/utils/llm/file_processors/gemini.py	interpolation	e
-mirobody/utils/llm/file_processors/gemini.py	interpolation	error_msg
-mirobody/utils/llm/file_processors/gemini.py	interpolation	file_path
-mirobody/utils/llm/file_processors/gemini.py	interpolation	page_num
-mirobody/utils/llm/file_processors/gemini.py	interpolation	pdf_path
-mirobody/utils/llm/file_processors/gemini.py	interpolation	stats
-mirobody/utils/llm/file_processors/gemini.py	interpolation	time.time() - api_start
-mirobody/utils/llm/file_processors/gemini.py	interpolation	time.time() - total_start
 mirobody/utils/llm/file_processors/media.py	interpolation	conversion_time
 mirobody/utils/llm/file_processors/media.py	interpolation	e
 mirobody/utils/llm/file_processors/media.py	interpolation	len(optimized_data)/1024
@@ -643,16 +611,8 @@ mirobody/utils/llm/file_processors/results.py	interpolation	json_str[:100]
 mirobody/utils/llm/file_processors/results.py	interpolation	result.get('page', 0)
 mirobody/utils/llm/file_processors/results.py	interpolation	result['error']
 mirobody/utils/llm/hipaa_policy.py	interpolation	value[:30]
-mirobody/utils/llm/utils.py	interpolation	actual_model
-mirobody/utils/llm/utils.py	interpolation	content[-200:] if content_len > 200 else content
-mirobody/utils/llm/utils.py	interpolation	content[:500]
-mirobody/utils/llm/utils.py	interpolation	json_error
-mirobody/utils/llm/utils.py	interpolation	prov_model
-mirobody/utils/llm/utils.py	interpolation	prov_name
 mirobody/utils/llm/utils.py	interpolation	str(e)
-mirobody/utils/llm/utils.py	interpolation	tried_providers
 mirobody/utils/plugin_dirs.py	interpolation	ep.name
 mirobody/utils/plugin_dirs.py	interpolation	group
 mirobody/utils/tasks.py	interpolation	exc
 mirobody/utils/tasks.py	interpolation	task.get_name()
-mirobody/utils/truncate.py	interpolation	e
