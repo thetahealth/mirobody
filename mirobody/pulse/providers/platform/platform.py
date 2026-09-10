@@ -363,19 +363,6 @@ class ProviderPlatform(Platform):
         except Exception as e:
             logger.error(f"Failed to start theta pull scheduler: {str(e)}")
 
-    async def stop_pull_scheduler(self) -> None:
-        try:
-            await scheduler.stop()
-            logger.info("provider pull scheduler stopped successfully")
-        except Exception as e:
-            logger.error(f"Failed to stop theta pull scheduler: {str(e)}")
-
-    def get_pull_task_status(self, provider_slug: str) -> dict[str, Any]:
-        return scheduler.get_task_status(provider_slug) or {}
-
-    def get_all_pull_task_status(self) -> dict[str, Any]:
-        return scheduler.get_tasks_status()
-
     # ===== LLM Access Management =====
 
     async def update_llm_access(self, user_id: str, provider_slug: str, llm_access: int) -> dict[str, Any]:

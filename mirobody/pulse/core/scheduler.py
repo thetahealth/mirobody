@@ -476,26 +476,6 @@ class Scheduler:
 
         return await task.manual_trigger(force=force)
 
-    def get_tasks_status(self) -> dict:
-        """Get status of all tasks"""
-        return {
-            "total_tasks": len(self.tasks),
-            "tasks": {slug: task.get_status() for slug, task in self.tasks.items()},
-        }
-
-    async def get_task_status(self, provider_slug: str) -> dict | None:
-        """Get status of a specific task"""
-        task = self.get_task(provider_slug)
-        if not task:
-            return None
-
-        status = task.get_status()
-        # Add lock status information
-        lock_status = await task.get_lock_status()
-        status["lock_status"] = lock_status
-
-        return status
-
     async def start(self):
         """Start the scheduler as a background task"""
         if self.running:
@@ -528,18 +508,6 @@ class Scheduler:
         # Start scheduler as a background task to avoid blocking startup
         self._scheduler_task = asyncio.create_task(self._run_scheduler())
         logger.info("Scheduler started as background task")
-
-    async def stop(self):
-        """Stop the scheduler"""
-        self.running = False
-        logger.info("Stopping scheduler...")
-
-        if self._scheduler_task and not self._scheduler_task.done():
-            self._scheduler_task.cancel()
-            try:
-                await self._scheduler_task
-            except asyncio.CancelledError:
-                logger.info("Scheduler task cancelled successfully")
 
     async def _run_scheduler(self):
         """Main scheduler loop"""
