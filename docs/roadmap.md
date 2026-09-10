@@ -463,30 +463,20 @@ here because the port spec docstrings are the valuable part and would need to
 survive whichever option is picked.
 
 
-### Two LLM provider-configuration systems
+### Two LLM provider-configuration systems — resolved in 1.4.1 (the data half)
 
-`utils/config/llm.py` (`LLMConfig`) and `utils/llm/config.py` (`AIConfig`) both
-answer "which provider, what base_url, what key", and both end up constructing
-an `AsyncOpenAI`. They overlap on openai / openrouter / dashscope /
-volcengine. The near-identical import paths make them easy to confuse, which is why
-both now carry docstrings pointing at each other.
-
-Merging is a behaviour change, not a tidy-up:
-
-* different provider sets — `LLMConfig` covers 11 (incl. deepseek, zhipu,
-  moonshot, anthropic, vertex_ai, azure), `AIConfig` covers 4 (the
-  OpenAI-compatible ones: openai, openrouter, dashscope, volcengine) plus
-  gemini in its auto-selection order;
-* different construction paths — `LLMConfig` is YAML-driven through
-  `global_config().get_llm()`; `AIConfig` pairs with `clients.py`'s
-  `client_manager` and a hardcoded table;
-* consumers are split — `utils/embedding.py` uses the first, everything under
-  `utils/llm/` and the file-processing path uses the second.
-
-There are no live-model tests, so a regression here would surface as "this
-provider stopped working in production", not as a red test. Needs a
-characterisation test per provider (base_url, headers, key source, client class)
-recorded BEFORE any merge, then the merge verified against it.
+`utils/config/llm.py` and `utils/llm/config.py` used to each carry a provider
+table (keys, endpoints, default models) and their own key check; five surfaces
+read five different opinions on "which keys count" (#68). The DATA is one
+table now — `MODELS` in `config.llm.yaml`, with the per-surface routes
+(`UTILS_VISION_MODEL`, `UTILS_TEXT_MODEL`, `UTILS_EMBEDDING_MODEL`) next to it —
+and the vision dispatcher, the text surface, the embedding layer and the
+agent's default all read it; `mirobody/test_one_key_defaults.py`
+pins that every surface covers the same set. What remains split, on purpose,
+is client CONSTRUCTION: `LLMConfig.get_async_client()` (the `Config` family,
+used by embeddings) and `client_manager` (the direct-SDK extraction paths).
+Both read the registry; merging the two construction paths is still a
+behaviour change with no live-model test behind it, and is not scheduled.
 
 
 ### utils/ audit — the confirmed findings not yet acted on
@@ -502,10 +492,9 @@ needs its own commit and characterisation test):
 * "Strip a ```json fence, then json.loads" exists 5 times, unshared.
 * Filename → MIME lookup is reimplemented in 4 places and **disagrees** on real
   extensions — the reason this cannot be a tidy-up.
-* `STRUCTURED_OUTPUT_PRIORITY` (`utils/llm/utils.py`) is a hand-maintained copy of
-  `AIConfig._DEFAULT_PROVIDER_PRIORITY`. Worse, provider *validation* and
-  provider *dispatch* consult the two different lists, so a provider can
-  validate and then fail to dispatch.
+* ~~`STRUCTURED_OUTPUT_PRIORITY` is a hand-maintained copy of
+  `AIConfig._DEFAULT_PROVIDER_PRIORITY`~~ — resolved in 1.4.1: both are gone;
+  each surface reads its `UTILS_*_MODEL` route in config.llm.yaml.
 * Three near-identical Gemini empty/blocked-response checks in
   `file_processors.py`; the same 5-line AsyncArk client construction three
   times; `_get_qwen_client()` rebuilds byte-for-byte what `client_manager`

@@ -4,15 +4,22 @@ Mirobody uses a flexible configuration system that combines YAML files and envir
 
 ## 📄 Configuration Files
 
-1. **`config.yaml`**: The default configuration template. **Do not edit this directly.**
-2. **`config.{env}.yaml`**: Environment-specific overrides (e.g., `config.localdb.yaml`). Use this for your local settings.
-3. **`.env`**: Secrets and environment variables.
+1. **`config.yaml`**: server, database, login — what the containers wire. **Do not edit this directly.**
+   Its `INCLUDE` list names the two files that load right after it:
+2. **`config.llm.yaml`**: the one to open — `MODELS` (the model table) and which entry each surface uses. It names the key variable, never the secret.
+3. **`config.devices.yaml`**: Garmin / Oura / Whoop (empty credentials, vendor endpoints filled in) and Google / Apple sign-in.
+4. **`config.{env}.yaml`**: Environment-specific overrides (e.g., `config.localdb.yaml`). Use this for your local settings.
+5. **`.env`**: `ENV`, the encryption keys, and the ONE LLM API key.
 
 ### Priority Order
 
 1. Environment Variables (Highest)
 2. `config.{env}.yaml`
-3. `config.yaml` (Lowest)
+3. the `INCLUDE`d files, in list order (`config.llm.yaml`, then `config.devices.yaml`)
+4. `config.yaml` (Lowest)
+
+Dictionaries do not merge across files: a later file's key replaces the whole
+value.
 
 ## 🌍 Timezone
 
@@ -72,14 +79,17 @@ Core system settings found in `config.yaml`.
 
 One agent, one set of keys — no agent-name suffix (before 1.4.0 these were
 `PROVIDERS_DEEP`, `PROMPTS_DEEP`, `ALLOWED_TOOLS_DEEP`, `DISALLOWED_TOOLS_DEEP`,
-`DEFAULT_PROVIDER_DEEP`).
+`DEFAULT_PROVIDER_DEEP`), and no "provider" in the model keys: in this project a
+provider is a device or data source (`PROVIDER_DIRS`), so 1.4.1 renamed
+`PROVIDERS` → `MODELS`, `DEFAULT_PROVIDER` → `DEFAULT_MODEL` and
+`EMBEDDING_PROVIDER` → `UTILS_EMBEDDING_MODEL`.
 
-**Upgrading from 1.3.x?** The old spelling still works. Each `*_DEEP` key is
+**Upgrading from 1.3.x or 1.4.0?** The old spellings still work. Each is
 renamed onto its current name as the config file merges, and the log says so
 once. Rename them anyway — the alias is a migration courtesy, not the contract.
 
 Renaming happens at LOAD time, and that placement is the whole point: the
-shipped `config.yaml` declares `PROVIDERS`, `PROMPTS`, `ALLOWED_TOOLS` and
+shipped `config.llm.yaml` declares `MODELS`, `PROMPTS`, `ALLOWED_TOOLS` and
 `DISALLOWED_TOOLS` itself, so an alias that only filled in when the new key
 was *missing* would never have fired — the shipped default shadowed the
 overlay, which is exactly how a 1.3.x deployment came up with zero providers
@@ -95,29 +105,36 @@ the log rather than ignored: `PRIVATE_AGENT_DIRS` (use `AGENT_DIRS`),
 is not those under a new name, since the old pair multiplied to a first ping at
 40 s while the new one fires on silence.
 
-### 1. Providers (`PROVIDERS`)
+### 1. Models (`MODELS`)
 
-The LLM clients the model picker offers. Each entry becomes a LangChain chat
-model at startup (`mirobody/agent/models/clients.py`); `api_key` names the config or
-environment key that holds the secret, and an entry whose key is absent is
-listed as unusable rather than failing the boot.
+One entry per model the deployment may call. The chat entries become LangChain
+chat models at startup (`mirobody/agent/models/clients.py`); `api_key` names the
+environment variable (in `.env`) that holds the secret, and an entry whose key is
+absent is listed as unusable rather than failing the boot.
 
 ```yaml
-PROVIDERS:
+MODELS:
   claude-sonnet:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
     model: anthropic/claude-sonnet-5
+    supports_image: true
   gemini-flash:
-    llm_type: google-genai
+    llm_type: openai            # Google's OpenAI-compatible endpoint
     api_key: GOOGLE_API_KEY
-    model: gemini-3.5-flash
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    model: gemini-3.8-flash
+    supports_image: true
 ```
 
-`DEFAULT_PROVIDER` names the entry a chat uses when the client sends none;
-unset, the agent picks by which key is present (OpenRouter first, then
-DashScope).
+`DEFAULT_MODEL` names the entry a chat uses when the client sends none;
+unset, the default is the **first entry (in file order) whose key is present** —
+so the order of `MODELS` is a contract, as it is in mirovital's
+`MODEL_PROVIDERS`. An entry with `chat: false` is for the utility surfaces only
+(file parsing, indicator extraction, titles) and never reaches the picker; an
+entry with `embedding: <family>` is an embedding model and is used by nothing
+but `UTILS_EMBEDDING_MODEL`.
 
 #### Multimodal capability (`supports_pdf` / `supports_image`)
 
@@ -132,19 +149,20 @@ Declare it only for **OpenAI-compatible endpoints** whose profile is unknown
 (DashScope, Volcengine, OpenRouter-proxied models, …):
 
 ```yaml
-PROVIDERS:
-  qwen-vl:                     # a vision model on DashScope
+MODELS:
+  qwen-utils:                  # the utility model on DashScope: MUST read images
     llm_type: openai
     api_key: DASHSCOPE_API_KEY
     base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
-    model: qwen-vl-max
-    supports_pdf: true         # read PDFs natively
-    supports_image: true       # read images natively
-  deepseek:                    # a text-only model — omit both
-    llm_type: openai
+    model: qwen3.8-flash
+    supports_image: true       # read images natively — required for UTILS_VISION_MODEL
+    chat: false
+  kimi:                        # a text-only model — say so, and the vision
+    llm_type: openai           # route (UTILS_VISION_MODEL) will skip it
     api_key: DASHSCOPE_API_KEY
     base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
-    model: deepseek-v4-flash
+    model: kimi-k2.5
+    supports_image: false
 ```
 
 | Flag | Effect when `true` | When unset / `false` |
@@ -237,6 +255,43 @@ Then reference them in YAML or let the system auto-detect them if they match the
 
 ## 🏥 LLM Provider Configuration
 
+**One key runs every surface, and every decision is in `config.llm.yaml`.**
+The key itself goes in `.env` (one of the five below); the YAML only names it.
+`MODELS` is one table of entries (alias → `llm_type`, `api_key` name, `base_url`,
+`model`, `supports_image` / `supports_pdf` / `json_schema` / `chat` / `embedding`,
+`extra_body`); the chat picker lists the entries whose key is present, first one
+default. `UTILS_VISION_MODEL` (report photos, scans — entries MUST declare
+`supports_image: true`), `UTILS_TEXT_MODEL` (indicator extraction, titles,
+summaries) and `UTILS_EMBEDDING_MODEL` each name the entries their surface may
+use: a list — the first whose key is present wins, which is how one key runs
+everything — or one name, a `provider/model` string, or an inline spec to pin
+one. The same-named environment variable overrides the file. Python holds no
+model name; `mirobody.utils.config.llm` only reads these. Any one of these keys
+is enough:
+
+| Key in `.env` | Chat (picker default) | Vision + text — `UTILS_VISION_MODEL` / `UTILS_TEXT_MODEL` | `UTILS_EMBEDDING_MODEL` |
+| --- | --- | --- | --- |
+| `OPENROUTER_API_KEY` | `claude-sonnet` (anthropic/claude-sonnet-5) | `openrouter-utils` (google/gemini-3.8-flash) | `openrouter-embed` (qwen/qwen3-embedding-8b) |
+| `DASHSCOPE_API_KEY` | `qwen` (qwen3.8-flash) | `qwen-utils` (qwen3.8-flash) | `qwen-embed` (text-embedding-v4) |
+| `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) | `gemini-flash` (gemini-3.8-flash) | `gemini-utils` (gemini-3.8-flash) | `gemini-embed` (gemini-embedding-001) |
+| `OPENAI_API_KEY` | `openai` (gpt-5.6-terra) | `openai-utils` (gpt-5.6-terra) | `openai-embed` (text-embedding-3-small) |
+| `DEEPSEEK_API_KEY` | `deepseek` (deepseek-flash) | `deepseek-utils` (deepseek-flash) | — (lexical search only) |
+
+The names are `MODELS` entries in `config.llm.yaml`; the model ids in
+parentheses are what those entries said on 2026-09-10 and live only there. The
+`*-utils` entries are multimodal on purpose: the vision surface reads report
+photos and scanned pages, and a text-only model there is issue #68.
+
+To change a model, edit the entry (or point the surface's `UTILS_*` key at another
+entry, or write `provider/model`); `<PREFIX>_BASE_URL` in `.env` (PREFIX = the api_key
+name without `_API_KEY`) redirects every entry reading that key to another
+OpenAI-compatible gateway. The per-key model overrides of 1.4.0
+(`<PREFIX>_MODEL`, `_VISION_MODEL`, `_EMBEDDING_MODEL`) are retired and warned about
+at boot. `mirobody doctor` prints what each surface selects with the current
+configuration and names the fix where one has nothing; the server and worker log the
+same at boot. Selection happens once per surface; a failed call is reported, never
+retried on another entry.
+
 LLM clients are managed via `LLMConfig`, following the same pattern as `PostgreSQLConfig` / `RedisConfig`:
 
 ```python
@@ -258,15 +313,17 @@ These providers all return `OpenAI` / `AsyncOpenAI` clients:
 | OpenAI | `OPENAI` | `OPENAI_API_KEY` | `https://api.openai.com/v1` |
 | OpenRouter | `OPENROUTER` | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` |
 | DashScope (Qwen) | `DASHSCOPE` | `DASHSCOPE_API_KEY` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
-| Volcengine (Doubao) | `VOLCENGINE` | `VOLCENGINE_API_KEY` | `https://ark.cn-beijing.volces.com/api/v3` |
 | DeepSeek | `DEEPSEEK` | `DEEPSEEK_API_KEY` | `https://api.deepseek.com/v1` |
-| Zhipu (GLM) | `ZHIPU` | `ZHIPU_API_KEY` | `https://open.bigmodel.cn/api/paas/v4` |
-| Moonshot (Kimi) | `MOONSHOT` | `MOONSHOT_API_KEY` | `https://api.moonshot.cn/v1` |
 
-```yaml
-# config.{env}.yaml — just add the API key
-OPENAI_API_KEY: "sk-..."
-DEEPSEEK_API_KEY: "sk-..."
+Any other OpenAI-compatible vendor (Zhipu, Moonshot, a self-hosted vLLM) is a
+`MODELS` entry in config.llm.yaml — `llm_type: openai`, its `base_url`, the name of
+the `.env` variable holding its secret — rather than an enum member: the enum lists
+what the project selects on its own, and it only selects providers whose
+defaults it has verified.
+
+```bash
+# .env — the key, and nothing else about models
+OPENAI_API_KEY=sk-...
 ```
 
 #### Anthropic (Claude)

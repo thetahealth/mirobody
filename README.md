@@ -165,15 +165,19 @@ prints the whole decision table offline. Set `SEED_DEMO_DATA=false` for a
 deployment that will hold real data.
 
 **One key runs everything.** Browsing the seeded record needs no key; the upload
-and the questions below ride one. We recommend an OpenAI-compatible endpoint: an
-[OpenAI key](https://platform.openai.com/api-keys) in `OPENAI_API_KEY`, an
-[OpenRouter key](https://openrouter.ai/keys) in `OPENROUTER_API_KEY`, or any
-compatible gateway reached with `<PROVIDER>_BASE_URL` and `<PROVIDER>_MODEL`.
-Put it in the `.env` next to `compose.yaml`, then `docker compose restart` — that
-alone suffices, the app re-reads `/app/.env`; a shell `export` does not reach the
-containers. Pick a **multimodal model**: report photos and scanned pages are read
-through the vision path (`<PROVIDER>_VISION_MODEL`), and a text-only model leaves
-them unparsed. Other direct keys are listed in `config.yaml`.
+and the questions below ride one. Put ONE key in the `.env` next to `compose.yaml`
+and `docker compose restart` — the app re-reads `/app/.env`; a shell `export` does
+not reach the containers. The `.env` is the only place for the key:
+`config.llm.yaml` names the variable (`api_key: OPENROUTER_API_KEY`), never the
+secret. An [OpenRouter key](https://openrouter.ai/keys) as
+`OPENROUTER_API_KEY` is the recommended one; a DashScope key when openrouter.ai is
+unreachable from your network; a Google, [OpenAI](https://platform.openai.com/api-keys)
+(`OPENAI_API_KEY`) or DeepSeek key works alone as well. Every model decision —
+which model chats, which reads report photos, which extracts the indicators, which
+embeds — is a line in [`config.llm.yaml`](config.llm.yaml), where you can read and
+change it (a self-hosted gateway is one `<PREFIX>_BASE_URL` in `.env`). The boot
+log, and `mirobody doctor`, print what each surface selected and name the fix
+where one has nothing.
 
 **① Collect + ② Translate.** Drop [`demo/lab_report_2025-10-15.pdf`](demo/lab_report_2025-10-15.pdf)
 on the Data page and twelve analytes come out with values and units, each

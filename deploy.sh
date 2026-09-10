@@ -32,7 +32,22 @@ CONFIG_ENCRYPTION_KEY=${CONFIG_ENCRYPTION_KEY:-$(generate_random_string 32)}
 
 # Encryption of sensitive fields in log records (unset = ERROR noise at every
 # boot and effectively-plaintext log fields).
-LOG_ENCRYPTION_KEY=${LOG_ENCRYPTION_KEY:-$(generate_random_string 32)}" > ".env"
+LOG_ENCRYPTION_KEY=${LOG_ENCRYPTION_KEY:-$(generate_random_string 32)}
+
+# ONE LLM API key is enough — uncomment one, paste the key, then
+# 'docker compose restart'. Which model each key selects, per surface, is the
+# table at the top of config.llm.yaml; the boot log prints what was selected.
+#   OPENROUTER_API_KEY -> https://openrouter.ai/keys                  (recommended)
+#   DASHSCOPE_API_KEY  -> https://dashscope.console.aliyun.com/apiKey (when openrouter.ai is unreachable)
+#   GOOGLE_API_KEY     -> https://aistudio.google.com/apikey
+#   OPENAI_API_KEY     -> https://platform.openai.com/api-keys
+#   DEEPSEEK_API_KEY   -> https://platform.deepseek.com/api_keys
+# OPENROUTER_API_KEY=
+# DASHSCOPE_API_KEY=
+# GOOGLE_API_KEY=
+# OPENAI_API_KEY=
+# DEEPSEEK_API_KEY=" > ".env"
+    echo "Configure file '.env' has been created — put ONE LLM API key in it."
 fi
 
 # Check the config.{local_env}.yaml file.
@@ -75,27 +90,13 @@ JWT_KEY: $(generate_random_string 32)
 
 
 # ============================================================================
-# AI Service API Keys
+# LLM
 # ============================================================================
 
-# OpenRouter API key — the recommended single key: chat, vision file parsing
-# and semantic search all follow it with no further configuration.
-# Get your API key from: https://openrouter.ai/keys
-# OPENROUTER_API_KEY: 'YOUR OPENROUTER API KEY'
-
-# DashScope API key — the drop-in fallback for networks where openrouter.ai
-# is unreachable (mainland China being the common case). One key covers chat
-# (Qwen; DeepSeek/Kimi one uncomment away in config.yaml), vision and
-# embeddings, exactly like OpenRouter above.
-# Get your API key from: https://dashscope.console.aliyun.com/apiKey
-# DASHSCOPE_API_KEY: 'YOUR DASHSCOPE API KEY'
-
-# Direct provider keys (optional — the gateways above already reach these
-# models).
-# Google Gemini: https://aistudio.google.com/apikey
-# GOOGLE_API_KEY: 'YOUR GOOGLE/GEMINI API KEY'
-# OpenAI: https://platform.openai.com/api-keys
-# OPENAI_API_KEY: 'YOUR OPENAI/CHATGPT API KEY'
+# The API key goes in .env (next to compose.yaml), not here — one place.
+# Which model each surface uses is config.llm.yaml; override a route here if
+# you must, e.g.:
+# UTILS_VISION_MODEL: qwen-utils
 
 
 # ============================================================================
@@ -267,6 +268,13 @@ check_ports_free 18060 18062 18069
 check_subnet_free
 
 docker compose -f ${DOCKER_COMPOSE_FILE} up -d --remove-orphans
+echo ""
+echo "Up. Open http://localhost:18060 and sign in as caregiver@mirobody.ai / 111111."
+echo "The boot log below ends with 'LLM providers by surface': if a surface reads '--',"
+echo "put ONE LLM API key in .env (the names are listed there) and run:"
+echo "    docker compose restart"
+echo "Details any time:  docker compose exec mirobody python -m mirobody doctor"
+echo ""
 docker compose -f ${DOCKER_COMPOSE_FILE} logs -f
 
 #-----------------------------------------------------------------------------

@@ -1,24 +1,13 @@
 services:
   pg:
-    # pgvector is required, not a nicety: 00_init_schema.sql does
-    # `CREATE EXTENSION vector` and 01_basedata.sql has vector(1024) columns
-    # with an hnsw index — create_schema runs them at server startup.
-    #
-    # Pinned because the floating `pg17-trixie` tag drifts: machines that
-    # pulled it in June hold 0.8.4 while upstream has moved to 0.8.6, so two
-    # deploys of the same commit could run different pgvector builds.
-    # ${DOCKER_MIRROR} is exported by deploy.sh when hub.docker.com is
-    # unreachable (empty otherwise) — same fallback its inline ubuntu base uses.
+    # pgvector is required (the schema creates the extension and hnsw indexes);
+    # pinned because the floating pg17 tag drifts between machines.
+    # ${DOCKER_MIRROR} is set by deploy.sh when hub.docker.com is unreachable.
     image: ${DOCKER_MIRROR:-}pgvector/pgvector:0.8.6-pg17-trixie
     restart: unless-stopped
-    # Docker's default /dev/shm is 64MB; hnsw index builds and parallel query
-    # workers allocate dynamic shared memory well past that.
-    shm_size: 256mb
+    shm_size: 256mb            # hnsw builds and parallel workers outgrow Docker's 64MB default
     ports:
-      # Loopback only: the app reaches pg via the internal 10.108.0.2, so the
-      # host mapping exists purely for operator debugging — and the repo ships
-      # a literal placeholder password, so it must not listen publicly.
-      - "127.0.0.1:18062:5432"
+      - "127.0.0.1:18062:5432" # loopback only: the app uses the internal address, and the password is a placeholder
     environment:
       POSTGRES_USER: holistic_user
       POSTGRES_DB: holistic_db
@@ -26,43 +15,23 @@ services:
     volumes:
       - mirobody_postgres:/var/lib/postgresql/data
     healthcheck:
-      # Gates the app's create_schema: on first deploy initdb takes a while,
-      # and `depends_on` without a condition only orders container STARTS.
+      # Gates the app's schema creation; start_period covers a slow first initdb.
       test: ["CMD-SHELL", "pg_isready -U holistic_user -d holistic_db"]
       interval: 5s
       timeout: 3s
       retries: 12
-      # Failures inside start_period don't count toward retries: without it a
-      # slow-disk initdb gets only 60s (12x5s) before `depends_on:
-      # service_healthy` aborts the whole `compose up`.
       start_period: 30s
     networks:
       mirobody_network:
-        # This address is load-bearing: config.yaml points PG_HOST at it.
-        ipv4_address: 10.108.0.2
+        ipv4_address: 10.108.0.2   # config.yaml's PG_HOST
 
   redis:
-    # 8.2 is the current LTS-ish line (EOL 2030-09); the 7.0 line stopped
-    # receiving security fixes in early 2024. Verified: 8.2.8 boots and
-    # answers AUTH with exactly the flags below.
     image: ${DOCKER_MIRROR:-}redis:8.2-alpine
     restart: unless-stopped
-    # No healthcheck: it would duplicate the requirepass literal, and the app
-    # retries its Redis connection anyway — restart + retry covers it.
     ports:
-      # Loopback only — same reasoning as pg above.
-      - "127.0.0.1:18069:6379"
-    # Flag changes vs the original 7.0 config, none of them cosmetic:
-    #   - noeviction (was allkeys-lru): the worker's task queues
-    #     (BaseRedisTask: LPUSH/BLPOP lists, no TTL) and distributed locks
-    #     live in this same instance — under allkeys-lru a full 512mb would
-    #     silently evict queued tasks or a held lock. Failing writes loudly
-    #     is the correct behaviour for durable data (which is also why
-    #     appendonly is on).
-    #   - `--protected-mode no` dropped: a no-op while requirepass is set,
-    #     and the default (yes) fails safe if the password line ever goes.
-    #   - `--io-threads-do-reads` dropped: deprecated no-op since 8.0 —
-    #     reads are threaded whenever io-threads > 1.
+      - "127.0.0.1:18069:6379" # loopback only, as above
+    # noeviction + appendonly: task queues and locks live here, and losing them
+    # loudly beats losing them silently.
     command: >
       redis-server
       --bind 0.0.0.0
@@ -79,20 +48,15 @@ services:
       --io-threads 4
       --tcp-backlog 511
     volumes:
-      # Without this the AOF sat in the container's writable layer, so every
-      # deploy.sh run (`compose down`) discarded it — appendonly was
-      # persistence theatre, and queued tasks died with each deploy.
-      - mirobody_redis:/data
+      - mirobody_redis:/data   # without it every `compose down` discarded the AOF
     networks:
       mirobody_network:
-        # This address is load-bearing: config.yaml points REDIS_HOST at it.
-        ipv4_address: 10.108.0.9
+        ipv4_address: 10.108.0.9   # config.yaml's REDIS_HOST
 
   mirobody: &mirobody_base
-    # The image is built inline by deploy.sh (no Dockerfile in the repo);
-    # it is a bare ubuntu + python venv shell — the code comes from the
-    # `.:/app` mount and deps are installed into the site-packages volume
-    # by the command below.
+    # Built inline by deploy.sh: ubuntu + a python venv. Code comes from the
+    # `.:/app` mount; dependencies install into the site-packages volume below
+    # when pyproject/requirements change.
     image: mirobody
     restart: unless-stopped
     ports:
@@ -118,45 +82,23 @@ services:
       - mirobody_upload:/app/.theta/mcp/upload
       - mirobody_site_packages:/root/venv/lib/python3.12/site-packages
     environment:
-      # ENV must be passed even though the app also reads /app/.env itself:
-      # Config.load_dotenv uses os.environ.setdefault, so only a real env var
-      # lets `ENV=prod ./deploy.sh` override a stale .env from an earlier run.
-      - ENV=${ENV}
+      - ENV=${ENV}               # a real env var, so `ENV=prod ./deploy.sh` beats a stale .env
       - PYTHONUNBUFFERED=1
-      # The in-container dependency install honors a mirror for networks where
-      # pypi.org is slow or unreachable (pip reads PIP_INDEX_URL natively):
-      #   PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple ./deploy.sh
-      - PIP_INDEX_URL=${PIP_INDEX_URL:-https://pypi.org/simple}
+      - PIP_INDEX_URL=${PIP_INDEX_URL:-https://pypi.org/simple}   # a mirror when pypi.org is slow
       - HTTP_HOST=0.0.0.0
       - HTTP_PORT=18060
-      # A first run signs you in to an empty database, which shows off nothing.
-      # This loads one synthetic person's two-year record and puts every
-      # EMAIL_PREDEFINE_CODES account in their care circle, so the demo covers
-      # both "what does the engine do with real volume" and "what is it like to
-      # hold someone else's record". Vendored fixture, no network, no keys.
-      # Set it to false for a deployment that will hold real data.
+      # Seeds one synthetic person's two-year record into the demo account's
+      # care circle. Set false for a deployment that will hold real data.
       - SEED_DEMO_DATA=${SEED_DEMO_DATA:-true}
     healthcheck:
-      # /api/health needs no auth; curl is in the deploy.sh image.
-      #
-      # start_period is the whole point here, and 60s was measured to be wrong:
-      # failures inside it are free, so it must cover the FIRST BOOT, which
-      # pip-installs the entire [app] stack into the site-packages volume
-      # before the server binds a port. 60s + 30x10s put the deadline at 6
-      # minutes; on a 40 kB/s link that install is still downloading numpy at
-      # that point, so the app flipped to `unhealthy` and the worker below —
-      # gated on `service_healthy` — never left `Created`. The app itself was
-      # fine and recovered on a later probe; the deploy had already failed.
-      # 20 minutes costs nothing on a fast link (the first passing probe ends
-      # it immediately) and is what a cold, slow first boot actually needs.
+      # start_period covers the FIRST boot, which pip-installs the whole stack
+      # before binding a port — 20 minutes on a slow link, free on a fast one.
       test: ["CMD-SHELL", "curl -sf http://localhost:18060/api/health"]
       interval: 10s
       timeout: 5s
       retries: 30
       start_period: 1200s
     networks:
-      # No static address: nothing resolves the app by IP (config.yaml only
-      # pins pg/redis); it is reached via the published port.
       - mirobody_network
     depends_on:
       pg:
@@ -166,11 +108,8 @@ services:
 
   mirobody_worker:
     <<: *mirobody_base
-    # Worker process: consumes mirobody task queues (IndicatorSync, ProfileRefresh).
-    # Inherits image / volumes / env / restart from `mirobody` via YAML anchor.
-    # Waiting for mirobody to be HEALTHY (not merely started) is what
-    # guarantees the pip install into the shared site-packages volume has
-    # finished before the worker imports the package.
+    # The task worker (IndicatorSync, ProfileRefresh). Waits for the app to be
+    # HEALTHY so the shared site-packages install has finished.
     ports: []
     command: >
       /bin/bash -c "
@@ -179,8 +118,6 @@ services:
         python -m mirobody worker
       "
     healthcheck:
-      # The anchor's HTTP healthcheck is meaningless here — the worker
-      # serves nothing.
       disable: true
     networks:
       - mirobody_network
