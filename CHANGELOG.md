@@ -47,6 +47,22 @@ evaluation is untouched.
   finds it). It copied readings from a second PostgreSQL into this one — a
   migration tool for one deployment, shipped as if it were a device, and the
   only reader of `DATABASE_DECRYPTION_KEY` outside the OAuth providers.
+- **Firebase login is removed.** The seven `FIREBASE_*` settings, the
+  `__FIREBASE_*__` web-config keys, `/__/auth/init.json`,
+  `/__/firebase/init.json` and the `frontend/__/` helper routes are gone, and
+  `/google/verify` accepts Google ID tokens only. Google and Apple sign-in
+  stay, verified against `GOOGLE_CLIENT_ID` and the `APPLE_*` keys — the
+  provider's own token, checked server-side, with no Firebase project in
+  between, which is how the open-source peers do it. A web client that still
+  obtains its tokens through Firebase shows neither button (its Firebase config
+  is no longer served) until it moves to Google Identity Services / Sign in
+  with Apple JS.
+- **Audio uploads are no longer accepted** (`.wav .mp3 .aiff .aac .ogg .flac
+  .m4a`, `audio/*`). The handler was a stub: speech-to-text was never wired,
+  so every audio file stored bytes and produced an empty summary, and the only
+  thing the chain computed was a `duration` field nothing read. `tinytag`
+  leaves the `[parse]` extra with it. Objects already stored keep their
+  `audio/*` content type and still serve.
 
 ### Fixed
 
@@ -206,6 +222,18 @@ evaluation is untouched.
   the environment when no `Config` is loaded, as `Config.get_str` always did
   first. Network wording names the condition (openrouter.ai unreachable), not a
   region.
+- **A dead-code sweep** (with the two removals above: 52 files, +245 / −1,978
+  lines). Everything with zero callers in the repository, in its downstream
+  consumer and in the tests: `utils/s3.py`, `utils/truncate.py` — and with it
+  the `tiktoken` dependency; the profile chunker packs by the character
+  estimate the module already fell back to on any host that could not reach
+  the BPE download — `utils/data.py`, the sync PostgreSQL/Redis paths,
+  `hipaa_policy.get_azure_deployment`, the storage backends' `get_file_info`,
+  push_service's unreachable HTTP branch, the scheduler's unwired stop/status
+  methods, and a dozen methods on pulse services. `utils/i18n.py` is one
+  function and a cache; `utils/crypto.py` uses `AESGCM` in both directions
+  (rows already encrypted decrypt unchanged); the storage factory tries an
+  explicit backend list instead of `__subclasses__()`.
 
 ## 1.4.0
 
