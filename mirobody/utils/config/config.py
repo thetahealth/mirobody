@@ -12,7 +12,7 @@ from typing import Any
 from ... import __version__
 from typing import TYPE_CHECKING
 
-from .encrypt import AbstractEncrypter, FernetEncrypter
+from .encrypt import FernetEncrypter
 from .log import LogConfig
 from .http import HttpConfig
 from .llm import LLMConfig, LLMProvider, _OPENAI_COMPAT
@@ -132,7 +132,7 @@ class Config:
     def __init__(
         self,
         yaml_filenames: str | list[str | io.StringIO] | None = None,
-        encrypter: AbstractEncrypter | None = None
+        encrypter: FernetEncrypter | None = None
     ):
         if isinstance(yaml_filenames, str | io.StringIO):
             self._yaml_filenames = [yaml_filenames]
@@ -638,11 +638,6 @@ class Config:
             "google_client_id"      : self.get_str("GOOGLE_CLIENT_ID")
         }
 
-
-    def get_qr_options(self) -> dict[str, str]:
-        return {
-            "qr_login_url"  : self.get_str("QR_LOGIN_URL")
-        }
 
     def get_webauthn_options(self) -> dict:
         return {

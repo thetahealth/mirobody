@@ -6,7 +6,6 @@ import psycopg
 import psycopg_pool
 import psycopg.abc
 import sqlalchemy
-import sqlalchemy.event
 import sqlalchemy.ext
 import sqlalchemy.ext.asyncio
 
@@ -16,39 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 #-----------------------------------------------------------------------------
-
-class LoggedCursor(psycopg.Cursor):
-    def execute(
-        self,
-        query: psycopg.abc.Query,
-        params: psycopg.abc.Params | None = None,
-        *,
-        prepare: bool | None = None,
-        binary: bool | None = None
-    ) -> Self:
-        start_time = time.time()
-        cur = super().execute(query, params, prepare=prepare, binary=binary)
-        end_time = time.time()
-
-        logger.info(
-            " ".join(str(query).split()),
-            extra = {
-                "time_cost" : round((end_time-start_time)*1e3, 2),
-                "params"    : params,
-                "records"   : cur.rowcount
-            },
-            stacklevel = 2
-        )
-
-        return self
-
-
-# NOTE: there is no sync `LoggedConnection` counterpart to
-# `LoggedAsyncConnection` below. One existed and was referenced by nothing:
-# `get_async_pool` passes `connection_class=LoggedAsyncConnection`, while the
-# sync `get_pool` passes no connection_class at all, so the sync class only
-# ever wired `LoggedCursor` for callers that did not exist. `LoggedCursor`
-# itself stays — it is the default `cursor_factory` of `get_client`.
 
 class LoggedAsyncCursor(psycopg.AsyncCursor):
     async def execute(
@@ -80,40 +46,6 @@ class LoggedAsyncConnection(psycopg.AsyncConnection):
     def __init__(self, *args, **kargs):
         super().__init__(*args, **kargs)
         self.cursor_factory = LoggedAsyncCursor
-
-#-----------------------------------------------------------------------------
-
-def before_sqlarchemy_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-    conn.info.setdefault("query_start_time", []).append(time.time())
-
-
-def after_async_sqlarchemy_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-    start_time = conn.info["query_start_time"].pop(-1)
-    time_cost = round((time.time()-start_time)*1e3, 2)
-
-    logger.info(
-        " ".join(statement.split()),
-        extra = {
-            "time_cost" : time_cost,
-            "params"    : parameters,
-            "records"   : cursor.rowcount
-        },
-        stacklevel = 9
-    )
-
-def after_sqlarchemy_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-    start_time = conn.info["query_start_time"].pop(-1)
-    time_cost = round((time.time()-start_time)*1e3, 2)
-
-    logger.info(
-        " ".join(statement.split()),
-        extra = {
-            "time_cost" : time_cost,
-            "params"    : parameters,
-            "records"   : cursor.rowcount
-        },
-        stacklevel = 8
-    )
 
 #-----------------------------------------------------------------------------
 
@@ -167,18 +99,6 @@ class PostgreSQLConfig:
             cursor_factory = cursor_factory
         )
 
-
-    def get_client(self, cursor_factory: psycopg.Cursor | None = LoggedCursor):
-        return psycopg.connect(
-            host    = self.host,
-            port    = self.port,
-            dbname  = self.database,
-            user    = self.user,
-            password= self.password,
-            options = f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}",
-            cursor_factory = cursor_factory
-        )
-
     #-----------------------------------------------------
 
     async def get_async_pool(self) -> psycopg_pool.AsyncConnectionPool[Any]:
@@ -198,19 +118,6 @@ class PostgreSQLConfig:
 
         return pool
 
-
-    def get_pool(self) -> psycopg_pool.ConnectionPool[Any]:
-        return psycopg_pool.ConnectionPool(
-            f"host={self.host} port={self.port} dbname={self.database}",
-            min_size= self.minconn,
-            max_size= self.maxconn,
-            kwargs  = {
-                "user": self.user,
-                "password": self.password,
-                "options": f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}",
-            },
-        )
-    
     #-----------------------------------------------------
 
     def get_async_engine(self) -> sqlalchemy.ext.asyncio.AsyncEngine:
@@ -231,34 +138,6 @@ class PostgreSQLConfig:
             pool_size   = self.maxconn
         )
 
-        # sqlalchemy.event.listen(async_engine.sync_engine, "before_cursor_execute", before_sqlarchemy_cursor_execute)
-        # sqlalchemy.event.listen(async_engine.sync_engine, "after_cursor_execute", after_async_sqlarchemy_cursor_execute)
-
         return async_engine
-
-
-    def get_engine(self) -> sqlalchemy.Engine:
-        url = sqlalchemy.URL.create(
-            drivername = "postgresql+psycopg",
-            username   = self.user,
-            password   = self.password,
-            host       = self.host,
-            port       = self.port,
-            database   = self.database,
-        )
-        engine = sqlalchemy.create_engine(
-            url,
-            connect_args= {
-                "options": f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}"
-            },
-            poolclass   = sqlalchemy.QueuePool,
-            pool_size   = self.maxconn
-        )
-
-        sqlalchemy.event.listen(engine, "before_cursor_execute", before_sqlarchemy_cursor_execute)
-        sqlalchemy.event.listen(engine, "after_cursor_execute", after_sqlarchemy_cursor_execute)
-
-        return engine
-
 
 #-----------------------------------------------------------------------------
