@@ -31,9 +31,7 @@ logger = logging.getLogger(__name__)
 # Supported file extensions. This gate must match what the handler factory can
 # actually route, in BOTH directions, and it has been wrong both ways:
 #
-#   too narrow — it rejected every audio extension while AudioHandler sat
-#                unreachable behind it, and rejected .md while TextHandler
-#                happily parses it; the web client advertised audio anyway.
+#   too narrow — it rejected .md while TextHandler happily parses it.
 #   too wide   — .doc/.docx/.ppt/.pptx were accepted here with no handler in
 #                existence, so the picker let you choose one, the upload ran,
 #                and `file_processor` then answered "file not supported". They
@@ -54,8 +52,6 @@ SUPPORTED_EXTENSIONS = {
     # Plain text: lab exports, genetic raw data, notes. `.csv` belongs here —
     # TextHandler owns it now that the never-injected CSVHandler is gone.
     ".txt", ".md", ".markdown", ".csv", ".json", ".xml",
-    # Audio (AudioHandler)
-    ".wav", ".mp3", ".aiff", ".aac", ".ogg", ".flac", ".m4a",
     # Archives: accepted for their contents, not parsed as themselves
     ".zip", ".rar",
 }

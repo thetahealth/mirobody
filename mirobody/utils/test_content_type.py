@@ -2,7 +2,7 @@
 
 Office formats have vendor media types, not invented `application/<ext>` ones,
 and a fallback to `application/octet-stream` is a forced download — for exactly
-the file kinds the README advertises accepting (csv, txt, md, heic, mp3, wav).
+the file kinds the README advertises accepting (csv, txt, md, heic).
 
 Pinned here rather than trusted, because the failure is silent: a wrong
 Content-Type still returns 200 and still downloads bytes.
@@ -28,7 +28,6 @@ from mirobody.utils.file_types import guess_mime
     ("csv", "text/csv"),
     ("txt", "text/plain"),
     ("md", "text/markdown"),
-    ("mp3", "audio/mpeg"),
     # The common ones, which must stay right.
     ("png", "image/png"),
     ("pdf", "application/pdf"),

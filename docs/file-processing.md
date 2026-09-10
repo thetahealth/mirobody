@@ -28,7 +28,7 @@ This module provides comprehensive health data file processing capabilities, inc
 - ✅ **Real-time Progress Feedback**: WebSocket connections provide real-time progress updates for file upload and processing
 - ✅ **Smart File Recognition**: Automatically identifies file types and selects the appropriate handler
 - ✅ **Health Indicator Extraction**: Uses LLM to automatically extract health indicator data from medical reports
-- ✅ **Multi-format Support**: Supports PDF, images, audio, genetic data and more
+- ✅ **Multi-format Support**: Supports PDF, images, Office documents, text, genetic data and more
 - ✅ **PDF Parallel Processing**: Multi-page PDFs are processed in parallel for improved efficiency
 - ✅ **File Summary Generation**: Automatically generates file content summaries
 - ✅ **Cascade Deletion**: Automatically cleans up associated health data when files are deleted
@@ -41,7 +41,6 @@ This module provides comprehensive health data file processing capabilities, inc
 |-----------|-----------|---------|-------------|
 | PDF | `application/pdf` | `PDFHandler` | Multi-page parallel processing with automatic health indicator extraction |
 | Images | `image/*` | `ImageHandler` | Supports JPEG, PNG, GIF, WebP; recognizes health reports and extracts indicators |
-| Audio | `audio/*` | `AudioHandler` | Speech-to-text conversion for extracting verbal health information |
 | Genetic Data | Specific formats | `GeneticHandler` | Genetic test report parsing |
 | Text | `text/*` | `TextHandler` | `.txt`, `.md`, `.csv`, `.json`, `.xml`, `.html`, `.log` — decoded directly, same extraction path as PDF |
 | Excel | OOXML | `ExcelHandler` | `.xlsx`, `.xlsm` read with openpyxl as markdown tables under a row budget; the pre-2007 binary `.xls` is not read |
@@ -327,7 +326,7 @@ Authorization: Bearer <token>
 │         ┌──────────────────┼──────────────────┐                │
 │         ▼                  ▼                  ▼                │
 │  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐          │
-│  │ PDFHandler  │   │ImageHandler │   │AudioHandler │   ...    │
+│  │ PDFHandler  │   │ImageHandler │   │ TextHandler │   ...    │
 │  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘          │
 │         │                  │                  │                │
 │         └──────────────────┼──────────────────┘                │
@@ -362,7 +361,6 @@ The system automatically identifies file types via `FileHandlerFactory`:
 1. GeneticHandler  - Genetic data files
 2. ImageHandler    - Image files (image/*)
 3. PDFHandler      - PDF documents
-4. AudioHandler    - Audio files (audio/*)
 ```
 
 #### 3. Content Processing Phase (35-90%)
@@ -610,7 +608,6 @@ interface FileUploadData {
     file_size: number;     // File size in bytes
     file_type: string;     // MIME type
     upload_time: string;   // Upload timestamp
-    duration?: number;     // Audio duration in ms (audio files only)
 }
 ```
 
@@ -629,7 +626,7 @@ interface FileDeleteRequest {
 interface FileProcessingResult {
     success: boolean;
     message: string;
-    type: string;              // File type: pdf, image, audio, etc.
+    type: string;              // File type: pdf, image, etc.
     filename: string;          // Original filename
     full_url: string;          // Full access URL
     file_key: string;          // Storage key

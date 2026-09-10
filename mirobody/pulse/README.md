@@ -42,7 +42,7 @@ providers are discovered at startup by `ProviderPlatform._load_providers_from_di
 | *— where data comes from —* | | | | |
 | **Providers** | `providers/` | ~6.4k | The live provider platform — plugin discovery, OAuth, pull scheduling | `providers/platform/platform.py` |
 | **Apple** | `apple/` | ~1.2k | Apple Health platform + CDA processing | `apple/platform.py` |
-| **File Parser** | `file_parser/` | ~8.5k | Files as a data source: upload, parse PDF/CSV/Excel/audio/image/genetic | `file_parser/file_upload_manager.py` |
+| **File Parser** | `file_parser/` | ~8.5k | Files as a data source: upload, parse PDF/CSV/Excel/Office/image/text/genetic | `file_parser/file_upload_manager.py` |
 | *— what happens to it —* | | | | |
 | **Ingest** | `ingest/` | ~1.1k | `StandardPulseData` → DB write. Every source above converges here | `ingest/services/upload_health.py` |
 | **Standardize** | `standardize/` | ~4.8k | What a value means: indicator catalogue, units, value ranges, fhir_id | `standardize/indicators_info.py` |

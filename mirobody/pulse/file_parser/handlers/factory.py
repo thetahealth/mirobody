@@ -15,7 +15,6 @@ from mirobody.pulse.file_parser.handlers.document import DocumentHandler
 from mirobody.pulse.file_parser.handlers.base import BaseFileHandler
 from mirobody.pulse.file_parser.handlers.image import ImageHandler
 from mirobody.pulse.file_parser.handlers.pdf import PDFHandler
-from mirobody.pulse.file_parser.handlers.audio import AudioHandler
 from mirobody.pulse.file_parser.handlers.text import TextHandler
 from mirobody.pulse.file_parser.handlers.genetic import GeneticHandler
 from mirobody.pulse.file_parser.handlers.excel import ExcelHandler
@@ -72,17 +71,7 @@ class FileHandlerFactory:
                 self.abstract_extractor
             )
 
-        # 4. Check for Audio
-        if content_type.startswith("audio/"):
-            return AudioHandler(
-                self.uploader, 
-                self.temp_manager, 
-                self.content_extractor, 
-                self.indicator_extractor,
-                self.abstract_extractor
-            )
-
-        # 5. Check for Text. Markdown included: browsers send .md as
+        # 4. Check for Text. Markdown included: browsers send .md as
         # text/markdown, which used to fall through every branch and fail as
         # "unsupported" even though TextHandler parses it identically to .txt.
         # `text/csv` lands here too, and that is the fix for a real bug: it used
@@ -103,7 +92,7 @@ class FileHandlerFactory:
                 self.abstract_extractor
             )
 
-        # 6. Word / PowerPoint, before Excel because both are OOXML zips and
+        # 5. Word / PowerPoint, before Excel because both are OOXML zips and
         # only the extension separates them.
         if DocumentHandler.is_document_file(filename, content_type):
             return DocumentHandler(
@@ -114,7 +103,7 @@ class FileHandlerFactory:
                 abstract_extractor=self.abstract_extractor,
             )
 
-        # 7. Check for Excel — built-in openpyxl extraction. The
+        # 6. Check for Excel — built-in openpyxl extraction. The
         # `excel_processor` override parameter is gone with the same seam: it
         # was documented as "injected from mcp_server", and no such injector
         # exists here, so the branch was unreachable.

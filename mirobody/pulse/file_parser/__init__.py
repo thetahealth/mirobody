@@ -2,7 +2,7 @@
 File Parser module for processing various file types and extracting health data
 
 Handles file uploads via WebSocket, routes files to type-specific handlers
-(PDF, CSV, Excel, audio, image, genetic), extracts health indicators,
+(PDF, CSV, Excel, Word/PowerPoint, image, text, genetic), extracts health indicators,
 and feeds results into the StandardPulseData pipeline.
 
 Architecture:

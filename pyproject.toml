@@ -110,13 +110,12 @@ parse = [
     # Documents. Every entry here is imported by name somewhere under
     # mirobody/; a package that only *typed* a file (rarfile, py7zr — archives
     # are recognised, never opened), a second library for a job one already
-    # does (mutagen beside tinytag, pypdf beside pypdfium2 + pdfplumber), or a
+    # does (pypdf beside pypdfium2 + pdfplumber), or a
     # 68 MB dependency for two functions (pandas, for turning a sheet into
     # text) has been removed — see CHANGELOG 1.4.0.
     # The one PDF library: text layer AND page rendering (`documents/extract.py`).
     "pypdfium2>=4.30.0",
     "Pillow>=11.1.0",
-    "tinytag>=1.6.0",
     # `.xlsx` read directly (file_abstract_extractor.py); the pre-2007 binary
     # `.xls` is not supported, and never was — the old xlrd fallback was not
     # installed either.
@@ -570,7 +569,6 @@ forbidden_modules = [
     "sentry_sdk",
     "sqlalchemy",
     "starlette",
-    "tinytag",
     "tqdm",
     "uvicorn",
     "webauthn",
