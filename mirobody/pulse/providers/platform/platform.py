@@ -88,10 +88,9 @@ class ProviderPlatform(Platform):
         # TOP-LEVEL package, and a top-level package has no parent — so
         # `provider_oura.py`'s `from ....utils.tasks import spawn` died with
         # "attempted relative import beyond top-level package" and the loader
-        # swallowed it as a warning. Garmin, Oura and Whoop all carry that
+        # swallowed it as a warning. All three packaged providers carry that
         # import: the platform logged "loaded 0 providers" on every boot and
-        # the whole device-integration surface was silently absent. pgsql
-        # survived only because it happens to use absolute imports throughout.
+        # the whole device-integration surface was silently absent.
         #
         # sys.path is still right for EXTERNAL `PROVIDER_DIRS` — those are not
         # inside any package and have nothing to be relative to.
@@ -157,8 +156,8 @@ class ProviderPlatform(Platform):
         matching itself.
 
         Returning None is normal, not a failure: `create_provider` is where a
-        provider declines because its credentials are absent (pgsql without
-        `ENABLE_PGSQL_DEVICE`, Oura without `OURA_CLIENT_ID`).
+        provider declines because its credentials are absent (Oura without
+        `OURA_CLIENT_ID`).
         """
         provider_class = None
         for attr_name in dir(module):

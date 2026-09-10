@@ -61,7 +61,13 @@ class StandardPulseMetaInfo(BaseModel):
 class StandardPulseRecord(BaseModel):
     """Pulse standard data record format
 
-    Compatible with VitalHealthRecord to avoid unnecessary format conversion
+    The first six fields are the record shape the Vital vendor's API used,
+    kept verbatim so its payloads needed no conversion. Vital is no longer a
+    provider here — the installed three are Garmin, Oura and WHOOP — and the
+    `VitalHealthRecord` model that documented that shape is gone with it.
+    The field set stays because rows in `th_series_data` were written against
+    it: that is why `value` is required and why `source` still reads
+    `vital.garmin` in historical data.
     """
 
     source: str = Field(..., description="Data source, e.g. vital.garmin")

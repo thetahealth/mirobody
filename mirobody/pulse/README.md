@@ -74,7 +74,6 @@ There is no `router/` here any more — the HTTP endpoints moved to
 
 ### Adding a new provider
 - `providers/platform/base.py` — `BasePullProvider` (inherit from this)
-- `providers/mirobody_pgsql/` — simplest reference implementation
 - `providers/mirobody_garmin_connect/` — full OAuth reference (OAuth1)
 - `providers/mirobody_whoop/` — OAuth2 reference
 - `providers/__init__.py` — add import here after creating provider

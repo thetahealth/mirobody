@@ -9,6 +9,13 @@ This page is the path from "installed" to "pulling data". If you only want to
 prove the provider mechanism works before dealing with any vendor, jump to
 [the zero-credential check](#the-zero-credential-check).
 
+The settings live in [`config.devices.yaml`](../config.devices.yaml) (named by the
+`INCLUDE` list at the top of `config.yaml`), not in `config.yaml` itself: a
+deployment that never connects a wearable never sees them. That file ships with
+empty credentials and each vendor's endpoint defaults already filled in; put your
+credentials there, or in your `config.{env}.yaml` overlay, which overrides it
+(the YAML blocks below work in either).
+
 > **Apple Health is not in this list, and cannot be.** HealthKit is readable
 > only from a signed iOS app, on-device, after per-type user consent — there is
 > no web OAuth flow and no server-to-server API. This server *receives* Apple
@@ -142,28 +149,7 @@ which is the endpoint you give the vendor for push notifications.
 
 ---
 
-## The zero-credential check
-
-`mirobody_pgsql` is the smallest provider in the tree and needs no vendor at
-all. Use it to confirm discovery, registration and config plumbing work before
-you spend time on a developer-programme application:
-
-```yaml
-ENABLE_PGSQL_DEVICE: 1
-```
-
-Restart, and the boot log should read:
-
-```
-Loaded provider from …/mirobody_pgsql/provider_pgsql.py
-Do not register pull task for provider theta_pgsql
-  - provider platform loaded 1 providers
-```
-
-That second line is correct: this provider validates connection credentials and
-has nothing to poll.
-
----
+## Troubleshooting
 
 ## Troubleshooting
 
@@ -191,9 +177,9 @@ scope configured.
 The provider contract is one directory:
 `mirobody_<slug>/provider_<slug>.py`, exporting a `BasePullProvider` subclass
 with `create_provider(config)` returning `None` when unconfigured.
-[`mirobody_pgsql/`](../mirobody/pulse/providers/mirobody_pgsql/) is the smallest
-reference; [`mirobody_whoop/`](../mirobody/pulse/providers/mirobody_whoop/) is
-the OAuth2 one. Full guide: [provider-guide.md](provider-guide.md).
+[`mirobody_whoop/`](../mirobody/pulse/providers/mirobody_whoop/) is the OAuth2
+reference; [`mirobody_oura/`](../mirobody/pulse/providers/mirobody_oura/) is the
+same shape with a different vendor. Full guide: [provider-guide.md](provider-guide.md).
 
 Providers outside the package go in `PROVIDER_DIRS`; those are loaded by file
 location, so use absolute imports in them.
