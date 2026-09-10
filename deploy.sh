@@ -41,11 +41,13 @@ LOG_ENCRYPTION_KEY=${LOG_ENCRYPTION_KEY:-$(generate_random_string 32)}
 #   DASHSCOPE_API_KEY  -> https://dashscope.console.aliyun.com/apiKey (when openrouter.ai is unreachable)
 #   GOOGLE_API_KEY     -> https://aistudio.google.com/apikey
 #   OPENAI_API_KEY     -> https://platform.openai.com/api-keys
+#   ANTHROPIC_API_KEY  -> https://platform.claude.com/settings/keys
 #   DEEPSEEK_API_KEY   -> https://platform.deepseek.com/api_keys
 # OPENROUTER_API_KEY=
 # DASHSCOPE_API_KEY=
 # GOOGLE_API_KEY=
 # OPENAI_API_KEY=
+# ANTHROPIC_API_KEY=
 # DEEPSEEK_API_KEY=" > ".env"
     echo "Configure file '.env' has been created — put ONE LLM API key in it."
 fi

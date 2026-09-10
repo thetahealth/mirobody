@@ -172,7 +172,8 @@ not reach the containers. The `.env` is the only place for the key:
 secret. An [OpenRouter key](https://openrouter.ai/keys) as
 `OPENROUTER_API_KEY` is the recommended one; a DashScope key when openrouter.ai is
 unreachable from your network; a Google, [OpenAI](https://platform.openai.com/api-keys)
-(`OPENAI_API_KEY`) or DeepSeek key works alone as well. Every model decision —
+(`OPENAI_API_KEY`), [Anthropic](https://platform.claude.com/settings/keys)
+(`ANTHROPIC_API_KEY`) or DeepSeek key works alone as well. Every model decision —
 which model chats, which reads report photos, which extracts the indicators, which
 embeds — is a line in [`config.llm.yaml`](config.llm.yaml), where you can read and
 change it (a self-hosted gateway is one `<PREFIX>_BASE_URL` in `.env`). The boot

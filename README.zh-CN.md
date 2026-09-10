@@ -153,7 +153,8 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
 shell 里的 `export` 到不了容器。key 只写在 `.env` 里：`config.llm.yaml` 只写变量名
 （`api_key: OPENROUTER_API_KEY`），不放密钥本身。推荐 [OpenRouter key](https://openrouter.ai/keys)（`OPENROUTER_API_KEY`）；
 openrouter.ai 在你的网络不可达时用 DashScope 的 key；Google、[OpenAI](https://platform.openai.com/api-keys)
-（`OPENAI_API_KEY`）或 DeepSeek 的 key 单独一把也都能跑通。每一个模型决定——聊天用哪个、报告照片
+（`OPENAI_API_KEY`）、[Anthropic](https://platform.claude.com/settings/keys)（`ANTHROPIC_API_KEY`）
+或 DeepSeek 的 key 单独一把也都能跑通。每一个模型决定——聊天用哪个、报告照片
 用哪个读、指标用哪个抽、向量用哪个——都是 [`config.llm.yaml`](config.llm.yaml) 里的一行，看得见、
 改得动（自建网关只需在 `.env` 里加一行 `<PREFIX>_BASE_URL`）。启动日志和 `mirobody doctor`
 会列出每个环节选到了什么，缺的地方直接给出补法。

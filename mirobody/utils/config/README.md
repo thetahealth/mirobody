@@ -256,9 +256,9 @@ Then reference them in YAML or let the system auto-detect them if they match the
 ## 🏥 LLM Provider Configuration
 
 **One key runs every surface, and every decision is in `config.llm.yaml`.**
-The key itself goes in `.env` (one of the five below); the YAML only names it.
+The key itself goes in `.env` (one of the six below); the YAML only names it.
 `MODELS` is one table of entries (alias → `llm_type`, `api_key` name, `base_url`,
-`model`, `supports_image` / `supports_pdf` / `json_schema` / `chat` / `embedding`,
+`model`, `supports_image` / `supports_pdf` / `response_format` / `chat` / `embedding`,
 `extra_body`); the chat picker lists the entries whose key is present, first one
 default. `UTILS_VISION_MODEL` (report photos, scans — entries MUST declare
 `supports_image: true`), `UTILS_TEXT_MODEL` (indicator extraction, titles,
@@ -275,12 +275,22 @@ is enough:
 | `DASHSCOPE_API_KEY` | `qwen` (qwen3.8-flash) | `qwen-utils` (qwen3.8-flash) | `qwen-embed` (text-embedding-v4) |
 | `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) | `gemini-flash` (gemini-3.8-flash) | `gemini-utils` (gemini-3.8-flash) | `gemini-embed` (gemini-embedding-001) |
 | `OPENAI_API_KEY` | `openai` (gpt-5.6-terra) | `openai-utils` (gpt-5.6-terra) | `openai-embed` (text-embedding-3-small) |
+| `ANTHROPIC_API_KEY` | `claude` (claude-sonnet-5) | `anthropic-utils` (claude-haiku-4-5) | — (lexical search only) |
 | `DEEPSEEK_API_KEY` | `deepseek` (deepseek-flash) | `deepseek-utils` (deepseek-flash) | — (lexical search only) |
 
 The names are `MODELS` entries in `config.llm.yaml`; the model ids in
 parentheses are what those entries said on 2026-09-10 and live only there. The
 `*-utils` entries are multimodal on purpose: the vision surface reads report
 photos and scanned pages, and a text-only model there is issue #68.
+
+Two of the six are not OpenAI-compatible on every surface, and the entries say
+so rather than the code guessing. `claude` and `anthropic-utils` are
+`llm_type: anthropic` — the vendor's own API, because its OpenAI-compatible
+endpoint refuses `response_format: json_object` outright and takes a schema
+only in OpenAI strict mode, so extraction there would depend on a model
+remembering to answer in JSON. `gemini-embed` is `llm_type: google-genai`,
+because the embedding factory needs `output_dimensionality`. Everything else
+is `llm_type: openai` against the vendor's own endpoint.
 
 To change a model, edit the entry (or point the surface's `UTILS_*` key at another
 entry, or write `provider/model`); `<PREFIX>_BASE_URL` in `.env` (PREFIX = the api_key

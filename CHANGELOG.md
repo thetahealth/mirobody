@@ -20,7 +20,10 @@ evaluation is untouched.
 - **The Gemini SDK path is gone from the extraction surfaces.** Gemini is an
   OpenAI-compatible entry (`https://generativelanguage.googleapis.com/v1beta/openai/`)
   like every other vendor; PDFs are read page by page there as everywhere, since
-  no compatibility endpoint takes a PDF part. `gemini_file_extract`,
+  no compatibility endpoint takes a PDF part (Google's answers `Invalid content
+  part type: file`, measured 2026-09-10). Its embedding entry stays on the REST
+  API (`llm_type: google-genai`), which is the only one of the two that takes
+  `output_dimensionality`. `gemini_file_extract`,
   `AIConfig`, `VisionProviderConfig`, `client_manager.get_async_*_client` and
   the `doubao_file_extract` / `async_get_doubao_structured_output` pair are
   removed; the Doubao/Volcengine tier, and the `zhipu` / `moonshot` enum
@@ -79,11 +82,11 @@ evaluation is untouched.
   Every one of those decisions is in `config.llm.yaml` now, where a user can
   read and change it: `MODELS` is one table of entries (alias → `llm_type`,
   `api_key` NAME, `base_url`, `model`, `supports_image`, `supports_pdf`,
-  `json_schema`, `chat`, `embedding`, `extra_body`), the chat picker lists the
+  `response_format`, `chat`, `embedding`, `extra_body`), the chat picker lists the
   entries whose key is present with the FIRST as default, and
   `UTILS_VISION_MODEL`, `UTILS_TEXT_MODEL` and `UTILS_EMBEDDING_MODEL` each
   name the entries their
-  surface may use — a list, so any ONE of the five keys still runs everything
+  surface may use — a list, so any ONE of the six keys still runs everything
   with zero further configuration; a single name, a `provider/model` string or
   an inline spec, to pin one. These are the keys mirovital's config-server
   already uses (`MODEL_PROVIDERS`, `UTILS_*_MODEL`), so a spec written for one
@@ -92,8 +95,8 @@ evaluation is untouched.
   the entries below it and each key alone to every surface.
 
   The utility surfaces get their own entries (`openrouter-utils`,
-  `qwen-utils`, `gemini-utils`, `openai-utils`, `deepseek-utils`; `chat:
-  false`, so they never reach the picker): every one a multimodal model with
+  `qwen-utils`, `gemini-utils`, `openai-utils`, `anthropic-utils`,
+  `deepseek-utils`; `chat: false`, so they never reach the picker): every one a multimodal model with
   thinking off, because report photos and scanned pages are images and
   extraction needs no reasoning trace — a text-only model in
   `UTILS_VISION_MODEL` is exactly #68, and the entry's `supports_image: true`
@@ -102,8 +105,8 @@ evaluation is untouched.
   upstream and routed to it). Measured against the live
   endpoint: it reads a report image; its JSON mode takes `json_object` and
   refuses `json_schema` ("This response_format type is unavailable now"), so the
-  entry says `json_schema: false` and extraction writes the schema into the
-  prompt; thinking is on by default there and ignores temperature, so the
+  entry says `response_format: json_object` and extraction writes the schema into
+  the prompt; thinking is on by default there and ignores temperature, so the
   utility entry turns it off. DeepSeek serves no embedding model, so semantic
   search on such a deployment answers from the lexical index, and the boot log
   and `mirobody doctor` say so instead of borrowing another gateway's name.
@@ -118,6 +121,60 @@ evaluation is untouched.
   the variable. `tests/utils/llm/test_registry_drift.py` checks the entries
   against models.dev and OpenRouter's catalogue (skipped offline, and for an
   id a vendor released before the catalogues list it).
+
+- **An `ANTHROPIC_API_KEY` runs the whole project too, and it is the sixth
+  key.** `claude` (claude-sonnet-5) chats, `anthropic-utils`
+  (claude-haiku-4-5) reads report photos and extracts indicators; Anthropic
+  serves no embedding model, so semantic search falls back to the lexical
+  index exactly as it does for DeepSeek, and `mirobody doctor` says so.
+
+  Both entries are `llm_type: anthropic` — the vendor's own API, not the
+  OpenAI-compatible layer this project speaks everywhere else — and the reason
+  is measured, not stylistic. On that layer `response_format:
+  {"type": "json_object"}` is REFUSED (400, "Input should be 'json_schema'";
+  the compatibility page says it is ignored, and it is not), and a schema is
+  accepted only in OpenAI strict mode — `strict: true` plus
+  `additionalProperties: false` on every object, which the extraction schemas
+  do not carry. What is left there is asking for JSON in the prompt and hoping,
+  which is issue #68 with extra steps. The native API has
+  `output_config.format`: decoding is constrained to the schema, so the answer
+  IS the document. `anthropic.transform_schema` adapts our schemas to what the
+  grammar compiler takes; the shipped indicator schema — nested objects,
+  enums, arrays — passes unmodified through it. The new
+  `utils/llm/backends_anthropic.py` holds the three surfaces (structured, text,
+  vision), rendering PDFs page by page and merging them exactly as the
+  OpenAI-compatible backend does, so only the request shape differs.
+  `llm_type: anthropic` and the `anthropic/<model>` route shorthand both mean
+  that path; the chat entry keeps prompt caching and the thinking channel,
+  which the compatibility layer does not carry either.
+
+  An entry's `response_format` (`json_schema` | `json_object` | `none`)
+  replaces the `json_schema: false` boolean, because "what this endpoint takes"
+  turned out to be three answers rather than two. And a model told to answer in
+  JSON by the PROMPT wraps it in a ```json fence — the vision path had always
+  stripped that, the structured path handed it straight to `json.loads`.
+
+- **Three one-key paths were broken, and only running them found it.** Each is
+  configuration, measured against the live vendor on 2026-09-10:
+
+  * `OPENROUTER_API_KEY` — the recommended key — could not read a report or
+    extract an indicator. `openrouter-utils` asked for `reasoning: {enabled:
+    false}` and the endpoint behind `google/gemini-3.8-flash` answers 400,
+    "Reasoning is mandatory for this endpoint and cannot be disabled". It is
+    `{effort: minimal, exclude: true}` now: the least that endpoint allows,
+    with no trace returned.
+  * `OPENAI_API_KEY` — the agent could not call a single tool. `gpt-5.6-terra`
+    on `/v1/chat/completions` answers "Function tools with reasoning_effort are
+    not supported … set reasoning_effort to 'none'", and with reasoning on it
+    also rejects the entry's `temperature: 0.1`. Both entries declare
+    `reasoning_effort: none`, and an entry that declares one now keeps it — a
+    thinking hint from the UI used to overwrite it, which would have undone the
+    fix at the first request.
+  * `GEMINI_API_KEY` alone left the chat picker empty while `mirobody doctor`
+    reported the chat surface healthy. The route layer knows the vendor's
+    aliases (`read_api_key`); the agent's `default_resolver` read the raw
+    environment, so it built a `_PlaceholderClient` for an entry naming
+    `GOOGLE_API_KEY`. One key must not get two answers.
 
 - **Zero indicators now says why.** Three states rendered identically as "no
   indicators": no provider configured; a provider that failed every call; a
