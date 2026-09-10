@@ -37,6 +37,10 @@ class FileProcessingContext:
     file_key: str | None = None
     skip_upload_oss: bool = False
     original_filename: str | None = None
+    #: Why text extraction produced nothing, when it raised — set by
+    #: `_extract_original_text`, read by `process`. A report photo with no
+    #: vision provider used to pass through here as a success with empty text.
+    extraction_error: str = ""
     
     @property
     def target_user_id(self) -> str:
@@ -87,6 +91,12 @@ class BaseFileHandler(abc.ABC):
 
             # 4.5. Auto-start background indicator extraction for any handler that returns original_text
             original_text = result_data.get("original_text")
+            if not (original_text and original_text.strip()) and ctx.extraction_error:
+                # The file is stored, but nothing could be read out of it and
+                # we know why. Reporting success here rendered "indicators:
+                # none" over a working-looking upload (#68); the failure and
+                # its reason belong on the upload itself.
+                raise RuntimeError(f"could not read the document: {ctx.extraction_error}")
             if original_text and original_text.strip() and self.indicator_extractor:
                 self._start_background_indicator_extraction(
                     original_text=original_text,
@@ -202,6 +212,7 @@ class BaseFileHandler(abc.ABC):
                 f"[BaseFileHandler] Failed to extract original text for {ctx.filename}: {e}",
                 exc_info=True
             )
+            ctx.extraction_error = f"{type(e).__name__}: {e}"
             return None, None
 
     async def _extract_abstract_from_text(
@@ -386,7 +397,12 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
 
         user_message = t(f"{self.get_type_name()}_processing_failed", language, "file_processor")
         if not user_message:
-             user_message = f"{t('file_upload_failed', language, 'file_processor')}: {error_msg}"
+             user_message = t('file_upload_failed', language, 'file_processor')
+        # The reason travels with the message: "Image processing failed" alone
+        # sent the reporter of #68 into the server logs for a cause that was
+        # one sentence long ("no vision provider — set one of these keys").
+        if error_msg:
+            user_message = f"{user_message}: {error_msg}"
 
         # Some specialized error handling for JSON parsing if needed
         if "JSON parsing failed" in error_msg:
@@ -542,22 +558,31 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
                 )
                 count = len(indicators) if indicators else 0
 
-                # Zero rows with zero LLM keys is not a success: the file is
-                # stored, but the extraction the README demonstrates never ran.
-                # Reporting it as "complete" showed a green status over an empty
-                # indicator list, with the real cause visible only in server
-                # logs — mark the file failed so the UI says so.
-                if count == 0:
-                    from mirobody.utils.llm.config import AIConfig
-                    if not any(AIConfig.get_provider_status().values()):
+                # Three kinds of "zero indicators", told apart (#68). The file is
+                # stored either way; what the UI must not do is render the first
+                # two like the third:
+                #   1. no provider can do structured extraction — configuration;
+                #   2. a provider exists and every call failed — the reason is
+                #      in the log, the file row says the call failed;
+                #   3. a model read the document and found no indicators — a
+                #      normal result.
+                # Reporting 1 and 2 as "complete" showed a green status over an
+                # empty list, with the cause visible only in server logs.
+                if count == 0 and llm_ret is None:
+                    from mirobody.utils.config.llm import no_provider_message, resolve_route
+
+                    if resolve_route("text") is None:
+                        extraction_failed_reason = no_provider_message("text")
+                    else:
                         extraction_failed_reason = (
-                            "no LLM provider key configured — set "
-                            "OPENROUTER_API_KEY (or DASHSCOPE_API_KEY) and re-upload"
+                            "indicator extraction failed: every configured provider "
+                            "returned an error (see the server log for the provider's "
+                            "message) — re-upload after fixing it"
                         )
-                        logger.warning(
-                            f"Indicator extraction for {file_type} {file_key} produced 0 rows "
-                            f"because {extraction_failed_reason}."
-                        )
+                    logger.warning(
+                        f"Indicator extraction for {file_type} {file_key} produced 0 rows: "
+                        f"{extraction_failed_reason}"
+                    )
                 if not extraction_failed_reason:
                     logger.info(
                         f"Async indicator extraction completed for {file_type}: {file_key}, "

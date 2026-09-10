@@ -426,8 +426,14 @@ class FileDbService:
                     "report_date": file_content.get("report_date", ""),
                     "date_source": file_content.get("date_source", ""),
                     "date_confirmed": bool(file_content.get("date_confirmed", False)),
-                    # NOTE: status/error/progress fields are stored in file_content but not exposed in API
-                    # to maintain backward compatibility with frontend
+                    # Why a file is `upload_status: "failed"`, when it is. The row
+                    # has carried this since the status did; it was withheld from
+                    # the API "for backward compatibility", so a client could show
+                    # the failure and never its cause — a report photo uploaded
+                    # to a zero-key deployment read "processing failed" with the
+                    # one-sentence fix sitting in the database (#68). Empty
+                    # otherwise. `status`/`progress` stay internal.
+                    "error": file_content.get("error", "") if upload_status == "failed" else "",
                 }
                 files.append(file_info)
             

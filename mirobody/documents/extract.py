@@ -131,15 +131,25 @@ async def pdf_text(
     texts, to_ocr = await asyncio.to_thread(_pdf_pages, data, min_page_text=min_page_text, dpi=dpi)
     if to_ocr and ocr is not None:
         gate = asyncio.Semaphore(max(1, concurrency))
+        failures: list[Exception] = []
 
         async def _one(index: int, png: bytes) -> None:
             async with gate:
                 try:
                     texts[index] = (await ocr(png, "image/png")).strip()
                 except Exception as exc:
+                    failures.append(exc)
                     logger.warning("pdf ocr: page failed: page_index=%d error_type=%s", index, type(exc).__name__)
 
         await asyncio.gather(*(_one(i, png) for i, png in to_ocr))
+        # One bad page must not lose the other twenty, so a page failure is a
+        # warning. But a scan whose EVERY page failed, with no text layer to
+        # fall back on, would come back as "" — the same answer as a blank
+        # document — and the cause (no vision provider, a model that cannot
+        # read images) would be visible only in this log line (#68). That
+        # case is the OCR's error, raised.
+        if len(failures) == len(to_ocr) and not any(texts):
+            raise failures[-1]
     logger.info("pdf: page_count=%d ocr_page_count=%d", len(texts), len(to_ocr))
     return "\n\n".join(f"--- page {i + 1} ---\n{t}" for i, t in enumerate(texts) if t)
 
