@@ -139,7 +139,6 @@ parse = [
     # schema (breaking change, May 2026) and now requires the 2.x 'steps' schema,
     # which only the >=2.0 SDK can send/parse. No upper cap.
     "google-genai>=2.0.0",
-    "tiktoken>=0.9.0",  # history truncation (utils/truncate.py)
     # `utils/config` is on the parse path (the client factory reads config), and
     # it needs these four.
     "python-dotenv",
@@ -571,7 +570,6 @@ forbidden_modules = [
     "sentry_sdk",
     "sqlalchemy",
     "starlette",
-    "tiktoken",
     "tinytag",
     "tqdm",
     "uvicorn",

@@ -7,7 +7,6 @@ from datetime import datetime, date
 
 import redis.asyncio
 
-from ..utils.truncate import split_by_tokens
 from ..utils import execute_query
 from ..utils.llm import async_get_text_completion
 from ..utils.llm_output import strip_code_fence
@@ -98,6 +97,39 @@ async def get_health_profile_core(user_id: str, maxlen: int = 2000) -> str | Non
 MAX_TOKENS = 10000
 MAX_OUTPUT_TOKENS = 32000  # No limit on profile output length to avoid truncation
 MAX_PREVIOUS_PROFILE_LENGTH = 15000  # Maximum character limit for previous profile version
+
+
+def _estimated_tokens(text: str) -> int:
+    """A deliberate over-estimate: ~4 chars/token for Latin text, ~2 once the
+    text contains CJK. It only packs indicator lines into chunk budgets, where
+    an over-count costs one more LLM call and an under-count overruns the
+    context. This was tiktoken behind a lazy import (`utils/truncate.py`); its
+    BPE file downloads from an OpenAI CDN that is unreachable from exactly the
+    networks a gateway deployment exists for, and the estimate does the same job.
+    """
+    if not text or text.isspace():
+        return 0
+    divisor = 2 if any(ord(ch) > 0x2E80 for ch in text) else 4
+    return max(1, len(text) // divisor)
+
+
+def _chunk_by_budget(lines: list[str], budget: int) -> list[str]:
+    """Greedily join lines into newline-separated chunks of at most `budget`
+    estimated tokens. A single line over budget gets a chunk of its own; the
+    previous packer silently dropped it."""
+    chunks: list[list[str]] = []
+    current: list[str] = []
+    used = 0
+    for line in lines:
+        cost = _estimated_tokens(line) + 1
+        if current and used + cost > budget:
+            chunks.append(current)
+            current, used = [], 0
+        current.append(line)
+        used += cost
+    if current:
+        chunks.append(current)
+    return ["\n".join(chunk) for chunk in chunks]
 PROFILE_LOCK_TIMEOUT_SECONDS = 600  # 10 minutes lock timeout for profile generation
 PROFILE_LOCK_WAIT_TIMEOUT_SECONDS = 120  # Maximum wait time to acquire lock (2 minutes)
 PROFILE_LOCK_RETRY_INTERVAL_SECONDS = 2  # Retry interval when waiting for lock
@@ -1066,11 +1098,7 @@ class UserProfileGenerator:
                 ]
                 
                 # Process in chunks
-                context_list = split_by_tokens(
-                    [{"content": f"{e}"} for e in indicator_text_list],
-                    "{content}",
-                    max_tokens=MAX_TOKENS,
-                )
+                context_list = _chunk_by_budget(indicator_text_list, MAX_TOKENS)
                 logger.info(f"context chunks length: {len(context_list)}")
             else:
                 context_list = ["No health indicator data available"]
