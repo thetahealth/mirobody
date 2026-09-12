@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`skills/dont-guess-my-labs/` — the resolver as a skill for someone else's
+  agent.** Claude Code, Codex and OpenClaw read a `SKILL.md` from their own
+  directory; until now the only skill in the tree was
+  `mirobody/agent/skills/lab-report-walkthrough`, which cannot leave this
+  project — it reads `/uploads/` and `/library/` through the shipped agent's
+  virtual filesystem and emits `vis-chart` blocks, none of which exist in
+  another harness. The new one needs `pip install mirobody` and nothing else:
+  no key, no network, no Docker, no clone. It teaches an agent to resolve every
+  indicator name on a report *before* explaining it, to pass the unit (`中性粒细胞
+  62 %` is `26511-6`, `4.2 10*9/L` is `26499-4` — same name, two tests), and to
+  report an unresolved name as unresolved.
+
+  It lives at the repo root, outside `[tool.setuptools.packages.find]`, so the
+  "2 packages" install is unchanged.
+
+- **`tests/test_skills.py` — 68 assertions over that skill's prose.** Every
+  LOINC code, refusal and term it prints, checked against the resolver, plus a
+  gate that fails on a code quoted in the prose that no test derives. The
+  reference tables are quoted in three files and derived in none, which is the
+  same reasoning `test_readme_numbers.py` applies to the READMEs' figures.
+
+  Four of those assertions pin answers that are **wrong today** — `维生素`
+  ("vitamins") resolves to `96450-2`, a liver-cancer risk score; `尿常规`,
+  `肿瘤标志物` and `电解质` land on a collection method, one specific marker and
+  a 24-hour urine narrative. They fail when the resolver is fixed, which is how
+  the prose describing them gets updated in the same commit.
+
+### Fixed
+
+- Nothing in the engine. The defects above are recorded, not repaired.
+
 ## 1.4.1
 
 One key, every surface — decided in YAML, not in Python; and the failures that

@@ -192,6 +192,7 @@ openrouter.ai 在你的网络不可达时用 DashScope 的 key；Google、[OpenA
 | 在自己的代码里离线解析与换算单位 | `pip install mirobody`——2 个包，无 key，无网络 | [引擎](https://docs.mirobody.ai/zh/engine/) |
 | 把一份文件变成读数 | `pip install 'mirobody[parse]'`——PDF、图片、Excel、Word、PowerPoint、文本；只有扫描页才会送到视觉模型 | [引擎](https://docs.mirobody.ai/zh/engine/) |
 | 把 agent 框架当库用 | `pip install 'mirobody[agent]'`——中间件、虚拟文件系统后端、checkpointer | [接入你自己的 agent](CONTRIBUTING.md#-bringing-your-own-agent) |
+| 让你的编码 agent 读化验单时别瞎猜 | 把 [`skills/dont-guess-my-labs/`](skills/dont-guess-my-labs/) 复制进 Claude Code、Codex 或 OpenClaw——只需要 `pip install mirobody`，不需要 key | [`SKILL.md`](skills/dont-guess-my-labs/SKILL.md) |
 | 在 Claude Desktop、Cursor 或你自己的循环里用这些工具 | 设置 → MCP：每个 agent 工具同时通过 `/mcp` 提供，按用户鉴权 | [MCP 服务](https://docs.mirobody.ai/zh/api-reference/mcp-servers/) · [`examples/07_claude_agent_sdk.py`](examples/07_claude_agent_sdk.py) |
 | 你的应用对接一个部署 | HTTP API，或 backbone 模式：你的 agent，我们的数据层 | [API 概览](https://docs.mirobody.ai/zh/api-reference/overview/) · [Backbone](https://docs.mirobody.ai/zh/api-reference/backbone-mode/) |
 | 新工具、新技能或新设备提供者 | 把文件放进 `mirobody/agent/tools/`、`mirobody/agent/skills/` 或 `mirobody/pulse/providers/` 然后重启——或者 `pip install` 一个声明了 `mirobody.providers` / `mirobody.tools` / `mirobody.agents` 入口点的包 | [添加工具](https://docs.mirobody.ai/zh/tools/adding-tools/) · [技能](https://docs.mirobody.ai/zh/tools/skills/) · [提供者](https://docs.mirobody.ai/zh/development/provider-integration/) |
