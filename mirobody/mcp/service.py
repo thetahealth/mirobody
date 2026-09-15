@@ -266,7 +266,7 @@ class McpService:
             "SELECT 1 FROM th_series_data_genetic"
             " WHERE user_id = :uid AND is_deleted = false LIMIT 1",
         "query_health_indicators":
-            "SELECT 1 FROM th_series_data WHERE user_id = :uid AND deleted = 0 LIMIT 1",
+            "SELECT 1 FROM th_observation WHERE user_id = :uid LIMIT 1",
         "query_medications":
             "SELECT 1 FROM th_medication_plan WHERE user_id = :uid AND deleted = 0 LIMIT 1",
     }

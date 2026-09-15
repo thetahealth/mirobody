@@ -37,12 +37,12 @@ MAX_RENDER_CHARS = 40_000
 #: for a value it had just printed as 5.4 mmol/L. Both, never one: a
 #: device-namespace row carries the indicator's own name in `code`.
 _COLUMNS: dict[str, tuple[str, ...]] = {
-    "catalog": ("indicator", "system", "code", "count", "first_date", "last_date"),
-    "readings": ("indicator", "time", "value", "unit", "system", "code", "file"),
+    "catalog": ("indicator", "system", "code", "count", "first_date", "last_date", "reason"),
+    "readings": ("indicator", "name", "time", "value", "unit", "system", "code", "file"),
     "buckets": ("indicator", "period", "avg", "min", "max", "n", "unit", "system", "code"),
     "stats": ("indicator", "count", "min", "max", "avg", "first", "first_date", "last", "last_date",
-              "change", "unit", "system", "code"),
-    "latest": ("indicator", "date", "time", "value", "unit", "system", "code"),
+              "change", "unit", "mixed_units", "system", "code"),
+    "latest": ("indicator", "name", "date", "time", "value", "unit", "system", "code"),
 }
 
 

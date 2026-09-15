@@ -27,7 +27,7 @@ async def subject_for(caller_id: str, member: str) -> str:
     `.subject_id` is not decoration. `resolve_subject` answers with a
     `Subject`, and this used to `str()` the whole dataclass, which has no
     `__str__`, so the "user id" was the repr
-    `Subject(operator_id=7, subject_id=42, access=1)`. `th_series_data.user_id`
+    `Subject(operator_id=7, subject_id=42, access=1)`. `th_observation.user_id`
     is `varchar(200)`, so that bound without error and matched nothing: an
     authorised care-circle read answered "no data", on both the agent and the
     MCP surface, indistinguishably from a member who really has none.

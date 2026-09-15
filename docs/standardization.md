@@ -64,14 +64,12 @@ pytest mirobody/tests/test_engine_coverage.py -s   # offline, about a second
 ### Two semantic indexes, and which one you get for free
 
 The matrix above is the **downloadable-corpus** tier — LOINC rows embedded once,
-built by you against your own embedding model. The deployment has a second,
-unrelated index that comes for free: indicator search in the app embeds **your
-own indicator names**, not the LOINC corpus. The worker's `IndicatorSyncTask`
-writes `th_series_dim.embedding_qwen3_8b` on each ingest, and a query is matched
-against that. It needs `mirobody worker` running, which `./deploy.sh` starts, and
-an embedding provider — the same OpenAI-compatible key that runs chat, or a
-self-hosted model behind any `/v1/embeddings` endpoint reached through
-`<PROVIDER>_BASE_URL`. Neither index changes what `resolve()` answers.
+built by you against your own embedding model. Inside the app, a question about
+a person's own readings does not use it: `query_health_indicators` ranks the
+person's own series (their printed names, the LOINC display names and codes the
+writer stored beside each reading) lexically, and falls back to the offline
+resolver's code. No embedding provider is needed for that path, and neither
+index changes what `resolve()` answers.
 
 ### Which LOINC, and what it does and does not cover
 

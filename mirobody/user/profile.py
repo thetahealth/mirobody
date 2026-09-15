@@ -877,7 +877,7 @@ class DeviceDataService:
     @staticmethod
     async def get_device_data(user_id: str) -> str:
         """
-        Get recent device data starting with rolling_7d from th_series_data table, return formatted string
+        Get recent device data starting with rolling_7d from the observation model, return formatted string
         
         Args:
             user_id: User ID
@@ -886,12 +886,12 @@ class DeviceDataService:
             Formatted device data string
         """
         sql = """
-        select distinct on (indicator) indicator, value, to_char(start_time, 'YYYY-MM-DD HH24:MI:SS') as start_time
-        from th_series_data
+        select distinct on (name_text) name_text as indicator, value_text as value,
+               to_char(observed_start, 'YYYY-MM-DD HH24:MI:SS') as start_time
+        from v_observation
         where user_id = :user_id
-        and indicator like 'rolling_7d%'
-        and deleted = 0
-        order by indicator, start_time desc
+        and name_text like 'rolling_7d%'
+        order by name_text, observed_start desc
         """
         
         results = await execute_query(
@@ -1276,16 +1276,13 @@ class UserProfileService:
         """Get incremental data"""
         sql = """
         select
-            data.id, data.value, data.start_time,
-            dim.original_indicator, dim.unit
-        from th_series_dim as dim
-        join th_series_data as data
-        on data.indicator = dim.original_indicator
-        where data.user_id = :user_id
-        and data.id > :last_execute_doc_id
-        and data.source_table in ('chat', 'th_messages', 'th_files', 'apple_health_cda', 'excel', 'health_data_epic', 'health_data_oracle')
-        and data.deleted = 0
-        order by data.id asc
+            o.id, o.value_text as value, o.observed_start as start_time,
+            o.name_text as original_indicator, o.unit_text as unit
+        from v_observation o
+        where o.user_id = :user_id
+        and o.id > :last_execute_doc_id
+        and o.source_kind in ('file', 'api', 'manual')
+        order by o.id asc
         """
         
         results = await execute_query(
