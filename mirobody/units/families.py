@@ -498,11 +498,27 @@ UCUM_FAMILY: dict[str, str] = {
 # that want to soft-rank candidates from any of the listed families use
 # :func:`unit_families`.
 AMBIGUOUS_UNITS: dict[str, frozenset[str]] = {
+    # `Ratio` and `DistWidth` are here for the red cell distribution width
+    # printed as a coefficient of variation (RDW-CV, 788-0 and 30385-9):
+    # LOINC has filed it under both, and a CBC prints it as `%`.
     "%": frozenset({
         "MFr", "NFr", "AFr", "VFr", "SFr", "CFr",
-        "LenFr", "RelACnc", "RelRto",
+        "LenFr", "RelACnc", "RelRto", "Ratio", "DistWidth",
     }),
     "mm[Hg]": frozenset({"Pres", "PPres"}),    # BP vs blood-gas pO2/pCO2
+    # A report prints `U/mL` for tumour markers and antibodies (CA 19-9, CA
+    # 125, anti-TPO) whose LOINC property is ACnc with `[arb'U]/mL`, the same
+    # letters as an enzyme's catalytic units. The name decides which analyte;
+    # the unit must admit both properties or every marker conflicts.
+    "U/L":   frozenset({"CCnc", "ACnc"}),
+    "U/mL":  frozenset({"CCnc", "ACnc"}),
+    "mU/L":  frozenset({"CCnc", "ACnc"}),
+    "mU/mL": frozenset({"CCnc", "ACnc"}),
+    "kU/L":  frozenset({"CCnc", "ACnc"}),
+    # MCV and MPV are `EntMeanVol` since LOINC 2.7x; RDW-SD stays `EntVol`.
+    "fL":    frozenset({"EntVol", "EntMeanVol"}),
+    # eGFR printed without its body-surface normaliser is still ArVRat.
+    "mL/min": frozenset({"VRat", "ArVRat"}),
     "cm[H2O]": frozenset({"Pres", "PPres"}),
     "[ppm]":  frozenset({"VFr", "MFr", "SFr"}),
     "deg":    frozenset({"Angle", "Temp"}),    # Temp uses [degF]/Cel canonically

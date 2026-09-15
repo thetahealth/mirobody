@@ -205,6 +205,42 @@ def surface_variants(term: str) -> list[str]:
     return out
 
 
+# The analyte followed by the word for HOW it was counted: "monocyte count",
+# "neutrophil percentage", "中性粒细胞计数", "白细胞总数", or led by the specimen
+# a serum test is drawn from. The index knows the analyte, and the unit then
+# decides between its count and its fraction code, so the measure word only
+# stands between the report and a hit. On migrated production rows fourteen
+# distinct CBC names were unresolved for this reason alone.
+_MEASURE_PREFIX = re.compile(r"^(?:serum|plasma|absolute)\s+", re.I)
+_MEASURE_SUFFIX = re.compile(r"\s+(?:absolute\s+)?(?:counts?|percentages?|percent|number|abs\.?)\s*$", re.I)
+_MEASURE_SUFFIX_CJK = (
+    "百分比", "百分数", "百分數", "绝对数", "絕對數", "绝对值", "絕對值",
+    "计数", "計數", "总数", "總數", "个数", "個數", "数", "數",
+)
+
+
+def measure_stems(term: str) -> list[str]:
+    """``term`` without its measure words, longer stem first; empty when there
+    is nothing to strip. A bare ``数`` is only taken off a stem of two or more
+    characters, so ``指数`` and ``系数`` are never cut into a word."""
+    text = (term or "").strip()
+    out: list[str] = []
+
+    def add(stem: str) -> None:
+        stem = stem.strip(" -_:：")
+        if stem and stem != text and stem not in out:
+            out.append(stem)
+
+    stripped = _MEASURE_PREFIX.sub("", text)
+    add(stripped)
+    add(_MEASURE_SUFFIX.sub("", stripped))
+    for suffix in _MEASURE_SUFFIX_CJK:
+        if stripped.endswith(suffix) and len(stripped) - len(suffix) >= 2:
+            add(stripped[: -len(suffix)])
+            break
+    return out
+
+
 def split_trailing_parenthetical(term: str) -> tuple[str, str]:
     """``"空腹血糖(GLU)"`` → ``("空腹血糖", "GLU")``; ``("", "")`` when there is none.
 

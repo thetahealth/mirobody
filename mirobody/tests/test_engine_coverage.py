@@ -139,6 +139,31 @@ CASES: list[tuple[str, str, str]] = [
     ("肌酐",                         r"creatinine",                   r"clearance|urine"),
     ("尿酸",                         r"urate|uric acid",              r""),
     ("白细胞计数",                   r"leukocyte|white blood cell",   r""),
+    # Third sweep: names off production rows migrated out of th_series_data.
+    # The measure word ("count", "percentage", "计数", "数") and the specimen
+    # prefix ("serum") stood between the report and the index.
+    ("monocyte count",              r"monocytes",                    r""),
+    ("neutrophil percentage",       r"neutrophils",                  r""),
+    ("absolute lymphocyte count",   r"lymphocytes",                  r""),
+    ("中性粒细胞计数",                r"neutrophils",                  r""),
+    ("单核细胞数",                    r"monocytes",                    r""),
+    ("白细胞总数",                    r"leukocytes",                   r""),
+    ("serum cystatin c",            r"cystatin c",                   r""),
+    ("serum uric acid",             r"urate",                        r""),
+    ("mean corpuscular volume",     r"MCV|mean corpuscular volume",  r""),
+    ("mean platelet volume",        r"platelet.*entitic mean volume", r""),
+    ("mean corpuscular hemoglobin", r"^MCH\b",                        r"MCHC"),
+    ("mean corpuscular hemoglobin concentration", r"MCHC",           r""),
+    ("total calcium",               r"^calcium \[",                  r"ionized"),
+    ("inorganic phosphorus",        r"phosphate",                    r""),
+    ("estimated glomerular filtration rate", r"glomerular filtration rate", r""),
+    ("lipoprotein a",               r"lipoprotein a",                r""),
+    ("red blood cell distribution width", r"distwidth|distribution width", r""),
+    # `FT3` in the index is T3 resin uptake, a different test with the same
+    # letters; the overrides send every spelling of free T3 to the component.
+    ("FT3",                         r"triiodothyronine.*free|free.*triiodothyronine|T3.*free", r"uptake|T3RU"),
+    ("free T3",                     r"triiodothyronine.*free|free.*triiodothyronine|T3.*free", r"uptake|T3RU"),
+    ("游离T3",                       r"triiodothyronine.*free|free.*triiodothyronine|T3.*free", r"uptake|T3RU"),
     ("红细胞计数",                   r"erythrocyte|red blood cell",   r""),
     ("血小板计数",                   r"platelet",                     r""),
     ("谷丙转氨酶",                   r"alanine aminotransferase",     r""),
@@ -489,6 +514,25 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     ("HGB",             "140", "g/L",    "718-7",   "g/L is already MCnc"),
     ("hematocrit",      "42",  "%",      "4544-3",  "% has no substance sibling"),
     ("白细胞计数",         "6.5", "10*9/L", "26464-8", "count already NCnc"),
+    # The differential, both ways: a measure word in the name goes to the
+    # fraction component, and the unit then picks the count or the ratio;
+    # a bare count component printed as % goes to its `/leukocytes` sibling.
+    ("monocyte count",  "0.5", "10*9/L", "26484-6", "ratio component, count unit"),
+    ("monocyte percentage", "7.1", "%",  "26485-3", "ratio component, ratio unit"),
+    ("中性粒细胞计数",      "4.2", "10*9/L", "26499-4", "ratio component, count unit"),
+    ("Monocytes",       "7.1", "%",      "26485-3", "count component, ratio unit"),
+    ("neutrophils",     "62",  "%",      "26511-6", "count component, ratio unit"),
+    # Units that name two properties: `U/mL` is an enzyme's catalytic
+    # concentration and a tumour marker's arbitrary one; `fL` is an entitic
+    # volume and the mean one; `mL/min` is a flow and an eGFR without its
+    # body-surface term; the eGFR spelling with a multiplication sign parses.
+    ("CA19-9",          "15.3", "U/mL",  "24108-3", "arbitrary units, not catalytic"),
+    ("ALT",             "25",  "U/L",    "1742-6",  "catalytic, unchanged"),
+    ("MCV",             "87.4", "fL",    "30428-7", "entitic mean volume"),
+    ("eGFR",            "88",  "mL/(min×1.73 m^2)", "48642-3", "areic volume rate"),
+    ("eGFR",            "30",  "mL/min", "48642-3", "eGFR without the area term"),
+    ("RDW-CV",          "13.1", "%",     "30385-9", "distribution width printed as %"),
+    ("FT3",             "4.5", "pmol/L", "14928-6", "free T3 to moles/volume"),
 ]
 
 
@@ -618,18 +662,49 @@ def test_an_unparseable_unit_does_not_claim_the_unit_chose_the_code():
 
 
 def test_a_unit_that_contradicts_every_reachable_code_is_refused():
-    """`neutrophils 62 %` answered 751-8 — *Neutrophils [#/volume] in Blood by
-    Automated count*: an absolute count for a reading printed as a percentage,
-    carrying a METHOD nothing in the input specified. Indistinguishable from a
-    correct answer, which is why it is now a refusal carrying its evidence."""
+    """`hemoglobin 14 %` has no code: hemoglobin is a mass concentration and
+    no sibling of it is a fraction. Answering 718-7 would file a percentage
+    into a g/dL series, indistinguishable from a correct row, which is why
+    this is a refusal carrying its evidence rather than the name's code."""
     from mirobody.engine import resolve_reading
 
-    r = resolve_reading("neutrophils", "62", "%")
+    r = resolve_reading("hemoglobin", "14", "%")
     assert not r.resolved
     assert r.loinc == ""
     assert r.method == "refused"
+    assert r.rejected_code == "718-7"
+    assert "MCnc" in r.rejected_reason
+
+
+def test_a_differential_count_printed_as_a_percentage_finds_its_ratio_code():
+    """`neutrophils 62 %` used to answer 751-8, an absolute count by a method
+    nothing specified, then to refuse. The percentage is a real code under
+    `neutrophils/leukocytes`; the five leukocyte types are the one place the
+    denominator is determined, and the count code stays on the record as
+    what the name alone would have said."""
+    from mirobody.engine import resolve_reading
+
+    r = resolve_reading("neutrophils", "62", "%")
+    assert r.loinc == "26511-6"
+    assert r.method == "lexical"
     assert r.rejected_code == "751-8"
-    assert "NCnc" in r.rejected_reason
+    assert "property" in r.evidence
+    # And not for a count that is not a leukocyte type.
+    assert resolve_reading("白细胞", "62", "%").method == "refused"
+
+
+def test_a_name_that_holds_two_analytes_says_which_two():
+    """`Plateletcrit (PCT)`: the stem is plateletcrit and the parenthetical is
+    procalcitonin. Still refused, since neither half is the answer by
+    position, but the refusal names both codes so a person can be asked,
+    which a category word's refusal (`血脂`) never offers."""
+    from mirobody.engine import resolve
+
+    r = resolve("Plateletcrit (PCT)")
+    assert r.method == "refused"
+    assert "51637-7" in r.rejected_reason and "33959-8" in r.rejected_reason
+    assert r.rejected_code == ""
+    assert resolve("血脂").rejected_reason == ""
 
 
 def test_the_unit_still_selects_between_two_real_siblings():

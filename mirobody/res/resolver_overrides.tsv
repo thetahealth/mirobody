@@ -87,8 +87,13 @@ ALP	Alkaline phosphatase
 # ── endocrine & vitamins ─────────────────────────────────────────────────
 free T4	FT4
 free thyroxine	FT4
-free T3	FT3
-free triiodothyronine	FT3
+# `FT3` in the index is 3050-2, T3 resin uptake: a different test that shares
+# the letters. Every spelling of free T3 goes to the component instead.
+FT3	Triiodothyronine.free
+free T3	Triiodothyronine.free
+free triiodothyronine	Triiodothyronine.free
+游离T3	Triiodothyronine.free
+游离三碘甲状腺原氨酸	Triiodothyronine.free
 vitamin D	Calcidiol
 vitamin D3	Calcidiol
 25-OH vitamin D	Calcidiol
@@ -826,3 +831,12 @@ CK-MB mass	Creatine kinase.MB
 肌酸激酶MB	Creatine kinase.MB
 肌酸激酶同工酶MB	Creatine kinase.MB
 肌酸激酶-MB	Creatine kinase.MB
+
+# ── chemistry names an extractor spelled out ────────────────────────────
+# Same third sweep, over production rows migrated out of th_series_data: the
+# index knows these by abbreviation or by their LOINC component, not by the
+# long form a translating extractor wrote.
+lipoprotein a	Lp(a)
+total calcium	Calcium
+inorganic phosphorus	Phosphate
+estimated glomerular filtration rate	Glomerular filtration rate

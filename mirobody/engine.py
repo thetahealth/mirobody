@@ -55,7 +55,7 @@ from ._bundle import (
     read_members,
 )
 from ._strtab import StringTable
-from .lexical import index_fold, split_trailing_parenthetical, surface_variants
+from .lexical import index_fold, measure_stems, split_trailing_parenthetical, surface_variants
 
 if TYPE_CHECKING:  # `_posting` names np.ndarray in its annotation; numpy itself
     import numpy as np  # is imported lazily so `import mirobody.engine` stays cheap
@@ -103,6 +103,11 @@ _TRAILING_ACRONYM = re.compile(r"\s+[A-Z][A-Z0-9-]{1,7}$")
 #: set is "the value column holds a sentence" rather than a constraint on the
 #: analyte. See `variant_for_reading`.
 _NARRATIVE_SCALES = frozenset({"Nar", "Doc"})
+#: The five leukocyte types of a differential, as the axis table spells their
+#: COMPONENT. Their percentage code is the count component over
+#: `/leukocytes`, and nothing else in LOINC pairs that regularly.
+_LEUKOCYTE_TYPES = frozenset({"neutrophils", "lymphocytes", "monocytes", "eosinophils", "basophils"})
+_FRACTION_PROPERTIES = frozenset({"NFr", "MFr", "VFr", "AFr", "SFr", "CFr"})
 
 
 @dataclass(frozen=True)
@@ -140,11 +145,12 @@ class Resolution:
     #: PROPERTY, SCALE, SYSTEM of `loinc`, so a caller can judge the answer
     #: without a second lookup. Empty when there is no code.
     axes: tuple[str, str, str] = ("", "", "")
-    #: A code that WAS reachable from the name but was refused, and why. Never
-    #: an identity; it is shown so the refusal is auditable and so a wrong
-    #: alias row can be found from the outside. `neutrophils 62 %` carries
-    #: `rejected_code="751-8"` (an absolute count, for a reading printed as a
-    #: percentage) rather than returning it.
+    #: A code that WAS reachable from the name but was set aside, and why. Never
+    #: an identity; it is shown so the decision is auditable and so a wrong
+    #: alias row can be found from the outside. `hemoglobin 14 %` carries
+    #: `rejected_code="718-7"` (a mass concentration, for a reading printed as
+    #: a percentage) and no code; `neutrophils 62 %` carries `751-8` (the
+    #: count the name alone gave) beside the ratio code the unit selected.
     rejected_code: str = ""
     rejected_reason: str = ""
 
@@ -374,6 +380,14 @@ class OfflineResolver:
                 for key in self._keys_for(self._normalize(stem)):
                     if key not in keys:
                         keys.append(key)
+        # "monocyte count", "中性粒细胞计数": the analyte plus the word for how
+        # it was counted. The index knows the analyte and the unit then picks
+        # its count or fraction code (`variant_for_reading`). Appended last,
+        # so it can only turn a miss into a hit.
+        for stem in measure_stems(term):
+            for key in self._keys_for(self._normalize(stem)):
+                if key not in keys:
+                    keys.append(key)
         return keys
 
     def _trailing_token_is_an_abbreviation(self, stem: str, token: str) -> bool:
@@ -599,7 +613,18 @@ class OfflineResolver:
             stem_analyte = self._analyte_of(stem_hit.loinc)
             inside_analyte = self._analyte_of(inside_hit.loinc)
             if not stem_analyte or stem_analyte != inside_analyte:
-                return Resolution(term=term, method="refused")
+                # Still `refused`, but with the two answers named: a caller
+                # can put the choice to a person, which a category word's
+                # refusal never offers.
+                return Resolution(
+                    term=term,
+                    method="refused",
+                    candidates=stem_hit.candidates + inside_hit.candidates,
+                    rejected_reason=(
+                        f"{stem!r} gives {stem_hit.loinc} and {inside!r} gives {inside_hit.loinc}: "
+                        "two analytes in one name"
+                    ),
+                )
             inside_hit = None
 
         chosen = stem_hit or inside_hit
@@ -745,6 +770,11 @@ class OfflineResolver:
             numerator, sep, _ = current[1].partition("/")
             if sep:
                 siblings = _matching(numerator.encode("utf-8"))
+        if not siblings and current[1] in _LEUKOCYTE_TYPES and families & _FRACTION_PROPERTIES:
+            # Count -> ratio, for the differential alone: `Monocytes 7.1 %`
+            # names the count component and the percentage lives under
+            # `monocytes/leukocytes`. Five components, one denominator.
+            siblings = _matching(f"{current[1]}/leukocytes".encode())
         if not siblings:
             # The unit parsed and nothing this analyte can be carries that
             # property or scale: the name and the unit describe two different
