@@ -88,12 +88,12 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 
 | Field | Description |
 |-------|-------------|
-| original_indicator | Indicator name **exactly as the report prints it**, in the report's own language. Never translate it |
-| value | Numerical with unit (e.g., "120 g/L") or descriptive text (keep original text exactly) |
-| reference_range | Normal range in user's language (if provided in report) |
-| unit | Extracted from value (e.g., "g/L", "mmol/L", "×10⁹/L") or empty string |
+| original_indicator | Indicator name EXACTLY as printed in the report: same language, same spelling, same abbreviation. Never translate or normalize it |
+| value | The result only: the number with its comparator if any ("5.62", "<0.5", "++", "阴性"). Do NOT put the unit here; descriptive results keep the original text exactly |
+| unit | The unit EXACTLY as printed beside the value (e.g., "g/L", "mmol/L", "×10⁹/L"), or empty string if none |
+| reference_range | The reference range EXACTLY as printed (e.g., "4.0-10.0", "<5.2"), empty string if none |
 | detection_method | "laboratory" / "Imaging" / "Physiological" / "Pathological" / "wearable" |
-| status | "normal" / "high" / "low" based on reference range comparison |
+| status | "normal" / "high" / "low" as the report flags it, or by comparing with the reference range |
 | notes | Clinical significance or abnormality explanation in user's language |
 
 ### Completeness Requirements:
@@ -102,6 +102,7 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 3. **For descriptive reports** (imaging/pathology): Extract each organ/region finding as separate indicator
 4. **Preserve precision**: Keep exact numerical values and units as shown in report
 5. **Include sub-items**: If a test has multiple components (e.g., lipid panel), extract each component separately
+6. **Split pairs**: A value printed as a pair (blood pressure "120/80") is two indicators (systolic, diastolic), each with its own value
 
 ---
 
@@ -109,8 +110,8 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 1. **Completeness**: Extract ALL indicators from the report - do NOT omit any test results
 2. **Status**: Always one of: "normal", "high", "low" (compare with reference range)
 3. **Detection Method**: Always one of: "laboratory", "Imaging", "Physiological", "Pathological", "wearable"
-4. **Units**: Extract exact unit from value field, empty string if none
-5. **Language**: Adapt `notes` and `reference_range` to user's language ({language}). Do NOT translate `original_indicator` or `value`: copy the printed name verbatim, abbreviations, `#` and `%` suffixes included. That string is the key the standardization stage looks up, and a translated name resolves to no code or to the wrong one
+4. **Units**: `unit` holds the unit; `value` never repeats it
+5. **Language**: Only `notes` is written in the user's language ({language}). `original_indicator`, `value`, `unit` and `reference_range` are copied from the report verbatim, whatever its language. The printed name is the key the standardization stage looks up — a translated one resolves to no code, or to a different measurement
 6. **Precision**: Preserve exact numerical values as shown in the report
 7. **Privacy Protection**: Do NOT extract the following personal identifiable information (PII):
    - ID number (身份证号)
@@ -140,8 +141,8 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
     "reference_number": ""
   }},
   "indicators": [
-    {{"original_indicator": "白细胞计数", "value": "15.5 ×10⁹/L", "reference_range": "4.0-10.0 ×10⁹/L", "unit": "×10⁹/L", "detection_method": "laboratory", "status": "high", "notes": "偏高"}},
-    {{"original_indicator": "红细胞计数", "value": "4.5 ×10¹²/L", "reference_range": "4.0-5.5 ×10¹²/L", "unit": "×10¹²/L", "detection_method": "laboratory", "status": "normal", "notes": ""}}
+    {{"original_indicator": "白细胞计数", "value": "15.5", "reference_range": "4.0-10.0", "unit": "×10⁹/L", "detection_method": "laboratory", "status": "high", "notes": "偏高"}},
+    {{"original_indicator": "红细胞计数", "value": "4.5", "reference_range": "4.0-5.5", "unit": "×10¹²/L", "detection_method": "laboratory", "status": "normal", "notes": ""}}
   ],
   "additional_info": {{
     "content_summary": "血常规检查",
@@ -229,15 +230,15 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                     },
                     "value": {
                         "type": "string",
-                        "description": 'Indicator value. Numerical type includes value and unit (e.g., "120 g/L"); descriptive type keeps original text from report.',
+                        "description": 'The result only, without its unit: a number with its comparator ("5.62", "<0.5"), a grade ("++") or a label ("阴性"); descriptive results keep the original text.',
                     },
                     "reference_range": {
                         "type": "string",
-                        "description": 'Reference range from report (e.g., "110-160 g/L"). Returned according to user language settings.',
+                        "description": 'Reference range exactly as printed in the report (e.g., "110-160", "<5.2"). Empty string if none.',
                     },
                     "unit": {
                         "type": "string",
-                        "description": "Unit of the indicator (e.g., g/L, mmol/L, mg/dL, kcal, etc.). Empty string if no unit applicable.",
+                        "description": "Unit exactly as printed beside the value (e.g., g/L, mmol/L, mg/dL, ×10⁹/L). Empty string if none.",
                     },
                     "detection_method": {
                         "type": "string",
