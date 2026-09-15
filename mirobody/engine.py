@@ -244,6 +244,16 @@ class OfflineResolver:
         row = self._row_for_code(code)
         return self._axis.field(row, _LCN) if row >= 0 else ""
 
+    def axes_of(self, code: str) -> tuple[str, str, str, str, str, str] | None:
+        """`(component, property, scale, system, method, long_common_name)`
+        of a code in the bundle, or `None`. The public face of the axis
+        table, for `mirobody.translate` to build a series key from."""
+        row = self._row_for_code(code)
+        if row < 0:
+            return None
+        _code, component, prop, scale, system, method, lcn = self._axis_row(row)
+        return component, prop, scale, system, method, lcn
+
     def _loinc_for_name(self, name: str) -> str:
         """Corpus long name -> LOINC_NUM, "" when the name is not a LOINC row."""
         needle = self._normalize(name).encode("utf-8")
