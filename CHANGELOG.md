@@ -272,6 +272,19 @@ written by one module and read through one view.
   one commit with a savepoint per row.
 - Election writes `th_day_authority` (one row per person, series and local
   day) and records a rejected candidate in `th_check_result`.
+- `observations.recode` replays the coding of every stored observation under
+  the installed vocabulary, the current rules and the confirmed aliases, and
+  appends a `th_coding_history` row per change with its cause
+  (`recode-release`, `recode-rules`, `recode-alias`); `mirobody recode` runs
+  it. `observations.confirm_alias` records what a person said a printed name
+  means (or that it is not a standard item) and recodes the rows that carry
+  it, so a local series merges into its standard one.
+- The resolver reports what corroborated a code (`Resolution.evidence`,
+  `unit_recognized`, `axes`) and refuses a code the printed unit contradicts
+  (`rejected_code`); `translate.code()` stores that as `needs-input` with
+  reason `unit:conflict`. Eleven printed unit spellings and the power-of-ten
+  count units (`10⁴/μL`) normalize; a LOINC CLASS gate keeps radiology,
+  dental and flow-cytometry codes out of lab-report answers.
 - `translate_build/`: the LOINC 2.83 Tier-2 cut (63,391 codes) and its
   accessory tables, build-time only.
 

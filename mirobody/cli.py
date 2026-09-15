@@ -246,6 +246,31 @@ def _cmd_migrate_observations(args: argparse.Namespace) -> None:
     print(f"read {counts['read']} rows, wrote {counts['written']} observations in {counts['batches']} batch(es)")
 
 
+def _cmd_recode(args: argparse.Namespace) -> None:
+    """Replay the coding of every stored observation under the installed
+    vocabulary and the current rules and aliases; see `observations.recode`."""
+    _require_extra("recode", "app", "sqlalchemy", "the database layer")
+    from mirobody.utils.config import Config
+    from mirobody.utils import execute_query
+    from mirobody.collect.observations import recode
+
+    async def run() -> None:
+        await Config.init(yaml_filenames=args.configs)
+        if args.user:
+            users = [args.user]
+        else:
+            rows = await execute_query("SELECT DISTINCT user_id FROM th_observation ORDER BY 1", {}, log_sql=False) or []
+            users = [str(r["user_id"]) for r in rows]
+        scanned = changed = 0
+        for uid in users:
+            report = await recode(uid)
+            scanned += report.scanned
+            changed += report.changed
+        print(f"{len(users)} person(s): scanned {scanned} observations, recoded {changed}")
+
+    asyncio.run(run())
+
+
 def _width(text: str) -> int:
     """Terminal COLUMNS, not characters.
 
@@ -450,6 +475,14 @@ def main(argv: list[str] | None = None) -> None:
     p_migrate.add_argument("--batch", type=int, default=2000, help="rows per batch (default: 2000)")
     p_migrate.add_argument("--user", default="", help="migrate one person only")
     p_migrate.set_defaults(func=_cmd_migrate_observations)
+
+    p_recode = sub.add_parser(
+        "recode",
+        help="recode stored observations under the installed vocabulary, rules and aliases (requires the [app] extra)",
+    )
+    p_recode.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
+    p_recode.add_argument("--user", default="", help="recode one person only")
+    p_recode.set_defaults(func=_cmd_recode)
 
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())

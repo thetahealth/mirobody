@@ -75,6 +75,9 @@ STAT_AS_REPORTED = "as-reported"
 
 CAUSE_INGEST = "ingest"
 CAUSE_AMEND = "amend"
+CAUSE_RECODE_RELEASE = "recode-release"
+CAUSE_RECODE_RULES = "recode-rules"
+CAUSE_RECODE_ALIAS = "recode-alias"
 
 #: What a collision on the identity index means. `skip`: a retry, not a
 #: duplicate (a report re-uploaded, a batch re-sent after a timeout).
@@ -789,6 +792,157 @@ async def erase(
     return len(deleted or [])
 
 
+# --- recoding: the same frozen rows under a newer vocabulary or rule -------
+
+_SELECT_FOR_RECODE = """
+SELECT o.id, o.name_text, o.name_key, o.local_key, o.value_kind, o.value_text, o.unit_text, o.unit_ucum,
+       o.value_num, o.source_kind, o.series_id, o.decision_id, o.release, o.outcome, o.code_system, o.code
+  FROM v_observation o
+ WHERE o.user_id = :user_id AND o.id > :after {name_filter}
+ ORDER BY o.id
+ LIMIT :batch
+"""
+
+_UPDATE_CURRENT = """
+UPDATE th_coding_current
+   SET release = :release, outcome = :outcome, reason = :reason, code_system = :code_system, code = :code,
+       series_id = :series_id, group_id = :group_id, value_canonical = :value_canonical,
+       unit_canonical = :unit_canonical, decision_id = :decision_id, coded_at = now()
+ WHERE observation_id = :observation_id
+"""
+
+# A day authority names an observation inside a series; when the observation
+# changes series the row is stale and election rebuilds it.
+_DROP_AUTHORITY = "DELETE FROM th_day_authority WHERE observation_id = ANY(:ids)"
+
+_UPSERT_ALIAS = """
+INSERT INTO th_coding_alias (scope, name_key, unit_ucum, code_system, code, confirmed_by, note)
+VALUES (:scope, :name_key, :unit_ucum, :code_system, :code, :confirmed_by, :note)
+ON CONFLICT (scope, name_key, unit_ucum) DO UPDATE
+   SET code_system = EXCLUDED.code_system, code = EXCLUDED.code, confirmed_by = EXCLUDED.confirmed_by,
+       confirmed_at = now(), note = EXCLUDED.note
+"""
+
+
+@dataclass
+class RecodeReport:
+    scanned: int = 0
+    changed: int = 0
+    outcomes: dict[str, int] = field(default_factory=dict)
+    series: set[str] = field(default_factory=set)
+
+    def count(self, outcome: str) -> None:
+        self.outcomes[outcome] = self.outcomes.get(outcome, 0) + 1
+
+
+def _same_coding(row: dict[str, Any], coding: translate.Coding) -> bool:
+    return (
+        str(row["outcome"]) == coding.outcome
+        and (row["code"] or None) == coding.code
+        and (row["code_system"] or None) == coding.code_system
+        and str(row["series_id"]) == coding.series_id
+        and str(row["release"]) == coding.release
+        and str(row["decision_id"]) == coding.decision_id
+    )
+
+
+async def recode(
+    user_id: str,
+    *,
+    cause: str = "",
+    name_key: str | None = None,
+    batch: int = 500,
+) -> RecodeReport:
+    """Replay `translate.code()` over one person's visible observations and
+    replace the coding of every row whose answer changed.
+
+    This is what `th_coding_history` is for: the observation never changes,
+    the vocabulary release, the rules and the confirmed aliases do, and each
+    replay appends a history row with its `cause`. `cause` defaults to
+    `recode-release` when the row was coded under another release and
+    `recode-rules` otherwise; `name_key` limits the pass to one printed name
+    (after an alias was confirmed). Runs in batches, one transaction each,
+    so a long history is recoded without holding a lock over all of it.
+    """
+    report = RecodeReport()
+    current_release = translate.release()
+    name_filter = " AND o.name_key = :name_key" if name_key else ""
+    after = 0
+    while True:
+        async with db.transaction() as tx:
+            params: dict[str, Any] = {"user_id": str(user_id), "after": after, "batch": batch}
+            if name_key:
+                params["name_key"] = name_key
+            rows = await tx.execute(_SELECT_FOR_RECODE.format(name_filter=name_filter), params)
+            if not rows:
+                break
+            aliases = await _load_aliases(tx, str(user_id))
+            changed_ids: list[int] = []
+            for r in rows:
+                row = dict(r)
+                # The driver hands `numeric` back as Decimal; the seam works in floats.
+                row["value_num"] = None if row["value_num"] is None else float(row["value_num"])
+                report.scanned += 1
+                after = int(row["id"])
+                coding = coding_for(row, aliases)
+                if _same_coding(row, coding):
+                    continue
+                why = cause or (CAUSE_RECODE_RELEASE if str(row["release"]) != current_release else CAUSE_RECODE_RULES)
+                await tx.execute(_INSERT_DECISION, {
+                    "decision_id": coding.decision_id, "name_key": row["name_key"], "unit_ucum": row["unit_ucum"],
+                    "value_kind": row["value_kind"], "release": coding.release, "rule": coding.rule,
+                    "evidence": list(coding.evidence),
+                })
+                params_c = _coding_params(int(row["id"]), coding)
+                await tx.execute(_UPDATE_CURRENT, params_c)
+                await tx.execute(_INSERT_HISTORY, {**params_c, "cause": why})
+                if coding.coded and coding.code_system == translate.LOINC_SYSTEM and coding.axes is not None:
+                    await tx.execute(_INSERT_CONCEPT, {
+                        "release": coding.release, "code_system": coding.code_system, "code": coding.code,
+                        "display": coding.display or coding.code, "series_id": coding.series_id,
+                        "component": coding.axes.component, "property": coding.axes.property,
+                        "time": coding.axes.time, "system": coding.axes.system, "scale": coding.axes.scale,
+                        "method": coding.axes.method,
+                    })
+                report.changed += 1
+                report.count(coding.outcome)
+                report.series.update((str(row["series_id"]), coding.series_id))
+                if str(row["series_id"]) != coding.series_id:
+                    changed_ids.append(int(row["id"]))
+            if changed_ids:
+                await tx.execute(_DROP_AUTHORITY, {"ids": changed_ids})
+            await refresh_series(tx, str(user_id), report.series)
+            report.series.clear()
+            if len(rows) < batch:
+                break
+    logger.info("recode: scanned=%d changed=%d outcomes=%s", report.scanned, report.changed, report.outcomes or {})
+    return report
+
+
+async def confirm_alias(
+    user_id: str,
+    name_key: str,
+    unit_ucum: str,
+    code: str | None,
+    *,
+    confirmed_by: str,
+    code_system: str | None = translate.LOINC_SYSTEM,
+    scope: str | None = None,
+    note: str = "",
+) -> RecodeReport:
+    """Record what a person said a printed name means, then recode the rows
+    that carry it. `code=None` confirms "not a standard item": the rows are
+    refused rather than left waiting for input. `scope` defaults to this
+    person; `global` applies to everyone and is a curator's call."""
+    async with db.transaction() as tx:
+        await tx.execute(_UPSERT_ALIAS, {
+            "scope": scope or f"user:{user_id}", "name_key": name_key, "unit_ucum": unit_ucum or "",
+            "code_system": code_system if code else None, "code": code,
+            "confirmed_by": confirmed_by, "note": note or None,
+        })
+    return await recode(str(user_id), cause=CAUSE_RECODE_ALIAS, name_key=name_key)
+
+
 # --- rows in the shape the collect layer still produces --------------------
 
 _DAY_STATS = (("dailytotal", "sum"), ("dailysum", "sum"), ("dailyavg", "mean"), ("dailyaverage", "mean"),
@@ -907,6 +1061,9 @@ __all__ = [
     "AGGREGATE_TASK_IDS",
     "CAUSE_AMEND",
     "CAUSE_INGEST",
+    "CAUSE_RECODE_ALIAS",
+    "CAUSE_RECODE_RELEASE",
+    "CAUSE_RECODE_RULES",
     "Draft",
     "FINGERPRINT_FIELDS",
     "GRAIN_DAY",
@@ -926,6 +1083,7 @@ __all__ = [
     "ON_CONFLICT_AMEND",
     "ON_CONFLICT_SKIP",
     "Provenance",
+    "RecodeReport",
     "REJECT_NO_NAME",
     "REJECT_NO_TIME",
     "REJECT_WRITE_ERROR",
@@ -939,6 +1097,7 @@ __all__ = [
     "amend",
     "catalog_alias",
     "coding_for",
+    "confirm_alias",
     "erase",
     "ingest",
     "ingest_legacy_rows",
@@ -946,6 +1105,7 @@ __all__ = [
     "legacy_provenance",
     "prepare",
     "rebuild_series",
+    "recode",
     "redate",
     "refresh_series",
     "retract",
