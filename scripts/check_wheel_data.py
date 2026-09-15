@@ -29,8 +29,12 @@ import zipfile
 REQUIRED = {
     "mirobody/res/fhir_loinc_bundle.tar.gz": 1_000_000,
     "mirobody/res/aliases_src/zh.tsv": 100_000,
-    "mirobody/res/aliases_src/ja.tsv": 100_000,
     "mirobody/res/resolver_overrides.tsv": 1_000,
+    # The CLASS gate. Absent, `_skipped()` logs a warning and every radiology,
+    # dental and cell-marker code becomes reachable again — `癌胚抗原` would go
+    # back to answering the flow-cytometry marker. A silent recall regression
+    # is exactly what this gate exists to catch.
+    "mirobody/res/loinc_class_gated.tsv": 100_000,
     # 1.4.0: the indicator catalogue, its Chinese labels and the dose-form
     # table are read at import time by `mirobody.kernel.metrics` / `mirobody.kernel.meds`.
     "mirobody/res/metrics.tsv": 40_000,

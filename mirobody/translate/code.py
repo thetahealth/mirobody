@@ -121,8 +121,20 @@ def code(
     from mirobody.engine import resolve_reading
 
     hit = resolve_reading(name_text, value_text or None, unit_text or unit_ucum or None)
-    evidence = (f"term={name_text}", f"method={hit.method}", f"candidates={hit.candidates}")
+    evidence = (
+        f"term={name_text}", f"method={hit.method}", f"candidates={hit.candidates}",
+        "axes=" + ",".join(hit.evidence), f"unit_recognized={hit.unit_recognized}",
+    )
     did = decision_id(name_key, unit_ucum, value_kind, rel, RULE_ENGINE)
+    if hit.rejected_code and not hit.loinc:
+        # The name reached a code and the printed unit contradicts every code
+        # of that analyte: one of the two was read wrong, and a person can say
+        # which. Not a refusal (that is a decision never to answer) and never
+        # the contradicted code.
+        return Coding(
+            OUTCOME_NEEDS_INPUT, local, did, RULE_ENGINE, rel, reason="unit:conflict",
+            evidence=evidence + (f"rejected={hit.rejected_code}", f"why={hit.rejected_reason}"),
+        )
     if hit.method == "refused":
         return Coding(OUTCOME_REFUSED, local, did, RULE_ENGINE, rel, reason="engine:refused", evidence=evidence)
     if not hit.resolved or not hit.loinc:

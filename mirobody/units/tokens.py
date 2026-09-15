@@ -82,8 +82,27 @@ MORPHEMES: dict[str, list[str]] = {
 
 
 ALIASES: dict[str, list[str]] = {
+    # ── Printed spellings measured on real reports, 2026-09 ───────────────
+    # Every entry below was a string a US, Chinese or Japanese lab actually
+    # prints and `normalize_unit` answered None for. An unrecognized unit is
+    # not inert: the PROPERTY gate cannot fire, so the reading falls back to
+    # whatever the NAME alone resolves to. Measured consequence:
+    # `Magnesium 2.1 mcmol/L` answered 19123-9 *[Mass/volume]* while
+    # `mmol/L` correctly answers 2601-3 *[Moles/volume]*: one missing token
+    # flipped a real analyte between mass and molar.
+    'u[IU]/mL': ['uIU/mL', 'µIU/mL', 'μIU/mL', 'uIU/ml', 'μIU/ml', 'uiu/mL', 'mcIU/mL'],
+    # Japanese CBC. Before the `_POWER_OF_TEN_UNIT` guard in normalize.py these
+    # did not merely miss: `10⁴/μL` returned `/uL`, dropping the exponent, and
+    # `parse_value_unit("450 10⁴/μL")` returned **450104**.
+    '10*4/uL': ['10^4/uL', '10^4/μL', '10⁴/μL', '10⁴/uL', '×10⁴/μL', '10*4/ul', 'x10^4/uL'],
+    '10*2/uL': ['10^2/uL', '10^2/μL', '10²/uL', '10²/μL'],
+    # ESR. The family is the literal LOINC PROPERTY string `Sedimentation Rate`
+    # (verified against the shipped axis table: 4537-7 and 30341-2 both carry
+    # it). `Vel` would be dimensionally sensible and would match zero ESR rows.
+    'mm/h': ['mm/hr', 'mm/Hr', 'mm/HR', 'mm/1h', 'mm 1h', 'mm/hour', 'mm/h.'],
+
     '%': ['percent', 'pct', 'PCT', 'spo2', 'SpO2'],
-    '/HPF': ['/HPF', '/hpf', 'HPF'],
+    '/HPF': ['/HPF', '/hpf', 'HPF', '个/HP', '個/HP', '/HP', '个/高倍', 'per HPF'],
     '/LPF': ['/LPF', '/lpf', 'LPF'],
     '/min': ['/min', 'per min', 'bpm', 'beats/min', 'breaths/min', 'count/min', 'cnt/min'],
     '/h': ['count/hour', 'count/hr', 'cnt/h'],
@@ -125,9 +144,9 @@ ALIASES: dict[str, list[str]] = {
     'uL': ['UL', 'ul'],
     'ug': ['MCG', 'mcg', 'ug'],
     'wk': ['WK', 'wk'],
-    '/uL': ['/ul', '/μL', '/uL'],
-    '10*3/uL': ['10^3/uL', '10^3/ul', '10^3/μL', '×10³/uL', '10³/uL', '10*3/ul', 'K/uL', 'k/uL'],
-    '10*6/uL': ['10^6/uL', '10^6/μL', '×10⁶/uL', '10⁶/uL', 'M/uL'],
+    '/uL': ['/ul', '/μL', '/uL', 'cells/uL', 'cells/μL', 'Cells/uL', '/mm3', '/mm³', 'cells/mm3', '个/μL', '個/μL'],
+    '10*3/uL': ['10^3/uL', '10^3/ul', '10^3/μL', '×10³/uL', '10³/uL', '10*3/ul', 'K/uL', 'k/uL', 'Thousand/uL', 'thousand/uL', 'Thousand/μL', 'K/μL', 'x10E3/uL', '10E3/uL', 'x10e3/uL', '10^3/mm3', 'K/mm3'],
+    '10*6/uL': ['10^6/uL', '10^6/μL', '×10⁶/uL', '10⁶/uL', 'M/uL', 'Million/uL', 'million/uL', 'Million/μL', 'M/μL', 'x10E6/uL', '10E6/uL', '10^6/mm3'],
     'Cel': ['°C', 'degC', 'celsius', 'Celsius', '摄氏度', '攝氏度', '摄氏', '攝氏', '摂氏', '섭씨', '°С', 'градус Цельсия', 'градусов Цельсия', 'Grad Celsius', 'degrés Celsius', 'grados Celsius'],
     'L/min': ['L per minute'],
     'U/L': ['U/L', 'U/l', 'u/L', 'UNT/L'],
@@ -180,7 +199,7 @@ ALIASES: dict[str, list[str]] = {
     'mCi': ['MCI', 'mCi'],
     'mL/(24.h)': ['mL/24h'],
     'mL/min': ['mL per minute'],
-    'mL/min/{1.73_m2}': ['mL/min/1.73m2', 'mL/min/1.73 m2', 'eGFR'],
+    'mL/min/{1.73_m2}': ['mL/min/1.73m2', 'mL/min/1.73 m2', 'eGFR', 'mL/min/1.73', 'ml/min/1.73', 'ml/min/1.73m2'],
     'mU/L': ['mU/L', 'mU/l'],
     'mU/mL': ['mU/mL'],
     'm[IU]/L': ['mIU/L', 'mIU/l'],
@@ -211,6 +230,6 @@ ALIASES: dict[str, list[str]] = {
     'ug/g': ['ug/g creatinine', 'ug/g creat'],
     'ug/mL': ['mcg/mL'],
     'ukat/L': ['ukatal/L'],
-    'umol/L': ['umol/l', '微摩尔', '微摩爾'],
+    'umol/L': ['umol/l', '微摩尔', '微摩爾', 'mcmol/L', 'mcmol/l', 'µmol/l'],
     'umol/dL': ['umol/dl'],
 }

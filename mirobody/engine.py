@@ -98,6 +98,12 @@ _SPECIAL_SPECIMEN = re.compile(rb"\b(cord|capillary|venous|arterial|dialysis)\b"
 # "Fasting plasma glucose FPG" -> "Fasting plasma glucose" (trailing acronym).
 _TRAILING_ACRONYM = re.compile(r"\s+[A-Z][A-Z0-9-]{1,7}$")
 
+#: Scales a free-prose value maps to. `scales_for_value` answers (`Nar`, `Doc`)
+#: for anything it cannot read as a number, an ordinal or a comparator, so this
+#: set is "the value column holds a sentence" rather than a constraint on the
+#: analyte. See `variant_for_reading`.
+_NARRATIVE_SCALES = frozenset({"Nar", "Doc"})
+
 
 @dataclass(frozen=True)
 class Resolution:
@@ -119,9 +125,60 @@ class Resolution:
     method: str = ""
     score: float = 0.0              # cosine, semantic answers only
 
+    #: Which axes corroborated this answer, in order: ``("name",)`` the alias
+    #: table alone, ``("name", "property")`` the printed unit agreed with or
+    #: selected the code, ``("name", "property", "scale")`` the value's kind
+    #: too. A unit that confirmed the code, one that did not parse and no unit
+    #: at all used to give byte-identical results; this is how they differ.
+    evidence: tuple[str, ...] = ()
+    #: ``True``/``False`` when a unit was printed and did/does not normalize to
+    #: UCUM; ``None`` when the reading carried no unit at all. A `False` here is
+    #: the caller's signal that `loinc` rests on the name alone: 11 of 32 real
+    #: printed unit spellings measured do not normalize today, so this is common
+    #: and is a gap in our tables rather than a fault in the report.
+    unit_recognized: bool | None = None
+    #: PROPERTY, SCALE, SYSTEM of `loinc`, so a caller can judge the answer
+    #: without a second lookup. Empty when there is no code.
+    axes: tuple[str, str, str] = ("", "", "")
+    #: A code that WAS reachable from the name but was refused, and why. Never
+    #: an identity; it is shown so the refusal is auditable and so a wrong
+    #: alias row can be found from the outside. `neutrophils 62 %` carries
+    #: `rejected_code="751-8"` (an absolute count, for a reading printed as a
+    #: percentage) rather than returning it.
+    rejected_code: str = ""
+    rejected_reason: str = ""
+
     @property
     def code(self) -> str:
         return self.loinc
+
+
+@dataclass(frozen=True)
+class UnitVerdict:
+    """What a reading's printed unit and value said about a candidate code.
+
+    `variant_for_reading` used to return a bare code, which collapsed four
+    outcomes into one string: agreement, a switch, a unit that did not parse,
+    and a unit that CONTRADICTED the code. The last is the dangerous one and
+    was indistinguishable from the first.
+    """
+
+    #: The code to use. Empty only on ``"axis-conflict"``, where every reachable
+    #: code disagrees with what the report printed.
+    code: str
+    #: ``no-signal``: neither a usable unit nor a value whose kind constrains
+    #: SCALE. ``agreed``: the name's code satisfies unit and value.
+    #: ``switched``: a sibling of the same analyte matches; `code` is it.
+    #: ``unit-unrecognized``: a unit was printed and is not in our UCUM tables;
+    #: the name-only code is returned (our gap, not the report's) but
+    #: `evidence` will not claim the unit corroborated it. ``axis-conflict``:
+    #: the unit parsed and no code of this analyte carries that property or
+    #: scale; the name and the unit describe different measurements.
+    outcome: str
+    unit_ucum: str = ""
+    axes: tuple[str, str, str] = ("", "", "")
+    rejected_code: str = ""
+    rejected_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -410,6 +467,14 @@ class OfflineResolver:
         keys.append(norm)
         return keys
 
+    def _axes_of(self, code: str) -> tuple[str, str, str]:
+        """PROPERTY, SCALE, SYSTEM for a code, or ("", "", "") when unknown."""
+        row = self._row_for_code(code)
+        if row < 0:
+            return ("", "", "")
+        r = self._axis_row(row)
+        return (r[2], r[3], r[4])
+
     def _skipped(self) -> set[bytes]:
         """LOINC codes the bundle says not to answer with.
 
@@ -428,10 +493,29 @@ class OfflineResolver:
         LOINC has since retired.
         """
         if self._skip is None:
-            self._skip = {
+            skip = {
                 code.encode("ascii")
                 for code in read_code_list("loinc_skip.txt", bundle_path=_BUNDLE)
             }
+            # `res/loinc_class_gated.tsv`: codes gated by their LOINC CLASS,
+            # which the bundle carries but the runtime index drops; its home
+            # is `loinc_skip.txt` at the next bundle build (the Tier-2 cut
+            # already excludes these families). They are ordinary measurements
+            # from a discipline a lab report never prints (`癌胚抗原` answered
+            # 17188-4 CLASS=CELLMARK instead of 2039-6 CLASS=CHEM; `骨量` a
+            # bone volume in a tooth space). Measured on 7,354 cases: zero
+            # correct answers lost.
+            path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "res", "loinc_class_gated.tsv")
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    for line in fh:
+                        line = line.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        skip.add(line.split("\t", 1)[0].encode("ascii"))
+            except OSError:
+                logger.warning("loinc_class_gated.tsv missing; CLASS gate inactive")
+            self._skip = skip
         return self._skip
 
     def _pick(self, rows, exclude: frozenset[int] = frozenset()) -> int:
@@ -549,7 +633,7 @@ class OfflineResolver:
             self._by_component = index
         return self._by_component
 
-    def variant_for_reading(self, loinc: str, value: str | None, unit: str | None) -> str:
+    def variant_for_reading(self, loinc: str, value: str | None, unit: str | None) -> UnitVerdict:
         """The code for the SAME measurement, in the form this reading took.
 
         LOINC gives one code per (analyte, property, scale, specimen, method),
@@ -580,7 +664,7 @@ class OfflineResolver:
         alone" is always available and always safe.
         """
         if not loinc:
-            return loinc
+            return UnitVerdict(code=loinc, outcome="no-signal")
         from .units import normalize_unit, parse_value_unit, unit_families
         from .value_scale import scales_for_value
 
@@ -590,20 +674,53 @@ class OfflineResolver:
         # half the shapes real data arrives in.
         if not unit and value:
             unit = parse_value_unit(value).unit or ""
-        ucum = normalize_unit(unit) if unit else None
+        printed_unit = (unit or "").strip()
+        ucum = normalize_unit(printed_unit) if printed_unit else None
         families = frozenset(unit_families(ucum) or ()) if ucum else frozenset()
         scales = scales_for_value(value) or frozenset()
-        if not families and not scales:
-            return loinc
+        # Free prose in the value column (`见报告`, `clear yellow fluid`) maps
+        # to (`Nar`, `Doc`). That is the ABSENCE of a measurement, not a claim
+        # about this analyte's scale: the report wrote a sentence where a result
+        # goes. Treating it as a constraint made `尿蛋白` + `见报告` an
+        # axis-conflict against its own correct `PrThr/Ord` code.
+        if scales and scales <= _NARRATIVE_SCALES:
+            scales = frozenset()
 
         row = self._row_for_code(loinc)
-        if row < 0:
-            return loinc
-        current = self._axis_row(row)
+        axes = ("", "", "")
+        current = None
+        if row >= 0:
+            current = self._axis_row(row)
+            axes = (current[2], current[3], current[4])
+
+        # A unit was printed and our tables do not know it. Answer from the name
+        # and SAY SO, rather than either withholding the code or, as before,
+        # returning it as though the unit had agreed. Withholding would be the
+        # larger error: measured across real printed spellings, 11 of 32 fail to
+        # normalize today (`Thousand/uL`, `uIU/mL`, `mm/hr`, `个/HP` …), so an
+        # unrecognized unit is usually OUR gap, not a bad report.
+        if printed_unit and ucum is None:
+            return UnitVerdict(
+                code=loinc,
+                outcome="unit-unrecognized",
+                axes=axes,
+                rejected_reason=f"unit {printed_unit!r} is not in the UCUM tables",
+            )
+
+        if not families and not scales:
+            return UnitVerdict(code=loinc, outcome="no-signal", unit_ucum=ucum or "", axes=axes)
+        if current is None:
+            return UnitVerdict(code=loinc, outcome="no-signal", unit_ucum=ucum or "", axes=axes)
+
         prop_ok = (not families) or current[2] in families
         scale_ok = (not scales) or current[3] in scales
         if prop_ok and scale_ok:
-            return loinc
+            return UnitVerdict(
+                code=loinc,
+                outcome="agreed",
+                unit_ucum=ucum or "",
+                axes=axes,
+            )
 
         def _matching(component: bytes) -> list:
             return [
@@ -629,12 +746,39 @@ class OfflineResolver:
             if sep:
                 siblings = _matching(numerator.encode("utf-8"))
         if not siblings:
-            return loinc
+            # The unit parsed and nothing this analyte can be carries that
+            # property or scale: the name and the unit describe two different
+            # measurements. Returning `loinc` here is what made
+            # `neutrophils 62 %` answer `751-8` (*Neutrophils [#/volume] … by
+            # Automated count*): an absolute count, for a reading printed as a
+            # percentage, and carrying a METHOD nothing in the input specified.
+            # That answer is indistinguishable from a correct one, which is the
+            # whole reason this branch now refuses instead.
+            want = "/".join(sorted(families)) if families else "/".join(sorted(scales))
+            return UnitVerdict(
+                code="",
+                outcome="axis-conflict",
+                unit_ucum=ucum or "",
+                axes=axes,
+                rejected_code=loinc,
+                rejected_reason=(
+                    f"{loinc} is {current[2]}/{current[3]}; the reading needs {want}, "
+                    "and no code for this analyte carries it"
+                ),
+            )
         same_system = [r for r in siblings if r[4] == current[4]] or siblings
         # A method-less variant first: `... by Automated count` is a narrower
         # claim than the report supports.
         same_system.sort(key=lambda r: (r[5] != "", len(r[6])))
-        return same_system[0][0]
+        chosen = same_system[0]
+        return UnitVerdict(
+            code=chosen[0],
+            outcome="switched",
+            unit_ucum=ucum or "",
+            axes=(chosen[2], chosen[3], chosen[4]),
+            rejected_code=loinc,
+            rejected_reason=f"the name alone gives {loinc} ({current[2]}/{current[3]})",
+        )
 
     def _lookup(self, term: str) -> Resolution | None:
         """First candidate key that hits the alias index, or None on a miss."""
@@ -674,6 +818,12 @@ class OfflineResolver:
                     candidates=int(len(rows)),
                     resolved=True,
                     method="lexical",
+                    # `("name",)`, not `()`: the alias table chose this code and
+                    # nothing corroborated it. Left empty, `"name" in evidence`
+                    # was False from `resolve()` and True from
+                    # `resolve_reading()` for the same term and code.
+                    evidence=("name",),
+                    axes=self._axes_of(code),
                 )
         return None
 
@@ -713,9 +863,54 @@ def resolve_reading(name: str, value: str | None = None, unit: str | None = None
     hit = resolver.resolve(name)
     if not hit.resolved or not hit.loinc:
         return hit
-    switched = resolver.variant_for_reading(hit.loinc, value, unit)
-    if switched == hit.loinc:
-        return hit
+    verdict = resolver.variant_for_reading(hit.loinc, value, unit)
+
+    # `evidence` records which axes actually corroborated the answer. It is
+    # built here rather than inside the verdict because only this function knows
+    # that the analyte itself came from the alias table.
+    if verdict.outcome == "axis-conflict":
+        return Resolution(
+            term=hit.term,
+            canonical="",
+            loinc="",
+            candidates=hit.candidates,
+            resolved=False,
+            method="refused",
+            evidence=("name",),
+            unit_recognized=True,
+            rejected_code=verdict.rejected_code,
+            rejected_reason=verdict.rejected_reason,
+        )
+
+    unit_recognized = None if verdict.outcome == "no-signal" and not verdict.unit_ucum else None
+    if verdict.outcome == "unit-unrecognized":
+        unit_recognized = False
+    elif verdict.unit_ucum:
+        unit_recognized = True
+
+    evidence: tuple[str, ...] = ("name",)
+    if verdict.outcome in ("agreed", "switched") and verdict.unit_ucum:
+        evidence += ("property",)
+    if verdict.outcome in ("agreed", "switched") and value:
+        from .value_scale import scales_for_value
+
+        if scales_for_value(value):
+            evidence += ("scale",)
+
+    if verdict.code == hit.loinc:
+        return Resolution(
+            term=hit.term,
+            canonical=hit.canonical,
+            loinc=hit.loinc,
+            candidates=hit.candidates,
+            resolved=hit.resolved,
+            method=hit.method,
+            score=hit.score,
+            evidence=evidence,
+            unit_recognized=unit_recognized,
+            axes=verdict.axes,
+            rejected_reason=verdict.rejected_reason,
+        )
     return Resolution(
         term=hit.term,
         # No `or hit.canonical` fallback: `switched` is a code read out of the
@@ -726,11 +921,16 @@ def resolve_reading(name: str, value: str | None = None, unit: str | None = None
         # 14647-2 labelled "Cholesterol [Mass/volume]", the exact case this
         # function's own docstring uses as its example. A fallback that yields
         # a name contradicting the code is worse than no fallback.
-        canonical=resolver._name_for(switched),
-        loinc=switched,
+        canonical=resolver._name_for(verdict.code),
+        loinc=verdict.code,
         candidates=hit.candidates,
         resolved=True,
         method="lexical",
+        evidence=evidence,
+        unit_recognized=unit_recognized,
+        axes=verdict.axes,
+        rejected_code=verdict.rejected_code,
+        rejected_reason=verdict.rejected_reason,
     )
 
 

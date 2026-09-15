@@ -249,6 +249,36 @@ urine specific gravity	SP GR Ur
 lipid panel	!unresolved
 血脂	!unresolved
 
+# Two more of the same kind: category headings whose wrong answers are
+# ORDINARY LAB CODES, so only an explicit refusal can catch them.
+#
+#   维生素 ("vitamins") used to answer 96450-2 *Hepatocellular carcinoma risk
+#   [Score] GALAD*, and the next candidate down is 1823-4 *Alpha tocopherol*:
+#   vitamin E, a perfectly valid serum concentration and still the wrong
+#   answer, because the heading covers D, B12 and folate too and nothing in
+#   the word chooses E.
+#
+#   肿瘤标志物 ("tumour markers") answers 53959-3 *Choriogonadotropin.tumor
+#   marker* — one marker standing in for the category, on the panel where a
+#   wrong answer is least forgivable.
+#
+# The English and Japanese spellings (vitamins, tumor/tumour markers,
+# ビタミン, 腫瘍マーカー) already resolve to nothing and need no row.
+维生素	!unresolved
+維生素	!unresolved
+肿瘤标志物	!unresolved
+腫瘤標誌物	!unresolved
+# Two report SECTION headings. 尿常规 answered 19159-3 (a specimen collection
+# method) and 电解质 answered 19096-7 (a 24-hour urine narrative): the alias
+# index had nothing better than a code of the wrong kind. An axis rule that
+# rejected such candidates (PROPERTY Prid/Imp/Find, SCALE Nar/Doc) was
+# measured on 7,354 cases and cost several hundred correct answers for eight
+# saved, so the two headings are refused here, like 血脂 above.
+尿常规	!unresolved
+尿常規	!unresolved
+电解质	!unresolved
+電解質	!unresolved
+
 # Specimen-prefixed Chinese, which is how a real report prints them. The index
 # carries the bare noun (肌酐, 尿酸, 总胆固醇) because that is the alias shape
 # the lexicon was built from; a printed 中文 panel writes 血清肌酐 / 尿白细胞.

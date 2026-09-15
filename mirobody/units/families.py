@@ -259,7 +259,9 @@ UCUM_FAMILY: dict[str, str] = {
     "nkat/L":   "CCnc",
 
     # ── Number concentration (NCnc) ───────────────────────────────────
+    "10*2/uL":  "NCnc",
     "10*3/uL":  "NCnc",
+    "10*4/uL":  "NCnc",
     "10*6/uL":  "NCnc",
     "10*6/mL":  "NCnc",
     "10*6/L":   "NCnc",
@@ -271,6 +273,14 @@ UCUM_FAMILY: dict[str, str] = {
     "/dL":      "NCnc",
     "/g":       "NCnt",         # count per gram: bacterial counts
     "/kg":      "NCnt",
+
+    # ── Erythrocyte sedimentation rate ────────────────────────────────
+    # Not `Vel`. LOINC gives ESR the literal PROPERTY string
+    # "Sedimentation Rate" (4537-7, 30341-2, checked against the shipped
+    # axis table), and this value is matched against that column directly,
+    # so a dimensionally-reasonable `Vel` here would match no ESR row at all
+    # and would boost Doppler and nerve-conduction codes instead.
+    "mm/h":     "Sedimentation Rate",
 
     # ── Bare counts (Num) ─────────────────────────────────────────────
     "10*6":     "Num",

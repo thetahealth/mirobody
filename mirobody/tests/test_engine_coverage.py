@@ -374,6 +374,15 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     ("血脂肪", ("the same lipid panel, 台灣 wording — needs its own refusal row: "
                 "the zh-Hant fold reaches nothing here, and without the row the "
                 "semantic tier would answer it")),
+    ("维生素", ("a heading covering D, B12, folate and E: it used to answer "
+               "96450-2 'Hepatocellular carcinoma risk [Score] GALAD', and the "
+               "next candidate down is 1823-4 alpha tocopherol, a real serum "
+               "concentration and still the wrong answer")),
+    ("維生素", "the same heading in 繁體"),
+    ("肿瘤标志物", ("answered 53959-3, one specific marker standing in for the "
+                  "whole category, on the panel where a wrong answer is least "
+                  "forgivable")),
+    ("腫瘤標誌物", "the same heading in 繁體"),
     ("绝对不存在的指标名xyzzy", "pure nonsense must never resolve"),
     # "名称(缩写)" where the two halves mean DIFFERENT tests. The parenthetical
     # strip must not silently prefer the stem: filing an HbA1c reading into the
@@ -561,3 +570,177 @@ def test_a_value_of_an_unknown_kind_places_no_constraint():
 
     for value in (None, "", "见报告", "clear yellow fluid"):
         assert resolve_reading("尿蛋白", value, None).loinc == resolve("尿蛋白").loinc
+
+
+# ---------------------------------------------------------------------------
+# What the printed unit is allowed to decide, and what it must refuse
+# ---------------------------------------------------------------------------
+
+
+def test_a_unit_that_confirms_a_code_is_distinguishable_from_one_that_does_not():
+    """Three situations used to be byte-identical, and one of them was a bug.
+
+    `resolve_reading("hemoglobin", "11.2", …)` returned `718-7 / lexical /
+    candidates=72` for a unit that CONFIRMS the code, a unit that could not be
+    parsed at all, and no unit whatsoever. A caller had no way to learn that its
+    strongest disambiguator had been silently discarded, which is the whole
+    premise of passing the unit in the first place.
+    """
+    from mirobody.engine import resolve_reading
+
+    confirmed = resolve_reading("hemoglobin", "11.2", "g/dL")
+    nonsense = resolve_reading("hemoglobin", "11.2", "furlongs/fortnight")
+    absent = resolve_reading("hemoglobin", "11.2", None)
+
+    # All three still answer — withholding a code because we do not know a unit
+    # spelling would be the larger error, since unknown spellings are our gap.
+    assert confirmed.loinc == nonsense.loinc == absent.loinc == "718-7"
+
+    # But they are no longer the same answer.
+    assert confirmed.unit_recognized is True
+    assert nonsense.unit_recognized is False
+    assert absent.unit_recognized is None
+    assert "property" in confirmed.evidence
+    assert "property" not in nonsense.evidence
+    assert "property" not in absent.evidence
+
+
+def test_an_unparseable_unit_does_not_claim_the_unit_chose_the_code():
+    """`total cholesterol 5.0 bananas` answered 2093-3 — the mg/dL form — with
+    a shape identical to a unit-confirmed answer. 5.0 mg/dL cholesterol is
+    physiologically absurd, and nothing in the result said the unit had been
+    thrown away."""
+    from mirobody.engine import resolve_reading
+
+    r = resolve_reading("total cholesterol", "5.0", "bananas")
+    assert r.evidence == ("name",)
+    assert r.unit_recognized is False
+
+
+def test_a_unit_that_contradicts_every_reachable_code_is_refused():
+    """`neutrophils 62 %` answered 751-8 — *Neutrophils [#/volume] in Blood by
+    Automated count*: an absolute count for a reading printed as a percentage,
+    carrying a METHOD nothing in the input specified. Indistinguishable from a
+    correct answer, which is why it is now a refusal carrying its evidence."""
+    from mirobody.engine import resolve_reading
+
+    r = resolve_reading("neutrophils", "62", "%")
+    assert not r.resolved
+    assert r.loinc == ""
+    assert r.method == "refused"
+    assert r.rejected_code == "751-8"
+    assert "NCnc" in r.rejected_reason
+
+
+def test_the_unit_still_selects_between_two_real_siblings():
+    """The refusal above must not have cost the capability it protects."""
+    from mirobody.engine import resolve_reading
+
+    molar = resolve_reading("total cholesterol", "5.0", "mmol/L")
+    mass = resolve_reading("total cholesterol", "193", "mg/dL")
+    assert molar.loinc == "14647-2"
+    assert mass.loinc == "2093-3"
+    assert molar.rejected_code == "2093-3"  # the name alone would have said this
+    assert "property" in molar.evidence
+
+
+def test_free_prose_in_the_value_column_constrains_nothing():
+    """`scales_for_value` answers (Nar, Doc) for anything it cannot read, which
+    is the ABSENCE of a measurement rather than a claim about scale. Treating it
+    as a constraint made `尿蛋白` + `见报告` conflict with its own correct code."""
+    from mirobody.engine import resolve, resolve_reading
+
+    for value in ("见报告", "clear yellow fluid"):
+        r = resolve_reading("尿蛋白", value, None)
+        assert r.loinc == resolve("尿蛋白").loinc
+        assert r.resolved
+
+
+def test_a_category_word_never_lands_on_a_specific_analyte():
+    """A report SECTION heading is refused, not answered with whatever code of
+    the wrong kind the index reaches: 尿常规 used to answer a specimen
+    collection method, 电解质 a 24-hour urine narrative. An axis rule that
+    rejected such candidates cost several hundred correct answers on the
+    7,354-case benchmark for eight saved, so the headings are override rows."""
+    from mirobody.engine import resolve
+
+    assert not resolve("尿常规").resolved            # was 19159-3, a collection method
+    assert not resolve("电解质").resolved            # was 19096-7, a 24h urine narrative
+    assert not resolve("骨量").resolved              # was 34019-0, a DENTAL bone volume
+
+
+def test_what_is_not_a_lab_specimen_but_is_a_result_still_resolves():
+    """Excluding `^Patient` is the intuitive rule and it is wrong: these are all
+    measured on the person rather than on a specimen. `Type` likewise: blood
+    group is a `Type` and a real result."""
+    from mirobody.engine import resolve
+
+    assert resolve("步数").loinc == "41950-7"
+    assert resolve("体脂率").loinc == "41982-0"
+    assert resolve("血型").loinc == "883-9"
+    assert resolve("Rh血型").loinc == "10331-7"
+
+
+def test_a_class_from_another_discipline_is_not_a_lab_result():
+    """A perfectly ordinary measurement from a discipline a printed lab report
+    never contains has nothing wrong with its PROPERTY, SCALE or SYSTEM; only
+    LOINC's own CLASS column tells it apart (`res/loinc_class_gated.tsv`).
+    Two measured defects were exactly that."""
+    from mirobody.engine import resolve
+
+    # CLASS=CELLMARK, the flow-cytometry cell-surface marker, was answering for
+    # the serum tumour marker. Only the abbreviation reached the right code.
+    assert not resolve("癌胚抗原").resolved
+    assert not resolve("carcinoembryonic antigen").resolved
+    assert resolve("CEA").loinc == "2039-6"
+
+    # CLASS=DENTAL — a bone volume measured in a tooth space.
+    assert not resolve("骨量").resolved
+
+
+def test_bone_density_abstains_because_every_code_names_a_site():
+    """All twenty bone-density T-score codes carry a SITE — calcaneus, spine,
+    hip, femur, radius and ulna. There is no site-unspecified code, so a bare
+    `骨密度` cannot be answered without choosing a site the report did not
+    print. It used to answer *Bone DXA Calcaneus*: the heel, picked
+    arbitrarily."""
+    from mirobody.engine import resolve
+
+    assert not resolve("骨密度").resolved
+
+
+def test_the_class_gate_keeps_the_classes_wearables_live_in():
+    """The same lesson as `^Patient`: consumer metrics live in classes that look
+    'not lab'. A first attempt gated `H&P.*` and `EKG.*` and lost all of these."""
+    from mirobody.engine import resolve
+
+    assert resolve("sleep duration").loinc == "93832-4"   # CLASS=H&P.HX
+    assert resolve("HRV").loinc == "76643-6"              # CLASS=EKG.MEAS
+    assert resolve("步数").loinc == "41950-7"              # CLASS=CLIN
+    assert resolve("体脂率").loinc == "41982-0"            # CLASS=BDYWGT.ATOM
+
+
+def test_evidence_reads_the_same_whichever_entry_point_produced_it():
+    """`resolve()` and `resolve_reading()` answer the same term with the same
+    code, so they must describe that answer the same way.
+
+    `evidence` was left empty by `resolve()` and set to `("name",)` by
+    `resolve_reading()`, so a caller asking `"name" in r.evidence` got False
+    from one and True from the other for an identical resolution — a field only
+    readable by someone who already knew which function had produced it.
+    """
+    from mirobody.engine import resolve, resolve_reading
+
+    by_name = resolve("血红蛋白")
+    by_reading = resolve_reading("血红蛋白", None, None)
+    assert by_name.loinc == by_reading.loinc == "718-7"
+    assert by_name.evidence == by_reading.evidence == ("name",)
+
+    # Still empty when nothing was resolved — the field says what corroborated
+    # an answer, and there is no answer.
+    assert resolve("绝对不存在的指标名xyzzy").evidence == ()
+
+    # And it still grows when the reading carries more than a name.
+    assert resolve_reading("total cholesterol", "5.0", "mmol/L").evidence == (
+        "name", "property", "scale",
+    )
