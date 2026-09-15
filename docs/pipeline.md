@@ -18,8 +18,8 @@ how a reader comes to believe a boundary does not exist.
 | 2 | **Pull** | ask the vendor for a window; keep the raw payload | `collect/providers/` |
 | 3 | **Decode** | vendor JSON → `series.Fact`, in the catalogue's units | `kernel/decoders/` |
 | 4 | **Resolve** | which metric IS this — name, code, shape | `kernel/metrics.py`, `engine.py` |
-| 5 | **Gate** | reject the impossible; convert what is convertible | `kernel/quality.py`, applied in `collect/readings.py` |
-| 6 | **Store** | one writer, one day column, one fingerprint | `collect/readings.py` |
+| 5 | **Gate** | reject the impossible; convert what is convertible | `kernel/quality.py`, applied in `collect/observations.py` |
+| 6 | **Store** | one writer, one day column, one fingerprint, the coding beside the row | `collect/observations.py`, `mirobody/translate/` |
 | 7 | **Aggregate** | a day of points → one number, under the metric's policy | `kernel/series.py`, `translate/aggregate/` |
 | 8 | **Elect** | which source the day publishes from | `series.elect`, `translate/aggregate/election.py` |
 | 8b | **Derive** | quantities nothing measured: sleep efficiency, HR range | `translate/derive/rules.py` |
@@ -87,8 +87,9 @@ who both lack a code still agree, and nobody's chart silently merges two tests.
 **Implemented.** `quality.time_gate` (no start, an end before its start, a span
 over 36 hours, a measurement a day in the future) and `value_gate` (a
 percentage outside 0–100, a non-finite number) run on every row inside the
-one writer, `collect/readings.py:gate`, before it is bound; a rejected row is
-counted in the log by reason code and not written. `reconcile_unit`,
+one writer, `collect/observations.py:prepare`, before it is bound; a rejected row
+is counted by reason code, on the extraction row and in the log, and not
+written. `reconcile_unit`,
 `overcount_suspect` and `is_echo` are the kernel's other gates: the first is
 what a decoder uses to land a value in the catalogue's unit, the last two are
 the aggregation pass's (`translate/aggregate/election.py` rejects an impossible
@@ -253,4 +254,5 @@ in this pipeline decides whether a number is good news.
 10. A log line carries ids, counts, durations, status codes and type names — never a value.
 
 Each one is a test in the maintainers' local suite, one module per subject:
-series, quality, metrics, readings, election, decoders and the PHI baseline.
+series, quality, metrics, translate, observations, election, decoders and the
+PHI baseline.

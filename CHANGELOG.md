@@ -221,6 +221,60 @@ cases, coverage 0.963, wrong-rate 0.032.
   were fetched, base64-ed, cached in Redis and handed to the agent, which
   documented that it ignores them: uploads reach the model through `/uploads/`.
 
+## 1.5.0 (unreleased)
+
+The data layer of ② Translate is rebuilt. Every reading, whatever brought it
+in, is one row of an append-only observation table with its coding beside it,
+written by one module and read through one view.
+
+### Breaking
+
+- **`th_series_data` is retired.** `a6_observation_model.sql` creates
+  `th_extraction`, `th_observation`, `th_coding_current`, `th_coding_history`,
+  `th_coding_decision`, `th_coding_alias`, `th_concept`, `th_series`,
+  `th_day_authority`, `th_check_result` and the view `v_observation`;
+  `a7_retire_series_tables.sql` renames the old table and its satellites
+  (`th_series_dim`, `fhir_indicators`, `standard_indicators_device`) to
+  `*_retired_15` and never drops them. `mirobody migrate-observations` moves
+  the old rows through the new writer. `collect/readings.py`, the boot backfill,
+  the indicator sync task, the `fhir_id` cache and the device registry task are
+  gone with the tables they served.
+- **The extraction contract is verbatim.** The file parser asks for the
+  indicator name exactly as printed (never translated), the result without its
+  unit, and the unit and reference range in their own fields; a printed pair
+  (`120/80`) is two indicators. The model's output is frozen in
+  `th_extraction` so a coding can be replayed against what was read.
+- **`query_health_indicators` answers per series.** The catalogue lists series
+  (`translate.series`: one axis for every cholesterol reading, in mg/dL or
+  mmol/L); `indicators` accepts a series id, a LOINC code, a display name or a
+  printed name; a statistic over a mixed-unit series is computed over the
+  canonical values and says `mixed_units`; `change` is withheld across units.
+  The semantic recall tier (an embedding of the person's own names) is
+  replaced by a lexical rank over their series plus the offline resolver.
+- **Corrections are rows.** The web UI's "fix this value" and "remove this
+  reading" write an amendment or a retraction pointing at the old row; a
+  file's date change re-files its readings as amendments; a repair batch
+  retracts what it did not re-confirm. The only DELETE is the privacy path.
+
+### Added
+
+- `mirobody.translate`: the pure seam a reading passes through. `name_key`
+  (one fold), `parse_value` (quantity / ordinal / nominal / narrative /
+  absent, a number never invented), `local_day` (one implementation of "which
+  day", with the zone's provenance recorded), `series_id`
+  (`COMPONENT|SYSTEM|TIME|SCALE|dim(PROPERTY)`, METHOD rolled up, mass and
+  molar folded), and `code()`: a confirmed alias, then the lexical resolver,
+  then the scale gate; `needs-input` or `refused` with a reason otherwise.
+- `collect/observations.py`: `ingest` (one transaction: freeze, fold, parse,
+  place, insert, code, refresh the catalogue), `amend`, `retract`, `redate`,
+  `erase`, `rebuild_series`, and the legacy-row adapter the collect layer
+  still writes through. `utils.db.transaction()` runs several statements in
+  one commit with a savepoint per row.
+- Election writes `th_day_authority` (one row per person, series and local
+  day) and records a rejected candidate in `th_check_result`.
+- `translate_build/`: the LOINC 2.83 Tier-2 cut (63,391 codes) and its
+  accessory tables, build-time only.
+
 ## 1.4.3
 
 A reading extracted from an uploaded report now carries a LOINC code, which is

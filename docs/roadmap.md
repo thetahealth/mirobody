@@ -175,7 +175,7 @@ The split attempt also left two real fixes behind: the architecture tree in
 4 of the package's 12 top-level modules. Both corrected.
 
 
-### `pulse/vendor/` — deleted, archived on a branch
+### `collect/vendor/` — deleted, archived on a branch
 
 **Status:** removed. The 24-source catalogue and `VENDORS.md` are gone from this
 branch; the code is preserved at `archive/pulse-vendor` (a branch pointer, so
@@ -426,11 +426,11 @@ no callers.
 `ProfileRefreshTask.consume` additionally swallows per-user failures and
 continues, dropping that user rather than retrying.
 
-Low impact today: `IndicatorSyncTask` is an idempotent full sweep, and any
-later ingest re-triggers it. But file ingest
-(`files/services/` , then `database_services.py`) is the *only* producer for
-either queue and there is no cron re-drive, so a sweep that dies partway
-through stays undone until the next real upload.
+Low impact today: the profile refresh is idempotent, and any later ingest
+re-triggers it. But file ingest
+(`files/services/indicator_store.py:save_indicators_to_db`) is the
+*only* producer for the queue and there is no cron re-drive, so a refresh
+that dies partway through stays undone until the next real upload.
 
 ### Empty-list/dict parameter defaults (~19 remaining)
 
@@ -640,8 +640,9 @@ parser.
 
 ### Rejected readings have nowhere to go
 
-`collect/readings.py:gate` drops a row the quality gate rejects and logs the
-reason code and a count. That is the right log line and the wrong destination:
+`collect/observations.py:prepare` refuses a row the quality gate rejects; the
+reason code and a count land on the extraction row and in the log. That is the
+right record and still the wrong destination:
 a person whose scale sent a 150% body-fat reading, or whose export carried a
 48-hour "measurement", has no way to see that anything was refused. A
 quarantine table keyed by `(user_id, reason_code)` with the offending row's

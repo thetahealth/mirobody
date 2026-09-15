@@ -43,10 +43,10 @@ two trees, and a third that is neither:
   build prunes the directory, and `scripts/check_wheel_data.py` fails if a
   member of it turns up in the wheel.
 - `tests/` at the repo root — the maintainers' regression suite, one module per
-  package module (`mirobody/kernel/series.py` and `mirobody/collect/readings.py`
-  each have one). It is gitignored, so it is simply absent from a clone, and
-  pytest skips a testpath that does not exist. Nothing in this document names a
-  file inside it: a clone cannot open one.
+  package module (`mirobody/kernel/series.py`, `mirobody/translate/` and
+  `mirobody/collect/observations.py` each have one). It is gitignored, so it is
+  simply absent from a clone, and pytest skips a testpath that does not exist.
+  Nothing in this document names a file inside it: a clone cannot open one.
 - `benchmarks/` — the resolver scoring harness (`run_eval.py`). Not a test
   (nothing asserts), not library code (nothing imports it); it runs from a
   checkout against a test set you point it at.
