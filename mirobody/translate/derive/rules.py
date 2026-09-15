@@ -1,8 +1,9 @@
 """
 Derived Aggregator (TH-174 W2.2)
 
-Computes derived indicators from existing daily summaries in th_series_data.
-Independent from SQLAggregator: reads th_series_data, computes, writes back.
+Computes derived indicators from existing daily summaries in the observation
+model. Independent from SQLAggregator: reads v_observation, computes, writes
+back through the same writer.
 
 Data source priority:
   1. legacy `daily_stats_*` rows (already source-resolved when written)
@@ -10,7 +11,7 @@ Data source priority:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from collections.abc import Callable
 
@@ -70,7 +71,7 @@ def _safe_divide(numerator: float, denominator: float) -> float | None:
 
 
 # Legacy alias mapping: current name -> the `daily_stats_*` spelling.
-# th_series_data still holds rows from an older scheme that named things
+# The record still holds rows from an older scheme that named things
 # `daily_stats_{indicator}{Method}` where SQLAggregator now writes
 # `daily{Method}{Indicator}`. Nothing produces the old spelling, but those rows
 # are real data and a derived rule ignoring them loses years of history, so
@@ -239,7 +240,7 @@ DERIVED_RULES: list[DerivedRule] = [
 
 class DerivedAggregator:
     """
-    Computes derived indicators from th_series_data daily summaries.
+    Computes derived indicators from the stored daily summaries.
 
     Source priority:
       1. legacy `daily_stats_*` rows (already source-resolved, priority=0)
@@ -261,7 +262,7 @@ class DerivedAggregator:
         Returns:
             Dict with processing statistics
         """
-        cutoff = datetime.utcnow() - timedelta(days=lookback_days)
+        cutoff = datetime.now(UTC) - timedelta(days=lookback_days)
         total_computed = 0
         total_skipped = 0
         results_by_rule: dict[str, int] = {}
@@ -304,15 +305,14 @@ class DerivedAggregator:
 
             # SQLAggregator: match exact or with .source suffix
             union_parts.append(f"""
-                SELECT user_id, start_time::date AS day,
+                SELECT user_id, local_date AS day,
                        :{param_std} AS base_indicator,
-                       value::numeric AS num_value,
-                       COALESCE(get_source_priority(source), 999) AS priority
-                FROM th_series_data
-                WHERE (indicator = :{param_std} OR indicator LIKE :{param_std} || '.%')
-                  AND deleted = 0
-                  AND start_time >= :cutoff
-                  AND value ~ '^-?[0-9]+\\.?[0-9]*$'
+                       value_num AS num_value,
+                       COALESCE(get_source_priority(vendor), 999) AS priority
+                FROM v_observation
+                WHERE (name_text = :{param_std} OR name_text LIKE :{param_std} || '.%')
+                  AND observed_start >= :cutoff
+                  AND value_num IS NOT NULL
             """)
 
             # Legacy alias: exact match, priority=0 (highest)
@@ -320,15 +320,14 @@ class DerivedAggregator:
                 param_hw = f"legacy_{i}"
                 params[param_hw] = alias
                 union_parts.append(f"""
-                    SELECT user_id, start_time::date AS day,
+                    SELECT user_id, local_date AS day,
                            :{param_std} AS base_indicator,
-                           value::numeric AS num_value,
+                           value_num AS num_value,
                            0 AS priority
-                    FROM th_series_data
-                    WHERE indicator = :{param_hw}
-                      AND deleted = 0
-                      AND start_time >= :cutoff
-                      AND value ~ '^-?[0-9]+\\.?[0-9]*$'
+                    FROM v_observation
+                    WHERE name_text = :{param_hw}
+                      AND observed_start >= :cutoff
+                      AND value_num IS NOT NULL
                 """)
 
         union_sql = " UNION ALL ".join(union_parts)

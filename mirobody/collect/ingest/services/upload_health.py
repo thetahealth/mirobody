@@ -2,12 +2,11 @@
 
 Per record: resolve the timezone, convert the value to the indicator's standard
 unit, check it against the indicator's plausible range, then hand it to
-`readings.upsert_readings`. A value outside the range is not dropped: it is
+`observations.ingest`. A value outside the range is not dropped: it is
 written with `task_id = "filtered_out_of_range"`, because a reading we refuse
 to believe is still evidence the device produced it.
 """
 
-import json
 import logging
 import time
 
@@ -19,9 +18,8 @@ from .base import BaseHealthService
 from .repair_reconcile import RepairReconciler
 from mirobody.collect.ingest.models.requests import StandardPulseData
 from mirobody.collect.ingest.repositories.health_data import HealthDataRepository
-from mirobody.collect.readings import upsert_readings
+from mirobody.collect import observations
 from mirobody.translate import is_summary_indicator, is_series_indicator, normalize_indicator_name
-from mirobody.translate import get_fhir_id
 from mirobody.translate import ValueRangeValidator
 from mirobody.user.platform import PlatformUserService
 
@@ -85,7 +83,7 @@ class StandardHealthService(BaseHealthService):
         Directly process health data in StandardPulseData format
 
         Determine data storage location based on indicator type:
-        - Summary indicators: Store to th_series_data table
+        - Summary indicators: written as observations (collect/observations.py)
         - Regular indicators: Store to series_data table
 
         Args:
@@ -270,11 +268,6 @@ class StandardHealthService(BaseHealthService):
             else:
                 final_comment = system_comment
 
-            # Lookup fhir_id from cache (read-only, no DB call)
-            fhir_id = get_fhir_id(common_data.get("indicator", ""))
-
-            fhir_mapping_info = json.dumps({"unit": common_data.get("unit", "")})
-
             return {
                 **common_data,
                 "start_time": start_time,
@@ -283,8 +276,6 @@ class StandardHealthService(BaseHealthService):
                 "source_table_id": common_data.get("source_id", ""),
                 "comment": final_comment,
                 "indicator_id": "",
-                "fhir_id": fhir_id,
-                "fhir_mapping_info": fhir_mapping_info,
             }
 
         except Exception as e:
@@ -321,7 +312,7 @@ class StandardHealthService(BaseHealthService):
 
     async def _batch_save_summary_records(self, summary_records: list[dict[str, Any]]) -> tuple[bool, int]:
         """
-        Batch save Summary records to th_series_data table
+        Batch save Summary records as observations
         
         Args:
             summary_records: Summary record list
@@ -333,7 +324,7 @@ class StandardHealthService(BaseHealthService):
             return True, 0
 
         try:
-            logger.info(f"About to save {len(summary_records)} summary records to th_series_data")
+            logger.info(f"About to save {len(summary_records)} summary records as observations")
             for record in summary_records[:2]:  # Log first 2 records for debugging
                 # `comment` (and the value itself) are user health data: the
                 # write encrypts `comment` at rest, so logging the full record
@@ -342,11 +333,12 @@ class StandardHealthService(BaseHealthService):
                 redacted = {k: v for k, v in record.items() if k not in ("comment", "value")}
                 logger.info(f"Sample record (values redacted): {redacted}")
 
-            # A device sync re-sends the truth: a collision replaces the row.
-            # `anchored`: a summary record is the vendor's own DAILY figure and
-            # already carries the day it belongs to.
-            total_processed = await upsert_readings(summary_records, on_conflict="update", anchored=True)
-            logger.info(f"Successfully batch saved {total_processed} summary records to th_series_data")
+            # A device sync re-sends the truth: a changed value amends the
+            # row it replaces; an equal one is skipped.
+            total_processed = await observations.ingest_legacy_rows(
+                summary_records, on_conflict=observations.ON_CONFLICT_AMEND
+            )
+            logger.info(f"Successfully batch saved {total_processed} summary observations")
             return True, total_processed
 
         except Exception as e:
@@ -375,7 +367,7 @@ class StandardHealthService(BaseHealthService):
             # Fallback: providers that don't carry an explicit time range are
             # treated as point-in-time samples: use the record timestamp for
             # both bounds. This routes every record through the timezone
-            # conversion below, so th_series_data.start_time always reflects
+            # conversion below, so the summary record's start_time always reflects
             # the user's local wall clock (not UTC). (TH-403)
             if start_time_ms is None:
                 start_time_ms = common_data["timestamp"]

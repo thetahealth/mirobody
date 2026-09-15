@@ -228,7 +228,7 @@ async def process_apple_health_statistics_data(
     Process Apple Health pre-aggregated statistics data (TH-154)
 
     Accepts client-computed statistics (sum, average, min, max, mostRecent)
-    and writes them directly to th_series_data as summary indicators.
+    and writes them directly as day-grained observations.
 
     Request body format:
     {

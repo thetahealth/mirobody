@@ -250,7 +250,7 @@ async def delete_files_from_message(
         failed_deletions = []
         
         # Process each file key
-        # Track query_user_id for cascade delete (used for th_series_data which stores target user's data)
+        # Track query_user_id for cascade delete (observations are stored under the target user)
         cascade_delete_user_id = None
         
         for file_key in file_keys:
@@ -271,7 +271,7 @@ async def delete_files_from_message(
             file_type = file_record.get("file_type", "other")
             scene = file_record.get("scene", "")  # Get scene for determining file category
             
-            # Get query_user_id for cascade delete (th_series_data uses query_user_id as user_id)
+            # Get query_user_id for cascade delete (observations use query_user_id as user_id)
             if not cascade_delete_user_id:
                 cascade_delete_user_id = file_record.get("query_user_id") or user_id
             
@@ -310,7 +310,7 @@ async def delete_files_from_message(
             await _invalidate_derived_profile(cascade_delete_user_id or user_id)
 
         # Start background cascade delete task for successfully deleted files
-        # Use query_user_id (target user) for th_series_data deletion
+        # Use query_user_id (target user) for the observation erase
         if deleted_files:
             _start_background_cascade_delete(
                 message_id=message_id,
@@ -437,11 +437,11 @@ async def _background_cascade_delete_by_file_info(
     deleted_files: list[dict[str, Any]]
 ) -> None:
     """
-    Background task to cascade delete related health data (th_series_data and genetic data) for deleted files.
-    
+    Background task to cascade delete related health data (observations and genetic data) for deleted files.
+
     Strategy:
     - For genetic files (type='genetic'): Delete genetic data from th_genetic_data table
-    - For non-genetic files: Delete health indicators from th_series_data table
+    - For non-genetic files: Erase the observations extracted from the file
     
     Args:
         message_id: Message ID containing the deleted files
@@ -466,7 +466,7 @@ async def _background_cascade_delete_by_file_info(
                 else:
                     logger.warning(f"Genetic data deletion failed or no data found: user_id={user_id}, file_key={file_key}, filename={filename}, scene={scene}")
             else:
-                # For non-genetic files (report, etc.), delete th_series_data
+                # For non-genetic files (report, etc.), erase their observations
                 await _delete_th_series_data_background(user_id, "th_files", message_id, file_key)
         
         logger.info(f"Background cascade delete task completed successfully: message_id={message_id}, user_id={user_id}")
@@ -482,12 +482,12 @@ async def _delete_th_series_data_background(
     file_key: str | None = None
 ) -> None:
     """
-    Physically delete th_series_data in background task (DELETE statement)
-    
-    Now uses source_table = 'th_files' for new data.
-    Supports source_table_id formats:
+    Erase a file's observations in a background task (the privacy DELETE).
+
+    `source_table = 'th_files'` for new data; the source_ref of a file's
+    observations is `th_files:<file_key>`. Supports source_table_id formats:
     - New format: file_key directly
-    - Old format: msg_id_#_file_key_hash
+    - Old format: msg_id_#_file_key_hash (rows migrated from the retired table)
     - Legacy format: msg_id only
     
     Args:
@@ -496,59 +496,17 @@ async def _delete_th_series_data_background(
         message_id: Source ID (created_source_id in th_files)
         file_key: File key for precise deletion
     """
+    from mirobody.collect import observations
+
     try:
-        delete_count = 0
-        
-        if file_key:
-            # Build old format source_table_id for backward compatibility
-            from hashlib import md5
-            file_key_hash = md5(file_key.encode()).hexdigest()[:10]
-            
-            # Old format: msg_id_#_file_key_hash
-            old_format = f"{message_id}_#_{file_key_hash}"
-            
-            # Delete matching new format (file_key) and old format
-            delete_sql = """
-            DELETE FROM th_series_data 
-            WHERE user_id = :user_id 
-              AND (source_table_id = :file_key 
-                   OR source_table_id = :old_format)
-            """
-
-            result = await execute_query(
-                delete_sql,
-                {
-                    "user_id": user_id,
-                    "file_key": file_key,
-                    "old_format": old_format,
-                },
-            )
-            
-            delete_count = len(result) if result else 0
-            
-            logger.info(f"th_series_data deletion successful: user_id={user_id}, file_key={file_key}, deleted_count={delete_count}")
-        else:
-            # No file_key provided - delete by source_table_id (backward compatibility)
-            delete_sql = """
-            DELETE FROM th_series_data 
-            WHERE user_id = :user_id 
-              AND source_table_id = :source_table_id
-            """
-
-            result = await execute_query(
-                delete_sql,
-                {
-                    "user_id": user_id,
-                    "source_table_id": message_id,
-                },
-            )
-            
-            delete_count = len(result) if result else 0
-            
-            logger.info(f"th_series_data deletion successful (legacy format): user_id={user_id}, source_id={message_id}, deleted_count={delete_count}")
+        # Deleting the file is the privacy path: the observations extracted
+        # from it, their coding and their frozen extraction go with it.
+        source_ref = f"{source_table}:{file_key or message_id}"
+        delete_count = await observations.erase(str(user_id), source_ref=source_ref)
+        logger.info(f"observation deletion successful: user_id={user_id}, file_key={file_key}, deleted_count={delete_count}")
 
     except Exception as e:
-        logger.warning(f"th_series_data deletion failed: user_id={user_id}, source_id={message_id}, file_key={file_key}, error={str(e)}", stack_info=True)
+        logger.warning(f"observation deletion failed: user_id={user_id}, source_id={message_id}, file_key={file_key}, error={str(e)}", stack_info=True)
         raise
 
 

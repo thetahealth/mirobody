@@ -59,7 +59,7 @@ class StandardPulseRecord(BaseModel):
     kept verbatim so its payloads needed no conversion. Vital is no longer a
     provider here (the installed three are Garmin, Oura and WHOOP) and the
     `VitalHealthRecord` model that documented that shape is gone with it.
-    The field set stays because rows in `th_series_data` were written against
+    The field set stays because stored readings were written against
     it: that is why `value` is required and why `source` still reads
     `vital.garmin` in historical data.
     """

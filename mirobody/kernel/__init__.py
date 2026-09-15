@@ -14,7 +14,7 @@ What a reading passes through, and which module decides each step:
                                                           aggregation policy, canonical unit,
                                                           local-day window (res/metrics.tsv)
     Fact ─────────── quality ──────────▶ admit / reject   only the impossible is rejected,
-                                                          with a reason code (collect/readings.py)
+                                                          with a reason code (collect/observations.py)
     facts of a day ─ series.aggregate ─▶ one number       deltas summed, spans unioned,
                                                           provider dailies projected
     sources of a day series.elect ────▶ one authority     measurer > echo, coverage, freshness

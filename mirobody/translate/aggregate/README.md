@@ -2,7 +2,7 @@
 
 ## Overview
 
-Aggregate Indicator is a high-performance health data aggregation calculation module that aggregates raw time series data (`series_data`) into daily summary indicators (`th_series_data`).
+Aggregate Indicator is a high-performance health data aggregation calculation module that aggregates raw time series data (`series_data`) into daily summary observations (`th_observation`, written through `collect/observations.py`).
 
 ## Core Objectives
 
@@ -98,8 +98,8 @@ series_data (Raw data)
 CalculationTask (Calculation task)
     ↓ (Batch aggregation)
 Summary Records (Summary records)
-    ↓ (UPSERT save)
-th_series_data (Summary table)
+    ↓ (observations.ingest_legacy_rows: an equal row is skipped, a changed one amends)
+th_observation (day-grained rows) + th_day_authority (election)
 ```
 
 ## Execution Flow

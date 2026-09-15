@@ -2,7 +2,7 @@
 Apple Health Statistics Service (TH-154)
 
 Converts client-submitted pre-aggregated statistics into summary records
-and writes them to th_series_data via AggregateDatabaseService.
+and writes them as day-grained observations via AggregateDatabaseService.
 """
 
 import logging
@@ -47,7 +47,7 @@ def _statistics_to_summary_records(
     default_timezone: str,
 ) -> list[dict[str, Any]]:
     """
-    Convert statistics list into summary records for th_series_data UPSERT.
+    Convert statistics list into summary records for the observation writer.
 
     For each statistic, iterates over non-null aggregation fields (sum, average, etc.),
     maps them to the corresponding indicator name via build_indicator_name(),
@@ -71,9 +71,8 @@ def _statistics_to_summary_records(
 
         tz = stat.timezone or default_timezone
 
-        # Convert epoch ms to user's local time (naive) for th_series_data storage.
-        # th_series_data stores start_time/end_time as "timestamp without time zone"
-        # representing user's local time. Same approach as upload_health.py:380-384.
+        # Convert epoch ms to the user's local wall clock (naive): the summary
+        # record shape carries local times, and the writer places them in `tz`.
         start_time_utc = datetime.fromtimestamp(stat.dateFrom / 1000, tz=UTC)
         end_time_utc = datetime.fromtimestamp(stat.dateTo / 1000, tz=UTC)
         if tz == "UTC":
@@ -112,7 +111,8 @@ def _statistics_to_summary_records(
                 "source_table": "",
                 "source_table_id": "",
                 "indicator_id": "",
-                "fhir_id": None,
+                "unit": stat.unitSymbol or stat.unit or "",
+                "timezone": tz,
             })
 
     return records

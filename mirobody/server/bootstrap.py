@@ -167,16 +167,6 @@ async def create_schema(config) -> None:
 
             logger.info("SQL files initialization completed.")
 
-    # The DDL adds the day columns; this fills them on the rows that predate
-    # them, so a day-grained read never has to fall back to padding a naive
-    # timestamp a day each way. Idempotent and bounded: see collect/backfill.py.
-    try:
-        from mirobody.collect import backfill_day_columns
-        await backfill_day_columns()
-    except Exception as e:
-        # A history that is not backfilled still reads correctly, with
-        # `window_semantics="date_padded_naive"`. Never a boot failure.
-        logger.warning("day-column backfill skipped: error_type=%s", type(e).__name__)
 
 async def seed_demo_data(config) -> None:
     """Load the care-circle demo fixture when `SEED_DEMO_DATA` says so.

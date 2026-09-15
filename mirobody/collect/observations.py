@@ -76,6 +76,16 @@ STAT_AS_REPORTED = "as-reported"
 CAUSE_INGEST = "ingest"
 CAUSE_AMEND = "amend"
 
+#: What a collision on the identity index means. `skip`: a retry, not a
+#: duplicate (a report re-uploaded, a batch re-sent after a timeout).
+#: `amend`: the source re-sent the truth (a device sync, a re-aggregation),
+#: and a changed value becomes an amendment of the row it replaces.
+ON_CONFLICT_SKIP = "skip"
+ON_CONFLICT_AMEND = "amend"
+
+#: `task_id` values the aggregation passes stamp on the rows they publish.
+AGGREGATE_TASK_IDS = frozenset({"aggregate_indicator", "derived_indicator", "derived_aggregator", "apple_health_statistics"})
+
 #: Reason codes for drafts that are not written.
 REJECT_NO_NAME = "no-name"
 REJECT_NO_TIME = "no-time"
@@ -322,17 +332,22 @@ _OBSERVATION_COLUMNS = (
     "local_key", "stream_key", "source_class", "fingerprint", "status", "amends",
 )
 
-# `encrypt_content('')` is NULL by design; the column is NOT NULL.
+# `encrypt_content('')` is NULL by design, and so is its answer when the
+# key is unusable: the column is nullable so that a missing note is NULL and
+# a note that could not be encrypted is caught by the round-trip check below.
 _INSERT_OBSERVATION = (
     "INSERT INTO th_observation (" + ", ".join(_OBSERVATION_COLUMNS) + ") VALUES ("
-    + ", ".join(
-        "COALESCE(encrypt_content(:note_text), '')" if c == "note_text" else f":{c}" for c in _OBSERVATION_COLUMNS
-    )
+    + ", ".join("encrypt_content(:note_text)" if c == "note_text" else f":{c}" for c in _OBSERVATION_COLUMNS)
     + """)
 ON CONFLICT (user_id, name_key, observed_start, observed_end, source_ref,
              COALESCE(source_record_id, ''), COALESCE(member_of, 0), COALESCE(amends, 0)) DO NOTHING
-RETURNING id"""
+RETURNING id, (note_text IS NOT NULL) AS has_note"""
 )
+
+
+class NoteNotEncrypted(RuntimeError):
+    """`encrypt_content` answered NULL for a non-empty note: the connection's
+    key is unusable. The row is refused rather than stored without its note."""
 
 _INSERT_DECISION = """
 INSERT INTO th_coding_decision (decision_id, name_key, unit_ucum, value_kind, release, rule, evidence)
@@ -375,7 +390,7 @@ SELECT o.user_id,
        MAX(o.display_zh),
        (ARRAY_AGG(COALESCE(o.unit_canonical, o.unit_ucum) ORDER BY o.observed_start DESC))[1],
        (ARRAY_AGG(o.kind ORDER BY o.observed_start DESC))[1],
-       ARRAY(SELECT DISTINCT m FROM unnest(ARRAY_AGG(o.modality)) AS m ORDER BY m),
+       ARRAY_AGG(DISTINCT o.modality),
        COUNT(*),
        MIN(o.observed_start),
        MAX(o.observed_end),
@@ -417,6 +432,23 @@ SELECT :new_id, :cause, {_CODING_COLUMNS} FROM th_coding_current WHERE observati
 """
 
 _SERIES_OF = "SELECT series_id FROM th_coding_current WHERE observation_id = ANY(:ids)"
+
+# The visible row that already holds an identity: the one a re-sent value amends.
+_SELECT_CURRENT = """
+SELECT id, fingerprint FROM th_observation o
+ WHERE o.user_id = :user_id AND o.name_key = :name_key
+   AND o.observed_start = :observed_start AND o.observed_end = :observed_end AND o.source_ref = :source_ref
+   AND COALESCE(o.source_record_id, '') = COALESCE(:source_record_id, '')
+   AND COALESCE(o.member_of, 0) = COALESCE(:member_of, 0)
+   AND o.status = 'final'
+   AND NOT EXISTS (SELECT 1 FROM th_observation n WHERE n.amends = o.id)
+ ORDER BY o.id DESC LIMIT 1
+"""
+
+_SELECT_BY_SOURCE = """
+SELECT id, observed_start, observed_end FROM v_observation
+ WHERE user_id = :user_id AND source_ref = :source_ref
+"""
 
 
 # --- the writes --------------------------------------------------------------
@@ -481,6 +513,21 @@ async def _write_coding(tx: db.Transaction, observation_id: int, row: dict[str, 
         })
 
 
+async def rebuild_series(user_id: str) -> int:
+    """Recompute the whole catalogue of one person from the fact table:
+    after an account merge, or a migration. Returns the number of series."""
+    async with db.transaction() as tx:
+        rows = await tx.execute(
+            "SELECT DISTINCT series_id FROM th_coding_current k JOIN th_observation o ON o.id = k.observation_id"
+            " WHERE o.user_id = :user_id",
+            {"user_id": str(user_id)},
+        )
+        current = {str(r["series_id"]) for r in rows or []}
+        stale = await tx.execute("SELECT series_id FROM th_series WHERE user_id = :user_id", {"user_id": str(user_id)})
+        await refresh_series(tx, str(user_id), current | {str(r["series_id"]) for r in stale or []})
+    return len(current)
+
+
 async def refresh_series(tx: db.Transaction, user_id: str, series_ids: set[str]) -> None:
     """Recompute `th_series` for the series a write touched, and drop the
     entries whose last observation is gone."""
@@ -491,6 +538,31 @@ async def refresh_series(tx: db.Transaction, user_id: str, series_ids: set[str])
     await tx.execute(_PRUNE_SERIES, {"user_id": str(user_id), "series_ids": ids})
 
 
+async def _insert(tx: db.Transaction, row: dict[str, Any], on_conflict: str) -> tuple[int | None, bool]:
+    """`(id, skipped)`: the new row's id, or `None` with `skipped=True` when
+    the identity is already held by an equal row (or, under `skip`, by any
+    row). Under `amend`, a changed value is inserted as an amendment."""
+    inserted = await tx.execute(_INSERT_OBSERVATION, row)
+    if inserted:
+        return _inserted_id(inserted[0], row), False
+    if on_conflict != ON_CONFLICT_AMEND:
+        return None, True
+    current = await tx.execute(_SELECT_CURRENT, row)
+    if not current or str(current[0]["fingerprint"]) == row["fingerprint"]:
+        return None, True
+    amended = dict(row, amends=int(current[0]["id"]))
+    inserted = await tx.execute(_INSERT_OBSERVATION, amended)
+    if not inserted:
+        return None, True
+    return _inserted_id(inserted[0], row), False
+
+
+def _inserted_id(returned: dict[str, Any], row: dict[str, Any]) -> int:
+    if row.get("note_text") and not returned.get("has_note"):
+        raise NoteNotEncrypted("encrypt_content returned NULL for a non-empty note")
+    return int(returned["id"])
+
+
 async def ingest(
     user_id: str,
     drafts: list[Draft],
@@ -499,11 +571,14 @@ async def ingest(
     user_tz: str,
     payload: Any = None,
     now: datetime | None = None,
+    on_conflict: str = ON_CONFLICT_SKIP,
 ) -> Report:
     """Write a batch of drafts. See the module docstring for what one call
     does. `payload` is the extraction's verbatim output when the batch came
     from one (an LLM's JSON, a vendor's records); the drafts themselves are
-    frozen when it is not given and `provenance.extractor` names one."""
+    frozen when it is not given and `provenance.extractor` names one.
+    `on_conflict` says what a row that already exists means: see
+    `ON_CONFLICT_SKIP` and `ON_CONFLICT_AMEND`."""
     report = Report()
     if not drafts:
         return report
@@ -536,13 +611,12 @@ async def ingest(
                 row["row_ix"] = ix
             try:
                 async with tx.savepoint():
-                    inserted = await tx.execute(_INSERT_OBSERVATION, row)
-                    if not inserted:
+                    observation_id, skipped = await _insert(tx, row, on_conflict)
+                    if observation_id is None:
                         report.skipped += 1
                         continue
-                    observation_id = int(inserted[0]["id"])
                     coding = coding_for(row, aliases)
-                    await _write_coding(tx, observation_id, row, coding, CAUSE_INGEST)
+                    await _write_coding(tx, observation_id, row, coding, CAUSE_INGEST if row.get("amends") is None else CAUSE_AMEND)
             except Exception as e:
                 # Counts and a type: the row is health data and stays out of the log.
                 logger.warning("observation not written: row_ix=%d error_type=%s", ix, type(e).__name__)
@@ -586,7 +660,7 @@ async def retract(user_id: str, observation_ids: list[int], *, note: str = "") -
             inserted = await tx.execute(_INSERT_OBSERVATION, new)
             if not inserted:
                 continue
-            new_id = int(inserted[0]["id"])
+            new_id = _inserted_id(inserted[0], new)
             await tx.execute(_COPY_CURRENT, {"new_id": new_id, "old_id": int(oid)})
             await tx.execute(_COPY_HISTORY, {"new_id": new_id, "old_id": int(oid), "cause": CAUSE_AMEND})
             series_rows = await tx.execute(_SERIES_OF, {"ids": [int(oid)]})
@@ -639,7 +713,7 @@ async def amend(
         inserted = await tx.execute(_INSERT_OBSERVATION, row)
         if not inserted:
             return None
-        new_id = int(inserted[0]["id"])
+        new_id = _inserted_id(inserted[0], row)
         aliases = await _load_aliases(tx, str(user_id))
         coding = coding_for(row, aliases)
         await _write_coding(tx, new_id, row, coding, CAUSE_AMEND)
@@ -647,6 +721,33 @@ async def amend(
         touched = {coding.series_id, *(str(r["series_id"]) for r in series_rows or [])}
         await refresh_series(tx, str(user_id), touched)
     return new_id
+
+
+async def redate(user_id: str, source_ref: str, when: datetime, *, user_tz: str = "UTC") -> tuple[int, int]:
+    """Move every visible observation of one source to `when` (a report whose
+    date came from the upload time, answered by the person). Each move is an
+    amendment. Returns `(moved, skipped)`, where a skipped row already sat on
+    that time, or an equal row already holds the target identity."""
+    rows = await _select_by_source(user_id, source_ref)
+    moved = skipped = 0
+    for r in rows:
+        start = r["observed_start"]
+        target = when if when.tzinfo else when.replace(tzinfo=start.tzinfo)
+        if start == target and r["observed_end"] == target:
+            skipped += 1
+            continue
+        new_id = await amend(user_id, int(r["id"]), observed_start=when, observed_end=when, user_tz=user_tz)
+        if new_id is None:
+            skipped += 1
+        else:
+            moved += 1
+    return moved, skipped
+
+
+async def _select_by_source(user_id: str, source_ref: str) -> list[dict[str, Any]]:
+    async with db.transaction() as tx:
+        rows = await tx.execute(_SELECT_BY_SOURCE, {"user_id": str(user_id), "source_ref": source_ref})
+    return [dict(r) for r in rows or []]
 
 
 async def erase(
@@ -688,7 +789,122 @@ async def erase(
     return len(deleted or [])
 
 
+# --- rows in the shape the collect layer still produces --------------------
+
+_DAY_STATS = (("dailytotal", "sum"), ("dailysum", "sum"), ("dailyavg", "mean"), ("dailyaverage", "mean"),
+              ("dailymean", "mean"), ("dailymin", "minimum"), ("dailymax", "maximum"), ("dailycount", "count"))
+
+
+def _as_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day)
+    if isinstance(value, str) and value:
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00").replace(" ", "T", 1))
+        except ValueError:
+            return None
+    return None
+
+
+def _stat_for(name: str) -> str:
+    head = name.split(".", 1)[0].casefold()
+    for prefix, stat in _DAY_STATS:
+        if head.startswith(prefix):
+            return stat
+    return STAT_AS_REPORTED
+
+
+def legacy_draft(row: dict[str, Any]) -> Draft:
+    """A `th_series_data`-shaped dict (indicator, value, start_time, end_time,
+    source, comment, task_id, source_table, source_table_id, unit or
+    fhir_mapping_info) to a `Draft`. The collect layer still produces this
+    shape; the migration reads it off the retired table."""
+    unit = _clean(row.get("unit"))
+    if not unit:
+        info = row.get("fhir_mapping_info")
+        try:
+            info = json.loads(info) if isinstance(info, str) else (info or {})
+        except ValueError:
+            info = {}
+        unit = _clean(info.get("unit")) if isinstance(info, dict) else ""
+    start = _as_datetime(row.get("start_time"))
+    end = _as_datetime(row.get("end_time")) or start
+    grain = stat = ""
+    if start is not None and end is not None and end != start:
+        span_h = (end - start).total_seconds() / 3600
+        grain = GRAIN_DAY if span_h >= 23 else GRAIN_WINDOW
+        stat = _stat_for(str(row.get("indicator") or ""))
+    source_table = str(row.get("source_table") or "")
+    keep_note = source_table in ("th_files", "api", "demo_seed")
+    return Draft(
+        name_text=str(row.get("indicator") or ""),
+        observed_start=start,
+        observed_end=end,
+        value_text=str(row.get("value") if row.get("value") is not None else ""),
+        unit_text=unit,
+        ref_text=_clean(row.get("reference_range")),
+        flag_text=_clean(row.get("flag")),
+        method_text=_clean(row.get("detection_method")),
+        note_text=_clean(row.get("comment")) if keep_note else "",
+        tz=_clean(row.get("timezone")),
+        grain=grain,
+        stat=stat,
+        source_record_id=(_clean(row.get("source_table_id")) or None) if source_table not in ("th_files", "api", "demo_seed") else None,
+    )
+
+
+def legacy_provenance(row: dict[str, Any]) -> Provenance:
+    """Where a `th_series_data`-shaped row came from, by the columns that
+    used to say so (`source_table`, `task_id`, `source`)."""
+    source_table = str(row.get("source_table") or "")
+    source_table_id = str(row.get("source_table_id") or "")
+    source = str(row.get("source") or "")
+    task_id = str(row.get("task_id") or "")
+    if source_table == "th_files":
+        return Provenance(MODALITY_LAB, SOURCE_FILE, f"th_files:{source_table_id}", vendor=None)
+    if source_table == "api":
+        return Provenance(MODALITY_MANUAL, SOURCE_API, f"api:{source_table_id or source or 'records'}", source_class=series.SOURCE_MANUAL)
+    if source_table == "demo_seed":
+        return Provenance(MODALITY_SELF, SOURCE_MANUAL, f"demo:{source_table_id}", source_class=series.SOURCE_MANUAL, vendor=source or None)
+    if task_id in AGGREGATE_TASK_IDS:
+        return Provenance(MODALITY_DEVICE, SOURCE_DEVICE, f"aggregate:{source}", source_class=series.SOURCE_AGGREGATOR, vendor=source or None)
+    ref = f"device:{source}"
+    if task_id.startswith("repair-"):
+        ref = f"{ref}:{task_id}"
+    source_class = str(row.get("source_class") or series.SOURCE_MEASURER)
+    return Provenance(MODALITY_DEVICE, SOURCE_DEVICE, ref, source_class=source_class, vendor=source or None)
+
+
+async def user_tz(user_id: str) -> str:
+    """The person's IANA zone, `UTC` when unset: through `user.get_user`,
+    where `is_del = false` lives."""
+    from mirobody.user.user import get_user
+
+    row = await get_user(user_id=user_id)
+    return ((row or {}).get("tz") or "").strip() or "UTC"
+
+
+async def ingest_legacy_rows(rows: list[dict[str, Any]], *, on_conflict: str = ON_CONFLICT_AMEND) -> int:
+    """Write rows in the collect layer's dict shape, grouped by person and
+    provenance. Returns how many observations were written."""
+    groups: dict[tuple[str, Provenance], list[Draft]] = {}
+    for r in rows:
+        prov = legacy_provenance(r)
+        groups.setdefault((str(r.get("user_id") or ""), prov), []).append(legacy_draft(r))
+    written = 0
+    zones: dict[str, str] = {}
+    for (uid, prov), drafts in groups.items():
+        if uid not in zones:
+            zones[uid] = await user_tz(uid)
+        report = await ingest(uid, drafts, prov, user_tz=zones[uid], on_conflict=on_conflict)
+        written += report.inserted
+    return written
+
+
 __all__ = [
+    "AGGREGATE_TASK_IDS",
     "CAUSE_AMEND",
     "CAUSE_INGEST",
     "Draft",
@@ -706,6 +922,9 @@ __all__ = [
     "MODALITY_MANUAL",
     "MODALITY_SELF",
     "MODALITY_UNVERIFIED",
+    "NoteNotEncrypted",
+    "ON_CONFLICT_AMEND",
+    "ON_CONFLICT_SKIP",
     "Provenance",
     "REJECT_NO_NAME",
     "REJECT_NO_TIME",
@@ -722,7 +941,13 @@ __all__ = [
     "coding_for",
     "erase",
     "ingest",
+    "ingest_legacy_rows",
+    "legacy_draft",
+    "legacy_provenance",
     "prepare",
+    "rebuild_series",
+    "redate",
     "refresh_series",
     "retract",
+    "user_tz",
 ]

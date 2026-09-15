@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS th_observation (
     flag_text          text NOT NULL DEFAULT '',
     method_text        text NOT NULL DEFAULT '',
     specimen_text      text NOT NULL DEFAULT '',
-    note_text          text NOT NULL DEFAULT '', -- ENCRYPTED free text
+    note_text          text,                     -- ENCRYPTED free text; NULL when there is none
     name_key           text NOT NULL,            -- translate.fold.name_key(name_text)
     value_kind         text NOT NULL,            -- quantity | ordinal | nominal | narrative | absent
     value_num          numeric,

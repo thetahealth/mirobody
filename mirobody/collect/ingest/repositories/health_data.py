@@ -193,7 +193,7 @@ class HealthDataRepository:
         repair_task_id: str,
     ) -> int:
         """
-        Mark-and-sweep for a data-repair batch on th_series_data (SOFT delete).
+        Mark-and-sweep for a data-repair batch on the observation model (retraction).
 
         For directly-upserted SUMMARY/MIX indicators, soft-deletes (deleted=1) window
         rows in (user_id, source in sources, indicator in indicators,
@@ -215,18 +215,18 @@ class HealthDataRepository:
         if not sources or not indicators:
             return 0
 
+        # A repair batch writes under `device:<source>:<repair task>`; the
+        # rows it did not re-confirm are the same vendor's, in the window,
+        # under any other source_ref. They are retracted, never deleted.
         query = """
-            UPDATE th_series_data
-            SET deleted = 1, update_time = CURRENT_TIMESTAMP
-            WHERE user_id = :user_id
-              AND source = ANY(:sources)
-              AND indicator = ANY(:indicators)
-              AND start_time >= :window_from
-              AND start_time <= :window_to
-              AND deleted = 0
-              -- keep rows of the CURRENT repair (incl. earlier batches of the same
-              -- repair-<uuid>); only soft-delete rows this repair did not re-confirm
-              AND (task_id IS DISTINCT FROM :repair_task_id)
+            SELECT id FROM v_observation
+             WHERE user_id = :user_id
+               AND source_kind = 'device'
+               AND vendor = ANY(:sources)
+               AND name_text = ANY(:indicators)
+               AND observed_start >= :window_from
+               AND observed_start <= :window_to
+               AND source_ref NOT LIKE '%:' || :repair_task_id
         """
         params = {
             "user_id": str(user_id),
@@ -237,16 +237,20 @@ class HealthDataRepository:
             "repair_task_id": repair_task_id,
         }
         try:
-            result = await execute_query(query, params)
-            updated = result.get("record_count", 0) if isinstance(result, dict) else 0
+            from mirobody.collect import observations
+
+            rows = await execute_query(query, params) or []
+            retracted = await observations.retract(
+                str(user_id), [int(r["id"]) for r in rows], note=f"repair:{repair_task_id}"
+            )
             logger.info(
-                f"[RepairReconcile] th_series_data swept (soft): user={user_id}, "
-                f"soft_deleted~={updated}, indicators={len(indicators)}, "
+                f"[RepairReconcile] observations retracted: user={user_id}, "
+                f"retracted={retracted}, indicators={len(indicators)}, "
                 f"window=[{window_from}, {window_to}], keep_task_id={repair_task_id}"
             )
-            return updated or 0
+            return retracted
         except Exception as e:
-            logger.error(f"[RepairReconcile] th_series_data sweep failed: {e}", stack_info=True)
+            logger.error(f"[RepairReconcile] observation sweep failed: {e}", stack_info=True)
             raise
 
 

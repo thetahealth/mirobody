@@ -41,7 +41,8 @@ from pydantic import BaseModel, Field
 
 from mirobody.engine import resolve_reading as resolve_indicator_name
 from mirobody.units.normalize import normalize_unit, parse_value_unit
-from mirobody.collect import upsert_readings
+from mirobody.kernel import series
+from mirobody.collect import observations
 from mirobody.utils import execute_query
 from mirobody.server.auth import verify_token
 
@@ -228,46 +229,36 @@ def _parse_time(raw: str | None) -> datetime:
 async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source: str) -> tuple[int, int]:
     """Write readings, standardizing each on the way in.
 
-    Returns `(written, standardized)`. The caller used to compute the second
-    number with its own pass of `_standardize` over the same records, which
-    resolved every indicator name twice per request.
-
-    `on_conflict="nothing"` against the `(user_id, indicator, start_time,
-    end_time)` unique key: re-sending a batch after a timeout is a retry, not a
-    request for a duplicate row.
+    Returns `(written, standardized)`: the observations written and how many
+    of them the vocabulary coded. Every write goes through
+    `observations.ingest`, which folds, parses and codes each row and writes
+    the coding beside it. A collision on the identity is a retry, not a
+    request for a duplicate row: re-sending a batch after a timeout writes
+    nothing twice.
     """
-    params = []
-    coded = 0
-    for record in records:
+    drafts = []
+    for ix, record in enumerate(records):
         when = _parse_time(record.get("time"))
         end = _parse_time(record["end_time"]) if record.get("end_time") else when
         value = record.get("value")
-        unit = record.get("unit")
-        # The unit rides with the value in `value` because that is the column's
-        # existing convention: `th_series_data.value` already holds "3.9
-        # mmol/L" for rows written by the file parser, and a reader that
-        # splits it expects to find it there.
-        text = f"{value} {unit}".strip() if unit else f"{value}"
-        std = _standardize(record["indicator"], str(value), unit)
-        if std["loinc_code"]:
-            coded += 1
-        params.append(
-            {
-                "user_id": str(user_id),
-                "indicator": record["indicator"],
-                "value": text,
-                "start_time": when.replace(tzinfo=None),
-                "end_time": end.replace(tzinfo=None),
-                "source_table": _SOURCE_TABLE,
-                "source_table_id": "",
-                "comment": record.get("source") or "",
-                "indicator_id": std["loinc_code"] or "",
-                "source": source,
-            }
-        )
-
-    await upsert_readings(params, on_conflict="nothing")
-    return len(params), coded
+        drafts.append(observations.Draft(
+            name_text=str(record["indicator"]),
+            observed_start=when,
+            observed_end=end,
+            value_text="" if value is None else str(value),
+            unit_text=str(record.get("unit") or ""),
+            note_text=str(record.get("source") or ""),
+            row_ix=ix,
+        ))
+    provenance = observations.Provenance(
+        modality=observations.MODALITY_MANUAL,
+        source_kind=observations.SOURCE_API,
+        source_ref=f"{_SOURCE_TABLE}:{source}",
+        source_class=series.SOURCE_MANUAL,
+    )
+    tz = await observations.user_tz(str(user_id))
+    report = await observations.ingest(str(user_id), drafts, provenance, user_tz=tz)
+    return report.inserted, report.coded
 
 
 @router.post("/data")
@@ -305,9 +296,8 @@ async def read_records(
     what `DELETE /api/data?id=` takes, and a developer paging a series wants the
     readings in order, not a name-keyed map to flatten first.
     """
-    # `value` is stored in the clear and every other reader selects it that way;
-    # `comment` is the encrypted one: the one writer (`collect/readings.py`)
-    # wraps it in `encrypt_content`, so reading it raw would hand back ciphertext.
+    # `note_text` is the encrypted column: the one writer wraps it in
+    # `encrypt_content`, so it is read through `decrypt_content`.
     #
     # The filter is spliced in, not parameterised as `(:indicator IS NULL OR
     # ...)`: with no filter psycopg binds NULL with no type and Postgres fails
@@ -320,15 +310,15 @@ async def read_records(
     }
     filter_sql = ""
     if indicator:
-        filter_sql = "AND indicator ILIKE :pattern"
+        filter_sql = "AND name_text ILIKE :pattern"
         params["pattern"] = f"%{indicator}%"
     sql = f"""
-    SELECT id, indicator, value, start_time, end_time,
-           source, decrypt_content(comment) AS comment, indicator_id
-      FROM th_series_data
-     WHERE user_id = :uid AND deleted = 0
+    SELECT id, name_text, value_text, unit_text, value_num, unit_ucum, code, series_id,
+           observed_start, observed_end, modality, source_ref, decrypt_content(note_text) AS note
+      FROM v_observation
+     WHERE user_id = :uid
        {filter_sql}
-     ORDER BY start_time DESC, id DESC
+     ORDER BY observed_start DESC, id DESC
      LIMIT :limit OFFSET :offset
     """
     try:
@@ -340,20 +330,20 @@ async def read_records(
     has_more = len(rows) > limit
     data = []
     for row in rows[:limit]:
-        value = row.get("value")
-        parsed = parse_value_unit(value)
         data.append(
             {
                 "id": row.get("id"),
-                "indicator": row.get("indicator"),
-                "value": value,
-                "parsed_value": None if parsed.value is None else str(parsed.value),
-                "parsed_unit": parsed.unit or None,
-                "loinc_code": row.get("indicator_id") or None,
-                "time": row.get("start_time").isoformat() if row.get("start_time") else None,
-                "end_time": row.get("end_time").isoformat() if row.get("end_time") else None,
-                "source": row.get("source") or None,
-                "comment": row.get("comment") or "",
+                "indicator": row.get("name_text"),
+                "value": row.get("value_text"),
+                "unit": row.get("unit_text") or None,
+                "parsed_value": None if row.get("value_num") is None else str(row.get("value_num")),
+                "parsed_unit": row.get("unit_ucum") or None,
+                "loinc_code": row.get("code") or None,
+                "series": row.get("series_id"),
+                "time": row.get("observed_start").isoformat() if row.get("observed_start") else None,
+                "end_time": row.get("observed_end").isoformat() if row.get("observed_end") else None,
+                "source": row.get("modality") or None,
+                "comment": row.get("note") or "",
             }
         )
     return {"object": "list", "data": data, "has_more": has_more}
@@ -374,13 +364,7 @@ async def erase_records(
     from a person's whole record, an explicit flag is the better trade.
     """
     delete_all = str(request.query_params.get("all", "")).lower() in ("1", "true", "yes")
-    if id is not None:
-        where, params = "id = :id", {"uid": str(user_id), "id": id}
-    elif indicator:
-        where, params = "indicator ILIKE :pattern", {"uid": str(user_id), "pattern": f"%{indicator}%"}
-    elif delete_all:
-        where, params = "TRUE", {"uid": str(user_id)}
-    else:
+    if id is None and not indicator and not delete_all:
         return _error(
             400,
             "Pass `id`, `indicator`, or `all=true` to erase every record.",
@@ -388,15 +372,17 @@ async def erase_records(
             "id",
         )
 
-    # `user_id = :uid` IS the authorization: an id belonging to someone else
+    # The user id IS the authorization: an id belonging to someone else
     # matches zero rows and reports 0 deleted, indistinguishable from an id that
-    # was never there.
+    # was never there. This is the privacy path, the one physical DELETE.
     try:
-        rows = await execute_query(
-            f"DELETE FROM th_series_data WHERE user_id = :uid AND {where} RETURNING id",
-            params,
-        ) or []
+        if id is not None:
+            deleted = await observations.erase(str(user_id), ids=[id])
+        elif indicator:
+            deleted = await observations.erase(str(user_id), name_pattern=f"%{indicator}%")
+        else:
+            deleted = await observations.erase(str(user_id), everything=True)
     except Exception as e:
         logger.error(f"[erase_records] {e}", exc_info=True)
         return _error(500, "This deletion could not complete.", "internal_error")
-    return {"status": "ok", "deleted": len(rows)}
+    return {"status": "ok", "deleted": deleted}

@@ -6,7 +6,7 @@ Two source shapes, one convergence point, then meaning:
                  schedule, Apple Health and CDA documents pushed
     files/       a file is a source too: lab PDFs, photos, CSV, genetic raw data
          ↓
-    ingest/      all three converge on StandardPulseData → th_series_data
+    ingest/      all three converge on StandardPulseData → observations.py
          ↓
 
 What a value MEANS is ② Translate's, not this stage's: the indicator
@@ -76,12 +76,10 @@ _EXPORTS = {
     # move without a router edit, which is the whole point: `db_utils`,
     # `database_services` and `providers/platform/` all moved in 1.4.4.
     "start_theta_pull_scheduler": "providers._platform.startup",
-    "backfill_day_columns": "backfill",
     "ConnectInfoField": "core.models",
     "installed_provider_slugs": "providers.installed",
     "PostgresHealthQuery": "query",
     "REST_CATALOG_MAX": "query",
-    "upsert_readings": "readings",
     # Files, shared by server and agent.
     "get_websocket_file_upload_manager": "files.file_upload_manager",
     "FileDbService": "files.services.file_db_service",
@@ -127,11 +125,9 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .providers.apple.statistics_service import process_apple_health_statistics
     
     from .providers._platform.startup import start_theta_pull_scheduler
-    from .backfill import backfill_day_columns
     from .core.models import ConnectInfoField
     from .providers.installed import installed_provider_slugs
     from .query import PostgresHealthQuery, REST_CATALOG_MAX
-    from .readings import upsert_readings
     from .meds import PostgresDoseLogStore, PostgresMedicationStore
     from .files.file_upload_manager import get_websocket_file_upload_manager
     from .files.handlers.genetic import GeneticHandler

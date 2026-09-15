@@ -117,7 +117,7 @@ class AppleHealthPlatform(Platform):
                     f"success: {success}")
 
                 # Fire-and-forget: kick incremental aggregation so the frontend
-                # sees fresh th_series_data without waiting for the 4-min
+                # sees fresh daily summaries without waiting for the 4-min
                 # scheduled AggregateIndicatorTask. Errors are swallowed in the
                 # background task; the scheduled task is the safety net.
                 if success:
@@ -155,7 +155,7 @@ class AppleHealthPlatform(Platform):
             # the <2s a normal incremental cycle takes.
             # We deliberately do NOT update the cursor here; the scheduled
             # AggregateIndicatorTask owns it. Re-running the same window
-            # is idempotent (ON CONFLICT DO UPDATE on th_series_data).
+            # is idempotent (an equal summary is skipped, a changed one amends).
             last_ts = await pull_task_lock_manager.get_last_execution_timestamp(
                 "aggregate_indicator"
             )
