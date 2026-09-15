@@ -234,6 +234,18 @@ def _cmd_doctor(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def _cmd_migrate_observations(args: argparse.Namespace) -> None:
+    """Move the retired `th_series_data` history into the observation model.
+    Idempotent and bounded; see `collect/migrate_observations.py`."""
+    _require_extra("migrate-observations", "app", "sqlalchemy", "the database layer")
+    from mirobody.utils.config import Config
+    from mirobody.collect.migrate_observations import migrate
+
+    asyncio.run(Config.init(yaml_filenames=args.configs))
+    counts = asyncio.run(migrate(batch=args.batch, user_id=args.user or None))
+    print(f"read {counts['read']} rows, wrote {counts['written']} observations in {counts['batches']} batch(es)")
+
+
 def _width(text: str) -> int:
     """Terminal COLUMNS, not characters.
 
@@ -429,6 +441,15 @@ def main(argv: list[str] | None = None) -> None:
     p_resolve = sub.add_parser("resolve", help="resolve indicator names to standard codes — fully offline, no key needed")
     p_resolve.add_argument("terms", nargs="+", help="indicator names in any supported language")
     p_resolve.set_defaults(func=_cmd_resolve)
+
+    p_migrate = sub.add_parser(
+        "migrate-observations",
+        help="move the retired th_series_data history into the observation model (requires the [app] extra)",
+    )
+    p_migrate.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
+    p_migrate.add_argument("--batch", type=int, default=2000, help="rows per batch (default: 2000)")
+    p_migrate.add_argument("--user", default="", help="migrate one person only")
+    p_migrate.set_defaults(func=_cmd_migrate_observations)
 
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
