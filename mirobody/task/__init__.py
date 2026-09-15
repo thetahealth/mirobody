@@ -11,7 +11,6 @@ from __future__ import annotations
 from .base import BaseRedisTask
 from .loader import load_tasks_from_directories as load_tasks_from_directories
 
-from .indicator_sync import IndicatorSyncTask as IndicatorSyncTask
 from .profile_refresh import ProfileRefreshTask as ProfileRefreshTask
 
 def iter_redis_tasks() -> list[type[BaseRedisTask]]:

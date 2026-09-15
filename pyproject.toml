@@ -428,6 +428,7 @@ source_modules = [
     "mirobody.kernel.decoders",
     "mirobody.value_scale",
     "mirobody.zh_fold",
+    "mirobody.translate",
     # The rest of the engine.
     "mirobody.indicator",
     "mirobody.collect",
@@ -462,7 +463,8 @@ name = "the library layer stands alone (the numpy-only rule)"
 # `mirobody.engine` is deliberately NOT in this list: `parse_file` reaches into
 # `utils.llm`, which is the [parse] extra, and does so inside the function so
 # `resolve` never pays for it. That seam is the exception that needs the rule
-# written down.
+# written down. `mirobody.translate` codes through the engine and inherits
+# the same exemption; it is held to the agent-framework rule above instead.
 type = "forbidden"
 source_modules = [
     "mirobody._bundle",

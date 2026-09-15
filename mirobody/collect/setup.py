@@ -56,12 +56,6 @@ async def setup_platform_system_async(providers: list[BasePullProvider] | None =
             logger.error(f"Error registering provider {provider.info.slug}: {str(e)}")
             continue
 
-    # 6. Initialize FHIR mapping (optional, config-driven)
-    from mirobody.translate import FhirMapping
-    fhir_mapping = await FhirMapping.initialize()
-    if fhir_mapping:
-        logger.info("  - FHIR mapping initialized")
-
     logger.info("Platform system setup completed:")
     logger.info(f"  - provider platform loaded {len(theta_providers)} providers")
     logger.info("  - Apple Health platform initialized with built-in providers")

@@ -1,12 +1,15 @@
 # `mirobody/schema` — the database schema
 
-27 SQL files, applied in filename order by `Server.start()` at boot. Four
+22 SQL files, applied in filename order by `Server.start()` at boot. Four
 baselines (`00`–`10`) create the tables; the rest are incremental `ALTER`s.
 
-The two newest are `a4_series_data_day_authority.sql` (the columns that make a
-day of readings answerable without guessing — see `docs/pipeline.md` §6) and
-`a5_medications.sql` (medications as an entity, because a plan has a schedule
-and a lifecycle and a reading has neither — see `docs/medications.md`).
+The three newest are `a5_medications.sql` (medications as an entity, because a
+plan has a schedule and a lifecycle and a reading has neither — see
+`docs/medications.md`), `a6_observation_model.sql` (every reading, whatever
+brought it in, as one append-only fact table with its coding beside it — see
+"The observation model" below and `docs/pipeline.md` §6) and
+`a7_retire_series_tables.sql` (the tables it replaces, renamed for the
+migration).
 
 Gaps in the numbering are deletions, not mistakes — see "Pruning" below.
 
@@ -106,55 +109,45 @@ The obvious phrasing — "a nullable column nobody writes costs no maintenance"
 both unwritten, and both had to go, because each carried an index over an
 always-NULL column on one of the two busiest tables here. An unindexed column
 really is free. An indexed one costs a write per insert, so its price is
-whatever that table's insert rate is — which is why the same emptiness that
-makes `fhir_indicators`' two hnsw indexes fine (see below) made
+whatever that table's insert rate is — which is what made
 `idx_th_series_data_full_dim_id` expensive.
 
-## Tables this project does not populate
+## The observation model
 
-One table is created, indexed, joined from four code paths, and never written
-here. That is worth stating, because nothing about the DDL says so and the
-only way to find out is to trace all four readers.
+`a6_observation_model.sql` is the data layer of ② Translate. One reading is
+one row of `th_observation`: the text as printed (`name_text`, `value_text`,
+`unit_text`, `ref_text`, never translated or edited), the typed layer derived
+from it (`value_kind`, `value_num`, `comparator`, `unit_ucum`), the time with
+its zone and the local day computed once at write time, and where it came
+from (`modality`, `source_kind`, `source_ref`, `vendor`, the frozen
+`th_extraction` it was read out of). The coding sits in `th_coding_current`
+(one row per observation: the LOINC code, or `needs-input` / `refused` with a
+reason, and the `series_id` either way) with its full history in
+`th_coding_history` and the shared reasoning in `th_coding_decision`.
 
-**`fhir_indicators`** — the code registry. `th_series_data.fhir_id` is a FK to
-it, and the join is how a reading's terminology identity reaches a user:
-`_coding_for` (collect/query.py) hands the model a
-`{system, code}` per indicator through it — falling back to the catalogue's own
-answer (`metrics.canonical`) when the join is empty, so an identity is never
-blank, `FhirAdapter._fetch_db` and
-`_search_fhir` read it, and `IndicatorSyncTask.backfill_from_registry` fills
-`fhir_id` from it.
+Three rules the tables enforce rather than document:
 
-Nothing fills the table. The external mapper that once did is retired; the
-only remaining INSERT is `FhirMapping._insert_indicator`, which is gated behind
-a `FHIR_TABLE_AUTO_W` that ships commented out and, when enabled, registers
-`indicator_standard = 'THETA'` rows whose `code` is the indicator's own name —
-an identity registry, not a terminology mapping. The three `embedding_*`
-columns are never written by anything.
+- **append-only facts.** Nothing UPDATEs `th_observation`. A correction or a
+  retraction is a new row pointing at the old one (`amends`); the read view
+  `v_observation` hides the old one. The only DELETE is the privacy path
+  (`collect/observations.py::erase`), which cascades.
+- **one identity.** `(user, name_key, observed_start, observed_end,
+  source_ref, source_record_id, member_of, amends)` is unique, so a
+  re-uploaded report or a re-sent batch writes nothing twice, and a device
+  sync that changed a value amends the row it replaces.
+- **the day is decided once.** `th_day_authority` names the observation a
+  (person, series, local day) publishes; election writes it, readers join it.
 
-What follows from that, all of it by design rather than by breakage:
+`th_series` is the per-person catalogue an assistant reads first (one row per
+series with counts, range and the latest value), refreshed by the writer.
+`th_concept` caches the display names and axes of the codes in use.
+`th_check_result` holds consistency checks as rows. `th_coding_alias` holds
+mappings a person confirmed.
 
-- `th_series_data.fhir_id` stays NULL, so `_coding_for` returns no codings and
-  the agent sees indicator names without standard codes.
-- `FhirAdapter`'s primary (vector) channel returns nothing — and its
-  complement covers the gap exactly, because `_search_non_fhir` scopes to rows
-  where `fhir_id IS NULL`, which is all of them. Indicator search works, over
-  `th_series_dim.embedding_qwen3_8b`, which `IndicatorSyncTask.embed()` does
-  populate.
-- The two hnsw indexes on `fhir_indicators` cost nothing to maintain, because
-  a table with no inserts has no index maintenance. That is the whole reason
-  they stay while `idx_th_series_data_full_dim_id` went.
-
-**It is a hole, not dead weight, and the shape of the fix is already here.**
-This project ships an offline resolver that turns an indicator name in any of
-four languages into a real LOINC code with no key and no network
-(`mirobody.engine.resolve_reading`), and three call sites already use it — the
-records router, the MCP terminology tool, and the agent's keyword fallback.
-Registering what it resolves would fill this table with LOINC rows rather than
-THETA ones, and `backfill_from_registry` would have something to backfill from.
-Until then, do not drop the table: the schema is right and the writer is
-missing, which is the opposite problem from the ones in the pruning table
-above.
+`a7_retire_series_tables.sql` renames `th_series_data`, `th_series_dim`,
+`fhir_indicators` and `standard_indicators_device` to `*_retired_15`;
+`mirobody migrate-observations` moves the old rows through the new writer.
+Drop the retired tables yourself once that has run.
 
 ## Applying it by hand
 

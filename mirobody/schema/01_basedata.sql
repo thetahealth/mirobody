@@ -65,45 +65,6 @@ COMMENT ON COLUMN th_sessions.category IS 'File category: food, report, medicine
 CREATE INDEX IF NOT EXISTS idx_th_sessions_category ON th_sessions(category);
 
 
-CREATE TABLE IF NOT EXISTS fhir_indicators (
-	id bigserial NOT NULL,
-	indicator_standard varchar(255) NULL,
-	code varchar(255) NULL,
-	full_name text NULL,
-	short_name text NULL,
-	description text NULL,
-	"system" text NULL,
-	interpretation text NULL,
-	unit text NULL,
-	llm_description text NULL,
-	"rank" int4 DEFAULT 0 NULL,
-	llm_unit text NULL,
-	embedding_gemini vector(1024) NULL,
-	embedding_qwen3 vector(1024) NULL,            -- only column search needs for `embedding: qwen` entries (_search_fhir_db); matches test/prod
-	embedding_qwen3_8b vector(1024) NULL,         -- `embedding: openrouter` entries (qwen/qwen3-embedding-8b) — the shipped default
-	CONSTRAINT fhir_indicators_indicator_standard_code_unique UNIQUE (indicator_standard, code),
-	CONSTRAINT fhir_indicators_pkey PRIMARY KEY (id)
-);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_fhir_indicators_source_code ON fhir_indicators USING btree (indicator_standard, code);
-CREATE INDEX IF NOT EXISTS idx_fhir_indicators_embedding_qwen3
-    ON fhir_indicators USING hnsw (embedding_qwen3 vector_cosine_ops);
-
--- `embedding: openrouter` entries (open-weights qwen/qwen3-embedding-8b, the
--- shipped default — one OPENROUTER_API_KEY covers the agent AND this column).
--- Named after the MODEL, not the provider: vectors are only comparable within
--- one (provider, model) pair, and a column named for a provider already lied
--- once (embedding_qwen3 actually holds DashScope text-embedding-v4 vectors).
--- ALTER (not just the CREATE above) because this schema is replayed at boot
--- against databases created before the column existed.
-ALTER TABLE fhir_indicators ADD COLUMN IF NOT EXISTS embedding_qwen3_8b vector(1024);
-
--- `embedding: openai` entries (text-embedding-3-small at 1024 dimensions). Its
--- own column for the reason every other one has its own: vectors are only
--- comparable within one (provider, model) pair, and sharing a column across two
--- models does not fail, it returns confident nonsense.
-ALTER TABLE fhir_indicators ADD COLUMN IF NOT EXISTS embedding_openai_3_small vector(1024);
-CREATE INDEX IF NOT EXISTS idx_fhir_indicators_embedding_qwen3_8b
-    ON fhir_indicators USING hnsw (embedding_qwen3_8b vector_cosine_ops);
 
 
 CREATE TABLE IF NOT EXISTS series_data (
@@ -126,67 +87,8 @@ CREATE INDEX IF NOT EXISTS idx_series_data_user_platform
 ON series_data(user_id, platform) WHERE platform IS NOT NULL;
 
 
-CREATE TABLE IF NOT EXISTS th_series_data
-(
-    id integer generated always as identity not null,
-    user_id character varying(200) COLLATE pg_catalog."default",
-    indicator character varying(200) COLLATE pg_catalog."default",
-    value text COLLATE pg_catalog."default",
-    start_time timestamp without time zone,
-    end_time timestamp without time zone,
-    source_table character varying(200) COLLATE pg_catalog."default",
-    source_table_id character varying(200) COLLATE pg_catalog."default",
-    comment text COLLATE pg_catalog."default",
-    indicator_id text COLLATE pg_catalog."default" NOT NULL DEFAULT ''::text,
-    deleted integer NOT NULL DEFAULT 0,
-    create_time timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    update_time timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    source character varying(128) COLLATE pg_catalog."default",
-    task_id character varying(200) COLLATE pg_catalog."default",
-    CONSTRAINT th_series_data_pkey PRIMARY KEY (id),
-    CONSTRAINT unique_user_indicator_start_end_time UNIQUE (user_id, indicator, start_time, end_time)
-);
-
-CREATE INDEX IF NOT EXISTS idx_th_series_data_source_table_id ON th_series_data(source_table_id);
 
 
-CREATE TABLE IF NOT EXISTS th_series_dim (
-    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    original_indicator character varying(200) UNIQUE NOT NULL,
-    standard_indicator character varying(200),
-    category_group character varying(200),
-    category character varying(200),
-    updated_at timestamp without time zone,
-    unit character varying,
-    deleted boolean not null default false,
-    create_time timestamp with time zone not null default CURRENT_TIMESTAMP,
-    update_time timestamp with time zone not null default CURRENT_TIMESTAMP
-);
-
---  Add embedding_gemini field for Gemini 1024-dimension vector search (used by indicator_service_v3)
-ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS embedding_gemini vector(1024);
-COMMENT ON COLUMN th_series_dim.embedding_gemini IS 'Gemini embedding (1024 dimensions) for semantic search';
-
-CREATE INDEX IF NOT EXISTS idx_th_series_dim_embedding_gemini
-    ON th_series_dim USING hnsw (embedding_gemini vector_cosine_ops);
-
---  Add embedding_qwen field for Qwen 1024-dimension vector search (selected via `embedding: qwen` entries)
-ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS embedding_qwen vector(1024);
-ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS embedding_openai_3_small vector(1024);
-COMMENT ON COLUMN th_series_dim.embedding_qwen IS 'Qwen embedding (1024 dimensions) for semantic search';
-
---  `embedding: openrouter` entries (qwen/qwen3-embedding-8b) — the shipped
---  default. Same rationale as the fhir_indicators column above: named after
---  the model, added by ALTER for pre-existing databases.
-ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS embedding_qwen3_8b vector(1024);
-COMMENT ON COLUMN th_series_dim.embedding_qwen3_8b IS 'Qwen3-Embedding-8B via OpenRouter (1024 dims, MRL prefix) for semantic search';
-CREATE INDEX IF NOT EXISTS idx_th_series_dim_embedding_qwen3_8b
-    ON th_series_dim USING hnsw (embedding_qwen3_8b vector_cosine_ops);
-
-CREATE INDEX IF NOT EXISTS idx_th_series_dim_embedding_qwen
-    ON th_series_dim USING hnsw (embedding_qwen vector_cosine_ops);
-
-ALTER TABLE th_series_dim ADD COLUMN IF NOT EXISTS department text NULL;
 
 
 

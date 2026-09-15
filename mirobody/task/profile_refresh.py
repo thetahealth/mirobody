@@ -6,9 +6,8 @@ Consumer (`consume` below): drains a burst, dedupes user_ids, and calls
 in a separate service, and this docstring still said so long after the worker
 here took it over.
 
-Weak consistency with IndicatorSyncTask: profile may occasionally refresh
-before the latest dim sync completes and read slightly stale dim data: the
-next signal for that user cleans it up.
+Coalescing: a burst of ingests for one person becomes one refresh, and the
+next signal for that person picks up anything a refresh in flight missed.
 """
 
 from __future__ import annotations

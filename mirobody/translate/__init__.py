@@ -10,12 +10,10 @@
                              for its indicator (NOT `mirobody.units`, the
                              UCUM engine it borrows its arithmetic from)
     value_range_validator.py what counts as a plausible value
-    fhir_mapping.py          indicator to fhir_id
     aggregate/               a day of points to one number, and which source
                              publishes it
     derive/                  quantities nothing measured: sleep efficiency,
                              heart-rate range
-    std_indicator_registry/  publishes the catalogue to the database
 
 Stage two of Collect, Translate, Agent. The input is what a report or a device
 printed, verbatim; the output is what an analyst can group and compare: a
@@ -115,11 +113,8 @@ _EXPORTS = {
     "UNIT_CONVERSIONS": "canonical_units",
     "convert_to_standard": "canonical_units",
     "get_all_units_info": "canonical_units",
-    # ranges, fhir ids, and the registry task
+    # ranges
     "ValueRangeValidator": "value_range_validator",
-    "FhirMapping": "fhir_mapping",
-    "get_fhir_id": "fhir_mapping",
-    "start_std_indicator_registry": "std_indicator_registry.startup",
     "start_aggregate_indicator_scheduler": "aggregate.startup",
     "start_derived_scheduler": "derive.task",
     "AggregateIndicatorService": "aggregate.service",
@@ -130,7 +125,6 @@ _EXPORTS = {
 __all__ = [*_SEAM, *_EXPORTS]
 
 if TYPE_CHECKING:  # static analyzers resolve the real symbols
-    from .fhir_mapping import FhirMapping, get_fhir_id
     from .indicators_info import (
         HealthDataType,
         StandardIndicator,
@@ -149,7 +143,6 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .aggregate.service import AggregateIndicatorService
     from .aggregate.startup import start_aggregate_indicator_scheduler
     from .derive.task import start_derived_scheduler
-    from .std_indicator_registry.startup import start_std_indicator_registry
     from .canonical_units import UNIT_CONVERSIONS, convert_to_standard, get_all_units_info
     from .value_range_validator import ValueRangeValidator
 
