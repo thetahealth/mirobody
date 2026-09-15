@@ -243,7 +243,16 @@ def _cmd_migrate_observations(args: argparse.Namespace) -> None:
 
     asyncio.run(Config.init(yaml_filenames=args.configs))
     counts = asyncio.run(migrate(batch=args.batch, user_id=args.user or None))
-    print(f"read {counts['read']} rows, wrote {counts['written']} observations in {counts['batches']} batch(es)")
+    rejected = ", ".join(f"{k}={v}" for k, v in sorted(counts["rejected"].items())) or "none"
+    print(
+        f"read {counts['read']} rows in {counts['batches']} batch(es): wrote {counts['written']} observations "
+        f"({counts['coded']} coded), skipped {counts['skipped']} already present, rejected {rejected}"
+    )
+    if counts["undecrypted"]:
+        print(
+            f"{counts['undecrypted']} comment(s) did not decrypt under this connection's key; their unit, "
+            "reference range and method were read off the value cell alone. Check PG_ENCRYPTION_KEY and re-run."
+        )
 
 
 def _cmd_recode(args: argparse.Namespace) -> None:

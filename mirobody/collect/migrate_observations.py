@@ -16,7 +16,10 @@ What the old rows lose and what the new ones say about it:
   `note_text = migrated:th_series_data` so a reader knows the name is a
   translation and the report is where the original is;
 * a file row's unit, reference range and method were JSON inside the
-  encrypted `comment`; they land in their own columns;
+  encrypted `comment`; they land in their own columns. A comment the
+  connection's key cannot decrypt is counted as `undecrypted` and the unit
+  is then read off the value cell alone, so check `PG_ENCRYPTION_KEY` when
+  that count is not zero;
 * a soft-deleted row (`deleted = 1`) is not migrated: the person removed it.
 
 Run: `mirobody migrate-observations` (requires the [app] extra and the
@@ -38,6 +41,9 @@ logger = logging.getLogger(__name__)
 
 RETIRED = "th_series_data_retired_15"
 MIGRATED_NOTE = "migrated:th_series_data"
+#: What `encrypt_content` prefixes; a comment still carrying it after
+#: `decrypt_content` was encrypted under another key.
+_CIPHER_PREFIX = "gAAAA"
 
 _SELECT = """
 SELECT id, user_id, indicator, value, start_time, end_time, source, source_table, source_table_id,
@@ -49,10 +55,12 @@ SELECT id, user_id, indicator, value, start_time, end_time, source, source_table
 """
 
 
-def _legacy_row(r: dict[str, Any]) -> dict[str, Any]:
-    """One retired row to the dict shape `observations.legacy_draft` reads."""
+def _legacy_row(r: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    """One retired row to the dict shape `observations.legacy_draft` reads,
+    and whether its comment was still ciphertext."""
     row = dict(r)
     comment = row.get("comment") or ""
+    undecrypted = isinstance(comment, str) and comment.startswith(_CIPHER_PREFIX)
     if str(row.get("source_table") or "") == "th_files":
         meta: dict[str, Any] = {}
         if isinstance(comment, str) and comment.startswith("{"):
@@ -64,29 +72,47 @@ def _legacy_row(r: dict[str, Any]) -> dict[str, Any]:
         row["reference_range"] = meta.get("reference_range") or ""
         row["detection_method"] = meta.get("detection_method") or ""
         row["comment"] = MIGRATED_NOTE
-    return row
+    elif undecrypted:
+        row["comment"] = ""
+    return row, undecrypted
 
 
-async def migrate(*, batch: int = 2000, user_id: str | None = None, max_batches: int = 10_000) -> dict[str, int]:
-    """Move rows in id order. Returns `{"read": n, "written": m, "batches": k}`."""
+async def migrate(*, batch: int = 2000, user_id: str | None = None, max_batches: int = 10_000) -> dict[str, Any]:
+    """Move rows in id order. Returns the counts: `read`, `written`, `coded`,
+    `skipped` (already present), `undecrypted`, `batches` and `rejected`,
+    a dict of reason to count."""
     after = 0
-    read = written = batches = 0
+    counts: dict[str, Any] = {
+        "read": 0, "written": 0, "coded": 0, "skipped": 0, "undecrypted": 0, "batches": 0, "rejected": {},
+    }
     user_filter = " AND user_id = :user_id" if user_id else ""
     params: dict[str, Any] = {"batch": batch}
     if user_id:
         params["user_id"] = str(user_id)
-    while batches < max_batches:
+    while counts["batches"] < max_batches:
         rows = await execute_query(_SELECT.format(user_filter=user_filter), {**params, "after": after}, log_sql=False) or []
         if not rows:
             break
-        batches += 1
-        read += len(rows)
+        counts["batches"] += 1
+        counts["read"] += len(rows)
         after = int(rows[-1]["id"])
-        written += await observations.ingest_legacy_rows(
-            [_legacy_row(r) for r in rows], on_conflict=observations.ON_CONFLICT_SKIP
+        legacy = []
+        for r in rows:
+            row, undecrypted = _legacy_row(r)
+            legacy.append(row)
+            counts["undecrypted"] += int(undecrypted)
+        report = await observations.ingest_legacy(legacy, on_conflict=observations.ON_CONFLICT_SKIP)
+        counts["written"] += report.inserted
+        counts["coded"] += report.coded
+        counts["skipped"] += report.skipped
+        for reason, n in report.rejected.items():
+            counts["rejected"][reason] = counts["rejected"].get(reason, 0) + n
+        logger.info(
+            "migrate-observations: batch=%d read=%d written=%d skipped=%d rejected=%d undecrypted=%d last_id=%d",
+            counts["batches"], counts["read"], counts["written"], counts["skipped"],
+            sum(counts["rejected"].values()), counts["undecrypted"], after,
         )
-        logger.info("migrate-observations: batch=%d read=%d written=%d last_id=%d", batches, read, written, after)
-    return {"read": read, "written": written, "batches": batches}
+    return counts
 
 
 __all__ = ["MIGRATED_NOTE", "RETIRED", "migrate"]

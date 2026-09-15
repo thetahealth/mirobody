@@ -135,6 +135,15 @@ def code(
             OUTCOME_NEEDS_INPUT, local, did, RULE_ENGINE, rel, reason="unit:conflict",
             evidence=evidence + (f"rejected={hit.rejected_code}", f"why={hit.rejected_reason}"),
         )
+    if hit.method == "refused" and hit.rejected_reason:
+        # "Plateletcrit (PCT)": the name and its parenthetical resolve to two
+        # analytes and the resolver will not pick by position. A person can,
+        # so this is an open question, not the closed refusal a category
+        # word ("血脂") gets.
+        return Coding(
+            OUTCOME_NEEDS_INPUT, local, did, RULE_ENGINE, rel, reason="name:ambiguous",
+            evidence=evidence + (f"why={hit.rejected_reason}",),
+        )
     if hit.method == "refused":
         return Coding(OUTCOME_REFUSED, local, did, RULE_ENGINE, rel, reason="engine:refused", evidence=evidence)
     if not hit.resolved or not hit.loinc:

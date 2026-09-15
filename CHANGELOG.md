@@ -285,6 +285,19 @@ written by one module and read through one view.
   reason `unit:conflict`. Eleven printed unit spellings and the power-of-ten
   count units (`10⁴/μL`) normalize; a LOINC CLASS gate keeps radiology,
   dental and flow-cytometry codes out of lab-report answers.
+- Measured on a deployment's own rows (646 file readings migrated out of
+  `th_series_data`): a measure word in the name (`monocyte count`,
+  `中性粒细胞计数`, `serum cystatin C`) no longer hides the analyte; a
+  differential count printed as `%` finds its `/leukocytes` code; `U/mL`
+  admits a tumour marker's arbitrary units, `fL` the mean cell volumes,
+  `mL/min` an eGFR, `%` the distribution width; the eGFR spelled
+  `mL/(min×1.73 m^2)` parses; a unit printed inside the value cell is kept
+  as the printed unit, and one the tables cannot read stays unread rather
+  than becoming its first readable prefix; `FT3` and `free T3` code to free
+  T3 instead of T3 resin uptake; a name holding two analytes
+  (`Plateletcrit (PCT)`) is `needs-input` with both codes named, not a
+  refusal. `mirobody migrate-observations` reports written, coded, skipped,
+  rejected and undecrypted counts.
 - `translate_build/`: the LOINC 2.83 Tier-2 cut (63,391 codes) and its
   accessory tables, build-time only.
 

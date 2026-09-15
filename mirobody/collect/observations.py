@@ -217,6 +217,8 @@ def prepare(
     value_text = _clean(draft.value_text)
     unit_text = _clean(draft.unit_text)
     parsed = translate.parse_value(value_text, unit_text)
+    # A unit printed inside the value cell is still the printed unit.
+    unit_text = unit_text or parsed.unit_tail
     fact = series.Fact(
         metric_key=name,
         value_num=parsed.value_num,
@@ -1036,25 +1038,40 @@ async def user_tz(user_id: str) -> str:
     where `is_del = false` lives."""
     from mirobody.user.user import get_user
 
-    row = await get_user(user_id=user_id)
+    try:
+        row = await get_user(user_id=user_id)
+    except (TypeError, ValueError):
+        # An id that is not an account id (a demo or test person): no zone.
+        row = None
     return ((row or {}).get("tz") or "").strip() or "UTC"
 
 
-async def ingest_legacy_rows(rows: list[dict[str, Any]], *, on_conflict: str = ON_CONFLICT_AMEND) -> int:
+async def ingest_legacy(rows: list[dict[str, Any]], *, on_conflict: str = ON_CONFLICT_AMEND) -> Report:
     """Write rows in the collect layer's dict shape, grouped by person and
-    provenance. Returns how many observations were written."""
+    provenance, and total the reports."""
     groups: dict[tuple[str, Provenance], list[Draft]] = {}
     for r in rows:
         prov = legacy_provenance(r)
         groups.setdefault((str(r.get("user_id") or ""), prov), []).append(legacy_draft(r))
-    written = 0
+    total = Report()
     zones: dict[str, str] = {}
     for (uid, prov), drafts in groups.items():
         if uid not in zones:
             zones[uid] = await user_tz(uid)
         report = await ingest(uid, drafts, prov, user_tz=zones[uid], on_conflict=on_conflict)
-        written += report.inserted
-    return written
+        total.inserted += report.inserted
+        total.skipped += report.skipped
+        total.coded += report.coded
+        for reason, n in report.rejected.items():
+            total.rejected[reason] = total.rejected.get(reason, 0) + n
+        total.ids.extend(report.ids)
+        total.series |= report.series
+    return total
+
+
+async def ingest_legacy_rows(rows: list[dict[str, Any]], *, on_conflict: str = ON_CONFLICT_AMEND) -> int:
+    """`ingest_legacy`, returning only how many observations were written."""
+    return (await ingest_legacy(rows, on_conflict=on_conflict)).inserted
 
 
 __all__ = [
@@ -1100,6 +1117,7 @@ __all__ = [
     "confirm_alias",
     "erase",
     "ingest",
+    "ingest_legacy",
     "ingest_legacy_rows",
     "legacy_draft",
     "legacy_provenance",

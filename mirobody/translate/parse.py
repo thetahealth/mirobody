@@ -41,6 +41,20 @@ _SCALE_TO_KIND = {"qn": KIND_QUANTITY, "ord": KIND_ORDINAL, "nom": KIND_NOMINAL,
 _NUM = r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?"
 _RANGE = re.compile(rf"^\s*({_NUM})\s*(?:-|~|～|－|–|—|to|至)\s*({_NUM})")
 _BOUND = re.compile(rf"^\s*([<>≤≥]=?)\s*({_NUM})")
+#: The comparator and number a value cell opens with; what follows is the
+#: printed unit, or prose. Text that opens with a divisor, a power or a
+#: multiplication continues a unit rather than following one.
+_NUMBER_HEAD = re.compile(rf"^\s*[-<>=+~≤≥≈]*\s*{_NUM}")
+_CONTINUES_UNIT = re.compile(r"^(?:[/^·×]|[*.](?=[0-9A-Za-z{(]))")
+
+
+def _split_unit(tail: str, ucum: str) -> tuple[str, str]:
+    """`(printed, rest)`: the longest prefix of `tail` that reads as `ucum`,
+    and what follows it."""
+    for end in range(len(tail), 0, -1):
+        if normalize_unit(tail[:end]) == ucum:
+            return tail[:end].strip(), tail[end:].strip()
+    return tail, ""
 
 
 @dataclass(frozen=True)
@@ -54,6 +68,10 @@ class Parsed:
     comparator: str = ""
     unit_ucum: str = ""
     data_absent_reason: str = ""
+    #: The unit as printed inside the value cell ("5.62 mmol/L" gives
+    #: "mmol/L"), for the caller to keep as the verbatim unit when the unit
+    #: column was empty. Empty when the unit came from its own column.
+    unit_tail: str = ""
 
 
 def parse_value(value_text: str, unit_text: str = "") -> Parsed:
@@ -74,7 +92,24 @@ def parse_value(value_text: str, unit_text: str = "") -> Parsed:
     parsed = parse_value_unit(text)
     if parsed.value is not None and math.isfinite(parsed.value):
         comparator = _COMPARATORS.get(parsed.comparator, "")
-        return Parsed(KIND_QUANTITY, parsed.value, comparator, unit_ucum or (parsed.unit or ""))
+        if unit_ucum:
+            return Parsed(KIND_QUANTITY, parsed.value, comparator, unit_ucum)
+        head = _NUMBER_HEAD.match(text)
+        tail = text[head.end():].strip() if head else ""
+        if not tail:
+            return Parsed(KIND_QUANTITY, parsed.value, comparator, parsed.unit or "")
+        whole = normalize_unit(tail) or ""
+        if whole or not parsed.unit:
+            return Parsed(KIND_QUANTITY, parsed.value, comparator, whole, unit_tail=tail if whole else "")
+        printed, rest = _split_unit(tail, parsed.unit)
+        # "150 mg/dL ↑" and "70克葡萄糖" read a unit and then a flag or a noun.
+        # "88 mL/(min.1,73 m2)" reads "mL" and then MORE UNIT: the longest
+        # readable prefix is a different unit, not a reading of this one, so
+        # the typed unit stays empty and the tail is kept for the verbatim
+        # column.
+        if _CONTINUES_UNIT.match(rest):
+            return Parsed(KIND_QUANTITY, parsed.value, comparator, "", unit_tail=tail)
+        return Parsed(KIND_QUANTITY, parsed.value, comparator, parsed.unit, unit_tail=printed)
 
     kind = _SCALE_TO_KIND.get(classify_value(text) or "", KIND_NARRATIVE)
     if kind == KIND_QUANTITY:
