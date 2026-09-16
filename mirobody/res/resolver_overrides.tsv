@@ -177,6 +177,24 @@ urine pH	pH Ur
 specific gravity	SP GR Ur
 urine specific gravity	SP GR Ur
 
+# ── wearables ────────────────────────────────────────────────────────────
+# The sleep stages, skin temperature and climb a watch reports. LOINC 2.75
+# and 2.82 name them, and no alias table reached the everyday spellings.
+deep sleep	Deep sleep duration
+deep sleep time	Deep sleep duration
+light sleep	Light sleep duration
+light sleep time	Light sleep duration
+REM sleep	REM sleep duration
+REM sleep time	REM sleep duration
+awake time	Awakening duration
+time in bed	Duration in bed
+sleep latency	Duration of falling asleep
+awakenings	Number of awakenings
+skin temperature	Body surface temperature
+wrist temperature	Body surface temperature
+elevation gain	Elevation climbed
+floors climbed	Flights climbed
+
 # ══ 中文（简体）═══════════════════════════════════════════════════════════
 # zh.tsv 由 LOINC 官方中文译名机器生成，收的是学名（"葡萄糖"），化验单上
 # 实际印的口语名（"血糖"、"总胆固醇"）反而缺失。
@@ -231,6 +249,23 @@ urine specific gravity	SP GR Ur
 骨碱性磷酸酶	Alkaline phosphatase.bone
 骨特异性碱性磷酸酶	Alkaline phosphatase.bone
 骨源性碱性磷酸酶	Alkaline phosphatase.bone
+# 可穿戴设备：睡眠分期、皮温、爬升。有码而无中文键。
+深睡	Deep sleep duration
+深睡时长	Deep sleep duration
+深度睡眠	Deep sleep duration
+浅睡	Light sleep duration
+浅睡时长	Light sleep duration
+快速眼动睡眠	REM sleep duration
+REM睡眠	REM sleep duration
+清醒时长	Awakening duration
+卧床时长	Duration in bed
+入睡潜伏期	Duration of falling asleep
+清醒次数	Number of awakenings
+皮肤温度	Body surface temperature
+体表温度	Body surface temperature
+腕温	Body surface temperature
+爬升高度	Elevation climbed
+爬楼层数	Flights climbed
 
 # ══ 日本語 ════════════════════════════════════════════════════════════════
 # 血色素・尿蛋白・尿糖 は簡体字セクションにもある（同形同義の共有漢語）。

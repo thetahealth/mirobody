@@ -343,6 +343,15 @@ CASES: list[tuple[str, str, str]] = [
     ("sleep duration",              r"sleep duration",               r""),
     ("sleep_duration",              r"sleep duration",               r""),
     ("睡眠时长",                     r"sleep duration",               r""),
+    # The stages and the skin temperature a watch reports: LOINC 2.75 names
+    # them and no alias table reached the everyday spelling.
+    ("深睡",                        r"deep sleep duration",          r""),
+    ("REM sleep",                   r"REM sleep duration",           r""),
+    ("浅睡时长",                     r"light sleep duration",         r""),
+    ("skin temperature",            r"body surface temperature",     r""),
+    ("皮肤温度",                     r"body surface temperature",     r""),
+    ("sleep latency",               r"falling asleep",               r""),
+    ("入睡潜伏期",                    r"falling asleep",               r""),
     ("body weight",                 r"body weight",                  r"birth|ideal|estimated"),
     ("body_weight",                 r"body weight",                  r"birth|ideal|estimated"),
     ("body fat percentage",         r"body fat",                     r""),

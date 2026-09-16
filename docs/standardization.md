@@ -23,9 +23,10 @@ Standardization here is not a lookup table but a complete terminology-normalizat
 - **Concept graph**: 440,961 nodes · 22,044,110 cross-vocabulary edges ·
   **595,746 source ids** distilled into canonical concepts (LOINC · SNOMED CT ·
   RxNorm bridges).
-- **49,253 multilingual aliases** (中文 22,578 · 日本語 16,809 · +5:
-  de·es·fr·ko·ru). `hemoglobin`, `血红蛋白`, `血紅素` and `ヘモグロビン` all land
-  on LOINC 718-7.
+- **32,444 multilingual aliases** (中文 22,578 · de·es·fr·ko·ru 9,866), plus
+  curated rows. `hemoglobin`, `血红蛋白`, `血紅素` and `ヘモグロビン` all land
+  on LOINC 718-7. The Japanese alias file shipped before 1.5.0 was a UMLS
+  derivation, not a LOINC variant, and is gone; see `LICENSE-3RD-PARTY`.
 - **繁體中文 is two problems, handled as two.** Script folding is mechanical
   (a shipped 3,336-character zh-Hant → zh-Hans table); vocabulary is not — Taiwan
   usage picks different words, and folding `血紅素` yields the HbA1c code. Those

@@ -339,6 +339,19 @@ written by one module and read through one view.
 
 ### Changed
 
+- **`res/aliases_src/ja.tsv` is removed.** It was a UMLS-derived file
+  (MSHJPN / MDRJPN) listed as a LOINC linguistic variant, and LOINC has
+  none for Japanese. Two percent of its rows produced a code; on the
+  7,354-case benchmark the loose file answered 51 cases correctly (organism
+  and drug names) and 35 wrongly, so coverage moves 0.962 to 0.950 and the
+  wrong rate 0.030 to 0.029. The Japanese laboratory names in the gate all
+  still resolve. The alias index inside the bundle still carries the
+  surfaces that file contributed until the LOINC-only re-cut.
+  `scripts/check_wheel_data.py` forbids the file in a wheel.
+- The everyday spellings of the sleep stages, skin temperature, sleep
+  latency and climb resolve in English and Chinese (`深睡`, `REM sleep`,
+  `皮肤温度`, `入睡潜伏期`, `floors climbed`): LOINC 2.75 names them and no
+  alias table reached them.
 - **`mirobody/schema/` is one file per domain.** Twenty-two numbered
   increments (`00_init_schema.sql` … `a7_…`) became nine files: prolog,
   accounts, files, observations, medications, devices, device rules, chat, and

@@ -51,6 +51,9 @@ REQUIRED = {
 # wheel. One of them, the SNOMED bundle, also put an Affiliate-Licence
 # obligation on every downstream recipient.
 FORBIDDEN = (
+    # 1.5.0: a UMLS-derived Japanese alias file (MSHJPN / MDRJPN) that was
+    # listed as a LOINC linguistic variant; LOINC has none for Japanese.
+    "mirobody/res/aliases_src/ja.tsv",
     "mirobody/res/fhir_concept_graph.bin",
     "mirobody/res/fhir_snomed_ct_bundle.tar.gz",
     # 1.3.0: superseded by `corpus_names.bin` inside the bundle. The resolver
