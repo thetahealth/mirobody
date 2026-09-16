@@ -74,7 +74,7 @@ wheel in the same venv — otherwise they pass vacuously.
 - **Verify, don't reason.** Before deleting "unused" code compute reachability
   transitively (a sibling may call it). Before repeating a claim from a README,
   run the command.
-- **Every `th_series_data` write goes through `collect/readings.py`.** Every
+- **Every observation write goes through `collect/observations.py`.** Every
   FastAPI router answers with `server/envelope.py`. Every read of a person's
   readings goes through `query.HealthQuery`. Don't add a sixth INSERT, a fourth
   envelope, or a second copy of the query — when there were two, the chat
