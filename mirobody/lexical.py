@@ -43,7 +43,11 @@ import unicodedata
 __all__ = [
     "TRAILING_PARENTHETICAL",
     "index_fold",
+    "is_component_suffix",
+    "join_series_suffix",
+    "measure_stems",
     "normalize",
+    "strip_trailing_abbreviation",
     "split_trailing_parenthetical",
     "surface_variants",
     "word_tokens",
@@ -170,11 +174,44 @@ def word_tokens(text: str) -> list[str]:
 # are untouched.
 _TRAILING_HYPHEN_ABBREV = re.compile(r"(?<=\w{3})-([A-Za-z][A-Za-z0-9]{0,6}|[0-9][A-Za-z0-9]{0,6})$")
 
+# A tail that names a FRACTION of the parent analyte, not a spelling of it:
+# the CK isoenzymes, the five LDH isoenzymes, bone-specific ALP, and any
+# bare number (HPV-16, IgG-4, apolipoprotein A-1). Stripping one of these
+# answers the parent's code for the child, confidently and wrong:
+# `Creatine Kinase-MB 25 U/L` came back as total CK.
+_COMPONENT_SUFFIX = re.compile(r"^(?:MB|BB|MM|LDH?[1-5]|BALP|B-ALP|[0-9]+)$", re.I)
+
+
+def is_component_suffix(token: str) -> bool:
+    """Whether a trailing token is a component of the analyte before it."""
+    return bool(_COMPONENT_SUFFIX.match((token or "").strip()))
+
+
+def strip_trailing_abbreviation(term: str) -> str:
+    """``"Total Cholesterol-TC"`` to ``"Total Cholesterol"``; unchanged when
+    the tail is a component suffix or there is no hyphenated tail."""
+    m = _TRAILING_HYPHEN_ABBREV.search(term or "")
+    if not m or is_component_suffix(m.group(1)):
+        return term or ""
+    return term[: m.start()].strip()
+
+
+# "Vitamin D-3", "Complement C-3": a single letter, a hyphen, a number. The
+# index spells these joined (D3, C3, B12); left apart, the tail fell to the
+# trailing-token rule and `Vitamin` alone answered. Two-letter stems such as
+# CA-125 and IgG-4 are index keys already and are left alone.
+_SERIES_SUFFIX = re.compile(r"(?<![A-Za-z0-9])([A-Za-z])-(\d{1,3})$")
+
+
+def join_series_suffix(term: str) -> str:
+    """``"Vitamin D-3"`` to ``"Vitamin D3"``; unchanged when there is no such tail."""
+    return _SERIES_SUFFIX.sub(r"\1\2", term or "")
+
 
 def surface_variants(term: str) -> list[str]:
     """The spellings of ``term`` worth trying, most faithful first.
 
-    Never more than five, and the first is always the term as written, so a
+    Never more than six, and the first is always the term as written, so a
     caller that stops at the first hit keeps today's answer for today's inputs.
     Every entry after the first can only turn a miss into a hit.
 
@@ -195,7 +232,8 @@ def surface_variants(term: str) -> list[str]:
         term,
         normalize(term),
         " ".join(word_tokens(term)),
-        _TRAILING_HYPHEN_ABBREV.sub("", term or "").strip(),
+        strip_trailing_abbreviation(term),
+        join_series_suffix(term),
         fold_to_hans(term or ""),
     )
     for candidate in candidates:

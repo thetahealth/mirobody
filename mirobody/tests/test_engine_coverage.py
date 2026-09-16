@@ -125,6 +125,23 @@ CASES: list[tuple[str, str, str]] = [
     # ── liver enzymes ────────────────────────────────────────────────────────
     ("ALT",                         r"alanine aminotransferase",     r""),
     ("AST",                         r"aspartate aminotransferase",   r""),
+    # A hyphenated tail that names a COMPONENT of the parent analyte. The
+    # hyphen rule used to strip it and answer the parent: total CK for the
+    # MB isoenzyme, total LDH for LDH1, total ALP for bone ALP.
+    ("Creatine Kinase-MB",          r"creatine kinase\.MB",          r"Creatine kinase \["),
+    ("Creatine Kinase MB",          r"creatine kinase\.MB",          r"Creatine kinase \["),
+    ("肌酸激酶同工酶",                 r"creatine kinase\.MB",          r"interpretation"),
+    ("Lactate Dehydrogenase-LDH1",  r"lactate dehydrogenase 1",      r""),
+    ("LDH-5",                       r"lactate dehydrogenase 5",      r""),
+    ("Alkaline Phosphatase-BALP",   r"alkaline phosphatase\.bone",   r""),
+    ("BALP",                        r"alkaline phosphatase\.bone",   r""),
+    ("bone-specific alkaline phosphatase", r"alkaline phosphatase\.bone", r""),
+    ("骨碱性磷酸酶",                   r"alkaline phosphatase\.bone",   r""),
+    # A letter-hyphen-number tail is a series member the index spells joined.
+    # `Vitamin D-3` used to fall through to the bare stem and answer GALAD.
+    ("Vitamin D-3",                 r"vitamin D3",                   r"GALAD"),
+    ("Vitamin B-12",                r"cobalamin",                    r"GALAD"),
+    ("Complement C-3",              r"complement C3",                r"Sc5b-9"),
     ("alkaline phosphatase",        r"alkaline phosphatase",         r""),
     # ── endocrine & vitamins ─────────────────────────────────────────────────
     ("HbA1c",                       r"hemoglobin a1c",               r""),
@@ -540,6 +557,12 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     ("eGFR",            "30",  "mL/min", "48642-3", "eGFR without the area term"),
     ("RDW-CV",          "13.1", "%",     "30385-9", "distribution width printed as %"),
     ("FT3",             "4.5", "pmol/L", "14928-6", "free T3 to moles/volume"),
+    # The component survives the unit switch: the unit picks activity or
+    # mass WITHIN `creatine kinase.MB`, never the parent's code.
+    ("Creatine Kinase-MB", "25", "U/L",  "32673-6", "MB isoenzyme, activity"),
+    ("Creatine Kinase-MB", "3.2", "ng/mL", "13969-1", "MB isoenzyme, mass"),
+    ("Lactate Dehydrogenase-LDH1", "60", "U/L", "2537-9", "LDH1 activity, not total LDH"),
+    ("Alkaline Phosphatase-BALP", "20", "ug/L", "17838-4", "bone ALP mass, in serum"),
 ]
 
 
@@ -698,6 +721,42 @@ def test_a_differential_count_printed_as_a_percentage_finds_its_ratio_code():
     assert "property" in r.evidence
     # And not for a count that is not a leukocyte type.
     assert resolve_reading("白细胞", "62", "%").method == "refused"
+
+
+def test_a_component_suffix_is_not_an_abbreviation_of_its_parent():
+    """`Creatine Kinase-MB` is not `Creatine Kinase` abbreviated, the way
+    `Total Cholesterol-TC` is. The parent and the suffixed child must reach
+    two different codes, or the child is being filed under the parent."""
+    from mirobody.engine import resolve
+    from mirobody.lexical import strip_trailing_abbreviation
+
+    assert strip_trailing_abbreviation("Total Cholesterol-TC") == "Total Cholesterol"
+    for parent, child in (
+        ("Creatine Kinase", "Creatine Kinase-MB"),
+        ("Lactate Dehydrogenase", "Lactate Dehydrogenase-LDH1"),
+        ("Alkaline Phosphatase", "Alkaline Phosphatase-BALP"),
+        ("Vitamin D", "Vitamin D-3"),
+    ):
+        assert strip_trailing_abbreviation(child) == child
+        p, c = resolve(parent), resolve(child)
+        assert p.resolved and c.resolved, (parent, child)
+        assert p.loinc != c.loinc or parent == "Vitamin D", f"{child} filed under {parent}: {c.loinc}"
+
+
+def test_a_unit_never_moves_a_reading_to_another_specimen():
+    """`albumin 30 mg/24h` names a serum protein with a urine excretion
+    unit. The only code with that property is the 24-hour URINE albumin;
+    answering it would file a serum row into a urine series. A unit may
+    choose between properties of one analyte in one specimen, and when the
+    specimen would have to change the reading is refused with both named."""
+    from mirobody.engine import resolve_reading
+
+    r = resolve_reading("albumin", "30", "mg/(24.h)")
+    assert r.method == "refused"
+    assert r.rejected_code == "1751-7"
+    assert "Ser/Plas" in r.rejected_reason and "Urine" in r.rejected_reason
+    # `Ser` and `Ser/Plas` are the same draw, so a Ql sibling in Ser is reachable.
+    assert resolve_reading("rheumatoid factor", "negative", None).loinc == "33910-1"
 
 
 def test_a_name_that_holds_two_analytes_says_which_two():

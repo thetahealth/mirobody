@@ -314,6 +314,15 @@ written by one module and read through one view.
 
 ### Fixed
 
+- A hyphenated component suffix is no longer stripped as an abbreviation:
+  `Creatine Kinase-MB` resolves to CK-MB, not total CK; `Lactate
+  Dehydrogenase-LDH1` and `Alkaline Phosphatase-BALP` likewise reach their
+  own component. `Vitamin D-3` and `Complement C-3` join to the spelling the
+  index knows instead of falling through to the bare stem. A printed unit may
+  pick between properties of one analyte in one specimen, never move it to
+  another specimen: `albumin 30 mg/24h` is refused rather than filed as
+  24-hour urine albumin. On the 7,354-case benchmark three wrong answers
+  became refusals and nothing else moved.
 - `indicator/search.py` and `indicator/fhir/adapter.py` import on a base
   install: their `mirobody.utils` imports (aiohttp) are lazy. The adapter's
   graph expansion returns its input unexpanded when the local embedding

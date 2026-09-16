@@ -55,7 +55,7 @@ from ._bundle import (
     read_members,
 )
 from ._strtab import StringTable
-from .lexical import index_fold, measure_stems, split_trailing_parenthetical, surface_variants
+from .lexical import index_fold, is_component_suffix, measure_stems, split_trailing_parenthetical, surface_variants
 
 if TYPE_CHECKING:  # `_posting` names np.ndarray in its annotation; numpy itself
     import numpy as np  # is imported lazily so `import mirobody.engine` stays cheap
@@ -96,6 +96,11 @@ _BLOCK_SENTINEL = "!unresolved"
 _PLAIN_SPECIMEN = re.compile(rb"in (Serum or Plasma|Blood)\b", re.I)
 _SPECIAL_SPECIMEN = re.compile(rb"\b(cord|capillary|venous|arterial|dialysis)\b", re.I)
 # "Fasting plasma glucose FPG" -> "Fasting plasma glucose" (trailing acronym).
+def _specimen_tokens(system: str) -> frozenset[str]:
+    """The specimens a LOINC SYSTEM names: ``Ser/Plas`` is {Ser, Plas}."""
+    return frozenset(t for t in re.split(r"[/^+]", system or "") if t)
+
+
 _TRAILING_ACRONYM = re.compile(r"\s+[A-Z][A-Z0-9-]{1,7}$")
 
 #: Scales a free-prose value maps to. `scales_for_value` answers (`Nar`, `Doc`)
@@ -418,7 +423,11 @@ class OfflineResolver:
         to fix. Recursion is not a concern: the pattern needs whitespace before
         the token, and neither argument here has any.
         """
-        if not token or token in self._systems():
+        if not token or token in self._systems() or is_component_suffix(token):
+            return False
+        if any(ch.isdigit() for ch in token):
+            # `Vitamin D-3`, `Apolipoprotein B-100`: a numbered tail is a
+            # member of a series, never a spelling of the stem.
             return False
         own = self._lookup(token)
         if own is None or not own.loinc:
@@ -796,7 +805,28 @@ class OfflineResolver:
                     "and no code for this analyte carries it"
                 ),
             )
-        same_system = [r for r in siblings if r[4] == current[4]] or siblings
+        same_system = [r for r in siblings if r[4] == current[4]]
+        if not same_system:
+            # `Ser` and `Ser/Plas` are one draw; `rheumatoid factor negative`
+            # moves from 11572-5 (Ser/Plas) to its Ql code in Ser.
+            own = _specimen_tokens(current[4])
+            same_system = [r for r in siblings if _specimen_tokens(r[4]) & own]
+        if not same_system:
+            # The unit fits a sibling only in another specimen: `albumin 30
+            # mg/24h` reached the URINE excretion code from a serum name. A
+            # unit may pick the property, never the specimen.
+            elsewhere = sorted({r[4] for r in siblings})
+            return UnitVerdict(
+                code="",
+                outcome="axis-conflict",
+                unit_ucum=ucum or "",
+                axes=axes,
+                rejected_code=loinc,
+                rejected_reason=(
+                    f"{loinc} is {current[2]}/{current[3]} in {current[4]}; the unit fits this analyte "
+                    f"only in {', '.join(elsewhere)}"
+                ),
+            )
         # A method-less variant first: `... by Automated count` is a narrower
         # claim than the report supports.
         same_system.sort(key=lambda r: (r[5] != "", len(r[6])))

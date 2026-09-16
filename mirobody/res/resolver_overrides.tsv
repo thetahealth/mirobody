@@ -92,6 +92,31 @@ AST	Aspartate aminotransferase
 SGOT	Aspartate aminotransferase
 SGPT	Alanine aminotransferase
 ALP	Alkaline phosphatase
+# Isoenzymes and components. `Creatine Kinase-MB` is not "Creatine Kinase"
+# abbreviated: the tail names a fraction of it, and the parent's code is the
+# wrong answer at full confidence. `lexical.is_component_suffix` keeps the
+# hyphen rule off these tails; the rows take them to their own component.
+Creatine Kinase-MB	Creatine kinase.MB
+Creatine Kinase MB	Creatine kinase.MB
+CK-MB isoenzyme	Creatine kinase.MB
+creatine kinase MB isoenzyme	Creatine kinase.MB
+Lactate Dehydrogenase-LDH1	LDH1
+Lactate Dehydrogenase-LDH2	LDH2
+Lactate Dehydrogenase-LDH3	LDH3
+Lactate Dehydrogenase-LDH4	LDH4
+Lactate Dehydrogenase-LDH5	LDH5
+LDH-1	LDH1
+LDH-2	LDH2
+LDH-3	LDH3
+LDH-4	LDH4
+LDH-5	LDH5
+BALP	Alkaline phosphatase.bone
+B-ALP	Alkaline phosphatase.bone
+bone ALP	Alkaline phosphatase.bone
+bone alkaline phosphatase	Alkaline phosphatase.bone
+bone-specific alkaline phosphatase	Alkaline phosphatase.bone
+Alkaline Phosphatase-BALP	Alkaline phosphatase.bone
+Alkaline Phosphatase-Bone	Alkaline phosphatase.bone
 
 # ── endocrine & vitamins ─────────────────────────────────────────────────
 free T4	FT4
@@ -199,6 +224,13 @@ urine specific gravity	SP GR Ur
 尿蛋白	Prot Ur Ql
 尿糖	Glucose Ur-mCnc
 尿酮体	Ketones Ur-mCnc
+# 同工酶与组分：后缀指母酶的一个组分，不是它的缩写。化验单上单印
+# "肌酸激酶同工酶" 报的是 CK-MB 的量，不是同工酶谱的判读（14680-3）。
+肌酸激酶同工酶	Creatine kinase.MB
+肌酸激酶同工酶MB	Creatine kinase.MB
+骨碱性磷酸酶	Alkaline phosphatase.bone
+骨特异性碱性磷酸酶	Alkaline phosphatase.bone
+骨源性碱性磷酸酶	Alkaline phosphatase.bone
 
 # ══ 日本語 ════════════════════════════════════════════════════════════════
 # 血色素・尿蛋白・尿糖 は簡体字セクションにもある（同形同義の共有漢語）。
@@ -281,6 +313,10 @@ lipid panel	!unresolved
 # ビタミン, 腫瘍マーカー) already resolve to nothing and need no row.
 维生素	!unresolved
 維生素	!unresolved
+# The bare word answered 96450-2, a liver-cancer risk score, at full
+# confidence: it is a heading, not a test.
+Vitamin	!unresolved
+Vitamins	!unresolved
 肿瘤标志物	!unresolved
 腫瘤標誌物	!unresolved
 # Two report SECTION headings. 尿常规 answered 19159-3 (a specimen collection
