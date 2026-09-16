@@ -103,6 +103,12 @@ CASES: list[tuple[str, str, str]] = [
     # ── metabolic panel ──────────────────────────────────────────────────────
     ("glucose",                     r"glucose",                      r"tolerance|challenge"),
     ("fasting glucose",             r"^fasting glucose",             r"tolerance"),
+    # A post-meal reading is its own code. `餐后血糖` answered plain glucose
+    # (2339-0) and the English long form off a real report answered nothing.
+    ("postprandial blood glucose",  r"post meal",                    r"2 hours|1 hour|tolerance"),
+    ("Postprandial Blood Glucose-PBG", r"post meal",                 r"2 hours|1 hour|tolerance"),
+    ("2-hour postprandial glucose",  r"2 hours post meal",           r""),
+    ("餐后血糖",                      r"post meal",                    r"2 hours|1 hour|tolerance"),
     ("creatinine",                  r"creatinine",                   r"clearance|urine"),
     # A printed English panel writes the specimen into the name. Both of these
     # answered 44760-7 "Model for end-stage liver disease score" until

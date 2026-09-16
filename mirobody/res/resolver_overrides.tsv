@@ -73,6 +73,15 @@ fasting glucose	Fasting glucose [Mass/volume] in Serum or Plasma
 fasting blood glucose	Fasting glucose [Mass/volume] in Serum or Plasma
 fasting plasma glucose	Fasting glucose [Mass/volume] in Serum or Plasma
 blood sugar	Glucose
+# A post-meal reading is its own code, not plain glucose: 16915-1 when the
+# report does not say how long after, 1521-4 when it says two hours.
+postprandial blood glucose	Glucose^post meal
+postprandial glucose	Glucose^post meal
+post prandial blood sugar	Glucose^post meal
+PPBS	Glucose^post meal
+PPG	Glucose^post meal
+2-hour postprandial glucose	Glucose^2H post meal
+2 hour postprandial glucose	Glucose^2H post meal
 BUN	Urea nitrogen
 total bilirubin	Bilirubin
 bilirubin total	Bilirubin
@@ -150,7 +159,7 @@ urine specific gravity	SP GR Ur
 血色素	Hemoglobin
 血糖	Glucose
 空腹血糖	Fasting glucose [Mass/volume] in Serum or Plasma
-餐后血糖	Glucose
+餐后血糖	Glucose^post meal
 总胆固醇	Cholesterol
 胆固醇	Cholesterol
 低密度脂蛋白胆固醇	LDL-C
