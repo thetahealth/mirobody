@@ -1,0 +1,55 @@
+# Fitbit Web API: vendor fields to LOINC 2.83
+#
+# Fitbit Web API response fields. Two sleep log modes (classic, stages), a skin temperature that is
+# a deviation from baseline, and active-zone minutes that double-count cardio and peak minutes.
+#
+# Source, read 2026-09-09:
+#   https://dev.fitbit.com/build/reference/web-api/
+#   Per-endpoint response tables; Fitbit publishes no OpenAPI document.
+#
+# Columns:
+#   type        the vendor's data type, record class or endpoint, verbatim
+#   field       the field inside it, verbatim; empty when the type is the reading
+#   metric      the mirobody catalogue name (res/metrics.tsv); empty when the catalogue has no row
+#   loinc       the LOINC code the field means; EMPTY IS A DECLINE, and the note says why
+#   confidence  confident = the six LOINC axes agree with the vendor's definition;
+#               unverified = close, a person must confirm before a reading is filed under it
+#   note        the reasoning; some notes are in Chinese, as they were written
+#
+# Every code was checked by hand against the LOINC 2.83 axis table on 2026-09-09.
+# No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
+# Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
+# Generated from the maintainers' review tables; edit through a pull request,
+# and keep the file loadable by mirobody.translate.devices.
+type	field	metric	loinc	confidence	note
+hrv	value.dailyRmssd	hrvRMSSD			字段文档原文 "Root Mean Square of Successive Differences (RMSSD)"，ms。LOINC 无 RMSSD 码
+hrv	value.deepRmssd	sleepHeartRateRMSSD			深睡期间 RMSSD；同上无码。本仓 `sleepHeartRateRMSSD` 正好对应
+activities-heart	value.restingHeartRate	restingHeartRates	40443-4	confident	
+activities-heart	value.heartRateZones[]				Fitbit 是四区（Out of Range / Fat Burn / Cardio / Peak），本仓五区，LOINC 三区+最大区，三方档位互不对齐，不落码
+spo2 summary	value.avg	oxygenSaturations	59408-5	confident	1 分钟 SpO2 的日均；日均口径亦可用 103209-3（但该码 PROPERTY=NRat 有缺陷，(see docs/device-crosswalk.md)
+spo2	value.min / value.max				LOINC 无日最低/最高血氧码（59405-7/59406-9 是 8 小时窗）
+br	value.breathingRate	dailySleepRespiratoryRate	103217-6	unverified	average number of breaths taken per minute，睡眠期间均值。`103217-6` Mean respiratory rate 的 SCALE_TYP 为空、CLASS 误置，(see docs/device-crosswalk.md)
+tempCore	value	bodyTemperatures	8310-5	confident	绝对温度（°C/°F 随 Accept-Language）
+tempSkin	value.nightlyRelative	temperatureDelta			陷阱：这是相对基线的偏差，不是绝对皮温。绝不可落到 `61008-9` / `8310-5`。LOINC 无相对温差码。另有 `logType` = dedicated_temp_sensor / other_sensors，可作数据质量分层
+cardioScore	value.vo2Max	vo2Maxs	94122-9	unverified	文档单位 mL/kg/min（与本仓 mL/min/kg 同义异序）。Fitbit 是估算值，非 CPET，故 unverified
+sleep	duration	dailySleepDuration	103213-5	unverified	Fitbit `duration` 是睡眠日志总长（ms），含清醒段 → 近「卧床时长」。须核是否等于 timeInBed
+sleep	efficiency	sleepEfficiency			LOINC 无睡眠效率码（轴表 Sleep efficiency 0 命中）
+sleep	minutesAsleep	dailyTotalSleepTime	93832-4	confident	Sleep duration
+sleep	minutesAwake	dailyAwakeTime	103210-1	unverified	Awakening duration
+sleep	minutesToFallAsleep	dailySleepLatency	103212-7	confident	Duration of falling asleep
+sleep	timeInBed	sleepAnalysis_InBed	103213-5	confident	Duration in bed
+sleep	levels.summary.deep.minutes	dailyDeepSleep	93831-6	confident	仅 logType=stages 时存在
+sleep	levels.summary.light.minutes	dailyLightSleep	93830-8	confident	同上
+sleep	levels.summary.rem.minutes	dailyRemSleep	93829-0	confident	同上
+sleep	levels.summary.wake.minutes	dailyAwakeTime	103210-1	unverified	同上
+sleep	levels.data[].level=restless / asleep / awake	sleepAnalysis_Asleep(Unspecified)	93832-4	unverified	Fitbit 有两套睡眠模式：`classic`（restless/asleep/awake，无分期）与 `stages`（deep/light/rem/wake）。classic 日志无法落分期码，只能落总睡眠时长。归一化时必须按 logType 分流
+sleep	infoCode				数据质量码（0 充分 / 1 心率数据不足 / 2 睡眠短于 3 小时 / 3 服务端问题）。建议接进本仓的置信分级而不是丢弃
+value	activeZoneMinutes	exerciseMinutes			陷阱：AZM 的 cardio 与 peak 区按 2 倍计（文档原文「1 cardio minute = 2 cardio active zone minutes」），是加权分而非真实分钟数,与任何 LOINC 时长码不可比
+value	fatBurnActiveZoneMinutes				同上（fat burn 为 1 倍）
+activities-steps		steps	55423-8	confident	日汇总用 41950-7
+activities-distance			103208-5	confident	generic distance, all activities; the catalogue's walkingRunningDistances is walking or running only (112427-0)
+activities-calories		activeCalories	41981-2	confident	
+activities-floors		floors	100304-5	confident	
+body	weight	bodyMasss	29463-7	confident	
+body	fat	bodyFatPercentages	41982-0	confident	
+body	bmi	bmis	39156-5	confident	

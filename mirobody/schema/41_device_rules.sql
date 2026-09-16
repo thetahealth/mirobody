@@ -111,6 +111,7 @@ INSERT INTO indicator_valid_rules (rule_set, indicator, rules, description) VALU
 -- METABOLIC
 ('ingestion_filter', 'bloodGlucoses',            '[">=20", "<=600"]',    'CGM min 20, DKA~500, actual max=504'),
 ('ingestion_filter', 'hrvDatas',                 '[">=5", "<=500"]',     'Extreme low~5ms, actual p1=13'),
+('ingestion_filter', 'hrvSDNN',                  '[">=5", "<=500"]',     'Same as HRV; Apple SDNN'),
 ('ingestion_filter', 'hrvRMSSD',                 '[">=5", "<=500"]',     'Same as HRV'),
 ('ingestion_filter', 'hrvMax',                   '[">=5", "<=500"]',     'HRV max'),
 ('ingestion_filter', 'hrvMin',                   '[">=0", "<=500"]',     'HRV min: can be very low'),

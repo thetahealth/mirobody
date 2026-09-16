@@ -1,0 +1,82 @@
+# Honor Health Kit: vendor fields to LOINC 2.83
+#
+# Honor Health Kit data types and fields. The service mirrors Huawei Health Kit; the cloud side
+# is read-only and the service is offered in one region only (see the vendor's support page).
+#
+# Source, read 2026-09-09:
+#   https://developer.honor.com/
+#   Fitness > Health service (kitId 11005); SDK com.hihonor.mcs:fitness-health:1.0.0.302, Maven https://developer.hihonor.com/repo. Cloud side is read-only.
+#
+# Columns:
+#   type        the vendor's data type, record class or endpoint, verbatim
+#   field       the field inside it, verbatim; empty when the type is the reading
+#   metric      the mirobody catalogue name (res/metrics.tsv); empty when the catalogue has no row
+#   loinc       the LOINC code the field means; EMPTY IS A DECLINE, and the note says why
+#   confidence  confident = the six LOINC axes agree with the vendor's definition;
+#               unverified = close, a person must confirm before a reading is filed under it
+#   note        the reasoning; some notes are in Chinese, as they were written
+#
+# Every code was checked by hand against the LOINC 2.83 axis table on 2026-09-09.
+# No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
+# Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
+# Generated from the maintainers' review tables; edit through a pull request,
+# and keep the file loadable by mirobody.translate.devices.
+type	field	metric	loinc	confidence	note
+HEART_RATE	dynamicHeartRate	heartRates	8867-4	confident	side=cloud; bpm；采样数据
+HEART_RATE	restingHeartRate	restingHeartRates	40443-4	confident	side=cloud; bpm；与动态心率同在一个 detail 结构里
+HEART_RATE (daily)	averageValue	dailyHeartRateAvg	103205-1	confident	side=cloud; 动态心率平均值
+HEART_RATE (daily)	maxValue	dailyHeartRateMax	101692-2	confident	side=cloud; 动态心率最大值
+HEART_RATE (daily)	minValue	dailyHeartRateMin	103222-6	confident	side=cloud; 动态心率最小值
+HEART_RATE (daily)	restingAveValue / maxRestingValue / minRestingValue	dailyRestingHeartRates	40443-4	unverified	side=cloud; 静息心率的均/最大/最小 —— LOINC 只有一个静息心率码，三个口径无法分列
+RECORD_HEART_HEALTH	maxHeartRate / minHeartRate	dailyHeartRateMax	101692-2	unverified	side=android; 心率过速过缓事件内的极值（30,255），不是日统计极值 —— 语义不同，勿与上面共码
+RECORD_HEART_HEALTH	maxHeartRate / minHeartRate	dailyHeartRateMin	103222-6	unverified	side=android; 心率过速过缓事件内的极值（30,255），不是日统计极值 —— 语义不同，勿与上面共码
+RECORD_HEART_HEALTH	warningLimit / warningType				side=android; 告警阈值与类型（0过高/1过低）。阈值是设置值不是测量值
+BLOOD_OXYGEN	bloodOxygen	oxygenSaturations	59408-5	confident	side=cloud; %；采样数据
+BLOOD_OXYGEN (daily)	averageValue		103209-3	unverified	side=cloud; 血氧均值；`103209-3` PROPERTY=NRat 是 LOINC 缺陷(see docs/device-crosswalk.md)
+BLOOD_OXYGEN (daily)	maxValue / minValue				side=cloud; LOINC 无日最高/最低血氧码
+BLOOD_PRESSURE	highPressure	systolicPressures	8480-6	confident	side=cloud; mmHg
+BLOOD_PRESSURE	lowPressure	diastolicPressures	8462-4	confident	side=cloud; mmHg
+BLOOD_PRESSURE	pulse	heartRates	8867-4	unverified	side=cloud; 次/分。是血压计读出的脉搏，不是腕表光学心率 —— 方法轴不同，落 8867-4 需声明
+BLOOD_GLUCOSE	measureValue	bloodGlucoses	15074-8	confident	side=cloud; 单位是 mmol/L（范围 1-33）→ 应落 `15074-8` Glucose [Moles/volume] in Blood，不是本仓现用的 `2339-0`（mg/dL）。落码前需单位换算或改码
+BLOOD_GLUCOSE	timeRange				side=cloud; 测量时段 10 档（0全时段/1夜间/2空腹/3随机/4早餐后/5午餐前/6午餐后/7晚餐前/8晚餐后/9睡前）。LOINC 有餐时相关码族，本仓无 member
+TEMPERATURE	temperature	bodyTemperatures	8310-5	confident	side=cloud; 需配合 temperatureType 判断单位
+TEMPERATURE	temperatureType				side=cloud; 1摄氏度 / 2华氏度 —— 必须读它再决定是否换算，否则会把 98.6°F 当成 98.6°C
+TEMPERATURE	tempKind				side=cloud; 0体温 / 1耳温。耳温 LOINC 有专码族（如鼓膜温度），本仓无 member
+TEMPERATURE	measureType				side=cloud; 0所有/1周期测量/2APP端主动/3耳机端主动/4用户手工录入/5三方APP录入。建议接进置信分级：4/5 是人工录入
+SAMPLE_BODY_TEMPERATURE_STATISTIC	avgValue / maxValue / minValue				side=android; ℃ [34.0,42.0]；LOINC 无日均/日极值体温码
+SLEEP	deepSleep	dailyDeepSleep	93831-6	confident	side=cloud; 分钟
+SLEEP	lightSleep	dailyLightSleep	93830-8	confident	side=cloud; 分钟 —— 原生「浅睡」，比 Apple asleepCore 直接
+SLEEP	remSleep	dailyRemSleep	93829-0	confident	side=cloud; 分钟
+SLEEP	wideAwake	dailyAwakeTime	103210-1	unverified	side=cloud; 分钟；若口径为入睡后累计清醒应改 `103215-0` WASO
+SLEEP	awakeTimes	sleepDisturbances	103211-9	confident	side=cloud; 清醒次数 → Number of awakenings
+SLEEP	sleepTimestamp / wakeupTimestamp	sleepAnalysis_InBed	103213-5	unverified	side=cloud; 入睡/出睡秒级时间戳，相减得卧床时长。注意与其余字段的毫秒不一致
+SLEEP	（deepSleep+lightSleep+remSleep）	dailyTotalSleepTime	93832-4	unverified	side=cloud; 荣耀不直接给总睡眠时长，需三段相加
+SLEEP	sporadicNaps	napDuration			side=cloud; 零星小睡总时长（分钟）。LOINC 无小睡码
+SLEEP	sleepQuality	sleepQuality			side=cloud; 睡眠分 [0,100]，厂商专有
+SLEEP	respiratoryQuality				side=cloud; 「呼吸质量 rdi」[0,100]。⚠️ RDI 本是呼吸紊乱指数（次/小时），但荣耀给的是 0-100 评分 —— 不可落 `69990-0` AHI
+SLEEP	deepSleepContinue	dailySleepContinuity			side=cloud; 深睡连续性指数 [0,100]，专有分
+SLEEP	sleepType				side=cloud; 0简单睡眠 / 1科学睡眠 / 2手机记录睡眠。建议用作分流键：简单睡眠与手机记录睡眠的分期完整度低于科学睡眠
+SLEEP	nightSegment[] / napSegment[]	dailyRemSleep	93829-0	confident	side=cloud; 分段列表，字段 `s`(入睡秒戳) `e`(出睡秒戳) `d`(时长分钟) `t`(状态)。状态枚举：6 浅睡 / 7 深睡 / 8 清醒 / 1001 快速眼动 —— 注意 1001 是跳号
+SLEEP	nightSegment[] / napSegment[]	dailyLightSleep	93830-8	confident	side=cloud; 分段列表，字段 `s`(入睡秒戳) `e`(出睡秒戳) `d`(时长分钟) `t`(状态)。状态枚举：6 浅睡 / 7 深睡 / 8 清醒 / 1001 快速眼动 —— 注意 1001 是跳号
+SLEEP	nightSegment[] / napSegment[]	dailyDeepSleep	93831-6	confident	side=cloud; 分段列表，字段 `s`(入睡秒戳) `e`(出睡秒戳) `d`(时长分钟) `t`(状态)。状态枚举：6 浅睡 / 7 深睡 / 8 清醒 / 1001 快速眼动 —— 注意 1001 是跳号
+SLEEP	nightSegment[] / napSegment[]	dailyAwakeTime	103210-1	confident	side=cloud; 分段列表，字段 `s`(入睡秒戳) `e`(出睡秒戳) `d`(时长分钟) `t`(状态)。状态枚举：6 浅睡 / 7 深睡 / 8 清醒 / 1001 快速眼动 —— 注意 1001 是跳号
+SLEEP	extraInfo				side=cloud; 拓展字段（String）
+OXYGEN_MAX	maxVO2	vo2Maxs	94122-9	unverified	side=cloud; scope 走 `pulmonary.read`
+SAMPLE_MAX_VO2	maxVO2	vo2Maxs	94122-9	unverified	side=android; 单位明写 ml/kg/min（与本仓 mL/min/kg 同义异序）。同 Apple/Fitbit：估算值非 CPET，故 unverified
+SAMPLE_MAX_VO2	maxVO2Level				side=android; 7 档（1低/2业余/3一般/4平均/5良好/6优秀/7专业），专有分级
+SAMPLE_MAX_VO2	sportType				side=android; 1户外跑步/2步行/3骑行/5室内跑步/21跳绳
+SAMPLE_STEPS	step	steps	55423-8	confident	side=android; 步；采样粒度固定 1 分钟一条（(0,500]），写入时会裁剪到整分钟
+STEPS (daily)	steps	dailySteps	41950-7	confident	side=cloud; 步，>=0
+distance.read			103208-5	confident	generic distance, all activities; the catalogue's walkingRunningDistances is walking or running only (112427-0); side=cloud; scope 描述原文「距离和爬高」—— 两者共用一个 scope
+distance.read			101687-2	unverified	generic distance, all activities; the catalogue's walkingRunningDistances is walking or running only (112427-0); side=cloud; 爬高走同一 scope，字段名未单独核实
+calories.read		activeCalories	41981-2	unverified	side=cloud; scope 描述原文「热量（包括基础代谢）」—— 与本仓 activeCalories（仅活动能量）口径不同，须核是否可分离
+strength.read		exerciseMinutes	101691-4	unverified	side=cloud; 中高强度数据；口径同华为，比 `101691-4`（全部身体活动）窄
+speed.read		speeds			side=cloud; LOINC 无 Pt 瞬时速度码
+location.read					side=cloud; 位置与轨迹，不入指标体系
+sample-weight		bodyMasss	29463-7	confident	side=cloud; 字段名未单独核实
+sample-height		heights	8302-2	confident	side=cloud; 字段名未单独核实
+STRESS	score	stressLevel			side=cloud; [1,99]，分档 放松[1-29]/正常[30-59]/中等[60-79]/偏高[80-99]。厂商专有分
+STRESS	grade				side=cloud; 1放松/2正常/3中等/4偏高
+STRESS	measureType				side=cloud; 文档标「1.0~49.0」（疑似文档笔误，取值域与描述不符）
+RECORD_REPRODUCTIVE					side=android; 女性生理周期；本仓无 member
+health-record/menstrual-cycle					side=cloud; 同上

@@ -1,0 +1,78 @@
+# Oura API v2: vendor fields to LOINC 2.83
+#
+# Oura API v2 schema fields, as usercollection.field paths. Oura is a ring: skin temperature is
+# measured at the finger, and its HRV is RMSSD, for which LOINC has no code.
+#
+# Source, read 2026-09-09:
+#   https://cloud.ouraring.com/v2/static/json/openapi-1.37.json
+#   The official OpenAPI document, version 1.37.
+#
+# Columns:
+#   type        the vendor's data type, record class or endpoint, verbatim
+#   field       the field inside it, verbatim; empty when the type is the reading
+#   metric      the mirobody catalogue name (res/metrics.tsv); empty when the catalogue has no row
+#   loinc       the LOINC code the field means; EMPTY IS A DECLINE, and the note says why
+#   confidence  confident = the six LOINC axes agree with the vendor's definition;
+#               unverified = close, a person must confirm before a reading is filed under it
+#   note        the reasoning; some notes are in Chinese, as they were written
+#
+# Every code was checked by hand against the LOINC 2.83 axis table on 2026-09-09.
+# No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
+# Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
+# Generated from the maintainers' review tables; edit through a pull request,
+# and keep the file loadable by mirobody.translate.devices.
+type	field	metric	loinc	confidence	note
+sleep	average_hrv	hrvRMSSD			Oura 的 HRV 是 RMSSD（spec 本身未声明算法；Oura 公开文档与第三方验证文献一致确认为 rMSSD）。LOINC 无 RMSSD 码。印证归一化风险：把 Oura 同步进 Apple Health 会把 RMSSD 写入 SDNN 类型的字段
+sleep	hrv	hrvDatas			5 分钟粒度 RMSSD 时间序列（PublicSample: interval + items）。同上无码；且不可落 `112429-6`（那是 SDNN）
+sleep	average_heart_rate	dailySleepAvgHeartRate	103205-1	confident	Mean heart rate（2.75）
+sleep	lowest_heart_rate	dailySleepLowestHeartRate	103222-6	confident	Heart rate.minimum（2.75）
+sleep	heart_rate	heartRates	8867-4	unverified	5 分钟粒度心率序列；`8867-4` 是 Pt 瞬时,序列点可落,但聚合层不可
+sleep	average_breath	dailySleepRespiratoryRate	103217-6	unverified	睡眠期间平均呼吸率；`103217-6` 有轴缺陷,(see docs/device-crosswalk.md)
+sleep	total_sleep_duration	dailyTotalSleepTime	93832-4	confident	Sleep duration
+sleep	time_in_bed	sleepAnalysis_InBed	103213-5	confident	Duration in bed
+sleep	deep_sleep_duration	dailyDeepSleep	93831-6	confident	Deep sleep duration
+sleep	light_sleep_duration	dailyLightSleep	93830-8	confident	Light sleep duration
+sleep	rem_sleep_duration	dailyRemSleep	93829-0	confident	REM sleep duration
+sleep	awake_time	dailyAwakeTime	103210-1	unverified	Awakening duration
+sleep	latency	dailySleepLatency	103212-7	confident	Duration of falling asleep（2.75）
+sleep	efficiency	sleepEfficiency			LOINC 无睡眠效率码
+sleep	restless_periods	sleepDisturbances	103211-9	unverified	「不安宁时段数」≠「觉醒次数」,语义近似但非同名,须核
+sleep	sleep_phase_5_min				编码字符串（每字符一个 5 分钟分期）。落码前须先解码展开成分期时长
+sleep	type				枚举 deleted / sleep / long_sleep / late_nap / rest。建议用作分流键：late_nap 应进 napDuration 而非主睡眠
+sleep	readiness_score_delta				厂商专有分的变化量
+daily_sleep	score	sleepQuality			厂商专有睡眠分（0–100）,LOINC 结构性无码。`97891-6 Sleep score [R-Outcomes]` 是特定问卷量表,不可借用
+daily_sleep	contributors.*				deep_sleep / efficiency / latency / rem_sleep / restfulness / timing / total_sleep 七个贡献度分项,都是专有分
+daily_spo2	spo2_percentage.average	oxygenSaturations	59408-5	unverified	日均血氧；日均口径亦可用 103209-3（PROPERTY=NRat 有缺陷）
+daily_spo2	breathing_disturbance_index				厂商专有指数。注意：不是 AHI,不可落 `69990-0`
+daily_readiness	temperature_deviation	temperatureDelta			相对基线的体温偏差,LOINC 无相对温差码
+daily_readiness	temperature_trend_deviation				偏差的趋势 = 二阶量,无码
+daily_readiness	score				厂商专有 Readiness 分
+daily_readiness	contributors.*				九个分项（activity_balance / body_temperature / hrv_balance / previous_day_activity / previous_night / recovery_index / resting_heart_rate / sleep_balance / sleep_regularity）,均为专有分
+daily_activity	steps	dailySteps	41950-7	confident	Number of steps in 24 hour Measured
+daily_activity	active_calories	dailyCaloriesActive	41979-6	confident	Calories burned in 24 hour Calculated
+daily_activity	total_calories	dailyTotalCalories	41979-6	unverified	与 active_calories 共码会冲突 —— 二者口径不同（总 = 基础 + 活动）,建议只给 active 落码
+daily_activity	low_activity_time	dailyActivityIntensityLow	101688-0	confident	Duration of light activity（2.75）
+daily_activity	medium_activity_time	dailyActivityIntensityMedium	101689-8	confident	Duration of moderate activity（2.75）
+daily_activity	high_activity_time	dailyActivityIntensityHigh	101690-6	confident	Duration of vigorous activity（2.75）—— Oura 是三家里唯一与 LOINC 三档天然对齐的
+daily_activity	sedentary_time				LOINC 无静坐时长码
+daily_activity	resting_time				无码
+daily_activity	non_wear_time				未佩戴时长。建议接进置信分级：与 24h 之比是当日可信度
+daily_activity	equivalent_walking_distance	dailyDistance	103208-5	unverified	「等效步行距离」是换算量不是实测距离,须声明
+daily_activity	*_met_minutes				MET 分钟（sedentary / low / medium / high）。LOINC 轴表无 MET 码（"MET" 命中全是 MET 基因）
+daily_activity	met				MET 时间序列
+daily_activity	inactivity_alerts				无码
+daily_activity	score				厂商专有活动分
+daily_stress	stress_high	stressHighDuration			高压力时长（秒）。LOINC 无压力时长码。本仓已有该 member
+daily_stress	recovery_high	recoveryHighDuration			同上
+daily_stress	day_summary				枚举 restored / normal / stressful
+daily_resilience	level				厂商专有韧性等级
+daily_resilience	contributors				sleep_recovery / daytime_recovery / stress 三个专有分
+daily_cardiovascular_age	vascular_age	bodyAge			LOINC 无血管年龄 / 体能年龄码（Vascular age 0 命中）
+daily_cardiovascular_age	pulse_wave_velocity	pulseWaveVelocity	77196-4	confident	新增：`77196-4` Pulse wave velocity，Vel/Qn —— 本仓无对应 member,建议新增
+vO2_max	vo2_max	vo2Maxs	94122-9	unverified	Oura 为估算值,非 CPET
+workout	calories	activeCalories	41981-2	unverified	单次运动,非日汇总
+workout	distance	walkingRunningDistances	103208-5	unverified	同上
+workout	intensity	trainingLoad	103223-4	unverified	`103223-4` Workout intensity 是 Type/Ord；Oura 是枚举,SCALE 相符,但取值域须映射
+session	heart_rate_variability	hrvDatas			冥想/呼吸练习会话内的 HRV,同为 RMSSD,无码
+sleep_time	optimal_bedtime				推荐入睡窗口,不是测量值
+ring_battery_level					设备状态,不是健康数据

@@ -32,7 +32,11 @@ QUANTITY: dict[str, str] = {
     "HKQuantityTypeIdentifierHeartRate": "heartRates",
     "HKQuantityTypeIdentifierRestingHeartRate": "restingHeartRates",
     "HKQuantityTypeIdentifierWalkingHeartRateAverage": "walkingHeartRates",
-    "HKQuantityTypeIdentifierHeartRateVariabilitySDNN": "hrvDatas",
+    # SDNN by name, so it is the SDNN row and not the generic HRV series:
+    # five other vendors publish RMSSD, a different statistic, and a shared
+    # row would have averaged the two.
+    "HKQuantityTypeIdentifierHeartRateVariabilitySDNN": "hrvSDNN",
+    "HKQuantityTypeIdentifierPeripheralPerfusionIndex": "perfusionIndex",
     "HKQuantityTypeIdentifierRespiratoryRate": "respiratoryRates",
     "HKQuantityTypeIdentifierOxygenSaturation": "oxygenSaturations",
     "HKQuantityTypeIdentifierBodyTemperature": "bodyTemperatures",
@@ -57,6 +61,11 @@ QUANTITY: dict[str, str] = {
     "HKQuantityTypeIdentifierWaistCircumference": "waistCircumferences",
     "HKQuantityTypeIdentifierWalkingSpeed": "walkingSpeeds",
     "HKQuantityTypeIdentifierCyclingSpeed": "cyclingSpeeds",
+    "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage": "walkingDoubleSupportPercentage",
+    "HKQuantityTypeIdentifierWalkingAsymmetryPercentage": "walkingAsymmetryPercentage",
+    "HKQuantityTypeIdentifierStairAscentSpeed": "stairAscentSpeed",
+    "HKQuantityTypeIdentifierStairDescentSpeed": "stairDescentSpeed",
+    "HKQuantityTypeIdentifierSixMinuteWalkTestDistance": "sixMinuteWalkDistance",
     "HKQuantityTypeIdentifierHeartRateRecoveryOneMinute": "recoveryes",
     "HKQuantityTypeIdentifierUVExposure": "uvExposures",
     "HKQuantityTypeIdentifierDietaryEnergyConsumed": "energyes",

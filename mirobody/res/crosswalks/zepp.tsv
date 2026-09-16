@@ -1,0 +1,34 @@
+# Zepp OS Sensor module: vendor fields to LOINC 2.83
+#
+# Zepp OS sensor classes and the shared-data list Zepp publishes. On-device runtime, not a cloud export.
+#
+# Source, read 2026-09-09:
+#   https://docs.huami.com/
+#   On-device sensor classes, plus the shared-data list Zepp publishes through Xiaomi's third-party notice.
+#
+# Columns:
+#   type        the vendor's data type, record class or endpoint, verbatim
+#   field       the field inside it, verbatim; empty when the type is the reading
+#   metric      the mirobody catalogue name (res/metrics.tsv); empty when the catalogue has no row
+#   loinc       the LOINC code the field means; EMPTY IS A DECLINE, and the note says why
+#   confidence  confident = the six LOINC axes agree with the vendor's definition;
+#               unverified = close, a person must confirm before a reading is filed under it
+#   note        the reasoning; some notes are in Chinese, as they were written
+#
+# Every code was checked by hand against the LOINC 2.83 axis table on 2026-09-09.
+# No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
+# Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
+# Generated from the maintainers' review tables; edit through a pull request,
+# and keep the file loadable by mirobody.translate.devices.
+type	field	metric	loinc	confidence	note
+HeartRate		heartRates	8867-4	confident	Heart rate
+BloodOxygen		oxygenSaturations	59408-5	confident	Oxygen saturation in Arterial blood by Pulse oximetry
+BodyTemperature		bodyTemperatures	8310-5	confident	Body temperature
+Sleep		dailyTotalSleepTime	93832-4	confident	Sleep duration
+Step		steps	55423-8	confident	Number of steps in unspecified time Pedometer
+Distance		dailyDistance	103208-5	confident	Distance traveled
+Barometer (derived)		altitudeGain	101687-2	confident	Elevation climbed; derived by the vendor app, not a sensor type
+Calorie		activeCalories	41981-2	confident	Calories burned
+Stand			112425-4	unverified	Standing time 1 day
+Workout		trainingLoad	103223-4	unverified	Workout intensity
+shared-data list	VO2max	vo2Maxs	94122-9	unverified	Oxygen consumption (VO2)/Body weight^peak during exercise; from the shared-data list Zepp publishes, not a sensor class

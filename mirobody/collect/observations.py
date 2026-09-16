@@ -285,15 +285,17 @@ def prepare(
 
 def catalog_alias(name: str) -> translate.Alias | None:
     """The device catalogue's answer for a metric name, as an alias: the
-    metric's LOINC when it has one, its own namespace otherwise. `None` for
-    a name the catalogue does not know."""
+    metric's confident LOINC when it has one, its own namespace otherwise.
+    An unverified code is evidence in `translate.devices`, not an identity.
+    `None` for a name the catalogue does not know."""
     head = name.split(".", 1)[0]
     metric = metrics.METRICS.get(head) or metrics.METRICS.get(name)
     if metric is None:
         return None
-    if metric.loinc:
-        return translate.Alias(_ALIAS_SCOPE_CATALOG, translate.LOINC_SYSTEM, metric.loinc)
-    return translate.Alias(_ALIAS_SCOPE_CATALOG, metrics.SYSTEM_DEVICE, metric.name)
+    system, code = metric.canonical
+    if system == metrics.SYSTEM_LOINC:
+        return translate.Alias(_ALIAS_SCOPE_CATALOG, translate.LOINC_SYSTEM, code)
+    return translate.Alias(_ALIAS_SCOPE_CATALOG, metrics.SYSTEM_DEVICE, code)
 
 
 def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], translate.Alias]) -> translate.Coding:

@@ -861,6 +861,152 @@ def test_the_class_gate_keeps_the_classes_wearables_live_in():
     assert resolve("体脂率").loinc == "41982-0"            # CLASS=BDYWGT.ATOM
 
 
+# ── the device catalogue and its crosswalk ──────────────────────────────────
+# `res/metrics.tsv` carries a LOINC code per device metric where the 2026-09
+# review of thirteen vendors' data types established one; `res/crosswalks/`
+# is that review. The two must agree, and both must name real codes.
+
+#: Metric pairs allowed to share one code: the same quantity at reading grain
+#: and at day grain, or two spellings of one measurement site.
+_SHARED_CODE_PAIRS = {
+    frozenset({"restingHeartRates", "dailyRestingHeartRates"}),
+    frozenset({"skinTemperature", "wristTemperatures"}),
+    frozenset({"sleepAnalysis_Asleep(Deep)", "dailyDeepSleep"}),
+    frozenset({"sleepAnalysis_Asleep(REM)", "dailyRemSleep"}),
+    frozenset({"sleepAnalysis_Asleep(Core)", "dailyLightSleep"}),
+    frozenset({"sleepAnalysis_Asleep(Unspecified)", "dailyTotalSleepTime"}),
+    frozenset({"sleepAnalysis_Awake", "dailyAwakeTime"}),
+    frozenset({"sleepAnalysis_InBed", "dailySleepDuration"}),
+}
+
+
+def test_every_catalogue_code_is_a_real_code_with_a_confidence(resolver):
+    """A code in the catalogue is in the axis table and says how sure it is.
+    The three codes the review found wrong are gone: oxygen saturation was a
+    laboratory blood-gas code, skin temperature was core body temperature,
+    VO2max was oxygen consumption with no maximum."""
+    from mirobody.kernel import metrics
+
+    for m in metrics.ROWS:
+        if m.loinc:
+            assert m.confidence in metrics.CONFIDENCES, m.name
+            assert resolver.axes_of(m.loinc), f"{m.name}: {m.loinc} is not in the axis table"
+        else:
+            assert not m.confidence, m.name
+    assert metrics.METRICS["oxygenSaturations"].loinc == "59408-5"
+    assert metrics.METRICS["skinTemperature"].loinc != "8310-5"
+    assert metrics.METRICS["vo2Maxs"].loinc != "60842-2"
+    # An unverified code is evidence, not an identity.
+    assert metrics.METRICS["vo2Maxs"].confidence == metrics.UNVERIFIED
+    assert metrics.METRICS["vo2Maxs"].canonical == (metrics.SYSTEM_DEVICE, "vo2Maxs")
+    assert metrics.METRICS["steps"].canonical == (metrics.SYSTEM_LOINC, "55423-8")
+
+
+def test_no_two_metrics_share_a_code_unless_registered():
+    """Two metrics under one code would merge two series on recode. The
+    pairs above are the same quantity at two grains, and nothing else is."""
+    from collections import defaultdict
+
+    from mirobody.kernel import metrics
+
+    by_code: dict[str, set[str]] = defaultdict(set)
+    for m in metrics.ROWS:
+        if m.loinc:
+            by_code[m.loinc].add(m.name)
+    for code, names in by_code.items():
+        for a in names:
+            for b in names:
+                if a < b:
+                    assert frozenset({a, b}) in _SHARED_CODE_PAIRS, f"{code}: {a} and {b} share a code"
+
+
+def _same_analyte(resolver, a: str, b: str) -> bool:
+    """Two codes of one COMPONENT in one SYSTEM: the unit picks between them."""
+    ax_a, ax_b = resolver.axes_of(a), resolver.axes_of(b)
+    return bool(ax_a and ax_b) and ax_a[0] == ax_b[0] and ax_a[3] == ax_b[3]
+
+
+def test_the_crosswalk_names_real_codes_and_catalogue_rows(resolver):
+    """Every row of the base table and of the thirteen vendor tables names a
+    code the axis table has and, when it names a metric, a catalogue row.
+    A confident vendor code and that metric's confident catalogue code are
+    the same code, or two unit variants of one analyte (glucose in mmol/L)."""
+    from mirobody.kernel import metrics
+    from mirobody.translate import devices
+
+    base = devices.base_table()
+    assert len(base) >= 60
+    for row in base:
+        assert resolver.axes_of(row.loinc), row.loinc
+        assert row.confidence in devices.CONFIDENCES, row.loinc
+        assert row.fields, f"{row.loinc}: no vendor produces it"
+        if row.metric:
+            m = metrics.METRICS[row.metric]
+            if m.confidence == metrics.CONFIDENT and row.confidence == devices.CONFIDENT:
+                assert m.loinc == row.loinc or _same_analyte(resolver, m.loinc, row.loinc), (row.loinc, row.metric)
+    for vendor in devices.VENDORS:
+        rows = devices.vendor_fields(vendor)
+        assert rows, vendor
+        for r in rows:
+            assert (r.confidence in devices.CONFIDENCES) == bool(r.loinc), (vendor, r.key)
+            if r.loinc:
+                assert resolver.axes_of(r.loinc), (vendor, r.key, r.loinc)
+            if r.metric:
+                m = metrics.METRICS[r.metric]
+                if r.loinc and m.loinc and r.confidence == m.confidence == metrics.CONFIDENT and m.loinc != r.loinc:
+                    assert _same_analyte(resolver, m.loinc, r.loinc), (vendor, r.key, m.loinc, r.loinc)
+    assert set(devices.summary()) == set(devices.VENDORS)
+    assert {u.reason for u in devices.unmappable()} <= set(devices.REASONS)
+
+
+def test_the_apple_crosswalk_says_what_the_apple_decoder_does():
+    """The public table and the shipped decoder must tell the same story
+    about an Apple identifier: the same catalogue metric, or none."""
+    from mirobody.kernel.decoders import apple
+    from mirobody.translate import devices
+
+    quantity = {k.lower(): v for k, v in apple.QUANTITY.items()}
+    stages = {k.lower(): v for k, v in apple.SLEEP_STAGES.items()}
+    checked = 0
+    for r in devices.vendor_fields("apple"):
+        if r.type == "HKQuantityTypeIdentifier":
+            decoded = quantity.get((r.type + r.field).lower())
+        elif r.type == "HKCategoryTypeIdentifierSleepAnalysis":
+            decoded = stages.get(("HKCategoryValueSleepAnalysis" + r.field).lower())
+        else:
+            continue
+        if decoded is None:
+            continue
+        assert decoded == r.metric, (r.field, decoded, r.metric)
+        checked += 1
+    assert checked >= 30
+    assert apple.QUANTITY["HKQuantityTypeIdentifierHeartRateVariabilitySDNN"] == "hrvSDNN"
+
+
+def test_a_catalogue_alias_lets_the_unit_pick_the_variant():
+    """The catalogue says `bloodGlucoses` is 2339-0, glucose as a mass
+    concentration in blood; a Honor watch prints mmol/L. The alias names the
+    analyte and the unit picks the sibling. A unit that fits no sibling
+    leaves the alias's code: the alias is a decision, not a guess."""
+    from mirobody import translate
+    from mirobody.translate.parse import KIND_QUANTITY
+
+    alias = translate.Alias("catalog", translate.LOINC_SYSTEM, "2339-0")
+
+    def run(value: str, unit: str) -> translate.Coding:
+        return translate.code(
+            "bloodGlucoses", name_key=translate.name_key("bloodGlucoses"), local_key="device:bloodGlucoses",
+            value_kind=KIND_QUANTITY, value_text=value, unit_text=unit, unit_ucum=unit,
+            value_num=float(value), alias=alias,
+        )
+
+    assert run("5.6", "mmol/L").code == "15074-8"
+    assert run("101", "mg/dL").code == "2339-0"
+    assert run("5.6", "").code == "2339-0"
+    odd = run("5.6", "%")
+    assert odd.coded and odd.code == "2339-0"
+
+
 def test_evidence_reads_the_same_whichever_entry_point_produced_it():
     """`resolve()` and `resolve_reading()` answer the same term with the same
     code, so they must describe that answer the same way.

@@ -5,6 +5,8 @@
     local_day.py             the ONE implementation of "which day is this"
     series.py                what may be plotted on one axis
     code.py                  name + unit + value kind -> a Coding, never a guess
+    devices.py               thirteen vendors' device fields -> LOINC, with
+                             the confidence and the source behind each row
     indicators_info.py       the indicator catalogue
     canonical_units.py       a reading in the unit the catalogue declares
                              for its indicator (NOT `mirobody.units`, the
@@ -21,7 +23,7 @@ folded identity, a typed value, a UCUM unit, a local day, a LOINC code where
 the vocabulary supports one, and a series key either way.
 
 ① Collect stores what a device or a document said, verbatim, and this stage
-decides what it means. The five modules at the top of that list are the seam
+decides what it means. The six modules at the top of that list are the seam
 1.4.4 left room for, and they are pure: no database, no clock, no model call.
 That is what lets a coding be replayed under a newer vocabulary release
 against the same frozen input and give the same answer, forever. The caller

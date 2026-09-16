@@ -1,0 +1,30 @@
+# OPPO theme engine health data: vendor fields to LOINC 2.83
+#
+# OPPO exposes four health values to watch-face scripts through a content provider; there is no
+# typed health data API. Everything else is by business arrangement.
+#
+# Source, read 2026-09-09:
+#   https://open.oppomobile.com/documentation/page/info?id=13624
+#   https://open.oppomobile.com/wiki/new-doc/index.json
+#   Four values exposed to watch-face scripts; OPPO publishes no typed health data API.
+#
+# Columns:
+#   type        the vendor's data type, record class or endpoint, verbatim
+#   field       the field inside it, verbatim; empty when the type is the reading
+#   metric      the mirobody catalogue name (res/metrics.tsv); empty when the catalogue has no row
+#   loinc       the LOINC code the field means; EMPTY IS A DECLINE, and the note says why
+#   confidence  confident = the six LOINC axes agree with the vendor's definition;
+#               unverified = close, a person must confirm before a reading is filed under it
+#   note        the reasoning; some notes are in Chinese, as they were written
+#
+# Every code was checked by hand against the LOINC 2.83 axis table on 2026-09-09.
+# No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
+# Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
+# Generated from the maintainers' review tables; edit through a pull request,
+# and keep the file loadable by mirobody.translate.devices.
+type	field	metric	loinc	confidence	note
+heart_rate_current		heartRates	8867-4	confident	Heart rate
+heart_rate_max		dailyHeartRateMax	101692-2	confident	Maximum heart rate
+heart_rate_min		dailyHeartRateMin	103222-6	confident	Heart rate.minimum
+step		steps	55423-8	confident	Number of steps in unspecified time Pedometer
+└ Wear Engine SDK					待申请权限后确认; 隐私政策原文：「面向手机和穿戴设备的应用与服务开发者…可以实现手机上的生态应用与服务，给穿戴设备发消息、发通知、传输数据，并获取穿戴设备状态、读取传感器数据等」。是手机↔手表的通信 SDK，自述为「数据的委托处理者，不是数据的处理者」。公开文档只有使用协议与隐私政策，没有 API 参考、没有数据类型表

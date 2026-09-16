@@ -8,7 +8,9 @@ a newer release is a replay of this function over the frozen extraction.
 The order of authority:
 
 1. a confirmed alias, user scope before global: a person's word about their
-   own report outranks the vocabulary;
+   own report outranks the vocabulary. The alias names the analyte; a
+   printed unit may still pick the variant of that analyte, so glucose in
+   mmol/L lands on the moles code and not the alias's mass code;
 2. the lexical resolver, `mirobody.engine.resolve_reading`, which picks the
    analyte by name and the variant by unit. Only its `lexical` method is
    accepted as an identity; a semantic guess cannot abstain and is not one;
@@ -116,7 +118,20 @@ def code(
                 OUTCOME_CODED, f"{alias.code_system}:{alias.code}", did, rule, rel,
                 code_system=alias.code_system, code=alias.code, display=alias.code, evidence=("alias",),
             )
-        return _coded(alias.code, did, rule, rel, local, value_kind, value_num, unit_ucum, ("alias",))
+        loinc, evidence = alias.code, ("alias",)
+        if unit_text or unit_ucum:
+            # The device catalogue says `bloodGlucoses` is 2339-0, a mass
+            # concentration; a Honor watch prints mmol/L. Same analyte, same
+            # specimen, other property: the unit picks the sibling. Anything
+            # short of a clean switch keeps the alias's code, so a person's
+            # word is never overridden by a unit that merely disagrees.
+            from mirobody.engine import get_resolver
+
+            verdict = get_resolver().variant_for_reading(loinc, value_text or None, unit_text or unit_ucum)
+            if verdict.outcome == "switched" and verdict.code:
+                evidence = ("alias", "unit=switched", f"variant_of={loinc}", f"why={verdict.rejected_reason}")
+                loinc = verdict.code
+        return _coded(loinc, did, rule, rel, local, value_kind, value_num, unit_ucum, evidence)
 
     from mirobody.engine import resolve_reading
 

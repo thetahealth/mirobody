@@ -22,7 +22,7 @@
 ow_type	ow_unit	metric	note
 heart_rate	bpm	heartRates	
 resting_heart_rate	bpm	restingHeartRates	
-heart_rate_variability_sdnn	ms	hrvDatas	the catalogue's generic HRV series; SDNN and RMSSD are two statistics of it and only RMSSD has its own row
+heart_rate_variability_sdnn	ms	hrvSDNN	SDNN by name, so the SDNN row (112429-6); hrvDatas is the series whose statistic is not stated
 heart_rate_variability_rmssd	ms	hrvRMSSD	
 heart_rate_recovery_one_minute	bpm		no catalogue metric for one-minute recovery
 walking_heart_rate_average	bpm	walkingHeartRates	
@@ -34,7 +34,7 @@ respiratory_rate	brpm	respiratoryRates	brpm is breaths/min; the engine does not 
 sleeping_breathing_disturbances	count	sleepDisturbances	
 breathing_disturbance_index	score		a vendor index with no unit; not a measurement
 blood_alcohol_content	mg_dl		OW labels this mg_dl; blood alcohol is normally %BAC, so the label is not trusted
-peripheral_perfusion_index	score		no catalogue metric
+peripheral_perfusion_index	score		the catalogue has perfusionIndex (%); OW labels this `score`, so the value's scale is not known until checked
 forced_vital_capacity	liters		spirometry is not in the catalogue yet
 forced_expiratory_volume_1	liters		spirometry is not in the catalogue yet
 peak_expiratory_flow_rate	L/min		spirometry is not in the catalogue yet
@@ -51,14 +51,14 @@ skin_temperature	celsius	skinTemperature
 skin_temperature_deviation	celsius	temperatureDelta	
 skin_temperature_trend_deviation	celsius		a trend of a deviation is a second derivative; no catalogue metric
 vo2_max	ml_kg_min	vo2Maxs	ml_kg_min is mL/kg/min; comparing the two catalogues is what found the catalogue's own row declaring an unparseable L/min/kg, a factor of 1000 out
-six_minute_walk_test_distance	meters		a clinical test result, not a device stream
+six_minute_walk_test_distance	meters	sixMinuteWalkDistance	a watch estimates it too (Apple sixMinuteWalkTestDistance)
 cardiovascular_age	years	bodyAge	
 steps	count	steps	
 energy	kcal	activeCalories	OW's `energy` is ACTIVE energy; `basal_energy` is the other half
 basal_energy	kcal	basalCalories	
 stand_time	minutes		no catalogue metric for stand time
 exercise_time	minutes	exerciseMinutes	
-physical_effort	score		a vendor score with no unit
+physical_effort	score		the catalogue has physicalEffort (kcal/kg/h); OW labels this `score`, so the number cannot be trusted to be that
 flights_climbed	count	floors	
 average_met	met		METs are a rate, not a count; no catalogue metric
 active_time	minutes	walkingRunningDuration	
@@ -69,11 +69,11 @@ distance_downhill_snow_sports	meters		no catalogue metric
 distance_other	meters	dailyDistance	an unlabelled distance is the day's distance, not a discipline's
 walking_step_length	cm		no catalogue metric
 walking_speed	m_per_s	walkingSpeeds	m_per_s is m/s
-walking_double_support_percentage	percent		gait metrics are not in the catalogue yet
-walking_asymmetry_percentage	percent		gait metrics are not in the catalogue yet
-walking_steadiness	percent		gait metrics are not in the catalogue yet
-stair_descent_speed	m_per_s		no catalogue metric
-stair_ascent_speed	m_per_s		no catalogue metric
+walking_double_support_percentage	percent	walkingDoubleSupportPercentage
+walking_asymmetry_percentage	percent	walkingAsymmetryPercentage
+walking_steadiness	percent		no catalogue metric; LOINC has no walking-steadiness code either
+stair_descent_speed	m_per_s	stairDescentSpeed
+stair_ascent_speed	m_per_s	stairAscentSpeed
 running_power	watts		running dynamics are not in the catalogue yet
 running_speed	m_per_s	speeds	
 running_vertical_oscillation	cm		running dynamics are not in the catalogue yet

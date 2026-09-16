@@ -20,9 +20,14 @@ added and what this catalogue now carries:
   legitimately override the policy for one vendor whose stream has a
   different shape from everyone else's (a continuous SpO2 stream is
   ``instant``; a single nightly pulse-ox reading is ``last``).
-- ``loinc``: only where the code is public and undisputed; otherwise the
-  metric's identity is ``("mirobody-device", name)``. A confident wrong code
-  is worse than an honest namespace.
+- ``loinc`` and ``confidence``: a code is carried with the confidence of the
+  judgement behind it, ``confident`` (the six LOINC axes agree with the
+  vendor's definition) or ``unverified`` (close, and a person must confirm).
+  Only a confident code is the row's identity; an unverified one stays
+  visible here and in ``res/crosswalks/`` while the metric keeps its own
+  namespace, ``("mirobody-device", name)``. A confident wrong code is worse
+  than an honest namespace. The evidence per vendor field is in
+  ``mirobody.translate.devices``.
 - ``window``: the local-day boundary. ``"18:00"`` for the sleep family, so
   a night is one day; the old aggregator found sleep with ``LIKE '%sleep%'``.
 
@@ -46,7 +51,12 @@ from collections.abc import Iterator
 #: Bumps whenever a row's identity fields change (name, unit_ucum, state_class,
 #: aggregation_policy, loinc, window). Consumers that persist standardised
 #: facts store it next to the row, so a later catalogue change is visible.
-TERMINOLOGY_VERSION = "1.4.0"
+TERMINOLOGY_VERSION = "1.5.0"
+
+#: The two confidences a code may carry; empty when the row has no code.
+CONFIDENT = "confident"
+UNVERIFIED = "unverified"
+CONFIDENCES = frozenset({CONFIDENT, UNVERIFIED})
 
 #: What a day of raw points is. The vocabulary ``series.aggregate`` is written
 #: against; a consumer's stored rows carry these literal strings.
@@ -103,6 +113,7 @@ class Metric:
     state_class: str
     aggregation_policy: str
     loinc: str = ""
+    confidence: str = ""
     window: str = "00:00"
     panel: str = ""
     aggregation_methods: tuple[str, ...] = ()
@@ -112,10 +123,14 @@ class Metric:
 
     @property
     def canonical(self) -> tuple[str, str]:
-        """``(system, code)``: the LOINC code when one is known, otherwise this
-        catalogue's own namespace, so two writers that both lack a code still
-        agree on the identity."""
-        return (SYSTEM_LOINC, self.loinc) if self.loinc else (SYSTEM_DEVICE, self.name)
+        """``(system, code)``: the LOINC code when one is known with confidence,
+        otherwise this catalogue's own namespace, so two writers that both
+        lack a code still agree on the identity. An unverified code is not
+        an identity: a reading filed under it could not be told from a
+        correct one."""
+        if self.loinc and self.confidence == CONFIDENT:
+            return (SYSTEM_LOINC, self.loinc)
+        return (SYSTEM_DEVICE, self.name)
 
 
 @dataclass(frozen=True)
@@ -153,6 +168,7 @@ def _load() -> tuple[list[Metric], dict[str, Metric], dict[str, Metric]]:
             state_class=r["state_class"],
             aggregation_policy=r["aggregation_policy"],
             loinc=r.get("loinc", ""),
+            confidence=r.get("confidence", ""),
             window=r.get("window") or "00:00",
             panel=r.get("panel", ""),
             aggregation_methods=_split(r.get("aggregation_methods", "")),
@@ -169,6 +185,10 @@ def _load() -> tuple[list[Metric], dict[str, Metric], dict[str, Metric]]:
             raise ValueError(f"metrics.tsv: {m.member}: unknown state_class {m.state_class!r}")
         if m.aggregation_policy not in LEGAL_POLICIES[m.state_class]:
             raise ValueError(f"metrics.tsv: {m.member}: {m.aggregation_policy!r} is not a policy for {m.state_class}")
+        if m.loinc and m.confidence not in CONFIDENCES:
+            raise ValueError(f"metrics.tsv: {m.member}: a code needs a confidence, {m.confidence!r} is not one")
+        if m.confidence and not m.loinc:
+            raise ValueError(f"metrics.tsv: {m.member}: confidence {m.confidence!r} without a code")
         if m.member in by_member:
             raise ValueError(f"metrics.tsv: duplicate member {m.member}")
         by_member[m.member] = m

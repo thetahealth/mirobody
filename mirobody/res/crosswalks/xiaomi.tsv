@@ -1,0 +1,37 @@
+# Xiaomi Health cloud: vendor fields to LOINC 2.83
+#
+# Xiaomi Health cloud data types (com.xiaomi.micloud.fit.*): a workout data cloud, with no sleep,
+# blood oxygen, HRV, temperature or stress types published.
+#
+# Source, read 2026-09-09:
+#   https://dev.mi.com/
+#   Public data types under the com.xiaomi.micloud.fit.* namespace; a clone of the Google Fit naming.
+#
+# Columns:
+#   type        the vendor's data type, record class or endpoint, verbatim
+#   field       the field inside it, verbatim; empty when the type is the reading
+#   metric      the mirobody catalogue name (res/metrics.tsv); empty when the catalogue has no row
+#   loinc       the LOINC code the field means; EMPTY IS A DECLINE, and the note says why
+#   confidence  confident = the six LOINC axes agree with the vendor's definition;
+#               unverified = close, a person must confirm before a reading is filed under it
+#   note        the reasoning; some notes are in Chinese, as they were written
+#
+# Every code was checked by hand against the LOINC 2.83 axis table on 2026-09-09.
+# No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
+# Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
+# Generated from the maintainers' review tables; edit through a pull request,
+# and keep the file loadable by mirobody.translate.devices.
+type	field	metric	loinc	confidence	note
+com.xiaomi.micloud.fit.heart_rate.bpm		heartRates	8867-4	confident	Heart rate
+com.xiaomi.micloud.fit.step_count.delta		steps	55423-8	confident	Number of steps in unspecified time Pedometer
+com.xiaomi.micloud.fit.distance.delta		dailyDistance	103208-5	confident	Distance traveled
+com.xiaomi.micloud.fit.calories.expended		activeCalories	41981-2	confident	Calories burned
+com.xiaomi.micloud.fit.weight		bodyMasss	29463-7	confident	Body weight
+com.xiaomi.micloud.fit.height		heights	8302-2	confident	Body height
+derived		bmis	39156-5	confident	Body mass index (BMI); derived by the vendor app, not a sensor type
+com.xiaomi.micloud.fit.body.fat.percentage		bodyFatPercentages	41982-0	confident	Percentage of body fat Measured
+com.xiaomi.micloud.fit.speed					无 Pt 速度码 / 无功率码
+power.sample					无 Pt 速度码 / 无功率码
+com.xiaomi.micloud.fit.cycling.{cadence,pedaling.cumulative,wheel.revolutions,wheel_revolution.cumulative}					无码; 骑行踏频与轮转
+com.xiaomi.micloud.fit.activity.{sample,segment}					OUT_OF_SCOPE; 活动分段与轨迹
+location.{sample,track}					OUT_OF_SCOPE; 活动分段与轨迹

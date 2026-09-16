@@ -1,0 +1,68 @@
+# Google Health Connect: vendor fields to LOINC 2.83
+#
+# androidx Health Connect Record classes to the catalogue and to LOINC. Health Connect is the
+# Android aggregation layer many vendors' apps write into, so one integration covers many devices.
+#
+# Source, read 2026-09-09:
+#   https://developer.android.com/reference/androidx/health/connect/client/records/package-summary
+#   The androidx Record classes; 42 of them.
+#
+# Columns:
+#   type        the vendor's data type, record class or endpoint, verbatim
+#   field       the field inside it, verbatim; empty when the type is the reading
+#   metric      the mirobody catalogue name (res/metrics.tsv); empty when the catalogue has no row
+#   loinc       the LOINC code the field means; EMPTY IS A DECLINE, and the note says why
+#   confidence  confident = the six LOINC axes agree with the vendor's definition;
+#               unverified = close, a person must confirm before a reading is filed under it
+#   note        the reasoning; some notes are in Chinese, as they were written
+#
+# Every code was checked by hand against the LOINC 2.83 axis table on 2026-09-09.
+# No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
+# Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
+# Generated from the maintainers' review tables; edit through a pull request,
+# and keep the file loadable by mirobody.translate.devices.
+type	field	metric	loinc	confidence	note
+HeartRateRecord		heartRates	8867-4	confident	samples: bpm
+RestingHeartRateRecord		restingHeartRates	40443-4	confident	
+HeartRateVariabilityRmssdRecord		hrvRMSSD			类名即 Rmssd。LOINC 只有 SDNN（112429-6），无 RMSSD 码 —— 与华为 / Fitbit / Whoop / Oura 同一缺口，(see docs/device-crosswalk.md)
+OxygenSaturationRecord		oxygenSaturations	59408-5	confident	percentage；设备为脉搏血氧，用 METHOD=Pulse oximetry 的码
+RespiratoryRateRecord		respiratoryRates	9279-1	confident	rate: breaths/min
+BloodPressureRecord		systolicPressures	8480-6	confident	另有 diastolic → 8462-4；含 bodyPosition / measurementLocation 枚举
+BloodGlucoseRecord		bloodGlucoses	2339-0	confident	含 relationToMeal / specimenSource 枚举；若为血糖仪可用 41653-7
+BodyTemperatureRecord		bodyTemperatures	8310-5	confident	含 measurementLocation 枚举
+BasalBodyTemperatureRecord					LOINC 有基础体温码族（生育相关），本仓无对应 member
+SkinTemperatureRecord		skinTemperature	61008-9	unverified	本次更正上一轮结论：`61008-9` Body surface temperature 是 Temp/Qn/SYSTEM=Surface，是定量体表温度码（IEEE MDC_TEMP_BODY）。HC 该 Record 有 `baseline`（绝对值）+ `deltas`（偏差）+ `measurementLocation`。落码规则见下三行
+SkinTemperatureRecord	baseline+measurementLocation=FINGER		60830-7	confident	Finger temperature，Temp/Qn/SYSTEM=Finger —— 戒指类设备（Oura）的精确落点
+SkinTemperatureRecord	baseline+measurementLocation=TOE		60833-1	confident	Toe temperature
+SkinTemperatureRecord	deltas	temperatureDelta			偏差量不是温度量，LOINC 无「相对基线温差」码；同 Fitbit tempSkin.nightlyRelative
+StepsRecord		steps	55423-8	confident	count；日汇总用 41950-7
+StepsCadenceRecord		cadence			LOINC 无步频码（轴表 Cadence 0 命中）
+DistanceRecord			103208-5	confident	generic distance, all activities; the catalogue's walkingRunningDistances is walking or running only (112427-0); Distance traveled（2.75）
+ElevationGainedRecord		altitudeGain	101687-2	confident	新增：Elevation climbed（2.75），LRat/Qn
+FloorsClimbedRecord		floors	100304-5	confident	Flights climbed [#] Reporting Period；24H 用 93833-2
+ActiveCaloriesBurnedRecord		activeCalories	41981-2	confident	Calories burned
+TotalCaloriesBurnedRecord		dailyTotalCalories	41979-6	unverified	Calories burned in 24 hour Calculated —— HC 该 Record 非固定 24h 窗口，窗口口径须核
+BasalMetabolicRateRecord		basalCalories			LOINC `50042-1` 是 BMR index（ACnc），HC 是能量速率（kcal/day），口径不同
+ActivityIntensityRecord		dailyActivityIntensityLow	101688-0	unverified	HC 该 Record 分 MODERATE / VIGOROUS 两档 → Duration of moderate / vigorous activity（2.75）。本仓 dailyActivityIntensity{Low,Medium,High} 是三档，档位对不齐
+ActivityIntensityRecord		dailyActivityIntensityMedium	101689-8	unverified	HC 该 Record 分 MODERATE / VIGOROUS 两档 → Duration of moderate / vigorous activity（2.75）。本仓 dailyActivityIntensity{Low,Medium,High} 是三档，档位对不齐
+ExerciseSessionRecord		workoutDuration			会话容器，非单指标；exerciseType 有 80+ 枚举
+PlannedExerciseSessionRecord					训练计划，不是测量
+SleepSessionRecord		sleepAnalysis_InBed	103213-5	confident	会话容器；stages 见下四行
+SleepSessionRecord	Stage:DEEP	dailyDeepSleep	93831-6	confident	Deep sleep duration
+SleepSessionRecord	Stage:LIGHT	dailyLightSleep	93830-8	confident	Light sleep duration —— HC 用 LIGHT 原生对应，比 Apple asleepCore 更直接
+SleepSessionRecord	Stage:REM	dailyRemSleep	93829-0	confident	REM sleep duration
+SleepSessionRecord	Stage:AWAKE	dailyAwakeTime	103210-1	unverified	Awakening duration；HC 另有 AWAKE_IN_BED / OUT_OF_BED，后者可用 103214-3 Duration of out of bed
+WeightRecord		bodyMasss	29463-7	confident	
+HeightRecord		heights	8302-2	confident	
+BodyFatRecord		bodyFatPercentages	41982-0	confident	percentage
+LeanBodyMassRecord		bodyFatFreeWeight	91557-9	confident	Lean body weight
+BodyWaterMassRecord		bodyWaterMass	101683-1	confident	新增：Body water mass（2.75），Mass/Qn；百分比口径用 101684-9
+BoneMassRecord		bodyBone	101685-6	confident	新增：Body bone mass（2.75），Mass/Qn；百分比口径用 101686-4
+Vo2MaxRecord		vo2Maxs	94122-9	unverified	HC 独有的落码抓手：`measurementMethod` 枚举含 METABOLIC_CART / HEART_RATE_RATIO / COOPER_TEST / MULTISTAGE_FITNESS_TEST / ROCKPORT_FITNESS_TEST / OTHER。`94122-9` 指 CPET 实测峰值 —— 仅当 measurementMethod=METABOLIC_CART 时可标 confident，其余为估算，维持 unverified。(see docs/device-crosswalk.md)
+PowerRecord					watts；LOINC 无运动功率码
+SpeedRecord		speeds			LOINC 仅有 24h/1W 汇总 Walking speed，无 Pt 瞬时码
+CyclingPedalingCadenceRecord					无码
+WheelchairPushesRecord					LOINC 无轮椅推动次数码
+HydrationRecord		waters			膳食摄入轴（IO_IN_*）与本仓口径不同
+NutritionRecord					营养素，不在本轮范围
+MindfulnessSessionRecord					LOINC 无正念时长码
