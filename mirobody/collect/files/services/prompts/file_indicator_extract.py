@@ -255,9 +255,16 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                         "description": "Clinical significance or abnormality explanation. Language determined by user language settings.",
                     },
                 },
+                # Every column the report prints is required, empty string
+                # when the report shows none. Left optional, the model omitted
+                # reference_range, unit and detection_method on a report that
+                # printed all three, and the stored rows had no range at all.
                 "required": [
                     "original_indicator",
                     "value",
+                    "unit",
+                    "reference_range",
+                    "detection_method",
                     "status",
                 ],
             },
