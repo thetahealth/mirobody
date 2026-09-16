@@ -229,6 +229,15 @@ written by one module and read through one view.
 
 ### Breaking
 
+- **Apple `HeartRateVariabilitySDNN` is stored as `hrvSDNN`** (LOINC
+  112429-6), no longer as the generic `hrvDatas`: five other vendors publish
+  RMSSD under the same word, a different statistic, and one row would have
+  averaged the two. Existing `hrvDatas` rows are untouched; new Apple imports
+  land in `hrvSDNN`, and the derived `dailyAvgHrvDatas` no longer receives
+  Apple data.
+- **`TERMINOLOGY_VERSION` is 1.5.0.** Only a confident code is a metric's
+  identity: `Metric.canonical` returns the device namespace for an unverified
+  one, and `res/metrics.tsv` gains a `confidence` column.
 - **`th_series_data` is retired.** `schema/30_observations.sql` creates
   `th_extraction`, `th_observation`, `th_coding_current`, `th_coding_history`,
   `th_coding_decision`, `th_coding_alias`, `th_concept`, `th_series`,
@@ -258,6 +267,33 @@ written by one module and read through one view.
 
 ### Added
 
+- **The device crosswalk is a public asset.** `res/crosswalks/` gains one
+  table per vendor (Apple HealthKit, Google Health Connect, Huawei, Honor,
+  Samsung, Fitbit, WHOOP, Oura, Garmin, vivo, Xiaomi, Zepp, OPPO), a base
+  table of 66 LOINC codes with every vendor field that means each, and
+  `unmappable.tsv`, the 71 device quantities no code fits, grouped by the
+  nine reasons. Every row carries a confidence and every file names the
+  vendor document it was read from. `mirobody.translate.devices` loads them,
+  `scripts/device_crosswalk_report.py` renders them, and
+  [`docs/device-crosswalk.md`](docs/device-crosswalk.md) explains the
+  normalisation traps between vendors and LOINC's own axis defects.
+- `res/metrics.tsv`: 37 more device metrics carry a code (steps, the sleep
+  stages, distance, floors, elevation, calories, activity intensity, body
+  fat, lean mass, bone mass, daily heart-rate statistics, awakenings, sleep
+  latency, and more), and ten members are new: `hrvSDNN`,
+  `apneaHypopneaIndex`, `obstructiveApneaIndex`, `pulseWaveVelocity`,
+  `perfusionIndex`, `walkingDoubleSupportPercentage`,
+  `walkingAsymmetryPercentage`, `stairAscentSpeed`, `stairDescentSpeed`,
+  `sixMinuteWalkDistance`. The Apple decoder emits the gait, perfusion and
+  six-minute-walk identifiers it used to quarantine.
+- A catalogue alias lets the printed unit pick the variant: glucose from a
+  device that prints mmol/L codes to 15074-8, not the catalogue's mg/dL
+  code. A unit that fits no sibling leaves the alias's code alone.
+- Five gate invariants over the catalogue and the crosswalk: every code is
+  in the axis table with a confidence, no two metrics share a code unless
+  registered as one quantity at two grains, every crosswalk row names a real
+  code and a real catalogue row, the Apple table says what the Apple decoder
+  does, and the alias unit gate.
 - `mirobody.translate`: the pure seam a reading passes through. `name_key`
   (one fold), `parse_value` (quantity / ordinal / nominal / narrative /
   absent, a number never invented), `local_day` (one implementation of "which
@@ -314,6 +350,12 @@ written by one module and read through one view.
 
 ### Fixed
 
+- Three device codes were wrong and are replaced: `oxygenSaturations`
+  2708-6 (a laboratory arterial blood-gas code) is 59408-5 (pulse oximetry);
+  `skinTemperature` 8310-5 (core body temperature) is 61008-9 (body surface
+  temperature, unverified for the wrist); `vo2Maxs` 60842-2 (oxygen
+  consumption, no maximum) is 94122-9 (peak VO2 per body weight, unverified
+  because wearables estimate it).
 - A hyphenated component suffix is no longer stripped as an abbreviation:
   `Creatine Kinase-MB` resolves to CK-MB, not total CK; `Lactate
   Dehydrogenase-LDH1` and `Alkaline Phosphatase-BALP` likewise reach their

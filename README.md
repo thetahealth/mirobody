@@ -237,6 +237,10 @@ dataset.
   is what every new user tries in their first minute.
   [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the
   score when you run it.
+- **13 wearable vendors, read field by field**: 289 of 447 fields carry a LOINC
+  code, each with a confidence and the vendor document it came from, and 71
+  quantities are declined with the reason rather than guessed.
+  [The device crosswalk](docs/device-crosswalk.md) is the table.
 - **Three open benchmarks**, public datasets, one command each: longitudinal
   health agents, medical hallucination, harmful medical advice.
   [mirobody-eval](https://github.com/thetahealth/mirobody-eval) ·

@@ -211,6 +211,9 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
   也正是每个新用户第一分钟会去试的那些词。
   [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 跑一下
   就会把分数打出来。
+- **13 家可穿戴厂商，逐字段读过一遍**：447 个字段里 289 个落到 LOINC 码，每一个
+  都带置信度和它出自哪份厂商文档；另有 71 个量明确不落码，写明原因而不是猜。
+  表在[设备对照表](docs/device-crosswalk.md)。
 - **三个公开基准**，数据集公开，各自一条命令可复现：长期健康 agent、医疗幻觉、
   有害医疗建议。
   [mirobody-eval](https://github.com/thetahealth/mirobody-eval) ·

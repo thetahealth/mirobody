@@ -80,7 +80,8 @@ Provider  : Regenstrief Institute
 License   : LOINC License (free, requires attribution)
             https://loinc.org/kb/license/
 Scope     : LoincTableCore, Part hierarchy, and LNC-ZH-CN used for LOINC
-            sibling groups and bridge mappings.
+            sibling groups and bridge mappings; the codes and long common
+            names in res/crosswalks/ (the device crosswalk) and res/metrics.tsv.
 Attribution: This product includes all or a portion of the LOINC(R) table,
             LOINC panels and forms file, LOINC document ontology file,
             and/or LOINC hierarchies file, or is derived from one or more of
