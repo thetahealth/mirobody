@@ -4,7 +4,7 @@ A lab report's rows, a wearable's daily figures, a number typed into the API
 and the demo seed all arrive here as `Draft`s (what was printed, verbatim,
 plus when) with a `Provenance` (where from, how measured), and leave as rows
 of `th_observation` with their coding beside them. The schema and its
-invariants are `mirobody/schema/a6_observation_model.sql`; the pure parts
+invariants are `mirobody/schema/30_observations.sql`; the pure parts
 are `mirobody.translate`. What this module owns is the transaction.
 
 What one `ingest()` call does, in ONE transaction:

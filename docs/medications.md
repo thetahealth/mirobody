@@ -236,7 +236,7 @@ medication list as evidence of what was swallowed. And a dose missing from
 
 ## Storage (the reference application)
 
-`schema/a5_medications.sql`: `th_medication_plan`, `th_medication_course`,
+`schema/31_medications.sql`: `th_medication_plan`, `th_medication_course`,
 `th_dose_event`, `th_override`.
 
 | Encrypted | In the clear |

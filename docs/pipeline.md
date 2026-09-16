@@ -118,7 +118,7 @@ already in the catalogue's unit are the same shape in `th_series_data` today.
 ## 6. Store
 
 **Implemented.** One writer (`collect/observations.py`) for the observation
-model (`mirobody/schema/a6_observation_model.sql`): `th_observation` holds
+model (`mirobody/schema/30_observations.sql`): `th_observation` holds
 what was printed, verbatim, beside the typed layer derived from it, and
 `th_coding_current` holds the code and the series it belongs to. Derived at
 write time, by `mirobody.translate`, and never again:
@@ -144,7 +144,7 @@ bucket), and its standardization was a second UPDATE on the hot table, which
 is where every production deadlock on it came from.
 
 **Stated, not hidden.** A deployment upgraded in place keeps its history in
-`th_series_data_retired_15` (`a7_retire_series_tables.sql` renames, never
+`th_series_data_retired_15` (`90_retire.sql` renames, never
 drops) and answers from an empty catalogue until `mirobody
 migrate-observations` has moved the rows through the same writer. A migrated
 file reading carries `note_text = migrated:th_series_data`, because its name

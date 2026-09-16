@@ -192,7 +192,7 @@ class UserService:
     # the only accounts that could sign in were the hardcoded
     # EMAIL_PREDEFINE_CODES ones, a demo rather than a sign-up. Hashing is
     # bcrypt inside Postgres (`pgcrypto`), so no hash is built, compared or
-    # logged in Python. See `a1_add_password_login.sql`.
+    # logged in Python. See `10_accounts.sql`.
 
     #: Short enough to be typed, long enough that bcrypt is not the weak link.
     _MIN_PASSWORD_LEN = 8

@@ -553,7 +553,7 @@ as not found.
 ### Data Storage
 
 Extracted indicator data is stored in the observation model (`th_observation`
-and its coding tables, `mirobody/schema/a6_observation_model.sql`). The write
+and its coding tables, `mirobody/schema/30_observations.sql`). The write
 goes through `collect/observations.py:ingest` — the one writer of those tables —
 which freezes the extraction as read (`th_extraction`), stores every field as
 printed, codes each row and skips a row the same file already wrote. A

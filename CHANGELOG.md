@@ -229,11 +229,11 @@ written by one module and read through one view.
 
 ### Breaking
 
-- **`th_series_data` is retired.** `a6_observation_model.sql` creates
+- **`th_series_data` is retired.** `schema/30_observations.sql` creates
   `th_extraction`, `th_observation`, `th_coding_current`, `th_coding_history`,
   `th_coding_decision`, `th_coding_alias`, `th_concept`, `th_series`,
   `th_day_authority`, `th_check_result` and the view `v_observation`;
-  `a7_retire_series_tables.sql` renames the old table and its satellites
+  `schema/90_retire.sql` renames the old table and its satellites
   (`th_series_dim`, `fhir_indicators`, `standard_indicators_device`) to
   `*_retired_15` and never drops them. `mirobody migrate-observations` moves
   the old rows through the new writer. `collect/readings.py`, the boot backfill,
@@ -300,6 +300,17 @@ written by one module and read through one view.
   rejected and undecrypted counts.
 - `translate_build/`: the LOINC 2.83 Tier-2 cut (63,391 codes) and its
   accessory tables, build-time only.
+
+### Changed
+
+- **`mirobody/schema/` is one file per domain.** Twenty-two numbered
+  increments (`00_init_schema.sql` … `a7_…`) became nine files: prolog,
+  accounts, files, observations, medications, devices, device rules, chat, and
+  `90_retire.sql` for every rename and drop. Each CREATE carries its full
+  column list with the `ADD COLUMN IF NOT EXISTS` upgrades beneath it. The
+  catalogue a fresh database gets is unchanged, replay is idempotent, and an
+  old database receiving the new chain ends in the same state (checked by
+  fingerprint). One empty event-trigger function nothing used is dropped.
 
 ### Fixed
 

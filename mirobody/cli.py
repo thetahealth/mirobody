@@ -163,7 +163,7 @@ def _cmd_dev(args: argparse.Namespace) -> None:
             "or set PG_URL / DATABASE_URL. The schema is created on first start.\n"
             "No database at hand? `docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=pw \\\n"
             "    -e POSTGRES_DB=mirobody pgvector/pgvector:pg17` — pgvector, not plain\n"
-            "postgres: `schema/00_init_schema.sql` creates a vector column."
+            "postgres: `schema/00_prolog.sql` creates a vector column."
         )
 
     # Ephemeral by default, and said out loud: a dev secret that persists is a

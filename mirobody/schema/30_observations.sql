@@ -1,38 +1,25 @@
--- The observation model: one long table of typed, coded, traceable readings.
+-- 30_observations.sql: every reading, whatever brought it in, as one row.
 --
--- `th_series_data` keyed a reading by the NAME printed on the report, held the
--- value as "5.62 mmol/L" text, and carried its unit, reference range and code
--- in three places that could disagree (an encrypted comment, a JSON column,
--- a never-filled fhir_id). Standardization was a second UPDATE on the hot
--- table after the insert, which is where every production deadlock on it
--- came from. This file replaces that with:
---
---   th_extraction        the frozen structured input (the LLM's or the vendor's
---                        output, verbatim) that a reading came from
---   th_observation       one row per atomic observation: original text, parsed
---                        layer, time with its zone. Append-only: no UPDATE, a
---                        correction is a new row pointing at the old one
---   th_coding_current    what code / series each observation carries NOW (1:1)
---   th_coding_history    every coding ever made for it, only appended
+--   th_extraction        the structured input a reading came from, frozen
+--   th_observation       one atomic observation: the text as printed, the
+--                        typed layer, the time with its zone. Append-only:
+--                        a correction is a new row pointing at the old one
+--   th_coding_current    the code and series it carries now (1:1)
+--   th_coding_history    every coding it ever had, only appended
 --   th_coding_decision   why a (name, unit, value kind) got its code, shared
 --   th_coding_alias      mappings a person confirmed
---   th_concept           display names and axes of the codes in use, a cache
---                        derived from the shipped vocabulary
---   th_series            one row per (user, series): the catalogue an assistant
---                        reads first
---   th_day_authority     which observation is a day's published value
---   th_check_result      consistency checks, as rows an assistant can read
+--   th_concept           display names and axes of the codes in use
+--   th_series            one row per (user, series): the catalogue an
+--                        assistant reads first
+--   th_day_authority     which observation a day publishes
+--   th_check_result      consistency checks, as rows
+--   v_observation        the one read surface
+--   th_series_data_genetic   genotypes, a record of their own
 --
--- The design and its invariants: internal/plans/1.5.x/2026-09-15-cta-data-architecture.md.
--- Naming: th_ + singular noun + role suffix; `code_system` is the vocabulary
--- URI, `loinc_system` the LOINC specimen axis; enum values are kebab-case,
--- except `source_class`, whose values are `mirobody.kernel.series.SOURCE_*`.
---
--- PHI: `note_text` is free text and goes through `encrypt_content` like
--- `th_series_data.comment` did. The name, value and unit as printed are stored
--- in the clear, as `th_series_data.indicator` and `.value` always were.
---
--- Re-runnable, as every file here must be.
+-- Writer: collect/observations.py. Design: docs/pipeline.md section 6 and
+-- internal/plans/1.5.x/2026-09-15-cta-data-architecture.md. Names are
+-- th_ + singular noun + role; enum values are kebab-case. `note_text` is the
+-- only encrypted column; the printed name, value and unit are stored clear.
 
 CREATE TABLE IF NOT EXISTS th_extraction (
     id            bigserial PRIMARY KEY,
@@ -262,3 +249,32 @@ SELECT o.*,
   LEFT JOIN th_day_authority a ON a.observation_id = o.id
  WHERE o.status = 'final'
    AND NOT EXISTS (SELECT 1 FROM th_observation n WHERE n.amends = o.id);
+
+-- Genotypes: one row per (user, rsID). Not an observation: no time, no unit,
+-- no code system of the observation kind. Read by the genetic tool.
+CREATE TABLE IF NOT EXISTS th_series_data_genetic (
+    id              INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id         character varying(255) COLLATE pg_catalog."default" NOT NULL,
+    rsid            character varying(50) COLLATE pg_catalog."default" NOT NULL,
+    chromosome      character varying(10) COLLATE pg_catalog."default" NOT NULL,
+    "position"      integer NOT NULL,
+    genotype        character varying(10) COLLATE pg_catalog."default" NOT NULL,
+    create_time     timestamp without time zone NOT NULL DEFAULT now(),
+    update_time     timestamp without time zone NOT NULL DEFAULT now(),
+    is_deleted      boolean NOT NULL DEFAULT false,
+    source_table    character varying(200) COLLATE pg_catalog."default",
+    source_table_id character varying(200) COLLATE pg_catalog."default"
+);
+CREATE INDEX IF NOT EXISTS idx_th_series_data_genetic_rsid    ON th_series_data_genetic USING btree(user_id, rsid);
+CREATE INDEX IF NOT EXISTS idx_th_series_data_genetic_user_id ON th_series_data_genetic(user_id);
+
+COMMENT ON TABLE th_series_data_genetic IS 'User genetic data table';
+COMMENT ON COLUMN th_series_data_genetic.id IS 'Primary key ID';
+COMMENT ON COLUMN th_series_data_genetic.user_id IS 'User ID';
+COMMENT ON COLUMN th_series_data_genetic.rsid IS 'Genetic locus ID';
+COMMENT ON COLUMN th_series_data_genetic.chromosome IS 'Chromosome';
+COMMENT ON COLUMN th_series_data_genetic."position" IS 'Position';
+COMMENT ON COLUMN th_series_data_genetic.genotype IS 'Genotype';
+COMMENT ON COLUMN th_series_data_genetic.create_time IS 'Creation time';
+COMMENT ON COLUMN th_series_data_genetic.update_time IS 'Update time';
+COMMENT ON COLUMN th_series_data_genetic.is_deleted IS 'Whether deleted';

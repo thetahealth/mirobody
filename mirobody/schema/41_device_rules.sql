@@ -1,6 +1,9 @@
--- Indicator value validation rules (TH-132 W1.1)
--- Rules are evaluated at data ingestion time by ValueRangeValidator.
--- Out-of-range values are marked task_id='filtered_out_of_range', not dropped.
+-- 41_device_rules.sql: the value ranges a device reading must fall in.
+--
+-- Evaluated at ingestion by collect/standardize/value_range_validator.py; a
+-- value outside its range is kept and marked task_id='filtered_out_of_range'.
+-- One row per (rule_set, indicator); the seed below is re-applied on every
+-- boot and never overwrites a row someone edited (ON CONFLICT DO NOTHING).
 
 CREATE TABLE IF NOT EXISTS indicator_valid_rules (
     id              bigserial PRIMARY KEY,

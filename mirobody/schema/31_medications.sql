@@ -1,25 +1,14 @@
--- Medications are an ENTITY, not a time series.
+-- 31_medications.sql: medications, an entity rather than a time series.
 --
--- The three tables here exist because a medication does not fit
--- `th_series_data` and never did: a plan has a schedule (a tuple of dosing
--- instructions), a lifecycle (active → stopped → resumed as a new course) and
--- a code system of its own (RxNorm), while a reading has a value, a unit and
--- an instant. Storing "takes metformin 500 mg twice a day" as a reading forces
--- a choice between losing the schedule and inventing a fake value — and makes
--- every aggregation query step over rows that are not measurements.
+--   th_medication_plan     what is taken, on what schedule (RxNorm codes)
+--   th_medication_course   a period during which a plan was followed
+--   th_dose_event          what actually happened: taken or skipped
+--   th_override            a correction as a layer over any record, never an edit
 --
--- `mirobody.kernel.meds` is the vocabulary these tables persist; the column names are
--- its field names so a reader can move between them without a translation
--- table. Nothing derived is stored: `due`, `missed`, `upcoming` and
--- `unschedulable` come from `meds.slot_state(now, grace)` at read time, and
--- adherence from `meds.adherence`. A stored `missed` is a lie the moment the
--- person opens the app and marks the dose taken.
---
--- PHI: the drug name, the strength and the person's reason for skipping a dose
--- are free-text health data and go through `encrypt_content`, exactly as
--- `th_series_data.comment` does. `concept_key` is a code list or a hash and is
--- safe to log, join on and index — which is why it, not the name, is the key
--- every other table references.
+-- Column names are the field names of `mirobody.kernel.meds`. Nothing derived
+-- is stored: due, missed and adherence are computed at read time. The drug
+-- name, strength and a skip reason are encrypted; `concept_key` (a code list
+-- or a hash) is the key everything joins on. See docs/medications.md.
 
 CREATE TABLE IF NOT EXISTS th_medication_plan (
     plan_id           varchar(200) PRIMARY KEY,

@@ -1,7 +1,7 @@
 """Move a deployment's history from the retired `th_series_data` into the
 observation model.
 
-`a7_retire_series_tables.sql` renames the old table to
+`90_retire.sql` renames the old table to
 `th_series_data_retired_15` and leaves its rows alone; this pass reads them
 in id order and writes them through `pulse.observations`, the same seam
 every live writer uses, so a migrated reading is folded, parsed, placed on

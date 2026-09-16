@@ -758,10 +758,11 @@ ignore = [
 #   G004 (1,110 findings) f-string in a log call. Worth doing — lazy formatting
 #        and the PHI policy both want %-style — but 1,110 mechanical edits would
 #        bury any real change in the same commit. Its own PR.
-#   DTZ  (68) `datetime.now()` without a tz. DELIBERATE here: `th_series_data.
-#        start_time` is a NAIVE LOCAL wall clock, and `schema/a4_series_data_day_
-#        authority.sql` plus `pulse/readings.py` are built on that. Selecting DTZ
-#        would ask us to break the storage contract to satisfy a linter.
+#   DTZ  (68) `datetime.now()` without a tz. DELIBERATE here: `series_data.time`,
+#        the device point buffer, is a NAIVE LOCAL wall clock and the aggregation
+#        pass is built on that (th_observation itself stores timestamptz with its
+#        zone). Selecting DTZ would ask us to break the buffer's contract to
+#        satisfy a linter.
 # TID252 was listed here as "relative imports are used throughout by choice".
 # Reversed 2026-09-14 on measurement, not taste: numpy nests deeper than we do
 # with zero parent-relative imports, fastapi likewise, and nothing in an
