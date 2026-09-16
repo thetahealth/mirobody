@@ -33,14 +33,16 @@ use of each is subject to the license terms of its sources:
 
 A NOTE ON `aliases_src/`, ADDED 2026-09-13
 ------------------------------------------
-`ja.tsv` (16,809 rows) was listed here under "LOINC Linguistic Variants" and
-removed in that commit, because that attribution cannot be correct: LOINC
-publishes 22 linguistic variants and Japanese is not one of them. The file's
-content was organisms, disorders and procedures rather than laboratory tests,
-which points at a UMLS source (MeSH-Japanese or MedDRA-Japanese) rather than at
-LOINC. The engineer who ran that build has left, so the provenance cannot be
-established, and an unattributable table is not defensible at any yield — this
-one produced a LOINC code for 1.3% of its rows.
+`ja.tsv` (16,809 rows) is listed above under "LOINC Linguistic Variants", and
+that attribution cannot be correct: LOINC publishes 22 linguistic variants and
+Japanese is not one of them. The file's content is organisms, disorders and
+procedures rather than laboratory tests, and the build-time lexicon
+(`indicator/fhir/embeddings/lexicon.py`) records it as a UMLS MRCONSO
+derivation (MSHJPN / MDRJPN). Only 1.3% of its rows produce a LOINC code, yet
+removing it costs 1.2 points of coverage on the 7,354-case evaluation
+(0.963 to 0.951), so it stays until a curated replacement covers what it
+answers. Treat its attribution as unresolved, and rest on section 1 (UMLS)
+rather than on LOINC for it.
 
 The remaining language files are being re-verified against the LOINC
 LinguisticVariants they claim, one file at a time. Until each is confirmed,

@@ -176,6 +176,7 @@ CASES: list[tuple[str, str, str]] = [
     ("中性脂肪",                     r"triglyceride",                 r""),
     ("クレアチニン",                  r"creatinine",                   r"clearance|urine"),
     ("尿酸値",                       r"urate|uric acid",              r""),
+    ("総ビリルビン",                  r"bilirubin",                    r"direct|conjugated"),
     # The spelled-out ホルモン names a 健康診断結果表 prints — the bare form
     # must resolve, not only the parenthetical `甲状腺刺激ホルモン(TSH)`.
     ("甲状腺刺激ホルモン",             r"thyrotropin|thyroid stimulating", r""),
@@ -372,7 +373,7 @@ CASES: list[tuple[str, str, str]] = [
     #     character away from a key that exists.
     ("ＦＢＧ",                        r"glucose",                      r"tolerance|urine"),
     ("LDL–C",                       r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
-    # (d) 日本語 健康診断 names the ja.tsv sweep does not reach — it carries
+    # (d) 日本語 健康診断 names no alias table reaches — it carries
     #     diseases and organisms, not observations (3% of its targets are keys
     #     the observation index can look up).
     ("LDLコレステロール",               r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),

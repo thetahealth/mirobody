@@ -208,6 +208,7 @@ urine specific gravity	SP GR Ur
 赤血球数	RBC # Bld
 血小板数	Platelet count
 ヘマトクリット	HCT Fr Sg Auto
+総ビリルビン	Bilirubin
 # 日本語 was the weakest language in the 154-term hunt (13 of 20 missed): the
 # katakana forms and the short kanji names a 健康診断 prints are absent from the
 # machine-derived ja.tsv, which carries LOINC's formal translations.

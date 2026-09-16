@@ -301,6 +301,13 @@ written by one module and read through one view.
 - `translate_build/`: the LOINC 2.83 Tier-2 cut (63,391 codes) and its
   accessory tables, build-time only.
 
+### Fixed
+
+- `indicator/search.py` and `indicator/fhir/adapter.py` import on a base
+  install: their `mirobody.utils` imports (aiohttp) are lazy. The adapter's
+  graph expansion returns its input unexpanded when the local embedding
+  matrix is absent, instead of raising on every call.
+
 ## 1.4.3
 
 A reading extracted from an uploaded report now carries a LOINC code, which is

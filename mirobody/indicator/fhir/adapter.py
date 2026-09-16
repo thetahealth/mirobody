@@ -11,9 +11,6 @@ from typing import Any
 
 import numpy as np
 
-from mirobody.utils import execute_query
-from mirobody.utils.embedding import text_embedding
-
 from mirobody.indicator.concept_graph import ConceptGraph
 from mirobody.indicator.search import DomainAdapter, ResolveResult
 from .common import (
@@ -26,6 +23,16 @@ from .common import GRAPH_ENV_VAR
 from .index import RES_DIR as _RES_DIR, load as _load_local_fhir_cache
 
 log = logging.getLogger(__name__)
+
+
+async def _execute_query(sql, params):
+    """`mirobody.utils.execute_query`, imported on use. `mirobody.utils`
+    pulls in aiohttp, which lives in the [parse]/[agent]/[app] extras and
+    not in the base install; this module ships in the wheel, so a
+    module-scope import made it unimportable from `pip install mirobody`."""
+    from mirobody.utils import execute_query
+
+    return await execute_query(sql, params)
 
 _VALID_SYSTEMS = set(SYSTEMS)
 _SYS_MASK = 0x7  # 3-bit system enum, matches common._SYS_BITS
@@ -177,6 +184,16 @@ class FhirAdapter(DomainAdapter):
         # downstream can still match by canonical even when the row is
         # missing from the embeddings sidecar.
         cache = _load_local_fhir_cache(load_meta=False, bundle_dir=self._bundle_dir)
+        if cache is None:
+            # No `res/fhir_embeddings.npy` (and EXTERNAL.tsv offers no way
+            # to get one), so this subscript raised TypeError on every call
+            # and the caller logged it as "semantic search unavailable".
+            # Expansion is an enrichment: the input goes back unexpanded.
+            log.info(
+                "graph expansion skipped: no local embedding matrix under %s (see mirobody/res/EXTERNAL.tsv)",
+                self._bundle_dir or _RES_DIR,
+            )
+            return top_ids
         canonical = cache["canonical"]
         row_by_id = cache["row_by_id"]
         to_output_id = cache["to_output_id"]
@@ -246,7 +263,7 @@ class FhirAdapter(DomainAdapter):
         GROUP BY tsd.indicator, fi.id
         """
 
-        result = await execute_query(sql, params)
+        result = await _execute_query(sql, params)
         if not result:
             return None
 
@@ -297,7 +314,7 @@ class FhirAdapter(DomainAdapter):
         GROUP BY tsd.indicator, tsd.fhir_id
         """
 
-        result = await execute_query(sql, params)
+        result = await _execute_query(sql, params)
         if not result:
             return None
 
@@ -391,7 +408,7 @@ class FhirAdapter(DomainAdapter):
             ORDER BY score DESC
             LIMIT :top_k
             """
-            return await execute_query(sql, params) or []
+            return await _execute_query(sql, params) or []
 
         all_hits = await asyncio.gather(*(_single_query(emb) for emb in embeddings))
 
@@ -433,7 +450,7 @@ class FhirAdapter(DomainAdapter):
               AND tsd.deleted = 0
               {time_clause}
         """
-        rows = await execute_query(user_sql, {"user_id": user_id, **time_params}) or []
+        rows = await _execute_query(user_sql, {"user_id": user_id, **time_params}) or []
 
         # tsd.fhir_id is DB pk in compat mode (sidecar present) or
         # canonical in terminal mode; row_by_id accepts either form.
@@ -560,6 +577,8 @@ class FhirAdapter(DomainAdapter):
         # ``cache=True``: query-side strings repeat across reruns;
         # disk cache at ~/.cache/mirobody/text_embedding.sqlite turns
         # iteration on routing into a no-cost replay.
+        from mirobody.utils.embedding import text_embedding  # see _execute_query
+
         embeddings = await text_embedding(preprocessed, provider=provider, cache=True)
 
         cache = _load_local_fhir_cache(bundle_dir=self._bundle_dir)
@@ -1123,7 +1142,7 @@ class FhirAdapter(DomainAdapter):
         WHERE rn <= :top_k
         ORDER BY score DESC
         """
-        rows = await execute_query(sql, params) or []
+        rows = await _execute_query(sql, params) or []
         return [
             ResolveResult(
                 system=row["system"] or "",
@@ -1182,7 +1201,7 @@ class FhirAdapter(DomainAdapter):
             ORDER BY score DESC
             LIMIT :top_k
             """
-            return await execute_query(sql, params) or []
+            return await _execute_query(sql, params) or []
 
         all_hits = await asyncio.gather(*(_single_query(emb) for emb in embeddings))
 

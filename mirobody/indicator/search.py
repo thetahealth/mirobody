@@ -15,8 +15,6 @@ import logging
 from argparse import Namespace
 from dataclasses import dataclass
 
-from mirobody.utils.embedding import text_embedding
-
 log = logging.getLogger(__name__)
 
 
@@ -158,6 +156,10 @@ async def search(
 
     # 1. Compute keyword embeddings
     queries = [" ".join(keywords)] + keywords if len(keywords) > 1 else keywords
+    # Imported on use: `mirobody.utils` pulls in aiohttp, an extra and not a
+    # base dependency, and this module ships in the wheel.
+    from mirobody.utils.embedding import text_embedding
+
     query_embeddings = await text_embedding(queries)
 
     # 2. Vector recall via adapter

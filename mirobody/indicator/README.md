@@ -45,6 +45,14 @@ fell back to lexical recall without saying so. The same split is recorded in
 one short of. Everything the artifact still carries can be imported from an
 install: `scripts/check_wheel_data.py` is the gate.
 
+**And it stopped one short a third time.** That sentence was false when written:
+`search.py` and `fhir/adapter.py` carried module-scope `from mirobody.utils ...`
+imports, and `mirobody.utils` pulls in aiohttp, declared in `[parse]`, `[agent]`
+and `[app]` and never in base. Both raised `ModuleNotFoundError` on a numpy-only
+interpreter. The imports are lazy since 1.5.0. `check_wheel_data.py` cannot
+catch this class: it gates which files reach the artifact, never what those
+files import; the per-module import check runs in the local suite.
+
 The vocabulary layer a `pip install` actually resolves with —
 `mirobody/engine.py`, `mirobody/lexical.py`, `mirobody/units/`,
 `mirobody/value_scale.py`, `mirobody/zh_fold.py` — sits at the package root,
