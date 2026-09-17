@@ -75,17 +75,15 @@ def decision_id(name_key: str, unit_ucum: str, value_kind: str, rel: str, rule: 
 def axes_for(loinc: str) -> tuple[Axes, str] | None:
     """`(axes, display)` of a code in the shipped bundle, or `None`.
 
-    The bundle carries five of the six axes; TIME is not among them and is
-    left empty until the 2.83 tables ship. A series key built without TIME
-    is still a key, and a recode under the next release rewrites it.
+    All six axes come from the bundle since the 1.5.0 cut, TIME included.
     """
     from mirobody.engine import get_resolver
 
     row = get_resolver().axes_of(loinc)
     if row is None:
         return None
-    component, prop, scale, system, method, display = row
-    return Axes(component, prop, "", system, scale, method), display
+    component, prop, scale, system, method, time, display = row
+    return Axes(component, prop, time, system, scale, method), display
 
 
 def code(

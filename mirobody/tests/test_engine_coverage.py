@@ -834,8 +834,8 @@ def test_what_is_not_a_lab_specimen_but_is_a_result_still_resolves():
 def test_a_class_from_another_discipline_is_not_a_lab_result():
     """A perfectly ordinary measurement from a discipline a printed lab report
     never contains has nothing wrong with its PROPERTY, SCALE or SYSTEM; only
-    LOINC's own CLASS column tells it apart (`res/loinc_class_gated.tsv`).
-    Two measured defects were exactly that."""
+    LOINC's own CLASS column tells it apart, and the 1.5.0 cut drops those
+    CLASS families from the bundle. Two measured defects were exactly that."""
     from mirobody.engine import resolve
 
     # CLASS=CELLMARK, the flow-cytometry cell-surface marker, was answering for

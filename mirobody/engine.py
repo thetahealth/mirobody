@@ -48,6 +48,7 @@ from ._bundle import (
     AXIS_FOLDED_LCN as _FOLDED_LCN,
     AXIS_LCN as _LCN,
     AXIS_SYSTEM as _SYSTEM,
+    AXIS_TIME as _TIME,
     bundle_version,
     load_alias_sources,
     load_axis,
@@ -213,7 +214,7 @@ class OfflineResolver:
     object array and two CSVs: reading those allocates ~1.6 million `str` for
     tables that answer a few hundred lookups per call. Storage shape, not data
     volume (77 MB of text either way). They are byte blobs plus offset arrays
-    now, cut by `scripts/build_runtime_index.py`, and nothing allocates per
+    now, cut by `translate_build/build_bundle.py`, and nothing allocates per
     entry: `_posting` bisects the alias blob, `_pick` matches regexes against
     slices of the corpus-name blob, and only the winning row is decoded.
     """
@@ -279,7 +280,7 @@ class OfflineResolver:
                 f"{blob_member} / {index_member} not found in {_BUNDLE}. Run "
                 "`git lfs pull` for the data bundles; if the bundle predates "
                 "1.3.0, rebuild the runtime index with "
-                "`python scripts/build_runtime_index.py`."
+                "`python -m translate_build.build_bundle --loinc <release>`."
             )
         with np.load(io.BytesIO(index)) as z:
             arrays = {k: z[k] for k in z.files}
@@ -312,15 +313,19 @@ class OfflineResolver:
         row = self._row_for_code(code)
         return self._axis.field(row, _LCN) if row >= 0 else ""
 
-    def axes_of(self, code: str) -> tuple[str, str, str, str, str, str] | None:
-        """`(component, property, scale, system, method, long_common_name)`
+    def axes_of(self, code: str) -> tuple[str, str, str, str, str, str, str] | None:
+        """`(component, property, scale, system, method, time, long_common_name)`
         of a code in the bundle, or `None`. The public face of the axis
-        table, for `mirobody.translate` to build a series key from."""
+        table, for `mirobody.translate` to build a series key from.
+
+        TIME_ASPCT arrived with the 1.5.0 cut. Without it a fasting glucose and
+        a 2-hour post-load glucose share one key, which is the axis LOINC uses
+        to tell them apart."""
         row = self._row_for_code(code)
         if row < 0:
             return None
         _code, component, prop, scale, system, method, lcn = self._axis_row(row)
-        return component, prop, scale, system, method, lcn
+        return component, prop, scale, system, method, self._axis.field(row, _TIME), lcn
 
     def _loinc_for_name(self, name: str) -> str:
         """Corpus long name -> LOINC_NUM, "" when the name is not a LOINC row."""
@@ -514,31 +519,18 @@ class OfflineResolver:
         ungated: `呼吸次数` came back as *First Respiration rate Set*, a nursing
         documentation item, and 52 of the 7,354 eval cases answered with a code
         LOINC has since retired.
+
+        A CLASS gate used to ride alongside this, `res/loinc_class_gated.tsv`,
+        10,045 codes from disciplines a lab report never prints (`癌胚抗原`
+        answered 17188-4 CLASS=CELLMARK instead of 2039-6 CLASS=CHEM). The
+        1.5.0 cut drops those families at build time, so all 10,045 are now
+        outside the bundle and the file gated nothing: measured, then deleted.
         """
         if self._skip is None:
-            skip = {
+            self._skip = {
                 code.encode("ascii")
                 for code in read_code_list("loinc_skip.txt", bundle_path=_BUNDLE)
             }
-            # `res/loinc_class_gated.tsv`: codes gated by their LOINC CLASS,
-            # which the bundle carries but the runtime index drops; its home
-            # is `loinc_skip.txt` at the next bundle build (the Tier-2 cut
-            # already excludes these families). They are ordinary measurements
-            # from a discipline a lab report never prints (`癌胚抗原` answered
-            # 17188-4 CLASS=CELLMARK instead of 2039-6 CLASS=CHEM; `骨量` a
-            # bone volume in a tooth space). Measured on 7,354 cases: zero
-            # correct answers lost.
-            path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "res", "loinc_class_gated.tsv")
-            try:
-                with open(path, encoding="utf-8") as fh:
-                    for line in fh:
-                        line = line.strip()
-                        if not line or line.startswith("#"):
-                            continue
-                        skip.add(line.split("\t", 1)[0].encode("ascii"))
-            except OSError:
-                logger.warning("loinc_class_gated.tsv missing; CLASS gate inactive")
-            self._skip = skip
         return self._skip
 
     def _pick(self, rows, exclude: frozenset[int] = frozenset()) -> int:
