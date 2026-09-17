@@ -112,7 +112,7 @@ def _cache_store(provider: str, items: dict[str, list[float]]) -> None:
 _EMB_PROVIDERS: dict[str, callable] = {}
 
 #: provider -> the exact model each factory below calls. ONE source of truth,
-#: shared with `scripts/build_loinc_embeddings.py` and `indicator/semantic.py`:
+#: one source of truth for every caller that stamps or checks vector identity:
 #: vectors compare only within one (provider, model) pair, so everything that
 #: stamps or checks identity reads this table. The ids are configuration, the
 #: `MODELS` entries in config.llm.yaml carrying `embedding: <family>`, with

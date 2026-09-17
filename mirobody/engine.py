@@ -17,10 +17,10 @@ The first two engine stages (① Collect, ② Translate) without persistence:
   prior, and the LOINC axis table for the final name to LOINC_NUM hop. Plus
   ``res/resolver_overrides.tsv``, hand-written corrections for terms the index
   gets wrong (measured by ``test_engine_coverage.py``).
-* **Not** the v2 semantic pipeline
-  (:func:`mirobody.indicator.fhir.resolve.pipeline.resolve_many`), which adds
-  embedding recall and family rerank but needs the multi-GB matrix that does
-  not ship in git. A term that misses here returns ``unresolved``, not a guess.
+* **Not** an embedding pipeline. A term that misses here returns
+  ``unresolved``, not a guess. 1.4.x shipped an opt-in semantic tier behind a
+  matrix that was never published; measured in both a wheel and a source tree,
+  it loaded nothing and answered nothing, so 1.5.0 removed it.
 * **Unit normalization** via :mod:`mirobody.units` (offline).
 
 The candidate picker is a heuristic: commonness prior, then a preference for
@@ -75,7 +75,6 @@ __all__ = [
     "parse_file",
     "resolve",
     "resolve_reading",
-    "resolve_with_semantic_fallback",
 ]
 
 #: Everything `OfflineResolver.__init__` reads, fetched in one tar pass. The
@@ -127,7 +126,6 @@ class Resolution:
     resolved: bool = False
     #: How the answer was reached, or why there is none. ``"lexical"`` from the
     #: shipped vocabularies is the only kind :func:`resolve` returns;
-    #: ``"semantic"`` comes from :func:`resolve_with_semantic_fallback`;
     #: ``"refused"`` is a decision not to answer (a panel name, a string naming
     #: two tests) and unlike ``""`` must not be overturned by a second opinion.
     #: A caller using a code as an IDENTITY must accept only ``"lexical"``:
@@ -985,69 +983,6 @@ def resolve_reading(name: str, value: str | None = None, unit: str | None = None
         rejected_reason=verdict.rejected_reason,
     )
 
-
-async def resolve_with_semantic_fallback(
-    terms: list[str],
-    *,
-    index_path: str | None = None,
-    min_score: float | None = None,
-) -> list[Resolution]:
-    """Lexical first; embedding recall only for the terms that missed.
-
-    **Opt-in on purpose, and the opposite of a drop-in upgrade.** Semantic
-    recall raises coverage and lowers trust at the same time: it answers terms
-    the alias tables never heard of, and it also answers `绝对不存在的指标名xyzzy`
-    with a confident code, because it has no way to say "I don't know". Measured
-    on the LOINC matrix, nonsense scored 0.78 while genuine indicator names went
-    as low as 0.56: the ranges overlap, so `min_score` cannot make it honest.
-    It is exposed anyway because a suggested code a human or a model can confirm
-    beats a blank, but every one of them comes back marked ``method="semantic"``
-    and must not be used as an identity. :func:`resolve` never returns one.
-
-    Falls back silently to the lexical answer when no matrix is installed,
-    that is the normal state of a `pip install`, not a failure.
-
-    `min_score` is offered for callers who want a floor anyway (e.g. to cut the
-    obviously-hopeless tail before showing suggestions); it is None by default
-    because presenting one as a correctness threshold would be a lie.
-    """
-    resolver = get_resolver()
-    out = [resolver.resolve(t) for t in terms]
-
-    # `method="refused"` is a decision, not a gap. `血脂` is four analytes with
-    # no single panel code; `血糖(HbA1c)` names two different tests in one
-    # string. Neither has a right answer, and
-    # the embedding tier will supply one anyway: measured, it answered all nine
-    # refusals in the eval set and got all nine wrong. Letting the second tier
-    # overturn the first tier's refusal is the one thing this design must not
-    # do, so only genuine misses go on.
-    missed = [i for i, r in enumerate(out) if not r.resolved and r.method != "refused"]
-    if not missed:
-        return out
-
-    from .indicator.semantic import get_index
-
-    index = get_index(index_path)
-    if index is None:
-        return out
-
-    ranked = await index.search([terms[i] for i in missed], top_k=1)
-    for i, candidates in zip(missed, ranked, strict=False):
-        if not candidates:
-            continue
-        best = candidates[0]
-        if min_score is not None and best.score < min_score:
-            continue
-        out[i] = Resolution(
-            term=terms[i],
-            canonical=best.canonical,
-            loinc=best.loinc,
-            candidates=1,
-            resolved=True,
-            method="semantic",
-            score=best.score,
-        )
-    return out
 
 
 # ── parse: document -> readings (one LLM call) ────────────────────────────────
