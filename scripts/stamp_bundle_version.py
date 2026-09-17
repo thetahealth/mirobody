@@ -61,7 +61,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bundle", default=BUNDLE_PATH)
     ap.add_argument("--date", default=datetime.date.today().strftime("%Y.%m.%d"))
-    ap.add_argument("--loinc", default="2.82", help="the LOINC release the bundle was cut from")
+    ap.add_argument("--loinc", default="2.83", help="the LOINC release the bundle was cut from")
     ap.add_argument("--check", action="store_true", help="verify the stamp, do not write")
     args = ap.parse_args()
 

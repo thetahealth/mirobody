@@ -1,43 +1,40 @@
-This bundle (fhir_loinc_bundle.tar.gz) contains data derived from LOINC®
-(Logical Observation Identifiers Names and Codes), copyright © 1995
+This bundle (fhir_loinc_bundle.tar.gz) contains data derived from LOINC(R)
+(Logical Observation Identifiers Names and Codes), copyright (c) 1995
 Regenstrief Institute, Inc. and the Logical Observation Identifiers
 Names and Codes (LOINC) Committee.
 
-LOINC® is a registered trademark of Regenstrief Institute, Inc.
-This material is available at no cost under the LOINC license,
-which permits commercial and non-commercial redistribution provided
-the LOINC copyright statement is reproduced in full.
+This product includes all or a portion of the LOINC(R) table, LOINC panels
+and forms file, LOINC document ontology file, and/or LOINC hierarchies file,
+or is derived from one or more of the foregoing, subject to a license from
+Regenstrief Institute, Inc. LOINC is a registered United States trademark
+of Regenstrief Institute, Inc. Full license: https://loinc.org/license/
+
+Source: LOINC release 2.83 (LoincTable/Loinc.csv, AccessoryFiles/LinguisticVariants/).
 
 Bundle members and their LOINC sources:
 
-  loinc_axis.csv          — derived from LoincTableCore.csv, filtered
-                            to STATUS=ACTIVE and reduced to columns
-                            LOINC_NUM, COMPONENT, PROPERTY, TIME_ASPCT,
-                            SYSTEM, SCALE_TYP, METHOD_TYP, STATUS,
-                            LONG_COMMON_NAME.
-  loinc_skip.txt          — LOINC codes excluded from resolve (non-
-                            clinical CLASS / PHENX / DOC / SURVEY,
-                            DEPRECATED / DISCOURAGED STATUS).
-  loinc_demote.txt        — LOINC codes soft-demoted in sort
-                            (LABORDERS.ONTOLOGY abstract codes,
-                            TRIAL STATUS).
-  loinc_rank_bonus.npy    — row-aligned float32 tie-breaker cosine
-                            bonus, derived from LoincTable/Loinc.csv
-                            COMMON_TEST_RANK column.
-  loinc_alias_index.npz   — multilingual lexical alias → corpus-row
-                            inverted index, derived from
-                            LoincTable/Loinc.csv (COMPONENT,
-                            RELATEDNAMES2, SHORTNAME, DisplayName,
-                            CONSUMER_NAME) and all AccessoryFiles/
-                            LinguisticVariants/*.csv.
+  axis_fields.bin / axis_index.npz    63416 codes: LOINC_NUM, COMPONENT, PROPERTY, SCALE_TYP,
+                                      SYSTEM, METHOD_TYP, LONG_COMMON_NAME, TIME_ASPCT, CLASS, each
+                                      copied unchanged, plus two folded copies for lookup.
+  corpus_names.bin / corpus_names.npz LONG_COMMON_NAME per code, same row order.
+  alias_keys.bin / alias_index.npz    692577 folded designations -> codes, from COMPONENT,
+                                      SHORTNAME, LONG_COMMON_NAME, RELATEDNAMES2, DisplayName and
+                                      CONSUMER_NAME, and from these linguistic variants:
+                                      arJO32, csCZ33, deAT24, deDE15, elGR17, esAR7, esES12, esMX28, etEE10, frBE23, frCA8, frFR18, itIT16, koKR13, nlNL22, plPL29, ptBR11, ruRU20, trTR19, ukUA30, zhCN5.
+  loinc_rank_bonus.npy                a tie-breaker per row from COMMON_TEST_RANK.
+  loinc_skip.txt                      36321 ACTIVE codes the cut leaves out (see below).
+  loinc_units.tsv                     EXAMPLE_UCUM_UNITS per code.
 
-Source: LOINC release 2.82 (LoincTable/, LoincTableCore/, AccessoryFiles/).
+The cut (translate_build/loinc_cut.py): STATUS ACTIVE; CLASSTYPE laboratory or
+clinical; CLASS families that never hold a reading dropped (surveys, documents,
+radiology, administrative, ...); SCALE_TYP Doc, Nar, -, Set and Multi dropped;
+H&P classes kept only at Qn or Ord; panels kept for the laboratory subclasses;
+the device base table and the catalogue whitelisted; rows carrying
+EXTERNAL_COPYRIGHT_NOTICE dropped rather than reproduced. Counts by reason:
+  class 20577, classtype 12437, hp-scale 523, licence 153, panel 716, scale 1915, status 12668, whitelist 1
 
-This used to read "2.82 or later". Section 9 of the LOINC license asks each
-copy to carry "the appropriate version number of the Licensed Materials", and a
-range is not one. It is determinable, and now determined: of the 3,081 codes
-ACTIVE in 2.83 that this bundle does not carry, 3,078 were first released in
-2.83 — so the cut is 2.82 exactly. `mirobody.BUNDLE_VERSION` reports it at
-runtime.
+Rows are dropped, never edited; every value here is a LOINC value. The input
+spellings under res/aliases_src/ and res/resolver_overrides.tsv are this
+project's own and are not LOINC names.
 
 Full LOINC license: https://loinc.org/license/

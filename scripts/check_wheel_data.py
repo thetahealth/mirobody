@@ -34,7 +34,6 @@ REQUIRED = {
     # dental and cell-marker code becomes reachable again — `癌胚抗原` would go
     # back to answering the flow-cytometry marker. A silent recall regression
     # is exactly what this gate exists to catch.
-    "mirobody/res/loinc_class_gated.tsv": 100_000,
     # 1.4.0: the indicator catalogue, its Chinese labels and the dose-form
     # table are read at import time by `mirobody.kernel.metrics` / `mirobody.kernel.meds`.
     "mirobody/res/metrics.tsv": 40_000,
@@ -109,6 +108,10 @@ BUNDLE_REQUIRED = (
     "VERSION", "alias_keys.bin", "alias_index.npz",
     "corpus_names.bin", "corpus_names.npz",
     "axis_fields.bin", "axis_index.npz", "loinc_rank_bonus.npy", "loinc_skip.txt",
+    # NOTICE is a licence obligation, not a convenience: LOINC 5.8 requires the
+    # copyright notice to travel with the data. loinc_units.tsv is the
+    # EXAMPLE_UCUM_UNITS column the unit gate reads.
+    "NOTICE", "loinc_units.tsv",
 )
 BUNDLE_FORBIDDEN = (
     "loinc_alias_index.npz", "loinc_axis.csv", "loinc_demote.txt",
@@ -208,7 +211,7 @@ def check(path: str) -> list[str]:
             if m not in members:
                 problems.append(
                     f"MISSING   {BUNDLE}:{m} — the resolver reads this on every "
-                    "call; rebuild with scripts/build_runtime_index.py"
+                    "call; rebuild with python -m translate_build.build_bundle"
                 )
         for m in BUNDLE_FORBIDDEN:
             if m in members:

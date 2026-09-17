@@ -43,8 +43,16 @@ DROP_SCALES = frozenset({"Doc", "Nar", "-", "Set", "Multi"})
 HP_CLASSES = frozenset({"H&P.HX", "H&P.PX", "H&P.HX.LAB", "H&P.SURG PROC"})
 HP_KEEP_SCALES = frozenset({"Qn", "Ord"})
 
+#: Panel subclasses whose members are readings we keep. The laboratory ones
+#: came first; the second line is the vital-sign and personal-record family,
+#: without which "blood pressure" has no panel code to land on and falls to a
+#: sibling (measured: it answered 8462-4 Diastolic, and 9855-8 "special
+#: circumstances" for 血压). PANEL.PHR is literally the personal health record:
+#: diabetes, pedometer, weight and height tracking. PANEL.DEVICES is left out —
+#: it describes the instrument ("Glucose meter device panel"), not a reading.
 PANEL_KEEP = frozenset(
-    "CHEM HEM/BC UA COAG SERO MICRO ALLERGY DRUG/TOX MOLPATH BLDBK CLIN H&P NUTRITION&DIET ABXBACT CHAL HLA".split()
+    "CHEM HEM/BC UA COAG SERO MICRO ALLERGY DRUG/TOX MOLPATH BLDBK CLIN H&P NUTRITION&DIET ABXBACT CHAL HLA"
+    " VITALS BP BDYTMP PHR PULM".split()
 )
 
 AXIS_COLUMNS = (

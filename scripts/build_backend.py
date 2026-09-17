@@ -69,7 +69,7 @@ _BUILD_ONLY_DATA = frozenset({
 
 #: The bundle members a `pip install` can actually use. Everything else in
 #: `fhir_loinc_bundle.tar.gz` is an INPUT to the build passes — the pickled
-#: alias index that `build_runtime_index.py` turns into `alias_keys.bin`, the
+#: alias index that `translate_build/build_bundle.py` writes as `alias_keys.bin`, the
 #: axis CSV it turns into `axis_fields.bin`, the dose/demote/analyte tables that
 #: only the pruned `embeddings/` and `resolve/` trees read.
 #:
@@ -89,6 +89,9 @@ _BUNDLE_RUNTIME_MEMBERS = frozenset({
     "axis_index.npz",
     "loinc_rank_bonus.npy",
     "loinc_skip.txt",
+    # NOTICE travels with the data because the LOINC licence says it must.
+    "NOTICE",
+    "loinc_units.tsv",
 })
 
 
