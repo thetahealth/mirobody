@@ -115,54 +115,15 @@ def _slim_bundle(data: bytes) -> bytes:
             tf.addfile(ti, io.BytesIO(payload))
     return out.getvalue()
 
-#: 19,000 lines of Python that NOBODY who installs this package can run.
+#: Code that ships in git but has no business in anyone's site-packages.
 #:
-#: * ``indicator/fhir/embeddings/`` mints the bundles from raw LOINC/UMLS
-#:   releases. Those releases are licensed per user and are not in this
-#:   repository (see the ``benchmarks/`` note in ``embeddings/bundle.py``), and
-#:   the passes need ``[indicator-build]`` — polars, zhconv, pgvector — on top.
-#: * ``indicator/fhir/resolve/`` is the v2 semantic pipeline. It needs
-#:   ``fhir_embeddings.npy``, a multi-GB matrix that is mounted on a volume in
-#:   production and does not ship in git, let alone in a wheel.
-#:
-#: They stay in git: a contributor rebuilding the corpus needs them, and
-#: ``lint-imports`` reads the source tree. They have no business in anyone's
-#: site-packages, which is the same standard ``_BUILD_ONLY_DATA`` already
-#: applies to 28 MB of artifacts nothing reads.
-#:
-#: Pruning them only became possible once ``engine.py`` stopped importing
-#: ``embeddings.bundle`` and ``embeddings.alias._normalize`` — the runtime read
-#: its own data through the build tooling. Those moved to ``mirobody/_bundle.py``
-#: and ``mirobody/lexical.index_fold``; ``scripts/check_wheel_data.py`` fails the
-#: build if either subtree comes back.
-_BUILD_ONLY_CODE = (
-    "mirobody/indicator/fhir/embeddings/",
-    "mirobody/indicator/fhir/resolve/",
-    # …and the CLI that drives them, plus the passes it calls. Every entry
-    # below was SHIPPING while being unable to import from an install: three
-    # of them raise outright (`main.py` imports the two subtrees above;
-    # `bridge.py` and `siblings.py` import polars at module scope, which only
-    # `[indicator-build]` provides), and the rest are subcommand bodies whose
-    # only caller is `main.py`. What is left in the artifact is what an
-    # install can actually run: the resolver's semantic tier, the search
-    # engine, the concept-graph reader, and the FHIR adapter with the index
-    # reader it needs.
-    "mirobody/indicator/embed.py",
-    "mirobody/indicator/resolve.py",
-    "mirobody/indicator/fhir/bridge.py",
-    "mirobody/indicator/fhir/siblings.py",
-    "mirobody/indicator/fhir/merge.py",
-    "mirobody/indicator/fhir/inspect.py",
-    "mirobody/indicator/fhir/graph_builder.py",
-    # 98 KB of auto-generated multilingual LOINC Part tables. `loinc-axis-vocab`
-    # WRITES it and nothing in the repo imports it — it is a build output that
-    # was shipping to every install. Kept in git (a contributor can read it,
-    # and the next build rewrites it), out of the artifact.
-    "mirobody/indicator/fhir/loinc_lookups.py",
-    # The locale plugins for local drug names: their only reach is
-    # `siblings.py:cmd_siblings --nhsa-catalog`, one line above in this list.
-    "mirobody/indicator/fhir/locales/",
-)
+#: 1.5.0 emptied this. It held `indicator/`'s two build trees and the CLI that
+#: drove them, 19,000 lines nobody who installed the package could run; the
+#: whole package is deleted, so there is nothing left to prune. The tuple and
+#: the gate in `scripts/check_wheel_data.py` stay, because the next tree that
+#: ships-but-cannot-run should be caught rather than argued about:
+#: `translate_build/` is the current one, and it is outside `mirobody/`.
+_BUILD_ONLY_CODE: tuple[str, ...] = ()
 
 
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):

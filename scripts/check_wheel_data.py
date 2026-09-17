@@ -76,20 +76,6 @@ FORBIDDEN = (
 # exactly the state `engine.py` was in until 1.3.0 (it read the shipped bundle
 # through `embeddings.bundle` and folded keys with `embeddings.alias._normalize`).
 FORBIDDEN_PREFIXES = (
-    "mirobody/indicator/fhir/embeddings/",
-    "mirobody/indicator/fhir/resolve/",
-    # The CLI that drives them and the passes it calls — see
-    # scripts/build_backend.py::_BUILD_ONLY_CODE for why each one cannot run
-    # from an install.
-    "mirobody/indicator/embed.py",
-    "mirobody/indicator/resolve.py",
-    "mirobody/indicator/fhir/bridge.py",
-    "mirobody/indicator/fhir/siblings.py",
-    "mirobody/indicator/fhir/merge.py",
-    "mirobody/indicator/fhir/inspect.py",
-    "mirobody/indicator/fhir/graph_builder.py",
-    "mirobody/indicator/fhir/loinc_lookups.py",
-    "mirobody/indicator/fhir/locales/",
     # 1.4.0: the demo data lives in the repo-root `demo/`, beside `frontend/`
     # and for the same reason. The application is a checkout, so a library
     # install paid for a demo it can never run. A prefix, not the file names:
