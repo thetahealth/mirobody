@@ -79,14 +79,18 @@ DEFAULT_MATRIX = os.environ.get("MIROBODY_EVAL_MATRIX", "")
 
 
 def _analyte_table() -> dict[str, str]:
-    from mirobody.indicator.fhir.embeddings.bundle import read_member
+    """code -> its analyte, for "right analyte, different variant" credit.
 
-    raw = read_member(
-        "loinc_axis.csv", bundle_path=str(REPO / "mirobody" / "res" / "fhir_loinc_bundle.tar.gz")
-    )
+    Read off the axis table the resolver itself answers from. It used to parse
+    `loinc_axis.csv`, a whole second copy of the table that the 1.5.0 cut stopped
+    shipping; `AXIS_ANALYTE` is the same COMPONENT head, folded at build time.
+    """
+    from mirobody._bundle import AXIS_ANALYTE, AXIS_CODE, load_axis
+
+    axis, _order_code, _order_name = load_axis()
     out = {}
-    for row in csv.DictReader(io.StringIO(raw.decode("utf-8"))):
-        out[row["LOINC_NUM"]] = (row["COMPONENT"] or "").split("^")[0].strip().lower()
+    for row in range(len(axis)):
+        out[axis.field(row, AXIS_CODE)] = axis.field(row, AXIS_ANALYTE)
     return out
 
 
