@@ -25,9 +25,8 @@ notes to PyPI under a filename that told open-source readers to ignore it.
 | ① | [provider-guide.md](provider-guide.md) | writing a data provider end to end — the long one |
 | ① | [file-processing.md](file-processing.md) | a file becomes text by kind (`mirobody/documents/`: PDF text layer, OCR for scanned pages only, Office, text), then LLM extraction |
 | ① | [apple-health.md](apple-health.md) | Apple Health export + CDA import |
-| ② | [standardization.md](standardization.md) | the long form of ② Translate (standardize): the concept graph, the alias tiers, which LOINC release and why, the opt-in semantic tier — moved out of the README in 1.4.1 |
+| ② | [standardization.md](standardization.md) | the long form of ② Translate: the alias tiers, which LOINC release and what the cut contains — moved out of the README in 1.4.1 |
 | ② | [device-crosswalk.md](device-crosswalk.md) | thirteen wearable vendors' fields to LOINC, with a confidence and a source per row, the 71 quantities no code fits, and the normalisation traps between vendors |
-| ② | [vocabulary-build.md](vocabulary-build.md) | rebuilding `mirobody/res/` from the raw LOINC / SNOMED CT / RxNorm releases — needs a UMLS licence |
 | ③ | [answers.md](answers.md) | the one health-data tool: its matrix, its envelope, its governance, and the PHI discipline |
 | ③ | [medications.md](medications.md) | the medication model, its state tables and its instruction grammar (provisional) |
 | ③ | [frontend.md](frontend.md) | how the bundled web client is served, and how to replace it |
@@ -53,7 +52,7 @@ code closely, and a stale translation of a contributor guide is worse than none.
 Short, and about *that package only*:
 
 - [`mirobody/collect/`](../mirobody/collect/README.md) — ① Collect
-- [`mirobody/indicator/`](../mirobody/indicator/README.md) — ② Translate (standardize)
+- [`mirobody/translate/`](../mirobody/translate/README.md) — ② Translate
 - [`mirobody/agent/`](../mirobody/agent/README.md) — ③ Agent
 - [`mirobody/agent/tools/`](../mirobody/agent/tools/README.md) — the MCP tool surface
 - [`mirobody/collect/providers/apple/`](../mirobody/collect/providers/apple/README.md) — Apple Health import

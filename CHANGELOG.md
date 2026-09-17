@@ -261,6 +261,27 @@ cut is for.
   files alone and contains no kana. Japanese report spellings still resolve,
   through `res/resolver_overrides.tsv` — this project's own file, mapping a
   Japanese surface to an English name LOINC's index answers.
+- **`mirobody/indicator/` is deleted** — 43 modules, 24,858 lines, and with it
+  the `[indicator-build]` extra, `scripts/vocabulary_build.py`,
+  `scripts/build_loinc_embeddings.py`, `scripts/build_runtime_index.py` and
+  `docs/vocabulary-build.md`. The 2.83 bundle is cut from one LOINC release in
+  one pass by `translate_build/` (~700 lines, outside `mirobody/`), so the
+  passes that needed a UMLS licence, a concept graph across SNOMED CT and
+  RxNorm, and a multi-GB embedding matrix have nothing left to build.
+- **`resolve_with_semantic_fallback` is gone from the public API**, with the
+  opt-in semantic tier behind it. It could not abstain — for an unseen term it
+  returned its nearest neighbour with the confidence of a correct answer, and
+  nonsense scored 0.78 where genuine names went to 0.56 — and it never ran
+  anyway: the matrix was never published, so `get_index()` returned `None` in a
+  wheel install and in a source tree alike, measured in both. `resolve()` and
+  `resolve_reading()` are unchanged. For better recall, curate a row in
+  `res/resolver_overrides.tsv`.
+- **The bare-install import gate now covers the library layer**, not just the
+  nine modules `indicator/` used to ship: 43 modules, each imported in a fresh
+  interpreter with the extras blocked. It found nothing, which is the point —
+  it was scoped to a package that no longer exists, and an empty parameter set
+  reads exactly like a passing test.
+
 - **`res/loinc_class_gated.tsv` is deleted**, with `scripts/gen_class_gate.py`
   and `scripts/build_runtime_index.py`. All 10,045 codes it gated are outside
   the 2.83 cut, so the file gated nothing; the cut does that work at build

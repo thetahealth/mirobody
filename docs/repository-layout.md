@@ -20,7 +20,6 @@ mirobody/
 │                evidence · memory · decoders/                     ┘ 2 packages
 ├── documents/   a file becomes text, by kind — PDF text layer, OCR for scanned pages only, Office, text   [parse]
 ├── collect/       ① Collect     — providers, file parsing, store, aggregate, read (Postgres)
-├── indicator/   ② Translate (standardize) — resolver internals, concept graph, bundle build
 ├── agent/       ③ Agent               — the agent: models/ fs/ wire/ middleware/ tools/ chat/
 ├── mcp/         the MCP server
 ├── server/      the HTTP application — routers, auth, the bundled web client

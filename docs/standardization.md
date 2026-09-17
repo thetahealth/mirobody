@@ -3,8 +3,8 @@
 **English** · **[中文](standardization.zh-CN.md)**
 
 The long form of the README's **② Translate (standardize)** stage: what the shipped
-vocabulary is, what it deliberately does not do, which LOINC release it is cut
-from and why, and the opt-in semantic tier. Every exact figure here is the same
+vocabulary is, what it deliberately does not do, and which LOINC release it is
+cut from. Every exact figure here is the same
 one the README quotes; the README is held to the artifacts those figures come
 from, and this page follows it.
 
@@ -35,21 +35,18 @@ Standardization here is not a lookup table but a complete terminology-normalizat
 - **Units** normalized to 326 UCUM families, with dimensional analysis, a
   molar-mass bridge keyed by LOINC code, and an explicit refusal for `%` vs
   `10*9/L`. 305 standard pulse indicators.
-- **A second tier exists, and stays opt-in.** Everything above is lexical, so it
-  abstains on terms it does not know — an honest ceiling. Cosine recall
-  ([`indicator/semantic.py`](../mirobody/indicator/semantic.py)) reaches past it but
-  **cannot abstain**: for a term it has never seen it returns its nearest
-  neighbour with the confidence of a correct answer, and no threshold separates
-  the two. **No matrix ships and none is published to download**: it is 108,248
-  LOINC rows × 1024 dims (~221 MB) and it is specific to one (provider, model)
-  pair, so `scripts/build_loinc_embeddings.py` builds yours against the
-  embedding model you configure. A matrix from a different model does not
-  error — it ranks confidently in the wrong space, which is why the build
-  stamps `<matrix>.meta.json` and loading refuses a mismatch. Until you point
-  `MIROBODY_SEMANTIC_INDEX` at one, `resolve()` is unchanged; after, use it to
-  *suggest* a code a human confirms, never to mint an identity.
-  → [Semantic recall](https://docs.mirobody.ai/en/concepts/semantic-recall/) — the
-  benchmark, the two axis gates, and why `min_score` is not a correctness threshold.
+- **Everything here is lexical, and abstaining is the ceiling we keep.** A term
+  the vocabulary does not know returns `unresolved`, not a nearest neighbour.
+  1.4.x shipped an opt-in cosine-recall tier beside this one; 1.5.0 deleted it.
+  It could not abstain — for a term it had never seen it returned its nearest
+  neighbour with the confidence of a correct answer, and measured on the LOINC
+  matrix, nonsense scored 0.78 while genuine names went as low as 0.56, so no
+  threshold separated them. It also never ran: the matrix was 108,248 rows ×
+  1024 dims, specific to one (provider, model) pair, and was never published,
+  so `get_index()` returned `None` in a wheel install and in a source tree
+  alike. An opt-in nobody could opt into, in front of an answer we would not
+  have trusted. If you want better recall, the honest lever is a curated row in
+  `res/resolver_overrides.tsv`.
 - **We measure the claim instead of asserting it.**
   [`test_engine_coverage.py`](../mirobody/tests/test_engine_coverage.py) scores the offline
   resolver against the panels an ordinary checkup includes, written the way a report

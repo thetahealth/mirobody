@@ -11,7 +11,7 @@ machine-checked (`lint-imports`, contracts in `pyproject.toml`):
 | Layer | Where | Installs with | May import |
 |---|---|---|---|
 | ② Translate + the kernel (the library) | vocabulary: `engine.py`, `lexical.py`, `units/`, `value_scale.py`, `zh_fold.py`, `_bundle.py`, `_strtab.py`; semantics: **`kernel/`** (`metrics`, `series`, `quality`, `overlay`, `meds`, `query`, `tools`, `ops`, `connect`, `sink`, `events`, `evidence`, `memory`, `vendors/`); toolbox: `testing/` | `pip install mirobody` (numpy only) | each other, nothing else |
-| ① Collect + storage + MCP | `mirobody/documents/`, `collect/`, `indicator/`, `utils/`, `user/`, `task/`, `mcp/` | `[parse]` / `[app]` | no `langchain*`, `langgraph`, `deepagents` |
+| ① Collect + storage + MCP | `mirobody/documents/`, `collect/`, `utils/`, `user/`, `task/`, `mcp/` | `[parse]` / `[app]` | no `langchain*`, `langgraph`, `deepagents` |
 | ③ Agent | `mirobody/agent/` (one agent: `MirobodyAgent`, on `deepagents`), `server/` | `[agent]` (the harness as a library) / `[app]` | anything |
 
 There is one agent, and it is not switched at request time. `BaseAgent`,
@@ -35,7 +35,7 @@ python -m venv .venv && . .venv/bin/activate
 pip install -e '.[app,test]'
 ```
 
-The extras are `[parse]`, `[agent]`, `[app]`, `[test]` and `[indicator-build]`.
+The extras are `[parse]`, `[agent]`, `[app]` and `[test]`.
 `[agents]` — plural — has never existed and is not the same thing as `[agent]`,
 which 1.4.0 added: pip only WARNS about an unknown extra, so `-e '.[agents,test]'`
 quietly installed `[test]` alone, which is how both CI workflows spent a release

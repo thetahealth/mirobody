@@ -108,42 +108,31 @@ rebuilding the bundle, not editing `resolver_overrides.tsv`.
 
 ## Structural work
 
-### The corpus build pipeline — **tried splitting it out, reverted**
+### The corpus build pipeline — **rewritten and deleted**
 
-**Status:** reverted. It stays in `mirobody/indicator/`. What is left open is the
-duplication the attempt exposed.
+**Status:** done in 1.5.0. `mirobody/indicator/` no longer exists.
 
-`mirobody/indicator/` is 28,841 lines and the shipped resolver imports ~6.7k of
-them; the rest is the pipeline that turns licensed source files into
-`mirobody/res/`. That looked like an obvious split — the `[indicator-build]`
-extra already named its four dependencies — so it was done: 35 modules to an
-`indicator_build/` tree at the repo root, kept out of the wheel by
-`packages.find`, with a static boundary test and a `check_wheel_data` gate.
+1.4.x tried to *move* it — 35 modules to an `indicator_build/` tree at the repo
+root — and reverted on measurement: the wheel shrank 1.4% (it is LOINC data,
+not Python), 46 lines of `cmd_*` still shipped, and the build tree imported
+back into `mirobody.indicator` at 59 sites. The conclusion then was that the
+duplication had to go first.
 
-Then it was measured, and the measurements did not support it:
+It did, by a different route. The 1.5.0 bundle is cut from one LOINC release in
+one pass by `translate_build/`, ~700 lines outside `mirobody/`, so the passes
+that needed a UMLS licence, a concept graph across SNOMED CT and RxNorm, and a
+multi-GB embedding matrix have nothing left to build. 24,858 lines deleted, and
+with them the `[indicator-build]` extra, `scripts/vocabulary_build.py`,
+`scripts/build_loinc_embeddings.py` and `docs/vocabulary-build.md`.
 
-| claim | measured |
-| --- | --- |
-| gets 22k lines out of the artifact | wheel 24,503,731 → 24,150,062 bytes = **1.4%**. The wheel is 24 MB of LOINC data; the Python is noise. |
-| a clean boundary | leaked: 46 lines of `cmd_*` still shipped inside the package, and the build tree imported back into `mirobody.indicator` at 59 sites |
-| separates two codebases | 1 identical 8-line block across the two trees — so no copy-paste — but two *parallel implementations*, both older than the split |
+What made this a deletion rather than another move: the semantic tier it
+existed to serve never ran. `get_index()` returns `None` in a wheel install and
+in a source tree alike — measured in both — because the matrix was never
+published. It was an opt-in path that nobody could opt into.
 
-The third row is why it was reverted rather than patched. The real duplication is:
-
-* `concept_graph.py` and `taxonomy.py` — opening docstrings identical word for
-  word except the noun ("Integer-ID concept graph / taxonomy: build, serialise,
-  load, and query. Domain-specific subclasses override … The binary format,
-  serialisation, and query API live here."), the same `XBuilder(load_*, load_*,
-  build, _save)` + `X(get, _load_bin, …, stats)` pair, the same path-keyed cache
-  policy, 17–50% line-level similarity. One design written twice.
-* `fhir/adapter.py:resolve_many` (141 lines) against
-  `fhir/resolve/pipeline.py:resolve_many` (421 lines) — two answers to "resolve
-  these terms". `engine.py` documents this one as deliberate, and it may stay
-  deliberate, but it is two implementations either way.
-
-Both pairs pre-date the split (checked at `6c1787d`). Putting them on opposite
-sides of a package boundary makes merging them harder, not easier — and a
-1.4% artifact win does not pay for that. **Integrate first; split later, if ever.**
+`_BUILD_ONLY_CODE` in `scripts/build_backend.py` is now empty, and the gate that
+reads it stays: the next tree that ships but cannot run should be caught rather
+than argued about.
 
 ### The `concept_graph` / `taxonomy` duplication — **resolved by deletion**
 
