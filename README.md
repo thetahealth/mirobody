@@ -247,11 +247,11 @@ dataset.
   [datasets](https://huggingface.co/mirobody) ·
   [arXiv:2604.02834](https://arxiv.org/abs/2604.02834).
 - **The package names the vocabulary that answered you**:
-  `mirobody.BUNDLE_VERSION` → `loinc-2.82+2026.08.28-af2524b7a285`, the release,
+  `mirobody.BUNDLE_VERSION` → `loinc-2.83+2026.09.17-aacb2c715b56`, the release,
   the cut date, and a digest over the bundle's own contents.
 - **305 standard pulse indicators** and 326 UCUM units with dimensional
-  analysis. The full counts, and why the bundle holds at LOINC 2.82 rather than
-  2.83, are in [Standardization in depth](docs/standardization.md).
+  analysis. The full counts, and what the LOINC 2.83 cut keeps and drops, are
+  in [Standardization in depth](docs/standardization.md).
 - **`pip install mirobody` is 2 packages**, numpy the only dependency.
 
 The engine powers **[Theta Wellness](https://www.thetahealth.ai/)**, a live

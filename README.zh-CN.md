@@ -220,10 +220,10 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
   [数据集](https://huggingface.co/mirobody) ·
   [arXiv:2604.02834](https://arxiv.org/abs/2604.02834)。
 - **包会自己说清楚是哪份词表在回答你**：`mirobody.BUNDLE_VERSION` →
-  `loinc-2.82+2026.08.28-af2524b7a285`，发行版本、切分日期，加一份对词表内容
+  `loinc-2.83+2026.09.17-aacb2c715b56`，发行版本、切分日期，加一份对词表内容
   算出来的摘要。
-- **305 项标准 pulse 指标**，326 个带量纲分析的 UCUM 单位。完整数字，以及词表
-  为什么停在 LOINC 2.82 没跟进 2.83，都写在[标准化详解](docs/standardization.zh-CN.md)里。
+- **305 项标准 pulse 指标**，326 个带量纲分析的 UCUM 单位。完整数字，以及
+  LOINC 2.83 的切法留下了什么、丢掉了什么，都写在[标准化详解](docs/standardization.zh-CN.md)里。
 - **`pip install mirobody` 只装 2 个包**，只依赖 numpy。
 
 这套引擎驱动着 **[Theta Wellness](https://www.thetahealth.ai/)**：一款已经
