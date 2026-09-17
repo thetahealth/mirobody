@@ -25,12 +25,15 @@ Two tables:
   :func:`unit_families`.
 
 LOINC has 231 distinct PROPERTY values; only ~30-40 carry real
-(non-annotation) units. Coverage stats from
-``benchmarks/audit_ucum_family.py`` against LOINC 2.82: ~95% of
-unit-bearing code rows have their primary unit→family entry here. The
-long tail (CCnt with ``nmol/h/mg{protein}``, ArVRat with
-``mL/min/{1.73_m2}``, etc.) needs the LOINC source for exact lookup
-and is intentionally not enumerated.
+(non-annotation) units. Measured against the ``loinc_units.tsv`` the
+2.83 bundle ships (36,325 codes with an EXAMPLE_UCUM_UNITS): of the
+28,880 whose primary unit is dimensional, **99.0%** have their
+unit→family entry here. The rest are not units — 4,473 are a bare UCUM
+annotation (``{titer}``, ``{Ct_value}``, a label with no dimension) and
+2,972 an annotated ratio (``mg/g{creat}``, ``mL/min/{1.73_m2}``), which
+need the LOINC source for exact lookup and are intentionally not
+enumerated. Counting those as misses is where the "79.8% of all rows"
+number comes from, and it is the wrong denominator.
 
 UCUM keys are case-sensitive. Bracketed units (``[IU]``, ``[U]``,
 ``[diop]``, ``[pH]``, ``[degF]``) use the formal UCUM syntax: see
