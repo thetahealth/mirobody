@@ -223,11 +223,48 @@ cases, coverage 0.963, wrong-rate 0.032.
 
 ## 1.5.0 (unreleased)
 
-The data layer of ② Translate is rebuilt. Every reading, whatever brought it
-in, is one row of an append-only observation table with its coding beside it,
-written by one module and read through one view.
+② Translate is rebuilt, vocabulary and data layer together. The bundle is cut
+fresh from LOINC 2.83 by one rule in one pass; every reading, whatever brought
+it in, is one row of an append-only observation table with its coding beside
+it, written by one module and read through one view.
+
+Measured on 7,354 real report spellings: coverage holds at 0.963 and
+wrong-rate falls from 0.035 to 0.025, on the 6,780 whose expected code is
+inside the cut. The other 362 expect a narrative, document or exam-finding
+code, or one 2.83 retired — the resolver abstains there now, which is what the
+cut is for.
 
 ### Breaking
+
+- **The bundle is LOINC 2.83, and half the size.** In the wheel the resolver
+  data goes from 24.9 MB to 12.7, and 95.7 MB to 46.0 once unpacked; a
+  `pip install mirobody` measures 68 MB on macOS, numpy included.
+  `mirobody.BUNDLE_VERSION` reads `loinc-2.83+<date>-<digest>`. 63,416 of the
+  99,737 ACTIVE codes, chosen by `translate_build/loinc_cut.py` rather than by
+  hand: laboratory and clinical CLASSTYPE, CLASS families that never hold a
+  reading dropped, narrative and document scales dropped, panels kept for the
+  laboratory subclasses plus the vital-sign and personal-record ones. Rows are
+  dropped, never edited; the 153 carrying a third party's copyright notice are
+  dropped rather than reproduced. The members a `pip install` never opened
+  (`loinc_axis.csv`, `loinc_alias_index.npz`, `fhir_dose_index.npz`,
+  `loinc_demote.txt`) are gone, and `NOTICE` and `loinc_units.tsv` now ship.
+- **A series key carries TIME.** The axis table gained `TIME_ASPCT`, which the
+  1.4.x bundle did not have, so `series_id` is
+  `loinc:COMPONENT|SYSTEM|TIME|SCALE|dim(PROPERTY)` with the third field
+  filled. A spot urine protein and a 24-hour collection stop sharing one line
+  on a chart, as do a heart rate and an hourly mean of one; 1,979 codes in the
+  cut are `24H`. Keys written before this differ by that field — `mirobody
+  recode` rewrites them and records the reason.
+- **The Japanese aliases really are gone from the index.** 1.5.0's note said
+  the UMLS-derived surfaces would leave with the LOINC-only re-cut; they have.
+  `alias_keys.bin` is built from `Loinc.csv` and the 21 LinguisticVariants
+  files alone and contains no kana. Japanese report spellings still resolve,
+  through `res/resolver_overrides.tsv` — this project's own file, mapping a
+  Japanese surface to an English name LOINC's index answers.
+- **`res/loinc_class_gated.tsv` is deleted**, with `scripts/gen_class_gate.py`
+  and `scripts/build_runtime_index.py`. All 10,045 codes it gated are outside
+  the 2.83 cut, so the file gated nothing; the cut does that work at build
+  time, where the plan always said it belonged.
 
 - **Apple `HeartRateVariabilitySDNN` is stored as `hrvSDNN`** (LOINC
   112429-6), no longer as the generic `hrvDatas`: five other vendors publish

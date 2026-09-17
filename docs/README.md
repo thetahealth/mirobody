@@ -25,7 +25,7 @@ notes to PyPI under a filename that told open-source readers to ignore it.
 | ① | [provider-guide.md](provider-guide.md) | writing a data provider end to end — the long one |
 | ① | [file-processing.md](file-processing.md) | a file becomes text by kind (`mirobody/documents/`: PDF text layer, OCR for scanned pages only, Office, text), then LLM extraction |
 | ① | [apple-health.md](apple-health.md) | Apple Health export + CDA import |
-| ② | [standardization.md](standardization.md) | the long form of ② Translate (standardize): the concept graph, the alias tiers, LOINC 2.82 vs 2.83, the opt-in semantic tier — moved out of the README in 1.4.1 |
+| ② | [standardization.md](standardization.md) | the long form of ② Translate (standardize): the concept graph, the alias tiers, which LOINC release and why, the opt-in semantic tier — moved out of the README in 1.4.1 |
 | ② | [device-crosswalk.md](device-crosswalk.md) | thirteen wearable vendors' fields to LOINC, with a confidence and a source per row, the 71 quantities no code fits, and the normalisation traps between vendors |
 | ② | [vocabulary-build.md](vocabulary-build.md) | rebuilding `mirobody/res/` from the raw LOINC / SNOMED CT / RxNorm releases — needs a UMLS licence |
 | ③ | [answers.md](answers.md) | the one health-data tool: its matrix, its envelope, its governance, and the PHI discipline |

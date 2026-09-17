@@ -27,7 +27,6 @@ use of each is subject to the license terms of its sources:
                                   see the note below)
   aliases_src/{lang}_curated.tsv  hand-written (Apache-2.0)   —
   resolver_overrides.tsv          hand-written (Apache-2.0)   —
-  loinc_class_gated.tsv           LOINC (CLASS column only)   section 3 below
   analyte_digit_src/              hand-written (Apache-2.0)   —
     analyte_digit_curated.tsv
 
@@ -41,9 +40,14 @@ procedures rather than laboratory tests. Measured before removal: 2% of its
 rows produced a LOINC code; on the 7,354-case evaluation the loose file
 alone answered 51 cases correctly (organism and drug names) and 35 wrongly.
 The alias index inside `fhir_loinc_bundle.tar.gz` was built with that file
-among its inputs and still carries the surfaces it contributed; they leave
-with the LOINC-only re-cut of the bundle (1.5.x). Until then, section 1
-(UMLS) covers those surfaces.
+among its inputs and carried the surfaces it contributed. **The LOINC-only
+re-cut has happened (1.5.0) and they are gone**: the index is now built from
+`Loinc.csv` and `AccessoryFiles/LinguisticVariants/` alone, and a scan of
+`alias_keys.bin` finds zero kana characters. Section 1 (UMLS) no longer
+covers anything in this package. Japanese report spellings still resolve —
+through `res/resolver_overrides.tsv`, this project's own Apache-2.0 file,
+which maps a Japanese surface to an English name that LOINC's own index
+then answers.
 
 The remaining language files are being re-verified against the LOINC
 LinguisticVariants they claim, one file at a time. Until each is confirmed,
@@ -80,9 +84,15 @@ Note      : Use in production requires an affiliate license or membership
 Provider  : Regenstrief Institute
 License   : LOINC License (free, requires attribution)
             https://loinc.org/kb/license/
-Scope     : LoincTableCore, Part hierarchy, and LNC-ZH-CN used for LOINC
-            sibling groups and bridge mappings; the codes and long common
-            names in res/crosswalks/ (the device crosswalk) and res/metrics.tsv.
+Scope     : LOINC 2.83. `fhir_loinc_bundle.tar.gz` carries 63,416 of the
+            99,737 ACTIVE codes, cut by the rule in
+            translate_build/loinc_cut.py; every column in it is a LOINC
+            column with its content unchanged, rows are dropped and never
+            edited (licence section 3), and the 153 rows carrying a third
+            party's EXTERNAL_COPYRIGHT_NOTICE are dropped rather than
+            reproduced. Designations come from Loinc.csv and the 21
+            LinguisticVariants files. Also: the codes and long common names
+            in res/crosswalks/ (the device crosswalk) and res/metrics.tsv.
 Attribution: This product includes all or a portion of the LOINC(R) table,
             LOINC panels and forms file, LOINC document ontology file,
             and/or LOINC hierarchies file, or is derived from one or more of

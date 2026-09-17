@@ -16,7 +16,7 @@ underscore module stays free to change shape behind it.
     from mirobody.bundle import load_axis, bundle_version
 
     axis, by_code, by_name = load_axis()
-    assert bundle_version().startswith("loinc-2.82+")
+    assert bundle_version().startswith("loinc-2.83+")
 
 Importing this does **not** load the resolver: ``import mirobody`` stays lazy
 (PEP 562) and nothing here touches the runtime index. It is also deliberately
