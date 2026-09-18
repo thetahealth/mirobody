@@ -10,7 +10,8 @@ machine-checked (`lint-imports`, contracts in `pyproject.toml`):
 
 | Layer | Where | Installs with | May import |
 |---|---|---|---|
-| ② Translate + the kernel (the library) | vocabulary: `engine.py`, `lexical.py`, `units/`, `value_scale.py`, `zh_fold.py`, `_bundle.py`, `_strtab.py`; semantics: **`kernel/`** (`metrics`, `series`, `quality`, `overlay`, `meds`, `query`, `tools`, `ops`, `connect`, `sink`, `events`, `evidence`, `memory`, `vendors/`); toolbox: `testing/` | `pip install mirobody` (numpy only) | each other, nothing else |
+| ② Translate + the kernel (the library) | vocabulary: `engine.py`, `lexical.py`, `units/`, `value_scale.py`, `zh_fold.py`, `_bundle.py`, `_strtab.py`; the pure seam: **`translate/`** (`fold`, `parse`, `local_day`, `series`, `code`, `devices`); semantics: **`kernel/`** (`metrics`, `series`, `quality`, `overlay`, `meds`, `query`, `tools`, `ops`, `connect`, `sink`, `events`, `evidence`, `memory`, `vendors/`); toolbox: `testing/` | `pip install mirobody` (numpy only) | each other, nothing else |
+| ② Translate, the parts that reach a database | `translate/aggregate/`, `translate/derive/`, `translate/indicators_info.py`, `translate/canonical_units.py`, `translate/value_range_validator.py` | `[app]` | no agent framework |
 | ① Collect + storage + MCP | `mirobody/documents/`, `collect/`, `utils/`, `user/`, `task/`, `mcp/` | `[parse]` / `[app]` | no `langchain*`, `langgraph`, `deepagents` |
 | ③ Agent | `mirobody/agent/` (one agent: `MirobodyAgent`, on `deepagents`), `server/` | `[agent]` (the harness as a library) / `[app]` | anything |
 

@@ -1,6 +1,10 @@
 # `mirobody.collect` — ① Collect
 
-Pulse is the health data integration engine of Mirobody. It ingests data from wearables and health platforms (Garmin, Whoop, Apple Health, PostgreSQL, etc.) via a **Platform-Provider** plugin architecture, normalizes everything into `StandardPulseData`, and persists it to the database.
+① Collect is how a reading gets in and how it is kept. Wearables and health
+platforms (Garmin, Oura, WHOOP, Apple Health) arrive through a
+**Platform-Provider** plugin architecture; lab reports, photos and genetic
+files arrive as uploads. Everything converges on `StandardPulseData` and is
+written, verbatim, by one writer. What a value MEANS is ② Translate's.
 
 ## Architecture
 
@@ -19,8 +23,8 @@ PlatformManager (singleton)
 Vendor API → Provider.pull_from_vendor_api()
   → Provider.save_raw_data_to_db()     (raw JSON → health_data_<name>)
   → Provider.format_data()             (raw → StandardPulseData)
-  → StandardHealthService.process()    (StandardPulseData → series_data table)
-  → AggregateIndicator pipeline        (series → daily summaries)
+  → StandardHealthService.process()    (StandardPulseData → observations.ingest)
+  → translate/aggregate                (a day of points → one published number)
 ```
 
 All platforms converge at `StandardPulseData` — the universal exchange format defined in `ingest/models/requests.py`.
@@ -43,10 +47,13 @@ providers are discovered at startup by `ProviderPlatform._load_providers_from_di
 | **Providers** | `providers/` | ~5.8k | Devices and health platforms: Garmin, Oura and WHOOP pulled on a schedule, Apple and CDA documents pushed | `providers/_platform/platform.py` |
 | **Files** | `files/` | ~7.8k | A file is a source too: upload, storage, PDF/CSV/Excel/Office/image/text/genetic | `files/file_upload_manager.py` |
 | *— what happens to it —* | | | | |
-| **Ingest** | `ingest/` | ~1.1k | `StandardPulseData` → DB write. Every source above converges here | `ingest/services/upload_health.py` |
-| **Aggregate** | `aggregate/` | ~3.6k | Series data → daily summaries; derived indicators | `aggregate/service.py` |
+| **Ingest** | `ingest/` | ~1.1k | `StandardPulseData` → the writer. Every source above converges here | `ingest/services/upload_health.py` |
+| *— how it is kept, and read back —* | | | | |
+| **Observations** | `observations.py` | ~1.1k | THE writer. One transaction: freeze the extraction, fold, parse, place the local day, insert, code, refresh the series | `observations.ingest` |
+| **Query** | `query.py` | ~0.6k | THE reader, over `v_observation`: the Postgres half of `kernel.query.HealthQuery` | `PostgresHealthQuery` |
 | *— what they all stand on —* | | | | |
 | **Core** | `core/` | ~0.5k | The provider contract types, DB base classes, push | `core/constants.py`, `core/models.py` |
+| **Meds** | `meds/` | ~0.4k | A Postgres store for `kernel.meds`, not a collector | `meds/__init__.py` |
 
 What a value MEANS is not here. The indicator catalogue, units, value ranges
 and fhir_id are `mirobody/translate/` since 1.4.4, which is what makes "collect
@@ -56,8 +63,8 @@ infrastructure that `translate` needed too, and a package importing back into
 `collect` for a scheduler was a cycle.
 
 Read top to bottom and the table is the data flow: two source shapes, one
-convergence point, then rollups. The directory listing cannot show that
-ordering, `aggregate/` sorts before `providers/`, which is why it is spelled
+convergence point, one writer, one reader. The directory listing cannot show
+that ordering — `core/` sorts before `providers/` — which is why it is spelled
 out here.
 
 A source is a TRANSPORT, not a kind of data. Medications are not a third
@@ -111,9 +118,15 @@ a web framework.
 - `ingest/repositories/health_data.py` — DB queries for health data
 
 ### Aggregate indicators
-- `aggregate/service.py` — aggregation orchestrator
-- `aggregate/rule_generator.py` — rule generation
-- `aggregate/task.py` — background task scheduling
+**Not in this package** since 1.4.4: a daily total is the same quantity on a
+different time axis, which is a LOINC axis change, so it went to ② Translate.
+- `mirobody/translate/aggregate/service.py` — aggregation orchestrator
+- `mirobody/translate/derive/rules.py` — quantities nothing measured
+
+### Writing and reading a reading
+- `observations.py` — `ingest`, `amend`, `retract`, `redate`, `erase`, `recode`
+- `query.py` — `PostgresHealthQuery`, the only read path
+- `migrate_observations.py` — `mirobody migrate-observations`, the one-time move
 
 ## Framework Protection
 
@@ -124,7 +137,6 @@ These files form the framework skeleton. Modifying them affects ALL providers an
 | :red_circle: | `base.py` | `Provider` / `Platform` ABCs — contract for all plugins |
 | :red_circle: | `manager.py` | `PlatformManager` singleton — orchestrates all platforms |
 | :red_circle: | `core/constants.py` | Shared enums (`LinkType`, `ProviderStatus`) — used everywhere |
-| :red_circle: | `core/scheduler.py` | Global pull scheduler — timing affects all providers |
 | :red_circle: | `setup.py` | Platform registration sequence — startup order matters |
 | :yellow_circle: | `providers/_platform/platform.py` | `ProviderPlatform` — provider loading and registration |
 | :yellow_circle: | `providers/_platform/base.py` | `BasePullProvider` — shared provider logic |
@@ -162,20 +174,26 @@ Always use top-level imports. Lazy imports (inside functions) hide import errors
 ```python
 # BAD: lazy import hides path errors
 def process():
-    from ..standardize.fhir_mapping import get_fhir_id  # wrong path won't be caught at startup
-    return get_fhir_id(indicator)
+    from ..translate import get_standard_unit  # wrong path won't be caught at startup
+    return get_standard_unit(indicator)
 
 # GOOD: top-level import, fails fast at startup if path is wrong
-from ...standardize.fhir_mapping import get_fhir_id
+from mirobody.translate import get_standard_unit
 
 def process():
-    return get_fhir_id(indicator)
+    return get_standard_unit(indicator)
 ```
 
-**Incident**: TH-126 introduced `from ..core.fhir_mapping` (wrong: resolved to `ingest/core/`; the module was `core/fhir_mapping.py` then, `mirobody/translate/fhir_mapping.py` now) as a lazy import inside `_prepare_summary_record()`. The bug was never caught because tests only exercised the SERIES path, not SUMMARY. A top-level import would have failed immediately at startup.
+**Incident**: TH-126 introduced `from ..core.fhir_mapping` as a lazy import
+inside `_prepare_summary_record()`. The relative path was wrong — it resolved
+to `ingest/core/`, and the module was `core/fhir_mapping.py` at the time — but
+nothing said so, because the bug only ran on the SUMMARY path and the tests
+only exercised SERIES. A top-level import would have failed at startup.
+`fhir_mapping` itself was retired in 1.5.0 with the table it indexed; the
+lesson is about lazy imports, not about that module.
 
 ### Sleep data uses 18:00-18:00 time window
-Sleep data uses previous-day 18:00 to current-day 18:00, NOT 00:00-24:00. This affects `data_begin` calculation in SQL. See `aggregate/` for implementation details.
+Sleep data uses previous-day 18:00 to current-day 18:00, NOT 00:00-24:00. This affects `data_begin` calculation in SQL. See `mirobody/translate/aggregate/windows.py` for the implementation.
 
 Related sleep indicators missed by `LIKE '%sleep%'`: `napDuration`, `inBedStartTime`, `endSleepReportTimeOffset`, `startSleepReportTimeOffset`.
 
