@@ -520,6 +520,18 @@ AMBIGUOUS_UNITS: dict[str, frozenset[str]] = {
     "kU/L":  frozenset({"CCnc", "ACnc"}),
     # MCV and MPV are `EntMeanVol` since LOINC 2.7x; RDW-SD stays `EntVol`.
     "fL":    frozenset({"EntVol", "EntMeanVol"}),
+    # MCHC is a mass concentration that LOINC files under `EntMCnc`, per red
+    # cell rather than per volume of blood. All four EntMCnc codes in the cut
+    # are MCHC and every one declares g/dL or g/L in EXAMPLE_UCUM_UNITS, so
+    # refusing those units contradicts LOINC's own table: `平均血红蛋白浓度
+    # 349 g/L` came back refused on a real report while the name alone
+    # answered 786-4.
+    "g/dL":  frozenset({"MCnc", "EntMCnc"}),
+    "g/L":   frozenset({"MCnc", "EntMCnc"}),
+    # A volume can be per-entity outside the CBC too: `Size [Entitic volume]
+    # of Stone` (9802-0) declares mm3. The name still picks the analyte; this
+    # only stops the unit gate refusing the code's own declared unit.
+    "mm3":   frozenset({"Vol", "EntVol"}),
     # eGFR printed without its body-surface normaliser is still ArVRat.
     "mL/min": frozenset({"VRat", "ArVRat"}),
     "cm[H2O]": frozenset({"Pres", "PPres"}),
