@@ -405,6 +405,7 @@ Vitamins	!unresolved
 平均血红蛋白含量	MCH
 平均血红蛋白浓度	MCHC
 平均血小板体积	MPV
+血小板平均体积	MPV
 超敏C反应蛋白	hs-CRP
 
 # ══ device & wearable indicators ═══════════════════════════════════════════
