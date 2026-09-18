@@ -1,0 +1,45 @@
+# vivo BlueOS health API: vendor fields to LOINC 2.83
+#
+# vivo BlueOS on-watch DATA_TYPES. The cloud interface exposes workout records only; the watch API
+# supports min/max or sum per type, never a mean, so mean codes have no vivo source.
+#
+# Source, read 2026-09-09:
+#   https://developers-watch.vivo.com.cn/api/health/health/
+#   https://developers.vivo.com/doc/d/4ea8ba1ec4cd44bd8bdaca9f3fecf795
+#   17 on-watch DATA_TYPES, plus the cloud interface that exposes workout records only.
+#
+# Columns:
+#   type        the vendor's data type, record class or endpoint, verbatim
+#   field       the field inside it, verbatim; empty when the type is the reading
+#   metric      the mirobody catalogue name (res/metrics.tsv); empty when the catalogue has no row
+#   loinc       the LOINC code the field means; EMPTY IS A DECLINE, and the note says why
+#   confidence  confident = the six LOINC axes agree with the vendor's definition;
+#               unverified = close, a person must confirm before a reading is filed under it
+#   note        the reasoning; some notes are in Chinese, as they were written
+#
+# Every code was checked by hand against the LOINC 2.83 axis table on 2026-09-09.
+# No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
+# Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
+# Generated from the maintainers' review tables; edit through a pull request,
+# and keep the file loadable by mirobody.translate.devices.
+type	field	metric	loinc	confidence	note
+DATA_TYPES.HEART_RATE(0)		heartRates	8867-4	confident	Heart rate
+DATA_TYPES.HEART_RATE_RESTING(2)		restingHeartRates	40443-4	confident	Heart rate^resting
+DATA_TYPES.SPO2(6)		oxygenSaturations	59408-5	confident	Oxygen saturation in Arterial blood by Pulse oximetry
+DATA_TYPES.SLEEP_STATUS(13)		dailyTotalSleepTime	93832-4	confident	Sleep duration
+SLEEP_STAGES	1	dailyDeepSleep	93831-6	confident	Deep sleep duration; documented as not yet supported
+SLEEP_STAGES	2	dailyLightSleep	93830-8	confident	Light sleep duration; documented as not yet supported
+SLEEP_STAGES	3	dailyRemSleep	93829-0	confident	REM sleep duration; documented as not yet supported
+SLEEP_STAGES	4	dailyAwakeTime	103210-1	unverified	Awakening duration; documented as not yet supported
+SLEEP_UNIT(11)		sleepAnalysis_InBed	103213-5	confident	Duration in bed; documented as not yet supported
+DATA_TYPES.STEP_COUNT(5)		steps	55423-8	confident	Number of steps in unspecified time Pedometer
+DATA_TYPES.DISTANCE(7)		dailyDistance	103208-5	confident	Distance traveled
+DATA_TYPES.CALORIES(8)		activeCalories	41981-2	confident	Calories burned
+DATA_TYPES.INTENSITY_SPORT(4)		exerciseMinutes	101691-4	unverified	Duration of physical activity
+DATA_TYPES.STANDING(3)			112425-4	unverified	Standing time 1 day
+DATA_TYPES.HEART_RATE_STEP(1)					NO_CONCEPT; Int / bpm，步行心率
+DATA_TYPES.STRESS(9)					VENDOR_SCORE; Int / 无单位
+DATA_TYPES.WALKING_SPEED(10)					NO_CONCEPT，步频无码; ⚠️ 名为 speed 实为步频：Int / 步/min —— 按名字接会错落到 walkingSpeeds
+DATA_TYPES.ENERGY(14)					VENDOR_SCORE; Int / %，活力值，暂不支持
+DATA_TYPES.WALKING_STATUS(15)					状态量; Int / 0非步行 1步行
+DATA_TYPES.SPEED(16)					NO_CONCEPT，无 Pt 瞬时速度码; Float / 米/s，配速，暂不支持

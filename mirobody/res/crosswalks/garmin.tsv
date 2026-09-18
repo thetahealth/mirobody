@@ -1,0 +1,47 @@
+# Garmin Health API: vendor fields to LOINC 2.83
+#
+# Garmin Health API metric families. Field-level schemas are not public; the rows name the
+# families the public page lists, so most are unverified until the schema is read.
+#
+# Source, read 2026-09-09:
+#   https://developer.garmin.com/gc-developer-program/health-api/
+#   Only the metric families are public; field-level schemas need developer approval.
+#
+# Columns:
+#   type        the vendor's data type, record class or endpoint, verbatim
+#   field       the field inside it, verbatim; empty when the type is the reading
+#   metric      the mirobody catalogue name (res/metrics.tsv); empty when the catalogue has no row
+#   loinc       the LOINC code the field means; EMPTY IS A DECLINE, and the note says why
+#   confidence  confident = the six LOINC axes agree with the vendor's definition;
+#               unverified = close, a person must confirm before a reading is filed under it
+#   note        the reasoning; some notes are in Chinese, as they were written
+#
+# Every code was checked by hand against the LOINC 2.83 axis table on 2026-09-09.
+# No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
+# Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
+# Generated from the maintainers' review tables; edit through a pull request,
+# and keep the file loadable by mirobody.translate.devices.
+type	field	metric	loinc	confidence	note
+Steps		steps	55423-8	confident	日汇总用 41950-7
+Intensity Minutes		dailyActivityIntensityMedium	101689-8	unverified	Garmin 的 Intensity Minutes 中高强度按 2 倍加权（与 Fitbit AZM 同类陷阱）,须先还原成真实分钟再落码 —— 加权口径待字段级文档确认
+Intensity Minutes		dailyActivityIntensityHigh	101690-6	unverified	Garmin 的 Intensity Minutes 中高强度按 2 倍加权（与 Fitbit AZM 同类陷阱）,须先还原成真实分钟再落码 —— 加权口径待字段级文档确认
+Sleep		dailyRemSleep	93829-0	unverified	Garmin 分期为 deep / light / REM / awake,与 LOINC 四码天然对齐；但字段名与单位待确认
+Sleep		dailyLightSleep	93830-8	unverified	Garmin 分期为 deep / light / REM / awake,与 LOINC 四码天然对齐；但字段名与单位待确认
+Sleep		dailyDeepSleep	93831-6	unverified	Garmin 分期为 deep / light / REM / awake,与 LOINC 四码天然对齐；但字段名与单位待确认
+Sleep		dailyTotalSleepTime	93832-4	unverified	Garmin 分期为 deep / light / REM / awake,与 LOINC 四码天然对齐；但字段名与单位待确认
+Calories		activeCalories	41981-2	unverified	Garmin 区分 active / BMR / total,对应关系待确认
+Heart Rate		heartRates	8867-4	confident	含静息心率 → 40443-4
+Stress		stressLevel			Garmin 压力分（0–100）为厂商专有,LOINC 无码
+Pulse Ox		oxygenSaturations	59408-5	confident	
+Body Battery					Garmin 专有能量储备分,LOINC 无码
+Body Composition		bodyMasss	29463-7	unverified	体水 / 骨量若有 → 101683-1 / 101685-6（2.75 新增）
+Body Composition		bodyFatPercentages	41982-0	unverified	体水 / 骨量若有 → 101683-1 / 101685-6（2.75 新增）
+Body Composition		bodyFatFreeWeight	91557-9	unverified	体水 / 骨量若有 → 101683-1 / 101685-6（2.75 新增）
+Respiration		respiratoryRates	9279-1	confident	Garmin 有 all-day respiration；睡眠均值口径 → 103217-6（该码有轴缺陷,(see docs/device-crosswalk.md)
+Blood Pressure		systolicPressures	8480-6	confident	Index BPM 设备
+Blood Pressure		diastolicPressures	8462-4	confident	Index BPM 设备
+Enhanced Beat-To-Beat Interval		hrvDatas			逐拍 RR 间期原始序列（公开页标注商用需付许可费）。这是唯一能自行计算 SDNN 的数据源 —— 若自算 SDNN,可落 `112429-6`,(see docs/device-crosswalk.md)
+garmin_stress_level		stressLevel			OW 侧单位标 score;厂商专有分,无码
+garmin_skin_temperature		skinTemperature	61008-9	unverified	OW 侧单位 celsius（绝对值,非偏差）→ 可落 `61008-9` Body surface temperature。Garmin 腕戴,无腕部专用码
+garmin_fitness_age		bodyAge			LOINC 无体能年龄码
+garmin_body_battery					OW 侧单位标 percent;厂商专有分,无码

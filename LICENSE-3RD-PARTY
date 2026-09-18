@@ -23,10 +23,35 @@ use of each is subject to the license terms of its sources:
   fhir_id_map.npy                 internal id map over the    sections 1-5 below
                                   same vocabularies
   aliases_src/{lang}.tsv          LOINC Linguistic Variants   section 3 below
+                                  (zh, de, es, fr, ko, ru —
+                                  see the note below)
   aliases_src/{lang}_curated.tsv  hand-written (Apache-2.0)   —
   resolver_overrides.tsv          hand-written (Apache-2.0)   —
   analyte_digit_src/              hand-written (Apache-2.0)   —
     analyte_digit_curated.tsv
+
+A NOTE ON `aliases_src/`, ADDED 2026-09-13, REVISED 2026-09-16
+--------------------------------------------------------------
+`ja.tsv` (16,809 rows) was removed in 1.5.0. LOINC publishes 22 linguistic
+variants and Japanese is not one of them; the build-time lexicon
+(`indicator/fhir/embeddings/lexicon.py`) records the file as a UMLS MRCONSO
+derivation (MSHJPN / MDRJPN), and its content was organisms, disorders and
+procedures rather than laboratory tests. Measured before removal: 2% of its
+rows produced a LOINC code; on the 7,354-case evaluation the loose file
+alone answered 51 cases correctly (organism and drug names) and 35 wrongly.
+The alias index inside `fhir_loinc_bundle.tar.gz` was built with that file
+among its inputs and carried the surfaces it contributed. **The LOINC-only
+re-cut has happened (1.5.0) and they are gone**: the index is now built from
+`Loinc.csv` and `AccessoryFiles/LinguisticVariants/` alone, and a scan of
+`alias_keys.bin` finds zero kana characters. Section 1 (UMLS) no longer
+covers anything in this package. Japanese report spellings still resolve —
+through `res/resolver_overrides.tsv`, this project's own Apache-2.0 file,
+which maps a Japanese surface to an English name that LOINC's own index
+then answers.
+
+The remaining language files are being re-verified against the LOINC
+LinguisticVariants they claim, one file at a time. Until each is confirmed,
+treat this row as asserted rather than audited.
 
 The per-file NOTICE documents next to the bundles carry the full reproduction
 statements; this file lists the upstream licenses those statements rest on.
@@ -59,8 +84,15 @@ Note      : Use in production requires an affiliate license or membership
 Provider  : Regenstrief Institute
 License   : LOINC License (free, requires attribution)
             https://loinc.org/kb/license/
-Scope     : LoincTableCore, Part hierarchy, and LNC-ZH-CN used for LOINC
-            sibling groups and bridge mappings.
+Scope     : LOINC 2.83. `fhir_loinc_bundle.tar.gz` carries 63,416 of the
+            99,737 ACTIVE codes, cut by the rule in
+            translate_build/loinc_cut.py; every column in it is a LOINC
+            column with its content unchanged, rows are dropped and never
+            edited (licence section 3), and the 153 rows carrying a third
+            party's EXTERNAL_COPYRIGHT_NOTICE are dropped rather than
+            reproduced. Designations come from Loinc.csv and the 21
+            LinguisticVariants files. Also: the codes and long common names
+            in res/crosswalks/ (the device crosswalk) and res/metrics.tsv.
 Attribution: This product includes all or a portion of the LOINC(R) table,
             LOINC panels and forms file, LOINC document ontology file,
             and/or LOINC hierarchies file, or is derived from one or more of
@@ -95,3 +127,22 @@ License   : Government public information; no formal license specified.
 Scope     : Optional input for enriching RxNorm sibling groups with Chinese
             drug names (via --nhsa-catalog flag during pipeline build).
 Note      : Not bundled in the binary; used only at build time when provided.
+
+
+7. UCUM (Unified Code for Units of Measure)
+-------------------------------------------
+Provider  : Regenstrief Institute, Inc. and the UCUM Organization
+Source    : https://ucum.org/
+License   : UCUM is provided under its own copyright notice; the specification
+            and the unit atoms it defines may be used and implemented freely,
+            with attribution and without modification of the semantics.
+            https://ucum.org/trac/wiki/TermsOfUse
+Scope     : `mirobody/units/` implements UCUM. `tokens.py` maps printed unit
+            spellings to canonical UCUM expressions, `families.py` maps a
+            canonical unit to the LOINC PROPERTY axis, and `convert.py` does
+            dimensional analysis over UCUM unit atoms. The UCUM unit atoms and
+            their canonical spellings are UCUM's; the printed-spelling variants
+            (`Thousand/uL`, `个/HP`, `uIU/mL`, `10⁴/μL` and the multilingual
+            morphemes) are hand-written and Apache-2.0.
+Note      : `ucum-essence.xml` is NOT bundled. Our tables are hand-maintained
+            against the published specification rather than generated from it.

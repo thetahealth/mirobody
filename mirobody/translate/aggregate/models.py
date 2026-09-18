@@ -90,7 +90,7 @@ class CalculationTask:
     - Normal data: data_begin_utc = 2025-09-30 16:00:00 (local 2025-10-01 00:00:00)
     - Sleep data: data_begin_utc = 2025-10-01 10:00:00 (local 2025-10-01 18:00:00)
     
-    timezone is needed to convert UTC times back to user's local time for th_series_data storage.
+    timezone is needed to convert UTC times back to user's local time for the summary rows.
     """
     user_id: str
     source_indicator: str

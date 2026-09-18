@@ -24,7 +24,7 @@ async def update_message_content(
     """Update message content, reasoning or type.
 
     There was a fourth field, `comment`, that no caller ever passed, and
-    `th_messages.comment` is no longer part of the schema (01_basedata), so
+    `th_messages.comment` is no longer part of the schema (50_chat.sql), so
     writing it would now fail on a fresh database.
     """
     try:

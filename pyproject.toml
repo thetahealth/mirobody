@@ -59,9 +59,8 @@ classifiers = [
 # is numpy and nothing else (measured — `import mirobody.engine` pulls zero
 # third-party packages; numpy is imported inside `OfflineResolver.__init__`).
 dependencies = [
-    # ② Translate. The offline resolver rebuilds the 921k-alias index from
-    # .npz on every construction, and `mirobody/units/` reads none of it — but
-    # 20 modules under indicator/ import numpy at module level. It went
+    # ② Translate. `_bundle` and `_strtab` read the shipped offset arrays with
+    # it, and the resolver builds its lookup orders from them. It went
     # undeclared for a long time and worked only because pandas (since
     # removed) happened to pull it in, i.e. `mirobody resolve` depended on a
     # transitive accident.
@@ -276,25 +275,6 @@ app = [
     "requests-oauthlib",
 ]
 
-# ── Development-side extras. Not products; nobody deploys these. ─────────────
-test = ["pytest", "pytest-asyncio", "pytest-sugar", "import-linter"]
-# Rebuilding the shipped terminology bundles (concept graph, alias index,
-# embeddings) — `python scripts/vocabulary_build.py …`. Consumers of the bundles need
-# none of this; only the people regenerating mirobody/res/fhir_* do, and the
-# code that reads it is pruned from the wheel entirely (see
-# scripts/build_backend.py::_BUILD_ONLY_CODE).
-#
-# These four were imported but never declared, so `import
-# mirobody.indicator.fhir.bridge` raised ModuleNotFoundError on a correct,
-# complete install — polars is imported at MODULE level there and in
-# siblings.py.
-indicator-build = [
-    "mirobody[app]",  # the build passes read config and write to Postgres
-    "polars",   # bridge.py / siblings.py (module-level), lexicon, rank, ref
-    "zhconv",   # zh-Hant -> zh-Hans folding in the alias lexicon build
-    "tqdm",     # progress reporting for the long build passes
-    "pgvector", # writing embeddings back to Postgres (embeddings/db.py)
-]
 
 [project.urls]
 "Homepage" = "https://github.com/thetahealth/mirobody"
@@ -390,9 +370,9 @@ markers = [
 # ── Architectural boundary, machine-enforced (run: lint-imports) ─────────────
 #
 # The engine follows the langchain / langchain-core layering: the DATA ENGINE
-# (① Collect: pulse · ② Translate: indicator, plus the shared utils/user/mcp/task
+# (① Collect: collect · ② Translate: translate, plus the shared utils/user/mcp/task
 # infra) must stay importable without any agent framework, while the AGENT
-# LAYER (③ Answer: agent, server) is the only place LangChain and friends
+# LAYER (③ Agent: agent, server) is the only place LangChain and friends
 # may appear. These contracts turn that rule from a convention into a CI check.
 # import-linter parses function-local imports too, so lazy imports can't sneak
 # a violation past it.
@@ -428,8 +408,8 @@ source_modules = [
     "mirobody.kernel.decoders",
     "mirobody.value_scale",
     "mirobody.zh_fold",
+    "mirobody.translate",
     # The rest of the engine.
-    "mirobody.indicator",
     "mirobody.collect",
     "mirobody.documents",
     "mirobody.utils",
@@ -462,7 +442,8 @@ name = "the library layer stands alone (the numpy-only rule)"
 # `mirobody.engine` is deliberately NOT in this list: `parse_file` reaches into
 # `utils.llm`, which is the [parse] extra, and does so inside the function so
 # `resolve` never pays for it. That seam is the exception that needs the rule
-# written down.
+# written down. `mirobody.translate` codes through the engine and inherits
+# the same exemption; it is held to the agent-framework rule above instead.
 type = "forbidden"
 source_modules = [
     "mirobody._bundle",
@@ -490,7 +471,6 @@ source_modules = [
 forbidden_modules = [
     "mirobody.agent",
     "mirobody.engine",
-    "mirobody.indicator",
     "mirobody.mcp",
     "mirobody.collect",
     "mirobody.documents",
@@ -611,7 +591,6 @@ source_modules = [
     "mirobody.kernel.decoders",
     "mirobody.value_scale",
     "mirobody.zh_fold",
-    "mirobody.indicator",
     "mirobody.collect",
     "mirobody.documents",
     "mirobody.utils",
@@ -687,9 +666,7 @@ source_modules = [
 forbidden_modules = [
     "mirobody.translate.aggregate",
     "mirobody.translate.derive",
-    "mirobody.translate.fhir_mapping",
     "mirobody.translate.indicators_info",
-    "mirobody.translate.std_indicator_registry",
     "mirobody.translate.units",
     "mirobody.translate.value_range_validator",
 ]
@@ -703,17 +680,11 @@ ignore_imports = []
 # makes unambiguous (UP: PEP 585/604 annotations, datetime.UTC). Style rules
 # that would generate churn without catching anything (import sorting, line
 # length, quote style) are deliberately absent — add one only with the diff that
-# applies it. The two build/research trees under indicator/fhir are excluded
-# because they need extras (polars) that no install carries and are pruned from
-# the wheel; they are not runtime code.
+# applies it.
 [tool.ruff]
 target-version = "py312"
 line-length = 120
-extend-exclude = [
-    "mirobody/indicator/fhir/embeddings",
-    "mirobody/indicator/fhir/resolve",
-    "frontend",
-]
+extend-exclude = ["frontend"]
 
 [tool.ruff.lint]
 # Narrow by design, and every addition below earns its place by catching a class
@@ -756,10 +727,11 @@ ignore = [
 #   G004 (1,110 findings) f-string in a log call. Worth doing — lazy formatting
 #        and the PHI policy both want %-style — but 1,110 mechanical edits would
 #        bury any real change in the same commit. Its own PR.
-#   DTZ  (68) `datetime.now()` without a tz. DELIBERATE here: `th_series_data.
-#        start_time` is a NAIVE LOCAL wall clock, and `schema/a4_series_data_day_
-#        authority.sql` plus `pulse/readings.py` are built on that. Selecting DTZ
-#        would ask us to break the storage contract to satisfy a linter.
+#   DTZ  (68) `datetime.now()` without a tz. DELIBERATE here: `series_data.time`,
+#        the device point buffer, is a NAIVE LOCAL wall clock and the aggregation
+#        pass is built on that (th_observation itself stores timestamptz with its
+#        zone). Selecting DTZ would ask us to break the buffer's contract to
+#        satisfy a linter.
 # TID252 was listed here as "relative imports are used throughout by choice".
 # Reversed 2026-09-14 on measurement, not taste: numpy nests deeper than we do
 # with zero parent-relative imports, fastapi likewise, and nothing in an

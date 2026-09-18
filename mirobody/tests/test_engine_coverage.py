@@ -103,6 +103,12 @@ CASES: list[tuple[str, str, str]] = [
     # ── metabolic panel ──────────────────────────────────────────────────────
     ("glucose",                     r"glucose",                      r"tolerance|challenge"),
     ("fasting glucose",             r"^fasting glucose",             r"tolerance"),
+    # A post-meal reading is its own code. `餐后血糖` answered plain glucose
+    # (2339-0) and the English long form off a real report answered nothing.
+    ("postprandial blood glucose",  r"post meal",                    r"2 hours|1 hour|tolerance"),
+    ("Postprandial Blood Glucose-PBG", r"post meal",                 r"2 hours|1 hour|tolerance"),
+    ("2-hour postprandial glucose",  r"2 hours post meal",           r""),
+    ("餐后血糖",                      r"post meal",                    r"2 hours|1 hour|tolerance"),
     ("creatinine",                  r"creatinine",                   r"clearance|urine"),
     # A printed English panel writes the specimen into the name. Both of these
     # answered 44760-7 "Model for end-stage liver disease score" until
@@ -119,6 +125,23 @@ CASES: list[tuple[str, str, str]] = [
     # ── liver enzymes ────────────────────────────────────────────────────────
     ("ALT",                         r"alanine aminotransferase",     r""),
     ("AST",                         r"aspartate aminotransferase",   r""),
+    # A hyphenated tail that names a COMPONENT of the parent analyte. The
+    # hyphen rule used to strip it and answer the parent: total CK for the
+    # MB isoenzyme, total LDH for LDH1, total ALP for bone ALP.
+    ("Creatine Kinase-MB",          r"creatine kinase\.MB",          r"Creatine kinase \["),
+    ("Creatine Kinase MB",          r"creatine kinase\.MB",          r"Creatine kinase \["),
+    ("肌酸激酶同工酶",                 r"creatine kinase\.MB",          r"interpretation"),
+    ("Lactate Dehydrogenase-LDH1",  r"lactate dehydrogenase 1",      r""),
+    ("LDH-5",                       r"lactate dehydrogenase 5",      r""),
+    ("Alkaline Phosphatase-BALP",   r"alkaline phosphatase\.bone",   r""),
+    ("BALP",                        r"alkaline phosphatase\.bone",   r""),
+    ("bone-specific alkaline phosphatase", r"alkaline phosphatase\.bone", r""),
+    ("骨碱性磷酸酶",                   r"alkaline phosphatase\.bone",   r""),
+    # A letter-hyphen-number tail is a series member the index spells joined.
+    # `Vitamin D-3` used to fall through to the bare stem and answer GALAD.
+    ("Vitamin D-3",                 r"vitamin D3",                   r"GALAD"),
+    ("Vitamin B-12",                r"cobalamin",                    r"GALAD"),
+    ("Complement C-3",              r"complement C3",                r"Sc5b-9"),
     ("alkaline phosphatase",        r"alkaline phosphatase",         r""),
     # ── endocrine & vitamins ─────────────────────────────────────────────────
     ("HbA1c",                       r"hemoglobin a1c",               r""),
@@ -139,6 +162,31 @@ CASES: list[tuple[str, str, str]] = [
     ("肌酐",                         r"creatinine",                   r"clearance|urine"),
     ("尿酸",                         r"urate|uric acid",              r""),
     ("白细胞计数",                   r"leukocyte|white blood cell",   r""),
+    # Third sweep: names off production rows migrated out of th_series_data.
+    # The measure word ("count", "percentage", "计数", "数") and the specimen
+    # prefix ("serum") stood between the report and the index.
+    ("monocyte count",              r"monocytes",                    r""),
+    ("neutrophil percentage",       r"neutrophils",                  r""),
+    ("absolute lymphocyte count",   r"lymphocytes",                  r""),
+    ("中性粒细胞计数",                r"neutrophils",                  r""),
+    ("单核细胞数",                    r"monocytes",                    r""),
+    ("白细胞总数",                    r"leukocytes",                   r""),
+    ("serum cystatin c",            r"cystatin c",                   r""),
+    ("serum uric acid",             r"urate",                        r""),
+    ("mean corpuscular volume",     r"MCV|mean corpuscular volume",  r""),
+    ("mean platelet volume",        r"platelet.*entitic mean volume", r""),
+    ("mean corpuscular hemoglobin", r"^MCH\b",                        r"MCHC"),
+    ("mean corpuscular hemoglobin concentration", r"MCHC",           r""),
+    ("total calcium",               r"^calcium \[",                  r"ionized"),
+    ("inorganic phosphorus",        r"phosphate",                    r""),
+    ("estimated glomerular filtration rate", r"glomerular filtration rate", r""),
+    ("lipoprotein a",               r"lipoprotein a",                r""),
+    ("red blood cell distribution width", r"distwidth|distribution width", r""),
+    # `FT3` in the index is T3 resin uptake, a different test with the same
+    # letters; the overrides send every spelling of free T3 to the component.
+    ("FT3",                         r"triiodothyronine.*free|free.*triiodothyronine|T3.*free", r"uptake|T3RU"),
+    ("free T3",                     r"triiodothyronine.*free|free.*triiodothyronine|T3.*free", r"uptake|T3RU"),
+    ("游离T3",                       r"triiodothyronine.*free|free.*triiodothyronine|T3.*free", r"uptake|T3RU"),
     ("红细胞计数",                   r"erythrocyte|red blood cell",   r""),
     ("血小板计数",                   r"platelet",                     r""),
     ("谷丙转氨酶",                   r"alanine aminotransferase",     r""),
@@ -151,6 +199,7 @@ CASES: list[tuple[str, str, str]] = [
     ("中性脂肪",                     r"triglyceride",                 r""),
     ("クレアチニン",                  r"creatinine",                   r"clearance|urine"),
     ("尿酸値",                       r"urate|uric acid",              r""),
+    ("総ビリルビン",                  r"bilirubin",                    r"direct|conjugated"),
     # The spelled-out ホルモン names a 健康診断結果表 prints — the bare form
     # must resolve, not only the parenthetical `甲状腺刺激ホルモン(TSH)`.
     ("甲状腺刺激ホルモン",             r"thyrotropin|thyroid stimulating", r""),
@@ -294,6 +343,15 @@ CASES: list[tuple[str, str, str]] = [
     ("sleep duration",              r"sleep duration",               r""),
     ("sleep_duration",              r"sleep duration",               r""),
     ("睡眠时长",                     r"sleep duration",               r""),
+    # The stages and the skin temperature a watch reports: LOINC 2.75 names
+    # them and no alias table reached the everyday spelling.
+    ("深睡",                        r"deep sleep duration",          r""),
+    ("REM sleep",                   r"REM sleep duration",           r""),
+    ("浅睡时长",                     r"light sleep duration",         r""),
+    ("skin temperature",            r"body surface temperature",     r""),
+    ("皮肤温度",                     r"body surface temperature",     r""),
+    ("sleep latency",               r"falling asleep",               r""),
+    ("入睡潜伏期",                    r"falling asleep",               r""),
     ("body weight",                 r"body weight",                  r"birth|ideal|estimated"),
     ("body_weight",                 r"body weight",                  r"birth|ideal|estimated"),
     ("body fat percentage",         r"body fat",                     r""),
@@ -347,7 +405,7 @@ CASES: list[tuple[str, str, str]] = [
     #     character away from a key that exists.
     ("ＦＢＧ",                        r"glucose",                      r"tolerance|urine"),
     ("LDL–C",                       r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
-    # (d) 日本語 健康診断 names the ja.tsv sweep does not reach — it carries
+    # (d) 日本語 健康診断 names no alias table reaches — it carries
     #     diseases and organisms, not observations (3% of its targets are keys
     #     the observation index can look up).
     ("LDLコレステロール",               r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
@@ -374,6 +432,15 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     ("血脂肪", ("the same lipid panel, 台灣 wording — needs its own refusal row: "
                 "the zh-Hant fold reaches nothing here, and without the row the "
                 "semantic tier would answer it")),
+    ("维生素", ("a heading covering D, B12, folate and E: it used to answer "
+               "96450-2 'Hepatocellular carcinoma risk [Score] GALAD', and the "
+               "next candidate down is 1823-4 alpha tocopherol, a real serum "
+               "concentration and still the wrong answer")),
+    ("維生素", "the same heading in 繁體"),
+    ("肿瘤标志物", ("answered 53959-3, one specific marker standing in for the "
+                  "whole category, on the panel where a wrong answer is least "
+                  "forgivable")),
+    ("腫瘤標誌物", "the same heading in 繁體"),
     ("绝对不存在的指标名xyzzy", "pure nonsense must never resolve"),
     # "名称(缩写)" where the two halves mean DIFFERENT tests. The parenthetical
     # strip must not silently prefer the stem: filing an HbA1c reading into the
@@ -480,6 +547,31 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     ("HGB",             "140", "g/L",    "718-7",   "g/L is already MCnc"),
     ("hematocrit",      "42",  "%",      "4544-3",  "% has no substance sibling"),
     ("白细胞计数",         "6.5", "10*9/L", "26464-8", "count already NCnc"),
+    # The differential, both ways: a measure word in the name goes to the
+    # fraction component, and the unit then picks the count or the ratio;
+    # a bare count component printed as % goes to its `/leukocytes` sibling.
+    ("monocyte count",  "0.5", "10*9/L", "26484-6", "ratio component, count unit"),
+    ("monocyte percentage", "7.1", "%",  "26485-3", "ratio component, ratio unit"),
+    ("中性粒细胞计数",      "4.2", "10*9/L", "26499-4", "ratio component, count unit"),
+    ("Monocytes",       "7.1", "%",      "26485-3", "count component, ratio unit"),
+    ("neutrophils",     "62",  "%",      "26511-6", "count component, ratio unit"),
+    # Units that name two properties: `U/mL` is an enzyme's catalytic
+    # concentration and a tumour marker's arbitrary one; `fL` is an entitic
+    # volume and the mean one; `mL/min` is a flow and an eGFR without its
+    # body-surface term; the eGFR spelling with a multiplication sign parses.
+    ("CA19-9",          "15.3", "U/mL",  "24108-3", "arbitrary units, not catalytic"),
+    ("ALT",             "25",  "U/L",    "1742-6",  "catalytic, unchanged"),
+    ("MCV",             "87.4", "fL",    "30428-7", "entitic mean volume"),
+    ("eGFR",            "88",  "mL/(min×1.73 m^2)", "48642-3", "areic volume rate"),
+    ("eGFR",            "30",  "mL/min", "48642-3", "eGFR without the area term"),
+    ("RDW-CV",          "13.1", "%",     "30385-9", "distribution width printed as %"),
+    ("FT3",             "4.5", "pmol/L", "14928-6", "free T3 to moles/volume"),
+    # The component survives the unit switch: the unit picks activity or
+    # mass WITHIN `creatine kinase.MB`, never the parent's code.
+    ("Creatine Kinase-MB", "25", "U/L",  "32673-6", "MB isoenzyme, activity"),
+    ("Creatine Kinase-MB", "3.2", "ng/mL", "13969-1", "MB isoenzyme, mass"),
+    ("Lactate Dehydrogenase-LDH1", "60", "U/L", "2537-9", "LDH1 activity, not total LDH"),
+    ("Alkaline Phosphatase-BALP", "20", "ug/L", "17838-4", "bone ALP mass, in serum"),
 ]
 
 
@@ -561,3 +653,390 @@ def test_a_value_of_an_unknown_kind_places_no_constraint():
 
     for value in (None, "", "见报告", "clear yellow fluid"):
         assert resolve_reading("尿蛋白", value, None).loinc == resolve("尿蛋白").loinc
+
+
+# ---------------------------------------------------------------------------
+# What the printed unit is allowed to decide, and what it must refuse
+# ---------------------------------------------------------------------------
+
+
+def test_a_unit_that_confirms_a_code_is_distinguishable_from_one_that_does_not():
+    """Three situations used to be byte-identical, and one of them was a bug.
+
+    `resolve_reading("hemoglobin", "11.2", …)` returned `718-7 / lexical /
+    candidates=72` for a unit that CONFIRMS the code, a unit that could not be
+    parsed at all, and no unit whatsoever. A caller had no way to learn that its
+    strongest disambiguator had been silently discarded, which is the whole
+    premise of passing the unit in the first place.
+    """
+    from mirobody.engine import resolve_reading
+
+    confirmed = resolve_reading("hemoglobin", "11.2", "g/dL")
+    nonsense = resolve_reading("hemoglobin", "11.2", "furlongs/fortnight")
+    absent = resolve_reading("hemoglobin", "11.2", None)
+
+    # All three still answer — withholding a code because we do not know a unit
+    # spelling would be the larger error, since unknown spellings are our gap.
+    assert confirmed.loinc == nonsense.loinc == absent.loinc == "718-7"
+
+    # But they are no longer the same answer.
+    assert confirmed.unit_recognized is True
+    assert nonsense.unit_recognized is False
+    assert absent.unit_recognized is None
+    assert "property" in confirmed.evidence
+    assert "property" not in nonsense.evidence
+    assert "property" not in absent.evidence
+
+
+def test_an_unparseable_unit_does_not_claim_the_unit_chose_the_code():
+    """`total cholesterol 5.0 bananas` answered 2093-3 — the mg/dL form — with
+    a shape identical to a unit-confirmed answer. 5.0 mg/dL cholesterol is
+    physiologically absurd, and nothing in the result said the unit had been
+    thrown away."""
+    from mirobody.engine import resolve_reading
+
+    r = resolve_reading("total cholesterol", "5.0", "bananas")
+    assert r.evidence == ("name",)
+    assert r.unit_recognized is False
+
+
+def test_a_unit_that_contradicts_every_reachable_code_is_refused():
+    """`hemoglobin 14 %` has no code: hemoglobin is a mass concentration and
+    no sibling of it is a fraction. Answering 718-7 would file a percentage
+    into a g/dL series, indistinguishable from a correct row, which is why
+    this is a refusal carrying its evidence rather than the name's code."""
+    from mirobody.engine import resolve_reading
+
+    r = resolve_reading("hemoglobin", "14", "%")
+    assert not r.resolved
+    assert r.loinc == ""
+    assert r.method == "refused"
+    assert r.rejected_code == "718-7"
+    assert "MCnc" in r.rejected_reason
+
+
+def test_a_differential_count_printed_as_a_percentage_finds_its_ratio_code():
+    """`neutrophils 62 %` used to answer 751-8, an absolute count by a method
+    nothing specified, then to refuse. The percentage is a real code under
+    `neutrophils/leukocytes`; the five leukocyte types are the one place the
+    denominator is determined, and the count code stays on the record as
+    what the name alone would have said."""
+    from mirobody.engine import resolve_reading
+
+    r = resolve_reading("neutrophils", "62", "%")
+    assert r.loinc == "26511-6"
+    assert r.method == "lexical"
+    assert r.rejected_code == "751-8"
+    assert "property" in r.evidence
+    # And not for a count that is not a leukocyte type.
+    assert resolve_reading("白细胞", "62", "%").method == "refused"
+
+
+def test_a_component_suffix_is_not_an_abbreviation_of_its_parent():
+    """`Creatine Kinase-MB` is not `Creatine Kinase` abbreviated, the way
+    `Total Cholesterol-TC` is. The parent and the suffixed child must reach
+    two different codes, or the child is being filed under the parent."""
+    from mirobody.engine import resolve
+    from mirobody.lexical import strip_trailing_abbreviation
+
+    assert strip_trailing_abbreviation("Total Cholesterol-TC") == "Total Cholesterol"
+    for parent, child in (
+        ("Creatine Kinase", "Creatine Kinase-MB"),
+        ("Lactate Dehydrogenase", "Lactate Dehydrogenase-LDH1"),
+        ("Alkaline Phosphatase", "Alkaline Phosphatase-BALP"),
+        ("Vitamin D", "Vitamin D-3"),
+    ):
+        assert strip_trailing_abbreviation(child) == child
+        p, c = resolve(parent), resolve(child)
+        assert p.resolved and c.resolved, (parent, child)
+        assert p.loinc != c.loinc or parent == "Vitamin D", f"{child} filed under {parent}: {c.loinc}"
+
+
+def test_a_unit_never_moves_a_reading_to_another_specimen():
+    """`albumin 30 mg/24h` names a serum protein with a urine excretion
+    unit. The only code with that property is the 24-hour URINE albumin;
+    answering it would file a serum row into a urine series. A unit may
+    choose between properties of one analyte in one specimen, and when the
+    specimen would have to change the reading is refused with both named."""
+    from mirobody.engine import resolve_reading
+
+    r = resolve_reading("albumin", "30", "mg/(24.h)")
+    assert r.method == "refused"
+    assert r.rejected_code == "1751-7"
+    assert "Ser/Plas" in r.rejected_reason and "Urine" in r.rejected_reason
+    # `Ser` and `Ser/Plas` are the same draw, so a Ql sibling in Ser is reachable.
+    assert resolve_reading("rheumatoid factor", "negative", None).loinc == "33910-1"
+
+
+def test_a_name_that_holds_two_analytes_says_which_two():
+    """`Plateletcrit (PCT)`: the stem is plateletcrit and the parenthetical is
+    procalcitonin. Still refused, since neither half is the answer by
+    position, but the refusal names both codes so a person can be asked,
+    which a category word's refusal (`血脂`) never offers."""
+    from mirobody.engine import resolve
+
+    r = resolve("Plateletcrit (PCT)")
+    assert r.method == "refused"
+    assert "51637-7" in r.rejected_reason and "33959-8" in r.rejected_reason
+    assert r.rejected_code == ""
+    assert resolve("血脂").rejected_reason == ""
+
+
+def test_the_unit_still_selects_between_two_real_siblings():
+    """The refusal above must not have cost the capability it protects."""
+    from mirobody.engine import resolve_reading
+
+    molar = resolve_reading("total cholesterol", "5.0", "mmol/L")
+    mass = resolve_reading("total cholesterol", "193", "mg/dL")
+    assert molar.loinc == "14647-2"
+    assert mass.loinc == "2093-3"
+    assert molar.rejected_code == "2093-3"  # the name alone would have said this
+    assert "property" in molar.evidence
+
+
+def test_free_prose_in_the_value_column_constrains_nothing():
+    """`scales_for_value` answers (Nar, Doc) for anything it cannot read, which
+    is the ABSENCE of a measurement rather than a claim about scale. Treating it
+    as a constraint made `尿蛋白` + `见报告` conflict with its own correct code."""
+    from mirobody.engine import resolve, resolve_reading
+
+    for value in ("见报告", "clear yellow fluid"):
+        r = resolve_reading("尿蛋白", value, None)
+        assert r.loinc == resolve("尿蛋白").loinc
+        assert r.resolved
+
+
+def test_a_category_word_never_lands_on_a_specific_analyte():
+    """A report SECTION heading is refused, not answered with whatever code of
+    the wrong kind the index reaches: 尿常规 used to answer a specimen
+    collection method, 电解质 a 24-hour urine narrative. An axis rule that
+    rejected such candidates cost several hundred correct answers on the
+    7,354-case benchmark for eight saved, so the headings are override rows."""
+    from mirobody.engine import resolve
+
+    assert not resolve("尿常规").resolved            # was 19159-3, a collection method
+    assert not resolve("电解质").resolved            # was 19096-7, a 24h urine narrative
+    assert not resolve("骨量").resolved              # was 34019-0, a DENTAL bone volume
+
+
+def test_what_is_not_a_lab_specimen_but_is_a_result_still_resolves():
+    """Excluding `^Patient` is the intuitive rule and it is wrong: these are all
+    measured on the person rather than on a specimen. `Type` likewise: blood
+    group is a `Type` and a real result."""
+    from mirobody.engine import resolve
+
+    assert resolve("步数").loinc == "41950-7"
+    assert resolve("体脂率").loinc == "41982-0"
+    assert resolve("血型").loinc == "883-9"
+    assert resolve("Rh血型").loinc == "10331-7"
+
+
+def test_a_class_from_another_discipline_is_not_a_lab_result():
+    """A perfectly ordinary measurement from a discipline a printed lab report
+    never contains has nothing wrong with its PROPERTY, SCALE or SYSTEM; only
+    LOINC's own CLASS column tells it apart, and the 1.5.0 cut drops those
+    CLASS families from the bundle. Two measured defects were exactly that."""
+    from mirobody.engine import resolve
+
+    # CLASS=CELLMARK, the flow-cytometry cell-surface marker, was answering for
+    # the serum tumour marker. Only the abbreviation reached the right code.
+    assert not resolve("癌胚抗原").resolved
+    assert not resolve("carcinoembryonic antigen").resolved
+    assert resolve("CEA").loinc == "2039-6"
+
+    # CLASS=DENTAL — a bone volume measured in a tooth space.
+    assert not resolve("骨量").resolved
+
+
+def test_bone_density_abstains_because_every_code_names_a_site():
+    """All twenty bone-density T-score codes carry a SITE — calcaneus, spine,
+    hip, femur, radius and ulna. There is no site-unspecified code, so a bare
+    `骨密度` cannot be answered without choosing a site the report did not
+    print. It used to answer *Bone DXA Calcaneus*: the heel, picked
+    arbitrarily."""
+    from mirobody.engine import resolve
+
+    assert not resolve("骨密度").resolved
+
+
+def test_the_class_gate_keeps_the_classes_wearables_live_in():
+    """The same lesson as `^Patient`: consumer metrics live in classes that look
+    'not lab'. A first attempt gated `H&P.*` and `EKG.*` and lost all of these."""
+    from mirobody.engine import resolve
+
+    assert resolve("sleep duration").loinc == "93832-4"   # CLASS=H&P.HX
+    assert resolve("HRV").loinc == "76643-6"              # CLASS=EKG.MEAS
+    assert resolve("步数").loinc == "41950-7"              # CLASS=CLIN
+    assert resolve("体脂率").loinc == "41982-0"            # CLASS=BDYWGT.ATOM
+
+
+# ── the device catalogue and its crosswalk ──────────────────────────────────
+# `res/metrics.tsv` carries a LOINC code per device metric where the 2026-09
+# review of thirteen vendors' data types established one; `res/crosswalks/`
+# is that review. The two must agree, and both must name real codes.
+
+#: Metric pairs allowed to share one code: the same quantity at reading grain
+#: and at day grain, or two spellings of one measurement site.
+_SHARED_CODE_PAIRS = {
+    frozenset({"restingHeartRates", "dailyRestingHeartRates"}),
+    frozenset({"skinTemperature", "wristTemperatures"}),
+    frozenset({"sleepAnalysis_Asleep(Deep)", "dailyDeepSleep"}),
+    frozenset({"sleepAnalysis_Asleep(REM)", "dailyRemSleep"}),
+    frozenset({"sleepAnalysis_Asleep(Core)", "dailyLightSleep"}),
+    frozenset({"sleepAnalysis_Asleep(Unspecified)", "dailyTotalSleepTime"}),
+    frozenset({"sleepAnalysis_Awake", "dailyAwakeTime"}),
+    frozenset({"sleepAnalysis_InBed", "dailySleepDuration"}),
+}
+
+
+def test_every_catalogue_code_is_a_real_code_with_a_confidence(resolver):
+    """A code in the catalogue is in the axis table and says how sure it is.
+    The three codes the review found wrong are gone: oxygen saturation was a
+    laboratory blood-gas code, skin temperature was core body temperature,
+    VO2max was oxygen consumption with no maximum."""
+    from mirobody.kernel import metrics
+
+    for m in metrics.ROWS:
+        if m.loinc:
+            assert m.confidence in metrics.CONFIDENCES, m.name
+            assert resolver.axes_of(m.loinc), f"{m.name}: {m.loinc} is not in the axis table"
+        else:
+            assert not m.confidence, m.name
+    assert metrics.METRICS["oxygenSaturations"].loinc == "59408-5"
+    assert metrics.METRICS["skinTemperature"].loinc != "8310-5"
+    assert metrics.METRICS["vo2Maxs"].loinc != "60842-2"
+    # An unverified code is evidence, not an identity.
+    assert metrics.METRICS["vo2Maxs"].confidence == metrics.UNVERIFIED
+    assert metrics.METRICS["vo2Maxs"].canonical == (metrics.SYSTEM_DEVICE, "vo2Maxs")
+    assert metrics.METRICS["steps"].canonical == (metrics.SYSTEM_LOINC, "55423-8")
+
+
+def test_no_two_metrics_share_a_code_unless_registered():
+    """Two metrics under one code would merge two series on recode. The
+    pairs above are the same quantity at two grains, and nothing else is."""
+    from collections import defaultdict
+
+    from mirobody.kernel import metrics
+
+    by_code: dict[str, set[str]] = defaultdict(set)
+    for m in metrics.ROWS:
+        if m.loinc:
+            by_code[m.loinc].add(m.name)
+    for code, names in by_code.items():
+        for a in names:
+            for b in names:
+                if a < b:
+                    assert frozenset({a, b}) in _SHARED_CODE_PAIRS, f"{code}: {a} and {b} share a code"
+
+
+def _same_analyte(resolver, a: str, b: str) -> bool:
+    """Two codes of one COMPONENT in one SYSTEM: the unit picks between them."""
+    ax_a, ax_b = resolver.axes_of(a), resolver.axes_of(b)
+    return bool(ax_a and ax_b) and ax_a[0] == ax_b[0] and ax_a[3] == ax_b[3]
+
+
+def test_the_crosswalk_names_real_codes_and_catalogue_rows(resolver):
+    """Every row of the base table and of the thirteen vendor tables names a
+    code the axis table has and, when it names a metric, a catalogue row.
+    A confident vendor code and that metric's confident catalogue code are
+    the same code, or two unit variants of one analyte (glucose in mmol/L)."""
+    from mirobody.kernel import metrics
+    from mirobody.translate import devices
+
+    base = devices.base_table()
+    assert len(base) >= 60
+    for row in base:
+        assert resolver.axes_of(row.loinc), row.loinc
+        assert row.confidence in devices.CONFIDENCES, row.loinc
+        assert row.fields, f"{row.loinc}: no vendor produces it"
+        if row.metric:
+            m = metrics.METRICS[row.metric]
+            if m.confidence == metrics.CONFIDENT and row.confidence == devices.CONFIDENT:
+                assert m.loinc == row.loinc or _same_analyte(resolver, m.loinc, row.loinc), (row.loinc, row.metric)
+    for vendor in devices.VENDORS:
+        rows = devices.vendor_fields(vendor)
+        assert rows, vendor
+        for r in rows:
+            assert (r.confidence in devices.CONFIDENCES) == bool(r.loinc), (vendor, r.key)
+            if r.loinc:
+                assert resolver.axes_of(r.loinc), (vendor, r.key, r.loinc)
+            if r.metric:
+                m = metrics.METRICS[r.metric]
+                if r.loinc and m.loinc and r.confidence == m.confidence == metrics.CONFIDENT and m.loinc != r.loinc:
+                    assert _same_analyte(resolver, m.loinc, r.loinc), (vendor, r.key, m.loinc, r.loinc)
+    assert set(devices.summary()) == set(devices.VENDORS)
+    assert {u.reason for u in devices.unmappable()} <= set(devices.REASONS)
+
+
+def test_the_apple_crosswalk_says_what_the_apple_decoder_does():
+    """The public table and the shipped decoder must tell the same story
+    about an Apple identifier: the same catalogue metric, or none."""
+    from mirobody.kernel.decoders import apple
+    from mirobody.translate import devices
+
+    quantity = {k.lower(): v for k, v in apple.QUANTITY.items()}
+    stages = {k.lower(): v for k, v in apple.SLEEP_STAGES.items()}
+    checked = 0
+    for r in devices.vendor_fields("apple"):
+        if r.type == "HKQuantityTypeIdentifier":
+            decoded = quantity.get((r.type + r.field).lower())
+        elif r.type == "HKCategoryTypeIdentifierSleepAnalysis":
+            decoded = stages.get(("HKCategoryValueSleepAnalysis" + r.field).lower())
+        else:
+            continue
+        if decoded is None:
+            continue
+        assert decoded == r.metric, (r.field, decoded, r.metric)
+        checked += 1
+    assert checked >= 30
+    assert apple.QUANTITY["HKQuantityTypeIdentifierHeartRateVariabilitySDNN"] == "hrvSDNN"
+
+
+def test_a_catalogue_alias_lets_the_unit_pick_the_variant():
+    """The catalogue says `bloodGlucoses` is 2339-0, glucose as a mass
+    concentration in blood; a Honor watch prints mmol/L. The alias names the
+    analyte and the unit picks the sibling. A unit that fits no sibling
+    leaves the alias's code: the alias is a decision, not a guess."""
+    from mirobody import translate
+    from mirobody.translate.parse import KIND_QUANTITY
+
+    alias = translate.Alias("catalog", translate.LOINC_SYSTEM, "2339-0")
+
+    def run(value: str, unit: str) -> translate.Coding:
+        return translate.code(
+            "bloodGlucoses", name_key=translate.name_key("bloodGlucoses"), local_key="device:bloodGlucoses",
+            value_kind=KIND_QUANTITY, value_text=value, unit_text=unit, unit_ucum=unit,
+            value_num=float(value), alias=alias,
+        )
+
+    assert run("5.6", "mmol/L").code == "15074-8"
+    assert run("101", "mg/dL").code == "2339-0"
+    assert run("5.6", "").code == "2339-0"
+    odd = run("5.6", "%")
+    assert odd.coded and odd.code == "2339-0"
+
+
+def test_evidence_reads_the_same_whichever_entry_point_produced_it():
+    """`resolve()` and `resolve_reading()` answer the same term with the same
+    code, so they must describe that answer the same way.
+
+    `evidence` was left empty by `resolve()` and set to `("name",)` by
+    `resolve_reading()`, so a caller asking `"name" in r.evidence` got False
+    from one and True from the other for an identical resolution — a field only
+    readable by someone who already knew which function had produced it.
+    """
+    from mirobody.engine import resolve, resolve_reading
+
+    by_name = resolve("血红蛋白")
+    by_reading = resolve_reading("血红蛋白", None, None)
+    assert by_name.loinc == by_reading.loinc == "718-7"
+    assert by_name.evidence == by_reading.evidence == ("name",)
+
+    # Still empty when nothing was resolved — the field says what corroborated
+    # an answer, and there is no answer.
+    assert resolve("绝对不存在的指标名xyzzy").evidence == ()
+
+    # And it still grows when the reading carries more than a name.
+    assert resolve_reading("total cholesterol", "5.0", "mmol/L").evidence == (
+        "name", "property", "scale",
+    )

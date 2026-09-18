@@ -19,7 +19,6 @@ from mirobody.translate.aggregate.models import CalculationTask
 from mirobody.translate.aggregate.rule_generator import get_rules_by_source_indicator
 from .source_id_priority import APPLE_SOURCES, build_apple_priority_case
 from mirobody.translate import StandardIndicator
-from mirobody.translate import get_fhir_id
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +42,7 @@ def _union_over_windows(branch_sql: str) -> str:
 def to_local_day_range(data_begin_utc: datetime, timezone: str) -> tuple[datetime, datetime]:
     """Convert a UTC day-begin instant to the user's local calendar-day boundaries.
 
-    th_series_data.start_time/end_time store the user's local-timezone naive
+    A summary row's start_time/end_time carry the user's local-timezone naive
     datetime, so a daily aggregate must be anchored at the local date's
     00:00:00 - 23:59:59 regardless of the UTC instant the window started at
     (00:00 for normal indicators, 18:00 for sleep indicators).
@@ -562,11 +561,6 @@ class SQLAggregator:
                     all_summaries.extend(event_summaries)
 
         return all_summaries
-
-    @staticmethod
-    def _get_fhir_id(indicator: str):
-        """Lookup fhir_id from FhirMapping cache. Returns None if not available."""
-        return get_fhir_id(indicator)
 
     def _get_aggregation_unit(self, source_indicator: str, aggregation_type: str) -> str:
         """
@@ -1189,9 +1183,6 @@ class SQLAggregator:
                 target_indicator = task.target_indicator
                 unit = result.get('unit', '')
 
-                fhir_id = get_fhir_id(target_indicator)
-                fhir_info = f", fhir_id={fhir_id}" if fhir_id else ""
-
                 summaries.append({
                     "user_id": user_id,
                     "indicator": f"{target_indicator}.{source}" if source != 'derived' else target_indicator,
@@ -1200,11 +1191,11 @@ class SQLAggregator:
                     "end_time": store_end,
                     "source": source,
                     "task_id": "aggregate_indicator",
-                    "comment": f"Source/{source}/Unit/{unit}/Aggregated/{task.aggregation_type}{fhir_info}",
+                    "comment": f"Source/{source}/Unit/{unit}/Aggregated/{task.aggregation_type}",
                     "source_table": "series_data",
                     "source_table_id": "",
                     "indicator_id": "",
-                    "fhir_id": fhir_id,
+                    "unit": unit,
                 })
 
             except Exception as e:
@@ -1490,8 +1481,8 @@ class SQLAggregator:
             data_begin_utc: datetime
     ) -> list[dict[str, Any]]:
         """
-        Convert aggregation results to summary records for th_series_data
-        
+        Convert aggregation results to summary records for the observation writer
+
         Note: agg_results now include 'source' field due to GROUP BY indicator, source
         We append source as suffix to indicator name: dailyTotalSteps.apple_health
         
@@ -1579,9 +1570,6 @@ class SQLAggregator:
                 source_suffix = source.replace('vital.', '') if source else 'unknown'
                 target_indicator_with_source = f"{task.target_indicator}.{source_suffix}"
 
-                # Lookup fhir_id from cache (read-only, no DB call)
-                fhir_id = self._get_fhir_id(target_indicator_with_source)
-
                 summary = {
                     "user_id": task.user_id,
                     "indicator": target_indicator_with_source,
@@ -1594,7 +1582,7 @@ class SQLAggregator:
                     "source_table": "series_data",
                     "source_table_id": task.source_indicator,
                     "indicator_id": "",
-                    "fhir_id": fhir_id,
+                    "unit": self._get_aggregation_unit(task.source_indicator, task.aggregation_type),
                 }
 
                 summaries.append(summary)

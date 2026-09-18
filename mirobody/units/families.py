@@ -25,12 +25,15 @@ Two tables:
   :func:`unit_families`.
 
 LOINC has 231 distinct PROPERTY values; only ~30-40 carry real
-(non-annotation) units. Coverage stats from
-``benchmarks/audit_ucum_family.py`` against LOINC 2.82: ~95% of
-unit-bearing code rows have their primary unit→family entry here. The
-long tail (CCnt with ``nmol/h/mg{protein}``, ArVRat with
-``mL/min/{1.73_m2}``, etc.) needs the LOINC source for exact lookup
-and is intentionally not enumerated.
+(non-annotation) units. Measured against the ``loinc_units.tsv`` the
+2.83 bundle ships (36,325 codes with an EXAMPLE_UCUM_UNITS): of the
+28,880 whose primary unit is dimensional, **99.0%** have their
+unit→family entry here. The rest are not units — 4,473 are a bare UCUM
+annotation (``{titer}``, ``{Ct_value}``, a label with no dimension) and
+2,972 an annotated ratio (``mg/g{creat}``, ``mL/min/{1.73_m2}``), which
+need the LOINC source for exact lookup and are intentionally not
+enumerated. Counting those as misses is where the "79.8% of all rows"
+number comes from, and it is the wrong denominator.
 
 UCUM keys are case-sensitive. Bracketed units (``[IU]``, ``[U]``,
 ``[diop]``, ``[pH]``, ``[degF]``) use the formal UCUM syntax: see
@@ -259,7 +262,9 @@ UCUM_FAMILY: dict[str, str] = {
     "nkat/L":   "CCnc",
 
     # ── Number concentration (NCnc) ───────────────────────────────────
+    "10*2/uL":  "NCnc",
     "10*3/uL":  "NCnc",
+    "10*4/uL":  "NCnc",
     "10*6/uL":  "NCnc",
     "10*6/mL":  "NCnc",
     "10*6/L":   "NCnc",
@@ -271,6 +276,14 @@ UCUM_FAMILY: dict[str, str] = {
     "/dL":      "NCnc",
     "/g":       "NCnt",         # count per gram: bacterial counts
     "/kg":      "NCnt",
+
+    # ── Erythrocyte sedimentation rate ────────────────────────────────
+    # Not `Vel`. LOINC gives ESR the literal PROPERTY string
+    # "Sedimentation Rate" (4537-7, 30341-2, checked against the shipped
+    # axis table), and this value is matched against that column directly,
+    # so a dimensionally-reasonable `Vel` here would match no ESR row at all
+    # and would boost Doppler and nerve-conduction codes instead.
+    "mm/h":     "Sedimentation Rate",
 
     # ── Bare counts (Num) ─────────────────────────────────────────────
     "10*6":     "Num",
@@ -488,11 +501,39 @@ UCUM_FAMILY: dict[str, str] = {
 # that want to soft-rank candidates from any of the listed families use
 # :func:`unit_families`.
 AMBIGUOUS_UNITS: dict[str, frozenset[str]] = {
+    # `Ratio` and `DistWidth` are here for the red cell distribution width
+    # printed as a coefficient of variation (RDW-CV, 788-0 and 30385-9):
+    # LOINC has filed it under both, and a CBC prints it as `%`.
     "%": frozenset({
         "MFr", "NFr", "AFr", "VFr", "SFr", "CFr",
-        "LenFr", "RelACnc", "RelRto",
+        "LenFr", "RelACnc", "RelRto", "Ratio", "DistWidth",
     }),
     "mm[Hg]": frozenset({"Pres", "PPres"}),    # BP vs blood-gas pO2/pCO2
+    # A report prints `U/mL` for tumour markers and antibodies (CA 19-9, CA
+    # 125, anti-TPO) whose LOINC property is ACnc with `[arb'U]/mL`, the same
+    # letters as an enzyme's catalytic units. The name decides which analyte;
+    # the unit must admit both properties or every marker conflicts.
+    "U/L":   frozenset({"CCnc", "ACnc"}),
+    "U/mL":  frozenset({"CCnc", "ACnc"}),
+    "mU/L":  frozenset({"CCnc", "ACnc"}),
+    "mU/mL": frozenset({"CCnc", "ACnc"}),
+    "kU/L":  frozenset({"CCnc", "ACnc"}),
+    # MCV and MPV are `EntMeanVol` since LOINC 2.7x; RDW-SD stays `EntVol`.
+    "fL":    frozenset({"EntVol", "EntMeanVol"}),
+    # MCHC is a mass concentration that LOINC files under `EntMCnc`, per red
+    # cell rather than per volume of blood. All four EntMCnc codes in the cut
+    # are MCHC and every one declares g/dL or g/L in EXAMPLE_UCUM_UNITS, so
+    # refusing those units contradicts LOINC's own table: `平均血红蛋白浓度
+    # 349 g/L` came back refused on a real report while the name alone
+    # answered 786-4.
+    "g/dL":  frozenset({"MCnc", "EntMCnc"}),
+    "g/L":   frozenset({"MCnc", "EntMCnc"}),
+    # A volume can be per-entity outside the CBC too: `Size [Entitic volume]
+    # of Stone` (9802-0) declares mm3. The name still picks the analyte; this
+    # only stops the unit gate refusing the code's own declared unit.
+    "mm3":   frozenset({"Vol", "EntVol"}),
+    # eGFR printed without its body-surface normaliser is still ArVRat.
+    "mL/min": frozenset({"VRat", "ArVRat"}),
     "cm[H2O]": frozenset({"Pres", "PPres"}),
     "[ppm]":  frozenset({"VFr", "MFr", "SFr"}),
     "deg":    frozenset({"Angle", "Temp"}),    # Temp uses [degF]/Cel canonically

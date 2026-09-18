@@ -7,7 +7,7 @@ EHR behind it, a consumer with a phone-local SQLite and this repository's own
 reference application all need the same rules and none of the same storage.
 
 This package is one implementation of the two ports (`MedicationStore` and
-`DoseLogStore`) against the schema in `schema/a5_medications.sql`. It is the
+`DoseLogStore`) against the schema in `schema/31_medications.sql`. It is the
 first consumer of the medication kernel, and it is deliberately thin: every
 question that has an answer in `mirobody.kernel.meds` is asked there, never
 re-derived in SQL.

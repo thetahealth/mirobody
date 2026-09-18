@@ -1,12 +1,109 @@
-## Unreleased
+## 1.5.0 (unreleased)
 
-Four things this repository said about itself that its code did not do. Each was
-load-bearing: two clients were believed to depend on fields nothing sends or
-reads, a picture promised a feature no endpoint implements, and the page telling
-you how to start was the one page a clone did not have.
+② Translate is rebuilt, vocabulary and data layer together. The bundle is cut
+fresh from LOINC 2.83 by one rule in one pass; every reading, whatever brought
+it in, is one row of an append-only observation table with its coding beside
+it, written by one module and read through one view.
+
+Measured on 7,354 real report spellings: coverage holds at 0.963 and
+wrong-rate falls from 0.035 to 0.025, on the 6,780 whose expected code is
+inside the cut. The other 362 expect a narrative, document or exam-finding
+code, or one 2.83 retired — the resolver abstains there now, which is what the
+cut is for.
+
+Alongside it, four things this repository said about itself that its code did
+not do. Each was load-bearing: two clients were believed to depend on fields
+nothing sends or reads, a picture promised a feature no endpoint implements,
+and the page telling you how to start was the one page a clone did not have.
 
 ### Breaking
 
+- **The bundle is LOINC 2.83, and half the size.** In the wheel the resolver
+  data goes from 24.9 MB to 12.7, and 95.7 MB to 46.0 once unpacked; a
+  `pip install mirobody` measures 68 MB on macOS, numpy included.
+  `mirobody.BUNDLE_VERSION` reads `loinc-2.83+<date>-<digest>`. 63,416 of the
+  99,737 ACTIVE codes, chosen by `translate_build/loinc_cut.py` rather than by
+  hand: laboratory and clinical CLASSTYPE, CLASS families that never hold a
+  reading dropped, narrative and document scales dropped, panels kept for the
+  laboratory subclasses plus the vital-sign and personal-record ones. Rows are
+  dropped, never edited; the 153 carrying a third party's copyright notice are
+  dropped rather than reproduced. The members a `pip install` never opened
+  (`loinc_axis.csv`, `loinc_alias_index.npz`, `fhir_dose_index.npz`,
+  `loinc_demote.txt`) are gone, and `NOTICE` and `loinc_units.tsv` now ship.
+- **A series key carries TIME.** The axis table gained `TIME_ASPCT`, which the
+  1.4.x bundle did not have, so `series_id` is
+  `loinc:COMPONENT|SYSTEM|TIME|SCALE|dim(PROPERTY)` with the third field
+  filled. A spot urine protein and a 24-hour collection stop sharing one line
+  on a chart, as do a heart rate and an hourly mean of one; 1,979 codes in the
+  cut are `24H`. Keys written before this differ by that field — `mirobody
+  recode` rewrites them and records the reason.
+- **The Japanese aliases really are gone from the index.** 1.5.0's note said
+  the UMLS-derived surfaces would leave with the LOINC-only re-cut; they have.
+  `alias_keys.bin` is built from `Loinc.csv` and the 21 LinguisticVariants
+  files alone and contains no kana. Japanese report spellings still resolve,
+  through `res/resolver_overrides.tsv` — this project's own file, mapping a
+  Japanese surface to an English name LOINC's index answers.
+- **`mirobody/indicator/` is deleted** — 43 modules, 24,858 lines, and with it
+  the `[indicator-build]` extra, `scripts/vocabulary_build.py`,
+  `scripts/build_loinc_embeddings.py`, `scripts/build_runtime_index.py` and
+  `docs/vocabulary-build.md`. The 2.83 bundle is cut from one LOINC release in
+  one pass by `translate_build/` (~700 lines, outside `mirobody/`), so the
+  passes that needed a UMLS licence, a concept graph across SNOMED CT and
+  RxNorm, and a multi-GB embedding matrix have nothing left to build.
+- **`resolve_with_semantic_fallback` is gone from the public API**, with the
+  opt-in semantic tier behind it. It could not abstain — for an unseen term it
+  returned its nearest neighbour with the confidence of a correct answer, and
+  nonsense scored 0.78 where genuine names went to 0.56 — and it never ran
+  anyway: the matrix was never published, so `get_index()` returned `None` in a
+  wheel install and in a source tree alike, measured in both. `resolve()` and
+  `resolve_reading()` are unchanged. For better recall, curate a row in
+  `res/resolver_overrides.tsv`.
+- **The bare-install import gate now covers the library layer**, not just the
+  nine modules `indicator/` used to ship: 43 modules, each imported in a fresh
+  interpreter with the extras blocked. It found nothing, which is the point —
+  it was scoped to a package that no longer exists, and an empty parameter set
+  reads exactly like a passing test.
+
+- **`res/loinc_class_gated.tsv` is deleted**, with `scripts/gen_class_gate.py`
+  and `scripts/build_runtime_index.py`. All 10,045 codes it gated are outside
+  the 2.83 cut, so the file gated nothing; the cut does that work at build
+  time, where the plan always said it belonged.
+
+- **Apple `HeartRateVariabilitySDNN` is stored as `hrvSDNN`** (LOINC
+  112429-6), no longer as the generic `hrvDatas`: five other vendors publish
+  RMSSD under the same word, a different statistic, and one row would have
+  averaged the two. Existing `hrvDatas` rows are untouched; new Apple imports
+  land in `hrvSDNN`, and the derived `dailyAvgHrvDatas` no longer receives
+  Apple data.
+- **`TERMINOLOGY_VERSION` is 1.5.0.** Only a confident code is a metric's
+  identity: `Metric.canonical` returns the device namespace for an unverified
+  one, and `res/metrics.tsv` gains a `confidence` column.
+- **`th_series_data` is retired.** `schema/30_observations.sql` creates
+  `th_extraction`, `th_observation`, `th_coding_current`, `th_coding_history`,
+  `th_coding_decision`, `th_coding_alias`, `th_concept`, `th_series`,
+  `th_day_authority`, `th_check_result` and the view `v_observation`;
+  `schema/90_retire.sql` renames the old table and its satellites
+  (`th_series_dim`, `fhir_indicators`, `standard_indicators_device`) to
+  `*_retired_15` and never drops them. `mirobody migrate-observations` moves
+  the old rows through the new writer. `collect/readings.py`, the boot backfill,
+  the indicator sync task, the `fhir_id` cache and the device registry task are
+  gone with the tables they served.
+- **The extraction contract is verbatim.** The file parser asks for the
+  indicator name exactly as printed (never translated), the result without its
+  unit, and the unit and reference range in their own fields; a printed pair
+  (`120/80`) is two indicators. The model's output is frozen in
+  `th_extraction` so a coding can be replayed against what was read.
+- **`query_health_indicators` answers per series.** The catalogue lists series
+  (`translate.series`: one axis for every cholesterol reading, in mg/dL or
+  mmol/L); `indicators` accepts a series id, a LOINC code, a display name or a
+  printed name; a statistic over a mixed-unit series is computed over the
+  canonical values and says `mixed_units`; `change` is withheld across units.
+  The semantic recall tier (an embedding of the person's own names) is
+  replaced by a lexical rank over their series plus the offline resolver.
+- **Corrections are rows.** The web UI's "fix this value" and "remove this
+  reading" write an amendment or a retraction pointing at the old row; a
+  file's date change re-files its readings as amendments; a repair batch
+  retracts what it did not re-confirm. The only DELETE is the privacy path.
 - **`POST /api/chat` no longer accepts `agent`, `enable_mcp`, `group_id` or
   `reference_task_id`.** They were accepted and ignored, kept for clients that
   might still send them. None does: the shipped bundle's payload is seven
@@ -25,6 +122,75 @@ you how to start was the one page a clone did not have.
 
 ### Added
 
+- **The device crosswalk is a public asset.** `res/crosswalks/` gains one
+  table per vendor (Apple HealthKit, Google Health Connect, Huawei, Honor,
+  Samsung, Fitbit, WHOOP, Oura, Garmin, vivo, Xiaomi, Zepp, OPPO), a base
+  table of 66 LOINC codes with every vendor field that means each, and
+  `unmappable.tsv`, the 71 device quantities no code fits, grouped by the
+  nine reasons. Every row carries a confidence and every file names the
+  vendor document it was read from. `mirobody.translate.devices` loads them,
+  `scripts/device_crosswalk_report.py` renders them, and
+  [`docs/device-crosswalk.md`](docs/device-crosswalk.md) explains the
+  normalisation traps between vendors and LOINC's own axis defects.
+- `res/metrics.tsv`: 37 more device metrics carry a code (steps, the sleep
+  stages, distance, floors, elevation, calories, activity intensity, body
+  fat, lean mass, bone mass, daily heart-rate statistics, awakenings, sleep
+  latency, and more), and ten members are new: `hrvSDNN`,
+  `apneaHypopneaIndex`, `obstructiveApneaIndex`, `pulseWaveVelocity`,
+  `perfusionIndex`, `walkingDoubleSupportPercentage`,
+  `walkingAsymmetryPercentage`, `stairAscentSpeed`, `stairDescentSpeed`,
+  `sixMinuteWalkDistance`. The Apple decoder emits the gait, perfusion and
+  six-minute-walk identifiers it used to quarantine.
+- A catalogue alias lets the printed unit pick the variant: glucose from a
+  device that prints mmol/L codes to 15074-8, not the catalogue's mg/dL
+  code. A unit that fits no sibling leaves the alias's code alone.
+- Five gate invariants over the catalogue and the crosswalk: every code is
+  in the axis table with a confidence, no two metrics share a code unless
+  registered as one quantity at two grains, every crosswalk row names a real
+  code and a real catalogue row, the Apple table says what the Apple decoder
+  does, and the alias unit gate.
+- `mirobody.translate`: the pure seam a reading passes through. `name_key`
+  (one fold), `parse_value` (quantity / ordinal / nominal / narrative /
+  absent, a number never invented), `local_day` (one implementation of "which
+  day", with the zone's provenance recorded), `series_id`
+  (`COMPONENT|SYSTEM|TIME|SCALE|dim(PROPERTY)`, METHOD rolled up, mass and
+  molar folded), and `code()`: a confirmed alias, then the lexical resolver,
+  then the scale gate; `needs-input` or `refused` with a reason otherwise.
+- `collect/observations.py`: `ingest` (one transaction: freeze, fold, parse,
+  place, insert, code, refresh the catalogue), `amend`, `retract`, `redate`,
+  `erase`, `rebuild_series`, and the legacy-row adapter the collect layer
+  still writes through. `utils.db.transaction()` runs several statements in
+  one commit with a savepoint per row.
+- Election writes `th_day_authority` (one row per person, series and local
+  day) and records a rejected candidate in `th_check_result`.
+- `observations.recode` replays the coding of every stored observation under
+  the installed vocabulary, the current rules and the confirmed aliases, and
+  appends a `th_coding_history` row per change with its cause
+  (`recode-release`, `recode-rules`, `recode-alias`); `mirobody recode` runs
+  it. `observations.confirm_alias` records what a person said a printed name
+  means (or that it is not a standard item) and recodes the rows that carry
+  it, so a local series merges into its standard one.
+- The resolver reports what corroborated a code (`Resolution.evidence`,
+  `unit_recognized`, `axes`) and refuses a code the printed unit contradicts
+  (`rejected_code`); `translate.code()` stores that as `needs-input` with
+  reason `unit:conflict`. Eleven printed unit spellings and the power-of-ten
+  count units (`10⁴/μL`) normalize; a LOINC CLASS gate keeps radiology,
+  dental and flow-cytometry codes out of lab-report answers.
+- Measured on a deployment's own rows (646 file readings migrated out of
+  `th_series_data`): a measure word in the name (`monocyte count`,
+  `中性粒细胞计数`, `serum cystatin C`) no longer hides the analyte; a
+  differential count printed as `%` finds its `/leukocytes` code; `U/mL`
+  admits a tumour marker's arbitrary units, `fL` the mean cell volumes,
+  `mL/min` an eGFR, `%` the distribution width; the eGFR spelled
+  `mL/(min×1.73 m^2)` parses; a unit printed inside the value cell is kept
+  as the printed unit, and one the tables cannot read stays unread rather
+  than becoming its first readable prefix; `FT3` and `free T3` code to free
+  T3 instead of T3 resin uptake; a name holding two analytes
+  (`Plateletcrit (PCT)`) is `needs-input` with both codes named, not a
+  refusal. `mirobody migrate-observations` reports written, coded, skipped,
+  rejected and undecrypted counts.
+- `translate_build/`: the LOINC 2.83 Tier-2 cut (63,391 codes) and its
+  accessory tables, build-time only.
 - **`docs/quickstart.md`**, the getting-started page that ships with the code.
   The README pointed at the hosted docs for this, and eleven of its links leave
   the repository. It states the three ways in — the library, the Docker stack,
@@ -36,6 +202,27 @@ you how to start was the one page a clone did not have.
 
 ### Changed
 
+- **`res/aliases_src/ja.tsv` is removed.** It was a UMLS-derived file
+  (MSHJPN / MDRJPN) listed as a LOINC linguistic variant, and LOINC has
+  none for Japanese. Two percent of its rows produced a code; on the
+  7,354-case benchmark the loose file answered 51 cases correctly (organism
+  and drug names) and 35 wrongly, so coverage moves 0.962 to 0.950 and the
+  wrong rate 0.030 to 0.029. The Japanese laboratory names in the gate all
+  still resolve. The alias index inside the bundle still carries the
+  surfaces that file contributed until the LOINC-only re-cut.
+  `scripts/check_wheel_data.py` forbids the file in a wheel.
+- The everyday spellings of the sleep stages, skin temperature, sleep
+  latency and climb resolve in English and Chinese (`深睡`, `REM sleep`,
+  `皮肤温度`, `入睡潜伏期`, `floors climbed`): LOINC 2.75 names them and no
+  alias table reached them.
+- **`mirobody/schema/` is one file per domain.** Twenty-two numbered
+  increments (`00_init_schema.sql` … `a7_…`) became nine files: prolog,
+  accounts, files, observations, medications, devices, device rules, chat, and
+  `90_retire.sql` for every rename and drop. Each CREATE carries its full
+  column list with the `ADD COLUMN IF NOT EXISTS` upgrades beneath it. The
+  catalogue a fresh database gets is unchanged, replay is idempotent, and an
+  old database receiving the new chain ends in the same state (checked by
+  fingerprint). One empty event-trigger function nothing used is dropped.
 - **The Chinese README has an ending.** It stopped after the acknowledgements
   on an empty `<div>`: no star chart, no closing note, no copyright line. It
   ends the way the English edition does.
@@ -51,6 +238,25 @@ you how to start was the one page a clone did not have.
 
 ### Fixed
 
+- Three device codes were wrong and are replaced: `oxygenSaturations`
+  2708-6 (a laboratory arterial blood-gas code) is 59408-5 (pulse oximetry);
+  `skinTemperature` 8310-5 (core body temperature) is 61008-9 (body surface
+  temperature, unverified for the wrist); `vo2Maxs` 60842-2 (oxygen
+  consumption, no maximum) is 94122-9 (peak VO2 per body weight, unverified
+  because wearables estimate it).
+- A hyphenated component suffix is no longer stripped as an abbreviation:
+  `Creatine Kinase-MB` resolves to CK-MB, not total CK; `Lactate
+  Dehydrogenase-LDH1` and `Alkaline Phosphatase-BALP` likewise reach their
+  own component. `Vitamin D-3` and `Complement C-3` join to the spelling the
+  index knows instead of falling through to the bare stem. A printed unit may
+  pick between properties of one analyte in one specimen, never move it to
+  another specimen: `albumin 30 mg/24h` is refused rather than filed as
+  24-hour urine albumin. On the 7,354-case benchmark three wrong answers
+  became refusals and nothing else moved.
+- `indicator/search.py` and `indicator/fhir/adapter.py` import on a base
+  install: their `mirobody.utils` imports (aiohttp) are lazy. The adapter's
+  graph expansion returns its input unexpanded when the local embedding
+  matrix is absent, instead of raising on every call.
 - **`mirobody doctor` on a default install says what to install.** It answered
   with a `ModuleNotFoundError` out of `utils/config/config.py`, and `cli.py`'s
   own docstring said it needed "no database and no extra". It reads the

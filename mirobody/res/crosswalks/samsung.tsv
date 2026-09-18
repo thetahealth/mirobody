@@ -1,0 +1,49 @@
+# Samsung Health Data SDK: vendor fields to LOINC 2.83
+#
+# Samsung Health Data SDK data types. No HRV, respiratory rate, VO2max or distance type.
+#
+# Source, read 2026-09-09:
+#   https://developer.samsung.com/health/data/api-reference
+#   26 data types.
+#
+# Columns:
+#   type        the vendor's data type, record class or endpoint, verbatim
+#   field       the field inside it, verbatim; empty when the type is the reading
+#   metric      the mirobody catalogue name (res/metrics.tsv); empty when the catalogue has no row
+#   loinc       the LOINC code the field means; EMPTY IS A DECLINE, and the note says why
+#   confidence  confident = the six LOINC axes agree with the vendor's definition;
+#               unverified = close, a person must confirm before a reading is filed under it
+#   note        the reasoning; some notes are in Chinese, as they were written
+#
+# Every code was checked by hand against the LOINC 2.83 axis table on 2026-09-09.
+# No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
+# Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
+# Generated from the maintainers' review tables; edit through a pull request,
+# and keep the file loadable by mirobody.translate.devices.
+type	field	metric	loinc	confidence	note
+HeartRateType		heartRates	8867-4	confident	Heart rate
+BloodOxygenType		oxygenSaturations	59408-5	confident	Oxygen saturation in Arterial blood by Pulse oximetry
+BodyTemperatureType		bodyTemperatures	8310-5	confident	Body temperature
+SkinTemperatureType		skinTemperature	61008-9	unverified	Body surface temperature
+BloodPressureType		systolicPressures	8480-6	confident	Systolic blood pressure
+BloodGlucoseType		bloodGlucoses	2339-0	confident	Glucose [Mass/volume] in Blood
+SleepType		dailyTotalSleepTime	93832-4	confident	Sleep duration
+SleepType.Stage	DEEP	dailyDeepSleep	93831-6	confident	Deep sleep duration
+SleepType.Stage	LIGHT	dailyLightSleep	93830-8	confident	Light sleep duration
+SleepType.Stage	REM	dailyRemSleep	93829-0	confident	REM sleep duration
+SleepType.Stage	AWAKE	dailyAwakeTime	103210-1	unverified	Awakening duration
+SleepApneaType(?)		apneaHypopneaIndex	69990-0	confident	Apnea hypopnea index 24 hour
+StepsType		steps	55423-8	confident	Number of steps in unspecified time Pedometer
+FloorsClimbedType		floors	100304-5	confident	Flights climbed [#] Reporting Period
+ActivitySummaryType		dailyCaloriesActive	41979-6	confident	Calories burned in 24 hour Calculated
+BodyCompositionType		bodyMasss	29463-7	confident	Body weight
+UserProfileDataType		heights	8302-2	confident	Body height
+IrregularHeartRhythmNotificationType					房颤负荷无码; IHRN，2026-03 新增
+ExerciseType					OUT_OF_SCOPE; 运动会话与数百种运动枚举
+PredefinedExerciseType					OUT_OF_SCOPE; 运动会话与数百种运动枚举
+ExerciseLocationType					OUT_OF_SCOPE; 运动会话与数百种运动枚举
+StrokeType					OUT_OF_SCOPE; 运动会话与数百种运动枚举
+NutritionType					OUT_OF_SCOPE
+WaterIntakeType					OUT_OF_SCOPE
+MealType					OUT_OF_SCOPE
+EnergyScoreType					VENDOR_SCORE; 三星专有「能量分」

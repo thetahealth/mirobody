@@ -184,11 +184,11 @@ class ManageDatabaseService(CacheableDatabaseService):
             is_summary = is_summary_indicator(indicator)
         
         if is_summary:
-            # Query th_series_data for summary indicators
+            # Summary indicators are device observations
             query = """
             SELECT COUNT(*) as existing_count
-            FROM th_series_data 
-            WHERE indicator = :indicator AND source = :source AND deleted = 0 AND source_table = ''
+            FROM v_observation
+            WHERE name_text = :indicator AND vendor = :source AND source_kind = 'device'
             """
         else:
             # Query series_data for series indicators
@@ -226,17 +226,9 @@ class ManageDatabaseService(CacheableDatabaseService):
         is_summary = (indicator_type == 'summary')
         
         if is_summary:
-            # Update th_series_data for summary indicators
-            query = """
-            UPDATE th_series_data 
-            SET 
-                indicator = :new_indicator,
-                update_time = CURRENT_TIMESTAMP
-            WHERE indicator = :old_indicator 
-              AND source = :source
-              AND deleted = 0
-              AND source_table = ''
-            """
+            # An observation keeps the name it was written with: renaming is
+            # a coding decision (an alias), never a rewrite of the fact.
+            raise ValueError("summary observations are never renamed; add a coding alias instead")
         else:
             # Update series_data for series indicators
             query = """

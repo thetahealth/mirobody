@@ -31,12 +31,3 @@ async def init():
         logger.error(f"Failed to start aggregate indicator scheduler: {str(e)}")
         raise  # Re-raise to prevent service from starting if tests fail
 
-    # Start standard indicator registry task: publishes in-code
-    # StandardIndicator enum + derived aggregation rules to
-    # standard_indicators_device once a day.
-    try:
-        from mirobody.translate import start_std_indicator_registry
-        await start_std_indicator_registry()
-        logger.info("Std indicator registry task started")
-    except Exception as e:
-        logger.error(f"Failed to start std indicator registry task: {str(e)}")

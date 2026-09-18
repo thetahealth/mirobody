@@ -235,7 +235,7 @@ def get_indicators_in_same_categories(
         indicator_names: indicator names present in the repair batch.
         data_types: optional filter; only return indicators whose data_type is in
             this set (e.g. {HealthDataType.SERIES, HealthDataType.MIX} for series_data,
-            {HealthDataType.SUMMARY, HealthDataType.MIX} for th_series_data).
+            {HealthDataType.SUMMARY, HealthDataType.MIX} for the summary observations).
 
     Returns:
         Canonical indicator names in the same categories (filtered by data_type).

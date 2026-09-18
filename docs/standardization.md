@@ -3,8 +3,8 @@
 **English** · **[中文](standardization.zh-CN.md)**
 
 The long form of the README's **② Translate (standardize)** stage: what the shipped
-vocabulary is, what it deliberately does not do, which LOINC release it is cut
-from and why, and the opt-in semantic tier. Every exact figure here is the same
+vocabulary is, what it deliberately does not do, and which LOINC release it is
+cut from. Every exact figure here is the same
 one the README quotes; the README is held to the artifacts those figures come
 from, and this page follows it.
 
@@ -23,9 +23,10 @@ Standardization here is not a lookup table but a complete terminology-normalizat
 - **Concept graph**: 440,961 nodes · 22,044,110 cross-vocabulary edges ·
   **595,746 source ids** distilled into canonical concepts (LOINC · SNOMED CT ·
   RxNorm bridges).
-- **49,253 multilingual aliases** (中文 22,578 · 日本語 16,809 · +5:
-  de·es·fr·ko·ru). `hemoglobin`, `血红蛋白`, `血紅素` and `ヘモグロビン` all land
-  on LOINC 718-7.
+- **32,444 multilingual aliases** (中文 22,578 · de·es·fr·ko·ru 9,866), plus
+  curated rows. `hemoglobin`, `血红蛋白`, `血紅素` and `ヘモグロビン` all land
+  on LOINC 718-7. The Japanese alias file shipped before 1.5.0 was a UMLS
+  derivation, not a LOINC variant, and is gone; see `LICENSE-3RD-PARTY`.
 - **繁體中文 is two problems, handled as two.** Script folding is mechanical
   (a shipped 3,336-character zh-Hant → zh-Hans table); vocabulary is not — Taiwan
   usage picks different words, and folding `血紅素` yields the HbA1c code. Those
@@ -34,21 +35,18 @@ Standardization here is not a lookup table but a complete terminology-normalizat
 - **Units** normalized to 326 UCUM families, with dimensional analysis, a
   molar-mass bridge keyed by LOINC code, and an explicit refusal for `%` vs
   `10*9/L`. 305 standard pulse indicators.
-- **A second tier exists, and stays opt-in.** Everything above is lexical, so it
-  abstains on terms it does not know — an honest ceiling. Cosine recall
-  ([`indicator/semantic.py`](../mirobody/indicator/semantic.py)) reaches past it but
-  **cannot abstain**: for a term it has never seen it returns its nearest
-  neighbour with the confidence of a correct answer, and no threshold separates
-  the two. **No matrix ships and none is published to download**: it is 108,248
-  LOINC rows × 1024 dims (~221 MB) and it is specific to one (provider, model)
-  pair, so `scripts/build_loinc_embeddings.py` builds yours against the
-  embedding model you configure. A matrix from a different model does not
-  error — it ranks confidently in the wrong space, which is why the build
-  stamps `<matrix>.meta.json` and loading refuses a mismatch. Until you point
-  `MIROBODY_SEMANTIC_INDEX` at one, `resolve()` is unchanged; after, use it to
-  *suggest* a code a human confirms, never to mint an identity.
-  → [Semantic recall](https://docs.mirobody.ai/en/concepts/semantic-recall/) — the
-  benchmark, the two axis gates, and why `min_score` is not a correctness threshold.
+- **Everything here is lexical, and abstaining is the ceiling we keep.** A term
+  the vocabulary does not know returns `unresolved`, not a nearest neighbour.
+  1.4.x shipped an opt-in cosine-recall tier beside this one; 1.5.0 deleted it.
+  It could not abstain — for a term it had never seen it returned its nearest
+  neighbour with the confidence of a correct answer, and measured on the LOINC
+  matrix, nonsense scored 0.78 while genuine names went as low as 0.56, so no
+  threshold separated them. It also never ran: the matrix was 108,248 rows ×
+  1024 dims, specific to one (provider, model) pair, and was never published,
+  so `get_index()` returned `None` in a wheel install and in a source tree
+  alike. An opt-in nobody could opt into, in front of an answer we would not
+  have trusted. If you want better recall, the honest lever is a curated row in
+  `res/resolver_overrides.tsv`.
 - **We measure the claim instead of asserting it.**
   [`test_engine_coverage.py`](../mirobody/tests/test_engine_coverage.py) scores the offline
   resolver against the panels an ordinary checkup includes, written the way a report
@@ -64,23 +62,21 @@ pytest mirobody/tests/test_engine_coverage.py -s   # offline, about a second
 ### Two semantic indexes, and which one you get for free
 
 The matrix above is the **downloadable-corpus** tier — LOINC rows embedded once,
-built by you against your own embedding model. The deployment has a second,
-unrelated index that comes for free: indicator search in the app embeds **your
-own indicator names**, not the LOINC corpus. The worker's `IndicatorSyncTask`
-writes `th_series_dim.embedding_qwen3_8b` on each ingest, and a query is matched
-against that. It needs `mirobody worker` running, which `./deploy.sh` starts, and
-an embedding provider — the same OpenAI-compatible key that runs chat, or a
-self-hosted model behind any `/v1/embeddings` endpoint reached through
-`<PROVIDER>_BASE_URL`. Neither index changes what `resolve()` answers.
+built by you against your own embedding model. Inside the app, a question about
+a person's own readings does not use it: `query_health_indicators` ranks the
+person's own series (their printed names, the LOINC display names and codes the
+writer stored beside each reading) lexically, and falls back to the offline
+resolver's code. No embedding provider is needed for that path, and neither
+index changes what `resolve()` answers.
 
 ### Which LOINC, and what it does and does not cover
 
-The shipped bundle is cut from **LOINC 2.82**, and the package says so at
+The shipped bundle is cut from **LOINC 2.83**, and the package says so at
 runtime rather than in a comment that can drift:
 
 ```python
 >>> import mirobody; mirobody.BUNDLE_VERSION
-'loinc-2.82+2026.08.28-af2524b7a285'
+'loinc-2.83+2026.09.17-aacb2c715b56'
 ```
 
 The release, the cut date, and a digest over the bundle's own members — so a
@@ -90,17 +86,32 @@ to be the same corpus, which the package version alone never told you.
 version number; `res/fhir_loinc_bundle.NOTICE` does, and
 `scripts/stamp_bundle_version.py --check` keeps the stamp honest.
 
-**Why 2.82 and not 2.83.** The axis table and the 677k-row corpus are coupled
-through the folded `LONG_COMMON_NAME`, and 2.83 renamed 2,842 of them
-(`Cerebral spinal fluid` → `Cerebrospinal Fluid` and that family). Measured:
-upgrading the axis alone loses **3,486** name→code links and gains none, so a
-real upgrade means rebuilding the corpus — which spans SNOMED CT, RxNorm, CVX
-and DCM, each licensed separately and none redistributable here. The known
-cost of staying: 650 codes that 2.83 has marked DISCOURAGED or DEPRECATED are
-still answerable, which shows up as 52 of the 6,815 benchmark cases that
-resolve. Withholding them was measured too and not taken — LOINC offers a
-replacement for only 9 of the 658, so it would mostly turn a dated code into no
-code, and a reading with no code cannot be grouped at all.
+**What the cut contains.** 63,416 of the 99,737 ACTIVE codes in 2.83, chosen
+by rule rather than by hand (`translate_build/loinc_cut.py`): CLASSTYPE
+laboratory or clinical; CLASS families that never hold a reading dropped
+(surveys, documents, radiology, administrative); SCALE_TYP `Doc`, `Nar`, `-`,
+`Set` and `Multi` dropped; physical-exam classes kept only at `Qn` or `Ord`;
+panels kept for the laboratory subclasses plus the vital-sign and
+personal-record ones. Rows are dropped, never edited, which is what the
+[licence](https://loinc.org/license/) section 3 requires; the 153 rows carrying
+someone else's copyright notice are dropped rather than reproduced.
+
+1.4.x stayed on 2.82 for a reason that no longer exists: the axis table and the
+corpus were built from different sources and joined through a folded
+`LONG_COMMON_NAME`, so a release that renamed 2,842 of those names broke 3,486
+links. The 1.5.0 bundle is cut from one release in one pass, so there is no
+join to break. Two things follow that could not before — the axis table now
+carries `TIME_ASPCT`, without which a spot urine protein and a 24-hour
+collection share one series key, and it carries `CLASS`, which retires a
+10,045-line gate file that had to be regenerated by hand.
+
+**Measured, on 7,354 real report spellings.** Coverage is unchanged at 0.963
+and wrong answers fall from 0.035 to 0.025 — on the 6,780 cases whose expected
+code is inside the cut. The other 362 expect a narrative, document or
+exam-finding code, or one 2.83 retired: the resolver now abstains on those
+instead of answering, which is the point of the cut and not a regression. The
+650 DISCOURAGED and DEPRECATED codes 1.4.x could still answer with are gone
+with the `STATUS` gate.
 
 **LOINC covers more of the wearable world than people expect.** It is not only
 lab panels: `BDYWGT.*` codes body composition (`101685-6` body bone mass,

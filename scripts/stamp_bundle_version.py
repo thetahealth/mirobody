@@ -61,7 +61,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--bundle", default=BUNDLE_PATH)
     ap.add_argument("--date", default=datetime.date.today().strftime("%Y.%m.%d"))
-    ap.add_argument("--loinc", default="2.82", help="the LOINC release the bundle was cut from")
+    ap.add_argument("--loinc", default="2.83", help="the LOINC release the bundle was cut from")
     ap.add_argument("--check", action="store_true", help="verify the stamp, do not write")
     args = ap.parse_args()
 
@@ -81,14 +81,11 @@ def main() -> int:
         print(f"OK   {args.bundle}: {stamped}")
         return 0
 
-    # Imported here so `--check` stays on the read-only path.
-    from mirobody.indicator.fhir.embeddings.bundle import write_member
-
-    version = f"loinc-{args.loinc}+{args.date}-{digest}"
-    write_member(VERSION_MEMBER, (version + "\n").encode("utf-8"), bundle_path=args.bundle)
-    bundle_version.cache_clear()
-    print(f"stamped {args.bundle}: {version}")
-    return 0
+    # Writing the stamp is `translate_build/build_bundle.py`'s job now: it
+    # mints every member and computes this digest in the same pass, so a
+    # second writer could only disagree with it. This script verifies.
+    print(f"FAIL {args.bundle}: stamping moved to `python -m translate_build.build_bundle`")
+    return 2
 
 
 if __name__ == "__main__":

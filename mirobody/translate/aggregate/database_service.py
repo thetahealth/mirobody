@@ -1,15 +1,16 @@
-"""
-Database Service for Aggregate Indicator
+"""The aggregation passes' write seam: summary rows into the observation model.
 
-Handles database operations for aggregate indicator:
-- Batch saving summary data to th_series_data (UPSERT)
+Every daily figure an aggregation pass produces (the SQL aggregator, the
+derived rules, the Apple statistics upload) still arrives as a dict in the
+shape the collect layer has always produced. `collect.observations` turns that
+shape into drafts and writes them; a re-aggregation that changes a number
+becomes an amendment of the row it replaces, never a second UPDATE.
 """
 
 import logging
-
 from typing import Any
 
-from mirobody.collect.readings import upsert_readings
+from mirobody.collect import observations
 
 logger = logging.getLogger(__name__)
 
@@ -25,34 +26,17 @@ class AggregateDatabaseService:
             summary_records: list[dict[str, Any]],
             batch_size: int = 1000
     ) -> bool:
-        """
-        Batch save summary records to th_series_data through `collect/readings.py`
-        (`on_conflict="update"`: idempotent, a collision replaces the row).
-        
-        Args:
-            summary_records: List of summary records to save
-            batch_size: Number of records per batch
-            
-        Returns:
-            True if successful, False otherwise
-        """
+        """Write summary rows as day-grained observations. A collision with an
+        equal row is skipped; a changed value amends the row it replaces.
+        `batch_size` is accepted for the callers that pass it and unused: the
+        writer commits one transaction per (person, provenance) group."""
         if not summary_records:
             logger.info("No summary records to save")
             return True
 
         try:
-            # A re-aggregation re-sends the truth: a collision replaces the row.
-            # `anchored`: these rows already ARE days, the aggregator writes each
-            # at local 00:00:00–23:59:59 of the day it summarises, including the
-            # sleep family, whose 18:00 window was applied when the window was
-            # chosen. Pushing them through it again would file every night a day
-            # early (see collect/readings.py::day_key).
-            total_processed = await upsert_readings(
-                summary_records, on_conflict="update", anchored=True, batch_size=batch_size
-            )
-            logger.info(
-                f"Successfully saved {total_processed} summary records to th_series_data"
-            )
+            written = await observations.ingest_legacy_rows(summary_records, on_conflict=observations.ON_CONFLICT_AMEND)
+            logger.info(f"Successfully saved {written} summary observations")
             return True
 
         except Exception as e:

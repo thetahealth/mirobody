@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,58 @@ def _summarize_sql(query: str, max_len: int = 512) -> str:
     return text if len(text) <= max_len else text[:max_len] + "..."
 
 
+def _shape(cur, params) -> list[dict] | dict:
+    """The result contract, shared by `execute_query` and `Transaction`."""
+    # Branch on whether the cursor HAS a result set, never on the SQL
+    # prefix: `WITH … UPDATE`, `UPDATE … RETURNING` break the latter.
+    if cur.returns_rows:
+        return [dict(row._mapping) for row in cur.fetchall()]
+    if isinstance(params, list):
+        # rowcount under executemany is per-driver unreliable; the input
+        # batch size is what the caller actually submitted.
+        return {"record_count": len(params)}
+    return {"record_count": cur.rowcount}
+
+
+class Transaction:
+    """Several statements, one commit. Handed out by `transaction()`.
+
+    `execute` has the `execute_query` contract (bound `:name` parameters, rows
+    or a record count). `savepoint()` isolates one row of a batch: a
+    statement that fails inside it rolls back to the savepoint and the batch
+    goes on, which is what lets one bad reading be counted instead of
+    failing the whole document it came from.
+    """
+
+    def __init__(self, conn) -> None:
+        self._conn = conn
+
+    async def execute(self, query: str, params: dict | list[dict] | None = None):
+        from sqlalchemy import text
+
+        cur = await self._conn.execute(text(query), params)
+        return _shape(cur, params)
+
+    def savepoint(self):
+        return self._conn.begin_nested()
+
+
+@asynccontextmanager
+async def transaction(db_config: str = ""):
+    """One transaction over several statements.
+
+        async with transaction() as tx:
+            row = await tx.execute("INSERT ... RETURNING id", {...})
+            await tx.execute("INSERT ...", {...})
+
+    Commits when the block exits normally, rolls back on an exception, and
+    closes either way. `execute_query` is one of these with one statement.
+    """
+    engine = engine_for(db_config)
+    async with engine.begin() as conn:
+        yield Transaction(conn)
+
+
 async def execute_query(
     query: str,
     params: dict | list[dict] | None = None,
@@ -95,16 +148,7 @@ async def execute_query(
         async with engine.begin() as conn:
             # params=list[dict] is SQLAlchemy executemany; dict/None binds once.
             cur = await conn.execute(text(query), params)
-            # Branch on whether the cursor HAS a result set, never on the SQL
-            # prefix: `WITH … UPDATE`, `UPDATE … RETURNING` break the latter.
-            if cur.returns_rows:
-                ret: list[dict] | dict = [dict(row._mapping) for row in cur.fetchall()]
-            elif isinstance(params, list):
-                # rowcount under executemany is per-driver unreliable; the input
-                # batch size is what the caller actually submitted.
-                ret = {"record_count": len(params)}
-            else:
-                ret = {"record_count": cur.rowcount}
+            ret = _shape(cur, params)
 
         if log_sql:
             extra: dict[str, Any] = {

@@ -1,0 +1,103 @@
+# Huawei Health Kit: vendor fields to LOINC 2.83
+#
+# Huawei Health Kit data types and fields to the catalogue and to LOINC.
+# `derived` rows are quantities the sleep record implies but does not carry as a field.
+#
+# Source, read 2026-09-09:
+#   https://developer.huawei.com/consumer/cn/doc/HMSCore-Guides/overview-0000001177423513
+#   https://developer.huawei.com/consumer/cn/doc/HMSCore-Guides/health-sampling-data-0000001131423778
+#   Data-type overview and the field-level sampling, daily-activity and health-record pages.
+#
+# Columns:
+#   type        the vendor's data type, record class or endpoint, verbatim
+#   field       the field inside it, verbatim; empty when the type is the reading
+#   metric      the mirobody catalogue name (res/metrics.tsv); empty when the catalogue has no row
+#   loinc       the LOINC code the field means; EMPTY IS A DECLINE, and the note says why
+#   confidence  confident = the six LOINC axes agree with the vendor's definition;
+#               unverified = close, a person must confirm before a reading is filed under it
+#   note        the reasoning; some notes are in Chinese, as they were written
+#
+# Every code was checked by hand against the LOINC 2.83 axis table on 2026-09-09.
+# No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
+# Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
+# Generated from the maintainers' review tables; edit through a pull request,
+# and keep the file loadable by mirobody.translate.devices.
+type	field	metric	loinc	confidence	note
+com.huawei.instantaneous.heart_rate	bpm	heartRates	8867-4	confident	单位 次/分钟，范围 (0,255)；本仓已有此码
+com.huawei.instantaneous.resting_heart_rate	bpm	restingHeartRates	40443-4	confident	华为定义为「一天中静止且清醒状态下最低心率估算」，与 Heart rate^resting 相符
+com.huawei.continuous.heart_rate.statistics	avg	dailyHeartRateAvg	103205-1	confident	Mean heart rate（2.75）；华为按自然日统计，与本仓 provider_daily 相符
+com.huawei.continuous.heart_rate.statistics	max	dailyHeartRateMax	101692-2	confident	Maximum heart rate（2.75）
+com.huawei.continuous.heart_rate.statistics	min	dailyHeartRateMin	103222-6	confident	Heart rate.minimum（2.75）
+com.huawei.continuous.heart_rate.statistics	minHeartrateBaseline	dailySleepBaseHeartRate			LOINC 无心率基线码；华为标注仅睡眠记录可查
+com.huawei.continuous.heart_rate.statistics	maxHeartrateBaseline				同上
+com.huawei.heart_rate_variability	heartRateVariabilityRMSSD	hrvRMSSD			华为 HRV 是 RMSSD（毫秒，(0,200]）。LOINC 2.83 只有 112429-6 Heart rate variability SDNN，以及 76643-6/80404-7 R-R interval.standard deviation（同为 SDNN 族）。RMSSD 与 SDNN 是不同的数学定义，不可互换 —— 本仓 hrvRMSSD 与 hrvDatas 分列是对的，此项留设备命名空间。lit-review §1 结论 5「RMSSD 型 HRV 至今没有专门的 LOINC 码」经 2.83 轴表复核仍成立
+com.huawei.instantaneous.spo2	saturation	oxygenSaturations	59408-5	confident	单位百分比，范围 (0,100]。本仓现为 2708-6（实验室动脉血气），设备应改 METHOD=Pulse oximetry 的 59408-5
+com.huawei.continuous.spo2.statistics	saturation_avg		103209-3	unverified	Mean oxygen saturation（2.75）—— 但该码 PROPERTY=NRat（速率），而饱和度是分数（应为 MFr/SFr）。这是 LOINC 自身的轴缺陷，落码前须权衡；本仓无对应 member
+com.huawei.continuous.spo2.statistics	saturation_max				LOINC 无日最高血氧码（59405-7/59406-9 是 8 小时窗口，口径不符）
+com.huawei.continuous.spo2.statistics	saturation_min				同上
+com.huawei.continuous.spo2.statistics	minOxygenSaturationBaseline				LOINC 无血氧基线码
+com.huawei.instantaneous.body.temperature	temperature	bodyTemperatures	8310-5	confident	摄氏度 [34.0,42.0]；本仓已有
+com.huawei.continuous.body.temperature.statistics	avg				LOINC 无日均体温码
+com.huawei.instantaneous.skin.temperature	temperature	skinTemperature	61008-9	unverified	2026-09-09 修正：`61008-9` Body surface temperature = Temp/Qn/SYSTEM=Surface（IEEE MDC_TEMP_BODY），是定量体表温度码。本仓现挂 `8310-5`（Body temperature，^Patient 核心体温）仍是错码，但修法从「清码」改为「换成 61008-9」——这改变了 README §2 A2 的定案，是 owner 的决定。`39106-0` 仍不可用（Find/Nom）。(see docs/device-crosswalk.md)
+com.huawei.continuous.skin.temperature.statistics	avg	dailySleepSkinTemperature	61008-9	unverified	同上；日均口径，LOINC 无日均体表温度码，用 Pt 码需声明聚合
+com.huawei.instantaneous.stress	score	stressLevel			华为压力得分 [1,99]，是厂商专有算法评分；LOINC 无对应码。本仓 stressLevel 留空是对的
+com.huawei.instantaneous.stress	grade				等级 1 放松/2 正常/3 中等/4 偏高，专有分级
+com.huawei.instantaneous.stress.statistics	avg				同上
+com.huawei.instantaneous.blood_pressure		systolicPressures	8480-6	confident	本仓已有（Watch D / 生态血压计）
+com.huawei.instantaneous.blood_pressure		diastolicPressures	8462-4	confident	本仓已有
+com.huawei.instantaneous.blood_glucose		bloodGlucoses	2339-0	confident	本仓已有；数据源为三方血糖仪，可改 41653-7（METHOD=Glucometer）更精确
+com.huawei.instantaneous.height		heights	8302-2	confident	本仓已有
+com.huawei.instantaneous.body_weight		bodyMasss	29463-7	confident	本仓已有（华为体脂称 / 三方生态设备）
+com.huawei.continuous.steps.delta		steps	55423-8	confident	Number of steps in unspecified time，METHOD=Pedometer；华为为 delta 累积，与本仓 sum_delta 相符
+com.huawei.daily_activity_summary		dailySteps	41950-7	confident	Number of steps in 24 hour Measured
+com.huawei.continuous.distance.delta			103208-5	confident	generic distance, all activities; the catalogue's walkingRunningDistances is walking or running only (112427-0); Distance traveled（2.75）
+com.huawei.continuous.calories.burnt		activeCalories	41981-2	confident	Calories burned
+com.huawei.continuous.exercise_intensity.v2	exercise_type				2026-09-09 修正（上一轮映到 101689-8/101690-6 是错的）：字段级文档显示该类型的字段是 `exercise_type`——运动种类枚举（1 步行/2 跑步/3 骑行/4 训练/5 心率(无实际意义)/6 爬高/7 游泳），不是强度档位。LOINC 的 moderate/vigorous 是强度分档，两者不同维度，不可映射
+com.huawei.continuous.exercise_intensity.v2.statistics	totalIntensity	exerciseMinutes	101691-4	unverified	总锻炼时长（分钟）→ `101691-4` Duration of physical activity（Time/Qn）。注意华为口径是「中高强度」时长，而 `101691-4` 是全部身体活动时长，范围更宽，故 unverified
+com.huawei.continuous.exercise_intensity.v2.statistics	intensity_map				Map<exercise_type, 分钟>。按种类拆分的时长，LOINC 无按运动种类分列的时长码
+com.huawei.instantaneous.altitude		altitudeGain			LOINC 无海拔码
+com.huawei.active_hours	isActive / activeHours				2026-09-09 定案：不给码。 字段级文档：明细 `isActive`（1=是），统计 `activeHours`=「活动小时数完成次数」。是达标小时的计数，而 `112425-4` Standing time 1 day 是时长（Time/1D）—— PROPERTY 不同，不可用。对应 Apple 的 `appleStandHour`（同为计数，同样无码）
+com.huawei.vo2max		vo2Maxs	94122-9	unverified	同 Apple vo2Max：替换本仓错码 60842-2；94122-9 指 CPET 实测峰值，穿戴为估算，故 unverified
+com.huawei.continuous.sleep.fragment	sleep_state=1	dailyLightSleep	93830-8	confident	浅睡; Light sleep duration —— 华为用「浅睡」原生对应，比 Apple 的 asleepCore 更直接。本仓 dailyLightSleep 留空，可补
+com.huawei.continuous.sleep.fragment	sleep_state=2	dailyRemSleep	93829-0	confident	梦睡(快速眼动); REM sleep duration
+com.huawei.continuous.sleep.fragment	sleep_state=3	dailyDeepSleep	93831-6	confident	深睡; Deep sleep duration
+com.huawei.continuous.sleep.fragment	sleep_state=4	dailyAwakeTime	103210-1	unverified	清醒; Awakening duration（2.75）；若口径为入睡后累计清醒应改 103215-0 Wake time after sleep onset
+com.huawei.continuous.sleep.fragment	sleep_state=5	napDuration			午睡(零星小睡); LOINC 无小睡/日间睡眠码
+derived	total sleep time	dailyTotalSleepTime	93832-4	confident	Sleep duration；本仓 sleepDuration / dailyTotalSleepTime 均留空，可补
+derived	time in bed	dailySleepDuration	103213-5	confident	Duration in bed（2.75）；本仓 dailySleepDuration 描述即「Daily total time in bed」
+derived	sleep latency	dailySleepLatency	103212-7	confident	Duration of falling asleep（2.75）
+com.huawei.sleep.on_off_bed_record	onOffBedState=2		103216-8	unverified	离床; Number of times getting out of bed（2.75）；时长口径用 103214-3 Duration of out of bed。本仓无对应 member
+com.huawei.obstructive_sleep_apnea	osaLevel				LOINC 无 OSA 风险分级码（28633-6 Polysomnography study 是 Doc 型文档码，不是分级结果）。华为该能力亦仅对部分开发者开放
+com.huawei.sleep_respiratory_event	eventName=2		103221-8	unverified	鼾声; Number of snoring episodes（2.75）；华为是事件流，需先聚合成计数。时长口径用 103220-0 Duration of snoring
+com.huawei.sleep_respiratory_event	eventName=3				阻塞性呼吸暂停; LOINC 无穿戴/家用设备口径的呼吸暂停事件计数码
+com.huawei.sleep_respiratory_detail	type=1				leak 漏气量; 呼吸机工程量，LOINC 侧对应 IEEE 11073 表（MDC_VENT_*），非本仓口径
+com.huawei.sleep_respiratory_detail	type=2				151817; IPAP 吸气压; IEEE 表内为 MDC_PRESS_AWAY_INSP_MAX / LOINC 60951-1；仅在接入呼吸机时才相关
+com.huawei.sleep_respiratory_detail	type=3				EPAP 呼气压; 同上，参 LOINC 35410-0 / 38199-6
+derived	mean respiratory rate during sleep	dailyRespiratoryRates	103217-6	unverified	Mean respiratory rate（2.75）—— 但该码 SCALE_TYP 为空、CLASS 误置为 HRTRATE.ATOM，是 LOINC 自身缺陷；落码须知
+derived	minimum respiratory rate during sleep	dailyMinRespiratoryRates	103218-4	confident	Minimum respiratory rate（2.75）
+derived	maximum respiratory rate during sleep	dailyMaxRespiratoryRates	103219-2	unverified	Maximum respiratory rate（2.75）—— 该码 TIME_ASPCT 为 `XXX^min`，与 COMPONENT 的 Maximum 矛盾，是 LOINC 自身缺陷
+com.huawei.continuous.ecg_detail					原始波形，落码走 ECG 专用轴（EKG.MEAS 类），不属本仓指标口径
+com.huawei.health.record.sleep	all_sleep_time	dailyTotalSleepTime	93832-4	confident	全部睡眠时长，分钟
+com.huawei.health.record.sleep	light_sleep_time	dailyLightSleep	93830-8	confident	浅睡时长，分钟 —— 原生「浅睡」，比 Apple asleepCore 直接
+com.huawei.health.record.sleep	deep_sleep_time	dailyDeepSleep	93831-6	confident	深睡时长，分钟
+com.huawei.health.record.sleep	dream_time	dailyRemSleep	93829-0	confident	「快速眼动时长」= REM，分钟
+com.huawei.health.record.sleep	awake_time	dailyAwakeTime	103210-1	unverified	清醒时长；若口径为入睡后累计清醒应改 103215-0 WASO
+com.huawei.health.record.sleep	wakeup_count	sleepDisturbances	103211-9	confident	清醒次数 → Number of awakenings（2.75）
+com.huawei.health.record.sleep	go_bed_time / off_bed_time	sleepAnalysis_InBed	103213-5	unverified	上床/最后一次离床时间戳，需相减得卧床时长再落 Duration in bed
+com.huawei.health.record.sleep	fall_asleep_time / prepare_sleep_time	dailySleepLatency	103212-7	unverified	准备入睡→入睡的差值 = 入睡潜伏期 → Duration of falling asleep
+com.huawei.health.record.sleep	sleep_score	sleepQuality			睡眠得分，厂商专有分，LOINC 结构性无码（`97891-6 Sleep score [R-Outcomes]` 是特定问卷量表，不可借用）
+com.huawei.health.record.sleep	deep_sleep_part	dailySleepContinuity			深睡连续性得分，专有分
+com.huawei.health.record.sleep	sleep_type				1 科学睡眠 / 2 普通睡眠 / 3 零星小睡。建议用作分流键：type=2「普通睡眠」只含 light/deep/awake 无 REM，type=3 只有总时长 —— 落分期码前必须按 type 分流，否则会把缺失当成 0
+com.huawei.health.record.ventilator	eventAhi	apneaHypopneaIndex	69990-0	confident	新增：`69990-0` Apnea hypopnea index 24 hour（NRat/Qn）。华为单位 times/h，与 AHI 定义一致。本仓无对应 member，建议新增
+com.huawei.health.record.ventilator	obstructiveApneaIndex	obstructiveApneaIndex	70002-1	confident	新增：`70002-1` Obstructive apnea index 24 hour
+com.huawei.health.record.ventilator	centerApneaEventTimes		70003-9	unverified	`70003-9` Central apnea index 24 hour 是指数（次/小时），华为该字段是总次数 —— 需除以使用时长换算
+com.huawei.health.record.ventilator	hypoventilationIndex				LOINC 无低通气指数独立码（AHI 已含低通气）
+com.huawei.health.record.ventilator	snoringEventTimes		103221-8	confident	鼾声事件总次数 → Number of snoring episodes（2.75）
+com.huawei.health.record.ventilator	clinicalRespRateMedian				LOINC 无呼吸率中位数码（只有 mean/min/max）
+com.huawei.health.record.ventilator	sysMode / pressureBelow95 / lumisTidvol*				呼吸机工程量，落码走 IEEE 11073 表的 MDC_VENT_* / MDC_PRESS_AWAY_* 族
+com.huawei.health.record.ventilator	maskOff				面罩脱落次数。建议接进置信分级
+com.huawei.continuous.steps.total	steps	dailySteps	41950-7	confident	步数总值；另有 duration 步行时长（分钟）
+com.huawei.continuous.calories.burnt.total	calories_total	dailyCaloriesActive	41979-6	confident	千卡
+com.huawei.continuous.distance.total	distance	dailyDistance	103208-5	confident	米
+com.huawei.daily_activity_summary	steps / activeCalories / exerciseTime / activeHours				四个统计值分别同上；`exerciseTime` → 101691-4（unverified）
+com.huawei.daily_activity_summary	stepsGoal / activeCaloriesGoal / exerciseTimeGoal / activeHoursGoal				目标值不是测量值，一律不落码

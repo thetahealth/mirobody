@@ -1,0 +1,76 @@
+# Apple HealthKit: vendor fields to LOINC 2.83
+#
+# HealthKit type identifiers, and the sleep-analysis category values, to the catalogue and to LOINC.
+# `derived` rows are day totals the export does not carry as a type of their own.
+#
+# Source, read 2026-09-09:
+#   https://developer.apple.com/tutorials/data/documentation/healthkit/hkquantitytypeidentifier.json
+#   https://developer.apple.com/tutorials/data/documentation/healthkit/hkcategorytypeidentifier.json
+#   https://developer.apple.com/tutorials/data/documentation/healthkit/hkcategoryvaluesleepanalysis.json
+#   Apple's own JSON endpoints behind the HealthKit reference pages.
+#
+# Columns:
+#   type        the vendor's data type, record class or endpoint, verbatim
+#   field       the field inside it, verbatim; empty when the type is the reading
+#   metric      the mirobody catalogue name (res/metrics.tsv); empty when the catalogue has no row
+#   loinc       the LOINC code the field means; EMPTY IS A DECLINE, and the note says why
+#   confidence  confident = the six LOINC axes agree with the vendor's definition;
+#               unverified = close, a person must confirm before a reading is filed under it
+#   note        the reasoning; some notes are in Chinese, as they were written
+#
+# Every code was checked by hand against the LOINC 2.83 axis table on 2026-09-09.
+# No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
+# Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
+# Generated from the maintainers' review tables; edit through a pull request,
+# and keep the file loadable by mirobody.translate.devices.
+type	field	metric	loinc	confidence	note
+HKQuantityTypeIdentifier	heartRate	heartRates	8867-4	confident	本仓已有，核轴通过（NRat/Pt/XXX/Qn）
+HKQuantityTypeIdentifier	restingHeartRate	restingHeartRates	40443-4	confident	本仓已有；Heart rate^resting NRat/Pt/Qn
+HKQuantityTypeIdentifier	walkingHeartRateAverage	walkingHeartRates			LOINC 无「步行心率」码；留在设备命名空间
+HKQuantityTypeIdentifier	heartRateVariabilitySDNN	hrvSDNN	112429-6	confident	LOINC 2.82 新增，COMPONENT 逐字为 SDNN。本仓 HRV(hrvDatas) 未限定算法，不能挂此码；建议新增 HRV_SDNN 项承载
+HKQuantityTypeIdentifier	heartRateRecoveryOneMinute	recoveryes			LOINC 无一分钟恢复心率码
+HKQuantityTypeIdentifier	atrialFibrillationBurden				LOINC 无房颤负荷码（轴表 0 命中）
+HKQuantityTypeIdentifier	oxygenSaturation	oxygenSaturations	59408-5	confident	本仓现为 2708-6（Oxygen saturation in Arterial blood，CHEM 类实验室血气）。设备是脉搏血氧，应用 METHOD=Pulse oximetry 的 59408-5；US Core Pulse Oximetry 亦以 59408-5 为必填
+HKQuantityTypeIdentifier	bodyTemperature	bodyTemperatures	8310-5	confident	本仓已有
+HKQuantityTypeIdentifier	bloodPressureSystolic	systolicPressures	8480-6	confident	本仓已有
+HKQuantityTypeIdentifier	bloodPressureDiastolic	diastolicPressures	8462-4	confident	本仓已有
+HKQuantityTypeIdentifier	respiratoryRate	respiratoryRates	9279-1	confident	本仓已有
+HKQuantityTypeIdentifier	stepCount	steps	55423-8	confident	Number of steps in unspecified time，METHOD=Pedometer。本仓 steps 是 sum_delta 累积序列，与 XXX（未指定时间）相符
+derived	dailySteps	dailySteps	41950-7	confident	Number of steps in 24 hour Measured；本仓 dailySteps 是 provider_daily
+HKQuantityTypeIdentifier	distanceWalkingRunning	walkingRunningDistances	112427-0	confident	LOINC 2.82 新增，COMPONENT 逐字 "Distance walking or running"
+derived	dailyDistance	dailyDistance	103208-5	confident	Distance traveled（2.75），Len/Pt/Qn
+HKQuantityTypeIdentifier	flightsClimbed	floors	100304-5	confident	Flights climbed [#] Reporting Period；24H 口径用 93833-2。本仓无对应项
+HKQuantityTypeIdentifier	activeEnergyBurned	activeCalories	41981-2	confident	Calories burned，EngRat/Pt/Qn
+derived	dailyCaloriesActive	dailyCaloriesActive	41979-6	confident	Calories burned in 24 hour Calculated
+HKQuantityTypeIdentifier	basalEnergyBurned	basalCalories			LOINC 无基础代谢消耗量码；50042-1 是 BMR index（ACnc），口径不同
+HKQuantityTypeIdentifier	appleStandTime		112425-4	unverified	Standing time 1 day（2.82）。Apple appleStandTime 是分钟数/日，口径相符；本仓无对应项
+HKQuantityTypeIdentifier	appleExerciseTime	exerciseMinutes			LOINC 无 Apple 口径「运动分钟」；101691-4 Duration of physical activity 是自报病史轴，方法不同
+HKQuantityTypeIdentifier	appleMoveTime				同上
+HKQuantityTypeIdentifier	vo2Max	vo2Maxs	94122-9	unverified	本仓现为 60842-2 = Oxygen consumption (VO2) VRat，无 max 语义，是错码。94122-9 = VO2/Body weight^peak during exercise，VRatCnt/Qn，单位 mL/min/kg 与本仓一致；但 LOINC 该码指 CPET 实测峰值，穿戴是估算 —— 故 unverified 而非 confident
+HKQuantityTypeIdentifier	physicalEffort		112426-2	confident	LOINC 2.82 新增，COMPONENT 逐字 "Physical effort"，EngRat/Qn（MET）。本仓无对应项
+HKQuantityTypeIdentifier	walkingSpeed	walkingSpeeds			LOINC 仅有 24h/1W 汇总的 Walking speed（41956-4/41957-2/41958-0/41959-8），无 Pt 瞬时码；本仓是 instant 序列，SCALE/TIME 不符
+HKQuantityTypeIdentifier	walkingAsymmetryPercentage	walkingAsymmetryPercentage	112432-0	unverified	LOINC 2.82 新增，名称逐字对应；但 SCALE_TYP=Ord 而 Apple 是百分比数值（Qn）—— 轴冲突，落码前须确认（同 skinTemperature/39106-0 的否决理由）
+HKQuantityTypeIdentifier	walkingDoubleSupportPercentage	walkingDoubleSupportPercentage	112434-6	confident	LOINC 2.82 新增，Prctl/Qn，与 Apple 百分比相符
+HKQuantityTypeIdentifier	stairAscentSpeed	stairAscentSpeed	112431-2	confident	LOINC 2.82 新增，Vel/Qn
+HKQuantityTypeIdentifier	stairDescentSpeed	stairDescentSpeed	112430-4	confident	LOINC 2.82 新增，Vel/Qn
+HKQuantityTypeIdentifier	appleWalkingSteadiness				LOINC 无行走稳定性码（轴表 0 命中）
+HKQuantityTypeIdentifier	sixMinuteWalkTestDistance	sixMinuteWalkDistance	64098-7	confident	Six minute walk test，Len/6M/Qn
+HKQuantityTypeIdentifier	walkingStepLength	stepDuration			本仓 stepDuration 是时长(ms)，Apple 是步长(m)，口径本身不同；LOINC 无步长码
+HKQuantityTypeIdentifier	bodyMass	bodyMasss	29463-7	confident	本仓已有
+HKQuantityTypeIdentifier	height	heights	8302-2	confident	本仓已有
+HKQuantityTypeIdentifier	bodyMassIndex	bmis	39156-5	confident	本仓已有
+HKQuantityTypeIdentifier	bodyFatPercentage	bodyFatPercentages	41982-0	confident	Percentage of body fat Measured，MFr/Qn。本仓留空，可补
+HKQuantityTypeIdentifier	leanBodyMass	bodyFatFreeWeight	91557-9	confident	Lean body weight，Mass/Qn。本仓留空，可补
+HKQuantityTypeIdentifier	waistCircumference	waistCircumferences	8280-0	unverified	Waist Circumference at umbilicus by Tape measure —— METHOD 是卷尺。Apple 该项多为手工录入，尚可；设备估算须另议
+HKQuantityTypeIdentifier	appleSleepingWristTemperature	wristTemperatures	61008-9	unverified	2026-09-09 修正（本行原判「无码」，是错的）：`61008-9` Body surface temperature 的六轴是 COMPONENT=Body temperature / PROPERTY=Temp / SYSTEM=Surface / SCALE=Qn（IEEE MDC_TEMP_BODY），是定量体表温度码，可承载 °C 皮温序列。此前只查了 `39106-0`（Find/Nom，确实不可用）就下了结论。腕部无专用码，故 unverified；戒指类设备用 `60830-7 Finger temperature`（Temp/Qn/SYSTEM=Finger）可 confident。(see docs/device-crosswalk.md)
+HKQuantityTypeIdentifier	bloodGlucose	bloodGlucoses	2339-0	confident	本仓已有；若数据来自血糖仪可用 41653-7（METHOD=Glucometer）
+HKQuantityTypeIdentifier	peripheralPerfusionIndex	perfusionIndex	61006-3	confident	Perfusion index Tissue by Pulse oximetry。本仓无对应项
+HKQuantityTypeIdentifier	electrodermalActivity				LOINC 无皮电活动码
+HKCategoryTypeIdentifierSleepAnalysis	inBed	sleepAnalysis_InBed	103213-5	confident	Duration in bed（2.75），METHOD=Measured
+HKCategoryTypeIdentifierSleepAnalysis	asleepREM	sleepAnalysis_Asleep(REM)	93829-0	confident	REM sleep duration
+HKCategoryTypeIdentifierSleepAnalysis	asleepDeep	sleepAnalysis_Asleep(Deep)	93831-6	confident	Deep sleep duration
+HKCategoryTypeIdentifierSleepAnalysis	asleepCore	sleepAnalysis_Asleep(Core)	93830-8	unverified	LOINC 只有 Light sleep duration。Apple 文档称 Core 对应 N1+N2 即浅睡，语义近似但非同名；华为「浅睡」可直落此码，Apple Core 须标注
+HKCategoryTypeIdentifierSleepAnalysis	awake	sleepAnalysis_Awake	103210-1	unverified	Awakening duration（2.75）。若语义是「入睡后醒着的总时长」应改 103215-0 Wake time after sleep onset —— 取决于本仓 duration_union 的口径，须核
+HKCategoryTypeIdentifierSleepAnalysis	asleepUnspecified	sleepAnalysis_Asleep(Unspecified)	93832-4	confident	Sleep duration
+HKQuantityTypeIdentifier	appleSleepingBreathingDisturbances				LOINC 无睡眠呼吸干扰码
+HKQuantityTypeIdentifier	mindfulSession				LOINC 无正念时长码（100280-7 是 FFMQ 问卷 panel）

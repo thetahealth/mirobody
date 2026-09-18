@@ -24,12 +24,10 @@ It is the OPPOSITE constraint: a `阴性` reading must not be answered with a
 answered with an ``Ord`` presence code.
 
 **This module exists to be shared, not to be new.** The tables and the
-classifier were written for the v2 semantic pipeline
-(:mod:`mirobody.indicator.fhir.resolve.pipeline`), which is the only thing that
-could reach them: 7,286 lines that need a 677k-row corpus matrix. Extracted
-here so the lexical resolver and the small semantic tier use the same vocabulary
-as the big pipeline rather than a second, drifting copy of it. `pipeline.py`
-imports these back.
+classifier were written for a semantic pipeline that needed a 677k-row corpus
+matrix nobody could install; 1.5.0 deleted it. They were extracted here first,
+which is why they outlived it: the lexical resolver reads the same vocabulary
+the pipeline did, rather than a second, drifting copy.
 """
 
 from __future__ import annotations

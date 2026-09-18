@@ -13,7 +13,7 @@ actually answer with.
 
 **Ordering is by utf-8 bytes**, which is the same order as by code point (utf-8
 is order-preserving) so a table built from a Python-sorted list bisects
-correctly here. ``scripts/build_runtime_index.py`` asserts that the shipped
+correctly here. ``translate_build/build_bundle.py`` asserts that the shipped
 arrays really are in that order rather than trusting it, because a bisect over
 an unsorted table returns some other entry's row instead of failing.
 """

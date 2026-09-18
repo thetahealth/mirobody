@@ -12,9 +12,6 @@ from typing import Any
 
 from .aggregators import SQLAggregator, AggregatorProtocol
 from .database_service import AggregateDatabaseService
-from .rule_generator import get_rules_by_source_indicator
-from mirobody.translate import get_fhir_id, FhirMapping
-from mirobody.translate import StandardIndicator
 
 logger = logging.getLogger(__name__)
 
@@ -105,11 +102,6 @@ class AggregateIndicatorService:
             # Business logic: Calculate aggregations
             all_summaries = await self.aggregator.calculate_batch_aggregations(tasks)
 
-            # Register missing FHIR indicators BEFORE saving, then backfill fhir_id
-            if all_summaries:
-                await self._register_missing_fhir_indicators()
-                self._backfill_fhir_ids(all_summaries)
-
             # Business logic: Save to database
             if all_summaries:
                 save_success = await self.db_service.batch_save_summary_data(
@@ -157,58 +149,6 @@ class AggregateIndicatorService:
             logger.error(f"[AggregateIndicator] Error during processing: {e}")
             return {"status": "error", "error": str(e)}
 
-    @staticmethod
-    def _backfill_fhir_ids(summaries: list[dict[str, Any]]):
-        """Re-fill fhir_id on summaries that were None (cache was updated by register_missing)."""
-        backfilled = 0
-        for summary in summaries:
-            if summary.get("fhir_id") is None:
-                fhir_id = get_fhir_id(summary.get("indicator", ""))
-                if fhir_id:
-                    summary["fhir_id"] = fhir_id
-                    backfilled += 1
-        if backfilled:
-            logger.info(f"[FhirMapping] Backfilled {backfilled} fhir_ids before save")
-
-    async def _register_missing_fhir_indicators(self):
-        """Register any pending FHIR indicators (auto_register mode only)."""
-        try:
-            instance = FhirMapping.get_instance()
-            if instance is None or not instance.get_pending():
-                return
-
-            # Build indicator_info_map covering both source and aggregated indicator names
-            info_map = {}
-            for ind in StandardIndicator:
-                info = ind.value
-                if not info.name:
-                    continue
-                source_info = {
-                    "short_name": info.name_zh or info.name,
-                    "description": info.description or "",
-                    "unit": info.standard_unit or "",
-                }
-                # Map source indicator name (e.g. "heartRates")
-                info_map[info.name] = source_info
-
-                # Map all aggregated indicator names (e.g. "dailyAvgHeartRates")
-                rules = get_rules_by_source_indicator(info.name)
-                for rule in rules:
-                    # Get unit from aggregator (uses HHMM in comments)
-                    raw_unit = self.aggregator._get_aggregation_unit(info.name, rule.aggregation_type) if hasattr(self.aggregator, '_get_aggregation_unit') else source_info['unit']
-                    # For fhir_indicators, use standard HH:MM format (not HHMM)
-                    fhir_unit = raw_unit.replace('HHMM', 'HH:MM')
-                    agg_info = {
-                        "short_name": f"{source_info['short_name']}({rule.aggregation_type})" if info.name_zh else rule.target_indicator,
-                        "description": f"{info.description or info.name} - {rule.aggregation_type} aggregation",
-                        "unit": fhir_unit,
-                    }
-                    info_map[rule.target_indicator] = agg_info
-
-            await instance.register_missing(info_map)
-        except Exception as e:
-            logger.warning(f"[AggregateIndicator] FHIR registration skipped: {e}")
-
     async def recalculate_date_range(
             self,
             start_date: datetime,
@@ -254,11 +194,6 @@ class AggregateIndicatorService:
             user_id=user_id
         )
 
-        # Register missing FHIR indicators BEFORE saving, then backfill fhir_id
-        if all_summaries:
-            await self._register_missing_fhir_indicators()
-            self._backfill_fhir_ids(all_summaries)
-
         # Save summaries
         if all_summaries:
             save_success = await self.db_service.batch_save_summary_data(all_summaries)
@@ -291,11 +226,13 @@ class AggregateIndicatorService:
         worse outcome than a day that is merely not yet arbitrated.
         """
         from .election import elect_range
-        from mirobody.collect.readings import day_key
 
         by_user: dict[str, list] = {}
         for row in summaries:
-            day = day_key(str(row.get("indicator") or ""), row.get("start_time"), anchored=True)
+            # A summary row already IS a day: its start is local 00:00 of the
+            # day it summarises, so the date is the day.
+            start = row.get("start_time")
+            day = start.date() if isinstance(start, datetime) else None
             if day is not None:
                 by_user.setdefault(str(row.get("user_id")), []).append(day)
         for user_id, days in by_user.items():

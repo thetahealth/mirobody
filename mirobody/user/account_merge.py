@@ -20,7 +20,8 @@ SIMPLE_RELINK_TABLES: list[tuple[str, list[str]]] = [
     ("th_files",                        ["user_id", "query_user_id"]),
     ("th_messages",                     ["user_id", "query_user_id"]),
     ("th_sessions",                     ["user_id", "query_user_id"]),
-    ("th_series_data",                  ["user_id"]),
+    ("th_extraction",                   ["user_id"]),
+    ("th_check_result",                 ["user_id"]),
     ("th_series_data_genetic",          ["user_id"]),
     ("th_session_share",                ["user_id"]),
     ("th_task_flow",                    ["user_id"]),
@@ -143,6 +144,48 @@ async def _merge_care_circle_members(cur, losing_id: int, winning_id: int) -> in
     return total
 
 
+async def _merge_observations(cur, losing_str: str, winning_str: str) -> int:
+    """th_observation has a unique identity that includes user_id, and
+    th_series / th_day_authority are keyed by (user_id, series_id[, day]).
+
+    A losing observation whose identity the winner already holds (the same
+    report uploaded to both accounts) is dropped; the rest move over. The
+    per-user catalogue and day authority are deleted for the loser and
+    rebuilt for the winner after the merge commits (`rebuild_series`), so the
+    two never hold a row the fact table contradicts.
+    """
+    if not await _table_exists(cur, "th_observation"):
+        return 0
+
+    await cur.execute(
+        """
+        DELETE FROM th_observation l
+         WHERE l.user_id = %(losing)s
+           AND EXISTS (
+             SELECT 1 FROM th_observation w
+              WHERE w.user_id = %(winning)s
+                AND w.name_key = l.name_key
+                AND w.observed_start = l.observed_start
+                AND w.observed_end = l.observed_end
+                AND w.source_ref = l.source_ref
+                AND COALESCE(w.source_record_id, '') = COALESCE(l.source_record_id, '')
+                AND COALESCE(w.member_of, 0) = COALESCE(l.member_of, 0)
+                AND COALESCE(w.amends, 0) = COALESCE(l.amends, 0)
+           );
+        """,
+        {"losing": losing_str, "winning": winning_str},
+    )
+    total = cur.rowcount or 0
+
+    await cur.execute("UPDATE th_observation SET user_id=%s WHERE user_id=%s;", [winning_str, losing_str])
+    total += cur.rowcount or 0
+    for table in ("th_series", "th_day_authority"):
+        if await _table_exists(cur, table):
+            await cur.execute(f"DELETE FROM {table} WHERE user_id=%s;", [losing_str])
+            total += cur.rowcount or 0
+    return total
+
+
 async def _merge_th_user_avatar_managed(cur, losing_str: str, winning_str: str) -> int:
     """th_user_avatar_managed PRIMARY KEY(user_id, owner_user_id).
 
@@ -228,6 +271,10 @@ async def merge_accounts(
                     if n:
                         affected["th_user_avatar_managed"] = n
 
+                    n = await _merge_observations(cur, losing_str, winning_str)
+                    if n:
+                        affected["th_observation"] = n
+
                     # 4. Soft-delete the losing health_app_user.
                     await cur.execute(
                         "UPDATE health_app_user SET is_del=TRUE, update_at=CURRENT_TIMESTAMP WHERE id=%s;",
@@ -254,6 +301,15 @@ async def merge_accounts(
         })
 
         return affected, str(e)
+
+    if affected.get("th_observation"):
+        # Outside the merge transaction on purpose: the catalogue is derived
+        # from the fact table and is rebuilt from it, never carried across.
+        try:
+            from mirobody.collect.observations import rebuild_series
+            await rebuild_series(winning_str)
+        except Exception as e:
+            logger.warning("series catalogue not rebuilt after merge: error_type=%s", type(e).__name__)
 
     return affected, None
 

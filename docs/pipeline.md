@@ -18,8 +18,8 @@ how a reader comes to believe a boundary does not exist.
 | 2 | **Pull** | ask the vendor for a window; keep the raw payload | `collect/providers/` |
 | 3 | **Decode** | vendor JSON → `series.Fact`, in the catalogue's units | `kernel/decoders/` |
 | 4 | **Resolve** | which metric IS this — name, code, shape | `kernel/metrics.py`, `engine.py` |
-| 5 | **Gate** | reject the impossible; convert what is convertible | `kernel/quality.py`, applied in `collect/readings.py` |
-| 6 | **Store** | one writer, one day column, one fingerprint | `collect/readings.py` |
+| 5 | **Gate** | reject the impossible; convert what is convertible | `kernel/quality.py`, applied in `collect/observations.py` |
+| 6 | **Store** | one writer, one day column, one fingerprint, the coding beside the row | `collect/observations.py`, `mirobody/translate/` |
 | 7 | **Aggregate** | a day of points → one number, under the metric's policy | `kernel/series.py`, `translate/aggregate/` |
 | 8 | **Elect** | which source the day publishes from | `series.elect`, `translate/aggregate/election.py` |
 | 8b | **Derive** | quantities nothing measured: sleep efficiency, HR range | `translate/derive/rules.py` |
@@ -87,8 +87,9 @@ who both lack a code still agree, and nobody's chart silently merges two tests.
 **Implemented.** `quality.time_gate` (no start, an end before its start, a span
 over 36 hours, a measurement a day in the future) and `value_gate` (a
 percentage outside 0–100, a non-finite number) run on every row inside the
-one writer, `collect/readings.py:gate`, before it is bound; a rejected row is
-counted in the log by reason code and not written. `reconcile_unit`,
+one writer, `collect/observations.py:prepare`, before it is bound; a rejected row
+is counted by reason code, on the extraction row and in the log, and not
+written. `reconcile_unit`,
 `overcount_suspect` and `is_echo` are the kernel's other gates: the first is
 what a decoder uses to land a value in the catalogue's unit, the last two are
 the aggregation pass's (`translate/aggregate/election.py` rejects an impossible
@@ -116,25 +117,39 @@ already in the catalogue's unit are the same shape in `th_series_data` today.
 
 ## 6. Store
 
-**Implemented.** One writer (`collect/readings.py`) for `th_series_data`. It
-derives four columns at write time:
+**Implemented.** One writer (`collect/observations.py`) for the observation
+model (`mirobody/schema/30_observations.sql`): `th_observation` holds
+what was printed, verbatim, beside the typed layer derived from it, and
+`th_coding_current` holds the code and the series it belongs to. Derived at
+write time, by `mirobody.translate`, and never again:
 
 | Column | From | Why at write time |
 |---|---|---|
-| `local_date` | the metric's `window` | the day is a fact about the reading, and computing it at read time means computing it differently in each reader |
-| `series_key` | `indicator\|source` | two devices' curves must never be averaged together |
-| `source_class` | `task_id` / `source_table` | election's first criterion |
-| `fingerprint` | the meaningful fields | a re-sync that changed nothing does not touch the row |
+| `local_date` | `translate.local_day` through the metric's `window` and the row's own `tz` | the day is a fact about the reading, and computing it at read time means computing it differently in each reader |
+| `value_kind`, `value_num`, `unit_ucum` | `translate.parse_value` | a number is compared as a number, "阴性" is never averaged |
+| `series_id` | the LOINC axes, or `local:<name>\|<unit>` | what may be plotted on one axis, across units and across people |
+| `stream_key` | `name\|unit\|source:vendor` | two devices' curves must never be averaged together |
+| `source_class` | the provenance | election's first criterion |
+| `fingerprint` | the verbatim fields and the time | a re-sync that changed nothing writes nothing |
 
-*The failure this prevents:* `start_time` is a naive local wall clock, so "which
-day is this" was answered at read time by casting it and padding the window a
-day each way. A June window returned a May 31 bucket.
+The table is append-only. A correction or a retraction is a new row that
+points at the old one (`amends`), and the read view hides the old one; the
+only DELETE is the privacy path. Election writes `th_day_authority`, its own
+table, never a flag on the fact row.
 
-**Not implemented (stated, not hidden).** Rows written before
-`a4_series_data_day_authority.sql` have no `local_date` until the boot backfill
-reaches them. Those are found by the padded window, and every answer that
-touches one reports `window_semantics="date_padded_naive"` instead of claiming
-an exact date.
+*The failure this prevents:* the old table's `start_time` was a naive local
+wall clock, so "which day is this" was answered at read time by casting it
+and padding the window a day each way (a June window returned a May 31
+bucket), and its standardization was a second UPDATE on the hot table, which
+is where every production deadlock on it came from.
+
+**Stated, not hidden.** A deployment upgraded in place keeps its history in
+`th_series_data_retired_15` (`90_retire.sql` renames, never
+drops) and answers from an empty catalogue until `mirobody
+migrate-observations` has moved the rows through the same writer. A migrated
+file reading carries `note_text = migrated:th_series_data`, because its name
+was written in the user's language by the old extractor rather than as
+printed.
 
 ## 7. Aggregate
 
@@ -239,4 +254,5 @@ in this pipeline decides whether a number is good news.
 10. A log line carries ids, counts, durations, status codes and type names — never a value.
 
 Each one is a test in the maintainers' local suite, one module per subject:
-series, quality, metrics, readings, election, decoders and the PHI baseline.
+series, quality, metrics, translate, observations, election, decoders and the
+PHI baseline.

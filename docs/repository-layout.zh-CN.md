@@ -17,8 +17,9 @@ mirobody/
 │                query · tools · ops · connect · sink · events ·
 │                evidence · memory · decoders/
 ├── documents/   文件变成文本，按类型分：PDF 文本层、只对扫描件做 OCR、Office、纯文本   [parse]
-├── collect/     ① 收集 Collect   provider、文件解析、落库、汇总、读取（Postgres）
-├── indicator/   ② 转译 Translate 解析器内部、概念图、词表构建
+├── collect/     ① 收集 Collect   provider、文件解析、落库、读取（Postgres）
+├── translate/   ② 转译 Translate 纯函数缝（fold · parse · local_day · series · code ·
+│                devices）、指标目录、单位、aggregate/、derive/
 ├── agent/       ③ 智能体 Agent   models/ fs/ wire/ middleware/ tools/ chat/
 ├── mcp/         MCP 服务端
 ├── server/      HTTP 应用：路由、鉴权、自带的前端

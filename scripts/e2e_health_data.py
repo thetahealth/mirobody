@@ -86,8 +86,8 @@ async def _canary_present(canary: str) -> bool:
     from mirobody.utils import execute_query
 
     rows = await execute_query(
-        "SELECT 1 FROM th_series_data WHERE deleted = 0"
-        " AND decrypt_content(comment) LIKE :needle LIMIT 1",
+        "SELECT 1 FROM v_observation WHERE note_text IS NOT NULL"
+        " AND decrypt_content(note_text) LIKE :needle LIMIT 1",
         {"needle": f"%{canary}%"},
         log_sql=False,
     ) or []

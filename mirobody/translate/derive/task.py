@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class DerivedCalculationTask(PullTask):
-    """Computes derived indicators from th_series_data daily summaries."""
+    """Computes derived indicators from the stored daily summaries."""
 
     def __init__(self):
         super().__init__(

@@ -34,7 +34,6 @@ from pydantic import BaseModel, Field
 from mirobody.collect import REST_CATALOG_MAX, PostgresHealthQuery
 from mirobody.agent.tools._render import render_rest
 from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
-from mirobody.utils import execute_query
 from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 from mirobody.server.auth import verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse
@@ -120,7 +119,7 @@ class ReadingPatch(BaseModel):
     permission grants reading, not rewriting someone else's record.
     """
 
-    id: int = Field(gt=0, description="th_series_data row id, from the readings payload")
+    id: int = Field(gt=0, description="observation row id, from the readings payload")
     value: str | None = Field(None, max_length=200, description="Corrected value")
     delete: bool = Field(False, description="Soft-delete this reading instead")
 
@@ -136,28 +135,22 @@ async def patch_reading(patch: ReadingPatch, user_id: str = Depends(verify_token
     if not patch.delete and (patch.value is None or not patch.value.strip()):
         return ErrorResponse(code=400, msg="Provide a value, or set delete.")
 
-    if patch.delete:
-        sql = """
-        UPDATE th_series_data SET deleted = 1, update_time = CURRENT_TIMESTAMP
-         WHERE id = :id AND user_id = :uid AND deleted = 0
-        RETURNING id
-        """
-        params = {"id": patch.id, "uid": str(user_id)}
-    else:
-        sql = """
-        UPDATE th_series_data SET value = :value, update_time = CURRENT_TIMESTAMP
-         WHERE id = :id AND user_id = :uid AND deleted = 0
-        RETURNING id
-        """
-        params = {"id": patch.id, "uid": str(user_id), "value": patch.value.strip()}
+    # Neither path touches the stored row: a removal is a retraction row
+    # pointing at it, a correction is an amended row pointing at it, and the
+    # read view hides the original in both cases.
+    from mirobody.collect import observations
 
     try:
-        rows = await execute_query(sql, params)
+        if patch.delete:
+            done = await observations.retract(str(user_id), [patch.id]) > 0
+        else:
+            tz = await observations.user_tz(str(user_id))
+            done = await observations.amend(str(user_id), patch.id, value_text=patch.value.strip(), user_tz=tz) is not None
     except Exception as e:
         logger.error(f"[patch_reading] {e}", exc_info=True)
         return ErrorResponse(code=500, msg="This update could not complete.")
 
-    if not rows:
+    if not done:
         return ErrorResponse(code=404, msg="No such reading.")
 
     return StandardResponse(data={"id": patch.id, "deleted": patch.delete})
@@ -190,7 +183,7 @@ async def patch_file_date(patch: FileDatePatch, user_id: str = Depends(verify_to
 
     The readings belong to the record the file was uploaded INTO
     (`query_user_id` on a proxy upload), which is the `user_id` every
-    th_series_data row from that file carries; rewriting someone else's record
+    observation from that file carries; rewriting someone else's record
     needs the care-circle write grant, the same rule the upload itself enforces.
     What "set the date" means (including a reading whose indicator already
     has a row on the target date staying put and being counted as `skipped`) 

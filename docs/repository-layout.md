@@ -19,8 +19,9 @@ mirobody/
 │                query · tools · ops · connect · sink · events ·  │
 │                evidence · memory · decoders/                     ┘ 2 packages
 ├── documents/   a file becomes text, by kind — PDF text layer, OCR for scanned pages only, Office, text   [parse]
-├── collect/       ① Collect     — providers, file parsing, store, aggregate, read (Postgres)
-├── indicator/   ② Translate (standardize) — resolver internals, concept graph, bundle build
+├── collect/       ① Collect     — providers, file parsing, store, read (Postgres)
+├── translate/   ② Translate   — the pure seam (fold · parse · local_day · series · code ·
+│                devices), the catalogue, units, aggregate/ and derive/
 ├── agent/       ③ Agent               — the agent: models/ fs/ wire/ middleware/ tools/ chat/
 ├── mcp/         the MCP server
 ├── server/      the HTTP application — routers, auth, the bundled web client

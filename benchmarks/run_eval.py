@@ -1,6 +1,6 @@
 """Score every resolver tier and every fusion of them, per stratum.
 
-    python benchmarks/run_eval.py --no-embed              # lexical tiers, offline, ~1s
+    python -m benchmarks.run_eval                         # lexical tiers, offline, ~1s
     python benchmarks/run_eval.py --matrix <path.npy>     # + the embedding tiers
     python benchmarks/run_eval.py --testset <cases.jsonl> # grade your own distribution
 
@@ -72,21 +72,19 @@ DEFAULT_TESTSET = REPO / "eval" / "testset.jsonl"
 RESULTS = REPO / "eval" / "results"
 
 # The embedding matrix is multi-GB and ships on a volume, never in git, so
-# there is no defensible default path — it used to be one maintainer's Desktop,
-# which meant the runner with no flags only ran on one machine.
-# MIROBODY_EVAL_MATRIX keeps that machine's convenience without hardcoding it.
-DEFAULT_MATRIX = os.environ.get("MIROBODY_EVAL_MATRIX", "")
-
-
 def _analyte_table() -> dict[str, str]:
-    from mirobody.indicator.fhir.embeddings.bundle import read_member
+    """code -> its analyte, for "right analyte, different variant" credit.
 
-    raw = read_member(
-        "loinc_axis.csv", bundle_path=str(REPO / "mirobody" / "res" / "fhir_loinc_bundle.tar.gz")
-    )
+    Read off the axis table the resolver itself answers from. It used to parse
+    `loinc_axis.csv`, a whole second copy of the table that the 1.5.0 cut stopped
+    shipping; `AXIS_ANALYTE` is the same COMPONENT head, folded at build time.
+    """
+    from mirobody._bundle import AXIS_ANALYTE, AXIS_CODE, load_axis
+
+    axis, _order_code, _order_name = load_axis()
     out = {}
-    for row in csv.DictReader(io.StringIO(raw.decode("utf-8"))):
-        out[row["LOINC_NUM"]] = (row["COMPONENT"] or "").split("^")[0].strip().lower()
+    for row in range(len(axis)):
+        out[axis.field(row, AXIS_CODE)] = axis.field(row, AXIS_ANALYTE)
     return out
 
 
@@ -151,19 +149,15 @@ async def main() -> int:
              "the shared asset; the cases need not be — point this at a private "
              "set to grade the same resolver against your own distribution.",
     )
-    ap.add_argument("--matrix", default=DEFAULT_MATRIX,
-                    help="embedding matrix .npy; or set MIROBODY_EVAL_MATRIX")
-    ap.add_argument("--no-embed", action="store_true")
+    # --no-embed is accepted and ignored: every caller and every runbook
+    # passes it, and there is no embedding tier left to turn off.
+    ap.add_argument("--no-embed", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--limit", type=int, default=0)
     args = ap.parse_args()
 
     testset = args.testset
     if not testset.is_file():
         print(f"no test set at {testset} — pass --testset <path>", file=sys.stderr)
-        return 2
-    if not args.no_embed and not args.matrix:
-        print("no embedding matrix: pass --matrix <path>, set MIROBODY_EVAL_MATRIX, "
-              "or use --no-embed for the lexical tiers only", file=sys.stderr)
         return 2
 
     cases = [json.loads(l) for l in testset.open(encoding="utf-8")]
@@ -184,56 +178,11 @@ async def main() -> int:
     lex_unit = [resolve_reading(c["term"], c["value"], c["unit"]) for c in cases]
     print(f"lexical tiers: {time.time()-t0:.1f}s", flush=True)
 
-    sem_plain: list[str | None] = [None] * len(cases)
-    sem_gated: list[str | None] = [None] * len(cases)
-    matrix_used = None
-    if not args.no_embed:
-        from mirobody.indicator.semantic import SemanticIndex
-        from mirobody.utils import Config
-
-        await Config.init(yaml_filenames=["config.yaml", "config.local.yaml"])
-        from mirobody.utils.embedding import text_embedding
-
-        index = SemanticIndex(args.matrix)
-        matrix_used = args.matrix
-        t0 = time.time()
-        vectors = await text_embedding([c["term"] for c in cases], provider="openrouter", cache=True)
-        print(f"embedded {len(cases):,} terms in {time.time()-t0:.1f}s", flush=True)
-
-        usable = [(i, v) for i, v in enumerate(vectors) if v]
-        gates = [
-            SemanticIndex.gate_for(cases[i]["value"], cases[i]["unit"], cases[i]["term"])
-            for i, _ in usable
-        ]
-        plain = index.search_vectors([v for _, v in usable], top_k=1)
-        gated = index.search_vectors([v for _, v in usable], top_k=1, gates=gates)
-        for (i, _), p, g in zip(usable, plain, gated, strict=True):
-            sem_plain[i] = p[0].loinc if p else None
-            sem_gated[i] = g[0].loinc if g else None
-
     # ── configs, all derived from the decisions above ────────────────────────
     configs: dict[str, list[str | None]] = {
         "T2 lexical": [r.loinc or None for r in lex],
         "T2+T3 lexical+unit-variant": [r.loinc or None for r in lex_unit],
     }
-    if not args.no_embed:
-        configs["T4 embedding (ungated)"] = sem_plain
-        configs["T4 embedding + axis gates"] = sem_gated
-        # A fallback that fires on EVERY non-answer, including the deliberate
-        # refusals. Kept as a config because it is what the first version did,
-        # and the eval is what caught it: the embedding tier answered all nine
-        # refusals and got all nine wrong.
-        configs["T2+T3 -> T4 gated, no refusal guard"] = [
-            (r.loinc or None) or s for r, s in zip(lex_unit, sem_gated, strict=True)
-        ]
-        # What `resolve_with_semantic_fallback` actually does: a refusal is a
-        # decision and stays a refusal; only genuine misses go on to the second
-        # tier.
-        configs["T2+T3 -> T4 gated  [PROPOSED]"] = [
-            (r.loinc or None) or (None if r.method == "refused" else s)
-            for r, s in zip(lex_unit, sem_gated, strict=True)
-        ]
-
     scorers = {}
     for name, codes in configs.items():
         sc = Scorer(name)
@@ -253,7 +202,6 @@ async def main() -> int:
     report = {
         "when": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "cases": len(cases),
-        "matrix": matrix_used,
         "overall": {n: s.tally() for n, s in scorers.items()},
         "by_stratum": {
             n: {st: s.tally(st) for st in strata if s.tally(st)} for n, s in scorers.items()

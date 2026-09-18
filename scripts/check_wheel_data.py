@@ -29,8 +29,11 @@ import zipfile
 REQUIRED = {
     "mirobody/res/fhir_loinc_bundle.tar.gz": 1_000_000,
     "mirobody/res/aliases_src/zh.tsv": 100_000,
-    "mirobody/res/aliases_src/ja.tsv": 100_000,
     "mirobody/res/resolver_overrides.tsv": 1_000,
+    # The CLASS gate. Absent, `_skipped()` logs a warning and every radiology,
+    # dental and cell-marker code becomes reachable again — `癌胚抗原` would go
+    # back to answering the flow-cytometry marker. A silent recall regression
+    # is exactly what this gate exists to catch.
     # 1.4.0: the indicator catalogue, its Chinese labels and the dose-form
     # table are read at import time by `mirobody.kernel.metrics` / `mirobody.kernel.meds`.
     "mirobody/res/metrics.tsv": 40_000,
@@ -47,6 +50,9 @@ REQUIRED = {
 # wheel. One of them, the SNOMED bundle, also put an Affiliate-Licence
 # obligation on every downstream recipient.
 FORBIDDEN = (
+    # 1.5.0: a UMLS-derived Japanese alias file (MSHJPN / MDRJPN) that was
+    # listed as a LOINC linguistic variant; LOINC has none for Japanese.
+    "mirobody/res/aliases_src/ja.tsv",
     "mirobody/res/fhir_concept_graph.bin",
     "mirobody/res/fhir_snomed_ct_bundle.tar.gz",
     # 1.3.0: superseded by `corpus_names.bin` inside the bundle. The resolver
@@ -70,20 +76,6 @@ FORBIDDEN = (
 # exactly the state `engine.py` was in until 1.3.0 (it read the shipped bundle
 # through `embeddings.bundle` and folded keys with `embeddings.alias._normalize`).
 FORBIDDEN_PREFIXES = (
-    "mirobody/indicator/fhir/embeddings/",
-    "mirobody/indicator/fhir/resolve/",
-    # The CLI that drives them and the passes it calls — see
-    # scripts/build_backend.py::_BUILD_ONLY_CODE for why each one cannot run
-    # from an install.
-    "mirobody/indicator/embed.py",
-    "mirobody/indicator/resolve.py",
-    "mirobody/indicator/fhir/bridge.py",
-    "mirobody/indicator/fhir/siblings.py",
-    "mirobody/indicator/fhir/merge.py",
-    "mirobody/indicator/fhir/inspect.py",
-    "mirobody/indicator/fhir/graph_builder.py",
-    "mirobody/indicator/fhir/loinc_lookups.py",
-    "mirobody/indicator/fhir/locales/",
     # 1.4.0: the demo data lives in the repo-root `demo/`, beside `frontend/`
     # and for the same reason. The application is a checkout, so a library
     # install paid for a demo it can never run. A prefix, not the file names:
@@ -102,6 +94,10 @@ BUNDLE_REQUIRED = (
     "VERSION", "alias_keys.bin", "alias_index.npz",
     "corpus_names.bin", "corpus_names.npz",
     "axis_fields.bin", "axis_index.npz", "loinc_rank_bonus.npy", "loinc_skip.txt",
+    # NOTICE is a licence obligation, not a convenience: LOINC 5.8 requires the
+    # copyright notice to travel with the data. loinc_units.tsv is the
+    # EXAMPLE_UCUM_UNITS column the unit gate reads.
+    "NOTICE", "loinc_units.tsv",
 )
 BUNDLE_FORBIDDEN = (
     "loinc_alias_index.npz", "loinc_axis.csv", "loinc_demote.txt",
@@ -201,7 +197,7 @@ def check(path: str) -> list[str]:
             if m not in members:
                 problems.append(
                     f"MISSING   {BUNDLE}:{m} — the resolver reads this on every "
-                    "call; rebuild with scripts/build_runtime_index.py"
+                    "call; rebuild with python -m translate_build.build_bundle"
                 )
         for m in BUNDLE_FORBIDDEN:
             if m in members:

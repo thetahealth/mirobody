@@ -113,6 +113,16 @@ def _strip_annotations(s: str) -> str:
 # pattern runs, so they're not clobbered.
 _VALUE_PREFIX = re.compile(r"^([-<>=+~≤≥≈]*)([0-9]+(?:[.,][0-9]+)?)")
 
+# A power-of-ten COUNT unit (``10*9/L``, ``10^4/uL``, ``10⁴/μL`` once NFKC has
+# folded the superscript to a digit) must never reach ``_VALUE_PREFIX``, whose
+# job is to strip a leading VALUE. Only the exponents the alias table carries
+# (3, 6, 9, 12) were safe; every other one was silently eaten:
+#     normalize_unit("10⁴/μL")        -> "/uL"          the exponent, gone
+#     parse_value_unit("450 10⁴/μL")  -> value 450104   the two numbers, glued
+# ``10⁴/μL`` is the standard Japanese RBC and platelet unit. Refusing here
+# turns both into an honest ``None``; the family table carries the exponents.
+_POWER_OF_TEN_UNIT = re.compile(r"^10\s*[\^*]?\s*[0-9]+\s*/")
+
 
 def _invert_to_token_map(source: dict[str, list[str]]) -> dict[str, str]:
     """Invert ``{canonical: [tokens]}`` to ``{cleaned_token: canonical}``.
@@ -270,6 +280,8 @@ def normalize_unit(text: str | None) -> str | None:
     hit = _resolve_strict(cleaned)
     if hit is not None:
         return hit
+    if _POWER_OF_TEN_UNIT.match(cleaned):
+        return None   # a count unit we do not know, never a value to strip
     no_value = _VALUE_PREFIX.sub("", cleaned)
     if no_value and no_value != cleaned:
         return _resolve_strict(no_value)
@@ -455,13 +467,23 @@ def parse_value_unit(text: str | None) -> ParsedQuantity:
     if len(parts) >= 2:
         m0 = _VALUE_PREFIX.fullmatch(_clean(parts[0]))
         if m0:
-            unit0 = _resolve_strict(_clean("".join(parts[1:])))
+            rest0 = _clean("".join(parts[1:]))
+            unit0 = _resolve_strict(rest0)
             if unit0 is not None:
                 cmp0, value0 = _comparator_and_value(m0.group(1), m0.group(2))
                 return ParsedQuantity(cmp0, value0, unit0)
+            # The remainder is a power-of-ten COUNT unit we cannot resolve.
+            # Falling through would let Path B run on the whitespace-collapsed
+            # string, where `450` and the `10⁴` that NFKC turned into `104` are
+            # adjacent digits: `parse_value_unit("450 10⁴/μL")` returned
+            # **450104**. Answer with the value and no unit: the number was
+            # never in doubt, only what it counts.
+            if _POWER_OF_TEN_UNIT.match(rest0):
+                cmp0, value0 = _comparator_and_value(m0.group(1), m0.group(2))
+                return ParsedQuantity(cmp0, value0, None)
 
     # ── Path B: value at start (with optional comparator) ────────────
-    m = _VALUE_PREFIX.match(cleaned)
+    m = None if _POWER_OF_TEN_UNIT.match(cleaned) else _VALUE_PREFIX.match(cleaned)
     if m:
         raw_cmp, value = _comparator_and_value(m.group(1), m.group(2))
         rest = cleaned[m.end():]

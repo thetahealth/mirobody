@@ -1,0 +1,98 @@
+# Device quantities with a LOINC code: one row per code, one column per vendor.
+#
+# The vendor cell is the field name as that vendor's documentation prints it
+# (type:field where the vendor nests fields); empty means the vendor does not
+# produce the quantity, `?` means it does but publishes no field name.
+# The metric column is the mirobody catalogue row (res/metrics.tsv) the code
+# belongs to; a confident code there is that metric's identity, an unverified
+# one is recorded here and left out of the identity until confirmed.
+#
+# Sources, all read 2026-09-09, one per <vendor>.tsv beside this file:
+#   apple           Apple HealthKit: https://developer.apple.com/tutorials/data/documentation/healthkit/hkquantitytypeidentifier.json
+#   health_connect  Google Health Connect: https://developer.android.com/reference/androidx/health/connect/client/records/package-summary
+#   huawei          Huawei Health Kit: https://developer.huawei.com/consumer/cn/doc/HMSCore-Guides/overview-0000001177423513
+#   honor           Honor Health Kit: https://developer.honor.com/
+#   samsung         Samsung Health Data SDK: https://developer.samsung.com/health/data/api-reference
+#   fitbit          Fitbit Web API: https://dev.fitbit.com/build/reference/web-api/
+#   whoop           WHOOP API v2: https://api.prod.whoop.com/developer/doc/openapi.json
+#   oura            Oura API v2: https://cloud.ouraring.com/v2/static/json/openapi-1.37.json
+#   garmin          Garmin Health API: https://developer.garmin.com/gc-developer-program/health-api/
+#   vivo            vivo BlueOS health API: https://developers-watch.vivo.com.cn/api/health/health/
+#   xiaomi          Xiaomi Health cloud: https://dev.mi.com/
+#   zepp            Zepp OS Sensor module: https://docs.huami.com/
+#   oppo            OPPO theme engine health data: https://open.oppomobile.com/documentation/page/info?id=13624
+#
+# Axes were checked against LOINC 2.83. LOINC is copyright Regenstrief
+# Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
+# Columns: loinc, name (LOINC long common name, shortened), axes
+# (PROPERTY/TIME/SYSTEM/SCALE as printed in the review), metric, confidence
+# (confident or unverified), one column per vendor, note.
+# The per-vendor files carry the reasoning for each field; the declined fields
+# are there too, and the quantities no code fits are in unmappable.tsv.
+loinc	name	axes	metric	confidence	apple	health_connect	huawei	honor	oppo	samsung	fitbit	whoop	oura	vivo	xiaomi	zepp	garmin	note
+8867-4	Heart rate	NRat/Pt/XXX/Qn	heartRates	confident	heartRate	HeartRateRecord	com.huawei.instantaneous.heart_rate:bpm	HEART_RATE:dynamicHeartRate	heart_rate_current	HeartRateType	activities-heart		sleep.heart_rate	DATA_TYPES.HEART_RATE(0)	com.xiaomi.micloud.fit.heart_rate.bpm	HeartRate	Heart Rate	十一家全覆盖的唯一一个量。本仓已有此码
+40443-4	Heart rate^resting	NRat/Pt/XXX/Qn	restingHeartRates	confident	restingHeartRate	RestingHeartRateRecord	com.huawei.instantaneous.resting_heart_rate:bpm	HEART_RATE:restingHeartRate			activities-heart.value.restingHeartRate	recovery.score.resting_heart_rate	daily_readiness.contributors.resting_heart_rate	DATA_TYPES.HEART_RATE_RESTING(2)			?	本仓已有此码
+103205-1	Mean heart rate	NRat/XXX/Qn	dailyHeartRateAvg	confident			continuous.heart_rate.statistics:avg	日统计HEART_RATE:averageValue				cycle.score.average_heart_rate	sleep.average_heart_rate					LOINC 2.75
+101692-2	Maximum heart rate	NRat/XXX/Qn	dailyHeartRateMax	confident			continuous.heart_rate.statistics:max	日统计HEART_RATE:maxValue	heart_rate_max			cycle.score.max_heart_rate						LOINC 2.75
+103222-6	Heart rate.minimum	NRat/Pt/Qn	dailyHeartRateMin	confident			continuous.heart_rate.statistics:min	日统计HEART_RATE:minValue	heart_rate_min				sleep.lowest_heart_rate					LOINC 2.75
+112429-6	Heart rate variability SDNN	Time/Pt/Qn	hrvSDNN	confident	heartRateVariabilitySDNN												Beat-To-Beat(自算)	只有 Apple 用 SDNN。其余五家用 RMSSD，落不了此码 —— 见 unmappable 表首行
+59408-5	Oxygen saturation in Arterial blood by Pulse oximetry	MFr/Pt/BldA/Qn/PulseOx	oxygenSaturations	confident	oxygenSaturation	OxygenSaturationRecord	com.huawei.instantaneous.spo2:saturation	BLOOD_OXYGEN:bloodOxygen		BloodOxygenType	spo2.value.avg	recovery.score.spo2_percentage	daily_spo2.spo2_percentage.average	DATA_TYPES.SPO2(6)		BloodOxygen	Pulse Ox	本仓现挂 2708-6（实验室血气）应改此码 —— 十家里九家都产此量
+103209-3	Mean oxygen saturation	NRat(缺陷)/XXX^mean/Qn		unverified			continuous.spo2.statistics:saturation_avg	日统计BLOOD_OXYGEN:averageValue										PROPERTY=NRat 是 LOINC 缺陷（饱和度应为 MFr）
+9279-1	Respiratory rate	NRat/Pt/Resp/Qn	respiratoryRates	confident	respiratoryRate	RespiratoryRateRecord	（睡眠记录关联）										Respiration	本仓已有此码。Samsung 无呼吸率类型
+103217-6	Mean respiratory rate	NRat/XXX/SCALE空(缺陷)	dailyRespiratoryRates	unverified			（睡眠平均呼吸率）				br.value.breathingRate	sleep.score.respiratory_rate	sleep.average_breath				?	SCALE_TYP 为空、CLASS 误置为 HRTRATE.ATOM
+103218-4	Minimum respiratory rate	NRat/XXX^min/Qn	dailyMinRespiratoryRates	confident			（睡眠最低呼吸率）											LOINC 2.75
+103219-2	Maximum respiratory rate	NRat/XXX^min(缺陷)/Qn	dailyMaxRespiratoryRates	unverified			（睡眠最高呼吸率）											TIME_ASPCT=XXX^min 与 Maximum 矛盾
+8310-5	Body temperature	Temp/Pt/^Patient/Qn	bodyTemperatures	confident	bodyTemperature	BodyTemperatureRecord	com.huawei.instantaneous.body.temperature:temperature	TEMPERATURE:temperature		BodyTemperatureType	tempCore.value					BodyTemperature	?	本仓已有。Fitbit 只有 tempCore 是绝对值
+61008-9	Body surface temperature	Temp/Pt/Surface/Qn	skinTemperature	unverified	appleSleepingWristTemperature	SkinTemperatureRecord:baseline	com.huawei.instantaneous.skin.temperature:temperature			SkinTemperatureType		recovery.score.skin_temp_celsius					garmin_skin_temperature	本仓现挂 8310-5 是错码。腕部无专用码故 unverified；(see docs/device-crosswalk.md)
+60830-7	Finger temperature	Temp/Pt/Finger/Qn		confident		SkinTemperatureRecord:measurementLocation=FINGER							（戒指测点）					ring devices measure at the finger; the catalogue's skinTemperature carries 61008-9; 戒指类设备（Oura）的精确落点
+60833-1	Toe temperature	Temp/Pt/Toe/Qn		confident		SkinTemperatureRecord:measurementLocation=TOE												toe site; no catalogue metric; 本仓无 member
+8480-6	Systolic blood pressure	Pres/Pt/Arterial/Qn	systolicPressures	confident	bloodPressureSystolic	BloodPressureRecord	com.huawei.instantaneous.blood_pressure	BLOOD_PRESSURE:highPressure		BloodPressureType							Blood Pressure	本仓已有
+8462-4	Diastolic blood pressure	Pres/Pt/Arterial/Qn	diastolicPressures	confident	bloodPressureDiastolic	BloodPressureRecord	com.huawei.instantaneous.blood_pressure	BLOOD_PRESSURE:lowPressure		BloodPressureType							Blood Pressure	本仓已有
+2339-0	Glucose [Mass/volume] in Blood	MCnc/Pt/Bld/Qn	bloodGlucoses	confident	bloodGlucose	BloodGlucoseRecord	com.huawei.instantaneous.blood_glucose	BLOOD_GLUCOSE:measureValue		BloodGlucoseType	（blood-glucose API）						?	本仓已有；血糖仪来源可用 41653-7
+93832-4	Sleep duration	Time/Pt/Qn	dailyTotalSleepTime	confident	sleepAnalysis:asleepUnspecified	SleepSessionRecord	health.record.sleep:all_sleep_time	SLEEP(deep+light+rem 需计算)		SleepType	sleep.minutesAsleep		sleep.total_sleep_duration	DATA_TYPES.SLEEP_STATUS(13)		Sleep	Sleep	本仓留空，可补
+93831-6	Deep sleep duration	Time/Pt/Qn	dailyDeepSleep	confident	sleepAnalysis:asleepDeep	SleepSessionRecord.Stage:DEEP	health.record.sleep:deep_sleep_time	SLEEP:deepSleep		SleepType.Stage:DEEP	sleep.levels.summary.deep	stage_summary.total_slow_wave_sleep_time_milli	sleep.deep_sleep_duration	SLEEP_STAGES:1(暂不支持)		Sleep	Sleep	九家覆盖。WHOOP 叫 SWS。有码无中文键
+93830-8	Light sleep duration	Time/Pt/Qn	dailyLightSleep	confident	sleepAnalysis:asleepCore(unverified)	SleepSessionRecord.Stage:LIGHT	health.record.sleep:light_sleep_time	SLEEP:lightSleep		SleepType.Stage:LIGHT	sleep.levels.summary.light	stage_summary.total_light_sleep_time_milli	sleep.light_sleep_duration	SLEEP_STAGES:2(暂不支持)		Sleep	Sleep	Apple 用 asleepCore 是同义非同名，标 unverified
+93829-0	REM sleep duration	Time/Pt/Qn	dailyRemSleep	confident	sleepAnalysis:asleepREM	SleepSessionRecord.Stage:REM	health.record.sleep:dream_time	SLEEP:remSleep		SleepType.Stage:REM	sleep.levels.summary.rem	stage_summary.total_rem_sleep_time_milli	sleep.rem_sleep_duration	SLEEP_STAGES:3(暂不支持)		Sleep	Sleep	华为叫「梦睡」
+103210-1	Awakening duration	Time/Pt/Qn	dailyAwakeTime	unverified	sleepAnalysis:awake	SleepSessionRecord.Stage:AWAKE	health.record.sleep:awake_time	SLEEP:wideAwake		SleepType.Stage:AWAKE	sleep.minutesAwake	stage_summary.total_awake_time_milli	sleep.awake_time	SLEEP_STAGES:4(暂不支持)			Sleep	若口径为入睡后累计清醒应改 103215-0
+103215-0	Wake time after sleep onset	NRat/XXX/Qn		unverified		SleepSessionRecord.Stage:AWAKE_IN_BED												alternate reading of dailyAwakeTime: wake after sleep onset, not total awake time; WASO 口径；与 103210-1 二选一
+103213-5	Duration in bed	NRat/Pt/Qn/Measured	sleepAnalysis_InBed	confident	sleepAnalysis:inBed	SleepSessionRecord	health.record.sleep:go_bed_time..off_bed_time	SLEEP:sleepTimestamp..wakeupTimestamp			sleep.timeInBed	stage_summary.total_in_bed_time_milli	sleep.time_in_bed	SLEEP_UNIT(11,暂不支持)			Sleep	
+103212-7	Duration of falling asleep	Time/Pt/Qn	dailySleepLatency	confident			health.record.sleep:prepare_sleep_time→fall_asleep_time				sleep.minutesToFallAsleep		sleep.latency				?	入睡潜伏期
+103211-9	Number of awakenings	NRat/Pt/Qn	sleepDisturbances	confident			health.record.sleep:wakeup_count	SLEEP:awakeTimes				stage_summary.disturbance_count	sleep.restless_periods(unverified)					Oura 的「不安宁时段数」≠ 觉醒次数
+103214-3	Duration of out of bed	NRat/Pt/Qn		unverified		SleepSessionRecord.Stage:OUT_OF_BED	sleep.on_off_bed_record:onOffBedState=2											本仓无 member
+103216-8	Number of times getting out of bed	NRat/XXX/Qn		unverified			sleep.on_off_bed_record											本仓无 member
+103220-0	Duration of snoring	Time/Pt/Qn		unverified			sleep_respiratory_event:eventName=2											本仓无 member
+103221-8	Number of snoring episodes	NRat/XXX/Qn		confident			health.record.ventilator:snoringEventTimes											本仓无 member
+69990-0	Apnea hypopnea index 24 hour	NRat/24H/Qn	apneaHypopneaIndex	confident			health.record.ventilator:eventAhi			SleepApneaType(?)								华为单位 times/h 与 AHI 定义一致；Samsung 有 SleepApneaType 但字段未核
+70002-1	Obstructive apnea index 24 hour	NRat/24H/Qn	obstructiveApneaIndex	confident			health.record.ventilator:obstructiveApneaIndex											
+70003-9	Central apnea index 24 hour	NRat/24H/Qn		unverified			health.record.ventilator:centerApneaEventTimes											华为给的是总次数，需除以使用时长换算成指数
+55423-8	Number of steps in unspecified time Pedometer	NRat/XXX/Qn/Pedometer	steps	confident	stepCount	StepsRecord	com.huawei.continuous.steps.delta:steps_delta	SAMPLE_STEPS:step	step	StepsType	activities-steps			DATA_TYPES.STEP_COUNT(5)	com.xiaomi.micloud.fit.step_count.delta	Step	Steps	十一家全覆盖（含微信运动/支付宝运动，二者只开放步数）
+41950-7	Number of steps in 24 hour Measured	NRat/24H/Qn/Measured	dailySteps	confident			com.huawei.continuous.steps.total:steps	日统计STEPS:steps					daily_activity.steps					日汇总口径
+103208-5	Distance traveled	Len/Pt/Qn	dailyDistance	confident		DistanceRecord	com.huawei.continuous.distance.delta:distance_delta	distance.read(日统计距离)			activities-distance	workout.score.distance_meter	daily_activity.equivalent_walking_distance(unverified)	DATA_TYPES.DISTANCE(7)	com.xiaomi.micloud.fit.distance.delta	Distance	?	Oura 是「等效步行距离」换算量
+112427-0	Distance walking or running	Len/Pt/Qn	walkingRunningDistances	confident	distanceWalkingRunning													LOINC 2.82，Apple 名称逐字对应
+100304-5	Flights climbed [#] Reporting Period	Num/RptPeriod/Qn	floors	confident	flightsClimbed	FloorsClimbedRecord				FloorsClimbedType	activities-floors							24H 口径用 93833-2
+101687-2	Elevation climbed	LRat/Pt/Qn	altitudeGain	confident		ElevationGainedRecord	com.huawei.instantaneous.altitude	distance.read(含爬高)								Barometer(派生)	?	LOINC 2.75
+41981-2	Calories burned	EngRat/Pt/Qn	activeCalories	confident	activeEnergyBurned	ActiveCaloriesBurnedRecord	com.huawei.continuous.calories.burnt:calories	calories.read			activities-calories	cycle.score.kilojoule(需÷4.184)	workout.calories	DATA_TYPES.CALORIES(8)	com.xiaomi.micloud.fit.calories.expended	Calorie	Calories	WHOOP 用千焦，单位陷阱
+41979-6	Calories burned in 24 hour Calculated	EngRat/24H/Qn/Calc	dailyCaloriesActive	confident		TotalCaloriesBurnedRecord(unverified)	com.huawei.continuous.calories.burnt.total:calories_total			ActivitySummaryType			daily_activity.active_calories					Oura 的 total_calories 与 active 口径不同，只给 active 落码
+101688-0	Duration of light activity	ARat/Pt/Qn	dailyActivityIntensityLow	confident									daily_activity.low_activity_time					只有 Oura 与 LOINC 三档天然对齐
+101689-8	Duration of moderate activity	ARat/Pt/Qn	dailyActivityIntensityMedium	confident		ActivityIntensityRecord:MODERATE							daily_activity.medium_activity_time				Intensity Minutes(加权)	HC 只有两档（缺 light）
+101690-6	Duration of vigorous activity	ARat/Pt/Qn	dailyActivityIntensityHigh	confident		ActivityIntensityRecord:VIGOROUS							daily_activity.high_activity_time				Intensity Minutes(加权)	Garmin 按 2 倍加权，须先还原
+101691-4	Duration of physical activity	Time/Pt/Qn	exerciseMinutes	unverified	appleExerciseTime(unverified)		exercise_intensity.v2.statistics:totalIntensity	strength.read(中高强度)		ActivitySummaryType				DATA_TYPES.INTENSITY_SPORT(4)				各家口径宽窄不同（全部活动 vs 仅中高强度）
+112425-4	Standing time 1 day	Time/1D/Qn		unverified	appleStandTime									DATA_TYPES.STANDING(3)		Stand		LOINC 2.82。华为 active_hours 是计数不是时长，落不了
+103223-4	Workout intensity	Type/Pt/Ord	trainingLoad	unverified									workout.intensity			Workout		SCALE=Ord，取值域须映射
+94122-9	Oxygen consumption (VO2)/Body weight^peak during exercise	VRatCnt/Pt/Qn	vo2Maxs	unverified	vo2Max	Vo2MaxRecord	com.huawei.vo2max	OXYGEN_MAX:maxVO2 / SAMPLE_MAX_VO2:maxVO2			cardioScore.value.vo2Max		vO2_max.vo2_max			（华米开放接口:最大摄氧量）	?	本仓现挂 60842-2 是错码。HC 的 measurementMethod=METABOLIC_CART 时才可 confident
+77196-4	Pulse wave velocity	Vel/Pt/Qn	pulseWaveVelocity	confident									daily_cardiovascular_age.pulse_wave_velocity					本仓无 member
+61006-3	Perfusion index Tissue by Pulse oximetry	VelRto/Pt/Qn	perfusionIndex	confident	peripheralPerfusionIndex													本仓无 member
+29463-7	Body weight	Mass/Pt/Qn	bodyMasss	confident	bodyMass	WeightRecord	com.huawei.instantaneous.body_weight	sample-weight		BodyCompositionType	body.weight	user.measurement.body.weight_kilogram			com.xiaomi.micloud.fit.weight		Body Composition	本仓已有
+8302-2	Body height	Len/Pt/Qn	heights	confident	height	HeightRecord	com.huawei.instantaneous.height	sample-height		UserProfileDataType	（body API）	user.measurement.body.height_meter			com.xiaomi.micloud.fit.height		?	本仓已有
+39156-5	Body mass index (BMI)	Ratio/Pt/Qn	bmis	confident	bodyMassIndex		（派生）			BodyCompositionType	body.bmi				（派生）		?	本仓已有
+41982-0	Percentage of body fat Measured	MFr/Pt/Qn/Measured	bodyFatPercentages	confident	bodyFatPercentage	BodyFatRecord	（体脂称）			BodyCompositionType	body.fat				com.xiaomi.micloud.fit.body.fat.percentage		Body Composition	本仓留空，可补
+91557-9	Lean body weight	Mass/Pt/Qn	bodyFatFreeWeight	confident	leanBodyMass	LeanBodyMassRecord	（体脂称）			BodyCompositionType							Body Composition	本仓留空，可补
+101683-1	Body water mass	Mass/Pt/Qn	bodyWaterMass	confident		BodyWaterMassRecord	（体脂称）			BodyCompositionType							Body Composition	LOINC 2.75；百分比口径 101684-9
+101685-6	Body bone mass	Mass/Pt/Qn	bodyBone	confident		BoneMassRecord	（体脂称）			BodyCompositionType							Body Composition	LOINC 2.75；百分比口径 101686-4
+8280-0	Waist Circumference at umbilicus by Tape measure	Len/Pt/Qn/Tape	waistCircumferences	unverified	waistCircumference													METHOD=卷尺，设备估算须另议
+112434-6	Walking double support [Percentile]	Prctl/Pt/Qn	walkingDoubleSupportPercentage	confident	walkingDoubleSupportPercentage													本仓无 member
+112432-0	Walking asymmetry	Prctl/Pt/Ord(冲突)	walkingAsymmetryPercentage	unverified	walkingAsymmetryPercentage													SCALE=Ord 而 Apple 是 Qn 百分比，第四处疑似 LOINC 缺陷
+112431-2	Stair ascent speed	Vel/Pt/Qn	stairAscentSpeed	confident	stairAscentSpeed													本仓无 member
+112430-4	Stair descent speed	Vel/Pt/Qn	stairDescentSpeed	confident	stairDescentSpeed													本仓无 member
+112426-2	Physical effort	EngRat/Pt/Qn		confident	physicalEffort													no catalogue row yet: the units engine has no kcal/(kg.h) family, so a reading could not be typed; MET 口径
+64098-7	Six minute walk test	Len/6M/Qn	sixMinuteWalkDistance	confident	sixMinuteWalkTestDistance													临床测试结果，非设备流

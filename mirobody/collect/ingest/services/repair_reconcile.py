@@ -15,13 +15,13 @@ batch is still upserted, but nothing is deleted (keep the original, safe behavio
 
 Sweep targets:
   - series_data (SERIES/MIX, raw sleep stages): PHYSICAL delete, then re-aggregate so
-    derived th_series_data values refresh. series_data.time is naive UTC.
-  - th_series_data (directly-upserted SUMMARY/MIX): reversible SOFT delete (deleted=1).
-    th_series_data.start_time is naive LOCAL (user timezone), so the window is converted
-    to local time for this table.
+    the derived daily observations refresh. series_data.time is naive UTC.
+  - summary observations (directly-written SUMMARY/MIX): RETRACTED, never deleted
+    (a retraction row points at each one; the read view hides it). The window is
+    converted to the user's local time, which is what the rows were placed in.
 
 Safety rails: only for a non-empty repair batch; window must be complete; Apple sources
-only (apple.cda excluded); th_series_data removal is reversible + audited; rows of the
+only (apple.cda excluded); a retraction is reversible + audited; rows of the
 CURRENT repair task_id are never touched (multi-batch safe).
 """
 

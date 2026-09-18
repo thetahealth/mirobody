@@ -1,0 +1,88 @@
+# Device metrics no LOINC code fits, grouped by the reason, because the reason decides what to do.
+#
+# Reasons:
+#   ALGO_MISMATCH      LOINC has the concept but codes another algorithm (HRV: SDNN only, five vendors publish RMSSD)
+#   VENDOR_SCORE       a proprietary score; LOINC does not code these and never will
+#   NO_CONCEPT         the concept is absent from the axis table
+#   UNIT_INCOMPARABLE  a near code exists but the vendor's unit or weighting makes the number incomparable
+#   RELATIVE           a deviation from a baseline, not an absolute quantity
+#   NOT_MEASUREMENT    a goal, a recommendation or a plan
+#   QUALITY_META       a data-quality or device-state signal; worth keeping beside the reading, not as one
+#   NOT_PERSON         an environmental quantity
+#   OUT_OF_SCOPE       raw waveforms, location, nutrition: outside this catalogue
+#
+# Columns: reason, metric (the quantity as vendors name it), vendors (who publishes it, with
+# their field names), detail (the evidence), disposition (what the catalogue does). Text is
+# in Chinese where it was written that way. Read 2026-09-09 against LOINC 2.83.
+reason	metric	vendors	detail	disposition
+ALGO_MISMATCH	HRV (RMSSD)	华为 heartRateVariabilityRMSSD / HC HeartRateVariabilityRmssdRecord / Fitbit hrv.dailyRmssd+deepRmssd / WHOOP hrv_rmssd_milli / Oura average_hrv / 华米开放接口	LOINC 2.83 的 HRV 族全是 SDNN 血统（112429-6 SDNN、76643-6 与 80404-7 R-R interval.standard deviation）。轴表 `RMSSD` 0 命中。SDNN=全程 NN 间期标准差，RMSSD=相邻差值均方根，数学定义不同不可互换。六家产 RMSSD，只有 Apple 产 SDNN	进 `hrvRMSSD` 设备命名空间，不落码。这是唯一值得向 Regenstrief 提交新码请求的一项。Garmin 的逐拍 RR 序列可自算 SDNN → 落 112429-6 但 method 须记「自算」
+VENDOR_SCORE	压力分 / 压力等级	华为 instantaneous.stress:score[1,99]+grade(1放松/2正常/3中等/4偏高) / vivo DATA_TYPES.STRESS(9) / Garmin garmin_stress_level / Zepp Stress / 华米开放接口	各家算法不同、量纲不同、不可跨家比较	本仓 `stressLevel` 留空是对的
+VENDOR_SCORE	睡眠得分	华为 health.record.sleep:sleep_score / Oura daily_sleep.score / Fitbit（App 侧）	⚠️ `97891-6 Sleep score [R-Outcomes]` 存在但那是特定患者报告问卷量表，不可借用	`sleepQuality` 留空
+VENDOR_SCORE	Strain（心血管负荷）	WHOOP cycle.score.strain / workout.score.strain	WHOOP 专有	`strain` / `workoutStrain` 留空
+VENDOR_SCORE	Recovery / Readiness / Resilience	WHOOP recovery_score / Oura daily_readiness.score + daily_resilience.level / Samsung EnergyScoreType / vivo ENERGY(14,暂不支持)	四家各有一套「今日状态分」，互不可比	不落码；Oura 的 9 个 readiness contributors 与 3 个 resilience contributors 同理
+VENDOR_SCORE	Body Battery	Garmin garmin_body_battery	Garmin 专有能量储备分	不落码
+VENDOR_SCORE	PAI（个人活力指数）	Zepp/华米 Pai + 华米开放接口	华米专有，由心率与活动时长换算	不落码
+VENDOR_SCORE	Fitness Age / 血管年龄	Garmin garmin_fitness_age / Oura daily_cardiovascular_age.vascular_age	轴表 `Vascular age` 0 命中。注意 Oura 同一端点的 pulse_wave_velocity 有码（77196-4） —— 年龄是派生分，PWV 是测量量	`bodyAge` 留空；PWV 单独落码
+VENDOR_SCORE	睡眠效率 / 表现 / 一致性	WHOOP sleep_efficiency_percentage + sleep_performance_percentage + sleep_consistency_percentage / Oura sleep.efficiency / Fitbit sleep.efficiency	轴表 `Sleep efficiency` 0 命中。虽然「实睡/卧床」定义相对通用，LOINC 就是没收	`sleepEfficiency` / `sleepPerformance` / `sleepConsistency` 留空
+VENDOR_SCORE	深睡连续性 / 睡眠连续性	华为 deep_sleep_part / 本仓 dailySleepContinuity	专有分	留空
+VENDOR_SCORE	呼吸干扰指数	Oura daily_spo2.breathing_disturbance_index / Apple appleSleepingBreathingDisturbances	不是 AHI，不可落 69990-0	留空
+VENDOR_SCORE	FatBurning（脂肪燃烧）	Zepp FatBurning	专有	留空
+NO_CONCEPT	步行心率	Apple walkingHeartRateAverage / vivo HEART_RATE_STEP(1)	LOINC 无「步行心率」码	本仓 `walkingHeartRates` 留在设备命名空间
+NO_CONCEPT	一分钟恢复心率	Apple heartRateRecoveryOneMinute / 华为（运动恢复心率子页）	0 命中	—
+NO_CONCEPT	心率基线上下限	华为 continuous.heart_rate.statistics:minHeartrateBaseline+maxHeartrateBaseline / 本仓 dailySleepBaseHeartRate	LOINC 无基线码	—
+NO_CONCEPT	血氧基线上下限 / 日最高最低血氧	华为 continuous.spo2.statistics:minOxygenSaturationBaseline+saturation_max+saturation_min / Fitbit spo2.value.min+max	59405-7 / 59406-9 是 8 小时窗口，与日口径不符	—
+NO_CONCEPT	房颤负荷	Apple atrialFibrillationBurden / 华米开放接口:房颤 / Samsung IrregularHeartRhythmNotificationType	0 命中	本仓 `arrhythmiaAfibPercentage` 留空
+NO_CONCEPT	行走稳定性	Apple appleWalkingSteadiness	0 命中（而同批的双支撑、对称性、楼梯速度都有码）	—
+NO_CONCEPT	步频	HC StepsCadenceRecord / vivo DATA_TYPES.WALKING_SPEED(10) / 小米 step.count.cadence / Zepp（派生）	轴表 `Cadence` 0 命中。⚠️ vivo 把步频命名为 WALKING_SPEED，单位是「步/min」不是速度 —— 按名字接会错	本仓 `cadence` 留空；vivo 该字段不可接到 walkingSpeeds
+NO_CONCEPT	步长	Apple walkingStepLength	0 命中	—
+NO_CONCEPT	瞬时步行速度	Apple walkingSpeed / HC SpeedRecord / 小米 speed / vivo SPEED(16,暂不支持)	LOINC 只有 24h/1W 汇总的 Walking speed（41956-4 等），无 Pt 瞬时码	本仓 `walkingSpeeds` 是 instant 序列，SCALE/TIME 不符，留空
+NO_CONCEPT	运动功率	HC PowerRecord / 小米 power.sample / Apple runningPower+cyclingPower	0 命中	—
+NO_CONCEPT	MET / MET 分钟	Oura daily_activity.*_met_minutes + met	轴表 "MET" 命中全部是 MET 基因（100026-4 等），无代谢当量码	—
+NO_CONCEPT	基础代谢能量	Apple basalEnergyBurned / HC BasalMetabolicRateRecord / 小米 calories.bmr	`50042-1` 是 BMR index（ACnc），与能量速率（kcal/day）口径不同	`basalCalories` 留空
+NO_CONCEPT	小睡 / 日间睡眠	华为 sleep_state=5 零星小睡 + sleep_type=3 / Oura sleep.type=late_nap / WHOOP sleep.nap	LOINC 无小睡码	`napDuration` 留空
+NO_CONCEPT	睡眠周期数	WHOOP stage_summary.sleep_cycle_count / 本仓 dailySleepCycleTimes	0 命中	留空
+NO_CONCEPT	低通气指数	华为 health.record.ventilator:hypoventilationIndex	AHI（69990-0）已含低通气，无独立码	—
+NO_CONCEPT	OSA 风险分级	华为 obstructive_sleep_apnea:osaLevel(1正常/2低/3中/4高风险)	`28633-6 Polysomnography study` 是 Doc 型文档码，不是分级结果	—
+NO_CONCEPT	呼吸率中位数 / 分位数	华为 ventilator:clinicalRespRateMedian+clinicalRespRate95	LOINC 只有 mean / min / max	—
+NO_CONCEPT	皮电活动	Apple electrodermalActivity	0 命中	—
+NO_CONCEPT	肌肉量	OW skeletal_muscle_mass / Samsung BodyCompositionType / 体脂称	轴表 `Skeletal muscle mass` 0 命中（而同批的体水、骨量有码）	本仓 `bodySkeletalMuscleMass` 留空
+NO_CONCEPT	Apple 站立小时 / 华为活动小时数	Apple appleStandHour / 华为 active_hours:activeHours	见 UNIT_INCOMPARABLE 一行 —— 是计数不是时长	—
+NO_CONCEPT	Apple Move 时间	Apple appleMoveTime	0 命中	—
+NO_CONCEPT	环境音 / 日照	Apple environmentalAudioExposure+headphoneAudioExposure+environmentalSoundReduction+timeInDaylight	0 命中	见 NOT_PERSON
+NO_CONCEPT	跑步动力学五项	Apple runningStrideLength+runningGroundContactTime+runningVerticalOscillation+runningSpeed+runningPower	0 命中	OW 注释「running dynamics are not in the catalogue yet」
+NO_CONCEPT	游泳 / 轮椅 / 潜水	Apple swimmingStrokeCount+distanceSwimming+pushCount+distanceWheelchair+underwaterDepth / HC WheelchairPushesRecord / Samsung StrokeType	0 命中	—
+UNIT_INCOMPARABLE	Active Zone Minutes	Fitbit value.activeZoneMinutes+fatBurn+cardio+peak	文档原文「1 cardio minute = 2 cardio active zone minutes」，peak 同为 2 倍 —— 是加权分不是分钟数	落任何 LOINC 时长码前必须还原；否则时长虚高。建议不落码
+UNIT_INCOMPARABLE	Intensity Minutes	Garmin Intensity Minutes	同上，中高强度按 2 倍加权（字段级文档需开发者审批才能确认加权口径）	同上
+UNIT_INCOMPARABLE	活动小时数 / 站立小时	华为 active_hours:isActive+activeHours（「完成次数」） / Apple appleStandHour	`112425-4 Standing time 1 day` 是时长（Time/1D）。计数 vs 时长，PROPERTY 不同	不落码。vivo `STANDING(3)` 单位是 hour（时长），可以落 112425-4
+UNIT_INCOMPARABLE	心率分区时长	本仓五区 / Fitbit 四区(Out of Range,Fat Burn,Cardio,Peak) / WHOOP zone_durations 五区 / 华为 hrZone1-5Time	LOINC 是三区（101693-0 light / 101694-8 moderate / 101695-5 intense）+ 103207-7 最大区。没有一家档位对齐	不落码。跨家可比的只有「总中高强度时长」
+UNIT_INCOMPARABLE	华为「中高强度」	华为 continuous.exercise_intensity.v2:exercise_type	字段是运动种类枚举（1步行/2跑步/3骑行/4训练/5心率(无实际意义)/6爬高/7游泳），不是强度档位 —— 与 LOINC 的 light/moderate/vigorous 是不同维度	该类型不参与强度映射；只有其 statistics 的 `totalIntensity`（分钟）可落 101691-4（unverified）
+UNIT_INCOMPARABLE	按运动种类拆分的时长	华为 exercise_intensity.v2.statistics:intensity_map	Map<exercise_type,分钟>。LOINC 无按运动种类分列的时长码	—
+UNIT_INCOMPARABLE	Oura total_calories	Oura daily_activity.total_calories	总能量 = 基础 + 活动，与 41979-6（active 口径）不同；两者共码会冲突	只给 active_calories 落码
+RELATIVE	皮温相对基线偏差	Fitbit tempSkin.value.nightlyRelative / Oura daily_readiness.temperature_deviation / HC SkinTemperatureRecord.deltas / 本仓 temperatureDelta	LOINC 无「相对基线温差」码。⚠️ 绝不可落 61008-9 或 8310-5 —— 那是绝对温度	进 `temperatureDelta`，不落码。同来源的绝对值（WHOOP skin_temp_celsius、HC baseline）才落 61008-9
+RELATIVE	温度偏差的趋势	Oura temperature_trend_deviation	偏差的趋势 = 二阶量	—
+RELATIVE	HRV 平衡 / 睡眠平衡等	Oura daily_readiness.contributors.hrv_balance 等九项	与 28 天滚动均值之比	—
+NOT_MEASUREMENT	日常活动四个目标值	华为 daily_activity_summary:stepsGoal+activeCaloriesGoal+exerciseTimeGoal+activeHoursGoal / Samsung 六个 *GoalType / Oura daily_activity.target_calories+target_meters+meters_to_target	目标值不是测量值	一律不落码
+NOT_MEASUREMENT	应睡时长	WHOOP sleep_needed.baseline_milli+need_from_sleep_debt+need_from_recent_strain+need_from_recent_nap	推荐值	—
+NOT_MEASUREMENT	最佳入睡窗口	Oura sleep_time.optimal_bedtime+recommendation	推荐值	—
+NOT_MEASUREMENT	训练计划	HC PlannedExerciseSessionRecord	计划	—
+NOT_MEASUREMENT	用户档案最大心率	WHOOP user.measurement.body.max_heart_rate	是档案上限不是当日实测最大值 —— 与 cycle.score.max_heart_rate 语义不同，勿共用 101692-2	本仓 `maxHeartRateProfile` 单列是对的
+QUALITY_META	睡眠日志质量码	Fitbit sleep.infoCode（0 充分 / 1 心率数据不足 / 2 睡眠短于3小时 / 3 服务端问题）	直接是数据可信度	旁存进 D1 的读数元数据
+QUALITY_META	温度传感器类型	Fitbit tempSkin.logType（dedicated_temp_sensor / other_sensors）	专用传感器 vs 推断	同上
+QUALITY_META	评分状态 / 校准中	WHOOP score_state + recovery.score.user_calibrating	SCORED 以外的值读数不可信	同上
+QUALITY_META	心率数据完整度	WHOOP workout.score.percent_recorded	百分比	同上
+QUALITY_META	无数据时长	WHOOP stage_summary.total_no_data_time_milli	与 in_bed 之比是该夜可信度	同上
+QUALITY_META	未佩戴时长	Oura daily_activity.non_wear_time	与 24h 之比是当日可信度	同上
+QUALITY_META	面罩脱落次数	华为 ventilator:maskOff	呼吸机数据有效性	同上
+QUALITY_META	睡眠类型分流键	华为 health.record.sleep:sleep_type（1科学睡眠全字段 / 2普通睡眠无REM / 3零星小睡只有总时长） / Fitbit sleep.levels classic vs stages / Oura sleep.type 五值	最危险的一条：不按类型分流会把「该类型不提供此字段」当成 0	落分期码前必须按类型分流，(see docs/device-crosswalk.md)
+QUALITY_META	设备状态	Oura ring_battery_level+ring_configuration / Zepp Battery+Wear	不是健康数据	不入指标体系
+NOT_PERSON	水温 / 气温 / 湿度	Apple waterTemperature / OW weather_temperature+weather_humidity+air_temperature / Zepp Weather	不是人体量	不入指标体系
+NOT_PERSON	环境音暴露 / 耳机音暴露	Apple environmentalAudioExposure+headphoneAudioExposure	既无码，也非人体生理量	—
+NOT_PERSON	日照时长 / UV	Apple timeInDaylight+uvExposure	`uvExposures` 本仓有 member 但无码	—
+NOT_PERSON	气压 / 海拔环境值	Zepp Barometer / HC（派生）	爬升高度（101687-2）才是人体量	—
+OUT_OF_SCOPE	ECG 原始波形	华为 continuous.ecg_detail + health.record.ecg / Fitbit electrocardiogram / Samsung（Health Monitor） / 小米 HyperOS scope 12005	落码走 EKG.MEAS 专用轴，不属本仓指标口径	单独一轮
+OUT_OF_SCOPE	呼吸机工程量	华为 sleep_respiratory_detail:type=1 leak/2 IPAP/3 EPAP + ventilator:sysMode+pressureBelow95+lumisTidvol*+lumisIeratio*	这类落 IEEE 11073 表（MDC_VENT_* / MDC_PRESS_AWAY_*，如 LOINC 60951-1 / 35410-0 / 38199-6）—— 是 IEEE 表对本项目唯一的正面用途之一	接呼吸机时单独处理
+OUT_OF_SCOPE	位置与轨迹	Apple（workout route） / HC ExerciseLocation / 小米 location.sample+location.track / Zepp Geolocation	OW 注释「location is not health data and is not standardised here」	不入指标体系
+OUT_OF_SCOPE	营养素与水	Apple 39 个 dietary* / HC NutritionRecord+HydrationRecord / Samsung NutritionType+WaterIntakeType+MealType / 华为饮食记录	LOINC 有部分膳食摄入码但轴系为 IO_IN_SALTS+CALS，与穿戴口径不同	单独一轮
+OUT_OF_SCOPE	女性生理周期	HC 6 个生殖健康 Record / Samsung 16 个 / 华为女性生理周期 / 华米开放接口:女性经期	LOINC 有相关码族，本仓无 member	单独一轮
+OUT_OF_SCOPE	运动种类枚举	Apple HKWorkoutActivityType / HC ExerciseSessionRecord.exerciseType(80+) / Samsung PredefinedExerciseType(数百) / 华为锻炼记录 34 种	是分类不是测量；跨家映射需独立的运动分类对照表	单独一轮
+OUT_OF_SCOPE	正念时长	Apple mindfulSession / HC MindfulnessSessionRecord	`100280-7` 是 FFMQ 问卷 panel，不是时长码	—

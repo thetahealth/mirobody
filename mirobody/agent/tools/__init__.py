@@ -69,8 +69,8 @@ tools/
 Every file here WITHOUT a leading underscore IS a tool; the underscored ones
 are shared parts the loader skips. The implementations they read through are
 also not tools:
-`query.HealthQuery` over `th_series_data` is `mirobody/collect/query.py`, beside
-the writer of that table, and the medication stores are `mirobody/collect/meds/`.
+`query.HealthQuery` over `v_observation` is `mirobody/collect/query.py`, beside
+the writer of those tables, and the medication stores are `mirobody/collect/meds/`.
 
 ONE TOOL PER DATA CLASS, EVERY PARAMETER APPLICABLE TO EVERY CALL. Readings,
 medications and genetics each have their own grammar, so each has its own

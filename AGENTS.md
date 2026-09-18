@@ -10,8 +10,9 @@ machine-checked (`lint-imports`, contracts in `pyproject.toml`):
 
 | Layer | Where | Installs with | May import |
 |---|---|---|---|
-| ② Translate + the kernel (the library) | vocabulary: `engine.py`, `lexical.py`, `units/`, `value_scale.py`, `zh_fold.py`, `_bundle.py`, `_strtab.py`; semantics: **`kernel/`** (`metrics`, `series`, `quality`, `overlay`, `meds`, `query`, `tools`, `ops`, `connect`, `sink`, `events`, `evidence`, `memory`, `vendors/`); toolbox: `testing/` | `pip install mirobody` (numpy only) | each other, nothing else |
-| ① Collect + storage + MCP | `mirobody/documents/`, `collect/`, `indicator/`, `utils/`, `user/`, `task/`, `mcp/` | `[parse]` / `[app]` | no `langchain*`, `langgraph`, `deepagents` |
+| ② Translate + the kernel (the library) | vocabulary: `engine.py`, `lexical.py`, `units/`, `value_scale.py`, `zh_fold.py`, `_bundle.py`, `_strtab.py`; the pure seam: **`translate/`** (`fold`, `parse`, `local_day`, `series`, `code`, `devices`); semantics: **`kernel/`** (`metrics`, `series`, `quality`, `overlay`, `meds`, `query`, `tools`, `ops`, `connect`, `sink`, `events`, `evidence`, `memory`, `vendors/`); toolbox: `testing/` | `pip install mirobody` (numpy only) | each other, nothing else |
+| ② Translate, the parts that reach a database | `translate/aggregate/`, `translate/derive/`, `translate/indicators_info.py`, `translate/canonical_units.py`, `translate/value_range_validator.py` | `[app]` | no agent framework |
+| ① Collect + storage + MCP | `mirobody/documents/`, `collect/`, `utils/`, `user/`, `task/`, `mcp/` | `[parse]` / `[app]` | no `langchain*`, `langgraph`, `deepagents` |
 | ③ Agent | `mirobody/agent/` (one agent: `MirobodyAgent`, on `deepagents`), `server/` | `[agent]` (the harness as a library) / `[app]` | anything |
 
 There is one agent, and it is not switched at request time. `BaseAgent`,
@@ -35,7 +36,7 @@ python -m venv .venv && . .venv/bin/activate
 pip install -e '.[app,test]'
 ```
 
-The extras are `[parse]`, `[agent]`, `[app]`, `[test]` and `[indicator-build]`.
+The extras are `[parse]`, `[agent]`, `[app]` and `[test]`.
 `[agents]` — plural — has never existed and is not the same thing as `[agent]`,
 which 1.4.0 added: pip only WARNS about an unknown extra, so `-e '.[agents,test]'`
 quietly installed `[test]` alone, which is how both CI workflows spent a release
@@ -74,7 +75,7 @@ wheel in the same venv — otherwise they pass vacuously.
 - **Verify, don't reason.** Before deleting "unused" code compute reachability
   transitively (a sibling may call it). Before repeating a claim from a README,
   run the command.
-- **Every `th_series_data` write goes through `collect/readings.py`.** Every
+- **Every observation write goes through `collect/observations.py`.** Every
   FastAPI router answers with `server/envelope.py`. Every read of a person's
   readings goes through `query.HealthQuery`. Don't add a sixth INSERT, a fourth
   envelope, or a second copy of the query — when there were two, the chat

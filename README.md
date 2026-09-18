@@ -110,7 +110,7 @@ trace, so the answer at the end can be followed back to the page it came off:
 | Stage | What it does | Where |
 | --- | --- | --- |
 | **① Collect** | Lab reports, wearables, phone photos, genetic files, all pulled in. The source file is kept as it was, so every indicator points back to the page it was read from. | [`collect/`](mirobody/collect/) |
-| **② Translate** | One name to one code, one unit to UCUM, offline and deterministic. `A1c`, `HbA1c` and `Glycated Hemoglobin` become the same test here. | [`engine.py`](mirobody/engine.py) · [`indicator/`](mirobody/indicator/) · [`translate/`](mirobody/translate/) |
+| **② Translate** | One name to one code, one unit to UCUM, offline and deterministic. `A1c`, `HbA1c` and `Glycated Hemoglobin` become the same test here. | [`engine.py`](mirobody/engine.py) · [`translate/`](mirobody/translate/) |
 | **③ Agent** | Ask over the coded record. Trend a value by minute, hour, day, week or month; get count, min, max, avg or change over any window in one call; compare across labs and devices, because they share one code. It charts the result in its reply, reads medications and genetic variants too, and names the file every number came from. | [`agent/`](mirobody/agent/) |
 
 ① records how the source spelled it, ② decides what it actually is, ③ answers
@@ -237,17 +237,21 @@ dataset.
   is what every new user tries in their first minute.
   [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the
   score when you run it.
+- **13 wearable vendors, read field by field**: 289 of 447 fields carry a LOINC
+  code, each with a confidence and the vendor document it came from, and 71
+  quantities are declined with the reason rather than guessed.
+  [The device crosswalk](docs/device-crosswalk.md) is the table.
 - **Three open benchmarks**, public datasets, one command each: longitudinal
   health agents, medical hallucination, harmful medical advice.
   [mirobody-eval](https://github.com/thetahealth/mirobody-eval) ·
   [datasets](https://huggingface.co/mirobody) ·
   [arXiv:2604.02834](https://arxiv.org/abs/2604.02834).
 - **The package names the vocabulary that answered you**:
-  `mirobody.BUNDLE_VERSION` → `loinc-2.82+2026.08.28-af2524b7a285`, the release,
+  `mirobody.BUNDLE_VERSION` → `loinc-2.83+2026.09.17-aacb2c715b56`, the release,
   the cut date, and a digest over the bundle's own contents.
 - **305 standard pulse indicators** and 326 UCUM units with dimensional
-  analysis. The full counts, and why the bundle holds at LOINC 2.82 rather than
-  2.83, are in [Standardization in depth](docs/standardization.md).
+  analysis. The full counts, and what the LOINC 2.83 cut keeps and drops, are
+  in [Standardization in depth](docs/standardization.md).
 - **`pip install mirobody` is 2 packages**, numpy the only dependency.
 
 The engine powers **[Theta Wellness](https://www.thetahealth.ai/)**, a live

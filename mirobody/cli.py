@@ -163,7 +163,7 @@ def _cmd_dev(args: argparse.Namespace) -> None:
             "or set PG_URL / DATABASE_URL. The schema is created on first start.\n"
             "No database at hand? `docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=pw \\\n"
             "    -e POSTGRES_DB=mirobody pgvector/pgvector:pg17` — pgvector, not plain\n"
-            "postgres: `schema/00_init_schema.sql` creates a vector column."
+            "postgres: `schema/00_prolog.sql` creates a vector column."
         )
 
     # Ephemeral by default, and said out loud: a dev secret that persists is a
@@ -232,6 +232,52 @@ def _cmd_doctor(args: argparse.Namespace) -> None:
     print(format_report(rows))
     if not any(r.provider for r in rows):
         sys.exit(1)
+
+
+def _cmd_migrate_observations(args: argparse.Namespace) -> None:
+    """Move the retired `th_series_data` history into the observation model.
+    Idempotent and bounded; see `collect/migrate_observations.py`."""
+    _require_extra("migrate-observations", "app", "sqlalchemy", "the database layer")
+    from mirobody.utils.config import Config
+    from mirobody.collect.migrate_observations import migrate
+
+    asyncio.run(Config.init(yaml_filenames=args.configs))
+    counts = asyncio.run(migrate(batch=args.batch, user_id=args.user or None))
+    rejected = ", ".join(f"{k}={v}" for k, v in sorted(counts["rejected"].items())) or "none"
+    print(
+        f"read {counts['read']} rows in {counts['batches']} batch(es): wrote {counts['written']} observations "
+        f"({counts['coded']} coded), skipped {counts['skipped']} already present, rejected {rejected}"
+    )
+    if counts["undecrypted"]:
+        print(
+            f"{counts['undecrypted']} comment(s) did not decrypt under this connection's key; their unit, "
+            "reference range and method were read off the value cell alone. Check PG_ENCRYPTION_KEY and re-run."
+        )
+
+
+def _cmd_recode(args: argparse.Namespace) -> None:
+    """Replay the coding of every stored observation under the installed
+    vocabulary and the current rules and aliases; see `observations.recode`."""
+    _require_extra("recode", "app", "sqlalchemy", "the database layer")
+    from mirobody.utils.config import Config
+    from mirobody.utils import execute_query
+    from mirobody.collect.observations import recode
+
+    async def run() -> None:
+        await Config.init(yaml_filenames=args.configs)
+        if args.user:
+            users = [args.user]
+        else:
+            rows = await execute_query("SELECT DISTINCT user_id FROM th_observation ORDER BY 1", {}, log_sql=False) or []
+            users = [str(r["user_id"]) for r in rows]
+        scanned = changed = 0
+        for uid in users:
+            report = await recode(uid)
+            scanned += report.scanned
+            changed += report.changed
+        print(f"{len(users)} person(s): scanned {scanned} observations, recoded {changed}")
+
+    asyncio.run(run())
 
 
 def _width(text: str) -> int:
@@ -429,6 +475,23 @@ def main(argv: list[str] | None = None) -> None:
     p_resolve = sub.add_parser("resolve", help="resolve indicator names to standard codes — fully offline, no key needed")
     p_resolve.add_argument("terms", nargs="+", help="indicator names in any supported language")
     p_resolve.set_defaults(func=_cmd_resolve)
+
+    p_migrate = sub.add_parser(
+        "migrate-observations",
+        help="move the retired th_series_data history into the observation model (requires the [app] extra)",
+    )
+    p_migrate.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
+    p_migrate.add_argument("--batch", type=int, default=2000, help="rows per batch (default: 2000)")
+    p_migrate.add_argument("--user", default="", help="migrate one person only")
+    p_migrate.set_defaults(func=_cmd_migrate_observations)
+
+    p_recode = sub.add_parser(
+        "recode",
+        help="recode stored observations under the installed vocabulary, rules and aliases (requires the [app] extra)",
+    )
+    p_recode.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
+    p_recode.add_argument("--user", default="", help="recode one person only")
+    p_recode.set_defaults(func=_cmd_recode)
 
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())

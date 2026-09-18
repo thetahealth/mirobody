@@ -29,10 +29,6 @@ mirobody/translate/
 │                            #   stored unit, aggregation methods, per language
 ├── units.py                 # convert_to_standard() and the conversion tables
 ├── value_range_validator.py # per-indicator plausible-range checks (rules from DB)
-├── fhir_mapping.py          # indicator name -> fhir_id cache for series_data writes
-├── std_indicator_registry/  # scheduled task publishing the catalogue to the DB;
-│                            #   the one module here allowed to import pulse.core
-│                            #   (scheduler + aggregation rules are wiring, not meaning)
 └── README.md
 ```
 
