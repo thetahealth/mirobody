@@ -412,6 +412,51 @@ CASES: list[tuple[str, str, str]] = [
     ("HDLコレステロール",               r"cholesterol.*HDL|HDL.*cholesterol", r"LDL"),
     ("血清鉄",                       r"^iron \[",                     r"binding|saturation"),
     ("フェリチン",                    r"ferritin",                     r""),
+    # ── Russian: as a Russian lab report prints it (МЕДСИ, INVITRO, Moscow
+    #    state clinics). Cyrillic has no variants of its own in the release,
+    #    so every term here lands through resolver_overrides.tsv. Collected
+    #    from real reports, 2019-2026. Note the shapes: «Билирубин прямой» is
+    #    three tokens of pure Cyrillic, and «Нейтрофилы (общ.число)» carries a
+    #    parenthetical qualifier the way 空腹血糖(GLU) carries an abbreviation —
+    #    but here it MEANS "share of the total", so the row maps it to the
+    #    fraction, never the absolute count.
+    ("СОЭ",                        r"sedimentation",                r""),
+    ("Тромбоциты",                  r"platelet",                     r""),
+    ("Нейтрофилы (общ.число)",      r"neutrophils/leukocytes",       r"\[#"),
+    ("Нейтрофилы, абс.",            r"neutrophils \[#",              r"/leukocytes"),
+    ("Средний объем эритроцитов",    r"mcv|mean corpuscular volume",  r"platelet"),
+    ("MCHC (ср. конц. Hb в эр.)",    r"mchc",                         r""),
+    ("Билирубин общий",             r"bilirubin",                    r"direct|conjugated|indirect"),
+    ("Билирубин прямой",            r"bilirubin\.direct|conjugated", r"indirect"),
+    ("Билирубин непрямой",          r"bilirubin\.indirect|indirect", r"\.direct|conjugated"),
+    ("АЛТ (Аланиновая трансаминаза)", r"alanine aminotransferase",   r""),
+    ("АСТ (Аспарагиновая трансаминаза)", r"aspartate aminotransferase", r""),
+    ("Глюкоза",                     r"glucose",                      r"tolerance|urine|a1c"),
+    ("Общий белок",                 r"protein",                      r"urine"),
+    ("Мочевина",                    r"urea",                         r"urine"),
+    ("Мочевая кислота",             r"urate|uric acid",              r"urine"),
+    ("Креатинкиназа",               r"creatine kinase",              r""),
+    ("Щелочная фосфатаза",          r"alkaline phosphatase",         r""),
+    ("Холестерин общий",            r"cholesterol",                  r"LDL|HDL|VLDL|non.?HDL"),
+    ("Кальций ионизированный",       r"ionized",                      r""),
+    ("Фосфор неорганический",       r"phosphate",                    r""),
+    ("С-реактивный белок",          r"c reactive",                   r""),
+    ("Ревматоидный фактор",         r"rheumatoid factor",            r""),
+    ("Иммуноглобулин Е (IgE)",      r"total ige|immunoglobulin e",   r"specific"),
+    ("ТТГ",                         r"thyrotropin",                  r""),
+    ("Тиреотропный гормон (ТТГ)",    r"thyrotropin",                  r""),
+    ("Антитела к тиреоглобулину (анти-ТГ)", r"thyroglobulin ab",      r"\[mass"),
+    ("Антитела к тиреопероксидазе (анти-ТПО)", r"thyroperoxidase ab", r""),
+    ("Т4 свободный",                r"thyroxine.*free|free.*thyroxine", r""),
+    ("Витамин 25(ОН) D",            r"25.hydroxyvitamin",            r""),
+    ("Витамин D (25-OH)",           r"25.hydroxyvitamin",            r""),
+    ("Витамин В12",                 r"cobalamin|vitamin b12",        r""),
+    ("Фолиевая кислота",            r"folate",                       r""),
+    # Estonian (Synlab Eesti): the three vitamin spellings a real report
+    # prints that the release variants miss.
+    ("Vitamiin D (25-OH)",         r"25.hydroxyvitamin",            r""),
+    ("Vitamiin B12",               r"cobalamin|vitamin b12",        r""),
+    ("Holotranskobalamiin",        r"transcobalamin",               r""),
 ]
 
 # Terms that must stay UNRESOLVED. A confident wrong code is worse than an

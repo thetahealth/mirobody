@@ -1,3 +1,17 @@
+## Unreleased
+
+### Added
+
+- Offline resolver: Russian panel terms as real Russian lab reports print
+  them (МЕДСИ, INVITRO, state clinics; ~80 spellings from a 2019-2026 record
+  archive), plus the three Estonian vitamin spellings a Synlab report prints.
+  CBC, biochemistry, thyroid hormones and vitamins now resolve to definite
+  LOINC codes — СОЭ to 30341-2, ТТГ to 3016-3, Билирубин прямой to
+  Bilirubin.direct, Витамин D (25-OH) to the D2+D3 sum code — and the
+  coverage benchmark carries the panel with must-not traps (direct vs
+  indirect bilirubin, the neutrophil fraction vs the absolute count, the
+  thyroglobulin antibody vs the antigen).
+
 ## 1.5.0
 
 ② Translate is rebuilt, vocabulary and data layer together. The bundle is cut

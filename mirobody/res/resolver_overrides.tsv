@@ -956,3 +956,98 @@ lipoprotein a	Lp(a)
 total calcium	Calcium
 inorganic phosphorus	Phosphate
 estimated glomerular filtration rate	Glomerular filtration rate
+
+# Russian (ru) — terms as printed on real Russian lab reports (МЕДСИ,
+# INVITRO, Moscow state clinics; collected from a personal record archive,
+# 2019-2026). Targets verified against the bundle. Two deliberate omissions:
+# тромбокрит (platelet crit) and «альфа-амилаза панкреатическая» — no index
+# key lands on the right code, and a near-miss key would merge different
+# tests onto one trend line, which is worse than an honest abstention.
+# CBC / общий анализ крови
+СОЭ	esr
+Скорость оседания эритроцитов	esr
+Тромбоциты	platelet count
+Количество тромбоцитов	platelet count
+Количество лейкоцитов	leukocytes
+Количество эритроцитов	erythrocyte
+Гемоглобин общий	hemoglobin
+Распределение эритроцитов по объему	RDW
+Ширина распределения эритроцитов	RDW
+RDW (шир. распред. эритр)	RDW
+Средний объем эритроцитов	mcv
+Средний объем эритроцита	mcv
+MCV (ср. объем эритр.)	mcv
+Среднее содержание Hb в эритроците	mch
+MCH (ср. содер. Hb в эр.)	mch
+Средняя концентрация Hb в эритроците	mchc
+MCHC (ср. конц. Hb в эр.)	mchc
+МСHС (ср. конц. Hb в эр.)	mchc
+Нейтрофилы (общ.число)	neutrophils/leukocytes
+Нейтрофилы абс. к-во	neutrophils
+Нейтрофилы, абс.	neutrophils
+Лимфоциты абс. к-во	lymphocytes
+Лимфоциты, абс.	lymphocytes
+Моноциты абс. к-во	monocytes
+Моноциты, абс.	monocytes
+Эозинофилы абс. к-во	eosinophils
+Эозинофилы, абс.	eosinophils
+Базофилы абс. к-во	basophils
+Базофилы, абс.	basophils
+# biochemistry / биохимия
+АЛТ	alanine aminotransferase
+АлАТ	alanine aminotransferase
+АЛТ (Аланиновая трансаминаза)	alanine aminotransferase
+АЛТ (аланиновая трансаминаза)	alanine aminotransferase
+АСТ	aspartate aminotransferase
+АСаТ	aspartate aminotransferase
+АСТ (Аспарагиновая трансаминаза)	aspartate aminotransferase
+АСТ (аспарагиновая трансаминаза)	aspartate aminotransferase
+Билирубин общий	bilirubin
+Билирубин прямой	bilirubin direct
+Билирубин непрямой	bilirubin indirect
+Глюкоза	glucose
+Общий белок	protein
+Мочевина	urea
+Мочевая кислота	uric acid
+Креатинкиназа	creatine kinase
+Щелочная фосфатаза	alkaline phosphatase
+Холестерин общий	cholesterol
+Кальций ионизированный	calcium free
+Фосфор неорганический	inorganic phosphate
+С-реактивный белок	C reactive protein
+Ревматоидный фактор	rheumatoid factor
+АСЛО	ASO
+ОЖСС	TIBC
+Общая железосвязывающая способность сыворотки	TIBC
+Иммуноглобулин Е	IgE total
+Иммуноглобулин E	IgE total
+Иммуноглобулин Е (IgE)	IgE total
+# thyroid & hormones / гормоны
+ТТГ	thyroid stimulating hormone
+Тиреотропный гормон	thyroid stimulating hormone
+Тиреотропный гормон (ТТГ)	thyroid stimulating hormone
+Тиреотропный гормон -ТТГ	thyroid stimulating hormone
+Анти-ТГ	thyroglobulin Ab
+Антитела к тиреоглобулину	thyroglobulin Ab
+Антитела к тиреоглобулину (анти-ТГ)	thyroglobulin Ab
+Анти-ТПО	thyroperoxidase ab
+Антитела к тиреопероксидазе	thyroperoxidase ab
+Антитела к тиреопероксидазе (анти-ТПО)	thyroperoxidase ab
+Антитела к тиреоидной пероксидазе	thyroperoxidase ab
+Т4 свободный	t4 free
+Тироксин свободный	t4 free
+Т3 свободный	free t3
+Трийодтиронин свободный	free t3
+# vitamins / витамины
+Витамин D	25-hydroxyvitamin D
+Витамин 25(ОН) D	25-hydroxyvitamin D
+Витамин D (25-OH)	25-hydroxyvitamin D
+25-гидроксивитамин D	25-hydroxyvitamin D
+Витамин В12	vitamin B12
+Витамин B12	vitamin B12
+Фолиевая кислота	folate
+# Estonian (et) — the three terms a real Estonian (Synlab) report prints
+# that the release variants miss
+Vitamiin D (25-OH)	25-hydroxyvitamin D
+Vitamiin B12	vitamin B12
+Holotranskobalamiin	holotranscobalamin
