@@ -397,6 +397,7 @@ class Server:
             sharing_router,
             indicator_router,
             records_router,
+            symptom_router,
         )
         app.include_router(pulse_public_router)
         # apple_router is ALSO nested inside pulse_public_router (routers/__init__),
@@ -416,6 +417,8 @@ class Server:
         # Registered after indicator_router: neither shadows the other, but the
         # order documents which one the web client depends on.
         app.include_router(records_router)
+        # The symptom log (/api/v1/symptoms), the write side of the ICPC-3 axis.
+        app.include_router(symptom_router)
 
         for router in fastapi_routers:
             app.include_router(router)
