@@ -13,6 +13,13 @@
   A coding names `icpc-3+<digest>`, a stamp over the shipped terms, because
   ICPC-3 publishes no release number in the data we hold.
 
+- **`/api/v1/symptoms`: log a complaint, read the log back by day.** POST one
+  entry, GET the log grouped by the day it was felt, DELETE one. No new table:
+  a complaint is one self-reported `symptom` observation, so it inherits the
+  append-only history, the day placement and the coding trail. The list gives
+  both names, the person's words and the classification's, and keeps the
+  entries the vocabulary could not place with the reason attached.
+
 - Offline resolver: Russian panel terms as real Russian lab reports print
   them (МЕДСИ, INVITRO, state clinics; ~80 spellings from a 2019-2026 record
   archive), plus the three Estonian vitamin spellings a Synlab report prints.
@@ -27,6 +34,16 @@
   analyte, in every language, must answer one code. The 13 analytes that do not
   agree yet, among them `urea` landing on urea nitrogen and the Russian
   differential counts, are strict xfails, each an open fix.
+
+### Fixed
+
+- **A symptom no longer codes as a lab analyte.** `collect.observations` sent
+  every prepared row to the lexical LOINC resolver, which cannot abstain from
+  a name it half recognises: a `kind=symptom` draft of 发烧 reached 153
+  candidates and coded to 103717-5, Crimean-Congo hemorrhagic fever virus RNA
+  in Blood. `th_concept` also takes a row for any code whose vocabulary gave
+  it a name, not only the LOINC ones, so a symptom series has a standard name
+  beside the words the person wrote.
 
 ## 1.5.0
 
