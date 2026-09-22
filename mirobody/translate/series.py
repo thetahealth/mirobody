@@ -26,6 +26,8 @@ from dataclasses import dataclass
 
 LOINC_PREFIX = "loinc:"
 LOCAL_PREFIX = "local:"
+#: A complaint has no axes to fold, so its series IS its ICPC-3 code.
+ICPC3_PREFIX = "icpc3:"
 
 #: PROPERTY values whose mass and substance forms are one dimension. LOINC
 #: spells the pair with an M or S prefix; the fold replaces both with Q.
@@ -66,8 +68,17 @@ def local_series_id(local_key: str) -> str:
     return LOCAL_PREFIX + local_key
 
 
+def symptom_series_id(code: str) -> str:
+    return ICPC3_PREFIX + code
+
+
 def is_standard(series: str) -> bool:
-    return series.startswith(LOINC_PREFIX)
+    """A series two people can be compared on. Both shipped vocabularies
+    qualify; only `local:` does not."""
+    return series.startswith((LOINC_PREFIX, ICPC3_PREFIX))
 
 
-__all__ = ["Axes", "LOCAL_PREFIX", "LOINC_PREFIX", "is_standard", "local_series_id", "property_dim", "series_id"]
+__all__ = [
+    "Axes", "ICPC3_PREFIX", "LOCAL_PREFIX", "LOINC_PREFIX", "is_standard",
+    "local_series_id", "property_dim", "series_id", "symptom_series_id",
+]

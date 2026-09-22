@@ -1,0 +1,320 @@
+chapter	code	kind	preferred	inclusions	exclusions	depth	id
+A	AS01	symptom	General pain in multiple sites		chronic widespread pain (fibromyalgia) LS18	0	124
+A	AS02	symptom	Chills	rigors;shivers	fever AS03	0	125
+A	AS03	symptom	Fever	pyrexia	heat exhaustion/stroke AD45;viral exanthem with fever AD13	0	126
+A	AS04	symptom	General weakness or tiredness	asthenia;exhaustion;fatigue;lassitude;lethargy	chronic fatigue syndrome AS05.00;drowsiness AS99;heat exhaustion AD45;jetlag AD45;malaise/feeling ill AS06;postviral fatigue AS05;sleep disturbance PS06	0	127
+A	AS05	symptom	Postviral fatigue		weakness/tiredness, general AS04	0	128
+A	AS06	symptom	Feeling ill	malaise	cachexia TS07;feeling old PS22;malnutrition TD74	0	129
+A	AS07	symptom	Fainting 	blackout;collapse;vasovagal attack	coma AS53;feeling faint/giddiness/dizziness NS09	0	130
+A	AS08	category	Frailty	decline of intrinsic capacity		0	131
+A	AS09	symptom	Swelling and generalized edema	lump, mass not specified to a location	enlarged lymph gland BS01;oedema KS04;swelling breast (breast lump/mass female) GS26;swelling joint LS20	0	132
+A	AS10	symptom	Sweating problem	diffuse hyperhydrosis;perspiration problem	sweat gland disease SD73	0	133
+A	AS11	symptom	Bleeding		ecchymosis SD35	0	134
+A	AS12	symptom	Chest pain		pain attributed to chest wall LS04;pain attributed to heart KS01;pain attributed to respiratory system RS01	0	135
+A	AS13	symptom	Irritable infant	excessively crying infant;restless infant	infantile colic DS01;restless child/adult PS04	0	136
+A	AS14	symptom	Fall of unknown origin			0	137
+A	AS50	clinicalFinding	Other specified abnormal result investigation	abnormal unexplained hyperglycaemia;abnormal unexplained pathology or imaging results;abnormal thyroid stimulating hormone (TSH) results;uraemia	abnormal cervix smear GS50;abnormal urine test US50;raised erythrocyte  sedimentation rate BS52;unexplained abnormal white cells BS51;vitamin/nutritional deficiency TD73	0	138
+A	AS52	clinicalFinding	Shock	cardiogenic shock;septic shock;toxic shock syndrome	anaphylacted shock AD46;traumatic shock AD37	0	139
+A	AS53	clinicalFinding	Coma	stupor	nondiabetic hypoglycaemic coma TD70;post-traumatic coma ND36;syncope AS07;type 1 diabetic coma TD71;type 2 diabetic coma TD72;uremic coma UD99	0	140
+A	AS90	complaint	Concern or fear of disease	fear of death;fear of dying		0	141
+A	AS91	complaint	Concern or fear of medical treatment	concern about or fear of the consequences of a drug or medical treatment	adverse effect of drug AD41;complication of medical/surgical treatment AD42	0	142
+A	AS92	complaint	Concern about appearance	concerns about height;concerns about size;concerns about weight	concern about appearance during pregnancy WS99.02;concern about appearance of breasts GS90;concern about appearance of ears HS91;prominent nose RS91	0	143
+A	AS99	symptom	Other specified general symptoms, complaints and abnormal findings	clumsiness;drowsiness;drowsy		0	144
+A	AS99.00	symptom	Cold extremities			1	874
+A	AS50.00	clinicalFinding	Elevated blood glucose level			1	871
+A	AS50.01	clinicalFinding	Subclinical hypothyroidism			1	872
+A	AS50.02	clinicalFinding	Subclinical hyperthyroidism			1	873
+A	AS10.00	symptom	Localised hyperhidrosis			1	869
+A	AS10.01	symptom	Night sweats			1	870
+A	AS05.00	symptom	Chronic fatigue syndrome			1	868
+B	BS01	symptom	Lymph gland(s) symptom or complaint	generalised enlarged lymph nodes;localised enlarged lymph nodes;lymphadenopathy with pain;lymphadenopathy without pain	acute lymphadenitis BD01;lymphadenitis, other specified BD02	0	174
+B	BS50	clinicalFinding	Splenomegaly		hypersplenism BD99;hepatomegaly with splenomegaly DS50;splenomegaly with hepatomegaly DS50	0	175
+B	BS51	clinicalFinding	Unexplained changes in white blood cells	persistent or unexplained neutrophilia;unexplained agranulocytosis;unexplained eosinophilia;unexplained leukocytosis;unexplained lymphocytosis;unexplained neutropenia	leukaemia BD25	0	176
+B	BS52	clinicalFinding	Elevated erythrocyte sedimentation rate	red blood cell abnormality	unexplained changes in white blood cell BS51	0	177
+B	BS90	complaint	Concern or fear of disease of blood, blood-forming organs and immune system			0	178
+B	BS99	symptom	Other specified symptoms, complaints or abnormal findings of blood, blood-forming organs and immune system		splenomegaly BS50	0	179
+D	DS01	symptom	General abdominal pain	abdominal colic;abdominal cramps;abdominal discomfort;abdominal pain;acute abdomen;infant colic	biliary colic DD82;dysmenorrhoea GS05;dyspepsia and or indigestion DS07;epigastric ache DS02;flatulence/gas/belching DS08;heartburn DS03;other localized abdominal pain DS06;renal colic US09	0	194
+D	DS02	symptom	Epigastric pain	epigastric discomfort;fulness of stomach;stomach ache/pain	dyspepsia and or indigestion DS07;flatulence/gas/belching DS08	0	195
+D	DS03	symptom	Heartburn	acidity;waterbrash	dyspepsia and or indigestion DS07;epigastric pain DS02;gastro-oesophagal reflux disease DD67;oesophagitis DD68	0	196
+D	DS04	symptom	Rectal or anal pain	anal spasm;pain on defaecation;proctalgia fugax	impacted feces DS12	0	197
+D	DS05	symptom	Perianal itching		itching SS02;scrotum/testis symptom/complaint GS21	0	198
+D	DS06	symptom	Other specified localized abdominal pain	colonic pain	abdominal pain, general DS01;biliary colic DD82;dysmenorrhoea GS05;dyspepsia and or indigestion DS07;epigastric pain DS02;flatulence/gas/belching DS08;heartburn DS03;irritable bowel syndrome DD78;renal colic US09	0	199
+D	DS07	symptom	Dyspepsia		epigastric pain DS02;flatulence/gas/belching DS08;gastro-oesophageal reflux disease DD67;heartburn DS03	0	200
+D	DS08	symptom	Flatulence, gas and belching	bloating;eructation;gas pains;gaseous distension;passing wind	change in abdominal size DS51;dyspepsia/indigestion DS07	0	201
+D	DS09	symptom	Nausea		alcohol induced nausea PS13;feelings of over-eating DS02;loss of appetite TS03;nausea in pregnancy WS02;vomiting DS10	0	202
+D	DS10	symptom	Vomiting	emesis;hyperemesis;retching	haematemesis DS14;vomiting in pregnancy WS02	0	203
+D	DS11	symptom	Diarrhoea	frequent or loose bowel movements;watery stools	change in faeces or bowel movements DS18;melaena DS15	0	204
+D	DS12	symptom	Constipation	faecal impaction	ileus DD99	0	205
+D	DS13	symptom	Jaundice	icterus;yellow sclera	hematogenous icterus BD77;hemolytic icterus congenital BD65	0	206
+D	DS14	symptom	Haematemesis	vomiting of blood	haemoptysis RS14	0	207
+D	DS15	symptom	Melaena	black stools;tarry stools	fresh blood in stool DS16	0	208
+D	DS16	symptom	Rectal bleeding	anal bleeding;fresh blood in stool	bleeding/haemorrhage AS11;melaena DS15;positive feces benzidine test AD23	0	209
+D	DS17	symptom	Incontinence of bowel	faecal incontinence	encopresis PS11	0	210
+D	DS18	symptom	Change in faeces and bowel movements		constipation DS12;diarrhoea DS11;incontinence of bowel DS17;occult blood in stool AD23	0	211
+D	DS19	symptom	Teeth, gum symptom or complaint	accretions;denture problem;deposits;gingival bleeding;teeth grinding;teething;toothache	caries DD65;teeth and/or gum disease DD65	0	212
+D	DS20	symptom	Mouth, tongue, lip symptom or complaint	coated tongue;cracked lips;dribbling;sore mouth;swollen lips	dental/gum problem DS19;cheilosis DD66;disturbance of taste NS08;dehydration TS09	0	213
+D	DS21	symptom	Swallowing problem	choking feeling;dysphagia		0	214
+D	DS50	clinicalFinding	Hepatomegaly	hepatomegaly with splenomegaly		0	215
+D	DS51	clinicalFinding	Abdominal distension or abdominal mass or both	abdominal swelling without mass;lump abdomen	flatulence/gas/belching DS08;hepatomegaly DS50;renal mass US09;splenomegaly BS50	0	216
+D	DS90	complaint	Concern or fear of disease of digestive system			0	217
+D	DS99	symptom	Other specified or unknown symptoms, complaints, abnormal findings of digestive system			0	218
+D	DS51.00	clinicalFinding	Ascites			1	937
+D	DS20.00	symptom	Dry mouth			1	934
+D	DS20.01	symptom	Glossodynia			1	935
+D	DS20.02	symptom	Halitosis			1	936
+F	FS01	symptom	Eye pain		abnormal eye sensations FS07	0	254
+F	FS02	symptom	Red eye	bloodshot		0	255
+F	FS03	symptom	Eye discharge	lacrimation;purulent discharge		0	256
+F	FS04	symptom	Visual floaters or spots	fixed/floating spots in the visual field		0	257
+F	FS05	symptom	Decreased visual acuity	blurred vision;difficulty reading;reduced vision;visual loss;weak eyes	blindness one eye FD72;night blindness FD99;permanent blindness FD72;refractive errors FD69;snow blindness FD36	0	258
+F	FS06	symptom	Other specified visual disturbances	diplopia;eye strain;photophobia;scotoma and dazzle when symptoms confined to eyes;temporary blindness NOS	night blindness FD99;permanent blindness FD72;refractive errors FD69;snow blindness FD36	0	259
+F	FS07	symptom	Dry eye or other abnormal eye sensations	burning eye;itchy eye	eye pain FS01	0	260
+F	FS08	symptom	Abnormal eye appearance	changed eye colour iris;swollen eye	red eye FS02	0	261
+F	FS09	symptom	Eyelid symptoms or complaints	abnormal blinking;ptosis eyelid	inflamed eyelid FD02	0	262
+F	FS10	symptom	Glasses or contact lenses symptoms or complaints	Problems due to spectacles and/or contact lens affecting structure, function or sensations of eye(s).		0	263
+F	FS90	complaint	Concern or fear of eye disease			0	264
+F	FS99	symptom	Other specified symptoms, complaints, abnormal findings of eye	abnormal eye movements;nystagmus		0	265
+F	FS09.00	symptom	Blepharochalasis			1	1009
+F	FS09.01	symptom	Xanthelasma palpebrarum			1	1010
+F	FS07.00	symptom	Dry eye (syndrome)			1	1008
+F	FS03.00	symptom	Watery eye			1	1007
+G	GS01	symptom	Pain in penis		priapism or painful erection GS20	0	288
+G	GS02	symptom	Pain in testis	pain in scrotum		0	289
+G	GS03	symptom	Other specified genital pain	pelvic pain;perineal pain;vaginal pain;vulval pain;vulvodynia	breast pain female GS04;dyspareunia female GS23;menstrual pain GS05	0	290
+G	GS04	symptom	Pain in breast	mastalgia;mastodynia;tenderness of breast	painful breasts in pregnancy or lactation period WS06	0	291
+G	GS05	symptom	Menstrual pain	dysmenorrhoea;menstrual cramps;menstruation pain		0	292
+G	GS06	symptom	Intermenstrual pain	Mittelschmerz;ovulation pain		0	293
+G	GS07	symptom	Absent or scanty menstruation	delayed menses;late menses	fear of pregnancy WS90;question of pregnancy WS01	0	294
+G	GS08	symptom	Excessive menstruation	pubertal bleeding		0	295
+G	GS09	symptom	Irregular or frequent menstruation	frequent menstruation	menorrhagia or pubertal bleeding GS08	0	296
+G	GS10	symptom	Intermenstrual bleeding	breakthrough bleeding;dysfunctional uterine bleeding;spotting	post-coital bleeding GS15;post-menopausal bleeding GS14	0	297
+G	GS11	symptom	Premenstrual symptoms or complaints		premenstrual tension syndrome GD68	0	298
+G	GS13	symptom	Menopausal symptoms or complaints	menopausal tension;menopause syndrome	postmenopausal bleeding GS14	0	299
+G	GS14	symptom	Postmenopausal bleeding			0	300
+G	GS15	symptom	Postcoital bleeding	contact bleeding		0	301
+G	GS16	symptom	Vaginal discharge	leucorrhoea	atrophic vaginitis GS13;chlamydia genital female GD06;gonorrhoea female GD02;intermenstrual bleeding GS10;urogenital candidiasis female GD08;urogenital trichomoniasis female GD04;vaginal bleeding (menstruation excessive) GS08;vaginal bleeding (menstruation irregular/frequent) GS09	0	302
+G	GS17	symptom	Other specified vaginal symptoms or complaints	burning in vagina;vaginal dryness;vaginal irritation;vaginal itching;vaginal lesion;vaginal odour;vaginal pruritis	atrophic vaginitis GS13;female genital pain GS03;organic vaginismus GS23	0	303
+G	GS18	symptom	Vulval symptoms or complaints	labial burning;vulval burning;vulval dryness;vulval itching;vulval irritation	abscess vulva GD69;vulval pain GS03	0	304
+G	GS19	symptom	Pelvis symptoms or complaints		genital pain GS03;pelvic pain GS03;perineal GS03	0	305
+G	GS20	symptom	Penis symptoms or complaints	foreskin complaint;foreskin symptom;painful erection;priapism	pain in penis GS01;painful ejaculation GS25	0	306
+G	GS21	symptom	Scrotum or testis symptoms or complaints	lump in testis	pain in testis/scrotum GS02	0	307
+G	GS22	symptom	Prostate symptoms or complaints	prostatism	urinary frequency and/or urgency US02;urinary retention US04	0	308
+G	GS23	symptom	Painful intercourse	female dyspareunia;vaginismus	psychogenic sexual problems (sexual desire reduced) PS07;psychogenic sexual problems (sexual fulfilment reduced) PS07	0	309
+G	GS24	symptom	Impotence or erectile dysfunction	impotence of organic origin;erectile dysfunction	psychogenic impotence or reduced sexual fulfilment PS07;reduced sexual desire PS07	0	310
+G	GS25	symptom	Other specified sexual function symptoms or complaints	painful ejaculation		0	311
+G	GS26	symptom	Lump or mass in breast	lumpy breasts		0	312
+G	GS27	symptom	Nipple symptoms or complaints	nipple cracked;nipple fissure;nipple inversion;nipple pain;nipple pruritus;nipple retraction	nipple symptom or complaint in pregnancy or lactation WS06	0	313
+G	GS28	symptom	Other specified breast symptoms or complaints	galactorrhoea;mastopathy	mastitis (lactating) WD03	0	314
+G	GS29	symptom	Infertility or subfertility	primary infertility;secondary sterility		0	315
+G	GS50	clinicalFinding	Abnormal cervix smear	cervical dysplasia;cervical intraepithelial neoplasia (CIN) grade 1;cervical intraepithelial neoplasia (CIN) grade 2	cervical intraepithelial neoplasia (CIN) grade 3 GD32	0	316
+G	GS90	complaint	Concern about breast appearance	concern about shape of breast;concern about size of breast;dissatisfied with breast appearance		0	317
+G	GS91	complaint	Concern or fear of sexual dysfunction		Sexual disfunction PS07	0	318
+G	GS92	complaint	Concern or fear of sexually transmitted infection		fear of HIV/AIDS BS90	0	319
+G	GS93	complaint	Concern or fear of breast cancer			0	320
+G	GS94	complaint	Other specified concern or fear of disease of genital system	fear of prostate cancer <Reference>GS94.00</Reference>	concern/fear of breast cancer female GS93;concern/fear of sexual transmitted infection GS92	0	321
+G	GS99	symptom	Other specified symptoms, complaints and abnormal findings of genital system	haematospermia	urethral discharge US10	0	322
+G	GS94.00	complaint	Fear of prostate cancer			1	1053
+G	GS28.00	symptom	Gynaecomastia			1	1052
+G	GS27.00	symptom	Nipple discharge	nipple bleeding		1	1051
+G	GS21.00	symptom	Swelling of testis	swelling of scrotum		1	1050
+G	GS13.00	symptom	Atrophic vaginitis	senile vaginitis		1	1048
+G	GS13.01	symptom	Menopausal flushing			1	1049
+G	GS10.00	symptom	Ovulation bleeding			1	1047
+G	GS09.00	symptom	Irregular periods			1	1045
+G	GS09.01	symptom	Polymenorrhea			1	1046
+G	GS07.00	symptom	Amenorrhea	amenorrhoea primary or secondary		1	1043
+G	GS07.02	symptom	Oligomenorrhea			1	1044
+H	HS01	symptom	Ear pain or ache	otalgia		0	356
+H	HS02	symptom	Hearing complaint	diplacusis;feeling of hearing loss;hyperacusis;hypoacusis	deafness one ear HD69;deafness both ears HD69;tinnitus HS03	0	357
+H	HS03	symptom	Tinnitus, ringing or buzzing ear	echo in ear	ears crackling/popping HS99	0	358
+H	HS04	symptom	Ear discharge	otorrhoea	blood in/from ear HS05	0	359
+H	HS05	symptom	Bleeding ear	blood from ear;blood in ear;hemorrhage from the ear;otorrhagia		0	360
+H	HS06	symptom	Plugged feeling in ear	blocked ear	excessive ear wax HD66	0	361
+H	HS90	complaint	Concern or fear of ear disease	fear of deafness		0	362
+H	HS91	complaint	Concern about appearance of ears		bat ears/congenital anomaly ear HD55	0	363
+H	HS99	symptom	Other specified symptoms, complaints, abnormal findings of ear	ears crackling;ears popping;itchy ears;pulling at ears		0	364
+K	KS01	symptom	Pain, pressure, tightness of heart	heaviness of heart;pain attributed to the heart	angina pectoris KD65;chest pain NOS AS12;chest pain attributed to the musculoskeletal system LS04;chest tightness RS99;fear of heart attack KS90;shortness  of breath, dyspnoea RS02	0	381
+K	KS02	symptom	Palpitations, awareness of heart	bradycardia;tachycardia	paroxysmal tachycardia KD69	0	382
+K	KS03	symptom	Irregular heartbeat		palpitations, awareness of heart KS02	0	383
+K	KS04	symptom	Ankle oedema	swollen feet;swollen legs	anasarca/generalized oedema AS09;ankle symptom LS15;localized swelling SS03	0	384
+K	KS50	clinicalFinding	Low blood pressure	idiopathic hypotension	postural hypotension KD75	0	385
+K	KS51	clinicalFinding	Elevated blood pressure	labile hypertension;transient hypertension ;white coat hypertension 	hypertension, uncomplicated KD73;hypertension, complicated KD74	0	386
+K	KS52	clinicalFinding	Heart murmur or arterial murmur or both	cardiac artery bruit;carotid artery bruit;innocent murmur of childhood;renal artery bruit	cerebrovascular disease ND70;rheumatic heart disease KD02;valve disease KD71	0	387
+K	KS90	complaint	Concern or fear of disease of circulatory system	fear of heart attack;fear of heart disease;fear of hypertension		0	388
+K	KS99	symptom	Other specified symptoms, complaints, abnormal findings of circulatory system	cardiovascular pain;non-neoplastic nevus;prominent veins;spider naevus;telangiectasis	cyanosis SS07	0	389
+L	LS01	symptom	Neck symptom or complaint	cervicalgia;neck symptom;pain attributed to cervical spine;neck stiffness		0	411
+L	LS02	symptom	Back symptom or complaint	backache;dorsalgia;thoracic back pain	low back pain LS03	0	412
+L	LS03	symptom	Low back symptom or complaint	coccydynia;lumbago;lumbalgia;lumbar and sacroiliac back pain	sciatica LD67;thoracic back pain LS02	0	413
+L	LS04	symptom	Musculoskeletal chest symptom or complaint	chest pain attributed to musculoskeletal system;intercostal pain;swelling on chest	chest pain AS12;intercostal neuralgia ND77;pain attributed to the heart KS01;painful respiration/pleuritic pain/pleurodynia RS01	0	414
+L	LS05	symptom	Flank or axilla symptom or complaint	flank pain;loin pain;pain in axilla	kidney symptom US07	0	415
+L	LS06	symptom	Jaw symptom or complaint	temporomandibular joint symptom	teeth/gum symptom/complaint DS19;temporomandibular joint disorder DD65	0	416
+L	LS07	symptom	Shoulder symptom or complaint			0	417
+L	LS08	symptom	Arm symptom or complaint		muscle pain/myalgia LS17	0	418
+L	LS09	symptom	Elbow symptom or complaint			0	419
+L	LS10	symptom	Wrist symptom or complaint			0	420
+L	LS11	symptom	Hand or finger (or both) symptom or complaint	cramp in hands;pain in joint of hand or finger;pain in fingers;pain in hand		0	421
+L	LS12	symptom	Hip symptom or complaint			0	422
+L	LS13	symptom	Leg or thigh (or both) symptom or complaint	buttock pain;leg cramps;leg weakness	growing pain LS99;muscle pain/myalgia LS17;restless legs NS03	0	423
+L	LS14	symptom	Knee symptom or complaint	effusion or swollen knee		0	424
+L	LS15	symptom	Ankle symptom or complaint		ankle oedema KS04	0	425
+L	LS16	symptom	Foot or toe (or both) symptom or complaint	foot/feet cramp;heel pain		0	426
+L	LS17	symptom	Muscle pain	abdominal wall pain;myalgia;rheumatism	pain in neck LS01;pain in back LS02;pain in lower back LS03;leg cramps LS13	0	427
+L	LS18	symptom	Chronic widespread pain	fibromyositis		0	428
+L	LS19	symptom	Muscle symptom or complaint	atrophy of muscle;muscle stiffness;muscle strain;wasting of muscle;weakness of muscle	'growing pains' in child LS99;leg cramps LS13;muscle pain LS17;pain in neck LS01;pain in back LS02;pain in lower back LS03;restless legs NS03	0	429
+L	LS20	symptom	Other specified joint symptoms or complaints	arthralgia;effusion of other specified joint;multiple joint symptoms or complaints;pain in joint;stiffness in joint;swelling of joint;weakness in joint	ankle symptom/complaint LS15;elbow symptom/complaint LS09;foot/toe symptom/complaint LS16;hand/finger symptom/complaint LS11;hip symptom/complaint LS12;jaw symptom/complaint LS06;knee symptom/complaint LS14;shoulder symptom/complaint LS07;wrist symptom/complaint LS10	0	430
+L	LS90	complaint	Concern or fear of disease of musculoskeletal system			0	431
+L	LS99	symptom	Other specified symptoms, complaints and abnormal findings of musculoskeletal system	abnormal posture;'growing pains' in a child	clubbing of fingernails SS09	0	432
+L	LS18.00	symptom	Primary fibromyalgia syndrome	fibromyalgia		1	1136
+L	LS16.00	symptom	Metatarsalgia			1	1135
+N	NS01	symptom	Headache	post-traumatic headache	atypical facial neuralgia ND99;cervicogenic headache LD65;cluster headache ND72;face pain NS02;migraine ND71;post-herpetic pain SD03;sinus pain RS11;tension headache ND73	0	465
+N	NS02	symptom	Pain, face		headache NS01;migraine ND71;post herpetic pain SD03;sinus pain RS11;toothache DS19;trigeminal neuralgia ND74	0	466
+N	NS03	symptom	Restless legs	Sleep-related leg cramps	adverse effect medical agent AD40;intermittent claudication KD76;leg cramps LS13	0	467
+N	NS04	symptom	Tingling fingers, feet, toes	paraesthesia;prickly feeling fingers;prickly feeling feet;prickly feeling toes	pain or tenderness of skin SS01	0	468
+N	NS05	symptom	Sensation disturbances	anaesthesia;burning sensation;numbness	pain/tenderness of skin SS01;tingling fingers/feet/toes NS04	0	469
+N	NS06	symptom	Convulsion or seizure	fit	fainting AS07;transient ischaemic attack ND68	0	470
+N	NS07	symptom	Abnormal involuntary movements	dystonic movements;jerking;myoclonus;shaking;tetany;tremor;twitching	chorea KD02;convulsion NS06;cramps/spasm jaw LS06;cramps/spasm arm LS08;cramps/spasm hand/finger LS11;cramps/spasm leg/thigh LS13;cramps/spasm foot/toe LS16;cramps/spasm muscle LS17;dystonic disorder ND99;organic tic ND99;psychogenic tic ND99;restless legs NS03;tic douloureux ND74	0	471
+N	NS08	symptom	Disturbance of smell, taste or both	anosmia	halitosis DS20	0	472
+N	NS09	symptom	Vertigo or dizziness	giddiness;loss of balance;woozy	motion sickness AD45.02;specific vertiginous syndrome HD67;syncope or blackout AS07	0	473
+N	NS10	symptom	Paralysis and weakness	palsy;paralysis;paralytic symptoms;paresis	general weakness AS04	0	474
+N	NS11	symptom	Speech problem	aphasia;dysarthria;dysphasia;slurred speech	hoarseness RS13;speech delay PS18	0	475
+N	NS90	complaint	Concern or fear of neurological disease			0	476
+N	NS99	symptom	Other specified symptoms, complaints and abnormal findings of neurological system	ataxia;gait abnormality;gait pattern problem;limping;meningism;transient global amnesia;walking problem		0	477
+N	NS11.00	symptom	Stammering	Speech dysfluency is characterised by the frequent or pervasive disruption of the rhythmic flow of speech that arises subsequent to the developmental period (i.e., adult onset) and is outside the limits of normal variation and results in reduced intelligibility and significantly affects communication. It can involve repetitions of sounds, syllables or words, prolongations, word breaks, blockage of production, excessive use of interjections, and rapid short bursts of speech.		1	1208
+N	NS09.00	symptom	Lightheaded			1	1206
+N	NS09.01	symptom	Rotatory vertigo			1	1207
+N	NS06.00	symptom	Febrile seizures			1	1205
+P	PS01	symptom	Feeling anxious or nervous or tense	anxiety NOS;feeling frightened	anxiety disorder PD06	0	501
+P	PS02	symptom	Acute stress reaction	acute adjustment problem;culture shock;feeling grief;feeling homesick;feeling stressed;immediate post-traumatic stress;shock (psychic)	depressive disorder PD12;feeling depressed PS03;post-traumatic stress disorder PD09	0	502
+P	PS03	symptom	Feeling sad	feeling inadequate;unhappy	depressive disorder PD12;low self-esteem PS99	0	503
+P	PS04	symptom	Feeling or being irritable or angry	agitation NOS;restlessness NOS	adolescent behaviour symptom/complaint PS19;child behaviour symptom/complaint PS18;irritability in partner ZC30;overactive child PS18	0	504
+P	PS05	symptom	Suicidal ideation		suicide attempt PD14	0	505
+P	PS06	symptom	Sleep disturbance	insomnia;nightmares;sleepwalking	jet lag AD45;sleep apnoea RS06;somnolence AS99	0	506
+P	PS07	symptom	Sexual desire and fulfilment problem	frigidity;loss of libido;non-organic impotence or dyspareunia	concern with sexual preference PS08;organic impotence/sexual problems GS24;organic vaginismus GS23	0	507
+P	PS08	symptom	Gender incongruence problem			0	508
+P	PS09	symptom	Eating problem in child	feeding problem;food refusal	anorexia nervosa PD17;bulemia PD17;eating problem of infant/child TS04	0	509
+P	PS10	symptom	Bedwetting or enuresis		bedwetting due to organic disorder US03	0	510
+P	PS11	symptom	Encopresis			0	511
+P	PS12	symptom	Chronic alcohol problem			0	512
+P	PS13	symptom	Acute alcohol intoxication	drunk		0	513
+P	PS14	symptom	Tobacco smoking problem	smoking problem		0	514
+P	PS15	symptom	Medication abuse			0	515
+P	PS16	symptom	Drug abuse	addiction to drug;drug withdrawal		0	516
+P	PS17	symptom	Memory or attention problem	amnesia;disorientation;disturbance of concentration		0	517
+P	PS18	symptom	Child behaviour symptom or complaint	delayed milestones;jealousy of child;overactive child;speech delay;temper tantrum	behaviour symptom/complaint adolescent PS19;behaviour symptom/complaint adult PD15;concern about physical development/growth delay TS08	0	518
+P	PS19	symptom	Adolescent behaviour symptom or complaint	delinquency	behaviour symptom/complaint child PS18	0	519
+P	PS20	symptom	Specific learning problems		attention deficit disorder PD16;disorders of intellectual development PD18	0	520
+P	PS21	symptom	Own illness problem	problems related to adherence to medical advice		0	521
+P	PS22	symptom	Phase of life problem			0	522
+P	PS90	complaint	Concern, fear of mental disorder or problem	concern about mental disease;fear of committing suicide		0	523
+P	PS99	symptom	Other specified psychological/mental symptom/complaint/abnormal finding	delusions;eating disorders NOS;hallucinations;hyperactivity;multiple psychological symptoms/complaints;poor hygiene;strange behaviour;suspiciousness		0	524
+P	PS22.00	symptom	Empty-nest problem			1	1256
+P	PS22.01	symptom	Retirement problem			1	1257
+P	PS21.00	symptom	Dependence on others			1	1255
+P	PS20.00	symptom	Developmental disorder of motor function			1	1251
+P	PS20.01	symptom	Developmental language disorder			1	1252
+P	PS20.02	symptom	Developmental speech disorder			1	1253
+P	PS20.03	symptom	Dyslexia	acalculia;alexia;symbolic dysfunctions		1	1254
+P	PS16.00	symptom	Abuse or addiction hard drugs			1	1249
+P	PS16.01	symptom	Abuse/addiction soft drugs			1	1250
+P	PS12.00	symptom	Alcohol dependence	alcohol brain syndrome		1	1244
+P	PS12.01	symptom	Alcohol withdrawal delirium			1	1245
+P	PS12.02	symptom	Alcoholism			1	1246
+P	PS12.03	symptom	Binge drinker			1	1247
+P	PS12.04	symptom	Korsakoff's psychosis	amnestic syndrome due to alcohol		1	1248
+P	PS07.00	symptom	Premature ejaculation			1	1241
+P	PS07.01	symptom	Primary erectile dysfunction			1	1242
+P	PS07.02	symptom	Vaginismus of psychogenic origin			1	1243
+R	RS01	symptom	Pain respiratory system	painful respiration;pleuritic pain;pleurodynia	chest pain AS12;musculoskeletal chest pain LS04;nose pain RS10;sinus pain RS11;sore throat RS12;chest tightness RS99;pleurisy RS50	0	545
+R	RS02	symptom	Shortness of breath	orthopnoea	hyperventilation RS04;stridor RS04;wheezing RS03	0	546
+R	RS03	symptom	Wheezing	expiratory wheeze;rhonchi	dyspnoea RS02;hyperventilation RS04;stridor RS04	0	547
+R	RS04	symptom	Other specified breathing problem	abnormal breathing;apnoea;holding breath;hyperventilation;inspiratory wheeze;respiratory distress;stridor;tachypnoea		0	548
+R	RS05	symptom	Snoring			0	549
+R	RS06	symptom	Sleep-related breathing problems			0	550
+R	RS07	symptom	Cough	dry cough;moist cough	abnormal sputum/phlegm RS15	0	551
+R	RS08	symptom	Nose bleed or epistaxis			0	552
+R	RS09	symptom	Sneezing or nasal congestion	blocked nose;rhinorrhea;running nose		0	553
+R	RS10	symptom	Nose symptoms or complaints	pain in nose	anosmia NS08;blocked nose/sneezing RS09;complaint of sinuses RS11;concern with appearance of nose RS91;epistaxis RS08;rhinophyma SD99	0	554
+R	RS11	symptom	Sinus symptoms or complaints	blocked sinus;congested sinus;pain/pressure in sinus;post-nasal drip	headache NS01;face pain NS02;nasal congestion RS09	0	555
+R	RS12	symptom	Throat symptoms or complaints	dry throat;inflamed throat;red throat;large tonsils;lump in throat;tonsillar pain	tonsillar hypertrophy RD66;voice symptom RS13	0	556
+R	RS13	symptom	Voice symptoms or complaints	absence of voice;aphonia;hoarseness	neurological disorder of speech NS11;stammering/stuttering NS11;sore throat RS12	0	557
+R	RS14	symptom	Haemoptysis or coughing blood			0	558
+R	RS15	symptom	Abnormal sputum or phleg		cough with sputum RS07;haemoptysis RS14	0	559
+R	RS50	clinicalFinding	Pleurisy or pleural effusion	pleural inflammatory exudate;pleuritis	pneumonia RD09;tuberculosis AD15	0	560
+R	RS90	complaint	Concern or fear of disease respiratory system			0	561
+R	RS91	complaint	Concern about appearance of nose	red nose;prominent nose		0	562
+R	RS99	symptom	Other specified respiratory symptoms, complaints and abnormal findings	chest tightness;fluid on lung		0	563
+R	RS99.00	symptom	Hiccough			1	1276
+R	RS99.01	symptom	Irritable airways			1	1277
+R	RS12.00	symptom	Pain in throat			1	1275
+R	RS06.00	symptom	Sleep apnoea	central sleep apnoea;obstructive sleep apnoea		1	1274
+S	SS01	symptom	Pain or tenderness of skin	painful lesion or rash;soreness	other sensation disturbance NS05;tingling fingers/feet/toes NS04	0	588
+S	SS02	symptom	Pruritus	skin irritation	dermatitis artefacta SD99;nipple pruritus GS27;perianal itching DS05;scrotal pruritus GS21;vulval pruritus GS18	0	589
+S	SS03	symptom	Lump or swelling of skin localised	papule	breast lump GS26;insect bite SD39;swelling AS09	0	590
+S	SS04	symptom	Lump or swelling of skin generalised	lumps in multiple sites;papules in multiple sites;swellings in multiple sites	ankle oedema KS04;swelling AS09	0	591
+S	SS05	symptom	Rash localised	blotch;erythema;redness	localized lump or swelling of skin SS03	0	592
+S	SS06	symptom	Rash generalised	blotches occurring in multiple sites;erythema occurring in multiple sites;redness occurring in multiple sites	generalised lumps/swellings skin SS04;other viral exanthem AD13	0	593
+S	SS07	symptom	Skin colour change	circles under eyes;livedo reticularis;flushing;freckles;pallor	bruise SD35;hot flushes GS13;jaundice DS13;vitiligo SD99	0	594
+S	SS08	symptom	Skin texture symptom or complaint	fissura skin;peeling;scaling;wrinkles	ichthyosis SD55;scalp symptom/complaint SS11;sweating problem AS10;sweat gland disease SD73;vulval symptom/complaint GS18	0	595
+S	SS09	symptom	Nail symptom or complaint	clubbing	ingrowing nail SD75;paronychia SD05	0	596
+S	SS10	symptom	Hair loss or baldness			0	597
+S	SS11	symptom	Other specified hair or scalp symptom or complaint	dry scalp	dandruff SD68;folliculitis SD06;hair loss/baldness SS10;trichotillomania PS99	0	598
+S	SS90	complaint	Concern or fear of disease of skin			0	599
+S	SS99	symptom	Other specified symptoms, complaints and abnormal findings of skin	cellulite;petechiae;problems with umbilicus;sore(s);spontaneous ecchymosis	chronic ulcer skin/pressure sore SD77;scar SD99	0	600
+S	SS11.00	symptom	Change in hair colour			1	1311
+S	SS11.01	symptom	Hirsutism			1	1312
+S	SS08.00	symptom	Dry skin		xerosis cutis SD99	1	1309
+S	SS08.01	symptom	Induration of skin			1	1310
+S	SS07.00	symptom	Cyanosis			1	1308
+T	TS01	symptom	Excessive thirst	polydipsia		0	649
+T	TS02	symptom	Excessive appetite	overeating;polyphagia	bulimia PD17	0	650
+T	TS03	symptom	Loss of appetite	anorexia	anorexia nervosa PD17;cachexia TS07	0	651
+T	TS04	symptom	Feeding problem of infant or child	problem of how to feed infant or child	breast feeding problems WS06;feeding problem/eating disorders with psychological cause PS09;food allergy AD46;food intolerance DD99	0	652
+T	TS05	symptom	Feeding problem of adult	problem of what and how to eat/feed adult	anorexia/bulimia nervosa PD17;dysphagia DS21;eating disorders NOS PS99;food allergy AD46;food intolerance DD99;loss of appetite TS03	0	653
+T	TS06	symptom	Weight gain		obesity TD66;overweight TS51	0	654
+T	TS07	symptom	Weight loss	cachexia	anorexia nervosa PD17	0	655
+T	TS08	symptom	Growth delay	failure to thrive;physiological delay growth	delayed milestones PS18;delayed puberty TD99;learning disorder PS20	0	656
+T	TS09	symptom	Dehydration	water depletion	salt depletion/electrolyte disturbance TD99	0	657
+T	TS50	clinicalFinding	Underweight		marasmus TD74.01	0	658
+T	TS51	clinicalFinding	Overweight		obesity TD66	0	659
+T	TS90	complaint	Concern or fear of disease of endocrine, metabolic and nutritional system	concern of diabetes;concern of cancer of the endocrine, metabolic system;fear of diabetes;fear of cancer of the endocrine, metabolic system		0	660
+T	TS99	symptom	Other specified endocrine, metabolic, nutritional symptoms, complaints, abnormal findings	specific food craving	hyperglycemia AS50;fluid retention KS04	0	661
+U	US01	symptom	Dysuria or painful urination or both	burning urination;strangury;vesical tenesmus	frequent/urgent urination US02;urethritis UD03	0	679
+U	US02	symptom	Urinary frequency or urgency	nocturia;polyuria		0	680
+U	US03	symptom	Urine incontinence	enuresis of organic origin;involuntary urination	urine incontinence of psychogenic origin PS10	0	681
+U	US04	symptom	Urinary retention			0	682
+U	US05	symptom	Other specified urination problems	dribbling urine	urinary retention US04	0	683
+U	US06	symptom	Haematuria	blood in urine;microscopic haematuria	abnormal urine test US50	0	684
+U	US07	symptom	Other specified urine symptom or complaint	dark urine;malodorous urine	abnormal urine test US50	0	685
+U	US08	symptom	Other specified bladder symptom or complaint	bladder pain;irritable bladder		0	686
+U	US09	symptom	Kidney symptom or complaint	kidney pain;kidney trouble	loin/flank pain LS05	0	687
+U	US10	symptom	Urethral discharge			0	688
+U	US50	clinicalFinding	Abnormal urine test	asymptomatic bacteriuria;pus in urine;pyuria	haematuria/blood in urine US06	0	689
+U	US90	complaint	Concern or fear of disease of urinary system			0	690
+U	US99	symptom	Other specified symptom, complaint and abnormal finding of urinary system		irritable bladder/bladder pain US08;kidney symptom/complaint US09	0	691
+U	US50.00	clinicalFinding	Orthostatic albuminuria			1	1408
+U	US50.01	clinicalFinding	Glycosuria			1	1409
+U	US50.02	clinicalFinding	Proteinuria			1	1410
+U	US09.00	symptom	Renal colic			1	1407
+U	US05.00	symptom	Anuria/oliguria			1	1406
+U	US03.00	symptom	Genuine stress incontinence			1	1403
+U	US03.01	symptom	Mixed incontinence			1	1404
+U	US03.02	symptom	Urge incontinence			1	1405
+W	WS01	symptom	Suspicion of pregnancy	delayed menstruation;symptoms suggestive of pregnancy	fear of pregnancy WS90;pregnancy confirmed WD67;unwanted pregnancy WD68	0	707
+W	WS02	symptom	Pregnancy vomiting and nausea	morning sickness in confirmed pregnancy		0	708
+W	WS03	symptom	Bleeding first 20 weeks of pregnancy		antepartum haemorrhage WS04	0	709
+W	WS04	symptom	Antepartum haemorrhage	bleeding second/third trimester <Reference>WS04.00</Reference>		0	710
+W	WS05	symptom	Post-partum bleeding			0	711
+W	WS06	symptom	Breast or lactation symptom or complaint	weaning	cracked nipples WD84;puerperal mastitis WD03	0	712
+W	WS39	symptom	Other specified post-partum symptom or complaint		lactation complaints WS06;complications of puerperium WD85;puerperal depression PD12;post-partum bleeding WS05	0	713
+W	WS50	clinicalFinding	Abnormal findings on antenatal screening of mother			0	714
+W	WS90	complaint	Concern or fear of being pregnant	concern about possibility of unwanted pregnancy	concern/fear if unwanted pregnancy confirmed WD68	0	715
+W	WS91	complaint	Fear about complications of pregnancy	fear of congenital anomaly in baby		0	716
+W	WS99	symptom	Other specified symptoms, complaints and abnormal findings during  pregnancy, delivery and puerperium			0	717
+W	WS99.00	symptom	Feeling fewer movements of foetus			1	1426
+W	WS99.01	symptom	Pelvic instability	subluxation of symphysis (pubis) in childbirth;subluxation of symphysis (pubis) in pregnancy;subluxation of symphysis (pubis) in puerperium		1	1427
+W	WS99.02	symptom	Concern about appearance during pregnancy			1	1428
+W	WS39.00	symptom	Abnormal lochia			1	1425
+W	WS06.00	symptom	Lactation problem	breast feeding painful;galactorrhoea associated with childbirth;suppressed lactation;suppression of lactation		1	1424
+W	WS04.00	symptom	Bleeding second/third trimester			1	1423
+W	WS03.00	symptom	Bleeding first trimester			1	1422
+W	WS02.00	symptom	Hyperemesis gravidarum			1	1421

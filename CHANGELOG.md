@@ -2,6 +2,17 @@
 
 ### Added
 
+- **A symptom axis.** `mirobody.translate.resolve_symptom()` turns a complaint
+  in a person's own words into one ICPC-3 code, or abstains with a reason.
+  The vocabulary is the S component of ICPC-3, 319 codes, shipped verbatim
+  under CC BY-ND (`res/icpc3_s_component.tsv` and its NOTICE); the everyday
+  Chinese and English spellings that reach it are ours, Apache-2.0, and hold
+  no ICPC-3 term in any language because a translation would be a derivative
+  work the licence forbids. Same contract as `code()`: three outcomes, a
+  decision id, and no guess. Display names are ICPC-3's English.
+  A coding names `icpc-3+<digest>`, a stamp over the shipped terms, because
+  ICPC-3 publishes no release number in the data we hold.
+
 - Offline resolver: Russian panel terms as real Russian lab reports print
   them (МЕДСИ, INVITRO, state clinics; ~80 spellings from a 2019-2026 record
   archive), plus the three Estonian vitamin spellings a Synlab report prints.

@@ -1,0 +1,43 @@
+This file (icpc3_s_component.tsv) contains the S component of ICPC-3, the
+International Classification of Primary Care, Third Revision. The copyright of
+ICPC-3, in electronic form and in hard copy, is owned by WONCA (the World
+Organization of Family Doctors), published by the WONCA ICPC Foundation.
+
+ICPC-3 is made available under the Creative Commons Attribution-NoDerivatives
+licence (CC BY-ND), including for commercial use. HL7 Terminology records the
+same terms and adds that official licensing is required for non-research
+deployment in countries that do not already hold a licence; a deployer of this
+package outside research should check that against WONCA directly.
+
+  Publisher: WONCA ICPC Foundation, https://www.icpc-3.info/
+  Code system URI: http://terminology.hl7.org/CodeSystem/ICPC-3
+  Retrieved: 2026-09-20, from the ICPC-3 browser's chapter API.
+
+WHAT THIS FILE IS
+-----------------
+319 rows: every code in the S (symptoms, complaints and abnormal findings)
+component, with the chapter it sits in, its kind, its preferred term, its
+inclusion and exclusion annotations, its depth and the browser's own row id.
+Columns: chapter, code, kind, preferred, inclusions, exclusions, depth, id.
+
+NO DERIVATIVE WORK
+------------------
+CC BY-ND permits redistribution of the unadapted work and forbids publishing
+adaptations. So: every term, code and annotation is byte-for-byte what WONCA
+published. Nothing is translated, abbreviated, merged, re-worded or re-coded.
+The only change is transport: the rows are serialised as TSV and line endings
+are LF. Multi-valued cells keep the separator the source used (`;`).
+
+In particular there is no Chinese ICPC-3. A translation is an adaptation.
+`res/symptoms_zh.tsv` is not one: it is this project's own writing about which
+Chinese patient phrase points at which ICPC-3 code, holds no ICPC-3 term in
+any language, and is Apache-2.0 with the rest of the project. Display names
+shown to a user come from the `preferred` column of THIS file, in English.
+
+VERSION
+-------
+ICPC-3 publishes no release number inside the data retrieved above.
+`mirobody.translate.symptom.release()` therefore reports
+`icpc-3+<12 hex>`, a digest over the parsed codes, preferred terms and
+inclusions of this file, so a coding names content that cannot disagree with
+the stamp. Replace this file and the stamp changes with it.
