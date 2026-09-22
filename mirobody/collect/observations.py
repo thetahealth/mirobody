@@ -15,8 +15,8 @@ What one `ingest()` call does, in ONE transaction:
 2. for each draft, inside its own savepoint: folds, parses, places the day,
    inserts the observation (a collision on the identity index is a retry,
    not a duplicate, and is counted as skipped), then codes it and writes
-   `th_coding_current`, `th_coding_history`, `th_coding_decision` and, for a
-   LOINC code, `th_concept`;
+   `th_coding_current`, `th_coding_history`, `th_coding_decision` and, for any
+   code that carries a display name, `th_concept`;
 3. refreshes `th_series`, the catalogue an assistant reads first, for the
    series the batch touched;
 4. records the batch's verdict on the extraction row.
@@ -311,6 +311,12 @@ def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], translate.Ali
     from a vendor.
     """
     alias = aliases.get((row["name_key"], row["unit_ucum"])) or aliases.get((row["name_key"], ""))
+    if row["kind"] == KIND_SYMPTOM:
+        # A complaint is not an analyte, and the lexical resolver cannot
+        # abstain from one: 发烧 reached 153 LOINC candidates and coded to
+        # 103717-5, Crimean-Congo hemorrhagic fever virus RNA. The symptom
+        # axis is ICPC-3 and answers on its own vocabulary.
+        return translate.resolve_symptom(row["name_text"], alias=alias)
     if alias is None and row["source_kind"] == SOURCE_DEVICE:
         alias = catalog_alias(row["name_text"]) or translate.Alias(
             _ALIAS_SCOPE_CATALOG, metrics.SYSTEM_DEVICE, row["name_text"].split(".", 1)[0]
@@ -513,19 +519,26 @@ async def _write_coding(tx: db.Transaction, observation_id: int, row: dict[str, 
     params = _coding_params(observation_id, coding)
     await tx.execute(_INSERT_CURRENT, params)
     await tx.execute(_INSERT_HISTORY, {**params, "cause": cause})
-    if coding.coded and coding.code_system == translate.LOINC_SYSTEM and coding.axes is not None:
+    if coding.coded and coding.display and coding.display != coding.code:
+        # Every code whose vocabulary gave it a NAME, not only the LOINC ones:
+        # an ICPC-3 coding has no axes, and the six `loinc_*` columns are
+        # nullable for that reason. Without a row here a symptom series has no
+        # standard name to show beside the words the person wrote. A device
+        # code, whose display is the code echoed back, still gets none: the
+        # series keeps showing the vendor field, as it did before.
+        axes = coding.axes
         await tx.execute(_INSERT_CONCEPT, {
             "release": coding.release,
             "code_system": coding.code_system,
             "code": coding.code,
-            "display": coding.display or coding.code,
+            "display": coding.display,
             "series_id": coding.series_id,
-            "component": coding.axes.component,
-            "property": coding.axes.property,
-            "time": coding.axes.time,
-            "system": coding.axes.system,
-            "scale": coding.axes.scale,
-            "method": coding.axes.method,
+            "component": axes.component if axes else None,
+            "property": axes.property if axes else None,
+            "time": axes.time if axes else None,
+            "system": axes.system if axes else None,
+            "scale": axes.scale if axes else None,
+            "method": axes.method if axes else None,
         })
 
 
