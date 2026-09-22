@@ -38,7 +38,7 @@ from .sharing_router import router as sharing_router
 # uvicorn binds. The traceback was invisible: asyncio.run's task cleanup hangs on the
 # scheduler, so the exception never got re-raised and the log just stopped.
 from .records_router import router as records_router
-from .symptom_router import router as symptom_router
+from .journal_router import router as journal_router
 
 public_router.include_router(apple_router)
 
@@ -51,5 +51,5 @@ __all__ = [
     "session_share_router",
     "sharing_router",
     "records_router",
-    "symptom_router",
+    "journal_router",
 ]

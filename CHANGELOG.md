@@ -2,23 +2,29 @@
 
 ### Added
 
-- **A symptom axis.** `mirobody.translate.resolve_symptom()` turns a complaint
-  in a person's own words into one ICPC-3 code, or abstains with a reason.
-  The vocabulary is the S component of ICPC-3, 319 codes, shipped verbatim
-  under CC BY-ND (`res/icpc3_s_component.tsv` and its NOTICE); the everyday
-  Chinese and English spellings that reach it are ours, Apache-2.0, and hold
-  no ICPC-3 term in any language because a translation would be a derivative
-  work the licence forbids. Same contract as `code()`: three outcomes, a
-  decision id, and no guess. Display names are ICPC-3's English.
-  A coding names `icpc-3+<digest>`, a stamp over the shipped terms, because
-  ICPC-3 publishes no release number in the data we hold.
+- **Two ICPC-3 axes.** `mirobody.translate.resolve_symptom()` turns a
+  complaint in a person's own words into one ICPC-3 S code, and
+  `resolve_condition()` turns a named diagnosis into one D code. Each abstains
+  with a reason rather than guessing, on the same contract as `code()`: three
+  outcomes, a decision id, no guess. They are separate indexes and the caller
+  picks, so 发烧 answers only as a complaint and 高血压 only as a diagnosis.
+  The vocabulary ships verbatim under CC BY-ND, 1,218 codes in `res/icpc3.tsv`
+  with its NOTICE; the everyday Chinese and English spellings that reach it are
+  ours, Apache-2.0, and hold no ICPC-3 term in any language, because WONCA
+  licenses translations of the electronic version separately. Display names are
+  ICPC-3's English. A coding names `icpc-3+<digest>`, a stamp over the shipped
+  terms, because ICPC-3 publishes no release number in the data we hold.
+  The classification's index words are deliberately not shipped: 1,273 of
+  3,139 of them (40.6%) are character-identical to a SNOMED CT description on
+  the same code, and `res/` carries no SNOMED CT derivative.
 
-- **`/api/v1/symptoms`: log a complaint, read the log back by day.** POST one
-  entry, GET the log grouped by the day it was felt, DELETE one. No new table:
-  a complaint is one self-reported `symptom` observation, so it inherits the
-  append-only history, the day placement and the coding trail. The list gives
-  both names, the person's words and the classification's, and keeps the
-  entries the vocabulary could not place with the reason attached.
+- **`/api/v1/journal`: log what a person reports, read it back by day.** POST
+  one entry with `kind` of `symptom` or `condition`, GET the log grouped by the
+  day it was felt, DELETE one. No new table: both are one self-reported
+  observation, so they inherit the append-only history, the day placement and
+  the coding trail. The list gives both names, the person's words and the
+  classification's, and keeps the entries the vocabulary could not place with
+  the reason attached.
 
 - Offline resolver: Russian panel terms as real Russian lab reports print
   them (МЕДСИ, INVITRO, state clinics; ~80 spellings from a 2019-2026 record

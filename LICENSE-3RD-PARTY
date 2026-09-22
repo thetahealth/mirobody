@@ -16,7 +16,7 @@ use of each is subject to the license terms of its sources:
   Artifact                        Derived from                Notice
   ------------------------------  --------------------------  -------------------------------
   fhir_loinc_bundle.tar.gz        LOINC 2.83                  res/fhir_loinc_bundle.NOTICE
-  icpc3_s_component.tsv           ICPC-3 S component,         res/icpc3_s_component.NOTICE
+  icpc3.tsv                       ICPC-3 S and D components,  res/icpc3.NOTICE
                                   verbatim (CC BY-ND)
   aliases_src/zh.tsv              LOINC Linguistic Variants   section 1 below
                                   (claimed; see the note below)
@@ -30,6 +30,8 @@ use of each is subject to the license terms of its sources:
   recall_synonyms.tsv             hand-written (Apache-2.0)   —
   symptoms_zh.tsv                 hand-written (Apache-2.0)   —
   symptoms_en.tsv                 hand-written (Apache-2.0)   —
+  conditions_zh.tsv               hand-written (Apache-2.0)   —
+  conditions_en.tsv               hand-written (Apache-2.0)   —
   dose_forms.tsv                  UCUM annotations; the       section 2 below
                                   spellings are ours
   EXTERNAL.tsv                    a manifest, no content      —
@@ -42,11 +44,11 @@ tree now requires a SNOMED CT Affiliate License or a UMLS Metathesaurus
 License. Releases up to 1.4.x did; their sections are kept at the end of this
 file for anyone reading one of those wheels.
 
-1.5.1 adds ONE new third-party dataset: the S component of ICPC-3, under
+1.5.1 adds ONE new third-party dataset: the S and D components of ICPC-3, under
 Creative Commons Attribution-NoDerivatives (CC BY-ND), redistributable
 verbatim including for commercial use. It needs no signed agreement and no
-account. `res/icpc3_s_component.NOTICE` carries the attribution, the code
-system URI and what "verbatim" means here; the short version is that no ICPC-3
+account. `res/icpc3.NOTICE` carries the attribution, the code system URI
+and what "verbatim" means here; the short version is that no ICPC-3
 term is translated or re-worded anywhere in this package, and the Chinese
 symptom table is our own writing about which phrase points at which code.
 

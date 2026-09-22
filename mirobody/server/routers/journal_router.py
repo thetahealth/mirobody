@@ -1,11 +1,12 @@
-"""Logging a complaint, and reading the log back by day.
+"""Logging what a person reports, and reading the log back by day.
 
-The write side of the symptom axis. A person types what is wrong in their own
-words; the words are stored verbatim and `translate.resolve_symptom` says
-which ICPC-3 code they name, or abstains. No new table: a complaint is one
-self-reported `symptom` observation, which the model has had room for since
-1.5.0, and every invariant `collect.observations` enforces for a lab row holds
-for this one too.
+The write side of the ICPC-3 axes. A person types what is wrong in their own
+words; the words are stored verbatim and `translate` says which code they
+name, or abstains. `kind` picks the axis: a `symptom` is what they feel now
+and resolves on ICPC-3's S component, a `condition` is what they have been
+diagnosed with and resolves on its D component. No new table: both are one
+self-reported observation, which the model has had room for since 1.5.0, and
+every invariant `collect.observations` enforces for a lab row holds here too.
 
 Two things this router deliberately does NOT do:
 
@@ -40,21 +41,28 @@ from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1", tags=["symptoms"])
+router = APIRouter(prefix="/api/v1", tags=["journal"])
 
 #: Every row this router writes shares it, so the identity index treats a
-#: double submit of the same complaint at the same instant as the retry it is.
-SOURCE_REF = "symptom-log"
+#: double submit of the same entry at the same instant as the retry it is.
+#: The axis a `kind` writes on. `translate` owns the resolving; this map is
+#: only which observation kind the caller may ask for.
+SOURCE_REF = "journal"
+
+KINDS = {
+    "symptom": observations.KIND_SYMPTOM,
+    "condition": observations.KIND_CONDITION,
+}
 
 MAX_DAYS = 400
 MAX_ROWS = 2000
 
 _SELECT = """
-SELECT o.id, o.local_date, o.observed_start, o.name_text, o.code_system, o.code,
+SELECT o.id, o.kind, o.local_date, o.observed_start, o.name_text, o.code_system, o.code,
        o.display, o.outcome, o.reason, o.series_id, decrypt_content(o.note_text) AS note_text
   FROM v_observation o
  WHERE o.user_id = :user_id
-   AND o.kind = :kind
+   AND o.kind = ANY(:kinds)
    AND o.local_date BETWEEN :from_date AND :to_date
  ORDER BY o.observed_start DESC
  LIMIT :limit
@@ -67,8 +75,9 @@ SELECT o.outcome, o.reason, o.code_system, o.code, o.display, o.series_id, o.rel
 """
 
 
-class SymptomEntry(BaseModel):
-    text: str = Field(..., min_length=1, max_length=200, description="The complaint, in the person's own words")
+class JournalEntry(BaseModel):
+    text: str = Field(..., min_length=1, max_length=200, description="The entry, in the person's own words")
+    kind: str = Field("symptom", description='"symptom" (felt now) or "condition" (diagnosed)')
     observed_at: datetime | None = Field(None, description="When it was felt. Defaults to now.")
     note: str | None = Field(None, max_length=2000, description="Anything else worth keeping. Stored encrypted.")
     target_user_id: str | None = Field(None, description="Log into this person's record; needs a write grant")
@@ -96,11 +105,14 @@ async def _subject(caller: str, target: str | None, *, write: bool) -> str | Non
     return owner
 
 
-@router.post("/symptoms")
-async def log_symptom(entry: SymptomEntry, user_id: str = Depends(verify_token)):
-    """Log one complaint. The answer carries the coding, so a client can show
-    the standard name beside the words and put an abstention in a review queue
+@router.post("/journal")
+async def log_entry(entry: JournalEntry, user_id: str = Depends(verify_token)):
+    """Log one entry. The answer carries the coding, so a client can show the
+    standard name beside the words and put an abstention in a review queue
     rather than discarding it."""
+    kind = KINDS.get(entry.kind)
+    if kind is None:
+        return ErrorResponse(code=400, msg=f"kind must be one of: {', '.join(sorted(KINDS))}.")
     owner = await _subject(user_id, entry.target_user_id, write=True)
     if owner is None:
         return ErrorResponse(code=403, msg="You cannot write to that record.")
@@ -109,7 +121,7 @@ async def log_symptom(entry: SymptomEntry, user_id: str = Depends(verify_token))
     draft = observations.Draft(
         name_text=entry.text,
         observed_start=entry.observed_at or datetime.now(tz=translate.zone_for(tz)),
-        kind=observations.KIND_SYMPTOM,
+        kind=kind,
         note_text=entry.note or "",
     )
     provenance = observations.Provenance(
@@ -123,7 +135,7 @@ async def log_symptom(entry: SymptomEntry, user_id: str = Depends(verify_token))
     except Exception as e:
         # A type name and nothing else: a driver exception quotes the SQL and
         # its parameters, and the parameter here is what the person typed.
-        logger.error("[log_symptom] error_type=%s", type(e).__name__)
+        logger.error("[log_entry] error_type=%s", type(e).__name__)
         return ErrorResponse(code=500, msg="This entry could not be saved.")
 
     if not report.inserted:
@@ -140,6 +152,7 @@ async def log_symptom(entry: SymptomEntry, user_id: str = Depends(verify_token))
     return StandardResponse(data={
         "id": report.ids[0],
         "text": entry.text,
+        "kind": entry.kind,
         "coded": row.get("outcome") == "coded",
         "code_system": row.get("code_system"),
         "code": row.get("code"),
@@ -150,11 +163,12 @@ async def log_symptom(entry: SymptomEntry, user_id: str = Depends(verify_token))
     })
 
 
-@router.get("/symptoms")
-async def list_symptoms(
+@router.get("/journal")
+async def list_entries(
     user_id: str = Depends(verify_token),
     from_date: str | None = Query(None, alias="from", description='"YYYY-MM-DD", inclusive'),
     to_date: str | None = Query(None, alias="to", description='"YYYY-MM-DD", inclusive'),
+    kind: str | None = Query(None, description='Only this kind; omit for every kind'),
     target_user_id: str | None = Query(None, description="Read this person's record; needs a grant"),
 ):
     """The log, newest first, grouped by the day it was felt.
@@ -176,8 +190,11 @@ async def list_symptoms(
     if (end - start).days > MAX_DAYS:
         return ErrorResponse(code=400, msg=f"That range is longer than {MAX_DAYS} days.")
 
+    if kind is not None and kind not in KINDS:
+        return ErrorResponse(code=400, msg=f"kind must be one of: {', '.join(sorted(KINDS))}.")
+    kinds = [KINDS[kind]] if kind else sorted(KINDS.values())
     rows = await execute_query(_SELECT, {
-        "user_id": owner, "kind": observations.KIND_SYMPTOM,
+        "user_id": owner, "kinds": kinds,
         "from_date": start, "to_date": end, "limit": MAX_ROWS,
     })
 
@@ -185,6 +202,7 @@ async def list_symptoms(
     for row in rows or []:
         days.setdefault(str(row["local_date"]), []).append({
             "id": row["id"],
+            "kind": row["kind"],
             "at": row["observed_start"].isoformat() if row["observed_start"] else None,
             "text": row["name_text"],
             "display": row["display"] or "",
@@ -203,8 +221,8 @@ async def list_symptoms(
     })
 
 
-@router.delete("/symptoms/{observation_id}")
-async def retract_symptom(
+@router.delete("/journal/{observation_id}")
+async def retract_entry(
     observation_id: int,
     user_id: str = Depends(verify_token),
     target_user_id: str | None = Query(None, description="Retract from this person's record; needs a write grant"),
@@ -218,7 +236,7 @@ async def retract_symptom(
     try:
         count = await observations.retract(owner, [observation_id])
     except Exception as e:
-        logger.error("[retract_symptom] error_type=%s", type(e).__name__)
+        logger.error("[retract_entry] error_type=%s", type(e).__name__)
         return ErrorResponse(code=500, msg="This entry could not be retracted.")
     if not count:
         return ErrorResponse(code=404, msg="No such entry.")

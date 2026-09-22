@@ -50,6 +50,9 @@ logger = logging.getLogger(__name__)
 
 KIND_MEASUREMENT = "measurement"
 KIND_SYMPTOM = "symptom"
+#: What a person has been told they have, as opposed to what they feel now.
+#: The two code on different ICPC-3 components and must not share a kind.
+KIND_CONDITION = "condition"
 KIND_FINDING = "finding"
 KIND_ORGANIZER = "organizer"
 
@@ -314,9 +317,11 @@ def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], translate.Ali
     if row["kind"] == KIND_SYMPTOM:
         # A complaint is not an analyte, and the lexical resolver cannot
         # abstain from one: 发烧 reached 153 LOINC candidates and coded to
-        # 103717-5, Crimean-Congo hemorrhagic fever virus RNA. The symptom
-        # axis is ICPC-3 and answers on its own vocabulary.
+        # 103717-5, Crimean-Congo hemorrhagic fever virus RNA. The ICPC-3
+        # components answer on their own vocabulary, one per kind.
         return translate.resolve_symptom(row["name_text"], alias=alias)
+    if row["kind"] == KIND_CONDITION:
+        return translate.resolve_condition(row["name_text"], alias=alias)
     if alias is None and row["source_kind"] == SOURCE_DEVICE:
         alias = catalog_alias(row["name_text"]) or translate.Alias(
             _ALIAS_SCOPE_CATALOG, metrics.SYSTEM_DEVICE, row["name_text"].split(".", 1)[0]
@@ -1115,6 +1120,7 @@ __all__ = [
     "GRAIN_DAY",
     "GRAIN_INSTANT",
     "GRAIN_WINDOW",
+    "KIND_CONDITION",
     "KIND_FINDING",
     "KIND_MEASUREMENT",
     "KIND_ORGANIZER",
