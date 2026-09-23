@@ -29,6 +29,7 @@ notes to PyPI under a filename that told open-source readers to ignore it.
 | ② | [device-crosswalk.md](device-crosswalk.md) | thirteen wearable vendors' fields to LOINC, with a confidence and a source per row, the 71 quantities no code fits, and the normalisation traps between vendors |
 | ③ | [answers.md](answers.md) | the one health-data tool: its matrix, its envelope, its governance, and the PHI discipline |
 | ③ | [medications.md](medications.md) | the medication model, its state tables and its instruction grammar (provisional) |
+| ①②③ | [genetics.md](genetics.md) | raw genotype exports and genetic test reports: which formats, what gets normalised, the two tools, keeping CPIC current, and what is deliberately not done (1.5.2, in progress) |
 | ③ | [frontend.md](frontend.md) | how the bundled web client is served, and how to replace it |
 | ③ | [walkthrough.md](walkthrough.md) | the four-minute care-circle walkthrough, all four scenes |
 | | [repository-layout.md](repository-layout.md) | the directory map and the two forms the code ships in (library vs application) |

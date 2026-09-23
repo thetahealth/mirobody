@@ -41,7 +41,7 @@ This module provides comprehensive health data file processing capabilities, inc
 |-----------|-----------|---------|-------------|
 | PDF | `application/pdf` | `PDFHandler` | Multi-page parallel processing with automatic health indicator extraction |
 | Images | `image/*` | `ImageHandler` | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.heic`, `.heif`, `.tif`, `.tiff`; downscaled and OCR'd, then the same extraction path as PDF |
-| Genetic Data | Specific formats | `GeneticHandler` | Genetic test report parsing |
+| Genetic Data | Raw genotype export, `.txt` / `.csv`: WeGene, 23andMe, AncestryDNA, MyHeritage | `GeneticHandler` | Recognised by its column header; one row per rsID into `th_series_data_genetic`. See [genetics.md](genetics.md) |
 | Text | `text/*` | `TextHandler` | `.txt`, `.md`, `.csv`, `.json`, `.xml`, `.html`, `.htm`, `.log` decoded directly, same extraction path as PDF |
 | Excel | OOXML | `ExcelHandler` | `.xlsx`, `.xlsm` read with openpyxl as markdown tables under a row budget. `.xls` and `.xlsb` upload but do not parse: openpyxl reads only the zip formats, and `detect.LEGACY_OFFICE_SUFFIXES` names them so a reader is told the file could not be read rather than handed container bytes as prose |
 | Word / PowerPoint | OOXML | `DocumentHandler` | `.docx`, `.pptx` as markdown (headings, paragraphs, tables, slides) |
@@ -631,7 +631,7 @@ When deleting files, the system automatically performs cascade deletion:
 1. **Storage Deletion**: Delete file from object storage (S3/OSS)
 2. **Database Update**: Update file list in `th_messages` table
 3. **Health Data Cleanup**: Erase the observations extracted from the file (`observations.erase`, cascading to their coding and day authority)
-4. **Genetic Data Cleanup**: If genetic file, delete data from `th_genetic_data`
+4. **Genetic Data Cleanup**: If genetic file, delete data from `th_series_data_genetic`
 5. **Message Marking**: If all files are deleted, mark message as deleted
 
 ---
