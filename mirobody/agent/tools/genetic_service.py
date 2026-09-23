@@ -70,6 +70,12 @@ _ABSENCE_NOTE = (
 _UNPHASED_NOTE = "genotypes are unphased: \"AG\" does not say which parent contributed which allele"
 _PROXIMITY_NOTE = "nearby variants are near by POSITION only; proximity is not linkage — do not tie them to the queried variant's trait"
 
+#: How a no-call is stored, whatever the vendor wrote: the spelling
+#: `collect.files.services.genotype_format.NO_CALL` writes (a test holds the
+#: two equal; this layer may not import that one). A no-call is not a
+#: genotype: the array tried the site and could not read it.
+NO_CALL = "--"
+
 TOOL_SCHEMA: dict[str, object] = {
     "type": "object",
     "additionalProperties": False,
@@ -198,7 +204,8 @@ class GeneticService(RecordTool):
         Returns:
             A compact table (rsid, chromosome, position, genotype, and for a
             neighbour its distance and which query it is near) plus a `meta`
-            block. Absence means "not typed", never "does not carry it".
+            block. Absence means "not typed", never "does not carry it". A
+            genotype of "--" is a no-call: typed, and unreadable.
 
         Notes for LLMs:
             - Report genotypes; do not interpret risk. A genotype call is not a
@@ -323,7 +330,15 @@ def _envelope_for(
     renderer would have to be told which is which."""
     rows = [*hits, *nearby]
     untyped = tuple(r for r in request.rsids if r not in {str(h["rsid"]) for h in hits})
+    no_call = tuple(str(h["rsid"]) for h in hits if h.get("genotype") == NO_CALL)
     notes = [_ABSENCE_NOTE, _UNPHASED_NOTE]
+    if no_call:
+        # A third state beside "typed" and "not typed", and the one a reader
+        # gets wrong: "--" printed as a genotype reads like a result.
+        notes.append(
+            "no call (the array tried these sites and could not read them; "
+            "not a genotype and not evidence either way): " + ", ".join(no_call)
+        )
     if nearby:
         notes.append(_PROXIMITY_NOTE)
     if untyped:
