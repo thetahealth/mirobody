@@ -1,7 +1,7 @@
 # Codes kept regardless of the Tier-2 gate. One per line: LOINC_NUM<tab>reason.
 # device-base: internal/indicators/loinc-device-base-table.tsv (66 wearable and
 # home-device codes, several in H&P.HX/PX or with SCALE "-" such as 103217-6).
-# metrics: mirobody/res/metrics.tsv rows that already carry a code.
+# metrics: mirobody/res/catalog/metrics.tsv rows that already carry a code.
 100304-5	device-base
 101683-1	device-base
 101685-6	device-base

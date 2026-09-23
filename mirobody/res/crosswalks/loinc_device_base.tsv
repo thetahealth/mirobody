@@ -3,7 +3,7 @@
 # The vendor cell is the field name as that vendor's documentation prints it
 # (type:field where the vendor nests fields); empty means the vendor does not
 # produce the quantity, `?` means it does but publishes no field name.
-# The metric column is the mirobody catalogue row (res/metrics.tsv) the code
+# The metric column is the mirobody catalogue row (res/catalog/metrics.tsv) the code
 # belongs to; a confident code there is that metric's identity, an unverified
 # one is recorded here and left out of the identity until confirmed.
 #

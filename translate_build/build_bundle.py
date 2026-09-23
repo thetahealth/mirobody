@@ -1,4 +1,4 @@
-"""Build ``mirobody/res/fhir_loinc_bundle.tar.gz`` from a LOINC release.
+"""Build ``mirobody/res/loinc/fhir_loinc_bundle.tar.gz`` from a LOINC release.
 
 Build-time only. Reads the licensed release directory and writes the members
 ``mirobody.engine`` reads at runtime, in the blob-plus-offsets shape that
@@ -253,7 +253,7 @@ def notice(release: str, kept: int, skipped: int, reasons: Counter, alias_keys: 
         "  " + ", ".join(f"{k} {v}" for k, v in sorted(reasons.items())),
         "",
         "Rows are dropped, never edited; every value here is a LOINC value. The input",
-        "spellings under res/aliases_src/ and res/resolver_overrides.tsv are this",
+        "spellings under res/loinc/aliases_src/ and res/loinc/resolver_overrides.tsv are this",
         "project's own and are not LOINC names.",
         "",
         "Full LOINC license: https://loinc.org/license/",

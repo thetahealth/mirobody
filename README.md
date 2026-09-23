@@ -284,7 +284,7 @@ consumer health product with 5,000+ registered users.
 The highest-leverage contribution is a term the resolver gets wrong. Run
 `mirobody resolve "<term>"`; if the answer is wrong or empty,
 [report it](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml)
-or add a row to [`resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv)
+or add a row to [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv)
 plus a case to [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) —
 the coverage score is the review.
 

@@ -23,7 +23,7 @@ Run just this benchmark, with the score printed:
     pytest tests/test_engine_coverage.py -v -s
 
 Contributing: a term that misses here is a one-line fix in
-``mirobody/res/resolver_overrides.tsv`` — that file, not
+``mirobody/res/loinc/resolver_overrides.tsv`` — that file, not
 ``aliases_src/*_curated.tsv``, is the one this resolver reads at runtime (the
 curated files are inputs to the bundle BUILD; see the overrides header for why
 the two are separate). Add the row, add the case here, and the score goes up.
@@ -42,7 +42,7 @@ import mirobody
 #: module has moved once and a `dirname(dirname(__file__))` walk pointed
 #: at `mirobody/tests/res/` afterwards — every case then SKIPPED, green
 #: and meaningless.
-_BUNDLE = os.path.join(os.path.dirname(os.path.abspath(mirobody.__file__)), "res", "fhir_loinc_bundle.tar.gz")
+_BUNDLE = os.path.join(os.path.dirname(os.path.abspath(mirobody.__file__)), "res", "loinc", "fhir_loinc_bundle.tar.gz")
 
 
 def _bundle_available() -> bool:
@@ -916,7 +916,7 @@ def test_the_class_gate_keeps_the_classes_wearables_live_in():
 
 
 # ── the device catalogue and its crosswalk ──────────────────────────────────
-# `res/metrics.tsv` carries a LOINC code per device metric where the 2026-09
+# `res/catalog/metrics.tsv` carries a LOINC code per device metric where the 2026-09
 # review of thirteen vendors' data types established one; `res/crosswalks/`
 # is that review. The two must agree, and both must name real codes.
 

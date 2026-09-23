@@ -43,7 +43,7 @@ README 里 **② 转译 Translate（标准化）** 那一阶段的长版本：�
   它们分开。它也从来没跑起来过：矩阵是 108,248 行 × 1024 维、只对某一对（供应商，
   模型）有效，而且从未发布，所以 `get_index()` 在 wheel 安装态和源码树里**都返回
   None**（两边都实测过）。一个没人能打开的开关，挡在一个我们本来也不敢信的答案前面。
-  想要更高的召回，诚实的杠杆是在 `res/resolver_overrides.tsv` 里加一行人工词条。
+  想要更高的召回，诚实的杠杆是在 `res/loinc/resolver_overrides.tsv` 里加一行人工词条。
 - **我们量这个说法，而不是断言它。**
   [`test_engine_coverage.py`](../mirobody/tests/test_engine_coverage.py) 拿常规体检
   会出现的那些套餐去考离线解析器，词按报告上真正的印法写，覆盖英文、简体中文、
@@ -78,7 +78,7 @@ pytest mirobody/tests/test_engine_coverage.py -s   # 离线，大约一秒
 发行版本、切分日期，加一份对词表自身成员算出来的摘要，于是「构建期用的词表」和
 「运行时 `pip` 钉住的那个」可以被断言为同一份语料，而光看包版本号你永远不知道这
 一点。[LOINC 的许可](https://loinc.org/license/)要求每一份拷贝都带版本号；
-`res/fhir_loinc_bundle.NOTICE` 带了，`scripts/stamp_bundle_version.py --check`
+`res/loinc/fhir_loinc_bundle.NOTICE` 带了，`scripts/stamp_bundle_version.py --check`
 负责让这个戳保持诚实。
 
 **这一刀切下了什么。** 2.83 的 99,737 个 ACTIVE 码里留 63,416 个，按规则切而不是
@@ -109,7 +109,7 @@ CLASS 族丢掉（问卷、文档、放射、行政）；SCALE_TYP 为 `Doc`/`Na
 **一个词表覆盖了什么，和我们在它上面的召回率，是两回事**，而这个差距是我们的，不是
 LOINC 的：`Body bone mass` 在这里能解析到 `101685-6`，但中文的 `骨量` 会解析到一个
 牙科体积的码，因为没有别名把它路由过去。
-[`res/resolver_overrides.tsv`](../mirobody/res/resolver_overrides.tsv) 就是干这个用
+[`res/loinc/resolver_overrides.tsv`](../mirobody/res/loinc/resolver_overrides.tsv) 就是干这个用
 的：人写下的一行，永远压过索引里的一次表层匹配。
 
 → [loinc.org](https://loinc.org/) · [许可](https://loinc.org/license/) ·

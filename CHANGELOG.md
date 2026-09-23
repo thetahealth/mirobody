@@ -8,7 +8,7 @@
   with a reason rather than guessing, on the same contract as `code()`: three
   outcomes, a decision id, no guess. They are separate indexes and the caller
   picks, so 发烧 answers only as a complaint and 高血压 only as a diagnosis.
-  The vocabulary ships verbatim under CC BY-ND, 1,218 codes in `res/icpc3.tsv`
+  The vocabulary ships verbatim under CC BY-ND, 1,218 codes in `res/icpc3/icpc3.tsv`
   with its NOTICE; the everyday Chinese and English spellings that reach it are
   ours, Apache-2.0, and hold no ICPC-3 term in any language, because WONCA
   licenses translations of the electronic version separately. Display names are
@@ -40,6 +40,22 @@
   analyte, in every language, must answer one code. The 13 analytes that do not
   agree yet, among them `urea` landing on urea nitrogen and the Russian
   differential counts, are strict xfails, each an open fix.
+
+### Changed
+
+- **`mirobody/res/` groups by vocabulary.** The bundle and everything that
+  steers it are under `res/loinc/`, the ICPC-3 table and our surfaces onto it
+  under `res/icpc3/`, the indicator catalogue and its labels under
+  `res/catalog/`; `crosswalks/` is unchanged, and `dose_forms.tsv` and
+  `EXTERNAL.tsv` stay at the top because they belong to no vocabulary. The top
+  level went from twelve loose files to four directories and two, and
+  `res/README.md` now says what each file is and who opens it.
+  `mirobody.bundle.BUNDLE_PATH`, `RES_DIR` and `ALIAS_SRC_DIR` are computed and
+  keep working; code that hardcoded `res/fhir_loinc_bundle.tar.gz` does not.
+  The Git LFS patterns in `.gitattributes` are `res/**/*.gz` now, not
+  `res/*.gz`: a pattern that stops matching checks out the pointer text in
+  place of the data, which presents as a corrupt bundle rather than a wrong
+  path.
 
 ### Fixed
 

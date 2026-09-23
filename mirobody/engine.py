@@ -15,7 +15,7 @@ The first two engine stages (① Collect, ② Translate) without persistence:
 * **Lexical resolution** against the shipped LOINC bundle: a 921k-entry
   multilingual alias index, a 677k-name corpus sidecar, a per-row commonness
   prior, and the LOINC axis table for the final name to LOINC_NUM hop. Plus
-  ``res/resolver_overrides.tsv``, hand-written corrections for terms the index
+  ``res/loinc/resolver_overrides.tsv``, hand-written corrections for terms the index
   gets wrong (measured by ``test_engine_coverage.py``).
 * **Not** an embedding pipeline. A term that misses here returns
   ``unresolved``, not a guess. 1.4.x shipped an opt-in semantic tier behind a
@@ -250,8 +250,8 @@ class OfflineResolver:
 
         # term -> a target the index resolves, from two sources in precedence
         # order (`_bundle.alias_source_files` has the ordering rule):
-        #   1. res/resolver_overrides.tsv, whose targets are index keys.
-        #   2. res/aliases_src/*.tsv: zh.tsv and the curated corrections,
+        #   1. res/loinc/resolver_overrides.tsv, whose targets are index keys.
+        #   2. res/loinc/aliases_src/*.tsv: zh.tsv and the curated corrections,
         #      ~23k terms since 1.5.0 dropped ja and the five machine-derived
         #      files. Their targets are phrases meant for the index build, so
         #      they resolve only sometimes; hence (1).

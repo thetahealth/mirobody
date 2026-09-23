@@ -71,7 +71,7 @@ In particular there is no Chinese ICPC-3. A translation is an adaptation, and
 WONCA licenses translations of the electronic version separately: "WONCA
 handles the licenses for the translation of the electronic version of the
 tabular list" (www.icpc-3.info, "Translations and Policy", retrieved
-2026-09-22). `res/symptoms_zh.tsv` is not a translation: it is this project's
+2026-09-22). `res/icpc3/symptoms_zh.tsv` is not a translation: it is this project's
 own writing about which Chinese patient phrase points at which ICPC-3 code, it
 holds no ICPC-3 term in any language, and it is Apache-2.0 with the rest of
 the project. Display names shown to a user come from the `preferred` column of

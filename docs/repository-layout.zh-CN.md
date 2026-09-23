@@ -11,7 +11,7 @@ mirobody/
 ├── units/       UCUM 单位、unit_family、换算
 ├── lexical.py   表层折叠 + 认识 CJK 的分词器
 ├── bundle.py    构建期：轴表和别名来源
-├── res/         随包发布的 LOINC 词表、res/metrics.tsv
+├── res/         随包发布的 LOINC 词表、res/catalog/metrics.tsv
 ├── kernel/      健康数据「是什么意思」，全是纯函数：
 │                metrics · series · quality · overlay · meds ·
 │                query · tools · ops · connect · sink · events ·

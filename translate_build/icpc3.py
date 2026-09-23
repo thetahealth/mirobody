@@ -1,7 +1,7 @@
 """Fetch the ICPC-3 tabular list, and build the table the package ships.
 
 Build-time only, like the rest of this directory: nothing in `mirobody/`
-imports it. The output is `mirobody/res/icpc3.tsv`.
+imports it. The output is `mirobody/res/icpc3/icpc3.tsv`.
 
 The source is one request. WONCA's ICPC-3 Coding Tool downloads the whole
 classification as JSON and caches it in the browser, and the same endpoint
@@ -131,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--components", default=COMPONENTS)
     ap.add_argument("--source", type=pathlib.Path,
                     default=root / "internal/indicators/icpc3/coding-tool-english.json")
-    ap.add_argument("--out", type=pathlib.Path, default=root / "mirobody/res/icpc3.tsv")
+    ap.add_argument("--out", type=pathlib.Path, default=root / "mirobody/res/icpc3/icpc3.tsv")
     args = ap.parse_args(argv)
 
     if args.command == "fetch":

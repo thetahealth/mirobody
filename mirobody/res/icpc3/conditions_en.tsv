@@ -1,7 +1,7 @@
 # Everyday English disease names -> ICPC-3 D component. OUR writing, Apache-2.0.
 #
 # ICPC-3's own preferred terms and inclusions are indexed straight from
-# res/icpc3.tsv, so nothing here repeats them. This file holds what a person
+# res/icpc3/icpc3.tsv, so nothing here repeats them. This file holds what a person
 # says and a classification does not print: "high blood pressure", "a-fib",
 # "water infection". Same two sentinels as conditions_zh.tsv.
 surface	code	note

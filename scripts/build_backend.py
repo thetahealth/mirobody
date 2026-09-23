@@ -55,12 +55,12 @@ prepare_metadata_for_build_editable = _orig.prepare_metadata_for_build_editable
 #:
 #: scripts/check_wheel_data.py fails the build if any of them reappears.
 _BUILD_ONLY_DATA = frozenset({
-    "mirobody/res/fhir_concept_graph.bin",
-    "mirobody/res/fhir_snomed_ct_bundle.tar.gz",
+    "mirobody/res/loinc/fhir_concept_graph.bin",
+    "mirobody/res/loinc/fhir_snomed_ct_bundle.tar.gz",
     # 1.3.0: the resolver reads `corpus_names.bin` out of the bundle instead of
     # parsing this on every load. `engine.py` was its only runtime reader; the
     # passes that still read it are bundle-build tooling, which does not ship.
-    "mirobody/res/fhir_meta.csv.gz",
+    "mirobody/res/loinc/fhir_meta.csv.gz",
 })
 
 #: The bundle members a `pip install` can actually use. Everything else in
@@ -74,7 +74,7 @@ _BUILD_ONLY_DATA = frozenset({
 #: which half to look in. They are repacked out of the copy that ships, which
 #: is the same call this file already makes about `res/` files — just one level
 #: further in.
-_BUNDLE_PATH = "mirobody/res/fhir_loinc_bundle.tar.gz"
+_BUNDLE_PATH = "mirobody/res/loinc/fhir_loinc_bundle.tar.gz"
 _BUNDLE_RUNTIME_MEMBERS = frozenset({
     "VERSION",
     "alias_keys.bin",

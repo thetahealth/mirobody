@@ -8,8 +8,8 @@ all three abstain rather than guess: a wrong code on a record is worse than an
 uncoded one, because nothing downstream can tell it was wrong.
 
 The vocabulary is ICPC-3, the classification primary care uses, in the two
-components a personal health record needs. `res/icpc3.tsv` carries both
-verbatim; `res/symptoms_{zh,en}.tsv` and `res/conditions_{zh,en}.tsv` are ours,
+components a personal health record needs. `res/icpc3/icpc3.tsv` carries both
+verbatim; `res/icpc3/symptoms_{zh,en}.tsv` and `res/icpc3/conditions_{zh,en}.tsv` are ours,
 the everyday spellings a person actually types, because ICPC-3 is written in
 clinical English and nobody logs "epigastric pain".
 
@@ -48,7 +48,7 @@ Chinese never translates an ICPC-3 term. The licence is CC BY-ND and WONCA
 licenses translations separately, so what the curated files hold is our own
 writing about which phrase points at which code, the same shape as
 `aliases_src/zh_curated.tsv` on the LOINC side. Display names stay in ICPC-3's
-English. See `res/icpc3.NOTICE`.
+English. See `res/icpc3/icpc3.NOTICE`.
 """
 
 from __future__ import annotations
@@ -115,7 +115,7 @@ class Term:
 
 
 def _read(name: str) -> str:
-    return resources.files("mirobody").joinpath("res", name).read_text(encoding="utf-8")
+    return resources.files("mirobody").joinpath("res", "icpc3", name).read_text(encoding="utf-8")
 
 
 def _rows(name: str) -> list[dict[str, str]]:

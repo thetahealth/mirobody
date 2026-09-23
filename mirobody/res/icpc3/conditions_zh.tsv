@@ -3,7 +3,7 @@
 # NOT a translation of ICPC-3. Same rule as symptoms_zh.tsv: the left-hand side
 # is what a person writes when naming a condition they have been diagnosed
 # with, the right-hand side is our judgement about which code that is, and no
-# ICPC-3 term appears in this file in any language. See res/icpc3.NOTICE.
+# ICPC-3 term appears in this file in any language. See res/icpc3/icpc3.NOTICE.
 #
 # This is the D axis, not the S axis. 过敏 is refused there, because as a
 # complaint it names a mechanism rather than a symptom, and codes here as the

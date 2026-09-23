@@ -13,7 +13,7 @@ mirobody/
 ├── units/       UCUM units, unit_family, conversions          ┐ the library:
 ├── lexical.py   surface folding + the CJK-aware tokenizer     │ numpy only,
 ├── bundle.py    build-time: the axis table and alias sources    │
-├── res/         the shipped LOINC bundles, res/metrics.tsv       │
+├── res/         the shipped LOINC bundles, catalog/metrics.tsv  │
 ├── kernel/      what health data MEANS, as pure functions:       │
 │                metrics · series · quality · overlay · meds ·    │
 │                query · tools · ops · connect · sink · events ·  │

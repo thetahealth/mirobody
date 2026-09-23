@@ -179,7 +179,7 @@ _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|[^A-Za-z0-9一-鿿]+")
 
 def _load_synonyms() -> dict[str, tuple[str, ...]]:
     try:
-        text = resources.files("mirobody").joinpath("res", "recall_synonyms.tsv").read_text(encoding="utf-8")
+        text = resources.files("mirobody").joinpath("res", "loinc", "recall_synonyms.tsv").read_text(encoding="utf-8")
     except (FileNotFoundError, OSError):
         return {}
     out: dict[str, tuple[str, ...]] = {}

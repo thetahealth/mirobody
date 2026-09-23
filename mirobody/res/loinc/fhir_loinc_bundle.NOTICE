@@ -34,7 +34,7 @@ EXTERNAL_COPYRIGHT_NOTICE dropped rather than reproduced. Counts by reason:
   class 20577, classtype 12437, hp-scale 523, licence 153, panel 716, scale 1915, status 12668, whitelist 1
 
 Rows are dropped, never edited; every value here is a LOINC value. The input
-spellings under res/aliases_src/ and res/resolver_overrides.tsv are this
+spellings under res/loinc/aliases_src/ and res/loinc/resolver_overrides.tsv are this
 project's own and are not LOINC names.
 
 Full LOINC license: https://loinc.org/license/

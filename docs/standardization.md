@@ -52,7 +52,7 @@ Standardization here is not a lookup table but a complete terminology-normalizat
   so `get_index()` returned `None` in a wheel install and in a source tree
   alike. An opt-in nobody could opt into, in front of an answer we would not
   have trusted. If you want better recall, the honest lever is a curated row in
-  `res/resolver_overrides.tsv`.
+  `res/loinc/resolver_overrides.tsv`.
 - **We measure the claim instead of asserting it.**
   [`test_engine_coverage.py`](../mirobody/tests/test_engine_coverage.py) scores the offline
   resolver against the panels an ordinary checkup includes, written the way a report
@@ -89,7 +89,7 @@ The release, the cut date, and a digest over the bundle's own members — so a
 build-time consumer of the vocabulary and a runtime `pip` pin can be asserted
 to be the same corpus, which the package version alone never told you.
 [LOINC's licence](https://loinc.org/license/) requires every copy to carry the
-version number; `res/fhir_loinc_bundle.NOTICE` does, and
+version number; `res/loinc/fhir_loinc_bundle.NOTICE` does, and
 `scripts/stamp_bundle_version.py --check` keeps the stamp honest.
 
 **What the cut contains.** 63,416 of the 99,737 ACTIVE codes in 2.83, chosen
@@ -131,7 +131,7 @@ correctly, because they are one company's formula rather than a measurement.
 **Coverage of a vocabulary is not the same as recall on it**, and the gap is
 ours, not LOINC's: `Body bone mass` resolves to `101685-6` here, while the
 Chinese `骨量` resolves to a dental volume code, because no alias routes it.
-That is what [`res/resolver_overrides.tsv`](../mirobody/res/resolver_overrides.tsv)
+That is what [`res/loinc/resolver_overrides.tsv`](../mirobody/res/loinc/resolver_overrides.tsv)
 is for — a row written by a person beats a surface match in the index, every
 time.
 
