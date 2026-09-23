@@ -2,6 +2,13 @@
 
 ### Added
 
+- **Body water and bone percentage carry codes.** `bodyWater` was in the
+  catalogue uncoded since 1.4.0 and now carries `101684-9`; `bonePercentage`
+  is new, `101686-4`, with an ingestion range. An impedance scale reports the
+  mass and the percentage, and they differ in PROPERTY, so they are four rows.
+  The catalogue is 316 metrics over 307 names, and `TERMINOLOGY_VERSION` is
+  `1.5.1`.
+
 - Offline resolver: Russian panel terms as real Russian lab reports print
   them (МЕДСИ, INVITRO, state clinics; ~80 spellings from a 2019-2026 record
   archive), plus the three Estonian vitamin spellings a Synlab report prints.
@@ -16,6 +23,22 @@
   analyte, in every language, must answer one code. The 13 analytes that do not
   agree yet, among them `urea` landing on urea nitrogen and the Russian
   differential counts, are strict xfails, each an open fix.
+
+### Changed
+
+- **`HRV` and `心率变异性` resolve to `112429-6`, not `76643-6`.** LOINC has no
+  code for heart rate variability with the algorithm unstated, so a bare "HRV"
+  asserts SDNN whichever of the three is chosen; `112429-6` is the only one
+  that does not also assert `SYSTEM=Heart` and, for `76643-6`, `METHOD=EKG`.
+  The device catalogue already carried it, so a wearable reading and a written
+  one now group into one series instead of two. `hrvRMSSD` keeps no code.
+- **`总睡眠时间` resolves to `93832-4`.** Its curated row pointed at a phrase
+  that resolved nowhere, so the term abstained while `睡眠时长` answered. On
+  the 7,354-case evaluation: two more correct, none lost, wrong-rate unchanged
+  at 0.030.
+- **The two entry crosswalk tables read in English.** `loinc_device_base.tsv`
+  and `unmappable.tsv` are where a reader starts, and 136 of their rows
+  carried Chinese notes. The per-vendor tables beside them are unchanged.
 
 ## 1.5.0
 

@@ -50,7 +50,45 @@ The demo seed was the only writer and now writes the latter. The row stays
 uncoded until something produces it; if nothing ever does, it should be
 deleted rather than coded.
 
-## The pattern behind both
+## Three codes, one algorithm: `hrvSDNN`
+
+| | |
+| --- | --- |
+| `hrvSDNN` | **112429-6** *Heart rate variability SDNN*, `^Patient`, no method |
+| | 76643-6 *R-R interval.standard deviation by EKG*, `Heart`, `EKG` |
+| | 80404-7 *R-R interval.standard deviation*, `Heart`, no method |
+
+LOINC has no code for heart rate variability with the algorithm unstated: all
+three are SDNN. So a bare "HRV" cannot be coded without asserting SDNN, and
+the question is only which of the three.
+
+Until 1.5.1 the vocabulary answered 76643-6 and the catalogue answered
+112429-6, so the same quantity grouped into two series depending on whether it
+arrived from a device or off a report.
+
+Owner's ruling, 2026-09-22: 112429-6 for both. HRV comes mostly from devices,
+and 112429-6 is the one code that says only what the word says. The other two
+add `SYSTEM=Heart`, and 76643-6 adds `METHOD=EKG`. Measured after the change:
+no text reaches either of them, including their own long common names.
+
+`hrvRMSSD` and `hrvDatas` keep no code. RMSSD is a different statistic with no
+LOINC code at all, and `hrvDatas` does not say which statistic it is.
+
+## Mass and percentage are two rows: body water and bone
+
+| | |
+| --- | --- |
+| `bodyWaterMass` / `bodyWater` | **101683-1** `Mass` / **101684-9** `MFr` |
+| `bodyBone` / `bonePercentage` | **101685-6** `Mass` / **101686-4** `MFr` |
+
+An impedance scale reports both, and they differ in PROPERTY, so they are four
+codes and four rows. 1.5.0 coded the mass pair and left the percentages
+uncoded; 1.5.1 codes them and adds `bonePercentage`, which had no row at all.
+
+Do not derive one from the other here. A scale publishes whichever its vendor
+chose, and a derived value that looks measured cannot be told apart later.
+
+## The pattern behind these
 
 A catalogue name is a vendor's word, not a clinical term, and several are
 ordinary English: `cholesterol` is dietary intake here and serum cholesterol

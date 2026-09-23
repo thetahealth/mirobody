@@ -910,9 +910,12 @@ def test_the_class_gate_keeps_the_classes_wearables_live_in():
     from mirobody.engine import resolve
 
     assert resolve("sleep duration").loinc == "93832-4"   # CLASS=H&P.HX
-    assert resolve("HRV").loinc == "76643-6"              # CLASS=EKG.MEAS
+    assert resolve("QT间期").loinc == "8634-8"             # CLASS=EKG.MEAS
     assert resolve("步数").loinc == "41950-7"              # CLASS=CLIN
     assert resolve("体脂率").loinc == "41982-0"            # CLASS=BDYWGT.ATOM
+    # HRV held the EKG.MEAS slot until 1.5.1 sent it to 112429-6, which is
+    # CLIN. See res/crosswalks/README.md for that ruling.
+    assert resolve("HRV").loinc == "112429-6"
 
 
 # ── the device catalogue and its crosswalk ──────────────────────────────────

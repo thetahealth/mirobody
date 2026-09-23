@@ -425,14 +425,12 @@ Vitamins	!unresolved
 # Two were WRONG rather than missing:
 #   SpO2  -> a Deprecated "Fractional oxyhemoglobin ... Preductal" row with no
 #            LOINC at all — resolved=True carrying an empty code.
-#   HRV   -> 40991-2 Rhinovirus+Enterovirus RNA. NOT fixed here: HRV is a real
-#            abbreviation for human rhinovirus as well as heart rate
-#            variability, so the right answer is a decision, not a lookup. The
-#            spelled-out form already resolves (76643-6).
+#   HRV   -> 40991-2 Rhinovirus+Enterovirus RNA. Fixed below, with the code
+#            the HRV section names.
 resting heart rate	heart rate resting
 静息心率	heart rate resting
 安静時心拍数	heart rate resting
-心率变异性	heart rate variability
+心率变异性	Heart rate variability SDNN
 steps	Number of steps
 step count	Number of steps
 daily steps	Number of steps
@@ -510,9 +508,19 @@ HDLコレステロール	HDL-C
 # HRV is heart rate variability. It is also the abbreviation for human
 # rhinovirus, and the index preferred that reading: `HRV` answered 40991-2
 # Rhinovirus+Enterovirus RNA, a PCR panel, for what every wearable on the
-# market means by those three letters. Same rule as CA/PT/MG above — the
+# market means by those three letters. Same rule as CA/PT/MG above: the
 # widespread reading, written down rather than left to the commonness prior.
-HRV	heart rate variability
+#
+# The code is 112429-6, which is also what the catalogue's `hrvSDNN` carries,
+# so a wearable reading and a written one group together (owner, 2026-09-22).
+# LOINC has no unqualified-HRV code: all three candidates are SDNN. The other
+# two assert more than the bare word does, 76643-6 a METHOD of EKG and both of
+# them SYSTEM=Heart, and no text reaches them now (measured: naming the EKG
+# abstains, and so does their own long common name).
+HRV	Heart rate variability SDNN
+heart rate variability	Heart rate variability SDNN
+HRV SDNN	Heart rate variability SDNN
+心率变异性SDNN	Heart rate variability SDNN
 # 凝血酶原时间 answered 34714-6 INR: a DERIVED ratio, not the time itself.
 凝血酶原时间	Prothrombin time (PT)
 
@@ -956,6 +964,13 @@ lipoprotein a	Lp(a)
 total calcium	Calcium
 inorganic phosphorus	Phosphate
 estimated glomerular filtration rate	Glomerular filtration rate
+
+# ── curated rows whose target resolves nowhere ───────────────────────────
+# The other half of the failure above: `zh_curated.tsv` sends 总睡眠时间 to
+# `total sleep time TST`, which is not an index key and does not resolve
+# either, so the term abstained while its sibling 睡眠时长 gave 93832-4.
+# Both spellings are on the same sleep report.
+总睡眠时间	Sleep duration
 
 # Russian (ru) — terms as printed on real Russian lab reports (МЕДСИ,
 # INVITRO, Moscow state clinics; collected from a personal record archive,

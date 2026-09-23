@@ -40,7 +40,7 @@ Standardization here is not a lookup table but a complete terminology-normalizat
   beats a fold.
 - **Units** normalized against 331 UCUM units over 59 PROPERTY families,
   with dimensional analysis, a molar-mass bridge keyed by LOINC code, and an
-  explicit refusal for `%` vs `10*9/L`. 315 standard device indicators.
+  explicit refusal for `%` vs `10*9/L`. 316 standard device indicators.
 - **Everything here is lexical, and abstaining is the ceiling we keep.** A term
   the vocabulary does not know returns `unresolved`, not a nearest neighbour.
   1.4.x shipped an opt-in cosine-recall tier beside this one; 1.5.0 deleted it.

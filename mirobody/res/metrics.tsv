@@ -20,7 +20,7 @@ BODY_AGE	bodyAge	Body Age	Body Composition	count	{#}	mix	instant	last			00:00	bo
 BODY_FAT_PERCENTAGE	bodyFatPercentages	Body Fat Percentage	Body Composition	%	%	series	instant	last	41982-0	confident	00:00	body_composition	last		Percentage of body fat relative to total body weight	1.4.0
 BODY_SINEW	bodySinew	Body Sinew	Body Composition	count	{#}	series	instant	last			00:00	body_composition			Tendon mass	1.4.0
 BODY_TEMPERATURE	bodyTemperatures	Body Temperature	Vital Signs	°C	Cel	mix	instant	last	8310-5	confident	00:00		avg		Human body core temperature	1.4.0
-BODY_WATER_PERCENTAGE	bodyWater	Body Water Percentage	Body Composition	%	%	mix	instant	last			00:00	body_composition			Percentage of body water relative to total body weight	1.4.0
+BODY_WATER_PERCENTAGE	bodyWater	Body Water Percentage	Body Composition	%	%	mix	instant	last	101684-9	confident	00:00	body_composition			Percentage of body water relative to total body weight	1.4.0
 BONE_MASS	bodyBone	Bone Mass	Body Composition	kg	kg	mix	instant	last	101685-6	confident	00:00	body_composition			Bone mass weight	1.4.0
 CALORIES_ACTIVE	activeCalories	Calories Active	Activity Metrics	kcal	kcal	series	cumulative	sum_delta	41981-2	confident	00:00		total		Calories burned through exercise	1.4.0
 CALORIES_BASAL	basalCalories	Calories Basal	Activity Metrics	kcal	kcal	series	cumulative	sum_delta			00:00		total		Calories burned through basal metabolism	1.4.0
@@ -314,3 +314,4 @@ WALKING_ASYMMETRY_PERCENTAGE	walkingAsymmetryPercentage	Walking Asymmetry	Perfor
 STAIR_ASCENT_SPEED	stairAscentSpeed	Stair Ascent Speed	Performance Metrics	m/s	m/s	series	instant	last	112431-2	confident	00:00				Vertical speed climbing stairs	1.5.0
 STAIR_DESCENT_SPEED	stairDescentSpeed	Stair Descent Speed	Performance Metrics	m/s	m/s	series	instant	last	112430-4	confident	00:00				Vertical speed descending stairs	1.5.0
 SIX_MINUTE_WALK_DISTANCE	sixMinuteWalkDistance	Six Minute Walk Distance	Performance Metrics	m	m	series	instant	last	64098-7	confident	00:00				Distance covered in the six-minute walk test	1.5.0
+BONE_PERCENTAGE	bonePercentage	Bone Percentage	Body Composition	%	%	mix	instant	last	101686-4	confident	00:00	body_composition			Bone mass as a share of body weight; distinct from the bone mass	1.5.1

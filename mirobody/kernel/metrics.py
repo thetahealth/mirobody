@@ -51,7 +51,7 @@ from collections.abc import Iterator
 #: Bumps whenever a row's identity fields change (name, unit_ucum, state_class,
 #: aggregation_policy, loinc, window). Consumers that persist standardised
 #: facts store it next to the row, so a later catalogue change is visible.
-TERMINOLOGY_VERSION = "1.5.0"
+TERMINOLOGY_VERSION = "1.5.1"
 
 #: The two confidences a code may carry; empty when the row has no code.
 CONFIDENT = "confident"

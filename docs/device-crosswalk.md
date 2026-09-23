@@ -33,7 +33,7 @@ ship with `pip install mirobody`.
 
 | File | One row per | Columns |
 | --- | --- | --- |
-| `loinc_device_base.tsv` | LOINC code (66) | `loinc name axes metric confidence` then one column per vendor holding that vendor's field name, verbatim, then `note` |
+| `loinc_device_base.tsv` | LOINC code (68) | `loinc name axes metric confidence` then one column per vendor holding that vendor's field name, verbatim, then `note` |
 | `<vendor>.tsv` (13 files) | vendor field | `type field metric loinc confidence note`; an empty `loinc` is a decline, and the note says why |
 | `unmappable.tsv` | quantity with no code (71) | `reason metric vendors detail disposition` |
 | `open_wearables.tsv` | open-wearables `SeriesType` | the seam to that project's device-access layer; see the file header |
@@ -289,7 +289,9 @@ field names are in the TSV.
 | 41982-0 | Percentage of body fat Measured | `bodyFatPercentages` | confident | apple, health_connect, huawei, samsung, fitbit, garmin, xiaomi |
 | 91557-9 | Lean body weight | `bodyFatFreeWeight` | confident | apple, health_connect, huawei, samsung, garmin |
 | 101683-1 | Body water mass | `bodyWaterMass` | confident | health_connect, huawei, samsung, garmin |
+| 101684-9 | Percentage of body water | `bodyWater` | confident | huawei, samsung, garmin |
 | 101685-6 | Body bone mass | `bodyBone` | confident | health_connect, huawei, samsung, garmin |
+| 101686-4 | Body bone percentage | `bonePercentage` | confident | huawei, samsung, garmin |
 | 8280-0 | Waist Circumference at umbilicus by Tape measure | `waistCircumferences` | unverified | apple |
 | 112434-6 | Walking double support [Percentile] | `walkingDoubleSupportPercentage` | confident | apple |
 | 112432-0 | Walking asymmetry | `walkingAsymmetryPercentage` | unverified | apple |

@@ -255,7 +255,7 @@ dataset.
 - **The package names the vocabulary that answered you**:
   `mirobody.BUNDLE_VERSION` → `loinc-2.83+2026.09.17-aacb2c715b56`, the release,
   the cut date, and a digest over the bundle's own contents.
-- **315 standard device indicators** and 331 UCUM units with dimensional
+- **316 standard device indicators** and 331 UCUM units with dimensional
   analysis. The full counts, and what the LOINC 2.83 cut keeps and drops, are
   in [Standardization in depth](docs/standardization.md).
 - **`pip install mirobody` is 2 packages**, numpy the only dependency.

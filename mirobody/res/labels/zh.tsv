@@ -327,3 +327,4 @@ metric	OBSTRUCTIVE_APNEA_INDEX	阻塞性呼吸暂停指数	每小时睡眠中的
 metric	PULSE_WAVE_VELOCITY	脉搏波传导速度	动脉脉搏波的传导速度
 metric	HRV_SDNN	心率变异性 SDNN	以 NN 间期标准差表示的心率变异性
 metric	PERFUSION_INDEX	灌注指数	脉搏血氧仪测得的外周灌注指数
+metric	BONE_PERCENTAGE	骨量率	骨量占体重的百分比
