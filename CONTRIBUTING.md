@@ -217,7 +217,11 @@ Two rules that are specific to this project:
 
 Adding a new indicator term in any language is one row in
 `mirobody/res/resolver_overrides.tsv` plus one case in
-`mirobody/tests/test_engine_coverage.py`. The right-hand side of an override row must
+`mirobody/tests/test_engine_coverage.py`. If the analyte already has a spelling
+in another language, add yours to its row in
+`mirobody/tests/test_cross_language_identity.py` as well: one analyte must answer
+one code whatever the language, and the rows that do not yet are listed there
+as `KNOWN_SPLITS`, each an open fix. The right-hand side of an override row must
 be a key the alias index can look up — **not another row's left-hand side**; the
 resolver does not follow a two-hop chain, and such a row resolves to nothing
 while looking correct.
