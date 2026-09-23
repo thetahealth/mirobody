@@ -8,6 +8,12 @@ it let the two halves disagree about what a window meant. Medications are a
 different data class with a different grammar and their own tool
 (`medications_service.py`); genetics likewise.
 
+What the person reported (a symptom felt, a diagnosis given) is read here
+too. It is the same table, the same series and the same window, coded on
+ICPC-3 where a reading is coded on LOINC, so a second tool would only repeat
+this one and make "was my blood pressure up on the days I had headaches" two
+calls. Such rows carry `provenance="reported"` and render as their own table.
+
 Three things make the flat schema safe:
 
 * **eight parameters, all applicable to every call**, no mode switch, so a
@@ -59,6 +65,13 @@ MAX_HOURS = 24 * 366 * 5
 #: the opposite conclusion: an empty result is "not on file", never "not true".
 _ABSENCE_NOTE = "no data for an indicator means it was never recorded, not that the condition is absent"
 
+#: Said when the answer holds what the person reported.
+_WORDS_NOTE = (
+    "in the reported table, name is the person's own words and is the record; system/code are ICPC-3's "
+    "classification of them, empty where the vocabulary could not place the words"
+)
+_SELF_DIAGNOSED_NOTE = "a condition entry is what the person reports being diagnosed with, not a clinical record"
+
 
 class HealthIndicatorsService(RecordTool):
     """The tool body.
@@ -93,23 +106,24 @@ class HealthIndicatorsService(RecordTool):
 
     async def query_health_indicators(self, user_info: dict[str, Any], **args: Any) -> dict[str, Any]:
         """
-        Read this person's health readings: labs, vitals, wearable metrics:
-        anything with a value and a time.
+        Read this person's health record over time: readings (labs, vitals,
+        wearable metrics: anything with a value and a time) and what they
+        reported (symptoms they felt, diagnoses they were given, in their own
+        words, coded on ICPC-3).
 
-        USE IT when the question is about their own numbers: "how has my LDL
-        moved", "what did I weigh in March", "average resting heart rate this
-        month". With no `keywords`/`indicators` it returns the CATALOGUE of
-        what this person actually has, which is the right first call when you
-        do not know the names. Ask for the shape you need: `aggregate="stats"`
-        for change or a baseline, `resolution="day"` for a trend line,
-        `aggregate="latest"` for "what is it now", never raw rows you would
-        reduce yourself.
+        USE IT when the question is about their own data: "how has my LDL
+        moved", "average resting heart rate this month", "how often do I get
+        headaches", "was my blood pressure up on the days I had headaches".
+        With no `keywords`/`indicators` it returns the CATALOGUE of what this
+        person actually has, reported entries first, which is the right first
+        call when you do not know the names. Ask for the shape you need:
+        `aggregate="stats"` for change, a baseline or how often,
+        `resolution="day"` for a trend line, `aggregate="latest"` for "what is
+        it now", never raw rows you would reduce yourself.
 
-        DO NOT use it for medications (`query_medications`), for symptoms
-        or diagnoses the person logged (`query_journal`: they are not
-        readings and this tool does not return them), for general medical
-        knowledge or reference ranges, or for a person outside the caller's
-        care circle. Do not call it twice with the same arguments:
+        DO NOT use it for medications (`query_medications`), for general
+        medical knowledge or reference ranges, or for a person outside the
+        caller's care circle. Do not call it twice with the same arguments:
         the second call returns the same rows and costs another round trip.
 
         The parameters are documented in the schema, not here: `input_schema`
@@ -129,6 +143,9 @@ class HealthIndicatorsService(RecordTool):
             - No data for an indicator means it was never recorded. It does NOT
               mean the person does not have the condition. Say so rather than
               concluding they are healthy.
+            - In the reported table, quote the person's words (`name`). The
+              ICPC-3 name classifies them; an entry without a code is still
+              their report. A condition there is self-reported, not confirmed.
         """
         envelope = await self.envelope(user_info, **args)
         return {"result": render_compact(envelope), **envelope_meta(envelope)}
@@ -227,6 +244,11 @@ def _envelope_for(
     if semantics == query.SEMANTICS_DATE_PADDED:
         assumptions.append("some rows predate the stored local day; their window is padded a day each way")
     assumptions.append(_ABSENCE_NOTE)
+    reported = [r for r in rows if r.get("provenance") == tools.PROVENANCE_REPORTED]
+    if reported:
+        assumptions.append(_WORDS_NOTE)
+    if any(r.get("kind") == "condition" for r in reported):
+        assumptions.append(_SELF_DIAGNOSED_NOTE)
 
     # What to do next, and never something the next call would refuse: a
     # catalogue cannot be aggregated, so "aggregate" is not advice there.

@@ -5,8 +5,10 @@ an MCP client, a dashboard, a daily summary) reads through
 :class:`HealthQuery`. The tool the model sees, ``query_health_indicators``, has
 one JSON schema (:data:`TOOL_SCHEMA`) shared by the chat and MCP surfaces and
 a dispatch table from ``(resolution, aggregate)`` to the one ``HealthQuery``
-method that answers it. Medications are a different data class with a
-different grammar and their own tool: :mod:`mirobody.kernel.meds`.
+method that answers it. What the person reported (a symptom, a diagnosis) is
+read through the same tool: same table, same series, coded on ICPC-3 instead
+of LOINC. Medications are a different data class with a different grammar and
+their own tool: :mod:`mirobody.kernel.meds`.
 
 Eight parameters, each one a decision the model has to make on every call, and
 each one earning its place: what to read (``keywords`` or ``indicators``),
@@ -340,7 +342,7 @@ TOOL_SCHEMA: dict[str, object] = {
             "type": "array",
             "items": {"type": "string"},
             "maxItems": 20,
-            "description": "Free-text terms to match against the person's catalogue, any language (e.g. [\"blood pressure\", \"血压\"]). Use when you do not know the exact indicator names. Omit both keywords and indicators to get the catalogue.",
+            "description": "Free-text terms to match against the person's catalogue, any language (e.g. [\"blood pressure\", \"血压\"], or a symptom: [\"headache\"] also finds an entry written 头疼). Use when you do not know the exact indicator names. Omit both keywords and indicators to get the catalogue.",
         },
         "indicators": {
             "type": "array",

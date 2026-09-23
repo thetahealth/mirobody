@@ -7,7 +7,8 @@ what a browser gets: arrays of objects it can sort and paginate.
 
 Both are generic over an envelope, so readings, medications and genetics all
 render through them; each tool says which columns its rows have (`columns`), or
-lets the readings shapes be derived. Underscore-prefixed so the tool loader
+lets the readings shapes be derived. A readings result renders what the person
+reported as a second table (`_readings_table`). Underscore-prefixed so the tool loader
 never publishes anything in here.
 """
 
@@ -45,6 +46,20 @@ _COLUMNS: dict[str, tuple[str, ...]] = {
     "latest": ("indicator", "name", "date", "time", "value", "unit", "system", "code"),
 }
 
+#: The same, for what the person REPORTED: `name` is their words and is the
+#: record, `system`/`code` classify it (ICPC-3), `reason` says why an entry is
+#: uncoded. No value and no unit, because a symptom has neither. `count` in
+#: stats is entries over raw rows and days over a daily basis.
+_REPORTED_COLUMNS: dict[str, tuple[str, ...]] = {
+    "catalog": ("indicator", "name", "kind", "system", "code", "count", "first_date", "last_date", "reason"),
+    "readings": ("indicator", "name", "kind", "time", "system", "code", "reason", "note"),
+    "buckets": ("indicator", "period", "n", "system", "code"),
+    "stats": ("indicator", "count", "first_date", "last_date", "system", "code"),
+    "latest": ("indicator", "name", "kind", "date", "time", "system", "code", "reason", "note"),
+}
+
+_REPORTED_HEADING = "reported by the person (name = their words; system/code classify them):"
+
 
 async def awaited(value: Any) -> Any:
     """A port is declared with plain `def` so an in-memory implementation is
@@ -53,23 +68,36 @@ async def awaited(value: Any) -> Any:
     return await value if inspect.isawaitable(value) else value
 
 
-def _method_columns(rows: Sequence[Mapping[str, Any]]) -> tuple[str, ...]:
-    """Which columns a readings result renders. Derived from the row shape
-    rather than passed down, so a renderer can never disagree with its data."""
-    if not rows:
-        return ()
-    first = rows[0]
+def _method_of(first: Mapping[str, Any]) -> str:
+    """Which leaf produced a readings result. Derived from the row shape rather
+    than passed down, so a renderer can never disagree with its data."""
     if "period" in first:
-        return _COLUMNS["buckets"]
+        return "buckets"
     if "avg" in first and "count" in first:
-        return _COLUMNS["stats"]
+        return "stats"
     if "first_date" in first:
-        return _COLUMNS["catalog"]
+        return "catalog"
     if "time" in first and "total" in first:
-        return _COLUMNS["readings"]
+        return "readings"
     if "value" in first:
-        return _COLUMNS["latest"]
-    return tuple(first.keys())
+        return "latest"
+    return ""
+
+
+def _readings_table(rows: Sequence[Mapping[str, Any]]) -> str:
+    """A readings result as one table, and what the person reported as a
+    second one under its own heading: one table would put a blank value
+    beside every symptom and let a self-reported diagnosis read as a result."""
+    measured = [r for r in rows if r.get("provenance") != tools.PROVENANCE_REPORTED]
+    reported = [r for r in rows if r.get("provenance") == tools.PROVENANCE_REPORTED]
+    parts: list[str] = []
+    for group, columns, heading in ((measured, _COLUMNS, ""), (reported, _REPORTED_COLUMNS, _REPORTED_HEADING)):
+        if not group:
+            continue
+        method = _method_of(group[0])
+        table = query.compact(group, columns[method] if method else tuple(group[0].keys()))
+        parts.append(f"{heading}\n{table}" if heading else table)
+    return "\n\n".join(parts)
 
 
 def render_compact(envelope: tools.Envelope, columns: Sequence[str] | None = None) -> str:
@@ -79,8 +107,10 @@ def render_compact(envelope: tools.Envelope, columns: Sequence[str] | None = Non
     if envelope.status == tools.STATUS_ERROR:
         return _render_error(envelope)
     rows = list(envelope.data or [])
-    cols = tuple(columns) if columns else _method_columns(rows)
-    table = query.compact(rows, cols) if rows else ""
+    if columns:
+        table = query.compact(rows, tuple(columns)) if rows else ""
+    else:
+        table = _readings_table(rows)
     body = table or "(no rows)"
     if len(body) > MAX_RENDER_CHARS:
         body = body[:MAX_RENDER_CHARS] + f"\n… cut at {MAX_RENDER_CHARS} characters"

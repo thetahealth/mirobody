@@ -48,6 +48,7 @@ from typing import Any
 
 from mirobody import translate
 from mirobody.kernel import query
+from mirobody.kernel.tools import PROVENANCE_REPORTED
 from mirobody.collect.observations import KIND_CONDITION, KIND_SYMPTOM
 
 logger = logging.getLogger(__name__)
@@ -75,12 +76,19 @@ _LOCAL_TS = (
 _STAT_VALUE = "CASE WHEN COUNT(DISTINCT unit_ucum) > 1 THEN {agg}(value_canonical) ELSE {agg}(value_num) END"
 _STAT_UNIT = "CASE WHEN COUNT(DISTINCT unit_ucum) > 1 THEN MAX(unit_canonical) ELSE (ARRAY_AGG(unit_ucum ORDER BY at DESC))[1] END"
 
-#: What a person reports about themselves is not a reading: a symptom or a
-#: diagnosis has no value and no unit. Left in, a logged 头痛 came back from
-#: the readings tool as an indicator whose latest value was blank. Those rows
-#: are the journal tool's. Filtered where a series is FOUND (the catalogue,
-#: `_by_names`, `_labels`), so no later statement can receive one.
-_NOT_READINGS = [KIND_SYMPTOM, KIND_CONDITION]
+#: What a person reports about themselves: a symptom felt or a diagnosis given,
+#: in their own words, with no value and no unit. The same table and the same
+#: series as a reading, so the model's tool reads both, and each row says which
+#: it is (`provenance="reported"`). The web client's Indicators tab lists
+#: readings only (`reported=False`); the journal is its own tab there.
+REPORTED_KINDS = [KIND_SYMPTOM, KIND_CONDITION]
+
+#: What a reported row carries beyond a reading's columns: its kind, why it
+#: is uncoded, and the note the person added (encrypted at rest).
+_REPORTED_COLUMNS = (
+    "o.kind = ANY(:reported) AS reported, o.kind, o.reason,"
+    " CASE WHEN o.kind = ANY(:reported) THEN decrypt_content(o.note_text) END AS note"
+)
 
 _FILE_KEY = "CASE WHEN o.source_kind = 'file' THEN substr(o.source_ref, 10) END"
 
@@ -106,7 +114,20 @@ class PostgresHealthQuery:
 
     Async: the port is declared with plain `def` so an in-memory implementation
     stays possible, and `HealthIndicatorsService` awaits whatever it gets back.
+
+    `reported=False` leaves out what the person reported. The kind filter sits
+    where a series is FOUND (the catalogue, `_by_names`, `_labels`), so no
+    later statement can receive one.
     """
+
+    def __init__(self, *, reported: bool = True) -> None:
+        self._reported = reported
+
+    def _kinds(self, params: dict[str, Any]) -> str:
+        if self._reported:
+            return ""
+        params["reported_kinds"] = REPORTED_KINDS
+        return " AND o.kind <> ALL(:reported_kinds)"
 
     # --- subject-level facts -------------------------------------------------
 
@@ -132,8 +153,8 @@ class PostgresHealthQuery:
         """
         from mirobody.utils import execute_query
 
-        params: dict[str, Any] = {"uid": str(subject_id), "cap": cap, "not_readings": _NOT_READINGS}
-        where = _window_clause(params, window)
+        params: dict[str, Any] = {"uid": str(subject_id), "cap": cap, "reported": REPORTED_KINDS}
+        where = self._kinds(params) + _window_clause(params, window)
         rows = await execute_query(
             f"""
             SELECT o.series_id,
@@ -150,11 +171,12 @@ class PostgresHealthQuery:
                    to_char(MAX(o.local_date), 'YYYY-MM-DD') AS last_date,
                    (ARRAY_AGG(o.value_text ORDER BY o.observed_start DESC))[1] AS latest_value,
                    (ARRAY_AGG(o.unit_text ORDER BY o.observed_start DESC))[1] AS unit,
-                   MAX(o.reason) AS reason
+                   MAX(o.reason) AS reason,
+                   bool_or(o.kind = ANY(:reported)) AS reported
               FROM v_observation o
-             WHERE o.user_id = :uid AND o.kind <> ALL(:not_readings) {where}
+             WHERE o.user_id = :uid {where}
              GROUP BY o.series_id
-             ORDER BY display
+             ORDER BY reported DESC, display
              LIMIT :cap
             """,
             params,
@@ -173,7 +195,10 @@ class PostgresHealthQuery:
         names = await self._resolve(subject_id, sel, window)
         if not names:
             return []
-        params: dict[str, Any] = {"uid": str(subject_id), "names": names, "limit": max(1, min(int(limit), query.MAX_LIMIT))}
+        params: dict[str, Any] = {
+            "uid": str(subject_id), "names": names, "limit": max(1, min(int(limit), query.MAX_LIMIT)),
+            "reported": REPORTED_KINDS,
+        }
         where = _window_clause(params, window)
         rows = await execute_query(
             f"""
@@ -182,6 +207,7 @@ class PostgresHealthQuery:
                        o.value_num, o.value_canonical, o.unit_canonical, o.comparator,
                        to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS') AS local_time,
                        o.tz, o.local_date, o.modality, o.code_system, o.code, o.elected, o.outcome,
+                       {_REPORTED_COLUMNS},
                        {_FILE_KEY} AS file_key, {_FILE_NAME},
                        COUNT(*) OVER (PARTITION BY o.series_id) AS total,
                        ROW_NUMBER() OVER (PARTITION BY o.series_id ORDER BY o.observed_start DESC, o.id DESC) AS rn
@@ -219,7 +245,7 @@ class PostgresHealthQuery:
         names = await self._resolve(subject_id, sel, window)
         if not names:
             return []
-        params: dict[str, Any] = {"uid": str(subject_id), "names": names}
+        params: dict[str, Any] = {"uid": str(subject_id), "names": names, "reported": REPORTED_KINDS}
         where = _window_clause(params, window)
         source = _DAY_AUTHORITY_CTE.format(where=where) if basis == "daily" else _READINGS_CTE.format(where=where)
         rows = await execute_query(
@@ -239,7 +265,8 @@ class PostgresHealthQuery:
                    {_STAT_UNIT} AS unit,
                    COUNT(DISTINCT unit_ucum) > 1 AS mixed_units,
                    (ARRAY_AGG(value_num ORDER BY at ASC))[1] AS first_num,
-                   (ARRAY_AGG(value_num ORDER BY at DESC))[1] AS last_num
+                   (ARRAY_AGG(value_num ORDER BY at DESC))[1] AS last_num,
+                   bool_or(reported) AS reported
               FROM base
              GROUP BY series_id
              ORDER BY display
@@ -256,13 +283,14 @@ class PostgresHealthQuery:
         names = await self._resolve(subject_id, sel, window)
         if not names:
             return []
-        params: dict[str, Any] = {"uid": str(subject_id), "names": names}
+        params: dict[str, Any] = {"uid": str(subject_id), "names": names, "reported": REPORTED_KINDS}
         where = _window_clause(params, window)
         rows = await execute_query(
             f"""
             SELECT DISTINCT ON (o.series_id)
                    o.series_id, o.display, o.name_text, o.value_text, o.unit_text, o.value_num,
                    o.value_canonical, o.unit_canonical, o.code_system, o.code, o.local_date, o.elected, o.modality,
+                   o.outcome, {_REPORTED_COLUMNS},
                    to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS') AS local_time
               FROM v_observation o
              WHERE o.user_id = :uid AND o.series_id = ANY(:names) {where}
@@ -288,21 +316,22 @@ class PostgresHealthQuery:
         """Exact selectors: a series id, a code, a display name or a printed name."""
         from mirobody.utils import execute_query
 
+        params: dict[str, Any] = {
+            "uid": str(subject_id),
+            "names": names,
+            "lower": [n.lower() for n in names],
+            "keys": [translate.name_key(n) for n in names],
+        }
+        kinds = self._kinds(params)
         rows = await execute_query(
-            """
+            f"""
             SELECT DISTINCT o.series_id
               FROM v_observation o
-             WHERE o.user_id = :uid AND o.kind <> ALL(:not_readings)
+             WHERE o.user_id = :uid{kinds}
                AND (o.series_id = ANY(:names) OR o.code = ANY(:names)
                     OR lower(o.display) = ANY(:lower) OR o.name_key = ANY(:keys))
             """,
-            {
-                "uid": str(subject_id),
-                "names": names,
-                "lower": [n.lower() for n in names],
-                "keys": [translate.name_key(n) for n in names],
-                "not_readings": _NOT_READINGS,
-            },
+            params,
             log_sql=False,
         ) or []
         return [str(r["series_id"]) for r in rows]
@@ -311,11 +340,11 @@ class PostgresHealthQuery:
         """`(label, series_id, code)` for every display and printed name."""
         from mirobody.utils import execute_query
 
-        params: dict[str, Any] = {"uid": str(subject_id), "not_readings": _NOT_READINGS}
-        where = _window_clause(params, window)
+        params: dict[str, Any] = {"uid": str(subject_id)}
+        where = self._kinds(params) + _window_clause(params, window)
         rows = await execute_query(
             f"SELECT o.series_id, o.name_text, o.display, o.code FROM v_observation o"
-            f" WHERE o.user_id = :uid AND o.kind <> ALL(:not_readings) {where}"
+            f" WHERE o.user_id = :uid {where}"
             f" GROUP BY o.series_id, o.name_text, o.display, o.code",
             params,
             log_sql=False,
@@ -329,10 +358,14 @@ class PostgresHealthQuery:
         return out
 
     async def _by_keywords(self, subject_id: str, keywords: tuple[str, ...], window: query.Window | None) -> list[str]:
-        """Free text to the person's own series, in two tiers: a lexical rank
-        over their printed and display names (free, deterministic, scoped to
-        what they have), then the offline resolver's code matched against
-        their codes, which reaches the same place with no key at all."""
+        """Free text to the person's own series, in two tiers per keyword: a
+        lexical rank over their printed and display names (free, deterministic,
+        scoped to what they have), then the offline resolvers' codes matched
+        against their codes, which reaches the same place with no key at all.
+
+        The tiers are per keyword: in ["血压", "头痛"] a lexical hit on the
+        first must not stop the second from reaching an entry written 头疼,
+        which only the code (NS01) connects."""
         kws = [k.strip() for k in keywords if k and k.strip()]
         if not kws:
             return []
@@ -340,24 +373,32 @@ class PostgresHealthQuery:
         by_label: dict[str, str] = {}
         for label, sid, _code in labels:
             by_label.setdefault(label, sid)
-        ranked: list[str] = []
+        found: list[str] = []
         for kw in kws:
-            for label in query.rank_catalog(kw, list(by_label), limit=MAX_KEYWORD_NAMES):
-                ranked.append(by_label[label])
-        if ranked:
-            return list(dict.fromkeys(ranked))[:MAX_KEYWORD_NAMES]
+            ranked = [by_label[label] for label in query.rank_catalog(kw, list(by_label), limit=MAX_KEYWORD_NAMES)]
+            if not ranked:
+                codes = self._codes_for(kw)
+                ranked = [sid for _label, sid, code in labels if code and code in codes]
+            found.extend(ranked)
+        return list(dict.fromkeys(found))[:MAX_KEYWORD_NAMES]
+
+    def _codes_for(self, keyword: str) -> set[str]:
+        """The codes one keyword names: LOINC always, and the two ICPC-3 axes
+        when reported entries are in scope. Each resolver abstains on what is
+        not its own, so 头痛 yields only NS01 and 血压 only a LOINC code."""
         codes: set[str] = set()
         try:
             from mirobody.engine import resolve
-            for kw in kws:
-                hit = resolve(kw)
-                if hit.resolved and hit.loinc and hit.method == "lexical":
-                    codes.add(hit.loinc)
+            hit = resolve(keyword)
+            if hit.resolved and hit.loinc and hit.method == "lexical":
+                codes.add(hit.loinc)
         except Exception as e:
             logger.warning("offline resolver unavailable in keyword recall: error_type=%s", type(e).__name__)
-        if not codes:
-            return []
-        return list(dict.fromkeys(sid for _label, sid, code in labels if code in codes))[:MAX_KEYWORD_NAMES]
+        if self._reported:
+            for coding in (translate.resolve_symptom(keyword), translate.resolve_condition(keyword)):
+                if coding.outcome == "coded" and coding.code:
+                    codes.add(coding.code)
+        return codes
 
     async def _subday_buckets(self, subject_id: str, names: list[str], window: query.Window, resolution: str) -> list[dict]:
         from mirobody.utils import execute_query
@@ -395,7 +436,7 @@ class PostgresHealthQuery:
         day otherwise, which `provenance` reports."""
         from mirobody.utils import execute_query
 
-        params: dict[str, Any] = {"uid": str(subject_id), "names": names}
+        params: dict[str, Any] = {"uid": str(subject_id), "names": names, "reported": REPORTED_KINDS}
         where = _window_clause(params, window)
         trunc = _DAY_TRUNC[resolution]
         return await execute_query(
@@ -408,7 +449,8 @@ class PostgresHealthQuery:
                    {_STAT_VALUE.format(agg="MIN")} AS min,
                    {_STAT_VALUE.format(agg="MAX")} AS max,
                    {_STAT_UNIT} AS unit,
-                   bool_or(elected) AS elected
+                   bool_or(elected) AS elected,
+                   bool_or(reported) AS reported
               FROM base
              GROUP BY series_id, date_trunc('{trunc}', at::timestamp)
              ORDER BY series_id, period
@@ -422,7 +464,7 @@ class PostgresHealthQuery:
 _READINGS_CTE = """
 WITH base AS (
     SELECT o.series_id, o.display, o.code_system, o.code, o.observed_start AS at, o.value_text, o.value_num,
-           o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected
+           o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected, o.kind = ANY(:reported) AS reported
       FROM v_observation o
      WHERE o.user_id = :uid AND o.series_id = ANY(:names) {where}
 )"""
@@ -433,7 +475,7 @@ _DAY_AUTHORITY_CTE = """
 WITH base AS (
     SELECT DISTINCT ON (o.series_id, o.local_date)
            o.series_id, o.display, o.code_system, o.code, o.local_date::timestamp AS at, o.value_text, o.value_num,
-           o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected
+           o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected, o.kind = ANY(:reported) AS reported
       FROM v_observation o
      WHERE o.user_id = :uid AND o.series_id = ANY(:names) {where}
      ORDER BY o.series_id, o.local_date, o.elected DESC, o.observed_start DESC, o.id DESC
@@ -466,6 +508,20 @@ def _identity(r: dict) -> dict:
     }
 
 
+def _reported(r: dict) -> dict:
+    """The columns only a reported row has. Empty for a reading, so a table of
+    readings renders exactly as it did before reported rows existed."""
+    if not r.get("reported"):
+        return {}
+    coded = r.get("outcome", "coded") == "coded"
+    return {
+        "kind": r.get("kind") or "",
+        "reason": "" if coded else (r.get("reason") or ""),
+        "note": _text(r.get("note")),
+        "provenance": PROVENANCE_REPORTED,
+    }
+
+
 def _catalog_row(r: dict) -> dict:
     return {
         **_identity(r),
@@ -480,6 +536,7 @@ def _catalog_row(r: dict) -> dict:
         "total": int(r.get("total") or 0),
         "reason": r.get("reason") or "",
         "day_known": True,
+        **({"provenance": PROVENANCE_REPORTED} if r.get("reported") else {}),
     }
 
 
@@ -503,6 +560,7 @@ def _reading_row(r: dict) -> dict:
         "total": int(r.get("total") or 0),
         "day_known": True,
         "provenance": "elected:day_authority" if r.get("elected") else "measured",
+        **_reported(r),
     }
 
 
@@ -517,6 +575,7 @@ def _bucket_row(r: dict) -> dict:
         "unit": r.get("unit") or "",
         "day_known": True,
         "provenance": "elected:day_authority" if r.get("elected") else "measured",
+        **({"provenance": PROVENANCE_REPORTED} if r.get("reported") else {}),
     }
 
 
@@ -536,7 +595,7 @@ def _stats_row(r: dict, basis: str) -> dict:
         "mixed_units": bool(r.get("mixed_units")),
         "basis": basis,
         "day_known": True,
-        "provenance": "computed",
+        "provenance": PROVENANCE_REPORTED if r.get("reported") else "computed",
     }
     # `change` only when both ends are numbers in one unit: a delta across
     # mg/dL and mmol/L, or across "Positive" and "Negative", is not a delta.
@@ -560,6 +619,7 @@ def _latest_row(r: dict, basis: str) -> dict:
         "basis": basis,
         "day_known": True,
         "provenance": "elected:day_authority" if r.get("elected") else "measured",
+        **_reported(r),
     }
 
 
@@ -574,4 +634,10 @@ def _number(value: object) -> float | None:
         return None
 
 
-__all__ = ["CATALOG_MAX", "MAX_KEYWORD_NAMES", "PostgresHealthQuery", "REST_CATALOG_MAX"]
+__all__ = [
+    "CATALOG_MAX",
+    "MAX_KEYWORD_NAMES",
+    "PostgresHealthQuery",
+    "REPORTED_KINDS",
+    "REST_CATALOG_MAX",
+]
