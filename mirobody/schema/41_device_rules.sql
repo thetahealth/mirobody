@@ -78,7 +78,7 @@ INSERT INTO indicator_valid_rules (rule_set, indicator, rules, description) VALU
 ('ingestion_filter', 'bodyMuscle',               '[">=20", "<=70"]',     'Muscle %'),
 ('ingestion_filter', 'bodyWater',                '[">=30", "<=80"]',     'Body water: dehydration~40%'),
 ('ingestion_filter', 'bodyBone',                 '[">=1", "<=8"]',       'Bone mass: actual 2.5-4.3kg'),
-('ingestion_filter', 'bonePercentage',           '[">=1", "<=10"]',      'Bone share: 2.5-4.3kg of body mass'),
+('ingestion_filter', 'bonePercentage',           '[">=1", "<=10"]',      'Bone as a share of mass: ~3-6%'),
 ('ingestion_filter', 'bodyVisFat',               '[">=1", "<=50"]',      'Visceral fat scale'),
 ('ingestion_filter', 'bodySubFat',               '[">=5", "<=60"]',      'Subcutaneous fat'),
 ('ingestion_filter', 'bodyProtein',              '[">=5", "<=30"]',      'Protein %'),
