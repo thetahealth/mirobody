@@ -211,7 +211,7 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
 
 出处都附在后面：一条可以跑的命令，或者一个公开的数据集。
 
-- 常规体检会打印的那些项目，**261/261**，覆盖英文、中文（简体和繁体）和日文。
+- 常规体检会打印的那些项目，**296/296**，覆盖英文、中文（简体和繁体）、日文、俄文和爱沙尼亚文。
   这套用例是故意挑的最不讨巧的一组：日常的几个套餐，按报告上真正的印法写，
   也正是每个新用户第一分钟会去试的那些词。
   [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 跑一下

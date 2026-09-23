@@ -237,10 +237,10 @@ whole sharing decision table offline ·
 Every figure below comes with its source: a command you can run, or a public
 dataset.
 
-- **261/261** on the tests an ordinary checkup prints, in English, Chinese
-  (Simplified and Traditional) and Japanese. The set is deliberately the least
-  flattering one — everyday panels, written the way a report prints them, which
-  is what every new user tries in their first minute.
+- **296/296** on the tests an ordinary checkup prints, in English, Chinese
+  (Simplified and Traditional), Japanese, Russian and Estonian. The set is
+  deliberately the least flattering one — everyday panels, written the way a
+  report prints them, which is what every new user tries in their first minute.
   [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the
   score when you run it.
 - **13 wearable vendors, read field by field**: 289 of 447 fields carry a LOINC
