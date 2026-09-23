@@ -223,7 +223,9 @@ def _envelope_for(
     rows = list(rows)
     dated = bool(request.start or request.end)
     total = max((int(r.get("total") or 0) for r in rows), default=0)
-    truncated = bool(total and total > len(rows)) or _per_indicator_truncated(rows)
+    # A catalogue row's `total` is the catalogue's size, not its series' row
+    # count: read per indicator, every complete catalogue of two was "cut".
+    truncated = bool(total and total > len(rows)) or (method != "catalog" and _per_indicator_truncated(rows))
     semantics = _semantics(rows)
     meta = tools.Meta(
         window=(window.start, window.end) if dated else ("", ""),

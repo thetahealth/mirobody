@@ -82,6 +82,11 @@
 
 ### Fixed
 
+- **A complete catalogue no longer says it was cut.** Each catalogue row
+  carries the catalogue's size, and the truncation check read it as that
+  series' row count, so any catalogue of two or more answered `truncated`
+  and told the model to narrow its window.
+
 - **A symptom no longer codes as a lab analyte.** `collect.observations` sent
   every prepared row to the lexical LOINC resolver, which cannot abstain from
   a name it half recognises: a `kind=symptom` draft of 发烧 reached 153
