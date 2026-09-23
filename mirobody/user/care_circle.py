@@ -181,7 +181,12 @@ async def resolve_subject(
     if requested_subject_id is None or str(requested_subject_id).strip() == "":
         return Subject(operator_id=operator, subject_id=operator, access=ACCESS_EDIT)
 
-    subject = int(requested_subject_id)
+    # The target arrives from a URL parameter or a request body. A value that
+    # is not a member id is a denial, not a ValueError the caller turns into a 500.
+    try:
+        subject = int(str(requested_subject_id).strip())
+    except ValueError:
+        raise CareCircleDenied("not a member id") from None
     if subject == operator:
         return Subject(operator_id=operator, subject_id=operator, access=ACCESS_EDIT)
 
