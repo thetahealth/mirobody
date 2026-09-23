@@ -29,6 +29,16 @@
   "was my blood pressure up on the days I had headaches" is one call; the web
   client's Indicators tab still lists readings only.
 
+- **One sentence, every entry it states.** `POST /api/v1/journal/sentence`
+  takes what a person typed ("我头疼，血压150/95，没发烧") and writes a
+  headache, a systolic and a diastolic reading. A model splits and types the
+  parts and is never asked for a code: each part is coded at write time on its
+  own axis, LOINC for 收缩压, ICPC-3 for 头疼. A part the sentence does not
+  quote, a negation, a guess, someone else's condition and a medication are
+  not written and come back with the reason. On twelve real sentences
+  (gemini-3.8-flash) every part was split and typed as expected. Readings
+  typed this way are listed in the journal and are readings everywhere else.
+
 - **Body water and bone percentage carry codes.** `bodyWater` was in the
   catalogue uncoded since 1.4.0 and now carries `101684-9`; `bonePercentage`
   is new, `101686-4`, with an ingestion range. An impedance scale reports the

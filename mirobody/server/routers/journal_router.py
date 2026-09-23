@@ -8,14 +8,14 @@ diagnosed with and resolves on its D component. No new table: both are one
 self-reported observation, which the model has had room for since 1.5.0, and
 every invariant `collect.observations` enforces for a lab row holds here too.
 
-Two things this router deliberately does NOT do:
+`POST /journal` takes one entry. `POST /journal/sentence` takes what a person
+typed ("我头疼，血压150/95") and writes the entries it states: the splitting is
+`collect.sentence`, an extraction step with its own checks, and the coding is
+the same per-kind coding every row gets. A reading stated in a sentence is a
+`measurement` row and is listed here beside the complaints.
 
-* it does not read a sentence. `text` is the complaint, not a diary entry.
-  Pulling terms out of prose is an extraction decision and belongs with the
-  other extraction decisions, where the prompt and the schema can refuse a
-  negation ("no fever") instead of coding it;
-* it does not take a meal or a dose. Medication has a domain model already
-  (`kernel/meds.py`) and food has no vocabulary worth inventing one for.
+It does not take a meal or a dose. Medication has a domain model already
+(`kernel/meds.py`) and food has no vocabulary worth inventing one for.
 
 `target_user_id` is declared and authorized. On `POST /files/upload` the same
 parameter is not declared at all, so FastAPI drops it and a proxy upload
@@ -32,7 +32,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from mirobody import translate
-from mirobody.collect import observations
+from mirobody.collect import observations, sentence
 from mirobody.kernel import series
 from mirobody.server.auth import verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse
@@ -57,15 +57,31 @@ KINDS = {
 MAX_DAYS = 400
 MAX_ROWS = 2000
 
-_SELECT = """
-SELECT o.id, o.kind, o.local_date, o.observed_start, o.name_text, o.code_system, o.code,
-       o.display, o.outcome, o.reason, o.series_id, decrypt_content(o.note_text) AS note_text
+#: A reading typed into the journal is listed with it; a reading from a file
+#: or a device is not, it belongs to the Indicators tab. `kinds` is cast
+#: because it is empty when only readings are asked for.
+_LISTED = """
+   AND (o.kind = ANY(CAST(:kinds AS text[]))
+        OR (o.kind = 'measurement' AND o.source_ref = :journal AND :with_readings))
+"""
+
+_SELECT = f"""
+SELECT o.id, o.kind, o.local_date, o.observed_start, o.name_text, o.value_text, o.unit_text,
+       o.code_system, o.code, o.display, o.outcome, o.reason, o.series_id,
+       decrypt_content(o.note_text) AS note_text
   FROM v_observation o
- WHERE o.user_id = :user_id
-   AND o.kind = ANY(:kinds)
+ WHERE o.user_id = :user_id{_LISTED}
    AND o.local_date BETWEEN :from_date AND :to_date
  ORDER BY o.observed_start DESC
  LIMIT :limit
+"""
+
+_SELECT_WRITTEN = """
+SELECT o.id, o.kind, o.observed_start, o.name_text, o.value_text, o.unit_text, o.code_system,
+       o.code, o.display, o.outcome, o.reason, o.series_id, decrypt_content(o.note_text) AS note_text
+  FROM v_observation o
+ WHERE o.user_id = :user_id AND o.id = ANY(:ids)
+ ORDER BY o.observed_start DESC, o.id
 """
 
 _SELECT_ONE = """
@@ -73,6 +89,12 @@ SELECT o.outcome, o.reason, o.code_system, o.code, o.display, o.series_id, o.rel
   FROM v_observation o
  WHERE o.id = :id AND o.user_id = :user_id
 """
+
+
+class JournalSentence(BaseModel):
+    text: str = Field(..., min_length=1, max_length=sentence.MAX_SENTENCE, description="What the person typed")
+    observed_at: datetime | None = Field(None, description="When, for an entry whose words name no time. Defaults to now.")
+    target_user_id: str | None = Field(None, description="Log into this person's record; needs a write grant")
 
 
 class JournalEntry(BaseModel):
@@ -163,12 +185,76 @@ async def log_entry(entry: JournalEntry, user_id: str = Depends(verify_token)):
     })
 
 
+def _entry(row: dict) -> dict:
+    return {
+        "id": row["id"],
+        "kind": row["kind"],
+        "at": row["observed_start"].isoformat() if row["observed_start"] else None,
+        "text": row["name_text"],
+        "value": row.get("value_text") or "",
+        "unit": row.get("unit_text") or "",
+        "display": row["display"] or "",
+        "code_system": row["code_system"],
+        "code": row["code"],
+        "series_id": row["series_id"],
+        "coded": row["outcome"] == "coded",
+        "reason": row["reason"] or "",
+        "note": row["note_text"] or "",
+    }
+
+
+@router.post("/journal/sentence")
+async def log_sentence(entry: JournalSentence, user_id: str = Depends(verify_token)):
+    """Write every entry one sentence states. The answer lists what was
+    written, with its coding, and every part that was not, with the reason
+    (negated, someone else, a medication, ...), so the person sees what the
+    sentence became rather than trusting it."""
+    owner = await _subject(user_id, entry.target_user_id, write=True)
+    if owner is None:
+        return ErrorResponse(code=403, msg="You cannot write to that record.")
+    if not sentence.available():
+        return ErrorResponse(code=503, msg="Reading a sentence needs a text model (UTILS_TEXT_MODEL). Log one entry instead.")
+
+    tz = await observations.user_tz(owner)
+    now = sentence.zone_now(tz)
+    answer = await sentence.read(entry.text, now=now)
+    if answer is None:
+        return ErrorResponse(code=502, msg="The sentence could not be read. Try again, or log one entry.")
+    parts, raw = answer
+    drafts, skipped = sentence.plan(parts, sentence=entry.text, now=now, default_at=entry.observed_at or now)
+
+    report = observations.Report()
+    if drafts:
+        provenance = observations.Provenance(
+            modality=observations.MODALITY_SELF,
+            source_kind=observations.SOURCE_MANUAL,
+            source_ref=SOURCE_REF,
+            source_class=series.SOURCE_MANUAL,
+            extractor=sentence.EXTRACTOR,
+        )
+        try:
+            report = await observations.ingest(
+                owner, drafts, provenance, user_tz=tz, payload={"model": raw, "received_at": now.isoformat()},
+            )
+        except Exception as e:
+            logger.error("[log_sentence] error_type=%s", type(e).__name__)
+            return ErrorResponse(code=500, msg="This sentence could not be saved.")
+
+    rows = await execute_query(_SELECT_WRITTEN, {"user_id": owner, "ids": report.ids}) if report.ids else []
+    return StandardResponse(data={
+        "written": [_entry(r) for r in rows or []],
+        "skipped": [s.__dict__ for s in skipped],
+        "already_logged": report.skipped,
+        "rejected": dict(report.rejected),
+    })
+
+
 @router.get("/journal")
 async def list_entries(
     user_id: str = Depends(verify_token),
     from_date: str | None = Query(None, alias="from", description='"YYYY-MM-DD", inclusive'),
     to_date: str | None = Query(None, alias="to", description='"YYYY-MM-DD", inclusive'),
-    kind: str | None = Query(None, description='Only this kind; omit for every kind'),
+    kind: str | None = Query(None, description='Only this kind ("measurement" for readings typed here); omit for every kind'),
     target_user_id: str | None = Query(None, description="Read this person's record; needs a grant"),
 ):
     """The log, newest first, grouped by the day it was felt.
@@ -190,29 +276,19 @@ async def list_entries(
     if (end - start).days > MAX_DAYS:
         return ErrorResponse(code=400, msg=f"That range is longer than {MAX_DAYS} days.")
 
-    if kind is not None and kind not in KINDS:
-        return ErrorResponse(code=400, msg=f"kind must be one of: {', '.join(sorted(KINDS))}.")
-    kinds = [KINDS[kind]] if kind else sorted(KINDS.values())
+    if kind is not None and kind not in KINDS and kind != observations.KIND_MEASUREMENT:
+        listed = sorted([*KINDS, observations.KIND_MEASUREMENT])
+        return ErrorResponse(code=400, msg=f"kind must be one of: {', '.join(listed)}.")
+    kinds = [KINDS[kind]] if kind in KINDS else ([] if kind else sorted(KINDS.values()))
     rows = await execute_query(_SELECT, {
-        "user_id": owner, "kinds": kinds,
+        "user_id": owner, "kinds": kinds, "journal": SOURCE_REF,
+        "with_readings": kind in (None, observations.KIND_MEASUREMENT),
         "from_date": start, "to_date": end, "limit": MAX_ROWS,
     })
 
     days: dict[str, list[dict]] = {}
     for row in rows or []:
-        days.setdefault(str(row["local_date"]), []).append({
-            "id": row["id"],
-            "kind": row["kind"],
-            "at": row["observed_start"].isoformat() if row["observed_start"] else None,
-            "text": row["name_text"],
-            "display": row["display"] or "",
-            "code_system": row["code_system"],
-            "code": row["code"],
-            "series_id": row["series_id"],
-            "coded": row["outcome"] == "coded",
-            "reason": row["reason"] or "",
-            "note": row["note_text"] or "",
-        })
+        days.setdefault(str(row["local_date"]), []).append(_entry(row))
     return StandardResponse(data={
         "from": start.isoformat(),
         "to": end.isoformat(),
