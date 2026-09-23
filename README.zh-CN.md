@@ -255,7 +255,7 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
 最大的贡献，是找出一个解析器答错的词。拿你自己报告上的写法跑一下
 `mirobody resolve "<词>"`；如果答案错了，或者是空的，
 [提个 issue](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml)，
-或者往 [`resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv) 加一行，
+或者往 [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) 加一行，
 再往 [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 加一
 个用例：覆盖率分数，就是评审。
 

@@ -1,4 +1,4 @@
-"""Read the shipped terminology bundle: ``mirobody/res/fhir_loinc_bundle.tar.gz``.
+"""Read the shipped terminology bundle: ``mirobody/res/loinc/fhir_loinc_bundle.tar.gz``.
 
 The bundle is a single tarball holding every static LOINC-derived lookup the
 resolver needs::
@@ -48,7 +48,8 @@ log = logging.getLogger(__name__)
 RES_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "res"))
 
 BUNDLE_BASENAME = "fhir_loinc_bundle.tar.gz"
-BUNDLE_PATH = os.path.join(RES_DIR, BUNDLE_BASENAME)
+#: `res/` groups by vocabulary since 1.5.1; see `res/README.md`.
+BUNDLE_PATH = os.path.join(RES_DIR, "loinc", BUNDLE_BASENAME)
 
 #: Member holding the corpus release string. Read via :func:`bundle_version`.
 VERSION_MEMBER = "VERSION"
@@ -231,17 +232,17 @@ def load_axis(*, bundle_path: str | None = None, members: dict[str, bytes] | Non
     return FieldTable(blob, off, AXIS_FIELDS), order_code, order_name
 
 
-# Alias sources: ``res/aliases_src/zh.tsv`` (claimed LOINC variant-derived,
+# Alias sources: ``res/loinc/aliases_src/zh.tsv`` (claimed LOINC variant-derived,
 # see LICENSE-3RD-PARTY), ``{lang}_curated.tsv`` and
-# ``res/resolver_overrides.tsv``, loose files rather than bundle members.
+# ``res/loinc/resolver_overrides.tsv``, loose files rather than bundle members.
 # Byte-identical copies used to live in the tarball too, and the two drifted:
 # four rows added to ``zh_curated.tsv`` were live for the resolver and
 # invisible to the build. The tarball members are gone; this is the one
 # reader. Other languages resolve through the release's own variants, which
 # the alias index is built from.
 
-ALIAS_SRC_DIR = os.path.join(RES_DIR, "aliases_src")
-OVERRIDES_PATH = os.path.join(RES_DIR, "resolver_overrides.tsv")
+ALIAS_SRC_DIR = os.path.join(RES_DIR, "loinc", "aliases_src")
+OVERRIDES_PATH = os.path.join(RES_DIR, "loinc", "resolver_overrides.tsv")
 
 
 def alias_source_files(*, include_overrides: bool = True) -> list[str]:

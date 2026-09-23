@@ -2,6 +2,30 @@
 
 ### Added
 
+- **Two ICPC-3 axes.** `mirobody.translate.resolve_symptom()` turns a
+  complaint in a person's own words into one ICPC-3 S code, and
+  `resolve_condition()` turns a named diagnosis into one D code. Each abstains
+  with a reason rather than guessing, on the same contract as `code()`: three
+  outcomes, a decision id, no guess. They are separate indexes and the caller
+  picks, so 发烧 answers only as a complaint and 高血压 only as a diagnosis.
+  The vocabulary ships verbatim under CC BY-ND, 1,218 codes in `res/icpc3/icpc3.tsv`
+  with its NOTICE; the everyday Chinese and English spellings that reach it are
+  ours, Apache-2.0, and hold no ICPC-3 term in any language, because WONCA
+  licenses translations of the electronic version separately. Display names are
+  ICPC-3's English. A coding names `icpc-3+<digest>`, a stamp over the shipped
+  terms, because ICPC-3 publishes no release number in the data we hold.
+  The classification's index words are deliberately not shipped: 1,273 of
+  3,139 of them (40.6%) are character-identical to a SNOMED CT description on
+  the same code, and `res/` carries no SNOMED CT derivative.
+
+- **`/api/v1/journal`: log what a person reports, read it back by day.** POST
+  one entry with `kind` of `symptom` or `condition`, GET the log grouped by the
+  day it was felt, DELETE one. No new table: both are one self-reported
+  observation, so they inherit the append-only history, the day placement and
+  the coding trail. The list gives both names, the person's words and the
+  classification's, and keeps the entries the vocabulary could not place with
+  the reason attached.
+
 - **Body water and bone percentage carry codes.** `bodyWater` was in the
   catalogue uncoded since 1.4.0 and now carries `101684-9`; `bonePercentage`
   is new, `101686-4`, with an ingestion range. An impedance scale reports the
@@ -26,6 +50,19 @@
 
 ### Changed
 
+- **`mirobody/res/` groups by vocabulary.** The bundle and everything that
+  steers it are under `res/loinc/`, the ICPC-3 table and our surfaces onto it
+  under `res/icpc3/`, the indicator catalogue and its labels under
+  `res/catalog/`; `crosswalks/` is unchanged, and `dose_forms.tsv` and
+  `EXTERNAL.tsv` stay at the top because they belong to no vocabulary. The top
+  level went from twelve loose files to four directories and two, and
+  `res/README.md` now says what each file is and who opens it.
+  `mirobody.bundle.BUNDLE_PATH`, `RES_DIR` and `ALIAS_SRC_DIR` are computed and
+  keep working; code that hardcoded `res/fhir_loinc_bundle.tar.gz` does not.
+  The Git LFS patterns in `.gitattributes` are `res/**/*.gz` now, not
+  `res/*.gz`: a pattern that stops matching checks out the pointer text in
+  place of the data, which presents as a corrupt bundle rather than a wrong
+  path.
 - **`HRV` and `心率变异性` resolve to `112429-6`, not `76643-6`.** LOINC has no
   code for heart rate variability with the algorithm unstated, so a bare "HRV"
   asserts SDNN whichever of the three is chosen; `112429-6` is the only one
@@ -39,6 +76,16 @@
 - **The two entry crosswalk tables read in English.** `loinc_device_base.tsv`
   and `unmappable.tsv` are where a reader starts, and 136 of their rows
   carried Chinese notes. The per-vendor tables beside them are unchanged.
+
+### Fixed
+
+- **A symptom no longer codes as a lab analyte.** `collect.observations` sent
+  every prepared row to the lexical LOINC resolver, which cannot abstain from
+  a name it half recognises: a `kind=symptom` draft of 发烧 reached 153
+  candidates and coded to 103717-5, Crimean-Congo hemorrhagic fever virus RNA
+  in Blood. `th_concept` also takes a row for any code whose vocabulary gave
+  it a name, not only the LOINC ones, so a symptom series has a standard name
+  beside the words the person wrote.
 
 ## 1.5.0
 

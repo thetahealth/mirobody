@@ -21,7 +21,7 @@ carries a **confidence**:
 | `unverified` | semantically close; a person must confirm before a reading is filed under it |
 | *(empty)* | no code; the note says why |
 
-The catalogue in [`mirobody/res/metrics.tsv`](../mirobody/res/metrics.tsv) takes
+The catalogue in [`mirobody/res/catalog/metrics.tsv`](../mirobody/res/catalog/metrics.tsv) takes
 only the confident codes as a metric's identity. An unverified code stays
 visible here and in the tables, and the metric keeps its own namespace until
 someone confirms it.

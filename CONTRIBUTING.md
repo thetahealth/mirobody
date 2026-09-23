@@ -209,14 +209,14 @@ Two rules that are specific to this project:
   is the one that matters — **血紅素** for haemoglobin, not 血紅蛋白. Converting
   the Simplified form character by character gives 血红素, which the raw index
   answers with the code for **HbA1c**. We shipped exactly that bug; see
-  `res/resolver_overrides.tsv`.
+  `res/loinc/resolver_overrides.tsv`.
 - **Medical terms come off a real report**, not from a dictionary: a 体检报告
   (mainland), a 檢驗報告單 (Taiwan), a 健康診断結果表 (Japan). Triglycerides are
   甘油三酯 / 三酸甘油酯 / 中性脂肪 in the three, and only the last is what a
   Japanese 健診 form actually prints.
 
 Adding a new indicator term in any language is one row in
-`mirobody/res/resolver_overrides.tsv` plus one case in
+`mirobody/res/loinc/resolver_overrides.tsv` plus one case in
 `mirobody/tests/test_engine_coverage.py`. If the analyte already has a spelling
 in another language, add yours to its row in
 `mirobody/tests/test_cross_language_identity.py` as well: one analyte must answer

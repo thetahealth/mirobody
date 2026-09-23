@@ -12,7 +12,7 @@ What a reading passes through, and which module decides each step:
     vendor payload ─ decoders.decode ──▶ series.Fact      the vendor's JSON becomes facts
     Fact ─────────── metrics ──────────▶ shape            what this metric IS: state_class,
                                                           aggregation policy, canonical unit,
-                                                          local-day window (res/metrics.tsv)
+                                                          local-day window (res/catalog/metrics.tsv)
     Fact ─────────── quality ──────────▶ admit / reject   only the impossible is rejected,
                                                           with a reason code (collect/observations.py)
     facts of a day ─ series.aggregate ─▶ one number       deltas summed, spans unioned,

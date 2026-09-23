@@ -1,0 +1,435 @@
+# Chinese patient language -> ICPC-3 S component. OUR writing, Apache-2.0.
+#
+# NOT a translation of ICPC-3. The classification is CC BY-ND and a translated
+# term list would be a derivative work we may not publish. Every left-hand
+# side here is a phrase a person types into a symptom log; the right-hand side
+# is our judgement about which code it points at. Display names stay in
+# ICPC-3's English, which is why there is no third column holding a Chinese
+# term. See res/icpc3_s_component.NOTICE.
+#
+# Two sentinels instead of a code:
+#   !too-broad   names a family, not a complaint. Never answered.
+#   !ambiguous   names two complaints. A person can say which; we cannot.
+#
+# Matching is exact over translate.fold.name_key, so write the surface as a
+# person types it and add one row per spelling. No suffix stripping, no
+# substring search: 肚子疼 and 肚子痛 are two rows on purpose.
+surface	code	note
+# ── A: general ────────────────────────────────────────────────────────────
+发烧	AS03
+发热	AS03
+低烧	AS03
+高烧	AS03
+体温高	AS03
+畏寒	AS02
+寒战	AS02
+打寒战	AS02
+发冷	AS02
+怕冷	AS02
+乏力	AS04
+疲劳	AS04
+疲倦	AS04
+疲乏	AS04
+没力气	AS04
+没劲	AS04
+浑身没劲	AS04
+全身乏力	AS04
+倦怠	AS04
+虚弱	AS04
+慢性疲劳综合征	AS05.00
+身体不适	AS06
+浑身难受	AS06
+不舒服	AS06
+晕倒	AS07
+昏倒	AS07
+晕厥	AS07
+虚脱	AS07
+浮肿	AS09
+水肿	AS09
+全身水肿	AS09
+多汗	AS10
+出汗多	AS10
+爱出汗	AS10
+盗汗	AS10.01
+夜间出汗	AS10.01
+局部多汗	AS10.00
+胸痛	AS12	general chest pain; KS01 is pain attributed to the heart, LS04 the chest wall
+胸口痛	AS12
+胸口疼	AS12
+摔倒	AS14
+跌倒	AS14
+休克	AS52
+昏迷	AS53
+手脚冰凉	AS99.00
+血糖高	AS50.00
+血糖偏高	AS50.00
+# ── B: blood ──────────────────────────────────────────────────────────────
+淋巴结肿大	BS01
+淋巴肿大	BS01
+脾大	BS50
+脾肿大	BS50
+血沉快	BS52
+血沉增高	BS52
+# ── D: digestive ──────────────────────────────────────────────────────────
+肚子疼	DS01
+肚子痛	DS01
+腹痛	DS01
+腹部疼痛	DS01
+肚子不舒服	DS01
+胃疼	DS02	ICPC-3 files the literal "stomach ache" under DS02, epigastric
+胃痛	DS02
+上腹痛	DS02
+心窝疼	DS02
+胃胀	DS02
+烧心	DS03
+反酸	DS03
+胃灼热	DS03
+肛门疼	DS04
+肛门痛	DS04
+排便疼	DS04
+肛门痒	DS05
+消化不良	DS07
+腹胀	DS08
+胀气	DS08
+嗳气	DS08	打嗝 alone is ambiguous; 嗳气 is the belch
+放屁多	DS08
+恶心	DS09
+想吐	DS09
+呕吐	DS10
+吐了	DS10
+干呕	DS10
+腹泻	DS11
+拉肚子	DS11
+大便稀	DS11
+水样便	DS11
+便秘	DS12
+大便干燥	DS12
+排便困难	DS12
+黄疸	DS13
+皮肤发黄	DS13
+眼白发黄	DS13
+呕血	DS14
+吐血	DS14
+黑便	DS15
+柏油样便	DS15
+便血	DS16
+大便带血	DS16
+大便失禁	DS17
+大便性状改变	DS18
+牙疼	DS19
+牙痛	DS19
+牙龈出血	DS19
+磨牙	DS19
+口腔溃疡	DS20
+口疮	DS20
+嘴唇干裂	DS20
+舌苔厚	DS20
+流口水	DS20
+口干	DS20.00
+舌头疼	DS20.01
+口臭	DS20.02
+吞咽困难	DS21
+咽不下去	DS21
+噎	DS21
+肝大	DS50
+肝肿大	DS50
+腹部包块	DS51
+腹部肿块	DS51
+腹水	DS51.00
+打嗝	!ambiguous	belch (DS08) or hiccough (RS99.00); 嗳气 and 呃逆 are the two unambiguous spellings
+# ── F: eye ────────────────────────────────────────────────────────────────
+眼睛疼	FS01
+眼痛	FS01
+眼睛红	FS02
+红眼	FS02
+眼屎多	FS03
+流泪	FS03.00
+眼泪多	FS03.00
+飞蚊症	FS04
+眼前黑影	FS04
+视力下降	FS05
+看不清	FS05
+视物模糊	FS05
+眼花	FS05
+畏光	FS06
+怕光	FS06
+复视	FS06
+看东西重影	FS06
+眼睛干	FS07
+眼睛干涩	FS07
+眼睛痒	FS07
+干眼症	FS07.00
+眼睑下垂	FS09
+眼皮肿	FS08
+# ── G: genital, breast, menstrual ────────────────────────────────────────
+睾丸疼	GS02
+阴囊疼	GS02
+盆腔痛	GS03
+会阴痛	GS03
+外阴痛	GS03
+乳房疼	GS04
+乳房胀痛	GS04
+痛经	GS05
+经期腹痛	GS05
+月经量少	GS07
+闭经	GS07.00
+停经	GS07.00
+月经量多	GS08
+月经不调	GS09
+月经不规律	GS09
+经间期出血	GS10
+非经期出血	GS10
+经前综合征	GS11
+经前症状	GS11
+更年期症状	GS13
+潮热	GS13.01
+绝经后出血	GS14
+同房后出血	GS15
+白带增多	GS16
+阴道分泌物多	GS16
+阴道干涩	GS17
+阴道瘙痒	GS17
+外阴瘙痒	GS18
+性交痛	GS23
+阳痿	GS24
+勃起障碍	GS24
+乳房肿块	GS26
+乳头溢液	GS27.00
+男性乳房发育	GS28.00
+不孕	GS29
+不育	GS29
+# ── H: ear ────────────────────────────────────────────────────────────────
+耳朵疼	HS01
+耳痛	HS01
+听力下降	HS02
+耳背	HS02
+耳鸣	HS03
+耳朵嗡嗡响	HS03
+耳流脓	HS04
+耳出血	HS05
+耳朵堵	HS06
+耳闷	HS06
+耳朵痒	HS99
+# ── K: circulatory ────────────────────────────────────────────────────────
+心前区疼	KS01
+心口疼	KS01
+心悸	KS02
+心慌	KS02	clinical Chinese reads 心慌 as palpitations, the same complaint as 心悸
+心跳快	KS02
+心跳加速	KS02
+心律不齐	KS03
+心跳不规则	KS03
+脚肿	KS04
+腿肿	KS04
+下肢水肿	KS04
+踝部水肿	KS04
+低血压	KS50
+血压低	KS50
+血压高	KS51
+血压偏高	KS51
+心脏杂音	KS52
+# ── L: musculoskeletal ────────────────────────────────────────────────────
+脖子疼	LS01
+颈部疼痛	LS01
+落枕	LS01
+脖子僵硬	LS01
+背疼	LS02
+背痛	LS02
+腰疼	LS03
+腰痛	LS03
+腰酸	LS03
+肋间疼	LS04
+腋下疼	LS05
+下巴疼	LS06
+肩膀疼	LS07
+肩痛	LS07
+胳膊疼	LS08
+手臂疼	LS08
+肘关节疼	LS09
+手腕疼	LS10
+手指疼	LS11
+手疼	LS11
+髋关节疼	LS12
+腿疼	LS13
+大腿疼	LS13
+小腿抽筋	LS13
+膝盖疼	LS14
+膝关节疼	LS14
+脚踝疼	LS15
+脚疼	LS16
+脚趾疼	LS16
+足跟痛	LS16
+肌肉酸痛	LS17
+肌肉疼	LS17
+浑身酸痛	LS17
+肌肉僵硬	LS19
+肌肉无力	LS19
+关节疼	LS20
+关节痛	LS20
+关节肿	LS20
+关节僵硬	LS20
+# ── N: neurological ───────────────────────────────────────────────────────
+头疼	NS01
+头痛	NS01
+脸疼	NS02
+面部疼痛	NS02
+不宁腿	NS03
+手麻	NS04
+脚麻	NS04
+手指发麻	NS04
+麻木	NS05
+感觉异常	NS05
+烧灼感	NS05
+抽搐	NS06
+惊厥	NS06
+手抖	NS07
+震颤	NS07
+不自主运动	NS07
+嗅觉减退	NS08
+味觉改变	NS08
+头晕	NS09
+眩晕	NS09
+天旋地转	NS09
+头昏	NS09.00
+肢体无力	NS10
+偏瘫	NS10
+说话不清	NS11
+口齿不清	NS11
+口吃	NS11.00
+# ── P: psychological ──────────────────────────────────────────────────────
+焦虑	PS01
+紧张不安	PS01
+心神不宁	PS01
+压力大	PS02
+情绪低落	PS03
+心情不好	PS03
+难过	PS03
+易怒	PS04
+烦躁	PS04
+自杀念头	PS05
+失眠	PS06
+睡不着	PS06
+睡眠不好	PS06
+多梦	PS06
+噩梦	PS06
+入睡困难	PS06
+性欲减退	PS07
+尿床	PS10
+记忆力下降	PS17
+健忘	PS17
+注意力不集中	PS17
+# ── R: respiratory ────────────────────────────────────────────────────────
+呼吸疼	RS01
+胸膜疼	RS01
+气短	RS02
+呼吸困难	RS02
+喘不上气	RS02
+憋气	RS02
+喘息	RS03
+哮鸣	RS03
+呼吸急促	RS04
+过度换气	RS04
+打鼾	RS05
+打呼噜	RS05
+睡眠呼吸暂停	RS06.00
+咳嗽	RS07
+干咳	RS07
+流鼻血	RS08
+鼻出血	RS08
+打喷嚏	RS09
+鼻塞	RS09
+流鼻涕	RS09
+鼻子疼	RS10
+鼻窦疼	RS11
+鼻后滴漏	RS11
+咽干	RS12
+咽部异物感	RS12
+扁桃体疼	RS12
+嗓子疼	RS12.00
+咽喉痛	RS12.00
+咽痛	RS12.00
+声音嘶哑	RS13
+嗓子哑	RS13
+失声	RS13
+咯血	RS14
+痰中带血	RS14
+痰多	RS15
+咳痰	RS15
+胸闷	RS99	chest tightness, an RS99 inclusion; 心口疼 is the cardiac reading
+呃逆	RS99.00
+# ── S: skin ───────────────────────────────────────────────────────────────
+皮肤疼	SS01
+皮肤触痛	SS01
+瘙痒	SS02
+皮肤痒	SS02
+身上痒	SS02
+皮肤肿块	SS03
+长包	SS03
+皮疹	SS05
+起疹子	SS05
+局部皮疹	SS05
+全身皮疹	SS06
+皮肤发红	SS07
+脸色苍白	SS07
+黑眼圈	SS07
+潮红	SS07
+脱皮	SS08
+皮肤干燥	SS08.00
+指甲异常	SS09
+脱发	SS10
+掉头发	SS10
+多毛	SS11.01
+发绀	SS07.00
+口唇发紫	SS07.00
+# ── T: endocrine, metabolic, nutritional ─────────────────────────────────
+口渴	TS01
+喝水多	TS01
+食欲亢进	TS02
+吃得多	TS02
+食欲不振	TS03
+没胃口	TS03
+不想吃饭	TS03
+体重增加	TS06
+长胖	TS06
+体重下降	TS07
+消瘦	TS07
+变瘦	TS07
+脱水	TS09
+体重过低	TS50
+超重	TS51
+# ── U: urinary ────────────────────────────────────────────────────────────
+尿痛	US01
+排尿疼	US01
+尿道灼热	US01
+尿频	US02
+尿急	US02
+夜尿多	US02
+尿失禁	US03
+尿潴留	US04
+尿不出来	US04
+血尿	US06
+尿血	US06
+尿色深	US07
+尿有异味	US07
+膀胱疼	US08
+肾区疼	US09
+肾绞痛	US09.00
+尿检异常	US50
+尿糖	US50.01
+蛋白尿	US50.02
+# ── W: pregnancy ──────────────────────────────────────────────────────────
+怀疑怀孕	WS01
+孕吐	WS02
+妊娠剧吐	WS02.00
+孕早期出血	WS03.00
+产后出血	WS05
+哺乳问题	WS06.00
+# ── family words that name no single complaint ───────────────────────────
+疼	!too-broad	names a site's worth of codes, not one
+疼痛	!too-broad
+痛	!too-broad
+难受	!too-broad	AS06 is 身体不适; bare 难受 is also used for pain and for nausea
+发炎	!too-broad	a conclusion, not a complaint
+感染	!too-broad
+过敏	!too-broad	a mechanism; the complaint is the rash, the sneeze or the swelling
+不适	!too-broad

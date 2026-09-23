@@ -217,7 +217,7 @@ def surface_variants(term: str) -> list[str]:
 
     The last is the zh-Hant → zh-Hans fold. The alias lexicon build already
     mirrors Simplified keys to Traditional in the BUNDLE, but
-    ``res/resolver_overrides.tsv`` is a runtime file that gets no such
+    ``res/loinc/resolver_overrides.tsv`` is a runtime file that gets no such
     expansion, and it holds the hand-curated everyday panel terms. Measured
     before this: of eight common indicators whose Traditional spelling differs,
     two resolved and six returned nothing, with no rule distinguishing them.

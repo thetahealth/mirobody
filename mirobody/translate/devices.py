@@ -18,7 +18,7 @@ The tables live in ``res/crosswalks/`` and are the public form of that work:
     unmappable.tsv          the metrics no LOINC code fits, by reason
 
 Everything here is stdlib and reads only those files. The catalogue in
-``res/metrics.tsv`` carries the confident codes as each metric's identity;
+``res/catalog/metrics.tsv`` carries the confident codes as each metric's identity;
 this module is where the evidence behind them, and the unverified ones,
 can be looked up. `SOURCES` names the vendor document each table was read
 from, so a row can be checked against its origin.

@@ -27,17 +27,17 @@ import zipfile
 
 # path inside the artifact (wheel layout) -> minimum plausible size in bytes
 REQUIRED = {
-    "mirobody/res/fhir_loinc_bundle.tar.gz": 1_000_000,
-    "mirobody/res/aliases_src/zh.tsv": 100_000,
-    "mirobody/res/resolver_overrides.tsv": 1_000,
+    "mirobody/res/loinc/fhir_loinc_bundle.tar.gz": 1_000_000,
+    "mirobody/res/loinc/aliases_src/zh.tsv": 100_000,
+    "mirobody/res/loinc/resolver_overrides.tsv": 1_000,
     # The CLASS gate. Absent, `_skipped()` logs a warning and every radiology,
     # dental and cell-marker code becomes reachable again — `癌胚抗原` would go
     # back to answering the flow-cytometry marker. A silent recall regression
     # is exactly what this gate exists to catch.
     # 1.4.0: the indicator catalogue, its Chinese labels and the dose-form
     # table are read at import time by `mirobody.kernel.metrics` / `mirobody.kernel.meds`.
-    "mirobody/res/metrics.tsv": 40_000,
-    "mirobody/res/labels/zh.tsv": 10_000,
+    "mirobody/res/catalog/metrics.tsv": 40_000,
+    "mirobody/res/catalog/labels/zh.tsv": 10_000,
     "mirobody/res/dose_forms.tsv": 300,
     "mirobody/kernel/decoders/samples/garmin/dailies.json": 500,
 }
@@ -52,7 +52,7 @@ REQUIRED = {
 FORBIDDEN = (
     # 1.5.0: a UMLS-derived Japanese alias file (MSHJPN / MDRJPN) that was
     # listed as a LOINC linguistic variant; LOINC has none for Japanese.
-    "mirobody/res/aliases_src/ja.tsv",
+    "mirobody/res/loinc/aliases_src/ja.tsv",
     # 1.5.0: the five machine-derived language files. Their claimed upstream
     # was LOINC's LinguisticVariants, and a term-by-term measurement did not
     # confirm it (de 68.5%, es 86.4%, fr 76.1%, ko 80.6%, ru 75.2%). This
@@ -60,21 +60,21 @@ FORBIDDEN = (
     # rather than carried unaudited. What LOINC itself publishes for those
     # languages is still in the bundle's alias index, which is built from the
     # release: 7,612 of their 9,866 terms resolve without them.
-    "mirobody/res/aliases_src/de.tsv",
-    "mirobody/res/aliases_src/es.tsv",
-    "mirobody/res/aliases_src/fr.tsv",
-    "mirobody/res/aliases_src/ko.tsv",
-    "mirobody/res/aliases_src/ru.tsv",
-    "mirobody/res/fhir_concept_graph.bin",
-    "mirobody/res/fhir_snomed_ct_bundle.tar.gz",
+    "mirobody/res/loinc/aliases_src/de.tsv",
+    "mirobody/res/loinc/aliases_src/es.tsv",
+    "mirobody/res/loinc/aliases_src/fr.tsv",
+    "mirobody/res/loinc/aliases_src/ko.tsv",
+    "mirobody/res/loinc/aliases_src/ru.tsv",
+    "mirobody/res/loinc/fhir_concept_graph.bin",
+    "mirobody/res/loinc/fhir_snomed_ct_bundle.tar.gz",
     # 1.3.0: superseded by `corpus_names.bin` inside the bundle. The resolver
     # used to parse this CSV on every load, which is where 677,643 of its
     # Python strings came from.
-    "mirobody/res/fhir_meta.csv.gz",
+    "mirobody/res/loinc/fhir_meta.csv.gz",
     # 1.5.0: deleted, not merely unshipped. It was the manual overlay for
     # `mirobody indicator analyte-digit`, a build command that went with
     # `indicator/`; nothing in translate_build or the resolver reads digits.
-    "mirobody/res/analyte_digit_src/analyte_digit_curated.tsv",
+    "mirobody/res/loinc/analyte_digit_src/analyte_digit_curated.tsv",
     # fhir_id_map.npy is not listed because it no longer exists: it mapped
     # canonical ids to `fhir_indicators.id`, one database's PRIMARY KEYS, and was
     # deleted rather than merely unshipped.
@@ -104,7 +104,7 @@ FORBIDDEN_PREFIXES = (
 # build passes, repacked out of the shipped copy by
 # scripts/build_backend.py::_BUNDLE_RUNTIME_MEMBERS. Shipping them was 17 MB of
 # every artifact that no installed code path could open.
-BUNDLE = "mirobody/res/fhir_loinc_bundle.tar.gz"
+BUNDLE = "mirobody/res/loinc/fhir_loinc_bundle.tar.gz"
 BUNDLE_REQUIRED = (
     "VERSION", "alias_keys.bin", "alias_index.npz",
     "corpus_names.bin", "corpus_names.npz",

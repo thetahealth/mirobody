@@ -1,0 +1,147 @@
+# Everyday English disease names -> ICPC-3 D component. OUR writing, Apache-2.0.
+#
+# ICPC-3's own preferred terms and inclusions are indexed straight from
+# res/icpc3/icpc3.tsv, so nothing here repeats them. This file holds what a person
+# says and a classification does not print: "high blood pressure", "a-fib",
+# "water infection". Same two sentinels as conditions_zh.tsv.
+surface	code	note
+# ── general, infection ──────────────────────────────────────────────────
+tb	AD15
+consumption	AD15
+blood poisoning	AD23
+cancer	AD25
+drug allergy	AD41
+drug reaction	AD41
+mono	AD04
+# ── blood ───────────────────────────────────────────────────────────────
+hiv	BD03
+aids	BD04
+low iron	BD66
+iron deficiency	BD66
+anaemia	!ambiguous	iron deficiency (BD66), B12 or folate (BD67), haemolytic (BD65) and other (BD77) are four codes
+anemia	!ambiguous
+# ── digestive ───────────────────────────────────────────────────────────
+hep b	DD03
+hep c	DD03
+tummy bug	DD05
+stomach bug	DD05
+acid reflux disease	DD67
+gerd	DD67
+gord	DD67
+stomach ulcer	DD70
+ibs	DD78
+ibd	DD79
+crohn's	DD79
+crohns	DD79
+ulcerative colitis	DD79
+fatty liver	DD81
+cirrhosis	DD81
+gallstones	DD82
+ulcer	!ambiguous	peptic (DD69/DD70), corneal (FD05) and skin (SD77) ulcers are different codes
+# ── eye, ear ────────────────────────────────────────────────────────────
+pink eye	FD01
+stye	FD02
+short sighted	FD69
+long sighted	FD69
+near sighted	FD69
+cataracts	FD70
+ear infection	HD02
+wax in my ear	HD66
+hearing loss	HD69
+# ── heart and circulation ───────────────────────────────────────────────
+rheumatic fever	KD02
+heart attack	KD65
+mi	KD65
+ischaemic heart disease	KD66
+chf	KD67
+afib	KD68
+a-fib	KD68
+arrhythmia	KD70
+high blood pressure	KD73
+hypertension	KD73
+hardening of the arteries	KD76
+blood clot in the lung	KD77
+dvt	KD78
+# ── musculoskeletal ─────────────────────────────────────────────────────
+slipped disc	LD67
+sciatica	LD67
+frozen shoulder	LD68
+ra	LD74
+rheumatoid	LD74
+hip arthritis	LD78
+knee arthritis	LD79
+oa	LD80
+thin bones	LD81
+sprained ankle	LD46
+arthritis	!ambiguous	osteoarthrosis (LD78/LD79/LD80) and rheumatoid arthritis (LD74) are different diagnoses
+broken bone	!too-broad	the site picks the code: radius/ulna LD35, tibia/fibula LD36, hand/foot LD37, femur LD38
+fracture	!too-broad
+# ── neurological ────────────────────────────────────────────────────────
+ms	ND65
+parkinson's	ND66
+parkinsons	ND66
+fits	ND67
+mini stroke	ND68
+mini-stroke	ND68
+tia	ND68
+stroke	ND69
+brain haemorrhage	ND69
+bells palsy	ND75
+pinched nerve in my wrist	ND76
+# ── psychological ───────────────────────────────────────────────────────
+alzheimer's	PD01
+alzheimers	PD01
+bipolar	PD04
+anxiety disorder	PD06
+ocd	PD07
+ptsd	PD09
+burnout	PD11
+depression	PD12
+adhd	PD16
+autism	PD19
+asd	PD19
+# ── respiratory ─────────────────────────────────────────────────────────
+whooping cough	RD01
+a cold	RD02
+common cold	RD02
+sinus infection	RD03
+tonsillitis	RD04
+croup	RD05
+the flu	RD07
+covid	RD08
+covid-19	RD08
+long covid	RD08
+copd	RD68
+# ── skin ────────────────────────────────────────────────────────────────
+verruca	SD01
+cold sore	SD04
+boil	SD06
+athlete's foot	SD08
+athletes foot	SD08
+jock itch	SD08
+fungal nail	SD10
+nail fungus	SD10
+eczema	SD69
+dermatitis	SD70
+nappy rash	SD71
+spots on my face	SD76
+nettle rash	SD78
+bald patches	SD82
+# ── endocrine, metabolic ────────────────────────────────────────────────
+goiter	TD65
+overactive thyroid	TD68
+underactive thyroid	TD69
+type 1 diabetes	TD71
+t1d	TD71
+type 2 diabetes	TD72
+t2d	TD72
+high cholesterol	TD75
+raised cholesterol	TD75
+diabetes	!ambiguous	type 1 (TD71) and type 2 (TD72) are separate codes and the classification has no unspecified one
+sugar	!too-broad	a value, a food and a diabetes euphemism; not a diagnosis
+# ── urinary ─────────────────────────────────────────────────────────────
+kidney infection	UD01
+water infection	UD04
+uti	UD04
+kidney disease	UD66
+kidney stones	UD67

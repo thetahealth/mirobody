@@ -26,14 +26,14 @@ existence.
 Everything here works from a plain ``pip install``
 --------------------------------------------------
 
-``mirobody/res/fhir_loinc_bundle.tar.gz`` is repacked on the way into a wheel (
+``mirobody/res/loinc/fhir_loinc_bundle.tar.gz`` is repacked on the way into a wheel (
 16 members / 39.7 MB in a checkout, 9 / 24.9 MB installed) and
 ``scripts/check_wheel_data.py`` enforces both directions, required members
 present and build inputs absent. Two things make that repack invisible here:
 
 * :func:`load_axis` reads ``axis_fields.bin`` / ``axis_index.npz``, which are
   runtime members and ship. It does **not** parse ``loinc_axis.csv``.
-* the alias sources are loose files under ``res/aliases_src/``, not bundle
+* the alias sources are loose files under ``res/loinc/aliases_src/``, not bundle
   members, and the resolver reads them on every load, so they ship too.
 
 The one thing a wheel does not carry is ``loinc_axis.csv``, and with it the

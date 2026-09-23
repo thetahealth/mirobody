@@ -37,7 +37,7 @@ def show(readings):
     unresolved = [r for r in readings if not (r.resolution and r.resolution.resolved)]
     if unresolved:
         print(f"\n  {len(unresolved)} did not resolve. That is deliberate — an honest gap")
-        print("  beats a confident wrong code. Add a row to res/resolver_overrides.tsv.")
+        print("  beats a confident wrong code. Add a row to res/loinc/resolver_overrides.tsv.")
 
 
 if len(sys.argv) > 1:

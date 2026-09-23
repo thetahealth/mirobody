@@ -316,7 +316,7 @@ include = ["mirobody", "mirobody.*"]
     # ── engine data bundles (Git LFS) ────────────────────────────────────────
     # These are not optional extras: `mirobody.engine.resolve` — the front door
     # of ② Translate, and the one line the README leads with — reads
-    # res/fhir_loinc_bundle.tar.gz, res/fhir_meta.csv.gz and res/aliases_src/*.tsv
+    # res/loinc/fhir_loinc_bundle.tar.gz, res/loinc/fhir_meta.csv.gz and res/loinc/aliases_src/*.tsv
     # at import time. Until 1.0.62 only *.bin was listed here, so every published
     # wheel shipped an engine that could not resolve anything. Keep .gz/.npy/.tsv
     # in this list; scripts/check_wheel_data.py enforces it at build time.

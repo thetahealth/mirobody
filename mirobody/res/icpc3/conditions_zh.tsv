@@ -1,0 +1,320 @@
+# Chinese disease names -> ICPC-3 D component. OUR writing, Apache-2.0.
+#
+# NOT a translation of ICPC-3. Same rule as symptoms_zh.tsv: the left-hand side
+# is what a person writes when naming a condition they have been diagnosed
+# with, the right-hand side is our judgement about which code that is, and no
+# ICPC-3 term appears in this file in any language. See res/icpc3/icpc3.NOTICE.
+#
+# This is the D axis, not the S axis. 过敏 is refused there, because as a
+# complaint it names a mechanism rather than a symptom, and codes here as the
+# allergy diagnosis; both are right, because the caller says which question it
+# is asking. Nothing here belongs in symptoms_zh.tsv and nothing there belongs
+# here.
+#
+# Two sentinels instead of a code:
+#   !too-broad   names a family, not a diagnosis. Never answered.
+#   !ambiguous   the classification asks which one. A person can say; we cannot.
+surface	code	note
+# ── A: general, infection, injury ────────────────────────────────────────
+麻疹	AD01
+水痘	AD02
+风疹	AD03
+传染性单核细胞增多症	AD04
+肺结核	AD15
+结核病	AD15
+疟疾	AD16
+败血症	AD23
+脓毒症	AD23
+癌症	AD25
+恶性肿瘤	AD25
+药物过敏	AD41
+药物不良反应	AD41
+过敏	AD46	on the D axis this is the allergy diagnosis; the S axis refuses it as a mechanism
+过敏反应	AD46
+# ── B: blood and immune ─────────────────────────────────────────────────
+淋巴结炎	BD01
+艾滋病	BD04
+hiv感染	BD03
+缺铁性贫血	BD66
+巨幼细胞性贫血	BD67
+凝血功能障碍	BD78
+血友病	BD78
+白血病	BD25
+贫血	!ambiguous	iron deficiency (BD66), B12 or folate (BD67), haemolytic (BD65) and other (BD77) are four codes
+# ── D: digestive ────────────────────────────────────────────────────────
+病毒性肝炎	DD03
+乙肝	DD03
+腮腺炎	DD02
+急性胃肠炎	DD05
+肠道寄生虫	DD07
+胃癌	DD25
+结肠癌	DD26
+大肠癌	DD26
+胰腺癌	DD27
+牙周病	DD65
+胃食管反流	DD67
+反流性食管炎	DD67
+十二指肠溃疡	DD69
+胃溃疡	DD70
+消化性溃疡	DD70
+胃炎	DD71
+慢性胃炎	DD71
+阑尾炎	DD72
+腹股沟疝	DD73
+食管裂孔疝	DD74
+脐疝	DD75
+憩室病	DD77
+肠易激综合征	DD78
+炎症性肠病	DD79
+克罗恩病	DD79
+溃疡性结肠炎	DD79
+肛裂	DD80
+脂肪肝	DD81
+肝硬化	DD81
+胆囊炎	DD82
+胆结石	DD82
+乳糜泻	DD83
+痔疮	DD84
+# ── F: eye ──────────────────────────────────────────────────────────────
+结膜炎	FD01
+麦粒肿	FD02
+睑腺炎	FD02
+霰粒肿	FD02
+角膜溃疡	FD05
+过敏性结膜炎	FD65
+视网膜脱离	FD66
+视网膜病变	FD67
+黄斑变性	FD68
+屈光不正	FD69
+近视	FD69
+远视	FD69
+散光	FD69
+老花眼	FD69
+白内障	FD70
+青光眼	FD71
+失明	FD72
+斜视	FD73
+翼状胬肉	FD74
+# ── G: genital, breast ──────────────────────────────────────────────────
+梅毒	GD01
+淋病	GD02
+生殖器疱疹	GD03
+hpv感染	GD05
+衣原体感染	GD06
+盆腔炎	GD09
+前列腺炎	GD10
+附睾炎	GD11
+阴道炎	GD12
+宫颈癌	GD25
+前列腺癌	GD26
+乳腺癌	GD27
+子宫肌瘤	GD29
+子宫脱垂	GD66
+乳腺增生	GD67
+经前期综合征	GD68
+子宫内膜异位症	GD69
+前列腺增生	GD70
+前列腺肥大	GD70
+鞘膜积液	GD71
+包茎	GD72
+# ── H: ear ──────────────────────────────────────────────────────────────
+外耳道炎	HD01
+中耳炎	HD02
+分泌性中耳炎	HD03
+慢性中耳炎	HD05
+鼓膜穿孔	HD65
+耵聍栓塞	HD66
+老年性耳聋	HD68
+耳聋	HD69
+# ── K: circulatory ──────────────────────────────────────────────────────
+风湿性心脏病	KD02
+风心病	KD02
+急性冠脉综合征	KD65
+心肌梗死	KD65
+心梗	KD65
+冠心病	KD66
+心力衰竭	KD67
+心衰	KD67
+心房颤动	KD68
+房颤	KD68
+阵发性心动过速	KD69
+心律失常	KD70
+心脏瓣膜病	KD71
+高血压	KD73
+原发性高血压	KD73
+体位性低血压	KD75
+动脉硬化	KD76
+外周血管病	KD76
+肺栓塞	KD77
+血栓性静脉炎	KD78
+静脉曲张	KD79
+# ── L: musculoskeletal ──────────────────────────────────────────────────
+颈椎病	LD65
+腰椎间盘突出	LD67
+坐骨神经痛	LD67
+肩周炎	LD68
+髌骨软化	LD69
+脊柱侧弯	LD70
+腱鞘炎	LD72
+滑囊炎	LD72
+网球肘	LD73
+类风湿关节炎	LD74
+类风湿	LD74
+痛风	LD75
+风湿性多肌痛	LD76
+髋关节炎	LD78
+膝关节炎	LD79
+骨关节炎	LD80
+骨性关节炎	LD80
+骨质疏松	LD81
+崴脚	LD46
+脱臼	LD48
+骨折	!too-broad	the site picks the code: radius/ulna LD35, tibia/fibula LD36, hand/foot LD37, femur LD38
+关节炎	!ambiguous	osteoarthrosis (LD78/LD79/LD80) and rheumatoid arthritis (LD74) are different diagnoses
+# ── N: neurological ─────────────────────────────────────────────────────
+脑膜炎	ND02
+破伤风	ND03
+脑震荡	ND35
+多发性硬化	ND65
+帕金森病	ND66
+帕金森	ND66
+癫痫	ND67
+短暂性脑缺血发作	ND68
+小中风	ND68
+脑卒中	ND69
+中风	ND69
+脑梗	ND69
+脑梗死	ND69
+脑出血	ND69
+脑血管病	ND70
+偏头痛	ND71
+丛集性头痛	ND72
+紧张性头痛	ND73
+三叉神经痛	ND74
+面瘫	ND75
+面神经麻痹	ND75
+腕管综合征	ND76
+鼠标手	ND76
+周围神经病	ND77
+末梢神经炎	ND77
+# ── P: psychological ────────────────────────────────────────────────────
+痴呆	PD01
+老年痴呆	PD01
+阿尔茨海默病	PD01
+精神分裂症	PD03
+双相情感障碍	PD04
+焦虑症	PD06
+强迫症	PD07
+适应障碍	PD08
+创伤后应激障碍	PD09
+躯体化障碍	PD10
+职业倦怠	PD11
+抑郁症	PD12
+焦虑抑郁状态	PD13
+人格障碍	PD15
+多动症	PD16
+注意缺陷多动障碍	PD16
+进食障碍	PD17
+自闭症	PD19
+孤独症	PD19
+# ── R: respiratory ──────────────────────────────────────────────────────
+百日咳	RD01
+上呼吸道感染	RD02
+感冒	RD02
+鼻窦炎	RD03
+扁桃体炎	RD04
+喉炎	RD05
+急性支气管炎	RD06
+流感	RD07
+流行性感冒	RD07
+新冠	RD08
+新型冠状病毒感染	RD08
+肺炎	RD09
+肺癌	RD25
+过敏性鼻炎	RD65
+腺样体肥大	RD66
+慢性支气管炎	RD67
+慢阻肺	RD68
+慢性阻塞性肺疾病	RD68
+肺气肿	RD68
+哮喘	RD69
+支气管哮喘	RD69
+尘肺	RD70
+# ── S: skin ─────────────────────────────────────────────────────────────
+疣	SD01
+瘊子	SD01
+传染性软疣	SD02
+带状疱疹	SD03
+缠腰龙	SD03
+单纯疱疹	SD04
+甲沟炎	SD05
+疖	SD06
+足癣	SD08
+脚气	SD08	the fungal skin infection; 脚气病 (beriberi) is a vitamin deficiency and is not this
+体癣	SD08
+花斑癣	SD09
+甲癣	SD10
+灰指甲	SD10
+玫瑰糠疹	SD12
+疥疮	SD13
+脓疱疮	SD15
+皮肤癌	SD25
+脂肪瘤	SD26
+色素痣	SD27
+血管瘤	SD28
+虫咬	SD39
+烧伤	SD41
+烫伤	SD41
+鸡眼	SD65
+日晒伤	SD66
+脂溢性皮炎	SD68
+湿疹	SD69
+特应性皮炎	SD69
+接触性皮炎	SD70
+尿布疹	SD71
+银屑病	SD72
+牛皮癣	SD72
+皮脂腺囊肿	SD74
+嵌甲	SD75
+痤疮	SD76
+青春痘	SD76
+荨麻疹	SD78
+脂溢性角化	SD80
+玫瑰痤疮	SD81
+酒渣鼻	SD81
+斑秃	SD82
+# ── T: endocrine, metabolic, nutritional ────────────────────────────────
+甲状腺肿	TD65
+大脖子病	TD65
+肥胖	TD66
+肥胖症	TD66
+甲亢	TD68
+甲状腺功能亢进	TD68
+甲减	TD69
+甲状腺功能减退	TD69
+低血糖症	TD70
+1型糖尿病	TD71
+一型糖尿病	TD71
+2型糖尿病	TD72
+二型糖尿病	TD72
+维生素缺乏	TD73
+高脂血症	TD75
+高血脂	TD75
+血脂异常	TD75
+甲状腺癌	TD25
+糖尿病	!ambiguous	type 1 (TD71) and type 2 (TD72) are separate codes and the classification has no unspecified one
+# ── U: urinary ──────────────────────────────────────────────────────────
+肾盂肾炎	UD01
+膀胱炎	UD02
+尿道炎	UD03
+尿路感染	UD04
+泌尿系感染	UD04
+肾癌	UD25
+膀胱癌	UD26
+肾小球肾炎	UD65
+肾炎	UD65
+慢性肾病	UD66
+慢性肾功能不全	UD66
+尿毒症	UD66
+肾结石	UD67
+尿路结石	UD67

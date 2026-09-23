@@ -13,22 +13,28 @@ covered by the project's Apache-2.0 license.)
 These artifacts ship in the git repository (via Git LFS) and in the PyPI wheel;
 use of each is subject to the license terms of its sources:
 
-  Artifact                        Derived from                Notice
-  ------------------------------  --------------------------  -------------------------------
-  fhir_loinc_bundle.tar.gz        LOINC 2.83                  res/fhir_loinc_bundle.NOTICE
-  aliases_src/zh.tsv              LOINC Linguistic Variants   section 1 below
-                                  (claimed; see the note below)
-  crosswalks/*.tsv                LOINC codes; the mapping    section 1 below
-                                  judgements are ours         docs/device-crosswalk.md
-  metrics.tsv                     LOINC codes in the `loinc`  section 1 below
-                                  column; the rest is ours
-  labels/zh.tsv                   hand-written (Apache-2.0)   —
-  aliases_src/zh_curated.tsv      hand-written (Apache-2.0)   —
-  resolver_overrides.tsv          hand-written (Apache-2.0)   —
-  recall_synonyms.tsv             hand-written (Apache-2.0)   —
-  dose_forms.tsv                  UCUM annotations; the       section 2 below
-                                  spellings are ours
-  EXTERNAL.tsv                    a manifest, no content      —
+  Artifact                          Derived from                Notice
+  --------------------------------  --------------------------  -----------------------------
+  loinc/fhir_loinc_bundle.tar.gz    LOINC 2.83                  res/loinc/fhir_loinc_bundle.NOTICE
+  loinc/aliases_src/zh.tsv          LOINC Linguistic Variants   section 1 below
+                                    (claimed; see the note below)
+  loinc/aliases_src/zh_curated.tsv  hand-written (Apache-2.0)   —
+  loinc/resolver_overrides.tsv      hand-written (Apache-2.0)   —
+  loinc/recall_synonyms.tsv         hand-written (Apache-2.0)   —
+  icpc3/icpc3.tsv                   ICPC-3 S and D components,  res/icpc3/icpc3.NOTICE
+                                    verbatim (CC BY-ND)
+  icpc3/symptoms_zh.tsv             hand-written (Apache-2.0)   —
+  icpc3/symptoms_en.tsv             hand-written (Apache-2.0)   —
+  icpc3/conditions_zh.tsv           hand-written (Apache-2.0)   —
+  icpc3/conditions_en.tsv           hand-written (Apache-2.0)   —
+  catalog/metrics.tsv               LOINC codes in the `loinc`  section 1 below
+                                    column; the rest is ours
+  catalog/labels/zh.tsv             hand-written (Apache-2.0)   —
+  crosswalks/*.tsv                  LOINC codes; the mapping    section 1 below
+                                    judgements are ours         docs/device-crosswalk.md
+  dose_forms.tsv                    UCUM annotations; the       section 2 below
+                                    spellings are ours
+  EXTERNAL.tsv                      a manifest, no content      —
 
 1.5.0 cut the corpus to LOINC only. `fhir_concept_graph.bin`,
 `fhir_meta.csv.gz`, `fhir_snomed_ct_bundle.tar.gz` and `fhir_id_map.npy` are
@@ -37,6 +43,14 @@ every derivative of UMLS, SNOMED CT, RxNorm and ICD-10-CM. Nothing in this
 tree now requires a SNOMED CT Affiliate License or a UMLS Metathesaurus
 License. Releases up to 1.4.x did; their sections are kept at the end of this
 file for anyone reading one of those wheels.
+
+1.5.1 adds ONE new third-party dataset: the S and D components of ICPC-3, under
+Creative Commons Attribution-NoDerivatives (CC BY-ND), redistributable
+verbatim including for commercial use. It needs no signed agreement and no
+account. `res/icpc3/icpc3.NOTICE` carries the attribution, the code system URI
+and what "verbatim" means here; the short version is that no ICPC-3
+term is translated or re-worded anywhere in this package, and the Chinese
+symptom table is our own writing about which phrase points at which code.
 
 A NOTE ON `aliases_src/`, ADDED 2026-09-13, REVISED 2026-09-20
 --------------------------------------------------------------
@@ -53,7 +67,7 @@ re-cut has happened (1.5.0) and they are gone**: the index is now built from
 `Loinc.csv` and `AccessoryFiles/LinguisticVariants/` alone, and a scan of
 `alias_keys.bin` finds zero kana characters. Section 1 (UMLS) no longer
 covers anything in this package. Japanese report spellings still resolve —
-through `res/resolver_overrides.tsv`, this project's own Apache-2.0 file,
+through `res/loinc/resolver_overrides.tsv`, this project's own Apache-2.0 file,
 which maps a Japanese surface to an English name that LOINC's own index
 then answers.
 
@@ -106,7 +120,7 @@ Scope     : LOINC 2.83. `fhir_loinc_bundle.tar.gz` carries 63,416 of the
             carrying a third party's EXTERNAL_COPYRIGHT_NOTICE are dropped
             rather than reproduced. Designations come from Loinc.csv and
             the 21 LinguisticVariants files. Also: the codes and long common
-            names in res/crosswalks/ and res/metrics.tsv.
+            names in res/crosswalks/ and res/catalog/metrics.tsv.
 Attribution: This product includes all or a portion of the LOINC(R) table,
             LOINC panels and forms file, LOINC document ontology file,
             and/or LOINC hierarchies file, or is derived from one or more of
