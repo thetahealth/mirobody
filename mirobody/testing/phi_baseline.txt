@@ -152,10 +152,7 @@ mirobody/collect/files/services/file_uploader.py	interpolation	storage.get_stora
 mirobody/collect/files/services/file_uploader.py	interpolation	str(e)
 mirobody/collect/files/services/genetic_processor.py	interpolation	e
 mirobody/collect/files/services/genetic_processor.py	interpolation	error_msg
-mirobody/collect/files/services/genetic_processor.py	interpolation	line
-mirobody/collect/files/services/genetic_processor.py	interpolation	line_num
 mirobody/collect/files/services/genetic_processor.py	interpolation	loaded_records
-mirobody/collect/files/services/genetic_processor.py	interpolation	processed_lines
 mirobody/collect/files/services/genetic_processor.py	interpolation	str(e)
 mirobody/collect/files/services/genetic_processor.py	interpolation	str(ex)
 mirobody/collect/files/services/genetic_processor.py	interpolation	temp_file_path

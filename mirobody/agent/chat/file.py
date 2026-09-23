@@ -172,7 +172,7 @@ def _detect_batch_scene(files_info: list[dict[str, Any]]) -> str:
 
     Mirrors the drive upload path (``file_upload_manager``): priority
     genetic > excel > csv > report. Genetic is detected from the file header
-    (WeGene marker) via the shared ``GeneticHandler.is_genetic_content``;
+    (its genotype columns) via the shared ``GeneticHandler.is_genetic_content``;
     excel/csv from the filename extension. Keeps chat uploads consistent with
     drive uploads so the same file gets the same scene + downstream handling.
     """
@@ -182,7 +182,7 @@ def _detect_batch_scene(files_info: list[dict[str, Any]]) -> str:
     for fi in files_info:
         name = (fi.get("file_name") or "").lower()
         ctype = fi.get("content_type") or fi.get("file_type") or ""
-        head = (fi.get("content_bytes") or b"")[:200]
+        head = (fi.get("content_bytes") or b"")[: GeneticHandler.SNIFF_BYTES]
         if GeneticHandler.is_genetic_content(head, ctype):
             has_genetic = True
         elif name.endswith((".xlsx", ".xls")):

@@ -11,6 +11,7 @@ from collections.abc import Generator
 from mirobody.utils.i18n import localize
 from mirobody.utils import execute_query
 from mirobody.collect.files.services.file_db_service import FileDbService
+from mirobody.collect.files.services import genotype_format
 
 logger = logging.getLogger(__name__)
 
@@ -41,63 +42,40 @@ class GeneticDataLoader:
         source_table: str = None,
         source_table_id: str = None,
     ) -> Generator[dict[str, Any], None, None]:
-        """Parse genetic data file (generator version, yield line by line)"""
+        """Parse a raw genotype export, yielding one row per marker.
+
+        The format comes from the file's own column header (`genotype_format`),
+        so WeGene, 23andMe, AncestryDNA and MyHeritage exports all parse. This
+        used to wait for the WeGene/23andMe comment header and take the first
+        four columns: an AncestryDNA file never started, and had it started,
+        would have kept allele1 and dropped allele2. A file whose header this
+        does not recognise raises rather than yielding nothing, because "0
+        rows saved" reads as success.
+        """
         import gc
 
-        with open(file_path, encoding="utf-8") as file:
-            data_started = False
-            processed_lines = 0
-            valid_records = 0
+        with open(file_path, "rb") as probe:
+            fmt = genotype_format.sniff(probe.read(genotype_format.SNIFF_BYTES))
+        if fmt is None:
+            raise ValueError("not a recognised genotype export: no rsid/chromosome/position column header")
 
-            for line_num, line in enumerate(file, 1):
-                line = line.strip()
-                processed_lines += 1
-
-                # Release memory every 10000 lines processed
-                if processed_lines % 10000 == 0:
+        valid_records = 0
+        with open(file_path, encoding="utf-8", errors="replace") as file:
+            for rsid, chromosome, position, genotype in genotype_format.rows(file, fmt):
+                valid_records += 1
+                # Release memory every 10000 rows
+                if valid_records % 10000 == 0:
                     gc.collect()
-
-                # Find data start marker
-                if not data_started:
-                    if line.startswith("# rsid") and "chromosome" in line and "position" in line and "genotype" in line:
-                        data_started = True
-                        logger.info(f"Found data start marker line: {line}")
-                        continue
-                    else:
-                        continue
-
-                # Skip empty lines and comment lines
-                if not line or line.startswith("#"):
-                    continue
-
-                # Parse data line
-                parts = line.split("\t") if "\t" in line else line.split()
-                if len(parts) >= 4:
-                    try:
-                        rsid, chromosome, position_str, genotype = parts[:4]
-                        rsid, chromosome, genotype = (
-                            rsid.strip(),
-                            chromosome.strip(),
-                            genotype.strip(),
-                        )
-
-                        position = int(position_str)
-                        valid_records += 1
-
-                        yield {
-                            "user_id": user_id,
-                            "rsid": rsid,
-                            "chromosome": chromosome,
-                            "position": position,
-                            "genotype": genotype,
-                            "source_table": source_table,
-                            "source_table_id": source_table_id,
-                        }
-                    except (ValueError, IndexError) as e:
-                        logger.warning(f"Data format error in line {line_num}: {line} - {e}")
-                        continue
-
-            logger.info(f"Parsing complete: processed {processed_lines} lines total, generated {valid_records} valid records")
+                yield {
+                    "user_id": user_id,
+                    "rsid": rsid,
+                    "chromosome": chromosome,
+                    "position": position,
+                    "genotype": genotype,
+                    "source_table": source_table,
+                    "source_table_id": source_table_id,
+                }
+        logger.info("Parsing complete: %d rows", valid_records)
 
 
     async def update_progress(self, processed: int, saved: int, message: str, total: int = None):
