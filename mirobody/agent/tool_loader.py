@@ -15,10 +15,11 @@ from langchain_core.tools import StructuredTool
 from mirobody.kernel import meds, query
 from mirobody.kernel.ops import is_driver_exception
 
-# The genetics tool's contract lives with its service (there is one query
-# shape and one table, so no kernel module), and this needs its name at LOAD
-# time to wire `response_format`.
+# The genetics and journal tools keep their contracts with their services
+# (one query shape each, so no kernel module), and this needs their names at
+# LOAD time to wire `response_format`.
 from .tools import genetic_service as genetics
+from .tools import journal_service as journal
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ def _filtered(kwargs: dict, valid: set[str], takes_kwargs: bool) -> dict:
 #: Tools that answer with a `mirobody.kernel.tools.Envelope` and are therefore wired as
 #: `content_and_artifact`. A name, not a duck-type check, because the decision
 #: has to be made at LOAD time: `response_format` is a constructor argument.
-_ENVELOPE_TOOLS = frozenset({query.TOOL_NAME, meds.TOOL_NAME, genetics.TOOL_NAME})
+_ENVELOPE_TOOLS = frozenset({query.TOOL_NAME, meds.TOOL_NAME, genetics.TOOL_NAME, journal.TOOL_NAME})
 
 
 def _envelope_wrapper(bound_method, user_info: dict):

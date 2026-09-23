@@ -105,9 +105,11 @@ class HealthIndicatorsService(RecordTool):
         `aggregate="latest"` for "what is it now", never raw rows you would
         reduce yourself.
 
-        DO NOT use it for medications (`query_medications`), for general
-        medical knowledge or reference ranges, or for a person outside the
-        caller's care circle. Do not call it twice with the same arguments:
+        DO NOT use it for medications (`query_medications`), for symptoms
+        or diagnoses the person logged (`query_journal`: they are not
+        readings and this tool does not return them), for general medical
+        knowledge or reference ranges, or for a person outside the caller's
+        care circle. Do not call it twice with the same arguments:
         the second call returns the same rows and costs another round trip.
 
         The parameters are documented in the schema, not here: `input_schema`

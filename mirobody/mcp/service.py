@@ -261,12 +261,22 @@ class McpService:
 
     # Tools whose only possible answer without the corresponding data is
     # "no data": each maps to the EXISTS probe that decides its visibility.
+    #
+    # The two observation probes read `v_observation`, the view both tools
+    # read, and split on `kind` the way the tools do: a probe on the raw table
+    # counted a retracted row (it stays, amended) and counted a logged symptom
+    # as a reading, so someone who had only ever written 头痛 was offered a
+    # readings tool with nothing in it.
     _DATA_GATED = {
         "query_genetic_data":
             "SELECT 1 FROM th_series_data_genetic"
             " WHERE user_id = :uid AND is_deleted = false LIMIT 1",
         "query_health_indicators":
-            "SELECT 1 FROM th_observation WHERE user_id = :uid LIMIT 1",
+            "SELECT 1 FROM v_observation"
+            " WHERE user_id = :uid AND kind NOT IN ('symptom', 'condition') LIMIT 1",
+        "query_journal":
+            "SELECT 1 FROM v_observation"
+            " WHERE user_id = :uid AND kind IN ('symptom', 'condition') LIMIT 1",
         "query_medications":
             "SELECT 1 FROM th_medication_plan WHERE user_id = :uid AND deleted = 0 LIMIT 1",
     }
@@ -412,12 +422,12 @@ class McpService:
         #                    client never sends these
 
         if method == "tools/list":
-            # Data-dependent exposure: query_genetic_data answers from the user's
-            # uploaded genotype file, and most users never upload one. Listing
-            # the tool anyway makes every external MCP client carry its schema
-            # and lets a model call it just to learn "no data", so when the
-            # caller is identifiable and has no genetic rows, the tool is not
-            # listed at all. Unidentifiable callers (bare /mcp before OAuth)
+            # Data-dependent exposure: a data-reading tool for a user with none
+            # of that data can only answer "no data" (most users never upload a
+            # genotype file, and many never log a symptom). Listing it anyway
+            # makes every external MCP client carry its schema and lets a model
+            # call it just to learn that, so when the caller is identifiable
+            # and has no such rows, the tool is not listed at all (`_DATA_GATED`). Unidentifiable callers (bare /mcp before OAuth)
             # keep the full list: capability discovery must not require auth.
             hidden = await self._data_gated_tools(
                 user_id or await self._resolve_secret_user(request.path_params.get("secret", ""))

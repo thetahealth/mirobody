@@ -48,6 +48,7 @@ from typing import Any
 
 from mirobody import translate
 from mirobody.kernel import query
+from mirobody.collect.observations import KIND_CONDITION, KIND_SYMPTOM
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,13 @@ _LOCAL_TS = (
 #: group has one unit, the canonical values when it has more.
 _STAT_VALUE = "CASE WHEN COUNT(DISTINCT unit_ucum) > 1 THEN {agg}(value_canonical) ELSE {agg}(value_num) END"
 _STAT_UNIT = "CASE WHEN COUNT(DISTINCT unit_ucum) > 1 THEN MAX(unit_canonical) ELSE (ARRAY_AGG(unit_ucum ORDER BY at DESC))[1] END"
+
+#: What a person reports about themselves is not a reading: a symptom or a
+#: diagnosis has no value and no unit. Left in, a logged 头痛 came back from
+#: the readings tool as an indicator whose latest value was blank. Those rows
+#: are the journal tool's. Filtered where a series is FOUND (the catalogue,
+#: `_by_names`, `_labels`), so no later statement can receive one.
+_NOT_READINGS = [KIND_SYMPTOM, KIND_CONDITION]
 
 _FILE_KEY = "CASE WHEN o.source_kind = 'file' THEN substr(o.source_ref, 10) END"
 
@@ -124,7 +132,7 @@ class PostgresHealthQuery:
         """
         from mirobody.utils import execute_query
 
-        params: dict[str, Any] = {"uid": str(subject_id), "cap": cap}
+        params: dict[str, Any] = {"uid": str(subject_id), "cap": cap, "not_readings": _NOT_READINGS}
         where = _window_clause(params, window)
         rows = await execute_query(
             f"""
@@ -144,7 +152,7 @@ class PostgresHealthQuery:
                    (ARRAY_AGG(o.unit_text ORDER BY o.observed_start DESC))[1] AS unit,
                    MAX(o.reason) AS reason
               FROM v_observation o
-             WHERE o.user_id = :uid {where}
+             WHERE o.user_id = :uid AND o.kind <> ALL(:not_readings) {where}
              GROUP BY o.series_id
              ORDER BY display
              LIMIT :cap
@@ -284,7 +292,7 @@ class PostgresHealthQuery:
             """
             SELECT DISTINCT o.series_id
               FROM v_observation o
-             WHERE o.user_id = :uid
+             WHERE o.user_id = :uid AND o.kind <> ALL(:not_readings)
                AND (o.series_id = ANY(:names) OR o.code = ANY(:names)
                     OR lower(o.display) = ANY(:lower) OR o.name_key = ANY(:keys))
             """,
@@ -293,6 +301,7 @@ class PostgresHealthQuery:
                 "names": names,
                 "lower": [n.lower() for n in names],
                 "keys": [translate.name_key(n) for n in names],
+                "not_readings": _NOT_READINGS,
             },
             log_sql=False,
         ) or []
@@ -302,11 +311,12 @@ class PostgresHealthQuery:
         """`(label, series_id, code)` for every display and printed name."""
         from mirobody.utils import execute_query
 
-        params: dict[str, Any] = {"uid": str(subject_id)}
+        params: dict[str, Any] = {"uid": str(subject_id), "not_readings": _NOT_READINGS}
         where = _window_clause(params, window)
         rows = await execute_query(
             f"SELECT o.series_id, o.name_text, o.display, o.code FROM v_observation o"
-            f" WHERE o.user_id = :uid {where} GROUP BY o.series_id, o.name_text, o.display, o.code",
+            f" WHERE o.user_id = :uid AND o.kind <> ALL(:not_readings) {where}"
+            f" GROUP BY o.series_id, o.name_text, o.display, o.code",
             params,
             log_sql=False,
         ) or []

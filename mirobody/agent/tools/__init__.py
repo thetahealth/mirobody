@@ -41,8 +41,9 @@ The loader scans this directory with the following rules:
      the chat model unchanged, instead of being generated from the signature.
    - That is for a tool whose parameters are a CONTRACT shared with other
      surfaces: `query_health_indicators` publishes `kernel.query.TOOL_SCHEMA`,
-     `query_medications` publishes `kernel.meds.TOOL_SCHEMA` and
-     `query_genetic_data` publishes `genetic_service.TOOL_SCHEMA`, so the MCP
+     `query_medications` publishes `kernel.meds.TOOL_SCHEMA`,
+     `query_genetic_data` publishes `genetic_service.TOOL_SCHEMA` and
+     `query_journal` publishes `journal_service.TOOL_SCHEMA`, so the MCP
      tool and the chat tool cannot drift apart. Such a method takes
      `**kwargs`, and the schema's property names become its accepted
      arguments.
@@ -61,6 +62,9 @@ tools/
 ├── genetic_service.py               # query_genetic_data: genotype calls at named
 │                                    #   rsIDs, plus the typed neighbours of each
 │                                    #   hit (5 parameters)
+├── journal_service.py               # query_journal: symptoms and diagnoses the
+│                                    #   person logged, with their ICPC-3 codes
+│                                    #   (6 parameters)
 ├── _authz.py                        # who a read is about
 ├── _base.py                         # RecordTool: authorization and the
 │                                    #   never-raises contract, shared
