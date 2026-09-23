@@ -94,6 +94,7 @@ SELECT o.outcome, o.reason, o.code_system, o.code, o.display, o.series_id, o.rel
 class JournalSentence(BaseModel):
     text: str = Field(..., min_length=1, max_length=sentence.MAX_SENTENCE, description="What the person typed")
     observed_at: datetime | None = Field(None, description="When, for an entry whose words name no time. Defaults to now.")
+    tz: str | None = Field(None, max_length=64, description="The writer's IANA zone, for 昨晚 and 今早. Defaults to the record's.")
     target_user_id: str | None = Field(None, description="Log into this person's record; needs a write grant")
 
 
@@ -216,7 +217,7 @@ async def log_sentence(entry: JournalSentence, user_id: str = Depends(verify_tok
         return ErrorResponse(code=503, msg="Reading a sentence needs a text model (UTILS_TEXT_MODEL). Log one entry instead.")
 
     tz = await observations.user_tz(owner)
-    now = sentence.zone_now(tz)
+    now = sentence.zone_now(entry.tz or "", tz)
     answer = await sentence.read(entry.text, now=now)
     if answer is None:
         return ErrorResponse(code=502, msg="The sentence could not be read. Try again, or log one entry.")

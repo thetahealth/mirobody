@@ -306,8 +306,18 @@ def _squash(text: str) -> str:
     return re.sub(r"\s+", "", unicodedata.normalize("NFKC", text or "")).casefold()
 
 
-def zone_now(tz: str) -> datetime:
-    return datetime.now(tz=translate.zone_for(tz))
+def zone_now(*zones: str) -> datetime:
+    """Now in the first zone that parses. The router passes the writer's own
+    (the browser's) before the record's: "今早" is the morning where the person
+    is typing, and a record with no zone set would otherwise read it in UTC."""
+    for tz in zones:
+        if not tz:
+            continue
+        try:
+            return datetime.now(tz=translate.zone_for(tz))
+        except ValueError:
+            continue
+    return datetime.now(tz=translate.zone_for("UTC"))
 
 
 __all__ = [
