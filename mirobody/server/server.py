@@ -30,6 +30,22 @@ logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
+def _is_mounted(app, router) -> bool:
+    """Whether any route of `router` resolves in `app`. Asked through
+    `url_path_for`, not by scanning `app.routes`: FastAPI 0.141 keeps an
+    included router as one opaque `_IncludedRouter` entry there, so a scan
+    finds none of its paths and would call every router unmounted."""
+    from starlette.routing import NoMatchFound
+
+    for route in router.routes:
+        try:
+            app.url_path_for(route.name, **dict.fromkeys(getattr(route, "param_convertors", {}), "0"))
+            return True
+        except NoMatchFound:
+            continue
+    return False
+
+
 class Server:
     def __init__(
         self,
@@ -271,6 +287,20 @@ class Server:
     def get_routes(self) -> list:
         return self._routes
 
+    def declare_mounted_surfaces(self, app) -> None:
+        """Flags for surfaces whose truth is "is this router mounted", read off
+        `app` once every router is. They cannot be set in `__init__`, which runs
+        before any router is included.
+
+        Sent explicitly rather than left to the client's default, because the
+        shipped client has two defaults: `__IS_API_CONFIG_ON__` and
+        `__IS_WEBAUTHN_ON__` read a missing key as off, the device and journal
+        flags read it as on. An overlay's MIROBODY_WEB_CONFIG still wins.
+        """
+        from mirobody.server.routers import journal_router
+
+        self._webpage_config.setdefault("__IS_JOURNAL_ON__", _is_mounted(app, journal_router))
+
     def get_middlewares(self) -> list:
         return self._middlewares
 
@@ -406,6 +436,8 @@ class Server:
 
         for router in fastapi_routers:
             app.include_router(router)
+
+        server.declare_mounted_surfaces(app)
 
         # Last on purpose: the SPA fallback and the API-prefix 404 guards
         # only work if every real route above is already registered.
