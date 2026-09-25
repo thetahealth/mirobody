@@ -13,7 +13,7 @@ with :func:`index_fold`.
 
 They used to sit in different packages: ``index_fold`` was a private
 ``_normalize`` inside ``indicator/fhir/embeddings/alias.py``, i.e. inside the
-bundle-BUILD tooling, imported from there by ``engine.py``. One function that
+bundle-BUILD tooling, imported from there by ``engine/resolver.py``. One function that
 the build and the runtime must agree on exactly is precisely the function that
 must have one home, and that home has to be on the runtime side, because the
 build tooling does not ship.

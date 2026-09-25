@@ -371,7 +371,7 @@ CASES: list[tuple[str, str, str]] = [
     # ── fifth sweep: the surfaces a report actually prints ───────────────────
     #
     # (a) "名称(缩写)" — the single commonest shape on a Chinese report.
-    #     Handled as a CLASS in engine.py, not row by row: strip the trailing
+    #     Handled as a CLASS in engine/resolver.py, not row by row: strip the trailing
     #     parenthetical, resolve both halves, and refuse when they disagree
     #     (see MUST_NOT_RESOLVE for the refusals).
     ("空腹血糖(GLU)",                 r"glucose",                      r"tolerance|urine"),

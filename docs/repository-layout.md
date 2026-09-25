@@ -9,7 +9,7 @@ README keeps the one-line map.
 
 ```
 mirobody/
-├── engine.py    the front door — resolve() and parse_file()
+├── engine/      the front door — resolve(), resolve_reading(), parse_file()
 ├── units/       UCUM units, unit_family, conversions          ┐ the library:
 ├── lexical.py   surface folding + the CJK-aware tokenizer     │ numpy only,
 ├── bundle.py    build-time: the axis table and alias sources    │

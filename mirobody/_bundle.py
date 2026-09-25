@@ -20,7 +20,7 @@ second set of members (`loinc_axis.csv`, `loinc_alias_index.npz`) that the cut
 no longer ships.
 
 **Why this module is at the package root rather than inside
-``indicator/fhir/embeddings/``, where it used to live.** ``engine.py`` (the
+``indicator/fhir/embeddings/``, where it used to live.** ``engine/resolver.py`` (the
 front door of ② Translate, and the one thing a `pip install mirobody`
 actually runs) read its data through the bundle-BUILD package, and reached
 into it for a private symbol (``alias._normalize``) besides. So the runtime

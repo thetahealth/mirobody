@@ -110,7 +110,7 @@ trace, so the answer at the end can be followed back to the page it came off:
 | Stage | What it does | Where |
 | --- | --- | --- |
 | **① Collect** | Lab reports, wearables, phone photos, genetic files, all pulled in. The source file is kept as it was, so every indicator points back to the page it was read from. | [`collect/`](mirobody/collect/) |
-| **② Translate** | One name to one code, one unit to UCUM, offline and deterministic. `A1c`, `HbA1c` and `Glycated Hemoglobin` become the same test here. | [`engine.py`](mirobody/engine.py) · [`translate/`](mirobody/translate/) |
+| **② Translate** | One name to one code, one unit to UCUM, offline and deterministic. `A1c`, `HbA1c` and `Glycated Hemoglobin` become the same test here. | [`engine/`](mirobody/engine/) · [`translate/`](mirobody/translate/) |
 | **③ Agent** | Ask over the coded record. Trend a value by minute, hour, day, week or month; get count, min, max, avg or change over any window in one call; compare across labs and devices, because they share one code. It charts the result in its reply, reads medications and genetic variants too, and names the file every number came from. | [`agent/`](mirobody/agent/) |
 
 ① records how the source spelled it, ② decides what it actually is, ③ answers

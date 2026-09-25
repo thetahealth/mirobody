@@ -7,7 +7,7 @@
 
 ```
 mirobody/
-├── engine.py    正门：resolve() 和 parse_file()
+├── engine/      正门：resolve()、resolve_reading() 和 parse_file()
 ├── units/       UCUM 单位、unit_family、换算
 ├── lexical.py   表层折叠 + 认识 CJK 的分词器
 ├── bundle.py    构建期：轴表和别名来源
@@ -31,7 +31,7 @@ demo/            关爱圈演示数据，和 frontend/ 并排      检出会带�
 frontend/        自带的前端                            pip install 不会
 ```
 
-从 `engine.py` 到 `kernel/` 这一段就是**库**的全部：只依赖 numpy，两个包。
+从 `engine/` 到 `kernel/` 这一段就是**库**的全部：只依赖 numpy，两个包。
 
 **两种形态，诉求正好相反。** 发到 PyPI 的那个是一个**库**，小到没人需要为它操心：
 `pip install mirobody` 装下来是 **2 个包、67 MB**，即上面 `documents/` 那行以上的

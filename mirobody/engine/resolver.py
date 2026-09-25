@@ -1,48 +1,23 @@
-"""Parse a health document, resolve indicator names to standard codes.
+"""Lexical indicator-name resolution against the shipped LOINC bundle.
 
-Zero infrastructure: no PostgreSQL, no Redis, no server. ``resolve`` needs no
-credentials at all (offline lookup against the shipped data bundles);
-``parse`` needs exactly one LLM key (any provider
-:func:`mirobody.utils.llm.unified_file_extract` auto-detects).
-
-    from mirobody.engine import resolve, parse_file
-
-    resolve("血红蛋白").loinc          # -> "718-7", offline
-    await parse_file("labs.pdf")       # -> readings + resolutions, one LLM call
-
-The first two engine stages (① Collect, ② Translate) without persistence:
-
-* **Lexical resolution** against the shipped LOINC bundle: a 921k-entry
-  multilingual alias index, a 677k-name corpus sidecar, a per-row commonness
-  prior, and the LOINC axis table for the final name to LOINC_NUM hop. Plus
-  ``res/loinc/resolver_overrides.tsv``, hand-written corrections for terms the index
-  gets wrong (measured by ``test_engine_coverage.py``).
-* **Not** an embedding pipeline. A term that misses here returns
-  ``unresolved``, not a guess. 1.4.x shipped an opt-in semantic tier behind a
-  matrix that was never published; measured in both a wheel and a source tree,
-  it loaded nothing and answered nothing, so 1.5.0 removed it.
-* **Unit normalization** via :mod:`mirobody.units` (offline).
-
-The candidate picker is a heuristic: commonness prior, then a preference for
-plain Serum/Plasma/Blood variants over cord/capillary specials. It gives one
-default answer; ``candidates`` carries the match count so callers can tell
-when a term was ambiguous.
+Offline and key-free: `resolve` answers a name, `resolve_reading` a
+measurement (the unit picks the LOINC PROPERTY), and a term the tables do not
+hold comes back unresolved rather than guessed. See the package docstring for
+what the bundle holds.
 """
+
 
 from __future__ import annotations
 
 import io
-import json
 import logging
-import os
 import re
 from dataclasses import dataclass
-from datetime import date
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
-from ._bundle import BUNDLE_PATH as _BUNDLE
-from ._bundle import (
+from mirobody._bundle import BUNDLE_PATH as _BUNDLE
+from mirobody._bundle import (
     AXIS_ANALYTE as _ANALYTE,
     AXIS_CODE as _CODE,
     AXIS_COMPONENT as _COMPONENT,
@@ -56,27 +31,14 @@ from ._bundle import (
     read_code_list,
     read_members,
 )
-from ._strtab import StringTable
-from .lexical import index_fold, is_component_suffix, measure_stems, split_trailing_parenthetical, surface_variants
+from mirobody._strtab import StringTable
+from mirobody.lexical import index_fold, is_component_suffix, measure_stems, split_trailing_parenthetical, surface_variants
 
 if TYPE_CHECKING:  # `_posting` names np.ndarray in its annotation; numpy itself
     import numpy as np  # is imported lazily so `import mirobody.engine` stays cheap
 
 logger = logging.getLogger(__name__)
 
-#: The stable surface. `mirobody/__init__.py` re-exports it lazily, so
-#: `from mirobody import resolve` and `from mirobody.engine import resolve`
-#: are the same function. Anything unlisted is internal and changes freely,
-#: `OfflineResolver`'s underscore attributes especially.
-__all__ = [
-    "OfflineResolver",
-    "Reading",
-    "Resolution",
-    "get_resolver",
-    "parse_file",
-    "resolve",
-    "resolve_reading",
-]
 
 #: Everything `OfflineResolver.__init__` reads, fetched in one tar pass. The
 #: axis field positions live in `_bundle` beside the loader, because the
@@ -190,21 +152,6 @@ class UnitVerdict:
     axes: tuple[str, str, str] = ("", "", "")
     rejected_code: str = ""
     rejected_reason: str = ""
-
-
-@dataclass(frozen=True)
-class Reading:
-    """One extracted observation from a document."""
-
-    name: str
-    value: str = ""
-    unit: str = ""
-    reference_range: str = ""
-    #: The collection date printed on the document, ISO `YYYY-MM-DD`, or "".
-    #: A reading with no date is not a reading dated today: a caller that
-    #: substitutes its own clock puts a May report after an August one.
-    collected: str = ""
-    resolution: Resolution | None = None
 
 
 class OfflineResolver:
@@ -695,8 +642,8 @@ class OfflineResolver:
         """
         if not loinc:
             return UnitVerdict(code=loinc, outcome="no-signal")
-        from .units import normalize_unit, parse_value_unit, unit_families
-        from .value_scale import scales_for_value
+        from mirobody.units import normalize_unit, parse_value_unit, unit_families
+        from mirobody.value_scale import scales_for_value
 
         # `20%` and `("20", "%")` are the same reading written two ways, and a
         # stored value routinely carries its unit inline: `th_series_data.value`
@@ -948,7 +895,7 @@ def resolve_reading(name: str, value: str | None = None, unit: str | None = None
     if verdict.outcome in ("agreed", "switched") and verdict.unit_ucum:
         evidence += ("property",)
     if verdict.outcome in ("agreed", "switched") and value:
-        from .value_scale import scales_for_value
+        from mirobody.value_scale import scales_for_value
 
         if scales_for_value(value):
             evidence += ("scale",)
@@ -990,135 +937,4 @@ def resolve_reading(name: str, value: str | None = None, unit: str | None = None
     )
 
 
-
-# ── parse: document -> readings (one LLM call) ────────────────────────────────
-
-_EXTRACT_PROMPT = """You are a medical lab-report extraction engine.
-Extract EVERY health indicator measurement from this document.
-Return ONLY a JSON array, no prose. Each element:
-{"name": "<indicator name exactly as printed>", "value": "<numeric or textual result>", "unit": "<unit as printed, empty if none>", "reference_range": "<as printed, empty if none>", "collected": "<YYYY-MM-DD the document prints as the collection or examination date, empty if it prints none>"}
-Rules: keep the original language of names; do not translate; do not invent
-values; skip section headers and non-measurements. `collected` is the same
-date for every reading of one report unless the report prints a different one
-per row; leave it empty rather than guessing, and never use today's date."""
-
-
-
-async def parse_text(document: str, *, resolve_names: bool = True) -> list[Reading]:
-    """Parse report TEXT into readings: the same one LLM call as
-    :func:`parse_file`, without a file.
-
-    Split out of ``parse_file`` for ``POST /api/standardize``, which is handed
-    raw text by the caller and had no way in short of writing a temp file.
-    """
-    from .utils import Config
-    from .utils.llm import async_get_text_completion
-
-    await Config.init()
-    raw = await async_get_text_completion(
-        [
-            {"role": "system", "content": _EXTRACT_PROMPT},
-            {"role": "user", "content": document},
-        ]
-    )
-    if raw is None:
-        # `None` is "no model answered", not "the model answered nothing":
-        # either no provider is configured, or every configured one failed.
-        # Feeding it to the JSON parser produced "extraction returned non-JSON
-        # output: ", an empty quote where the cause should be.
-        from .utils.config.llm import no_provider_message, resolve_route
-
-        if resolve_route("text") is None:
-            raise RuntimeError(no_provider_message("text"))
-        raise RuntimeError(
-            "extraction failed: every configured provider returned an error "
-            "(the server log has the provider's message)"
-        )
-    return _readings_from_json(raw, resolve_names=resolve_names)
-
-
-async def parse_file(path: str, *, resolve_names: bool = True) -> list[Reading]:
-    """Parse a lab report / health document into readings, optionally resolving
-    each indicator name to its canonical LOINC identity (offline).
-
-    The document becomes TEXT first (`mirobody.documents.extract`): a PDF's
-    embedded text layer page by page, a spreadsheet or Word file as a table,
-    and only a scanned page or a photo through the vision provider: one image
-    at a time, never the whole file. Then the same one extraction call as
-    :func:`parse_text`. A born-digital PDF therefore needs a text model key
-    only. Raises RuntimeError with a plain message when no provider key is
-    configured or nothing readable was found.
-    """
-    # The provider auto-detection reads keys through the config system (which
-    # also loads .env); standalone callers (the CLI, a bare library user) 
-    # haven't initialized it. Init is idempotent and works with zero yaml files.
-    from .utils import Config
-
-    await Config.init()
-
-    from .documents import extract as documents
-    from .documents.ocr import vision_ocr
-
-    with open(path, "rb") as f:
-        data = f.read()
-    text = await documents.extract_text(os.path.basename(path), None, data, ocr=vision_ocr)
-    if not text.strip():
-        raise RuntimeError(f"no readable text could be extracted from {os.path.basename(path)}")
-    return await parse_text(text, resolve_names=resolve_names)
-
-
-def _iso_day(raw: object) -> str:
-    """`YYYY-MM-DD` from what the model put in `collected`, or "".
-
-    Models answer this field with "2026-05-06", "2026/05/06", "May 6, 2026"
-    and "2026-05-06 09:15:00". Only the first is worth keeping as-is; the
-    rest go through `date.fromisoformat` after the separators are squared up,
-    and anything else is dropped. An unparseable date is no date: a caller
-    that guesses gets a wrong time axis, which is worse than a missing one.
-    """
-    text = str(raw or "").strip()
-    if not text:
-        return ""
-    text = text.replace("/", "-").replace(".", "-").split(" ")[0].split("T")[0]
-    try:
-        return date.fromisoformat(text).isoformat()
-    except ValueError:
-        return ""
-
-
-def _readings_from_json(raw: str, *, resolve_names: bool) -> list[Reading]:
-    """The extraction model's JSON array -> Readings. Shared by both parsers."""
-    text = (raw or "").strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```[a-zA-Z]*\n?|```$", "", text).strip()
-    try:
-        items = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"extraction returned non-JSON output: {text[:200]}") from exc
-    if not isinstance(items, list):
-        raise RuntimeError(f"extraction returned {type(items).__name__}, expected a JSON array")
-
-    resolver = get_resolver() if resolve_names else None
-    readings: list[Reading] = []
-    for it in items:
-        if not isinstance(it, dict) or not it.get("name"):
-            continue
-        name = str(it["name"]).strip()
-        value = str(it.get("value") or "").strip()
-        unit = str(it.get("unit") or "").strip()
-        readings.append(
-            Reading(
-                name=name,
-                value=value,
-                unit=unit,
-                reference_range=str(it.get("reference_range") or "").strip(),
-                collected=_iso_day(it.get("collected")),
-                # The unit is right here, and LOINC codes the unit into the
-                # identity: resolving on the name alone would file a mmol/L
-                # reading under the mg/dL code.
-                resolution=(
-                    resolve_reading(name, value, unit) if resolver else None
-                ),
-            )
-        )
-    return readings
+__all__ = ["OfflineResolver", "Resolution", "UnitVerdict", "get_resolver", "resolve", "resolve_reading"]
