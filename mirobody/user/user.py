@@ -221,14 +221,16 @@ async def del_user(
     if not db_pool:
         return "Invalid database connection."
 
+    # Both statements are awaited. They were not, so `/user/del` returned before
+    # either ran and no account was ever deleted.
     try:
         async with db_pool.connection() as conn:
-            conn.execute(
+            await conn.execute(
                 "UPDATE health_app_user SET is_del=TRUE WHERE id=%s;",
                 [user_id]
             )
 
-            conn.execute(
+            await conn.execute(
                 "UPDATE health_vital_user SET is_del=TRUE WHERE app_user_id=%s;",
                 [user_id]
             )
@@ -237,7 +239,47 @@ async def del_user(
     except Exception as e:
         return str(e)
 
+    _active.pop(user_id, None)
+    _closed.add(user_id)
     return None
+
+#-----------------------------------------------------------------------------
+
+#: How long a live account is taken on trust before it is looked up again. A
+#: token outlives the account by at most this long; a closed account is final
+#: and is remembered for good.
+_ACTIVE_TTL = 30.0
+_active: dict[int, float] = {}
+_closed: set[int] = set()
+
+
+async def is_active_account(user_id: int | str) -> bool:
+    """Whether a token's subject is an account that still exists. A JWT is
+    valid for 30 days and carries nothing a deletion can revoke, so every
+    token check asks this. A lookup that fails answers True: an outage must
+    not sign everyone out."""
+    import time
+
+    try:
+        uid = int(user_id)
+    except (TypeError, ValueError):
+        return False
+    if uid <= 0 or uid in _closed:
+        return False
+    now = time.monotonic()
+    if _active.get(uid, 0.0) > now:
+        return True
+    try:
+        row = await get_user(user_id=uid)
+    except Exception as e:
+        logger.warning("account lookup failed; token accepted: error_type=%s", type(e).__name__)
+        return True
+    if row is None:
+        _closed.add(uid)
+        return False
+    _active[uid] = now + _ACTIVE_TTL
+    return True
+
 
 #-----------------------------------------------------------------------------
 

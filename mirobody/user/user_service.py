@@ -230,7 +230,7 @@ class UserService:
             """
             INSERT INTO health_app_user (is_del, email, name, password_hash)
             VALUES (FALSE, :email, :name, crypt(:password, gen_salt('bf', 12)))
-            ON CONFLICT (email) DO UPDATE
+            ON CONFLICT (email) WHERE (is_del = false) DO UPDATE
                 SET password_hash = crypt(:password, gen_salt('bf', 12))
                 -- Only when there is none to overwrite. `WHERE` on DO UPDATE
                 -- makes the conflicting row survive untouched instead.
@@ -394,8 +394,25 @@ class UserService:
         user_id = request.state.user_id
 
         #-------------------------------------------------
+        # Deletion is immediate and cannot be undone, so the request has to
+        # name the account it deletes: `confirm` is the account's own email.
+        # A bare POST with a valid token (a replayed or leaked one) is refused.
 
-        err = del_user(self._db_pool, user_id)
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        row = await get_user(user_id=user_id)
+        if row is None:
+            return json_response(status_code=401, request=request)
+        expected = str(row.get("email") or "").strip().lower()
+        given = str((body or {}).get("confirm") or "").strip().lower() if isinstance(body, dict) else ""
+        if not expected or given != expected:
+            return json_response_with_code(
+                -2, "To delete this account, send confirm set to its email address.", request=request
+            )
+
+        err = await del_user(self._db_pool, user_id)
         if err:
             return json_response_with_code(-1, err, request=request)
 
