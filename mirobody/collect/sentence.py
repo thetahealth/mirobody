@@ -146,6 +146,10 @@ interpret or code anything: a separate, deterministic step does that from the wo
 Rules:
 - One entry per thing the sentence states. Add nothing it does not state.
 - Keep the person's words and language in `name`. Do not translate, do not substitute a medical term.
+- `name` must make sense on its own, as it would in a symptom diary: keep the body part or thing the \
+sentence ties it to (头发脱落, not 脱落; 牙齿松动, not 松动; 尿很臭, not 很臭; urine smells bad, not smells bad).
+- An improvement, a normal result or a treatment's effect (好点了, 效果明显, 外观正常, feeling better) is \
+not an entry.
 - A blood pressure like 150/95 is TWO measurement entries: 收缩压 150 and 舒张压 95 (in English, \
 systolic blood pressure and diastolic blood pressure), unit mmHg, both quoting the same span.
 - "发烧38.5" is a symptom (发烧) and a measurement (体温 38.5 ℃), both quoting the same span.

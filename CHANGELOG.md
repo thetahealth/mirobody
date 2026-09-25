@@ -36,8 +36,12 @@
   own axis, LOINC for 收缩压, ICPC-3 for 头疼. A part the sentence does not
   quote, a negation, a guess, someone else's condition and a medication are
   not written and come back with the reason. On twelve real sentences
-  (gemini-3.8-flash) every part was split and typed as expected. Readings
-  typed this way are listed in the journal and are readings everywhere else.
+  (gemini-3.8-flash) every part was split and typed as expected. On 160
+  symptoms split from real consultation texts, 22 were a fragment without its
+  body site (脱落 for hair loss) or no complaint at all (效果明显); the prompt
+  now keeps the site and drops improvements, which fixed 16 of the 22.
+  Readings typed this way are listed in the journal and are readings
+  everywhere else.
 
 - **Body water and bone percentage carry codes.** `bodyWater` was in the
   catalogue uncoded since 1.4.0 and now carries `101684-9`; `bonePercentage`
