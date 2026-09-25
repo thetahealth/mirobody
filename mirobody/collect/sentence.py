@@ -29,7 +29,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from mirobody import translate
 from mirobody.collect import observations as obs
 
 logger = logging.getLogger(__name__)
@@ -229,9 +228,14 @@ def parts_from(answer: Mapping[str, Any]) -> list[Part]:
 
 
 def plan(
-    parts: Sequence[Part], *, sentence: str, now: datetime, default_at: datetime
+    parts: Sequence[Part], *, sentence: str, now: datetime, default_at: datetime, tz: str = ""
 ) -> tuple[list[obs.Draft], list[Skip]]:
-    """The drafts to write and the parts to report as skipped. Pure."""
+    """The drafts to write and the parts to report as skipped. Pure.
+
+    `tz` is the zone the writer said they are in, and `now` is read in the
+    zone it resolves to. Every draft carries it, so "今天" typed in Shanghai
+    is filed under the Shanghai day; filed in UTC it was the day before.
+    """
     drafts: list[obs.Draft] = []
     skipped: list[Skip] = []
     haystack = _squash(sentence)
@@ -248,6 +252,7 @@ def plan(
             unit_text=part.unit if part.kind == KIND_MEASUREMENT else "",
             note_text=part.detail,
             kind=_WRITES[part.kind],
+            tz=tz,
         ))
     return drafts, skipped
 
@@ -310,20 +315,6 @@ def _squash(text: str) -> str:
     return re.sub(r"\s+", "", unicodedata.normalize("NFKC", text or "")).casefold()
 
 
-def zone_now(*zones: str) -> datetime:
-    """Now in the first zone that parses. The router passes the writer's own
-    (the browser's) before the record's: "今早" is the morning where the person
-    is typing, and a record with no zone set would otherwise read it in UTC."""
-    for tz in zones:
-        if not tz:
-            continue
-        try:
-            return datetime.now(tz=translate.zone_for(tz))
-        except ValueError:
-            continue
-    return datetime.now(tz=translate.zone_for("UTC"))
-
-
 __all__ = [
     "EXTRACTOR",
     "MAX_SENTENCE",
@@ -336,5 +327,4 @@ __all__ = [
     "parts_from",
     "plan",
     "read",
-    "zone_now",
 ]

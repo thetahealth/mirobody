@@ -17,10 +17,9 @@ the same per-kind coding every row gets. A reading stated in a sentence is a
 It does not take a meal or a dose. Medication has a domain model already
 (`kernel/meds.py`) and food has no vocabulary worth inventing one for.
 
-`target_user_id` is declared and authorized. On `POST /files/upload` the same
-parameter is not declared at all, so FastAPI drops it and a proxy upload
-silently files under the caller instead: a parameter a client sends and a
-route ignores is the shape that hides an authorization question.
+`target_user_id` is declared and authorized on every route here: a
+parameter a client sends and a route does not declare is dropped without a
+word, and the write files under the caller.
 """
 
 from __future__ import annotations
@@ -28,7 +27,7 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field
 
 from mirobody import translate
@@ -45,10 +44,10 @@ router = APIRouter(prefix="/api/v1", tags=["journal"])
 
 #: Every row this router writes shares it, so the identity index treats a
 #: double submit of the same entry at the same instant as the retry it is.
-#: The axis a `kind` writes on. `translate` owns the resolving; this map is
-#: only which observation kind the caller may ask for.
 SOURCE_REF = "journal"
 
+#: The axis a `kind` writes on. `translate` owns the resolving; this map is
+#: only which observation kind the caller may ask for.
 KINDS = {
     "symptom": observations.KIND_SYMPTOM,
     "condition": observations.KIND_CONDITION,
@@ -91,10 +90,13 @@ SELECT o.outcome, o.reason, o.code_system, o.code, o.display, o.series_id, o.rel
 """
 
 
+_TZ = "The writer's IANA zone: 今天 is their day. Defaults to the X-Timezone header, then the record's."
+
+
 class JournalSentence(BaseModel):
     text: str = Field(..., min_length=1, max_length=sentence.MAX_SENTENCE, description="What the person typed")
     observed_at: datetime | None = Field(None, description="When, for an entry whose words name no time. Defaults to now.")
-    tz: str | None = Field(None, max_length=64, description="The writer's IANA zone, for 昨晚 and 今早. Defaults to the record's.")
+    tz: str | None = Field(None, max_length=64, description=_TZ)
     target_user_id: str | None = Field(None, description="Log into this person's record; needs a write grant")
 
 
@@ -103,6 +105,7 @@ class JournalEntry(BaseModel):
     kind: str = Field("symptom", description='"symptom" (felt now) or "condition" (diagnosed)')
     observed_at: datetime | None = Field(None, description="When it was felt. Defaults to now.")
     note: str | None = Field(None, max_length=2000, description="Anything else worth keeping. Stored encrypted.")
+    tz: str | None = Field(None, max_length=64, description=_TZ)
     target_user_id: str | None = Field(None, description="Log into this person's record; needs a write grant")
 
 
@@ -114,6 +117,21 @@ def _day(text: str | None) -> date | None:
 
     when = parse_date(text) if text else None
     return when.date() if when else None
+
+
+def _writer_zone(record_tz: str, *said: str | None) -> tuple[str, datetime]:
+    """`(zone, now)`: the zone the writer is in, the body's `tz` and else the
+    web client's `X-Timezone` (sent on every request), and now in it. The
+    zone is empty when neither parses: the drafts then fall back to the
+    record's zone, which `resolve_tz` marks as the default it is."""
+    for tz in said:
+        if not tz or len(tz) > 64:
+            continue
+        try:
+            return tz, datetime.now(tz=translate.zone_for(tz))
+        except ValueError:
+            continue
+    return "", datetime.now(tz=translate.zone_for(translate.resolve_tz("", record_tz)[0]))
 
 
 async def _subject(caller: str, target: str | None, *, write: bool) -> str | None:
@@ -129,7 +147,11 @@ async def _subject(caller: str, target: str | None, *, write: bool) -> str | Non
 
 
 @router.post("/journal")
-async def log_entry(entry: JournalEntry, user_id: str = Depends(verify_token)):
+async def log_entry(
+    entry: JournalEntry,
+    user_id: str = Depends(verify_token),
+    x_timezone: str | None = Header(None, include_in_schema=False),
+):
     """Log one entry. The answer carries the coding, so a client can show the
     standard name beside the words and put an abstention in a review queue
     rather than discarding it."""
@@ -141,11 +163,13 @@ async def log_entry(entry: JournalEntry, user_id: str = Depends(verify_token)):
         return ErrorResponse(code=403, msg="You cannot write to that record.")
 
     tz = await observations.user_tz(owner)
+    said, now = _writer_zone(tz, entry.tz, x_timezone)
     draft = observations.Draft(
         name_text=entry.text,
-        observed_start=entry.observed_at or datetime.now(tz=translate.zone_for(tz)),
+        observed_start=entry.observed_at or now,
         kind=kind,
         note_text=entry.note or "",
+        tz=said,
     )
     provenance = observations.Provenance(
         modality=observations.MODALITY_SELF,
@@ -205,7 +229,11 @@ def _entry(row: dict) -> dict:
 
 
 @router.post("/journal/sentence")
-async def log_sentence(entry: JournalSentence, user_id: str = Depends(verify_token)):
+async def log_sentence(
+    entry: JournalSentence,
+    user_id: str = Depends(verify_token),
+    x_timezone: str | None = Header(None, include_in_schema=False),
+):
     """Write every entry one sentence states. The answer lists what was
     written, with its coding, and every part that was not, with the reason
     (negated, someone else, a medication, ...), so the person sees what the
@@ -217,12 +245,12 @@ async def log_sentence(entry: JournalSentence, user_id: str = Depends(verify_tok
         return ErrorResponse(code=503, msg="Reading a sentence needs a text model (UTILS_TEXT_MODEL). Log one entry instead.")
 
     tz = await observations.user_tz(owner)
-    now = sentence.zone_now(entry.tz or "", tz)
+    said, now = _writer_zone(tz, entry.tz, x_timezone)
     answer = await sentence.read(entry.text, now=now)
     if answer is None:
         return ErrorResponse(code=502, msg="The sentence could not be read. Try again, or log one entry.")
     parts, raw = answer
-    drafts, skipped = sentence.plan(parts, sentence=entry.text, now=now, default_at=entry.observed_at or now)
+    drafts, skipped = sentence.plan(parts, sentence=entry.text, now=now, default_at=entry.observed_at or now, tz=said)
 
     report = observations.Report()
     if drafts:
@@ -235,7 +263,8 @@ async def log_sentence(entry: JournalSentence, user_id: str = Depends(verify_tok
         )
         try:
             report = await observations.ingest(
-                owner, drafts, provenance, user_tz=tz, payload={"model": raw, "received_at": now.isoformat()},
+                owner, drafts, provenance, user_tz=tz,
+                payload={"model": raw, "received_at": now.isoformat()},
             )
         except Exception as e:
             logger.error("[log_sentence] error_type=%s", type(e).__name__)
