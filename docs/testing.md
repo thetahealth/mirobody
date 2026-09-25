@@ -12,18 +12,18 @@ long-lived venv:
 
 | install | packages | tests |
 | --- | --- | --- |
-| `'.[test]'` | 17 | 33 passed |
-| `'.[test,parse]'` | 74 | 33 passed |
-| `'.[test,app]'` | 146 | 33 passed |
+| `'.[test]'` | 17 | 134 passed, 13 xfailed |
+| `'.[test,parse]'` | 74 | 134 passed, 13 xfailed |
+| `'.[test,app]'` | 146 | 134 passed, 13 xfailed |
 
 The extras no longer change what a clone can run, and that is not a mistake in
-the table. Since 1.4.3 one gate module ships (`test_engine_coverage.py`, the
-resolver score the README links); the other twenty joined the maintainers'
-local suite. That module needs no extras, so all three installs run it and
-nothing else. What the extras still decide is what the SERVER needs, which is
+the table. Two gate modules ship: `test_engine_coverage.py`, the resolver
+score the README links, and `test_cross_language_identity.py`. Neither needs an
+extra, so all three installs run both and nothing else. The 13 xfails are the
+known cross-language splits, described below. What the extras still decide is what the SERVER needs, which is
 what the package counts are for.
 
-<sub>Measured 2026-09-14 on a clone-shaped tree (1.4.2). `pytest` in a checkout
+<sub>Measured 2026-09-23 on a clone-shaped tree (1.5.0). `pytest` in a checkout
 that also has the maintainers' local suite collects more; these are the numbers
 a clone sees.</sub>
 
@@ -38,7 +38,7 @@ enough.
 That is the entire happy path. `testpaths` is set, so bare `pytest` collects
 two trees, and a third that is neither:
 
-- `mirobody/tests/` — one module, `test_engine_coverage.py`, described below.
+- `mirobody/tests/` — two modules, described below.
   It ships in the repository and is what `pytest mirobody` runs in a clone; the
   build prunes the directory, and `scripts/check_wheel_data.py` fails if a
   member of it turns up in the wheel.
@@ -53,7 +53,7 @@ two trees, and a third that is neither:
 
 ## Where tests live
 
-**Two roots, and only one module of one of them is published.**
+**Two roots, and only `mirobody/tests/` is published.**
 
 `mirobody/tests/test_engine_coverage.py` is the gate that ships. It is
 *evidence* for a number the README prints and links: a benchmark nobody can run
@@ -62,7 +62,8 @@ a clone can re-run it.
 
 | Module | Covers | Notes |
 | --- | --- | --- |
-| `test_engine_coverage.py` | **the published accuracy number** | 213 cases: the panels an ordinary checkup prints, in English, 简体中文, 繁體中文 and 日本語, plus device vocabulary, report shapes (`名称(缩写)`, `Name-ABBREV`, snake_case, full-width), unit-dependent codes and non-numeric readings. Run with `-s` to print the score; `COVERAGE_FLOOR = 1.0` |
+| `test_engine_coverage.py` | **the published accuracy number** | 296 cases: the panels an ordinary checkup prints, in English, 简体中文, 繁體中文 and 日本語, plus device vocabulary, report shapes (`名称(缩写)`, `Name-ABBREV`, snake_case, full-width), unit-dependent codes and non-numeric readings. Run with `-s` to print the score; `COVERAGE_FLOOR = 1.0` |
+| `test_cross_language_identity.py` | one analyte, one code, in every language | `SAME_ANALYTE` rows must agree; `KNOWN_SPLITS` are the rows that do not yet, each a strict xfail that fails once fixed, so the row moves up |
 
 ```bash
 pytest mirobody/tests/test_engine_coverage.py -s
@@ -77,9 +78,9 @@ Everything else lives in the gitignored `tests/` at the repo root: the golden
 LOINC codes, the units vectors, the gates on the READMEs' figures and links,
 the export tables, the one-key provider matrix, and the authorization
 regressions behind SECURITY.md. Those invariants are still guarded on every
-change; they are simply not public surface. This is a young project whose
-readers file issues rather than patches, and a suite shipped for contributors
-who are not there yet is scaffolding, not evidence.
+change; they are simply not public surface. A module ships when outside
+contributors need it to check their own change, and terminology rows are the
+change they make.
 
 If you are working from a clone and want a regression test to come with your
 change, put it anywhere under `tests/` and say so in the issue or PR. A
@@ -107,6 +108,11 @@ code of its own (`血脂`, `lipid panel`) is required to resolve to **nothing**,
 while a panel term that has one (`blood pressure` → `85354-9`) is required to
 resolve to the panel and never to one of its members. Adding a term
 is one row in `mirobody/res/resolver_overrides.tsv` plus one case here.
+
+**Cross-language identity.** `test_cross_language_identity.py` is the other half
+of a terminology change: the code is the series key, so two spellings of one
+analyte that answer two codes put one person's readings on two trend lines. If
+the analyte already has a spelling in another language, add yours to its row.
 
 ```bash
 pytest mirobody/tests/test_engine_coverage.py -s     # prints the score and every miss

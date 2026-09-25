@@ -35,8 +35,8 @@ never caught it because CI never ran pytest at all.
 The gate suite used to sit beside the code it guards (`mirobody/server/test_*.py`),
 where the PARENT PACKAGE pulled the extra in before the module body ran. It lives
 under `tests/` now, which imports nothing on its own, so the lists below are the
-module's own imports and nothing else. Only `test_engine_coverage.py` still ships
-inside the package, and it needs no extra.
+module's own imports and nothing else. The modules that still ship inside the
+package, under `mirobody/tests/`, need no extra.
 """
 
 from __future__ import annotations

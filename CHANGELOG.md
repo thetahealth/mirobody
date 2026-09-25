@@ -11,6 +11,11 @@
   coverage benchmark carries the panel with must-not traps (direct vs
   indirect bilirubin, the neutrophil fraction vs the absolute count, the
   thyroglobulin antibody vs the antigen).
+- The cross-language identity tests ship with a clone
+  (`mirobody/tests/test_cross_language_identity.py`): every spelling of an
+  analyte, in every language, must answer one code. The 13 analytes that do not
+  agree yet, among them `urea` landing on urea nitrogen and the Russian
+  differential counts, are strict xfails, each an open fix.
 
 ## 1.5.0
 

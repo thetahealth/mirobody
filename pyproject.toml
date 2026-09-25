@@ -289,9 +289,9 @@ test = ["pytest", "pytest-asyncio", "pytest-sugar", "import-linter"]
 
 [tool.setuptools.packages.find]
 include = ["mirobody", "mirobody.*"]
-# `mirobody/tests/test_engine_coverage.py` is the one test module in git: it is
-# the resolver score the README publishes and links, and a benchmark nobody can
-# run is an assertion. It is pruned from the artifact by
+# `mirobody/tests/` is the part of the suite in git: the resolver score the
+# README publishes and links, and the cross-language identity checks a
+# terminology contributor runs. It is pruned from the artifact by
 # `scripts/build_backend.py` (useful to a reader with a clone, useless in
 # someone's site-packages) and `scripts/check_wheel_data.py` fails the build if
 # a test module comes back.
@@ -356,8 +356,8 @@ disable_test_id_escaping_and_forfeit_all_rights_to_community_support = true
 # extra). Without this the async tests fail with "async def functions are not
 # natively supported" on every machine.
 asyncio_mode = "auto"
-# Two roots. `mirobody/tests/` holds the single gate that ships: the resolver
-# benchmark the README scores itself against. `tests/` is the local regression
+# Two roots. `mirobody/tests/` holds the gates that ship: the resolver
+# benchmark the README scores itself against, and cross-language identity. `tests/` is the local regression
 # suite and is gitignored: internal quality control that can be as detailed as
 # it needs to be without becoming part of the project's public surface. It is simply absent from a clone, and
 # pytest skips a testpath that does not exist. (Historical note: the README
