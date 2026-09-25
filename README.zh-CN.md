@@ -227,7 +227,7 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
 - **包会自己说清楚是哪份词表在回答你**：`mirobody.BUNDLE_VERSION` →
   `loinc-2.83+2026.09.17-aacb2c715b56`，发行版本、切分日期，加一份对词表内容
   算出来的摘要。
-- **316 项标准设备指标**，331 个带量纲分析的 UCUM 单位。完整数字，以及
+- **316 项标准设备指标**，328 个带量纲分析的 UCUM 单位。完整数字，以及
   LOINC 2.83 的切法留下了什么、丢掉了什么，都写在[标准化详解](docs/standardization.zh-CN.md)里。
 - **`pip install mirobody` 只装 2 个包**，只依赖 numpy。
 

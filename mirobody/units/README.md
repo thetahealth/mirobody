@@ -5,7 +5,7 @@ answers "is this number comparable to that one". Pure Python, no data bundle,
 no network: `pip install mirobody` gets all of it.
 
     normalize.py   normalize_unit, parse_value_unit, ParsedQuantity
-    families.py    UCUM_FAMILY (331 units over 59 families), AMBIGUOUS_UNITS, unit_family
+    families.py    UCUM_FAMILY (328 units over 59 families), AMBIGUOUS_UNITS, unit_family
     tokens.py      MORPHEMES and ALIASES (~600 multilingual surface tokens)
     convert.py     dimensional analysis, the molar-mass bridge, canonical form
 

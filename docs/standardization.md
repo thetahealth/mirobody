@@ -38,7 +38,7 @@ Standardization here is not a lookup table but a complete terminology-normalizat
   usage picks different words, and folding `血紅素` yields the HbA1c code. Those
   terms are curated under their Traditional spelling, and a curated row always
   beats a fold.
-- **Units** normalized against 331 UCUM units over 59 PROPERTY families,
+- **Units** normalized against 328 UCUM units over 59 PROPERTY families,
   with dimensional analysis, a molar-mass bridge keyed by LOINC code, and an
   explicit refusal for `%` vs `10*9/L`. 316 standard device indicators.
 - **Everything here is lexical, and abstaining is the ceiling we keep.** A term

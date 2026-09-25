@@ -63,6 +63,15 @@
 
 ### Changed
 
+- **UCUM ships with the tables that implement it.** `res/ucum/ucum-essence.xml`
+  is UCUM 2.2 byte for byte, with its notice and licence; an edited copy is
+  refused. A gate now holds our unit tables to it, and its first run found
+  five canonical units UCUM does not define: `/HPF` and `/LPF` (UCUM and
+  LOINC print `/[HPF]`, `/[LPF]`, so ours matched none of LOINC's 249 example
+  units), `osmol` (UCUM's is `osm`) and `k[arb'U]/mL`. The table is 328 units,
+  not 331; `k[arb'U]/L` stays because LOINC prints it. Every conversion
+  factor agreed with UCUM's definitions.
+
 - **`mirobody/res/` groups by vocabulary.** The bundle and everything that
   steers it are under `res/loinc/`, the ICPC-3 table and our surfaces onto it
   under `res/icpc3/`, the indicator catalogue and its labels under
