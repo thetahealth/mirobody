@@ -80,6 +80,14 @@
 
 ### Changed
 
+- **The symptom axis, measured on real complaints (E0).** 200 complaints
+  split from real online-consultation texts (ChatMed, CC BY 4.0; English from
+  symptom_to_diagnosis), each labelled by three independent model annotators
+  blind to the resolver (Fleiss' kappa 0.84). On the 142 scorable symptoms the
+  resolver gave no wrong code (wrong-rate 0.000; the gate is 0.03) and coded
+  29, one in five: precise, and far from covering how people write. The
+  labels are awaiting a human review.
+
 - **UCUM ships with the tables that implement it.** `res/ucum/ucum-essence.xml`
   is UCUM 2.2 byte for byte, with its notice and licence; an edited copy is
   refused. A gate now holds our unit tables to it, and its first run found

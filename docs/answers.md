@@ -57,6 +57,13 @@ query_health_indicators  query_medications  query_genetic_data
 resolve_indicator  convert_unit  normalize_unit
 ```
 
+A second, separate surface needs no server: `mirobody mcp` speaks MCP over
+stdio on a bare `pip install mirobody`, with no database and no key. It serves
+the vocabularies, not a record: `standardize_reading` (a reading as printed
+to a FHIR Observation carrying its LOINC coding), `standardize_complaint`
+(ICPC-3), `standardize_report` (needs `[parse]` and a model key), and the same
+three terminology tools, whose bodies are shared (`translate.terminology`).
+
 `tools/list` hides a data tool from a user who has none of that data
 (`mcp/service.py::_DATA_GATED`): nothing measured or reported, no
 `query_health_indicators`; no

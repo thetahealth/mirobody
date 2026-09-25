@@ -28,7 +28,7 @@ Mirobody 把不同来源、格式、表述的健康信息，规整成一套语�
        alt="用中文问胆固醇怎么变的，agent 找到三份用不同写法记录同一项检查的文件，把它们解析成同一个码，并画出趋势" width="880">
 </p>
 
-<p align="center"><em>三份文件，三种写法，同一个 LOINC 码。agent 把三份都找出来，
+<p align="center"><em>三份文件，三种写法，同一个标准码。agent 把三份都找出来，
 汇总出趋势，并说明每个数字来自哪份文件。</em></p>
 
 ## Mirobody 能做什么
@@ -36,6 +36,8 @@ Mirobody 把不同来源、格式、表述的健康信息，规整成一套语�
 - **把全家人的记录合成一份。** 用关爱圈邀请伴侣、父母，甚至是一个完全不会自己登录的孩子，管理家庭的健康档案。
 - **所有来源，照单全收。** Garmin、Oura、Whoop 直接对接；任何写进 Apple Health 的手环、
   戒指、体重秤，也一并进来。PDF、照片、表格、导出文件，23 种文件类型，Mirobody 都能看懂。
+- **用自己的话记下感受。** 在「记录」里写一句 `昨晚开始头疼，血压150/95，没发烧`，
+  它会记下一条头疼、两条血压读数，各自落在标准码上；你说了没有的发烧，不会被记进去。
 - **0 幻觉，可追溯。** 每一条健康数据都会落进一套确定的指标体系：要么给出一个确定的编码，
   要么明说没解析出来，绝不自己编一个。基于真实报告开发和测试，英文、中文、日文的写法都认。
 - **Agent 只在编码过的数据上推理。** 按分钟、小时、天、周、月给出趋势，并画成图；一次调
@@ -76,6 +78,9 @@ resolve("中性粒细胞百分比").loinc                          # '26511-6' N
 resolve_reading("中性粒细胞", "62 %", None).loinc          # '26511-6' a percentage...
 resolve_reading("中性粒细胞", "4.2", "10*9/L").loinc       # '26499-4' ...and a count are two codes
 resolve("血脂").resolved                                 # False    a category, not an observation
+
+from mirobody import standardize_reading                # 同一个答案，写成 FHIR Observation
+standardize_reading("血红蛋白", "13.5", "g/dL")["code"]["coding"][0]["code"]  # '718-7'
 ```
 
 **有数值和单位，就一起传进来。** 单位不一样，就是两项不同的检查，LOINC 把这件事
@@ -98,7 +103,7 @@ resolve("血脂").resolved                                 # False    a category
 | 阶段                        | 做什么                                                                                                                                                                                                                     | 在哪                                                                                                               |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | **① 收集 Collect**   | 化验单、穿戴设备、手机照片、基因文件，都收进来。源文件原样留下，每一项指标都能指回它被读出来的那一页。                                                                                                                     | [`collect/`](mirobody/collect/)                                                                                   |
-| **② 转译 Translate** | 一个名字解析成一个码，一个单位统一到 UCUM，全程离线、结果确定。`A1c`、`HbA1c`、`糖化血红蛋白` 在这一层变成同一项检查。                                                                                               | [`engine/`](mirobody/engine/) · [`translate/`](mirobody/translate/) |
+| **② 转译 Translate** | 一个名字解析成一个码，一个单位统一到 UCUM，全程离线、结果确定。`A1c`、`HbA1c`、`糖化血红蛋白` 在这一层变成同一项检查，`头疼` 和 `headache` 也成了同一条主诉（ICPC-3）。 | [`engine/`](mirobody/engine/) · [`translate/`](mirobody/translate/) |
 | **③ 智能体 Agent**   | 在编码后的记录上提问。按分钟、小时、天、周、月给出趋势，一次调用就能算出计数、最小值、最大值、均值和变化量；同一个码，跨化验所、跨设备直接比较。图表画在回复里，用药记录和基因型数据也读得了，每个数字都说明出自哪份文件。 | [`agent/`](mirobody/agent/)                                                                                       |
 
 ① 记下来源怎么写，② 判断它到底是什么，③ 在这个基础上作答。跨化验所比一个数字、
@@ -106,7 +111,8 @@ resolve("血脂").resolved                                 # False    a category
 
 **智能体不一定得是我们这一个。** 它用的每一个工具同时挂在 `/mcp` 上，按用户鉴权。
 Claude Desktop、Cursor，或者你自己写的 loop，用的是同一套工具、同一份记录，问出
-来的是同一批指标。
+来的是同一批指标。词表这一层连服务都不用起：`uvx mirobody mcp` 通过 stdio 提供给任何 MCP 客户端，
+不要数据库，也不要 key。
 
 Garmin、Oura、Whoop 用你自己在厂商那边申请的凭证接入，步骤写在
 [接入指南](docs/provider-setup.zh-CN.md)里。Apple Health 走的是另一条路：数据由手机上
@@ -241,6 +247,7 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
 | 在自己代码里做离线解析和单位换算                     | `pip install mirobody`：不用 key，不用联网，两个包                                                                                                                                            |
 | 把一份文件变成指标                                   | `pip install 'mirobody[parse]'`：PDF、图片、Excel、Word、PowerPoint、文本都行；只有扫描件才会送到视觉模型                                                                                     |
 | 在 Claude Desktop、Cursor 或自己的 loop 里用这些工具 | 设置 → MCP：每个 agent 工具同时挂在`/mcp` 上，按用户鉴权                                                                                                                                     |
+| 在任意 MCP 客户端里做编码，不起服务                  | `uvx mirobody mcp`（stdio）：读数转成带码的 FHIR Observation，主诉编到 ICPC-3，还有单位工具；不要 key，不要数据库 |
 | 让自己的应用对接一套部署                             | 走 HTTP API，打到你自己跑的那套上：你的应用，你的数据层                                                                                                                                         |
 | 加一个工具或一个设备数据源                           | 往`mirobody/agent/tools/` 或 `mirobody/collect/providers/` 丢个文件重启，或者 `pip install` 一个声明了 `mirobody.providers` / `mirobody.tools` / `mirobody.agents` entry point 的包 |
 | 换掉自带的 agent 框架                                | `pip install 'mirobody[agent]'` 拿中间件和虚拟文件系统后端；或者把 `AGENT_DIRS` 指向自己的目录，整体替换自带的 agent                                                                        |
@@ -302,3 +309,5 @@ pip install -e '.[test]' && pytest -q && lint-imports
 Apache 2.0 · © 2026 [Theta Health](https://thetahealth.ai)
 
 </div>
+
+<!-- mcp-name: ai.thetahealth/mirobody -->
