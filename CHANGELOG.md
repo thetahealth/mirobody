@@ -33,11 +33,13 @@
 
 - **`/api/v1/journal`: log what a person reports, read it back by day.** POST
   one entry with `kind` of `symptom` or `condition`, GET the log grouped by the
-  day it was felt, DELETE one. No new table: both are one self-reported
-  observation, so they inherit the append-only history, the day placement and
-  the coding trail. The list gives both names, the person's words and the
-  classification's, and keeps the entries the vocabulary could not place with
-  the reason attached. The agent and MCP clients read them through
+  day it was felt, DELETE one. The day is the writer's (`tz`, else the
+  `X-Timezone` header), and an entry deleted can be logged again; a device
+  re-sync does not bring a deleted reading back. No new table: both are one
+  self-reported observation, so they inherit the append-only history, the day
+  placement and the coding trail. The list gives both names, the person's words
+  and the classification's, and keeps the entries the vocabulary could not
+  place with the reason attached. The agent and MCP clients read them through
   `query_health_indicators`, as a table of their own beside the readings, so
   "was my blood pressure up on the days I had headaches" is one call; the web
   client's Indicators tab still lists readings only.

@@ -44,7 +44,9 @@ router = APIRouter(prefix="/api/v1", tags=["journal"])
 
 #: Every row this router writes shares it, so the identity index treats a
 #: double submit of the same entry at the same instant as the retry it is.
+#: An entry the person retracted does not count: they may log it again.
 SOURCE_REF = "journal"
+ON_CONFLICT = observations.ON_CONFLICT_REASSERT
 
 #: The axis a `kind` writes on. `translate` owns the resolving; this map is
 #: only which observation kind the caller may ask for.
@@ -178,7 +180,7 @@ async def log_entry(
         source_class=series.SOURCE_MANUAL,
     )
     try:
-        report = await observations.ingest(owner, [draft], provenance, user_tz=tz)
+        report = await observations.ingest(owner, [draft], provenance, user_tz=tz, on_conflict=ON_CONFLICT)
     except Exception as e:
         # A type name and nothing else: a driver exception quotes the SQL and
         # its parameters, and the parameter here is what the person typed.
@@ -263,7 +265,7 @@ async def log_sentence(
         )
         try:
             report = await observations.ingest(
-                owner, drafts, provenance, user_tz=tz,
+                owner, drafts, provenance, user_tz=tz, on_conflict=ON_CONFLICT,
                 payload={"model": raw, "received_at": now.isoformat()},
             )
         except Exception as e:

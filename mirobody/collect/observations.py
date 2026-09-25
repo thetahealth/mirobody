@@ -86,8 +86,12 @@ CAUSE_RECODE_ALIAS = "recode-alias"
 #: duplicate (a report re-uploaded, a batch re-sent after a timeout).
 #: `amend`: the source re-sent the truth (a device sync, a re-aggregation),
 #: and a changed value becomes an amendment of the row it replaces.
+#: `reassert`: the person typed it again. A row they retracted no longer holds
+#: the identity, so the new row amends the retraction. Under the other two a
+#: retraction stands, and a re-sync does not bring back what was deleted.
 ON_CONFLICT_SKIP = "skip"
 ON_CONFLICT_AMEND = "amend"
+ON_CONFLICT_REASSERT = "reassert"
 
 #: `task_id` values the aggregation passes stamp on the rows they publish.
 AGGREGATE_TASK_IDS = frozenset({"aggregate_indicator", "derived_indicator", "derived_aggregator", "apple_health_statistics"})
@@ -472,6 +476,18 @@ SELECT id, fingerprint FROM th_observation o
  ORDER BY o.id DESC LIMIT 1
 """
 
+# The retraction that ends an identity's chain: the row a re-typed entry amends.
+_SELECT_RETRACTED = """
+SELECT id FROM th_observation o
+ WHERE o.user_id = :user_id AND o.name_key = :name_key
+   AND o.observed_start = :observed_start AND o.observed_end = :observed_end AND o.source_ref = :source_ref
+   AND COALESCE(o.source_record_id, '') = COALESCE(:source_record_id, '')
+   AND COALESCE(o.member_of, 0) = COALESCE(:member_of, 0)
+   AND o.status = 'entered-in-error'
+   AND NOT EXISTS (SELECT 1 FROM th_observation n WHERE n.amends = o.id)
+ ORDER BY o.id DESC LIMIT 1
+"""
+
 _SELECT_BY_SOURCE = """
 SELECT id, observed_start, observed_end FROM v_observation
  WHERE user_id = :user_id AND source_ref = :source_ref
@@ -575,14 +591,20 @@ async def refresh_series(tx: db.Transaction, user_id: str, series_ids: set[str])
 async def _insert(tx: db.Transaction, row: dict[str, Any], on_conflict: str) -> tuple[int | None, bool]:
     """`(id, skipped)`: the new row's id, or `None` with `skipped=True` when
     the identity is already held by an equal row (or, under `skip`, by any
-    row). Under `amend`, a changed value is inserted as an amendment."""
+    row). Under `amend`, a changed value is inserted as an amendment; under
+    `reassert`, an identity whose row was retracted is written again."""
     inserted = await tx.execute(_INSERT_OBSERVATION, row)
     if inserted:
         return _inserted_id(inserted[0], row), False
-    if on_conflict != ON_CONFLICT_AMEND:
-        return None, True
-    current = await tx.execute(_SELECT_CURRENT, row)
-    if not current or str(current[0]["fingerprint"]) == row["fingerprint"]:
+    if on_conflict == ON_CONFLICT_REASSERT:
+        current = await tx.execute(_SELECT_RETRACTED, row)
+        if not current:
+            return None, True
+    elif on_conflict == ON_CONFLICT_AMEND:
+        current = await tx.execute(_SELECT_CURRENT, row)
+        if not current or str(current[0]["fingerprint"]) == row["fingerprint"]:
+            return None, True
+    else:
         return None, True
     amended = dict(row, amends=int(current[0]["id"]))
     inserted = await tx.execute(_INSERT_OBSERVATION, amended)
@@ -1133,6 +1155,7 @@ __all__ = [
     "MODALITY_UNVERIFIED",
     "NoteNotEncrypted",
     "ON_CONFLICT_AMEND",
+    "ON_CONFLICT_REASSERT",
     "ON_CONFLICT_SKIP",
     "Provenance",
     "RecodeReport",
