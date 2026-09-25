@@ -1,0 +1,35 @@
+This directory carries the Unified Code for Units of Measure (UCUM), the
+"UCUM Specification", in its machine-readable form (ucum-essence.xml).
+
+  Copyright 1999-2024 Regenstrief Institute, Inc. All rights reserved.
+  Licensed under the UCUM License, Version 1.1 (the "License"); you may not
+  use this file except in compliance with the License. You may obtain a copy
+  of the License at https://unitsofmeasure.org/license
+  The full text travels beside this notice: UCUM-LICENSE.md.
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+  License (Section 7, Disclaimer of Warranty) for the specific language
+  governing permissions and limitations under the License.
+
+What is here, and in what state
+
+  ucum-essence.xml  UCUM version 2.2, revision date 2024-06-17, byte for byte
+                    as published at https://github.com/ucum-org/ucum, tag v2.2
+                    SHA-256 dfccea1b5dc284245ebae97edd1dc03c45864da4e87df55bc9851797b4fd0b61
+                    Retrieved 2026-09-25. Not modified: the License (Section
+                    3.a.iv) forbids adding, deleting or modifying its content,
+                    and mirobody.units.essence refuses a file whose digest
+                    differs.
+  UCUM-LICENSE.md   the UCUM Copyright Notice and License, Version 1.1 (June
+                    2024), as published in the same repository and tag.
+
+How mirobody uses it
+
+  mirobody.units is hand-written software that interoperates with UCUM: it
+  maps printed unit spellings to UCUM expressions, classifies them by LOINC
+  PROPERTY and converts between them. It does not reproduce the
+  specification. ucum-essence.xml is read to check that every unit those
+  tables name is one UCUM defines and that every conversion factor agrees
+  with UCUM's own definitions (mirobody/units/essence.py).

@@ -18,6 +18,7 @@ res/
 ├── icpc3/        ② the ICPC-3 tabular list, and our surfaces onto it
 ├── catalog/      ③ the indicator catalogue and its display labels
 ├── crosswalks/   ④ thirteen vendors' device fields -> LOINC
+├── ucum/         ⑤ the UCUM specification's own table, verbatim
 ├── dose_forms.tsv
 └── EXTERNAL.tsv
 ```
@@ -38,6 +39,8 @@ the second is a manifest of data that is deliberately NOT in the checkout.
 | `loinc/recall_synonyms.tsv` | query-side synonyms, ours | `kernel.query` |
 | `icpc3/icpc3.tsv` | ICPC-3 S and D components, 1,218 codes, verbatim | `translate.icpc3` |
 | `icpc3/icpc3.NOTICE` | WONCA's attribution, and what "verbatim" means here | prose |
+| `ucum/ucum-essence.xml` | UCUM 2.2, byte for byte; an edited copy is refused | `units.essence`, and the gates on our unit tables |
+| `ucum/ucum-essence.NOTICE`, `ucum/UCUM-LICENSE.md` | Regenstrief's notice and licence, which must travel with the file | prose; UCUM License §3 |
 | `icpc3/symptoms_{zh,en}.tsv` | everyday words for a complaint → an S code, ours | `translate.icpc3` |
 | `icpc3/conditions_{zh,en}.tsv` | everyday words for a diagnosis → a D code, ours | `translate.icpc3` |
 | `catalog/metrics.tsv` | the indicator catalogue: unit, window, aggregation, code | `kernel.metrics` |

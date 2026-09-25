@@ -322,6 +322,8 @@ include = ["mirobody", "mirobody.*"]
     # in this list; scripts/check_wheel_data.py enforces it at build time.
     "**/*.bin",
     "**/*.gz",
+    # res/ucum/ucum-essence.xml: UCUM's own table, verbatim (its NOTICE says why).
+    "**/*.xml",
     "**/*.npy",
     "**/*.tsv",
     "**/*.NOTICE",

@@ -39,6 +39,11 @@ REQUIRED = {
     "mirobody/res/catalog/metrics.tsv": 40_000,
     "mirobody/res/catalog/labels/zh.tsv": 10_000,
     "mirobody/res/dose_forms.tsv": 300,
+    # UCUM, verbatim: the License requires the whole file, its notice and the
+    # licence text to travel together (`res/ucum/ucum-essence.NOTICE`).
+    "mirobody/res/ucum/ucum-essence.xml": 80_000,
+    "mirobody/res/ucum/ucum-essence.NOTICE": 500,
+    "mirobody/res/ucum/UCUM-LICENSE.md": 10_000,
     "mirobody/kernel/decoders/samples/garmin/dailies.json": 500,
 }
 
@@ -119,6 +124,12 @@ BUNDLE_FORBIDDEN = (
     "fhir_dose_index.npz", "analyte_digit.tsv", "analyte_digit_curated.tsv",
 )
 
+#: UCUM ships verbatim; a different digest is an edited copy, which its License
+#: forbids distributing. Kept equal to `mirobody.units.essence.UCUM_ESSENCE_SHA256`
+#: (the local suite compares them); read here without importing the package.
+UCUM_ESSENCE = "mirobody/res/ucum/ucum-essence.xml"
+UCUM_ESSENCE_SHA256 = "dfccea1b5dc284245ebae97edd1dc03c45864da4e87df55bc9851797b4fd0b61"
+
 # Git LFS pointer files start with this line and are a few hundred bytes.
 LFS_MAGIC = b"version https://git-lfs.github.com/spec/"
 
@@ -160,6 +171,18 @@ def _bundle_members(path: str) -> list[str] | None:
                 data = t.extractfile(m).read()
         with tarfile.open(fileobj=io.BytesIO(data)) as tf:
             return [mm.name for mm in tf.getmembers()]
+    except Exception:
+        return None
+
+
+def _member_bytes(path: str, member: str) -> bytes | None:
+    try:
+        if path.endswith(".whl"):
+            with zipfile.ZipFile(path) as z:
+                return z.read(member)
+        with tarfile.open(path) as t:
+            m = next(mm for mm in t.getmembers() if mm.name.endswith(member))
+            return t.extractfile(m).read()
     except Exception:
         return None
 
@@ -232,6 +255,12 @@ def check(path: str) -> list[str]:
             )
         elif size < min_size:
             problems.append(f"TOO SMALL {member} — {size} B, expected >= {min_size} B")
+
+    import hashlib
+
+    raw = _member_bytes(path, UCUM_ESSENCE)
+    if raw is not None and hashlib.sha256(raw).hexdigest() != UCUM_ESSENCE_SHA256:
+        problems.append(f"MODIFIED  {UCUM_ESSENCE} — not the published UCUM file (digest differs)")
     return problems
 
 

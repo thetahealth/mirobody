@@ -15,6 +15,7 @@ include scripts/build_backend.py
 
 include LICENSE LICENSE-3RD-PARTY CHANGELOG.md SECURITY.md VENDORS.md
 recursive-include mirobody/res *.NOTICE
+recursive-include mirobody/res/ucum *.xml *.md
 
 # Never ship: contributor docs, the web client, AI working notes.
 exclude CLAUDE.md
