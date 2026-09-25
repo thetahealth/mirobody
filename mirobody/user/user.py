@@ -222,7 +222,8 @@ async def del_user(
         return "Invalid database connection."
 
     # Both statements are awaited. They were not, so `/user/del` returned before
-    # either ran and no account was ever deleted.
+    # either ran and no account was ever deleted. `app_user_id` is a varchar: an
+    # int there fails the statement and rolls the deletion back.
     try:
         async with db_pool.connection() as conn:
             await conn.execute(
@@ -232,7 +233,7 @@ async def del_user(
 
             await conn.execute(
                 "UPDATE health_vital_user SET is_del=TRUE WHERE app_user_id=%s;",
-                [user_id]
+                [str(user_id)]
             )
 
             await conn.commit()
