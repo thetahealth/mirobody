@@ -84,6 +84,13 @@ class JwtMiddleware(BaseHTTPMiddleware):
                                     except Exception:
                                         request.state.user_id = 0
 
+        # A valid signature on a deleted account's token is not a session.
+        if request.state.user_id > 0:
+            from mirobody.user.user import is_active_account
+
+            if not await is_active_account(request.state.user_id):
+                request.state.user_id = 0
+
         #-------------------------------------------------
 
         if request.state.user_id > 0:

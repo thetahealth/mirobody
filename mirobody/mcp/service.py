@@ -93,6 +93,15 @@ def _by_name(items: list | None, key: str = "name") -> list:
 
 #-----------------------------------------------------------------------------
 
+async def _live(user_id: str) -> str:
+    """`user_id` when its account still exists, "" otherwise. A token and a
+    personal URL both outlive a deleted account unless this is asked."""
+    from mirobody.user.user import is_active_account
+
+    return user_id if user_id and await is_active_account(user_id) else ""
+
+#-----------------------------------------------------------------------------
+
 class ResponseEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, datetime):
@@ -253,11 +262,13 @@ class McpService:
             return ""
         if self._redis:
             try:
-                return await self._redis.get(self._mcp_url_keyprefix + user_secret) or ""
+                user_id = await self._redis.get(self._mcp_url_keyprefix + user_secret) or ""
             except Exception as e:
                 logger.warning("MCP: permanent URL lookup failed: %s", e)
                 return ""
-        return self._mcp_urls.get(user_secret, "")
+        else:
+            user_id = self._mcp_urls.get(user_secret, "")
+        return await _live(user_id)
 
     # Tools whose only possible answer without the corresponding data is
     # "no data": each maps to the EXISTS probe that decides its visibility.
@@ -501,23 +512,12 @@ class McpService:
                 elif "sub" not in payload:
                     logger.warning("No sub field found")
                 else:
-                    user_id = payload["sub"]
+                    user_id = await _live(payload["sub"])
 
             if tool["auth"] and not user_id:
-                user_secret = request.path_params.get("secret", "")
-                if user_secret:
-                    if self._redis:
-                        # Check permanent urls.
-                        try:
-                            user_id = await self._redis.get(self._mcp_url_keyprefix + user_secret)
-                        except Exception as e:
-                            # Same as above: Redis being down degrades to
-                            # "unauthenticated" rather than an error, so without
-                            # this line an outage looks like a permissions bug.
-                            logger.warning("MCP: permanent URL lookup failed: %s", e)
-                            user_id = ""
-                    else:
-                        user_id = self._mcp_urls.get(user_secret, "")
+                # Redis being down degrades to "unauthenticated" rather than an
+                # error (logged in `_resolve_secret_user`).
+                user_id = await self._resolve_secret_user(request.path_params.get("secret", ""))
 
             if tool["auth"] and not user_id:
                 state           = secrets.token_urlsafe(32)
@@ -735,7 +735,7 @@ class McpService:
             beneficiary_user_id = ""
 
         user_id = payload.get("sub")
-        if not user_id or not isinstance(user_id, str):
+        if not user_id or not isinstance(user_id, str) or not await _live(user_id):
             return "", json_response_with_code(-4, "Invalid user ID.", request=request, status=401)
 
         if len(beneficiary_user_id) > 0 and beneficiary_user_id != user_id:
