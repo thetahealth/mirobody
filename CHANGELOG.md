@@ -1,4 +1,10 @@
-## Unreleased
+## 1.5.1
+
+The symptom axis: complaints and diagnoses in a person's own words, coded on
+ICPC-3, a journal that takes a whole sentence, and an agent that reads them
+beside the readings. Around it, UCUM ships with the tables that implement it,
+an MCP server runs on a bare `pip install mirobody`, and deleting an account
+now deletes it and ends its sessions.
 
 ### Added
 
@@ -127,6 +133,18 @@
   carried Chinese notes. The per-vendor tables beside them are unchanged.
 
 ### Fixed
+
+- **Deleting an account deletes it, and its sessions end.** `/user/del` had
+  never deleted anything (neither statement was awaited), and a deleted
+  account's JWT kept working for its 30 days: every token check (routers,
+  middleware, MCP bearer and personal URL) now asks whether the account still
+  exists. Deletion needs `confirm` set to the account's email. A deleted
+  address can register again: the email column's own UNIQUE, which outranked
+  the partial index meant to allow it, is dropped on the next schema replay.
+- **A proxy upload needs a write grant.** `POST /files/upload` did not declare
+  `target_user_id`, so it was dropped and the upload filed as the caller's own.
+- **Unlinking Garmin no longer answers 500 when Garmin refuses.** The link is
+  removed either way; the answer says whether Garmin confirmed.
 
 - **`server/discover` answers in the fields the MCP SDK reads.** It sent
   `supportedProtocolVersions` and `serverInfo`; the SDK's `DiscoverResult`
