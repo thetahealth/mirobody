@@ -667,11 +667,12 @@ class McpService:
                 id      = id,
                 protocol_version = negotiated,
                 server_info = self._server_info,
+                # `supportedVersions` is the field the SDK's `DiscoverResult`
+                # requires; this answered `supportedProtocolVersions`, which the
+                # SDK's own client rejected. The identity rides in `_meta`.
                 result  = {
-                    "protocolVersion": self._protocol_version,
-                    "supportedProtocolVersions": list(_SUPPORTED_PROTOCOL_VERSIONS),
+                    "supportedVersions": list(_SUPPORTED_PROTOCOL_VERSIONS),
                     "capabilities": _CAPABILITIES,
-                    "serverInfo": self._server_info,
                 },
                 cache_hint = _LIST_CACHE_HINT,
                 method  = method,
