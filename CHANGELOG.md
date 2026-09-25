@@ -2,6 +2,19 @@
 
 ### Added
 
+- **An MCP server that runs on `pip install mirobody` alone.** `mirobody mcp`
+  (or `uvx --from mirobody mirobody-mcp`) serves the shipped vocabularies over
+  stdio: no database, no key, and nothing but the library and numpy loaded.
+  `standardize_reading` answers a reading as printed with a FHIR Observation
+  carrying its LOINC code and UCUM unit (`血红蛋白 13.5 g/dL` gives 718-7),
+  `standardize_complaint` a complaint or diagnosis on ICPC-3, and
+  `standardize_report` a whole report when `[parse]` and a model key are
+  there. Four prompts and two resources (the vocabulary releases and their
+  notices, the indicator catalogue). Checked with the official MCP SDK's own
+  client. `server.json` is the MCP Registry entry; publishing it is a
+  separate step.
+- **`mirobody.standardize_reading`**, the same Observation from the library.
+
 - **Two ICPC-3 axes.** `mirobody.translate.resolve_symptom()` turns a
   complaint in a person's own words into one ICPC-3 S code, and
   `resolve_condition()` turns a named diagnosis into one D code. Each abstains
@@ -104,6 +117,10 @@
   carried Chinese notes. The per-vendor tables beside them are unchanged.
 
 ### Fixed
+
+- **`server/discover` answers in the fields the MCP SDK reads.** It sent
+  `supportedProtocolVersions` and `serverInfo`; the SDK's `DiscoverResult`
+  requires `supportedVersions`, so its own client rejected every discover.
 
 - **A complete catalogue no longer says it was cut.** Each catalogue row
   carries the catalogue's size, and the truncation check read it as that

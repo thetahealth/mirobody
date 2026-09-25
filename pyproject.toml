@@ -75,6 +75,9 @@ dependencies = [
 # bin/). Replaces the former repo-root main.py / main_worker.py, which were
 # not shipped in the wheel — a PyPI install had no way to start the server.
 mirobody = "mirobody.cli:main"
+# The stdio MCP server alone, for `uvx --from mirobody mirobody-mcp`; the same
+# as `mirobody mcp`, which is what the MCP Registry entry (server.json) runs.
+mirobody-mcp = "mirobody.mcp.stdio:main"
 
 # ── Extras: one bracket a human types, one bucket the image installs ─────────
 #

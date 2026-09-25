@@ -29,6 +29,7 @@ default answer; ``candidates`` carries the match count so callers can tell
 when a term was ambiguous.
 """
 
+from mirobody.engine.observation import standardize_reading
 from mirobody.engine.parse import Reading, parse_file, parse_text
 from mirobody.engine.resolver import OfflineResolver, Resolution, get_resolver, resolve, resolve_reading
 
@@ -44,4 +45,5 @@ __all__ = [
     "parse_file",
     "resolve",
     "resolve_reading",
+    "standardize_reading",
 ]
