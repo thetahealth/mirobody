@@ -254,6 +254,10 @@ def alias_source_files(*, include_overrides: bool = True) -> list[str]:
     row changed nothing.
     """
     files = [OVERRIDES_PATH] if include_overrides and os.path.isfile(OVERRIDES_PATH) else []
+    if include_overrides and not files:
+        # Every row there is a documented wrong answer; without them `HRV`
+        # resolves to 40991-2, a rhinovirus RNA test, and nothing said so.
+        log.warning("resolver overrides missing (%s): answers fall back to the index alone", OVERRIDES_PATH)
     if os.path.isdir(ALIAS_SRC_DIR):
         names = [fn for fn in os.listdir(ALIAS_SRC_DIR) if fn.endswith(".tsv")]
         files += [

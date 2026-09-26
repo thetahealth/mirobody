@@ -69,7 +69,7 @@ MORPHEMES: dict[str, list[str]] = {
     'nL': ['Nanoliter', 'nanolitros', 'nanolitro', 'nanolitres', 'nanolitre', 'ナノリットル', '나노리터', 'нанолитр', '纳升', '奈升'],
     'ng': ['Nanogramm', 'nanogramos', 'nanogramo', 'nanogrammes', 'nanogramme', 'ナノグラム', '나노그램', 'нанограмм', 'нг', 'наног', '纳克', '奈克'],
     'nmol': ['Nanomol', 'nanomoles', 'nanomol', 'nanomole', 'ナノモル', '나노몰', 'наномоль', 'нмоль', '纳摩尔', '奈摩爾'],
-    'osm': ['オスモル', '오스몰', 'осмоль', '渗摩尔', '滲摩爾'],
+    'osm': ['osmol', 'Osmol', 'オスモル', '오스몰', 'осмоль', '渗摩尔', '滲摩爾'],
     'pg': ['Pikogramm', 'picogramos', 'picogramo', 'picogrammes', 'picogramme', 'ピコグラム', '피코그램', 'пикограмм', 'пг', '皮克'],
     'pmol': ['Pikomol', 'picomoles', 'picomol', 'picomole', 'ピコモル', '피코몰', 'пикомоль', 'пмоль', '皮摩尔', '皮摩爾'],
     's': ['Sekunden', 'Sekunde', 'Sek', 'segundos', 'segundo', 'seg', 'secondes', 'seconde', 'sec', '秒', '초', 'секунды', 'секунд', 'секунда', 'секунду', 'сек', 'с'],
@@ -218,7 +218,8 @@ ALIASES: dict[str, list[str]] = {
     'mol/L': ['mol/l'],
     'mol/dL': ['mol/dl'],
     'mosm/L': ['mOsm/L', 'mosmol/L', 'mosmol/l'],
-    'mosm/kg': ['mOsm/kg', 'mosmol/kg', 'mosm/kg H2O'],
+    # Chinese and Japanese reports print the solvent: mOsm/kgH2O.
+    'mosm/kg': ['mOsm/kg', 'mosmol/kg', 'mosm/kg H2O', 'mOsm/kgH2O', 'mOsm/kg H2O', 'mOsm/kg.H2O', 'mOsm/kgH₂O', 'mOsmol/kgH2O', 'mOsmol/kg H2O'],
     'ms': ['MS', 'ms'],
     'mL/min/kg': ['mL/(min·kg)', 'mL/(min.kg)', 'mL/kg/min', 'ml/min/kg', 'mL·min-1·kg-1'],
     'ng/g': ['ng/g creatinine'],

@@ -420,7 +420,7 @@ Vitamins	!unresolved
 # and wearable data is the MAIN form structured records take, and every example
 # in it names indicators the way a device SDK does — `steps`,
 # `resting_heart_rate`, `sleep_duration`. The lab panels above were covered;
-# this vocabulary was not. Underscore flattening (engine.py `_candidate_keys`)
+# this vocabulary was not. Underscore flattening (`OfflineResolver._candidate_keys`)
 # handles the snake_case shape, so these rows only need the human wording.
 # Two were WRONG rather than missing:
 #   SpO2  -> a Deprecated "Fractional oxyhemoglobin ... Preductal" row with no
@@ -971,6 +971,41 @@ estimated glomerular filtration rate	Glomerular filtration rate
 # either, so the term abstained while its sibling 睡眠时长 gave 93832-4.
 # Both spellings are on the same sleep report.
 总睡眠时间	Sleep duration
+总睡眠时长	Sleep duration
+睡眠总时长	Sleep duration
+total sleep time	Sleep duration
+
+# ── osmolality, found by the 1.5.1 deployment test ───────────────────────
+# The Chinese spellings had one index row each, the urine/serum RATIO
+# 48149-9, so `尿渗透压 600 mOsm/kgH2O` was filed as a ratio of two
+# specimens. `serum osmolality` reached 18182-6, the value CALCULATED from
+# electrolytes, where a lab prints the measured one.
+尿渗透压	Osmolality of Urine
+尿液渗透压	Osmolality of Urine
+尿渗量	Osmolality of Urine
+urine osmolality	Osmolality of Urine
+osmolality urine	Osmolality of Urine
+血清渗透压	Osmolality of Serum or Plasma
+血浆渗透压	Osmolality of Serum or Plasma
+血渗透压	Osmolality of Serum or Plasma
+serum osmolality	Osmolality of Serum or Plasma
+plasma osmolality	Osmolality of Serum or Plasma
+osmolality serum	Osmolality of Serum or Plasma
+
+# ── body composition and HRV, the same test ────────────────────────────
+# `Bone percentage` reached 15013-6, the bone share of alkaline phosphatase.
+# RMSSD is not the SDNN of 112429-6 and LOINC 2.83 has no code for it: the
+# trailing-abbreviation strip read `HRV RMSSD` as `HRV`, so these refuse.
+bone percentage	Body bone percentage
+骨量率	Body bone percentage
+骨骼百分比	Body bone percentage
+HRV RMSSD	!unresolved
+HRV (RMSSD)	!unresolved
+HRV-RMSSD	!unresolved
+心率变异性(RMSSD)	!unresolved
+心率变异性 RMSSD	!unresolved
+heart rate variability RMSSD	!unresolved
+heart rate variability (RMSSD)	!unresolved
 
 # Russian (ru) — terms as printed on real Russian lab reports (МЕДСИ,
 # INVITRO, Moscow state clinics; collected from a personal record archive,

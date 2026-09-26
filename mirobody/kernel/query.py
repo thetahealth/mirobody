@@ -32,6 +32,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -183,6 +184,7 @@ def _load_synonyms() -> dict[str, tuple[str, ...]]:
     try:
         text = resources.files("mirobody").joinpath("res", "loinc", "recall_synonyms.tsv").read_text(encoding="utf-8")
     except (FileNotFoundError, OSError):
+        logging.getLogger(__name__).warning("recall_synonyms.tsv missing: catalogue recall has no zh-en bridge")
         return {}
     out: dict[str, tuple[str, ...]] = {}
     for row in csv.DictReader(io.StringIO(text), delimiter="\t"):
