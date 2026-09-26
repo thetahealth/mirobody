@@ -81,6 +81,7 @@ VERSION
 -------
 ICPC-3 publishes no release number inside the data retrieved above.
 `mirobody.translate.icpc3.release()` therefore reports
-`icpc-3+<12 hex>`, a digest over the parsed codes, preferred terms and
-inclusions and index words of this file, so a coding names content that cannot disagree with
-the stamp. Replace this file and the stamp changes with it.
+`icpc-3+<12 hex>`, a digest over the parsed codes, components, preferred
+terms and inclusions of this file and over our own surface files beside it, so
+a coding names content that cannot disagree with the stamp. Replace any of
+them and the stamp changes with it.

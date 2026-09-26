@@ -5,7 +5,7 @@
 # side here is a phrase a person types into a symptom log; the right-hand side
 # is our judgement about which code it points at. Display names stay in
 # ICPC-3's English, which is why there is no third column holding a Chinese
-# term. See res/icpc3_s_component.NOTICE.
+# term. See res/icpc3/icpc3.NOTICE.
 #
 # Two sentinels instead of a code:
 #   !too-broad   names a family, not a complaint. Never answered.

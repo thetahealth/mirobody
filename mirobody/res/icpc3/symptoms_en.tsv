@@ -1,7 +1,7 @@
 # Everyday English -> ICPC-3 S component. OUR writing, Apache-2.0.
 #
 # ICPC-3's own `preferred` and `inclusions` are already indexed straight from
-# res/icpc3_s_component.tsv, so nothing here repeats them. This file holds
+# res/icpc3/icpc3.tsv, so nothing here repeats them. This file holds
 # what a person types and a classification does not print: "throwing up",
 # "pins and needles", "off my food". Same two sentinels as symptoms_zh.tsv.
 surface	code	note
@@ -120,7 +120,6 @@ itchy	SS02
 itchy skin	SS02
 rash	SS05
 spots	SS05
-hives	SS06
 flaky skin	SS08
 losing my hair	SS10
 thinning hair	SS10

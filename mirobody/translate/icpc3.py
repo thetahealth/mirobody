@@ -157,11 +157,19 @@ def release() -> str:
     ICPC-3 publishes no release number in the data we hold, and a stamp that
     cannot disagree with the content beats one we invent. The digest is over
     parsed fields rather than file bytes, so a checkout whose line endings were
-    rewritten still reports the same release."""
+    rewritten still reports the same release. It covers everything a coding
+    depends on: the component, which picks the axis, and our surface files,
+    which pick most codes. Without them, moving AS03 to another axis or
+    remapping 发烧 changed codes under an unchanged stamp."""
     h = hashlib.sha256()
     for code, t in sorted(terms().items()):
-        h.update("\x1f".join((code, t.preferred, *t.inclusions)).encode("utf-8"))
+        h.update("\x1f".join((code, t.component, t.preferred, *t.inclusions)).encode("utf-8"))
         h.update(b"\x1e")
+    for component in sorted(CURATED):
+        for name in CURATED[component]:
+            for r in _rows(name):
+                h.update("\x1f".join((component, r["surface"], r["code"].strip())).encode("utf-8"))
+                h.update(b"\x1e")
     return "icpc-3+" + h.hexdigest()[:12]
 
 
@@ -209,11 +217,25 @@ def _lookup(component: str) -> tuple[dict[str, tuple[str, str]], dict[str, tuple
     return hit, {k: tuple(sorted(v)) for k, v in tied.items()}
 
 
-def decision_id(key: str, rel: str, rule: str) -> str:
+def decision_id(key: str, component: str, rel: str, rule: str) -> str:
     """Sixteen hex over what an ICPC-3 coding depends on. The LOINC side keys
     on (name, unit, value kind); a complaint has no unit and no number, so the
-    folded surface, the release and the rule are the whole input."""
-    return hashlib.sha256("\x1f".join((key, rel, rule)).encode("utf-8")).hexdigest()[:16]
+    folded surface, the axis, the release and the rule are the whole input.
+    The axis is in it because 发烧 is coded on one and needs input on the
+    other: sharing one id, the second axis's evidence was dropped on insert."""
+    return hashlib.sha256("\x1f".join((key, component, rel, rule)).encode("utf-8")).hexdigest()[:16]
+
+
+def _alias_applies(alias: Alias, component: str) -> bool:
+    """A confirmed alias names a code in one vocabulary and on one axis. A
+    LOINC alias on the same words answered `icpc3:unknown-code:718-7`, and a
+    diagnosis alias answered a KD code on the complaint axis."""
+    if not alias.code:
+        return True
+    if alias.code_system and alias.code_system != ICPC3_SYSTEM:
+        return False
+    term = terms().get(alias.code)
+    return term is None or term.component == component
 
 
 def resolve(text: str, component: str, *, alias: Alias | None = None) -> Coding:
@@ -222,34 +244,37 @@ def resolve(text: str, component: str, *, alias: Alias | None = None) -> Coding:
     key = name_key(text)
     local = local_series_id(key)
 
-    if alias is not None:
+    if alias is not None and _alias_applies(alias, component):
         rule = f"{RULE_ALIAS}:{alias.scope}"
-        did = decision_id(key, rel, rule)
+        did = decision_id(key, component, rel, rule)
         if not alias.code:
             return Coding(OUTCOME_REFUSED, local, did, rule, rel, reason="alias:not-standard")
         return _coded(alias.code, did, rule, rel, local, ("alias",))
 
     if not key:
-        did = decision_id(key, rel, RULE_CURATED)
+        did = decision_id(key, component, rel, RULE_CURATED)
         return Coding(OUTCOME_NEEDS_INPUT, local, did, RULE_CURATED, rel, reason="icpc3:empty")
 
     hit, tied = _lookup(component)
     found = hit.get(key)
+    if found is None and key.endswith("了"):
+        # 发烧了, 头疼了: the completive particle, not part of the complaint.
+        found = hit.get(key[:-1])
     if found is None:
         if key in tied:
-            did = decision_id(key, rel, RULE_INCLUSION)
+            did = decision_id(key, component, rel, RULE_INCLUSION)
             return Coding(
                 OUTCOME_NEEDS_INPUT, local, did, RULE_INCLUSION, rel, reason="icpc3:ambiguous",
                 evidence=(f"term={text}", "candidates=" + ",".join(tied[key])),
             )
-        did = decision_id(key, rel, RULE_CURATED)
+        did = decision_id(key, component, rel, RULE_CURATED)
         return Coding(
             OUTCOME_NEEDS_INPUT, local, did, RULE_CURATED, rel,
             reason="icpc3:no-match", evidence=(f"term={text}", f"component={component}"),
         )
 
     code, rule = found
-    did = decision_id(key, rel, rule)
+    did = decision_id(key, component, rel, rule)
     if code == BLOCK_TOO_BROAD:
         return Coding(OUTCOME_REFUSED, local, did, rule, rel, reason="icpc3:too-broad", evidence=(f"term={text}",))
     if code == BLOCK_AMBIGUOUS:

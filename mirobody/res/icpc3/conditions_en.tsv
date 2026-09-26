@@ -10,7 +10,6 @@ tb	AD15
 consumption	AD15
 blood poisoning	AD23
 cancer	AD25
-drug allergy	AD41
 drug reaction	AD41
 mono	AD04
 # ── blood ───────────────────────────────────────────────────────────────
@@ -33,7 +32,6 @@ ibs	DD78
 ibd	DD79
 crohn's	DD79
 crohns	DD79
-ulcerative colitis	DD79
 fatty liver	DD81
 cirrhosis	DD81
 gallstones	DD82
@@ -103,11 +101,11 @@ asd	PD19
 # ── respiratory ─────────────────────────────────────────────────────────
 whooping cough	RD01
 a cold	RD02
-common cold	RD02
 sinus infection	RD03
 tonsillitis	RD04
 croup	RD05
 the flu	RD07
+flu	RD07
 covid	RD08
 covid-19	RD08
 long covid	RD08
@@ -132,8 +130,12 @@ goiter	TD65
 overactive thyroid	TD68
 underactive thyroid	TD69
 type 1 diabetes	TD71
+t1dm	TD71
+diabetes type 1	TD71
 t1d	TD71
 type 2 diabetes	TD72
+t2dm	TD72
+diabetes type 2	TD72
 t2d	TD72
 high cholesterol	TD75
 raised cholesterol	TD75
