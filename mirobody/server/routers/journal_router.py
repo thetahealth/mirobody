@@ -35,7 +35,7 @@ from mirobody.collect import observations, sentence
 from mirobody.kernel import series
 from mirobody.server.auth import verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject
+from mirobody.user.care_circle import CareCircleDenied, resolve_subject, shared_with_me
 from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
@@ -121,6 +121,22 @@ def _day(text: str | None) -> date | None:
     return when.date() if when else None
 
 
+_BAD_ZONE = "tz must be an IANA zone name, like Asia/Shanghai."
+
+
+def _bad_zone(tz: str | None) -> bool:
+    """A `tz` the caller typed and no zone answers to. The web client's
+    `X-Timezone` header still falls back quietly; a body field that says
+    `Mars/Olympus` was filed under UTC and answered 200."""
+    if not tz:
+        return False
+    try:
+        translate.zone_for(tz)
+    except ValueError:
+        return True
+    return False
+
+
 def _writer_zone(record_tz: str, *said: str | None) -> tuple[str, datetime]:
     """`(zone, now)`: the zone the writer is in, the body's `tz` and else the
     web client's `X-Timezone` (sent on every request), and now in it. The
@@ -134,6 +150,15 @@ def _writer_zone(record_tz: str, *said: str | None) -> tuple[str, datetime]:
         except ValueError:
             continue
     return "", datetime.now(tz=translate.zone_for(translate.resolve_tz("", record_tz)[0]))
+
+
+async def _label(caller: str, owner: str) -> str:
+    """What the caller's circle calls the record's person ("Dad", a name), or
+    empty when it calls them nothing."""
+    for person in await shared_with_me(caller):
+        if str(person.get("user_id")) == owner:
+            return str(person.get("nickname") or person.get("name") or "")
+    return ""
 
 
 async def _subject(caller: str, target: str | None, *, write: bool) -> str | None:
@@ -160,6 +185,8 @@ async def log_entry(
     kind = KINDS.get(entry.kind)
     if kind is None:
         return ErrorResponse(code=400, msg=f"kind must be one of: {', '.join(sorted(KINDS))}.")
+    if _bad_zone(entry.tz):
+        return ErrorResponse(code=400, msg=_BAD_ZONE)
     owner = await _subject(user_id, entry.target_user_id, write=True)
     if owner is None:
         return ErrorResponse(code=403, msg="You cannot write to that record.")
@@ -240,6 +267,8 @@ async def log_sentence(
     written, with its coding, and every part that was not, with the reason
     (negated, someone else, a medication, ...), so the person sees what the
     sentence became rather than trusting it."""
+    if _bad_zone(entry.tz):
+        return ErrorResponse(code=400, msg=_BAD_ZONE)
     owner = await _subject(user_id, entry.target_user_id, write=True)
     if owner is None:
         return ErrorResponse(code=403, msg="You cannot write to that record.")
@@ -248,7 +277,8 @@ async def log_sentence(
 
     tz = await observations.user_tz(owner)
     said, now = _writer_zone(tz, entry.tz, x_timezone)
-    answer = await sentence.read(entry.text, now=now)
+    record_of = None if owner == str(user_id) else await _label(user_id, owner)
+    answer = await sentence.read(entry.text, now=now, record_of=record_of)
     if answer is None:
         return ErrorResponse(code=502, msg="The sentence could not be read. Try again, or log one entry.")
     parts, raw = answer
@@ -288,6 +318,8 @@ async def list_entries(
     to_date: str | None = Query(None, alias="to", description='"YYYY-MM-DD", inclusive'),
     kind: str | None = Query(None, description='Only this kind ("measurement" for readings typed here); omit for every kind'),
     target_user_id: str | None = Query(None, description="Read this person's record; needs a grant"),
+    tz: str | None = Query(None, max_length=64, description="The reader's IANA zone: the default `to` is their today"),
+    x_timezone: str | None = Header(None, include_in_schema=False),
 ):
     """The log, newest first, grouped by the day it was felt.
 
@@ -303,8 +335,15 @@ async def list_entries(
     start, end = _day(from_date), _day(to_date)
     if (from_date and start is None) or (to_date and end is None):
         return ErrorResponse(code=400, msg="from and to must be YYYY-MM-DD.")
-    end = end or datetime.now().date()
+    if _bad_zone(tz):
+        return ErrorResponse(code=400, msg=_BAD_ZONE)
+    if end is None:
+        # The reader's today, not the server's: in UTC+8 the first eight hours
+        # of a day were past the server's date, and that day's entries hidden.
+        end = _writer_zone(await observations.user_tz(owner), tz, x_timezone)[1].date()
     start = start or (end - timedelta(days=30))
+    if start > end:
+        return ErrorResponse(code=400, msg="from is after to.")
     if (end - start).days > MAX_DAYS:
         return ErrorResponse(code=400, msg=f"That range is longer than {MAX_DAYS} days.")
 

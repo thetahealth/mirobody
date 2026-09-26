@@ -155,6 +155,9 @@ systolic blood pressure and diastolic blood pressure), unit mmHg, both quoting t
 - A negation ("没发烧", "no fever", "不咳嗽了") is still an entry, with assertion "negated".
 - A worry or guess ("怕是感冒了", "might be the flu") is an entry with assertion "hypothetical".
 - About someone else ("我妈头疼") is an entry with subject "other".
+- When RECORD OF is given, the writer is logging for that person, and subject "self" means THAT \
+person however the writer refers to them (我爸, Dad, 他, her name, or no subject at all). Anyone else, \
+the writer included, is "other".
 - A time the sentence names is resolved against NOW into `when`; otherwise leave `when` empty.
 - If nothing health-related is stated, return no entries."""
 
@@ -191,19 +194,25 @@ def available() -> bool:
     return resolve_route("text") is not None
 
 
-def messages_for(sentence: str, now: datetime) -> list[dict[str, str]]:
+def messages_for(sentence: str, now: datetime, *, record_of: str | None = None) -> list[dict[str, str]]:
+    """`record_of` names the person whose record this is when a caregiver
+    writes for them. Without it, "我爸今天咳嗽" typed into Dad's record was
+    about someone else, and every part of it was dropped."""
+    head = f"NOW: {now:%Y-%m-%d %H:%M} ({now.tzname() or ''})\n"
+    if record_of is not None:
+        head += f"RECORD OF: {record_of or 'the person the writer is logging for'}\n"
     return [
         {"role": "system", "content": _PROMPT},
-        {"role": "user", "content": f"NOW: {now:%Y-%m-%d %H:%M} ({now.tzname() or ''})\nSENTENCE: {sentence}"},
+        {"role": "user", "content": f"{head}SENTENCE: {sentence}"},
     ]
 
 
-async def read(sentence: str, *, now: datetime) -> tuple[list[Part], dict] | None:
+async def read(sentence: str, *, now: datetime, record_of: str | None = None) -> tuple[list[Part], dict] | None:
     """The model's parts and its raw answer, or `None` when the call failed."""
     from mirobody.utils.llm import async_get_structured_output
 
     answer = await async_get_structured_output(
-        messages=messages_for(sentence, now),
+        messages=messages_for(sentence, now, record_of=record_of),
         response_format={"type": "json_schema", "json_schema": {"name": "journal_sentence", "schema": RESPONSE_SCHEMA}},
         temperature=0,
         max_tokens=2000,
