@@ -306,7 +306,7 @@ class UserService:
             not isinstance(request.state.user_id, int) or \
             request.state.user_id <= 0:
 
-            return json_response(status_code=401, request=request)
+            return json_response("Unauthorized", status_code=401, request=request)
 
         current_user_id = request.state.user_id
 
@@ -389,7 +389,7 @@ class UserService:
             not isinstance(request.state.user_id, int) or \
             request.state.user_id <= 0:
 
-            return json_response(status_code=401, request=request)
+            return json_response("Unauthorized", status_code=401, request=request)
 
         user_id = request.state.user_id
 
@@ -404,7 +404,7 @@ class UserService:
             body = {}
         row = await get_user(user_id=user_id)
         if row is None:
-            return json_response(status_code=401, request=request)
+            return json_response("Unauthorized", status_code=401, request=request)
         expected = str(row.get("email") or "").strip().lower()
         given = str((body or {}).get("confirm") or "").strip().lower() if isinstance(body, dict) else ""
         if not expected or given != expected:
@@ -433,7 +433,7 @@ class UserService:
             not isinstance(request.state.user_id, int) or \
             request.state.user_id <= 0:
 
-            return json_response(status_code=401, request=request)
+            return json_response("Unauthorized", status_code=401, request=request)
 
         user_id = request.state.user_id
 
