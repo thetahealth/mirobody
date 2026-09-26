@@ -2,6 +2,11 @@
 
 ### Added
 
+- **`/mirobody.json` says which contract it speaks.** It carries
+  `capability_version`, one integer raised with every wire change a client may
+  need to detect (compare with `>=`), and `server_version`. It is now served on a
+  deployment with no web client too, where it used to 404.
+
 - Offline resolver: Russian panel terms as real Russian lab reports print
   them (МЕДСИ, INVITRO, state clinics; ~80 spellings from a 2019-2026 record
   archive), plus the three Estonian vitamin spellings a Synlab report prints.

@@ -16,6 +16,12 @@ from .middleware_stack import build_middlewares
 from .htdoc import add_htdoc_routes
 
 from mirobody import __version__
+
+# The wire contract's version, in /mirobody.json. One integer, raised by one
+# with every change a client may need to detect (a field, an event type, an
+# endpoint); a client compares it with `>=`. A phone core that speaks this API
+# answers the same key, so one check covers both.
+CAPABILITY_VERSION = 1
 from mirobody.user import AbstractTokenValidator, JwtTokenValidator, OAuthService, UserService
 from mirobody.mcp import McpService
 from mirobody.agent.chat import ChatService
@@ -32,7 +38,6 @@ class Server:
         server_version  : str = __version__,
 
         uri_prefix      : str = "",
-        htdoc           : str = "",
 
         jwt_key         : str = "",
         jwt_iss         : str = "",
@@ -155,6 +160,9 @@ class Server:
         if "__IS_API_CONFIG_ON__" not in self._webpage_config:
             self._webpage_config["__IS_API_CONFIG_ON__"] = True
 
+        self._webpage_config.setdefault("capability_version", CAPABILITY_VERSION)
+        self._webpage_config.setdefault("server_version", server_version or __version__)
+
         #-------------------------------------------------
 
         os.environ.update([
@@ -240,19 +248,17 @@ class Server:
 
         self._routes.append(Route(f"{uri_prefix}/api/health", endpoint=self.health_check_handler, methods=["GET"]))
 
-        if htdoc:
-            self._routes.append(
-                Route(
-                    "/mirobody.json",
-                    endpoint=lambda x: JSONResponse(content=self._webpage_config),
-                    methods=["GET", "HEAD"]
-                )
+        # Served with or without a web client: an API client on a headless
+        # deployment reads `capability_version` from it too. The static client
+        # itself is mounted by `add_htdoc_routes` in `start()`, after every
+        # router, because its SPA fallback must lose to all real routes.
+        self._routes.append(
+            Route(
+                "/mirobody.json",
+                endpoint=lambda x: JSONResponse(content=self._webpage_config),
+                methods=["GET", "HEAD"]
             )
-
-            # The static client itself is mounted by `add_htdoc_routes` in
-            # `start()`, after every router: its SPA fallback must lose to
-            # all real routes. Only the config endpoint the client fetches
-            # at boot (/mirobody.json) lives here.
+        )
 
         #-------------------------------------------------
 
@@ -326,7 +332,6 @@ class Server:
             server_version  = config.http.version,
 
             uri_prefix      = config.http.uri_prefix,
-            htdoc           = config.http.htdoc,
 
             # jwt_key         = config.jwt_key,
 
