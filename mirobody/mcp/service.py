@@ -93,6 +93,15 @@ def _by_name(items: list | None, key: str = "name") -> list:
 
 #-----------------------------------------------------------------------------
 
+async def _live(user_id: str) -> str:
+    """`user_id` when its account still exists, "" otherwise. A token and a
+    personal URL both outlive a deleted account unless this is asked."""
+    from mirobody.user.user import is_active_account
+
+    return user_id if user_id and await is_active_account(user_id) else ""
+
+#-----------------------------------------------------------------------------
+
 class ResponseEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, datetime):
@@ -253,20 +262,25 @@ class McpService:
             return ""
         if self._redis:
             try:
-                return await self._redis.get(self._mcp_url_keyprefix + user_secret) or ""
+                user_id = await self._redis.get(self._mcp_url_keyprefix + user_secret) or ""
             except Exception as e:
                 logger.warning("MCP: permanent URL lookup failed: %s", e)
                 return ""
-        return self._mcp_urls.get(user_secret, "")
+        else:
+            user_id = self._mcp_urls.get(user_secret, "")
+        return await _live(user_id)
 
     # Tools whose only possible answer without the corresponding data is
     # "no data": each maps to the EXISTS probe that decides its visibility.
+    #
+    # The observation probe reads `v_observation`, the view the tool reads: a
+    # probe on the raw table counted a retracted row (it stays, amended).
     _DATA_GATED = {
         "query_genetic_data":
             "SELECT 1 FROM th_series_data_genetic"
             " WHERE user_id = :uid AND is_deleted = false LIMIT 1",
         "query_health_indicators":
-            "SELECT 1 FROM th_observation WHERE user_id = :uid LIMIT 1",
+            "SELECT 1 FROM v_observation WHERE user_id = :uid LIMIT 1",
         "query_medications":
             "SELECT 1 FROM th_medication_plan WHERE user_id = :uid AND deleted = 0 LIMIT 1",
     }
@@ -387,7 +401,11 @@ class McpService:
         # every call, and the server has to settle it per request. Handshake-era
         # clients send no `_meta`; they fall through to our newest supported
         # revision, exactly as before.
-        negotiated = self._negotiate_version(self._request_protocol_version(jsonrpc))
+        # A handshake client restates its version in the `MCP-Protocol-Version`
+        # header (Streamable HTTP, since 2025-06-18) instead.
+        negotiated = self._negotiate_version(
+            self._request_protocol_version(jsonrpc) or request.headers.get("mcp-protocol-version")
+        )
 
         url_prefix = request_origin(request)
 
@@ -412,13 +430,14 @@ class McpService:
         #                    client never sends these
 
         if method == "tools/list":
-            # Data-dependent exposure: query_genetic_data answers from the user's
-            # uploaded genotype file, and most users never upload one. Listing
-            # the tool anyway makes every external MCP client carry its schema
-            # and lets a model call it just to learn "no data", so when the
-            # caller is identifiable and has no genetic rows, the tool is not
-            # listed at all. Unidentifiable callers (bare /mcp before OAuth)
-            # keep the full list: capability discovery must not require auth.
+            # Data-dependent exposure: a data-reading tool for a user with none
+            # of that data can only answer "no data" (most users never upload a
+            # genotype file). Listing it anyway makes every external MCP client
+            # carry its schema and lets a model call it just to learn that, so
+            # when the caller is identifiable and has no such rows, the tool is
+            # not listed at all (`_DATA_GATED`). Unidentifiable callers (bare
+            # /mcp before OAuth) keep the full list: capability discovery must
+            # not require auth.
             hidden = await self._data_gated_tools(
                 user_id or await self._resolve_secret_user(request.path_params.get("secret", ""))
             )
@@ -497,23 +516,12 @@ class McpService:
                 elif "sub" not in payload:
                     logger.warning("No sub field found")
                 else:
-                    user_id = payload["sub"]
+                    user_id = await _live(payload["sub"])
 
             if tool["auth"] and not user_id:
-                user_secret = request.path_params.get("secret", "")
-                if user_secret:
-                    if self._redis:
-                        # Check permanent urls.
-                        try:
-                            user_id = await self._redis.get(self._mcp_url_keyprefix + user_secret)
-                        except Exception as e:
-                            # Same as above: Redis being down degrades to
-                            # "unauthenticated" rather than an error, so without
-                            # this line an outage looks like a permissions bug.
-                            logger.warning("MCP: permanent URL lookup failed: %s", e)
-                            user_id = ""
-                    else:
-                        user_id = self._mcp_urls.get(user_secret, "")
+                # Redis being down degrades to "unauthenticated" rather than an
+                # error (logged in `_resolve_secret_user`).
+                user_id = await self._resolve_secret_user(request.path_params.get("secret", ""))
 
             if tool["auth"] and not user_id:
                 state           = secrets.token_urlsafe(32)
@@ -637,13 +645,16 @@ class McpService:
             requested = None
             if isinstance(jsonrpc.get("params"), dict):
                 requested = jsonrpc["params"].get("protocolVersion")
+            # One version in one answer: `_meta` said 2026-07-28 beside a
+            # handshake that settled on 2025-06-18.
+            handshake = self._negotiate_version(requested)
 
             return jsonrpc_result(
                 id      = id,
-                protocol_version = negotiated,
+                protocol_version = handshake,
                 server_info = self._server_info,
                 result  = {
-                    "protocolVersion": self._negotiate_version(requested),
+                    "protocolVersion": handshake,
                     "capabilities": _CAPABILITIES,
                     "serverInfo": {
                         "name": self._name,
@@ -663,11 +674,12 @@ class McpService:
                 id      = id,
                 protocol_version = negotiated,
                 server_info = self._server_info,
+                # `supportedVersions` is the field the SDK's `DiscoverResult`
+                # requires; this answered `supportedProtocolVersions`, which the
+                # SDK's own client rejected. The identity rides in `_meta`.
                 result  = {
-                    "protocolVersion": self._protocol_version,
-                    "supportedProtocolVersions": list(_SUPPORTED_PROTOCOL_VERSIONS),
+                    "supportedVersions": list(_SUPPORTED_PROTOCOL_VERSIONS),
                     "capabilities": _CAPABILITIES,
-                    "serverInfo": self._server_info,
                 },
                 cache_hint = _LIST_CACHE_HINT,
                 method  = method,
@@ -731,7 +743,7 @@ class McpService:
             beneficiary_user_id = ""
 
         user_id = payload.get("sub")
-        if not user_id or not isinstance(user_id, str):
+        if not user_id or not isinstance(user_id, str) or not await _live(user_id):
             return "", json_response_with_code(-4, "Invalid user ID.", request=request, status=401)
 
         if len(beneficiary_user_id) > 0 and beneficiary_user_id != user_id:

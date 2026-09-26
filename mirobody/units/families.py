@@ -247,8 +247,9 @@ UCUM_FAMILY: dict[str, str] = {
     "u[IU]/L":    "ACnc",
     "[arb'U]/mL":  "ACnc",  # arbitrary units per mL: allergen IgE assays
     "[arb'U]/L":   "ACnc",
+    # Not valid UCUM ([arb'U] takes no prefix), but LOINC's own example units
+    # print it on 23 codes, and matching LOINC is what this table is for.
     "k[arb'U]/L":  "ACnc",
-    "k[arb'U]/mL": "ACnc",
     "[arb'U]":     "Arb",   # bare arbitrary unit
 
     # ── Catalytic concentration (CCnc): enzyme activity ──────────────
@@ -299,9 +300,7 @@ UCUM_FAMILY: dict[str, str] = {
     "{score}":  "Score",
 
     # ── Number areic (Naric): per visual field, microscopy ───────────
-    "/HPF":     "Naric",
-    "/LPF":     "Naric",
-    "/[HPF]":   "Naric",   # strict UCUM bracketed form
+    "/[HPF]":   "Naric",   # UCUM's bracketed form; `/HPF` is a printed spelling of it
     "/[LPF]":   "Naric",
 
     # ── Fractions ─────────────────────────────────────────────────────
@@ -490,7 +489,7 @@ UCUM_FAMILY: dict[str, str] = {
     "mol":      "Sub",
     "meq":      "Sub",
     "mosm":     "Sub",
-    "osmol":    "Sub",
+    "osm":      "Sub",
     "[IU]":     "Arb",
     "m[IU]":    "Arb",
     "k[IU]":    "Arb",

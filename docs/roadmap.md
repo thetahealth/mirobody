@@ -156,7 +156,7 @@ So the duplicated design is gone rather than merged: half of it was dead.
 The remaining pair is deliberate and stays. `fhir/adapter.py:resolve_many` (141
 lines) is the lite lexical path that ships; `fhir/resolve/pipeline.py:resolve_many`
 (421 lines) is the v2 semantic pipeline, which needs a ~200 MB embedding matrix
-that is not distributed. `engine.py`'s module docstring already states which one
+that is not distributed. `mirobody/engine/`'s package docstring already states which one
 it is and why the other is not it.
 
 The split attempt also left two real fixes behind: the architecture tree in

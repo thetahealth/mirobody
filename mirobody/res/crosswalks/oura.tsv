@@ -4,13 +4,13 @@
 # measured at the finger, and its HRV is RMSSD, for which LOINC has no code.
 #
 # Source, read 2026-09-09:
-#   https://cloud.ouraring.com/v2/static/json/openapi-1.37.json
-#   The official OpenAPI document, version 1.37.
+#   https://cloud.ouraring.com/v2/static/json/openapi-1.41.json
+#   The official OpenAPI document, version 1.41.
 #
 # Columns:
 #   type        the vendor's data type, record class or endpoint, verbatim
 #   field       the field inside it, verbatim; empty when the type is the reading
-#   metric      the mirobody catalogue name (res/metrics.tsv); empty when the catalogue has no row
+#   metric      the mirobody catalogue name (res/catalog/metrics.tsv); empty when the catalogue has no row
 #   loinc       the LOINC code the field means; EMPTY IS A DECLINE, and the note says why
 #   confidence  confident = the six LOINC axes agree with the vendor's definition;
 #               unverified = close, a person must confirm before a reading is filed under it

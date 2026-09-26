@@ -100,8 +100,9 @@ services:
       - NO_PROXY=${NO_PROXY:-pg,redis,localhost,127.0.0.1}
       - HTTP_HOST=0.0.0.0
       - HTTP_PORT=18060
-      # Seeds one synthetic person's two-year record into the demo account's
-      # care circle. Set false for a deployment that will hold real data.
+      # Seeds two synthetic accounts, a year of device readings and one lab
+      # panel each, in one care circle where mom@ shares view-only with you@.
+      # Set false for a deployment that will hold real data.
       - SEED_DEMO_DATA=${SEED_DEMO_DATA:-true}
     healthcheck:
       # start_period covers the FIRST boot, which pip-installs the whole stack

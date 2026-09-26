@@ -126,7 +126,7 @@ pytest mirobody/test_engine_coverage.py -s   # オフライン、約1秒
 「ビルド時にこの語彙を使った成果物」と「実行時にpinしたパッケージ」が同じコーパスかを
 断言できる。パッケージのバージョンだけでは決して分からなかったことだ。
 [LOINCのライセンス](https://loinc.org/license/)は全ての複製にバージョン番号を求めており、
-`res/fhir_loinc_bundle.NOTICE` はそれを持ち、`scripts/stamp_bundle_version.py --check`
+`res/loinc/fhir_loinc_bundle.NOTICE` はそれを持ち、`scripts/stamp_bundle_version.py --check`
 がその正しさを保つ。
 
 **なぜ2.83ではなく2.82か。** 軸テーブルと677k行のコーパスは畳み込んだ
@@ -151,7 +151,7 @@ GarminのBody Batteryやストレススコアにコードは無く、それは�
 **カバレッジと再現率は別物で、その差はLOINC側ではなくこちら側にある**:
 `Body bone mass` はここで `101685-6` に解決するのに、日本語・中国語の `骨量` は
 歯科の体積コードに落ちる。そこへ導くエイリアスが無いからだ。
-[`res/resolver_overrides.tsv`](../mirobody/res/resolver_overrides.tsv) はそのためにある ――
+[`res/loinc/resolver_overrides.tsv`](../mirobody/res/loinc/resolver_overrides.tsv) はそのためにある ――
 人が書き下ろした一行は、索引の表層一致に常に勝つ。
 
 → [loinc.org](https://loinc.org/) · [ライセンス](https://loinc.org/license/) ·
@@ -412,7 +412,7 @@ frontend/        同梱のwebクライアント     アウトにだけあり、p
 
 最もレバレッジが高い貢献は、リゾルバが間違える用語ひとつだ。
 `mirobody resolve "<用語>"` を走らせ、答えが間違いか空なら
-[`resolver_overrides.tsv`](../mirobody/res/resolver_overrides.tsv) に1行、
+[`resolver_overrides.tsv`](../mirobody/res/loinc/resolver_overrides.tsv) に1行、
 [`test_engine_coverage.py`](../mirobody/test_engine_coverage.py) にケースを1つ追加する
 ―― カバレッジのスコアがレビューだ。
 
@@ -429,7 +429,7 @@ pip install -e '.[test]' && pytest -q && lint-imports
 
 mirobody は健康データの標準化と推論を行うものであり、デバイス接続の最良の手段になることは目指していません。以下のプロジェクトがカーネルのルールを形作りました。本リポジトリにはそれらのコードは一切含まれていません。
 
-- **[Open Wearables](https://github.com/the-momentum/open-wearables)**（MIT、© 2025 Momentum）——12 社のプロバイダ接続とモバイル SDK を備えたセルフホスト型ウェアラブル統合プラットフォーム。そのデータ標準化ドキュメントが列挙する失敗パターン（日次合計とその明細の二重加算、オフセットのみの日付境界、暗黙の単位仮定、読み取り時の優先ソース選択）こそ、`mirobody.kernel.series`、`mirobody.kernel.quality`、`res/metrics.tsv` が塞ぐために存在する穴です。コネクタが必要なら Open Wearables を動かし、その `/timeseries` API に mirobody のデコーダを向けてください。
+- **[Open Wearables](https://github.com/the-momentum/open-wearables)**（MIT、© 2025 Momentum）——12 社のプロバイダ接続とモバイル SDK を備えたセルフホスト型ウェアラブル統合プラットフォーム。そのデータ標準化ドキュメントが列挙する失敗パターン（日次合計とその明細の二重加算、オフセットのみの日付境界、暗黙の単位仮定、読み取り時の優先ソース選択）こそ、`mirobody.kernel.series`、`mirobody.kernel.quality`、`res/catalog/metrics.tsv` が塞ぐために存在する穴です。コネクタが必要なら Open Wearables を動かし、その `/timeseries` API に mirobody のデコーダを向けてください。
 - **[Home Assistant](https://github.com/home-assistant/core)**——指標カタログの `state_class` の発想の源。
 - **[Open mHealth](https://github.com/openmhealth/schemas) / IEEE 1752**——ファクトの `effective_*` / `modality` フィールド名。
 - **[wearipedia](https://github.com/Stanford-Health/wearipedia)**——実在の人のデータではなく、シード付き合成ベンダーペイロードを使う発想。

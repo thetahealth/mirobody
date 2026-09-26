@@ -179,8 +179,8 @@ def scale(ucum: str | None) -> DimScale | None:
 #: uses a conventional average molar mass (triolein ~885.4), so 88.57 is
 #: industry convention and not computed; BUN is reported as NITROGEN and urea
 #: as the whole molecule, ~2.14 apart, so they get a row each and never share;
-#: conversion happens only WITHIN one code, across codes being concept mapping,
-#: which this table does not do.
+#: conversion happens only WITHIN one code (mass or moles), across analytes
+#: being concept mapping, which this table does not do.
 MOLAR_MASS: dict[str, tuple[float, str, str]] = {
     # Glucose metabolism
     "1558-6": (180.16, "C6H12O6", "Fasting glucose; 1 mmol/L = 18.016 mg/dL"),
@@ -195,8 +195,10 @@ MOLAR_MASS: dict[str, tuple[float, str, str]] = {
     # Renal / metabolites
     "2160-0": (113.12, "C4H7N3O", "Creatinine; 1 mg/dL = 88.4 umol/L"),
     "3084-1": (168.11, "C5H4N4O3", "Urate; 1 mg/dL = 59.48 umol/L"),
-    "3094-0": (28.02, "2xN", "BUN — reported as NITROGEN; 2.14x from urea (6299-2), never shared"),
-    "6299-2": (60.06, "CH4N2O", "Urea — reported as the whole molecule"),
+    "3094-0": (28.02, "2xN", "BUN — reported as NITROGEN; 2.14x from urea (3091-6), never shared"),
+    # 6299-2 is urea NITROGEN in blood, and carried the whole molecule's mass.
+    "6299-2": (28.02, "2xN", "BUN in blood — reported as NITROGEN"),
+    "3091-6": (60.06, "CH4N2O", "Urea — reported as the whole molecule"),
     # Bilirubin
     "1975-2": (584.66, "C33H36N4O6", "Total bilirubin; 1 mg/dL = 17.10 umol/L"),
     "1968-7": (584.66, "C33H36N4O6", "Direct (conjugated) bilirubin"),
@@ -208,6 +210,29 @@ MOLAR_MASS: dict[str, tuple[float, str, str]] = {
     "2498-4": (55.845, "Fe", "Iron"),
     "2823-3": (39.098, "K", "Potassium"),
     "2951-2": (22.990, "Na", "Sodium"),
+    # The moles code of each analyte above (`OfflineResolver.unit_variants`):
+    # `standardize_reading` answers a mmol/L reading with it, and converting
+    # that reading to mg/dL returned nothing.
+    "14771-0": (180.16, "C6H12O6", "Fasting glucose [Moles/volume]"),
+    "14749-6": (180.16, "C6H12O6", "Glucose [Moles/volume], serum/plasma"),
+    "15074-8": (180.16, "C6H12O6", "Glucose [Moles/volume], blood"),
+    "14647-2": (386.65, "C27H46O", "Total cholesterol [Moles/volume]"),
+    "22748-8": (386.65, "C27H46O", "LDL-C [Moles/volume]"),
+    "39469-2": (386.65, "C27H46O", "LDL-C (calculated) [Moles/volume]"),
+    "14646-4": (386.65, "C27H46O", "HDL-C [Moles/volume]"),
+    "14927-8": (885.40, "conventional average", "Triglyceride [Moles/volume]"),
+    "14682-9": (113.12, "C4H7N3O", "Creatinine [Moles/volume]"),
+    "14933-6": (168.11, "C5H4N4O3", "Urate [Moles/volume]"),
+    "14937-7": (28.02, "2xN", "BUN [Moles/volume]"),
+    "59570-2": (28.02, "2xN", "BUN in blood [Moles/volume]"),
+    "22664-7": (60.06, "CH4N2O", "Urea [Moles/volume]"),
+    "14631-6": (584.66, "C33H36N4O6", "Total bilirubin [Moles/volume]"),
+    "14629-0": (584.66, "C33H36N4O6", "Direct bilirubin [Moles/volume]"),
+    "14630-8": (584.66, "C33H36N4O6", "Indirect bilirubin [Moles/volume]"),
+    "2000-8": (40.08, "Ca", "Calcium [Moles/volume]"),
+    "14879-1": (30.97, "P", "Phosphate [Moles/volume], as the phosphorus atom"),
+    "2601-3": (24.305, "Mg", "Magnesium [Moles/volume]"),
+    "14798-3": (55.845, "Fe", "Iron [Moles/volume]"),
 }
 
 _MASS_PER_VOLUME = (("M", 1), ("V", -1))

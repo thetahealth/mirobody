@@ -45,8 +45,9 @@ router = APIRouter(prefix="/api/v1", tags=["indicators"])
 # The browser reads through the same authority the model does, with a larger
 # catalogue cap: a table the user scrolls is not a model's context window, and
 # capping it at one hid 44 of the demo user's 244 indicators while reporting
-# `count: 200` as though that were the total.
-_service = HealthIndicatorsService(PostgresHealthQuery(), catalog_cap=REST_CATALOG_MAX)
+# `count: 200` as though that were the total. Readings only: what the person
+# reported has its own tab (`/api/v1/journal`).
+_service = HealthIndicatorsService(PostgresHealthQuery(reported=False), catalog_cap=REST_CATALOG_MAX)
 
 
 def _split(value: str | None) -> list[str] | None:

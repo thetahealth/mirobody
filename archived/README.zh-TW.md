@@ -120,7 +120,7 @@ pytest mirobody/test_engine_coverage.py -s   # 離線，約一秒
 版本、切分日期,加上一段對語料成員本身算出的摘要——所以「建置期消費這份詞表」和
 「執行期 pin 的這個套件」是不是同一份語料,可以被斷言;只看套件版本永遠看不出來。
 [LOINC 授權](https://loinc.org/license/)要求每一份拷貝都帶版本號,
-`res/fhir_loinc_bundle.NOTICE` 帶了,`scripts/stamp_bundle_version.py --check` 保證它不說謊。
+`res/loinc/fhir_loinc_bundle.NOTICE` 帶了,`scripts/stamp_bundle_version.py --check` 保證它不說謊。
 
 **為什麼是 2.82 而不是 2.83。** axis 表與那 677k 列語料是透過折疊後的
 `LONG_COMMON_NAME` 綁在一起的,而 2.83 系統性改名了其中 2,842 條
@@ -140,7 +140,7 @@ LOINC 只為 9 個給出替代碼,拒答基本等於把「一個有點舊但正�
 
 **涵蓋不等於召回,而且這道落差是我們的、不是 LOINC 的**:`Body bone mass` 在這裡能解析到
 `101685-6`,中文的 `骨量` 卻落到一個牙科體積碼上,因為沒有別名把它路由過去。
-這正是 [`res/resolver_overrides.tsv`](../mirobody/res/resolver_overrides.tsv) 存在的理由
+這正是 [`res/loinc/resolver_overrides.tsv`](../mirobody/res/loinc/resolver_overrides.tsv) 存在的理由
 ——一行由人寫下的意圖,永遠贏過索引裡的表面匹配。
 
 → [loinc.org](https://loinc.org/) · [授權](https://loinc.org/license/) ·
@@ -390,7 +390,7 @@ numpy 外不匯入任何東西，引擎永不匯入 agent 層——違反即 `li
 ## 🤝 貢獻
 
 槓桿最高的貢獻是一個解析器答錯的詞。跑 `mirobody resolve "<詞>"`，如果答案錯了
-或是空的，就往 [`resolver_overrides.tsv`](../mirobody/res/resolver_overrides.tsv)
+或是空的，就往 [`resolver_overrides.tsv`](../mirobody/res/loinc/resolver_overrides.tsv)
 加一行，再往 [`test_engine_coverage.py`](../mirobody/test_engine_coverage.py) 加一個
 用例——覆蓋率分數就是評審。
 
@@ -407,7 +407,7 @@ pip install -e '.[test]' && pytest -q && lint-imports
 
 mirobody 做的是健康資料的標準化與推理，不追求成為接入裝置的最佳方式。以下專案塑造了核心的規則——本倉不包含它們的任何程式碼：
 
-- **[Open Wearables](https://github.com/the-momentum/open-wearables)**（MIT，© 2025 Momentum）——自託管的穿戴式裝置接入平台，十二家廠商連接器與行動端 SDK。它的資料標準化文件列出的失敗模式（日總量與自身明細相加、只有偏移沒有時區的日界、靜默的單位假設、讀時擇源），正是 `mirobody.kernel.series`、`mirobody.kernel.quality` 與 `res/metrics.tsv` 要關掉的洞。需要裝置連接器時，請運行 Open Wearables，再用 mirobody 的解碼器接它的 `/timeseries` API。
+- **[Open Wearables](https://github.com/the-momentum/open-wearables)**（MIT，© 2025 Momentum）——自託管的穿戴式裝置接入平台，十二家廠商連接器與行動端 SDK。它的資料標準化文件列出的失敗模式（日總量與自身明細相加、只有偏移沒有時區的日界、靜默的單位假設、讀時擇源），正是 `mirobody.kernel.series`、`mirobody.kernel.quality` 與 `res/catalog/metrics.tsv` 要關掉的洞。需要裝置連接器時，請運行 Open Wearables，再用 mirobody 的解碼器接它的 `/timeseries` API。
 - **[Home Assistant](https://github.com/home-assistant/core)**——指標目錄裡 `state_class` 的思想來源。
 - **[Open mHealth](https://github.com/openmhealth/schemas) / IEEE 1752**——事實上的 `effective_*` / `modality` 欄位命名。
 - **[wearipedia](https://github.com/Stanford-Health/wearipedia)**——用帶種子的合成廠商載荷代替真人資料。

@@ -5,8 +5,10 @@ an MCP client, a dashboard, a daily summary) reads through
 :class:`HealthQuery`. The tool the model sees, ``query_health_indicators``, has
 one JSON schema (:data:`TOOL_SCHEMA`) shared by the chat and MCP surfaces and
 a dispatch table from ``(resolution, aggregate)`` to the one ``HealthQuery``
-method that answers it. Medications are a different data class with a
-different grammar and their own tool: :mod:`mirobody.kernel.meds`.
+method that answers it. What the person reported (a symptom, a diagnosis) is
+read through the same tool: same table, same series, coded on ICPC-3 instead
+of LOINC. Medications are a different data class with a different grammar and
+their own tool: :mod:`mirobody.kernel.meds`.
 
 Eight parameters, each one a decision the model has to make on every call, and
 each one earning its place: what to read (``keywords`` or ``indicators``),
@@ -30,6 +32,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -179,8 +182,9 @@ _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|[^A-Za-z0-9一-鿿]+")
 
 def _load_synonyms() -> dict[str, tuple[str, ...]]:
     try:
-        text = resources.files("mirobody").joinpath("res", "recall_synonyms.tsv").read_text(encoding="utf-8")
+        text = resources.files("mirobody").joinpath("res", "loinc", "recall_synonyms.tsv").read_text(encoding="utf-8")
     except (FileNotFoundError, OSError):
+        logging.getLogger(__name__).warning("recall_synonyms.tsv missing: catalogue recall has no zh-en bridge")
         return {}
     out: dict[str, tuple[str, ...]] = {}
     for row in csv.DictReader(io.StringIO(text), delimiter="\t"):
@@ -340,7 +344,7 @@ TOOL_SCHEMA: dict[str, object] = {
             "type": "array",
             "items": {"type": "string"},
             "maxItems": 20,
-            "description": "Free-text terms to match against the person's catalogue, any language (e.g. [\"blood pressure\", \"血压\"]). Use when you do not know the exact indicator names. Omit both keywords and indicators to get the catalogue.",
+            "description": "Free-text terms to match against the person's catalogue, any language (e.g. [\"blood pressure\", \"血压\"], or a symptom: [\"headache\"] also finds an entry written 头疼). Use when you do not know the exact indicator names. Omit both keywords and indicators to get the catalogue.",
         },
         "indicators": {
             "type": "array",

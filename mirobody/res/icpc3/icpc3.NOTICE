@@ -1,0 +1,87 @@
+This file (icpc3.tsv) contains two components of ICPC-3, the International
+Classification of Primary Care, Third Revision: S (symptoms, complaints and
+abnormal findings) and D (diagnoses and diseases). The copyright of
+ICPC-3, in electronic form and in hard copy, is owned by WONCA (the World
+Organization of Family Doctors), published by the WONCA ICPC Foundation.
+
+WONCA's own licensing page states the terms, and they are quoted here rather
+than paraphrased:
+
+  "Within all three forms of licensing the ICPC-3 is free to be used by any
+   party under a Creative Commons License BY-ND. This includes the free use of
+   ICPC-3 by commercial parties."
+      -- www.icpc-3.info, "Licensing and contact", retrieved 2026-09-22
+
+So using ICPC-3 in this package, and using this package commercially, needs no
+agreement with anyone. The Official and Research Licenses described on that
+same page are how national institutes, universities and companies support the
+classification's maintenance and obtain translation rights; a Research License
+is named as a requirement for a research institute or university in a country
+without an Official License, which is a condition on institutions rather than
+on this file. Nothing in this package depends on holding one.
+
+  Publisher: WONCA ICPC Foundation, https://www.icpc-3.info/
+  Code system URI: http://terminology.hl7.org/CodeSystem/ICPC-3
+      (HL7 Terminology's NamingSystem-ICPC3. WONCA publishes no URI of its
+       own; the secretariat has been asked to confirm.)
+  Retrieved: 2026-09-22, from https://ct.icpc-3.info/download.php
+      (the Coding Tool's own bulk download, GET, JSON, no key. The per-class
+       browser API at browser.icpc-3.info/browse.php answers the same content
+       about 1,100 requests at a time and is not used.)
+
+WHAT THIS FILE IS
+-----------------
+1,218 rows, 331 in the S component and 887 in the D. One row per code: the
+component and chapter it sits in, its class kind, and the classification's own
+editorial content for it, the preferred term, the description, and the
+inclusion and exclusion annotations. Columns: component, chapter, code, kind,
+preferred, description, inclusions, exclusions, depth.
+
+`translate_build/icpc3.py` fetches and builds it from one request to WONCA's
+Coding Tool (`ct.icpc-3.info/download.php?language=english`, 10,886 rubrics),
+and keeps that answer under `internal/indicators/icpc3/` as the evidence that
+the table was not edited by hand.
+
+Two things ICPC-3 publishes are deliberately NOT here. The other components
+(interventions, results, functioning, administrative) are not shipped because
+nothing in this package codes them. And every crosswalk rubric (SNOMED CT,
+ICD-10, ICD-11, ICPC-1, ICPC-2, GBD, ICF) and the classification's index words
+are not shipped because they are not ICPC-3's own words: measured over 3,139
+index words, 1,273 (40.6%) are character-identical to a SNOMED CT description
+listed on the same code once the reference and its semantic tag are removed,
+and much of the rest carries ICD phrasing. Shipping them would put SNOMED CT
+and ICD derivatives into this directory, which 1.5.0 emptied of exactly that.
+
+NO DERIVATIVE WORK
+------------------
+CC BY-ND permits redistribution of the unadapted work and forbids publishing
+adaptations. So: every term, code and annotation is byte-for-byte what WONCA
+published. Nothing is translated, abbreviated, merged, re-worded or re-coded,
+and no code is dropped from a component that is present.
+
+Two changes, both mechanical and both applied everywhere. The rows are
+serialised as TSV with LF endings and `;` between the values of a multi-valued
+cell, which is the separator the source uses. And `<Reference>X</Reference>`,
+which the API wraps around a cross-referenced code, is unwrapped to `X`: it is
+markup rather than content, and left in it would put strings like "fear of
+prostate cancer <Reference>GS94.00</Reference>" into a search index as a
+surface nobody can type.
+
+In particular there is no Chinese ICPC-3. A translation is an adaptation, and
+WONCA licenses translations of the electronic version separately: "WONCA
+handles the licenses for the translation of the electronic version of the
+tabular list" (www.icpc-3.info, "Translations and Policy", retrieved
+2026-09-22). `res/icpc3/symptoms_zh.tsv` is not a translation: it is this project's
+own writing about which Chinese patient phrase points at which ICPC-3 code, it
+holds no ICPC-3 term in any language, and it is Apache-2.0 with the rest of
+the project. Display names shown to a user come from the `preferred` column of
+THIS file, in English.
+
+VERSION
+-------
+ICPC-3 publishes no release number inside the data retrieved above.
+`mirobody.translate.icpc3.release()` therefore reports
+`icpc-3+<12 hex>`, a digest over the parsed codes, components, preferred
+terms and inclusions of this file and over our own surface files beside it, so
+a coding names content that cannot disagree with the stamp. Replace any of
+them and the stamp changes with it.

@@ -135,6 +135,10 @@ def error_kind_for(fault_kind: str) -> str:
     return _ERROR_KIND_FOR[fault_kind]
 
 
+#: A row's `provenance` when the person said it and nothing measured it: a
+#: symptom felt, a diagnosis given. A renderer sets such rows apart.
+PROVENANCE_REPORTED = "reported"
+
 NEXT_NARROW_WINDOW = "narrow_window"
 NEXT_AGGREGATE = "aggregate"
 NEXT_USE_INDICATORS = "use_indicators"
@@ -353,6 +357,7 @@ __all__ = [
     "FAULT_KINDS",
     "Meta",
     "NEXT_STEPS",
+    "PROVENANCE_REPORTED",
     "RetryLedger",
     "canonical_key",
     "classify_fault",

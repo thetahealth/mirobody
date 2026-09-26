@@ -31,6 +31,15 @@ Two rules decided that shape, and they pull in opposite directions:
   wrong most of the time is a cost with no benefit. So medications got their
   own tool, and the readings tool went from thirteen parameters to eight.
 
+What the person reported (a symptom felt, a diagnosis given) passes the first
+rule, not the second: it is the same table and the same series as a reading,
+coded on ICPC-3 instead of LOINC, and every parameter still applies.
+`keywords=["headache"]` finds an entry written 头疼 through its code, and
+`aggregate="stats"` says how often. A 1.5.1 draft gave it a tool of its own,
+whose parameters were five of these eight. Those rows come back as a second
+table, the catalogue lists them first, and the web client's Indicators tab
+leaves them out, because the journal is its own tab there.
+
 What left, and why nothing was lost: `panel` (a panel is its member names;
 `keywords=["blood pressure"]` finds them), `exclude` (the catalogue is the
 second round), `order` (a baseline is `aggregate=stats`, whose `first` and
@@ -48,8 +57,16 @@ query_health_indicators  query_medications  query_genetic_data
 resolve_indicator  convert_unit  normalize_unit
 ```
 
+A second, separate surface needs no server: `mirobody mcp` speaks MCP over
+stdio on a bare `pip install mirobody`, with no database and no key. It serves
+the vocabularies, not a record: `standardize_reading` (a reading as printed
+to a FHIR Observation carrying its LOINC coding), `standardize_complaint`
+(ICPC-3), `standardize_report` (needs `[parse]` and a model key), and the same
+three terminology tools, whose bodies are shared (`translate.terminology`).
+
 `tools/list` hides a data tool from a user who has none of that data
-(`mcp/service.py::_DATA_GATED`): no readings, no `query_health_indicators`; no
+(`mcp/service.py::_DATA_GATED`): nothing measured or reported, no
+`query_health_indicators`; no
 plans, no `query_medications`; no genotype, no `query_genetic_data`. A chat turn
 gets all six plus the harness's own: `ls read_file write_file edit_file glob
 grep`, the `eval` REPL, and `ask_user`. `ask_user` is never an MCP tool — an

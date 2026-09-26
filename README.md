@@ -31,7 +31,7 @@ checkups? Self-host it all, and your health record stays in your hands.
        alt="Asking how cholesterol has changed: the agent finds three files that name the test differently, resolves them to one code, and charts the trend" width="880">
 </p>
 
-<p align="center"><em>Three files, three names for the same test, one LOINC code. The agent finds
+<p align="center"><em>Three files, three names for the same test, one standard code. The agent finds
 all three, aggregates the trend, and names the file every number came from.</em></p>
 
 ## What Mirobody does
@@ -42,6 +42,11 @@ all three, aggregates the trend, and names the file every number came from.</em>
 - **Every source, one record.** Garmin, Oura and Whoop connect directly;
   anything already written into Apple Health comes with it; PDFs, phone photos,
   spreadsheets, exports: 23 file types in all, and Mirobody reads them.
+- **Say how you feel, in your own words.** Type `headache since last night,
+  BP 150/95, no fever` into the journal and it files a headache and two
+  blood-pressure readings, each on its standard code, and leaves out the fever
+  you said you do not have. Your model splits the sentence; the codes come from
+  the vocabulary, never from the model.
 - **No hallucinations, everything traceable.** Every indicator lands in one
   settled system: either it gets a definite code, or it says it could not
   resolve one. It never invents one in between. Built and tested against real
@@ -80,13 +85,16 @@ from mirobody.engine import resolve, resolve_reading
 
 resolve("血红蛋白").loinc                                # '718-7'   any language, one code
 resolve("total cholesterol").loinc                     # '2093-3'  [Mass/volume]
-resolve_reading("total cholesterol", "5.0", "mmol/L")   # '14647-2' [Moles/volume]
-resolve_reading("total cholesterol", "193", "mg/dL")    # '2093-3'  the unit picks the code
+resolve_reading("total cholesterol", "5.0", "mmol/L").loinc  # '14647-2' [Moles/volume]
+resolve_reading("total cholesterol", "193", "mg/dL").loinc   # '2093-3'  the unit picks the code
 
 resolve("中性粒细胞百分比").loinc                          # '26511-6' Neutrophils/Leukocytes
 resolve_reading("中性粒细胞", "62 %", None).loinc          # '26511-6' a percentage...
 resolve_reading("中性粒细胞", "4.2", "10*9/L").loinc       # '26499-4' ...and a count are two codes
 resolve("血脂").resolved                                 # False    a category, not an observation
+
+from mirobody import standardize_reading                # the same answer as a FHIR Observation
+standardize_reading("血红蛋白", "13.5", "g/dL")["code"]["coding"][0]["code"]  # '718-7'
 ```
 
 **Pass the value and the unit when you have them.** A different unit means a
@@ -110,7 +118,7 @@ trace, so the answer at the end can be followed back to the page it came off:
 | Stage | What it does | Where |
 | --- | --- | --- |
 | **① Collect** | Lab reports, wearables, phone photos, genetic files, all pulled in. The source file is kept as it was, so every indicator points back to the page it was read from. | [`collect/`](mirobody/collect/) |
-| **② Translate** | One name to one code, one unit to UCUM, offline and deterministic. `A1c`, `HbA1c` and `Glycated Hemoglobin` become the same test here. | [`engine.py`](mirobody/engine.py) · [`translate/`](mirobody/translate/) |
+| **② Translate** | One name to one code, one unit to UCUM, offline and deterministic. `A1c`, `HbA1c` and `Glycated Hemoglobin` become the same test here, and `头疼` and `headache` the same complaint (ICPC-3). | [`engine/`](mirobody/engine/) · [`translate/`](mirobody/translate/) |
 | **③ Agent** | Ask over the coded record. Trend a value by minute, hour, day, week or month; get count, min, max, avg or change over any window in one call; compare across labs and devices, because they share one code. It charts the result in its reply, reads medications and genetic variants too, and names the file every number came from. | [`agent/`](mirobody/agent/) |
 
 ① records how the source spelled it, ② decides what it actually is, ③ answers
@@ -119,7 +127,9 @@ it, computing a baseline: all of it rests on the code ② hands over.
 
 **The agent does not have to be ours.** Every tool it uses is served at `/mcp`
 as well, gated per user. Claude Desktop, Cursor or your own loop run the same
-tools over the same record, and get back the same indicators.
+tools over the same record, and get back the same indicators. The vocabularies
+need no server at all: `uvx mirobody mcp` serves them over stdio, with no
+database and no key, to any MCP client.
 
 Garmin, Oura and Whoop connect with your own credentials from each vendor;
 [the setup guide](docs/provider-setup.md) walks it through. Apple Health goes
@@ -129,9 +139,12 @@ to integrate here at all.
 
 ## Privacy
 
-Nothing leaves your machine except calls to the model you chose. Reading a
-photo of a report, pulling indicators out of a PDF, answering your question:
-all three call it. Which provider and which model is the one key in your `.env`.
+Nothing leaves your machine except calls to the model you chose, and to a
+device vendor once you link one. Reading a photo of a report, pulling
+indicators out of a PDF, splitting a sentence you typed into the journal,
+answering your question: all four call the model. Which provider and which
+model is the one key in your `.env`. A linked Garmin, Oura or Whoop is called
+through its own API, for what it recorded and nothing else.
 
 **② Translate** stays local entirely: a name to a code, a unit to UCUM, looked
 up against a bundle that ships inside the package. No key, no network, no GPU,
@@ -173,8 +186,8 @@ subnet, so a second one needs a different `mirobody_network` subnet; and a
 Docker that refuses named volumes (rootless, hardened) needs bind mounts
 instead, which is what `compose.override.yaml.example` is for.
 
-Sign in as `you@mirobody.ai`, code `111111`, no mail provider needed. An
-account of your own is one request away:
+Sign in on the **Email code** tab as `you@mirobody.ai`, code `111111`, no mail
+provider needed. An account of your own is one request away:
 
 ```bash
 curl -X POST localhost:18060/password/register -H 'Content-Type: application/json' \
@@ -255,7 +268,7 @@ dataset.
 - **The package names the vocabulary that answered you**:
   `mirobody.BUNDLE_VERSION` → `loinc-2.83+2026.09.17-aacb2c715b56`, the release,
   the cut date, and a digest over the bundle's own contents.
-- **315 standard device indicators** and 331 UCUM units with dimensional
+- **316 standard device indicators** and 328 UCUM units with dimensional
   analysis. The full counts, and what the LOINC 2.83 cut keeps and drops, are
   in [Standardization in depth](docs/standardization.md).
 - **`pip install mirobody` is 2 packages**, numpy the only dependency.
@@ -270,6 +283,7 @@ consumer health product with 5,000+ registered users.
 | Offline resolution and units in your code | `pip install mirobody` — no key, no network |
 | A document turned into indicators | `pip install 'mirobody[parse]'` — PDF, image, Excel, Word, PowerPoint, text; only a scanned page reaches a vision model |
 | These tools in Claude Desktop, Cursor or your own loop | Settings → MCP: every agent tool is also served at `/mcp`, gated per user |
+| Coding in any MCP client, no server | `uvx mirobody mcp` (stdio): readings to FHIR Observations with their code, complaints to ICPC-3, units; no key, no database |
 | Your app talking to a deployment | The HTTP API, against the deployment you run — your app, your data layer |
 | A new tool or device provider | Drop a file into `mirobody/agent/tools/` or `mirobody/collect/providers/` and restart, or `pip install` a package declaring a `mirobody.providers` / `mirobody.tools` / `mirobody.agents` entry point |
 | Your own agent harness | `pip install 'mirobody[agent]'` for the middleware and virtual-filesystem backends, or point `AGENT_DIRS` at your directory to replace the shipped agent outright |
@@ -284,7 +298,7 @@ consumer health product with 5,000+ registered users.
 The highest-leverage contribution is a term the resolver gets wrong. Run
 `mirobody resolve "<term>"`; if the answer is wrong or empty,
 [report it](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml)
-or add a row to [`resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv)
+or add a row to [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv)
 plus a case to [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) —
 the coverage score is the review.
 
@@ -333,3 +347,5 @@ Releases land most weeks — [Watch](https://github.com/thetahealth/mirobody/sub
 Apache 2.0 · © 2026 [Theta Health](https://thetahealth.ai)
 
 </div>
+
+<!-- mcp-name: ai.thetahealth/mirobody -->

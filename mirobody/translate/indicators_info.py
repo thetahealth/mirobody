@@ -5,13 +5,13 @@ functions keep their names, members and shapes: every provider, the
 aggregator, the Apple upload path and two downstream repositories reference
 ``StandardIndicator.HEART_RATE.value.name``. What changed is where the data
 lives: this module used to BE the catalogue (3,131 lines of hand-written
-members); it is now a projection of ``mirobody.kernel.metrics`` (``res/metrics.tsv``),
+members); it is now a projection of ``mirobody.kernel.metrics`` (``res/catalog/metrics.tsv``),
 the library-layer catalogue that also carries the shape (``state_class``,
 ``aggregation_policy``), the LOINC code and the local-day window that the
 enum never had.
 
 The Chinese labels (``name_zh`` / ``description_zh``) come from
-``res/labels/zh.tsv`` through ``metrics.register_labels``: the catalogue is
+``res/catalog/labels/zh.tsv`` through ``metrics.register_labels``: the catalogue is
 English, and a deployment injects the languages it serves. Loading the
 shipped ``zh`` file here is what keeps ``get_all_indicators_info()`` (the
 payload the web client renders) byte-for-byte what it was.
@@ -128,7 +128,7 @@ StandardIndicator = Enum(  # type: ignore[misc]
     {m.member: _info(m) for m in metrics.ROWS},
     module=__name__,
 )
-StandardIndicator.__doc__ = "Standard health indicators — one member per catalogue row (``res/metrics.tsv``)."
+StandardIndicator.__doc__ = "Standard health indicators — one member per catalogue row (``res/catalog/metrics.tsv``)."
 StandardIndicator.identifier = property(lambda self: self.value.name)  # type: ignore[attr-defined]
 StandardIndicator.identifier.__doc__ = "Return the string identifier for backward compatibility."
 

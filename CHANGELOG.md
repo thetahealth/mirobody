@@ -1,6 +1,83 @@
-## Unreleased
+## 1.5.1
+
+The symptom axis: complaints and diagnoses in a person's own words, coded on
+ICPC-3, a journal that takes a whole sentence, and an agent that reads them
+beside the readings. Around it, UCUM ships with the tables that implement it,
+an MCP server runs on a bare `pip install mirobody`, and deleting an account
+now deletes it and ends its sessions.
 
 ### Added
+
+- **An MCP server that runs on `pip install mirobody` alone.** `mirobody mcp`
+  (or `uvx --from mirobody mirobody-mcp`) serves the shipped vocabularies over
+  stdio: no database, no key, and nothing but the library and numpy loaded.
+  `standardize_reading` answers a reading as printed with a FHIR Observation
+  carrying its LOINC code and UCUM unit (`血红蛋白 13.5 g/dL` gives 718-7), and
+  points a complaint (发烧) at `standardize_complaint` rather than code it;
+  how it decided rides in a `coding-decision` extension, so the resource
+  passes strict R4 validation. `standardize_complaint` codes a complaint or
+  diagnosis on ICPC-3, and
+  `standardize_report` a whole report when `[parse]` and a model key are
+  there. Four prompts and two resources (the vocabulary releases and their
+  notices, the indicator catalogue). Checked with the official MCP SDK's own
+  client. `server.json` is the MCP Registry entry; publishing it is a
+  separate step.
+- **`mirobody.standardize_reading`**, the same Observation from the library.
+
+- **Two ICPC-3 axes.** `mirobody.translate.resolve_symptom()` turns a
+  complaint in a person's own words into one ICPC-3 S code, and
+  `resolve_condition()` turns a named diagnosis into one D code. Each abstains
+  with a reason rather than guessing, on the same contract as `code()`: three
+  outcomes, a decision id, no guess. They are separate indexes and the caller
+  picks, so 发烧 answers only as a complaint and 高血压 only as a diagnosis.
+  The vocabulary ships verbatim under CC BY-ND, 1,218 codes in `res/icpc3/icpc3.tsv`
+  with its NOTICE; the everyday Chinese and English spellings that reach it are
+  ours, Apache-2.0, and hold no ICPC-3 term in any language, because WONCA
+  licenses translations of the electronic version separately. Display names are
+  ICPC-3's English. A coding names `icpc-3+<digest>`, a stamp over the shipped
+  terms and our surfaces, because ICPC-3 publishes no release number in the
+  data we hold.
+  The classification's index words are deliberately not shipped: 1,273 of
+  3,139 of them (40.6%) are character-identical to a SNOMED CT description on
+  the same code, and `res/` carries no SNOMED CT derivative.
+
+- **`/api/v1/journal`: log what a person reports, read it back by day.** POST
+  one entry with `kind` of `symptom` or `condition`, GET the log grouped by the
+  day it was felt, DELETE one. The day is the writer's (`tz`, else the
+  `X-Timezone` header; a `tz` no zone answers to is refused), and an entry
+  deleted can be logged again; a device
+  re-sync does not bring a deleted reading back. No new table: both are one
+  self-reported observation, so they inherit the append-only history, the day
+  placement and the coding trail. The list gives both names, the person's words
+  and the classification's, and keeps the entries the vocabulary could not
+  place with the reason attached. The agent and MCP clients read them through
+  `query_health_indicators`, as a table of their own beside the readings, so
+  "was my blood pressure up on the days I had headaches" is one call; the web
+  client's Indicators tab still lists readings only.
+
+- **One sentence, every entry it states.** `POST /api/v1/journal/sentence`
+  takes what a person typed ("我头疼，血压150/95，没发烧") and writes a
+  headache, a systolic and a diastolic reading. A model splits and types the
+  parts and is never asked for a code: each part is coded at write time on its
+  own axis, LOINC for 收缩压, ICPC-3 for 头疼. A part the sentence does not
+  quote, a negation, a guess, someone else's condition and a medication are
+  not written and come back with the reason. Writing into someone else's
+  record, the model is told whose it is, so 我爸咳嗽 in Dad's record is his. A
+  typed reading is held to the ingestion range a device reading of the same
+  code is (血压 400/300 is refused). On twelve real sentences
+  (gemini-3.8-flash) every part was split and typed as expected. On 160
+  symptoms split from real consultation texts, 22 were a fragment without its
+  body site (脱落 for hair loss) or no complaint at all (效果明显); the prompt
+  now keeps the site and drops improvements, which fixed 16 of the 22.
+  Readings typed this way are listed in the journal and are readings
+  everywhere else.
+
+- **Body water and bone percentage carry codes.** `bodyWater` was in the
+  catalogue uncoded since 1.4.0 and now carries `101684-9`; `bonePercentage`
+  is new, `101686-4`, with an ingestion range. An impedance scale reports the
+  mass and the percentage, and they differ in PROPERTY, so they are four rows.
+  The catalogue is 316 metrics over 307 names, and `TERMINOLOGY_VERSION` is
+  `1.5.1`.
 
 - Offline resolver: Russian panel terms as real Russian lab reports print
   them (МЕДСИ, INVITRO, state clinics; ~80 spellings from a 2019-2026 record
@@ -16,6 +93,113 @@
   analyte, in every language, must answer one code. The 13 analytes that do not
   agree yet, among them `urea` landing on urea nitrogen and the Russian
   differential counts, are strict xfails, each an open fix.
+
+### Changed
+
+- **The symptom axis, measured on real complaints (E0).** 200 complaints
+  split from real online-consultation texts (ChatMed, CC BY 4.0; English from
+  symptom_to_diagnosis), each labelled by three independent model annotators
+  blind to the resolver (Fleiss' kappa 0.84). On the 142 scorable symptoms the
+  resolver gave no wrong code (wrong-rate 0.000; the gate is 0.03) and coded
+  29, one in five: precise, and far from covering how people write. The
+  labels are awaiting a human review.
+
+- **UCUM ships with the tables that implement it.** `res/ucum/ucum-essence.xml`
+  is UCUM 2.2 byte for byte, with its notice and licence; an edited copy is
+  refused. A gate now holds our unit tables to it, and its first run found
+  five canonical units UCUM does not define: `/HPF` and `/LPF` (UCUM and
+  LOINC print `/[HPF]`, `/[LPF]`, so ours matched none of LOINC's 249 example
+  units), `osmol` (UCUM's is `osm`) and `k[arb'U]/mL`. The table is 328 units,
+  not 331; `k[arb'U]/L` stays because LOINC prints it. Every conversion
+  factor agreed with UCUM's definitions.
+
+- **`mirobody/res/` groups by vocabulary.** The bundle and everything that
+  steers it are under `res/loinc/`, the ICPC-3 table and our surfaces onto it
+  under `res/icpc3/`, the indicator catalogue and its labels under
+  `res/catalog/`; `crosswalks/` is unchanged, and `dose_forms.tsv` and
+  `EXTERNAL.tsv` stay at the top because they belong to no vocabulary. Against
+  1.5.0 the top level went from seven files and three directories to three and
+  five, and `res/README.md` now says what each file is and who opens it.
+  `mirobody.bundle.BUNDLE_PATH`, `RES_DIR` and `ALIAS_SRC_DIR` are computed and
+  keep working; code that hardcoded `res/fhir_loinc_bundle.tar.gz` does not.
+  The Git LFS patterns in `.gitattributes` are `res/**/*.gz` now, not
+  `res/*.gz`: a pattern that stops matching checks out the pointer text in
+  place of the data, which presents as a corrupt bundle rather than a wrong
+  path.
+- **`HRV` and `心率变异性` resolve to `112429-6`, not `76643-6`.** LOINC has no
+  code for heart rate variability with the algorithm unstated, so a bare "HRV"
+  asserts SDNN whichever of the three is chosen; `112429-6` is the only one
+  that does not also assert `SYSTEM=Heart` and, for `76643-6`, `METHOD=EKG`.
+  The device catalogue already carried it, so a wearable reading and a written
+  one now group into one series instead of two. `hrvRMSSD` keeps no code.
+- **`总睡眠时间` resolves to `93832-4`.** Its curated row pointed at a phrase
+  that resolved nowhere, so the term abstained while `睡眠时长` answered. On
+  the 7,354-case evaluation: two more correct, none lost, wrong-rate unchanged
+  at 0.030.
+- **A reading without a unit is not coded when the unit picks the code.**
+  `空腹血糖 6.1` was filed under the mg/dL code with no canonical value, and
+  the series statistics left it out. Where mass and moles codes both exist it
+  now waits for input (`unit:missing`); 心率 88 and 体温 38.2 still code.
+- **`POST /api/data` holds a reading to the ingestion ranges too**, and its
+  answer lists what it did not write, by reason (`rejected`).
+- **The upload gate takes what the parsers read, and nothing else.** `.xls`,
+  `.zip` and `.rar` were accepted and then failed (openpyxl opens `.xlsx` only,
+  and no code opens an archive); `.tif`, `.xlsm`, `.log`, `.htm` and `.html`
+  were readable and refused.
+- **The agent names the file each number came off**, from the `file` column
+  its query already returns.
+- **The two entry crosswalk tables read in English.** `loinc_device_base.tsv`
+  and `unmappable.tsv` are where a reader starts, and 136 of their rows
+  carried Chinese notes. The per-vendor tables beside them are unchanged.
+
+### Fixed
+
+- **Deleting an account deletes it, and its sessions end.** `/user/del` had
+  never deleted anything (neither statement was awaited), and a deleted
+  account's JWT kept working for its 30 days: every token check (routers,
+  middleware, the chat service, MCP bearer and personal URL) now asks whether
+  the account still exists, and a care-circle grant from or to a deleted
+  account grants nothing. Deletion needs `confirm` set to the account's email. A deleted
+  address can register again: the email column's own UNIQUE, which outranked
+  the partial index meant to allow it, is dropped on the next schema replay.
+- **A proxy upload needs a write grant.** `POST /files/upload` did not declare
+  `target_user_id`, so it was dropped and the upload filed as the caller's own.
+- **Unlinking Garmin no longer answers 500 when Garmin refuses.** The link is
+  removed either way; the answer says whether Garmin confirmed. Unlinking a
+  provider this deployment never configured is a 400.
+- **`/user/del` and `/user/update_name` without a session answer 401**, not 500.
+
+- **`server/discover` answers in the fields the MCP SDK reads.** It sent
+  `supportedProtocolVersions` and `serverInfo`; the SDK's `DiscoverResult`
+  requires `supportedVersions`, so its own client rejected every discover.
+- **An MCP client on 2025-11-25 can `ping`.** `resultType` went on every result,
+  and the TypeScript SDK 1.30.1 rejects it on an empty one; it is sent only to
+  2026-07-28 clients now, over HTTP and stdio. `initialize` over HTTP states one
+  version, not a second in `_meta`.
+- **`pip install 'mirobody[parse]'` and one key work outside a checkout.** The
+  default config was read from the working directory only, so `mirobody parse`
+  and `standardize_report` found no model anywhere else; the wheel carries it.
+- **Resolver fixes from a deployment test.** 尿渗透压 and 血清渗透压 reached
+  48149-9, a urine-to-serum ratio, and `serum osmolality` the calculated
+  value; they answer 2695-5 and 2692-2. `Bone percentage` reached a bone
+  alkaline phosphatase ratio and answers 101686-4. RMSSD spellings, which the
+  trailing-abbreviation strip read as SDNN's `HRV`, refuse. `mOsm/kgH2O` and
+  `osmol` normalize. The 7,354-case evaluation is unchanged (0.9158 / 218).
+- **`convert_unit` converts a moles code**, and blood urea nitrogen (6299-2) is
+  converted as nitrogen: it carried the whole urea molecule's mass, 2.14x off.
+
+- **A complete catalogue no longer says it was cut.** Each catalogue row
+  carries the catalogue's size, and the truncation check read it as that
+  series' row count, so any catalogue of two or more answered `truncated`
+  and told the model to narrow its window.
+
+- **A symptom no longer codes as a lab analyte.** `collect.observations` sent
+  every prepared row to the lexical LOINC resolver, which cannot abstain from
+  a name it half recognises: a `kind=symptom` draft of 发烧 reached 153
+  candidates and coded to 103717-5, Crimean-Congo hemorrhagic fever virus RNA
+  in Blood. `th_concept` also takes a row for any code whose vocabulary gave
+  it a name, not only the LOINC ones, so a symptom series has a standard name
+  beside the words the person wrote.
 
 ## 1.5.0
 

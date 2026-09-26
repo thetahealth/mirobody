@@ -41,6 +41,7 @@ _EXPORTS = {
     "parse_file": "engine",
     "resolve": "engine",
     "resolve_reading": "engine",
+    "standardize_reading": "engine",
 }
 
 __all__ = [*_EXPORTS, "BUNDLE_VERSION", "__version__"]
@@ -54,6 +55,7 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
         parse_file,
         resolve,
         resolve_reading,
+        standardize_reading,
     )
 
     BUNDLE_VERSION: str
@@ -91,4 +93,4 @@ try:
     __version__ = _version("mirobody")
 except Exception:
     import os
-    __version__ = os.environ.get("MIROBODY_VERSION") or "1.5.0"
+    __version__ = os.environ.get("MIROBODY_VERSION") or "1.5.1"

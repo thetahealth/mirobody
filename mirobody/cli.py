@@ -308,8 +308,15 @@ def _cmd_resolve(args: argparse.Namespace) -> None:
             print(f"  {_pad(term, width)}  {loinc:<16}  {r.canonical}"
                   + (f"   [{r.candidates} candidates]" if r.candidates > 1 else ""))
         else:
-            print(f"  {_pad(term, width)}  unresolved — not in the lexical index "
-                  "(the full semantic pipeline may still resolve it)")
+            print(f"  {_pad(term, width)}  unresolved: not in the lexical index, and no code is "
+                  "given rather than a guessed one")
+
+
+def _cmd_mcp(args: argparse.Namespace) -> None:
+    """The stdio MCP server over the shipped vocabularies (no database, no key)."""
+    from mirobody.mcp.stdio import main as serve_stdio
+
+    raise SystemExit(serve_stdio([]))
 
 
 def _cmd_parse(args: argparse.Namespace) -> None:
@@ -478,6 +485,9 @@ def main(argv: list[str] | None = None) -> None:
     p_resolve = sub.add_parser("resolve", help="resolve indicator names to standard codes — fully offline, no key needed")
     p_resolve.add_argument("terms", nargs="+", help="indicator names in any supported language")
     p_resolve.set_defaults(func=_cmd_resolve)
+
+    p_mcp = sub.add_parser("mcp", help="run the stdio MCP server over the offline vocabularies (no key, no database)")
+    p_mcp.set_defaults(func=_cmd_mcp)
 
     p_migrate = sub.add_parser(
         "migrate-observations",

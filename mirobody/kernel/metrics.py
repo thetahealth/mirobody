@@ -1,6 +1,6 @@
 """The device-metric catalogue: what a reading's *name* means.
 
-``mirobody/res/metrics.tsv`` is the one table behind every "which indicator is
+``mirobody/res/catalog/metrics.tsv`` is the one table behind every "which indicator is
 this, what unit does it carry, and how does a day of it summarise" question.
 It used to be a 3,131-line Python enum in ``pulse/standardize/indicators_info``
 (291 names, hand-written, with the aggregation *method* but never the *shape*),
@@ -51,7 +51,7 @@ from collections.abc import Iterator
 #: Bumps whenever a row's identity fields change (name, unit_ucum, state_class,
 #: aggregation_policy, loinc, window). Consumers that persist standardised
 #: facts store it next to the row, so a later catalogue change is visible.
-TERMINOLOGY_VERSION = "1.5.0"
+TERMINOLOGY_VERSION = "1.5.1"
 
 #: The two confidences a code may carry; empty when the row has no code.
 CONFIDENT = "confident"
@@ -176,7 +176,7 @@ def _load() -> tuple[list[Metric], dict[str, Metric], dict[str, Metric]]:
             description=r.get("description", ""),
             since=r.get("since") or TERMINOLOGY_VERSION,
         )
-        for r in _read_tsv("metrics.tsv")
+        for r in _read_tsv("catalog/metrics.tsv")
     ]
     by_member: dict[str, Metric] = {}
     by_name: dict[str, Metric] = {}
@@ -256,7 +256,7 @@ def register_labels(locale: str, table: dict[str, tuple[str, str]]) -> None:
     """Attach display labels in one language: ``{name_or_member_or_category:
     (label, description)}``. The catalogue is English; a deployment that
     serves another language registers its own file (the reference
-    application ships ``res/labels/zh.tsv`` as an example)."""
+    application ships ``res/catalog/labels/zh.tsv`` as an example)."""
     _labels.setdefault(locale, {}).update(table)
 
 
@@ -272,11 +272,11 @@ def description(key: str, locale: str, default: str = "") -> str:
 
 
 def load_labels_resource(locale: str) -> None:
-    """Register the labels shipped under ``res/labels/<locale>.tsv``
+    """Register the labels shipped under ``res/catalog/labels/<locale>.tsv``
     (``kind, key, label, description`` rows). Called by the reference
     application, not by the library."""
     table: dict[str, tuple[str, str]] = {}
-    for r in _read_tsv(f"labels/{locale}.tsv"):
+    for r in _read_tsv(f"catalog/labels/{locale}.tsv"):
         table[r["key"]] = (r.get("label", ""), r.get("description", ""))
     register_labels(locale, table)
 

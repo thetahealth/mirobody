@@ -1,0 +1,1103 @@
+# Offline-resolver overrides:  <term as printed>  TAB  <target the index resolves>
+#
+# WHY THIS FILE EXISTS, and why it is not aliases_src/{lang}_curated.tsv
+# ---------------------------------------------------------------------
+# Those files are inputs to the BUNDLE BUILD (indicator/fhir/embeddings/
+# lexicon.py). Their right-hand side is a descriptive English phrase —
+# "Total cholesterol TC", "Leukocyte count WBC" — which is exactly the shape
+# the alias-index build wants.
+#
+# This file serves the OFFLINE RESOLVER at runtime, where the right-hand side
+# has a different job: it must itself be a key the finished alias index can
+# look up. "Total cholesterol TC" is a fine build input and a dead end at
+# lookup time. Rewriting the build inputs to suit the resolver would have
+# quietly degraded the semantic pipeline, so the two concerns get two files.
+#
+# Every row here was a documented failure in test_engine_coverage.py. Two
+# kinds of failure appear, and the second is the dangerous one:
+#
+#   MISS  — "LDL cholesterol" resolved to nothing. The index is built from
+#           LOINC long common names, so it knows the formal name and the lab
+#           short code (LDL-C) but not the phrase humans write. Plain English
+#           was, counter-intuitively, the worst-covered language.
+#
+#   WRONG — "血红蛋白" resolved to Hemoglobin A1c: a different test, returned
+#           with full confidence. It matches 301 index rows and the commonness
+#           prior likes HbA1c best. A resolution-rate metric scores this as a
+#           success; a patient reading the report would not.
+#
+# CONTRIBUTING: this is the lowest-barrier useful PR in the repo. Find a term
+# that resolves wrong or not at all, add one row here plus one case in
+# mirobody/test_engine_coverage.py, and raise COVERAGE_FLOOR. Any language.
+# Targets are validated by the test suite, so a typo'd target fails CI rather
+# than shipping.
+
+# ══ English ═══════════════════════════════════════════════════════════════
+# ── lipid panel ──────────────────────────────────────────────────────────
+total cholesterol	Cholesterol
+cholesterol total	Cholesterol
+serum cholesterol	Cholesterol
+serum creatinine	Creatinine
+serum total bilirubin	Bilirubin
+LDL cholesterol	LDL-C
+LDL-cholesterol	LDL-C
+low density lipoprotein cholesterol	LDL-C
+low-density lipoprotein cholesterol	LDL-C
+HDL	HDL-C
+LDL	LDL-C
+High-Density Lipoprotein	HDL-C
+Low-Density Lipoprotein	LDL-C
+HDL cholesterol	HDL-C
+HDL-cholesterol	HDL-C
+high density lipoprotein cholesterol	HDL-C
+high-density lipoprotein cholesterol	HDL-C
+
+# ── complete blood count ─────────────────────────────────────────────────
+# The bare plural nouns (Leukocytes, Erythrocytes, Hematocrit) are not index
+# keys on their own; the LOINC short names are. "HCT" alone is not usable as
+# a target either — it collides with Calcitonin.
+white blood cell count	WBC # Bld
+white blood cells	WBC # Bld
+WBC count	WBC # Bld
+leukocyte count	WBC # Bld
+red blood cell count	RBC # Bld
+red blood cells	RBC # Bld
+RBC count	RBC # Bld
+erythrocyte count	RBC # Bld
+hematocrit	HCT Fr Sg Auto
+haematocrit	HCT Fr Sg Auto
+packed cell volume	HCT Fr Sg Auto
+
+# ── metabolic panel ──────────────────────────────────────────────────────
+fasting glucose	Fasting glucose [Mass/volume] in Serum or Plasma
+fasting blood glucose	Fasting glucose [Mass/volume] in Serum or Plasma
+fasting plasma glucose	Fasting glucose [Mass/volume] in Serum or Plasma
+blood sugar	Glucose
+# A post-meal reading is its own code, not plain glucose: 16915-1 when the
+# report does not say how long after, 1521-4 when it says two hours.
+postprandial blood glucose	Glucose^post meal
+postprandial glucose	Glucose^post meal
+post prandial blood sugar	Glucose^post meal
+PPBS	Glucose^post meal
+PPG	Glucose^post meal
+2-hour postprandial glucose	Glucose^2H post meal
+2 hour postprandial glucose	Glucose^2H post meal
+BUN	Urea nitrogen
+total bilirubin	Bilirubin
+bilirubin total	Bilirubin
+
+# ── liver enzymes ────────────────────────────────────────────────────────
+# Bare acronyms are how every report actually prints these.
+AST	Aspartate aminotransferase
+SGOT	Aspartate aminotransferase
+SGPT	Alanine aminotransferase
+ALP	Alkaline phosphatase
+# Isoenzymes and components. `Creatine Kinase-MB` is not "Creatine Kinase"
+# abbreviated: the tail names a fraction of it, and the parent's code is the
+# wrong answer at full confidence. `lexical.is_component_suffix` keeps the
+# hyphen rule off these tails; the rows take them to their own component.
+Creatine Kinase-MB	Creatine kinase.MB
+Creatine Kinase MB	Creatine kinase.MB
+CK-MB isoenzyme	Creatine kinase.MB
+creatine kinase MB isoenzyme	Creatine kinase.MB
+Lactate Dehydrogenase-LDH1	LDH1
+Lactate Dehydrogenase-LDH2	LDH2
+Lactate Dehydrogenase-LDH3	LDH3
+Lactate Dehydrogenase-LDH4	LDH4
+Lactate Dehydrogenase-LDH5	LDH5
+LDH-1	LDH1
+LDH-2	LDH2
+LDH-3	LDH3
+LDH-4	LDH4
+LDH-5	LDH5
+BALP	Alkaline phosphatase.bone
+B-ALP	Alkaline phosphatase.bone
+bone ALP	Alkaline phosphatase.bone
+bone alkaline phosphatase	Alkaline phosphatase.bone
+bone-specific alkaline phosphatase	Alkaline phosphatase.bone
+Alkaline Phosphatase-BALP	Alkaline phosphatase.bone
+Alkaline Phosphatase-Bone	Alkaline phosphatase.bone
+
+# ── endocrine & vitamins ─────────────────────────────────────────────────
+free T4	FT4
+free thyroxine	FT4
+# `FT3` in the index is 3050-2, T3 resin uptake: a different test that shares
+# the letters. Every spelling of free T3 goes to the component instead.
+FT3	Triiodothyronine.free
+free T3	Triiodothyronine.free
+free triiodothyronine	Triiodothyronine.free
+游离T3	Triiodothyronine.free
+游离三碘甲状腺原氨酸	Triiodothyronine.free
+vitamin D	Calcidiol
+vitamin D3	Calcidiol
+25-OH vitamin D	Calcidiol
+25 hydroxy vitamin D	Calcidiol
+vitamin B12	Cobalamin
+# `vitamin B9` answered 81066-3, Vitamin B9 (Folate) INTAKE 24 hour Estimated:
+# a dietary rate on ^Patient, not a serum concentration. `folate` and `叶酸`
+# already give 2284-8. Every other vitamin and mineral was checked and lands
+# on a serum code; B9 is the only one with an intake sibling in the index.
+vitamin B9	Folate
+维生素B9	Folate
+叶酸片	Folate
+
+# ── extended panels ──────────────────────────────────────────────────────
+# Second sweep, from a 154-term hunt across the panels a physical actually
+# orders. Same failure shape as above: the formal LOINC name is indexed, the
+# name on the printout is not.
+lipoprotein(a)	Lp(a)
+Lp(a)	Lp(a)
+non-HDL cholesterol	Cholesterol.non HDL
+Blood Glucose	glucose
+Cholesterol/HDL Ratio	Cholesterol.total/Cholesterol.in HDL
+LDL/HDL Ratio	Cholesterol.in LDL/Cholesterol.in HDL
+Lipid-Free Fatty Acids	free fatty acids
+Lipid-Phospholipids	phospholipid
+Non-HDL Cholesterol-Non-HDL	Cholesterol non HDL
+Non-HDL Cholesterol-Non-HDL-C	Cholesterol non HDL
+Lipid-Low-Density Lipoprotein Calculated	LDL-C
+VLDL cholesterol	Cholesterol VLDL
+total protein	Protein
+reticulocyte count	Reticulocytes
+direct bilirubin	Bilirubin.glucuronidated
+conjugated bilirubin	Bilirubin.glucuronidated
+indirect bilirubin	Bilirubin.non-glucuronidated
+unconjugated bilirubin	Bilirubin.non-glucuronidated
+creatinine clearance	Creatinine renal clearance
+T3	Triiodothyronine
+total T3	Triiodothyronine
+T4	Thyroxine
+total T4	Thyroxine
+anti-TPO	Thyroperoxidase Ab
+TPO antibody	Thyroperoxidase Ab
+LH	Luteinizing hormone
+CA-125	Cancer Ag 125
+CA125	Cancer Ag 125
+CA19-9	Cancer Ag 19-9
+free PSA	Prostate specific Ag.free
+OGTT	Glucose^2H post 75 g glucose PO
+oral glucose tolerance test	Glucose^2H post 75 g glucose PO
+urine glucose	Glucose Ur-mCnc
+urine ketones	Ketones Ur-mCnc
+urine protein	Prot Ur Ql
+urine pH	pH Ur
+specific gravity	SP GR Ur
+urine specific gravity	SP GR Ur
+
+# ── wearables ────────────────────────────────────────────────────────────
+# The sleep stages, skin temperature and climb a watch reports. LOINC 2.75
+# and 2.82 name them, and no alias table reached the everyday spellings.
+deep sleep	Deep sleep duration
+deep sleep time	Deep sleep duration
+light sleep	Light sleep duration
+light sleep time	Light sleep duration
+REM sleep	REM sleep duration
+REM sleep time	REM sleep duration
+awake time	Awakening duration
+time in bed	Duration in bed
+sleep latency	Duration of falling asleep
+awakenings	Number of awakenings
+skin temperature	Body surface temperature
+wrist temperature	Body surface temperature
+elevation gain	Elevation climbed
+floors climbed	Flights climbed
+
+# ══ 中文（简体）═══════════════════════════════════════════════════════════
+# zh.tsv 由 LOINC 官方中文译名机器生成，收的是学名（"葡萄糖"），化验单上
+# 实际印的口语名（"血糖"、"总胆固醇"）反而缺失。
+血红蛋白	Hemoglobin
+血色素	Hemoglobin
+血糖	Glucose
+空腹血糖	Fasting glucose [Mass/volume] in Serum or Plasma
+餐后血糖	Glucose^post meal
+总胆固醇	Cholesterol
+胆固醇	Cholesterol
+低密度脂蛋白胆固醇	LDL-C
+高密度脂蛋白	HDL-C
+低密度脂蛋白	LDL-C
+高密度脂蛋白胆固醇	HDL-C
+白细胞计数	WBC # Bld
+白细胞	WBC # Bld
+红细胞计数	RBC # Bld
+红细胞	RBC # Bld
+血细胞比容	HCT Fr Sg Auto
+红细胞压积	HCT Fr Sg Auto
+总胆红素	Bilirubin
+游离甲状腺素	FT4
+维生素D	Calcidiol
+维生素B12	Cobalamin
+# electrolytes and the basic panel — the single-character names are the ones a
+# Chinese report prints, and none of them were indexed
+钾	Potassium
+血钾	Potassium
+钠	Sodium
+血钠	Sodium
+氯	Chloride
+氯化物	Chloride
+钙	Calcium
+血钙	Calcium
+镁	Magnesium
+磷	Phosphate
+无机磷	Phosphate
+总蛋白	Protein
+血清总蛋白	Protein
+糖化血红蛋白	HbA1c
+收缩压	Systolic blood pressure
+舒张压	Diastolic blood pressure
+血氧饱和度	Oxygen saturation
+网织红细胞计数	Reticulocytes
+尿蛋白	Prot Ur Ql
+尿糖	Glucose Ur-mCnc
+尿酮体	Ketones Ur-mCnc
+# 同工酶与组分：后缀指母酶的一个组分，不是它的缩写。化验单上单印
+# "肌酸激酶同工酶" 报的是 CK-MB 的量，不是同工酶谱的判读（14680-3）。
+肌酸激酶同工酶	Creatine kinase.MB
+肌酸激酶同工酶MB	Creatine kinase.MB
+骨碱性磷酸酶	Alkaline phosphatase.bone
+骨特异性碱性磷酸酶	Alkaline phosphatase.bone
+骨源性碱性磷酸酶	Alkaline phosphatase.bone
+# 可穿戴设备：睡眠分期、皮温、爬升。有码而无中文键。
+深睡	Deep sleep duration
+深睡时长	Deep sleep duration
+深度睡眠	Deep sleep duration
+浅睡	Light sleep duration
+浅睡时长	Light sleep duration
+快速眼动睡眠	REM sleep duration
+REM睡眠	REM sleep duration
+清醒时长	Awakening duration
+卧床时长	Duration in bed
+入睡潜伏期	Duration of falling asleep
+清醒次数	Number of awakenings
+皮肤温度	Body surface temperature
+体表温度	Body surface temperature
+腕温	Body surface temperature
+爬升高度	Elevation climbed
+爬楼层数	Flights climbed
+
+# ══ 日本語 ════════════════════════════════════════════════════════════════
+# 血色素・尿蛋白・尿糖 は簡体字セクションにもある（同形同義の共有漢語）。
+# 各言語セクションを自己完結に保つため、重複を承知でここにも載せる。
+# 「中性脂肪」は字面どおり読むと便中の中性脂肪 (Fat.neutral in Stool) に
+# 落ちる。口語形は明示的な対応付けが要る。
+ヘモグロビン	Hemoglobin
+血色素	Hemoglobin
+総コレステロール	Cholesterol
+中性脂肪	Triglyceride
+クレアチニン	Creatinine
+尿酸値	Urate
+血糖値	Glucose
+空腹時血糖	Fasting glucose [Mass/volume] in Serum or Plasma
+白血球数	WBC # Bld
+赤血球数	RBC # Bld
+血小板数	Platelet count
+ヘマトクリット	HCT Fr Sg Auto
+総ビリルビン	Bilirubin
+# 日本語 was the weakest language in the 154-term hunt (13 of 20 missed): the
+# katakana forms and the short kanji names a 健康診断 prints are absent from the
+# machine-derived ja.tsv, which carries LOINC's formal translations.
+白血球	WBC # Bld
+赤血球	RBC # Bld
+血小板	Platelet count
+総蛋白	Protein
+アルブミン	Albumin
+尿素窒素	Urea nitrogen
+ナトリウム	Sodium
+カリウム	Potassium
+カルシウム	Calcium
+クロール	Chloride
+マグネシウム	Magnesium
+糖化ヘモグロビン	HbA1c
+ヘモグロビンA1c	HbA1c
+コレステロール	Cholesterol
+尿蛋白	Prot Ur Ql
+尿糖	Glucose Ur-mCnc
+# The spelled-out ホルモン names. `甲状腺刺激ホルモン(TSH)` already resolved via
+# the parenthetical strip, and the bare form — which is what a 健康診断結果表
+# actually prints — did not. Found by the four-language row in
+# examples/01_resolve_offline.py, which shows one analyte in en/简/繁/日 and
+# marks the row when the four disagree.
+甲状腺刺激ホルモン	Thyroid stimulating hormone
+チロトロピン	Thyrotropin
+副甲状腺ホルモン	Parathyrin
+収縮期血圧	Systolic blood pressure
+拡張期血圧	Diastolic blood pressure
+# NOTE: 血圧 / "blood pressure" on its own is a panel term and resolves to the
+# panel code — see the "panel terms" section below for why that is not the same
+# as answering it with one of these two.
+
+# ══ Deliberate non-answers ════════════════════════════════════════════════
+# Target `!unresolved` means: never answer this term. These name a category
+# with no panel code of its own, so any single code is a wrong answer: "血脂"
+# is four analytes and LOINC's lipid panels differ by which children they
+# include, so picking one is picking an assumption.
+#
+# A panel TERM that has a real panel CODE is NOT listed here — it is aliased to
+# that code in the "panel terms" section below. The two cases look alike and are
+# opposites: a panel code tells the caller "expect components", which is the
+# very thing we would be refusing in order to say.
+lipid panel	!unresolved
+血脂	!unresolved
+
+# Two more of the same kind: category headings whose wrong answers are
+# ORDINARY LAB CODES, so only an explicit refusal can catch them.
+#
+#   维生素 ("vitamins") used to answer 96450-2 *Hepatocellular carcinoma risk
+#   [Score] GALAD*, and the next candidate down is 1823-4 *Alpha tocopherol*:
+#   vitamin E, a perfectly valid serum concentration and still the wrong
+#   answer, because the heading covers D, B12 and folate too and nothing in
+#   the word chooses E.
+#
+#   肿瘤标志物 ("tumour markers") answers 53959-3 *Choriogonadotropin.tumor
+#   marker* — one marker standing in for the category, on the panel where a
+#   wrong answer is least forgivable.
+#
+# The English and Japanese spellings (vitamins, tumor/tumour markers,
+# ビタミン, 腫瘍マーカー) already resolve to nothing and need no row.
+维生素	!unresolved
+維生素	!unresolved
+# The bare word answered 96450-2, a liver-cancer risk score, at full
+# confidence: it is a heading, not a test.
+Vitamin	!unresolved
+Vitamins	!unresolved
+肿瘤标志物	!unresolved
+腫瘤標誌物	!unresolved
+# Two report SECTION headings. 尿常规 answered 19159-3 (a specimen collection
+# method) and 电解质 answered 19096-7 (a 24-hour urine narrative): the alias
+# index had nothing better than a code of the wrong kind. An axis rule that
+# rejected such candidates (PROPERTY Prid/Imp/Find, SCALE Nar/Doc) was
+# measured on 7,354 cases and cost several hundred correct answers for eight
+# saved, so the two headings are refused here, like 血脂 above.
+尿常规	!unresolved
+尿常規	!unresolved
+电解质	!unresolved
+電解質	!unresolved
+
+# Specimen-prefixed Chinese, which is how a real report prints them. The index
+# carries the bare noun (肌酐, 尿酸, 总胆固醇) because that is the alias shape
+# the lexicon was built from; a printed 中文 panel writes 血清肌酐 / 尿白细胞.
+# Two of these did not merely miss — they resolved CONFIDENTLY WRONG, which is
+# the failure mode this project scores as worse than silence:
+#   血清肌酐  -> 44760-7 MELD score          (its long name contains "serum creatinine")
+# The ENGLISH forms of that same trap were never swept, and a 2026-09-14
+# end-to-end run over real English-language reports hit both: `Serum
+# Creatinine` AND `Serum Total Bilirubin` answered 44760-7, because the MELD
+# score's long name names all three of its inputs. Two different analytes on
+# one code is worse than either being wrong alone — it MERGES their readings
+# into one series. Both are above, beside `serum cholesterol`. The rest of
+# the English `serum <analyte>` family abstains rather than answering wrong
+# (glucose, sodium, potassium, albumin, total protein, uric acid, calcium,
+# ALT all return nothing); that is a recall gap, not a defect, and the
+# symmetric sweep belongs with an eval re-baseline, not with a patch release.
+#   血清白蛋白 -> chicken serum albumin nGal d 5  (an allergen panel entry)
+# Found by resolving the terms printed in mirobody/test_engine_coverage.py's
+# newest cases, which were lifted verbatim off a 2025 physical report.
+血清肌酐	Creatinine
+血清尿酸	Urate
+血清总胆固醇	Cholesterol
+血清甘油三酯	Triglyceride
+血清葡萄糖	Glucose
+全血葡萄糖	Glucose
+血清白蛋白	Albumin
+血清钾	Potassium
+血清钠	Sodium
+血清谷丙转氨酶	Alanine aminotransferase
+血清谷草转氨酶	Aspartate aminotransferase
+血清总胆红素	Bilirubin
+尿白细胞	Leukocyte esterase
+尿比重	Specific gravity of Urine
+# CBC full names as a 中文 report prints them; the ABBREVIATION already
+# resolved (MCV -> 30428-7), the spelled-out Chinese did not. Same shape as the
+# 血清 rows above, found in the same 9-page scanned report.
+平均红细胞体积	MCV
+平均血红蛋白含量	MCH
+平均血红蛋白浓度	MCHC
+平均血小板体积	MPV
+血小板平均体积	MPV
+超敏C反应蛋白	hs-CRP
+
+# ══ device & wearable indicators ═══════════════════════════════════════════
+# Fourth sweep, prompted by the platform API docs: `POST /v1/data` says device
+# and wearable data is the MAIN form structured records take, and every example
+# in it names indicators the way a device SDK does — `steps`,
+# `resting_heart_rate`, `sleep_duration`. The lab panels above were covered;
+# this vocabulary was not. Underscore flattening (`OfflineResolver._candidate_keys`)
+# handles the snake_case shape, so these rows only need the human wording.
+# Two were WRONG rather than missing:
+#   SpO2  -> a Deprecated "Fractional oxyhemoglobin ... Preductal" row with no
+#            LOINC at all — resolved=True carrying an empty code.
+#   HRV   -> 40991-2 Rhinovirus+Enterovirus RNA. Fixed below, with the code
+#            the HRV section names.
+resting heart rate	heart rate resting
+静息心率	heart rate resting
+安静時心拍数	heart rate resting
+心率变异性	Heart rate variability SDNN
+steps	Number of steps
+step count	Number of steps
+daily steps	Number of steps
+睡眠时长	sleep duration
+睡眠時間	sleep duration
+body fat percentage	Percentage of body fat Measured
+体脂率	Percentage of body fat Measured
+SpO2	oxygen saturation
+血氧	oxygen saturation
+# Fasting glucose is its OWN LOINC concept (1558-6, COMPONENT
+# `Glucose^post CFst`), not plain glucose (2339-0). These rows used to target
+# `Glucose`, which collapsed a fasting reading into the generic glucose
+# series — the distinction the ordering physician made, thrown away on
+# ingest.
+FBG	Fasting glucose [Mass/volume] in Serum or Plasma
+FPG	Fasting glucose [Mass/volume] in Serum or Plasma
+glucose, fasting	Fasting glucose [Mass/volume] in Serum or Plasma
+血糖(空腹)	Fasting glucose [Mass/volume] in Serum or Plasma
+
+# ══ lab-report abbreviations ══════════════════════════════════════════════
+# The short codes a CBC / 生化 printout puts in its own column. They were the
+# worst-covered surface in the resolver, and two of them were WRONG rather than
+# missing — the same near-miss class as 血红蛋白 -> HbA1c, just wearing the
+# abbreviation instead of the word:
+#
+#   HGB -> 4548-4  Hemoglobin A1c        (a diabetes marker for a CBC line)
+#   HCT -> 1992-7  Calcitonin            (a thyroid hormone for hematocrit)
+#
+# Targets are the phrasings the index actually keys on; each row was checked
+# with `mirobody resolve` before being written down.
+HGB	Hemoglobin
+Hb	Hemoglobin
+HCT	HCT Fr Sg Auto
+PCV	HCT Fr Sg Auto
+PLT	Platelet count PLT
+RBC	RBC # Bld
+WBC	WBC # Bld
+TC	Cholesterol
+TG	Triglyceride
+GLU	Glucose
+Cr	Creatinine
+CREA	Creatinine
+UA	Urate
+TP	Protein
+CK	Creatine kinase
+# Abbreviations that name more than one test resolve to the WIDESPREAD
+# reading rather than refusing. A panel name is a different case and stays
+# blocked (see the non-answers section): there, no single observation code
+# can be right. Here one reading dominates ordinary use by a wide margin,
+# and an honest miss on `CA` helps nobody when 钙 is what a 生化 panel means
+# by it ~always. What must not happen is the index picking for us — that is
+# how HGB became HbA1c — so each is written down.
+#   CA = 钙 (calcium), not 癌抗原 CA-125/CA19-9 (those spell themselves out)
+#   PT = 凝血酶原时间 (prothrombin time), not 前列腺素 / 甲状旁腺
+#   MG = 镁 (magnesium), not the unit mg
+#   Cr = 肌酐 (creatinine), not chromium — and note `Cr`/`CR` casefold to one
+#        key, so only one row can win
+CA	Calcium
+PT	Prothrombin time (PT)
+MG	Magnesium
+
+# ══ 日本語 — 健康診断 terms the ja.tsv sweep does not carry ═══════════════════
+# ja.tsv is 16,809 rows but its right-hand side is overwhelmingly SNOMED-shaped:
+# diseases and organisms (Jaagsiekte sheep retrovirus, Ornithine
+# transcarbamoylase deficiency), not LOINC observations — only 3% of its
+# distinct targets are keys the observation index can look up. Everyday 健康診断
+# names come out at 20/24 all the same, via zh/ja_curated plus the index; these
+# four are what a spot-check of the panel found missing.
+LDLコレステロール	LDL-C
+HDLコレステロール	HDL-C
+血清鉄	Iron
+鉄	Iron
+フェリチン	Ferritin
+
+# HRV is heart rate variability. It is also the abbreviation for human
+# rhinovirus, and the index preferred that reading: `HRV` answered 40991-2
+# Rhinovirus+Enterovirus RNA, a PCR panel, for what every wearable on the
+# market means by those three letters. Same rule as CA/PT/MG above: the
+# widespread reading, written down rather than left to the commonness prior.
+#
+# The code is 112429-6, which is also what the catalogue's `hrvSDNN` carries,
+# so a wearable reading and a written one group together (owner, 2026-09-22).
+# LOINC has no unqualified-HRV code: all three candidates are SDNN. The other
+# two assert more than the bare word does, 76643-6 a METHOD of EKG and both of
+# them SYSTEM=Heart, and no text reaches them now (measured: naming the EKG
+# abstains, and so does their own long common name).
+HRV	Heart rate variability SDNN
+heart rate variability	Heart rate variability SDNN
+HRV SDNN	Heart rate variability SDNN
+心率变异性SDNN	Heart rate variability SDNN
+# 凝血酶原时间 answered 34714-6 INR: a DERIVED ratio, not the time itself.
+凝血酶原时间	Prothrombin time (PT)
+
+# ══ panel terms that DO have a panel code ═════════════════════════════════
+# "blood pressure" written on its own. All four spellings below name the same
+# concept and, before this block existed, got three different answers:
+#
+#   血压              -> 18684-1  via the index
+#   血圧              -> nothing  (no entry in any language file)
+#   blood pressure    -> blocked  (the index answered 8462-4, DIASTOLIC — a
+#                                  systolic reading filed under it lands in the
+#                                  wrong series, which is why it was blocked)
+#   BP                -> blocked  (same)
+#
+# The eval harness asked why one language got a code and another got silence,
+# and there was no reason. But unifying them exposed the worse bug: 18684-1 is
+# not a blood-pressure panel. Its axis reads PROPERTY=Cmplx, SCALE=Set,
+# CLASS=ATTACH.ED — an emergency-department ATTACHMENT code, a document, not a
+# measurement. Its LONG_COMMON_NAME just happens to read "First Blood pressure
+# Set". So the language that "worked" was returning a document code with full
+# confidence.
+#
+# 85354-9 is the real answer: CLASS=PANEL.VITALS, and it is the code FHIR R4's
+# vital-signs profile mandates for blood pressure, with 8480-6 / 8462-4 as its
+# components. A caller who wants one number still has to say which — that is
+# what a panel code means — but now they are told that, instead of being handed
+# either silence or an ED attachment.
+#
+# `blood_pressure` needs no row: underscore flattening reaches "blood pressure".
+# It is pinned in test_engine_coverage.py anyway, because that flattening is
+# exactly the route that used to walk around the old block.
+血压	Blood pressure panel with all children optional
+血圧	Blood pressure panel with all children optional
+blood pressure	Blood pressure panel with all children optional
+BP	Blood pressure panel with all children optional
+
+# ══ 台灣繁體 clinical vocabulary ═══════════════════════════════════════════
+# NOT a script variant of the 中文 rows above. `lexical.surface_variants` folds
+# zh-Hant to zh-Hans on the way in, so 白細胞 / 總膽固醇 / 穀丙轉氨酶 already
+# reach their Simplified rows without help. These are the terms where Taiwan
+# clinical usage picks a DIFFERENT WORD, and folding them is worse than useless
+# — it manufactures the exact failure this project scores worst:
+#
+#   血紅素   folds to 血红素   -> 4548-4  HbA1c        (in Taiwan it is HAEMOGLOBIN)
+#   糖化血色素 folds to 糖化血色素 -> nothing              (this is the actual HbA1c)
+#
+# So the fold got haemoglobin and HbA1c backwards, confidently, for every
+# Taiwanese report. `_candidate_keys` tries the term as written before any
+# variant, so these rows win over the fold by construction.
+#
+# Source of truth for the wording: the 檢驗報告單 a Taiwanese hospital prints,
+# not a character conversion of a mainland form.
+#
+# A right-hand side must be a key the ALIAS INDEX can look up — as the file
+# header says — and not another row's left-hand side. Three of these rows were
+# first written as `飯前血糖 -> Fasting glucose`, which is itself an override
+# key, and the resolver does not follow a two-hop chain: they resolved to
+# nothing and looked fine. Point at the index key the other row points at.
+# Rows whose term already resolved without them were dropped rather than left
+# as decoration (尿素氮, 白血球, 血小板計數 all reach the index unaided).
+血紅素	Hemoglobin
+血红素	Hemoglobin
+糖化血色素	HbA1c
+肌酸酐	Creatinine
+血中尿素氮	Urea nitrogen
+紅血球	红细胞
+紅血球計數	红细胞
+白血球計數	Leukocytes [#/volume] in Blood
+飯前血糖	Fasting glucose [Mass/volume] in Serum or Plasma
+空腹血糖值	Fasting glucose [Mass/volume] in Serum or Plasma
+甲狀腺刺激素	Thyroid stimulating hormone
+甲狀腺促素	Thyroid stimulating hormone
+總膽固醇值	Cholesterol
+低密度膽固醇	LDL-C
+高密度膽固醇	HDL-C
+尿蛋白質	Prot Ur Ql
+
+# 血脂肪 is the Taiwan wording for the lipid panel — same category term, same
+# reason it cannot have one code. Listed here rather than in the block section
+# above because it is the 台灣 spelling of an entry that already exists there.
+血脂肪	!unresolved
+
+# ══ qualitative indicators ═════════════════════════════════════════════════
+# Half of what a report prints is not a number, and half the shipped corpus is
+# not Qn — 25,156 Ord rows, 7,859 Nom, 4,258 SemiQn. A urinalysis panel, a
+# serology screen and a blood type are all 阴性/阳性/++ results, and the ones
+# below simply had no entry at all.
+#
+# Targets are the [Presence] / [Type] variants, because that is what these
+# tests ARE. `resolve_reading` then moves along the scale axis when a value
+# says otherwise, so a term that also has a quantitative form (乙肝表面抗体 is
+# reported both as a titre and as reactive/non-reactive) still lands right.
+尿隐血	Hemoglobin [Presence] in Urine by Test strip
+尿红细胞	Erythrocytes [Presence] in Urine
+尿亚硝酸盐	Nitrite Ur Ql
+亚硝酸盐	Nitrite Ur Ql
+尿白细胞酯酶	Leukocyte esterase
+白细胞酯酶	Leukocyte esterase
+乙肝表面抗原	Hepatitis B virus surface Ag
+HBsAg	Hepatitis B virus surface Ag
+乙肝表面抗体	Hepatitis B virus surface Ab
+# `Hepatitis B virus e Ag` is the LOINC COMPONENT, not a corpus name, so this
+# row pointed at nothing and 乙肝e抗原 answered nothing for as long as it
+# existed. Its four neighbours happen to name targets the corpus does carry,
+# which is why the file looked fine. `test_overrides_are_live` now checks
+# every row's target instead of trusting the shape.
+乙肝e抗原	HBeAg
+乙肝核心抗体	Hepatitis B virus core Ab
+丙肝抗体	Hepatitis C virus Ab
+anti-HCV	Hepatitis C virus Ab
+HIV抗体	HIV 1+2 Ab
+梅毒抗体	Treponema pallidum Ab
+# 血型 answered 50962-0 "XXX blood group IgG Ab [Titer]" — an antibody titre,
+# not a blood type. ABO grouping is 883-9.
+血型	ABO group
+血型鉴定	ABO group
+ABO血型	ABO group
+blood type	ABO group
+blood group	ABO group
+Rh血型	Rh typing
+RhD血型	Rh typing
+
+# ── the CBC differential: percent vs absolute ────────────────────────────────
+#
+# LOINC models a differential percentage as a RATIO ANALYTE — COMPONENT
+# `neutrophils/leukocytes`, PROPERTY NFr — not as another property of
+# `neutrophils`. That is why `variant_for_reading` cannot reach it: it searches
+# siblings sharing the FULL component, which is right for cholesterol
+# (`cholesterol` MCnc vs SCnc, one component, two properties) and structurally
+# unable to cross from `neutrophils` to `neutrophils/leukocytes`.
+#
+# It cannot be inferred either: `neutrophils` has three NFr children —
+# `/cells`, `/leukocytes`, `/round cells` — and only clinical knowledge picks
+# the CBC one. So the mapping is written down, which is what this file is for.
+#
+# 中性粒细胞 was the odd one out: its four panel siblings all resolved to the
+# `X/Leukocytes` ratio while it resolved to `[#/volume]`. Five lines of one
+# panel now behave the same way, and a report that says 62 and one that says
+# 4.2 no longer land on one series in two units.
+#
+# Traditional spellings need no rows — `surface_variants` folds zh-Hant to
+# zh-Hans and finds these. `中性粒细胞%` needs none either: the bare form is
+# already one of its variants.
+中性粒细胞	neutrophils/leukocytes in blood
+中性粒细胞百分比	neutrophils/leukocytes in blood
+中性粒细胞比例	neutrophils/leukocytes in blood
+嗜酸性粒细胞百分比	Eosinophils/Leukocytes
+嗜酸性粒细胞比例	Eosinophils/Leukocytes
+淋巴细胞百分比	Lymphocytes/Leukocytes
+淋巴细胞比例	Lymphocytes/Leukocytes
+单核细胞百分比	Monocytes/Leukocytes
+单核细胞比例	Monocytes/Leukocytes
+嗜碱性粒细胞百分比	Basophils/Leukocytes
+嗜碱性粒细胞比例	Basophils/Leukocytes
+# The other half of the distinction. `绝对值` is one CJK token, so unlike `%`
+# it produces no bare-stem variant and needs its own row.
+#
+# The target names the METHOD-LESS code explicitly. Pointing at bare
+# `Neutrophils` lands on 751-8 `… by Automated count`, and the unit-driven
+# crossing in `variant_for_reading` prefers the method-less 26499-4 — so the
+# same measurement got two identities depending on whether the report spelled
+# out 绝对值 or printed a bare name with 10*9/L, which is exactly the split
+# these rows exist to prevent. Both routes now end on the same code, and it is
+# the method-less one for the reason that function already states: `by
+# Automated count` is a narrower claim than a report saying "4.2" supports.
+中性粒细胞绝对值	Neutrophils [#/volume] in Blood
+嗜酸性粒细胞绝对值	Eosinophils [#/volume] in Blood
+淋巴细胞绝对值	Lymphocytes [#/volume] in Blood
+单核细胞绝对值	Monocytes [#/volume] in Blood
+嗜碱性粒细胞绝对值	Basophils [#/volume] in Blood
+
+# The same distinction on the English side, which was still inverted.
+#
+# `surface_variants` strips a trailing `#` or `%` to a bare stem, so `NEUT#`
+# and `NEUT%` both reach `neut`. In Chinese the bare stem carries a row above
+# and lands on the ratio, which is why `中性粒细胞%` is already right. English
+# has no such row: `neut` matched the index at 751-8 `[#/volume] by Automated
+# count`, so `NEUT%` answered an ABSOLUTE code and `LYMPH#` a PERCENTAGE one.
+# Exact-surface rows win because variants are tried most-specific first.
+#
+# Targets are the method-less codes the rows above use, so a report printing
+# NEUT# and one printing 中性粒细胞绝对值 land on one series.
+NEUT#	Neutrophils [#/volume] in Blood
+NEUT abs	Neutrophils [#/volume] in Blood
+NEU#	Neutrophils [#/volume] in Blood
+NEU abs	Neutrophils [#/volume] in Blood
+neutrophils absolute	Neutrophils [#/volume] in Blood
+absolute neutrophils	Neutrophils [#/volume] in Blood
+absolute neutrophil count	Neutrophils [#/volume] in Blood
+neutrophil count	Neutrophils [#/volume] in Blood
+neutrophil absolute count	Neutrophils [#/volume] in Blood
+ANC	Neutrophils [#/volume] in Blood
+NEUT%	Neutrophils/Leukocytes in Blood
+NEU%	Neutrophils/Leukocytes in Blood
+neutrophils %	Neutrophils/Leukocytes in Blood
+neutrophils%	Neutrophils/Leukocytes in Blood
+neutrophil percentage	Neutrophils/Leukocytes in Blood
+neutrophil percent	Neutrophils/Leukocytes in Blood
+neutrophils relative	Neutrophils/Leukocytes in Blood
+LYMPH#	Lymphocytes [#/volume] in Blood
+LYMPH abs	Lymphocytes [#/volume] in Blood
+LYM#	Lymphocytes [#/volume] in Blood
+LYM abs	Lymphocytes [#/volume] in Blood
+lymphocytes absolute	Lymphocytes [#/volume] in Blood
+absolute lymphocytes	Lymphocytes [#/volume] in Blood
+absolute lymphocyte count	Lymphocytes [#/volume] in Blood
+lymphocyte count	Lymphocytes [#/volume] in Blood
+lymphocyte absolute count	Lymphocytes [#/volume] in Blood
+lymphs abs	Lymphocytes [#/volume] in Blood
+LYMPH%	Lymphocytes/Leukocytes in Blood
+LYM%	Lymphocytes/Leukocytes in Blood
+lymphocytes %	Lymphocytes/Leukocytes in Blood
+lymphocytes%	Lymphocytes/Leukocytes in Blood
+lymphocyte percentage	Lymphocytes/Leukocytes in Blood
+lymphocyte percent	Lymphocytes/Leukocytes in Blood
+lymphocytes relative	Lymphocytes/Leukocytes in Blood
+lymphs %	Lymphocytes/Leukocytes in Blood
+lymphs%	Lymphocytes/Leukocytes in Blood
+MONO#	Monocytes [#/volume] in Blood
+MONO abs	Monocytes [#/volume] in Blood
+monocytes absolute	Monocytes [#/volume] in Blood
+absolute monocytes	Monocytes [#/volume] in Blood
+absolute monocyte count	Monocytes [#/volume] in Blood
+monocyte count	Monocytes [#/volume] in Blood
+monocyte absolute count	Monocytes [#/volume] in Blood
+monos abs	Monocytes [#/volume] in Blood
+MONO%	Monocytes/Leukocytes in Blood
+monocytes %	Monocytes/Leukocytes in Blood
+monocytes%	Monocytes/Leukocytes in Blood
+monocyte percentage	Monocytes/Leukocytes in Blood
+monocyte percent	Monocytes/Leukocytes in Blood
+monocytes relative	Monocytes/Leukocytes in Blood
+monos %	Monocytes/Leukocytes in Blood
+monos%	Monocytes/Leukocytes in Blood
+EOS#	Eosinophils [#/volume] in Blood
+EOS abs	Eosinophils [#/volume] in Blood
+EO#	Eosinophils [#/volume] in Blood
+EO abs	Eosinophils [#/volume] in Blood
+eosinophils absolute	Eosinophils [#/volume] in Blood
+absolute eosinophils	Eosinophils [#/volume] in Blood
+absolute eosinophil count	Eosinophils [#/volume] in Blood
+eosinophil count	Eosinophils [#/volume] in Blood
+eosinophil absolute count	Eosinophils [#/volume] in Blood
+EOS%	Eosinophils/Leukocytes in Blood
+EO%	Eosinophils/Leukocytes in Blood
+eosinophils %	Eosinophils/Leukocytes in Blood
+eosinophils%	Eosinophils/Leukocytes in Blood
+eosinophil percentage	Eosinophils/Leukocytes in Blood
+eosinophil percent	Eosinophils/Leukocytes in Blood
+eosinophils relative	Eosinophils/Leukocytes in Blood
+eos %	Eosinophils/Leukocytes in Blood
+BASO#	Basophils [#/volume] in Blood
+BASO abs	Basophils [#/volume] in Blood
+basophils absolute	Basophils [#/volume] in Blood
+absolute basophils	Basophils [#/volume] in Blood
+absolute basophil count	Basophils [#/volume] in Blood
+basophil count	Basophils [#/volume] in Blood
+basophil absolute count	Basophils [#/volume] in Blood
+basos abs	Basophils [#/volume] in Blood
+BASO%	Basophils/Leukocytes in Blood
+basophils %	Basophils/Leukocytes in Blood
+basophils%	Basophils/Leukocytes in Blood
+basophil percentage	Basophils/Leukocytes in Blood
+basophil percent	Basophils/Leukocytes in Blood
+basophils relative	Basophils/Leukocytes in Blood
+basos %	Basophils/Leukocytes in Blood
+basos%	Basophils/Leukocytes in Blood
+
+# `Hemoglobin A1c` — the full English name — was the only one of four spellings
+# that answered 41995-2 (a mass concentration almost no report means) while
+# 糖化血红蛋白 / HbA1c / A1c all answered 4548-4, the ratio every lab prints as a
+# percentage. The outlier was the spelling an English document is most likely
+# to print.
+Hemoglobin A1c	Hemoglobin A1c/Hemoglobin.total
+
+# 呼吸频率 is the standard Chinese vital-sign term and did not resolve at all;
+# 呼吸速率 resolved to 9278-3 `Breath rate special circumstances`, which is a
+# ventilator/exercise-protocol code, not the number on a vitals panel. Only the
+# bare 呼吸 worked, which is the spelling a report is least likely to print.
+呼吸次数	Respiratory rate
+呼吸频率	Respiratory rate
+呼吸速率	Respiratory rate
+
+# ── everyday panel terms, swept against a 132-term Chinese report vocabulary ─
+#
+# 27 of 132 did not resolve (20%), and the misses were not exotic: they were
+# the FULL spelling of a term whose abbreviation already worked. A formal
+# report prints 乙型肝炎表面抗原; a summary prints 乙肝表面抗原; only the second
+# resolved. Same shape for 丙型肝炎抗体/丙肝抗体, 血肌酐/肌酐, 三酰甘油/甘油三酯.
+#
+# The infectious-disease panel was the worst of it — 12 of its 26 spellings
+# missing — and it is on nearly every physical-examination report there is.
+乙型肝炎表面抗原	Hepatitis B virus surface Ag
+乙型肝炎表面抗体	Hepatitis B virus surface Ab
+乙肝表面抗原定量	Hepatitis B virus surface Ag
+乙型肝炎e抗原	HBeAg
+乙肝e抗体	HBeAb
+乙型肝炎e抗体	HBeAb
+乙型肝炎核心抗体	Hepatitis B virus core Ab
+丙型肝炎抗体	Hepatitis C virus Ab
+HCV抗体	Hepatitis C virus Ab
+抗HCV	Hepatitis C virus Ab
+抗-HCV	Hepatitis C virus Ab
+TPPA	Treponema pallidum Ab
+TRUST	RPR
+艾滋病抗体	HIV 1+2 Ab
+
+# `eGFR` answered 107231-3 `Natriuretic peptide B [Mass/volume] adjusted for
+# eGFR` — a heart-failure marker, for a kidney measure, because the acronym
+# appears inside that code's own name. A wrong answer, not a missing one, and
+# the only one this sweep found. `GFR` and 肾小球滤过率 were right all along.
+eGFR	Glomerular filtration rate
+估算肾小球滤过率	Glomerular filtration rate
+
+# The rest of the sweep. `碱性磷酸酶ALP` / `尿素氮BUN` / `总胆固醇TC` are the
+# same analyte-plus-acronym shape the trailing-acronym strip handles — but
+# written with NO space, which is how a table cell renders it, and which the
+# strip cannot see.
+白球比	Albumin/Globulin
+白球比值	Albumin/Globulin
+白蛋白球蛋白比值	Albumin/Globulin
+血肌酐	Creatinine
+血尿酸	Urate
+三酰甘油	Triglyceride
+脂蛋白a	Lipoprotein (a)
+餐后2小时血糖	Glucose^2H post meal
+γ-谷氨酰基转移酶	Gamma glutamyl transferase
+碱性磷酸酶ALP	Alkaline phosphatase
+尿素氮BUN	Urea nitrogen
+总胆固醇TC	Cholesterol
+血清铁	Iron
+血氯	Chloride
+血磷	Phosphate
+血镁	Magnesium
+血清氯	Chloride
+血清钙	Calcium
+平均血红蛋白量	MCH
+肌钙蛋白I	Troponin I
+高敏肌钙蛋白	Troponin I
+超敏肌钙蛋白	Troponin I
+甲状腺过氧化物酶抗体	Thyroperoxidase Ab
+TPOAb	Thyroperoxidase Ab
+甲状腺球蛋白抗体	Thyroglobulin Ab
+TgAb	Thyroglobulin Ab
+总三碘甲状腺原氨酸	Triiodothyronine
+总甲状腺素	Thyroxine
+糖类抗原199	Cancer Ag 19-9
+CA199	Cancer Ag 19-9
+尿pH	pH of Urine
+尿酸碱度	pH of Urine
+25羟基维生素D	25-hydroxyvitamin D3
+
+# ── red-cell and platelet indices, and two identities split by language ─────
+#
+# Every abbreviation resolved and every spelled-out English name missed: MCV
+# answered 30428-7 while `Mean Corpuscular Volume` answered nothing, and the
+# same held for MCH, MCHC, RDW and MPV. An English report is as likely to
+# print the words.
+#
+# 红细胞沉降率 answered 4539-3 `by Zetafuge`, an obsolete instrument, while 血沉
+# and ESR both answered the method-less 30341-2. Bare 红细胞分布宽度 answered
+# the SD code and bare RDW the CV one. RDW-CV and RDW-SD stay apart: LOINC
+# models a width and an entitic volume, and reports print both.
+#
+# `Leukocytes` and `Erythrocytes` get no row on purpose: a urinalysis prints
+# both, and a blood code would be a confident wrong answer.
+Mean Corpuscular Volume	MCV [Entitic mean volume] in Red Blood Cells
+Mean Cell Volume	MCV [Entitic mean volume] in Red Blood Cells
+Mean Corpuscular Hemoglobin	MCH [Entitic mass] by Automated count
+Mean Cell Hemoglobin	MCH [Entitic mass] by Automated count
+Mean Corpuscular Haemoglobin	MCH [Entitic mass] by Automated count
+Mean Corpuscular Hemoglobin Concentration	MCHC
+Mean Cell Hemoglobin Concentration	MCHC
+Mean Corpuscular Haemoglobin Concentration	MCHC
+Red Cell Distribution Width	Erythrocyte [DistWidth] in Blood
+Red Blood Cell Distribution Width	Erythrocyte [DistWidth] in Blood
+Red Cell Distribution Width-CV	Erythrocyte [DistWidth] in Blood
+Red Blood Cell Distribution Width-CV	Erythrocyte [DistWidth] in Blood
+# RDW-SD has no reachable name in the 2.83 cut. 2.82 modelled it as an
+# entitic volume; 2.83 replaced that with 115742-9, a DistWidth "by Standard
+# deviation" that carries no alias, so nothing the index can look up names it.
+# Answering the generic 30385-9 would put a volume in fL on the same line as a
+# CV percentage, so these abstain. With a unit the engine already refuses and
+# says why ("no code for this analyte carries EntVol").
+RDW-SD	!unresolved
+RDW-SD%	!unresolved
+Red Cell Distribution Width-SD	!unresolved
+Red Blood Cell Distribution Width-SD	!unresolved
+Mean Platelet Volume	Platelet [Entitic mean volume] in Blood
+Platelets	Platelets [#/volume] in Blood
+Erythrocyte Sedimentation Rate	Erythrocyte [Sedimentation Rate] in Blood
+Sed Rate	Erythrocyte [Sedimentation Rate] in Blood
+红细胞沉降率	Erythrocyte [Sedimentation Rate] in Blood
+红细胞分布宽度	Erythrocyte [DistWidth] in Blood
+红细胞分布宽度CV	Erythrocyte [DistWidth] in Blood
+红细胞分布宽度SD	!unresolved
+
+# ── CK-MB: stripping the trailing token changed the measurement ─────────────
+#
+# `_TRAILING_ACRONYM` reads `-MB` as a repeat of the stem and strips it, the
+# way it correctly strips `TC` from `Total cholesterol TC`. Here the token ADDS
+# meaning: `Creatine Kinase-MB` answered 2157-6, TOTAL creatine kinase, and
+# with ng/mL it crossed to 50756-6, total CK in Blood. A cardiac marker became
+# an enzyme activity with no cardiac specificity, and the answer looked
+# confident. `CK-MB` and `Creatine kinase.MB` were always right, so the two
+# spellings of one test disagreed.
+#
+# Target is the method-less mass code, which is the eval ground truth for both
+# `CK-MB` and `肌酸激酶MB`; U/L still crosses to 32673-6, the activity sibling.
+Creatine Kinase-MB	Creatine kinase.MB
+Creatine Kinase MB	Creatine kinase.MB
+Creatine kinase-MB	Creatine kinase.MB
+CK-MB mass	Creatine kinase.MB
+肌酸激酶MB	Creatine kinase.MB
+肌酸激酶同工酶MB	Creatine kinase.MB
+肌酸激酶-MB	Creatine kinase.MB
+
+# ── chemistry names an extractor spelled out ────────────────────────────
+# Same third sweep, over production rows migrated out of th_series_data: the
+# index knows these by abbreviation or by their LOINC component, not by the
+# long form a translating extractor wrote.
+# ── curated rows whose target was not an index key ────────────────────────
+# `zh_curated.tsv` maps a printed surface to a PHRASE for the lexicon build,
+# and a phrase resolves only sometimes. These seven were the only rows in
+# that file whose target resolves on its own while the alias does not, which
+# is the failure this file exists to catch. MCHC and MCH are on every blood
+# count; the beta-2 glycoprotein rows differ by the I / Ⅰ codepoint.
+#
+# The target has to be an index KEY, not a phrase `resolve()` can reach some
+# other way: `Beta 2 glycoprotein 1` gives 1880-4 and the hyphenated spelling
+# gives nothing, while `B2 glycoprotein 1` gives 44447-1, a different code.
+平均红细胞血红蛋白浓度	MCHC
+平均紅細胞血紅蛋白濃度	MCHC
+平均红细胞血红蛋白量	MCH
+平均紅細胞血紅蛋白量	MCH
+β2糖蛋白I	Beta 2 glycoprotein 1
+β2糖蛋白Ⅰ	Beta 2 glycoprotein 1
+β2-GP1	Beta 2 glycoprotein 1
+
+lipoprotein a	Lp(a)
+total calcium	Calcium
+inorganic phosphorus	Phosphate
+estimated glomerular filtration rate	Glomerular filtration rate
+
+# ── curated rows whose target resolves nowhere ───────────────────────────
+# The other half of the failure above: `zh_curated.tsv` sends 总睡眠时间 to
+# `total sleep time TST`, which is not an index key and does not resolve
+# either, so the term abstained while its sibling 睡眠时长 gave 93832-4.
+# Both spellings are on the same sleep report.
+总睡眠时间	Sleep duration
+总睡眠时长	Sleep duration
+睡眠总时长	Sleep duration
+total sleep time	Sleep duration
+
+# ── osmolality, found by the 1.5.1 deployment test ───────────────────────
+# The Chinese spellings had one index row each, the urine/serum RATIO
+# 48149-9, so `尿渗透压 600 mOsm/kgH2O` was filed as a ratio of two
+# specimens. `serum osmolality` reached 18182-6, the value CALCULATED from
+# electrolytes, where a lab prints the measured one.
+尿渗透压	Osmolality of Urine
+尿液渗透压	Osmolality of Urine
+尿渗量	Osmolality of Urine
+urine osmolality	Osmolality of Urine
+osmolality urine	Osmolality of Urine
+血清渗透压	Osmolality of Serum or Plasma
+血浆渗透压	Osmolality of Serum or Plasma
+血渗透压	Osmolality of Serum or Plasma
+serum osmolality	Osmolality of Serum or Plasma
+plasma osmolality	Osmolality of Serum or Plasma
+osmolality serum	Osmolality of Serum or Plasma
+
+# ── body composition and HRV, the same test ────────────────────────────
+# `Bone percentage` reached 15013-6, the bone share of alkaline phosphatase.
+# RMSSD is not the SDNN of 112429-6 and LOINC 2.83 has no code for it: the
+# trailing-abbreviation strip read `HRV RMSSD` as `HRV`, so these refuse.
+bone percentage	Body bone percentage
+骨量率	Body bone percentage
+骨骼百分比	Body bone percentage
+HRV RMSSD	!unresolved
+HRV (RMSSD)	!unresolved
+HRV-RMSSD	!unresolved
+心率变异性(RMSSD)	!unresolved
+心率变异性 RMSSD	!unresolved
+heart rate variability RMSSD	!unresolved
+heart rate variability (RMSSD)	!unresolved
+
+# Russian (ru) — terms as printed on real Russian lab reports (МЕДСИ,
+# INVITRO, Moscow state clinics; collected from a personal record archive,
+# 2019-2026). Targets verified against the bundle. Two deliberate omissions:
+# тромбокрит (platelet crit) and «альфа-амилаза панкреатическая» — no index
+# key lands on the right code, and a near-miss key would merge different
+# tests onto one trend line, which is worse than an honest abstention.
+# CBC / общий анализ крови
+СОЭ	esr
+Скорость оседания эритроцитов	esr
+Тромбоциты	platelet count
+Количество тромбоцитов	platelet count
+Количество лейкоцитов	leukocytes
+Количество эритроцитов	erythrocyte
+Гемоглобин общий	hemoglobin
+Распределение эритроцитов по объему	RDW
+Ширина распределения эритроцитов	RDW
+RDW (шир. распред. эритр)	RDW
+Средний объем эритроцитов	mcv
+Средний объем эритроцита	mcv
+MCV (ср. объем эритр.)	mcv
+Среднее содержание Hb в эритроците	mch
+MCH (ср. содер. Hb в эр.)	mch
+Средняя концентрация Hb в эритроците	mchc
+MCHC (ср. конц. Hb в эр.)	mchc
+МСHС (ср. конц. Hb в эр.)	mchc
+Нейтрофилы (общ.число)	neutrophils/leukocytes
+Нейтрофилы абс. к-во	neutrophils
+Нейтрофилы, абс.	neutrophils
+Лимфоциты абс. к-во	lymphocytes
+Лимфоциты, абс.	lymphocytes
+Моноциты абс. к-во	monocytes
+Моноциты, абс.	monocytes
+Эозинофилы абс. к-во	eosinophils
+Эозинофилы, абс.	eosinophils
+Базофилы абс. к-во	basophils
+Базофилы, абс.	basophils
+# biochemistry / биохимия
+АЛТ	alanine aminotransferase
+АлАТ	alanine aminotransferase
+АЛТ (Аланиновая трансаминаза)	alanine aminotransferase
+АЛТ (аланиновая трансаминаза)	alanine aminotransferase
+АСТ	aspartate aminotransferase
+АСаТ	aspartate aminotransferase
+АСТ (Аспарагиновая трансаминаза)	aspartate aminotransferase
+АСТ (аспарагиновая трансаминаза)	aspartate aminotransferase
+Билирубин общий	bilirubin
+Билирубин прямой	bilirubin direct
+Билирубин непрямой	bilirubin indirect
+Глюкоза	glucose
+Общий белок	protein
+Мочевина	urea
+Мочевая кислота	uric acid
+Креатинкиназа	creatine kinase
+Щелочная фосфатаза	alkaline phosphatase
+Холестерин общий	cholesterol
+Кальций ионизированный	calcium free
+Фосфор неорганический	inorganic phosphate
+С-реактивный белок	C reactive protein
+Ревматоидный фактор	rheumatoid factor
+АСЛО	ASO
+ОЖСС	TIBC
+Общая железосвязывающая способность сыворотки	TIBC
+Иммуноглобулин Е	IgE total
+Иммуноглобулин E	IgE total
+Иммуноглобулин Е (IgE)	IgE total
+# thyroid & hormones / гормоны
+ТТГ	thyroid stimulating hormone
+Тиреотропный гормон	thyroid stimulating hormone
+Тиреотропный гормон (ТТГ)	thyroid stimulating hormone
+Тиреотропный гормон -ТТГ	thyroid stimulating hormone
+Анти-ТГ	thyroglobulin Ab
+Антитела к тиреоглобулину	thyroglobulin Ab
+Антитела к тиреоглобулину (анти-ТГ)	thyroglobulin Ab
+Анти-ТПО	thyroperoxidase ab
+Антитела к тиреопероксидазе	thyroperoxidase ab
+Антитела к тиреопероксидазе (анти-ТПО)	thyroperoxidase ab
+Антитела к тиреоидной пероксидазе	thyroperoxidase ab
+Т4 свободный	t4 free
+Тироксин свободный	t4 free
+Т3 свободный	free t3
+Трийодтиронин свободный	free t3
+# vitamins / витамины
+Витамин D	25-hydroxyvitamin D
+Витамин 25(ОН) D	25-hydroxyvitamin D
+Витамин D (25-OH)	25-hydroxyvitamin D
+25-гидроксивитамин D	25-hydroxyvitamin D
+Витамин В12	vitamin B12
+Витамин B12	vitamin B12
+Фолиевая кислота	folate
+# Estonian (et) — the three terms a real Estonian (Synlab) report prints
+# that the release variants miss
+Vitamiin D (25-OH)	25-hydroxyvitamin D
+Vitamiin B12	vitamin B12
+Holotranskobalamiin	holotranscobalamin

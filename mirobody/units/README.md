@@ -5,7 +5,7 @@ answers "is this number comparable to that one". Pure Python, no data bundle,
 no network: `pip install mirobody` gets all of it.
 
     normalize.py   normalize_unit, parse_value_unit, ParsedQuantity
-    families.py    UCUM_FAMILY (331 units over 59 families), AMBIGUOUS_UNITS, unit_family
+    families.py    UCUM_FAMILY (328 units over 59 families), AMBIGUOUS_UNITS, unit_family
     tokens.py      MORPHEMES and ALIASES (~600 multilingual surface tokens)
     convert.py     dimensional analysis, the molar-mass bridge, canonical form
 
@@ -53,16 +53,6 @@ unit_families("%")       # → frozenset({"MFr", "NFr", "AFr", "VFr", ...})  (am
 - Wearable count "units" via UCUM annotation form (`600步` → `(0, 600, {steps})`, family `Num`)
 - Imperial units (`ft` / `lb` / `oz` / `gallon` etc., normalized to bracketed UCUM `[ft_us]` / `[lb_av]` / ...)
 - Ambiguity API: `unit_family("%")` returns the primary (`MFr`); `unit_families("%")` returns all 9 fraction-type PROPERTYs
-
-**CLI**:
-
-```bash
-python scripts/vocabulary_build.py normalize "90次每分钟" "<5.6 mg/dL" "600步"
-# {"input": "90次每分钟", "comparator": "", "value": 90.0,  "unit": "/min",    "family": "NRat"}
-# {"input": "<5.6 mg/dL", "comparator": "<", "value": 5.6,  "unit": "mg/dL",   "family": "MCnc"}
-# {"input": "600步",      "comparator": "", "value": 600.0, "unit": "{steps}", "family": "Num"}
-```
-
 
 ---
 

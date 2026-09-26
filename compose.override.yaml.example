@@ -1,8 +1,14 @@
 # Copy to `compose.override.yaml` when your Docker refuses named volumes.
 #
 #     cp compose.override.yaml.example compose.override.yaml
-#     mkdir -p .data/{pgdata,redis,upload,sitepkgs}
+#     mkdir -p ../mirobody-data/{pgdata,redis,upload,sitepkgs}
 #     ./deploy.sh
+#
+# The data sits BESIDE the checkout, not in it. A daemon that implements bind
+# mounts with bindfs refuses to mount a directory after one of its
+# subdirectories (`fuse: mountpoint is not empty`), and pg and redis start
+# before mirobody mounts the project. Inside it, the database was also one
+# `git add .` away from a commit. `MIROBODY_DATA` moves it elsewhere.
 #
 # Rootless and hardened Docker daemons reject a named volume with
 #
@@ -25,20 +31,20 @@
 services:
   pg:
     volumes:
-      - ./.data/pgdata:/var/lib/postgresql/data
+      - ${MIROBODY_DATA:-../mirobody-data}/pgdata:/var/lib/postgresql/data
 
   redis:
     volumes:
-      - ./.data/redis:/data
+      - ${MIROBODY_DATA:-../mirobody-data}/redis:/data
 
   mirobody:
     volumes:
       - .:/app
-      - ./.data/upload:/app/.theta/mcp/upload
-      - ./.data/sitepkgs:/root/venv/lib/python3.12/site-packages
+      - ${MIROBODY_DATA:-../mirobody-data}/upload:/app/.theta/mcp/upload
+      - ${MIROBODY_DATA:-../mirobody-data}/sitepkgs:/root/venv/lib/python3.12/site-packages
 
   mirobody_worker:
     volumes:
       - .:/app
-      - ./.data/upload:/app/.theta/mcp/upload
-      - ./.data/sitepkgs:/root/venv/lib/python3.12/site-packages
+      - ${MIROBODY_DATA:-../mirobody-data}/upload:/app/.theta/mcp/upload
+      - ${MIROBODY_DATA:-../mirobody-data}/sitepkgs:/root/venv/lib/python3.12/site-packages

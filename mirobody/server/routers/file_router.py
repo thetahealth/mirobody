@@ -514,7 +514,8 @@ async def upload_files(
     request: Request,
     files: list[UploadFile] = File(..., description="Files to upload (PDF, images, documents, etc.)"),
     user_id: str = Depends(verify_token),
-    folder: str | None = Query(None, description="Custom folder prefix for uploaded files, defaults to 'uploads'")
+    folder: str | None = Query(None, description="Custom folder prefix for uploaded files, defaults to 'uploads'"),
+    target_user_id: str | None = Query(None, description="Upload for this person's record; needs a write grant"),
 ) -> FileUploadResponse:
     """
     Upload multiple files directly to S3
@@ -522,6 +523,10 @@ async def upload_files(
     This endpoint uploads multiple files directly to S3 without storing metadata in database.
     Supports various file formats including PDF, images, and documents.
     Uses the universal upload_files_to_storage service for cross-project compatibility.
+
+    `target_user_id` is declared so that it is checked. Undeclared, FastAPI
+    dropped it and a proxy upload went ahead as the caller's own, with no grant
+    asked for.
     
     Args:
         files: List of files to upload
@@ -534,13 +539,20 @@ async def upload_files(
         - msg: Response message
         - data: List of upload results, each containing file URL, file key, size, type, and timestamp
     """
+    owner = str(target_user_id or user_id)
+    if owner != str(user_id):
+        try:
+            await resolve_subject(user_id, owner, require_write=True)
+        except CareCircleDenied:
+            return FileUploadResponse(code=403, msg="You cannot upload to that record.", data=[])
+
     # Get Redis client from global app state (shared across all requests)
     redis_client = getattr(request.app.state, 'redis', None)
     
     # Use the universal upload service
     result = await upload_files_to_storage(
         files=files,
-        user_id=user_id,
+        user_id=owner,
         folder_prefix=folder,
         redis_client=redis_client
     )

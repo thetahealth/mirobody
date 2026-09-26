@@ -48,14 +48,12 @@ the mail client.
     ```bash
     git clone https://github.com/YOUR_USERNAME/mirobody.git
     cd mirobody
-    git lfs install && git lfs pull      # the resolver's LOINC bundle (40 MB)
-    ./scripts/fetch_data.sh --all        # the terminology data that is not tracked here
+    git lfs install && git lfs pull      # the resolver's LOINC bundle (13 MB)
     ```
-    The second command is not optional if you intend to run the tests: without
-    the concept graph the gate on the README's numbers skips rather than
-    holding them to the artifacts they come from. What it
-    fetches, and why those files are not in the repository, is
-    [`mirobody/res/EXTERNAL.tsv`](mirobody/res/EXTERNAL.tsv).
+    That is all the data the tests need. `scripts/fetch_data.sh` is no longer
+    part of setup: every row of
+    [`mirobody/res/EXTERNAL.tsv`](mirobody/res/EXTERNAL.tsv) is an `archive`
+    row, which it never downloads.
 
 3.  **Create a Branch**
     Create a new branch for your feature or fix:
@@ -78,17 +76,18 @@ the mail client.
     pip install -e '.[app,test]'    # everything
 
     pytest                # the tests this repo ships: the resolver
-                          # benchmark and the README gates
+                          # benchmark and the cross-language identity gate
     lint-imports          # the engine/agent boundary, machine-checked
     ruff check mirobody   # the lint gate; its rule set is in pyproject.toml
     ```
 
     `'.[test]'` alone is enough to work on the **library** — resolve, units,
-    lexical (17 packages). Add `[parse]` for document extraction and the model
-    clients (77), `[app]` for the server and agent layers (147).
+    lexical. Add `[parse]` for document extraction and the model clients,
+    `[app]` for the server and agent layers. What each install pulls in is in
+    [docs/testing.md](docs/testing.md).
 
-    A clone collects **33** tests whichever you install: the resolver benchmark
-    is the one suite that ships, and it needs no extras. The maintainers'
+    A clone collects **147** tests whichever you install (134 pass, 13 are
+    strict xfails): the two gate modules that ship need no extras. The maintainers'
     regression suite is gitignored, so the extras buy you the ability to RUN the
     layer you are changing, not more tests. Write new tests under `tests/` at
     the repo root and say in the PR what you ran. Everything there is dropped at
@@ -209,14 +208,14 @@ Two rules that are specific to this project:
   is the one that matters — **血紅素** for haemoglobin, not 血紅蛋白. Converting
   the Simplified form character by character gives 血红素, which the raw index
   answers with the code for **HbA1c**. We shipped exactly that bug; see
-  `res/resolver_overrides.tsv`.
+  `res/loinc/resolver_overrides.tsv`.
 - **Medical terms come off a real report**, not from a dictionary: a 体检报告
   (mainland), a 檢驗報告單 (Taiwan), a 健康診断結果表 (Japan). Triglycerides are
   甘油三酯 / 三酸甘油酯 / 中性脂肪 in the three, and only the last is what a
   Japanese 健診 form actually prints.
 
 Adding a new indicator term in any language is one row in
-`mirobody/res/resolver_overrides.tsv` plus one case in
+`mirobody/res/loinc/resolver_overrides.tsv` plus one case in
 `mirobody/tests/test_engine_coverage.py`. If the analyte already has a spelling
 in another language, add yours to its row in
 `mirobody/tests/test_cross_language_identity.py` as well: one analyte must answer

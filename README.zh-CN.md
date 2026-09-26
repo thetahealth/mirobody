@@ -28,7 +28,7 @@ Mirobody 把不同来源、格式、表述的健康信息，规整成一套语�
        alt="用中文问胆固醇怎么变的，agent 找到三份用不同写法记录同一项检查的文件，把它们解析成同一个码，并画出趋势" width="880">
 </p>
 
-<p align="center"><em>三份文件，三种写法，同一个 LOINC 码。agent 把三份都找出来，
+<p align="center"><em>三份文件，三种写法，同一个标准码。agent 把三份都找出来，
 汇总出趋势，并说明每个数字来自哪份文件。</em></p>
 
 ## Mirobody 能做什么
@@ -36,6 +36,9 @@ Mirobody 把不同来源、格式、表述的健康信息，规整成一套语�
 - **把全家人的记录合成一份。** 用关爱圈邀请伴侣、父母，甚至是一个完全不会自己登录的孩子，管理家庭的健康档案。
 - **所有来源，照单全收。** Garmin、Oura、Whoop 直接对接；任何写进 Apple Health 的手环、
   戒指、体重秤，也一并进来。PDF、照片、表格、导出文件，23 种文件类型，Mirobody 都能看懂。
+- **用自己的话记下感受。** 在「记录」里写一句 `昨晚开始头疼，血压150/95，没发烧`，
+  它会记下一条头疼、两条血压读数，各自落在标准码上；你说了没有的发烧，不会被记进去。
+  拆句的是你选的模型，编码来自词表，从不来自模型。
 - **0 幻觉，可追溯。** 每一条健康数据都会落进一套确定的指标体系：要么给出一个确定的编码，
   要么明说没解析出来，绝不自己编一个。基于真实报告开发和测试，英文、中文、日文的写法都认。
 - **Agent 只在编码过的数据上推理。** 按分钟、小时、天、周、月给出趋势，并画成图；一次调
@@ -69,13 +72,16 @@ from mirobody.engine import resolve, resolve_reading
 
 resolve("血红蛋白").loinc                                # '718-7'   any language, one code
 resolve("total cholesterol").loinc                     # '2093-3'  [Mass/volume]
-resolve_reading("total cholesterol", "5.0", "mmol/L")   # '14647-2' [Moles/volume]
-resolve_reading("total cholesterol", "193", "mg/dL")    # '2093-3'  the unit picks the code
+resolve_reading("total cholesterol", "5.0", "mmol/L").loinc  # '14647-2' [Moles/volume]
+resolve_reading("total cholesterol", "193", "mg/dL").loinc   # '2093-3'  the unit picks the code
 
 resolve("中性粒细胞百分比").loinc                          # '26511-6' Neutrophils/Leukocytes
 resolve_reading("中性粒细胞", "62 %", None).loinc          # '26511-6' a percentage...
 resolve_reading("中性粒细胞", "4.2", "10*9/L").loinc       # '26499-4' ...and a count are two codes
 resolve("血脂").resolved                                 # False    a category, not an observation
+
+from mirobody import standardize_reading                # 同一个答案，写成 FHIR Observation
+standardize_reading("血红蛋白", "13.5", "g/dL")["code"]["coding"][0]["code"]  # '718-7'
 ```
 
 **有数值和单位，就一起传进来。** 单位不一样，就是两项不同的检查，LOINC 把这件事
@@ -98,7 +104,7 @@ resolve("血脂").resolved                                 # False    a category
 | 阶段                        | 做什么                                                                                                                                                                                                                     | 在哪                                                                                                               |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | **① 收集 Collect**   | 化验单、穿戴设备、手机照片、基因文件，都收进来。源文件原样留下，每一项指标都能指回它被读出来的那一页。                                                                                                                     | [`collect/`](mirobody/collect/)                                                                                   |
-| **② 转译 Translate** | 一个名字解析成一个码，一个单位统一到 UCUM，全程离线、结果确定。`A1c`、`HbA1c`、`糖化血红蛋白` 在这一层变成同一项检查。                                                                                               | [`engine.py`](mirobody/engine.py) · [`translate/`](mirobody/translate/) |
+| **② 转译 Translate** | 一个名字解析成一个码，一个单位统一到 UCUM，全程离线、结果确定。`A1c`、`HbA1c`、`糖化血红蛋白` 在这一层变成同一项检查，`头疼` 和 `headache` 也成了同一条主诉（ICPC-3）。 | [`engine/`](mirobody/engine/) · [`translate/`](mirobody/translate/) |
 | **③ 智能体 Agent**   | 在编码后的记录上提问。按分钟、小时、天、周、月给出趋势，一次调用就能算出计数、最小值、最大值、均值和变化量；同一个码，跨化验所、跨设备直接比较。图表画在回复里，用药记录和基因型数据也读得了，每个数字都说明出自哪份文件。 | [`agent/`](mirobody/agent/)                                                                                       |
 
 ① 记下来源怎么写，② 判断它到底是什么，③ 在这个基础上作答。跨化验所比一个数字、
@@ -106,7 +112,8 @@ resolve("血脂").resolved                                 # False    a category
 
 **智能体不一定得是我们这一个。** 它用的每一个工具同时挂在 `/mcp` 上，按用户鉴权。
 Claude Desktop、Cursor，或者你自己写的 loop，用的是同一套工具、同一份记录，问出
-来的是同一批指标。
+来的是同一批指标。词表这一层连服务都不用起：`uvx mirobody mcp` 通过 stdio 提供给任何 MCP 客户端，
+不要数据库，也不要 key。
 
 Garmin、Oura、Whoop 用你自己在厂商那边申请的凭证接入，步骤写在
 [接入指南](docs/provider-setup.zh-CN.md)里。Apple Health 走的是另一条路：数据由手机上
@@ -115,9 +122,10 @@ Garmin、Oura、Whoop 用你自己在厂商那边申请的凭证接入，步骤�
 
 ## 隐私
 
-除了你自己选的那个大模型，没有任何数据离开你的机器。读一张体检报告照片、从 PDF
-里抽出指标、回答你的提问，这几件事都要调用它；用哪家、用哪个模型，由你 `.env`
-里那一把 key 说了算。
+除了你自己选的那个大模型，以及你连上的设备厂商，没有任何数据离开你的机器。读一张
+体检报告照片、从 PDF 里抽出指标、拆开你在「记录」里写的一句话、回答你的提问，这四件
+事都要调用模型；用哪家、用哪个模型，由你 `.env` 里那一把 key 说了算。连上的
+Garmin、Oura、Whoop 走它们自己的 API，只取它们记下的数据。
 
 **② 转译**这一层完全在本地：名字对到码、单位换算成 UCUM，查的是随包发布的词表，
 不用 key，不联网，不跑模型，也不用 GPU。你的记录存在你自己的 Postgres 里，容器
@@ -153,8 +161,8 @@ git lfs install && git lfs pull   # 解析器的 LOINC 词表，13 MB；新克�
 另外，拒绝 named volume 的 Docker（rootless、受限环境）要改用 bind mount，
 `compose.override.yaml.example` 就是为这个准备的。
 
-用 `you@mirobody.ai`、验证码 `111111` 登录，不需要邮件服务。注册自己的账号也
-只要一个请求：
+在「邮箱验证码」页签用 `you@mirobody.ai`、验证码 `111111` 登录，不需要邮件服务。
+注册自己的账号也只要一个请求：
 
 ```bash
 curl -X POST localhost:18060/password/register -H 'Content-Type: application/json' \
@@ -227,7 +235,7 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
 - **包会自己说清楚是哪份词表在回答你**：`mirobody.BUNDLE_VERSION` →
   `loinc-2.83+2026.09.17-aacb2c715b56`，发行版本、切分日期，加一份对词表内容
   算出来的摘要。
-- **315 项标准设备指标**，331 个带量纲分析的 UCUM 单位。完整数字，以及
+- **316 项标准设备指标**，328 个带量纲分析的 UCUM 单位。完整数字，以及
   LOINC 2.83 的切法留下了什么、丢掉了什么，都写在[标准化详解](docs/standardization.zh-CN.md)里。
 - **`pip install mirobody` 只装 2 个包**，只依赖 numpy。
 
@@ -241,6 +249,7 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
 | 在自己代码里做离线解析和单位换算                     | `pip install mirobody`：不用 key，不用联网，两个包                                                                                                                                            |
 | 把一份文件变成指标                                   | `pip install 'mirobody[parse]'`：PDF、图片、Excel、Word、PowerPoint、文本都行；只有扫描件才会送到视觉模型                                                                                     |
 | 在 Claude Desktop、Cursor 或自己的 loop 里用这些工具 | 设置 → MCP：每个 agent 工具同时挂在`/mcp` 上，按用户鉴权                                                                                                                                     |
+| 在任意 MCP 客户端里做编码，不起服务                  | `uvx mirobody mcp`（stdio）：读数转成带码的 FHIR Observation，主诉编到 ICPC-3，还有单位工具；不要 key，不要数据库 |
 | 让自己的应用对接一套部署                             | 走 HTTP API，打到你自己跑的那套上：你的应用，你的数据层                                                                                                                                         |
 | 加一个工具或一个设备数据源                           | 往`mirobody/agent/tools/` 或 `mirobody/collect/providers/` 丢个文件重启，或者 `pip install` 一个声明了 `mirobody.providers` / `mirobody.tools` / `mirobody.agents` entry point 的包 |
 | 换掉自带的 agent 框架                                | `pip install 'mirobody[agent]'` 拿中间件和虚拟文件系统后端；或者把 `AGENT_DIRS` 指向自己的目录，整体替换自带的 agent                                                                        |
@@ -255,7 +264,7 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
 最大的贡献，是找出一个解析器答错的词。拿你自己报告上的写法跑一下
 `mirobody resolve "<词>"`；如果答案错了，或者是空的，
 [提个 issue](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml)，
-或者往 [`resolver_overrides.tsv`](mirobody/res/resolver_overrides.tsv) 加一行，
+或者往 [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) 加一行，
 再往 [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 加一
 个用例：覆盖率分数，就是评审。
 
@@ -302,3 +311,5 @@ pip install -e '.[test]' && pytest -q && lint-imports
 Apache 2.0 · © 2026 [Theta Health](https://thetahealth.ai)
 
 </div>
+
+<!-- mcp-name: ai.thetahealth/mirobody -->

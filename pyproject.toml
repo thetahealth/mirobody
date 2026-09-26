@@ -75,6 +75,9 @@ dependencies = [
 # bin/). Replaces the former repo-root main.py / main_worker.py, which were
 # not shipped in the wheel — a PyPI install had no way to start the server.
 mirobody = "mirobody.cli:main"
+# The stdio MCP server alone, for `uvx --from mirobody mirobody-mcp`; the same
+# as `mirobody mcp`, which is what the MCP Registry entry (server.json) runs.
+mirobody-mcp = "mirobody.mcp.stdio:main"
 
 # ── Extras: one bracket a human types, one bucket the image installs ─────────
 #
@@ -316,12 +319,14 @@ include = ["mirobody", "mirobody.*"]
     # ── engine data bundles (Git LFS) ────────────────────────────────────────
     # These are not optional extras: `mirobody.engine.resolve` — the front door
     # of ② Translate, and the one line the README leads with — reads
-    # res/fhir_loinc_bundle.tar.gz, res/fhir_meta.csv.gz and res/aliases_src/*.tsv
+    # res/loinc/fhir_loinc_bundle.tar.gz, res/loinc/fhir_meta.csv.gz and res/loinc/aliases_src/*.tsv
     # at import time. Until 1.0.62 only *.bin was listed here, so every published
     # wheel shipped an engine that could not resolve anything. Keep .gz/.npy/.tsv
     # in this list; scripts/check_wheel_data.py enforces it at build time.
     "**/*.bin",
     "**/*.gz",
+    # res/ucum/ucum-essence.xml: UCUM's own table, verbatim (its NOTICE says why).
+    "**/*.xml",
     "**/*.npy",
     "**/*.tsv",
     "**/*.NOTICE",
