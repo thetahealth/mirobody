@@ -401,7 +401,11 @@ class McpService:
         # every call, and the server has to settle it per request. Handshake-era
         # clients send no `_meta`; they fall through to our newest supported
         # revision, exactly as before.
-        negotiated = self._negotiate_version(self._request_protocol_version(jsonrpc))
+        # A handshake client restates its version in the `MCP-Protocol-Version`
+        # header (Streamable HTTP, since 2025-06-18) instead.
+        negotiated = self._negotiate_version(
+            self._request_protocol_version(jsonrpc) or request.headers.get("mcp-protocol-version")
+        )
 
         url_prefix = request_origin(request)
 
@@ -641,13 +645,16 @@ class McpService:
             requested = None
             if isinstance(jsonrpc.get("params"), dict):
                 requested = jsonrpc["params"].get("protocolVersion")
+            # One version in one answer: `_meta` said 2026-07-28 beside a
+            # handshake that settled on 2025-06-18.
+            handshake = self._negotiate_version(requested)
 
             return jsonrpc_result(
                 id      = id,
-                protocol_version = negotiated,
+                protocol_version = handshake,
                 server_info = self._server_info,
                 result  = {
-                    "protocolVersion": self._negotiate_version(requested),
+                    "protocolVersion": handshake,
                     "capabilities": _CAPABILITIES,
                     "serverInfo": {
                         "name": self._name,

@@ -90,7 +90,7 @@ def standardize_complaint(text: str, kind: str = "symptom") -> dict[str, Any]:
     """A complaint (`kind="symptom"`) or a named diagnosis (`"condition"`) in
     the person's own words, as a FHIR Observation coded on ICPC-3. The words
     stay in `code.text`; `coding` is absent when the vocabulary abstains, and
-    `_mirobody.reason` says why."""
+    the `coding-decision` extension's `reason` says why."""
     from mirobody.translate.icpc3 import ICPC3_SYSTEM, resolve_condition, resolve_symptom
 
     words = (text or "").strip()
@@ -102,10 +102,10 @@ def standardize_complaint(text: str, kind: str = "symptom") -> dict[str, Any]:
     code: dict[str, Any] = {"text": words}
     if coding.outcome == "coded" and coding.code:
         code["coding"] = [{"system": ICPC3_SYSTEM, "code": coding.code, "display": coding.display}]
-    meta: dict[str, Any] = {"kind": kind, "outcome": coding.outcome, "release": coding.release}
-    if coding.reason:
-        meta["reason"] = coding.reason
-    return {"resourceType": "Observation", "status": "final", "code": code, "_mirobody": meta}
+    from mirobody.engine.observation import decision_extension
+
+    fields = {"kind": kind, "outcome": coding.outcome, "release": coding.release, "reason": coding.reason}
+    return {"resourceType": "Observation", "status": "final", "code": code, "extension": [decision_extension(fields)]}
 
 
 __all__ = ["MAX_BATCH", "convert_unit", "normalize_units", "resolve_indicators", "standardize_complaint"]

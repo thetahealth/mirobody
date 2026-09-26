@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 #: handshake; `initialize` negotiates among the rest.
 PROTOCOL_VERSIONS = ("2026-07-28", "2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 _LATEST_HANDSHAKE = "2025-11-25"
+_STATELESS = "2026-07-28"
 _META_PROTOCOL_VERSION = "io.modelcontextprotocol/protocolVersion"
 _META_SERVER_INFO = "io.modelcontextprotocol/serverInfo"
 #: Every list is the same for every caller, so a client may cache it.
@@ -52,7 +53,7 @@ _READINGS_ITEM = {
     "type": "object",
     "properties": {
         "name": {"type": "string", "description": "The test name exactly as printed, any language."},
-        "value": {"type": "string", "description": "The result as printed: 13.5, <5, 阴性, Positive."},
+        "value": {"type": ["string", "number"], "description": "The result as printed: 13.5, <5, 阴性, Positive."},
         "unit": {"type": "string", "description": "The unit as printed: g/dL, mmol/L, 次/分. Omit when none."},
     },
     "required": ["name"],
@@ -67,13 +68,13 @@ TOOLS: list[dict[str, Any]] = [
             "Turn lab or vital-sign readings as printed (any language) into FHIR Observations with their "
             "LOINC code and UCUM unit, offline and without a key. The unit takes part in choosing the code "
             "(cholesterol in mmol/L and in mg/dL are different codes), so pass it. An Observation without "
-            "`coding` means no code was chosen, and `_mirobody.rejected_reason` says why when a code was "
+            "`coding` means no code was chosen, and the coding-decision extension's `rejectedReason` says why when a code was "
             "set aside. A blood pressure such as 120/80 mmHg is two readings (systolic, diastolic). Pass "
             "one reading (name, value, unit) or up to 200 as `readings`."
         ),
         "inputSchema": {
             "type": "object",
-            "properties": {**_READINGS_ITEM["properties"], "readings": {"type": "array", "items": _READINGS_ITEM, "maxItems": 200}},
+            "properties": {**_READINGS_ITEM["properties"], "readings": {"type": "array", "items": _READINGS_ITEM, "minItems": 1, "maxItems": 200}},
             "additionalProperties": False,
         },
         "annotations": {"readOnlyHint": True, "openWorldHint": False},
@@ -85,7 +86,7 @@ TOOLS: list[dict[str, Any]] = [
             "Classify a complaint or a diagnosis in a person's own words (头疼, sore throat, 高血压) on ICPC-3, "
             "offline. kind=symptom for what someone feels, kind=condition for a named diagnosis; the two use "
             "different ICPC-3 components and must not be mixed. The words stay in `code.text`; without a "
-            "`coding` the vocabulary could not place them, and `_mirobody.reason` says why. The ICPC-3 display "
+            "`coding` the vocabulary could not place them, and the coding-decision extension's `reason` says why. The ICPC-3 display "
             "names are English."
         ),
         "inputSchema": {
@@ -285,6 +286,8 @@ def _tool_standardize_report(args: dict[str, Any]) -> dict[str, Any]:
         raise ToolError(str(e)) from e
     observations = []
     for r in readings:
+        if not (r.name or "").strip():
+            continue
         o = observation(r.name, r.value, r.unit, r.resolution)
         if r.collected:
             o["effectiveDateTime"] = r.collected
@@ -378,8 +381,8 @@ def _resource_text(uri: str) -> tuple[str, str]:
         body = {
             "mirobody": mirobody.__version__,
             "loinc": mirobody.BUNDLE_VERSION,
-            "icpc3": translate.release(),
-            "ucum": essence.UCUM_VERSION,
+            "icpc3": translate.icpc3.release(),
+            "ucum": essence.version(),
             "catalogue": TERMINOLOGY_VERSION,
             "notices": notices,
         }
@@ -414,10 +417,14 @@ class Server:
             logger.error("mcp stdio: %s failed: error_type=%s", method, type(e).__name__)
             return _error(rid, -32603, f"Internal error: {type(e).__name__}")
         if isinstance(result, dict):
-            result.setdefault("resultType", "complete")
+            version = self._version_for(params)
+            if version >= _STATELESS:
+                # 2026-07-28 requires it. The TypeScript SDK 1.30.1 (2025-11-25)
+                # parses `ping`'s empty result strictly and threw on the key.
+                result.setdefault("resultType", "complete")
             meta = result.setdefault("_meta", {})
             meta.setdefault(_META_SERVER_INFO, self.server_info)
-            meta.setdefault(_META_PROTOCOL_VERSION, self._version_for(params))
+            meta.setdefault(_META_PROTOCOL_VERSION, version)
         return {"jsonrpc": "2.0", "id": rid, "result": result}
 
     def _version_for(self, params: dict[str, Any]) -> str:
@@ -449,8 +456,14 @@ class Server:
             return {"prompts": PROMPTS, **_LIST_CACHE}
         if method == "prompts/get":
             name = params.get("name")
-            if name not in {p["name"] for p in PROMPTS}:
+            prompt = next((p for p in PROMPTS if p["name"] == name), None)
+            if prompt is None:
                 raise _RpcError(-32602, f"Unknown prompt: {name}")
+            given = params.get("arguments") or {}
+            missing = [a["name"] for a in prompt["arguments"]
+                       if a.get("required") and not str(given.get(a["name"]) or "").strip()]
+            if missing:
+                raise _RpcError(-32602, f"Missing required argument(s): {', '.join(missing)}")
             text = _prompt_text(name, params.get("arguments") or {})
             return {"description": next(p["description"] for p in PROMPTS if p["name"] == name),
                     "messages": [{"role": "user", "content": {"type": "text", "text": text}}]}
@@ -474,6 +487,9 @@ class Server:
             raise _RpcError(-32602, f"Unknown tool: {name}")
         if not isinstance(args, dict):
             raise _RpcError(-32602, "arguments must be an object")
+        problem = _violation(_SCHEMAS[name], args, "arguments")
+        if problem:
+            return {"content": [{"type": "text", "text": problem}], "isError": True}
         # A tool must not write to stdout: that is the protocol stream. Config
         # initialisation on the document path prints a banner there.
         with contextlib.redirect_stdout(sys.stderr):
@@ -483,6 +499,48 @@ class Server:
                 return {"content": [{"type": "text", "text": str(e)}], "isError": True}
         return {"content": [{"type": "text", "text": json.dumps(out, ensure_ascii=False, indent=2)}],
                 "structuredContent": out, "isError": False}
+
+
+_SCHEMAS = {t["name"]: t["inputSchema"] for t in TOOLS}
+_TYPES = {"string": str, "array": list, "object": dict, "boolean": bool}
+
+
+def _violation(schema: dict[str, Any], value: Any, where: str) -> str | None:
+    """The first way `value` breaks `schema`, or None. Only the keywords the
+    schemas above use: a declared `maxItems: 200` let 201 through, and so did
+    fields no schema names."""
+    kinds = schema.get("type")
+    if kinds:
+        kinds = kinds if isinstance(kinds, list) else [kinds]
+        number = isinstance(value, int | float) and not isinstance(value, bool)
+        if not any(number if k in ("number", "integer") else isinstance(value, _TYPES[k]) for k in kinds):
+            return f"{where} must be {' or '.join(kinds)}"
+    if "enum" in schema and value not in schema["enum"]:
+        return f"{where} must be one of: {', '.join(map(str, schema['enum']))}"
+    if isinstance(value, list):
+        if len(value) < schema.get("minItems", 0):
+            return f"{where} needs at least {schema['minItems']} item(s)"
+        if len(value) > schema.get("maxItems", len(value)):
+            return f"{where} takes at most {schema['maxItems']} items"
+        for i, item in enumerate(value):
+            problem = _violation(schema.get("items", {}), item, f"{where}[{i}]")
+            if problem:
+                return problem
+    if isinstance(value, dict):
+        props = schema.get("properties", {})
+        for key in schema.get("required", ()):
+            if key not in value:
+                return f"{where}.{key} is required"
+        if schema.get("additionalProperties") is False:
+            extra = sorted(set(value) - set(props))
+            if extra:
+                return f"{where}: unknown field(s) {', '.join(extra)}"
+        for key, sub in props.items():
+            if key in value:
+                problem = _violation(sub, value[key], f"{where}.{key}")
+                if problem:
+                    return problem
+    return None
 
 
 class _RpcError(Exception):
@@ -509,7 +567,9 @@ def serve(stdin: TextIO | None = None, stdout: TextIO | None = None) -> None:
         except json.JSONDecodeError:
             reply: Any = _error(None, -32700, "Parse error")
         else:
-            if isinstance(msg, list):
+            if isinstance(msg, list) and not msg:
+                reply = _error(None, -32600, "Invalid Request")  # JSON-RPC 2.0: an empty batch
+            elif isinstance(msg, list):
                 reply = [r for r in (server.handle(m) for m in msg) if r is not None] or None
             else:
                 reply = server.handle(msg)
