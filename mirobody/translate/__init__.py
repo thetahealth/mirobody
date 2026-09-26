@@ -7,6 +7,8 @@
     code.py                  name + unit + value kind -> a Coding, never a guess
     devices.py               thirteen vendors' device fields -> LOINC, with
                              the confidence and the source behind each row
+    device_bundle.py         the catalogue and those crosswalks as one
+                             digested file, for a client without Python
     indicators_info.py       the indicator catalogue
     canonical_units.py       a reading in the unit the catalogue declares
                              for its indicator (NOT `mirobody.units`, the

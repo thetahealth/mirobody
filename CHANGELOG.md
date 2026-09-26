@@ -2,6 +2,15 @@
 
 ### Added
 
+- `mirobody device-bundle [--out PATH]` writes the device vocabulary as one
+  JSON file: the metric catalogue with each member's `(system, code)`
+  identity, the shipped labels, the LOINC device crosswalk base table, every
+  vendor field (coded or declined) with its source, and the unmappable list.
+  It names `terminology_version` and `loinc_release` and carries a sha256
+  `digest` over its canonical JSON, so the same release gives the same bytes
+  anywhere. It is for a client that codes health-store batches without
+  Python (the phone runtime), so it codes them the way this package does.
+  Offline, no extra (`mirobody.translate.device_bundle`).
 - Offline resolver: Russian panel terms as real Russian lab reports print
   them (МЕДСИ, INVITRO, state clinics; ~80 spellings from a 2019-2026 record
   archive), plus the three Estonian vitamin spellings a Synlab report prints.
