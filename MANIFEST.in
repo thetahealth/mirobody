@@ -13,7 +13,9 @@ include scripts/build_backend.py
 # and it has to travel with the package. It is kept out of mirobody/res/, which
 # LICENSE-3RD-PARTY describes as licensed terminology data and nothing else.
 
-include LICENSE LICENSE-3RD-PARTY CHANGELOG.md SECURITY.md VENDORS.md
+include LICENSE LICENSE-3RD-PARTY CHANGELOG.md SECURITY.md
+# The defaults a wheel built from this sdist carries (scripts/build_backend.py).
+include config.yaml config.llm.yaml config.devices.yaml
 recursive-include mirobody/res *.NOTICE
 recursive-include mirobody/res/ucum *.xml *.md
 
@@ -25,6 +27,4 @@ recursive-exclude frontend *
 # The sdist half of scripts/build_backend.py::_BUILD_ONLY_DATA — 28 MB of
 # terminology artifacts no runtime code path reads. Keep the two lists in step;
 # scripts/check_wheel_data.py checks BOTH artifacts.
-exclude mirobody/res/loinc/fhir_concept_graph.bin
-exclude mirobody/res/loinc/fhir_snomed_ct_bundle.tar.gz
-exclude mirobody/res/loinc/fhir_meta.csv.gz
+recursive-exclude mirobody fhir_concept_graph.bin fhir_snomed_ct_bundle.tar.gz fhir_meta.csv.gz

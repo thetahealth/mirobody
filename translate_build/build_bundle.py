@@ -39,7 +39,7 @@ from pathlib import Path
 
 import numpy as np
 
-from mirobody._bundle import AXIS_FIELDS, BUNDLE_PATH, RES_DIR
+from mirobody._bundle import AXIS_FIELDS, BUNDLE_PATH
 from mirobody.lexical import index_fold
 from translate_build.loinc_cut import gate, read_whitelist
 
@@ -305,7 +305,7 @@ def main(argv: list[str] | None = None) -> int:
             ti = tarfile.TarInfo(name=name)
             ti.size, ti.mtime, ti.mode = len(data), 0, 0o644
             tf.addfile(ti, io.BytesIO(data))
-    Path(RES_DIR, "fhir_loinc_bundle.NOTICE").write_text(text, encoding="utf-8")
+    Path(BUNDLE_PATH).with_name("fhir_loinc_bundle.NOTICE").write_text(text, encoding="utf-8")
     for name in sorted(members):
         print(f"  {name:22s} {len(members[name]) / 1e6:7.2f} MB")
     print(f"wrote {args.out} ({args.out.stat().st_size / 1e6:.1f} MB): {members['VERSION'].decode().strip()}")

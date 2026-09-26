@@ -70,12 +70,6 @@ FORBIDDEN = (
     "mirobody/res/loinc/aliases_src/fr.tsv",
     "mirobody/res/loinc/aliases_src/ko.tsv",
     "mirobody/res/loinc/aliases_src/ru.tsv",
-    "mirobody/res/loinc/fhir_concept_graph.bin",
-    "mirobody/res/loinc/fhir_snomed_ct_bundle.tar.gz",
-    # 1.3.0: superseded by `corpus_names.bin` inside the bundle. The resolver
-    # used to parse this CSV on every load, which is where 677,643 of its
-    # Python strings came from.
-    "mirobody/res/loinc/fhir_meta.csv.gz",
     # 1.5.0: deleted, not merely unshipped. It was the manual overlay for
     # `mirobody indicator analyte-digit`, a build command that went with
     # `indicator/`; nothing in translate_build or the resolver reads digits.
@@ -84,6 +78,20 @@ FORBIDDEN = (
     # canonical ids to `fhir_indicators.id`, one database's PRIMARY KEYS, and was
     # deleted rather than merely unshipped.
 )
+
+# By file name, anywhere under the package: they sat at the top of `res/`
+# before 1.5.1 and under `res/loinc/` after, and a list of one path let an older
+# checkout ship the other. `fhir_meta.csv.gz` was superseded in 1.3.0 by
+# `corpus_names.bin` inside the bundle.
+FORBIDDEN_NAMES = ("fhir_concept_graph.bin", "fhir_snomed_ct_bundle.tar.gz", "fhir_meta.csv.gz")
+
+# What a wheel carries that an sdist has at its root instead: the default
+# config a run outside a checkout falls back to (scripts/build_backend.py).
+WHEEL_REQUIRED = {
+    "mirobody/_defaults/config.yaml": 1_000,
+    "mirobody/_defaults/config.llm.yaml": 5_000,
+    "mirobody/_defaults/config.devices.yaml": 500,
+}
 
 # Same standard, applied to CODE. These two subtrees are 19,000 lines nobody
 # who installs the package can run — the bundle-build passes need raw
@@ -188,27 +196,30 @@ def _member_bytes(path: str, member: str) -> bytes | None:
 
 
 def check(path: str) -> list[str]:
-    entries = _wheel_entries(path) if path.endswith(".whl") else _sdist_entries(path)
+    wheel = path.endswith(".whl")
+    # A list: the test check below walks the entries a second time, and over a
+    # generator it saw none, so it never fired.
+    entries = list(_wheel_entries(path) if wheel else _sdist_entries(path))
+    required = {**REQUIRED, **WHEEL_REQUIRED} if wheel else REQUIRED
     seen: dict[str, tuple[int, bytes]] = {}
     stowaways: list[tuple[str, int]] = []
     code_stowaways: list[tuple[str, int]] = []
     for name, size, head in entries:
-        if name in REQUIRED:
+        if name in required:
             seen[name] = (size, head)
-        elif name in FORBIDDEN:
+        elif name in FORBIDDEN or (name.startswith("mirobody/") and name.rsplit("/", 1)[-1] in FORBIDDEN_NAMES):
             stowaways.append((name, size))
         elif name.startswith(FORBIDDEN_PREFIXES):
             code_stowaways.append((name, size))
 
     problems: list[str] = []
-    # Tests and their snapshots live in `tests/` outside the package. A
-    # `test_*.py` or a `goldens/` inside the wheel means one was put back in the
-    # package tree; the build no longer prunes them, so this is the gate.
+    # The wheel only: the sdist is a checkout and carries `mirobody/tests/`, the
+    # suite a clone runs, on purpose. In a wheel a test module is a stowaway.
     test_stowaways = [
         name for name, _, _ in entries
         if name.rsplit("/", 1)[-1].startswith("test_") or "/goldens/" in name
         or name.endswith("/conftest.py") or "/tests/" in name
-    ]
+    ] if wheel else []
     if test_stowaways:
         problems.append(
             f"UNWANTED  {len(test_stowaways)} test file(s) inside the wheel — tests belong in "
@@ -244,7 +255,7 @@ def check(path: str) -> list[str]:
                     "use; check scripts/build_backend.py::_BUNDLE_RUNTIME_MEMBERS"
                 )
 
-    for member, min_size in REQUIRED.items():
+    for member, min_size in required.items():
         if member not in seen:
             problems.append(f"MISSING   {member} — not in the artifact (check package-data globs)")
             continue
@@ -281,7 +292,7 @@ def main() -> int:
         else:
             print(
                 f"{artifact}: all {len(REQUIRED)} engine data bundles present and real; "
-                f"none of the {len(FORBIDDEN)} build-time-only artifacts or "
+                f"none of the {len(FORBIDDEN) + len(FORBIDDEN_NAMES)} build-time-only artifacts or "
                 f"{len(FORBIDDEN_PREFIXES)} build-time-only code trees shipped"
             )
 

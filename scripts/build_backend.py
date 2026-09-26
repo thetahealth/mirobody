@@ -54,13 +54,17 @@ prepare_metadata_for_build_editable = _orig.prepare_metadata_for_build_editable
 #: obligation off every pip user.
 #:
 #: scripts/check_wheel_data.py fails the build if any of them reappears.
+#:
+#: Matched by file name anywhere in the tree: `fetch_data.sh` put them at the
+#: top of `res/`, the 1.5.1 reorganisation moved the list to `res/loinc/`, and
+#: an older checkout that still held them shipped all three.
 _BUILD_ONLY_DATA = frozenset({
-    "mirobody/res/loinc/fhir_concept_graph.bin",
-    "mirobody/res/loinc/fhir_snomed_ct_bundle.tar.gz",
+    "fhir_concept_graph.bin",
+    "fhir_snomed_ct_bundle.tar.gz",
     # 1.3.0: the resolver reads `corpus_names.bin` out of the bundle instead of
     # parsing this on every load. `engine.py` was its only runtime reader; the
     # passes that still read it are bundle-build tooling, which does not ship.
-    "mirobody/res/loinc/fhir_meta.csv.gz",
+    "fhir_meta.csv.gz",
 })
 
 #: The bundle members a `pip install` can actually use. Everything else in
@@ -122,6 +126,11 @@ def _slim_bundle(data: bytes) -> bytes:
 _BUILD_ONLY_CODE: tuple[str, ...] = ()
 
 
+#: The root config files a wheel carries as its defaults, and where.
+_DEFAULT_CONFIGS = ("config.yaml", "config.llm.yaml", "config.devices.yaml")
+_DEFAULTS_DIR = "mirobody/_defaults"
+
+
 def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     name = _orig.build_wheel(wheel_directory, config_settings, metadata_directory)
     _rewrite_wheel(os.path.join(wheel_directory, name))
@@ -179,6 +188,14 @@ def _rewrite_wheel(path: str) -> None:
             keep = [n for n in z.namelist() if not _should_drop(n)]
             z.extractall(tmp, members=keep)
 
+        # The defaults a run outside a checkout falls back to
+        # (`utils/config/config.py::_shipped_defaults`). They live at the repo
+        # root, where a deployment edits them, so they are copied in here.
+        defaults = os.path.join(tmp, _DEFAULTS_DIR)
+        os.makedirs(defaults, exist_ok=True)
+        for name in _DEFAULT_CONFIGS:
+            shutil.copyfile(name, os.path.join(defaults, name))
+
         bundle = os.path.join(tmp, _BUNDLE_PATH)
         if os.path.isfile(bundle):
             with open(bundle, "rb") as fh:
@@ -225,7 +242,7 @@ def _is_test_artifact(path: str) -> bool:
 
 
 def _should_drop(member: str) -> bool:
-    if member in _BUILD_ONLY_DATA:
+    if member.startswith("mirobody/") and member.rsplit("/", 1)[-1] in _BUILD_ONLY_DATA:
         return True
     if member.startswith(_BUILD_ONLY_CODE):
         return True
