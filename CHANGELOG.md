@@ -2,6 +2,15 @@
 
 ### Added
 
+- **`POST /api/data` codes a phone health-store batch the way a provider's
+  pull is coded.** A record whose `source` is a crosswalk vendor (`healthkit`,
+  `health_connect`, `huawei`, `samsung`, ...) is written as device data, and a
+  vendor identifier (`HeartRateRecord`, `HKQuantityTypeIdentifierHeartRate`)
+  is translated to its catalogue metric through `res/crosswalks/`, so it lands
+  on 8867-4 instead of an uncoded name. An identifier that stands for two
+  metrics (`BloodPressureRecord`) is kept as sent rather than guessed; send
+  `systolicPressures` / `diastolicPressures`.
+
 - Offline resolver: Russian panel terms as real Russian lab reports print
   them (МЕДСИ, INVITRO, state clinics; ~80 spellings from a 2019-2026 record
   archive), plus the three Estonian vitamin spellings a Synlab report prints.
