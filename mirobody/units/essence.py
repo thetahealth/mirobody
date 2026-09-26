@@ -62,6 +62,9 @@ def _table() -> tuple[dict[str, float], dict[str, str], dict[str, dict]]:
 
 
 def version() -> str:
+    """The release the shipped file declares. Refuses an edited file, as
+    every other reader here does: it reported "2.2" for one."""
+    _table()
     return ET.fromstring(essence_bytes()).get("version") or ""
 
 
@@ -144,7 +147,10 @@ def atoms_of(expr: str) -> list[str]:
 
 
 def undefined_atoms(expr: str) -> list[str]:
-    """The symbols in `expr` UCUM does not define. Empty for a valid unit."""
+    """The symbols in `expr` UCUM does not define. Empty for a valid unit.
+    The table is loaded outside the `try`: an edited file answered
+    `['mg/dL']` here, an answer rather than a refusal."""
+    _table()
     try:
         return [a for a in atoms_of(expr) if _split(a) is None]
     except ValueError:
