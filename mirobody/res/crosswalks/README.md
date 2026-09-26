@@ -41,8 +41,8 @@ describes the same quantity ("Total sleep time" against "Daily total sleep
 time") and carries no code.
 
 That is not an omission to fill by copying the code across. No vendor
-crosswalk routes anything to `sleepDuration`: all thirteen route total sleep
-to `dailyTotalSleepTime`. A second name under 93832-4 would let two writers
+crosswalk routes anything to `sleepDuration`: the eight that carry a
+total-sleep field route it to `dailyTotalSleepTime`. A second name under 93832-4 would let two writers
 disagree about which to use and produce two series of one quantity.
 
 Owner's ruling, 2026-09-20: `sleepDuration` maps to `dailyTotalSleepTime`.

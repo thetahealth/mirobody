@@ -15,7 +15,7 @@
 #   samsung         Samsung Health Data SDK: https://developer.samsung.com/health/data/api-reference
 #   fitbit          Fitbit Web API: https://dev.fitbit.com/build/reference/web-api/
 #   whoop           WHOOP API v2: https://api.prod.whoop.com/developer/doc/openapi.json
-#   oura            Oura API v2: https://cloud.ouraring.com/v2/static/json/openapi-1.37.json
+#   oura            Oura API v2: https://cloud.ouraring.com/v2/static/json/openapi-1.41.json
 #   garmin          Garmin Health API: https://developer.garmin.com/gc-developer-program/health-api/
 #   vivo            vivo BlueOS health API: https://developers-watch.vivo.com.cn/api/health/health/
 #   xiaomi          Xiaomi Health cloud: https://dev.mi.com/

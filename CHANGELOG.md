@@ -12,8 +12,11 @@ now deletes it and ends its sessions.
   (or `uvx --from mirobody mirobody-mcp`) serves the shipped vocabularies over
   stdio: no database, no key, and nothing but the library and numpy loaded.
   `standardize_reading` answers a reading as printed with a FHIR Observation
-  carrying its LOINC code and UCUM unit (`血红蛋白 13.5 g/dL` gives 718-7),
-  `standardize_complaint` a complaint or diagnosis on ICPC-3, and
+  carrying its LOINC code and UCUM unit (`血红蛋白 13.5 g/dL` gives 718-7), and
+  points a complaint (发烧) at `standardize_complaint` rather than code it;
+  how it decided rides in a `coding-decision` extension, so the resource
+  passes strict R4 validation. `standardize_complaint` codes a complaint or
+  diagnosis on ICPC-3, and
   `standardize_report` a whole report when `[parse]` and a model key are
   there. Four prompts and two resources (the vocabulary releases and their
   notices, the indicator catalogue). Checked with the official MCP SDK's own
@@ -32,7 +35,8 @@ now deletes it and ends its sessions.
   ours, Apache-2.0, and hold no ICPC-3 term in any language, because WONCA
   licenses translations of the electronic version separately. Display names are
   ICPC-3's English. A coding names `icpc-3+<digest>`, a stamp over the shipped
-  terms, because ICPC-3 publishes no release number in the data we hold.
+  terms and our surfaces, because ICPC-3 publishes no release number in the
+  data we hold.
   The classification's index words are deliberately not shipped: 1,273 of
   3,139 of them (40.6%) are character-identical to a SNOMED CT description on
   the same code, and `res/` carries no SNOMED CT derivative.
@@ -40,7 +44,8 @@ now deletes it and ends its sessions.
 - **`/api/v1/journal`: log what a person reports, read it back by day.** POST
   one entry with `kind` of `symptom` or `condition`, GET the log grouped by the
   day it was felt, DELETE one. The day is the writer's (`tz`, else the
-  `X-Timezone` header), and an entry deleted can be logged again; a device
+  `X-Timezone` header; a `tz` no zone answers to is refused), and an entry
+  deleted can be logged again; a device
   re-sync does not bring a deleted reading back. No new table: both are one
   self-reported observation, so they inherit the append-only history, the day
   placement and the coding trail. The list gives both names, the person's words
@@ -56,7 +61,10 @@ now deletes it and ends its sessions.
   parts and is never asked for a code: each part is coded at write time on its
   own axis, LOINC for 收缩压, ICPC-3 for 头疼. A part the sentence does not
   quote, a negation, a guess, someone else's condition and a medication are
-  not written and come back with the reason. On twelve real sentences
+  not written and come back with the reason. Writing into someone else's
+  record, the model is told whose it is, so 我爸咳嗽 in Dad's record is his. A
+  typed reading is held to the ingestion range a device reading of the same
+  code is (血压 400/300 is refused). On twelve real sentences
   (gemini-3.8-flash) every part was split and typed as expected. On 160
   symptoms split from real consultation texts, 22 were a fragment without its
   body site (脱落 for hair loss) or no complaint at all (效果明显); the prompt
@@ -109,9 +117,9 @@ now deletes it and ends its sessions.
   steers it are under `res/loinc/`, the ICPC-3 table and our surfaces onto it
   under `res/icpc3/`, the indicator catalogue and its labels under
   `res/catalog/`; `crosswalks/` is unchanged, and `dose_forms.tsv` and
-  `EXTERNAL.tsv` stay at the top because they belong to no vocabulary. The top
-  level went from twelve loose files to four directories and two, and
-  `res/README.md` now says what each file is and who opens it.
+  `EXTERNAL.tsv` stay at the top because they belong to no vocabulary. Against
+  1.5.0 the top level went from seven files and three directories to three and
+  five, and `res/README.md` now says what each file is and who opens it.
   `mirobody.bundle.BUNDLE_PATH`, `RES_DIR` and `ALIAS_SRC_DIR` are computed and
   keep working; code that hardcoded `res/fhir_loinc_bundle.tar.gz` does not.
   The Git LFS patterns in `.gitattributes` are `res/**/*.gz` now, not
@@ -128,6 +136,18 @@ now deletes it and ends its sessions.
   that resolved nowhere, so the term abstained while `睡眠时长` answered. On
   the 7,354-case evaluation: two more correct, none lost, wrong-rate unchanged
   at 0.030.
+- **A reading without a unit is not coded when the unit picks the code.**
+  `空腹血糖 6.1` was filed under the mg/dL code with no canonical value, and
+  the series statistics left it out. Where mass and moles codes both exist it
+  now waits for input (`unit:missing`); 心率 88 and 体温 38.2 still code.
+- **`POST /api/data` holds a reading to the ingestion ranges too**, and its
+  answer lists what it did not write, by reason (`rejected`).
+- **The upload gate takes what the parsers read, and nothing else.** `.xls`,
+  `.zip` and `.rar` were accepted and then failed (openpyxl opens `.xlsx` only,
+  and no code opens an archive); `.tif`, `.xlsm`, `.log`, `.htm` and `.html`
+  were readable and refused.
+- **The agent names the file each number came off**, from the `file` column
+  its query already returns.
 - **The two entry crosswalk tables read in English.** `loinc_device_base.tsv`
   and `unmappable.tsv` are where a reader starts, and 136 of their rows
   carried Chinese notes. The per-vendor tables beside them are unchanged.
@@ -137,18 +157,36 @@ now deletes it and ends its sessions.
 - **Deleting an account deletes it, and its sessions end.** `/user/del` had
   never deleted anything (neither statement was awaited), and a deleted
   account's JWT kept working for its 30 days: every token check (routers,
-  middleware, MCP bearer and personal URL) now asks whether the account still
-  exists. Deletion needs `confirm` set to the account's email. A deleted
+  middleware, the chat service, MCP bearer and personal URL) now asks whether
+  the account still exists, and a care-circle grant from or to a deleted
+  account grants nothing. Deletion needs `confirm` set to the account's email. A deleted
   address can register again: the email column's own UNIQUE, which outranked
   the partial index meant to allow it, is dropped on the next schema replay.
 - **A proxy upload needs a write grant.** `POST /files/upload` did not declare
   `target_user_id`, so it was dropped and the upload filed as the caller's own.
 - **Unlinking Garmin no longer answers 500 when Garmin refuses.** The link is
-  removed either way; the answer says whether Garmin confirmed.
+  removed either way; the answer says whether Garmin confirmed. Unlinking a
+  provider this deployment never configured is a 400.
+- **`/user/del` and `/user/update_name` without a session answer 401**, not 500.
 
 - **`server/discover` answers in the fields the MCP SDK reads.** It sent
   `supportedProtocolVersions` and `serverInfo`; the SDK's `DiscoverResult`
   requires `supportedVersions`, so its own client rejected every discover.
+- **An MCP client on 2025-11-25 can `ping`.** `resultType` went on every result,
+  and the TypeScript SDK 1.30.1 rejects it on an empty one; it is sent only to
+  2026-07-28 clients now, over HTTP and stdio. `initialize` over HTTP states one
+  version, not a second in `_meta`.
+- **`pip install 'mirobody[parse]'` and one key work outside a checkout.** The
+  default config was read from the working directory only, so `mirobody parse`
+  and `standardize_report` found no model anywhere else; the wheel carries it.
+- **Resolver fixes from a deployment test.** 尿渗透压 and 血清渗透压 reached
+  48149-9, a urine-to-serum ratio, and `serum osmolality` the calculated
+  value; they answer 2695-5 and 2692-2. `Bone percentage` reached a bone
+  alkaline phosphatase ratio and answers 101686-4. RMSSD spellings, which the
+  trailing-abbreviation strip read as SDNN's `HRV`, refuse. `mOsm/kgH2O` and
+  `osmol` normalize. The 7,354-case evaluation is unchanged (0.9158 / 218).
+- **`convert_unit` converts a moles code**, and blood urea nitrogen (6299-2) is
+  converted as nitrogen: it carried the whole urea molecule's mass, 2.14x off.
 
 - **A complete catalogue no longer says it was cut.** Each catalogue row
   carries the catalogue's size, and the truncation check read it as that

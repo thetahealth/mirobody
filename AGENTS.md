@@ -43,13 +43,13 @@ quietly installed `[test]` alone, which is how both CI workflows spent a release
 running the minimal suite while reporting the full one. If a doc says `[agents]`,
 `[server]` or `[cn]`, the doc is wrong.
 
-## The gates — run all four before you say "done"
+## The gates — run all five before you say "done"
 
 ```bash
 ruff check mirobody examples   # rule set in pyproject.toml; 0 findings on main
 python -m compileall -q mirobody
-pytest -q               # 33 in a clone: the shipped resolver benchmark, which
-                        # needs no extras. The regression suite is gitignored
+pytest -q               # 147 in a clone: the two shipped gate modules, which
+                        # need no extras. The regression suite is gitignored
 lint-imports            # 6 contracts, must say "0 broken"
 python3 -c "import mirobody.kernel.meds, mirobody.kernel.query"   # the library layer, bare interpreter
 ```

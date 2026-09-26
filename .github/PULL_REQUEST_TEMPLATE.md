@@ -9,7 +9,7 @@
 
 - [ ] `pytest -q` (full local suite, both roots)
 - [ ] `pytest -q mirobody` (what a clone runs)
-- [ ] `lint-imports` — required for anything touching `mirobody/kernel`, `engine.py` or `agent/`
+- [ ] `lint-imports` — required for anything touching `mirobody/kernel`, `mirobody/engine/` or `agent/`
 - [ ] `uvx ruff check mirobody examples`
 - [ ] `benchmarks/run_eval.py --no-embed` — required for any resolver or bundle change
 

@@ -99,8 +99,8 @@ SOURCES: dict[str, Source] = {
     ),
     "oura": Source(
         "oura", "Oura API v2",
-        ("https://cloud.ouraring.com/v2/static/json/openapi-1.37.json",),
-        "The official OpenAPI document, version 1.37.",
+        ("https://cloud.ouraring.com/v2/static/json/openapi-1.41.json",),
+        "The official OpenAPI document, version 1.41.",
     ),
     "garmin": Source(
         "garmin", "Garmin Health API",

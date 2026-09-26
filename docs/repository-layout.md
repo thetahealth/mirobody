@@ -42,9 +42,10 @@ mirobody` is **2 packages, 67 MB** — the entries above the `documents/` line, 
 installs it is `requirements.txt`, because the Docker application is
 `git clone && ./deploy.sh` and never a pip install.
 
-**Machine-enforced, not documented:** four import-linter contracts hold the
-lines — the library layer imports nothing but numpy, and the engine never
-imports the agent layer — and `lint-imports` fails the build. A separate gate, `scripts/check_wheel_data.py`, keeps the bundle-build passes and the
+**Machine-enforced, not documented:** six import-linter contracts hold the
+lines — the library layer imports nothing but numpy, the engine never imports
+the agent layer, and `collect` and `translate` each have one front door — and
+`lint-imports` fails the build. A separate gate, `scripts/check_wheel_data.py`, keeps the bundle-build passes and the
 v2 semantic pipeline — 19,000 lines nobody who installs the package can run —
 out of the artifact.
 

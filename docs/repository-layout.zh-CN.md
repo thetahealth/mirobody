@@ -39,9 +39,9 @@ frontend/        自带的前端                            pip install 不会
 是全部，而唯一会装它的是 `requirements.txt`，因为 Docker 那条路是
 `git clone && ./deploy.sh`，从来不是 pip install。
 
-**这些边界是机器守的，不是写在文档里的。** 四条 import-linter 契约压着分层：库这
-一层除了 numpy 什么都不 import，engine 永远不 import agent 层，`lint-imports` 不
-过就构建失败。另一道闸门 `scripts/check_wheel_data.py` 负责把词表构建流程和 v2
+**这些边界是机器守的，不是写在文档里的。** 六条 import-linter 契约压着分层：库这
+一层除了 numpy 什么都不 import，engine 永远不 import agent 层，`collect` 和
+`translate` 各自只有一个入口，`lint-imports` 不过就构建失败。另一道闸门 `scripts/check_wheel_data.py` 负责把词表构建流程和 v2
 语义管线（19,000 行，装了包的人一行也跑不了）挡在产物外面。
 
 → [架构](https://docs.mirobody.ai/zh/concepts/architecture/) ·

@@ -4,8 +4,8 @@
 # measured at the finger, and its HRV is RMSSD, for which LOINC has no code.
 #
 # Source, read 2026-09-09:
-#   https://cloud.ouraring.com/v2/static/json/openapi-1.37.json
-#   The official OpenAPI document, version 1.37.
+#   https://cloud.ouraring.com/v2/static/json/openapi-1.41.json
+#   The official OpenAPI document, version 1.41.
 #
 # Columns:
 #   type        the vendor's data type, record class or endpoint, verbatim

@@ -1,6 +1,6 @@
 """Turn a lab report into standardized indicators — one LLM call, no server.
 
-    pip install mirobody
+    pip install 'mirobody[parse]'     # a bare install runs only the no-file demo
     export OPENROUTER_API_KEY=...      # or DASHSCOPE / GOOGLE / OPENAI / DEEPSEEK _API_KEY
     python examples/03_parse_a_lab_report.py path/to/report.pdf
 

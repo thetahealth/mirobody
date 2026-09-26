@@ -45,7 +45,8 @@ all three, aggregates the trend, and names the file every number came from.</em>
 - **Say how you feel, in your own words.** Type `headache since last night,
   BP 150/95, no fever` into the journal and it files a headache and two
   blood-pressure readings, each on its standard code, and leaves out the fever
-  you said you do not have.
+  you said you do not have. Your model splits the sentence; the codes come from
+  the vocabulary, never from the model.
 - **No hallucinations, everything traceable.** Every indicator lands in one
   settled system: either it gets a definite code, or it says it could not
   resolve one. It never invents one in between. Built and tested against real
@@ -84,8 +85,8 @@ from mirobody.engine import resolve, resolve_reading
 
 resolve("血红蛋白").loinc                                # '718-7'   any language, one code
 resolve("total cholesterol").loinc                     # '2093-3'  [Mass/volume]
-resolve_reading("total cholesterol", "5.0", "mmol/L")   # '14647-2' [Moles/volume]
-resolve_reading("total cholesterol", "193", "mg/dL")    # '2093-3'  the unit picks the code
+resolve_reading("total cholesterol", "5.0", "mmol/L").loinc  # '14647-2' [Moles/volume]
+resolve_reading("total cholesterol", "193", "mg/dL").loinc   # '2093-3'  the unit picks the code
 
 resolve("中性粒细胞百分比").loinc                          # '26511-6' Neutrophils/Leukocytes
 resolve_reading("中性粒细胞", "62 %", None).loinc          # '26511-6' a percentage...
@@ -138,9 +139,12 @@ to integrate here at all.
 
 ## Privacy
 
-Nothing leaves your machine except calls to the model you chose. Reading a
-photo of a report, pulling indicators out of a PDF, answering your question:
-all three call it. Which provider and which model is the one key in your `.env`.
+Nothing leaves your machine except calls to the model you chose, and to a
+device vendor once you link one. Reading a photo of a report, pulling
+indicators out of a PDF, splitting a sentence you typed into the journal,
+answering your question: all four call the model. Which provider and which
+model is the one key in your `.env`. A linked Garmin, Oura or Whoop is called
+through its own API, for what it recorded and nothing else.
 
 **② Translate** stays local entirely: a name to a code, a unit to UCUM, looked
 up against a bundle that ships inside the package. No key, no network, no GPU,
@@ -182,8 +186,8 @@ subnet, so a second one needs a different `mirobody_network` subnet; and a
 Docker that refuses named volumes (rootless, hardened) needs bind mounts
 instead, which is what `compose.override.yaml.example` is for.
 
-Sign in as `you@mirobody.ai`, code `111111`, no mail provider needed. An
-account of your own is one request away:
+Sign in on the **Email code** tab as `you@mirobody.ai`, code `111111`, no mail
+provider needed. An account of your own is one request away:
 
 ```bash
 curl -X POST localhost:18060/password/register -H 'Content-Type: application/json' \

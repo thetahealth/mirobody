@@ -21,7 +21,7 @@ not an LLM.
 
 ```bash
 pip install mirobody
-mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン 血脂
+mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン "空腹血糖(GLU)" 血脂
 ```
 
 `血脂` names a category rather than one observation, so it resolves to nothing.
@@ -46,7 +46,7 @@ already seeded.
 
 ```bash
 git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
-git lfs install && git lfs pull   # the LOINC bundle, 40 MB; a fresh clone holds a pointer stub
+git lfs install && git lfs pull   # the LOINC bundle, 13 MB; a fresh clone holds a pointer stub
 ./deploy.sh                       # → http://localhost:18060
 ```
 

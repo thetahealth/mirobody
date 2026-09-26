@@ -76,7 +76,7 @@ column links the document each table was read from, all on 2026-09-09.
 | Samsung Health Data SDK (`samsung.tsv`) | 26 | 17 | 15 | [1](https://developer.samsung.com/health/data/api-reference) |
 | Fitbit Web API (`fitbit.tsv`) | 31 | 22 | 16 | [1](https://dev.fitbit.com/build/reference/web-api/) |
 | WHOOP API v2 (`whoop.tsv`) | 34 | 19 | 11 | [1](https://api.prod.whoop.com/developer/doc/openapi.json) |
-| Oura API v2 (`oura.tsv`) | 54 | 25 | 14 | [1](https://cloud.ouraring.com/v2/static/json/openapi-1.37.json) |
+| Oura API v2 (`oura.tsv`) | 54 | 25 | 14 | [1](https://cloud.ouraring.com/v2/static/json/openapi-1.41.json) |
 | Garmin Health API (`garmin.tsv`) | 23 | 17 | 6 | [1](https://developer.garmin.com/gc-developer-program/health-api/) |
 | vivo BlueOS health API (`vivo.tsv`) | 20 | 14 | 11 | [1](https://developers-watch.vivo.com.cn/api/health/health/) · [2](https://developers.vivo.com/doc/d/4ea8ba1ec4cd44bd8bdaca9f3fecf795) |
 | Xiaomi Health cloud (`xiaomi.tsv`) | 13 | 8 | 8 | [1](https://dev.mi.com/) |
@@ -315,7 +315,7 @@ same list is `mirobody.translate.devices.SOURCES`. All were read on
 | Samsung Health Data SDK | [API reference](https://developer.samsung.com/health/data/api-reference) |
 | Fitbit Web API | [reference](https://dev.fitbit.com/build/reference/web-api/), per-endpoint response tables |
 | WHOOP API v2 | [openapi.json](https://api.prod.whoop.com/developer/doc/openapi.json) |
-| Oura API v2 | [openapi-1.37.json](https://cloud.ouraring.com/v2/static/json/openapi-1.37.json) |
+| Oura API v2 | [openapi-1.41.json](https://cloud.ouraring.com/v2/static/json/openapi-1.41.json) |
 | Garmin Health API | [program page](https://developer.garmin.com/gc-developer-program/health-api/); field-level schemas need approval |
 | vivo | [BlueOS health API](https://developers-watch.vivo.com.cn/api/health/health/), [cloud interface](https://developers.vivo.com/doc/d/4ea8ba1ec4cd44bd8bdaca9f3fecf795) |
 | Xiaomi | public `com.xiaomi.micloud.fit.*` data types via [dev.mi.com](https://dev.mi.com/) |

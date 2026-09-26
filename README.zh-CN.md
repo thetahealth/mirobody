@@ -38,6 +38,7 @@ Mirobody 把不同来源、格式、表述的健康信息，规整成一套语�
   戒指、体重秤，也一并进来。PDF、照片、表格、导出文件，23 种文件类型，Mirobody 都能看懂。
 - **用自己的话记下感受。** 在「记录」里写一句 `昨晚开始头疼，血压150/95，没发烧`，
   它会记下一条头疼、两条血压读数，各自落在标准码上；你说了没有的发烧，不会被记进去。
+  拆句的是你选的模型，编码来自词表，从不来自模型。
 - **0 幻觉，可追溯。** 每一条健康数据都会落进一套确定的指标体系：要么给出一个确定的编码，
   要么明说没解析出来，绝不自己编一个。基于真实报告开发和测试，英文、中文、日文的写法都认。
 - **Agent 只在编码过的数据上推理。** 按分钟、小时、天、周、月给出趋势，并画成图；一次调
@@ -71,8 +72,8 @@ from mirobody.engine import resolve, resolve_reading
 
 resolve("血红蛋白").loinc                                # '718-7'   any language, one code
 resolve("total cholesterol").loinc                     # '2093-3'  [Mass/volume]
-resolve_reading("total cholesterol", "5.0", "mmol/L")   # '14647-2' [Moles/volume]
-resolve_reading("total cholesterol", "193", "mg/dL")    # '2093-3'  the unit picks the code
+resolve_reading("total cholesterol", "5.0", "mmol/L").loinc  # '14647-2' [Moles/volume]
+resolve_reading("total cholesterol", "193", "mg/dL").loinc   # '2093-3'  the unit picks the code
 
 resolve("中性粒细胞百分比").loinc                          # '26511-6' Neutrophils/Leukocytes
 resolve_reading("中性粒细胞", "62 %", None).loinc          # '26511-6' a percentage...
@@ -121,9 +122,10 @@ Garmin、Oura、Whoop 用你自己在厂商那边申请的凭证接入，步骤�
 
 ## 隐私
 
-除了你自己选的那个大模型，没有任何数据离开你的机器。读一张体检报告照片、从 PDF
-里抽出指标、回答你的提问，这几件事都要调用它；用哪家、用哪个模型，由你 `.env`
-里那一把 key 说了算。
+除了你自己选的那个大模型，以及你连上的设备厂商，没有任何数据离开你的机器。读一张
+体检报告照片、从 PDF 里抽出指标、拆开你在「记录」里写的一句话、回答你的提问，这四件
+事都要调用模型；用哪家、用哪个模型，由你 `.env` 里那一把 key 说了算。连上的
+Garmin、Oura、Whoop 走它们自己的 API，只取它们记下的数据。
 
 **② 转译**这一层完全在本地：名字对到码、单位换算成 UCUM，查的是随包发布的词表，
 不用 key，不联网，不跑模型，也不用 GPU。你的记录存在你自己的 Postgres 里，容器
@@ -159,8 +161,8 @@ git lfs install && git lfs pull   # 解析器的 LOINC 词表，13 MB；新克�
 另外，拒绝 named volume 的 Docker（rootless、受限环境）要改用 bind mount，
 `compose.override.yaml.example` 就是为这个准备的。
 
-用 `you@mirobody.ai`、验证码 `111111` 登录，不需要邮件服务。注册自己的账号也
-只要一个请求：
+在「邮箱验证码」页签用 `you@mirobody.ai`、验证码 `111111` 登录，不需要邮件服务。
+注册自己的账号也只要一个请求：
 
 ```bash
 curl -X POST localhost:18060/password/register -H 'Content-Type: application/json' \
