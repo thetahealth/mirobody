@@ -43,7 +43,7 @@ _COLUMNS: dict[str, tuple[str, ...]] = {
     "buckets": ("indicator", "period", "avg", "min", "max", "n", "unit", "system", "code"),
     "stats": ("indicator", "count", "min", "max", "avg", "first", "first_date", "last", "last_date",
               "change", "unit", "mixed_units", "system", "code"),
-    "latest": ("indicator", "name", "date", "time", "value", "unit", "system", "code"),
+    "latest": ("indicator", "name", "date", "time", "value", "unit", "system", "code", "file"),
 }
 
 #: The same, for what the person REPORTED: `name` is their words and is the

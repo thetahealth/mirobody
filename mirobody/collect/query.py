@@ -291,8 +291,10 @@ class PostgresHealthQuery:
                    o.series_id, o.display, o.name_text, o.value_text, o.unit_text, o.value_num,
                    o.value_canonical, o.unit_canonical, o.code_system, o.code, o.local_date, o.elected, o.modality,
                    o.outcome, {_REPORTED_COLUMNS},
+                   {_FILE_KEY} AS file_key, {_FILE_NAME},
                    to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS') AS local_time
               FROM v_observation o
+            {_FILE_JOIN}
              WHERE o.user_id = :uid AND o.series_id = ANY(:names) {where}
              ORDER BY o.series_id, o.elected DESC, o.observed_start DESC, o.id DESC
             """,
@@ -615,6 +617,10 @@ def _latest_row(r: dict, basis: str) -> dict:
         "unit": r.get("unit_text") or "",
         "value_canonical": _number(r.get("value_canonical")),
         "unit_canonical": r.get("unit_canonical") or "",
+        # The latest value is the answer asked for most, and it came without the
+        # document it was read from, so the agent could not name the file.
+        "file": _text(r.get("file_name")) or (r.get("file_key") or ""),
+        "file_key": r.get("file_key") or "",
         "modality": r.get("modality") or "",
         "basis": basis,
         "day_known": True,
