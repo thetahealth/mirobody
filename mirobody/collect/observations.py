@@ -39,10 +39,11 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
+from functools import lru_cache
 from datetime import date, datetime
 from typing import Any
 
-from mirobody import translate
+from mirobody import translate, units
 from mirobody.kernel import metrics, quality, series
 from mirobody.utils import db
 
@@ -100,6 +101,9 @@ AGGREGATE_TASK_IDS = frozenset({"aggregate_indicator", "derived_indicator", "der
 REJECT_NO_NAME = "no-name"
 REJECT_NO_TIME = "no-time"
 REJECT_WRITE_ERROR = "write-error"
+#: A typed reading outside the ingestion range a device reading of the same
+#: code is held to (`indicator_valid_rules`): 血压 400/300.
+REJECT_OUT_OF_RANGE = "out-of-range"
 
 #: The fields that carry meaning for `fingerprint`: the verbatim layer and
 #: the time. Not the row id, not the coding, not `created_at`.
@@ -540,27 +544,71 @@ async def _write_coding(tx: db.Transaction, observation_id: int, row: dict[str, 
     params = _coding_params(observation_id, coding)
     await tx.execute(_INSERT_CURRENT, params)
     await tx.execute(_INSERT_HISTORY, {**params, "cause": cause})
-    if coding.coded and coding.display and coding.display != coding.code:
-        # Every code whose vocabulary gave it a NAME, not only the LOINC ones:
-        # an ICPC-3 coding has no axes, and the six `loinc_*` columns are
-        # nullable for that reason. Without a row here a symptom series has no
-        # standard name to show beside the words the person wrote. A device
-        # code, whose display is the code echoed back, still gets none: the
-        # series keeps showing the vendor field, as it did before.
-        axes = coding.axes
-        await tx.execute(_INSERT_CONCEPT, {
-            "release": coding.release,
-            "code_system": coding.code_system,
-            "code": coding.code,
-            "display": coding.display,
-            "series_id": coding.series_id,
-            "component": axes.component if axes else None,
-            "property": axes.property if axes else None,
-            "time": axes.time if axes else None,
-            "system": axes.system if axes else None,
-            "scale": axes.scale if axes else None,
-            "method": axes.method if axes else None,
-        })
+    await _write_concept(tx, coding)
+
+
+async def _write_concept(tx: db.Transaction, coding: translate.Coding) -> None:
+    """Every code whose vocabulary gave it a NAME, not only the LOINC ones: an
+    ICPC-3 coding has no axes, and the six `loinc_*` columns are nullable for
+    that reason. Without a row here a symptom series has no standard name to
+    show beside the words the person wrote. A device code, whose display is the
+    code echoed back, gets none: the series keeps showing the vendor field.
+    The writer and `recode` both call this, so a recoded row is named the same."""
+    if not (coding.coded and coding.display and coding.display != coding.code):
+        return
+    axes = coding.axes
+    await tx.execute(_INSERT_CONCEPT, {
+        "release": coding.release,
+        "code_system": coding.code_system,
+        "code": coding.code,
+        "display": coding.display,
+        "series_id": coding.series_id,
+        "component": axes.component if axes else None,
+        "property": axes.property if axes else None,
+        "time": axes.time if axes else None,
+        "system": axes.system if axes else None,
+        "scale": axes.scale if axes else None,
+        "method": axes.method if axes else None,
+    })
+
+
+_range_rules: Any = None
+
+
+async def _ranges() -> Any:
+    """The ingestion ranges, loaded once per process. A load that fails
+    passes every value, as it does for a device batch."""
+    global _range_rules
+    if _range_rules is None:
+        rules = translate.ValueRangeValidator()
+        await rules.load()
+        _range_rules = rules
+    return _range_rules
+
+
+@lru_cache(maxsize=1)
+def _metrics_by_code() -> dict[str, tuple[metrics.Metric, ...]]:
+    out: dict[str, list[metrics.Metric]] = {}
+    for m in metrics.ROWS:
+        if m.loinc and m.confidence == metrics.CONFIDENT:
+            out.setdefault(m.loinc, []).append(m)
+    return {code: tuple(ms) for code, ms in out.items()}
+
+
+def out_of_range(row: dict[str, Any], coding: translate.Coding, ranges: Any) -> bool:
+    """Whether a coded reading breaks the range of a catalogue metric that
+    carries its code, in that metric's unit. A typed reading was held to
+    nothing: a sentence wrote a blood pressure of 400/300 that a device's
+    reading of the same code would have been filtered for."""
+    value = row.get("value_num")
+    if value is None or not coding.coded or coding.code_system != translate.LOINC_SYSTEM:
+        return False
+    for metric in _metrics_by_code().get(coding.code or "", ()):
+        unit = row.get("unit_ucum") or metric.unit_ucum
+        converted = value if unit == metric.unit_ucum else units.convert_value(value, unit, metric.unit_ucum)
+        if converted is not None and not ranges.validate(metric.name, converted).is_valid:
+            return True
+    return False
 
 
 async def rebuild_series(user_id: str) -> int:
@@ -656,6 +704,7 @@ async def ingest(
             report.extraction_id = int(rows[0]["id"]) if rows else None
 
         aliases = await _load_aliases(tx, str(user_id))
+        ranges = await _ranges() if provenance.source_class == series.SOURCE_MANUAL else None
         for ix, draft in enumerate(drafts):
             try:
                 row = prepare(draft, provenance, str(user_id), user_tz, now=now)
@@ -667,11 +716,14 @@ async def ingest(
                 row["row_ix"] = ix
             try:
                 async with tx.savepoint():
+                    coding = coding_for(row, aliases)
+                    if ranges is not None and out_of_range(row, coding, ranges):
+                        report.reject(REJECT_OUT_OF_RANGE)
+                        continue
                     observation_id, skipped = await _insert(tx, row, on_conflict)
                     if observation_id is None:
                         report.skipped += 1
                         continue
-                    coding = coding_for(row, aliases)
                     await _write_coding(tx, observation_id, row, coding, CAUSE_INGEST if row.get("amends") is None else CAUSE_AMEND)
             except Exception as e:
                 # Counts and a type: the row is health data and stays out of the log.
@@ -848,7 +900,7 @@ async def erase(
 # --- recoding: the same frozen rows under a newer vocabulary or rule -------
 
 _SELECT_FOR_RECODE = """
-SELECT o.id, o.name_text, o.name_key, o.local_key, o.value_kind, o.value_text, o.unit_text, o.unit_ucum,
+SELECT o.id, o.kind, o.name_text, o.name_key, o.local_key, o.value_kind, o.value_text, o.unit_text, o.unit_ucum,
        o.value_num, o.source_kind, o.series_id, o.decision_id, o.release, o.outcome, o.code_system, o.code
   FROM v_observation o
  WHERE o.user_id = :user_id AND o.id > :after {name_filter}
@@ -949,14 +1001,7 @@ async def recode(
                 params_c = _coding_params(int(row["id"]), coding)
                 await tx.execute(_UPDATE_CURRENT, params_c)
                 await tx.execute(_INSERT_HISTORY, {**params_c, "cause": why})
-                if coding.coded and coding.code_system == translate.LOINC_SYSTEM and coding.axes is not None:
-                    await tx.execute(_INSERT_CONCEPT, {
-                        "release": coding.release, "code_system": coding.code_system, "code": coding.code,
-                        "display": coding.display or coding.code, "series_id": coding.series_id,
-                        "component": coding.axes.component, "property": coding.axes.property,
-                        "time": coding.axes.time, "system": coding.axes.system, "scale": coding.axes.scale,
-                        "method": coding.axes.method,
-                    })
+                await _write_concept(tx, coding)
                 report.changed += 1
                 report.count(coding.outcome)
                 report.series.update((str(row["series_id"]), coding.series_id))

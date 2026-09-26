@@ -610,6 +610,28 @@ class OfflineResolver:
             self._by_component = index
         return self._by_component
 
+    def unit_variants(self, loinc: str) -> tuple[str, ...]:
+        """The codes of the same measurement in the other of mass and moles:
+        same component, scale, specimen, method and time, property `M*` against
+        `S*` (1558-6 MCnc against 14771-0 SCnc). Only a unit tells them apart,
+        so a reading printed without one cannot pick. Empty when the property
+        is not a mass or substance one, or the analyte has only one."""
+        row = self._row_for_code(loinc) if loinc else -1
+        if row < 0:
+            return ()
+        _code, component, prop, scale, system, method, _lcn = self._axis_row(row)
+        if prop[:1] not in ("M", "S") or len(prop) < 2:
+            return ()
+        other = ("S" if prop[0] == "M" else "M") + prop[1:]
+        time = self._axis.field(row, _TIME)
+        return tuple(
+            r[0]
+            for i in self._component_index().get(component.encode("utf-8"), [])
+            for r in (self._axis_row(i),)
+            if r[2] == other and r[3] == scale and r[4] == system and r[5] == method
+            and self._axis.field(i, _TIME) == time
+        )
+
     def variant_for_reading(self, loinc: str, value: str | None, unit: str | None) -> UnitVerdict:
         """The code for the SAME measurement, in the form this reading took.
 

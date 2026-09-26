@@ -31,7 +31,7 @@ when a term was ambiguous.
 
 from mirobody.engine.observation import standardize_reading
 from mirobody.engine.parse import Reading, parse_file, parse_text
-from mirobody.engine.resolver import OfflineResolver, Resolution, get_resolver, resolve, resolve_reading
+from mirobody.engine.resolver import OfflineResolver, Resolution, UnitVerdict, get_resolver, resolve, resolve_reading
 
 #: The stable surface. `mirobody/__init__.py` re-exports it lazily, so
 #: `from mirobody import resolve` and `from mirobody.engine import resolve`
@@ -41,6 +41,8 @@ __all__ = [
     "OfflineResolver",
     "Reading",
     "Resolution",
+    # What `OfflineResolver.variant_for_reading` returns: public by that.
+    "UnitVerdict",
     "get_resolver",
     "parse_file",
     "resolve",

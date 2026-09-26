@@ -167,6 +167,19 @@ def code(
         return Coding(OUTCOME_NEEDS_INPUT, local, did, RULE_ENGINE, rel, reason="engine:no-match", evidence=evidence)
     if hit.method != "lexical":
         return Coding(OUTCOME_NEEDS_INPUT, local, did, RULE_ENGINE, rel, reason=f"engine:untrusted:{hit.method}", evidence=evidence)
+    if value_kind == KIND_QUANTITY and not (unit_text or unit_ucum):
+        # `空腹血糖 6.1` is mmol/L, and the name alone gives the mg/dL code:
+        # the reading joined the mass series with no canonical value, and the
+        # series statistics silently left it out. The unit is the only thing
+        # that picks between the two, so without one a person has to.
+        from mirobody.engine import get_resolver
+
+        siblings = get_resolver().unit_variants(hit.loinc)
+        if siblings:
+            return Coding(
+                OUTCOME_NEEDS_INPUT, local, did, RULE_ENGINE, rel, reason="unit:missing",
+                evidence=evidence + (f"candidate={hit.loinc}", "variants=" + ",".join(siblings)),
+            )
     return _coded(hit.loinc, did, RULE_ENGINE, rel, local, value_kind, value_num, unit_ucum, evidence + (f"canonical={hit.canonical}",))
 
 
