@@ -1,3 +1,11 @@
+## Unreleased
+
+### Changed
+
+- Removed the frozen Traditional Chinese and Japanese README editions and their
+  archive index, which contained stale links. Only the live English and Chinese
+  READMEs remain; the removed editions are available in Git history.
+
 ## 1.5.1
 
 The symptom axis: complaints and diagnoses in a person's own words, coded on
