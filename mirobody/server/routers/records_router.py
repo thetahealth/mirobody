@@ -43,6 +43,7 @@ from mirobody.engine import resolve_reading as resolve_indicator_name
 from mirobody.units.normalize import normalize_unit, parse_value_unit
 from mirobody.kernel import series
 from mirobody.collect import observations
+from mirobody.translate import devices
 from mirobody.utils import execute_query
 from mirobody.server.auth import verify_token
 
@@ -56,6 +57,11 @@ router = APIRouter(prefix="/api", tags=["records"])
 _SOURCE_API = "api"
 _SOURCE_STANDARDIZE = "standardize"
 _SOURCE_TABLE = "api"
+
+# `source` values a phone client sends for its platform health store, to the
+# crosswalk's vendor ids. A vendor id itself (`health_connect`, `samsung`, ...)
+# is accepted as it is.
+_STORE_VENDORS = {"healthkit": "apple", "apple_health": "apple", "hms": "huawei"}
 
 MAX_RECORDS_PER_REQUEST = 500
 
@@ -232,6 +238,67 @@ def _parse_time(raw: str | None) -> datetime:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
+def _device_vendor(source: str | None) -> str | None:
+    """The crosswalk vendor a record's `source` names, or `None` for any other
+    source: a lab, a person, the caller's own app."""
+    key = (source or "").strip().lower()
+    vendor = _STORE_VENDORS.get(key, key)
+    return vendor if vendor in devices.SOURCES else None
+
+
+# HealthKit quantity identifiers arrive whole (`HKQuantityTypeIdentifierHeartRate`);
+# the crosswalk keeps the prefix as the type and the rest, lower camel case, as
+# the field.
+_HK_QUANTITY = "HKQuantityTypeIdentifier"
+
+
+def _vendor_key(vendor: str, indicator: str) -> tuple[str, str]:
+    if vendor == "apple" and indicator.startswith(_HK_QUANTITY) and len(indicator) > len(_HK_QUANTITY):
+        rest = indicator[len(_HK_QUANTITY):]
+        return _HK_QUANTITY, rest[0].lower() + rest[1:]
+    kind, _, field = indicator.partition(":")
+    return kind, field
+
+
+def _device_metric(vendor: str, indicator: str) -> tuple[str, str | None]:
+    """The catalogue metric a vendor's identifier means, and the identifier as
+    sent, which is kept in `vendor_field`.
+
+    `indicator` is the vendor's own type (`HeartRateRecord`), `type:field`, or
+    already a catalogue metric name. An identifier that stands for two metrics
+    keeps the name it was sent with: `BloodPressureRecord` holds systolic and
+    diastolic, so the caller names the metric (`systolicPressures`) instead.
+    """
+    kind, field = _vendor_key(vendor, indicator)
+    rows = [r for r in devices.vendor_fields(vendor) if r.type == kind and r.field == field]
+    if not rows or not rows[0].metric:
+        return indicator, None
+    row = rows[0]
+    codes = {c.loinc for c in devices.base_table() if c.fields.get(vendor) in (row.type, row.key)}
+    if len(rows) > 1 or len(codes) > 1:
+        return indicator, indicator
+    return row.metric, indicator
+
+
+def _provenance(vendor: str | None, source: str) -> observations.Provenance:
+    """A phone health store's batch is a device batch, so it is coded from the
+    device catalogue the way a provider's pull is. Anything else stays manual."""
+    if vendor is None:
+        return observations.Provenance(
+            modality=observations.MODALITY_MANUAL,
+            source_kind=observations.SOURCE_API,
+            source_ref=f"{_SOURCE_TABLE}:{source}",
+            source_class=series.SOURCE_MANUAL,
+        )
+    return observations.Provenance(
+        modality=observations.MODALITY_DEVICE,
+        source_kind=observations.SOURCE_DEVICE,
+        source_ref=f"{_SOURCE_TABLE}:{vendor}",
+        source_class=series.SOURCE_MEASURER,
+        vendor=vendor,
+    )
+
+
 async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source: str) -> tuple[int, int]:
     """Write readings, standardizing each on the way in.
 
@@ -240,31 +307,35 @@ async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source
     `observations.ingest`, which folds, parses and codes each row and writes
     the coding beside it. A collision on the identity is a retry, not a
     request for a duplicate row: re-sending a batch after a timeout writes
-    nothing twice.
+    nothing twice. One `ingest` per provenance, so a batch mixing a health
+    store with typed readings codes each the way its source calls for.
     """
-    drafts = []
+    groups: dict[str | None, list[observations.Draft]] = {}
     for ix, record in enumerate(records):
         when = _parse_time(record.get("time"))
         end = _parse_time(record["end_time"]) if record.get("end_time") else when
         value = record.get("value")
-        drafts.append(observations.Draft(
-            name_text=str(record["indicator"]),
+        vendor = _device_vendor(record.get("source"))
+        name, vendor_field = str(record["indicator"]), None
+        if vendor is not None:
+            name, vendor_field = _device_metric(vendor, name)
+        groups.setdefault(vendor, []).append(observations.Draft(
+            name_text=name,
             observed_start=when,
             observed_end=end,
             value_text="" if value is None else str(value),
             unit_text=str(record.get("unit") or ""),
             note_text=str(record.get("source") or ""),
+            vendor_field=vendor_field,
             row_ix=ix,
         ))
-    provenance = observations.Provenance(
-        modality=observations.MODALITY_MANUAL,
-        source_kind=observations.SOURCE_API,
-        source_ref=f"{_SOURCE_TABLE}:{source}",
-        source_class=series.SOURCE_MANUAL,
-    )
     tz = await observations.user_tz(str(user_id))
-    report = await observations.ingest(str(user_id), drafts, provenance, user_tz=tz)
-    return report.inserted, report.coded
+    written = coded = 0
+    for vendor, drafts in groups.items():
+        report = await observations.ingest(str(user_id), drafts, _provenance(vendor, source), user_tz=tz)
+        written += report.inserted
+        coded += report.coded
+    return written, coded
 
 
 @router.post("/data")
