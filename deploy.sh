@@ -303,11 +303,9 @@ check_subnet_free() {
 # mirror failed pulling pg/redis from the unreachable hub.
 export DOCKER_MIRROR="${docker_host}"
 
-# The terminology data that is not in the checkout. 22 MB, once: it is the
-# concept graph behind semantic indicator search, and it left the repository
-# so that `git clone` stops paying 29 MB of Git LFS for files the wheel has
-# forbidden since 1.3.0. Never fatal — without it, search answers from the
-# lexical index and says so.
+# Terminology data that is not in the checkout, listed in
+# mirobody/res/EXTERNAL.tsv. Since 1.5.0 every row there is an archive row and
+# nothing is downloaded; the call stays for a release that adds one. Never fatal.
 if [[ -x "$(dirname "$0")/scripts/fetch_data.sh" ]]; then
     "$(dirname "$0")/scripts/fetch_data.sh"
 fi
@@ -322,7 +320,21 @@ docker compose down
 check_ports_free 18060 18062 18069
 check_subnet_free
 
-if ! docker compose up -d --remove-orphans; then
+up_log="$(mktemp)"
+if ! (set -o pipefail; docker compose up -d --remove-orphans 2>&1 | tee "${up_log}"); then
+    if grep -q "Host path binding is rejected" "${up_log}"; then
+        # README promises the fix is in the message; compose's own line is not it.
+        echo ""
+        echo "This Docker daemon refuses named volumes (rootless or hardened). Use bind mounts:"
+        echo ""
+        echo "    cp compose.override.yaml.example compose.override.yaml"
+        echo "    mkdir -p ../mirobody-data/{pgdata,redis,upload,sitepkgs}"
+        echo "    docker compose down -v    # the empty volumes this attempt created"
+        echo "    ./deploy.sh"
+        rm -f "${up_log}"
+        exit 1
+    fi
+    rm -f "${up_log}"
     # "nothing is running" was wrong and sent people the wrong way: compose
     # starts pg and redis, then fails on mirobody, and the real cause (a pip
     # install that could not reach an index, a rejected volume) is only in
@@ -338,8 +350,9 @@ if ! docker compose up -d --remove-orphans; then
     echo "Nothing below this line ran. Fix the error and re-run ./deploy.sh."
     exit 1
 fi
+rm -f "${up_log}"
 echo ""
-echo "Up. Open http://localhost:18060 and sign in as you@mirobody.ai / 111111."
+echo "Up. Open http://localhost:18060 and, on the Email code tab, sign in as you@mirobody.ai / 111111."
 echo "The boot log below ends with 'LLM models by surface', or, while no key is"
 echo "set at all, with 'no LLM model on any surface'. For either of those, and for"
 echo "a surface that reads '--', put ONE LLM API key in .env (the names are listed"

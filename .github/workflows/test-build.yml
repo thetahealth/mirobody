@@ -5,10 +5,8 @@ name: Test Build
 #
 # No paths filter, deliberately. The old one listed '**.py', pyproject.toml and
 # this file, which already missed config.yaml (the demo credential test reads
-# it) and now misses README*.md, mirobody/demo/ and mirobody/res/ as well --
-# test_readme_numbers.py checks the READMEs' figures against the bundle and the
-# fixture, so a README-only edit can break the build. A filter that is wrong is
-# worse than no filter, and a full run is three minutes.
+# it) and mirobody/res/, whose data the shipped gates read. A filter that is
+# wrong is worse than no filter, and a full run is three minutes.
 on:
   workflow_dispatch:
     inputs:
@@ -53,21 +51,14 @@ jobs:
     # The suite and the layering contract, actually run.
     #
     # `pytest` was in the install line above and was never invoked, so every
-    # claim the tests carry — the 176/176 resolver number, the vendor payload
-    # snapshots, the security regressions — was unguarded on every PR. An
+    # claim the tests carry, the resolver score the README prints first, was
+    # unguarded on every PR. An
     # external reviewer found a `[test]`-only install aborting at collection;
     # a CI run would have caught it the day it appeared.
     #
     # `[test]` alone here on purpose, NOT `[app,test]`: this job is the
     # closest thing to a fresh contributor's machine, and it is where a missing
     # or newly-eager dependency shows up. The full run happens below.
-    # The terminology data that is NOT in the checkout (mirobody/res/EXTERNAL.tsv).
-    # Without it `test_readme_numbers.py` skips — and that test is what holds
-    # the resolver numbers the README prints to the artifact they come from, so
-    # CI is exactly where it must NOT skip.
-    - name: Fetch the out-of-tree terminology data
-      run: ./scripts/fetch_data.sh --all
-
     - name: Engine tests on a minimal install
       run: |
         pip install -e '.[test]'
@@ -127,16 +118,21 @@ jobs:
       run: |
         twine check dist/*
 
+    # From outside the checkout: in it, the working directory is on sys.path
+    # and `import mirobody` loads the source tree, not the wheel.
     - name: Test package installation
       run: |
         # Test wheel installation
         pip install dist/*.whl
+        cd "$RUNNER_TEMP"
         python -c "import mirobody; assert mirobody.__version__ == '${{ env.VERSION }}', f'Version mismatch: {mirobody.__version__} != ${{ env.VERSION }}'"
         pip show mirobody
         pip uninstall -y mirobody
 
         # Test sdist installation
+        cd "$GITHUB_WORKSPACE"
         pip install dist/*.tar.gz
+        cd "$RUNNER_TEMP"
         python -c "import mirobody; print(f'Successfully installed version: {mirobody.__version__}')"
         pip uninstall -y mirobody
 
@@ -173,6 +169,7 @@ jobs:
       if: runner.os != 'Windows'
       run: |
         pip install dist/*.whl
+        cd "$RUNNER_TEMP"
         python -c "import mirobody; print(f'Mirobody {mirobody.__version__} works on ${{ matrix.os }}')"
 
     - name: Install and test package (Windows)
@@ -180,6 +177,7 @@ jobs:
       run: |
         $wheel = Get-ChildItem -Path "dist" -Filter "*.whl" | Select-Object -First 1
         pip install $wheel.FullName
+        Set-Location $env:RUNNER_TEMP
         python -c "import mirobody; print(f'Mirobody {mirobody.__version__} works on ${{ matrix.os }}')"
 
   summary:
