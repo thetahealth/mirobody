@@ -137,7 +137,8 @@ class ThFilesBackend(PgFilesystemBackend):
                        content_hash, decrypt_content(original_text) AS original_text,
                        text_length, created_at, updated_at
                   FROM th_files
-                 WHERE user_id = :uid AND is_del = false {where}
+                 WHERE user_id = :uid AND is_del = false
+                   AND scene IS DISTINCT FROM 'genetic' {where}
                  ORDER BY created_at DESC
                  LIMIT :limit
                 """,

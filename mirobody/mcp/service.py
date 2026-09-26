@@ -277,8 +277,11 @@ class McpService:
     # probe on the raw table counted a retracted row (it stays, amended).
     _DATA_GATED = {
         "query_genetic_data":
-            "SELECT 1 FROM th_series_data_genetic"
-            " WHERE user_id = :uid AND is_deleted = false LIMIT 1",
+            "SELECT 1 FROM th_genotype_set"
+            " WHERE user_id = :uid AND status = 'active' LIMIT 1",
+        "query_pharmacogenomics":
+            "SELECT 1 FROM th_genotype_set"
+            " WHERE user_id = :uid AND status = 'active' LIMIT 1",
         "query_health_indicators":
             "SELECT 1 FROM v_observation WHERE user_id = :uid LIMIT 1",
         "query_medications":
@@ -307,7 +310,8 @@ class McpService:
                 if not rows:
                     hidden.add(name)
             except Exception as e:
-                logger.warning("MCP: data gate check failed for %s: %s", name, e)
+                logger.warning("MCP: data gate check failed: tool_name=%s error_type=%s",
+                               name, type(e).__name__)
         return hidden
 
     #-----------------------------------------------------

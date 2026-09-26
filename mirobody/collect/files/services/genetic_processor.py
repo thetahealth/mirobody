@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import asyncio
+import hashlib
 import os
 import logging
 from datetime import datetime
@@ -9,9 +10,12 @@ from typing import Any
 from collections.abc import Generator
 
 from mirobody.utils.i18n import localize
-from mirobody.utils import execute_query
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.collect.files.services.file_db_service import FileDbService
 from mirobody.collect.files.services import genotype_format
+from mirobody.collect.files.services.genetic_store import GenotypeStore
+from mirobody.translate.genotype import NORMALIZER_VERSION, infer_sex, normalize
+from mirobody.translate.genotype_sites import SiteCatalog
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +31,7 @@ class GeneticDataLoader:
         display_filename: str = None,
         display_file_size: int = None,
         file_key: str = None,  # New: file_key for th_files updates
+        store: GenotypeStore | None = None,
     ):
         self.message_id = message_id
         self.language = language
@@ -34,13 +39,14 @@ class GeneticDataLoader:
         self.display_filename = display_filename
         self.display_file_size = display_file_size
         self.file_key = file_key
+        self.store = store or GenotypeStore()
 
     def parse_genetic_file(
         self,
         file_path: str,
-        user_id: str,
-        source_table: str = None,
-        source_table_id: str = None,
+        fmt: genotype_format.GenotypeFormat,
+        *,
+        sample: str | None = None,
     ) -> Generator[dict[str, Any], None, None]:
         """Parse a raw genotype export, yielding one row per marker.
 
@@ -54,26 +60,35 @@ class GeneticDataLoader:
         """
         import gc
 
-        with open(file_path, "rb") as probe:
-            fmt = genotype_format.sniff(probe.read(genotype_format.SNIFF_BYTES))
-        if fmt is None:
-            raise ValueError("not a recognised genotype export: no rsid/chromosome/position column header")
-
         valid_records = 0
-        with open(file_path, encoding="utf-8", errors="replace") as file:
-            for rsid, chromosome, position, genotype in genotype_format.rows(file, fmt):
+        with genotype_format.open_lines(file_path) as lines:
+            for call in genotype_format.records(lines, fmt, sample=sample):
                 valid_records += 1
                 # Release memory every 10000 rows
                 if valid_records % 10000 == 0:
                     gc.collect()
+                # An unannotated VCF uses "." in ID. Keep a stable local
+                # identity until the public site table supplies an rsID.
+                rsid = call.rsid
+                if rsid == ".":
+                    locus = f"{call.chromosome}:{call.position}:{call.ref}:{','.join(call.alt)}"
+                    rsid = "loc:" + hashlib.sha256(locus.encode()).hexdigest()[:32]
+                no_call = call.genotype_raw == genotype_format.NO_CALL or (
+                    call.gt is not None and "." in call.gt.split("/") + call.gt.split("|")
+                )
                 yield {
-                    "user_id": user_id,
                     "rsid": rsid,
-                    "chromosome": chromosome,
-                    "position": position,
-                    "genotype": genotype,
-                    "source_table": source_table,
-                    "source_table_id": source_table_id,
+                    "rsid_raw": call.rsid,
+                    "chromosome": call.chromosome,
+                    "position": call.position,
+                    "genotype": call.genotype_raw,
+                    "genotype_raw": call.genotype_raw,
+                    "strand": call.strand,
+                    "ref": call.ref,
+                    "alt": ",".join(call.alt) if call.alt else None,
+                    "gt": call.gt,
+                    "call_status": "no_call" if no_call else "called" if call.gt and call.strand == "plus" else "unresolved",
+                    "strand_check": "vcf_plus" if call.gt else "top_unresolved" if call.strand == "top" else None,
                 }
         logger.info("Parsing complete: %d rows", valid_records)
 
@@ -142,48 +157,74 @@ class GeneticDataLoader:
         except Exception as e:
             logger.error(f"Failed to update progress: {e}")
 
-    async def process_batch(self, batch: list[dict], insert_sql: str) -> bool:
-        """Process single batch data insertion"""
-        try:
-            await execute_query(
-                query=insert_sql,
-                params=batch,
-            )
-            return True
-        except Exception as e:
-            logger.error(f"Batch insertion failed: {e}")
-            return False
-
     async def load_user_genetic_data(
         self,
         user_id: str,
         file_path: str,
         batch_size: int = 50000,
         is_up_progress: bool = True,
-        source_table: str = None,
         source_table_id: str = None,
+        sample: str | None = None,
     ):
-        """Load user genetic data (streaming batch insertion, supports very large files)"""
+        """Load a new set, publishing it only after every parsed row is stored."""
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File does not exist: {file_path}")
+        if batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        with open(file_path, "rb") as probe:
+            fmt = genotype_format.sniff_stream(probe)
+        if fmt is None:
+            raise ValueError("not a recognised genotype export: no rsid/chromosome/position column header")
+        if fmt.shape == genotype_format.SHAPE_VCF and len(fmt.samples) != 1 and sample is None:
+            raise ValueError("multi-sample VCF requires an explicit sample")
 
-        insert_sql = """
-        INSERT INTO th_series_data_genetic 
-        (user_id, rsid, chromosome, position, genotype, source_table, source_table_id, create_time, update_time, is_deleted)
-        VALUES (:user_id, :rsid, :chromosome, :position, :genotype, :source_table, :source_table_id, NOW(), NOW(), FALSE)
-        """
-
-        batch, total_processed, total_saved, batch_count, failed_batches = [], 0, 0, 0, 0
-        estimated_total = sum(1 for _ in open(file_path, encoding="utf-8"))
-        
+        batch: list[dict[str, Any]] = []
+        total_processed = total_saved = n_called = batch_count = 0
+        x_total = x_heterozygous = y_called = 0
+        build_votes = {"GRCh37": 0, "GRCh38": 0}
+        estimated_total = 0
         if is_up_progress:
             await self.update_progress(0, 0, localize("genetic_file_estimation", self.language, "load_genetic_data", total=estimated_total), estimated_total)
 
+        set_id: int | None = None
+        catalog = SiteCatalog()
         try:
-            # Process each record
-            for record in self.parse_genetic_file(file_path, user_id, source_table, source_table_id):
+            format_id = getattr(fmt, "format_id", "") or f"{(fmt.vendor or 'generic').lower()}_{fmt.shape}"
+            set_id = await self.store.create_set(
+                user_id,
+                file_key=source_table_id or self.file_key,
+                format_id=format_id[:40],
+                vendor=fmt.vendor,
+                build_declared=fmt.build,
+                normalizer_version=NORMALIZER_VERSION,
+                site_table_version=catalog.version,
+            )
+            for record in self.parse_genetic_file(file_path, fmt, sample=sample):
+                site = catalog.lookup(record["rsid_raw"], record["chromosome"], record["position"])
+                normalized = normalize(
+                    rsid=record["rsid"], chrom=record["chromosome"], position=record["position"],
+                    genotype=record["genotype"], strand=record["strand"],
+                    vcf_gt=record["gt"], vcf_ref=record["ref"], vcf_alt=record["alt"],
+                    site=site,
+                )
+                record.update({
+                    "rsid": normalized.rsid, "chromosome": normalized.chrom,
+                    "pos37": normalized.pos37, "pos38": normalized.pos38,
+                    "ref": normalized.ref, "alt": normalized.alt, "gene": normalized.gene,
+                    "gt": normalized.gt, "call_status": normalized.call_status,
+                    "zygosity": normalized.zygosity, "strand_check": normalized.strand_check,
+                })
+                if normalized.matched_build:
+                    build_votes[normalized.matched_build] += 1
+                if record["chromosome"] == "X" and record["genotype"] != genotype_format.NO_CALL:
+                    x_total += 1
+                    alleles = record["genotype"].replace("/", "").replace("|", "")
+                    x_heterozygous += len(alleles) == 2 and alleles[0] != alleles[1]
+                if record["chromosome"] == "Y" and record["genotype"] != genotype_format.NO_CALL:
+                    y_called += 1
                 batch.append(record)
                 total_processed += 1
+                n_called += record["call_status"] == "called"
 
                 # Periodically update parsing progress
                 if total_processed % batch_size == 0:
@@ -200,15 +241,10 @@ class GeneticDataLoader:
                             estimated_total,
                         )
 
-                # Batch insertion
                 if len(batch) >= batch_size:
-                    if await self.process_batch(batch, insert_sql):
-                        total_saved += len(batch)
-                        batch_count += 1
-                        logger.info(f"Batch {batch_count}: saved {len(batch)} records")
-                    else:
-                        failed_batches += 1
-
+                    await self.store.write_batch(set_id, batch)
+                    total_saved += len(batch)
+                    batch_count += 1
                     batch.clear()
 
                     # Update batch completion progress
@@ -227,13 +263,19 @@ class GeneticDataLoader:
                             )
                         await asyncio.sleep(0.1)  # Give system time to handle other tasks
 
-            # Process remaining batch
             if batch:
-                if await self.process_batch(batch, insert_sql):
-                    total_saved += len(batch)
-                    batch_count += 1
-                else:
-                    failed_batches += 1
+                await self.store.write_batch(set_id, batch)
+                total_saved += len(batch)
+                batch_count += 1
+
+            sex = infer_sex(x_total=x_total, x_heterozygous=x_heterozygous, y_called=y_called)
+            vote_total = sum(build_votes.values())
+            detected = max(build_votes, key=build_votes.get)
+            build = detected if vote_total >= 20 and build_votes[detected] / vote_total >= 0.9 else "unknown"
+            await self.store.activate_set(
+                set_id, user_id, n_rows=total_processed, n_called=n_called,
+                build_detected=build, sex_inferred=sex,
+            )
 
             # Final progress update
             if is_up_progress:
@@ -250,19 +292,30 @@ class GeneticDataLoader:
                     total_processed,
                 )
 
-            logger.info(f"User {user_id} genetic data loading completed: processed {total_processed} records, saved {total_saved} records, failed batches {failed_batches}")
+            logger.info("genotype set activated", extra={"user_id": user_id, "row_count": total_saved, "set_id": set_id})
             return total_saved
 
         except Exception as e:
+            if set_id is not None:
+                try:
+                    await self.store.fail_set(set_id)
+                except Exception as fail_error:
+                    logger.error(
+                        "genotype set failure marker failed: error_type=%s",
+                        type(fail_error).__name__,
+                        exc_info=not is_driver_exception(fail_error),
+                    )
             if is_up_progress:
                 await self.update_progress(
                     total_processed,
                     total_saved,
-                    f"❌ Processing error: {str(e)}",
+                    "Genotype processing failed",
                     estimated_total,
                 )
-            logger.error(f"Data loading failed: {e}", stack_info=True)
+            logger.error("genotype loading failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
             raise
+        finally:
+            catalog.close()
 
 
 async def process_genetic_file(
@@ -277,7 +330,7 @@ async def process_genetic_file(
     file_key: str = None,  # New: file_key for th_files updates
     full_url: str = None,  # New: OSS/S3 URL for the file
     file_abstract: str = None,  # New: file abstract/summary
-    target_user_id: str = None,  # Data owner ID for th_series_data_genetic
+    target_user_id: str = None,  # Data owner ID for the genotype set
 ):
     """Entry function for processing genetic data files - writes to th_files table
     
@@ -286,6 +339,7 @@ async def process_genetic_file(
         target_user_id: Data owner ID (for th_series_data_genetic.user_id)
         ... other params
     """
+    temp_file_path = Path(temp_file_path)
     try:
         # Import websocket manager locally to avoid circular import
         from mirobody.collect.files.file_upload_manager import websocket_file_upload_manager
@@ -304,11 +358,10 @@ async def process_genetic_file(
         if file_key:
             await loader.update_progress(0, 0, localize("genetic_initializing_loader", language, "load_genetic_data"))
 
-        # Execute data loading - use data_owner_user_id for th_series_data_genetic
+        # The uploader may write on behalf of an authorised care-circle member.
         loaded_records = await loader.load_user_genetic_data(
-            data_owner_user_id,  # Use target user ID for genetic data ownership
+            data_owner_user_id,
             str(temp_file_path),
-            source_table=source_table,
             source_table_id=source_table_id,
         )
 
@@ -374,8 +427,8 @@ async def process_genetic_file(
         }
 
     except Exception as e:
-        error_msg = f"Error processing genetic data file: {str(e)}"
-        logger.error(error_msg, stack_info=True)
+        error_msg = "Genetic data processing failed"
+        logger.error("genotype processing failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
 
         # 🔧 Fix: Use original filename, or temporary filename if not provided
         display_filename = original_filename or temp_file_path.name
@@ -388,7 +441,6 @@ async def process_genetic_file(
                     "genetic_processing_failed_message",
                     language,
                     "load_genetic_data",
-                    stack_info=True,
                 )
 
                 # Update th_files with failure status
@@ -399,7 +451,7 @@ async def process_genetic_file(
                         "progress": 0,
                         "processed": False,
                         "success": False,
-                        "error": str(e),
+                        "error": error_msg,
                         "raw": failed_content,
                         "timestamp": datetime.now().isoformat(),
                         "type": "genetic",
@@ -425,23 +477,23 @@ async def process_genetic_file(
                                     "url_thumb": display_filename,
                                     "url_full": display_filename,
                                     "file_key": file_key,
-                                    "error": str(e),
+                                    "error": error_msg,
                                 },
                             )
                             if send_success:
-                                logger.info(f"WebSocket failure status sent successfully: message_id={message_id}, error={str(e)}")
+                                logger.info("genotype failure status sent", extra={"message_id": message_id})
                             else:
                                 logger.info(f"WebSocket failure status send failed (session not found): message_id={message_id}")
                         except Exception as ws_error:
-                            logger.info(f"WebSocket failure status send exception: {ws_error}")
+                            logger.warning("genotype failure notification failed: error_type=%s", type(ws_error).__name__)
                     else:
                         logger.warning("WebSocket failure status update skipped: message_id is empty")
 
                 except Exception as ws_error:
-                    logger.warning(f"WebSocket module loading failed: {ws_error}")
+                    logger.warning("genotype websocket unavailable: error_type=%s", type(ws_error).__name__)
 
             except Exception as update_error:
-                logger.error(f"Error updating failure status in th_files: {update_error}")
+                logger.error("genotype file status update failed: error_type=%s", type(update_error).__name__)
 
         return {
             "success": False,

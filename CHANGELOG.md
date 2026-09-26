@@ -1,5 +1,25 @@
 ## Unreleased
 
+### Added
+
+- **Genotype uploads now publish an atomic active set.** A failed batch used to
+  leave partial data while still reporting completion, and a repeat upload
+  duplicated rows. The new set remains hidden until every batch and row count
+  pass; another upload replaces it. The public 1000 Genomes end-to-end check
+  uploads four formats and observes one active set after each replacement.
+- **Normalized genotype queries, VCF export and a bounded CPIC coverage tool.**
+  The old genetic tool could only read rsIDs. It now offers an overview, gene
+  and build-specific region search; authenticated users can export mapped
+  GRCh37/38 VCF, and the Agent/MCP can check CPIC A/B drug-gene links without
+  inventing a phenotype. The public two-site integration test checks upload,
+  MCP, VCF and real Agent answers. The packaged dbSNP index still has only one
+  sample site, so whole-chip standardization remains a release blocker.
+- **`mirobody migrate-genotypes` for 1.5.1 data.** The new reader only sees
+  active sets, which otherwise hid legacy rows on upgrade. The command moves
+  each person's latest old file into an active set with raw calls marked
+  unverified; a public-data migration check verifies both visibility and safe
+  reruns. Re-upload the source to obtain verified GTs.
+
 ### Changed
 
 - Removed the frozen Traditional Chinese and Japanese README editions and their

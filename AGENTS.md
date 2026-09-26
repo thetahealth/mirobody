@@ -20,9 +20,9 @@ the `agent/base` package and the ChatGPT Apps widgets under `agent/resources`
 were removed; do not reintroduce a second harness or a per-agent config
 suffix. A deployment that wants its own harness REPLACES `MirobodyAgent` by
 pointing `AGENT_DIRS` at its own directory (`agent/registry.py`). External
-clients get the engine through `mirobody/mcp/` (six tools: `resolve_indicator`,
+clients get the engine through `mirobody/mcp/` (seven tools: `resolve_indicator`,
 `convert_unit`, `normalize_unit`, `query_health_indicators`, `query_medications`,
-`query_genetic_data`) —
+`query_genetic_data`, `query_pharmacogenomics`) —
 and that list is asserted exactly by the local suite.
 The agent's config keys are `MODELS`, `PROMPTS`, `ALLOWED_TOOLS`,
 `DISALLOWED_TOOLS`, `DEFAULT_MODEL`, `AGENT_NAME` — no suffix, and no "provider"

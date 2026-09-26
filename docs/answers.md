@@ -10,9 +10,9 @@ stops it looping.
 ## One tool per data class, every parameter applicable to every call
 
 The model gets **`query_health_indicators`** for readings and
-**`query_medications`** for medications. Genetics is `query_genetic_data`. Three
-classes of data, three grammars, three tools — and inside each, search and
-read are ONE call.
+**`query_medications`** for medications. `query_genetic_data` reads genotype
+facts; `query_pharmacogenomics` checks CPIC drug-gene links and coverage.
+Each tool has a distinct query grammar.
 
 Two rules decided that shape, and they pull in opposite directions:
 
@@ -50,10 +50,11 @@ source; day and coarser already publish one elected source), and `kind`/`view`
 `query_health_indicators(start=…)` — two calls whose second input is a date
 the person can read, not an opaque handle.
 
-The MCP surface is exactly six tools:
+The MCP surface is exactly seven tools:
 
 ```
 query_health_indicators  query_medications  query_genetic_data
+query_pharmacogenomics
 resolve_indicator  convert_unit  normalize_unit
 ```
 
@@ -67,8 +68,8 @@ three terminology tools, whose bodies are shared (`translate.terminology`).
 `tools/list` hides a data tool from a user who has none of that data
 (`mcp/service.py::_DATA_GATED`): nothing measured or reported, no
 `query_health_indicators`; no
-plans, no `query_medications`; no genotype, no `query_genetic_data`. A chat turn
-gets all six plus the harness's own: `ls read_file write_file edit_file glob
+plans, no `query_medications`; no active genotype set, no `query_genetic_data`
+or `query_pharmacogenomics`. A chat turn gets all seven plus the harness's own: `ls read_file write_file edit_file glob
 grep`, the `eval` REPL, and `ask_user`. `ask_user` is never an MCP tool — an
 MCP client has no widget to answer a question with.
 
@@ -76,14 +77,16 @@ The local suite asserts both lists exactly.
 
 ---
 
-## The two schemas
+## The record query schemas
 
 ```
 query_health_indicators(keywords | indicators, start, end, resolution, aggregate, limit, member)
 query_medications      (view=plan|log|history, keywords, start, end, member)
+query_genetic_data     (rsids | gene | chromosome+start+end+build, limit, member)
+query_pharmacogenomics (drugs | genes, member)
 ```
 
-Both are flat (models handle flat schemas better than `oneOf`), both are
+All are flat (models handle flat schemas better than `oneOf`), all are
 closed (`additionalProperties: false`), and a parameter the schema does not
 have — the former `kind`, say, from a client that learned the draft — comes
 back as a structured, recoverable refusal naming it:

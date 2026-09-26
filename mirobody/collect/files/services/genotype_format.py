@@ -1,38 +1,22 @@
-"""The consumer raw-genotype exports this project reads, recognised by shape.
+"""Declared genotype formats, streaming archive readers and raw VCF calls.
 
-Every direct-to-consumer array vendor exports the same four facts per marker
-(rsID, chromosome, position, the two alleles) and no two agree on the layout.
-There is no interchange standard at this level: VCF is the field's format, and
-none of these vendors ship it. The rsid TSV started as 23andMe's and the rest
-cloned it with changes. Read 2026-09-23 against each vendor's help pages:
-
-    WeGene, 23andMe        TSV, "# rsid chromosome position genotype" as a
-                           COMMENT line, one two-letter genotype, "--" no call
-    AncestryDNA            TSV, "rsid chromosome position allele1 allele2" as
-                           a plain header line, alleles split, "0" no call
-    MyHeritage, FTDNA      CSV, "RSID,CHROMOSOME,POSITION,RESULT", often
-                           quoted, one two-letter result, "--" no call
-
-Recognised by the column header rather than by a vendor's banner, which is how
-this used to work: the check was one literal WeGene sentence, so a 23andMe or
-AncestryDNA file of the same shape went to the text pipeline and produced
-nothing, silently.
-
-Two shapes come out, one genotype column or two allele columns, and both
-become one two-character genotype with a single no-call spelling, `NO_CALL`.
-Chromosome names are kept as the file prints them. Only one file is compared
-with itself (the neighbour lookup), so a vendor's own numbering is consistent,
-and remapping AncestryDNA's numeric sex chromosomes needs a source this module
-does not have.
-
-Pure: no file handle, no database, no clock.
+VCF GT and Illumina TOP calls retain metadata because a four-column allele
+string cannot safely represent phase, sample identity or unresolved strand.
 """
 
 from __future__ import annotations
 
+import codecs
+import io
 import re
+import stat
+import zlib
+import zipfile
 from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
+from typing import BinaryIO
 
 #: The one spelling a no-call is stored under, whatever the vendor wrote.
 #: A no-call is not an absence: the array tried this site and could not read
@@ -41,14 +25,16 @@ NO_CALL = "--"
 
 SHAPE_GENOTYPE = "genotype"  # one column holding both alleles
 SHAPE_ALLELES = "alleles"  # allele1 and allele2 in two columns
+SHAPE_VCF = "vcf"
+SHAPE_REPORT = "report"
+SHAPE_WIDE = "wide"
 
 #: How much of a file the sniff reads. 23andMe puts about twenty comment lines
 #: before its column header; the old check read 100 bytes and could only ever
 #: see a banner.
 SNIFF_BYTES = 16 * 1024
-
-_GENOTYPE_HEADERS = (("rsid", "chromosome", "position", "genotype"), ("rsid", "chromosome", "position", "result"))
-_ALLELE_HEADER = ("rsid", "chromosome", "position", "allele1", "allele2")
+MAX_UNCOMPRESSED_BYTES = 2 * 1024 * 1024 * 1024
+_CHUNK = 64 * 1024
 
 #: What a no-call looks like: "--" (WeGene, 23andMe, MyHeritage) and "0"
 #: (AncestryDNA, per allele), plus the empty and doubled forms of the same.
@@ -65,6 +51,17 @@ _VENDORS = (
     ("FamilyTreeDNA", "familytreedna"),
 )
 
+_CHROMS = {str(i) for i in range(1, 23)} | {"X", "Y", "MT", "PAR", "0"}
+_NUMERIC_CHROMS = {"23": "X", "24": "Y", "25": "PAR", "26": "MT"}
+_COLUMN_ALIASES = {
+    "rsid": {"rsid", "name", "markername"},
+    "chromosome": {"chromosome", "chrom", "chr"},
+    "position": {"position", "pos"},
+    "genotype": {"genotype", "result", "gt"},
+    "allele1": {"allele1", "allele_1", "allele1 - plus", "allele1 - forward"},
+    "allele2": {"allele2", "allele_2", "allele2 - plus", "allele2 - forward"},
+}
+
 
 @dataclass(frozen=True)
 class GenotypeFormat:
@@ -74,6 +71,31 @@ class GenotypeFormat:
     delimiter: str | None
     vendor: str = ""
     build: str = ""
+    columns: tuple[str, ...] = ()
+    strand: str = "plus"
+    samples: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class GenotypeRecord:
+    rsid: str
+    chromosome: str
+    position: int
+    genotype_raw: str
+    strand: str = "plus"
+    gt: str | None = None
+    ref: str | None = None
+    alt: tuple[str, ...] = ()
+    sample: str | None = None
+
+
+def canonical_chromosome(chromosome: str) -> str:
+    """Normalize declared chromosome labels without changing the position."""
+    chrom = chromosome.strip()
+    if chrom.lower().startswith("chr"):
+        chrom = chrom[3:]
+    chrom = _NUMERIC_CHROMS.get(chrom.upper(), chrom.upper())
+    return {"M": "MT", "MITO": "MT", "XY": "PAR"}.get(chrom, chrom)
 
 
 def _cells(line: str, delimiter: str | None) -> list[str]:
@@ -81,52 +103,186 @@ def _cells(line: str, delimiter: str | None) -> list[str]:
     return [p.strip().strip('"').strip() for p in parts]
 
 
-def _delimiter(line: str) -> str | None:
-    if "\t" in line:
-        return "\t"
-    if "," in line:
-        return ","
+def _header_columns(line: str) -> tuple[str, ...]:
+    # Some TSV exports separate the header with spaces and the body with tabs.
+    parts = line.split(",") if "," in line and "\t" not in line else re.split(r"\s+", line.strip())
+    return tuple(p.strip().strip('"').lower() for p in parts)
+
+
+def _column_index(columns: tuple[str, ...], field: str) -> int | None:
+    return next((i for i, name in enumerate(columns) if name in _COLUMN_ALIASES[field]), None)
+
+
+def _declared_format(line: str, vendor: str, build: str) -> GenotypeFormat | None:
+    if "\t" in line and ("Allele1 - Plus" in line or "Allele1 - Forward" in line):
+        columns = tuple(c.strip().lower() for c in line.split("\t"))
+        if "snp name" in columns and _column_index(columns, "allele2") is not None:
+            return GenotypeFormat(SHAPE_REPORT, "\t", vendor, build, columns)
+    columns = _header_columns(line)
+    if columns[:8] == ("chrom", "pos", "id", "ref", "alt", "qual", "filter", "info"):
+        if len(columns) >= 10 and columns[8] == "format":
+            return GenotypeFormat(SHAPE_VCF, "\t", vendor, build, columns, "plus", tuple(line.split("\t")[9:]))
+        return None
+    wide_columns = tuple(c.strip().lower() for c in line.split("\t"))
+    if "allele1...top" in wide_columns and "allele2...top" in wide_columns and "position" in wide_columns:
+        return GenotypeFormat(SHAPE_WIDE, "\t", vendor, build, wide_columns, "top")
+    if _column_index(columns, "rsid") is None:
+        return None
+    if _column_index(columns, "chromosome") is None or _column_index(columns, "position") is None:
+        return None
+    shape = SHAPE_ALLELES if _column_index(columns, "allele1") is not None and _column_index(columns, "allele2") is not None else None
+    shape = shape or (SHAPE_GENOTYPE if _column_index(columns, "genotype") is not None else None)
+    if shape:
+        delimiter = "," if "," in line and "\t" not in line else "\t" if "\t" in line else None
+        return GenotypeFormat(shape, delimiter, vendor, build, columns)
     return None
 
 
-def _header_shape(cells: list[str]) -> str | None:
-    names = tuple(c.lower() for c in cells[:5] if c)
-    if names[:4] in _GENOTYPE_HEADERS:
-        return SHAPE_GENOTYPE
-    if names[:5] == _ALLELE_HEADER:
-        return SHAPE_ALLELES
-    return None
-
-
-def sniff(head: str | bytes | bytearray | None) -> GenotypeFormat | None:
-    """The format of a raw genotype export, from the start of the file, or
-    `None` when the text is not one.
-
-    A column header is required, commented or not. A text file that merely
-    contains rs-numbers is not a genotype file, and routing one into the
-    genetic pipeline would swallow it without a word.
-    """
-    if isinstance(head, (bytes, bytearray)):
-        head = bytes(head[:SNIFF_BYTES]).decode("utf-8", errors="ignore")
-    text = (head or "")[:SNIFF_BYTES].lstrip("\ufeff")
+def _sniff_text(head: str) -> GenotypeFormat | None:
+    text = head[:SNIFF_BYTES].lstrip("\ufeff")
     lowered = text.lower()
     vendor = next((name for name, needle in _VENDORS if needle in lowered), "")
     found = _BUILD.search(text)
     build = _BUILD_NAMES.get(re.sub(r"\s+", "", found.group(1)).lower(), found.group(1)) if found else ""
+    in_report = False
+    vcf_banner = False
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
             continue
+        if line.startswith("##fileformat=VCFv4."):
+            vcf_banner = True
+            continue
+        if line == "[Header]":
+            in_report = True
+            continue
+        if line == "[Data]" and in_report:
+            continue
+        if line.startswith("##"):
+            continue
+        if line.startswith("#CHROM") and vcf_banner:
+            return _declared_format(line[1:], vendor, build)
         body = line.lstrip("#").strip()
-        delimiter = _delimiter(body)
-        shape = _header_shape(_cells(body, delimiter))
-        if shape:
-            return GenotypeFormat(shape, delimiter, vendor, build)
-        if not line.startswith("#"):
-            # The first real line was not a header: whatever this is, it does
-            # not declare its columns.
+        if in_report and "SNP Name" in body and "Allele1 - Plus" in body:
+            return _declared_format(body, vendor, build)
+        fmt = _declared_format(body, vendor, build)
+        if fmt and fmt.shape != SHAPE_VCF:
+            return fmt
+        if not line.startswith("#") and not in_report:
             return None
     return None
+
+
+def sniff(head: str | bytes | bytearray | None) -> GenotypeFormat | None:
+    """Classify declared text or a complete single-member compressed payload."""
+    if isinstance(head, bytes | bytearray):
+        raw = bytes(head)
+        if raw.startswith((b"\x1f\x8b", b"PK\x03\x04")):
+            try:
+                return sniff_stream(io.BytesIO(raw))
+            except (OSError, ValueError, zipfile.BadZipFile, zlib.error):
+                return None
+        head = raw[:SNIFF_BYTES].decode("utf-8", errors="ignore")
+    return _sniff_text(head or "")
+
+
+def _archive_member(archive: zipfile.ZipFile) -> zipfile.ZipInfo:
+    members = archive.infolist()
+    if len(members) != 1:
+        raise ValueError("genotype archive must contain exactly one file")
+    member = members[0]
+    name = member.filename
+    if (member.is_dir() or name.startswith(("/", "\\")) or "\\" in name
+            or any(part in {"", ".", ".."} for part in name.split("/"))
+            or member.flag_bits & 1 or stat.S_ISLNK(member.external_attr >> 16)
+            or member.compress_type not in {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}
+            or member.file_size > MAX_UNCOMPRESSED_BYTES):
+        raise ValueError("unsafe genotype archive member")
+    return member
+
+
+def _gzip_chunks(source: BinaryIO) -> Iterator[bytes]:
+    decoder = zlib.decompressobj(16 + zlib.MAX_WBITS)
+    total = 0
+    while block := source.read(_CHUNK):
+        data = decoder.decompress(block, MAX_UNCOMPRESSED_BYTES - total + 1)
+        total += len(data)
+        if total > MAX_UNCOMPRESSED_BYTES or decoder.unconsumed_tail:
+            raise ValueError("genotype archive exceeds size limit")
+        if data:
+            yield data
+        if decoder.eof:
+            if decoder.unused_data or source.read(1):
+                raise ValueError("gzip must contain exactly one member")
+            break
+    if not decoder.eof:
+        raise ValueError("truncated gzip genotype archive")
+
+
+def _bounded_chunks(source: BinaryIO) -> Iterator[bytes]:
+    total = 0
+    while block := source.read(_CHUNK):
+        total += len(block)
+        if total > MAX_UNCOMPRESSED_BYTES:
+            raise ValueError("genotype archive exceeds size limit")
+        yield block
+
+
+def _text_lines(chunks: Iterable[bytes]) -> Iterator[str]:
+    decoder = codecs.getincrementaldecoder("utf-8")("replace")
+    pending = ""
+    for block in chunks:
+        pending += decoder.decode(block)
+        *complete, pending = pending.split("\n")
+        for line in complete:
+            yield line.rstrip("\r")
+        if len(pending) > SNIFF_BYTES * 16:
+            raise ValueError("genotype record exceeds line limit")
+    pending += decoder.decode(b"", final=True)
+    if pending:
+        yield pending.rstrip("\r")
+
+
+@contextmanager
+def open_lines(source: str | Path | BinaryIO) -> Iterator[Iterator[str]]:
+    """Open plain/gzip/zip by magic bytes without buffering whole genomes."""
+    own = isinstance(source, str | Path)
+    stream = open(source, "rb") if own else source
+    try:
+        stream.seek(0)
+        magic = stream.read(4)
+        stream.seek(0)
+        if magic.startswith(b"\x1f\x8b"):
+            yield _text_lines(_gzip_chunks(stream))
+        elif magic == b"PK\x03\x04":
+            with zipfile.ZipFile(stream) as archive:
+                member = _archive_member(archive)
+                with archive.open(member) as payload:
+                    yield _text_lines(_bounded_chunks(payload))
+        else:
+            yield _text_lines(iter(lambda: stream.read(_CHUNK), b""))
+    finally:
+        if own:
+            stream.close()
+
+
+def sniff_stream(source: BinaryIO) -> GenotypeFormat | None:
+    """Classify a complete seekable upload and restore its original position."""
+    original = source.tell()
+    try:
+        source.seek(0)
+        magic = source.read(4)
+        if not magic.startswith(b"\x1f\x8b") and magic != b"PK\x03\x04":
+            source.seek(0)
+            return _sniff_text(source.read(SNIFF_BYTES).decode("utf-8", "ignore"))
+        with open_lines(source) as lines:
+            head = ""
+            for line in lines:
+                if len(head) < SNIFF_BYTES:
+                    head += line[:SNIFF_BYTES - len(head)] + "\n"
+            return _sniff_text(head)
+    finally:
+        source.seek(original)
 
 
 def genotype_of(cells: list[str], shape: str) -> str:
@@ -142,39 +298,123 @@ def genotype_of(cells: list[str], shape: str) -> str:
     return value.upper()
 
 
-def rows(lines: Iterable[str], fmt: GenotypeFormat) -> Iterator[tuple[str, str, int, str]]:
-    """`(rsid, chromosome, position, genotype)` for each data line.
+def _value(cells: list[str], columns: tuple[str, ...], field: str) -> str:
+    index = _column_index(columns, field)
+    return cells[index] if index is not None and index < len(cells) else ""
 
-    Streaming: a 33 MB export is 1.35 million lines and nothing here holds more
-    than one. The header, comments, blank lines and rows whose position is not
-    an integer are skipped; everything else is yielded, no-calls included,
-    because a site the array could not read is still a site it tried.
-    """
-    need = 5 if fmt.shape == SHAPE_ALLELES else 4
+
+def _vcf_record(cells: list[str], fmt: GenotypeFormat, sample: str) -> GenotypeRecord | None:
+    if len(cells) < 10:
+        return None
+    try:
+        position = int(cells[1])
+        sample_index = fmt.samples.index(sample) + 9
+        gt_index = cells[8].split(":").index("GT")
+        gt = cells[sample_index].split(":")[gt_index]
+    except (ValueError, IndexError):
+        return None
+    if position <= 0 or not re.fullmatch(r"(?:\d+|\.)(?:[/|](?:\d+|\.))*", gt):
+        return None
+    alleles = (cells[3], *cells[4].split(","))
+    if any(part != "." and int(part) >= len(alleles) for part in re.split(r"[/|]", gt)):
+        return None
+    return GenotypeRecord(
+        cells[2], canonical_chromosome(cells[0]), position, gt, "plus", gt,
+        cells[3], tuple(cells[4].split(",")), sample,
+    )
+
+
+def records(lines: Iterable[str], fmt: GenotypeFormat, *, sample: str | None = None) -> Iterator[GenotypeRecord]:
+    """Yield raw calls with strand and VCF GT; multi-sample needs selection."""
+    if fmt.shape == SHAPE_VCF:
+        if sample is None:
+            if len(fmt.samples) != 1:
+                raise ValueError("multi-sample VCF requires an explicit sample")
+            sample = fmt.samples[0]
+        if sample not in fmt.samples:
+            raise ValueError("sample is not declared in VCF header")
+    elif sample is not None:
+        raise ValueError("sample selection is only available for VCF")
+
     for raw in lines:
         line = raw.strip()
-        if not line or line.startswith("#"):
+        if not line or line.startswith("#") or line in {"[Header]", "[Data]"}:
             continue
         cells = _cells(line, fmt.delimiter)
-        if len(cells) < need or _header_shape(cells):
+        if fmt.shape == SHAPE_VCF:
+            result = _vcf_record(cells, fmt, sample)
+            if result:
+                yield result
             continue
+        if _declared_format(line, fmt.vendor, fmt.build):
+            continue
+        if fmt.shape == SHAPE_REPORT:
+            rsid = cells[1] if len(cells) > 1 else ""
+            chrom = _value(cells, fmt.columns, "chromosome")
+            pos = _value(cells, fmt.columns, "position")
+            if not chrom or not pos:
+                match = re.fullmatch(r"(?:chr)?([^:]+):(\d+)", rsid, re.IGNORECASE)
+                if not match:
+                    continue
+                chrom, pos = match.groups()
+            a = _value(cells, fmt.columns, "allele1")
+            b = _value(cells, fmt.columns, "allele2")
+        elif fmt.shape == SHAPE_WIDE:
+            try:
+                rsid = cells[fmt.columns.index("rsid")] if "rsid" in fmt.columns else cells[0]
+                chrom = cells[fmt.columns.index("chr")]
+                pos = cells[fmt.columns.index("position")]
+                a = cells[fmt.columns.index("allele1...top")]
+                b = cells[fmt.columns.index("allele2...top")]
+            except (ValueError, IndexError):
+                continue
+        else:
+            rsid = _value(cells, fmt.columns, "rsid")
+            chrom = _value(cells, fmt.columns, "chromosome")
+            pos = _value(cells, fmt.columns, "position")
+            a = _value(cells, fmt.columns, "allele1")
+            b = _value(cells, fmt.columns, "allele2")
         try:
-            position = int(cells[2])
+            position = int(pos)
         except ValueError:
             continue
-        rsid, chromosome = cells[0], cells[1]
-        if not rsid or not chromosome:
+        if not rsid or not chrom or position <= 0 or canonical_chromosome(chrom) not in _CHROMS:
             continue
-        yield rsid, chromosome, position, genotype_of(cells, fmt.shape)
+        if fmt.shape == SHAPE_GENOTYPE:
+            genotype = _value(cells, fmt.columns, "genotype").upper()
+            if "/" in genotype and all(part in {"A", "C", "G", "T", "-"} for part in genotype.split("/")):
+                genotype = genotype.replace("/", "")
+            genotype = NO_CALL if genotype in _NO_CALL_SPELLINGS else genotype
+        else:
+            genotype = NO_CALL if a.upper() in _NO_CALL_SPELLINGS or b.upper() in _NO_CALL_SPELLINGS else (a + b).upper()
+        if not genotype:
+            continue
+        yield GenotypeRecord(rsid, canonical_chromosome(chrom), position, genotype, fmt.strand)
+
+
+def rows(lines: Iterable[str], fmt: GenotypeFormat) -> Iterator[tuple[str, str, int, str]]:
+    """Legacy four-column array rows; VCF/TOP need ``records`` metadata."""
+    if fmt.shape == SHAPE_VCF or fmt.strand == "top":
+        raise ValueError("VCF GT or TOP strand requires records() and normalization")
+    for record in records(lines, fmt):
+        yield record.rsid, record.chromosome, record.position, record.genotype_raw
 
 
 __all__ = [
     "GenotypeFormat",
+    "GenotypeRecord",
     "NO_CALL",
     "SHAPE_ALLELES",
     "SHAPE_GENOTYPE",
+    "SHAPE_VCF",
+    "SHAPE_REPORT",
+    "SHAPE_WIDE",
     "SNIFF_BYTES",
+    "canonical_chromosome",
     "genotype_of",
+    "open_lines",
+    "records",
     "rows",
     "sniff",
+    "sniff_stream",
 ]

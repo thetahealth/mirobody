@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import io
 import logging
 from typing import Any
 from mirobody.utils.i18n import localize
@@ -23,17 +25,14 @@ class GeneticHandler(BaseFileHandler):
     def get_type_name(self) -> str:
         return "genetic"
         
-    #: Bytes of a file the check reads. Every caller reads this many, so the
-    #: chat path and the upload path classify one file the same way.
+    #: Maximum plain-text header read; wrapped uploads need full validation.
     SNIFF_BYTES = genotype_format.SNIFF_BYTES
 
-    #: What a raw genotype export arrives as. MyHeritage's is a .csv, which
-    #: Windows reports as the Excel type, and a browser that does not know an
-    #: extension sends nothing; the check used to require text/plain and
-    #: refused all three before reading them. `sniff` is the real gate: this
-    #: only spares reading the head of a PDF or a photo.
+    #: MIME is a coarse prefilter. The format reader checks the actual content.
     CONTENT_TYPES = frozenset({
         "text/plain", "text/csv", "text/tab-separated-values", "application/csv", "application/vnd.ms-excel",
+        "text/vcf", "application/vcf", "application/octet-stream", "application/gzip", "application/x-gzip",
+        "application/zip", "application/x-zip-compressed",
     })
 
     @staticmethod
@@ -44,12 +43,8 @@ class GeneticHandler(BaseFileHandler):
     def is_genetic_content(head: Any, content_type: str | None) -> bool:
         """Genetic-file check on an already-read header (bytes or str).
 
-        Shared by ``is_genetic_file`` (UploadFile path) and the chat upload
-        path (raw bytes), so both classify a file identically. A genetic file
-        is text whose header declares genotype columns
-        (``genotype_format.sniff``): WeGene and 23andMe, AncestryDNA,
-        MyHeritage. It used to be one WeGene sentence, and a same-shaped export
-        from anyone else went to the text pipeline and produced nothing.
+        Wrapped data requires the complete bytes so the archive can be checked
+        for unsafe or multiple members.
         """
         if not GeneticHandler._may_be_text(content_type):
             return False
@@ -62,14 +57,13 @@ class GeneticHandler(BaseFileHandler):
             if not GeneticHandler._may_be_text(file.content_type):
                 return False
 
-            # Read file header to check for genetic file markers
-            await file.seek(0)
-            head = await file.read(GeneticHandler.SNIFF_BYTES)
-            await file.seek(0)
-
-            return GeneticHandler.is_genetic_content(head, file.content_type)
+            content = getattr(file, "content", None)
+            stream = io.BytesIO(content) if isinstance(content, bytes | bytearray) else file.file
+            return await asyncio.to_thread(genotype_format.sniff_stream, stream) is not None
         except Exception:
             return False
+        finally:
+            await file.seek(0)
 
     # Genetic file handling is quite different:
     # 1. It uploads to OSS/S3 first, then saves to temp for background processing.
@@ -95,7 +89,7 @@ class GeneticHandler(BaseFileHandler):
 
             # Upload file to OSS/S3 storage (same as other file types)
             full_url = await self._handle_upload(ctx, file_key, language)
-            logger.info(f"Genetic file uploaded to storage: {file_key}, URL: {full_url}")
+            logger.info("genotype upload stored", extra={"size_bytes": file_size})
 
             if ctx.progress_callback:
                 await ctx.progress_callback(40, localize("genetic_file_saving", language, "load_genetic_data"))
@@ -126,11 +120,11 @@ class GeneticHandler(BaseFileHandler):
             }
 
             # Spawn background task
-            # Use target_user_id for genetic data ownership (th_series_data_genetic.user_id)
+            # The target person owns the active set even when a carer uploads.
             spawn(
                 process_genetic_file(
                     user_id=ctx.user_id,  # Uploader ID (for WebSocket notifications)
-                    target_user_id=ctx.target_user_id,  # Data owner ID (for th_series_data_genetic)
+                    target_user_id=ctx.target_user_id,
                     temp_file_path=str(temp_file_path),
                     message_id=ctx.message_id,
                     language=language,
@@ -151,4 +145,3 @@ class GeneticHandler(BaseFileHandler):
 
     async def _process_content(self, *args, **kwargs):
         pass # Not used due to override
-

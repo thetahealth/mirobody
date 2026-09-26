@@ -1,0 +1,22 @@
+{
+  "release": "dbsnp-b157",
+  "scope": "sample",
+  "markers": [
+    {
+      "name": "ncbi_sample",
+      "path": "fixtures/markers.tsv",
+      "url": "https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/JSON/refsnp-sample.json.bz2",
+      "derived_from": "refsnp_id from the NCBI rs268 sample, not a consumer-array marker list",
+      "sha256": "1c407585428de558d94b19dbd37a4441783d3081186e3ad1ccfe0b92655f47c7",
+      "license": "NCBI-PD"
+    }
+  ],
+  "refsnp_json": [
+    {
+      "path": "fixtures/refsnp-sample.json.bz2",
+      "url": "https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/JSON/refsnp-sample.json.bz2",
+      "sha256": "ed2171d591f12c996107417fc42e2c3d61467814d0f5866af09baef2e1bfbd61",
+      "license": "NCBI-PD"
+    }
+  ]
+}

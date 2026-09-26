@@ -255,6 +255,21 @@ def _cmd_migrate_observations(args: argparse.Namespace) -> None:
         )
 
 
+def _cmd_migrate_genotypes(args: argparse.Namespace) -> None:
+    """Publish 1.5.1 raw genotype rows without inventing normalized calls."""
+    _require_extra("migrate-genotypes", "app", "sqlalchemy", "the database layer")
+    from mirobody.collect.migrate_genotypes import migrate
+    from mirobody.utils.config import Config
+
+    asyncio.run(Config.init(yaml_filenames=args.configs))
+    counts = asyncio.run(migrate(user_id=args.user or None, max_users=args.max_users))
+    print(
+        f"migrated {counts['users']} user(s), {counts['rows']} raw genotype row(s); "
+        f"skipped {counts['skipped_active']} already active and "
+        f"{counts['skipped_invalid']} invalid site(s)"
+    )
+
+
 def _cmd_recode(args: argparse.Namespace) -> None:
     """Replay the coding of every stored observation under the installed
     vocabulary and the current rules and aliases; see `observations.recode`."""
@@ -497,6 +512,15 @@ def main(argv: list[str] | None = None) -> None:
     p_migrate.add_argument("--batch", type=int, default=2000, help="rows per batch (default: 2000)")
     p_migrate.add_argument("--user", default="", help="migrate one person only")
     p_migrate.set_defaults(func=_cmd_migrate_observations)
+
+    p_genotypes = sub.add_parser(
+        "migrate-genotypes",
+        help="move 1.5.1 raw genotypes into an active set (requires the [app] extra)",
+    )
+    p_genotypes.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
+    p_genotypes.add_argument("--user", default="", help="migrate one person only")
+    p_genotypes.add_argument("--max-users", type=int, default=1000, help="maximum users per run")
+    p_genotypes.set_defaults(func=_cmd_migrate_genotypes)
 
     p_recode = sub.add_parser(
         "recode",

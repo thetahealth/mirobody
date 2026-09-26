@@ -1,7 +1,7 @@
 Third-Party Data Licenses
 =========================
 
-`mirobody/res/` holds the shipped terminology artifacts. Most are derived from
+`mirobody/res/` holds the shipped terminology and genomics artifacts. Most are derived from
 third-party datasets and are covered by the licenses below; a few are our own
 hand-written overlays and are Apache-2.0 like the rest of the project. The
 table marks which is which — nothing else lives in that directory.
@@ -10,7 +10,7 @@ table marks which is which — nothing else lives in that directory.
 version of this sentence untrue. It now lives in `mirobody/schema/` and is
 covered by the project's Apache-2.0 license.)
 
-These artifacts ship in the git repository (via Git LFS) and in the PyPI wheel;
+These artifacts ship in the git repository (some via Git LFS) and in the PyPI wheel;
 use of each is subject to the license terms of its sources:
 
   Artifact                          Derived from                Notice
@@ -36,6 +36,12 @@ use of each is subject to the license terms of its sources:
   ucum/UCUM-LICENSE.md              the UCUM License 1.1        section 2 below
   dose_forms.tsv                    UCUM annotations; the       section 2 below
                                     spellings are ours
+  genomics/cpic-v1.60.0.json.gz     CPIC database v1.60.0      res/genomics/cpic-v1.60.0.NOTICE
+                                    (CC0 curated content)
+  genomics/cpic-v1.60.0.NOTICE      CPIC attribution           res/genomics/cpic-v1.60.0.NOTICE
+  genomics/genotype_sites.sqlite3   NCBI dbSNP b157 public      res/genomics/genotype_sites.NOTICE
+                                    sample (public domain)
+  genomics/genotype_sites.NOTICE    hand-written (Apache-2.0)   —
   EXTERNAL.tsv                      a manifest, no content      —
 
 1.5.0 cut the corpus to LOINC only. `fhir_concept_graph.bin`,
@@ -58,6 +64,15 @@ symptom table is our own writing about which phrase points at which code.
 byte for byte as Regenstrief publishes it, with its notice and licence text
 (section 2). UCUM was already the unit vocabulary; what is new is that the
 specification itself now travels with the tables that implement it.
+
+The 1.5.2 worktree carries a one-site dbSNP b157 **sample** catalog. Its
+`genotype_sites.NOTICE` records the public NCBI source, both input hashes and
+the generated SQLite hash. It is a schema and parser sample; no consumer-array
+coverage claim follows from it. A full candidate must replace it with a
+catalog built from four licensed marker lists and the pinned b157 files.
+The current package-data patterns omit `.sqlite3`; the catalog is present in
+this worktree, but wheel inclusion still needs verification after that rule is
+updated.
 
 A NOTE ON `aliases_src/`, ADDED 2026-09-13, REVISED 2026-09-20
 --------------------------------------------------------------

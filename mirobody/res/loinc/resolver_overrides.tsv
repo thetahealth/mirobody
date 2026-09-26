@@ -13,8 +13,9 @@
 # lookup time. Rewriting the build inputs to suit the resolver would have
 # quietly degraded the semantic pipeline, so the two concerns get two files.
 #
-# Every row here was a documented failure in test_engine_coverage.py. Two
-# kinds of failure appear, and the second is the dangerous one:
+# The original rows came from test_engine_coverage.py; the genetic-report rows
+# below are pinned in local report/resolve tests. Two kinds of failure appear,
+# and the second is the dangerous one:
 #
 #   MISS  — "LDL cholesterol" resolved to nothing. The index is built from
 #           LOINC long common names, so it knows the formal name and the lab
@@ -1101,3 +1102,29 @@ MCHC (ср. конц. Hb в эр.)	mchc
 Vitamiin D (25-OH)	25-hydroxyvitamin D
 Vitamiin B12	vitamin B12
 Holotranskobalamiin	holotranscobalamin
+
+# Genetic report observation labels. Targets are keys in the shipped LOINC 2.83
+# index, verified against the named code and axes. CYP2C19 57132-3 is an allele
+# genotype, MTHFR 28005-7 is specifically c.677C>T, and HLA-B 79711-8 is
+# *58:01 presence (not general HLA-B typing). APOE 21619-2 is the code LOINC
+# recommends for the genotype; 42315-2 is reserved for an explicit e2/e3/e4
+# allele set. See https://loinc.org/57132-3/, /28005-7/, /79711-8/,
+# /34731-0/ and /42315-2/. Pre-2010 HLA-B*5801 is HLA-B*58:01 per
+# https://hla.alleles.org/pages/nomenclature/nomenclature_before_2010/.
+CYP2C19基因型	CYP2C19 gene allele
+CYP2C19 基因型	CYP2C19 gene allele
+CYP2C19 genotype	CYP2C19 gene allele
+MTHFR C677T	MTHFR gene.c.677C>T
+MTHFR c.677C>T	MTHFR gene.c.677C>T
+APOE 基因型	APOE gene mutations
+APOE genotype	APOE gene mutations
+APOE e2/e3/e4 genotype	APOE gene alleles e2 & e3 & e4
+HLA-B*5801	HLA-B*58:01
+
+# These labels omit the measured variant or confuse a result with an order.
+# A wrong code would silently merge distinct genetic observations.
+CYP2C19 基因检测	!unresolved
+MTHFR 基因型	!unresolved
+APOE 基因检测	!unresolved
+HLA-B 基因型	!unresolved
+HLA-B*5801 基因型	!unresolved

@@ -320,7 +320,9 @@ def compact(
     if not varying:
         return "\n".join(out)
     out.append("|".join(varying))
-    out.extend("|".join(rendered[c][i] for c in varying) for i in range(len(rows)))
+    # VCF phased GTs contain a literal pipe; leave one delimiter per column.
+    out.extend("|".join(rendered[c][i].replace("\\", "\\\\").replace("|", "\\|").replace("\n", "\\n")
+                        for c in varying) for i in range(len(rows)))
     return "\n".join(out)
 
 

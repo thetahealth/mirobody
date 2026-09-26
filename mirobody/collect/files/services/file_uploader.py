@@ -44,11 +44,13 @@ SUPPORTED_EXTENSIONS = {
     # parses them; legacy binary `.doc`/`.ppt`/`.xls` stay out, because
     # python-docx, python-pptx and openpyxl read only the zip-based formats and
     # accepting a file we then refuse is the defect this set exists to prevent.
-    # `.zip`/`.rar` went for the same reason: nothing here opens an archive.
+    # `.zip` now has a single-member genotype reader; other archives stay out.
     ".pdf", ".xlsx", ".xlsm", ".docx", ".pptx",
     # Plain text: lab exports, genetic raw data, notes. `.csv` belongs here:
     # TextHandler owns it now that the never-injected CSVHandler is gone.
     ".txt", ".md", ".markdown", ".csv", ".json", ".xml", ".log", ".htm", ".html",
+    # The genetic handler checks content and opens these by magic bytes.
+    ".vcf", ".gz", ".zip",
 }
 
 

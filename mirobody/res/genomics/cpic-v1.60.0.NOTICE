@@ -1,0 +1,28 @@
+CPIC database extract v1.60.0
+==============================
+
+Artifact: cpic-v1.60.0.json.gz
+Source: https://files.cpicpgx.org/data/database/cpic_db_dump-v1.60.0.sql.gz
+Release: https://github.com/cpicpgx/cpic-data/releases/tag/v1.60.0
+Accessed: 2026-09-26
+Source SHA-256: 1f02d87a492fffacb52a6d3ca5f45c5f7d6862bdfd382436d2cf7595b08d1ffe
+Extract SHA-256: 47af59c170dc2e498a81237392f3ead4291856aa1f3805b60e57b7b3a4affd7f
+
+This is a column-limited derived extract of nine CPIC COPY tables: drug,
+guideline, pair, allele_definition, allele_location_value, sequence_location,
+gene_result, gene_result_lookup, and gene_result_diplotype. The builder parses data blocks
+only; it never executes the downloaded SQL. No recommendation text or patient
+data is in this artifact.
+
+The CPIC project makes its curated content available under CC0 1.0 and asks
+for attribution and the version of database content used:
+https://github.com/cpicpgx/cpic-data/blob/main/LICENSE.md
+https://creativecommons.org/publicdomain/zero/1.0/
+CPIC database and API use is also subject to the terms linked in that LICENSE.
+CPIC guidance changes; this extract is pinned to v1.60.0 and is not a current
+clinical recommendation. CPIC is a registered service mark of HHS.
+
+The local reader only maps externally confirmed diplotypes to an exact CPIC
+phenotype. It does not call star alleles from array genotypes or issue drug
+recommendations. The CDC GeT-RM consensus panel has not yet been validated
+against this implementation.

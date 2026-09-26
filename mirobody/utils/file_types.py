@@ -65,6 +65,7 @@ MIME_BY_EXT: dict[str, str] = {
     ".txt": "text/plain", ".md": "text/markdown", ".markdown": "text/markdown",
     ".log": "text/plain", ".csv": "text/csv", ".html": "text/html",
     ".htm": "text/html", ".json": "application/json", ".xml": "application/xml",
+    ".vcf": "text/vcf",
     # audio
     ".wav": "audio/x-wav", ".mp3": "audio/mpeg", ".aiff": "audio/x-aiff",
     ".aac": "audio/x-aac", ".ogg": "audio/ogg", ".flac": "audio/x-flac",

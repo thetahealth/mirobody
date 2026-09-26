@@ -7,10 +7,10 @@
     "es": "Por favor, lee el archivo o los archivos que he adjuntado a este mensaje y explícame qué dicen."
   },
   "empty_turn": {
-    "zh": "这一轮没有产生回答——模型把这次的输出预算全用在推理上了。请再问一次。",
-    "en": "This turn produced no answer — the model spent its whole output budget on reasoning. Please ask again.",
-    "fr": "Ce tour n'a produit aucune réponse : le modèle a consacré tout son budget de sortie au raisonnement. Merci de reposer la question.",
-    "ja": "今回は回答が生成されませんでした（モデルが出力予算をすべて推論に使いました）。もう一度お尋ねください。",
-    "es": "Este turno no produjo respuesta: el modelo gastó todo su presupuesto de salida en razonar. Vuelve a preguntar."
+    "zh": "这一轮未能生成回答，请重试。",
+    "en": "This turn ended without an answer. Please try again.",
+    "fr": "Cette demande s'est terminée sans réponse. Veuillez réessayer.",
+    "ja": "今回は回答を生成できませんでした。もう一度お試しください。",
+    "es": "Esta solicitud terminó sin respuesta. Vuelve a intentarlo."
   }
 }

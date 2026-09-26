@@ -100,8 +100,6 @@ mirobody/collect/files/handlers/document.py	interpolation	e
 mirobody/collect/files/handlers/document.py	interpolation	unique_filename
 mirobody/collect/files/handlers/excel.py	interpolation	e
 mirobody/collect/files/handlers/excel.py	interpolation	unique_filename
-mirobody/collect/files/handlers/genetic.py	interpolation	file_key
-mirobody/collect/files/handlers/genetic.py	interpolation	full_url
 mirobody/collect/files/handlers/image.py	interpolation	e
 mirobody/collect/files/handlers/image.py	interpolation	unique_filename
 mirobody/collect/files/handlers/pdf.py	interpolation	e
@@ -151,17 +149,10 @@ mirobody/collect/files/services/file_uploader.py	interpolation	full_url
 mirobody/collect/files/services/file_uploader.py	interpolation	storage.get_storage_type()
 mirobody/collect/files/services/file_uploader.py	interpolation	str(e)
 mirobody/collect/files/services/genetic_processor.py	interpolation	e
-mirobody/collect/files/services/genetic_processor.py	interpolation	error_msg
 mirobody/collect/files/services/genetic_processor.py	interpolation	loaded_records
-mirobody/collect/files/services/genetic_processor.py	interpolation	str(e)
 mirobody/collect/files/services/genetic_processor.py	interpolation	str(ex)
 mirobody/collect/files/services/genetic_processor.py	interpolation	temp_file_path
-mirobody/collect/files/services/genetic_processor.py	interpolation	total_processed
-mirobody/collect/files/services/genetic_processor.py	interpolation	total_saved
-mirobody/collect/files/services/genetic_processor.py	interpolation	update_error
 mirobody/collect/files/services/genetic_processor.py	interpolation	valid_records
-mirobody/collect/files/services/genetic_processor.py	interpolation	ws_error
-mirobody/collect/files/services/genetic_store.py	interpolation	source_table
 mirobody/collect/files/services/indicator_extractor.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/collect/files/services/indicator_extractor.py	interpolation	e
 mirobody/collect/files/services/indicator_extractor.py	interpolation	file_name
