@@ -5,6 +5,8 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import os
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
@@ -242,9 +244,27 @@ def compare_reported_diplotype(
     )
 
 
+def load_cpic(version: str | None = None, directory: str | Path | None = None) -> CpicKnowledge:
+    """Load the configured pinned extract; a query never fetches data."""
+    version = version or os.environ.get("CPIC_VERSION") or "bundled"
+    if directory is None and version != "bundled":
+        directory = os.environ.get("CPIC_DIR") or "~/.mirobody/cpic"
+    resolved = str(Path(directory).expanduser()) if directory is not None else None
+    if version == "latest":
+        candidates = {BUNDLED_VERSION}
+        if resolved is not None:
+            for path in Path(resolved).glob("cpic-v*.json.gz"):
+                found = re.fullmatch(r"cpic-(v\d+\.\d+\.\d+)\.json\.gz", path.name)
+                if found:
+                    candidates.add(found.group(1))
+        version = max(candidates, key=lambda item: tuple(int(part) for part in item[1:].split(".")))
+        if version == BUNDLED_VERSION:
+            resolved = None
+    return _load_cpic(version, resolved)
+
+
 @lru_cache(maxsize=4)
-def load_cpic(version: str = "bundled", directory: str | Path | None = None) -> CpicKnowledge:
-    """Load a bundled or explicitly pinned local extract, without fetching data."""
+def _load_cpic(version: str, directory: str | None) -> CpicKnowledge:
     if version == "bundled":
         version = BUNDLED_VERSION
     if not version.startswith("v") or not all(part.isdigit() for part in version[1:].split(".")) or len(version[1:].split(".")) != 3:

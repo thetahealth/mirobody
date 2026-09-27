@@ -71,6 +71,14 @@ follow Ensembl's human PAR annotation.
 HG00096 is male and HG00097 is female in the project's pinned sample panel.
 The female non-PAR heterozygote is deliberately evaluated under inferred male
 sex to exercise a conflicting upload; its alleles are copied from public truth.
+
+`test_cpic_fetch.py` uses the official CPIC v1.59.1 SQL dump in the ignored
+`internal/genomics/corpus/reference/` directory. It checks exact-version
+fetch, local version selection and rollback on a truncated download. The
+public source SHA-256 is pinned in the test; a clone without the dump skips
+this integration case. CPIC v1.60.0 is the bundled version. `mirobody fetch
+cpic --version latest` consults CPIC's official release metadata and skips
+application-only releases that published no database image.
 With an isolated PostgreSQL schema, `check_ploidy_activation.py` checks the
 transaction's status and `n_called`; `check_filesystem_privacy.py` checks
 plain/gzip/zip chat scene persistence and both Agent file mounts. Set

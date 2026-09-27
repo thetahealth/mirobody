@@ -111,9 +111,20 @@ missing or no-call in the active upload. A guideline's evidence level is not
 the person's phenotype. The tool returns `not_determined` unless validated
 allele definitions, phase and required sites establish a result; it does not
 issue a prescription recommendation. There is currently no validated star
-allele caller, GeT-RM agreement test, CPIC version switch or recomputation.
+allele caller, GeT-RM agreement test or stored-result recomputation.
 The bundled [CPIC NOTICE](../mirobody/res/genomics/cpic-v1.60.0.NOTICE)
 records the pinned source, extract and license.
+
+`mirobody fetch cpic --version v1.59.1` downloads an exact public CPIC release
+into `CPIC_DIR` (default `~/.mirobody/cpic`), validates its COPY schema as data,
+and installs the extracted tables atomically. `--version latest` resolves the
+newest official release that published a database dump at fetch time. Set `CPIC_SOURCE_URL` to a mirror's
+base URL when needed. Set `CPIC_VERSION` to an installed exact version or
+`latest` to select the newest **locally installed** extract for subsequent
+queries; `bundled` always uses the tested packaged v1.60.0 data. Fetching a
+version does not activate it. Queries read the selected version at request
+time; no PGx interpretation is persisted or recomputed yet. The pinned public
+v1.59.1 and v1.60.0 dumps passed fetch, validation and version-selection tests.
 
 Rare pathogenic array calls are not converted into disease conclusions.
 Missing sites, no-calls and conflicts must not be represented as normal.

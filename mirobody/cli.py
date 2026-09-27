@@ -24,6 +24,8 @@ Commands:
   the current configuration, and what to set where one has none. Needs no
   database, but it reads the configuration layer, so it needs ``[app]`` or
   ``[parse]``.
+* ``mirobody fetch cpic --version vX.Y.Z`` downloads and validates a CPIC data
+  extract without executing the upstream SQL or requiring a database.
 """
 
 from __future__ import annotations
@@ -232,6 +234,21 @@ def _cmd_doctor(args: argparse.Namespace) -> None:
     print(format_report(rows))
     if not any(r.provider for r in rows):
         sys.exit(1)
+
+
+def _cmd_fetch_cpic(args: argparse.Namespace) -> None:
+    from pathlib import Path
+
+    from mirobody.translate.cpic_extract import fetch_extract
+
+    directory = Path(args.dir or os.environ.get("CPIC_DIR") or "~/.mirobody/cpic")
+    try:
+        version, digest, installed = fetch_extract(args.version, directory)
+    except (OSError, ValueError) as exc:
+        status = getattr(exc, "code", None)
+        suffix = f" status={status}" if isinstance(status, int) else ""
+        sys.exit(f"CPIC fetch failed: {type(exc).__name__}{suffix}; no extract installed")
+    print(f"CPIC {version} installed at {installed}; source sha256={digest}")
 
 
 def _cmd_migrate_observations(args: argparse.Namespace) -> None:
@@ -481,6 +498,13 @@ def main(argv: list[str] | None = None) -> None:
     p_doctor = sub.add_parser("doctor", help="show which LLM provider each surface selects with the current config, and what is missing (requires the [app] or [parse] extra)")
     p_doctor.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
     p_doctor.set_defaults(func=_cmd_doctor)
+
+    p_fetch = sub.add_parser("fetch", help="download a versioned public data asset")
+    fetch_sub = p_fetch.add_subparsers(dest="asset", required=True)
+    p_fetch_cpic = fetch_sub.add_parser("cpic", help="install a validated CPIC extract without executing SQL")
+    p_fetch_cpic.add_argument("--version", default="latest", help="exact vX.Y.Z tag or latest")
+    p_fetch_cpic.add_argument("--dir", default="", help="CPIC extract directory (or CPIC_DIR)")
+    p_fetch_cpic.set_defaults(func=_cmd_fetch_cpic)
 
     p_parse = sub.add_parser("parse", help="parse a health document into standardized indicators (requires the [parse] extra and one LLM key)")
     p_parse.add_argument("file", help="path to a lab report (pdf/png/jpg/txt/csv)")

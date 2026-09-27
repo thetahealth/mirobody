@@ -47,6 +47,13 @@
   each person's latest old file into an active set with raw calls marked
   unverified; a public-data migration check verifies both visibility and safe
   reruns. Re-upload the source to obtain verified GTs.
+- **Pinned CPIC releases can be installed and selected without executing SQL.**
+  Previously the coverage tool could only read the bundled v1.60.0 extract.
+  `mirobody fetch cpic --version vX.Y.Z` now validates the public dump's COPY
+  data and installs an immutable extract; `CPIC_VERSION` selects an exact or
+  locally newest installed version at query time. Public v1.59.1 and v1.60.0
+  dumps passed the offline fetch and selection checks. Patient-specific star
+  calls and GeT-RM agreement remain release gates.
 
 ### Changed
 
