@@ -1,159 +1,65 @@
 services:
   pg:
-    # pgvector is required (the schema creates the extension and hnsw indexes);
-    # pinned because the floating pg17 tag drifts between machines.
-    # ${DOCKER_MIRROR} is set by deploy.sh when hub.docker.com is unreachable.
-    image: ${DOCKER_MIRROR:-}pgvector/pgvector:0.8.6-pg17-trixie
+    image: pgvector/pgvector:0.8.6-pg17-trixie
     restart: unless-stopped
-    shm_size: 256mb            # hnsw builds and parallel workers outgrow Docker's 64MB default
+    shm_size: 256mb
     ports:
-      - "127.0.0.1:18062:5432" # loopback only: the app uses the internal address, and the password is a placeholder
+      - "127.0.0.1:${PG_HOST_PORT:-18062}:5432"
     environment:
       POSTGRES_USER: holistic_user
-      POSTGRES_DB: holistic_db
-      POSTGRES_PASSWORD: REPLACE_THIS_VALUE_IN_PRODUCTION
+      POSTGRES_DB: ${PG_DBNAME:-holistic_db}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-REPLACE_THIS_VALUE_IN_PRODUCTION}
     volumes:
       - mirobody_postgres:/var/lib/postgresql/data
     healthcheck:
-      # Gates the app's schema creation; start_period covers a slow first initdb.
-      test: ["CMD-SHELL", "pg_isready -U holistic_user -d holistic_db"]
+      test: ["CMD-SHELL", "pg_isready -U holistic_user -d ${PG_DBNAME:-holistic_db}"]
       interval: 5s
       timeout: 3s
       retries: 12
       start_period: 30s
-    networks:
-      mirobody_network:
-        ipv4_address: 10.108.0.2   # config.yaml's PG_HOST
 
-  redis:
-    image: ${DOCKER_MIRROR:-}redis:8.2-alpine
+  mirobody: &mirobody
+    image: ${MIROBODY_IMAGE:-thetahealth/mirobody:1.5.3}
     restart: unless-stopped
+    env_file:
+      - ${MIROBODY_ENV_FILE:-./docker/empty-environment}
     ports:
-      - "127.0.0.1:18069:6379" # loopback only, as above
-    # noeviction + appendonly: task queues and locks live here, and losing them
-    # loudly beats losing them silently.
-    command: >
-      redis-server
-      --bind 0.0.0.0
-      --port 6379
-      --requirepass REPLACE_THIS_VALUE_IN_PRODUCTION
-      --maxmemory 512mb
-      --maxmemory-policy noeviction
-      --appendonly yes
-      --appendfilename "appendonly.aof"
-      --appendfsync everysec
-      --loglevel notice
-      --timeout 60
-      --tcp-keepalive 30
-      --io-threads 4
-      --tcp-backlog 511
+      - "${MIROBODY_HOST_PORT:-18060}:18060"
+    environment: &mirobody_env
+      ENV: ${ENV:-localdb}
+      PYTHONUNBUFFERED: "1"
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: "18060"
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+      PG_HOST: pg
+      PG_PORT: "5432"
+      PG_USER: holistic_user
+      PG_DBNAME: ${PG_DBNAME:-holistic_db}
+      PG_PASSWORD: ${PG_PASSWORD:-REPLACE_THIS_VALUE_IN_PRODUCTION}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-pg,localhost,127.0.0.1}
     volumes:
-      - mirobody_redis:/data   # without it every `compose down` discarded the AOF
-    networks:
-      mirobody_network:
-        ipv4_address: 10.108.0.9   # config.yaml's REDIS_HOST
-
-  mirobody: &mirobody_base
-    # Built inline by deploy.sh: ubuntu + a python venv. Code comes from the
-    # `.:/app` mount; dependencies install into the site-packages volume below
-    # when pyproject/requirements change.
-    image: mirobody
-    restart: unless-stopped
-    ports:
-      - "18060:18060"
-    command: >
-      /bin/bash -c "
-        cd /app/ &&
-        source /root/venv/bin/activate &&
-        HASH_FILE=/root/venv/lib/python3.12/site-packages/.deps_hash &&
-        PYPROJ_HASH=$$(md5sum pyproject.toml requirements.txt | md5sum | awk '{print $$1}') &&
-        if [ \"$$PYPROJ_HASH\" != \"$$(cat \"$$HASH_FILE\" 2>/dev/null)\" ]; then
-          echo '>> deps changed, installing...' &&
-          python -m ensurepip --upgrade >/dev/null 2>&1 || true &&
-          pip install --upgrade pip &&
-          pip install -r requirements.txt &&
-          echo \"$$PYPROJ_HASH\" > \"$$HASH_FILE\";
-        else
-          echo '>> deps unchanged, skip install';
-        fi &&
-        python -m mirobody serve
-      "
-    volumes:
-      - .:/app
       - mirobody_upload:/app/.theta/mcp/upload
-      # A NAMED volume, which Docker seeds from the image — so the venv's own
-      # pip is there on first start. A host that rejects named volumes (rootless
-      # Docker) has to replace this with a bind mount in compose.override.yaml,
-      # and a bind mount is NOT seeded: it mounts empty over the venv and the
-      # next line's `pip install` is `No module named pip`, on a loop. Hence
-      # the `ensurepip` above. (2026-09-14 regression report, F-10)
-      - mirobody_site_packages:/root/venv/lib/python3.12/site-packages
-    environment:
-      - ENV=${ENV}               # a real env var, so `ENV=prod ./deploy.sh` beats a stale .env
-      - PYTHONUNBUFFERED=1
-      - PIP_INDEX_URL=${PIP_INDEX_URL:-https://pypi.org/simple}   # a mirror when pypi.org is slow
-      # A container does not inherit the shell that ran ./deploy.sh, so a
-      # deployment behind a proxy reached the model provider as "Cannot connect
-      # to host" with nothing pointing at the proxy. Empty unless set.
-      - HTTP_PROXY=${HTTP_PROXY:-}
-      - HTTPS_PROXY=${HTTPS_PROXY:-}
-      - NO_PROXY=${NO_PROXY:-pg,redis,localhost,127.0.0.1}
-      - HTTP_HOST=0.0.0.0
-      - HTTP_PORT=18060
-      # Seeds two synthetic accounts, a year of device readings and one lab
-      # panel each, in one care circle where mom@ shares view-only with you@.
-      # Set false for a deployment that will hold real data.
-      - SEED_DEMO_DATA=${SEED_DEMO_DATA:-true}
-    healthcheck:
-      # start_period covers the FIRST boot, which pip-installs the whole stack
-      # before binding a port — 20 minutes on a slow link, free on a fast one.
-      test: ["CMD-SHELL", "curl -sf http://localhost:18060/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 1200s
-    networks:
-      - mirobody_network
+      - ${MIROBODY_CONFIG_FILE:-./docker/empty-config.yaml}:/app/config.${ENV:-localdb}.yaml:ro
     depends_on:
       pg:
         condition: service_healthy
-      redis:
-        condition: service_started
 
   mirobody_worker:
-    <<: *mirobody_base
-    # The task worker (IndicatorSync, ProfileRefresh). Waits for the app to be
-    # HEALTHY so the shared site-packages install has finished.
+    <<: *mirobody
+    command: ["mirobody", "worker"]
     ports: []
-    command: >
-      /bin/bash -c "
-        cd /app/ &&
-        source /root/venv/bin/activate &&
-        python -m mirobody worker
-      "
+    environment:
+      <<: *mirobody_env
     healthcheck:
       disable: true
-    networks:
-      - mirobody_network
     depends_on:
       pg:
         condition: service_healthy
-      redis:
-        condition: service_started
       mirobody:
         condition: service_healthy
 
-networks:
-  mirobody_network:
-    driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 10.108.0.0/24
-          gateway: 10.108.0.1
-
 volumes:
   mirobody_postgres:
-  mirobody_redis:
   mirobody_upload:
-  mirobody_site_packages:

@@ -11,7 +11,6 @@
 # Usage:
 #   shell/backup.sh                       # -> ./backups
 #   BACKUP_DIR=/mnt/nas/mirobody shell/backup.sh
-#   RETENTION_DAYS=30 INCLUDE_REDIS=1 shell/backup.sh
 #   0 3 * * *  cd /srv/mirobody && BACKUP_DIR=/mnt/nas/mirobody shell/backup.sh >> /var/log/mirobody-backup.log 2>&1
 #
 set -euo pipefail
@@ -20,8 +19,12 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-7}"
-INCLUDE_REDIS="${INCLUDE_REDIS:-0}"
 PG_USER="${PG_USER:-holistic_user}"
+env_setting() {
+    [[ -f .env ]] || return 0
+    sed -n "s/^${1}=//p" .env | head -n 1
+}
+PG_DB="${PG_DB:-${PG_DBNAME:-$(env_setting PG_DBNAME)}}"
 PG_DB="${PG_DB:-holistic_db}"
 
 # Compose prefixes every volume with the project name, so the volume declared
@@ -29,7 +32,8 @@ PG_DB="${PG_DB:-holistic_db}"
 # Getting this wrong does not fail: `docker run -v mirobody_upload:/data`
 # CREATES a new empty volume and tars nothing, which is why every volume below
 # is checked to exist before it is read.
-PROJECT="${COMPOSE_PROJECT_NAME:-$(basename "$PWD")}"
+PROJECT="${COMPOSE_PROJECT_NAME:-$(env_setting COMPOSE_PROJECT_NAME)}"
+PROJECT="${PROJECT:-$(basename "$PWD")}"
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
@@ -82,52 +86,34 @@ UPLOAD_VOLUME="${PROJECT}_mirobody_upload"
 if have_volume "$UPLOAD_VOLUME"; then
     FILES="$BACKUP_DIR/mirobody-uploads-$STAMP.tar.gz"
     log "archiving $UPLOAD_VOLUME -> $FILES"
-    docker run --rm \
-        -v "$UPLOAD_VOLUME":/data:ro \
-        -v "$(cd "$BACKUP_DIR" && pwd)":/backup \
-        alpine tar czf "/backup/$(basename "$FILES")" -C /data .
+    # A Docker VM may map a host path such as /tmp to its own /tmp.
+    # Stream the archive to a host-side file and verify it before renaming.
+    PARTIAL="${FILES}.partial"
+    if ! docker run --rm -v "$UPLOAD_VOLUME":/data:ro \
+        alpine tar czf - -C /data . > "$PARTIAL"; then
+        rm -f "$PARTIAL"
+        log "FATAL: upload archive failed"
+        exit 1
+    fi
+    if ! tar tzf "$PARTIAL" >/dev/null; then
+        rm -f "$PARTIAL"
+        log "FATAL: upload archive could not be read"
+        exit 1
+    fi
+    mv "$PARTIAL" "$FILES"
     log "uploads archived ($(du -h "$FILES" | cut -f1))"
 else
     log "skip: no volume $UPLOAD_VOLUME. Either this deployment stores files in a bucket (back up the bucket), or the stack has never written an upload."
 fi
 
 #-----------------------------------------------------------------------------
-# 3. Redis — off by default.
-#
-# It holds the worker's task queues (LPUSH/BLPOP lists, no TTL) and the
-# distributed locks, which is why compose runs it with `noeviction` and
-# `appendonly yes`. That is IN-FLIGHT work, not history: restoring a stale AOF
-# re-runs tasks that already ran, or drops ones that did not. INCLUDE_REDIS=1
-# captures it anyway for forensics.
-#-----------------------------------------------------------------------------
-if [ "$INCLUDE_REDIS" = "1" ]; then
-    REDIS_VOLUME="${PROJECT}_mirobody_redis"
-    if have_volume "$REDIS_VOLUME"; then
-        AOF="$BACKUP_DIR/mirobody-redis-$STAMP.tar.gz"
-        log "archiving $REDIS_VOLUME -> $AOF (forensics only — see docs/backup-restore.md)"
-        docker compose exec -T redis redis-cli -a "${REDIS_PASSWORD:-}" --no-auth-warning BGSAVE >/dev/null 2>&1 || true
-        docker run --rm \
-            -v "$REDIS_VOLUME":/data:ro \
-            -v "$(cd "$BACKUP_DIR" && pwd)":/backup \
-            alpine tar czf "/backup/$(basename "$AOF")" -C /data .
-    else
-        log "skip: no volume $REDIS_VOLUME"
-    fi
-fi
-
-# The site-packages volume is deliberately never here: it is a pip cache keyed
-# on a hash of pyproject.toml + requirements.txt, and restoring it reinstates
-# dependencies the current code no longer imports (1.4.0 dropped a 245 MB SDK
-# that a restored volume would put straight back).
-
-#-----------------------------------------------------------------------------
-# 4. Retention — pattern-scoped, so a BACKUP_DIR that holds anything else
+# 3. Retention — pattern-scoped, so a BACKUP_DIR that holds anything else
 #    keeps it.
 #-----------------------------------------------------------------------------
 if [ "$RETENTION_DAYS" -gt 0 ]; then
     log "pruning backups older than $RETENTION_DAYS days"
     find "$BACKUP_DIR" -maxdepth 1 -type f \
-        \( -name 'mirobody-db-*.dump' -o -name 'mirobody-uploads-*.tar.gz' -o -name 'mirobody-redis-*.tar.gz' \) \
+        \( -name 'mirobody-db-*.dump' -o -name 'mirobody-uploads-*.tar.gz' \) \
         -mtime "+$RETENTION_DAYS" -print -delete
 fi
 

@@ -4,7 +4,7 @@ import os
 from typing import Any
 from collections.abc import Callable
 from psycopg_pool import AsyncConnectionPool
-from redis.asyncio import Redis
+from mirobody.utils.ephemeral import EphemeralStore
 
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
@@ -67,7 +67,7 @@ class Server:
         gen_jwt_claims_func : Callable[[str, str], dict] | None = None,
 
         pg_pool         : AsyncConnectionPool[Any] | None = None,
-        redis           : Redis | None = None,
+        ephemeral      : EphemeralStore | None = None,
 
         # The following parameters can be generated via
         #   config.get_mcp_options().
@@ -120,8 +120,8 @@ class Server:
             tool_dirs = []
         self._pg_pool = pg_pool
 
-        self._redis = redis
-        logger.info(f"Server is running in {"Redis" if self._redis else "local memory"} mode.")
+        self._ephemeral = ephemeral
+        logger.info("Server state backend: %s", "postgres" if ephemeral else "local memory")
 
         self._jwt_token_validator = jwt_token_validator \
             if jwt_token_validator \
@@ -182,7 +182,7 @@ class Server:
             uri_prefix      = uri_prefix,
             routes          = self._routes,
 
-            redis           = self._redis
+            ephemeral       = self._ephemeral
         )
 
         self._user_service = UserService(
@@ -192,7 +192,7 @@ class Server:
             routes          = self._routes,
 
             db_pool         = self._pg_pool,
-            redis           = self._redis,
+            ephemeral       = self._ephemeral,
 
             # Email login.
             email_from      = email_from,
@@ -226,7 +226,7 @@ class Server:
 
             tool_dirs       = tool_dirs,
 
-            redis           = self._redis
+            ephemeral       = self._ephemeral
         )
 
         self._chat_service = ChatService(
@@ -262,7 +262,7 @@ class Server:
             uri_prefix=uri_prefix,
             url_paths_for_request_rate_limiter=url_paths_for_request_rate_limiter,
             url_paths_for_user_info_updater=url_paths_for_user_info_updater,
-            redis=self._redis,
+            ephemeral=self._ephemeral,
             pg_pool=self._pg_pool,
         )
     #-----------------------------------------------------
@@ -332,9 +332,10 @@ class Server:
         #-----------------------------------------------------
         # Init mirobody server.
         
-        # Create global resources (PostgreSQL pool and Redis client)
+        # Create global resources (PostgreSQL pool and ephemeral state client)
         pg_pool = await config.get_postgresql().get_async_pool()
-        redis = await config.get_redis().get_async_client()
+        ephemeral = config.get_ephemeral()
+        await ephemeral.cleanup()
 
         server = Server(
             server_name     = config.http.name,
@@ -345,7 +346,7 @@ class Server:
             # jwt_key         = config.jwt_key,
 
             pg_pool         = pg_pool,
-            redis           = redis,
+            ephemeral       = ephemeral,
 
             webpage_config  = config.get_dict("MIROBODY_WEB_CONFIG", {}),
 
@@ -389,10 +390,10 @@ class Server:
                                 content={"code": -403, "msg": str(exc), "data": {}})
 
         # Store global resources in app.state for access by all routers
-        app.state.redis = redis
+        app.state.ephemeral = ephemeral
         app.state.pg_pool = pg_pool
         
-        logger.info(f"Global resources stored in app.state: Redis={'enabled' if redis else 'disabled'}, PostgreSQL={'enabled' if pg_pool else 'disabled'}")
+        logger.info("Global resources ready")
 
         #-----------------------------------------------------
         # Add other routers.

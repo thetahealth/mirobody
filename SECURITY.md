@@ -96,8 +96,8 @@ others:
 - Restrict CORS to the origins you actually serve.
 - Terminate TLS in front of the service. Set `MCP_PUBLIC_URL` to an HTTPS URL —
   the MCP surface carries the same health data as the API.
-- Do not expose Postgres or Redis. `compose.yaml` publishes them on the host
-  for local development convenience.
+- Do not expose Postgres. `compose.yaml` binds its host port to `127.0.0.1`
+  for local development; restrict access to that port on shared hosts.
 
 Self-hosting means the data stays on your infrastructure, and so does the
 responsibility for it. Mirobody is Apache-2.0 licensed and provided without
@@ -105,7 +105,7 @@ warranty; it is not a medical device and its output is not medical advice.
 
 ## What the server calls off your machine
 
-Everything else stays in your Postgres, your Redis and your upload directory.
+Everything else stays in your Postgres and your upload directory.
 There is no telemetry and no usage reporting.
 
 | Destination | When | What is sent |

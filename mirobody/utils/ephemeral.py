@@ -1,0 +1,196 @@
+"""Encrypted, expiring process-shared state in Postgres."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import secrets
+from collections.abc import Mapping
+from typing import Any
+
+from cryptography.fernet import Fernet
+
+
+class EphemeralStore:
+    """Small state shared by server and worker without another service."""
+
+    def __init__(self, pg_config: Any, encryption_key: str):
+        self._pg_config = pg_config
+        self._cipher = Fernet(encryption_key)
+
+    @staticmethod
+    def _hash(key: str) -> bytes:
+        return hashlib.sha256(key.encode("utf-8")).digest()
+
+    def _seal(self, value: str) -> str:
+        return self._cipher.encrypt(value.encode("utf-8")).decode("ascii")
+
+    def _open(self, value: str) -> str:
+        return self._cipher.decrypt(value.encode("ascii")).decode("utf-8")
+
+    async def get(self, key: str) -> str | None:
+        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+            row = await (await conn.execute(
+                "SELECT value_ciphertext, counter FROM th_ephemeral "
+                "WHERE key_hash = %s AND (expires_at IS NULL OR expires_at > now())",
+                (self._hash(key),),
+            )).fetchone()
+        if row is None:
+            return None
+        return str(row[1]) if row[1] is not None else self._open(row[0])
+
+    async def take(self, key: str) -> str | None:
+        """Consume one-time state in one statement, so concurrent readers cannot replay it."""
+        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+            row = await (await conn.execute(
+                "DELETE FROM th_ephemeral WHERE key_hash = %s "
+                "AND (expires_at IS NULL OR expires_at > now()) "
+                "RETURNING value_ciphertext, counter",
+                (self._hash(key),),
+            )).fetchone()
+        if row is None:
+            return None
+        return str(row[1]) if row[1] is not None else self._open(row[0])
+
+    async def set(self, key: str, value: str | int, *, ex: int | None = None,
+                  nx: bool = False) -> bool:
+        sealed = self._seal(str(value))
+        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+            cursor = await conn.execute(
+                "INSERT INTO th_ephemeral (key_hash, value_ciphertext, expires_at) "
+                "VALUES (%s, %s, CASE WHEN %s::integer IS NULL THEN NULL "
+                "ELSE now() + %s * interval '1 second' END) "
+                "ON CONFLICT (key_hash) DO UPDATE SET "
+                "value_ciphertext = EXCLUDED.value_ciphertext, counter = NULL, "
+                "expires_at = EXCLUDED.expires_at "
+                + ("WHERE th_ephemeral.expires_at <= now() " if nx else "")
+                + "RETURNING key_hash",
+                (self._hash(key), sealed, ex, ex),
+            )
+            return await cursor.fetchone() is not None
+
+    async def setex(self, key: str, ttl: int, value: str | int) -> bool:
+        return await self.set(key, value, ex=ttl)
+
+    async def delete(self, key: str) -> int:
+        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+            cursor = await conn.execute(
+                "DELETE FROM th_ephemeral WHERE key_hash = %s", (self._hash(key),),
+            )
+            return cursor.rowcount
+
+    async def delete_if_value(self, key: str, expected: str) -> bool:
+        """Release a lock only while its owner still matches."""
+        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+            row = await (await conn.execute(
+                "SELECT value_ciphertext FROM th_ephemeral WHERE key_hash = %s "
+                "AND (expires_at IS NULL OR expires_at > now()) FOR UPDATE",
+                (self._hash(key),),
+            )).fetchone()
+            if row is None:
+                return True
+            if self._open(row[0]) != expected:
+                return False
+            await conn.execute("DELETE FROM th_ephemeral WHERE key_hash = %s", (self._hash(key),))
+            return True
+
+    async def take_if_value(self, key: str, expected: str) -> bool:
+        """Consume a one-time code only if it matches, with the row locked."""
+        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+            row = await (await conn.execute(
+                "SELECT value_ciphertext FROM th_ephemeral WHERE key_hash = %s "
+                "AND (expires_at IS NULL OR expires_at > now()) FOR UPDATE",
+                (self._hash(key),),
+            )).fetchone()
+            if row is None or not secrets.compare_digest(self._open(row[0]), expected):
+                return False
+            await conn.execute("DELETE FROM th_ephemeral WHERE key_hash = %s", (self._hash(key),))
+            return True
+
+    async def exists(self, key: str) -> bool:
+        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+            row = await (await conn.execute(
+                "SELECT 1 FROM th_ephemeral WHERE key_hash = %s "
+                "AND (expires_at IS NULL OR expires_at > now())",
+                (self._hash(key),),
+            )).fetchone()
+        return row is not None
+
+    async def expire(self, key: str, seconds: int) -> bool:
+        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+            cursor = await conn.execute(
+                "UPDATE th_ephemeral SET expires_at = now() + %s * interval '1 second' "
+                "WHERE key_hash = %s AND (expires_at IS NULL OR expires_at > now())",
+                (seconds, self._hash(key)),
+            )
+            return cursor.rowcount > 0
+
+    async def ttl(self, key: str) -> int:
+        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+            row = await (await conn.execute(
+                "SELECT EXTRACT(EPOCH FROM expires_at - now()) FROM th_ephemeral "
+                "WHERE key_hash = %s AND (expires_at IS NULL OR expires_at > now())",
+                (self._hash(key),),
+            )).fetchone()
+        if row is None:
+            return -2
+        return math.ceil(row[0]) if row[0] is not None else -1
+
+    async def incr(self, key: str, *, ttl: int | None = None) -> int:
+        """Increment and install the initial window in one atomic statement."""
+        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+            row = await (await conn.execute(
+                "INSERT INTO th_ephemeral (key_hash, counter, expires_at) "
+                "VALUES (%s, 1, CASE WHEN %s::integer IS NULL THEN NULL "
+                "ELSE now() + %s * interval '1 second' END) "
+                "ON CONFLICT (key_hash) DO UPDATE SET "
+                "counter = CASE WHEN th_ephemeral.expires_at <= now() THEN 1 "
+                "ELSE coalesce(th_ephemeral.counter, 0) + 1 END, "
+                "expires_at = CASE WHEN th_ephemeral.expires_at <= now() "
+                "THEN EXCLUDED.expires_at ELSE th_ephemeral.expires_at END "
+                "RETURNING counter",
+                (self._hash(key), ttl, ttl),
+            )).fetchone()
+        return row[0]
+
+    async def hset(self, key: str, *, mapping: Mapping[str, Any]) -> int:
+        """Merge a small hash under a row lock, preserving its existing TTL."""
+        key_hash = self._hash(key)
+        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+            await conn.execute(
+                "INSERT INTO th_ephemeral (key_hash, value_ciphertext) VALUES (%s, %s) "
+                "ON CONFLICT (key_hash) DO NOTHING",
+                (key_hash, self._seal("{}")),
+            )
+            row = await (await conn.execute(
+                "SELECT value_ciphertext, expires_at <= now() FROM th_ephemeral "
+                "WHERE key_hash = %s FOR UPDATE", (key_hash,),
+            )).fetchone()
+            data = {} if row[1] else json.loads(self._open(row[0]))
+            data.update({str(k): str(v) for k, v in mapping.items()})
+            await conn.execute(
+                "UPDATE th_ephemeral SET value_ciphertext = %s, counter = NULL, "
+                "expires_at = CASE WHEN expires_at <= now() THEN NULL ELSE expires_at END "
+                "WHERE key_hash = %s",
+                (self._seal(json.dumps(data)), key_hash),
+            )
+        return len(mapping)
+
+    async def hgetall(self, key: str) -> dict[str, str]:
+        raw = await self.get(key)
+        return json.loads(raw) if raw else {}
+
+    async def hget(self, key: str, field: str) -> str | None:
+        return (await self.hgetall(key)).get(field)
+
+    async def take_hash(self, key: str) -> dict[str, str]:
+        raw = await self.take(key)
+        return json.loads(raw) if raw else {}
+
+    async def cleanup(self) -> int:
+        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+            cursor = await conn.execute(
+                "DELETE FROM th_ephemeral WHERE expires_at <= now()"
+            )
+            return cursor.rowcount

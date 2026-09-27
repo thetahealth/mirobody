@@ -72,27 +72,7 @@ REQUEST_RATE_LIMITER:
 # USER_INFO_UPDATER:
 
 #-----------------------------------------------------------------------------
-# Redis. 10.108.0.9 is the address compose.yaml pins for the redis container.
-
-REDIS_HOST: 10.108.0.9
-REDIS_PORT: 6379
-REDIS_DB: 0
-REDIS_PASSWORD: REPLACE_THIS_VALUE_IN_PRODUCTION
-REDIS_SSL: false
-REDIS_SSL_CHECK_HOSTNAME: false
-REDIS_SSL_CERT_REQS: none
-
-# A second Redis under a suffix, reached with config.get_redis('LOG'):
-# REDIS_HOST_LOG: ''
-# REDIS_PORT_LOG: 6379
-# REDIS_DB_LOG: 0
-# REDIS_PASSWORD_LOG: ''
-# REDIS_SSL_LOG: false
-# REDIS_SSL_CHECK_HOSTNAME_LOG: false
-# REDIS_SSL_CERT_REQS_LOG: 'none'
-
-#-----------------------------------------------------------------------------
-# PostgreSQL. 10.108.0.2 is the address compose.yaml pins for the pg container.
+# PostgreSQL. Compose overrides PG_HOST with the pg service name.
 
 PG_HOST: 10.108.0.2
 PG_PORT: 5432

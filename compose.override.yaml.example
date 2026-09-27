@@ -1,50 +1,20 @@
-# Copy to `compose.override.yaml` when your Docker refuses named volumes.
+# Copy to compose.override.yaml if your Docker daemon rejects named volumes.
+# Create the two host directories first; keep uploaded health files outside
+# the checkout. The file is gitignored.
 #
-#     cp compose.override.yaml.example compose.override.yaml
-#     mkdir -p ../mirobody-data/{pgdata,redis,upload,sitepkgs}
-#     ./deploy.sh
-#
-# The data sits BESIDE the checkout, not in it. A daemon that implements bind
-# mounts with bindfs refuses to mount a directory after one of its
-# subdirectories (`fuse: mountpoint is not empty`), and pg and redis start
-# before mirobody mounts the project. Inside it, the database was also one
-# `git add .` away from a commit. `MIROBODY_DATA` moves it elsewhere.
-#
-# Rootless and hardened Docker daemons reject a named volume with
-#
-#     Error response from daemon: Host path binding is rejected: <project>_mirobody_redis
-#
-# and compose stops there. `compose.override.yaml` is gitignored, so this file
-# is the example rather than the thing: your paths are yours.
-#
-# ONE thing here is not a mechanical substitution. `mirobody_site_packages` is
-# a named volume because Docker SEEDS a named volume from the image, so the
-# venv's own pip is there on first start. A bind mount is not seeded: it mounts
-# empty over the venv and the next `pip install` is `No module named pip`, on a
-# restart loop. compose.yaml runs `ensurepip` for exactly this case, so the
-# bind mount below works, but it pays a full dependency install on first boot
-# (a few minutes) where the named volume pays seconds.
-#
-# If your daemon accepts named volumes, do not use this file. It is slower and
-# it puts a venv in your working tree.
+#   cp compose.override.yaml.example compose.override.yaml
+#   mkdir -p ../mirobody-data/{pgdata,upload}
+#   ./deploy.sh
 
 services:
   pg:
     volumes:
       - ${MIROBODY_DATA:-../mirobody-data}/pgdata:/var/lib/postgresql/data
 
-  redis:
-    volumes:
-      - ${MIROBODY_DATA:-../mirobody-data}/redis:/data
-
   mirobody:
     volumes:
-      - .:/app
       - ${MIROBODY_DATA:-../mirobody-data}/upload:/app/.theta/mcp/upload
-      - ${MIROBODY_DATA:-../mirobody-data}/sitepkgs:/root/venv/lib/python3.12/site-packages
 
   mirobody_worker:
     volumes:
-      - .:/app
       - ${MIROBODY_DATA:-../mirobody-data}/upload:/app/.theta/mcp/upload
-      - ${MIROBODY_DATA:-../mirobody-data}/sitepkgs:/root/venv/lib/python3.12/site-packages

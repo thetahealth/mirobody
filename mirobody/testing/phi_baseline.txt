@@ -109,18 +109,10 @@ mirobody/collect/files/services/file_db_service.py	interpolation	str(e)
 mirobody/collect/files/services/file_processing_service.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/collect/files/services/file_processing_service.py	interpolation	e
 mirobody/collect/files/services/file_processing_service.py	interpolation	err
-mirobody/collect/files/services/file_processing_service.py	interpolation	error_msg
-mirobody/collect/files/services/file_processing_service.py	interpolation	file.filename
-mirobody/collect/files/services/file_processing_service.py	interpolation	file_data.get('file_name', 'unknown')
 mirobody/collect/files/services/file_processing_service.py	interpolation	file_key
 mirobody/collect/files/services/file_processing_service.py	interpolation	file_keys
-mirobody/collect/files/services/file_processing_service.py	interpolation	file_url
-mirobody/collect/files/services/file_processing_service.py	interpolation	filename
-mirobody/collect/files/services/file_processing_service.py	interpolation	result.get('success')
-mirobody/collect/files/services/file_processing_service.py	interpolation	scene
 mirobody/collect/files/services/file_processing_service.py	interpolation	storage.get_storage_type()
 mirobody/collect/files/services/file_processing_service.py	interpolation	str(e)
-mirobody/collect/files/services/file_processing_service.py	interpolation	str(file_error)
 mirobody/collect/files/services/file_processing_service.py	interpolation	total_files
 mirobody/collect/files/services/file_uploader.py	interpolation	filename
 mirobody/collect/files/services/file_uploader.py	interpolation	full_url
@@ -223,8 +215,6 @@ mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolat
 mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	data_key
 mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	e
 mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	resp.text
-mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	self.client_id[:3]
-mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	self.redirect_url
 mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	str(db_error)
 mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	str(e)
 mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	type(user_data)
@@ -249,7 +239,6 @@ mirobody/mcp/service.py	extra_key	path
 mirobody/mcp/service.py	interpolation	e
 mirobody/mcp/service.py	interpolation	err
 mirobody/mcp/service.py	interpolation	name
-mirobody/mcp/service.py	interpolation	str(e)
 mirobody/mcp/tool.py	extra_key	line
 mirobody/mcp/tool.py	interpolation	", ".join(sorted(caller_ident))
 mirobody/mcp/tool.py	interpolation	dir
@@ -318,22 +307,13 @@ mirobody/server/routers/user_router.py	interpolation	traceback.format_exc()
 mirobody/server/server.py	interpolation	exc
 mirobody/server/server.py	interpolation	request.url.path
 mirobody/server/worker.py	interpolation	[c.__name__ for c in task_classes]
-mirobody/task/base.py	interpolation	cls.heartbeat_sec
-mirobody/task/base.py	interpolation	cls.queue_key
-mirobody/task/base.py	interpolation	e
-mirobody/task/base.py	interpolation	int(now - last_active)
-mirobody/task/base.py	interpolation	payload
 mirobody/task/loader.py	interpolation	dir
 mirobody/task/loader.py	interpolation	e
 mirobody/task/loader.py	interpolation	entry.name
 mirobody/task/loader.py	interpolation	module_name
 mirobody/task/loader.py	interpolation	target
-mirobody/task/profile_refresh.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/task/profile_refresh.py	interpolation	e
-mirobody/task/profile_refresh.py	interpolation	result
 mirobody/task/profile_refresh.py	interpolation	result.get('current_version')
 mirobody/task/profile_refresh.py	interpolation	result.get('last_execute_doc_id')
-mirobody/task/profile_refresh.py	interpolation	result.get('message')
 mirobody/task/profile_refresh.py	interpolation	result.get('profile_id')
 mirobody/task/profile_refresh.py	interpolation	result.get('version')
 mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	chunk_end.strftime('%Y-%m-%d')
@@ -413,9 +393,7 @@ mirobody/user/platform.py	interpolation	result
 mirobody/user/platform.py	interpolation	str(e)
 mirobody/user/platform.py	interpolation	user['id']
 mirobody/user/profile.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/user/profile.py	interpolation	current_lock_str
 mirobody/user/profile.py	interpolation	e
-mirobody/user/profile.py	interpolation	lock_info
 mirobody/user/profile.py	interpolation	previous_scenario
 mirobody/user/profile.py	interpolation	scenario_info['scenario_en']
 mirobody/user/profile.py	interpolation	scenario_info['scenario_zh']
@@ -436,11 +414,6 @@ mirobody/utils/config/postgresql.py	extra_key	params
 mirobody/utils/config/postgresql.py	extra_key	records
 mirobody/utils/config/postgresql.py	extra_key	time_cost
 mirobody/utils/config/postgresql.py	interpolation	" ".join(str(query).split())
-mirobody/utils/config/redis.py	extra_key	host
-mirobody/utils/config/redis.py	extra_key	port
-mirobody/utils/config/redis.py	interpolation	self.host
-mirobody/utils/config/redis.py	interpolation	self.port
-mirobody/utils/config/redis.py	interpolation	str(e)
 mirobody/utils/config/storage/aliyun.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/utils/config/storage/aliyun.py	interpolation	error_msg
 mirobody/utils/config/storage/aliyun.py	interpolation	object_key

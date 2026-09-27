@@ -255,16 +255,12 @@ class ProcessingStats:
 - **Logging**: Detailed execution logs and error information
 - **Graceful degradation**: Errors don't affect other data processing
 
-### Redis Caching
+### Provider pull state
 
-The real key names, from `pulse/core/distributed_lock.py` (an earlier revision
-of this section listed keys that never existed, which is exactly the wrong
-thing for the on-call engineer inspecting Redis at 3am):
-
-- `task_execution_timestamp:{slug}`: last processing timestamp (float epoch,
-  sub-second precision) for incremental runs
-- `theta_pull_execution_lock:{slug}`: the distributed execution lock
-- `pull_task:last_run:{slug}`: last successful wall-clock run, surviving restarts
+`mirobody/utils/distributed_lock.py` holds each provider's execution lock on a
+Postgres advisory-lock session. The last processing timestamp and last run are
+expiring encrypted values in `th_ephemeral`; the key names are hashed before
+storage. A lost database connection releases its lock.
 
 ## Execution Parameters
 

@@ -443,6 +443,36 @@ for can take it over.
   HLA-B LOINC concepts or resolved ambiguous phrases as a genotype. Nine
   explicit mappings now target the named concepts and five broad phrases are
   rejected; the resolver override table records each term and target.
+
+- **The application now runs with Postgres as its only state service.** Redis
+  previously held login challenges, OAuth state, counters, file cache entries,
+  provider locks and worker messages, making a second database mandatory for a
+  complete deployment. Expiring values now live encrypted in `th_ephemeral`,
+  one-time values are consumed atomically, provider pulls hold session-level
+  advisory locks, and the queue uses `th_task_queue`. A clean Compose stack
+  reached a healthy server and worker with no Redis package installed; a
+  scratch Postgres check exercised expiry, competing claims and lock ownership.
+- **Docker deployment now uses a built application image.** The old Compose
+  mounted source code and installed dependencies on first boot, so a clone was
+  required and startup depended on PyPI. The multi-stage image contains the
+  Python app, schema, terminology bundle and current web client; Compose pulls
+  it and starts Postgres, server and worker. A local image served `/`,
+  `/mirobody.json` and `/api/health` with version `1.5.3.dev0`.
+- **Backups now work when a Docker VM cannot bind the destination path.**
+  The upload archive previously went into the Docker VM's `/tmp` while the
+  script reported success. It now streams to the host, verifies the tar, and
+  only then names it as a backup; a Compose test produced readable database
+  and upload archives under a host `/tmp` directory.
+- **Profile refresh tasks now survive worker interruption.** Redis removed a
+  task from its list before it ran, so a stopped worker lost the refresh. The
+  Postgres queue claims tasks with a lease and acknowledges only successful
+  work; failed work is retried and retained after five failed attempts. A
+  scratch database check covered competing workers, retry and acknowledgement.
+- **The bundled web client now uses the current `mirobody-web` main build.**
+  The previously shipped assets predated the Indicators/Data navigation and
+  updated empty-state flow. The open-source build completed and its hashed
+  assets replaced the prior bundle.
+
 - Removed the frozen Traditional Chinese and Japanese README editions and their
   archive index, which contained stale links. Only the live English and Chinese
   READMEs remain; the removed editions are available in Git history.

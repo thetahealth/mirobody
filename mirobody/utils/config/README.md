@@ -67,13 +67,11 @@ Core system settings found in `config.yaml`.
 | `PG_PASSWORD` | Password                                        |
 | `PG_DBNAME`   | Database name                                   |
 
-### Cache (Redis)
+### Temporary state
 
-| Key                | Description             |
-| ------------------ | ----------------------- |
-| `REDIS_HOST`     | Hostname                |
-| `REDIS_PORT`     | Port (Default:`6379`) |
-| `REDIS_PASSWORD` | Password                |
+Short-lived authentication state, counters and provider locks use PostgreSQL.
+`CONFIG_ENCRYPTION_KEY` protects values in `th_ephemeral`; keep it stable across
+restarts. There is no separate cache service to configure.
 
 ## 🤖 Agent Configuration
 

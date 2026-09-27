@@ -1,4 +1,4 @@
-"""Load task modules so their `BaseRedisTask` subclasses self-register.
+"""Load task modules so their `BaseTask` subclasses self-register.
 
 Built-in tasks in `mirobody/task/` are always loaded: unlike MCP tools or
 agents, task built-ins should run in every deployment, so callers don't
@@ -7,7 +7,7 @@ need to re-declare this package in their `TASK_DIRS`.
 Each extra entry in `dirs` may be a filesystem path or a dotted package name
 (e.g. `myproj.tasks`); for package names, `importlib.util.find_spec` resolves
 the on-disk location. Every non-private `.py` module is imported, and any
-`BaseRedisTask` subclass it declares becomes visible to `iter_redis_tasks()`.
+`BaseTask` subclass it declares becomes visible to `iter_tasks()`.
 """
 
 from __future__ import annotations

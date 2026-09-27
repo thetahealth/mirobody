@@ -6,7 +6,7 @@ from typing import Any
 from collections.abc import Awaitable, Callable
 
 from psycopg_pool import AsyncConnectionPool
-from redis.asyncio import Redis
+from mirobody.utils.ephemeral import EphemeralStore
 
 from starlette.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -241,10 +241,10 @@ class RequestRateLimiterMiddleware(BaseHTTPMiddleware):
         app,
         dispatch = None,
         url_paths   : dict[str, int] | None = None,
-        redis_client: Redis | None = None
+        ephemeral_client: EphemeralStore | None = None
     ):
         self._url_paths = url_paths if isinstance(url_paths, dict) else None
-        self._redis_client = redis_client
+        self._ephemeral_client = ephemeral_client
         self._cache_key_prefix = "limit:"
 
         super().__init__(app, dispatch)
@@ -252,7 +252,7 @@ class RequestRateLimiterMiddleware(BaseHTTPMiddleware):
     #-----------------------------------------------------
 
     async def dispatch(self, request, call_next) -> Response:
-        if self._url_paths and self._redis_client:
+        if self._url_paths and self._ephemeral_client:
 
             threshold = self._url_paths.get(request.url.path)
             if isinstance(threshold, int) and threshold > 0:
@@ -269,12 +269,10 @@ class RequestRateLimiterMiddleware(BaseHTTPMiddleware):
                 else:
                     counter_id = f"ip:{request.client.host if request.client else 'unknown'}"
                 key = f"{self._cache_key_prefix}{counter_id}:{request.url.path}"
-                resp = await self._redis_client.incr(key)
+                resp = await self._ephemeral_client.incr(key, ttl=60)
                 if isinstance(resp, int):
-                    if resp == 1:
-                        await self._redis_client.expire(key, 60)
-                    elif resp > threshold:
-                        resp = await self._redis_client.ttl(key)
+                    if resp > threshold:
+                        resp = await self._ephemeral_client.ttl(key)
                         return Response(
                             status_code=429,
                             headers={

@@ -259,7 +259,6 @@ app = [
     # SQLAlchemy declares greenlet only under platform markers and extras, so
     # its async engine can be missing it on an otherwise-correct install.
     "greenlet",
-    "redis",
     # Object storage — `storage/factory.py` tries every AbstractStorage
     # subclass and falls back to local, so which one is a config question at
     # runtime, never an install-time one.

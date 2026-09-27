@@ -142,7 +142,7 @@ class AppleHealthPlatform(Platform):
         AggregateIndicatorTask (every 4 min) will catch up.
         """
         # Not debounced. If concurrent uploads from many users ever back the
-        # distributed lock up, a short Redis SET NX here would coalesce them:
+        # distributed lock up, a short Postgres advisory lock would coalesce them:
         # keyed globally, since this runs a global incremental, or by user_id
         # if it ever becomes per-user.
 

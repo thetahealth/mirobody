@@ -2,7 +2,7 @@ import json
 import logging
 import secrets
 
-from redis.asyncio import Redis
+from mirobody.utils.ephemeral import EphemeralStore
 from datetime import datetime
 
 from starlette.requests import Request
@@ -124,7 +124,7 @@ class McpService:
 
         tool_dirs               : list[str] | None = None,
 
-        redis                   : Redis | None = None,
+        ephemeral               : EphemeralStore | None = None,
 
         **kwargs
     ):
@@ -142,8 +142,8 @@ class McpService:
 
         self._uri_prefix        = uri_prefix
 
-        self._redis             = redis
-        if self._redis:
+        self._ephemeral         = ephemeral
+        if self._ephemeral:
             self._mcp_url_keyprefix = "mirobody:mcp:url:"
         else:
             self._mcp_urls = {}
@@ -252,11 +252,11 @@ class McpService:
         """
         if not user_secret:
             return ""
-        if self._redis:
+        if self._ephemeral:
             try:
-                user_id = await self._redis.get(self._mcp_url_keyprefix + user_secret) or ""
+                user_id = await self._ephemeral.get(self._mcp_url_keyprefix + user_secret) or ""
             except Exception as e:
-                logger.warning("MCP: permanent URL lookup failed: %s", e)
+                logger.warning("MCP personal URL lookup failed: error_type=%s", type(e).__name__)
                 return ""
         else:
             user_id = self._mcp_urls.get(user_secret, "")
@@ -492,8 +492,7 @@ class McpService:
                     user_id = str(await bearer_subject(payload, mcp_resource=resource) or "")
 
             if tool["auth"] and not user_id:
-                # Redis being down degrades to "unauthenticated" rather than an
-                # error (logged in `_resolve_secret_user`).
+                # A failed state lookup leaves the request unauthenticated.
                 user_id = await self._resolve_secret_user(request.path_params.get("secret", ""))
 
             if tool["auth"] and not user_id:
@@ -715,17 +714,17 @@ class McpService:
         Idempotent on purpose: revoking a URL that was never minted, or twice,
         is a success. A client cannot tell those apart and does not need to.
         """
-        if self._redis:
+        if self._ephemeral:
             try:
-                secret = await self._redis.get(self._mcp_url_keyprefix + user_id)
+                secret = await self._ephemeral.get(self._mcp_url_keyprefix + user_id)
                 if secret:
                     # The secret -> user mapping FIRST: that is the one
                     # `/mcp/{secret}` reads, so it is the one that stops the
                     # credential working. If the second delete then fails, the
                     # URL is already dead and the next mint only leaks a
                     # dangling key that expires on its own.
-                    await self._redis.delete(self._mcp_url_keyprefix + secret)
-                await self._redis.delete(self._mcp_url_keyprefix + user_id)
+                    await self._ephemeral.delete(self._mcp_url_keyprefix + secret)
+                await self._ephemeral.delete(self._mcp_url_keyprefix + user_id)
             except Exception as e:
                 logger.warning("MCP: personal URL revoke failed: error_type=%s", type(e).__name__)
                 return json_response_with_code(-6, "Could not revoke the personal MCP URL.", request=request)
@@ -753,11 +752,11 @@ class McpService:
         #-------------------------------------------------
 
         # Get existing user secret.
-        if self._redis:
+        if self._ephemeral:
             try:
-                user_secret = await self._redis.get(self._mcp_url_keyprefix+user_id)
+                user_secret = await self._ephemeral.get(self._mcp_url_keyprefix+user_id)
             except Exception as e:
-                logger.warning(str(e))
+                logger.warning("MCP personal URL state failed: error_type=%s", type(e).__name__)
                 user_secret = ""
         else:
             user_secret = self._mcp_urls.get(user_id, "")
@@ -766,13 +765,14 @@ class McpService:
             # Generate a new user secret.
             user_secret = secrets.token_urlsafe(96)
 
-            if self._redis:
+            if self._ephemeral:
                 try:
                     ttl = self._mcp_url_ttl_days * 24 * 60 * 60
-                    await self._redis.set(self._mcp_url_keyprefix+user_secret, user_id, ex=ttl)
-                    await self._redis.set(self._mcp_url_keyprefix+user_id, user_secret, ex=ttl)
+                    await self._ephemeral.set(self._mcp_url_keyprefix+user_secret, user_id, ex=ttl)
+                    await self._ephemeral.set(self._mcp_url_keyprefix+user_id, user_secret, ex=ttl)
                 except Exception as e:
-                    return json_response_with_code(-6, str(e), request=request)
+                    logger.warning("MCP personal URL state failed: error_type=%s", type(e).__name__)
+                    return json_response_with_code(-6, "Could not create the personal MCP URL.", request=request)
             else:
                 self._mcp_urls[user_secret] = user_id
                 self._mcp_urls[user_id]     = user_secret

@@ -4,20 +4,18 @@ Health data is irreplaceable — a reading you lose is a blood draw you cannot
 repeat. This page is the answer to "what do I copy, and how do I get it back".
 
 Every command here was run against a live stack while writing it, including the
-restore: the dump below was restored into a scratch database and came back with
-29 tables in the `theta_ai` schema and the `vector` extension in place.
+restore: the dump below was restored into a scratch database with the
+`theta_ai` schema and `vector` extension in place.
 
 ## What actually holds your data
 
-`compose.yaml` declares four volumes. They are not equally precious, and
-treating them alike is how people back up a pip cache and miss their uploads.
+`compose.yaml` declares two volumes. The database and uploaded files both need
+backups; the application image can be pulled again.
 
 | Declared in compose | Holds | Back it up? |
 | --- | --- | --- |
-| `mirobody_postgres` | Everything the app knows: readings, files metadata, care circles, users — plus LangGraph's `checkpoint_*` conversation memory when `AGENT_CHECKPOINTER: true`. All inside the `PG_SCHEMA` schema (`theta_ai`), with `vector(1024)` columns and an hnsw index. | **Yes — `pg_dump`.** Not a tar of the data directory (see below). |
+| `mirobody_postgres` | Everything the app knows: readings, files metadata, care circles, users, the `th_task_queue` background tasks, short-lived authentication state in `th_ephemeral`, and LangGraph's `checkpoint_*` conversation memory when `AGENT_CHECKPOINTER: true`. All inside the `PG_SCHEMA` schema (`theta_ai`), with `vector(1024)` columns and an hnsw index. | **Yes — `pg_dump`.** Not a tar of the data directory (see below). A restored task queue can replay work that finished after the dump. |
 | `mirobody_upload` | The original uploaded PDFs and photos — **only when files are stored locally.** | **Yes, if it exists.** `storage/factory.py` tries each cloud backend (Aliyun OSS, AWS S3) first and falls back to local, so a deployment with either configured keeps its files in a bucket: back up the bucket, and this volume will be absent or empty. |
-| `mirobody_redis` | The worker's task queues (`LPUSH`/`BLPOP` lists, no TTL) and the distributed locks — which is why compose runs redis with `--maxmemory-policy noeviction --appendonly yes`. | **No, by default.** This is in-flight work, not history. Restoring a stale AOF re-runs tasks that already ran, or silently drops ones that had not. `INCLUDE_REDIS=1` captures it for forensics. |
-| `mirobody_site_packages` | A pip cache, keyed on a hash of `pyproject.toml` + `requirements.txt`. | **Never.** It is derived, and restoring it reinstates dependencies the current code no longer imports — the release that dropped a 245 MB vendor SDK would get it back. Delete the volume and the next start reinstalls. |
 
 There is **no `mirobody_charts` volume**. The `ChartService` MCP tools that
 rendered PNGs through a Node toolchain were removed; the agent now writes a
@@ -49,7 +47,6 @@ does not care what the container is called.
 ```bash
 shell/backup.sh                                  # -> ./backups
 BACKUP_DIR=/mnt/nas/mirobody shell/backup.sh     # somewhere that is not this disk
-RETENTION_DAYS=30 INCLUDE_REDIS=1 shell/backup.sh
 ```
 
 Nightly, via cron:
@@ -72,8 +69,11 @@ What it does, and why:
   read one from stdin, and `pg_dump > file` that dies half-way leaves a
   plausible-looking truncated file.
 - **Uploads are archived only if the local volume exists** (see the table).
+- **The upload archive streams into a host file and is read back before it is
+  accepted.** A Docker VM can map a host `/tmp` bind mount to its own
+  `/tmp`, leaving a successful tar command but no archive on the host.
 - **Retention is pattern-scoped** — it prunes `mirobody-db-*.dump`,
-  `mirobody-uploads-*.tar.gz` and `mirobody-redis-*.tar.gz` older than
+  `mirobody-uploads-*.tar.gz` older than
   `RETENTION_DAYS`, and leaves anything else in the directory alone.
 
 The script is backup-only on purpose. Restore stays a human decision: the one
@@ -97,17 +97,22 @@ satisfied):
 docker compose cp backups/mirobody-db-20260902-153442.dump pg:/tmp/restore.dump
 docker compose exec -T pg createdb -U holistic_user holistic_db_restored
 docker compose exec -T pg pg_restore -U holistic_user -d holistic_db_restored --no-owner /tmp/restore.dump
+# Authentication challenges and rate-limit windows are not safe to replay.
+docker compose exec -T pg psql -U holistic_user -d holistic_db_restored -c \
+  'TRUNCATE theta_ai.th_ephemeral'
 # sanity-check before switching over
 docker compose exec -T pg psql -U holistic_user -d holistic_db_restored -c \
   "select count(*) from information_schema.tables where table_schema='theta_ai'"
 ```
 
-Then point `PG_DBNAME` at `holistic_db_restored` in your config and start the
+Then set `PG_DBNAME=holistic_db_restored` in `.env` and start the
 app. To restore over the existing database instead, add `--clean` (it drops
 each object before recreating it) and be aware that there is no undo:
 
 ```bash
 docker compose exec -T pg pg_restore -U holistic_user -d holistic_db --clean --no-owner /tmp/restore.dump
+docker compose exec -T pg psql -U holistic_user -d holistic_db -c \
+  'TRUNCATE theta_ai.th_ephemeral'
 ```
 
 A note on the vector columns: they restore as ordinary data, and the pinned
@@ -140,8 +145,8 @@ docker compose up -d
    whole checklist, because it is also the rollback: there are no down
    migrations.
 2. Read `CHANGELOG.md` for the version you are moving to.
-3. `git pull && ./deploy.sh` — the script takes no arguments and already does
-   `compose down`, then `up -d --remove-orphans`, then tails the logs.
+3. `git pull && ./deploy.sh` — the script keeps existing volumes and pulls the
+   selected application image before waiting for healthy services.
 4. Watch that log tail: the schema DDL runs on the first start (see below), and
    a file that fails is logged with its `sql_filename`.
 

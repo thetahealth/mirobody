@@ -86,7 +86,7 @@ class PullTask:
         this in their except block. The scheduler will then prefer this detailed
         message over the generic fallback when populating ``last_error``.
 
-        Truncates to 4096 chars to keep the field bounded for Redis / status
+        Truncates to 4096 chars to keep the field bounded for status
         endpoints.
         """
         import traceback
@@ -347,8 +347,8 @@ class PullTask:
             timestamp
         )
     
-    def _get_stats_redis_key(self) -> str:
-        """Get Redis key for task statistics"""
+    def _get_stats_key(self) -> str:
+        """Key for temporary task statistics."""
         return f"task_stats:{self.provider_slug}"
     
     async def get_task_stats(self) -> dict[str, Any] | None:
@@ -364,18 +364,11 @@ class PullTask:
             return None
         
         try:
-            from .distributed_lock import get_redis_client
-            redis_client = await get_redis_client()
-            if redis_client is None:
-                return None
-            
-            stats_key = self._get_stats_redis_key()
-            stats_json = await redis_client.get(stats_key)
+            from mirobody.utils.config import global_config
+            stats_key = self._get_stats_key()
+            stats_json = await global_config().get_ephemeral().get(stats_key)
             
             if stats_json:
-                # Handle bytes returned from Redis
-                if isinstance(stats_json, bytes):
-                    stats_json = stats_json.decode('utf-8')
                 return json.loads(stats_json)
             return None
             
@@ -406,14 +399,10 @@ class PullTask:
             return False
         
         try:
-            from .distributed_lock import get_redis_client
-            redis_client = await get_redis_client()
-            if redis_client is None:
-                return False
-            
-            stats_key = self._get_stats_redis_key()
+            from mirobody.utils.config import global_config
+            stats_key = self._get_stats_key()
             stats_json = json.dumps(stats)
-            await redis_client.set(stats_key, stats_json, ex=ttl)
+            await global_config().get_ephemeral().set(stats_key, stats_json, ex=ttl)
             
             logger.debug(f"Saved stats for {self.provider_slug}")
             return True
@@ -485,7 +474,7 @@ class Scheduler:
         self.running = True
         logger.info("Starting scheduler...")
 
-        # TH-416: restore each task's last_run from redis before scheduling,
+        # TH-416: restore each task's last_run from Postgres before scheduling,
         # so a service restart doesn't reset long-interval tasks
         # (renpho/whoop @ 24h) to execute immediately.
         if pull_task_lock_manager:

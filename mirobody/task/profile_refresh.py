@@ -14,13 +14,13 @@ from __future__ import annotations
 
 import logging
 
-from .base import BaseRedisTask
+from .base import BaseTask
 
 logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
-class ProfileRefreshTask(BaseRedisTask):
+class ProfileRefreshTask(BaseTask):
     """Queue payload: ``user_id`` (plain string)."""
 
     queue_key = "profile_refresh_queue"
@@ -34,11 +34,15 @@ class ProfileRefreshTask(BaseRedisTask):
             return
 
         logger.info(f"profile_refresh batch start: {len(user_ids)} user(s)")
+        failures = 0
         for uid in user_ids:
             try:
                 result = await UserProfileService.create_user_profile(uid)
             except Exception as e:
-                logger.error(f"profile_refresh crashed: user_id={uid}: {e}", exc_info=True)
+                from mirobody.kernel.ops import is_driver_exception
+                logger.error("profile_refresh crashed: user_id=%s error_type=%s", uid,
+                             type(e).__name__, exc_info=not is_driver_exception(e))
+                failures += 1
                 continue
 
             status = result.get("status")
@@ -56,14 +60,13 @@ class ProfileRefreshTask(BaseRedisTask):
                     f"last_execute_doc_id={result.get('last_execute_doc_id')}"
                 )
             elif status == "error":
-                logger.error(
-                    f"profile_refresh error: user_id={uid}, "
-                    f"message={result.get('message')}"
-                )
+                logger.error("profile_refresh error: user_id=%s", uid)
+                failures += 1
             else:
-                logger.warning(
-                    f"profile_refresh unexpected status: user_id={uid}, result={result}"
-                )
+                logger.warning("profile_refresh unexpected status: user_id=%s status=%s", uid, status)
+                failures += 1
         logger.info(f"profile_refresh batch done: {len(user_ids)} user(s)")
+        if failures:
+            raise RuntimeError(f"profile_refresh failed for {failures} user(s)")
 
 #-----------------------------------------------------------------------------

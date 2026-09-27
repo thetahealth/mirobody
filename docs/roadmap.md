@@ -429,18 +429,15 @@ if an extension is added to `SUPPORTED_EXTENSIONS` or `MULTIMODAL_EXTS` without
 being pinned. Also deleted `agent/filesystem/backend._guess_mime`, a fourth copy with
 no callers.
 
-### Task delivery is at-most-once, with no re-drive
+### Resolved: task delivery survives a worker restart
 
-`task/base.py:_pop_batch` removes messages from Redis (BLPOP+LPOP) *before*
-`consume()` runs, so a mid-consume crash discards the batch with no requeue.
-`ProfileRefreshTask.consume` additionally swallows per-user failures and
-continues, dropping that user rather than retrying.
-
-Low impact today: the profile refresh is idempotent, and any later ingest
-re-triggers it. But file ingest
-(`files/services/indicator_store.py:save_indicators_to_db`) is the
-*only* producer for the queue and there is no cron re-drive, so a refresh
-that dies partway through stays undone until the next real upload.
+`task/base.py` now claims Postgres rows with `FOR UPDATE SKIP LOCKED`, deletes
+them only after `consume()` succeeds, and retries an interrupted claim after
+its lease expires. A repeatedly failing batch remains visible in the table
+with `failed_at` after five attempts. `ProfileRefreshTask.consume` reports
+per-user failures to the queue instead of acknowledging them as successes.
+The isolated Postgres check exercised competing claims, retry, acknowledgement
+and retained failure rows.
 
 ### Empty-list/dict parameter defaults (~19 remaining)
 
@@ -561,11 +558,10 @@ wrong numbers", which is exactly what you cannot verify by reading:
   invisible to every downstream aggregate. Fixing it means choosing between
   raising and quarantining, which changes ingest behaviour — needs a decision
   and a migration for whatever is already stored wrong.
-* **The distributed lock fails open.** A process that has never reached Redis
-  gets `None` from `get_redis_client()` and `try_acquire_execution_lock`
-  fabricates success — so a container restarted during a Redis outage runs
-  unlocked. Distinguishing "not configured" (dev, fine) from "configured but
-  unreachable" (production, must fail closed) is the fix.
+* **Resolved: provider pulls fail closed when Postgres is unavailable.** The
+  previous Redis client could be missing and still permit an unlocked pull.
+  A session-level Postgres advisory lock now gates each pull; acquisition
+  failure refuses execution, and a dropped session releases its lock.
 * **Two lookups disagree.** 9 `StandardIndicator` members share a wire-format
   `name`, and `_INDICATOR_LOOKUP` (last wins) resolves
   `sleepAnalysis_Asleep(Deep)` to a member with `aggregation_methods=None`
@@ -773,8 +769,10 @@ here rather than half-built.
 user, for 365 days. There is no revoke, no rotate, and re-generating returns
 the SAME value, so a URL leaked through browser history, a screenshot, a shell
 history file or a proxy log cannot be taken back by the person it belongs to.
-Without Redis it degrades further to an unbounded in-process dict with no TTL
-at all.
+The deployed service now stores this mapping with a TTL in encrypted Postgres
+temporary state. Direct in-process construction without a state store still
+uses a process-local dict, so that path cannot provide revocation across
+instances.
 
 The fix is a `POST /personal/mcp/revoke` that invalidates the current secret and
 mints a new one, plus a shorter default lifetime. It needs a UI affordance in

@@ -1,9 +1,8 @@
 import mandrill
-import redis
-import redis.asyncio
 import secrets
 import smtplib
 import time
+from mirobody.utils.ephemeral import EphemeralStore
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -61,7 +60,7 @@ class _CodeVerificationMixin:
     The Mandrill and SMTP validators carried byte-identical verify bodies, and
     both had the same two holes:
 
-    * **The Redis branch never deleted the code on success.** The in-memory
+    * **The ephemeral state branch never deleted the code on success.** The in-memory
       branch did (`del self._codes[...]`), so a code was single-use in
       development and reusable for its whole 600-second TTL in production:
       the deployment shape where it matters.
@@ -73,27 +72,18 @@ class _CodeVerificationMixin:
     """
 
     async def _verify_code(self, keyed_email: str, code: str) -> str | None:
-        if self._redis:
+        if self._ephemeral:
             attempts_key = self._attempt_keyprefix + keyed_email
             code_key = self._code_keyprefix + keyed_email
 
-            attempts = await self._redis.incr(attempts_key)
-            if isinstance(attempts, int) and attempts == 1:
-                # Outlive the code itself, so burning it cannot be reset by
-                # letting the counter expire first.
-                await self._redis.expire(attempts_key, self._expires_in + 60)
+            attempts = await self._ephemeral.incr(attempts_key, ttl=self._expires_in + 60)
 
             if isinstance(attempts, int) and attempts > _MAX_VERIFY_ATTEMPTS:
-                await self._redis.delete(code_key)
+                await self._ephemeral.delete(code_key)
                 return "Too many attempts."
 
-            resp = await self._redis.get(code_key)
-            if isinstance(resp, bytes):
-                resp = resp.decode("utf-8", "replace")
-
-            if isinstance(resp, str) and secrets.compare_digest(resp, code):
-                await self._redis.delete(code_key)
-                await self._redis.delete(attempts_key)
+            if await self._ephemeral.take_if_value(code_key, code):
+                await self._ephemeral.delete(attempts_key)
                 return None
 
             return "Invalid code."
@@ -128,7 +118,7 @@ class MandrillEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator)
             sending_interval: int = 60,
             expires_in      : int = 10*60,
             predefined_codes: dict[str, str] | None = None,
-            redis           : redis.asyncio.Redis | None = None
+            ephemeral           : EphemeralStore | None = None
         ):
 
         self._mandrill_client = None
@@ -147,15 +137,15 @@ class MandrillEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator)
         #-------------------------------------------------
         # Limitation on code sending.
 
-        # Use remote memory when redis connection is available.
-        self._redis = redis
+        # Use remote memory when ephemeral connection is available.
+        self._ephemeral = ephemeral
 
-        if self._redis:
+        if self._ephemeral:
             self._code_keyprefix    = "mirobody:email:code:"
             self._attempt_keyprefix = "mirobody:email:attempt:"
             self._limit_keyprefix   = "mirobody:email:limit:"
 
-        # Use local memory when no redis connection is available.
+        # Use local memory when no ephemeral connection is available.
         self._codes = {}
 
     #-----------------------------------------------------
@@ -188,8 +178,8 @@ class MandrillEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator)
             actual_expires_in = expires_in
 
         # Skip if still in the sending cooldown window.
-        if self._redis:
-            if await self._redis.exists(self._limit_keyprefix + lower_email_with_service):
+        if self._ephemeral:
+            if await self._ephemeral.exists(self._limit_keyprefix + lower_email_with_service):
                 return None
         else:
             existing = self._codes.get(lower_email_with_service)
@@ -238,16 +228,14 @@ class MandrillEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator)
         #-------------------------------------------------
 
         if result and len(result) > 0 and result[0].get("status") in ["sent", "queued"]:
-            if self._redis:
+            if self._ephemeral:
                 # Used to verify the code sending via email.
                 key = self._code_keyprefix + lower_email_with_service
-                await self._redis.set(key, code)
-                await self._redis.expire(key, actual_expires_in)
+                await self._ephemeral.set(key, code, ex=actual_expires_in)
 
                 # Used to avoid sending duplicately.
                 key = self._limit_keyprefix + lower_email_with_service
-                await self._redis.set(key, code)
-                await self._redis.expire(key, self._sending_interval)
+                await self._ephemeral.set(key, code, ex=self._sending_interval)
 
             else:
                 now = time.time()
@@ -320,7 +308,7 @@ class SMTPEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator):
             sending_interval: int = 60,
             expires_in      : int = 10*60,
             predefined_codes: dict[str, str] | None = None,
-            redis           : redis.asyncio.Redis | None = None
+            ephemeral           : EphemeralStore | None = None
         ):
 
         self._smtp_host     = smtp_host
@@ -335,15 +323,15 @@ class SMTPEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator):
 
         self._predefined_codes = predefined_codes if predefined_codes else {}
 
-        # Use remote memory when redis connection is available.
-        self._redis = redis
+        # Use remote memory when ephemeral connection is available.
+        self._ephemeral = ephemeral
 
-        if self._redis:
+        if self._ephemeral:
             self._code_keyprefix    = "mirobody:email:code:"
             self._attempt_keyprefix = "mirobody:email:attempt:"
             self._limit_keyprefix   = "mirobody:email:limit:"
 
-        # Use local memory when no redis connection is available.
+        # Use local memory when no ephemeral connection is available.
         self._codes = {}
 
     #-----------------------------------------------------
@@ -405,8 +393,8 @@ class SMTPEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator):
             actual_expires_in = expires_in
 
         # Skip if still in the sending cooldown window.
-        if self._redis:
-            if await self._redis.exists(self._limit_keyprefix + lower_email_with_service):
+        if self._ephemeral:
+            if await self._ephemeral.exists(self._limit_keyprefix + lower_email_with_service):
                 return None
         else:
             existing = self._codes.get(lower_email_with_service)
@@ -448,16 +436,14 @@ class SMTPEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator):
         #-------------------------------------------------
 
         # Store the code
-        if self._redis:
+        if self._ephemeral:
             # Used to verify the code sending via email.
             key = self._code_keyprefix + lower_email_with_service
-            await self._redis.set(key, code)
-            await self._redis.expire(key, actual_expires_in)
+            await self._ephemeral.set(key, code, ex=actual_expires_in)
 
             # Used to avoid sending duplicately.
             key = self._limit_keyprefix + lower_email_with_service
-            await self._redis.set(key, code)
-            await self._redis.expire(key, self._sending_interval)
+            await self._ephemeral.set(key, code, ex=self._sending_interval)
 
         else:
             now = time.time()
@@ -531,7 +517,7 @@ def create_email_validator(
     
     # Other options
     predefined_codes: dict[str, str] | None = None,
-    redis           : redis.asyncio.Redis | None = None
+    ephemeral           : EphemeralStore | None = None
 ) -> AbstractEmailCodeValidator:
     """
     Factory function to create the appropriate email validator based on configuration.
@@ -551,7 +537,7 @@ def create_email_validator(
             from_email      = from_email,
             from_name       = from_name if from_name else "Theta Wellness",
             predefined_codes= predefined_codes,
-            redis           = redis
+            ephemeral           = ephemeral
         )
     
     # Priority 2: SMTP
@@ -564,7 +550,7 @@ def create_email_validator(
             from_email      = from_email,
             from_name       = from_name if from_name else "Theta Wellness",
             predefined_codes= predefined_codes,
-            redis           = redis
+            ephemeral           = ephemeral
         )
     
     # Priority 3: Mandrill (legacy, with explicit mandrill_api_key)
@@ -575,7 +561,7 @@ def create_email_validator(
             from_email      = from_email,
             from_name       = from_name if from_name else "Theta Wellness",
             predefined_codes= predefined_codes,
-            redis           = redis
+            ephemeral           = ephemeral
         )
     
     # Fallback: Dummy

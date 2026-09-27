@@ -65,14 +65,11 @@ class GarminProvider(BasePullProvider):
         except Exception:
             self.oauth_temp_ttl = 900
 
-        # Deprecated in-memory cache (kept for backward compatibility but no longer used)
-        self._oauth_token_secret_cache = {}
-
         # Validate configuration
         if not self.client_id or not self.client_secret:
             logger.error("Garmin OAuth credentials not configured. Please set GARMIN_CLIENT_ID and GARMIN_CLIENT_SECRET")
         else:
-            logger.info(f"Garmin OAuth configuration validated successfully, client_id:{self.client_id[:3]}, redirect_url:{self.redirect_url}")
+            logger.info("Garmin OAuth configuration validated")
 
     @classmethod
     def create_provider(cls, config: dict[str, Any]) -> Optional['GarminProvider']:
@@ -159,7 +156,7 @@ class GarminProvider(BasePullProvider):
         Generate OAuth authorization URL for user to grant permission
 
         This method creates a request token with Garmin, stores the token secret
-        in Redis cache, and builds the authorization URL that the user needs to visit.
+        in Postgres temporary state cache, and builds the authorization URL that the user needs to visit.
 
         Args:
             user_id: User ID to associate with the OAuth flow
@@ -192,28 +189,27 @@ class GarminProvider(BasePullProvider):
             resp = await asyncio.to_thread(oauth.post, self.request_token_url)
 
             if resp.status_code != 200:
-                raise RuntimeError(f"Failed to get request token: {resp.status_code} - {resp.text}")
+                raise RuntimeError(f"Failed to get request token: status={resp.status_code}")
 
             # Parse response
             params = parse_qs(resp.text)
             oauth_token = params['oauth_token'][0]
             oauth_token_secret = params['oauth_token_secret'][0]
 
-            # Store oauth_token_secret in Redis keyed by oauth_token (TTL 15 minutes)
+            # Store oauth_token_secret in Postgres temporary state keyed by oauth_token (TTL 15 minutes)
             try:
                 cfg = global_config()
-                redis_config = cfg.get_redis()
-                redis_client = await redis_config.get_async_client()
-                await redis_client.setex(
+                ephemeral = cfg.get_ephemeral()
+                await ephemeral.setex(
                     f"oauth:secret:{oauth_token}", self.oauth_temp_ttl, oauth_token_secret
                 )
                 # Optionally store user for cross-check (not strictly required)
-                await redis_client.setex(
+                await ephemeral.setex(
                     f"oauth:user:{oauth_token}", self.oauth_temp_ttl, user_id or ""
                 )
-                await redis_client.aclose()
             except Exception as e:
-                logger.warning(f"Failed to write oauth temp data to Redis: {str(e)}")
+                logger.warning("Garmin OAuth state write failed: error_type=%s", type(e).__name__)
+                raise RuntimeError("Garmin OAuth state is unavailable") from None
 
             # Build authorization URL
             redirect_url = self.redirect_url
@@ -247,7 +243,7 @@ class GarminProvider(BasePullProvider):
             }
 
         except Exception as e:
-            logger.error(f"Error generating authorization URL: {str(e)}")
+            logger.error("Garmin authorization URL failed: error_type=%s", type(e).__name__)
             raise
 
     async def callback(self, oauth_token: str, oauth_verifier: str) -> dict[str, Any]:
@@ -256,7 +252,7 @@ class GarminProvider(BasePullProvider):
 
         This method processes the OAuth callback from Garmin, exchanges the temporary
         tokens for permanent access tokens, and saves the credentials to the database.
-        The user_id is retrieved from Redis cache using the oauth_token as the key.
+        The user_id is retrieved from Postgres temporary state cache using the oauth_token as the key.
 
         Args:
             oauth_token: OAuth token received from Garmin callback
@@ -283,12 +279,12 @@ class GarminProvider(BasePullProvider):
         """
         Internal method to handle OAuth callback and exchange tokens
 
-        This method retrieves the user_id and oauth_token_secret from Redis cache,
+        This method retrieves the user_id and oauth_token_secret from Postgres temporary state cache,
         exchanges the temporary tokens for permanent access tokens with Garmin,
         and saves the credentials to the database.
 
         Args:
-            user_id: User ID (ignored, will be retrieved from Redis)
+            user_id: User ID (ignored, will be retrieved from Postgres temporary state)
             credentials: Dict containing oauth_token and oauth_verifier
 
         Returns:
@@ -302,29 +298,26 @@ class GarminProvider(BasePullProvider):
             oauth_token = credentials.get("oauth_token")
             oauth_verifier = credentials.get("oauth_verifier")
 
-            # Read oauth_token_secret and user_id from Redis by oauth_token (single source of truth)
+            # Read oauth_token_secret and user_id from Postgres temporary state by oauth_token (single source of truth)
             try:
                 cfg = global_config()
-                redis_config = cfg.get_redis()
-                redis_client = await redis_config.get_async_client()
-                oauth_token_secret = await redis_client.get(f"oauth:secret:{oauth_token}")
-                cached_user_id = await redis_client.get(f"oauth:user:{oauth_token}")
-                await redis_client.delete(f"oauth:secret:{oauth_token}")
-                await redis_client.delete(f"oauth:user:{oauth_token}")
-                await redis_client.aclose()
+                ephemeral = cfg.get_ephemeral()
+                oauth_token_secret = await ephemeral.take(f"oauth:secret:{oauth_token}")
+                cached_user_id = await ephemeral.take(f"oauth:user:{oauth_token}")
                 if isinstance(oauth_token_secret, bytes):
                     oauth_token_secret = oauth_token_secret.decode("utf-8")
                 if isinstance(cached_user_id, bytes):
                     cached_user_id = cached_user_id.decode("utf-8")
             except Exception as e:
-                logger.warning(f"Failed to read oauth temp data from Redis: {str(e)}")
+                logger.warning("Garmin OAuth state read failed: error_type=%s",
+                               type(e).__name__)
                 oauth_token_secret = None
                 cached_user_id = None
 
-            # Always rely on Redis-stored user_id to avoid spoofed params
+            # Always rely on Postgres temporary state-stored user_id to avoid spoofed params
             user_id = cached_user_id
             if user_id:
-                logger.info(f"Using user_id from Redis: {user_id}")
+                logger.info(f"Using user_id from Postgres temporary state: {user_id}")
 
             if not oauth_token or not oauth_verifier:
                 raise ValueError("Missing oauth_token or oauth_verifier in callback")
@@ -365,7 +358,7 @@ class GarminProvider(BasePullProvider):
             if not success:
                 raise RuntimeError("Failed to save OAuth credentials")
 
-            # Redis keys already deleted above; no in-memory cleanup required
+            # Postgres temporary state keys already deleted above; no in-memory cleanup required
 
             logger.info(f"Successfully linked Garmin provider for user {user_id}")
 

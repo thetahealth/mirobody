@@ -1,16 +1,14 @@
 import asyncio
 import logging
 import re
-import uuid
 from typing import Any
 from datetime import datetime, date
 
-import redis.asyncio
 
 from mirobody.utils import execute_query
 from mirobody.utils.llm import async_get_text_completion
 from mirobody.utils.llm_output import strip_code_fence
-from mirobody.utils.config import safe_read_cfg, global_config
+from mirobody.utils.config import safe_read_cfg
 
 logger = logging.getLogger(__name__)
 
@@ -135,188 +133,41 @@ PROFILE_LOCK_WAIT_TIMEOUT_SECONDS = 120  # Maximum wait time to acquire lock (2 
 PROFILE_LOCK_RETRY_INTERVAL_SECONDS = 2  # Retry interval when waiting for lock
 
 #-----------------------------------------------------------------------------
-# Redis Client for Profile Lock
-#-----------------------------------------------------------------------------
-
-_profile_redis_client = None
-
-async def _get_profile_redis_client() -> redis.asyncio.Redis | None:
-    """
-    Get Redis client for profile lock management
-    
-    Returns:
-        Redis async client or None if not available
-    """
-    global _profile_redis_client
-    
-    if _profile_redis_client is None:
-        try:
-            _profile_redis_client = await global_config().get_redis().get_async_client()
-        except Exception as e:
-            logger.warning(f"[ProfileLock] Failed to get Redis client: {e}")
-            return None
-    
-    return _profile_redis_client
+# Profile generation must remain serialized across server instances.
+# The provider lock manager holds a Postgres session lock until release;
+# a crashed process closes that session and frees the lock.
+from mirobody.utils.distributed_lock import PullTaskLockManager
 
 
 class UserProfileLockManager:
-    """
-    User Profile distributed lock manager
-    
-    Ensures that profile generation/update for the same user is serialized,
-    preventing race conditions when multiple documents are uploaded simultaneously.
-    
-    Features:
-    - User-based distributed locking
-    - Configurable lock timeout (default 10 minutes)
-    - Automatic retry with wait
-    - Graceful degradation when Redis is unavailable
-    """
-    
     def __init__(self):
-        self.instance_id = str(uuid.uuid4())[:8]
-    
-    def _get_lock_key(self, user_id: str) -> str:
-        """Get Redis key for user profile lock"""
-        return f"user_profile_lock:{user_id}"
-    
-    def _get_lock_value(self, lock_id: str) -> str:
-        """Get lock value containing instance and timestamp info"""
-        timestamp = datetime.now().isoformat()
-        return f"{self.instance_id}:{timestamp}:{lock_id}"
-    
+        self._locks = PullTaskLockManager()
+
     async def try_acquire_lock(
-        self, 
-        user_id: str, 
-        timeout_seconds: int = PROFILE_LOCK_TIMEOUT_SECONDS
+        self, user_id: str, timeout_seconds: int = PROFILE_LOCK_TIMEOUT_SECONDS
     ) -> str | None:
-        """
-        Try to acquire lock for user profile operation
-        
-        Args:
-            user_id: User ID
-            timeout_seconds: Lock timeout in seconds (default 10 minutes)
-            
-        Returns:
-            lock_id if acquired, None if failed
-        """
-        lock_id = str(uuid.uuid4())
-        lock_key = self._get_lock_key(user_id)
-        
-        redis_client = await _get_profile_redis_client()
-        if redis_client is None:
-            logger.warning(f"[ProfileLock] Redis not available for user {user_id}, proceeding without lock")
-            return lock_id  # Return lock_id to allow operation without actual lock
-        
-        try:
-            lock_value = self._get_lock_value(lock_id)
-            
-            # Try to acquire lock with NX (only set if not exists)
-            acquired = await redis_client.set(
-                lock_key, 
-                lock_value, 
-                ex=timeout_seconds, 
-                nx=True
-            )
-            
-            if acquired:
-                logger.info(
-                    f"[ProfileLock] Lock acquired for user {user_id} "
-                    f"(instance: {self.instance_id}, lock_id: {lock_id}, timeout: {timeout_seconds}s)"
-                )
-                return lock_id
-            # Lock already held by another process
-            existing_lock = await redis_client.get(lock_key)
-            if existing_lock:
-                lock_info = existing_lock.decode() if isinstance(existing_lock, bytes) else existing_lock
-                logger.info(f"[ProfileLock] Lock already held for user {user_id}: {lock_info}")
-            return None
-                
-        except Exception as e:
-            logger.error(f"[ProfileLock] Error acquiring lock for user {user_id}: {e}")
-            return None
-    
+        del timeout_seconds
+        return await self._locks.try_acquire_execution_lock(f"profile:{user_id}")
+
     async def acquire_lock_with_wait(
         self,
         user_id: str,
         timeout_seconds: int = PROFILE_LOCK_TIMEOUT_SECONDS,
         wait_timeout_seconds: int = PROFILE_LOCK_WAIT_TIMEOUT_SECONDS,
-        retry_interval_seconds: int = PROFILE_LOCK_RETRY_INTERVAL_SECONDS
+        retry_interval_seconds: int = PROFILE_LOCK_RETRY_INTERVAL_SECONDS,
     ) -> str | None:
-        """
-        Acquire lock with waiting and retry
-        
-        Args:
-            user_id: User ID
-            timeout_seconds: Lock timeout
-            wait_timeout_seconds: Maximum time to wait for lock
-            retry_interval_seconds: Interval between retry attempts
-            
-        Returns:
-            lock_id if acquired, None if timeout
-        """
-        start_time = asyncio.get_event_loop().time()
-        
+        start = asyncio.get_running_loop().time()
         while True:
             lock_id = await self.try_acquire_lock(user_id, timeout_seconds)
             if lock_id:
                 return lock_id
-            
-            elapsed = asyncio.get_event_loop().time() - start_time
-            if elapsed >= wait_timeout_seconds:
-                logger.warning(
-                    f"[ProfileLock] Timeout waiting for lock for user {user_id} "
-                    f"after {elapsed:.1f}s"
-                )
+            if asyncio.get_running_loop().time() - start >= wait_timeout_seconds:
+                logger.warning("profile lock wait expired: user_id=%s", user_id)
                 return None
-            
-            logger.info(
-                f"[ProfileLock] Waiting for lock for user {user_id}, "
-                f"elapsed: {elapsed:.1f}s, will retry in {retry_interval_seconds}s"
-            )
             await asyncio.sleep(retry_interval_seconds)
-    
+
     async def release_lock(self, user_id: str, lock_id: str) -> bool:
-        """
-        Release lock for user profile operation
-        
-        Args:
-            user_id: User ID
-            lock_id: Lock ID returned from acquire_lock
-            
-        Returns:
-            True if released successfully
-        """
-        redis_client = await _get_profile_redis_client()
-        if redis_client is None:
-            logger.warning(f"[ProfileLock] Redis not available, skip lock release for user {user_id}")
-            return True
-        
-        lock_key = self._get_lock_key(user_id)
-        
-        try:
-            # Get current lock to verify ownership
-            current_lock = await redis_client.get(lock_key)
-            if current_lock is None:
-                logger.warning(f"[ProfileLock] Lock already expired for user {user_id}")
-                return True
-            
-            current_lock_str = current_lock.decode() if isinstance(current_lock, bytes) else current_lock
-            
-            # Verify we own this lock
-            if lock_id in current_lock_str and self.instance_id in current_lock_str:
-                await redis_client.delete(lock_key)
-                logger.info(f"[ProfileLock] Lock released for user {user_id} (lock_id: {lock_id})")
-                return True
-            logger.warning(
-                f"[ProfileLock] Lock ownership mismatch for user {user_id}, "
-                f"expected lock_id: {lock_id}, current: {current_lock_str}"
-            )
-            return False
-                
-        except Exception as e:
-            logger.error(f"[ProfileLock] Error releasing lock for user {user_id}: {e}")
-            return False
+        return await self._locks.release_execution_lock(f"profile:{user_id}", lock_id)
 
 
 # Global lock manager instance

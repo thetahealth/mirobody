@@ -243,5 +243,3 @@ class AggregateIndicatorService:
                     "[AggregateIndicator] election skipped for one subject: error_type=%s", type(e).__name__
                 )
 
-    # ========== Redis Operations ==========
-
