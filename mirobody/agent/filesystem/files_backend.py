@@ -144,9 +144,12 @@ class ThFilesBackend(PgFilesystemBackend):
                 """,
                 params=params,
             )
-        except Exception as e:
-            logger.warning(f"[{self._scope}-filesystem] th_files query failed for "
-                           f"{self._user_id}: {e}", exc_info=True)
+        except Exception as exc:
+            from mirobody.kernel.ops import is_driver_exception
+
+            logger.warning("stored-file projection failed: scope=%s error_type=%s",
+                           self._scope, type(exc).__name__,
+                           exc_info=not is_driver_exception(exc))
             return []
 
         seen: set[str] = set()

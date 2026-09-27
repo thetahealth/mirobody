@@ -108,6 +108,10 @@ truth rows from the 1.5.1 table. No owner's genotype export or personal health
 document belongs in a committed fixture.
 
 The system stores genetic data per person. Tool replies cap genotype rows;
-the Data page receives summary counts only. A model may see the bounded tool
+raw genotype files are excluded from the Agent's `/uploads/` and `/library/`
+document mounts, including when the file is attached to a chat message. The
+Data page receives summary counts only. A model may see the bounded tool
 result when answering a question, so a hosted deployment must account for
-its model provider and applicable consent requirements.
+its model provider and applicable consent requirements. The
+[live privacy check](../benchmarks/genomics/check_filesystem_privacy.py) covers
+both document mounts; per-turn genotype-row accounting is still an open gate.

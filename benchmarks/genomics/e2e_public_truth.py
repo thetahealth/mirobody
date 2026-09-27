@@ -20,6 +20,8 @@ import httpx
 import jwt
 import websockets
 
+from mirobody.translate.pgx import load_cpic
+
 
 async def upload(base: str, token: str, subject: str, filename: str, payload: bytes) -> None:
     message_id = str(uuid.uuid4())
@@ -115,6 +117,9 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
             assert all(term in pgx["result"] for term in (
                 "CYP2C19", "not_determined", "v1.60.0", "43", "41",
             )), pgx
+            first_missing = next(site for site in load_cpic().array_coverage("CYP2C19", {}).missing_sites
+                                 if site not in truth)
+            assert "missing_rsids" in pgx["result"] and first_missing in pgx["result"], pgx
             export = await client.get(f"{base}/api/v1/genomics/export.vcf", headers=headers,
                                       params={"build": "GRCh38"})
             export.raise_for_status()

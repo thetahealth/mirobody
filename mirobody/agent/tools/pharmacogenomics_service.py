@@ -21,7 +21,8 @@ TOOL_NAME = "query_pharmacogenomics"
 MAX_ITEMS = 10
 MAX_PAIRS = 30
 COLUMNS = ("drug", "gene", "cpic_level", "status", "called_sites", "required_sites",
-           "missing_sites", "no_call_sites", "guideline_url", "knowledge_version")
+           "missing_sites", "missing_rsids", "no_call_sites", "no_call_rsids",
+           "unresolved_rsids", "guideline_url", "knowledge_version")
 TOOL_SCHEMA: dict[str, object] = {
     "type": "object",
     "additionalProperties": False,
@@ -130,7 +131,10 @@ class PharmacogenomicsService(RecordTool):
                 "status": coverage.status, "called_sites": coverage.called_sites,
                 "required_sites": coverage.required_sites,
                 "missing_sites": len(coverage.missing_sites),
+                "missing_rsids": ",".join(coverage.missing_sites),
                 "no_call_sites": len(coverage.no_call_sites),
+                "no_call_rsids": ",".join(coverage.no_call_sites),
+                "unresolved_rsids": ",".join(coverage.unresolved_sites),
                 "guideline_url": pair.guideline_url, "knowledge_version": knowledge.version,
             })
         if not rows:

@@ -14,6 +14,12 @@
   inventing a phenotype. The public two-site integration test checks upload,
   MCP, VCF and real Agent answers. The packaged dbSNP index still has only one
   sample site, so whole-chip standardization remains a release blocker.
+- **Genotype uploads are no longer readable through the Agent's document mounts.**
+  The file projection previously exposed raw genetic exports through
+  `/uploads/` or `/library/`, bypassing the bounded genetic tool. Both mounts
+  now exclude genetic files; a public-upload database check exercises each
+  projection. The CPIC tool also names missing and no-call definition rsIDs,
+  allowing an answer to cite the actual coverage gap instead of only counts.
 - **`mirobody migrate-genotypes` for 1.5.1 data.** The new reader only sees
   active sets, which otherwise hid legacy rows on upgrade. The command moves
   each person's latest old file into an active set with raw calls marked

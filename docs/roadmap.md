@@ -29,7 +29,7 @@ The blocking measurements are:
 | G5 | The public two-site VCF export round trip passes, but PharmCAT 3.4 acceptance and Named Allele Matcher agreement have not run. FHIR Genomics Variant output is absent. |
 | G6 / G-cpic | CPIC A/B links and defining-site coverage are available. Star-allele/diplotype/phenotype calls, CDC GeT-RM truth agreement, version switching and recomputation are absent. The tool deliberately says `not_determined`. |
 | G7 | The Agent is instructed not to infer disease risk from arrays; the five-site rare pathogenic truth gate has not run. |
-| G8 / G9 | Tool calls are bounded, and two real Agent questions passed using DashScope Qwen after the default upstream connection failed. The 40-question ≥90% tool-choice and zero forbidden-claim evaluation, and per-turn genotype-row accounting, are still absent. |
+| G8 / G9 | Tool calls are bounded and raw genotype files are excluded from the Agent's document mounts. A live database check covers both mounts. The 40-question ≥90% tool-choice and zero forbidden-claim evaluation, and per-turn genotype-row accounting, remain open until measured and enforced. |
 | Frontend | Source build, lint and unit tests pass on `feat/genomics-upload`; browser verification and integration of its built assets into the backend release remain open. |
 
 The one-way `mirobody migrate-genotypes` command preserves the latest 1.5.1
