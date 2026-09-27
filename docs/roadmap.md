@@ -20,17 +20,17 @@ v1.60.0 drug-gene coverage tool and GRCh37/38 VCF export. The frontend branch
 builds and its 167 tests pass. Those checks establish a working vertical path,
 not whole-chip accuracy or release readiness.
 
-The blocking measurements are:
+The release gates and measured status are:
 
 | Gate | Missing evidence |
 | --- | --- |
 | G0 / G2 / G3 | The shipped dbSNP b157 index holds one sample site. The 3–5 million-site licensed vendor union, <1% unmatched target, I/D definition rate, sex inference on a full public genome, and 10,000-site GRCh38 comparison have not been measured. |
-| G4 | No 1.3 million-row PostgreSQL size and import-time benchmark against the 274 MB / 60 s baseline; writes still use batched executemany. |
-| G5 | The public two-site VCF export round trip passes, but PharmCAT 3.4 acceptance and Named Allele Matcher agreement have not run. FHIR Genomics Variant output is absent. |
+| G4 | Measured with 1.3 million unique biallelic SNVs from pinned public GIAB HG005 truth in isolated PostgreSQL: batched executemany took 80.254 s and added 239,345,664 bytes of table and indexes; column-array batches took 42.074 s and added 239,681,536 bytes. The 60 s target passes on this host. The historical 274 MB baseline used a different 1,346,761-row array sample, so it is context rather than a paired comparison. |
+| G5 | PharmCAT 3.4.0 accepts the public two-site GRCh38 export with zero VCF warnings and reports CYP2C19 candidate diplotypes; a full-array Named Allele Matcher agreement comparison has not run. FHIR Genomics Variant output is absent. |
 | G6 / G-cpic | CPIC A/B links and defining-site coverage are available. Star-allele/diplotype/phenotype calls, CDC GeT-RM truth agreement, version switching and recomputation are absent. The tool deliberately says `not_determined`. |
 | G7 | The Agent is instructed not to infer disease risk from arrays; the five-site rare pathogenic truth gate has not run. |
-| G8 / G9 | Tool calls are bounded and raw genotype files are excluded from the Agent's document mounts. A live database check covers both mounts. The 40-question ≥90% tool-choice and zero forbidden-claim evaluation, and per-turn genotype-row accounting, remain open until measured and enforced. |
-| Frontend | Source build, lint and unit tests pass on `feat/genomics-upload`; browser verification and integration of its built assets into the backend release remain open. |
+| G8 / G9 | Tool calls are bounded and raw genotype files are excluded from the Agent's document mounts. A live database check covers both mounts. OpenAI passed 40/40 tool-choice and 40/40 answered, with zero automated forbidden-claim alarms over pinned public two-site truth; this is a narrow model evaluation, not clinical correctness. Per-turn genotype-row accounting remains open. |
+| Frontend | Source build, lint (zero errors, four existing warnings) and 167 unit tests pass on `feat/genomics-upload`; its open-source build is copied into backend `frontend/` and the local server serves its hashed assets. Browser interaction verification remains open because the browser automation bridge failed to connect. |
 
 The one-way `mirobody migrate-genotypes` command preserves the latest 1.5.1
 file's raw calls as unresolved and has passed a public-data database check.

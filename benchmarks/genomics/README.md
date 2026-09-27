@@ -57,6 +57,14 @@ optionally two real Agent questions. `e2e_legacy_migration.py` checks that
 1.5.1 rows migrate conservatively. Generated raw truth stays under ignored
 `internal/genomics/corpus/`, not in the distribution.
 
+`benchmark_public_bulk.py` selects the first 1.3 million unique called
+biallelic dbSNP SNVs from the pinned public NIST GIAB HG005 GRCh37 benchmark
+VCF. The generated 54,300,855-byte VCF stays under ignored `internal/genomics`.
+Against isolated PostgreSQL, the original 50,000-row executemany batches took
+80.254 s and added 239,345,664 bytes of table plus indexes; column-array
+batches took 42.074 s and added 239,681,536 bytes. This measures storage,
+not consumer-array normalization or build lift.
+
 The final schema is `metadata(key,value)`,
 `sites(rsid,chrom,pos37,pos38,ref,alt,gene)`, and
 `merged(old_rsid,rsid)`. `sites.rsid` and `merged.old_rsid` are primary keys;

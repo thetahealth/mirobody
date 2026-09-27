@@ -16,13 +16,16 @@ from mirobody.utils.db import execute_query, transaction
 
 logger = logging.getLogger(__name__)
 
-_INSERT = """
-    INSERT INTO th_genotype
-        (set_id, rsid, rsid_raw, chrom, position_raw, pos37, pos38,
-         genotype_raw, ref, alt, gene, gt, call_status, zygosity, strand_check)
-    VALUES
-        (:set_id, :rsid, :rsid_raw, :chrom, :position_raw, :pos37, :pos38,
-         :genotype_raw, :ref, :alt, :gene, :gt, :call_status, :zygosity, :strand_check)
+_BATCH_COLUMNS = (
+    "rsid", "rsid_raw", "chrom", "position_raw", "pos37", "pos38",
+    "genotype_raw", "ref", "alt", "gene", "gt", "call_status", "zygosity", "strand_check",
+)
+_INTEGER_COLUMNS = {"position_raw", "pos37", "pos38"}
+_INSERT = f"""
+    INSERT INTO th_genotype (set_id, {', '.join(_BATCH_COLUMNS)})
+    SELECT :set_id, {', '.join(_BATCH_COLUMNS)}
+    FROM unnest({', '.join(f'CAST(:{column} AS {"integer" if column in _INTEGER_COLUMNS else "text"}[])' for column in _BATCH_COLUMNS)})
+         AS batch({', '.join(_BATCH_COLUMNS)})
 """
 
 
@@ -56,27 +59,24 @@ class GenotypeStore:
     async def write_batch(self, set_id: int, records: Sequence[Mapping[str, Any]]) -> None:
         if not records:
             return
-        params = [
-            {
-                "set_id": set_id,
-                "rsid": r["rsid"],
-                "rsid_raw": r.get("rsid_raw", r["rsid"]),
-                "chrom": r["chromosome"],
-                "position_raw": r["position"],
-                "pos37": r.get("pos37"),
-                "pos38": r.get("pos38"),
-                "genotype_raw": r.get("genotype_raw", r["genotype"]),
-                "call_status": r.get("call_status", "no_call" if r["genotype"] == "--" else "unresolved"),
-                "ref": r.get("ref"),
-                "alt": r.get("alt"),
-                "gt": r.get("gt"),
-                "gene": r.get("gene"),
-                "zygosity": r.get("zygosity"),
-                "strand_check": r.get("strand_check"),
+        columns = {column: [] for column in _BATCH_COLUMNS}
+        for record in records:
+            values = {
+                "rsid": record["rsid"],
+                "rsid_raw": record.get("rsid_raw", record["rsid"]),
+                "chrom": record["chromosome"],
+                "position_raw": record["position"],
+                "pos37": record.get("pos37"),
+                "pos38": record.get("pos38"),
+                "genotype_raw": record.get("genotype_raw", record["genotype"]),
+                "call_status": record.get("call_status", "no_call" if record["genotype"] == "--" else "unresolved"),
+                "ref": record.get("ref"), "alt": record.get("alt"),
+                "gt": record.get("gt"), "gene": record.get("gene"),
+                "zygosity": record.get("zygosity"), "strand_check": record.get("strand_check"),
             }
-            for r in records
-        ]
-        await execute_query(_INSERT, params)
+            for column in _BATCH_COLUMNS:
+                columns[column].append(values[column])
+        await execute_query(_INSERT, {"set_id": set_id, **columns})
 
     async def activate_set(
         self, set_id: int, user_id: str, *, n_rows: int, n_called: int,

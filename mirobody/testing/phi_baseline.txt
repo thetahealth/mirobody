@@ -30,8 +30,6 @@ mirobody/agent/filesystem/backend.py	interpolation	e
 mirobody/agent/filesystem/backend.py	interpolation	err
 mirobody/agent/filesystem/backend.py	interpolation	file_key
 mirobody/agent/filesystem/backend.py	interpolation	file_path
-mirobody/agent/filesystem/files_backend.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/filesystem/files_backend.py	interpolation	e
 mirobody/agent/filesystem/files_backend.py	interpolation	self._scope
 mirobody/agent/filesystem/parser.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/agent/filesystem/parser.py	interpolation	e

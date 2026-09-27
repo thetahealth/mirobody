@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS th_genotype (
 
 CREATE INDEX IF NOT EXISTS idx_th_genotype_location
     ON th_genotype (set_id, chrom, pos38);
+CREATE INDEX IF NOT EXISTS idx_th_genotype_location_37
+    ON th_genotype (set_id, chrom, pos37);
 CREATE INDEX IF NOT EXISTS idx_th_genotype_gene
     ON th_genotype (set_id, gene) WHERE gene IS NOT NULL;
 

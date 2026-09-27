@@ -127,6 +127,9 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
                 export_path.parent.mkdir(parents=True, exist_ok=True)
                 export_path.write_text(export.text)
             assert "##reference=GRCh38" in export.text
+            assert "##mirobody_normalizer_version=" in export.text
+            assert "##mirobody_format_id=" in export.text
+            assert export.text.index("##contig=<ID=chr2>") < export.text.index("##contig=<ID=chr10>")
             exported = {line.split("\t")[2]: line.split("\t") for line in export.text.splitlines()
                         if line and not line.startswith("#")}
             assert set(exported) == set(truth), (filename, exported)

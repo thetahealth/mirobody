@@ -20,6 +20,21 @@
   now exclude genetic files; a public-upload database check exercises each
   projection. The CPIC tool also names missing and no-call definition rsIDs,
   allowing an answer to cite the actual coverage gap instead of only counts.
+- **VCF export now carries upload provenance and natural contig order.**
+  Lexical chromosome ordering could put 10 before 2, which downstream VCF
+  tools may reject. The exporter walks each indexed chromosome in numeric
+  order and includes the format, vendor and normalization versions in its
+  header; the public upload round trip checks both.
+- **Genotype batches now insert as column arrays.** The per-row executemany
+  path took 80.254 s for 1.3 million public GIAB HG005 SNVs, missing the
+  60 s storage gate. One SQL insert per 50,000-row batch took 42.074 s on
+  the same isolated PostgreSQL host; both runs activated all 1.3 million
+  calls. The benchmark script pins the public source SHA.
+- **The Genomics Data page now ships in the bundled web client.** The page has
+  a dedicated upload entry, processing state and active-set summary. Its source
+  passed 167 tests, lint with zero errors and the open-source build; the local
+  backend serves the copied hashed assets. Browser interaction verification is
+  still open.
 - **`mirobody migrate-genotypes` for 1.5.1 data.** The new reader only sees
   active sets, which otherwise hid legacy rows on upgrade. The command moves
   each person's latest old file into an active set with raw calls marked

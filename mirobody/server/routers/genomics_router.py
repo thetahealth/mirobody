@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -15,6 +16,12 @@ from mirobody.utils import execute_query
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/genomics", tags=["genomics"])
+VCF_CHROMS = tuple(str(i) for i in range(1, 23)) + ("X", "Y", "MT")
+
+
+def _vcf_meta(value: object) -> str:
+    """Keep uploaded provenance from creating another VCF header line."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", str(value or "unknown"))[:80]
 
 
 async def _owner(caller: str, target_user_id: str | None) -> str | None:
@@ -79,16 +86,20 @@ async def export_vcf(
         return ErrorResponse(code=403, msg="Not permitted to read this member's genetic data.")
     try:
         rows = await execute_query(
-            "SELECT id FROM th_genotype_set WHERE user_id=:user_id AND status='active' LIMIT 1",
+            """SELECT id, format_id, vendor, normalizer_version, site_table_version,
+                      build_declared, build_detected
+                 FROM th_genotype_set WHERE user_id=:user_id AND status='active' LIMIT 1""",
             {"user_id": owner}, log_sql=False,
         )
         if not rows:
             return ErrorResponse(code=404, msg="No active genotype upload.")
-        set_id = int(rows[0]["id"])
+        active = rows[0]
+        set_id = int(active["id"])
         position = "pos38" if build == "GRCh38" else "pos37"
         skipped = await execute_query(
             f"""SELECT COUNT(*) AS n FROM th_genotype WHERE set_id=:set_id AND
-                ({position} IS NULL OR ref IS NULL OR alt IS NULL OR chrom='PAR' OR
+                ({position} IS NULL OR ref IS NULL OR alt IS NULL OR
+                 chrom NOT IN ({', '.join(repr(chrom) for chrom in VCF_CHROMS)}) OR
                  call_status NOT IN ('called','no_call') OR
                  (call_status='called' AND gt IS NULL))""",
             {"set_id": set_id}, log_sql=False,
@@ -105,32 +116,37 @@ async def export_vcf(
         yield "##fileformat=VCFv4.2\n"
         yield f"##reference={build}\n"
         yield f"##mirobody_genotype_set={set_id}\n"
+        for field in ("format_id", "vendor", "normalizer_version", "site_table_version",
+                      "build_declared", "build_detected"):
+            yield f"##mirobody_{field}={_vcf_meta(active[field])}\n"
         yield f"##mirobody_unresolved_or_unmapped_rows={skipped_count}\n"
         yield "##FORMAT=<ID=GT,Number=1,Type=String,Description=Genotype>\n"
-        for chrom in sorted([*(str(i) for i in range(1, 23)), "X", "Y", "MT"]):
+        for chrom in VCF_CHROMS:
             yield f"##contig=<ID=chr{chrom}>\n"
         yield "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n"
-        last_chrom, last_pos, last_rsid = "", 0, ""
-        while True:
-            batch = await execute_query(
-                f"""SELECT chrom, {position} AS position, rsid, ref, alt, gt, call_status
-                    FROM th_genotype WHERE set_id=:set_id AND {position} IS NOT NULL
-                      AND ref IS NOT NULL AND alt IS NOT NULL AND chrom <> 'PAR'
-                      AND call_status IN ('called','no_call')
-                      AND (call_status='no_call' OR gt IS NOT NULL)
-                      AND (chrom, {position}, rsid) > (:last_chrom, :last_pos, :last_rsid)
-                    ORDER BY chrom, {position}, rsid LIMIT 10000""",
-                {"set_id": set_id, "last_chrom": last_chrom,
-                 "last_pos": last_pos, "last_rsid": last_rsid},
-                log_sql=False,
-            )
-            if not batch:
-                break
-            for row in batch:
-                gt = row["gt"] if row["call_status"] == "called" else "./."
-                yield f"chr{row['chrom']}\t{row['position']}\t{row['rsid']}\t{row['ref']}\t{row['alt']}\t.\tPASS\t.\tGT\t{gt}\n"
-            last = batch[-1]
-            last_chrom, last_pos, last_rsid = last["chrom"], last["position"], last["rsid"]
+        # VCF tools expect natural contig order. Walking each indexed contig
+        # also keeps memory bounded without sorting the whole genotype set.
+        for chrom in VCF_CHROMS:
+            last_pos, last_rsid = 0, ""
+            while True:
+                batch = await execute_query(
+                    f"""SELECT {position} AS position, rsid, ref, alt, gt, call_status
+                        FROM th_genotype WHERE set_id=:set_id AND chrom=:chrom
+                          AND {position} IS NOT NULL AND ref IS NOT NULL AND alt IS NOT NULL
+                          AND call_status IN ('called','no_call')
+                          AND (call_status='no_call' OR gt IS NOT NULL)
+                          AND ({position}, rsid) > (:last_pos, :last_rsid)
+                        ORDER BY {position}, rsid LIMIT 10000""",
+                    {"set_id": set_id, "chrom": chrom, "last_pos": last_pos,
+                     "last_rsid": last_rsid}, log_sql=False,
+                )
+                if not batch:
+                    break
+                for row in batch:
+                    gt = row["gt"] if row["call_status"] == "called" else "./."
+                    yield f"chr{chrom}\t{row['position']}\t{row['rsid']}\t{row['ref']}\t{row['alt']}\t.\tPASS\t.\tGT\t{gt}\n"
+                last = batch[-1]
+                last_pos, last_rsid = last["position"], last["rsid"]
 
     return StreamingResponse(
         stream(), media_type="text/vcf",

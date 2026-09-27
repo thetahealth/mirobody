@@ -59,8 +59,15 @@ The file is included in wheel and sdist, but does **not** establish coverage
 of a consumer array. The planned 3–5 million-site union of licensed WeGene,
 23andMe v5, Ancestry v2 and GSA manifests is absent. Therefore the <1%
 unmatched-site target, indel definition rate, build lift-over accuracy and
-whole-genome size/performance targets remain unmeasured. Ordinary chip rows
+whole-chip size/performance targets remain unmeasured. Ordinary chip rows
 without a catalog entry are visible as raw `unresolved` rows, never as GT.
+
+A separate public-data storage benchmark imported 1.3 million unique, called
+biallelic SNVs from NIST GIAB HG005 into isolated PostgreSQL. The original
+batched insert took 80.254 s and added 239,345,664 bytes of table and
+indexes; the column-array insert took 42.074 s and added 239,681,536 bytes.
+These figures do not establish vendor-array catalog coverage or GRCh38 mapping
+accuracy: the packaged catalog still maps only its one sample site.
 
 ## Reading and exporting
 
@@ -74,10 +81,14 @@ Care-circle reads require authorization. The tool does not infer disease risk.
 `GET /api/v1/genomics/active-set` gives the Data page counts and provenance.
 `GET /api/v1/genomics/export.vcf?build=GRCh38` (or `GRCh37`) streams only
 mapped, defensible calls from the active set. Its header states how many rows
-were omitted because they were unresolved, unmapped or unsuitable for export.
-The VCF path has passed a two-site public-truth integration test; acceptance
-by PharmCAT 3.4 on a full consumer array is still open. FHIR Genomics Variant
-output is still open.
+were omitted because they were unresolved, unmapped or unsuitable for export,
+and records the upload format, vendor, declared/detected build and normalizer
+and site-catalog versions. Contigs are emitted in numeric order followed by
+X, Y and MT.
+The VCF path has passed a two-site public-truth integration test and PharmCAT
+3.4.0 accepts that export with no VCF warnings. Its matcher returns two
+candidate CYP2C19 diplotypes, so full-array named-allele agreement remains
+open. FHIR Genomics Variant output is still open.
 
 ## Pharmacogenomics
 
@@ -106,6 +117,12 @@ coverage, GRCh38 VCF export and real Agent tool use. It is a pipeline check,
 not evidence of whole-chip accuracy. A second check migrates only those public
 truth rows from the 1.5.1 table. No owner's genotype export or personal health
 document belongs in a committed fixture.
+
+The 40-question public-truth Agent evaluation selected the expected genetic
+tool in 40/40 OpenAI runs and produced 40/40 nonempty answers, with no match
+for its automated positive-claim alarm. This measures tool choice over two
+sites; it does not validate a clinical interpretation or the entire model
+answer. The evaluation corpus and answers remain outside the repository.
 
 The system stores genetic data per person. Tool replies cap genotype rows;
 raw genotype files are excluded from the Agent's `/uploads/` and `/library/`
