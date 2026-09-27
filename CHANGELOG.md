@@ -1,3 +1,7 @@
+## Unreleased
+
+- **A quickstart path could fail before the server started.** The checkout guide now includes clone and database setup before `mirobody dev`, the example Postgres user matches the connection URL, and the CLI's missing-database hint uses the same credentials. The Docker guide runs `doctor` in its container, and the hosted link opens the separate Cloud quickstart. Follow either path and check `/api/health` to confirm the local server is running.
+
 ## 1.5.1
 
 The symptom axis: complaints and diagnoses in a person's own words, coded on
