@@ -264,6 +264,38 @@ class GenotypeRowGuardTests(unittest.TestCase):
         summary_message = result.command.update["_summarization_event"]["summary_message"]
         self.assertTrue(summary_message.additional_kwargs["genotype_rows_redacted"])
 
+    def test_real_history_serializer_persists_only_redacted_public_rows(self) -> None:
+        model = FakeListChatModel(responses=["summary"])
+        backend = StateBackend()
+        guard = GenotypeRowGuardMiddleware()
+        middleware = GenotypeSafeSummarizationMiddleware(model, backend, guard)
+        messages = [
+            HumanMessage(content="What is the public call?"),
+            AIMessage(content="", tool_calls=[{"name": TOOL_NAME,
+                                               "args": {"rsids": ["rs4244285"]},
+                                               "id": "old-call", "type": "tool_call"}]),
+            ToolMessage(tool_call_id="old-call", content="rs4244285 | AG"),
+            AIMessage(content="The public call is AG."),
+            HumanMessage(content="What now?"),
+        ]
+        saved: list[str] = []
+
+        def write(_path, content):
+            saved.append(content)
+            return SimpleNamespace(error=None)
+
+        request = ModelRequest(model=model, messages=messages, state={"messages": messages})
+        with (patch.object(middleware, "_should_summarize", return_value=True),
+              patch.object(middleware, "_determine_cutoff_index", return_value=4),
+              patch.object(middleware, "_create_summary", return_value="Fresh lookup required."),
+              patch.object(backend, "download_files", return_value=[]),
+              patch.object(backend, "write", side_effect=write)):
+            result = middleware.wrap_model_call(
+                request, lambda _request: ModelResponse(result=[AIMessage(content="done")]))
+        self.assertEqual(len(saved), 1)
+        self.assertNotIn("AG", saved[0])
+        self.assertNotIn("AG", result.command.update["_summarization_event"]["summary_message"].content)
+
     def test_old_summary_event_cannot_reopen_raw_history(self) -> None:
         model = FakeListChatModel(responses=["summary"])
         middleware = GenotypeSafeSummarizationMiddleware(model, StateBackend(), GenotypeRowGuardMiddleware())
