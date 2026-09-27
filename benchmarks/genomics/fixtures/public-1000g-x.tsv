@@ -1,0 +1,8 @@
+# 1000 Genomes phase 3 GRCh37 X VCF, HG00096 male and HG00097 female
+# https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chrX.phase3_shapeit2_mvncall_integrated_v1c.20130502.genotypes.vcf.gz
+# Subset retrieved by indexed region on 2026-09-27; VCF ID was '.', so positions identify rows.
+sample	chrom	pos37	ref	alt	gt
+HG00096	X	60052	T	A	0|1
+HG00096	X	60026	T	C	0|0
+HG00097	X	3000679	C	G	1|0
+HG00096	X	3000166	A	G	0

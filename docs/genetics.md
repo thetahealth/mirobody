@@ -25,7 +25,11 @@ support the call before a VCF GT is assigned. Ambiguous or conflicting calls
 are `unresolved`. The import records the declared build separately from the
 build inferred from matching positions; `unknown` is a valid result. X/Y sex
 inference needs at least 1,000 X calls; female Y no-calls become
-`not_applicable` only after that threshold.
+`not_applicable` only after that threshold. After sex inference, male non-PAR
+X/Y calls with distinct alleles become `unresolved / haploid_conflict`;
+unknown PAR position becomes `unresolved / par_unknown` for multi-allele GTs.
+PAR calls remain diploid. The active set's `n_called` is counted after these
+corrections, inside the activation transaction.
 
 An upload writes to a `loading` genotype set. Only after all batches succeed
 and the stored row count matches the parsed count does one transaction
@@ -74,6 +78,8 @@ accuracy: the packaged catalog still maps only its one sample site.
 `query_genetic_data` accepts no selector for an active-set overview, or one
 of rsIDs (up to 50), HGNC gene or a bounded GRCh37/GRCh38 region. It returns
 at most 500 direct rows with source, build, call status and truncation notes.
+For a region query, `position` uses the requested build; `query_build`,
+`raw_position`, `pos37` and `pos38` make its provenance explicit.
 The Agent and authenticated MCP surface use the same service. Gene and region
 searches require mapped sites; an unmapped raw row can still be found by rsID.
 Care-circle reads require authorization. The tool does not infer disease risk.
@@ -88,7 +94,13 @@ X, Y and MT.
 The VCF path has passed a two-site public-truth integration test and PharmCAT
 3.4.0 accepts that export with no VCF warnings. Its matcher returns two
 candidate CYP2C19 diplotypes, so full-array named-allele agreement remains
-open. FHIR Genomics Variant output is still open.
+open. `GET /api/v1/genomics/export.fhir.json?rsids=rs4244285` returns a
+bounded FHIR STU3 Variant Observation collection inside the normal API
+envelope. It uses the active upload, requires the same authorization as the
+genotype tool, and returns `missing_rsids` and `omitted_rsids`. Only mapped
+called or no-call sites with coordinates and REF/ALT can be represented; the
+public two-site upload passes this export check in seven renderings. A full
+profile-validator run and whole-chip coverage remain open.
 
 ## Pharmacogenomics
 
@@ -110,10 +122,11 @@ Missing sites, no-calls and conflicts must not be represented as normal.
 
 The [public-data generator](../benchmarks/genomics/generate_public_formats.py)
 pins a 1000 Genomes HG00096 truth file and PharmCAT 3.4 positions by SHA-256,
-then renders four upload formats from the same two calls. The
+then renders seven upload files from the same two calls, including gzip/zip and
+both reference assemblies. The
 [end-to-end check](../benchmarks/genomics/e2e_public_truth.py) exercises real
 WebSocket upload, active-set replacement, rsID/gene/region MCP queries, CPIC
-coverage, GRCh38 VCF export and real Agent tool use. It is a pipeline check,
+coverage, GRCh37/38 VCF and FHIR export and real Agent tool use. It is a pipeline check,
 not evidence of whole-chip accuracy. A second check migrates only those public
 truth rows from the 1.5.1 table. No owner's genotype export or personal health
 document belongs in a committed fixture.
@@ -131,4 +144,8 @@ Data page receives summary counts only. A model may see the bounded tool
 result when answering a question, so a hosted deployment must account for
 its model provider and applicable consent requirements. The
 [live privacy check](../benchmarks/genomics/check_filesystem_privacy.py) covers
-both document mounts; per-turn genotype-row accounting is still an open gate.
+plain/gzip/zip chat classification, row persistence and both document mounts.
+The model-call guard counts current-turn genetic tool rows and strips previous
+turn's genetic tool results and dependent answers from checkpoint replay; a
+two-turn live replay passed. Summarization and subagent paths still need
+separate G8 verification.

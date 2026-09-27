@@ -70,9 +70,8 @@ The 1.5.2 worktree carries a one-site dbSNP b157 **sample** catalog. Its
 the generated SQLite hash. It is a schema and parser sample; no consumer-array
 coverage claim follows from it. A full candidate must replace it with a
 catalog built from four licensed marker lists and the pinned b157 files.
-The current package-data patterns omit `.sqlite3`; the catalog is present in
-this worktree, but wheel inclusion still needs verification after that rule is
-updated.
+Package data includes `.sqlite3`; `scripts/check_wheel_data.py` verifies the
+catalog and its notice in both the wheel and source distribution.
 
 A NOTE ON `aliases_src/`, ADDED 2026-09-13, REVISED 2026-09-20
 --------------------------------------------------------------

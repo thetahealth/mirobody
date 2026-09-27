@@ -20,11 +20,13 @@ back, so there is no `write_todos` tool.
 """
 
 from .prompt_caching import UniversalPromptCachingMiddleware
+from .genotype_row_guard import GenotypeRowGuardMiddleware
 from .retry_governance import RetryGovernanceMiddleware
 from .tool_faults import InvalidToolCallRepairMiddleware, ToolFaultMiddleware
 
 __all__ = [
     "InvalidToolCallRepairMiddleware",
+    "GenotypeRowGuardMiddleware",
     "RetryGovernanceMiddleware",
     "ToolFaultMiddleware",
     "UniversalPromptCachingMiddleware",

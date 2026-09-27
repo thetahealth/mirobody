@@ -24,7 +24,7 @@ DEFAULT_NEARBY_RANGE = 1_000_000
 NO_CALL = "--"
 
 COLUMNS = (
-    "rsid", "gene", "chromosome", "position", "pos38", "genotype",
+    "rsid", "gene", "chromosome", "position", "query_build", "raw_position", "pos37", "pos38", "genotype",
     "gt", "call_status", "zygosity", "strand_check", "distance", "near",
 )
 PROFILE_COLUMNS = ("vendor", "build", "rows", "called", "sex_inferred", "normalizer_version", "site_table_version")
@@ -175,21 +175,26 @@ class GeneticService(RecordTool):
             }
             return tools.Envelope(tools.STATUS_OK, data=[row], meta=tools.Meta(row_count=1),
                                   assumptions=(source, "a consumer array is incomplete; absent and no-call sites are not normal calls"))
-        fetched = await self._variants(int(genotype_set["id"]), request)
+        fetched = await self._variants(int(genotype_set["id"]), request, str(genotype_set["build_detected"]))
         hits, truncated = fetched[:request.limit], len(fetched) > request.limit
-        nearby = await self._neighbours(int(genotype_set["id"]), request, hits) if request.include_nearby and hits else []
+        nearby = await self._neighbours(int(genotype_set["id"]), request, hits,
+                                        str(genotype_set["build_detected"])) if request.include_nearby and hits else []
         return _envelope_for(
             request, hits, nearby, source=source, truncated=truncated,
             is_vcf="vcf" in str(genotype_set["format_id"]),
         )
 
-    async def _variants(self, set_id: int, request: GeneticRequest) -> list[dict[str, Any]]:
+    async def _variants(self, set_id: int, request: GeneticRequest, detected_build: str) -> list[dict[str, Any]]:
+        position = "pos38" if request.build == "GRCh38" else "pos37" if request.build == "GRCh37" else "position_raw"
+        query_build = request.build or detected_build
         sql = (
-            "SELECT rsid, gene, chrom AS chromosome, position_raw AS position, pos38, "
-            "genotype_raw AS genotype, gt, call_status, zygosity, strand_check "
+            f"SELECT set_id, rsid, gene, chrom AS chromosome, {position} AS position, "
+            "position_raw AS raw_position, pos37, pos38, :query_build AS query_build, "
+            "ref, alt, genotype_raw AS genotype, gt, call_status, zygosity, strand_check "
             "FROM th_genotype WHERE set_id = :set_id"
         )
-        params: dict[str, Any] = {"set_id": set_id, "limit": request.limit + 1}
+        params: dict[str, Any] = {"set_id": set_id, "limit": request.limit + 1,
+                                  "query_build": query_build}
         if request.rsids:
             binds, rsid_params = _in_clause("rsid", request.rsids)
             sql += f" AND rsid IN ({binds})"
@@ -198,25 +203,27 @@ class GeneticService(RecordTool):
             sql += " AND gene = :gene"
             params["gene"] = request.gene
         else:
-            position = "pos38" if request.build == "GRCh38" else "pos37"
             sql += f" AND chrom = :chromosome AND {position} BETWEEN :start AND :end"
             params.update(chromosome=request.chromosome, start=request.start, end=request.end)
-        sql += " ORDER BY chrom, position_raw, rsid LIMIT :limit"
+        sql += f" ORDER BY chrom, {position}, rsid LIMIT :limit"
         return [dict(row) for row in await self._read(sql, params)]
 
     async def _neighbours(self, set_id: int, request: GeneticRequest,
-                          hits: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+                          hits: Sequence[Mapping[str, Any]], detected_build: str) -> list[dict[str, Any]]:
         binds, excluded = _in_clause("excl", request.rsids)
         out: list[dict[str, Any]] = []
+        position = "pos38" if request.build == "GRCh38" else "pos37" if request.build == "GRCh37" else "position_raw"
         for hit in hits:
             rows = await self._read(
-                "SELECT rsid, gene, chrom AS chromosome, position_raw AS position, pos38, "
+                f"SELECT rsid, gene, chrom AS chromosome, {position} AS position, "
+                "position_raw AS raw_position, pos37, pos38, :query_build AS query_build, "
                 "genotype_raw AS genotype, gt, call_status, zygosity, strand_check "
                 "FROM th_genotype WHERE set_id = :set_id AND chrom = :chromosome "
-                "AND position_raw BETWEEN :min_pos AND :max_pos "
+                f"AND {position} BETWEEN :min_pos AND :max_pos "
                 f"AND rsid NOT IN ({binds}) "
-                "ORDER BY ABS(position_raw - :target_pos) LIMIT :nearby_limit",
+                f"ORDER BY ABS({position} - :target_pos) LIMIT :nearby_limit",
                 {**excluded, "set_id": set_id, "chromosome": hit["chromosome"],
+                 "query_build": request.build or detected_build,
                  "min_pos": int(hit["position"]) - request.nearby_range,
                  "max_pos": int(hit["position"]) + request.nearby_range,
                  "target_pos": hit["position"], "nearby_limit": MAX_NEARBY_PER_HIT},

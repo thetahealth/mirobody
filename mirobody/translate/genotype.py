@@ -12,6 +12,27 @@ from dataclasses import dataclass
 NORMALIZER_VERSION = "1.5.2.1"
 _COMPLEMENT = str.maketrans("ACGT", "TGCA")
 
+# GRC human assembly reports (GRCh37) and Ensembl GRCh38 PAR annotation.
+# Coordinates are 1-based, inclusive; an unknown build must not be inferred.
+PAR_RANGES = {
+    "GRCh37": {"X": ((60001, 2699520), (154931044, 155260560)),
+               "Y": ((10001, 2649520), (59034050, 59373566))},
+    "GRCh38": {"X": ((10001, 2781479), (155701383, 156030895)),
+               "Y": ((10001, 2781479), (56887903, 57217415))},
+}
+
+
+def pseudoautosomal_status(chrom: str, pos37: int | None, pos38: int | None) -> bool | None:
+    """Return PAR membership, or None when neither assembly has a position."""
+    known = False
+    for build, position in (("GRCh37", pos37), ("GRCh38", pos38)):
+        if position is None:
+            continue
+        known = True
+        if any(start <= position <= end for start, end in PAR_RANGES[build].get(chrom, ())):
+            return True
+    return False if known else None
+
 
 @dataclass(frozen=True)
 class NormalizedCall:
@@ -94,6 +115,14 @@ def normalize(
             return NormalizedCall(**basis, gt=None, call_status="unresolved", zygosity=None,
                                   strand_check="invalid_gt")
         indices = tuple(int(part) for part in parts)
+        ploidy = _ploidy_decision(chrom, sex, pos37 if matched_build else None,
+                                  pos38 if matched_build else None, indices)
+        if ploidy in {"haploid_conflict", "par_unknown"}:
+            return NormalizedCall(**basis, gt=None, call_status="unresolved", zygosity=None,
+                                  strand_check=ploidy)
+        if ploidy == "haploid":
+            indices = (indices[0],)
+            vcf_gt = str(indices[0])
         zygosity = _zygosity(indices)
         return NormalizedCall(**basis, gt=vcf_gt, call_status="called", zygosity=zygosity,
                               strand_check="vcf_plus")
@@ -126,10 +155,12 @@ def normalize(
         elif {ref, *alts} in ({"A", "T"}, {"C", "G"}):
             check = "palindromic_trusted"
         indices = tuple(mapping[base] for base in bases)
-    if chrom == "MT" or sex == "male" and chrom in {"X", "Y"}:
-        if len(set(indices)) != 1:
-            return NormalizedCall(**basis, gt=None, call_status="unresolved", zygosity=None,
-                                  strand_check="haploid_conflict")
+    ploidy = _ploidy_decision(chrom, sex, pos37 if matched_build else None,
+                              pos38 if matched_build else None, indices)
+    if ploidy in {"haploid_conflict", "par_unknown"}:
+        return NormalizedCall(**basis, gt=None, call_status="unresolved", zygosity=None,
+                              strand_check=ploidy)
+    if ploidy == "haploid":
         indices = (indices[0],)
     gt = "/".join(str(i) for i in sorted(indices))
     return NormalizedCall(**basis, gt=gt, call_status="called", zygosity=_zygosity(indices), strand_check=check)
@@ -138,6 +169,19 @@ def normalize(
 def _positive(value: object) -> int | None:
     number = int(value) if value is not None else 0
     return number if number > 0 else None
+
+
+def _ploidy_decision(chrom: str, sex: str, pos37: int | None, pos38: int | None,
+                     indices: tuple[int, ...]) -> str | None:
+    if chrom != "MT" and not (sex == "male" and chrom in {"X", "Y"}):
+        return None
+    if chrom in {"X", "Y"}:
+        par = pseudoautosomal_status(chrom, pos37, pos38)
+        if par:
+            return None
+        if par is None and len(indices) > 1:
+            return "par_unknown"
+    return "haploid" if len(set(indices)) == 1 else "haploid_conflict"
 
 
 def _zygosity(indices: tuple[int, ...]) -> str:

@@ -14,8 +14,9 @@ Ordered by (value ÷ risk) within each section.
 
 **Status:** open. The branch now accepts 35/37 public `snps` fixture shapes and
 5/5 public VCF fixtures, preserves active-set visibility across replacement,
-and passes a four-format WebSocket → database → MCP → Agent check using two
-pinned 1000 Genomes HG00096 CYP2C19 calls. It also has a conservative CPIC
+and passes a seven-rendering WebSocket → database → MCP check using two
+pinned 1000 Genomes HG00096 CYP2C19 calls; two real Agent questions passed on
+the same public truth. It also has a conservative CPIC
 v1.60.0 drug-gene coverage tool and GRCh37/38 VCF export. The frontend branch
 builds and its 167 tests pass. Those checks establish a working vertical path,
 not whole-chip accuracy or release readiness.
@@ -26,10 +27,10 @@ The release gates and measured status are:
 | --- | --- |
 | G0 / G2 / G3 | The shipped dbSNP b157 index holds one sample site. The 3–5 million-site licensed vendor union, <1% unmatched target, I/D definition rate, sex inference on a full public genome, and 10,000-site GRCh38 comparison have not been measured. |
 | G4 | Measured with 1.3 million unique biallelic SNVs from pinned public GIAB HG005 truth in isolated PostgreSQL: batched executemany took 80.254 s and added 239,345,664 bytes of table and indexes; column-array batches took 42.074 s and added 239,681,536 bytes. The 60 s target passes on this host. The historical 274 MB baseline used a different 1,346,761-row array sample, so it is context rather than a paired comparison. |
-| G5 | PharmCAT 3.4.0 accepts the public two-site GRCh38 export with zero VCF warnings and reports CYP2C19 candidate diplotypes; a full-array Named Allele Matcher agreement comparison has not run. FHIR Genomics Variant output is absent. |
+| G5 | PharmCAT 3.4.0 accepts the public two-site GRCh38 export with zero VCF warnings and reports CYP2C19 candidate diplotypes; a full-array Named Allele Matcher agreement comparison has not run. A bounded FHIR STU3 Variant Observation export passes on those two public calls in seven upload renderings; a profile-validator and full-chip coverage check have not run. |
 | G6 / G-cpic | CPIC A/B links and defining-site coverage are available. Star-allele/diplotype/phenotype calls, CDC GeT-RM truth agreement, version switching and recomputation are absent. The tool deliberately says `not_determined`. |
 | G7 | The Agent is instructed not to infer disease risk from arrays; the five-site rare pathogenic truth gate has not run. |
-| G8 / G9 | Tool calls are bounded and raw genotype files are excluded from the Agent's document mounts. A live database check covers both mounts. OpenAI passed 40/40 tool-choice and 40/40 answered, with zero automated forbidden-claim alarms over pinned public two-site truth; this is a narrow model evaluation, not clinical correctness. Per-turn genotype-row accounting remains open. |
+| G8 / G9 | Tool calls are bounded; complete gzip/zip chat classification and the document mounts pass a public PostgreSQL privacy check. A model-call guard counts current-turn genotype tool rows and redacts prior-turn tool results and dependent answers; a two-turn checkpoint replay passed. Summarization and subagent paths still need separate G8 evidence. OpenAI passed 40/40 tool-choice and 40/40 answered, with zero automated forbidden-claim alarms over pinned public two-site truth; this is a narrow model evaluation, not clinical correctness. |
 | Frontend | Source build, lint (zero errors, four existing warnings) and 167 unit tests pass on `feat/genomics-upload`; its open-source build is copied into backend `frontend/` and the local server serves its hashed assets. Browser interaction verification remains open because the browser automation bridge failed to connect. |
 
 The one-way `mirobody migrate-genotypes` command preserves the latest 1.5.1

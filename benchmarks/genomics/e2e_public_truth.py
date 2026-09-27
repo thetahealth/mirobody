@@ -11,6 +11,7 @@ import argparse
 import asyncio
 import base64
 import json
+import re
 import secrets
 import uuid
 from pathlib import Path
@@ -21,6 +22,21 @@ import jwt
 import websockets
 
 from mirobody.translate.pgx import load_cpic
+
+
+def _table_positions(rendered: str) -> dict[str, int]:
+    lines = rendered.splitlines()
+    header = next(line for line in lines if line.startswith("rsid|"))
+    columns = header.split("|")
+    position_index = columns.index("position")
+    start = lines.index(header) + 1
+    rows = {}
+    for line in lines[start:]:
+        if not line or line.startswith(("(", "notes:")):
+            break
+        cells = re.split(r"(?<!\\)\|", line)
+        rows[cells[0]] = int(cells[position_index])
+    return rows
 
 
 async def upload(base: str, token: str, subject: str, filename: str, payload: bytes) -> None:
@@ -86,7 +102,8 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
         subject = jwt.decode(token, options={"verify_signature": False})["sub"]
         headers = {"Authorization": f"Bearer {token}"}
         previous_set = None
-        cases = ("public_23andme.txt", "public_ancestry.txt", "public_myheritage.csv", "public.vcf")
+        cases = ("public_23andme.txt", "public_ancestry.txt", "public_myheritage.csv",
+                 "public.vcf", "public.vcf.gz", "public.vcf.zip", "public-grch38.vcf")
         for filename in cases:
             await upload(base, token, subject, filename, (corpus / filename).read_bytes())
             response = await client.get(f"{base}/api/v1/genomics/active-set", headers=headers)
@@ -96,20 +113,28 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
             assert active["id"] != previous_set, active
             previous_set = active["id"]
             for args in ({"rsids": sorted(truth)}, {"gene": "CYP2C19"},
-                         {"chromosome": "10", "start": 94780653, "end": 94781859, "build": "GRCh38"}):
+                         {"chromosome": "10", "start": 94780653, "end": 94781859, "build": "GRCh38"},
+                         {"chromosome": "10", "start": 96540410, "end": 96541616, "build": "GRCh37"}):
                 result = await mcp(client, base, headers, args)
                 rendered = result["result"]
+                wanted = ("pos38" if args.get("build") == "GRCh38" else
+                          "pos37" if args.get("build") == "GRCh37" else
+                          "pos38" if filename == "public-grch38.vcf" else "pos37")
+                assert _table_positions(rendered) == {
+                    rsid: call[wanted] for rsid, call in truth.items()
+                }, (filename, args, rendered)
                 for rsid, call in truth.items():
                     assert rsid in rendered, (filename, args, rendered)
                     assert str(call["pos38"]) in rendered, (filename, args, rendered)
-                    if filename == "public.vcf":
+                    if filename.startswith("public.vcf") or filename == "public-grch38.vcf":
                         assert call["gt"].replace("|", "\\|") in rendered, (filename, args, rendered)
                     else:
                         assert call["genotype"] in rendered, (filename, args, rendered)
                         assert call["gt"].replace("|", "/") in rendered or (
                             call["gt"] == "1|0" and "0/1" in rendered
                         ), (filename, args, rendered)
-                assert "called" in rendered and "GRCh37" in rendered, rendered
+                declared_build = "GRCh38" if filename == "public-grch38.vcf" else "GRCh37"
+                assert "called" in rendered and f"declared build={declared_build}" in rendered, rendered
             profile = await mcp(client, base, headers, {})
             assert "public-1000g-pharmcat-e2e" in profile["result"], profile
             pgx = await mcp(client, base, headers, {"drugs": ["clopidogrel"]},
@@ -138,7 +163,29 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
                 assert (fields[0], int(fields[1]), fields[3], fields[4]) == (
                     "chr10", call["pos38"], "G", "A",
                 ), (filename, fields)
-            print(f"{filename}: {len(truth)} public calls, active set {active['id']}, rsID/gene/GRCh38 queries passed")
+            fhir = await client.get(
+                f"{base}/api/v1/genomics/export.fhir.json", headers=headers,
+                params=[("rsids", rsid) for rsid in sorted(truth)],
+            )
+            fhir.raise_for_status()
+            payload = fhir.json()
+            assert payload["code"] == 0, payload
+            data = payload["data"]
+            assert data["exported"] == len(truth) and not data["omitted_rsids"], data
+            observations = {
+                next(component["valueCodeableConcept"]["text"] for component in entry["resource"]["component"]
+                     if component["code"]["coding"][0]["code"] == "81252-9"): entry["resource"]
+                for entry in data["bundle"]["entry"]
+            }
+            assert set(observations) == set(truth), observations
+            for rsid, call in truth.items():
+                observation = observations[rsid]
+                assert observation["code"]["coding"][0]["code"] == "69548-6"
+                expected = "LA9634-2" if set(call["gt"].replace("|", "/").split("/")) == {"0"} else "LA9633-4"
+                assert observation["valueCodeableConcept"]["coding"][0]["code"] == expected
+                assert any(component.get("valueRange", {}).get("low", {}).get("value") == call["pos38"]
+                           for component in observation["component"])
+            print(f"{filename}: {len(truth)} public calls, active set {active['id']}, rsID/gene/both-build queries passed")
 
         if agent:
             questions = (

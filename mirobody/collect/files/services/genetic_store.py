@@ -12,6 +12,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from mirobody.kernel.ops import is_driver_exception
+from mirobody.translate.genotype import PAR_RANGES
 from mirobody.utils.db import execute_query, transaction
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,19 @@ _INSERT = f"""
     FROM unnest({', '.join(f'CAST(:{column} AS {"integer" if column in _INTEGER_COLUMNS else "text"}[])' for column in _BATCH_COLUMNS)})
          AS batch({', '.join(_BATCH_COLUMNS)})
 """
+
+_POS37 = "COALESCE(pos37, CASE WHEN :build_detected = 'GRCh37' THEN position_raw END)"
+_POS38 = "COALESCE(pos38, CASE WHEN :build_detected = 'GRCh38' THEN position_raw END)"
+_PAR_CLAUSES = []
+for _chrom in ("X", "Y"):
+    for _build, _position in (("GRCh37", _POS37), ("GRCh38", _POS38)):
+        for _start, _end in PAR_RANGES[_build][_chrom]:
+            _PAR_CLAUSES.append(f"(chrom = '{_chrom}' AND {_position} BETWEEN {_start} AND {_end})")
+_NON_PAR = "NOT COALESCE((" + " OR ".join(_PAR_CLAUSES) + "), FALSE)"
+_MULTI = "replace(gt, '|', '/') ~ '^[0-9]+(/[0-9]+)+$'"
+_FIRST = "split_part(replace(gt, '|', '/'), '/', 1)"
+_CONFLICT = ("EXISTS (SELECT 1 FROM unnest(regexp_split_to_array(gt, '[/|]')) AS allele(value) "
+             f"WHERE allele.value <> {_FIRST})")
 
 
 class GenotypeStore:
@@ -100,12 +114,26 @@ class GenotypeStore:
                 )
             elif sex_inferred == "male":
                 await tx.execute(
-                    """UPDATE th_genotype SET gt = split_part(gt, '/', 1), zygosity = 'hemizygous'
-                       WHERE set_id = :id AND chrom IN ('X', 'Y') AND call_status = 'called'
-                         AND gt ~ '^[0-9]+/[0-9]+$'
-                         AND split_part(gt, '/', 1) = split_part(gt, '/', 2)""",
-                    {"id": set_id},
+                    f"""UPDATE th_genotype
+                        SET gt = NULL, zygosity = NULL, call_status = 'unresolved',
+                            strand_check = CASE WHEN {_POS37} IS NULL AND {_POS38} IS NULL
+                                THEN 'par_unknown' ELSE 'haploid_conflict' END
+                        WHERE set_id = :id AND chrom IN ('X', 'Y') AND call_status = 'called'
+                          AND {_MULTI} AND {_NON_PAR}
+                          AND ({_CONFLICT} OR {_POS37} IS NULL AND {_POS38} IS NULL)""",
+                    {"id": set_id, "build_detected": build_detected},
                 )
+                await tx.execute(
+                    f"""UPDATE th_genotype SET gt = {_FIRST}, zygosity = 'hemizygous'
+                        WHERE set_id = :id AND chrom IN ('X', 'Y') AND call_status = 'called'
+                          AND {_MULTI} AND {_NON_PAR} AND NOT {_CONFLICT}""",
+                    {"id": set_id, "build_detected": build_detected},
+                )
+            counted = await tx.execute(
+                "SELECT COUNT(*) AS n FROM th_genotype WHERE set_id = :id AND call_status = 'called'",
+                {"id": set_id},
+            )
+            n_called = int(counted[0]["n"])
             await tx.execute(
                 """UPDATE th_genotype_set SET status = 'superseded', superseded_at = now()
                    WHERE user_id = :user_id AND status = 'active'""",

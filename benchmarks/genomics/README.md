@@ -52,10 +52,30 @@ coverage gate.
 
 `generate_public_formats.py` uses pinned public 1000 Genomes and PharmCAT
 inputs to render one truth sample in 23andMe, Ancestry, MyHeritage and VCF
-shapes. `e2e_public_truth.py` runs the upload → active set → MCP → VCF path and
+shapes, plus gzip/zip and GRCh38 VCF renderings. `e2e_public_truth.py` runs
+seven upload → active set → MCP → VCF/FHIR paths and
 optionally two real Agent questions. `e2e_legacy_migration.py` checks that
 1.5.1 rows migrate conservatively. Generated raw truth stays under ignored
 `internal/genomics/corpus/`, not in the distribution.
+
+`fixtures/public-hg00096.vcf` is the two-call VCF rendering of 1000 Genomes
+phase 3 public male sample HG00096 from the pinned GRCh37 CYP2C19 region VCF
+(`generate_public_formats.py` verifies SHA-256
+`c63f2e17f9fa7ed06d75c0c03824233eced60910d2a2e5a04cb7b51cab0921ca`).
+The regression test adds comment padding only; it does not invent calls.
+GRCh37 PAR bounds follow the GRC human assembly report and GRCh38 PAR bounds
+follow Ensembl's human PAR annotation.
+
+`fixtures/public-1000g-x.tsv` contains four unchanged phased GTs from the
+[official 1000 Genomes phase 3 GRCh37 X VCF](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chrX.phase3_shapeit2_mvncall_integrated_v1c.20130502.genotypes.vcf.gz):
+HG00096 is male and HG00097 is female in the project's pinned sample panel.
+The female non-PAR heterozygote is deliberately evaluated under inferred male
+sex to exercise a conflicting upload; its alleles are copied from public truth.
+With an isolated PostgreSQL schema, `check_ploidy_activation.py` checks the
+transaction's status and `n_called`; `check_filesystem_privacy.py` checks
+plain/gzip/zip chat scene persistence and both Agent file mounts. Set
+`MIROBODY_GENOMICS_TEST_DSN` and pass `--schema public` for a public-schema
+test database, or use the configured `PG_SCHEMA`.
 
 `benchmark_public_bulk.py` selects the first 1.3 million unique called
 biallelic dbSNP SNVs from the pinned public NIST GIAB HG005 GRCh37 benchmark

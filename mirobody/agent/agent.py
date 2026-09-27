@@ -40,6 +40,7 @@ from .prompt import attachment_reminder, build_system_prompt
 from .wire.blocks import ERROR, NOTICE
 from .wire.stream import TokenUsageCallback, stream_blocks
 from .middleware import (
+    GenotypeRowGuardMiddleware,
     UniversalPromptCachingMiddleware,
 )
 
@@ -448,6 +449,7 @@ class MirobodyAgent:
             # What this agent adds at the tail: cross-provider prompt caching,
             # last so its decision wins.
             tail: list[Any] = [
+                GenotypeRowGuardMiddleware(),
                 UniversalPromptCachingMiddleware(ttl="5m", unsupported_model_behavior="ignore")
             ]
 

@@ -11,8 +11,10 @@ import argparse
 import csv
 import gzip
 import hashlib
+import io
 import json
 import sqlite3
+import zipfile
 from pathlib import Path
 
 TRUTH_SHA256 = "c63f2e17f9fa7ed06d75c0c03824233eced60910d2a2e5a04cb7b51cab0921ca"
@@ -97,10 +99,21 @@ def build(truth_path: Path, positions_path: Path, out: Path, sample: str) -> dic
         writer = csv.writer(output)
         writer.writerow(("RSID", "CHROMOSOME", "POSITION", "RESULT"))
         writer.writerows((rsid, "10", pos37, genotype) for rsid, pos37, _, _, _, _, genotype in rows)
-    (out / "public.vcf").write_text(
+    vcf37 = (
         "##fileformat=VCFv4.2\n##reference=GRCh37\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + sample + "\n" +
         "".join(f"10\t{pos37}\t{rsid}\t{ref}\t{alt}\t.\tPASS\t.\tGT\t{gt}\n"
                 for rsid, pos37, _, ref, alt, gt, _ in rows)
+    )
+    (out / "public.vcf").write_text(vcf37)
+    (out / "public.vcf.gz").write_bytes(gzip.compress(vcf37.encode(), mtime=0))
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as output:
+        output.writestr("public.vcf", vcf37)
+    (out / "public.vcf.zip").write_bytes(archive.getvalue())
+    (out / "public-grch38.vcf").write_text(
+        "##fileformat=VCFv4.2\n##reference=GRCh38\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + sample + "\n" +
+        "".join(f"10\t{pos38}\t{rsid}\t{ref}\t{alt}\t.\tPASS\t.\tGT\t{gt}\n"
+                for rsid, _, pos38, ref, alt, gt, _ in rows)
     )
     db = out / "sites.sqlite3"
     db.unlink(missing_ok=True)

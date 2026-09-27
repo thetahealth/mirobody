@@ -6,7 +6,8 @@
   leave partial data while still reporting completion, and a repeat upload
   duplicated rows. The new set remains hidden until every batch and row count
   pass; another upload replaces it. The public 1000 Genomes end-to-end check
-  uploads four formats and observes one active set after each replacement.
+  uploads seven public renderings, including gzip/zip and both genome builds,
+  and observes one active set after each replacement.
 - **Normalized genotype queries, VCF export and a bounded CPIC coverage tool.**
   The old genetic tool could only read rsIDs. It now offers an overview, gene
   and build-specific region search; authenticated users can export mapped
@@ -35,6 +36,11 @@
   passed 167 tests, lint with zero errors and the open-source build; the local
   backend serves the copied hashed assets. Browser interaction verification is
   still open.
+- **Mapped genetic calls have a bounded FHIR Variant export.** The authenticated
+  `export.fhir.json` route represents selected rsIDs with the STU3 assessment,
+  reference assembly, coordinate, REF/ALT and allelic-state codes. Missing and
+  unrepresentable rows are named rather than silently treated as normal. All
+  seven public upload formats reproduce the two-site truth in this export.
 - **`mirobody migrate-genotypes` for 1.5.1 data.** The new reader only sees
   active sets, which otherwise hid legacy rows on upgrade. The command moves
   each person's latest old file into an active set with raw calls marked
@@ -43,6 +49,23 @@
 
 ### Changed
 
+- Chat attachments previously classified a valid compressed genotype file from
+  a truncated archive prefix and exposed its raw bytes in the Agent file
+  mounts. Each attachment now gets its own scene after complete gzip/zip
+  validation; the public privacy check inserts plain, gzip and zip uploads
+  and confirms both mounts hide them.
+- Region queries filtered by the requested assembly but could display the
+  upload's other assembly coordinate as `position`. Results now return the
+  requested coordinate plus `query_build`, `raw_position`, `pos37` and `pos38`;
+  public GRCh37 and GRCh38 VCF uploads pass cross-build query checks.
+- Sex inference used to leave heterozygous non-PAR X/Y calls counted as valid.
+  Activation now marks conflicts unresolved, preserves diploid PAR calls and
+  recounts `n_called` after correction; pinned public 1000G X calls pass the
+  PostgreSQL activation check, including an unknown-build case.
+- Genetic resolver terms previously missed specific CYP2C19, MTHFR, APOE and
+  HLA-B LOINC concepts or resolved ambiguous phrases as a genotype. Nine
+  explicit mappings now target the named concepts and five broad phrases are
+  rejected; the resolver override table records each term and target.
 - Removed the frozen Traditional Chinese and Japanese README editions and their
   archive index, which contained stale links. Only the live English and Chinese
   READMEs remain; the removed editions are available in Git history.
