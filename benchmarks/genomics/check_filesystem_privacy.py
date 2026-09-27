@@ -54,16 +54,6 @@ async def run(schema: str) -> None:
         try:
             uploads = ThFilesBackend(user_id=user_id, scope="uploads", file_keys=[file_key])
             library = ThFilesBackend(user_id=user_id, scope="library")
-            await execute_query(
-                "UPDATE th_files SET scene = 'report' WHERE user_id = :user_id AND file_key = :file_key",
-                {"user_id": user_id, "file_key": file_key}, log_sql=False,
-            )
-            assert (await uploads.als("/")).entries, "upload projection did not read the control file"
-            assert (await library.als("/")).entries, "library projection did not read the control file"
-            await execute_query(
-                "UPDATE th_files SET scene = 'genetic' WHERE user_id = :user_id AND file_key = :file_key",
-                {"user_id": user_id, "file_key": file_key}, log_sql=False,
-            )
             assert not (await uploads.als("/")).entries, "genotype escaped into /uploads/"
             assert not (await library.als("/")).entries, "genotype escaped into /library/"
         finally:
@@ -101,6 +91,28 @@ async def run(schema: str) -> None:
                 saved = await execute_query("SELECT scene FROM th_files WHERE file_key = :key",
                                             {"key": key}, log_sql=False)
                 assert saved[0]["scene"] == "genetic", (name, saved)
+                assert not (await ThFilesBackend(user_id=user_id, scope="uploads", file_keys=[key]).als("/")).entries, name
+                library_rows = await ThFilesBackend(user_id=user_id, scope="library")._files()
+                assert all(item["file_key"] != key for item in library_rows), name
+            finally:
+                await execute_query("DELETE FROM th_files WHERE file_key = :key", {"key": key}, log_sql=False)
+        # 1.5.1 could mislabel a compressed upload as report. The read-side
+        # filter must protect stored rows that predate the upload fix too.
+        for name, mime, content in (
+            ("public.vcf", "text/vcf", public),
+            ("public.vcf.gz", "application/gzip", gzip.compress(public)),
+            ("public.zip", "application/zip", archive.getvalue()),
+        ):
+            key = f"public-legacy-privacy-{uuid.uuid4()}"
+            info = {"file_key": key, "file_name": name, "file_type": mime,
+                    "content_type": mime, "content_bytes": content,
+                    "original_text": public.decode(), "text_length": len(public)}
+            try:
+                inserted = await FileDbService.insert_files_batch(
+                    user_id=user_id, files_info=[info], scene="report",
+                    created_source="web_chat", query_user_id=user_id,
+                )
+                assert len(inserted) == 1, (name, inserted)
                 assert not (await ThFilesBackend(user_id=user_id, scope="uploads", file_keys=[key]).als("/")).entries, name
                 library_rows = await ThFilesBackend(user_id=user_id, scope="library")._files()
                 assert all(item["file_key"] != key for item in library_rows), name

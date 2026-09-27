@@ -20,9 +20,6 @@ mirobody/agent/chat/service.py	extra_key	user
 mirobody/agent/chat/service.py	interpolation	err
 mirobody/agent/chat/session.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/agent/chat/session.py	interpolation	str(e)
-mirobody/agent/chat/summary.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/chat/summary.py	interpolation	str(e)
-mirobody/agent/chat/summary.py	interpolation	summary
 mirobody/agent/checkpointer.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/agent/filesystem/backend.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/agent/filesystem/backend.py	interpolation	_e

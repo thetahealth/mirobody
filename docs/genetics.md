@@ -139,7 +139,10 @@ answer. The evaluation corpus and answers remain outside the repository.
 
 The system stores genetic data per person. Tool replies cap genotype rows;
 raw genotype files are excluded from the Agent's `/uploads/` and `/library/`
-document mounts, including when the file is attached to a chat message. The
+document mounts, including when the file is attached to a chat message.
+Older rows mislabeled as reports are screened by their genotype header or
+archive type, and rows linked to genotype sets are excluded. Reads and
+downloads also inspect raw bytes when the stored text is absent. The
 Data page receives summary counts only. A model may see the bounded tool
 result when answering a question, so a hosted deployment must account for
 its model provider and applicable consent requirements. The
@@ -147,5 +150,10 @@ its model provider and applicable consent requirements. The
 plain/gzip/zip chat classification, row persistence and both document mounts.
 The model-call guard counts current-turn genetic tool rows and strips previous
 turn's genetic tool results and dependent answers from checkpoint replay; a
-two-turn live replay passed. Summarization and subagent paths still need
-separate G8 verification.
+two-turn live replay passed. DeepAgents' separate summarizer and history
+offload now receive redacted genotype results, including during context
+overflow recovery; public-call tests cover the sync and async paths. The
+general-purpose subagent is disabled in this harness. After a genetic query,
+the Agent refuses scratch-file reads and writes while still allowing read-only
+access to the document and profile mounts. A full live G8 audit of indirect
+paths remains open.

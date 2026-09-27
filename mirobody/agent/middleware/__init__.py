@@ -11,22 +11,24 @@ Mirobody-specific middleware on top of the deepagents stack:
 - `RetryGovernanceMiddleware`: a call that already failed unrecoverably is
   refused before it runs again (`mirobody.kernel.tools.RetryLedger`).
 
-The rest of the stack (FilesystemMiddleware, SummarizationMiddleware,
-PatchToolCallsMiddleware, SubAgentMiddleware) is pulled directly from the
-upstream `deepagents` and `langchain` packages and assembled in
-`agent.MirobodyAgent._build_agent`. Note `TodoListMiddleware` is NOT among them:
+The filesystem and tool-call repair pieces come from upstream `deepagents`.
+GenotypeSafeSummarizationMiddleware replaces its summarization slot so history
+files and the separate summary model do not receive genotype tool rows.
+`agent.MirobodyAgent._build_agent` assembles the stack. Note `TodoListMiddleware` is NOT among them:
 deepagents 0.7 dropped it from the default stack and the agent does not add it
 back, so there is no `write_todos` tool.
 """
 
 from .prompt_caching import UniversalPromptCachingMiddleware
 from .genotype_row_guard import GenotypeRowGuardMiddleware
+from .genotype_summarization import GenotypeSafeSummarizationMiddleware
 from .retry_governance import RetryGovernanceMiddleware
 from .tool_faults import InvalidToolCallRepairMiddleware, ToolFaultMiddleware
 
 __all__ = [
     "InvalidToolCallRepairMiddleware",
     "GenotypeRowGuardMiddleware",
+    "GenotypeSafeSummarizationMiddleware",
     "RetryGovernanceMiddleware",
     "ToolFaultMiddleware",
     "UniversalPromptCachingMiddleware",

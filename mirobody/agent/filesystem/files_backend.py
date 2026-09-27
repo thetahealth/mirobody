@@ -32,6 +32,7 @@ from typing import Any
 
 from deepagents.backends.protocol import EditResult, FileUploadResponse, WriteResult
 
+from mirobody.collect import GeneticHandler
 from mirobody.utils.db import execute_query
 from .backend import PgFilesystemBackend, _is_text_mime
 from .naming import guess_mime, safe_basename
@@ -43,6 +44,8 @@ logger = logging.getLogger(__name__)
 # tool result.
 _MAX_LIBRARY_FILES = 200
 _MAX_SESSION_FILES = 50
+_ARCHIVE_MIMES = frozenset({"application/zip", "application/x-zip-compressed",
+                           "application/gzip", "application/x-gzip"})
 
 _READONLY = (
     "This path is a read-only view of your stored files. Write scratch notes to "
@@ -139,6 +142,11 @@ class ThFilesBackend(PgFilesystemBackend):
                   FROM th_files
                  WHERE user_id = :uid AND is_del = false
                    AND scene IS DISTINCT FROM 'genetic' {where}
+                   AND NOT EXISTS (
+                       SELECT 1 FROM th_genotype_set g
+                        WHERE g.user_id = th_files.user_id
+                          AND g.file_key = th_files.file_key
+                   )
                  ORDER BY created_at DESC
                  LIMIT :limit
                 """,
@@ -155,6 +163,20 @@ class ThFilesBackend(PgFilesystemBackend):
         seen: set[str] = set()
         out: list[dict[str, Any]] = []
         for r in rows or []:
+            # Before 1.5.2 a compressed genotype attachment could be saved as
+            # scene=report. Its name or MIME is the only cheap signal before a
+            # read, so do not mount archive containers at all. Plain exports
+            # with cached text can be identified by their declared header.
+            stored_name = str(r.get("file_name") or "").lower()
+            pinned_name = str(self._turn_names.get(str(r.get("file_key") or "")) or "").lower()
+            if (stored_name.endswith((".gz", ".zip")) or pinned_name.endswith((".gz", ".zip"))
+                    or str(r.get("file_type") or "").lower() in _ARCHIVE_MIMES):
+                continue
+            original_text = str(r.get("original_text") or "")
+            if original_text and GeneticHandler.is_genetic_content(
+                original_text[:GeneticHandler.SNIFF_BYTES], str(r.get("file_type") or "")
+            ):
+                continue
             # `/uploads/` names this turn's attachments by the name the request
             # carried; only `/library/` reads the (rewritable) stored name. See
             # `_turn_names` in __init__ for why the column cannot be trusted here.
@@ -189,6 +211,15 @@ class ThFilesBackend(PgFilesystemBackend):
         if p in ("", "/"):
             return rows
         return [r for r in rows if r["path"].startswith(p)]
+
+    async def _get_from_storage(self, key: str) -> bytes | None:
+        raw = await super()._get_from_storage(key)
+        # Legacy plain uploads may have neither a genetic scene nor cached
+        # text. The content itself is the final read/download boundary.
+        if raw is not None and GeneticHandler.is_genetic_content(raw, None):
+            logger.info("stored-file genotype read refused: scope=%s", self._scope)
+            return None
+        return raw
 
     # ── writes are refused ───────────────────────────────────────────────────
 

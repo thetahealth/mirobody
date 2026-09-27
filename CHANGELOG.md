@@ -34,7 +34,8 @@
 - **The Genomics Data page now ships in the bundled web client.** The page has
   a dedicated upload entry, processing state and active-set summary. Its source
   passed 167 tests, lint with zero errors and the open-source build; the local
-  backend serves the copied hashed assets. Browser interaction verification is
+  backend serves the copied hashed assets. A Chrome check saw the active-set
+  card update after a public-data replacement; native file-picker upload is
   still open.
 - **Mapped genetic calls have a bounded FHIR Variant export.** The authenticated
   `export.fhir.json` route represents selected rsIDs with the STU3 assessment,
@@ -62,6 +63,20 @@
   Activation now marks conflicts unresolved, preserves diploid PAR calls and
   recounts `n_called` after correction; pinned public 1000G X calls pass the
   PostgreSQL activation check, including an unknown-build case.
+- DeepAgents' separate conversation summarizer could receive old genotype
+  tool rows and write them to a readable history file before the ordinary
+  model-call guard ran. The summarization slot now redacts genotype results
+  and dependent answers before summary or history writes, and overflow
+  recovery clips only the redacted view. After a genotype query the Agent also
+  refuses scratch-file writes and reads, while the document mounts remain
+  readable. Public-call tests exercise synchronous and asynchronous paths;
+  a full live G8 audit remains open.
+- Previously mislabeled 1.5.1 genetic attachments could remain in the Agent
+  document mounts even after new uploads were classified correctly. The read
+  projection now hides files linked to genotype sets, plain exports with a
+  genotype header, and legacy gzip/zip containers; a final content check
+  refuses raw genetic bytes when cached text is absent. The public PostgreSQL
+  privacy check inserts mislabeled rows and confirms both mounts hide them.
 - Genetic resolver terms previously missed specific CYP2C19, MTHFR, APOE and
   HLA-B LOINC concepts or resolved ambiguous phrases as a genotype. Nine
   explicit mappings now target the named concepts and five broad phrases are

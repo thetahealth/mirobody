@@ -1,7 +1,7 @@
 """The agent: one harness, on LangChain + deepagents.
 
 `MirobodyAgent.generate_response` runs a turn: the LLM client for the requested
-provider, the MCP tools (the same five an external client sees, plus the
+provider, the MCP tools (the same seven an external client sees, plus the
 harness's own filesystem tools, the `eval` REPL and `ask_user`), a Postgres-
 backed virtual filesystem that projects the person's uploads, library and
 health profile read-only, a LangGraph checkpointer that holds the conversation
@@ -41,6 +41,7 @@ from .wire.blocks import ERROR, NOTICE
 from .wire.stream import TokenUsageCallback, stream_blocks
 from .middleware import (
     GenotypeRowGuardMiddleware,
+    GenotypeSafeSummarizationMiddleware,
     UniversalPromptCachingMiddleware,
 )
 
@@ -448,8 +449,10 @@ class MirobodyAgent:
 
             # What this agent adds at the tail: cross-provider prompt caching,
             # last so its decision wins.
+            genotype_guard = GenotypeRowGuardMiddleware()
             tail: list[Any] = [
-                GenotypeRowGuardMiddleware(),
+                GenotypeSafeSummarizationMiddleware(llm_client, backend, genotype_guard),
+                genotype_guard,
                 UniversalPromptCachingMiddleware(ttl="5m", unsupported_model_behavior="ignore")
             ]
 
