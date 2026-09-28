@@ -254,6 +254,16 @@ boundary.
   model. A config still setting `UTILS_EMBEDDING_MODEL` or
   `EMBEDDING_PROVIDER` is told at boot that nothing reads it, and a MODELS
   entry still carrying `embedding:` is named by the unread-key check.
+- **The system prompt is a third shorter, measured to behave the same.** The
+  template went from 13,537 to 9,141 characters: tool-specific caveats that
+  already ride on every tool result as `notes:` left, the depth, chart, table
+  and lab-report guidance was compressed, and maintainer rationale moved into
+  Jinja comments, which are not sent. Measured on 8 questions x 3 models x 2
+  repetitions against the seeded stack: 48/48 before and after, tool calls per
+  turn 1.44/3.44/1.56 before and 1.31/3.50/1.56 after (claude-sonnet / qwen /
+  gpt). The `# Available tools` section stays although the same descriptions
+  travel as tool definitions: removing it made qwen repeat identical calls (0 to
+  5-8 per 16 turns) and call 24-34% more tools; claude and gpt did not change.
 - **The chat agent no longer sees `resolve_indicator`, `convert_unit` or
   `normalize_unit`.** `query_health_indicators` already resolves names to
   LOINC and values to the catalogue's unit; those three serve an MCP client
