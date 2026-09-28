@@ -863,6 +863,15 @@ async def get_theta_token(platform: str, request: ProviderTokenRequest):
             return ErrorResponse(code=404, msg=f"Provider {provider_slug} not found")
 
 
+        # `certification` is the only proof this unauthenticated route gets, so
+        # a provider that does not verify it cannot issue a token. The default
+        # `_validate_credentials` accepts everything (it is a link-time sanity
+        # hook for a caller who is already signed in), and every shipped
+        # provider inherits it: with it, anyone who knew an account's vendor
+        # user id got a 30-day token for that account.
+        from mirobody.collect import BasePullProvider
+        if type(provider)._validate_credentials is BasePullProvider._validate_credentials:
+            return ErrorResponse(code=401, msg=f"Provider {provider_slug} cannot verify credentials")
         await provider._validate_credentials({"username": user_id, "password": certification})
         user = get_platform_user_service()
         from mirobody.utils.config import get_default_timezone

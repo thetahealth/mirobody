@@ -26,6 +26,7 @@ import uuid
 from typing import Any
 from collections.abc import AsyncGenerator
 
+from mirobody.agent.checkpointer import thread_for
 from mirobody.agent.registry import agent_name, new_agent
 from mirobody.agent.chat.file import process_files_from_storage
 from mirobody.agent.errors import client_safe_error
@@ -47,8 +48,7 @@ from mirobody.agent.wire.blocks import (
 )
 
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject
-from mirobody.user.user import get_user
+from mirobody.user.care_circle import CareCircleDenied, resolve_subject, shared_with_me
 from mirobody.utils import execute_query, safe_read_cfg
 from mirobody.utils.sse import heartbeat_seconds
 from mirobody.utils.config import get_default_timezone
@@ -226,15 +226,18 @@ async def _record_owner(params: ChatStreamRequest) -> str:
     """
     if params.query_user_id == params.user_id:
         return ""
-    owner = await get_user(user_id=params.query_user_id) or {}
-    return owner.get("name") or "another person"
+    # The circle's label for them ("妈妈") before their account name: it is the
+    # word the asker uses, so it is the word a question about them contains.
+    row = next((r for r in await shared_with_me(params.user_id)
+                if str(r.get("user_id")) == str(params.query_user_id)), None) or {}
+    return row.get("nickname") or row.get("name") or "another person"
 
 
 async def _agent_kwargs(params: ChatStreamRequest) -> dict[str, Any]:
     """What `AbstractAgent.generate_response` is called with (`registry.py`).
 
     `messages` carries ONLY this turn. The agent's graph is compiled with a
-    LangGraph checkpointer keyed on `thread_id = session_id`, so LangGraph
+    LangGraph checkpointer keyed on `thread_for(owner, session_id)`, so LangGraph
     holds the real AIMessage / ToolMessage objects and replays the conversation
     itself. `th_messages` stays authoritative for /api/history and sharing; it
     is not fed back into the agent loop.
@@ -244,7 +247,8 @@ async def _agent_kwargs(params: ChatStreamRequest) -> dict[str, Any]:
         # set, the requester otherwise. `_may_chat` already validated it.
         "user_id": params.query_user_id or params.user_id,
         "record_owner": await _record_owner(params),
-        "session_id": params.session_id,
+        # The agent keys its conversation memory on this; see `thread_for`.
+        "session_id": thread_for(params.user_id, params.session_id),
         "language": params.language,
         "timezone": params.timezone or get_default_timezone(),
         "token": params.token,

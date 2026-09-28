@@ -204,12 +204,15 @@ class UserService:
         return email, data.get("password") or ""
 
     async def password_register_handler(self, request: Request) -> Response:
-        """Create an account with a password, or set one on an account without.
+        """Create a NEW account with a password. An existing email is refused.
 
-        Deliberately NOT a password *change*: an account that already has a hash
-        is refused rather than overwritten, because this endpoint takes no proof
-        of ownership. Rotation belongs behind an authenticated route, and
-        pretending otherwise here would be a takeover primitive.
+        This endpoint takes no proof of ownership, so it may not touch an
+        account that exists. It used to set a password on any account without
+        one, which is every account made by email code, Apple or Google, and
+        answer with that account's tokens: measured 2026-09-28 on the seeded
+        stack, posting `mom@mirobody.ai` with a new password returned a token
+        for her account. Adding a password to an existing account belongs
+        behind an authenticated route.
         """
         if request.method == "OPTIONS":
             return json_response_with_code(disable_log=True)
@@ -230,20 +233,16 @@ class UserService:
             """
             INSERT INTO health_app_user (is_del, email, name, password_hash)
             VALUES (FALSE, :email, :name, crypt(:password, gen_salt('bf', 12)))
-            ON CONFLICT (email) WHERE (is_del = false) DO UPDATE
-                SET password_hash = crypt(:password, gen_salt('bf', 12))
-                -- Only when there is none to overwrite. `WHERE` on DO UPDATE
-                -- makes the conflicting row survive untouched instead.
-                WHERE health_app_user.password_hash IS NULL
+            ON CONFLICT (email) WHERE (is_del = false) DO NOTHING
             RETURNING id
             """,
             {"email": email, "name": email.split("@")[0], "password": password},
             log_sql=False,
         )
         if not rows:
-            # The row exists and already had a hash, so nothing was updated.
+            # The email has an account, whichever way it signs in.
             return json_response_with_code(
-                -4, "That account already has a password. Sign in instead.", request=request
+                -4, "An account with this email already exists. Sign in instead.", request=request
             )
 
         return await self._generate_auth_response(rows[0]["id"], email, "password", request)

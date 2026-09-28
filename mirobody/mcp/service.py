@@ -317,26 +317,15 @@ class McpService:
     #-----------------------------------------------------
 
     async def mcp_handler(self, request: Request) -> Response:
-        if request.method == "POST":
-            # Single HTTP request.
-            pass
-
-        elif request.method == "GET":
-            # TODO: WebSocket.
-            pass
-
-        elif request.method == "OPTIONS":
-            # Return straightly. CORS headers are handled by CORSMiddleware.
-            return Response(
-                content     = "200 ok",
-                status_code = 200,
-            )
-
-        else:
-            return Response(
-                content     = "405 Method Not Allowed",
-                status_code = 405,
-            )
+        if request.method == "OPTIONS":
+            # CORS headers are added by CORSMiddleware.
+            return Response(content="200 ok", status_code=200)
+        if request.method != "POST":
+            # Streamable HTTP: a GET asks for a server-sent stream, which this
+            # server does not offer, and 405 is the answer the spec names for
+            # that. A GET used to fall through to body parsing and come back as
+            # a JSON-RPC parse error.
+            return Response(content="405 Method Not Allowed", status_code=405, headers={"Allow": "POST, OPTIONS"})
 
         #-------------------------------------------------
 
@@ -608,6 +597,11 @@ class McpService:
             if isinstance(result, dict):
                 if "success" in result and isinstance(result["success"], bool):
                     is_error = not result["success"]
+                # The record tools answer with an envelope's `status`, never
+                # `success`, so a refused, denied or failed read reached the
+                # client as `isError: false` with "error (...)" as its text.
+                if result.get("status") == "error":
+                    is_error = True
 
                 if is_error and "error" in result:
                     data = result["error"]

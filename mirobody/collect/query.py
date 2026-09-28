@@ -56,9 +56,9 @@ logger = logging.getLogger(__name__)
 #: Names listed for the MODEL: a token budget. The browser gets `REST_CATALOG_MAX`.
 CATALOG_MAX = 200
 REST_CATALOG_MAX = 2000
-#: Raw rows per indicator for the browser's reading list. The model gets
-#: `query.ROW_CAP`; the web client asks for 200 and pages them.
-REST_ROW_MAX = 500
+#: Raw rows per indicator for the browser's reading list, the 200 the web
+#: client pages through. The model gets `query.ROW_CAP`.
+REST_ROW_MAX = 200
 
 #: How many series one keyword search may expand to.
 MAX_KEYWORD_NAMES = 12

@@ -103,6 +103,25 @@ boundary.
   locally newest installed version at query time. Public v1.59.1 and v1.60.0
   dumps passed the offline fetch and selection checks.
 
+### Security
+
+- **Anyone who knew a session id could read and write that conversation.**
+  The agent's checkpoint thread was the client-supplied `session_id` alone, so
+  a second account posting a known id resumed the first account's turns (the
+  model repeated its LDL and HDL back) and its own message became part of the
+  owner's next turn. Threads are now `<owner>:<session>`
+  (`agent/checkpointer.py::thread_for`); `90_retire.sql` re-keys existing
+  threads under their first message's sender. To check, post someone else's
+  session id: the answer says it is the first message.
+- **`POST /password/register` took over any account without a password.**
+  Every account made by email code, Apple or Google has no password hash, and
+  registering its email set one and returned that account's tokens. It now
+  creates new accounts only; an existing email answers -4.
+- **`POST /api/v1/pulse/{platform}/token` issued a 30-day token without
+  checking anything.** The provider's `_validate_credentials` was its only
+  proof, and the default accepts everything, which every shipped provider
+  inherits. A provider that does not override it now answers 401.
+
 ### Changed
 
 - **Asking on someone's behalf answered as if the record were the asker's.**
@@ -129,7 +148,7 @@ boundary.
   day together; the old `day` basis dropped a morning blood pressure followed
   by an evening one. The REST route takes `view` too; `resolution`,
   `aggregate` and `limit` are ignored there, and the browser's reading list is
-  capped by `collect.REST_ROW_MAX` (500). Ask for `view="stats"` and the meta
+  capped by `collect.REST_ROW_MAX` (200, what it asked for). Ask for `view="stats"` and the meta
   line reads `view=stats`.
 - **`query_genetic_data` dropped `include_nearby`, `nearby_range` and `limit`
   (breaking for MCP clients).** "Nearby" was physical distance, which is not
@@ -137,6 +156,15 @@ boundary.
   code only looked around sites that WERE typed, where no proxy is needed.
   What remained is a region query, which `chromosome`/`start`/`end` already
   are. Direct rows are capped at 100 (`ROW_CAP`); a gene selects at most seven.
+- **MCP clients got `isError: false` on a failed record-tool call.** The
+  record tools report `status`, never `success`, so a refused or failed read
+  arrived as a successful result whose text began "error (". `status: error`
+  now sets `isError`.
+- **`GET /mcp` answered a JSON-RPC parse error.** It now answers 405 with
+  `Allow: POST, OPTIONS`, as Streamable HTTP specifies for a server with no
+  event stream.
+- **A turn on someone else's record names them the way the asker does.**
+  `record_owner` is the care circle's label ("妈妈") before the account name.
 - **The chat agent no longer sees `resolve_indicator`, `convert_unit` or
   `normalize_unit`.** `query_health_indicators` already resolves names to
   LOINC and values to the catalogue's unit; those three serve an MCP client
