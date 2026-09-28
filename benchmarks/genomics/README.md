@@ -8,8 +8,8 @@ marker membership, merge history, selected placements and final rows; a fixed
 Input VCF/JSON files are streamed from disk and are never loaded in full.
 For a b157 bulk build, the builder checks both manifest SHA-256 and NCBI's
 published `.md5` checksum for each of the three pinned bulk files. The
-distributable candidate uses bounded public regions of UCSC's dbSNP 155
-Common tracks; the manifest pins SHA-256 for both assembly extracts.
+bundled index uses bounded public regions of UCSC's dbSNP 155 Common tracks;
+the manifest pins SHA-256 for both assembly extracts.
 
 Run the checked-in public NCBI example without a download:
 
@@ -25,7 +25,7 @@ The fixture is NCBI's
 for rs268. `fixtures/markers.tsv` contains only its `refsnp_id`. It is a parser
 and schema example, **not a consumer-array marker list**.
 
-The revised G0 candidate is selected by rsIDs from two openly shared Harvard
+The bundled index is selected by rsIDs from two openly shared Harvard
 PGP participant exports (one 23andMe v5 and one AncestryDNA v2) plus the
 bundled public CPIC v1.60.0 definition sites. This is an
 **observed marker union**, not either manufacturer's complete manifest. The
@@ -68,7 +68,7 @@ an allele. The packaged index has **489 dual-build SNV sites, 86,016 bytes**.
 Of the two observed PGP marker sets it covers **262/625,705** (23andMe v5)
 and **340/677,436** (Ancestry v2); it covers **41/992** CPIC definition rsIDs.
 Some covered IDs occur in more than one source. The union is 489/1,137,144
-distinct input rsIDs. These ratios are expected for a twelve-region preview
+distinct input rsIDs. These ratios are expected for a twelve-region index
 and are **not whole-chip coverage**. Gene symbols are present only where the
 CPIC sequence locations link an rsID to a gene (41 sites, twelve distinct
 gene labels); gene queries are incomplete. The index has no b157 merge
@@ -76,8 +76,8 @@ history, no I/D definitions and no WeGene/GSA manifest. An old merged rsID or
 a site outside the bounded regions stays `unresolved`, even if dbSNP knows it.
 `metadata.stats_json` records the exact per-source covered/total counts.
 
-The previous b157 full-file path remains available for a future broader
-candidate from redistributable marker lists. It takes these pinned sources:
+The builder also accepts NCBI's full b157 files, for an index selected from
+redistributable marker lists. That path takes these pinned sources:
 
 | Entry | NCBI b157 URL | Archive size, bytes (HEAD, 2026-09-26) |
 | --- | --- | ---: |
@@ -85,10 +85,10 @@ candidate from redistributable marker lists. It takes these pinned sources:
 | `vcf38` | https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/VCF/GCF_000001405.40.gz | 29,552,227,779 |
 | `merged` | https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/JSON/refsnp-merged.json.bz2 | 813,797,312 |
 
-The three NCBI b157 files total **58,560,825,230 bytes** compressed. They
-have not been downloaded here. The revised candidate makes no claim about a
-3–5 million-site manufacturer union, WeGene/GSA coverage or the former <1%
-unmatched-site target. The one-site example is a parser fixture only.
+The three NCBI b157 files total **58,560,825,230 bytes** compressed, and the
+bundled index is not built from them. It makes no claim about a 3–5
+million-site manufacturer union or WeGene/GSA coverage. The one-site example
+is a parser fixture only.
 
 Packaging includes `**/*.sqlite3`; `scripts/check_wheel_data.py` checks both
 wheel and sdist for the index, its NOTICE and the CPIC extract.
@@ -124,7 +124,7 @@ answers; two Qwen and one OpenRouter GPT targeted reruns recovered them.
 Keep the answer JSONL outside the repository and review it for claims the
 lexical alarm cannot detect.
 `eval_agent_public.py --audit-existing --output /path/to/answers.jsonl` re-scores
-all 40 saved answers without a model key and enforces the preview floor:
+all 40 saved answers without a model key and enforces the pass floor:
 at least 36 correct tool selections, at least 36 valid first answers and
 zero automated forbidden-claim matches. The three generic Qwen replies
 remain recorded as misses even though targeted reruns recovered them.
@@ -155,14 +155,14 @@ uploaded through the isolated WebSocket/PostgreSQL path, using
 two BGZF WGS files produced 4,741,304/4,741,304 and
 5,017,551/5,017,547 stored/called rows; the uncompressed VCF 1241 produced
 2,294,794/2,282,175. These VCF calls use their own REF/ALT and do not
-measure the 489-site candidate's whole-genome coverage. The PGP 179 NCBI36
+measure the 489-site index's whole-genome coverage. The PGP 179 NCBI36
 export produced zero normalized calls, an expected explicit coverage limit.
 Raw participant files stay outside the source tree.
 Set `MIROBODY_PUBLIC_PGP_DIR` to an external directory containing the pinned
 public PGP `MANIFEST.json` and its downloads, then run
 `python3 -m unittest benchmarks.genomics.test_public_pgp_classification` to
 repeat all 18 hash and classification checks. A clone without that corpus
-skips this optional gate.
+skips this optional check.
 Use `e2e_public_pgp_corpus.py --pgp-dir ... --base ...` to repeat the full
 original-file uploads; `--ids` selects public PGP IDs for a resumed run.
 
@@ -202,9 +202,10 @@ batches took 42.074 s and added 239,681,536 bytes. This measures storage,
 not consumer-array normalization or build lift.
 After adding the explicit raw-coordinate index for PAR/other unmapped rows,
 the same 1.3-million-row public GIAB import in the isolated audit schema took
-42.510 s and added 280,338,432 bytes of table plus indexes. It remains below
-the 60 s write gate; the extra raw index accounts for additional storage.
-Pass `--schema audit_genomics_152` (or another disposable schema) when the
+42.510 s and added 280,338,432 bytes of table plus indexes. That is within
+the 60 s budget for a whole-chip import; the extra raw index accounts for the
+additional storage.
+Pass `--schema audit_genomics` (or another disposable schema) when the
 test database also hosts an application schema.
 
 The final schema is `metadata(key,value)`,
@@ -215,5 +216,7 @@ separated `alt` describe GRCh38, and a site is omitted if its REF/ALT differs
 between the two builds because this schema cannot represent both safely.
 `gene` comes from dbSNP's annotation and is empty when it is absent. The
 `metadata` table records `version`, `scope`, source URL/hash/licence JSON and
-counts. `scope=candidate` describes the pinned public input set; it does not
-assert manufacturer coverage, size or I/D gates.
+counts. `scope=candidate` marks an index whose sites were selected from pinned
+public marker lists and CPIC definitions (the one-site parser fixture uses
+`sample`); it asserts nothing about manufacturer coverage, size or indel
+definitions. The scope is also the suffix of the version label.

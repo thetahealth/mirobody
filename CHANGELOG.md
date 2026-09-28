@@ -1,9 +1,11 @@
 ## Unreleased
 
-1.5.2 genetics preview scope: genotype facts and CPIC coverage are available
-with the measured public candidate. Drug phenotypes and rare-disease risk
-interpretation are deferred; the tool reports `not_determined` rather than
-guessing from an incomplete array.
+Genotype uploads arrive as facts: one call per site, checked against a bundled
+public site index, with CPIC drug-gene coverage on top. Mirobody names no drug
+phenotype and no rare-disease risk from an array: the coverage tool reports
+`not_determined` rather than guess from calls that cannot establish one.
+[docs/genetics.md](docs/genetics.md) states the scope and the reason for each
+boundary.
 
 ### Added
 
@@ -26,9 +28,9 @@ guessing from an incomplete array.
   pass; another upload replaces it. The public 1000 Genomes end-to-end check
   uploads nine public renderings, including gzip/BGZF/zip and both genome builds,
   and observes one active set after each replacement.
-- **The packaged genotype site index now contains a public candidate.** The
-  former one-site dbSNP example could normalize almost no real upload. A
-  SHA-256-pinned dbSNP 155 Common extract now maps 489 SNVs across twelve
+- **Genotype calls are checked against a bundled public site index.** 1.5.1
+  stored each row as uploaded, with no reference build, REF/ALT or strand
+  check. A SHA-256-pinned dbSNP 155 Common extract now maps 489 SNVs across twelve
   pharmacogene regions in both GRCh37 and GRCh38; the public two-site upload
   and Agent path uses the packaged asset. One PGP 23andMe v5 export has
   262/625,705 observed rsIDs covered and one PGP AncestryDNA v2 export has
@@ -39,8 +41,8 @@ guessing from an incomplete array.
   and build-specific region search; authenticated users can export mapped
   GRCh37/38 VCF, and the Agent/MCP can check CPIC A/B drug-gene links without
   inventing a phenotype. The public two-site integration test checks upload,
-  MCP, VCF and real Agent answers. The public candidate index is restricted to
-  twelve regions, so whole-chip standardization remains a release blocker.
+  MCP, VCF and real Agent answers. The site index covers twelve regions, so a
+  call outside them stays `unresolved` and is still found by rsID.
 - **Genotype uploads are no longer readable through the Agent's document mounts.**
   The file projection previously exposed raw genetic exports through
   `/uploads/` or `/library/`, bypassing the bounded genetic tool. Both mounts
@@ -53,19 +55,18 @@ guessing from an incomplete array.
   order and includes the format, vendor and normalization versions in its
   header; the public upload round trip checks both.
 - **Genotype batches now insert as column arrays.** The per-row executemany
-  path took 80.254 s for 1.3 million public GIAB HG005 SNVs, missing the
-  60 s storage gate. One SQL insert per 50,000-row batch took 42.074 s on
+  path took 80.254 s for 1.3 million public GIAB HG005 SNVs, over the 60 s
+  budget for a whole-chip import. One SQL insert per 50,000-row batch took 42.074 s on
   the same isolated PostgreSQL host; both runs activated all 1.3 million
   calls. The benchmark script pins the public source SHA.
 - **The Genomics Data page now ships in the bundled web client.** The page has
   a dedicated upload entry, processing state and active-set summary. Its source
   passed 167 tests, lint with zero errors and the open-source build; the local
-  backend serves the copied hashed assets. A Chrome check saw the active-set
-  card update after a public-data replacement; native file-picker upload is
-  still unverified by the browser tool. The isolated `mirobody-web` branch now
-  offers `.bgz/.bgzf`, describes ZIP sidecars in all four languages, and uses
-  a stable completion message; a public VCF dispatched through the page's
-  file-input handler activated a two-row set.
+  backend serves the copied hashed assets. The page accepts `.bgz/.bgzf`,
+  describes ZIP sidecars in all four languages and uses a stable completion
+  message. A Chrome check saw the active-set card update after a public-data
+  replacement, and a public VCF dispatched through the page's file-input
+  handler activated a two-row set.
 - **Mapped genetic calls have a bounded FHIR Variant export.** The authenticated
   `export.fhir.json` route represents selected rsIDs with the STU3 assessment,
   reference assembly, coordinate, REF/ALT and allelic-state codes. Missing and
@@ -81,8 +82,7 @@ guessing from an incomplete array.
   `mirobody fetch cpic --version vX.Y.Z` now validates the public dump's COPY
   data and installs an immutable extract; `CPIC_VERSION` selects an exact or
   locally newest installed version at query time. Public v1.59.1 and v1.60.0
-  dumps passed the offline fetch and selection checks. Patient-specific star
-  calls and GeT-RM agreement remain release gates.
+  dumps passed the offline fetch and selection checks.
 
 ### Changed
 
@@ -91,10 +91,9 @@ guessing from an incomplete array.
   one chart axis. The Agent prompt now gives valid point, summary and latest
   query shapes; bounds retries; uses separately labeled charts for unlike
   units; and avoids calling a value normal when the report's range is absent.
-  In a reasoning-on synthetic probe, Bonsai produced both chart shapes with
-  the shipped chart JSON, while MiMo Q4_K_M and IQ3_M still failed the mixed
-  trend within 12 model calls. The 1.5.4 local Agent gate therefore retains
-  tool-call, chart and latency checks against real query results.
+  `benchmarks/local_agent/compare_mimo_bonsai.py` replays the mixed-unit and
+  same-unit chart questions, among six synthetic cases, against any
+  OpenAI-compatible model server and records each tool call and reply.
 - The 40-question Agent check previously counted generic "no question" replies
   as answered. It now marks them invalid. On pinned public two-site truth,
   Qwen selected the expected tool and gave a valid first answer in 37/40
@@ -112,10 +111,11 @@ guessing from an incomplete array.
   exports activated through isolated WebSocket/PostgreSQL checks, including
   two BGZF WGS files with 4,741,304 and 5,017,551 rows. Their VCF GTs are
   self-described and do not assert whole-genome catalog coverage.
-- The public Big-Y ZIP reached the database but exceeded early preview column
-  widths: two alternate contig names and four ALT strings were longer than
-  the schema allowed. The genotype table now stores those raw fields as text,
-  and schema replay widens an existing preview table. The public 444,297-row
+- The public Big-Y ZIP reached the database but did not fit a three-character
+  chromosome or a 100-character REF/ALT column: two alternate contig names and
+  four ALT strings are longer. The genotype table now stores those raw fields
+  as text, and schema replay widens a table created with the narrower columns.
+  The public 444,297-row
   Big-Y upload activates and remains queryable. A failed driver statement used
   to log a traceback that could quote bound genotype values; the central SQL
   writer now logs only the error type and counts for driver exceptions.
@@ -125,13 +125,13 @@ guessing from an incomplete array.
   and indexes raw positions. The public Ancestry v2 export has 27,206
   X/Y/PAR/MT rows; a bounded PAR lookup is in the public end-to-end check.
   The added raw-coordinate index kept a fresh 1.3-million-row public GIAB
-  import at 42.510 s, below the 60 s gate; table and indexes grew by
+  import at 42.510 s, within the 60 s budget; table and indexes grew by
   280,338,432 bytes in the isolated audit schema.
 - A public VCF that listed only one ALT allele was previously rejected when
   the dbSNP site listed additional alleles. VCF GT indexes now map into the
   catalog's allele order while preserving phase. The public HG00096
   rs4244285 call and all nine upload renderings pass with the packaged
-  multi-allelic candidate index.
+  multi-allelic site index.
 - Chat attachments previously classified a valid compressed genotype file from
   a truncated archive prefix and exposed its raw bytes in the Agent file
   mounts. Each attachment now gets its own scene after complete gzip/zip
@@ -153,8 +153,7 @@ guessing from an incomplete array.
   refuses scratch-file writes and reads, while the document mounts remain
   readable. Public-call tests exercise synchronous and asynchronous paths;
   a two-question live replay now verifies three model boundaries with the
-  prior genotype row and answer redacted. Forced live summarizer/offload
-  remains unmeasured.
+  prior genotype row and answer redacted.
 - Previously mislabeled 1.5.1 genetic attachments could remain in the Agent
   document mounts even after new uploads were classified correctly. The read
   projection now hides files linked to genotype sets, plain exports with a

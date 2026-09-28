@@ -1,4 +1,4 @@
-"""Optional full public PGP format gate; raw participant files stay external."""
+"""Optional full public PGP format check; raw participant files stay external."""
 
 from __future__ import annotations
 

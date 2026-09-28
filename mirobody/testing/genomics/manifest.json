@@ -69,7 +69,6 @@
   "schema": "mirobody-public-genotype-examples-1",
   "source": {
     "1000g_phase3_region_directory": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/",
-    "dbsnp_candidate_sha256": "557fed0f94ff613a091be21a877ebc2b4f7dd2e5019ebfcb6d636afd84083b60",
     "pgp4220_raw_sha256": "515559e5019e1557a3ea18b0a19ac88ea394f6504ef918dada44e58bb168d506",
     "pgp4220_url": "https://my.pgp-hms.org/user_file/download/4220",
     "public_x_subset_sha256": "70e3a0c535b472b3fbee5f1ae23451f68cab38927126e58ecd8912e3a700f1cf",
@@ -87,6 +86,7 @@
       "TPMT": "b0986a20a4969b0102fb25e09a64157866892899b21ef7570486490ad9a159e1",
       "UGT1A1": "94745960406de7299df7d3a61d539e048b16562fcef7dbf71fe17a8938abd328",
       "VKORC1": "4ef02c2d7809555edd1b4a8300a85aaba3fe529341c67f1283fedec1584ca768"
-    }
+    },
+    "site_catalog_sha256": "557fed0f94ff613a091be21a877ebc2b4f7dd2e5019ebfcb6d636afd84083b60"
   }
 }

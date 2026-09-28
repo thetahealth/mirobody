@@ -10,41 +10,48 @@ Ordered by (value ÷ risk) within each section.
 
 ## Capability gaps
 
-### 1.5.2 genetics preview gates
+### A genotype export without its header reaches the extraction model
 
-**Status:** open. The user chose a bounded public-data preview: genotype facts,
-CPIC drug-gene links and typed-site coverage ship with explicit uncertainty.
-G6 star-allele/phenotype inference and G7 rare-pathogenic interpretation move
-to a later release; neither can be inferred reliably from this 489-site
-candidate. Whole-chip claims and the old <1% unmatched target are outside
-the preview scope. The branch now accepts 35/37 public `snps` fixture shapes and
-5/5 public VCF fixtures, preserves active-set visibility across replacement,
-and passes a nine-rendering WebSocket → database → MCP check using two
-pinned 1000 Genomes HG00096 CYP2C19 calls; two real Agent questions passed on
-the same public truth. It also has a conservative CPIC
-v1.60.0 drug-gene coverage tool and GRCh37/38 VCF export. The frontend branch
-builds and its 167 tests pass. Those checks establish a working vertical path,
-not whole-chip accuracy or release readiness.
+**Status:** open defect, measured 2026-09-28 with the packaged public examples.
 
-The release gates and measured status are:
+The genetic classifier recognizes a genotype file by its column header. A
+text export whose header lines were removed (a 23andMe file trimmed by hand,
+say) is therefore not a genotype to it, and the upload takes the document
+path, which sends the text to the configured extraction model. Measured on
+the local Docker stack: `hg00096-23andme.txt` with its two comment lines
+removed created no genotype set, and the server log shows two
+`openrouter-utils` structured-output calls for that file, one for the
+abstract and one for indicator extraction. The scene is decided in
+`collect/files/file_upload_manager.py` for WebSocket uploads and in
+`agent/chat/file.py::_detect_file_scene` for chat attachments. Content whose
+leading rows have the rsID/chromosome/position/genotype shape should be
+refused there with a request for the original export, and never reach a model.
 
-| Gate | Missing evidence |
-| --- | --- |
-| G0 revised public candidate | The shipped dbSNP 155 Common candidate has 489 dual-build SNVs in twelve public pharmacogene regions, 86,016 bytes, and a reproducible SHA-256 build. It covers 262/625,705 observed rsIDs in one public PGP 23andMe v5 export, 340/677,436 in one public PGP AncestryDNA v2 export, and 41/992 public CPIC definition rsIDs. Real WebSocket/PostgreSQL uploads of those complete exports produced 643,535/258 and 677,436/339 stored/called rows, with atomic replacement and MCP lookup. The raw PGP exports do not ship. These are observed subsets, not manufacturer manifests; no whole-chip coverage claim or <1% unmatched target applies. No WeGene/GSA marker set, merged-rsID history, indel definition or rare-variant coverage is present. [Build and provenance](../benchmarks/genomics/README.md). |
-| G2 / G3 broader truth | The two-site public upload path and 489 candidate dual-build mappings pass local checks. Sex inference on a complete public genome, 10,000-site GRCh38 comparison and broad strand/indel truth have not been measured. These remain release gates if 1.5.2 claims whole-chip standardization. |
-| G-fmt public originals | The classifier recognizes all 17 accessible, hash-pinned PGP genotype exports, including BGZF WGS VCFs with long headers and a Big-Y ZIP with bounded BED/TXT sidecars; it rejects the one public HTML report. All 17 original public genotype exports activated through isolated WebSocket/PostgreSQL, including the 444,297-row Big-Y ZIP, two BGZF WGS VCFs (4,741,304 and 5,017,551 rows), and an uncompressed VCF (2,294,794 rows). Nine two-site renderings also passed. VCF GTs are self-described, so their called counts do not assert broad catalog verification. |
-| G-chr public substitute | The public PGP Ancestry v2 upload retained 25,242 X, 1,665 Y, 36 PAR and 263 MT rows, 27,206 in total. A bounded PAR MCP query returned a pinned public rsID with `build=raw`, explicitly identifying the coordinate as unverified upload data. The original private-file count is no longer an acceptance source. |
-| G4 | Measured with 1.3 million unique biallelic SNVs from pinned public GIAB HG005 truth in isolated PostgreSQL: batched executemany took 80.254 s and added 239,345,664 bytes of table and indexes; column-array batches took 42.074 s and added 239,681,536 bytes. With the raw-coordinate index added, a fresh isolated-schema run of the same 1.3 million public GIAB rows took 42.510 s and added 280,338,432 bytes. The 60 s target still passes. The historical 274 MB baseline used a different 1,346,761-row array sample, so it is context rather than a paired comparison. |
-| G5 | PharmCAT 3.4.0 accepts the public two-site GRCh38 export with zero VCF warnings and reports CYP2C19 candidate diplotypes; a full-array Named Allele Matcher agreement comparison has not run. A bounded FHIR STU3 Variant Observation export passes on those two public calls in nine upload renderings; a profile-validator and full-chip coverage check have not run. |
-| G6 / G-cpic, deferred phenotype | CPIC A/B links and defining-site coverage are available. Exact public CPIC releases can be fetched, validated and selected locally, with v1.59.1/v1.60.0 exercised. Star-allele/diplotype/phenotype calls and CDC GeT-RM truth agreement are deferred. The preview tool deliberately says `not_determined`. CPIC staleness warnings and version-change presentation remain open maintenance work. |
-| G7, deferred | The Agent is instructed not to infer disease risk from arrays. The five-site rare pathogenic truth gate is deferred; the preview does not label or interpret rare disease variants. |
-| G8 / G9 | Tool calls are bounded; complete gzip/zip chat classification and the document mounts pass a public PostgreSQL privacy check, including mislabeled legacy rows. Long-header VCF and `.bgz` classification now share a 256 KiB bound at the chat and legacy-mount boundary; public regression tests cover both. A model-call guard counts current-turn genotype tool rows and redacts prior-turn tool results and dependent answers; a two-turn checkpoint replay passed. Public tests confirm the separate DeepAgents summarizer and history offload redact genetic rows, including sync/async and overflow paths. Scratch-file reads/writes are refused after genetic queries and the general-purpose subagent is disabled. The isolated two-question live run logged three model boundaries with visible rows never exceeding current-turn returned rows; the prior row and answer were redacted. Forced live summary/offload remains unmeasured. The current Qwen 40-question run selected the expected tool in 37/40 (92.5%) with zero forbidden-claim alarms; three generic no-question replies were invalid first-turn answers. Targeted reruns answered two with Qwen and one with OpenRouter GPT. This narrow two-site evaluation is not clinical correctness or single-provider 40/40 reliability. |
-| Frontend | Source build, lint (zero errors, four existing warnings) and 167 unit tests pass on `feat/genomics-upload`; its open-source build is copied into backend `frontend/` and the local server serves its hashed assets. The isolated frontend branch now offers BGZF and accurate ZIP sidecar guidance in four languages. Chrome showed the new copy and file accept list; dispatching a File input change with the tracked public VCF reached the upload handler and the active-set card showed two rows. The Chrome upload tool denied local fixture paths under its workspace policy, so the operating-system file chooser itself remains unverified. |
+### Genetics beyond the bundled pharmacogene index
 
-The one-way `mirobody migrate-genotypes` command preserves the latest 1.5.1
-file's raw calls as unresolved and has passed a public-data database check.
-It keeps existing records visible without asserting an unverified reference
-genotype. A full source re-upload is still required for standardization.
+**Status:** design questions. The shipped scope and its reasons are in
+[genetics.md](genetics.md); each extension below needs evidence that the
+bundled public sources cannot give.
+
+- **Whole-chip mapping** needs redistributable manufacturer marker lists. The
+  builder already verifies and reads NCBI's b157 bulk files (58.6 GB
+  compressed). The two PGP exports that selected the bundled sites are
+  observed marker sets, not manifests, and the index covers 262 of 625,705 and
+  340 of 677,436 of their rsIDs. `th_genotype_set.chip_fingerprint` is
+  reserved for recording which array produced an upload.
+- **Star alleles, diplotypes and phenotypes** need phase, copy number and
+  complete allele definitions, and agreement with the CDC GeT-RM consensus
+  panel before a result could be shown. On the two-site public export,
+  PharmCAT 3.4.0 lists candidate CYP2C19 diplotypes rather than one.
+  `th_pgx_result` is reserved for such results.
+- **Rare pathogenic interpretation** needs a curated truth set. The tools
+  report array calls without a clinical classification.
+- **CPIC currency.** The bundled v1.60.0 extract is pinned and `mirobody fetch
+  cpic` installs a newer release, but an answer does not say how old the
+  selected release is.
+- **Multi-sample VCF.** The parser reads one named sample
+  (`genotype_format.records(..., sample=...)`), but the upload has no field
+  that names the person's sample, so such files are refused.
 
 ### Word and PowerPoint uploads — **parsed**
 

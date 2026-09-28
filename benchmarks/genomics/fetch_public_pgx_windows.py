@@ -1,4 +1,4 @@
-"""Fetch bounded, public dbSNP 155 Common regions for the preview catalog."""
+"""Fetch bounded, public dbSNP 155 Common regions for the bundled site index."""
 
 from __future__ import annotations
 

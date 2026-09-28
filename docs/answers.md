@@ -88,8 +88,8 @@ query_pharmacogenomics (drugs | genes, member)
 
 Genetic region queries accept `build=GRCh37|GRCh38|raw`. The explicit `raw`
 choice reads the file's original coordinates without asserting an assembly;
-Ancestry PAR rows use this path because the preview catalog has no dual-build
-PAR mapping.
+Ancestry PAR rows use this path because the bundled site index has no
+dual-build PAR mapping.
 
 All are flat (models handle flat schemas better than `oneOf`), all are
 closed (`additionalProperties: false`), and a parameter the schema does not

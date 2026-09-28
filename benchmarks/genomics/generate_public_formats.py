@@ -2,7 +2,7 @@
 
 Inputs are a pinned public 1000G CYP2C19 region VCF (GRCh37) and PharmCAT
 3.4.0 positions VCF (GRCh38). No private export or invented genotype is used.
-The small SQLite file is a test catalog; it is not the released G0 asset.
+The small SQLite file is a test catalog, separate from the bundled site index.
 """
 
 from __future__ import annotations

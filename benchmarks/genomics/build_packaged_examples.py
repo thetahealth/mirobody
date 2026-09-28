@@ -3,7 +3,7 @@
 HG00096 calls come from pinned 1000 Genomes phase 3 region extracts. The
 single no-call comes from an openly shared PGP 23andMe export. No variant or
 genotype value is fabricated; each selected site is checked against the
-packaged dbSNP candidate before a vendor rendering is written.
+bundled dbSNP site index before a vendor rendering is written.
 """
 
 from __future__ import annotations
@@ -116,7 +116,7 @@ def _region_calls(directory: Path) -> list[Call]:
                     "SELECT chrom,pos37,pos38,ref,alt,gene FROM sites WHERE rsid=?", (rsid,),
                 ).fetchone()
                 if row is None or row[5] != gene:
-                    raise ValueError(f"candidate site or gene changed: {rsid}")
+                    raise ValueError(f"site index entry or gene changed: {rsid}")
                 sites[(row[0], row[1])] = (rsid, row)
             path = directory / f"{gene}.GRCh37.vcf.gz"
             _require_hash(path, REGION_SHA256[gene])
@@ -295,7 +295,7 @@ def build(regions_dir: Path, pgp_path: Path, out: Path) -> dict:
             "region_extract_sha256": REGION_SHA256,
             "public_x_url": X_URL, "public_x_subset_sha256": X_SHA256,
             "pgp4220_url": PGP_URL, "pgp4220_raw_sha256": PGP_SHA256,
-            "dbsnp_candidate_sha256": CATALOG_SHA256,
+            "site_catalog_sha256": CATALOG_SHA256,
         },
         "files": [{"name": name, "bytes": len(payload),
                    "sha256": hashlib.sha256(payload).hexdigest()}

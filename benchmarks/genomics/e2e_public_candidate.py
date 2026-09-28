@@ -1,4 +1,4 @@
-"""Upload two open PGP exports against the bounded packaged site candidate.
+"""Upload two open PGP exports and normalize them against the bundled site index.
 
 Raw participant exports must be held outside the source tree. The script
 reports only counts and identifiers, never the participant calls.

@@ -1,4 +1,4 @@
-"""Offline CPIC fetch gate using a pinned public release dump."""
+"""Offline CPIC fetch check using a pinned public release dump."""
 
 from __future__ import annotations
 

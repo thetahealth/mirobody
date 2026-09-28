@@ -21,7 +21,7 @@ The whole PGP file and original 1000 Genomes region VCFs are **not** shipped.
 
 The common internal row is **dbSNP rsID, chromosome, GRCh37/GRCh38 position,
 VCF REF/ALT/GT, call status, zygosity, and an HGNC gene symbol when the
-candidate catalog has one**. A VCF GT may keep phase (`1|0`); a chip export's
+bundled site index has one**. A VCF GT may keep phase (`1|0`); a chip export's
 allele pair is unphased (`0/1`). Those are equivalent alleles but different
 evidence. `raw` and `unresolved` remain explicit when the catalog cannot
 verify a position or strand. This is a variant representation built from

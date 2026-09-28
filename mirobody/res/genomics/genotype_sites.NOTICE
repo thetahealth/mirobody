@@ -1,7 +1,8 @@
-Mirobody genotype site catalog — public pharmacogene-region candidate
+Mirobody genotype site catalog — twelve public pharmacogene regions
 
 Asset: genotype_sites.sqlite3
-Asset version: dbsnp-b155-common-pgx-candidate
+Asset version: dbsnp-b155-common-pgx-candidate (release name, then the
+builder's input scope: sites selected from public marker lists and CPIC)
 Asset SHA-256: 557fed0f94ff613a091be21a877ebc2b4f7dd2e5019ebfcb6d636afd84083b60
 Asset size: 86,016 bytes; 489 dual-build SNV sites; 41 gene-labelled sites.
 

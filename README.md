@@ -56,22 +56,16 @@ all three, aggregates the trend, and names the file every number came from.</em>
   one call; comparisons across labs, files and devices, because one standard
   (LOINC and UCUM) sits under all of them. It reads medications and genetic
   variants too.
+- **Genotypes as facts, not verdicts.** Upload a 23andMe, AncestryDNA,
+  MyHeritage, FTDNA or WeGene export, or a VCF, and ask by rsID, gene or
+  region. Calls at 489 pharmacogene sites are checked against both genome
+  builds; every other row is kept as uploaded. A drug question gets CPIC
+  coverage (which sites were called, missing or unreadable), never a phenotype
+  or a change of medication. [How genetics works](docs/genetics.md).
 - **Runs on a laptop.** Four containers, 791 MiB resident, under 5% CPU idle.
   No GPU, no Node.js.
 - **Your model, your key, your data.** Model calls go to the model you chose.
   Everything else stays on your machine.
-
-**On the 1.5.2 genetics preview branch:** genotype uploads have atomic active
-sets, bounded rsID/gene/region queries, VCF export and a conservative CPIC
-coverage tool. The packaged public dbSNP candidate covers 489 SNVs in twelve
-pharmacogene regions. Whole-chip normalization and clinical phenotype calling
-are deferred from this preview.
-[Small public genotype examples](mirobody/testing/genomics/README.md) ship with
-the package so a developer can test multiple export formats against one
-canonical result without downloading a whole genome.
-[Current scope and release gates](docs/genetics.md).
-[Small indicator and complaint benchmarks](benchmarks/health_records/README.md)
-show LOINC/UCUM and ICPC-3 decisions with synthetic cases.
 
 ## Try it in 60 seconds
 
@@ -272,6 +266,16 @@ dataset.
   code, each with a confidence and the vendor document it came from, and 71
   quantities are declined with the reason rather than guessed.
   [The device crosswalk](docs/device-crosswalk.md) is the table.
+- **One genotype truth in ten file shapes**: 13 public 1000 Genomes calls
+  across 12 genes, as five vendor layouts and as VCF in both builds, gzip,
+  BGZF and ZIP, each checked against one canonical result. The files ship in
+  the wheel ([`mirobody/testing/genomics`](mirobody/testing/genomics/README.md));
+  [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py)
+  runs offline.
+- **Coding decisions you can replay**: five synthetic readings and nine
+  complaint phrases with their LOINC/UCUM or ICPC-3 outcome, including the
+  phrases that are refused rather than guessed.
+  [`benchmarks/health_records`](benchmarks/health_records/README.md).
 - **Three open benchmarks**, public datasets, one command each: longitudinal
   health agents, medical hallucination, harmful medical advice.
   [mirobody-eval](https://github.com/thetahealth/mirobody-eval) ·

@@ -44,18 +44,16 @@ Mirobody 把不同来源、格式、表述的健康信息，规整成一套语�
 - **Agent 只在编码过的数据上推理。** 按分钟、小时、天、周、月给出趋势，并画成图；一次调
   用就能算出基线和变化了多少；因为统一到了同一套标准（LOINC/UCUM），跨化验所、跨文件、跨设备
   可以直接比较；用药记录和基因型数据也读得了。
+- **基因数据，只说测到了什么。** 把 23andMe、AncestryDNA、MyHeritage、FTDNA、
+  WeGene 导出的原始数据或者 VCF 文件传上来，就能按 rsID、基因或染色体区间查。
+  其中 489 个药物基因位点会对照 GRCh37 和 GRCh38 两版参考基因组逐一核对，其余
+  位点原样保存。问到用药，它会告诉你 CPIC 相关位点哪些测到了、哪些缺失、哪些
+  没读出来，但不会据此推断你是哪种代谢型，更不会建议你调整用药。
+  [基因数据怎么处理](docs/genetics.md)。
 - **一台笔记本就能跑。** 四个容器，常驻 791 MiB，空载 CPU 占用不到 5%。不用
   GPU，不用 Node.js。
 - **你的模型，你的 key，你的数据。** 模型调用走你自己选的那个模型，其余的一切都留
   在你自己的机器上。
-
-**1.5.2 基因预览分支：**基因型上传已有原子切换的有效数据集、限定行数的 rsID／基因／区域查询、
-VCF 导出和谨慎的 CPIC 位点覆盖查询。随包的公开 dbSNP 候选索引仅覆盖 12 个药物基因
-区域中的 489 个 SNV 位点。整张芯片标准化和临床表型判定留待后续版本。
-[随包的公开小样例](mirobody/testing/genomics/README.md)覆盖多种厂商导出格式和同一份规范化结果，
-开发者无须下载整份基因组即可复测。
-[当前范围与发布门禁](docs/genetics.md)。
-[指标与主诉小样本 benchmark](benchmarks/health_records/README.md)用合成数值复现 LOINC／UCUM 与 ICPC‑3 的编码和拒绝判定。
 
 ## 60 秒试一下
 
@@ -235,6 +233,15 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
 - **13 家可穿戴厂商，逐字段读过一遍**：447 个字段里 289 个落到 LOINC 码，每一个
   都带置信度和它出自哪份厂商文档；另有 71 个量明确不落码，写明原因而不是猜。
   表在[设备对照表](docs/device-crosswalk.md)。
+- **一份基因型标准答案，十种文件格式**：取 1000 Genomes 公开样本在 12 个基因上的
+  13 个位点，分别写成五家厂商的导出格式，再加上 GRCh37、GRCh38 两版 VCF 和它的
+  gzip、BGZF、ZIP 压缩版；每一份解析出来，都要和同一份标准结果对得上。样例文件
+  随 wheel 一起发布（[`mirobody/testing/genomics`](mirobody/testing/genomics/README.md)），
+  [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py)
+  不联网也能跑。
+- **每一条编码判定都能复现**：5 条合成的检验读数、9 条常见的主诉说法，该落到哪个
+  LOINC／UCUM 或 ICPC-3 编码，都写在用例里；太笼统、有歧义，宁可不编码也不瞎猜的
+  说法，也一并列了进去。[`benchmarks/health_records`](benchmarks/health_records/README.md)。
 - **三个公开基准**，数据集公开，各自一条命令可复现：长期健康 agent、医疗幻觉、
   有害医疗建议。
   [mirobody-eval](https://github.com/thetahealth/mirobody-eval) ·

@@ -14,7 +14,7 @@ https://my.pgp-hms.org/user_file/download/4220
 https://pgp.med.harvard.edu/about
 
 Dual-build positions, REF/ALT and gene symbols for the thirteen autosomal
-sites are checked against the shipped public dbSNP 155 Common candidate.
+sites are checked against the bundled public dbSNP 155 Common site index.
 The catalog's separate NOTICE records its UCSC/NCBI source and coverage.
 
 Vendor-shaped text/CSV and compressed VCF files are renderings of those
