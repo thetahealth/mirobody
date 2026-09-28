@@ -797,20 +797,16 @@ class WebSocketFileUploadManager:
             # query_user_id = target user (for whom the file is uploaded)
             target_user_id = query_user_id if query_user_id else user_id
             
-            # Determine file scene based on file type
-            # Priority: genetic > excel > csv > report
-            has_genetic = any(f.get("type") == "genetic" for f in return_info.get("files", []))
-            has_excel = any(f.get("type") == "excel" for f in return_info.get("files", []))
-            has_csv = any(f.get("type") == "csv" for f in return_info.get("files", []))
-            
-            if has_genetic:
-                file_scene = "genetic"
-            elif has_excel:
-                file_scene = "excel"
-            elif has_csv:
-                file_scene = "csv"
-            else:
-                file_scene = "report"
+            # A mixed upload must not give every file the first genetic file's
+            # scene: the Agent file projection makes its decision per row.
+            scenes_by_key = {
+                str(entry["file_key"]): (
+                    "genetic" if entry.get("type") == "genetic" else
+                    "excel" if entry.get("type") == "excel" else
+                    "csv" if entry.get("type") == "csv" else "report"
+                )
+                for entry in files_array if entry.get("file_key")
+            }
             
             # Insert files into th_files table
             # user_id: current user who performed the upload
@@ -818,7 +814,8 @@ class WebSocketFileUploadManager:
             inserted_ids = await FileDbService.insert_files_batch(
                 user_id=user_id,
                 files_info=files_info,
-                scene=file_scene,
+                scene="report",
+                scenes_by_key=scenes_by_key,
                 created_source="web_drive",
                 created_source_id=message_id,
                 query_user_id=target_user_id,

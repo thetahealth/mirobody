@@ -167,33 +167,21 @@ async def schedule_file_processing_tasks(
 
 #-----------------------------------------------------------------------------
 
-def _detect_batch_scene(files_info: list[dict[str, Any]]) -> str:
-    """Pick the th_files ``scene`` for a chat upload batch.
-
-    Mirrors the drive upload path (``file_upload_manager``): priority
-    genetic > excel > csv > report. Genetic is detected from the file header
-    (WeGene marker) via the shared ``GeneticHandler.is_genetic_content``;
-    excel/csv from the filename extension. Keeps chat uploads consistent with
-    drive uploads so the same file gets the same scene + downstream handling.
-    """
+def _detect_file_scene(fi: dict[str, Any]) -> str:
+    """Classify one chat attachment before it can enter the Agent file mounts."""
     from mirobody.collect import GeneticHandler
 
-    has_genetic = has_excel = has_csv = False
-    for fi in files_info:
-        name = (fi.get("file_name") or "").lower()
-        ctype = fi.get("content_type") or fi.get("file_type") or ""
-        head = (fi.get("content_bytes") or b"")[:200]
-        if GeneticHandler.is_genetic_content(head, ctype):
-            has_genetic = True
-        elif name.endswith((".xlsx", ".xls")):
-            has_excel = True
-        elif name.endswith(".csv"):
-            has_csv = True
-    if has_genetic:
+    name = (fi.get("file_name") or "").lower()
+    ctype = fi.get("content_type") or fi.get("file_type") or ""
+    content = fi.get("content_bytes") or b""
+    # The archive reader validates the trailer, member count and CRC. A prefix
+    # of a valid gzip/zip can look invalid and would let it into /uploads/.
+    probe = content if content.startswith((b"\x1f\x8b", b"PK\x03\x04")) else content[: GeneticHandler.SNIFF_BYTES]
+    if GeneticHandler.is_genetic_content(probe, ctype):
         return "genetic"
-    if has_excel:
+    if name.endswith((".xlsx", ".xls")):
         return "excel"
-    if has_csv:
+    if name.endswith(".csv"):
         return "csv"
     return "report"
 
@@ -265,16 +253,12 @@ async def process_files_from_storage(
             f"Concurrent download completed: {len(files_info)}/{len(file_list)} files successful"
         )
 
-        # Save files to th_files table (uses same unified structure).
-        # Detect the scene the same way the drive upload path does
-        # (file_upload_manager: genetic > excel > csv > report) so a file
-        # uploaded in chat lands in /drive with the same scene/handling as one
-        # uploaded in the drive page, instead of always "report".
-        scene = _detect_batch_scene(files_info)
+        scenes = await asyncio.gather(*(asyncio.to_thread(_detect_file_scene, fi) for fi in files_info))
         inserted_ids = await FileDbService.insert_files_batch(
             user_id=user_id,
             files_info=files_info,
-            scene=scene,
+            scene="report",
+            scenes_by_key={str(fi["file_key"]): scene for fi, scene in zip(files_info, scenes, strict=True)},
             created_source="web_chat",
             created_source_id=msg_id,
             query_user_id=query_user_id,
