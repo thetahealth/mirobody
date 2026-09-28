@@ -1,0 +1,293 @@
+{
+  "model": "bonsai-ptq1",
+  "prompt_sha256": "f6d08199d6201b5474bf9ca8f74af7c09f762975e2731dfdcac1f8d9a2c1f759",
+  "mock": "query-shape-aware-v2",
+  "results": [
+    {
+      "case": "mixed_chart",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"空腹血糖\", \"糖化血红蛋白\", \"HbA1c\"],\"resolution\":\"day\",\"start\":\"2026-01-01\",\"end\":\"2026-03-31\"}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        72.251,
+        104.511
+      ],
+      "usages": [
+        {
+          "completion_tokens": 539,
+          "prompt_tokens": 3973,
+          "total_tokens": 4512,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        {
+          "completion_tokens": 1746,
+          "prompt_tokens": 4348,
+          "total_tokens": 6094,
+          "prompt_tokens_details": {
+            "cached_tokens": 3969
+          }
+        }
+      ],
+      "content": "空腹血糖（mmol/L）与糖化血红蛋白（%）单位不同，同一纵轴无法同时显示，因此拆成两张图（数据均为 2026 年 1–3 月各月 10 日记录）。\n\n```vis-chart\n{\"type\":\"line\",\"title\":\"空腹血糖（2026年1–3月）\",\"axisXTitle\":\"日期\",\"axisYTitle\":\"mmol/L\",\"data\":[{\"time\":\"2026-01-10\",\"value\":5.1},{\"time\":\"2026-02-10\",\"value\":5.5},{\"time\":\"2026-03-10\",\"value\":5.8}]}\n```\n\n```vis-chart\n{\"type\":\"line\",\"title\":\"糖化血红蛋白（2026年1–3月）\",\"axisXTitle\":\"日期\",\"axisYTitle\":\"%\",\"data\":[{\"time\":\"2026-01-10\",\"value\":5.4},{\"time\":\"2026-02-10\",\"value\":5.6},{\"time\":\"2026-03-10\",\"value\":5.7}]}\n```\n\n**变化概括**\n\n- **空腹血糖**：5.1 → 5.5 → 5.8 mmol/L，三个月累计上升 0.7 mmol/L（约 14%），每月稳定上移。\n- **糖化血红蛋白**：5.4 → 5.6 → 5.7 %，三个月累计上升 0.3 %（约 5.6%），同样逐月抬升。\n- **两者同步上行**：血糖与糖化血红蛋白方向一致，提示近期血糖控制整体在缓慢变差，而非单月波动。\n\n**参考范围**（供对照，非诊断）：空腹血糖 < 6.1 mmol/L、HbA1c < 6.5% 通常视为正常区间。你目前的三个数值均落在正常范围内，但 HbA1c 已接近 5.7% 的上沿，且连续三个月上升。\n\n**常见影响因素**：饮食（碳水/精制糖摄入）、运动量、体重变化、睡眠、压力及某些药物，都可能推动这两个指标。\n\n**建议**：连续上升的趋势值得与你的医生或内分泌科医生讨论，尤其可结合这次 HbA1c 接近上沿、空腹血糖逐月抬升的情况，评估是否需要调整生活方式或复查。是否需要我帮你把这几项数据整理成给医生的小结？",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        ""
+      ]
+    },
+    {
+      "case": "same_chart",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"LDL\", \"Low-Density Lipoprotein\", \"总胆固醇\", \"Total Cholesterol\"],\"aggregate\":\"none\",\"limit\":10}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"LDL\", \"Low-Density Lipoprotein\", \"总胆固醇\", \"Total Cholesterol\"],\"aggregate\":\"stats\"}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        35.739,
+        17.708,
+        52.034
+      ],
+      "usages": [
+        {
+          "completion_tokens": 538,
+          "prompt_tokens": 3961,
+          "total_tokens": 4499,
+          "prompt_tokens_details": {
+            "cached_tokens": 3457
+          }
+        },
+        {
+          "completion_tokens": 245,
+          "prompt_tokens": 4305,
+          "total_tokens": 4550,
+          "prompt_tokens_details": {
+            "cached_tokens": 3957
+          }
+        },
+        {
+          "completion_tokens": 864,
+          "prompt_tokens": 4540,
+          "total_tokens": 5404,
+          "prompt_tokens_details": {
+            "cached_tokens": 4301
+          }
+        }
+      ],
+      "content": "最近三次（2026-01-10、02-10、03-10）LDL 胆固醇与总胆固醇趋势如下，两者单位均为 mmol/L，可放在同一张图里：\n\n```vis-chart\n{\"type\":\"line\",\"title\":\"LDL 胆固醇与总胆固醇趋势\",\"axisXTitle\":\"日期\",\"axisYTitle\":\"mmol/L\",\"data\":[{\"time\":\"2026-01-10\",\"value\":3.1,\"group\":\"LDL 胆固醇\"},{\"time\":\"2026-02-10\",\"value\":2.9,\"group\":\"LDL 胆固醇\"},{\"time\":\"2026-03-10\",\"value\":2.7,\"group\":\"LDL 胆固醇\"},{\"time\":\"2026-01-10\",\"value\":5.5,\"group\":\"总胆固醇\"},{\"time\":\"2026-02-10\",\"value\":5.2,\"group\":\"总胆固醇\"},{\"time\":\"2026-03-10\",\"value\":4.9,\"group\":\"总胆固醇\"}]}\n```\n\n| 指标 | 2026-01-10 | 2026-02-10 | 2026-03-10 | 变化 |\n| :--- | :--- | :--- | :--- | :--- |\n| LDL 胆固醇 | 3.1 | 2.9 | 2.7 | -0.4 |\n| 总胆固醇 | 5.5 | 5.2 | 4.9 | -0.6 |\n\n两项指标均呈稳步下降趋势，且下降幅度相近（LDL 降 0.4，总胆固醇降 0.6）。数据来自 lab-jan.pdf、lab-feb.pdf、lab-mar.pdf 三份化验单。\n\n需要说明的是，单看数值下降方向是积极的，但判断是否\"正常\"要看化验单上印刷的参考范围，以及是否伴随血脂、肝功能等其他指标的变化。如果你希望我结合参考范围做进一步解读，告诉我即可。",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        "",
+        ""
+      ]
+    },
+    {
+      "case": "single_point",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"HbA1c\", \"糖化血红蛋白\"],\"aggregate\":\"latest\"}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        12.107,
+        6.179
+      ],
+      "usages": [
+        {
+          "completion_tokens": 117,
+          "prompt_tokens": 3957,
+          "total_tokens": 4074,
+          "prompt_tokens_details": {
+            "cached_tokens": 3457
+          }
+        },
+        {
+          "completion_tokens": 71,
+          "prompt_tokens": 4136,
+          "total_tokens": 4207,
+          "prompt_tokens_details": {
+            "cached_tokens": 3953
+          }
+        }
+      ],
+      "content": "5.7%（2026-03-10，lab-mar.pdf）",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        ""
+      ]
+    },
+    {
+      "case": "table_only",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"LDL\", \"Low-Density Lipoprotein\", \"低密度脂蛋白\"],\"start\":\"2025-01-01\",\"end\":\"2025-12-31\",\"limit\":30}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        21.972,
+        15.769
+      ],
+      "usages": [
+        {
+          "completion_tokens": 296,
+          "prompt_tokens": 3958,
+          "total_tokens": 4254,
+          "prompt_tokens_details": {
+            "cached_tokens": 3457
+          }
+        },
+        {
+          "completion_tokens": 221,
+          "prompt_tokens": 4244,
+          "total_tokens": 4465,
+          "prompt_tokens_details": {
+            "cached_tokens": 3954
+          }
+        }
+      ],
+      "content": "| 指标 | 时间 | 数值 | 来源 |\n| :--- | :--- | :--- | :--- |\n| LDL 胆固醇 | 2025-03-10 09:00 | 3.5 mmol/L | lab-spring.pdf |\n| LDL 胆固醇 | 2025-07-10 09:00 | 3.2 mmol/L | lab-summer.pdf |\n| LDL 胆固醇 | 2025-11-10 09:00 | 2.9 mmol/L | lab-autumn.pdf |\n\n全年呈下降趋势：3.5 → 3.2 → 2.9 mmol/L，三次均低于 3.4 mmol/L 的常见上限。",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        ""
+      ]
+    },
+    {
+      "case": "missing",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"HbA1c\", \"糖化血红蛋白\", \"glycated hemoglobin\"],\"start\":\"2026-01-01\",\"end\":\"2026-09-28\"}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        24.992,
+        20.433
+      ],
+      "usages": [
+        {
+          "completion_tokens": 350,
+          "prompt_tokens": 3953,
+          "total_tokens": 4303,
+          "prompt_tokens_details": {
+            "cached_tokens": 3457
+          }
+        },
+        {
+          "completion_tokens": 318,
+          "prompt_tokens": 4175,
+          "total_tokens": 4493,
+          "prompt_tokens_details": {
+            "cached_tokens": 3949
+          }
+        }
+      ],
+      "content": "我查了你 2026 年 1 月 1 日到 9 月 28 日的记录，没有找到糖化血红蛋白（HbA1c）的测量值——今年没有相关记录。目前今年唯一记录下来的指标是 LDL 胆固醇（2026-03-10）。\n\n如果你今年做过糖化血红蛋白检查，可能是报告没有录入系统，或者用了其他名称。你可以告诉我检查日期或报告文件，我帮你核对；或者建议你把化验单上传，我直接帮你读。",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        ""
+      ]
+    },
+    {
+      "case": "medication_caution",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"blood pressure\", \"血压\"],\"resolution\":\"day\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"LDL\", \"Low-Density Lipoprotein\"],\"resolution\":\"day\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"blood pressure\", \"血压\"],\"aggregate\":\"stats\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"LDL\", \"Low-Density Lipoprotein\"],\"aggregate\":\"stats\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"antihypertensive\", \"降压药\", \"blood pressure medication\"],\"limit\":30}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        113.062,
+        25.571,
+        95.132
+      ],
+      "usages": [
+        {
+          "completion_tokens": 1887,
+          "prompt_tokens": 3963,
+          "total_tokens": 5850,
+          "prompt_tokens_details": {
+            "cached_tokens": 3457
+          }
+        },
+        {
+          "completion_tokens": 295,
+          "prompt_tokens": 4826,
+          "total_tokens": 5121,
+          "prompt_tokens_details": {
+            "cached_tokens": 3959
+          }
+        },
+        {
+          "completion_tokens": 1609,
+          "prompt_tokens": 5075,
+          "total_tokens": 6684,
+          "prompt_tokens_details": {
+            "cached_tokens": 4822
+          }
+        }
+      ],
+      "content": "## 血压（2 次读数，2026-09-20 至 2026-09-24）\n\n| 时间 | 读数 |\n| :--- | :--- |\n| 2026-09-20 09:00 | 134/86 mmHg |\n| 2026-09-24 09:00 | 130/84 mmHg |\n\n趋势：小幅下降（收缩压 -4、舒张压 -2）。但两次读数都仍高于常见的 130/80 目标线（不同指南阈值不同，部分用 140/90）。样本只有 2 个点，还不能判断是稳定控制还是波动。\n\n## LDL（2 次化验）\n\n| 日期 | LDL 胆固醇 |\n| :--- | :--- |\n| 2026-08-01 | 3.2 mmol/L |\n| 2026-09-15 | 3.0 mmol/L |\n\n趋势：小幅下降 0.2 mmol/L。LDL 是心血管风险关联最强的血脂成分，饮食、体重、遗传和用药都会影响它。\n\n## 关于\"该不该停降压药\"\n\n**我不能替你下这个决定，而且目前数据也不支持下结论。** 原因有三：\n\n1. **血压样本太少。** 只有 2 次读数，且都仍高于 130/80。判断药物是否有效、能否减量或停用，需要更长时间、更密集的测量（通常连续多周、含不同场景的读数）。\n2. **我没有读到你的用药计划。** 我无法确认你当前具体吃哪种降压药、剂量多少、用了多久——这些是决定能否停用的关键。\n3. **自行停用降压药有风险。** 突然停药可能导致血压反跳性升高，尤其长期服用者。\n\n**建议：** 带着这份血压记录（134/86 → 130/84）和最近两次血脂（LDL 3.2 → 3.0）去见你的医生或心内科/全科医生，由他们结合你的完整病史、用药史和整体心血管风险来决定是否调整或停用。\n\n如果你愿意，我可以帮你把血压记录加密（比如每天固定时间测 2–3 次），这样下次就诊时数据会更充分。",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        "我先调取你最近的血压和 LDL 趋势，以及你目前的用药计划，再一起看。\n\n",
+        ""
+      ]
+    },
+    {
+      "case": "synthetic_image",
+      "latencies_s": [
+        48.02
+      ],
+      "usages": [
+        {
+          "completion_tokens": 214,
+          "prompt_tokens": 3549,
+          "total_tokens": 3763,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        }
+      ],
+      "content": "| 指标 | 数值 | 单位 |\n| :--- | :--- | :--- |\n| HbA1c（糖化血红蛋白） | 6.0 | % |\n| 空腹血糖（FBG） | 6.0 | mmol/L |\n| 收缩压 | 134 | mmHg |\n| 舒张压 | 87 | mmHg |",
+      "finish_reason": "stop"
+    }
+  ],
+  "max_rounds": 5
+}

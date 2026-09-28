@@ -1,0 +1,201 @@
+{
+  "model": "mimo-iq3-fixed",
+  "prompt_sha256": "0adb524c79cd5f38d2cd9b2ecb6da1e48fead0c2820f96f7487b2af40c2b45a3",
+  "mock": "query-shape-aware-v2",
+  "max_rounds": 12,
+  "results": [
+    {
+      "case": "mixed_chart",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"空腹血糖\", \"糖化血红蛋白\", \"fasting glucose\", \"HbA1c\"], \"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"Fasting glucose\", \"HbA1c\"], \"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"Fasting glucose\", \"HbA1c\"], \"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"Fasting glucose\", \"HbA1c\"], \"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"Fasting glucose\", \"HbA1c\"], \"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"Fasting glucose\", \"HbA1c\"], \"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"Fasting glucose\", \"HbA1c\"], \"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"Fasting glucose\", \"HbA1c\"], \"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"Fasting glucose\", \"HbA1c\"], \"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"Fasting glucose\", \"HbA1c\"], \"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"Fasting glucose\", \"HbA1c\"], \"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"Fasting glucose\", \"HbA1c\"], \"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": true
+        }
+      ],
+      "latencies_s": [
+        5.066,
+        9.986,
+        2.918,
+        2.409,
+        11.969,
+        7.6,
+        2.434,
+        2.41,
+        2.446,
+        2.439,
+        2.437,
+        2.424
+      ],
+      "usages": [
+        {
+          "completion_tokens": 127,
+          "prompt_tokens": 3861,
+          "total_tokens": 3988,
+          "prompt_tokens_details": {
+            "cached_tokens": 3345
+          }
+        },
+        {
+          "completion_tokens": 309,
+          "prompt_tokens": 4205,
+          "total_tokens": 4514,
+          "prompt_tokens_details": {
+            "cached_tokens": 3857
+          }
+        },
+        {
+          "completion_tokens": 71,
+          "prompt_tokens": 4471,
+          "total_tokens": 4542,
+          "prompt_tokens_details": {
+            "cached_tokens": 4201
+          }
+        },
+        {
+          "completion_tokens": 71,
+          "prompt_tokens": 4560,
+          "total_tokens": 4631,
+          "prompt_tokens_details": {
+            "cached_tokens": 4467
+          }
+        },
+        {
+          "completion_tokens": 396,
+          "prompt_tokens": 4649,
+          "total_tokens": 5045,
+          "prompt_tokens_details": {
+            "cached_tokens": 4556
+          }
+        },
+        {
+          "completion_tokens": 248,
+          "prompt_tokens": 4738,
+          "total_tokens": 4986,
+          "prompt_tokens_details": {
+            "cached_tokens": 4645
+          }
+        },
+        {
+          "completion_tokens": 71,
+          "prompt_tokens": 4827,
+          "total_tokens": 4898,
+          "prompt_tokens_details": {
+            "cached_tokens": 4734
+          }
+        },
+        {
+          "completion_tokens": 71,
+          "prompt_tokens": 4916,
+          "total_tokens": 4987,
+          "prompt_tokens_details": {
+            "cached_tokens": 4823
+          }
+        },
+        {
+          "completion_tokens": 71,
+          "prompt_tokens": 5005,
+          "total_tokens": 5076,
+          "prompt_tokens_details": {
+            "cached_tokens": 4912
+          }
+        },
+        {
+          "completion_tokens": 71,
+          "prompt_tokens": 5094,
+          "total_tokens": 5165,
+          "prompt_tokens_details": {
+            "cached_tokens": 5001
+          }
+        },
+        {
+          "completion_tokens": 71,
+          "prompt_tokens": 5183,
+          "total_tokens": 5254,
+          "prompt_tokens_details": {
+            "cached_tokens": 5090
+          }
+        },
+        {
+          "completion_tokens": 71,
+          "prompt_tokens": 5272,
+          "total_tokens": 5343,
+          "prompt_tokens_details": {
+            "cached_tokens": 5179
+          }
+        }
+      ],
+      "reasoning_chars": [
+        202,
+        996,
+        0,
+        0,
+        1068,
+        661,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "content": "",
+      "finish_reason": "round_limit"
+    }
+  ]
+}

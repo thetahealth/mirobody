@@ -1,0 +1,65 @@
+{
+  "model": "bonsai-ptq1",
+  "prompt_sha256": "0adb524c79cd5f38d2cd9b2ecb6da1e48fead0c2820f96f7487b2af40c2b45a3",
+  "mock": "query-shape-aware-v2",
+  "max_rounds": 5,
+  "results": [
+    {
+      "case": "same_chart",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"LDL\", \"Low-Density Lipoprotein\", \"总胆固醇\", \"Total Cholesterol\"],\"aggregate\":\"stats\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"LDL\", \"Low-Density Lipoprotein\", \"总胆固醇\", \"Total Cholesterol\"],\"resolution\":\"day\"}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        47.677,
+        9.514,
+        42.375
+      ],
+      "usages": [
+        {
+          "completion_tokens": 144,
+          "prompt_tokens": 4066,
+          "total_tokens": 4210,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        {
+          "completion_tokens": 118,
+          "prompt_tokens": 4301,
+          "total_tokens": 4419,
+          "prompt_tokens_details": {
+            "cached_tokens": 4062
+          }
+        },
+        {
+          "completion_tokens": 686,
+          "prompt_tokens": 4602,
+          "total_tokens": 5288,
+          "prompt_tokens_details": {
+            "cached_tokens": 4297
+          }
+        }
+      ],
+      "reasoning_chars": [
+        343,
+        254,
+        736
+      ],
+      "content": "```vis-chart\n{\"type\":\"line\",\"title\":\"LDL 与总胆固醇趋势（最近三次）\",\"axisXTitle\":\"日期\",\"axisYTitle\":\"mmol/L\",\"data\":[{\"time\":\"2026-01-10\",\"value\":3.1,\"group\":\"LDL cholesterol\"},{\"time\":\"2026-02-10\",\"value\":2.9,\"group\":\"LDL cholesterol\"},{\"time\":\"2026-03-10\",\"value\":2.7,\"group\":\"LDL cholesterol\"},{\"time\":\"2026-01-10\",\"value\":5.5,\"group\":\"Total cholesterol\"},{\"time\":\"2026-02-10\",\"value\":5.2,\"group\":\"Total cholesterol\"},{\"time\":\"2026-03-10\",\"value\":4.9,\"group\":\"Total cholesterol\"}]}\n```\n\n| 指标 | 2026-01-10 | 2026-02-10 | 2026-03-10 | 变化 |\n| :--- | :--- | :--- | :--- | :--- |\n| LDL cholesterol | 3.1 mmol/L | 2.9 mmol/L | 2.7 mmol/L | -0.4（约 -13%） |\n| Total cholesterol | 5.5 mmol/L | 5.2 mmol/L | 4.9 mmol/L | -0.6（约 -11%） |\n\n两次指标均同步下降，且降幅相近，说明总胆固醇的下降主要由 LDL 部分贡献。需注意：样本只有三个点，趋势方向尚需更多数据确认；记录中未附带参考范围，因此无法判断是否处于目标区间——若你希望评估达标情况，建议结合化验单上印刷的参考值，并与医生讨论。",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        "",
+        ""
+      ]
+    }
+  ]
+}

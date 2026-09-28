@@ -1,0 +1,201 @@
+{
+  "model": "mimo-q4-fixed",
+  "prompt_sha256": "0adb524c79cd5f38d2cd9b2ecb6da1e48fead0c2820f96f7487b2af40c2b45a3",
+  "mock": "query-shape-aware-v2",
+  "max_rounds": 12,
+  "results": [
+    {
+      "case": "mixed_chart",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"stats\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"空腹血糖\", \"糖化血红蛋白\", \"fasting glucose\", \"HbA1c\"], \"limit\": 50}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"end\": \"2026-03-31\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"end\": \"2026-03-31\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"end\": \"2026-03-31\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"end\": \"2026-03-31\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"end\": \"2026-03-31\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"end\": \"2026-03-31\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"end\": \"2026-03-31\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"end\": \"2026-03-31\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"end\": \"2026-03-31\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"end\": \"2026-03-31\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": true
+        }
+      ],
+      "latencies_s": [
+        15.148,
+        2.368,
+        2.173,
+        1.666,
+        1.435,
+        1.469,
+        1.531,
+        1.538,
+        1.415,
+        1.41,
+        1.424,
+        1.454
+      ],
+      "usages": [
+        {
+          "completion_tokens": 190,
+          "prompt_tokens": 3861,
+          "total_tokens": 4051,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        {
+          "completion_tokens": 66,
+          "prompt_tokens": 4007,
+          "total_tokens": 4073,
+          "prompt_tokens_details": {
+            "cached_tokens": 3857
+          }
+        },
+        {
+          "completion_tokens": 41,
+          "prompt_tokens": 4337,
+          "total_tokens": 4378,
+          "prompt_tokens_details": {
+            "cached_tokens": 4003
+          }
+        },
+        {
+          "completion_tokens": 41,
+          "prompt_tokens": 4486,
+          "total_tokens": 4527,
+          "prompt_tokens_details": {
+            "cached_tokens": 4333
+          }
+        },
+        {
+          "completion_tokens": 41,
+          "prompt_tokens": 4545,
+          "total_tokens": 4586,
+          "prompt_tokens_details": {
+            "cached_tokens": 4482
+          }
+        },
+        {
+          "completion_tokens": 41,
+          "prompt_tokens": 4604,
+          "total_tokens": 4645,
+          "prompt_tokens_details": {
+            "cached_tokens": 4541
+          }
+        },
+        {
+          "completion_tokens": 41,
+          "prompt_tokens": 4663,
+          "total_tokens": 4704,
+          "prompt_tokens_details": {
+            "cached_tokens": 4600
+          }
+        },
+        {
+          "completion_tokens": 41,
+          "prompt_tokens": 4722,
+          "total_tokens": 4763,
+          "prompt_tokens_details": {
+            "cached_tokens": 4659
+          }
+        },
+        {
+          "completion_tokens": 41,
+          "prompt_tokens": 4781,
+          "total_tokens": 4822,
+          "prompt_tokens_details": {
+            "cached_tokens": 4718
+          }
+        },
+        {
+          "completion_tokens": 41,
+          "prompt_tokens": 4840,
+          "total_tokens": 4881,
+          "prompt_tokens_details": {
+            "cached_tokens": 4777
+          }
+        },
+        {
+          "completion_tokens": 41,
+          "prompt_tokens": 4899,
+          "total_tokens": 4940,
+          "prompt_tokens_details": {
+            "cached_tokens": 4836
+          }
+        },
+        {
+          "completion_tokens": 41,
+          "prompt_tokens": 4958,
+          "total_tokens": 4999,
+          "prompt_tokens_details": {
+            "cached_tokens": 4895
+          }
+        }
+      ],
+      "reasoning_chars": [
+        342,
+        74,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "content": "",
+      "finish_reason": "round_limit"
+    }
+  ]
+}

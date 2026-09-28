@@ -86,6 +86,15 @@ guessing from an incomplete array.
 
 ### Changed
 
+- Focused health trends could send models toward summary queries without chart
+  points, repeat lookups after enough data had arrived, or mix unlike units on
+  one chart axis. The Agent prompt now gives valid point, summary and latest
+  query shapes; bounds retries; uses separately labeled charts for unlike
+  units; and avoids calling a value normal when the report's range is absent.
+  In a reasoning-on synthetic probe, Bonsai produced both chart shapes with
+  the shipped chart JSON, while MiMo Q4_K_M and IQ3_M still failed the mixed
+  trend within 12 model calls. The 1.5.4 local Agent gate therefore retains
+  tool-call, chart and latency checks against real query results.
 - The 40-question Agent check previously counted generic "no question" replies
   as answered. It now marks them invalid. On pinned public two-site truth,
   Qwen selected the expected tool and gave a valid first answer in 37/40

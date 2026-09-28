@@ -1,0 +1,89 @@
+{
+  "model": "mimo-q4-fixed",
+  "prompt_sha256": "680c953e6022dccfbeadc02b00ec57382b086ea3e1c6c8b69f126da318744885",
+  "mock": "query-shape-aware-v2",
+  "results": [
+    {
+      "case": "same_chart",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL\", \"LDL Cholesterol\", \"Total Cholesterol\", \"Total Cholesterol, HDL\"], \"aggregate\": \"latest\", \"limit\": 30}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"aggregate\": \"latest\", \"limit\": 30, \"member\": \"me\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL\", \"LDL Cholesterol\", \"Total Cholesterol\", \"Total Cholesterol, HDL\"], \"limit\": 30}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\", \"aggregate\": \"stats\", \"limit\": 30}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        3.837,
+        1.267,
+        1.589,
+        2.094,
+        1.374
+      ],
+      "usages": [
+        {
+          "completion_tokens": 89,
+          "prompt_tokens": 3456,
+          "total_tokens": 3545,
+          "prompt_tokens_details": {
+            "cached_tokens": 2952
+          }
+        },
+        {
+          "completion_tokens": 32,
+          "prompt_tokens": 3551,
+          "total_tokens": 3583,
+          "prompt_tokens_details": {
+            "cached_tokens": 3452
+          }
+        },
+        {
+          "completion_tokens": 46,
+          "prompt_tokens": 3626,
+          "total_tokens": 3672,
+          "prompt_tokens_details": {
+            "cached_tokens": 3547
+          }
+        },
+        {
+          "completion_tokens": 44,
+          "prompt_tokens": 3934,
+          "total_tokens": 3978,
+          "prompt_tokens_details": {
+            "cached_tokens": 3622
+          }
+        },
+        {
+          "completion_tokens": 38,
+          "prompt_tokens": 4009,
+          "total_tokens": 4047,
+          "prompt_tokens_details": {
+            "cached_tokens": 3930
+          }
+        }
+      ],
+      "content": "",
+      "finish_reason": "round_limit"
+    }
+  ],
+  "max_rounds": 5
+}
