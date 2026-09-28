@@ -13,7 +13,7 @@ with :func:`index_fold`.
 
 They used to sit in different packages: ``index_fold`` was a private
 ``_normalize`` inside ``indicator/fhir/embeddings/alias.py``, i.e. inside the
-bundle-BUILD tooling, imported from there by ``engine.py``. One function that
+bundle-BUILD tooling, imported from there by ``engine/resolver.py``. One function that
 the build and the runtime must agree on exactly is precisely the function that
 must have one home, and that home has to be on the runtime side, because the
 build tooling does not ship.
@@ -217,7 +217,7 @@ def surface_variants(term: str) -> list[str]:
 
     The last is the zh-Hant → zh-Hans fold. The alias lexicon build already
     mirrors Simplified keys to Traditional in the BUNDLE, but
-    ``res/resolver_overrides.tsv`` is a runtime file that gets no such
+    ``res/loinc/resolver_overrides.tsv`` is a runtime file that gets no such
     expansion, and it holds the hand-curated everyday panel terms. Measured
     before this: of eight common indicators whose Traditional spelling differs,
     two resolved and six returned nothing, with no rule distinguishing them.

@@ -6,7 +6,7 @@ GENERATED from zhconv by a build script: do not edit by hand.
 **Why the engine needs this at all.** The alias lexicon build already mirrors
 every Simplified key to its Traditional form
 (``fhir/embeddings/lexicon._expand_zh_traditional``), so the shipped bundle
-carries 3,161 Traditional keys. But ``res/resolver_overrides.tsv`` is a RUNTIME
+carries 3,161 Traditional keys. But ``res/loinc/resolver_overrides.tsv`` is a RUNTIME
 file and gets no such expansion, and it is where the hand-curated everyday
 panel terms live. The result was a split that looked arbitrary from outside:
 

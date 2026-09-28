@@ -926,8 +926,8 @@ class Config:
 
         final_yaml_file_list = []
 
-        default_yaml = "config.yaml"
-        if os.path.exists(default_yaml) and default_yaml not in yaml_file_list:
+        default_yaml = "config.yaml" if os.path.exists("config.yaml") else _shipped_defaults()
+        if default_yaml and default_yaml not in yaml_file_list:
             final_yaml_file_list.append(default_yaml)
             logger.info("Default config has been loaded.")
 
@@ -953,6 +953,24 @@ class Config:
         )
 
         return config
+
+#-----------------------------------------------------------------------------
+
+def _shipped_defaults() -> str | None:
+    """The `config.yaml` this installation came with, for a run outside a
+    checkout. Without it `pip install 'mirobody[parse]'` plus one key, run
+    from any other directory, had no MODELS table and so no model: the build
+    copies the three default files into `mirobody/_defaults/`, and an
+    editable install still has them at the checkout root."""
+    package = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    shipped = os.path.join(package, "_defaults", "config.yaml")
+    if os.path.isfile(shipped):
+        return shipped
+    root = os.path.dirname(package)
+    checkout = os.path.join(root, "config.yaml")
+    if os.path.isfile(checkout) and os.path.isfile(os.path.join(root, "pyproject.toml")):
+        return checkout
+    return None
 
 #-----------------------------------------------------------------------------
 

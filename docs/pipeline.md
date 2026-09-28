@@ -17,7 +17,7 @@ how a reader comes to believe a boundary does not exist.
 | 1 | **Connect** | a credential, its state machine, when to stop retrying | `kernel/connect.py` |
 | 2 | **Pull** | ask the vendor for a window; keep the raw payload | `collect/providers/` |
 | 3 | **Decode** | vendor JSON → `series.Fact`, in the catalogue's units | `kernel/decoders/` |
-| 4 | **Resolve** | which metric IS this — name, code, shape | `kernel/metrics.py`, `engine.py` |
+| 4 | **Resolve** | which metric IS this — name, code, shape | `kernel/metrics.py`, `engine/` |
 | 5 | **Gate** | reject the impossible; convert what is convertible | `kernel/quality.py`, applied in `collect/observations.py` |
 | 6 | **Store** | one writer, one day column, one fingerprint, the coding beside the row | `collect/observations.py`, `mirobody/translate/` |
 | 7 | **Aggregate** | a day of points → one number, under the metric's policy | `kernel/series.py`, `translate/aggregate/` |

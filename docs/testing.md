@@ -107,7 +107,7 @@ with the code for HbA1c is scored as a failure, and a category with no panel
 code of its own (`血脂`, `lipid panel`) is required to resolve to **nothing**,
 while a panel term that has one (`blood pressure` → `85354-9`) is required to
 resolve to the panel and never to one of its members. Adding a term
-is one row in `mirobody/res/resolver_overrides.tsv` plus one case here.
+is one row in `mirobody/res/loinc/resolver_overrides.tsv` plus one case here.
 
 **Cross-language identity.** `test_cross_language_identity.py` is the other half
 of a terminology change: the code is the series key, so two spellings of one

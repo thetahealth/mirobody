@@ -8,8 +8,8 @@ missing step.
 |---|---|---|---|
 | 01 | [`01_resolve_offline.py`](01_resolve_offline.py) | `pip install mirobody` | ② Translate: name → LOINC, any language, fully offline |
 | 02 | [`02_standardize_a_reading.py`](02_standardize_a_reading.py) | `pip install mirobody` | ① Collect: unit conversion + the indicator catalogue |
-| 03 | [`03_parse_a_lab_report.py`](03_parse_a_lab_report.py) | + one model key | a document → standardized readings in one call |
-| 04 | [`04_mcp_tool_surface.py`](04_mcp_tool_surface.py) | `pip install 'mirobody[parse]'` | ③ Answer: exactly what an external MCP client receives |
+| 03 | [`03_parse_a_lab_report.py`](03_parse_a_lab_report.py) | `pip install 'mirobody[parse]'` + one model key, only to read a file | a document → standardized readings in one call |
+| 04 | [`04_mcp_tool_surface.py`](04_mcp_tool_surface.py) | `pip install 'mirobody[agent]'` | ③ Agent: exactly what an external MCP client receives |
 | 05 | [`05_agent_server_preflight.py`](05_agent_server_preflight.py) | `pip install 'mirobody[app]'` | whether this machine can run the full server, and what is missing |
 | 06 | [`06_care_circle_rules.py`](06_care_circle_rules.py) | `pip install mirobody` | who may read whose record — the rule behind the README's demo |
 | 07 | [`07_claude_agent_sdk.py`](07_claude_agent_sdk.py) | a running mirobody + `pip install claude-agent-sdk` + a model key | another agent runtime answering from this data over `/mcp` — no mirobody import at all |
@@ -20,7 +20,7 @@ python examples/01_resolve_offline.py
 python examples/02_standardize_a_reading.py
 python examples/03_parse_a_lab_report.py          # no key needed without a file
 python examples/06_care_circle_rules.py
-pip install 'mirobody[parse]' && python examples/04_mcp_tool_surface.py
+pip install 'mirobody[agent]' && python examples/04_mcp_tool_surface.py
 
 # 07 needs a running stack (./deploy.sh) and a personal MCP URL (POST /personal/mcp):
 pip install claude-agent-sdk
@@ -37,15 +37,14 @@ normally the step that forces you to send it somewhere, and here it is not.
 object and two properties, so the rule can be shown without a database holding
 anybody's data.
 
-04 is also offline and keyless, but it imports the MCP tool directory
-(`mirobody.mcp.tool`), and that module reaches `mirobody.utils`, which is the
-`[parse]` extra — on a bare install it stops at `ModuleNotFoundError: ruamel`.
-It does not need the `mcp` package itself; `[parse]` is enough. This table used
-to claim the bare install was.
+04 is also offline and keyless, but it builds the tool definitions with the
+official MCP SDK, which is the `[agent]` extra; without it the script exits
+naming that extra. `[parse]` alone is not enough.
 
-03 needs one model key, and only for the *extraction* half — reading the page.
-The standardization that follows is deterministic and runs offline, which is
-why the script still does something useful with no key at all.
+03 needs one model key and the `[parse]` extra, and only for the *extraction*
+half — reading the page. The standardization that follows is deterministic and
+runs offline, which is why the script still does something useful on a bare
+install with no key at all.
 
 05 is the boundary. The chat server, the HTTP MCP endpoint and the agent need
 PostgreSQL, Redis and secrets. It reports every prerequisite at once instead of

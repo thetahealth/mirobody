@@ -445,18 +445,26 @@ class GarminProvider(BasePullProvider):
             api_error_message = str(e)
             logger.error(f"Error unlinking Garmin provider: {str(e)}")
 
-        # Always try to remove from database
+        # The local link goes either way: it is what the person asked to remove,
+        # and a token Garmin rejects cannot be revoked by trying again. A Garmin
+        # failure used to surface as a 500 after the row was already deleted, so
+        # the app said "failed" about a provider that was gone.
         try:
             await self.db_service.delete_user_theta_provider(user_id, self.info.slug)
-
-            if api_unlink_success:
-                return {"success": True, "message": "Successfully unlinked from Garmin"}
-            # After cleanup, propagate API failure
-            raise RuntimeError(f"Failed to unlink from Garmin: {api_error_message}")
-
         except Exception as db_error:
             logger.error(f"Failed to remove from database: {str(db_error)}")
             raise RuntimeError(f"Failed to unlink provider: {api_error_message or 'Unknown error'}") from db_error
+
+        if api_unlink_success:
+            return {"success": True, "vendor_revoked": True, "message": "Successfully unlinked from Garmin"}
+        return {
+            "success": True,
+            "vendor_revoked": False,
+            "message": (
+                "Unlinked here. Garmin did not confirm the revocation; remove Mirobody under "
+                "Garmin Connect > Settings > Connected Apps to finish."
+            ),
+        }
 
     async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
         """Garmin summaries → standard records, via ``mirobody.kernel.decoders.garmin``.

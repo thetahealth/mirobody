@@ -1,0 +1,37 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "ai.thetahealth/mirobody",
+  "title": "Mirobody",
+  "description": "Lab results and symptoms, in any language, as coded FHIR data. Offline, no API key.",
+  "version": "1.5.1",
+  "websiteUrl": "https://mirobody.ai",
+  "repository": {
+    "url": "https://github.com/thetahealth/mirobody",
+    "source": "github",
+    "id": "1106398326"
+  },
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/thetahealth/mirobody/main/docs/images/mirobody-icon.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": ["any"],
+      "theme": "light"
+    },
+    {
+      "src": "https://raw.githubusercontent.com/thetahealth/mirobody/main/docs/images/mirobody-icon-dark.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": ["any"],
+      "theme": "dark"
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "mirobody",
+      "version": "1.5.1",
+      "runtimeHint": "uvx",
+      "transport": {"type": "stdio"},
+      "packageArguments": [{"type": "positional", "value": "mcp"}]
+    }
+  ]
+}
