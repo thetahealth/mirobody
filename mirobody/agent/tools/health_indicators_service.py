@@ -16,11 +16,10 @@ calls. Such rows carry `provenance="reported"` and render as their own table.
 
 Three things make the flat schema safe:
 
-* **eight parameters, all applicable to every call**, no mode switch, so a
-  wrong combination is a refused `(resolution, aggregate)` cell, never a
-  parameter that is silently ignored (`query.validate_request`);
-* **a dispatch table**: `(resolution, aggregate)` maps to exactly one
-  `HealthQuery` method (`query.DISPATCH`);
+* **five parameters, all applicable to every call**, no mode switch and no
+  combination to get wrong: `view` is one enum (`query.validate_request`);
+* **a dispatch table**: `view` maps to exactly one `HealthQuery` method
+  (`query.DISPATCH`);
 * **an envelope**: the model reads rendered text, but everything a *program*
   needs (did it work, is a retry pointless, how much was cut, where each number
   came from) travels beside it in a `tools.Envelope`. Governance reads the
@@ -49,7 +48,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from mirobody.kernel import query, tools
-from ._authz import refused, subject_for
+from ._authz import refused
 from ._base import RecordTool
 from ._render import awaited, envelope_meta, render_compact
 
@@ -91,12 +90,14 @@ class HealthIndicatorsService(RecordTool):
     #: `args_schema`, so the two surfaces cannot drift. See `mcp/tool.py`.
     input_schema = query.TOOL_SCHEMA
 
-    def __init__(self, health_query: Any = None, *, now: Any = None, catalog_cap: int | None = None) -> None:
+    def __init__(self, health_query: Any = None, *, now: Any = None, catalog_cap: int | None = None,
+                 row_cap: int = query.ROW_CAP) -> None:
         self._health_query = health_query
         self._now = now  # injected in tests; production reads the clock
-        # A browser's catalogue is a table it scrolls, not a model's context
-        # window. `None` leaves the implementation's model-facing default.
+        # A browser's catalogue and reading list are tables it scrolls, not a
+        # model's context window. `None` leaves the model-facing catalogue cap.
         self._catalog_cap = catalog_cap
+        self._row_cap = row_cap
 
     def _query(self) -> Any:
         if self._health_query is None:
@@ -117,13 +118,12 @@ class HealthIndicatorsService(RecordTool):
         With no `keywords`/`indicators` it returns the CATALOGUE of what this
         person actually has, reported entries first, which is the right first
         call when you do not know the names. Ask for the shape you need:
-        `aggregate="stats"` for change, a baseline or how often,
-        `resolution="day"` for a trend line, `aggregate="latest"` for "what is
-        it now", never raw rows you would reduce yourself.
+        `view="stats"` for change, a baseline or how often, `view="day"` for a
+        trend line, `view="latest"` for "what is it now", never raw rows you
+        would reduce yourself.
 
-        DO NOT use it for medications (`query_medications`), for general
-        medical knowledge or reference ranges, or for a person outside the
-        caller's care circle. Do not call it twice with the same arguments:
+        DO NOT use it for medications (`query_medications`) or for general
+        medical knowledge or reference ranges. Do not call it twice with the same arguments:
         the second call returns the same rows and costs another round trip.
 
         The parameters are documented in the schema, not here: `input_schema`
@@ -133,11 +133,10 @@ class HealthIndicatorsService(RecordTool):
 
         Returns:
             A compact table plus a `meta` block saying which window was read,
-            in which time zone, at what resolution, how many rows came back and
-            whether they were cut. `truncated` means narrow the window or
-            aggregate, never raise `limit` and call again. No dates means the
-            whole record. Row cap: 500 raw rows per indicator, 200 catalogue
-            names.
+            in which time zone, in which view, how many rows came back and
+            whether they were cut. `truncated` means narrow the window or ask
+            for `view="stats"`. No dates means the whole record. Row cap: 50
+            raw rows per indicator, 200 catalogue names.
 
         Notes for LLMs:
             - No data for an indicator means it was never recorded. It does NOT
@@ -159,7 +158,7 @@ class HealthIndicatorsService(RecordTool):
             return refused(problems)
         request = query.parse_request(args)
         hq = self._query()
-        subject_id = await subject_for(caller_id, request.member)
+        subject_id = caller_id
         tz = await awaited(hq.tz(subject_id)) or "UTC"
         await awaited(hq.on_read(subject_id))
 
@@ -199,13 +198,13 @@ class HealthIndicatorsService(RecordTool):
             cap = {"cap": self._catalog_cap} if self._catalog_cap else {}
             return await awaited(hq.catalog(subject_id, window if dated else None, **cap))
         if method == "readings":
-            return await awaited(hq.readings(subject_id, sel, window, limit=request.limit))
+            return await awaited(hq.readings(subject_id, sel, window, limit=self._row_cap))
         if method == "buckets":
-            return await awaited(hq.buckets(subject_id, sel, window, resolution=request.resolution))
+            return await awaited(hq.buckets(subject_id, sel, window, resolution=request.view))
         if method == "stats":
-            return await awaited(hq.stats(subject_id, sel, window, basis=request.basis))
+            return await awaited(hq.stats(subject_id, sel, window))
         if method == "latest":
-            return await awaited(hq.latest(subject_id, sel, window, basis=request.basis))
+            return await awaited(hq.latest(subject_id, sel, window))
         raise ValueError(f"no leaf for method {method!r}")
 
 
@@ -231,9 +230,7 @@ def _envelope_for(
         window=(window.start, window.end) if dated else ("", ""),
         tz=window.tz,
         window_semantics=semantics,
-        resolution=request.resolution,
-        aggregate=request.aggregate,
-        aggregate_basis=request.basis if method in ("stats", "latest") else "",
+        view="" if method == "catalog" else request.view,
         row_count=len(rows),
         truncated=truncated,
         catalog_total=total if method == "catalog" else 0,
@@ -253,7 +250,7 @@ def _envelope_for(
         assumptions.append(_SELF_DIAGNOSED_NOTE)
 
     # What to do next, and never something the next call would refuse: a
-    # catalogue cannot be aggregated, so "aggregate" is not advice there.
+    # catalogue has one shape, so "ask for stats" is not advice there.
     next_steps: list[str] = []
     if method == "catalog":
         next_steps.append(tools.NEXT_USE_INDICATORS)
@@ -262,7 +259,7 @@ def _envelope_for(
     elif not rows:
         next_steps.append(tools.NEXT_PICK_FROM_CATALOG)
     elif truncated:
-        next_steps.extend((tools.NEXT_NARROW_WINDOW, tools.NEXT_AGGREGATE))
+        next_steps.extend((tools.NEXT_NARROW_WINDOW, tools.NEXT_VIEW_STATS))
 
     status = tools.STATUS_PARTIAL if truncated else tools.STATUS_OK
     return tools.Envelope(

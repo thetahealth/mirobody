@@ -48,6 +48,7 @@ from mirobody.agent.wire.blocks import (
 
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.user.care_circle import CareCircleDenied, resolve_subject
+from mirobody.user.user import get_user
 from mirobody.utils import execute_query, safe_read_cfg
 from mirobody.utils.sse import heartbeat_seconds
 from mirobody.utils.config import get_default_timezone
@@ -214,7 +215,22 @@ async def _summarize_once(user_id: str, session_id: str) -> None:
                      exc_info=not is_driver_exception(e))
 
 
-def _agent_kwargs(params: ChatStreamRequest) -> dict[str, Any]:
+async def _record_owner(params: ChatStreamRequest) -> str:
+    """The name of the person whose record this turn reads, when that is not
+    the person asking; "" on their own record.
+
+    Without it the agent was told nothing on a turn asked on someone's behalf:
+    every tool already read the other record, but the prompt said "their own",
+    so answers said "your cholesterol" over the other person's numbers and
+    flagged `mom_lab_2025-11.md` as "not yours" (measured 2026-09-28).
+    """
+    if params.query_user_id == params.user_id:
+        return ""
+    owner = await get_user(user_id=params.query_user_id) or {}
+    return owner.get("name") or "another person"
+
+
+async def _agent_kwargs(params: ChatStreamRequest) -> dict[str, Any]:
     """What `AbstractAgent.generate_response` is called with (`registry.py`).
 
     `messages` carries ONLY this turn. The agent's graph is compiled with a
@@ -227,6 +243,7 @@ def _agent_kwargs(params: ChatStreamRequest) -> dict[str, Any]:
         # The person whose data the agent operates on: the help-ask target when
         # set, the requester otherwise. `_may_chat` already validated it.
         "user_id": params.query_user_id or params.user_id,
+        "record_owner": await _record_owner(params),
         "session_id": params.session_id,
         "language": params.language,
         "timezone": params.timezone or get_default_timezone(),
@@ -247,8 +264,8 @@ async def _agent_blocks(params: ChatStreamRequest) -> AsyncGenerator[dict[str, A
     arrived as the same empty `end`, and a reader that cannot distinguish them
     shows "Answer Completed" over a truncated reply.
     """
-    kwargs = _agent_kwargs(params)
     try:
+        kwargs = await _agent_kwargs(params)
         # None means no agent class was found in AGENT_DIRS at startup. A
         # constructor that RAISES does not land here; it propagates below.
         agent = new_agent(**kwargs)

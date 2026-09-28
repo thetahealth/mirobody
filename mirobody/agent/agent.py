@@ -71,9 +71,11 @@ class MirobodyAgent:
         allowed_tools: list[str] | None = None,
         disallowed_tools: list[str] | None = None,
         prompt_templates: dict[str, str] = None,
+        record_owner: str = "",
         **kwargs
     ):
         self.user_info = UserInfo(user_id=user_id, user_name=user_name or "User")
+        self.record_owner = record_owner
         self.token = token
         from mirobody.utils.config import get_default_timezone
         self.timezone = timezone or get_default_timezone()
@@ -199,6 +201,7 @@ class MirobodyAgent:
                 langchain_tools=tools,
                 agent_name=self.agent_name,
                 user_name=self.user_info.user_name,
+                record_owner=self.record_owner,
                 timezone=self.timezone,
                 health_profile=health_profile,
                 tool_round_limit=self.model_call_limit,

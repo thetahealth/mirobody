@@ -23,29 +23,31 @@ Two rules decided that shape, and they pull in opposite directions:
   with no selector returns the catalogue, `keywords` finds names, and exact
   `indicators` fetch values — one tool.
 * **Split what has a different grammar.** A plan has a lifecycle, a dose has
-  a day, a course has a reason it closed; none of that is a `resolution` or an
-  `aggregate`. A draft of 1.4.0 put medications behind a `kind` switch inside
+  a day, a course has a reason it closed; none of that is a reading's `view`
+  of a series. A draft of 1.4.0 put medications behind a `kind` switch inside
   the readings tool: seven of thirteen parameters were invalid for
   medications, one was invalid for readings, and every misuse cost a refusal
   round-trip. A parameter the model must decide on every call and which is
   wrong most of the time is a cost with no benefit. So medications got their
-  own tool, and the readings tool went from thirteen parameters to eight.
+  own tool, and the readings tool went from thirteen parameters to eight. It
+  is five now: `resolution` × `aggregate` became one `view`, and `limit`
+  and `member` became the system's to decide (below).
 
 What the person reported (a symptom felt, a diagnosis given) passes the first
 rule, not the second: it is the same table and the same series as a reading,
 coded on ICPC-3 instead of LOINC, and every parameter still applies.
 `keywords=["headache"]` finds an entry written 头疼 through its code, and
-`aggregate="stats"` says how often. A 1.5.1 draft gave it a tool of its own,
-whose parameters were five of these eight. Those rows come back as a second
+`view="stats"` says how often. A 1.5.1 draft gave it a tool of its own,
+whose parameters were five of the eight the readings tool then had. Those rows come back as a second
 table, the catalogue lists them first, and the web client's Indicators tab
 leaves them out, because the journal is its own tab there.
 
 What left, and why nothing was lost: `panel` (a panel is its member names;
 `keywords=["blood pressure"]` finds them), `exclude` (the catalogue is the
-second round), `order` (a baseline is `aggregate=stats`, whose `first` and
+second round), `order` (a baseline is `view=stats`, whose `first` and
 `first_date` say what the earliest reading was), `source` (rows carry their
-source; day and coarser already publish one elected source), and `kind`/`view`
-(two tools). "How did my blood pressure move after I switched drugs" is
+source; day and coarser already publish one elected source), and `kind` (two
+tools). "How did my blood pressure move after I switched drugs" is
 `query_medications(view="history")` for the date, then
 `query_health_indicators(start=…)` — two calls whose second input is a date
 the person can read, not an opaque handle.
@@ -69,9 +71,13 @@ three terminology tools, whose bodies are shared (`translate.terminology`).
 (`mcp/service.py::_DATA_GATED`): nothing measured or reported, no
 `query_health_indicators`; no
 plans, no `query_medications`; no active genotype set, no `query_genetic_data`
-or `query_pharmacogenomics`. A chat turn gets all seven plus the harness's own: `ls read_file write_file edit_file glob
-grep`, the `eval` REPL, and `ask_user`. `ask_user` is never an MCP tool — an
-MCP client has no widget to answer a question with.
+or `query_pharmacogenomics`. A chat turn gets the four record tools, not the
+three terminology tools: the readings tool already resolves names and units, so
+those serve only a client holding readings of its own
+(`agent/tool_loader.py::_MCP_ONLY_TOOLS`). Beside them, the harness's own: `ls
+read_file write_file edit_file glob grep`, the `eval` REPL, and `ask_user`.
+`ask_user` is never an MCP tool — an MCP client has no widget to answer a
+question with.
 
 The local suite asserts both lists exactly.
 
@@ -80,11 +86,15 @@ The local suite asserts both lists exactly.
 ## The record query schemas
 
 ```
-query_health_indicators(keywords | indicators, start, end, resolution, aggregate, limit, member)
-query_medications      (view=plan|log|history, keywords, start, end, member)
-query_genetic_data     (rsids | gene | chromosome+start+end+build, limit, member)
-query_pharmacogenomics (drugs | genes, member)
+query_health_indicators(keywords | indicators, start, end, view)
+query_medications      (view=plan|log|history, keywords, start, end)
+query_genetic_data     (rsids | gene | chromosome+start+end+build)
+query_pharmacogenomics (drugs | genes)
 ```
+
+No parameter names a person. A call reads the account it is authenticated as:
+the MCP token or URL, or the record a chat turn was opened on, which the chat
+layer authorises before the model runs. One call, one person's data.
 
 Genetic region queries accept `build=GRCh37|GRCh38|raw`. The explicit `raw`
 choice reads the file's original coordinates without asserting an assembly;
@@ -97,7 +107,7 @@ have — the former `kind`, say, from a client that learned the draft — comes
 back as a structured, recoverable refusal naming it:
 
 ```
-query_health_indicators(kind="medications", resolution="day")
+query_health_indicators(kind="medications", view="day")
 → error (invalid_arguments): kind: unknown parameter. Fix the arguments and try once more.
 ```
 
@@ -108,19 +118,34 @@ the last 30 days. Every `plan` answer carries the note that a plan is intent,
 not an intake record; every `log` answer, that a missing dose is not evidence
 it was not taken.
 
-And `(resolution, aggregate)` is a dispatch TABLE, not a chain of `if`s
-(`query.DISPATCH`). A cell with no entry is a refused combination — the readings tool's only conditional rule:
+And `view` is a dispatch TABLE, not a chain of `if`s (`query.DISPATCH`):
 
-| | `aggregate=none` | `stats` | `latest` |
-|---|---|---|---|
-| `raw` | readings | over readings | most recent reading |
-| `minute` / `hour` | buckets | over buckets | — |
-| `day` / `week` / `month` | buckets from the day authority | over DAYS | most recent day |
+| `view` | answers with |
+|---|---|
+| `raw` | readings, newest first, at most 50 per indicator (`query.ROW_CAP`) |
+| `minute` / `hour` | one point per bucket |
+| `day` / `week` / `month` | one point per bucket, from the day authority |
+| `stats` | count/min/max/avg/first/last/change over the window |
+| `latest` | the most recent value per indicator |
 
-`aggregate=stats` at `resolution=day` averages **days**, not readings. Over raw
-readings a day with forty intraday samples would weigh forty times a day with
-one, and "my average resting heart rate this month" would be a number about
-sampling frequency.
+It replaced `resolution` × `aggregate`: eighteen cells, two refused, `limit`
+valid in one, and two prompt paragraphs teaching which was which. The
+choice that pair really carried was what a statistic counts, and that is not a
+question the model can answer from the question. `stats` now counts, per
+series and local day, the elected authority where the write side published
+one, and every reading of a day where it did not
+(`collect/query.py::_STATS_CTE`). Election runs after device aggregation, so a
+day with forty intraday samples, or a watch and a phone reporting the same
+Tuesday, counts once — as the dashboard shows it. A day nothing elected (a
+file upload, a typed-in entry) counts every reading, so a morning and an
+evening blood pressure both count. Over raw readings everywhere, the first
+case would weigh days by sampling frequency; over the newest reading of each
+day, the second would drop the morning.
+
+`limit` went for the same reason: a budget, not a question. Raw rows are cut
+at `query.ROW_CAP` and say so, and what a cut means is a narrower window or
+`view=stats`. The browser's reading list is a separate budget
+(`collect.REST_ROW_MAX`).
 
 ---
 
@@ -147,8 +172,8 @@ it, in `tools.Envelope`:
 Envelope(
     status="ok" | "partial" | "error",
     data=[...],                    # the rows
-    meta=Meta(window, tz, window_semantics, resolution, aggregate,
-              aggregate_basis, row_count, truncated, catalog_total, accepted_for),
+    meta=Meta(window, tz, window_semantics, view, row_count, truncated,
+              catalog_total),
     error_class="recoverable" | "unrecoverable" | None,
     error_kind=...,                # one of a closed set
     provenance={indicator: "measured" | "computed" | "elected:<rule>"},
@@ -165,7 +190,7 @@ Two rules about it are load-bearing:
   envelope rides on `ToolMessage.artifact`.
 * **`next_steps` never suggests something the matrix would refuse.** A
   truncated catalogue is told to use `indicators` and narrow the window — not
-  to aggregate, which the very next call would reject.
+  to ask for `view=stats`, which the very next call would reject.
 
 ### Two renderings, one query
 

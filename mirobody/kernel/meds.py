@@ -1490,10 +1490,6 @@ TOOL_SCHEMA: dict[str, object] = {
             ),
         },
         "end": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Last local date, inclusive."},
-        "member": {
-            "type": "string",
-            "description": "Read another person's medications you are authorised to see (a care-circle member id). Omit for the caller.",
-        },
     },
 }
 
@@ -1506,7 +1502,6 @@ class MedicationsRequest:
     keywords: tuple[str, ...] = ()
     start: str = ""
     end: str = ""
-    member: str = ""
 
 
 def validate_query(args: Mapping[str, object]) -> tuple:
@@ -1535,7 +1530,6 @@ def parse_query(args: Mapping[str, object]) -> MedicationsRequest:
         keywords=query.normalize_list_arg(args.get("keywords")),
         start=str(args.get("start") or ""),
         end=str(args.get("end") or ""),
-        member=str(args.get("member") or ""),
     )
 
 

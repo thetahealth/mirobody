@@ -105,6 +105,42 @@ boundary.
 
 ### Changed
 
+- **Asking on someone's behalf answered as if the record were the asker's.**
+  The agent read the other person's record but was never told so. Answers said
+  "your cholesterol" over her numbers and flagged `mom_lab_2025-11.md` as "not
+  yours". Asked "妈妈的胆固醇", the model guessed `member="妈妈"`, the circle
+  check refused it, and a person who could read the record was told they could
+  not. The chat layer now passes the record owner's name (`record_owner`) and
+  the prompt says whose record it is; it no longer carries the raw `user_id`.
+  To check, switch to Mom and ask 「妈妈的胆固醇这几次是怎么变化的？」: the
+  answer reads her record and no tool call is refused.
+- **No tool takes `member` any more, on either surface (breaking for MCP
+  clients).** Whose data a call reads is its authentication: the MCP token or
+  URL, or the record a chat turn was opened on and authorised for. One call,
+  one person. A `member` argument is refused as an unknown parameter.
+- **`query_health_indicators` has five parameters: `keywords`, `indicators`,
+  `start`, `end`, `view` (breaking for MCP clients).** `resolution` ×
+  `aggregate` was eighteen cells with two refused, and `limit` applied to one;
+  `view` is one enum, `raw | minute | hour | day | week | month | stats |
+  latest`. Raw rows are capped at 50 per indicator (`query.ROW_CAP`). What
+  `stats` counts is no longer the caller's choice: per series and local day,
+  the elected authority where one was published, every reading otherwise. The
+  old `resolution=raw` basis averaged a watch's and a phone's totals for one
+  day together; the old `day` basis dropped a morning blood pressure followed
+  by an evening one. The REST route takes `view` too; `resolution`,
+  `aggregate` and `limit` are ignored there, and the browser's reading list is
+  capped by `collect.REST_ROW_MAX` (500). Ask for `view="stats"` and the meta
+  line reads `view=stats`.
+- **`query_genetic_data` dropped `include_nearby`, `nearby_range` and `limit`
+  (breaking for MCP clients).** "Nearby" was physical distance, which is not
+  linkage: a proxy for an untyped site needs an LD reference panel, and the
+  code only looked around sites that WERE typed, where no proxy is needed.
+  What remained is a region query, which `chromosome`/`start`/`end` already
+  are. Direct rows are capped at 100 (`ROW_CAP`); a gene selects at most seven.
+- **The chat agent no longer sees `resolve_indicator`, `convert_unit` or
+  `normalize_unit`.** `query_health_indicators` already resolves names to
+  LOINC and values to the catalogue's unit; those three serve an MCP client
+  holding readings of its own, and stay there.
 - Focused health trends could send models toward summary queries without chart
   points, repeat lookups after enough data had arrived, or mix unlike units on
   one chart axis. The Agent prompt now gives valid point, summary and latest

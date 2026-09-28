@@ -200,7 +200,7 @@ wins. Neither set means every tool.
 ```yaml
 ALLOWED_TOOLS:
   - query_health_indicators
-  - resolve_indicator
+  - query_medications
 
 DISALLOWED_TOOLS:
   - query_genetic_data

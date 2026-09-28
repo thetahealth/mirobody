@@ -34,6 +34,12 @@ _NATIVE_TOOL_BLOCKLIST = frozenset({
     "ls", "read_file", "write_file", "edit_file", "glob", "grep",  # FilesystemMiddleware
 })
 
+# MCP-only: vocabulary lookups for a client that holds its own readings. A chat
+# turn reads through `query_health_indicators`, which already resolves every
+# name to its LOINC code and every value to the catalogue's unit, so these
+# only offered the model three more choices that answer nothing about the record.
+_MCP_ONLY_TOOLS = frozenset({"resolve_indicator", "convert_unit", "normalize_unit"})
+
 
 def mcp_args_schema(input_schema: dict) -> dict:
     """The tool's JSON schema for the model: the MCP ``inputSchema`` minus the
@@ -168,6 +174,9 @@ async def load_global_tools(
 
                 if tool_name in _NATIVE_TOOL_BLOCKLIST:
                     logger.debug(f"Tool {tool_name} blocked — provided by native deepagents middleware")
+                    continue
+
+                if tool_name in _MCP_ONLY_TOOLS:
                     continue
 
                 # Get original function for async check (before partial wrapping)

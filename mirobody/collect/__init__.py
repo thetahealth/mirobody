@@ -80,6 +80,7 @@ _EXPORTS = {
     "installed_provider_slugs": "providers.installed",
     "PostgresHealthQuery": "query",
     "REST_CATALOG_MAX": "query",
+    "REST_ROW_MAX": "query",
     # Files, shared by server and agent.
     "get_websocket_file_upload_manager": "files.file_upload_manager",
     "FileDbService": "files.services.file_db_service",
@@ -127,7 +128,7 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .providers._platform.startup import start_theta_pull_scheduler
     from .core.models import ConnectInfoField
     from .providers.installed import installed_provider_slugs
-    from .query import PostgresHealthQuery, REST_CATALOG_MAX
+    from .query import PostgresHealthQuery, REST_CATALOG_MAX, REST_ROW_MAX
     from .meds import PostgresDoseLogStore, PostgresMedicationStore
     from .files.file_upload_manager import get_websocket_file_upload_manager
     from .files.handlers.genetic import GeneticHandler

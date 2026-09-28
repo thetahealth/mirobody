@@ -141,7 +141,7 @@ storage sizes and the full public-corpus results are in
 of rsIDs (up to 50), HGNC gene or a bounded GRCh37/GRCh38 region. A region may
 also use `build=raw` to search upload positions without claiming an assembly;
 PAR rows require this raw mode. It returns
-at most 500 direct rows with source, build, call status and truncation notes.
+at most 100 rows with source, build, call status and truncation notes.
 For a region query, `position` uses the requested build; `query_build`,
 `raw_position`, `pos37` and `pos38` make its provenance explicit.
 The Agent and authenticated MCP surface use the same service. A gene search

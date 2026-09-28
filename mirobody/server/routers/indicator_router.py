@@ -31,7 +31,7 @@ import logging
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
-from mirobody.collect import REST_CATALOG_MAX, PostgresHealthQuery
+from mirobody.collect import REST_CATALOG_MAX, REST_ROW_MAX, PostgresHealthQuery
 from mirobody.agent.tools._render import render_rest
 from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
 from mirobody.user.care_circle import CareCircleDenied, resolve_subject
@@ -47,7 +47,8 @@ router = APIRouter(prefix="/api/v1", tags=["indicators"])
 # capping it at one hid 44 of the demo user's 244 indicators while reporting
 # `count: 200` as though that were the total. Readings only: what the person
 # reported has its own tab (`/api/v1/journal`).
-_service = HealthIndicatorsService(PostgresHealthQuery(reported=False), catalog_cap=REST_CATALOG_MAX)
+_service = HealthIndicatorsService(PostgresHealthQuery(reported=False), catalog_cap=REST_CATALOG_MAX,
+                                   row_cap=REST_ROW_MAX)
 
 
 def _split(value: str | None) -> list[str] | None:
@@ -64,9 +65,7 @@ async def health_indicators(
     indicators: str | None = Query(None, description="Exact names from a previous call"),
     start_time: str | None = Query(None, description='Inclusive "YYYY-MM-DD"'),
     end_time: str | None = Query(None, description='Inclusive "YYYY-MM-DD"'),
-    resolution: str = Query("raw", description="raw | minute | hour | day | week | month"),
-    aggregate: str = Query("none", description="none | stats | latest"),
-    limit: int = Query(50, ge=1, le=500),
+    view: str = Query("raw", description="raw | minute | hour | day | week | month | stats | latest"),
     target_user_id: str | None = Query(None, description="Care-circle member to read"),
     user_id: str = Depends(verify_token),
 ):
@@ -94,14 +93,8 @@ async def health_indicators(
         "indicators": _split(indicators),
         "start": start_time,
         "end": end_time,
-        "resolution": resolution,
-        "aggregate": aggregate,
+        "view": view,
     }
-    # `limit` only applies to raw rows without aggregation: the same rule the
-    # model is held to, so the two surfaces cannot answer differently for the
-    # same arguments.
-    if (resolution, aggregate) == ("raw", "none"):
-        args["limit"] = limit
     envelope = await _service.envelope({"user_id": owner_id}, **{k: v for k, v in args.items() if v})
 
     if envelope.status == "error":

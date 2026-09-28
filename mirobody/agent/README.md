@@ -70,10 +70,11 @@ class MyAgent:
 ```
 
 `**kwargs` is not optional: `language`, `session_id`, `file_list`, `provider`,
-`prompt_name`, `timezone` and `token` arrive that way, and the chat layer may
-add one without breaking a plugin that predates it. `user_id` is the person the
-turn is ABOUT — the care-circle target when someone asks on another's behalf —
-and is already authorised. `messages` carries ONLY this turn: conversation
+`prompt_name`, `timezone`, `token` and `record_owner` arrive that way, and the
+chat layer may add one without breaking a plugin that predates it. `user_id` is
+the person the turn is ABOUT — the care-circle target when someone asks on
+another's behalf — and is already authorised; `record_owner` is that person's
+name then, and `""` on the asker's own record. `messages` carries ONLY this turn: conversation
 state is the agent's own (the shipped one keys a LangGraph checkpointer on
 `session_id`).
 

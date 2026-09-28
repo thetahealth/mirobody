@@ -15,7 +15,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
-from mirobody.kernel import query, tools
+from mirobody.kernel import tools
 from mirobody.kernel.ops import is_driver_exception
 from ._authz import caller_of, denied
 
@@ -44,8 +44,6 @@ class RecordTool:
             return denied("authorization required")
         try:
             return await self._run(caller_id, args)
-        except query.Denied:
-            return denied("you may not read this person's data")
         except Exception as e:
             # Never hand the raw exception to the model: driver messages quote
             # the SQL with its bound parameters, and a model echoes what it is

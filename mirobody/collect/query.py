@@ -31,7 +31,7 @@ its canonical pair.
 
 ## Election
 
-For `resolution=day` and coarser, the answer is the day's published authority:
+For `view=day` and coarser, the answer is the day's published authority:
 the observation `th_day_authority` names for that (series, local day), or the
 newest reading of the day where nothing has been elected, and `provenance`
 says which. Election happens once, on the write side
@@ -56,6 +56,9 @@ logger = logging.getLogger(__name__)
 #: Names listed for the MODEL: a token budget. The browser gets `REST_CATALOG_MAX`.
 CATALOG_MAX = 200
 REST_CATALOG_MAX = 2000
+#: Raw rows per indicator for the browser's reading list. The model gets
+#: `query.ROW_CAP`; the web client asks for 200 and pages them.
+REST_ROW_MAX = 500
 
 #: How many series one keyword search may expand to.
 MAX_KEYWORD_NAMES = 12
@@ -196,7 +199,7 @@ class PostgresHealthQuery:
         if not names:
             return []
         params: dict[str, Any] = {
-            "uid": str(subject_id), "names": names, "limit": max(1, min(int(limit), query.MAX_LIMIT)),
+            "uid": str(subject_id), "names": names, "limit": max(1, int(limit)),
             "reported": REPORTED_KINDS,
         }
         where = _window_clause(params, window)
@@ -236,10 +239,18 @@ class PostgresHealthQuery:
             rows = await self._day_buckets(subject_id, names, window, resolution)
         return [_bucket_row(r) for r in rows]
 
-    async def stats(self, subject_id: str, sel: query.Selection, window: query.Window, *, basis: str) -> list[dict]:
+    async def stats(self, subject_id: str, sel: query.Selection, window: query.Window) -> list[dict]:
         """count/min/max/avg/first/last/change per series over the WHOLE
-        window, in SQL. `basis="daily"` averages the day authorities, which is
-        what "my average resting heart rate this month" means."""
+        window, in SQL, over `_STATS_CTE`: a day with an elected authority
+        counts once, as that value; any other day counts every reading.
+
+        Which of the two a day is was already decided on the write side, so
+        the caller is not asked. It used to be: `resolution=raw` counted every
+        reading, which averages a watch's and a phone's step totals for the
+        same Tuesday together, and `resolution=day` kept the newest reading of
+        an unelected day, which drops a morning blood pressure when an evening
+        one follows. Neither is a choice a model can make from the question.
+        """
         from mirobody.utils import execute_query
 
         names = await self._resolve(subject_id, sel, window)
@@ -247,7 +258,7 @@ class PostgresHealthQuery:
             return []
         params: dict[str, Any] = {"uid": str(subject_id), "names": names, "reported": REPORTED_KINDS}
         where = _window_clause(params, window)
-        source = _DAY_AUTHORITY_CTE.format(where=where) if basis == "daily" else _READINGS_CTE.format(where=where)
+        source = _STATS_CTE.format(where=where)
         rows = await execute_query(
             f"""
             {source}
@@ -274,9 +285,9 @@ class PostgresHealthQuery:
             params,
             log_sql=False,
         ) or []
-        return [_stats_row(r, basis) for r in rows]
+        return [_stats_row(r) for r in rows]
 
-    async def latest(self, subject_id: str, sel: query.Selection, window: query.Window, *, basis: str) -> list[dict]:
+    async def latest(self, subject_id: str, sel: query.Selection, window: query.Window) -> list[dict]:
         """The most recent value per series INSIDE the window."""
         from mirobody.utils import execute_query
 
@@ -301,7 +312,7 @@ class PostgresHealthQuery:
             params,
             log_sql=False,
         ) or []
-        return [_latest_row(r, basis) for r in rows]
+        return [_latest_row(r) for r in rows]
 
     # --- helpers -------------------------------------------------------------
 
@@ -463,12 +474,17 @@ class PostgresHealthQuery:
 
 
 #: Every reading in the window, as the columns the statistics read.
-_READINGS_CTE = """
-WITH base AS (
+#: What a statistic counts: per (series, local day), the elected authority
+#: alone where the write side elected one, every reading otherwise.
+_STATS_CTE = """
+WITH day_rows AS (
     SELECT o.series_id, o.display, o.code_system, o.code, o.observed_start AS at, o.value_text, o.value_num,
-           o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected, o.kind = ANY(:reported) AS reported
+           o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected, o.kind = ANY(:reported) AS reported,
+           bool_or(o.elected) OVER (PARTITION BY o.series_id, o.local_date) AS day_elected
       FROM v_observation o
      WHERE o.user_id = :uid AND o.series_id = ANY(:names) {where}
+), base AS (
+    SELECT * FROM day_rows WHERE elected OR NOT day_elected
 )"""
 
 #: One row per (series, local day): the elected authority where one exists,
@@ -581,7 +597,7 @@ def _bucket_row(r: dict) -> dict:
     }
 
 
-def _stats_row(r: dict, basis: str) -> dict:
+def _stats_row(r: dict) -> dict:
     out = {
         **_identity(r),
         "count": int(r.get("count") or 0),
@@ -595,7 +611,6 @@ def _stats_row(r: dict, basis: str) -> dict:
         "last_date": r.get("last_date") or "",
         "unit": r.get("unit") or "",
         "mixed_units": bool(r.get("mixed_units")),
-        "basis": basis,
         "day_known": True,
         "provenance": PROVENANCE_REPORTED if r.get("reported") else "computed",
     }
@@ -607,7 +622,7 @@ def _stats_row(r: dict, basis: str) -> dict:
     return out
 
 
-def _latest_row(r: dict, basis: str) -> dict:
+def _latest_row(r: dict) -> dict:
     return {
         **_identity(r),
         "name": r.get("name_text") or "",
@@ -622,7 +637,6 @@ def _latest_row(r: dict, basis: str) -> dict:
         "file": _text(r.get("file_name")) or (r.get("file_key") or ""),
         "file_key": r.get("file_key") or "",
         "modality": r.get("modality") or "",
-        "basis": basis,
         "day_known": True,
         "provenance": "elected:day_authority" if r.get("elected") else "measured",
         **_reported(r),
@@ -646,4 +660,5 @@ __all__ = [
     "PostgresHealthQuery",
     "REPORTED_KINDS",
     "REST_CATALOG_MAX",
+    "REST_ROW_MAX",
 ]
