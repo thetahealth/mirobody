@@ -26,6 +26,7 @@ import uuid
 from typing import Any
 from collections.abc import AsyncGenerator
 
+from mirobody.agent.checkpointer import thread_for
 from mirobody.agent.registry import agent_name, new_agent
 from mirobody.agent.chat.file import process_files_from_storage
 from mirobody.agent.errors import client_safe_error
@@ -47,7 +48,7 @@ from mirobody.agent.wire.blocks import (
 )
 
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject
+from mirobody.user.care_circle import CareCircleDenied, resolve_subject, shared_with_me
 from mirobody.utils import execute_query, safe_read_cfg
 from mirobody.utils.sse import heartbeat_seconds
 from mirobody.utils.config import get_default_timezone
@@ -144,24 +145,12 @@ async def _store_files(params: ChatStreamRequest) -> None:
     prompt tells the model to `read_file` them, so injecting the bytes into the
     turn would duplicate that and blow up the context.
     """
-    if not params.file_list:
-        return
-    from mirobody.utils.config import global_config
-
-    redis_client = None
-    try:
-        redis_client = await global_config().get_redis().get_async_client()
-    except Exception as e:
-        logger.warning("file cache unavailable: error_type=%s", type(e).__name__)
-
     await process_files_from_storage(
         file_list=params.file_list,
         user_id=params.user_id,
         msg_id=params.question_id,
         session_id=params.session_id,
         query_user_id=params.query_user_id,
-        language=params.language,
-        redis_client=redis_client,
     )
 
 
@@ -214,11 +203,29 @@ async def _summarize_once(user_id: str, session_id: str) -> None:
                      exc_info=not is_driver_exception(e))
 
 
-def _agent_kwargs(params: ChatStreamRequest) -> dict[str, Any]:
+async def _record_owner(params: ChatStreamRequest) -> str:
+    """The name of the person whose record this turn reads, when that is not
+    the person asking; "" on their own record.
+
+    Without it the agent was told nothing on a turn asked on someone's behalf:
+    every tool already read the other record, but the prompt said "their own",
+    so answers said "your cholesterol" over the other person's numbers and
+    flagged `mom_lab_2025-11.md` as "not yours" (measured 2026-09-28).
+    """
+    if params.query_user_id == params.user_id:
+        return ""
+    # The circle's label for them ("妈妈") before their account name: it is the
+    # word the asker uses, so it is the word a question about them contains.
+    row = next((r for r in await shared_with_me(params.user_id)
+                if str(r.get("user_id")) == str(params.query_user_id)), None) or {}
+    return row.get("nickname") or row.get("name") or "another person"
+
+
+async def _agent_kwargs(params: ChatStreamRequest) -> dict[str, Any]:
     """What `AbstractAgent.generate_response` is called with (`registry.py`).
 
     `messages` carries ONLY this turn. The agent's graph is compiled with a
-    LangGraph checkpointer keyed on `thread_id = session_id`, so LangGraph
+    LangGraph checkpointer keyed on `thread_for(owner, session_id)`, so LangGraph
     holds the real AIMessage / ToolMessage objects and replays the conversation
     itself. `th_messages` stays authoritative for /api/history and sharing; it
     is not fed back into the agent loop.
@@ -227,11 +234,11 @@ def _agent_kwargs(params: ChatStreamRequest) -> dict[str, Any]:
         # The person whose data the agent operates on: the help-ask target when
         # set, the requester otherwise. `_may_chat` already validated it.
         "user_id": params.query_user_id or params.user_id,
-        "session_id": params.session_id,
+        "record_owner": await _record_owner(params),
+        # The agent keys its conversation memory on this; see `thread_for`.
+        "session_id": thread_for(params.user_id, params.session_id),
         "language": params.language,
         "timezone": params.timezone or get_default_timezone(),
-        "token": params.token,
-        "question": params.question,
         "messages": [{"role": "user", "content": params.question}],
         "file_list": params.file_list,
         "provider": params.provider,
@@ -247,8 +254,8 @@ async def _agent_blocks(params: ChatStreamRequest) -> AsyncGenerator[dict[str, A
     arrived as the same empty `end`, and a reader that cannot distinguish them
     shows "Answer Completed" over a truncated reply.
     """
-    kwargs = _agent_kwargs(params)
     try:
+        kwargs = await _agent_kwargs(params)
         # None means no agent class was found in AGENT_DIRS at startup. A
         # constructor that RAISES does not land here; it propagates below.
         agent = new_agent(**kwargs)

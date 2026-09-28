@@ -29,17 +29,16 @@ logger = logging.getLogger(__name__)
 
 async def build_system_prompt(
     base_prompt: str,
-    language: str,
-    user_id: str,
     langchain_tools: list,
     agent_name: str,
-    user_name: str,
+    record_owner: str = "",
     timezone: str = "UTC",
     health_profile: str | None = None,
     tool_round_limit: int = 15,
 ) -> str:
     """Render `base_prompt` with tool descriptions, the current time in
-    `timezone`, and the user context the template may reference."""
+    `timezone`, and the user context the template may reference.
+    `record_owner` names whose record it is when that is not the asker's."""
     tool_prompts = [
         f"**{tool.name}**: {tool.description}"
         for tool in langchain_tools
@@ -54,11 +53,9 @@ async def build_system_prompt(
     template = prompts.environment(enable_async=True).from_string(base_prompt)
     return await template.render_async(
         agent_name=agent_name,
-        user_name=user_name,
+        record_owner=record_owner,
         current_time=current_time,
-        language=language if language else "en",
         tools_description=tools_description,
-        user_info={"user_id": user_id},
         health_profile=health_profile,
         tool_round_limit=tool_round_limit,
     )

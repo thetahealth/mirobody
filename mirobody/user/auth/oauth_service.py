@@ -1,4 +1,6 @@
 import base64
+import hashlib
+import hmac
 import json
 import logging
 import secrets
@@ -8,11 +10,19 @@ import urllib.parse
 from collections.abc import Callable
 from redis.asyncio import Redis
 
-from .jwt import AbstractTokenValidator
+from .jwt import REFRESH_TOKEN_TYPE, AbstractTokenValidator
 
 from mirobody.utils import request_origin, secret_fingerprint, json_response, json_response_with_code, redirect, get_jwt_token, Request, Response, Route
 
 logger = logging.getLogger(__name__)
+
+
+def _pkce_matches(challenge: str, verifier: object) -> bool:
+    """RFC 7636 §4.6, S256: BASE64URL(SHA256(verifier)) without padding."""
+    if not isinstance(verifier, str) or not 43 <= len(verifier) <= 128:
+        return False
+    digest = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii", "ignore")).digest()).rstrip(b"=").decode()
+    return hmac.compare_digest(digest, challenge)
 
 #-----------------------------------------------------------------------------
 
@@ -290,25 +300,13 @@ class OAuthService:
         if request.method == "GET":
             url_prefix = request_origin(request)
 
-            if err:
-                # Invalid jwt token, redirect to the login url.
-                oauth_params = urllib.parse.urlencode(dict(request.query_params))
-                redirect_url = f"{url_prefix}/mcplogin?oauth_params={urllib.parse.quote(oauth_params)}"
-
-                return redirect(redirect_url)
-
-            # Redirect to the device login url.
-            device_auth_params = {
-                "client_id"     : request.query_params.get("client_id", ""),
-                "state"         : request.query_params.get("state", ""),
-                "redirect_uri"  : request.query_params.get("redirect_uri", ""),
-                "scope"         : request.query_params.get("scope", "mcp:read mcp:write"),
-                "oauth_callback": f"{url_prefix}{request.url.path}",
-                "access_token"  : token
-            }
-            query_string = urllib.parse.urlencode(device_auth_params)
-
-            return redirect(f"{url_prefix}/mcplogin?{query_string}")
+            # The login page posts every one of these back (PKCE included) with
+            # its own session token. A signed-in caller used to be redirected
+            # with `access_token=<the session token>` in the URL, into browser
+            # history and proxy logs, and without the PKCE parameters; the page
+            # reads only `oauth_params`, so that branch never completed anyway.
+            oauth_params = urllib.parse.urlencode(dict(request.query_params))
+            return redirect(f"{url_prefix}/mcplogin?oauth_params={urllib.parse.quote(oauth_params)}")
 
         if request.method == "POST":
             # Post from the device login url.
@@ -372,11 +370,31 @@ class OAuthService:
                     request = request,
                 )
 
+            # PKCE (RFC 7636), S256 only, as the metadata advertises. Required for
+            # a redirect flow: the metadata promised it and nothing checked it,
+            # so an intercepted code was as good as a token. The out-of-band
+            # flow hands back the session token itself and has no code to bind.
+            code_challenge = str(form_data.get("code_challenge") or "")
+            if redirect_uri != "urn:ietf:wg:oauth:2.0:oob" and (
+                    not code_challenge or form_data.get("code_challenge_method") != "S256"):
+                return json_response(
+                    content = {"code": -1, "msg": "PKCE with code_challenge_method=S256 is required"},
+                    status_code = 400,
+                    request = request,
+                )
+
             cached_auth_code = {
                 "client_id" : client_id,
                 "user_id"   : user_id,
                 "scope"     : str(form_data.get("scope", "mcp:read mcp:write")),
                 "expires_at": int(time.time()) + _AUTH_CODE_TTL_SECONDS,
+                # §4.1.3: the token request must name the same redirect_uri.
+                "redirect_uri"  : redirect_uri,
+                "code_challenge": code_challenge,
+                # What the authorising session proved. The tokens this code
+                # mints carry it, so an AAL1 session cannot mint an MCP token
+                # the AAL2 gate would let through.
+                "aal"       : str(int(payload.get("aal") or 0)),
             }
             cached_client = {
                 "user_id"   : user_id
@@ -676,8 +694,24 @@ class OAuthService:
                         request=request,
                     )
 
+                if stored_code.get("redirect_uri") and data.get("redirect_uri") != stored_code.get("redirect_uri"):
+                    return json_response(
+                        {"error": "invalid_grant", "error_description": "redirect_uri does not match the authorization request."},
+                        status_code=400,
+                        request=request,
+                    )
+
+                challenge = stored_code.get("code_challenge")
+                if challenge and not _pkce_matches(challenge, data.get("code_verifier")):
+                    return json_response(
+                        {"error": "invalid_grant", "error_description": "code_verifier does not match the code_challenge."},
+                        status_code=400,
+                        request=request,
+                    )
+
                 user_id = stored_code.get("user_id")
                 scope   = stored_code.get("scope", "mcp:read mcp:write")
+                aal     = int(stored_code.get("aal") or 0)
 
                 if not user_id:
                     return json_response(
@@ -689,7 +723,10 @@ class OAuthService:
                         request=request
                     )
 
-                access_token, refresh_token, err = await self._token_validator.generate_tokens(user_id, "", "mcp", client_id=client_id, scope=scope)
+                access_token, refresh_token, err = await self._token_validator.generate_tokens(
+                    user_id, "", "mcp", client_id=client_id, scope=scope,
+                    gen_claims_func=(lambda _uid, _em: {"aal": aal}) if aal else None,
+                )
                 if err:
                     logger.error(err)
 
@@ -748,8 +785,13 @@ class OAuthService:
                         request=request
                     )
                 
-                if not isinstance(payload, dict) or "sub" not in payload:
-                    err = "No subject in refresh token."
+                # A refresh token, issued to this client. Any valid token used to
+                # do: an access token, or a web session's, came back as a fresh
+                # 30-day MCP token.
+                if (not isinstance(payload, dict) or "sub" not in payload
+                        or payload.get("token_type") != REFRESH_TOKEN_TYPE
+                        or payload.get("client_id") != client_id):
+                    err = "Not a refresh token issued to this client."
                     logger.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
 
                     return json_response(
@@ -761,7 +803,11 @@ class OAuthService:
                         request=request
                     )
 
-                new_access_token, new_refresh_token, err = await self._token_validator.generate_tokens(payload["sub"], "", "mcp", client_id=client_id)
+                aal = int(payload.get("aal") or 0)
+                new_access_token, new_refresh_token, err = await self._token_validator.generate_tokens(
+                    payload["sub"], "", "mcp", client_id=client_id, scope=str(payload.get("scope") or ""),
+                    gen_claims_func=(lambda _uid, _em: {"aal": aal}) if aal else None,
+                )
                 if err:
                     logger.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
 

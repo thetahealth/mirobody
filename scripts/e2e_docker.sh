@@ -46,6 +46,10 @@ TOKEN=$(curl -s -X POST "$BASE/email/verify" -H 'Content-Type: application/json'
         -d "{\"email\":\"$EMAIL\",\"code\":\"$CODE\"}" | jqp "d['data']['access_token']")
 [ -n "${TOKEN:-}" ] && ok "sign in" || { fail "sign in" "no access token"; echo; exit 1; }
 AUTH="Authorization: Bearer $TOKEN"
+# The account just signed in, read off the token rather than assumed: a seeded
+# database numbers its demo accounts wherever the sequence stood, and `--user 1`
+# graded an empty record ("no numeric reading to compare") on this one.
+USER_ID=$(python3 -c "import base64,json,sys;p=sys.argv[1].split('.')[1];print(json.loads(base64.urlsafe_b64decode(p+'='*(-len(p)%4)))['sub'])" "$TOKEN")
 
 # ── 2. the REST surface the web client uses ──────────────────────────────────
 CAT=$(curl -s -H "$AUTH" "$BASE/api/v1/health-indicators")
@@ -60,7 +64,7 @@ check "$([ "$SEM" = "tz_exact" ] || [ "$SEM" = "date_padded_naive" ] && echo 0 |
       "the answer declares its window semantics" "semantics=$SEM"
 
 FIRST=$(echo "$CAT" | jqp "d['data']['rows'][0]['indicator']")
-READ=$(curl -s -H "$AUTH" --get --data-urlencode "indicators=$FIRST" --data-urlencode "limit=3" \
+READ=$(curl -s -H "$AUTH" --get --data-urlencode "indicators=$FIRST" \
        "$BASE/api/v1/health-indicators")
 check "$([ "$(echo "$READ" | jqp "d['code']")" = "0" ] && echo 0 || echo 1)" \
       "reading a named indicator" "$(echo "$READ" | head -c 160)"
@@ -69,14 +73,15 @@ check "$([ "$(echo "$READ" | jqp "d['code']")" = "0" ] && echo 0 || echo 1)" \
 # and the browser both copy names FROM.
 COMMA=$(echo "$CAT" | jqp "next((r['indicator'] for r in d['data']['rows'] if ',' in r['indicator']), '')")
 if [ -n "$COMMA" ]; then
-  N=$(curl -s -H "$AUTH" --get --data-urlencode "indicators=$COMMA" --data-urlencode "limit=2" \
+  N=$(curl -s -H "$AUTH" --get --data-urlencode "indicators=$COMMA" \
       "$BASE/api/v1/health-indicators" | jqp "len(d['data']['rows'])")
   check "$([ "${N:-0}" -gt 0 ] && echo 0 || echo 1)" "an indicator whose NAME has a comma" "$COMMA -> $N rows"
 fi
 
-BAD=$(curl -s -H "$AUTH" --get --data-urlencode "resolution=day" "$BASE/api/v1/health-indicators")
+BAD=$(curl -s -H "$AUTH" --get --data-urlencode "indicators=$FIRST" --data-urlencode "view=bogus" \
+      "$BASE/api/v1/health-indicators")
 check "$([ "$(echo "$BAD" | jqp "d['code']")" != "0" ] && echo 0 || echo 1)" \
-      "a refused combination is refused, not defaulted"
+      "an unknown view is refused, not defaulted"
 
 # ── 3. the MCP surface an external client sees ───────────────────────────────
 #
@@ -99,7 +104,7 @@ check "$([ "$(echo "$BAD" | jqp "d['code']")" != "0" ] && echo 0 || echo 1)" \
 LIST=$(curl -s -X POST "$BASE/mcp" -H "$AUTH" -H 'Content-Type: application/json' \
        -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}')
 NAMES=$(echo "$LIST" | jqp "','.join(sorted(t['name'] for t in d['result']['tools']))")
-EXPECT="convert_unit,normalize_unit,query_genetic_data,query_health_indicators,query_medications,resolve_indicator"
+EXPECT="convert_unit,normalize_unit,query_genetic_data,query_health_indicators,query_medications,query_pharmacogenomics,resolve_indicator"
 check "$([ "$NAMES" = "$EXPECT" ] && echo 0 || echo 1)" \
       "tools/list advertises the whole surface to an unidentified caller" "got: $NAMES"
 
@@ -120,12 +125,13 @@ else
 fi
 
 CALL=$(curl -s -X POST "$BASE/mcp" -H "$AUTH" -H 'Content-Type: application/json' \
-       -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query_health_indicators","arguments":{"aggregate":"latest","keywords":["weight"]}}}')
-check "$(echo "$CALL" | grep -q '"result"' && echo 0 || echo 1)" \
+       -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query_health_indicators","arguments":{"view":"latest","keywords":["weight"]}}}')
+# `isError:false`, not merely a `result`: a refused argument is also a result.
+check "$(echo "$CALL" | grep -q '"isError":false' && echo 0 || echo 1)" \
       "tools/call query_health_indicators" "$(echo "$CALL" | head -c 200)"
 
 REFUSED=$(curl -s -X POST "$BASE/mcp" -H "$AUTH" -H 'Content-Type: application/json' \
-          -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"query_health_indicators","arguments":{"kind":"medications","resolution":"day"}}}')
+          -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"query_health_indicators","arguments":{"kind":"medications","view":"day"}}}')
 # Refused at the MCP argument validator, BEFORE the tool runs, so the marker is
 # the validator's text and not the tool envelope's `invalid_arguments` kind —
 # this used to grep for the latter and reported a working refusal as a failure.
@@ -141,7 +147,7 @@ check "$(echo "$REFUSED" | grep -q 'user_info' && echo 1 || echo 0)" \
 # ── 4. the in-process suite, against this database ───────────────────────────
 if docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
   docker exec "$CONTAINER" sh -c \
-    'cd /app && /root/venv/bin/python scripts/e2e_health_data.py --user 1' >/tmp/e2e_inproc.txt 2>&1
+    "cd /app && /root/venv/bin/python scripts/e2e_health_data.py --user $USER_ID" >/tmp/e2e_inproc.txt 2>&1
   INNER=$?
   check "$INNER" "scripts/e2e_health_data.py inside the container" "see /tmp/e2e_inproc.txt"
 fi

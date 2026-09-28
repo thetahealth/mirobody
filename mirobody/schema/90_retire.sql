@@ -57,3 +57,35 @@ BEGIN
         DROP FUNCTION prevent_table_drop();
     END IF;
 END $$;
+
+-- Agent checkpoint threads keyed on the session id alone, from before
+-- `agent/checkpointer.py::thread_for`: anyone who posted another person's
+-- session id resumed that person's conversation. Re-keyed as
+-- `<owner>:<session>`, the owner being the sender of the session's first
+-- message (th_messages is written by the asker, never the subject). A thread
+-- with no message row keeps its old key and is unreachable from a turn. Runs
+-- only while an old key is left, because the DISTINCT ON reads every message.
+DO $$
+DECLARE
+    t text;
+BEGIN
+    IF to_regclass('checkpoints') IS NULL
+       OR NOT EXISTS (SELECT 1 FROM checkpoints WHERE strpos(thread_id, ':') = 0) THEN
+        RETURN;
+    END IF;
+    FOREACH t IN ARRAY ARRAY['checkpoints', 'checkpoint_blobs', 'checkpoint_writes']
+    LOOP
+        IF to_regclass(t) IS NOT NULL THEN
+            EXECUTE format(
+                'UPDATE %I c SET thread_id = o.user_id || '':'' || c.thread_id
+                   FROM (SELECT DISTINCT ON (session_id) session_id, user_id
+                           FROM th_messages ORDER BY session_id, created_at) o
+                  WHERE o.session_id = c.thread_id AND strpos(c.thread_id, '':'') = 0', t);
+        END IF;
+    END LOOP;
+END $$;
+
+-- Upload sources named after the web client's tabs (collect/files/services/
+-- file_db_service.py SOURCE_DATA, SOURCE_ASK) rather than `web_drive`/`web_chat`.
+UPDATE th_files SET created_source = CASE created_source WHEN 'web_drive' THEN 'data' ELSE 'ask' END
+ WHERE created_source IN ('web_drive', 'web_chat');

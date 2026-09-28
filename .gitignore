@@ -83,7 +83,7 @@ internal*.tar.gz
 # tune against it — so `testset.jsonl`, `build_testset.py` and every
 # timestamped result stay out.
 #
-# `run_eval.py` ships, and only it. It is the part other people need and cannot
+# The runner ships (now `benchmarks/run_eval.py`), and only it. It is the part other people need and cannot
 # write for themselves: it defines the four metrics, the analyte-level grading
 # rule and the strata, and it takes `--testset <path>`, so a downstream team can
 # grade the same resolver against their own distribution without their cases
@@ -94,7 +94,6 @@ internal*.tar.gz
 # per-stratum result tables, both of which are exactly the "not a public claim"
 # half. The runner's own docstring carries what a user of it needs.
 eval/*
-!eval/run_eval.py
 
 # Local regression suite. Not published: the repository keeps only the tests
 # that are evidence for something it claims (see [tool.pytest.ini_options] in

@@ -36,7 +36,6 @@ SURFACES: tuple[tuple[str, str], ...] = (
     ("chat", "the agent's answers (MODELS entries whose key is present)"),
     ("vision", "report photos and scanned pages (UTILS_VISION_MODEL)"),
     ("text", "indicator extraction, titles, summaries (UTILS_TEXT_MODEL)"),
-    ("embedding", "semantic search over indicator names (UTILS_EMBEDDING_MODEL; without it, the lexical index answers)"),
 )
 
 
@@ -73,16 +72,6 @@ def _route_status(surface: str, what: str) -> SurfaceStatus:
     return SurfaceStatus(surface, what, None, None, no_provider_message(surface), considered)
 
 
-def _embedding_status() -> SurfaceStatus:
-    from mirobody.utils.embedding import embedding_model_id, resolve_embedding_provider
-
-    what = SURFACES[3][1]
-    provider = resolve_embedding_provider()
-    if provider:
-        return SurfaceStatus("embedding", what, provider, embedding_model_id(provider) or None, "")
-    return SurfaceStatus("embedding", what, None, None, no_provider_message("embedding"))
-
-
 def provider_report(cfg=None) -> list[SurfaceStatus]:
     """One row per surface, against the current configuration. `cfg` is
     accepted for the callers that pass one; the routes read the global."""
@@ -90,7 +79,6 @@ def provider_report(cfg=None) -> list[SurfaceStatus]:
         _chat_status(),
         _route_status("vision", SURFACES[1][1]),
         _route_status("text", SURFACES[2][1]),
-        _embedding_status(),
     ]
 
 
@@ -130,7 +118,7 @@ def log_report(rows: list[SurfaceStatus], log: logging.Logger) -> None:
     for name in retired_model_keys():
         # Bound to a name `phi_lint` recognises.
         key_id = name
-        log.warning("config key %s is no longer read (1.4.1): a model belongs to a MODELS entry, and a surface's choice to UTILS_VISION_MODEL / UTILS_TEXT_MODEL / UTILS_EMBEDDING_MODEL in config.llm.yaml", key_id)
+        log.warning("config key %s is no longer read (1.4.1): a model belongs to a MODELS entry, and a surface's choice to UTILS_VISION_MODEL / UTILS_TEXT_MODEL in config.llm.yaml", key_id)
     if len(missing) == len(rows):
         reason = "no LLM API key is set; put ONE in .env (see config.llm.yaml) and restart"
         log.error("no LLM model on any surface — chat, file parsing and indicator extraction will fail on every request: %s", reason)

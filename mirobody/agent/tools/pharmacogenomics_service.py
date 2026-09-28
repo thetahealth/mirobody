@@ -13,7 +13,7 @@ from typing import Any
 from mirobody.kernel import query, tools
 from mirobody.translate.pgx import load_cpic
 
-from ._authz import refused, subject_for
+from ._authz import refused
 from ._base import RecordTool
 from ._render import envelope_meta, render_compact
 
@@ -31,7 +31,6 @@ TOOL_SCHEMA: dict[str, object] = {
                   "description": "Exact CPIC generic drug names; omit with genes to compare current medication plans."},
         "genes": {"type": "array", "items": {"type": "string"}, "maxItems": MAX_ITEMS,
                   "description": "HGNC symbols such as CYP2C19; omit with drugs for current medication plans."},
-        "member": {"type": "string", "description": "Authorised care-circle member id; omit for caller."},
     },
 }
 
@@ -72,12 +71,10 @@ class PharmacogenomicsService(RecordTool):
         if problems:
             return refused(tuple(problems))
 
-        member = str(args.get("member") or "")
-        subject = await subject_for(caller_id, member)
         sets = await self._read(
             "SELECT id, format_id, vendor, build_declared, build_detected, site_table_version "
             "FROM th_genotype_set WHERE user_id = :user_id AND status = 'active' LIMIT 1",
-            {"user_id": subject},
+            {"user_id": caller_id},
         )
         if not sets:
             return tools.Envelope(tools.STATUS_OK, data=[], meta=tools.Meta(row_count=0),
@@ -96,7 +93,7 @@ class PharmacogenomicsService(RecordTool):
                 from .medications_service import MedicationsService
 
                 medication_service = MedicationsService()
-            plan = await medication_service.envelope({"user_id": caller_id}, view="plan", member=member)
+            plan = await medication_service.envelope({"user_id": caller_id}, view="plan")
             if plan.status == tools.STATUS_ERROR:
                 return plan
             drugs = tuple(str(row["medication"]) for row in plan.data if row.get("status") == "active")[:MAX_ITEMS]

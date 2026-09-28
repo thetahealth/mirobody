@@ -6,164 +6,60 @@ This ensures thread safety and testability.
 """
 
 import asyncio
-import base64
 import logging
 
 from datetime import datetime
 from typing import Any
 
 from mirobody.collect import process_files_async
-from mirobody.collect import FileDbService
+from mirobody.collect import SOURCE_ASK, FileDbService
 from mirobody.utils.file_types import guess_mime
 from mirobody.utils.config.storage import get_storage_client
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.tasks import spawn
 
 logger = logging.getLogger(__name__)
 
-#: How long Redis holds a rendered file. One hour: long enough that a turn
-#: re-reading the same attachment costs one fetch, short enough that a
-#: corrected extraction is not served for a day.
-CACHE_TTL_REDIS = 3600
-
 #-----------------------------------------------------------------------------
 
-async def _download_single_file(
-    file_dict: dict[str, Any],
-    storage: Any,
-    session_id: str,
-    redis_client: Any | None = None
-) -> dict[str, Any] | None:
+async def _download_single_file(file_dict: dict[str, Any], storage: Any, session_id: str) -> dict[str, Any] | None:
+    """One attachment's bytes from storage, with the metadata its th_files row
+    and the extraction need. None when it cannot be read.
+
+    There was a Redis copy of every attachment's bytes, base64, for an hour,
+    keyed by file_key alone: a health document held in a second store, shared
+    across accounts, to save one fetch when the same key was sent again.
     """
-    Download single file from storage and return file content.
-
-    File Retrieval Strategy:
-        1. Check Redis for cached base64 content
-        2. If cache hit, decode and return content directly
-        3. Otherwise, download from S3/OSS, cache base64 to Redis, return content
-
-    Args:
-        file_dict: File info dictionary
-        storage: Storage client
-        session_id: Session ID
-        redis_client: Optional Redis client for content caching
-
-    Returns:
-        Unified file dict with content + metadata fields, or None if failed
-    """
-    try:
-        file_key = file_dict.get("file_key", "")
-        file_name = file_dict.get("file_name", "")
-        file_type = file_dict.get("file_type", "")
-        file_url = file_dict.get("file_url", "")
-        file_size = file_dict.get("file_size", 0)
-
-        if not file_key or not file_name:
-            logger.warning(f"Missing file_key or file_name in file dict: {file_dict}")
-            return None
-
-        if not file_type or "/" not in file_type:
-            file_type = guess_mime(file_name)
-
-        file_content = None
-        content_b64 = None 
-        cache_key = f"file_cache:{file_key}"
-
-        # Try Redis cache first
-        if redis_client:
-            try:
-                cached_b64 = await redis_client.get(cache_key)
-                if cached_b64:
-                    if isinstance(cached_b64, bytes):
-                        cached_b64 = cached_b64.decode('utf-8')
-                    file_content = base64.b64decode(cached_b64)
-                    content_b64 = cached_b64  # Reuse cached base64
-                    logger.info(f"Cache HIT: {file_name} ({len(file_content)} bytes)")
-            except Exception as e:
-                logger.warning(f"Redis cache read failed for {file_name}: {e}")
-
-        # Download from S3/OSS if not cached
-        if not file_content:
-            file_content, _ = await storage.get(file_key)
-            if not file_content:
-                logger.warning(f"Failed to download file content for key: {file_key}")
-                return None
-
-            logger.info(f"Downloaded {file_name} from S3 ({len(file_content)} bytes)")
-
-            # Encode to base64 once (used for both Redis cache and content_b64)
-            content_b64 = base64.b64encode(file_content).decode('utf-8')
-
-            # Cache to Redis
-            if redis_client:
-                try:
-                    await redis_client.set(cache_key, content_b64, ex=CACHE_TTL_REDIS)
-                    logger.info(f"Cached to Redis: {file_name}")
-                except Exception as e:
-                    logger.warning(f"Redis cache write failed for {file_name}: {e}")
-
-        # Unified structure: file_info with content fields added
-        # Used for both DB storage (insert_files_batch) and Agent processing
-        return {
-            # Identity fields
-            "file_key": file_key,
-            "file_name": file_name,
-            "original_filename": file_name,  # unchanged for track
-
-            # Content fields (for Agent workspace)
-            "content_bytes": file_content,   # bytes - for background processing
-            "content_b64": content_b64,      # str - pre-encoded, avoids re-encoding
-            "content_type": file_type,
-
-            # Metadata fields (for DB storage)
-            "file_type": file_type,
-            "file_size": file_size,
-            "url_thumb": file_url,
-            "url_full": file_url,
-            "session_id": session_id,
-            "upload_time": datetime.now().isoformat(),
-        }
-
-    except Exception as file_error:
-        logger.error(
-            f"Failed to process file {file_dict.get('file_name', 'unknown')}: {str(file_error)}",
-            exc_info=True
-        )
+    file_key = file_dict.get("file_key", "")
+    file_name = file_dict.get("file_name", "")
+    if not file_key or not file_name:
+        logger.warning("attachment without a key or a name skipped")
         return None
-
-#-----------------------------------------------------------------------------
-
-async def schedule_file_processing_tasks(
-    files_data: list[dict[str, Any]],
-    user_id: str,
-    msg_id: str,
-    language: str = "en"
-):
-    """
-    Schedule file processing tasks including:
-    1. Original text extraction (immediate)
-    2. Indicator extraction (async)
-    3. Abstract generation (async)
-    
-    Args:
-        files_data: List of file data dictionaries with content, filename, content_type
-        user_id: User ID
-        msg_id: Message ID
-        language: Language code for extraction (default: "en")
-    """
-    if not files_data:
-        return
-    
-    # Use asyncio.create_task for background processing
-    # Note: Abstract extraction is now handled inside handler's async task
-    spawn(
-        process_files_async(
-            files_data=files_data,
-            user_id=user_id,
-            msg_id=msg_id,
-        )
-    )
-    
-    logger.info(f"Scheduled file processing tasks via asyncio.create_task: msg_id={msg_id}, files_count={len(files_data)}")
+    file_type = file_dict.get("file_type", "")
+    if not file_type or "/" not in file_type:
+        file_type = guess_mime(file_name)
+    file_url = file_dict.get("file_url", "")
+    try:
+        content, _ = await storage.get(file_key)
+    except Exception as e:
+        logger.warning("attachment download failed: error_type=%s", type(e).__name__)
+        return None
+    if not content:
+        logger.warning("attachment download returned nothing")
+        return None
+    return {
+        "file_key": file_key,
+        "file_name": file_name,
+        "original_filename": file_name,
+        "content_bytes": content,
+        "content_type": file_type,
+        "file_type": file_type,
+        "file_size": file_dict.get("file_size", 0),
+        "url_thumb": file_url,
+        "url_full": file_url,
+        "session_id": session_id,
+        "upload_time": datetime.now().isoformat(),
+    }
 
 #-----------------------------------------------------------------------------
 
@@ -190,101 +86,43 @@ async def process_files_from_storage(
     file_list: list[dict[str, Any]],
     user_id: str,
     msg_id: str,
-    session_id: str = None,
-    query_user_id: str = None,
-    language: str = "en",
-    redis_client: Any | None = None
-) -> list[dict[str, Any]]:
+    session_id: str = "",
+    query_user_id: str = "",
+) -> None:
+    """File this turn's attachments in th_files and start their extraction.
+
+    `user_id` is the uploader, `query_user_id` the record the readings land in
+    (the care-circle target when asking on someone's behalf). A key whose file
+    belongs to another account is dropped before it is fetched.
     """
-    Process files from storage with concurrent downloads for better performance.
-    
-    All parameters are explicitly passed - no implicit context dependencies.
-    Supports Redis caching for improved performance.
-    
-    Args:
-        file_list: List of file dicts with file_key, file_name, file_type, file_url, file_size
-        user_id: User ID
-        msg_id: Message ID
-        session_id: Session ID (required, should be passed explicitly from caller)
-        query_user_id: Query user ID (optional, defaults to user_id)
-        language: Language code for extraction (default: "en", should be passed explicitly)
-        redis_client: Optional Redis client for caching (default None, backward compatible)
-    
-    Returns:
-        List of unified file_info dicts containing:
-        - content (bytes), content_b64 (str) - for Agent processing
-        - file_key, file_name, file_type, file_size, etc. - for DB storage
-        Returns empty list if no files or on error
-    """
+    if not file_list:
+        return
+    query_user_id = query_user_id or user_id
     try:
-        if not file_list:
-            logger.warning(f"Empty file_list provided for msg_id: {msg_id}")
-            return []
-        
-        # Use explicit defaults (no get_req_ctx)
-        session_id = session_id or ""
-        query_user_id = query_user_id or user_id
-        
-        # Get storage client (reuse for all downloads)
+        foreign = await FileDbService.keys_held_by_others(
+            [str(f.get("file_key")) for f in file_list if f.get("file_key")], user_id)
+        if foreign:
+            logger.warning("attachments refused, held by another account: count=%d", len(foreign))
         storage = get_storage_client()
-        
-        # 🚀 Concurrent download: Create tasks for all files
-        download_tasks = [
-            _download_single_file(file_dict, storage, session_id, redis_client)
-            for file_dict in file_list
-        ]
-        
-        # Execute all downloads concurrently
-        results = await asyncio.gather(*download_tasks, return_exceptions=True)
-
-        # Collect successful results (unified file_info with content)
-        files_info = []
-        for result in results:
-            if result and isinstance(result, dict):
-                files_info.append(result)
-            elif isinstance(result, Exception):
-                logger.error(f"Download task failed with exception: {result}")
-
+        results = await asyncio.gather(*(
+            _download_single_file(f, storage, session_id)
+            for f in file_list if str(f.get("file_key")) not in foreign
+        ))
+        files_info = [r for r in results if r]
         if not files_info:
-            logger.warning(f"No valid files to process for msg_id: {msg_id}")
-            return []
-
-        logger.info(
-            f"Concurrent download completed: {len(files_info)}/{len(file_list)} files successful"
-        )
+            return
 
         scenes = await asyncio.gather(*(asyncio.to_thread(_detect_file_scene, fi) for fi in files_info))
-        inserted_ids = await FileDbService.insert_files_batch(
+        await FileDbService.insert_files_batch(
             user_id=user_id,
             files_info=files_info,
             scene="report",
             scenes_by_key={str(fi["file_key"]): scene for fi, scene in zip(files_info, scenes, strict=True)},
-            created_source="web_chat",
+            created_source=SOURCE_ASK,
             created_source_id=msg_id,
             query_user_id=query_user_id,
         )
-
-        if inserted_ids:
-            logger.info(
-                f"Files saved to th_files with msg_id: {msg_id}, "
-                f"inserted: {len(inserted_ids)}/{len(files_info)} files"
-            )
-
-        # Schedule file processing tasks (uses same unified structure)
-        await schedule_file_processing_tasks(
-            files_data=files_info,
-            user_id=query_user_id,
-            msg_id=msg_id,
-            language=language
-        )
-
-        logger.info(f"Successfully scheduled processing for {len(files_info)} files with msg_id: {msg_id}")
-
-        # Return unified files_info for Agent to use (includes content + metadata)
-        return files_info
-            
+        spawn(process_files_async(files_data=files_info, user_id=query_user_id, msg_id=msg_id))
     except Exception as e:
-        logger.error(f"Error in process_files_from_storage: {str(e)}", exc_info=True)
-        return []
-
-#-----------------------------------------------------------------------------
+        logger.error("attachment filing failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))

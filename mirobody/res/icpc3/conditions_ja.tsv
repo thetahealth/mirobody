@@ -1,0 +1,150 @@
+# Japanese disease names -> ICPC-3 D component. OUR writing, Apache-2.0.
+#
+# NOT a translation of ICPC-3. Same rule as conditions_zh.tsv: what a person
+# writes when naming a condition they have been diagnosed with, and our
+# judgement about its code. 喘息 is asthma here, on the D axis; in
+# symptoms_zh.tsv the same characters are the complaint wheezing, on the S axis,
+# and the caller says which question it is asking.
+surface	code	note
+# ── A: general, infection ───────────────────────────────────────────────────
+がん	AD25
+癌	AD25
+悪性腫瘍	AD25
+結核	AD15
+アレルギー	AD46
+薬物アレルギー	AD41
+# ── B: blood ────────────────────────────────────────────────────────────────
+貧血	!ambiguous
+鉄欠乏性貧血	BD66
+白血病	BD25
+# ── D: digestive ────────────────────────────────────────────────────────────
+胃炎	DD71
+胃潰瘍	DD70
+十二指腸潰瘍	DD69
+逆流性食道炎	DD67
+過敏性腸症候群	DD78
+潰瘍性大腸炎	DD79
+クローン病	DD79
+痔	DD84
+痔核	DD84
+脂肪肝	DD81
+肝硬変	DD81
+胆石	DD82
+胆石症	DD82
+虫垂炎	DD72
+盲腸	DD72
+胃がん	DD25
+大腸がん	DD26
+B型肝炎	DD03
+C型肝炎	DD03
+# ── F / H: eye, ear ─────────────────────────────────────────────────────────
+結膜炎	FD01
+ものもらい	FD02
+近視	FD69
+白内障	FD70
+緑内障	FD71
+中耳炎	HD02
+難聴	HD69
+# ── G: genital, breast ──────────────────────────────────────────────────────
+乳がん	GD27
+子宮筋腫	GD29
+子宮内膜症	GD69
+前立腺肥大症	GD70
+前立腺がん	GD26
+# ── K: circulation ──────────────────────────────────────────────────────────
+高血圧	KD73
+高血圧症	KD73
+心筋梗塞	KD65
+狭心症	KD66
+心不全	KD67
+心房細動	KD68
+不整脈	KD70
+静脈瘤	KD79
+深部静脈血栓症	KD78
+# ── L: musculoskeletal ──────────────────────────────────────────────────────
+骨折	!too-broad
+関節炎	!ambiguous
+頚椎症	LD65
+椎間板ヘルニア	LD67
+坐骨神経痛	LD67
+五十肩	LD68
+関節リウマチ	LD74
+痛風	LD75
+変形性膝関節症	LD79
+変形性関節症	LD80
+骨粗しょう症	LD81
+骨粗鬆症	LD81
+# ── N: neurological ─────────────────────────────────────────────────────────
+片頭痛	ND71
+偏頭痛	ND71
+緊張型頭痛	ND73
+脳梗塞	ND69
+脳卒中	ND69
+脳出血	ND69
+てんかん	ND67
+パーキンソン病	ND66
+顔面神経麻痺	ND75
+手根管症候群	ND76
+# ── P: psychological ────────────────────────────────────────────────────────
+認知症	PD01
+アルツハイマー病	PD01
+うつ病	PD12
+不安障害	PD06
+パニック障害	PD06
+双極性障害	PD04
+統合失調症	PD03
+強迫性障害	PD07
+PTSD	PD09
+ADHD	PD16
+発達障害	!ambiguous
+自閉症	PD19
+# ── R: respiratory ──────────────────────────────────────────────────────────
+風邪	RD02
+かぜ	RD02
+インフルエンザ	RD07
+新型コロナ	RD08
+コロナ	RD08
+肺炎	RD09
+気管支炎	RD06
+喘息	RD69
+気管支喘息	RD69
+花粉症	RD65
+アレルギー性鼻炎	RD65
+副鼻腔炎	RD03
+蓄膿症	RD03
+扁桃炎	RD04
+COPD	RD68
+慢性閉塞性肺疾患	RD68
+肺がん	RD25
+# ── S: skin ─────────────────────────────────────────────────────────────────
+アトピー性皮膚炎	SD69
+アトピー	SD69
+じんましん	SD78
+蕁麻疹	SD78
+乾癬	SD72
+にきび	SD76
+帯状疱疹	SD03
+水虫	SD08
+イボ	SD01
+やけど	SD41
+# ── T: metabolic ────────────────────────────────────────────────────────────
+糖尿病	!ambiguous
+2型糖尿病	TD72
+1型糖尿病	TD71
+脂質異常症	TD75
+高脂血症	TD75
+高コレステロール血症	TD75
+肥満	TD66
+甲状腺機能亢進症	TD68
+バセドウ病	TD68
+甲状腺機能低下症	TD69
+低血糖	TD70
+# ── U: urinary ──────────────────────────────────────────────────────────────
+膀胱炎	UD02
+尿路感染症	UD04
+腎盂腎炎	UD01
+慢性腎臓病	UD66
+腎不全	UD66
+腎臓結石	UD67
+尿路結石	UD67
+腎結石	UD67

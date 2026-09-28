@@ -84,7 +84,7 @@ async def run(schema: str) -> None:
             try:
                 inserted = await FileDbService.insert_files_batch(
                     user_id=user_id, files_info=[info], scene="report",
-                    scenes_by_key={key: scene}, created_source="web_chat",
+                    scenes_by_key={key: scene}, created_source="ask",
                     query_user_id=user_id,
                 )
                 assert len(inserted) == 1, (name, inserted)
@@ -110,7 +110,7 @@ async def run(schema: str) -> None:
             try:
                 inserted = await FileDbService.insert_files_batch(
                     user_id=user_id, files_info=[info], scene="report",
-                    created_source="web_chat", query_user_id=user_id,
+                    created_source="ask", query_user_id=user_id,
                 )
                 assert len(inserted) == 1, (name, inserted)
                 assert not (await ThFilesBackend(user_id=user_id, scope="uploads", file_keys=[key]).als("/")).entries, name
@@ -131,7 +131,7 @@ async def run(schema: str) -> None:
             inserted = await FileDbService.insert_files_batch(
                 user_id=user_id, files_info=mixed, scene="report",
                 scenes_by_key={item["file_key"]: _detect_file_scene(item) for item in mixed},
-                created_source="web_chat", query_user_id=user_id,
+                created_source="ask", query_user_id=user_id,
             )
             assert len(inserted) == 2, inserted
             scenes = await execute_query("SELECT file_key, scene FROM th_files WHERE file_key IN (:g, :r)",

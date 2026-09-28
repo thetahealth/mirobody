@@ -546,16 +546,7 @@ async def upload_files(
         except CareCircleDenied:
             return FileUploadResponse(code=403, msg="You cannot upload to that record.", data=[])
 
-    # Get Redis client from global app state (shared across all requests)
-    redis_client = getattr(request.app.state, 'redis', None)
-    
-    # Use the universal upload service
-    result = await upload_files_to_storage(
-        files=files,
-        user_id=owner,
-        folder_prefix=folder,
-        redis_client=redis_client
-    )
+    result = await upload_files_to_storage(files=files, user_id=owner, folder_prefix=folder)
     
     # Convert result to FastAPI response format
     return FileUploadResponse(

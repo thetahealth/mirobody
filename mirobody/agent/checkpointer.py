@@ -10,7 +10,7 @@ it, tool arguments came back as re-parsed JSON strings, and anything the stream
 did not model was simply gone.
 
 Now the graph is compiled with ``checkpointer=`` and invoked with
-``thread_id = session_id``, so LangGraph persists the REAL message objects and
+``thread_id = thread_for(owner, session_id)``, so LangGraph persists the REAL message objects and
 supplies the history itself. The caller passes only the NEW turn's message
 (verified: turn 2 hands in 1 message and the model sees 3; a fresh thread_id
 sees only its own).
@@ -137,11 +137,26 @@ async def get_checkpointer():
         return None
 
 
-async def delete_thread(session_id: str) -> None:
-    """Erase the agent's copy of one conversation.
+def thread_for(owner_id: str, session_id: str) -> str:
+    """The checkpoint thread of one person's conversation.
 
-    ``thread_id == session_id``, so this is the checkpointer half of "delete
-    this conversation". Without it, ``chat/session.delete_session`` would clear
+    Keyed on the session's OWNER as well as its id, because the id arrives from
+    the client: keyed on the id alone, anyone who posted another person's
+    session id resumed that person's checkpoint. Measured 2026-09-28 on the
+    seeded stack: a second account sent a known `session_id` and the model
+    repeated the first account's LDL and HDL back to it, and whatever it wrote
+    became part of the first account's next turn. The owner is the person
+    asking, not the record's subject, so the conversation someone has about
+    their mother is theirs, not hers. `90_retire.sql` re-keys threads written
+    before this under their first message's sender.
+    """
+    return f"{owner_id}:{session_id}"
+
+
+async def delete_thread(thread_id: str) -> None:
+    """Erase the agent's copy of one conversation (`thread_for`).
+
+    This is the checkpointer half of "delete this conversation". Without it, ``chat/session.delete_session`` would clear
     ``th_messages``/``th_sessions`` while the agent's own copy of the same turns
     (health questions and the tool results answering them) survived indefinitely
     under the session id. A user who deletes a conversation must
@@ -150,15 +165,15 @@ async def delete_thread(session_id: str) -> None:
     Best-effort: a failure here is logged, never raised, so it cannot block the
     user-visible deletion that already succeeded.
     """
-    if not session_id:
+    if not thread_id:
         return
     saver = await get_checkpointer()
     if saver is None:
         return
     try:
-        await saver.adelete_thread(str(session_id))
-    except Exception:
-        logger.warning("could not delete checkpoint thread %s", session_id, exc_info=True)
+        await saver.adelete_thread(str(thread_id))
+    except Exception as e:
+        logger.warning("could not delete a checkpoint thread: error_type=%s", type(e).__name__)
 
 
 async def close_checkpointer() -> None:

@@ -28,7 +28,6 @@ _EXPORTS = {
     'CacheConfig'             : 'constants',
     'LinkType'                : 'constants',
     'ProviderStatus'          : 'constants',
-    'CacheableDatabaseService': 'database',
     'LinkRequest'             : 'models',
     'ProviderInfo'            : 'models',
     'UserProvider'            : 'models',
@@ -39,7 +38,6 @@ __all__ = [*_EXPORTS]
 
 if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .constants import CacheConfig, LinkType, ProviderStatus
-    from .database import CacheableDatabaseService
     from .models import LinkRequest, ProviderInfo, UserProvider
     from .push_service import PushService, push_service
 

@@ -1,18 +1,65 @@
+import re
 import time
 import uuid
 
 from typing import Any
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
 
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from mirobody.utils.i18n import language_from_headers
 
 from mirobody.user import JwtTokenValidator
+from mirobody.user.auth.jwt import REFRESH_TOKEN_TYPE
+
+#-----------------------------------------------------------------------------
+
+#: Paths an AAL1 session of an MFA account may still reach: the WebAuthn and
+#: session routes that raise it to AAL2, and the settings read the web client's
+#: `ensureAAL2` makes to learn whether a passkey is registered. Matched as a
+#: substring so an `API_PREFIX` in front does not matter.
+_AAL1_REACHABLE = ("/auth/webauthn/", "/auth/session/")
+_AAL1_REACHABLE_GETS = ("/api/user/settings",)
+
+
+#: What a caller may name its own request id with. It lands in every log line
+#: of the request, so an unchecked header was a way to write into the log.
+_TRACE_ID = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
+TRACE_HEADER = "X-Request-Id"
+
+
+def _trace_id_from(headers) -> str:
+    """The caller's request id when it is a sane one, else a fresh one.
+
+    The two names theta-smart's services already propagate (`X-Request-Id`
+    from the iOS client, `X-Trace-Id` from older callers), so one id follows a
+    request across both backends' logs.
+    """
+    for key in (TRACE_HEADER, "X-Trace-Id"):
+        value = headers.get(key)
+        if value and _TRACE_ID.match(value):
+            return value
+    return str(uuid.uuid4())
+
+
+def _aal1_reachable(method: str, path: str) -> bool:
+    if any(p in path for p in _AAL1_REACHABLE):
+        return True
+    return method == "GET" and any(path.endswith(p) for p in _AAL1_REACHABLE_GETS)
+
+
+def _aal2_required() -> Response:
+    # The web client's interceptor keys on `detail.code`, runs the passkey
+    # upgrade and retries the request (the same shape as the session routes'
+    # ERROR_SESSION_MAX_LIFETIME).
+    return JSONResponse(
+        {"detail": {"code": "ERROR_AAL2_REQUIRED", "message": "This account requires a passkey for this request."}},
+        status_code=403,
+    )
 
 #-----------------------------------------------------------------------------
 
@@ -37,8 +84,13 @@ class JwtMiddleware(BaseHTTPMiddleware):
         app,
         dispatch = None,
         jwt_key: str = "",
-        decode_func: Callable[[str], int] | None = None
+        decode_func: Callable[[str], int] | None = None,
+        requires_second_factor: Callable[[int], Awaitable[bool]] | None = None,
     ):
+        # Whether an account's requests need `aal` >= 2. Without this, MFA
+        # protected nothing: sign-in hands an MFA account an AAL1 fallback
+        # token, and no route ever asked for more.
+        self._requires_second_factor = requires_second_factor
         if jwt_key:
             self._token_validator = JwtTokenValidator(jwt_key)
         else:
@@ -59,10 +111,19 @@ class JwtMiddleware(BaseHTTPMiddleware):
         # Record current time.
         request.state.start_time = time.time()
 
+        # Every request gets one, signed in or not, and it goes back to the
+        # caller: the id is only useful for debugging if the person reporting
+        # a failure can quote it. Before, it was minted only for signed-in
+        # requests and never left the server.
+        trace_id = _trace_id_from(request.headers)
+        request.state.trace_id = trace_id
+        ctx: dict[str, Any] = {"trace_id": trace_id}
+
         #-------------------------------------------------
         # Check JWT token.
 
         request.state.user_id = 0
+        aal = 0
 
         if self._token_validator:
             token = request.headers.get("Authorization")
@@ -72,8 +133,17 @@ class JwtMiddleware(BaseHTTPMiddleware):
 
                 if token:
                     payload, err = self._token_validator.verify_token(token)
+                    # A refresh token is exchanged at /oauth/token, never
+                    # presented: accepted here, a 60-day refresh token worked
+                    # as an access token.
+                    if not err and isinstance(payload, dict) and payload.get("token_type") == REFRESH_TOKEN_TYPE:
+                        payload = None
                     if not err and payload:
                         if isinstance(payload, dict) and "sub" in payload:
+                            try:
+                                aal = int(payload.get("aal") or 0)
+                            except (TypeError, ValueError):
+                                aal = 0
                             sub = payload["sub"]
                             if sub:
                                 if self._decode_func:
@@ -91,12 +161,17 @@ class JwtMiddleware(BaseHTTPMiddleware):
             if not await is_active_account(request.state.user_id):
                 request.state.user_id = 0
 
+        if (request.state.user_id > 0 and aal < 2 and self._requires_second_factor
+                and not _aal1_reachable(request.method, request.url.path)
+                and await self._requires_second_factor(request.state.user_id)):
+            refused = _aal2_required()
+            refused.headers[TRACE_HEADER] = trace_id
+            return refused
+
         #-------------------------------------------------
 
         if request.state.user_id > 0:
-            ctx = {
-                "user_id": request.state.user_id
-            }
+            ctx["user_id"] = request.state.user_id
             try:
                 ctx.update(get_request_info(request))
             except Exception:
@@ -120,25 +195,14 @@ class JwtMiddleware(BaseHTTPMiddleware):
                     ctx["timezone"] = request.state.timezone
                     break
 
-            # Get request trace ID.
-            request.state.trace_id = ""
-            for key in ["traceid", "trace_id", "X-Request-Id", "x-request-id"]:
-                if key in request.headers:
-                    request.state.trace_id = request.headers.get(key)
-                    ctx["trace_id"] = request.state.trace_id
-                    break
-
-            if not request.state.trace_id:
-                request.state.trace_id = str(uuid.uuid4())
-                ctx["trace_id"] = request.state.trace_id
-
-            if ctx:
-                from mirobody.utils.req_ctx import REQ_CTX
-                REQ_CTX.set(ctx)
+        from mirobody.utils.req_ctx import REQ_CTX
+        REQ_CTX.set(ctx)
 
         #-------------------------------------------------
 
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers[TRACE_HEADER] = trace_id
+        return response
 
 #-----------------------------------------------------------------------------
 

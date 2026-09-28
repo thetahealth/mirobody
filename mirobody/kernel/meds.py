@@ -1447,7 +1447,7 @@ class DoseLogStore(Protocol):
 #
 # Medications have their own tool because they have their own grammar: a plan
 # has a lifecycle, a dose log has a day, a course has a reason it closed:
-# none of which is a resolution or an aggregate. Five parameters, every one
+# none of which is a reading's view of a series. Four parameters, every one
 # applicable to every call; the readings tool is `mirobody.kernel.query`.
 
 TOOL_NAME = "query_medications"
@@ -1490,10 +1490,6 @@ TOOL_SCHEMA: dict[str, object] = {
             ),
         },
         "end": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Last local date, inclusive."},
-        "member": {
-            "type": "string",
-            "description": "Read another person's medications you are authorised to see (a care-circle member id). Omit for the caller.",
-        },
     },
 }
 
@@ -1506,7 +1502,6 @@ class MedicationsRequest:
     keywords: tuple[str, ...] = ()
     start: str = ""
     end: str = ""
-    member: str = ""
 
 
 def validate_query(args: Mapping[str, object]) -> tuple:
@@ -1535,7 +1530,6 @@ def parse_query(args: Mapping[str, object]) -> MedicationsRequest:
         keywords=query.normalize_list_arg(args.get("keywords")),
         start=str(args.get("start") or ""),
         end=str(args.get("end") or ""),
-        member=str(args.get("member") or ""),
     )
 
 

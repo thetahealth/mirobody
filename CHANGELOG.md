@@ -9,6 +9,26 @@ boundary.
 
 ### Added
 
+- **Complaints and diagnoses resolve in Japanese, Russian and Traditional
+  Chinese.** LOINC names already resolved in English, 简体中文, 繁體中文,
+  日本語 and Russian (#88); ICPC-3 complaints resolved only in Chinese and
+  English, and 繁體中文 not at all (發燒, 頭痛, 高血壓 all `no-match`), because
+  the complaint axis never applied the zh-Hant fold the LOINC side does. It now
+  does, term as written first, and Taiwan's 氣喘 (asthma) is curated under its
+  own spelling. `symptoms_ja.tsv`, `conditions_ja.tsv`, `symptoms_ru.tsv` and
+  `conditions_ru.tsv` are new, our own patient phrasing on the codes the
+  Chinese and English files already use, with the same `!too-broad` /
+  `!ambiguous` sentinels (痛み, боль; 糖尿病, сахарный диабет). The
+  health-records benchmark now carries cases in all five and fails if a
+  language drops out: `python -m unittest benchmarks.health_records.test_cases`.
+- **Every response names its request id, and a failure quotes it.** The id
+  that ties a request's log lines together was minted only for signed-in
+  requests and never left the server, so "it said internal error" matched
+  every error that day. Every request now gets one (the caller's
+  `X-Request-Id` or `X-Trace-Id` when it is 1-64 of `[A-Za-z0-9._:-]`, else a
+  fresh uuid), every response returns it as `X-Request-Id` (exposed to browser
+  scripts), and the chat's internal-error message ends with
+  `(reference: <id>)`. Grep the logs for that id.
 - **The genetics page has a Chinese edition.** The Chinese README linked the
   genetics page in English only, although every other guide it links has a
   `<guide>.zh-CN.md`. `docs/genetics.zh-CN.md` now pairs with
@@ -103,8 +123,158 @@ boundary.
   locally newest installed version at query time. Public v1.59.1 and v1.60.0
   dumps passed the offline fetch and selection checks.
 
+### Security
+
+- **Anyone who knew a session id could read and write that conversation.**
+  The agent's checkpoint thread was the client-supplied `session_id` alone, so
+  a second account posting a known id resumed the first account's turns (the
+  model repeated its LDL and HDL back) and its own message became part of the
+  owner's next turn. Threads are now `<owner>:<session>`
+  (`agent/checkpointer.py::thread_for`); `90_retire.sql` re-keys existing
+  threads under their first message's sender. To check, post someone else's
+  session id: the answer says it is the first message.
+- **`POST /password/register` took over any account without a password.**
+  Every account made by email code, Apple or Google has no password hash, and
+  registering its email set one and returned that account's tokens. It now
+  creates new accounts only; an existing email answers -4.
+- **`POST /api/v1/pulse/{platform}/token` issued a 30-day token without
+  checking anything.** The provider's `_validate_credentials` was its only
+  proof, and the default accepts everything, which every shipped provider
+  inherits. A provider that does not override it now answers 401.
+
+- **A passkey protected nothing.** An account with MFA on signs in with an
+  AAL1 fallback token, and no route ever asked for more. Every request of such
+  an account now needs `aal` >= 2, except the WebAuthn and session routes that
+  raise it and the settings read the web client makes first; the client
+  already answers `403 ERROR_AAL2_REQUIRED` by running the passkey upgrade and
+  retrying. Turning MFA off, minting an MCP URL and `/mcp` are gated too. MCP
+  clients an MFA account authorised before this carry no `aal` and must be
+  authorised again.
+- **The assurance level no longer launders through a refresh.** A refresh
+  token was accepted as a bearer credential (60 days), and `/oauth/token`
+  accepted ANY valid token as a refresh token, returning a fresh 30-day token
+  with no `aal`. Refresh tokens are now refused as bearers, the token endpoint
+  requires a refresh token issued to the presenting client, and `aal` rides
+  from the authorising session through the code, the tokens and every refresh.
+- **OAuth: PKCE and `redirect_uri` are checked.** The metadata advertised
+  S256 and nothing verified it. A redirect flow now requires
+  `code_challenge_method=S256`, and the token request must present the
+  matching `code_verifier` and the same `redirect_uri`. A signed-in
+  `GET /oauth/authorize` no longer puts the session token in the redirect URL.
+- **Chat attachments are checked for ownership.** A request named its files by
+  key and nothing asked whose they were: a key taken from someone else's
+  shared conversation was downloaded, extracted into the caller's record, and
+  its row rewritten. Keys another account holds are now dropped before the
+  fetch, and the upsert touches only the uploader's own row. Attachment bytes
+  are no longer copied into Redis (base64, an hour, keyed by file key alone).
+- **Sign in with Apple and Google is removed.** Neither the web client nor
+  anything in this repository called `/apple/verify` or `/google/verify`, and
+  the Apple path checked no audience, so an id_token issued to any app signed
+  its holder in here and matched their account by email. `APPLE_*` and
+  `GOOGLE_CLIENT_ID` are no longer read, `/mirobody.json` drops its two sign-in
+  flags, and `health_app_user.apple_sub` is kept but no longer written. Sign-in
+  is by email code or password. `ensure_user` is now the one find-or-create by
+  email (it was two, one of which raced).
+
 ### Changed
 
+- **Asking on someone's behalf answered as if the record were the asker's.**
+  The agent read the other person's record but was never told so. Answers said
+  "your cholesterol" over her numbers and flagged `mom_lab_2025-11.md` as "not
+  yours". Asked "妈妈的胆固醇", the model guessed `member="妈妈"`, the circle
+  check refused it, and a person who could read the record was told they could
+  not. The chat layer now passes the record owner's name (`record_owner`) and
+  the prompt says whose record it is; it no longer carries the raw `user_id`.
+  To check, switch to Mom and ask 「妈妈的胆固醇这几次是怎么变化的？」: the
+  answer reads her record and no tool call is refused.
+- **No tool takes `member` any more, on either surface (breaking for MCP
+  clients).** Whose data a call reads is its authentication: the MCP token or
+  URL, or the record a chat turn was opened on and authorised for. One call,
+  one person. A `member` argument is refused as an unknown parameter.
+- **`query_health_indicators` has five parameters: `keywords`, `indicators`,
+  `start`, `end`, `view` (breaking for MCP clients).** `resolution` ×
+  `aggregate` was eighteen cells with two refused, and `limit` applied to one;
+  `view` is one enum, `raw | minute | hour | day | week | month | stats |
+  latest`. Raw rows are capped at 50 per indicator (`query.ROW_CAP`). What
+  `stats` counts is no longer the caller's choice: per series and local day,
+  the elected authority where one was published, every reading otherwise. The
+  old `resolution=raw` basis averaged a watch's and a phone's totals for one
+  day together; the old `day` basis dropped a morning blood pressure followed
+  by an evening one. The REST route takes `view` too; `resolution`,
+  `aggregate` and `limit` are ignored there, and the browser's reading list is
+  capped by `collect.REST_ROW_MAX` (200, what it asked for). Ask for `view="stats"` and the meta
+  line reads `view=stats`.
+- **`query_genetic_data` dropped `include_nearby`, `nearby_range` and `limit`
+  (breaking for MCP clients).** "Nearby" was physical distance, which is not
+  linkage: a proxy for an untyped site needs an LD reference panel, and the
+  code only looked around sites that WERE typed, where no proxy is needed.
+  What remained is a region query, which `chromosome`/`start`/`end` already
+  are. Direct rows are capped at 100 (`ROW_CAP`); a gene selects at most seven.
+- **MCP clients got `isError: false` on a failed record-tool call.** The
+  record tools report `status`, never `success`, so a refused or failed read
+  arrived as a successful result whose text began "error (". `status: error`
+  now sets `isError`.
+- **`GET /mcp` answered a JSON-RPC parse error.** It now answers 405 with
+  `Allow: POST, OPTIONS`, as Streamable HTTP specifies for a server with no
+  event stream.
+- **A turn on someone else's record names them the way the asker does.**
+  `record_owner` is the care circle's label ("妈妈") before the account name.
+- **Deleting every file of a message deleted nothing.** It looked the files
+  up by `created_source="file_upload"`, a value nothing writes, found none, and
+  answered success while the rows, the stored objects and their readings
+  stayed. It now finds them by the message id within the caller's files.
+  `th_files.created_source` is now `data` or `ask`, after the web client's
+  tabs (it was `web_drive`/`web_chat`); `90_retire.sql` renames existing rows.
+- **Parameters and state nothing read are gone.** `POST /api/chat` no longer
+  accepts `user_name`, `token` or `trace_id` in its body (none was read; the
+  request id travels in `X-Request-Id`). A tool's injected `user_info` is
+  `{"user_id"}` only, on both surfaces: `token`, `session_id` and `success`
+  reached no tool. Removed with no caller: `collect/core/database.py` (its one
+  live path, the provider list's record counts, always returned nothing), the
+  provider webhook-management methods (`get_webhooks`, `check_format`,
+  `sync_user_devices`, the raw-data readers), `mcp.call_global_tool`,
+  `get_global_tool_count`, `reset_global_tools`, and the agent's
+  `FILE_CACHE_TTL`/`FILE_CACHE_MAXSIZE` reads. The prompt no longer renders
+  `user_name` (always "User"), `language` or `user_info`; a deployment's own
+  template naming them must drop them.
+- **Every upload left a copy of the document in `/tmp`.** Each file handler
+  saved the upload to a temporary file that only the text handler reads and
+  nothing deleted: eight lab reports in the demo container. The copy is now
+  deleted as soon as the handler returns. Upload a file and `ls /tmp`.
+- **`DISALLOWED_TOOLS: [eval]` turns the REPL off**, as the agent README said
+  it did; it only ever filtered the MCP tool list.
+- **MCP no longer advertises `prompts`.** It answered `prompts/list` with an
+  empty list; now neither is offered and the method is not found, as for
+  resources. `/api/health` counts tools through `McpService.tool_counts()`.
+- **The embedding surface is gone.** Nothing had embedded since 1.5.0 deleted
+  the semantic tier, but `mirobody/utils/embedding.py`, `LLMConfig`,
+  `Config.get_llm`, the `UTILS_EMBEDDING_MODEL` route, four `*-embed` MODELS
+  entries and a doctor row outlived it, and every boot of a DeepSeek- or
+  Anthropic-only deployment warned that a feature that does not exist had no
+  model. A config still setting `UTILS_EMBEDDING_MODEL` or
+  `EMBEDDING_PROVIDER` is told at boot that nothing reads it, and a MODELS
+  entry still carrying `embedding:` is named by the unread-key check.
+- **`query_genetic_data` stopped refusing placeholder coordinates.** Some models
+  fill every schema field, sending `chromosome: ""`, `start: 1`, `end: 1`,
+  `build: "GRCh38"` beside `gene`; any of those counted as a region, so the call
+  was refused as two selectors and retried in the same shape (gpt: 4-6 refusals
+  a turn). A region is now asked for by naming a chromosome; beside rsIDs or a
+  gene the coordinates are ignored, and coordinates alone are refused for want
+  of a chromosome. Ask gpt "我的 CYP2C19 基因型是什么？": one call, no refusal.
+- **The system prompt is a third shorter, measured to behave the same.** The
+  template went from 13,537 to 9,141 characters: tool-specific caveats that
+  already ride on every tool result as `notes:` left, the depth, chart, table
+  and lab-report guidance was compressed, and maintainer rationale moved into
+  Jinja comments, which are not sent. Measured on 8 questions x 3 models x 2
+  repetitions against the seeded stack: 48/48 before and after, tool calls per
+  turn 1.44/3.44/1.56 before and 1.31/3.50/1.56 after (claude-sonnet / qwen /
+  gpt). The `# Available tools` section stays although the same descriptions
+  travel as tool definitions: removing it made qwen repeat identical calls (0 to
+  5-8 per 16 turns) and call 24-34% more tools; claude and gpt did not change.
+- **The chat agent no longer sees `resolve_indicator`, `convert_unit` or
+  `normalize_unit`.** `query_health_indicators` already resolves names to
+  LOINC and values to the catalogue's unit; those three serve an MCP client
+  holding readings of its own, and stay there.
 - Focused health trends could send models toward summary queries without chart
   points, repeat lookups after enough data had arrived, or mix unlike units on
   one chart axis. The Agent prompt now gives valid point, summary and latest

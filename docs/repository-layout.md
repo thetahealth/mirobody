@@ -22,9 +22,9 @@ mirobody/
 ├── collect/       ① Collect     — providers, file parsing, store, read (Postgres)
 ├── translate/   ② Translate   — the pure seam (fold · parse · local_day · series · code ·
 │                devices), the catalogue, units, aggregate/ and derive/
-├── agent/       ③ Agent               — the agent: models/ fs/ wire/ middleware/ tools/ chat/
+├── agent/       ③ Agent               — the agent: models/ filesystem/ wire/ middleware/ tools/ chat/
 ├── mcp/         the MCP server
-├── server/      the HTTP application — routers, auth, the bundled web client
+├── server/      the HTTP application — routers, auth, middleware
 ├── utils/       mechanisms a consumer binds: config, db, sse, net, llm_output, prompts, log
 ├── user/        identity and the care circle — who may read whose record
 └── schema/      the DDL, replayed at boot in dev

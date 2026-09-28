@@ -6,7 +6,6 @@ from typing import Any
 
 from .base import LinkRequest, Platform, UserProvider
 from .core import LinkType
-from .core.database import ManageDatabaseService
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,6 @@ class PlatformManager:
 
     def __init__(self):
         self._platforms: dict[str, Platform] = {}
-        self.db_service = ManageDatabaseService()  # Shared database service instance, maintains cache
 
     def register_platform(self, platform: Platform) -> None:
         """Register a platform"""
@@ -203,37 +201,6 @@ class PlatformManager:
         except Exception as e:
             logger.error(f"Error updating LLM access for provider {provider_slug}: {str(e)}")
             raise RuntimeError(f"Failed to update LLM access: {str(e)}")
-
-    async def populate_provider_stats(self, user_id: str, providers: list[UserProvider]) -> list[UserProvider]:
-        """
-       Populate provider statistics for all providers at once using cached query
-
-       Args:
-           user_id: User ID
-           providers: List of UserProvider objects to populate
-       """
-        try:
-            stats_dict = await self.db_service.get_user_provider_stats_cached(user_id)
-            logger.info(f"Got cached stats for {len(stats_dict)} sources for user {user_id} of {len(providers)}")
-
-            for provider in providers:
-                if provider.slug in stats_dict:
-                    stats = stats_dict[provider.slug]
-                    provider.record_count = stats.get("record_count", 0)
-                    sync_time = stats.get("last_sync_time")
-                    provider.last_sync_at = sync_time.isoformat() if sync_time else None
-                    continue
-                if f"{provider.platform}.{provider.slug}" in stats_dict:
-                    stats = stats_dict[f"{provider.platform}.{provider.slug}"]
-                    provider.record_count = stats.get("record_count", 0)
-                    sync_time = stats.get("last_sync_time")
-                    provider.last_sync_at = sync_time.isoformat() if sync_time else None
-                    continue
-
-        except Exception as e:
-            logger.error(f"Error populating provider stats for user {user_id}: {str(e)}")
-
-        return providers
 
 
 # Global singleton instance

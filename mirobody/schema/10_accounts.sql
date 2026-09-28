@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS health_app_user (
     name          character varying NOT NULL DEFAULT ''::character varying,
     consultant_id integer NOT NULL DEFAULT 0,
     lang          character varying NOT NULL DEFAULT 'en'::character varying,
-    apple_sub     VARCHAR(255),
+    apple_sub     VARCHAR(255),                         -- Sign in with Apple's subject; no longer written since that sign-in was removed, kept for the accounts that have one
     response_lang character varying(64) DEFAULT NULL::character varying,
     gender        integer,                              -- 0 unknown, 1 male, 2 female
     birth         character varying,

@@ -78,14 +78,6 @@ class Server:
         email_smtp_port : int = 0,
         email_smtp_user : str = "",
 
-        apple_client_id : str = "",
-        apple_team_id   : str = "",
-        apple_key_id    : str = "",
-        apple_private_key       : str = "",
-        apple_auth_client_id    : str = "",
-
-        google_client_id        : str = "",
-
 
         # The following parameters can be generated via
         #   config.get_webauthn_options().
@@ -132,17 +124,11 @@ class Server:
         if not self._webpage_config:
             self._webpage_config = {}
 
-        if "__IS_GOOGLE_LOGIN_ON__" not in self._webpage_config:
-            self._webpage_config["__IS_GOOGLE_LOGIN_ON__"] = bool(google_client_id)
-
-        if "__IS_APPLE_LOGIN_ON__" not in self._webpage_config:
-            self._webpage_config["__IS_APPLE_LOGIN_ON__"] = True if apple_client_id else False
-
         if "__IS_WEBAUTHN_ON__" not in self._webpage_config:
             self._webpage_config["__IS_WEBAUTHN_ON__"] = True if webauthn_rp_id else False
 
         # The shipped web client reads six flags off /mirobody.json and treats a
-        # MISSING key as an off switch. Only the three above were ever emitted,
+        # MISSING key as an off switch. Only the sign-in flags were ever emitted,
         # so `__IS_MOBILE_SOURCE_ON__` (which gates the whole device-provider
         # UI (Garmin / Oura / Whoop / Apple Health)) read as False on every
         # deployment, and ① Collect, the README's headline stage, was invisible
@@ -202,16 +188,6 @@ class Server:
             email_smtp_port = email_smtp_port,
             email_smtp_user = email_smtp_user,
 
-            # Apple login.
-            apple_client_id = apple_client_id,
-            apple_team_id   = apple_team_id,
-            apple_key_id    = apple_key_id,
-            apple_private_key   = apple_private_key,
-            apple_auth_client_id= apple_auth_client_id,
-
-            # Google login.
-            google_client_id    = google_client_id,
-
 
             # WebAuthn (AAL2).
             webauthn_rp_id      = webauthn_rp_id,
@@ -231,14 +207,11 @@ class Server:
 
             tool_dirs       = tool_dirs,
 
-            db_pool         = self._pg_pool,
             redis           = self._redis
         )
 
         self._chat_service = ChatService(
             token_validator = self._jwt_token_validator,
-
-            db_pool         = self._pg_pool,
 
             uri_prefix      = uri_prefix,
             routes          = self._routes,
@@ -266,6 +239,7 @@ class Server:
             http_headers=http_headers,
             jwt_key=jwt_key,
             jwt_sub_decode_func=jwt_sub_decode_func,
+            requires_second_factor=self._user_service.requires_second_factor,
             url_paths_for_request_rate_limiter=url_paths_for_request_rate_limiter,
             url_paths_for_user_info_updater=url_paths_for_user_info_updater,
             redis=self._redis,
@@ -276,13 +250,14 @@ class Server:
     async def health_check_handler(self, request: Request) -> Response:
         from mirobody.agent.registry import agent_name
 
+        total, authenticated = self._mcp_service.tool_counts()
         return JSONResponse(
             content = {
                 "service"               : self._mcp_service._name,
                 "version"               : self._mcp_service._version,
-                "tools"                 : self._mcp_service._tools_count,
-                "public_tools"          : (self._mcp_service._tools_count - self._mcp_service._auth_tools_count),
-                "authenticated_tools"   : self._mcp_service._auth_tools_count,
+                "tools"                 : total,
+                "public_tools"          : total - authenticated,
+                "authenticated_tools"   : authenticated,
                 "agent"                 : agent_name(),
             }
         )
@@ -350,8 +325,6 @@ class Server:
 
             **config.get_jwt_options(),
             **config.get_email_options(),
-            **config.get_apple_options(),
-            **config.get_google_options(),
         )
 
         #-----------------------------------------------------

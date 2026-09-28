@@ -1,8 +1,8 @@
 # The agent
 
 One agent ships here: **`MirobodyAgent`** ([`agent.py`](./agent.py)), built on
-LangChain `create_agent` and the [deepagents](https://github.com/langchain-ai/deepagents)
-middleware stack. It is the reference implementation of mirobody's answer
+[deepagents](https://github.com/langchain-ai/deepagents) (`create_deep_agent`)
+and its middleware stack. It is the reference implementation of mirobody's answer
 layer — the demonstration that the data model (the catalogue, the day, the
 envelope) is what an AI agent needs — and it is the only one, on purpose.
 
@@ -10,7 +10,7 @@ What a turn has:
 
 | Piece | Where | What it does |
 | --- | --- | --- |
-| tools | [`tools/`](./tools/) via [`tool_loader.py`](./tool_loader.py) | the five MCP tools, with `query.TOOL_SCHEMA` passed through verbatim; the same tools any MCP client sees over `/mcp` |
+| tools | [`tools/`](./tools/) via [`tool_loader.py`](./tool_loader.py) | the four record tools, each schema passed through verbatim, the same ones an MCP client sees over `/mcp`; the three terminology tools stay MCP-only (`tool_loader._MCP_ONLY_TOOLS`) |
 | virtual filesystem | [`filesystem/`](./filesystem/) — `backend.py`, `files_backend.py`, `profile_backend.py` | `/uploads`, `/library`, `/memories` — read-only projections of the tables that own the data |
 | REPL | `langchain-quickjs` | the `eval` tool, with the read-only data tool reachable inside it |
 | memory | [`checkpointer.py`](./checkpointer.py) | LangGraph Postgres checkpointer, `thread_id = session_id` |
@@ -70,10 +70,11 @@ class MyAgent:
 ```
 
 `**kwargs` is not optional: `language`, `session_id`, `file_list`, `provider`,
-`prompt_name`, `timezone` and `token` arrive that way, and the chat layer may
-add one without breaking a plugin that predates it. `user_id` is the person the
-turn is ABOUT — the care-circle target when someone asks on another's behalf —
-and is already authorised. `messages` carries ONLY this turn: conversation
+`prompt_name`, `timezone`, `token` and `record_owner` arrive that way, and the
+chat layer may add one without breaking a plugin that predates it. `user_id` is
+the person the turn is ABOUT — the care-circle target when someone asks on
+another's behalf — and is already authorised; `record_owner` is that person's
+name then, and `""` on the asker's own record. `messages` carries ONLY this turn: conversation
 state is the agent's own (the shipped one keys a LangGraph checkpointer on
 `session_id`).
 

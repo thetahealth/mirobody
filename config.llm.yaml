@@ -12,16 +12,15 @@
 #
 # This file says which MODEL each key uses, per surface (names are MODELS entries):
 #
-#   key in .env          chat (picker)   vision + text (utils)   embeddings
-#   OPENROUTER_API_KEY   claude-sonnet   openrouter-utils        openrouter-embed
-#   DASHSCOPE_API_KEY    qwen            qwen-utils              qwen-embed
-#   GOOGLE_API_KEY       gemini-flash    gemini-utils            gemini-embed
-#   OPENAI_API_KEY       openai          openai-utils            openai-embed
-#   ANTHROPIC_API_KEY    claude          anthropic-utils         — (no embedding model: lexical search)
-#   DEEPSEEK_API_KEY     deepseek        deepseek-utils          — (no embedding model: lexical search)
+#   key in .env          chat (picker)   vision + text (utils)
+#   OPENROUTER_API_KEY   claude-sonnet   openrouter-utils
+#   DASHSCOPE_API_KEY    qwen            qwen-utils
+#   GOOGLE_API_KEY       gemini-flash    gemini-utils
+#   OPENAI_API_KEY       openai          openai-utils
+#   ANTHROPIC_API_KEY    claude          anthropic-utils
+#   DEEPSEEK_API_KEY     deepseek        deepseek-utils
 #
 # `mirobody doctor` (and the boot log) prints what the current config selects.
-# mirobody/tests/test_one_key_defaults.py checks this table against the entries below.
 # Model ids verified against each vendor's catalogue on 2026-09-10.
 
 #-----------------------------------------------------------------------------
@@ -51,8 +50,6 @@
 #   response_format json_schema (default) | json_object | none — what the endpoint
 #                   accepts. Below json_schema the schema is written into the prompt
 #   chat            false = utility surfaces only, hidden from the chat picker
-#   embedding       the vector-column family this entry writes (openrouter | qwen | gemini | openai);
-#                   only on embedding entries
 #   extra_body      forwarded as-is (vendor thinking switches etc.)
 #
 # The chat picker shows the entries whose key is present, in this order; the
@@ -200,42 +197,6 @@ MODELS:
       thinking:
         type: disabled
 
-  # Embedding entries — one per vector-column family. Vectors from different
-  # models are not comparable, so changing a model here invalidates every
-  # vector already stored under the old one.
-  openrouter-embed:
-    llm_type: openai
-    api_key: OPENROUTER_API_KEY
-    base_url: https://openrouter.ai/api/v1
-    model: qwen/qwen3-embedding-8b   # open weights; self-host it behind OPENROUTER_BASE_URL
-    embedding: openrouter
-    chat: false
-  qwen-embed:
-    llm_type: openai
-    api_key: DASHSCOPE_API_KEY
-    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
-    model: text-embedding-v4
-    embedding: qwen
-    chat: false
-  gemini-embed:
-    llm_type: google-genai        # Google's REST embedding endpoint (output_dimensionality);
-                                  # the compatibility endpoint documents no `dimensions`
-    api_key: GOOGLE_API_KEY
-    model: gemini-embedding-001   # NOT gemini-embedding-2-preview (owner's call, 2026-09-10):
-                                  # it is preview, and the two embedding spaces are
-                                  # incompatible — adopting it re-embeds every stored row.
-                                  # Google does not renormalise a truncated vector from this
-                                  # model; mirobody L2-normalises both sides anyway
-                                  # (semantic.py, adapter.py), so 1024 dims are safe here.
-    embedding: gemini
-    chat: false
-  openai-embed:
-    llm_type: openai
-    api_key: OPENAI_API_KEY
-    base_url: https://api.openai.com/v1
-    model: text-embedding-3-small
-    embedding: openai
-    chat: false
   # More models on a key you already have — add an entry, e.g. Kimi on DashScope:
   # kimi: {llm_type: openai, api_key: DASHSCOPE_API_KEY, base_url: https://dashscope.aliyuncs.com/compatible-mode/v1, model: kimi-k2.5, temperature: 0.1}
 
@@ -259,10 +220,6 @@ UTILS_VISION_MODEL: [openrouter-utils, qwen-utils, gemini-utils, openai-utils, a
 # Indicator extraction from text, file titles/summaries, conversation titles.
 # Not the chat default on purpose: reordering the picker must not change extraction.
 UTILS_TEXT_MODEL: [openrouter-utils, qwen-utils, gemini-utils, openai-utils, anthropic-utils, deepseek-utils]
-
-# Embeddings for indicator search. Neither DeepSeek nor Anthropic serves an
-# embedding model: with one of those keys alone, search uses the lexical index.
-UTILS_EMBEDDING_MODEL: [openrouter-embed, qwen-embed, gemini-embed, openai-embed]
 
 #-----------------------------------------------------------------------------
 # The agent.

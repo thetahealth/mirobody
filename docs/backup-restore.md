@@ -111,9 +111,9 @@ docker compose exec -T pg pg_restore -U holistic_user -d holistic_db --clean --n
 ```
 
 A note on the vector columns: they restore as ordinary data, and the pinned
-`pgvector/pgvector` image already has the extension, so **no re-embedding is
-needed** after a restore. (Re-embedding is only for changing
-`UTILS_EMBEDDING_MODEL` or the `model` of the `MODELS` entry carrying that `embedding:` family.)
+`pgvector/pgvector` image already has the extension. Nothing writes new
+vectors any more (the semantic tier went in 1.5.0), so a restore needs no
+re-embedding.
 
 ### Uploaded files
 

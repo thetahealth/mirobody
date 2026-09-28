@@ -85,11 +85,18 @@ class BaseFileHandler(abc.ABC):
             # 2. Upload or Get URL (Common step, but can be overridden or skipped by subclasses)
             full_url = await self._handle_upload(ctx, unique_filename, language)
             
-            # 3. Save to temp (Common step)
+            # 3. Save to temp (Common step). Deleted as soon as the handler has
+            # read it: nothing did, so every upload left a copy of the document
+            # in /tmp (eight lab reports in the demo container, measured
+            # 2026-09-28). Nothing reads it after `_process_content` returns;
+            # extraction continues from `original_text`.
             temp_file_path = await self._save_to_temp(ctx, language)
-            
+
             # 4. Core processing (Specific to file type)
-            result_data = await self._process_content(ctx, temp_file_path, unique_filename, full_url, language)
+            try:
+                result_data = await self._process_content(ctx, temp_file_path, unique_filename, full_url, language)
+            finally:
+                self.temp_manager.cleanup_temp_file(temp_file_path)
 
             # 4.5. Auto-start background indicator extraction for any handler that returns original_text
             original_text = result_data.get("original_text")

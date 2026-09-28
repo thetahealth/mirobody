@@ -73,7 +73,9 @@ which is why it is worth keeping one.
 
 ### An answer about someone else's record still says "your file"
 
-**Status:** open. The data boundary is right; only the wording is wrong.
+**Status:** closed (Unreleased). The chat layer passes `record_owner`, the
+circle's label for the person (their account name when there is none), and the
+prompt says whose record every reading, document and profile is.
 
 Asking about a record shared with you returns that person's numbers, verified:
 a reviewer on a clean deployment got mom's total cholesterol 5.30 where their
@@ -82,13 +84,6 @@ reached. But the reply calls it "your file", because the system prompt has no
 slot for whose record the turn is about. `MirobodyAgent.__init__` takes the
 CALLER's `user_id` and `user_name`; `query_user_id` reaches the tools and never
 the prompt, so the model cannot know it is answering for someone else.
-
-Closing it means threading a subject label from `chat/service.py`, where
-`query_user_id` is resolved, into `build_system_prompt`, plus one line in
-`prompts/mirobody.jinja`. The label already exists: `chat/session.py` reads a
-member's `nickname` off `care_circle_members` for exactly this case when it
-builds session summaries. Rendering is strict, so a new template variable must
-be supplied by every caller.
 
 ### Reference ranges and abnormal flagging
 
@@ -399,7 +394,7 @@ One of the copies — `get_user_info`, the profile the chat layer greets you wit
 language and timezone. Twenty-five copies of a predicate is twenty-five chances
 to omit it once, and it was omitted once.
 
-`user.get_user(user_id= | email= | apple_sub=)` is the lookup: exactly one
+`user.get_user(user_id= | email=)` is the lookup: exactly one
 selector, `is_del = false` not expressible as a parameter, email normalized the
 way it is stored, string ids accepted (care-circle ids travel as VARCHAR). 19
 call sites now use it. `test_user_lookup.py` fails on a new hand-rolled read,
@@ -626,9 +621,6 @@ wrong numbers", which is exactly what you cannot verify by reading:
   `['total']`. `standard_unit` happens to match across every colliding group
   today, so nothing is numerically wrong *yet*; the next collision with
   differing units would be. At minimum, make a duplicate `name` fail at import.
-* **`CacheableDatabaseService._clear_cache` is never called**, so a 300s TTL
-  cache can serve the old name after `update_indicator_name` renames an
-  indicator.
 
 Plus ~20 lower-risk items (dead methods, duplicated IN-clause binding,
 copy-pasted numeric regexes, a README describing method names that moved).

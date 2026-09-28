@@ -2,7 +2,7 @@
 
 Medications are an entity, not a series: a plan has a lifecycle, a dose has a
 day, a course has a reason it closed. That grammar has nothing in common with
-`resolution` and `aggregate`, so it is its own tool with five parameters
+a reading's `view`, so it is its own tool with four parameters
 (`meds.TOOL_SCHEMA`) rather than a mode inside the readings tool: a mode
 under which most of the readings parameters would have to be refused.
 
@@ -24,7 +24,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from mirobody.kernel import meds, series, tools
-from ._authz import refused, subject_for
+from ._authz import refused
 from ._base import RecordTool
 from ._render import awaited, envelope_meta, render_compact
 
@@ -92,7 +92,7 @@ class MedicationsService(RecordTool):
         if problems:
             return refused(problems)
         request = meds.parse_query(args)
-        subject_id = await subject_for(caller_id, request.member)
+        subject_id = caller_id
         store, log = self._stores()
         tz = await self._zone_of(subject_id)
         now = self._clock().astimezone(series.zone(tz))

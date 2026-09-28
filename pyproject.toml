@@ -319,7 +319,7 @@ include = ["mirobody", "mirobody.*"]
     # ── engine data bundles (Git LFS) ────────────────────────────────────────
     # These are not optional extras: `mirobody.engine.resolve` — the front door
     # of ② Translate, and the one line the README leads with — reads
-    # res/loinc/fhir_loinc_bundle.tar.gz, res/loinc/fhir_meta.csv.gz and res/loinc/aliases_src/*.tsv
+    # res/loinc/fhir_loinc_bundle.tar.gz and res/loinc/aliases_src/*.tsv
     # at import time. Until 1.0.62 only *.bin was listed here, so every published
     # wheel shipped an engine that could not resolve anything. Keep .gz/.npy/.tsv
     # in this list; scripts/check_wheel_data.py enforces it at build time.
@@ -504,7 +504,7 @@ forbidden_modules = [
 name = "the library layer is stdlib + numpy (third-party packages are forbidden)"
 # import-linter has no allow-list contract, so "only stdlib and numpy" is
 # spelled as "every third-party distribution this project declares, except
-# numpy, is forbidden here". `mirobody/test_library_layer.py` regenerates this
+# numpy, is forbidden here". `tests/test_library_layer.py` regenerates this
 # list from [project.dependencies] and [project.optional-dependencies] and
 # fails when a new dependency is missing below.
 type = "forbidden"
@@ -742,8 +742,7 @@ ignore = [
     "E741",   # `l` as a variable in a few tight loops
     "UP042",  # (str, Enum) -> StrEnum: the enum values are persisted wire strings; not worth the diff
     "PLE0604",  # `__all__` built with `*_EXPORTS`: the lazy packages compute it, and
-                # the linter cannot prove the members are strings. `test_public_surface.py`
-                # checks the real invariant — every name in every `__all__` resolves.
+                # the linter cannot prove the members are strings.
 ]
 # NOT selected, each for a reason, so the next person does not re-litigate it:
 #   G004 (1,110 findings) f-string in a log call. Worth doing — lazy formatting

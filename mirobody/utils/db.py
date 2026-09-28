@@ -130,7 +130,6 @@ async def execute_query(
     query: str,
     params: dict | list[dict] | None = None,
     db_config: str = "",
-    trace_id: str = "",
     log_sql: bool = True,
     **kwargs,
 ):
@@ -157,8 +156,6 @@ async def execute_query(
                 "records": len(ret) if isinstance(ret, list) else ret["record_count"],
                 "time_cost": round((time.perf_counter() - start) * 1e3, 2),
             }
-            if trace_id:
-                extra["trace_id"] = trace_id
             logged_query = _summarize_sql(query)  # the statement text: placeholders, no values
             logger.info(logged_query, extra=extra, stacklevel=2)
         return ret
@@ -172,8 +169,6 @@ async def execute_query(
             "param_count": len(params) if isinstance(params, list) else (len(params) if params else 0),
             "time_cost": round((time.perf_counter() - start) * 1e3, 2),
         }
-        if trace_id:
-            extra["trace_id"] = trace_id
         logger.error("execute_query failed", extra=extra, stacklevel=2,
                      exc_info=not is_driver_exception(e))
         raise

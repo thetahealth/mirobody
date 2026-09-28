@@ -55,25 +55,12 @@ OAUTH_TEMP_TTL_SECONDS: 900
 DATABASE_DECRYPTION_KEY: REPLACE_THIS_VALUE_IN_PRODUCTION
 
 #-----------------------------------------------------------------------------
-# Google / Apple sign-in and the web/mobile client settings.
-
-# GOOGLE_CLIENT_ID: ''
-
-# APPLE_TEAM_ID: ''
-# APPLE_KEY_ID: ''
-# APPLE_PRIVATE_KEY: ''
-# Apple OAuth client IDs for JWT token generation.
-# APPLE_CLIENT_ID: ''
-# APPLE_CLIENT_ID_APP: ''
-# Apple authorization code client ID; omit if the two client IDs above are identical.
-# APPLE_AUTH_CLIENT_ID: ''
+# Web/mobile client settings.
 
 # Web frontend feature flags, injected at runtime.
 # MIROBODY_WEB_CONFIG:
 #   __IS_API_CONFIG_ON__: true
 #   __IS_QR_LOGIN_ON__: false
-#   __IS_GOOGLE_LOGIN_ON__: true
-#   __IS_APPLE_LOGIN_ON__: true
 #   __IS_NEW_FEATURES_ON__:
 #     - MCP
 #   __IS_MOBILE_SOURCE_ON__: true

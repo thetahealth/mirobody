@@ -27,6 +27,7 @@ def build_middlewares(
     http_headers=None,
     jwt_key: str = "",
     jwt_sub_decode_func=None,
+    requires_second_factor=None,
     url_paths_for_request_rate_limiter=None,
     url_paths_for_user_info_updater=None,
     redis=None,
@@ -73,12 +74,15 @@ def build_middlewares(
                        allow_methods=allowed_methods.split(", ") if "," in allowed_methods else [allowed_methods],
                        allow_headers=allowed_headers.split(", ") if "," in allowed_headers else [allowed_headers],
                        allow_credentials=allow_credentials,
+                       # So a browser client can read the request id it would quote.
+                       expose_headers=["X-Request-Id"],
                        max_age=max_age,
                        )
         )
     if jwt_key:
         middlewares.append(
-            Middleware(JwtMiddleware, jwt_key=jwt_key, decode_func=jwt_sub_decode_func)
+            Middleware(JwtMiddleware, jwt_key=jwt_key, decode_func=jwt_sub_decode_func,
+                       requires_second_factor=requires_second_factor)
         )
 
         if url_paths_for_request_rate_limiter and isinstance(url_paths_for_request_rate_limiter, dict):

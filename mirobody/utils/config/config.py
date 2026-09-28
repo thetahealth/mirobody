@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 from .encrypt import FernetEncrypter
 from .log import LogConfig
 from .http import HttpConfig
-from .llm import LLMConfig, LLMProvider, _OPENAI_COMPAT
 
 if TYPE_CHECKING:  # heavy drivers: imported lazily inside the accessors below
     from .postgresql import PostgreSQLConfig
@@ -52,7 +51,6 @@ _RENAMED_KEYS = {
     # (PROVIDER_DIRS, mirobody/collect/providers); the model table is MODELS.
     "PROVIDERS": "MODELS",
     "DEFAULT_PROVIDER": "DEFAULT_MODEL",
-    "EMBEDDING_PROVIDER": "UTILS_EMBEDDING_MODEL",
 }
 
 #: new spelling -> its old spellings, for the environment-variable half.
@@ -66,6 +64,10 @@ for _old, _new in _RENAMED_KEYS.items():
 #: and the two directory keys have no successor. Silently ignoring them is what
 #: makes an upgrade look fine while behaving differently, so they are named.
 _REMOVED_KEYS = {
+    # No surface embeds: the semantic tier was deleted in 1.5.0, and the
+    # embedding client and model routing that outlived it are gone too.
+    "UTILS_EMBEDDING_MODEL": "removed; nothing embeds (the semantic tier went in 1.5.0)",
+    "EMBEDDING_PROVIDER": "removed; nothing embeds (the semantic tier went in 1.5.0)",
     "PRIVATE_AGENT_DIRS": "removed; `AGENT_DIRS` is the one agent search path",
     "MCP_RESOURCE_DIRS": "removed with the MCP `resources` capability",
     "HEARTBEAT_INTERVAL": "replaced by `SSE_HEARTBEAT_SECONDS` (seconds of silence, default 8)",
@@ -137,7 +139,6 @@ class Config:
 
         self._postgresqls = {}
         self._redises = {}
-        self._llms: dict[LLMProvider, LLMConfig] = {}
 
         self._agent_options = {}
 
@@ -171,7 +172,6 @@ class Config:
         # Clear cached configuration objects to ensure they use updated _raw values
         self._postgresqls = {}
         self._redises = {}
-        self._llms = {}
 
         self.log = LogConfig(
             name        = self.get_str("LOG_NAME"),
@@ -611,22 +611,6 @@ class Config:
         }
 
 
-    def get_apple_options(self) -> dict[str, str]:
-        return {
-            "apple_client_id"   : self.get_str("APPLE_CLIENT_ID"),
-            "apple_team_id"     : self.get_str("APPLE_TEAM_ID"),
-            "apple_key_id"      : self.get_str("APPLE_KEY_ID"),
-            "apple_private_key" : self.get_str("APPLE_PRIVATE_KEY"),
-            "apple_auth_client_id" : self.get_str("APPLE_CLIENT_ID_APP")
-        }
-
-
-    def get_google_options(self) -> dict[str, str]:
-        return {
-            "google_client_id"      : self.get_str("GOOGLE_CLIENT_ID")
-        }
-
-
     def get_webauthn_options(self) -> dict:
         return {
             "webauthn_rp_id"            : self.get_str("WEBAUTHN_RP_ID"),
@@ -701,60 +685,6 @@ class Config:
         return redis_config
 
     #-----------------------------------------------------
-
-    def get_llm(self, provider: LLMProvider) -> LLMConfig:
-        if provider in self._llms:
-            return self._llms[provider]
-
-        if provider in _OPENAI_COMPAT:
-            api_key_env, default_base_url = _OPENAI_COMPAT[provider]
-            # `<PROVIDER>_BASE_URL` (OPENROUTER_BASE_URL, DASHSCOPE_BASE_URL, …)
-            # redirects the provider to a self-hosted OpenAI-compatible
-            # endpoint: the mechanism behind the README's "serve the same
-            # embedding model yourself and point the provider's base_url at
-            # it". Config.get reads the environment first, so an env var or a
-            # config key both work.
-            llm_config = LLMConfig(
-                provider = provider,
-                api_key  = self.get_str(api_key_env),
-                base_url = self.get_str(api_key_env.replace("_API_KEY", "_BASE_URL"))
-                           or default_base_url,
-            )
-        elif provider == LLMProvider.ANTHROPIC:
-            llm_config = LLMConfig(
-                provider = provider,
-                api_key  = self.get_str("ANTHROPIC_API_KEY"),
-                base_url = self.get_str("ANTHROPIC_BASE_URL"),
-            )
-        elif provider == LLMProvider.GEMINI:
-            llm_config = LLMConfig(
-                provider           = provider,
-                api_key            = self.get_str("GOOGLE_API_KEY"),
-                gemini_api_version = self.get_str("GEMINI_API_VERSION") or "v1beta",
-            )
-        elif provider == LLMProvider.VERTEX_AI:
-            llm_config = LLMConfig(
-                provider     = provider,
-                gcp_project  = self.get_str("GCP_PROJECT"),
-                gcp_location = self.get_str("GCP_LOCATION") or "us-east5",
-            )
-        elif provider == LLMProvider.AZURE:
-            azure_cfg = self.get_dict("AZURE_OPENAI") or {}
-            llm_config = LLMConfig(
-                provider    = provider,
-                endpoint    = azure_cfg.get("endpoint", ""),
-                api_version = azure_cfg.get("api_version", "2024-12-01-preview"),
-            )
-        elif provider == LLMProvider.BEDROCK:
-            llm_config = LLMConfig(
-                provider   = provider,
-                aws_region = self.get_str("AWS_REGION") or "us-east-1",
-            )
-        else:
-            raise ValueError(f"Unsupported LLM provider: {provider!r}")
-
-        self._llms[provider] = llm_config
-        return llm_config
 
     #-----------------------------------------------------
 
@@ -995,7 +925,7 @@ def safe_read_cfg(key: str, default: str = "") -> str:
     (`Config.get_str`). Before this the no-Config case returned the default
     outright, so `OPENROUTER_API_KEY=... mirobody parse x.pdf` needed a
     second lookup path in every caller that wanted to work without config.yaml
-    (`_default_provider`, `resolve_embedding_provider` each grew their own
+    (`_default_provider` among them grew its own
     `os.environ.get(...) or safe_read_cfg(...)`). One rule, here.
     """
     if not _global_config:

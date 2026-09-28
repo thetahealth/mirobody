@@ -1,7 +1,6 @@
 """Score every resolver tier and every fusion of them, per scope and per stratum.
 
     python -m benchmarks.run_eval                         # lexical tiers, offline, ~1s
-    python benchmarks/run_eval.py --matrix <path.npy>     # + the embedding tiers
     python benchmarks/run_eval.py --testset <cases.jsonl> # grade your own distribution
 
 Runs from a checkout with `mirobody` installed (`pip install -e .`). It is a
@@ -76,7 +75,6 @@ sys.path.insert(0, str(REPO))
 DEFAULT_TESTSET = REPO / "eval" / "testset.jsonl"
 RESULTS = REPO / "eval" / "results"
 
-# The embedding matrix is multi-GB and ships on a volume, never in git, so
 def _analyte_table() -> dict[str, str]:
     """code -> its analyte, for "right analyte, different variant" credit.
 
@@ -222,9 +220,6 @@ async def main() -> int:
              "the shared asset; the cases need not be — point this at a private "
              "set to grade the same resolver against your own distribution.",
     )
-    # --no-embed is accepted and ignored: every caller and every runbook
-    # passes it, and there is no embedding tier left to turn off.
-    ap.add_argument("--no-embed", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--limit", type=int, default=0)
     args = ap.parse_args()
 

@@ -9,7 +9,7 @@ from typing import Any
 
 from mirobody.kernel import query, tools
 
-from ._authz import refused, subject_for
+from ._authz import refused
 from ._base import RecordTool
 from ._render import envelope_meta, render_compact
 
@@ -17,15 +17,15 @@ logger = logging.getLogger(__name__)
 
 TOOL_NAME = "query_genetic_data"
 MAX_RSIDS = 50
-MAX_LIMIT = 500
-DEFAULT_LIMIT = 100
-MAX_NEARBY_PER_HIT = 20
-DEFAULT_NEARBY_RANGE = 1_000_000
+#: Direct rows per answer, fixed rather than a parameter. A gene selects at most
+#: seven typed sites (SLCO1B1, in the shipped site index), so only a region can
+#: reach it, and the answer to a region that does is a narrower region.
+ROW_CAP = 100
 NO_CALL = "--"
 
 COLUMNS = (
     "rsid", "gene", "chromosome", "position", "query_build", "raw_position", "pos37", "pos38", "genotype",
-    "gt", "call_status", "zygosity", "strand_check", "distance", "near",
+    "gt", "call_status", "zygosity", "strand_check",
 )
 PROFILE_COLUMNS = ("vendor", "build", "rows", "called", "sex_inferred", "normalizer_version", "site_table_version")
 
@@ -43,12 +43,6 @@ TOOL_SCHEMA: dict[str, object] = {
         "end": {"type": "integer", "minimum": 1, "description": "Inclusive end coordinate in the chosen build."},
         "build": {"type": "string", "enum": ["GRCh37", "GRCh38", "raw"],
                   "description": "Required with a region; raw uses unverified upload positions."},
-        "include_nearby": {"type": "boolean", "default": False, "description": "Also show nearby typed sites for an rsID lookup."},
-        "nearby_range": {"type": "integer", "minimum": 1, "default": DEFAULT_NEARBY_RANGE,
-                         "description": "Distance in base pairs on either side of each rsID."},
-        "limit": {"type": "integer", "minimum": 1, "maximum": MAX_LIMIT, "default": DEFAULT_LIMIT,
-                  "description": "Maximum direct rows returned; narrow the query when cut."},
-        "member": {"type": "string", "description": "Authorised care-circle member id; omit for caller."},
     },
 }
 
@@ -61,10 +55,6 @@ class GeneticRequest:
     start: int = 0
     end: int = 0
     build: str = ""
-    include_nearby: bool = False
-    nearby_range: int = DEFAULT_NEARBY_RANGE
-    limit: int = DEFAULT_LIMIT
-    member: str = ""
 
 
 def validate_query(args: Mapping[str, Any]) -> tuple[query.Rejection, ...]:
@@ -76,7 +66,7 @@ def validate_query(args: Mapping[str, Any]) -> tuple[query.Rejection, ...]:
         out.append(query.Rejection("rsids", "each identifier must be an rsID"))
     gene = str(args.get("gene") or "").strip()
     chrom = str(args.get("chromosome") or "").strip().upper()
-    region = bool(chrom or args.get("start") or args.get("end") or args.get("build"))
+    region = _is_region(rsids, gene, chrom, args)
     if sum((bool(rsids), bool(gene), region)) > 1:
         out.append(query.Rejection("selector", "choose rsids, gene, or region in one call"))
     if gene and (len(gene) > 32 or not gene.replace("-", "").isalnum()):
@@ -92,36 +82,39 @@ def validate_query(args: Mapping[str, Any]) -> tuple[query.Rejection, ...]:
             out.append(query.Rejection("build", "choose GRCh37, GRCh38, or raw"))
         elif chrom == "PAR" and args.get("build") != "raw":
             out.append(query.Rejection("build", "PAR uses only raw upload coordinates"))
-    limit = args.get("limit")
-    if limit not in (None, "") and (not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= MAX_LIMIT):
-        out.append(query.Rejection("limit", f"must be an integer between 1 and {MAX_LIMIT}"))
-    near = args.get("include_nearby")
-    if near not in (None, "") and not isinstance(near, bool):
-        out.append(query.Rejection("include_nearby", "must be true or false"))
-    nearby_range = args.get("nearby_range")
-    if nearby_range not in (None, "") and (not isinstance(nearby_range, int) or isinstance(nearby_range, bool)
-                                            or nearby_range < 1):
-        out.append(query.Rejection("nearby_range", "must be a positive number of base pairs"))
-    if near and not rsids:
-        out.append(query.Rejection("include_nearby", "nearby variants require rsids"))
     return tuple(out)
+
+
+def _is_region(rsids: Sequence[str], gene: str, chrom: str, args: Mapping[str, Any]) -> bool:
+    """A region is asked for by naming a chromosome. With rsIDs or a gene
+    already given, start/end/build are placeholders: some models fill every
+    schema field (`chromosome: ""`, `start: 1`, `end: 1`, `build: "GRCh38"`
+    beside `gene`), and treating those as a second selector refused every such
+    call and had the model retry the same shape, 4-6 refusals a turn (measured
+    2026-09-28 on gpt). Coordinates with no other selector are a region whose
+    chromosome is missing, which the validator names."""
+    if chrom:
+        return True
+    return not (rsids or gene) and bool(args.get("start") or args.get("end"))
 
 
 def parse_query(args: Mapping[str, Any]) -> GeneticRequest:
     problems = validate_query(args)
     if problems:
         raise ValueError("; ".join(f"{p.parameter}: {p.reason}" for p in problems))
+    rsids = query.normalize_list_arg(args.get("rsids"))
+    gene = str(args.get("gene") or "").strip().upper()
+    chrom = str(args.get("chromosome") or "").strip().upper()
+    region = _is_region(rsids, gene, chrom, args)
     return GeneticRequest(
-        rsids=query.normalize_list_arg(args.get("rsids")),
-        gene=str(args.get("gene") or "").strip().upper(),
-        chromosome=str(args.get("chromosome") or "").strip().upper(),
-        start=int(args.get("start") or 0),
-        end=int(args.get("end") or 0),
-        build=str(args.get("build") or ""),
-        include_nearby=args.get("include_nearby") is True,
-        nearby_range=int(args.get("nearby_range") or DEFAULT_NEARBY_RANGE),
-        limit=int(args.get("limit") or DEFAULT_LIMIT),
-        member=str(args.get("member") or ""),
+        rsids=rsids,
+        gene=gene,
+        chromosome=chrom if region else "",
+        start=int(args.get("start") or 0) if region else 0,
+        end=int(args.get("end") or 0) if region else 0,
+        # Only a region reads positions in a chosen build; otherwise a
+        # placeholder build must not pick the coordinate column.
+        build=str(args.get("build") or "") if region else "",
     )
 
 
@@ -157,7 +150,7 @@ class GeneticService(RecordTool):
         if problems:
             return refused(problems)
         request = parse_query(args)
-        subject_id = await subject_for(caller_id, request.member)
+        subject_id = caller_id
         sets = await self._read(
             "SELECT id, vendor, format_id, build_declared, build_detected, n_rows, n_called, "
             "sex_inferred, normalizer_version, site_table_version "
@@ -180,11 +173,9 @@ class GeneticService(RecordTool):
             return tools.Envelope(tools.STATUS_OK, data=[row], meta=tools.Meta(row_count=1),
                                   assumptions=(source, "a consumer array is incomplete; absent and no-call sites are not normal calls"))
         fetched = await self._variants(int(genotype_set["id"]), request, str(genotype_set["build_detected"]))
-        hits, truncated = fetched[:request.limit], len(fetched) > request.limit
-        nearby = await self._neighbours(int(genotype_set["id"]), request, hits,
-                                        str(genotype_set["build_detected"])) if request.include_nearby and hits else []
+        hits, truncated = fetched[:ROW_CAP], len(fetched) > ROW_CAP
         return _envelope_for(
-            request, hits, nearby, source=source, truncated=truncated,
+            request, hits, source=source, truncated=truncated,
             is_vcf="vcf" in str(genotype_set["format_id"]),
         )
 
@@ -197,7 +188,7 @@ class GeneticService(RecordTool):
             "ref, alt, genotype_raw AS genotype, gt, call_status, zygosity, strand_check "
             "FROM th_genotype WHERE set_id = :set_id"
         )
-        params: dict[str, Any] = {"set_id": set_id, "limit": request.limit + 1,
+        params: dict[str, Any] = {"set_id": set_id, "limit": ROW_CAP + 1,
                                   "query_build": query_build}
         if request.rsids:
             binds, rsid_params = _in_clause("rsid", request.rsids)
@@ -211,30 +202,6 @@ class GeneticService(RecordTool):
             params.update(chromosome=request.chromosome, start=request.start, end=request.end)
         sql += f" ORDER BY chrom, {position}, rsid LIMIT :limit"
         return [dict(row) for row in await self._read(sql, params)]
-
-    async def _neighbours(self, set_id: int, request: GeneticRequest,
-                          hits: Sequence[Mapping[str, Any]], detected_build: str) -> list[dict[str, Any]]:
-        binds, excluded = _in_clause("excl", request.rsids)
-        out: list[dict[str, Any]] = []
-        position = "pos38" if request.build == "GRCh38" else "pos37" if request.build == "GRCh37" else "position_raw"
-        for hit in hits:
-            rows = await self._read(
-                f"SELECT rsid, gene, chrom AS chromosome, {position} AS position, "
-                "position_raw AS raw_position, pos37, pos38, :query_build AS query_build, "
-                "genotype_raw AS genotype, gt, call_status, zygosity, strand_check "
-                "FROM th_genotype WHERE set_id = :set_id AND chrom = :chromosome "
-                f"AND {position} BETWEEN :min_pos AND :max_pos "
-                f"AND rsid NOT IN ({binds}) "
-                f"ORDER BY ABS({position} - :target_pos) LIMIT :nearby_limit",
-                {**excluded, "set_id": set_id, "chromosome": hit["chromosome"],
-                 "query_build": request.build or detected_build,
-                 "min_pos": int(hit["position"]) - request.nearby_range,
-                 "max_pos": int(hit["position"]) + request.nearby_range,
-                 "target_pos": hit["position"], "nearby_limit": MAX_NEARBY_PER_HIT},
-            )
-            out.extend({**dict(row), "distance": abs(int(row["position"]) - int(hit["position"])),
-                        "near": hit["rsid"]} for row in rows)
-        return out
 
     async def _read(self, sql: str, params: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         if self._execute is None:
@@ -258,10 +225,9 @@ def _in_clause(prefix: str, values: Sequence[str]) -> tuple[str, dict[str, Any]]
     return ", ".join(f":{key}" for key in params), params
 
 
-def _envelope_for(request: GeneticRequest, hits: Sequence[Mapping[str, Any]],
-                  nearby: Sequence[Mapping[str, Any]], *, source: str, truncated: bool,
-                  is_vcf: bool = False) -> tools.Envelope:
-    rows = [*hits, *nearby]
+def _envelope_for(request: GeneticRequest, hits: Sequence[Mapping[str, Any]], *,
+                  source: str, truncated: bool, is_vcf: bool = False) -> tools.Envelope:
+    rows = list(hits)
     notes = [source, (
         "VCF phasing is preserved from the upload but not independently validated; calls do not establish a diagnosis"
         if is_vcf else "consumer-array calls are unphased and do not establish a diagnosis"
@@ -276,10 +242,8 @@ def _envelope_for(request: GeneticRequest, hits: Sequence[Mapping[str, Any]],
         if affected:
             label = status.replace("_", " ")
             notes.append(f"{label} (not a normal call): " + ", ".join(affected))
-    if nearby:
-        notes.append("nearby means physical proximity only, not linkage or trait association")
     if truncated:
-        notes.append(f"cut at {request.limit} direct rows; narrow the query")
+        notes.append(f"cut at {ROW_CAP} rows; narrow the region")
     return tools.Envelope(
         tools.STATUS_PARTIAL if truncated else tools.STATUS_OK,
         data=rows,
@@ -292,7 +256,7 @@ def _envelope_for(request: GeneticRequest, hits: Sequence[Mapping[str, Any]],
 __tools__: tuple[str, ...] = ()
 
 __all__ = [
-    "COLUMNS", "DEFAULT_LIMIT", "DEFAULT_NEARBY_RANGE", "GeneticRequest", "GeneticService",
-    "MAX_LIMIT", "MAX_NEARBY_PER_HIT", "MAX_RSIDS", "NO_CALL", "TOOL_NAME", "TOOL_SCHEMA",
+    "COLUMNS", "GeneticRequest", "GeneticService",
+    "MAX_RSIDS", "NO_CALL", "ROW_CAP", "TOOL_NAME", "TOOL_SCHEMA",
     "parse_query", "validate_query",
 ]

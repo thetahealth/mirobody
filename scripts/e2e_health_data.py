@@ -39,23 +39,22 @@ def phi_canary() -> str:
 CASES: list[tuple[str, dict]] = [
     ("catalog", {}),
     ("catalog_windowed", {"start": "2025-06-01", "end": "2025-06-30"}),
-    ("readings", {"indicators": ["RestingHeartRate-RHR"], "limit": 5}),
-    ("readings_stringified", {"indicators": '["RestingHeartRate-RHR"]', "limit": 3}),
-    ("buckets_day", {"indicators": ["RestingHeartRate-RHR"], "resolution": "day",
+    ("readings", {"indicators": ["RestingHeartRate-RHR"]}),
+    ("readings_stringified", {"indicators": '["RestingHeartRate-RHR"]'}),
+    ("buckets_day", {"indicators": ["RestingHeartRate-RHR"], "view": "day",
                      "start": "2025-06-01", "end": "2025-06-10"}),
-    ("buckets_month", {"indicators": ["RestingHeartRate-RHR"], "resolution": "month",
+    ("buckets_month", {"indicators": ["RestingHeartRate-RHR"], "view": "month",
                        "start": "2025-01-01", "end": "2025-12-31"}),
-    ("buckets_hour", {"indicators": ["RestingHeartRate-RHR"], "resolution": "hour",
+    ("buckets_hour", {"indicators": ["RestingHeartRate-RHR"], "view": "hour",
                       "start": "2025-06-01", "end": "2025-06-03"}),
-    ("stats_readings", {"indicators": ["RestingHeartRate-RHR"], "aggregate": "stats"}),
-    ("stats_daily", {"indicators": ["RestingHeartRate-RHR"], "resolution": "day", "aggregate": "stats"}),
-    ("stats_text_value", {"indicators": ["UrineGlucose-GLU"], "aggregate": "stats"}),
-    ("latest", {"indicators": ["RestingHeartRate-RHR"], "aggregate": "latest"}),
-    ("keywords", {"keywords": ["resting heart"], "limit": 3}),
-    ("keywords_miss", {"keywords": ["definitely-not-an-indicator-zzz"], "limit": 3}),
-    ("refused_catalog_resolution", {"resolution": "day"}),
-    ("refused_wrong_kind", {"kind": "medications", "resolution": "day"}),  # the former mode switch
-    ("refused_bad_limit", {"indicators": ["x"], "limit": 99999}),
+    ("stats", {"indicators": ["RestingHeartRate-RHR"], "view": "stats"}),
+    ("stats_text_value", {"indicators": ["UrineGlucose-GLU"], "view": "stats"}),
+    ("latest", {"indicators": ["RestingHeartRate-RHR"], "view": "latest"}),
+    ("keywords", {"keywords": ["resting heart"]}),
+    ("keywords_miss", {"keywords": ["definitely-not-an-indicator-zzz"]}),
+    ("refused_catalog_view", {"view": "day"}),
+    ("refused_wrong_kind", {"kind": "medications", "view": "day"}),  # the former mode switch
+    ("refused_retired_limit", {"indicators": ["x"], "limit": 5}),
 ]
 
 
@@ -148,10 +147,10 @@ async def run(user_id: str, capture: Path | None) -> int:
     else:
         indicator, day_iso = probe
         day = await service.envelope(
-            {"user_id": user_id}, indicators=[indicator], resolution="day", start=day_iso, end=day_iso
+            {"user_id": user_id}, indicators=[indicator], view="day", start=day_iso, end=day_iso
         )
         latest = await service.envelope(
-            {"user_id": user_id}, indicators=[indicator], aggregate="latest", start=day_iso, end=day_iso
+            {"user_id": user_id}, indicators=[indicator], view="latest", start=day_iso, end=day_iso
         )
         day_value = (list(day.data or [{}])[0] or {}).get("avg")
         latest_value = (list(latest.data or [{}])[0] or {}).get("value")
@@ -162,7 +161,7 @@ async def run(user_id: str, capture: Path | None) -> int:
             f"bucket={day_value} latest={latest_value}",
         )
 
-    # The baseline is the OLDEST reading, and it comes from `aggregate=stats`.
+    # The baseline is the OLDEST reading, and it comes from `view=stats`.
     #
     # This replaces a `("readings_oldest", {..., "order": "oldest"})` case that
     # 1.4.0 made unpassable — `order` is not in `query.TOOL_SCHEMA` any more, so
@@ -170,7 +169,7 @@ async def run(user_id: str, capture: Path | None) -> int:
     # counted that as a failure forever. A check that can never pass is worse
     # than no check: it turns red into background noise.
     #
-    # Renaming it to `aggregate=stats` would have duplicated `stats_readings`
+    # Renaming it to `view=stats` would have duplicated the `stats` case
     # exactly — the loop only asserts "it rendered". What the old case actually
     # verified is that you can reach the FIRST reading, and that is what is
     # asserted here instead: `first`/`first_date` are present, and the baseline
@@ -181,12 +180,12 @@ async def run(user_id: str, capture: Path | None) -> int:
     # vacuity `_pick_a_day` exists to avoid, which is how the first draft of
     # this check "failed" against a record that simply has other indicators.
     baseline = await service.envelope(
-        {"user_id": user_id}, indicators=[probe[0]], aggregate="stats"
+        {"user_id": user_id}, indicators=[probe[0]], view="stats"
     ) if probe else None
     row = (list(baseline.data or [{}])[0] or {}) if baseline else {}
     has_baseline = row.get("first") is not None and row.get("first_date") is not None
     failures += not _check(
-        "a baseline is the oldest reading (aggregate=stats -> first/first_date)",
+        "a baseline is the oldest reading (view=stats -> first/first_date)",
         has_baseline,
         f"first={row.get('first')!r} first_date={row.get('first_date')!r}"
         if baseline else "no numeric reading to build a baseline from",
@@ -205,7 +204,7 @@ async def run(user_id: str, capture: Path | None) -> int:
         failures += not _check(f"medications_{view}", env.status != tools.STATUS_ERROR, f"status={env.status} kind={env.error_kind}")
 
     # An unknown parameter is refused BY NAME, or the model cannot fix its call.
-    refusal = await service.envelope({"user_id": user_id}, kind="medications", resolution="day")
+    refusal = await service.envelope({"user_id": user_id}, kind="medications", view="day")
     failures += not _check("an unknown parameter is refused by name", "kind: unknown parameter" in "; ".join(refusal.assumptions))
 
     # The tool must never raise: the REPL calls it with no middleware above it.

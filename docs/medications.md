@@ -210,9 +210,9 @@ over **elapsed** slots only, to one decimal.
 
 ## The tool: `query_medications`
 
-Medications have their own tool, with five parameters — `view`, `keywords`,
-`start`, `end`, `member` — because their grammar shares nothing with a
-reading's `resolution` and `aggregate` (see [answers.md](answers.md)).
+Medications have their own tool, with four parameters — `view`, `keywords`,
+`start`, `end` — because their grammar shares nothing with a reading's (see
+[answers.md](answers.md)).
 
 ```
 query_medications(view="plan")                        what they intend to take, with today's slot states

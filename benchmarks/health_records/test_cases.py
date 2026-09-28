@@ -15,7 +15,7 @@ CASES = json.loads(Path(__file__).with_name("cases.json").read_text(encoding="ut
 
 class HealthRecordBenchmarkTests(unittest.TestCase):
     def test_indicators_keep_loinc_and_ucum_separate(self) -> None:
-        self.assertEqual(CASES["schema"], "mirobody-small-health-record-benchmark-1")
+        self.assertEqual(CASES["schema"], "mirobody-small-health-record-benchmark-2")
         for case in CASES["indicators"]:
             with self.subTest(name=case["name"]):
                 result = standardize_reading(case["name"], case["value"], case["unit"])
@@ -23,6 +23,13 @@ class HealthRecordBenchmarkTests(unittest.TestCase):
                 codes = result["code"].get("coding", [])
                 self.assertEqual(codes[0]["code"] if codes else None, case["loinc"])
                 self.assertEqual(result["valueQuantity"]["code"], case["ucum"])
+
+    def test_every_language_is_exercised_on_both_vocabularies(self) -> None:
+        # The resolver is multilingual and the cases were not: every one was
+        # Chinese or English. A language dropped from either list fails here.
+        for section in ("indicators", "complaints"):
+            with self.subTest(section=section):
+                self.assertEqual({c["lang"] for c in CASES[section]}, set(CASES["languages"]))
 
     def test_complaints_keep_original_words_and_selected_axis(self) -> None:
         for case in CASES["complaints"]:

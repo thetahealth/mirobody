@@ -140,8 +140,7 @@ def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
 
     # 0: function description.
     # 1: argument description.
-    # 2: return description.
-    # 3: exception description.
+    # 2: return description, and everything after it.
     line_type = 0
     current_arg_key = ""
     returns_lines: list[str] = []
@@ -201,23 +200,6 @@ def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
         # under their original heading.
         elif line_type == 2:
             returns_lines.append(line)
-
-        # Exception.
-        elif line_type == 3:
-            try:
-                pos = line.find(":")
-                if pos > 0:
-                    key     = line[:pos].strip()
-                    value   = line[pos+1:].strip()
-
-                    if key and value:
-                        if "exception" not in tool:
-                            tool["exception"] = {}
-
-                        tool["exception"][key] = value
-
-            except Exception as e:
-                logger.warning(str(e), extra={"line": line})
 
         # Function.
         else:
@@ -510,7 +492,7 @@ def load_tools_from_directories(dirs: list[str]) -> tuple[dict, list]:
 
 #-----------------------------------------------------------------------------
 
-async def call_tool(tools: dict, tool_name: str, arguments: dict | None = None, user_id: str = "", session_id: str = ""):
+async def call_tool(tools: dict, tool_name: str, arguments: dict | None = None, user_id: str = ""):
     """Invoke one loaded tool by name.
 
     Unknown argument names are rejected rather than ignored. The generated
@@ -565,11 +547,7 @@ async def call_tool(tools: dict, tool_name: str, arguments: dict | None = None, 
         for k in arguments:
             kwargs[k] = arguments[k]
     if "auth" in tool and tool["auth"]:
-        kwargs["user_info"] = {
-            "success": True,
-            "user_id": user_id,
-            "session_id": session_id
-        }
+        kwargs["user_info"] = {"user_id": user_id}
 
     #-----------------------------------------------------
     # Invoke the function.
@@ -592,14 +570,6 @@ async def call_tool(tools: dict, tool_name: str, arguments: dict | None = None, 
     return result
 
 
-async def call_global_tool(tool_name: str, arguments: dict | None = None, user_id: str = "", session_id: str = ""):
-    return await call_tool(_registry.tools, tool_name=tool_name, arguments=arguments, user_id=user_id, session_id=session_id)
-
-
-def get_global_tool_count() -> int:
-    return len(_registry.tools)
-
-
 def get_global_descriptions() -> list:
     """The tool schemas exactly as a client receives them in `tools/list`.
 
@@ -616,15 +586,6 @@ def get_global_descriptions() -> list:
 def get_global_tools() -> dict:
     return _registry.tools
 
-
-def reset_global_tools() -> None:
-    """Forget everything the loaders discovered.
-
-    For tests: the module dicts this replaced could only grow, so a test that
-    loaded a tool directory changed what every later test saw. Not used by the
-    package itself: discovery happens once, at start-up.
-    """
-    _registry.reset()
 
 
 

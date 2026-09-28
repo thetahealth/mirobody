@@ -19,4 +19,11 @@ def client_safe_error(e: BaseException) -> str:
     The full text belongs in the server log (callers log it with exc_info
     before calling this), not in the answer.
     """
-    return f"⚠️ The service hit an internal error ({type(e).__name__}). Please try again — the details have been logged."
+    from mirobody.utils.req_ctx import get_req_ctx
+
+    # The request id finds this failure's log lines; without it a report of
+    # "it said internal error" matched every error that day.
+    trace_id = get_req_ctx("trace_id")
+    reference = f" (reference: {trace_id})" if trace_id else ""
+    return (f"⚠️ The service hit an internal error ({type(e).__name__}). "
+            f"Please try again — the details have been logged{reference}.")

@@ -1,7 +1,6 @@
 import functools
 import logging
 
-from psycopg_pool import AsyncConnectionPool
 from pydantic import ValidationError
 
 from mirobody.agent.registry import available_models, load_agent
@@ -117,12 +116,10 @@ class ChatService:
         uri_prefix      : str = "",
         routes          : list | None = None,
 
-        db_pool         : AsyncConnectionPool | None = None,
 
         agent_dirs      : list[str] | None = None,
     ):
         self._token_validator = token_validator
-        self._db_pool = db_pool
 
         # Called for the side effect: the registry holds the one agent class
         # and its LLM clients for the life of the process.
@@ -311,8 +308,6 @@ class ChatService:
         try:
             params = await request.json()
             params["user_id"] = str(user_id)
-            # `or ""`: a missing header is a str field, not None.
-            params["token"] = request.headers.get("Authorization") or ""
 
         except Exception as e:
             return json_response_with_code(-1, str(e), request=request)

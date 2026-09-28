@@ -4,20 +4,21 @@ Every surface that shows a person their own readings (the chat agent's tool,
 an MCP client, a dashboard, a daily summary) reads through
 :class:`HealthQuery`. The tool the model sees, ``query_health_indicators``, has
 one JSON schema (:data:`TOOL_SCHEMA`) shared by the chat and MCP surfaces and
-a dispatch table from ``(resolution, aggregate)`` to the one ``HealthQuery``
-method that answers it. What the person reported (a symptom, a diagnosis) is
+a dispatch table from ``view`` to the one ``HealthQuery`` method that answers
+it. What the person reported (a symptom, a diagnosis) is
 read through the same tool: same table, same series, coded on ICPC-3 instead
 of LOINC. Medications are a different data class with a different grammar and
 their own tool: :mod:`mirobody.kernel.meds`.
 
-Eight parameters, each one a decision the model has to make on every call, and
-each one earning its place: what to read (``keywords`` or ``indicators``),
-when (``start``/``end``), at what grain (``resolution``), reduced how
-(``aggregate``), how many raw rows (``limit``), and about whom (``member``).
-Everything a model could also get another way is not a parameter: a
-baseline is ``aggregate=stats`` (``first``/``first_date``) rather than an
-``order`` switch, a panel is its member names, one device's curve is a row
-filter the answer already carries.
+Five parameters, each one a decision only the question can make: what to
+read (``keywords`` or ``indicators``), when (``start``/``end``), and in what
+shape (``view``). The rest is decided by the system, not the model. Whose
+record is the call's authentication, one person per call. How many rows is
+this tool's budget (:data:`ROW_CAP`). Which values a statistic counts is the
+write side's election (see ``collect/query.py::stats``). A baseline is
+``view=stats`` (``first``/``first_date``) rather than an ``order`` switch, a
+panel is its member names, one device's curve is a row filter the answer
+already carries.
 
 The pure parts live here: window resolution with an explicit time zone and an
 explicit *now*; the selection rule (keywords or indicator names: at most
@@ -328,16 +329,21 @@ def compact(
 
 # --- the tool: schema and dispatch -------------------------------------------------------
 
-RESOLUTIONS = ("raw", "minute", "hour", "day", "week", "month")
-AGGREGATES = ("none", "stats", "latest")
-MAX_LIMIT = 500
-DEFAULT_LIMIT = 50
+#: One value per bucket of this size; day and coarser read the elected day.
+BUCKETS = ("minute", "hour", "day", "week", "month")
+VIEWS = ("raw", *BUCKETS, "stats", "latest")
+#: Raw rows per indicator, newest first. A budget, not a question: the model
+#: that could raise it used to, and got a longer table instead of an answer.
+#: Narrowing the window or asking for `stats` is what a cut row count means.
+ROW_CAP = 50
 
 TOOL_NAME = "query_health_indicators"
 
-#: The one schema both the chat tool and the MCP tool publish. Flat, eight
-#: parameters, every one applicable to every call, no mode switch, so no
-#: parameter that is silently ignored or refused depending on another.
+#: The one schema both the chat tool and the MCP tool publish. Flat, five
+#: parameters, every one applicable to every call. `view` is one enum rather
+#: than `resolution` × `aggregate`: two of those eighteen cells were refused,
+#: `limit` applied to one of them, and the prompt spent two paragraphs teaching
+#: which was which.
 TOOL_SCHEMA: dict[str, object] = {
     "type": "object",
     "additionalProperties": False,
@@ -360,51 +366,21 @@ TOOL_SCHEMA: dict[str, object] = {
             "description": "First local date, inclusive (YYYY-MM-DD, the person's time zone). Omit both dates for the whole record.",
         },
         "end": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Last local date, inclusive."},
-        "resolution": {
+        "view": {
             "type": "string",
-            "enum": list(RESOLUTIONS),
+            "enum": list(VIEWS),
             "default": "raw",
-            "description": "raw readings, or one value per minute/hour/day/week/month. day and coarser return the elected daily value.",
-        },
-        "aggregate": {
-            "type": "string",
-            "enum": list(AGGREGATES),
-            "default": "none",
-            "description": "none: rows; stats: count/min/max/avg/first/last/change over the window (use for 'how did it change' and for a baseline); latest: the most recent value per indicator.",
-        },
-        "limit": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": MAX_LIMIT,
-            "default": DEFAULT_LIMIT,
-            "description": "Raw rows per indicator, newest first. Narrow the window or aggregate instead of raising it.",
-        },
-        "member": {
-            "type": "string",
-            "description": "Read another person's data you are authorised to see (a care-circle member id). Omit for the caller.",
+            "description": "raw: the readings, newest first, each with the file it came from. minute/hour/day/week/month: one point per period, for a trend or a chart. stats: count/min/max/avg/first/last/change over the window, for 'how did it change' and a baseline. latest: the most recent value per indicator.",
         },
     },
 }
 
-#: ``(resolution, aggregate)`` → ``HealthQuery`` method. A missing cell is a
-#: refused combination, never a guess.
-DISPATCH: dict[tuple[str, str], str] = {
-    ("raw", "none"): "readings",
-    ("raw", "stats"): "stats",
-    ("raw", "latest"): "latest",
-    **{(r, "none"): "buckets" for r in ("minute", "hour", "day", "week", "month")},
-    **{(r, "stats"): "stats" for r in ("minute", "hour", "day", "week", "month")},
-    **{(r, "latest"): "latest" for r in ("day", "week", "month")},
-}
-
-#: What ``stats``/``latest`` are computed over, per resolution.
-BASIS: dict[str, str] = {
+#: ``view`` → ``HealthQuery`` method.
+DISPATCH: dict[str, str] = {
     "raw": "readings",
-    "minute": "buckets",
-    "hour": "buckets",
-    "day": "daily",
-    "week": "daily",
-    "month": "daily",
+    **dict.fromkeys(BUCKETS, "buckets"),
+    "stats": "stats",
+    "latest": "latest",
 }
 
 
@@ -415,20 +391,13 @@ class QueryRequest:
     selection: Selection = field(default_factory=Selection)
     start: str = ""
     end: str = ""
-    resolution: str = "raw"
-    aggregate: str = "none"
-    limit: int = DEFAULT_LIMIT
-    member: str = ""
+    view: str = "raw"
 
     @property
     def method(self) -> str:
         if self.selection.kind == "catalog":
             return "catalog"
-        return DISPATCH[(self.resolution, self.aggregate)]
-
-    @property
-    def basis(self) -> str:
-        return BASIS[self.resolution]
+        return DISPATCH[self.view]
 
 
 @dataclass(frozen=True)
@@ -462,27 +431,16 @@ def reject_dates(args: Mapping[str, object]) -> list[Rejection]:
 def validate_request(args: Mapping[str, object]) -> tuple[Rejection, ...]:
     """Everything wrong with the raw arguments, in a stable order. Empty
     means :func:`parse_request` will succeed. Checks the enums, the selection
-    rule, the dispatch table and the ranges."""
+    rule and the dates."""
     out: list[Rejection] = reject_unknown(args, TOOL_SCHEMA)
-    for p, allowed in (("resolution", RESOLUTIONS), ("aggregate", AGGREGATES)):
-        v = args.get(p)
-        if v not in (None, "") and v not in allowed:
-            out.append(Rejection(p, f"must be one of {', '.join(allowed)}"))
+    view = args.get("view")
+    if view not in (None, "") and view not in VIEWS:
+        out.append(Rejection("view", f"must be one of {', '.join(VIEWS)}"))
     selectors = [p for p in ("keywords", "indicators") if args.get(p) not in (None, "", [], ())]
     if len(selectors) > 1:
         out.append(Rejection("keywords+indicators", "give keywords or indicators — not both"))
-    res, agg = str(args.get("resolution") or "raw"), str(args.get("aggregate") or "none")
-    if res in RESOLUTIONS and agg in AGGREGATES and (res, agg) not in DISPATCH:
-        out.append(Rejection("aggregate", f"{agg} is not defined for resolution={res}"))
-    if not selectors and agg != "none":
-        out.append(Rejection("aggregate", "the catalogue cannot be aggregated; pick indicators first"))
-    if not selectors and res != "raw":
-        out.append(Rejection("resolution", "the catalogue has no resolution; pick indicators first"))
-    if (res, agg) != ("raw", "none") and args.get("limit") not in (None, ""):
-        out.append(Rejection("limit", "only applies to raw rows without aggregation"))
-    lim = args.get("limit")
-    if lim not in (None, "") and (not isinstance(lim, int) or not 1 <= lim <= MAX_LIMIT):
-        out.append(Rejection("limit", f"must be an integer between 1 and {MAX_LIMIT}"))
+    if not selectors and view not in (None, "", "raw"):
+        out.append(Rejection("view", "the catalogue has one shape; pick indicators first"))
     out.extend(reject_dates(args))
     return tuple(out)
 
@@ -501,28 +459,13 @@ def parse_request(args: Mapping[str, object]) -> QueryRequest:
         selection=sel,
         start=str(args.get("start") or ""),
         end=str(args.get("end") or ""),
-        resolution=str(args.get("resolution") or "raw"),
-        aggregate=str(args.get("aggregate") or "none"),
-        limit=int(args.get("limit") or DEFAULT_LIMIT),
-        member=str(args.get("member") or ""),
+        view=str(args.get("view") or "raw"),
     )
 
 
 # --- ports -----------------------------------------------------------------------------
 
 Rows = Sequence[Mapping[str, object]]
-
-
-class Denied(PermissionError):
-    """The caller may not read this subject's data."""
-
-
-class SubjectResolver(Protocol):
-    """Who the data is about. ``member`` empty means the caller themself;
-    otherwise the resolver checks the caller's authorisation and returns the
-    subject id, or raises :class:`Denied`."""
-
-    def resolve(self, caller_id: str, member: str) -> str: ...
 
 
 class HealthQuery(Protocol):
@@ -539,29 +482,25 @@ class HealthQuery(Protocol):
     def catalog(self, subject_id: str, window: Window | None) -> Rows: ...
     def readings(self, subject_id: str, sel: Selection, window: Window, *, limit: int) -> Rows: ...
     def buckets(self, subject_id: str, sel: Selection, window: Window, *, resolution: str) -> Rows: ...
-    def stats(self, subject_id: str, sel: Selection, window: Window, *, basis: str) -> Rows: ...
-    def latest(self, subject_id: str, sel: Selection, window: Window, *, basis: str) -> Rows: ...
+    def stats(self, subject_id: str, sel: Selection, window: Window) -> Rows: ...
+    def latest(self, subject_id: str, sel: Selection, window: Window) -> Rows: ...
 
 
 __all__ = [
-    "AGGREGATES",
-    "BASIS",
-    "DEFAULT_LIMIT",
+    "BUCKETS",
     "DISPATCH",
-    "Denied",
     "HealthQuery",
-    "MAX_LIMIT",
     "QueryRequest",
-    "RESOLUTIONS",
+    "ROW_CAP",
     "Rejection",
     "Rows",
     "SEMANTICS_DATE_PADDED",
     "SEMANTICS_TZ_EXACT",
     "SYNONYMS",
     "Selection",
-    "SubjectResolver",
     "TOOL_NAME",
     "TOOL_SCHEMA",
+    "VIEWS",
     "Window",
     "compact",
     "normalize_list_arg",

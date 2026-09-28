@@ -91,7 +91,7 @@ async def get_uploaded_files_paginated(
     Returns:
         Dict containing files list, total count, and total size
     """
-    from .file_db_service import FileDbService
+    from .file_db_service import SOURCE_ASK, SOURCE_DATA, FileDbService
 
     try:
         # Use FileDbService to query from th_files table
@@ -100,7 +100,7 @@ async def get_uploaded_files_paginated(
             user_id=uploader_user_id,
             query_user_id=target_user_id,
             # scene=["report", "genetic", "excel", "csv"],  # Both report and genetic files
-            created_source=["web_drive", "web_chat"],  # Web drive and chat uploads
+            created_source=[SOURCE_DATA, SOURCE_ASK],
             limit=limit,
             offset=offset,
         )

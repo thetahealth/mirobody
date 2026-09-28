@@ -140,12 +140,12 @@ def error_kind_for(fault_kind: str) -> str:
 PROVENANCE_REPORTED = "reported"
 
 NEXT_NARROW_WINDOW = "narrow_window"
-NEXT_AGGREGATE = "aggregate"
+NEXT_VIEW_STATS = "view_stats"
 NEXT_USE_INDICATORS = "use_indicators"
 NEXT_PICK_FROM_CATALOG = "pick_from_catalog"
 NEXT_PROBE_UNMAPPED = "probe_unmapped"
 NEXT_STEPS = frozenset(
-    {NEXT_NARROW_WINDOW, NEXT_AGGREGATE, NEXT_USE_INDICATORS, NEXT_PICK_FROM_CATALOG, NEXT_PROBE_UNMAPPED}
+    {NEXT_NARROW_WINDOW, NEXT_VIEW_STATS, NEXT_USE_INDICATORS, NEXT_PICK_FROM_CATALOG, NEXT_PROBE_UNMAPPED}
 )
 
 
@@ -156,9 +156,7 @@ class Meta:
     window: tuple[str, str] = ("", "")  # local dates, inclusive
     tz: str = ""
     window_semantics: str = "tz_exact"  # or date_padded_naive, for stores without a tz-aware time column
-    resolution: str = ""
-    aggregate: str = ""
-    aggregate_basis: str = ""  # readings | buckets | daily
+    view: str = ""  # the readings tool's `view`; empty for tools without one
     row_count: int = 0
     truncated: bool = False
     catalog_total: int = 0

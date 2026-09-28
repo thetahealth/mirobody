@@ -386,11 +386,7 @@ async def delete_all_files_from_message(
         logger.info(f"Starting deletion of all files for source_id={message_id}")
         
         # Get all files for this source_id
-        files = await FileDbService.get_files_by_source(
-            user_id=user_id,
-            created_source="file_upload",
-            created_source_id=message_id,
-        )
+        files = await FileDbService.get_files_by_source(user_id=user_id, created_source_id=message_id)
         
         if not files:
             logger.info(f"No files found for source_id={message_id}")
@@ -568,8 +564,6 @@ async def upload_files_to_storage(
     files: list[UploadFile], 
     user_id: str,
     folder_prefix: str | None = None,
-    redis_client: Any | None = None,
-    cache_ttl: int = 3600
 ) -> dict[str, Any]:
     """
     Universal file upload service that can be reused across projects
@@ -578,19 +572,14 @@ async def upload_files_to_storage(
     This function is project-agnostic: it takes only its arguments and touches
     no module-level state, so it can be lifted into another codebase as-is.
     
-    File Caching Strategy:
-        - Files are uploaded to S3/OSS for persistent storage
-        - Extracted text is cached in Redis under `file_cache:{file_key}`;
-          there is no local disk cache (an earlier docstring claimed one).
-        - Redis stores the local file path (string) with TTL, not binary content
-        - This avoids UTF-8 decode errors and provides fast local file access
-    
+    Nothing else holds the bytes. They used to be copied into Redis as base64
+    for an hour under `file_cache:{file_key}` (not a path, as this docstring
+    said), for the chat layer to skip one fetch; it no longer reads them.
+
     Args:
         files: List of files to upload (UploadFile objects)
         user_id: User identifier for logging and authentication context
         folder_prefix: Custom folder prefix for uploaded files (optional, defaults to 'uploads')
-        redis_client: Optional Redis client for storing local cache paths (default None)
-        cache_ttl: Cache expiration time in seconds (default 3600 = 1 hour)
         
     Returns:
         Dict containing (same format as original FileUploadResponse):
@@ -695,20 +684,6 @@ async def upload_files_to_storage(
                 continue           
             
             logger.info(f"File uploaded successfully: {file.filename} -> {file_url}")
-            
-            # Cache file content as base64 in Redis
-            if redis_client and file_content:
-                try:
-                    import base64
-                    b64_content = base64.b64encode(file_content).decode('utf-8')
-                    await redis_client.setex(
-                        f"file_cache:{file_key}",
-                        cache_ttl,
-                        b64_content
-                    )
-                    logger.info(f"Cached file to Redis: {file.filename} (TTL: {cache_ttl}s)")
-                except Exception as cache_error:
-                    logger.warning(f"Failed to cache file for {file.filename}: {cache_error}")
             
             # Create upload result data using FileUploadData structure
             upload_data = FileUploadData(

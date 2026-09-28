@@ -2,7 +2,7 @@
 
 The durable, queryable transcript that `/api/history` and session sharing
 render. It is NOT the agent's conversation memory: that is the LangGraph
-checkpointer (agent/checkpointer.py), keyed on thread_id = session_id.
+checkpointer (agent/checkpointer.py), keyed on `thread_for(owner, session_id)`.
 """
 
 import json

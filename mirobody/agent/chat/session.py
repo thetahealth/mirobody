@@ -258,15 +258,15 @@ async def delete_session(user_id: str, session_id: str) -> str | None:
         )
 
         # And the agent's own copy. The agent's conversation memory is the
-        # LangGraph checkpointer keyed on thread_id = session_id, so the two
+        # LangGraph checkpointer keyed on `thread_for(owner, session_id)`, so the two
         # deletes above would otherwise leave the same turns (the health
         # questions and the tool results answering them) sitting in the
         # checkpoint tables under this session id. Deleting a conversation has
         # to delete it, not just stop listing it. Best-effort by design (see
         # agent.checkpointer.delete_thread): the user-visible rows are already
         # gone, and a checkpoint-cleanup failure must not turn that into an error.
-        from mirobody.agent.checkpointer import delete_thread
-        await delete_thread(session_id)
+        from mirobody.agent.checkpointer import delete_thread, thread_for
+        await delete_thread(thread_for(user_id, session_id))
 
         return None
 

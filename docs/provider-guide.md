@@ -1717,10 +1717,10 @@ async def test_data_pipeline():
 1. **OAuth Flow**:
    ```bash
    # Start the server
-   python main.py
-   
-   # Navigate to link endpoint
-   # http://localhost:8000/api/v1/pulse/providers/<provider>/link?user_id=test_user
+   mirobody serve            # or: docker compose up -d (port 18060)
+
+   # Link as a signed-in user
+   # POST /api/v1/pulse/user/providers/link  {"provider_slug": "<provider>", ...}
    
    # Complete OAuth authorization
    # Verify callback is handled correctly
@@ -2042,7 +2042,8 @@ Common indicators you'll map to:
 **Solutions**:
 1. Verify redirect URL matches exactly in vendor dashboard
 2. Check Redis connectivity for state storage
-3. Ensure callback route is registered in main.py
+3. Ensure the provider is loaded, so its callback route is registered: its
+   directory must be on `PROVIDER_DIRS` (config.yaml)
 4. Verify state parameter is URL-encoded properly
 
 ### Issue: Token Expired During Data Pull

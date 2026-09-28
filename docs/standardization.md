@@ -46,13 +46,16 @@ Standardization here is not a lookup table but a complete terminology-normalizat
   defines and every conversion factor to equal UCUM's.
 - **Complaints and diagnoses on ICPC-3.** `resolve_symptom("头疼")` gives
   `NS01`, `resolve_condition("高血压")` gives `KD73`: 1,218 ICPC-3 codes (the S
-  and D components), shipped verbatim, reached through Chinese and English
-  spellings we wrote. The two are separate indexes so a complaint never lands
-  on a diagnosis, and both abstain with a reason rather than guess. Measured
-  on 200 complaints from real consultation texts, the gold labels set by three
+  and D components), shipped verbatim, reached through English, Chinese,
+  Japanese and Russian spellings we wrote (繁體中文 through the same fold, with
+  Taiwan words such as 氣喘 curated under their own spelling). The two are
+  separate indexes so a complaint never lands on a diagnosis, and both abstain
+  with a reason rather than guess. Measured on 200 Chinese and English
+  complaints from real consultation texts, the gold labels set by three
   independent model annotators (three different models, blind to the
   resolver): no wrong code on 142 scorable symptoms, and a code for one in
-  five; the rest abstain.
+  five; the rest abstain. The Japanese and Russian surfaces are newer and have
+  not been measured that way yet.
 - **Everything here is lexical, and abstaining is the ceiling we keep.** A term
   the vocabulary does not know returns `unresolved`, not a nearest neighbour.
   1.4.x shipped an opt-in cosine-recall tier beside this one; 1.5.0 deleted it.

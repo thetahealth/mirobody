@@ -1,9 +1,12 @@
-"""Who a read is about: shared by every tool that reads one person's record.
+"""Who a read is about: the authenticated caller, and no one else.
 
-A care-circle member is resolved through the authorisation check, never
-through a trusted parameter: the model supplies `member`, and a model can be
-told to supply anything. Underscore-prefixed so the tool loader never
-publishes anything in here.
+There is no parameter naming another person. The chat layer decides whose
+record a turn reads and authorises it before the model runs
+(`chat/turn.py::_may_chat`); an MCP call reads the account its token or URL
+belongs to. A `member` parameter used to let the model name someone else: it
+could only guess the id, and 6 of 6 "妈妈的胆固醇" turns measured 2026-09-28
+guessed `member="妈妈"` and were refused. Underscore-prefixed so the tool
+loader never publishes anything in here.
 """
 
 from __future__ import annotations
@@ -11,35 +14,13 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from mirobody.kernel import query, tools
+from mirobody.kernel import tools
 
 
 def caller_of(user_info: Mapping[str, Any] | None) -> str:
     """The authenticated caller's id, or "" when the call carries none."""
     caller_id = user_info.get("user_id") if isinstance(user_info, Mapping) else None
     return caller_id if isinstance(caller_id, str) else ""
-
-
-async def subject_for(caller_id: str, member: str) -> str:
-    """`member` empty (or the caller) means the caller; anyone else goes
-    through the care-circle check and raises `query.Denied` when it fails.
-
-    `.subject_id` is not decoration. `resolve_subject` answers with a
-    `Subject`, and this used to `str()` the whole dataclass, which has no
-    `__str__`, so the "user id" was the repr
-    `Subject(operator_id=7, subject_id=42, access=1)`. `th_observation.user_id`
-    is `varchar(200)`, so that bound without error and matched nothing: an
-    authorised care-circle read answered "no data", on both the agent and the
-    MCP surface, indistinguishably from a member who really has none.
-    """
-    if not member or member == caller_id:
-        return caller_id
-    from mirobody.user.care_circle import CareCircleDenied, resolve_subject
-
-    try:
-        return str((await resolve_subject(caller_id, member)).subject_id)
-    except CareCircleDenied as e:
-        raise query.Denied(str(member)) from e
 
 
 def denied(reason: str) -> tools.Envelope:

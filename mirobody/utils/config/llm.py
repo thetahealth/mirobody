@@ -1,11 +1,11 @@
-"""Model routing read from configuration, and `LLMConfig`, the `Config` family's member for it.
+"""Model routing read from configuration.
 
 Nothing in this module names a model. `config.llm.yaml` does: `MODELS` is a
 table of entries (alias → llm_type / api_key NAME / base_url / model /
 capabilities; "providers" in this project are devices), and three keys say
 which entry each utility surface uses: `UTILS_VISION_MODEL` (report photos,
-scanned pages), `UTILS_TEXT_MODEL` (indicator extraction from text, titles,
-summaries) and `UTILS_EMBEDDING_MODEL`.
+scanned pages) and `UTILS_TEXT_MODEL` (indicator extraction from text, titles,
+summaries).
 A value is an entry name, a list of them (the FIRST whose key is present wins,
 that is how one key runs everything), a `provider/model` string, or an inline
 spec shaped like an entry. The chat picker is the `MODELS` table itself,
@@ -31,7 +31,9 @@ different models.
 What does live here as code: the key-name aliases vendors document
 (`GEMINI_API_KEY` for `GOOGLE_API_KEY`), the endpoint a bare `provider/model`
 string implies (the ONE table of URL literals, each the fallback for
-`<PREFIX>_BASE_URL`), and `LLMConfig`, the client the embedding layer uses.
+`<PREFIX>_BASE_URL`), and the Vertex hostname rules. There is no embedding
+surface: the semantic tier it served was deleted in 1.5.0, and the client
+factory for it (`LLMConfig`, `Config.get_llm`) had no other caller.
 
 NOT the same thing as `mirobody/utils/llm/`, that package holds the callers
 (structured extraction, text, vision dispatch). Both read the same routes.
@@ -44,30 +46,11 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import TYPE_CHECKING, Any
-
-import aiohttp
-
-if TYPE_CHECKING:
-    from anthropic import Anthropic, AsyncAnthropic
-    from google.genai.client import AsyncClient as AsyncGenaiClient, Client as GenaiClient
-    from openai import AsyncAzureOpenAI, AsyncOpenAI, AzureOpenAI, OpenAI
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
-
-class LLMProvider(str, Enum):
-    OPENAI     = "openai"
-    OPENROUTER = "openrouter"
-    DASHSCOPE  = "dashscope"
-    DEEPSEEK   = "deepseek"
-    ANTHROPIC  = "anthropic"
-    GEMINI     = "gemini"
-    VERTEX_AI  = "vertex_ai"
-    AZURE      = "azure"
-    BEDROCK    = "bedrock"
 
 #-----------------------------------------------------------------------------
 # The three things that are code, not config.
@@ -115,17 +98,8 @@ UTILITY_FAMILIES = ("openai", "openrouter", "anthropic")
 ROUTE_KEYS: dict[str, str] = {
     "vision": "UTILS_VISION_MODEL",
     "text": "UTILS_TEXT_MODEL",
-    "embedding": "UTILS_EMBEDDING_MODEL",
 }
 
-#: The two vendors `Config.get_llm` does NOT reach with an OpenAI client.
-#: Gemini: the embedding factory needs `output_dimensionality`, so it goes to
-#: the REST API with `x-goog-api-key`. Anthropic: its row above is the native
-#: base, and `LLMConfig._build_anthropic` builds the native SDK client.
-_NOT_OPENAI_CLIENT = ("gemini", "anthropic")
-
-#: provider → (api key config key, default base_url), the shape `Config.get_llm`
-#: reads.
 #: Vertex locations served from a MULTI-REGIONAL endpoint, whose hostname is
 #: neither the global one nor the `<region>-` one. Not a guess: both official
 #: SDKs carry exactly this set: `google.genai._api_client._MULTI_REGIONAL_LOCATIONS`
@@ -168,11 +142,6 @@ def vertex_host(location: str) -> str:
     return f"{loc}-aiplatform.googleapis.com"
 
 
-_OPENAI_COMPAT: dict[LLMProvider, tuple[str, str]] = {
-    LLMProvider(name): (key, url) for name, (key, url) in KNOWN_ENDPOINTS.items() if name not in _NOT_OPENAI_CLIENT
-}
-
-
 class NoProviderError(ValueError):
     """No routable entry exists for a surface. A `ValueError` so the callers
     that already catch one keep working; the message is for the person who
@@ -201,7 +170,7 @@ def read_api_key(env_name: str) -> str:
 def base_url_override(api_key_env: str) -> str:
     """`<PREFIX>_BASE_URL` for the key named `api_key_env` (OPENROUTER_API_KEY
     → OPENROUTER_BASE_URL), or "". The one redirect rule, applied to every
-    entry that reads the key: chat, vision, text, embeddings (#52)."""
+    entry that reads the key: chat, vision, text (#52)."""
     from . import safe_read_cfg
 
     if not api_key_env.endswith("_API_KEY"):
@@ -232,7 +201,6 @@ class RouteSpec:
     reasoning_effort: str | None = None    # sent only when the entry declares it
     extra_body: dict[str, Any] = field(default_factory=dict)
     temperature: float | None = None
-    embedding: str | None = None   # the vector-column family an embedding entry writes
 
     @property
     def takes_json_object(self) -> bool:
@@ -290,13 +258,10 @@ def _spec_from_mapping(alias: str, entry: dict[str, Any]) -> RouteSpec | None:
     OpenAI-compatible utility surface (no model, or a chat-only llm_type)."""
     model = str(entry.get("model") or "").strip()
     llm_type = str(entry.get("llm_type") or "openai").strip().lower().replace("-", "_")
-    embedding = str(entry.get("embedding") or "").strip().lower() or None
     # A utility surface can call two families: any OpenAI-compatible endpoint,
     # and Anthropic's own API (`backends_anthropic`, for the structured
-    # outputs its compatibility endpoint does not serve). An embedding entry
-    # may name a third (Gemini's REST embedding endpoint); the embedding
-    # factory for that family decides how to call it.
-    if not model or (llm_type not in UTILITY_FAMILIES and not embedding):
+    # outputs its compatibility endpoint does not serve).
+    if not model or llm_type not in UTILITY_FAMILIES:
         return None
     api_key_env = str(entry.get("api_key") or "").strip()
     base_url = str(entry.get("base_url") or "").strip()
@@ -314,26 +279,13 @@ def _spec_from_mapping(alias: str, entry: dict[str, Any]) -> RouteSpec | None:
         reasoning_effort=(str(entry["reasoning_effort"]).strip() or None) if entry.get("reasoning_effort") else None,
         extra_body=dict(entry.get("extra_body") or {}),
         temperature=float(temperature) if isinstance(temperature, (int, float)) else None,
-        embedding=embedding,
     )
 
 
-def _spec_from_string(value: str, entries: dict[str, dict], surface: str = "") -> RouteSpec | None:
-    """An entry name, or `provider/model` against `KNOWN_ENDPOINTS`. On the
-    embedding surface a vector-column FAMILY name (`qwen`, `openrouter`, …)
-    also resolves, to the entry that writes it: the spelling `EMBEDDING_PROVIDER:
-    qwen` used, and the one the database columns carry."""
+def _spec_from_string(value: str, entries: dict[str, dict]) -> RouteSpec | None:
+    """An entry name, or `provider/model` against `KNOWN_ENDPOINTS`."""
     value = value.strip()
-    if surface == "embedding":
-        # A family name is also a chat entry's name in the shipped file
-        # (`qwen` chats; `qwen-embed` writes the `qwen` columns), so on this
-        # surface an entry name counts only when the entry embeds.
-        if value in entries and (entries[value] or {}).get("embedding"):
-            return _spec_from_mapping(value, entries[value] or {})
-        for alias, entry in entries.items():
-            if str((entry or {}).get("embedding") or "").strip().lower() == value.lower():
-                return _spec_from_mapping(alias, entry or {})
-    elif value in entries:
+    if value in entries:
         return _spec_from_mapping(value, entries[value] or {})
     if "/" in value:
         provider, model = value.split("/", 1)
@@ -362,7 +314,7 @@ KNOWN_ENTRY_KEYS: frozenset[str] = frozenset({
     # read here, into a RouteSpec
     "llm_type", "api_key", "base_url", "model", "temperature",
     "supports_image", "supports_pdf", "response_format", "reasoning_effort",
-    "extra_body", "embedding", "chat",
+    "extra_body", "chat",
     # read by the agent's client builder (`agent/models/clients.py`)
     "profile", "thinking_style", "auth_type", "prompt_cache", "response_with_tools",
     "project", "location", "reasoning", "max_tokens", "max_output_tokens",
@@ -438,18 +390,12 @@ def route_candidates(surface: str) -> list[RouteSpec | str]:
             spec = _spec_from_mapping("<inline>", item)
             out.append(spec or "<inline spec without a model>")
         elif isinstance(item, str) and item.strip():
-            out.append(_spec_from_string(item, entries, surface) or item.strip())
+            out.append(_spec_from_string(item, entries) or item.strip())
     return out
 
 
 def _fits(surface: str, spec: RouteSpec) -> bool:
-    if surface == "vision" and spec.supports_image is False:
-        return False
-    if surface == "embedding" and not spec.embedding:
-        return False
-    if surface != "embedding" and spec.embedding:
-        return False
-    return True
+    return not (surface == "vision" and spec.supports_image is False)
 
 
 def resolve_route(surface: str) -> RouteSpec | None:
@@ -510,10 +456,10 @@ def no_provider_message(surface: str) -> str:
 
 
 def chat_entries() -> dict[str, dict[str, Any]]:
-    """`MODELS` minus the utility-only and embedding entries, in order."""
+    """`MODELS` minus the utility-only entries (`chat: false`), in order."""
     return {
         name: entry for name, entry in model_entries().items()
-        if _flag((entry or {}).get("chat")) is not False and not (entry or {}).get("embedding")
+        if _flag((entry or {}).get("chat")) is not False
     }
 
 
@@ -555,196 +501,3 @@ def retired_model_keys() -> list[str]:
     if cfg is not None:
         names |= set(cfg._raw)
     return sorted(n for n in names if _RETIRED_MODEL_KEY.match(n))
-
-
-#-----------------------------------------------------------------------------
-
-class LLMConfig:
-    """
-    Single LLM provider's configuration. Created by ``Config.get_llm()``.
-
-    Holds credentials and endpoints read from configuration;
-    ``get_client()`` / ``get_async_client()`` lazily create and cache
-    the native SDK client.
-    """
-
-    _GEMINI_BASE = "https://generativelanguage.googleapis.com"
-
-    def __init__(
-        self,
-        provider    : LLMProvider,
-        *,
-        api_key     : str = "",
-        base_url    : str = "",
-        # Azure
-        endpoint    : str = "",
-        deployment  : str = "gpt-4o",
-        api_version : str = "2024-12-01-preview",
-        # Gemini
-        gemini_api_version: str = "v1beta",
-        # GCP
-        gcp_project : str = "",
-        gcp_location: str = "",
-        # AWS
-        aws_region  : str = "",
-    ):
-        self.provider     = provider
-        self.api_key      = api_key
-        self.base_url     = base_url
-        self.endpoint     = endpoint
-        self.deployment   = deployment
-        self.api_version  = api_version
-        self.gcp_project  = gcp_project
-        self.gcp_location = gcp_location
-        self.aws_region   = aws_region
-
-        # Gemini / Vertex AI: derive base_url if not explicitly set
-        self.gemini_api_version = gemini_api_version
-        if provider == LLMProvider.GEMINI and not base_url:
-            self.base_url = f"{self._GEMINI_BASE}/{gemini_api_version}"
-        elif provider == LLMProvider.VERTEX_AI and not base_url:
-            # `vertex_host` rather than a `<loc>-` f-string: this one also got
-            # `global` wrong, building `global-aiplatform.googleapis.com`.
-            loc = vertex_location(gcp_location)
-            self.base_url = (
-                f"https://{vertex_host(loc)}/v1"
-                f"/projects/{gcp_project}/locations/{loc}"
-            )
-
-        self._client: Any = None
-        self._async_client: Any = None
-
-    #-------------------------------------------------
-
-    def print(self):
-        if self.provider in _OPENAI_COMPAT:
-            print(f"llm             : {self.provider.value}  base_url={self.base_url}")
-        elif self.provider == LLMProvider.AZURE:
-            print(f"llm             : azure  endpoint={self.endpoint}  deployment={self.deployment}")
-        elif self.provider == LLMProvider.VERTEX_AI:
-            print(f"llm             : vertex_ai  project={self.gcp_project}  location={self.gcp_location}")
-        elif self.provider == LLMProvider.BEDROCK:
-            print(f"llm             : bedrock  region={self.aws_region}")
-        else:
-            print(f"llm             : {self.provider.value}")
-
-    #-------------------------------------------------
-    # aiohttp session
-    #-------------------------------------------------
-
-    def get_aiohttp_session(self, **kwargs) -> aiohttp.ClientSession:
-        """Create an aiohttp.ClientSession with base_url and auth headers pre-configured.
-
-        Caller is responsible for closing the session (use ``async with``).
-        Extra *kwargs* are forwarded to ``aiohttp.ClientSession()``.
-        """
-        headers = kwargs.pop("headers", {})
-        headers.setdefault("Content-Type", "application/json")
-
-        p = self.provider
-        if p in _OPENAI_COMPAT or p == LLMProvider.AZURE:
-            headers.setdefault("Authorization", f"Bearer {self.api_key}")
-        elif p == LLMProvider.ANTHROPIC:
-            headers.setdefault("x-api-key", self.api_key)
-            headers.setdefault("anthropic-version", "2023-06-01")
-        elif p == LLMProvider.GEMINI:
-            headers.setdefault("x-goog-api-key", self.api_key)
-        elif p == LLMProvider.VERTEX_AI:
-            import google.auth
-            import google.auth.transport.requests
-
-            creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
-            creds.refresh(google.auth.transport.requests.Request())
-            headers.setdefault("Authorization", f"Bearer {creds.token}")
-
-        base_url = self.base_url.rstrip("/") + "/"
-        return aiohttp.ClientSession(
-            base_url=base_url,
-            headers=headers,
-            **kwargs,
-        )
-
-    #-------------------------------------------------
-    # Client builders (lazy, cached per instance)
-    #-------------------------------------------------
-
-    def get_client(self) -> OpenAI | Anthropic | GenaiClient | AzureOpenAI:
-        if self._client is None:
-            self._client = self._build(sync=True)
-        return self._client
-
-    def get_async_client(self) -> AsyncOpenAI | AsyncAnthropic | AsyncGenaiClient | AsyncAzureOpenAI:
-        if self._async_client is None:
-            self._async_client = self._build(sync=False)
-        return self._async_client
-
-    #-------------------------------------------------
-
-    def _build(self, *, sync: bool) -> Any:
-        p = self.provider
-
-        if p in _OPENAI_COMPAT:
-            return self._build_openai_compat(sync=sync)
-        if p == LLMProvider.ANTHROPIC:
-            return self._build_anthropic(sync=sync)
-        if p == LLMProvider.GEMINI:
-            return self._build_gemini(sync=sync)
-        if p == LLMProvider.VERTEX_AI:
-            return self._build_vertex_ai(sync=sync)
-        if p == LLMProvider.AZURE:
-            return self._build_azure(sync=sync)
-        if p == LLMProvider.BEDROCK:
-            return self._build_bedrock(sync=sync)
-
-        raise ValueError(f"Unsupported provider: {p!r}")
-
-    #-------------------------------------------------
-
-    def _build_openai_compat(self, *, sync: bool) -> OpenAI | AsyncOpenAI:
-        from openai import AsyncOpenAI, OpenAI
-        cls = OpenAI if sync else AsyncOpenAI
-        return cls(api_key=self.api_key, base_url=self.base_url)
-
-    def _build_anthropic(self, *, sync: bool) -> Anthropic | AsyncAnthropic:
-        import anthropic
-        cls = anthropic.Anthropic if sync else anthropic.AsyncAnthropic
-        # `base_url` only when ANTHROPIC_BASE_URL says so: the SDK's own
-        # default is the right one, and `None` is how you ask for it.
-        return cls(api_key=self.api_key, base_url=self.base_url or None)
-
-    def _build_gemini(self, *, sync: bool) -> GenaiClient | AsyncGenaiClient:
-        from google import genai
-        client = genai.Client(api_key=self.api_key, vertexai=False)
-        return client if sync else client.aio
-
-    def _build_vertex_ai(self, *, sync: bool) -> GenaiClient | AsyncGenaiClient:
-        from google import genai
-        if not os.environ.get("GOOGLE_CLOUD_PROJECT"):
-            raise ValueError(
-                "GOOGLE_CLOUD_PROJECT not set. "
-                "Configure GCP_PROJECT in YAML and call export_to_env() at startup."
-            )
-        client = genai.Client()
-        return client if sync else client.aio
-
-    def _build_azure(self, *, sync: bool) -> AzureOpenAI | AsyncAzureOpenAI:
-        from azure.identity import DefaultAzureCredential, get_bearer_token_provider
-        from openai import AsyncAzureOpenAI, AzureOpenAI
-
-        token_provider = get_bearer_token_provider(
-            DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
-        )
-        cls = AzureOpenAI if sync else AsyncAzureOpenAI
-        return cls(
-            azure_ad_token_provider=token_provider,
-            azure_endpoint=self.endpoint,
-            azure_deployment=self.deployment,
-            api_version=self.api_version,
-        )
-
-    def _build_bedrock(self, *, sync: bool) -> Any:
-        if sync:
-            import boto3
-            return boto3.client("bedrock-runtime", region_name=self.aws_region)
-        import aioboto3
-        return aioboto3.Session().client("bedrock-runtime", region_name=self.aws_region)

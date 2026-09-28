@@ -70,7 +70,8 @@ class AbstractAgent:
         chat layer's, not yours. `agent/README.md` has the field table.
 
         `user_id` is the person whose record this turn is ABOUT (the care-circle
-        target when someone is asking on another's behalf), already authorised.
+        target when someone is asking on another's behalf), already authorised;
+        `record_owner` is then that person's name, and "" on the asker's own.
         `messages` carries ONLY this turn; conversation state belongs to the
         agent (the shipped one keys a LangGraph checkpointer on `session_id`).
         `file_list` is this turn's attachments as `{"file_key", "file_name", …}`

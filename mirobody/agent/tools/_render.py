@@ -49,7 +49,7 @@ _COLUMNS: dict[str, tuple[str, ...]] = {
 #: The same, for what the person REPORTED: `name` is their words and is the
 #: record, `system`/`code` classify it (ICPC-3), `reason` says why an entry is
 #: uncoded. No value and no unit, because a symptom has neither. `count` in
-#: stats is entries over raw rows and days over a daily basis.
+#: stats is entries.
 _REPORTED_COLUMNS: dict[str, tuple[str, ...]] = {
     "catalog": ("indicator", "name", "kind", "system", "code", "count", "first_date", "last_date", "reason"),
     "readings": ("indicator", "name", "kind", "time", "system", "code", "reason", "note"),
@@ -133,8 +133,7 @@ def render_rest(envelope: tools.Envelope) -> dict[str, Any]:
         "total": meta.catalog_total or meta.row_count,
         "truncated": meta.truncated,
         "window": {"start": meta.window[0], "end": meta.window[1], "tz": meta.tz, "semantics": meta.window_semantics},
-        "resolution": meta.resolution,
-        "aggregate": meta.aggregate,
+        "view": meta.view,
         "status": envelope.status,
         **({"error_kind": envelope.error_kind} if envelope.error_kind else {}),
     }
@@ -159,10 +158,8 @@ def _meta_line(meta: tools.Meta) -> str:
     if meta.tz or any(meta.window):
         span = f"{meta.window[0]}..{meta.window[1]}" if any(meta.window) else "all recorded data"
         bits += [f"window={span}", f"tz={meta.tz}", f"dates={meta.window_semantics}"]
-    if meta.resolution:
-        bits.append(f"resolution={meta.resolution}")
-    if meta.aggregate and meta.aggregate != "none":
-        bits.append(f"aggregate={meta.aggregate}/{meta.aggregate_basis}")
+    if meta.view:
+        bits.append(f"view={meta.view}")
     bits.append(f"rows={meta.row_count}")
     if meta.catalog_total:
         bits.append(f"of {meta.catalog_total}")
