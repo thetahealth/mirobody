@@ -670,7 +670,7 @@ def _inserted_id(returned: dict[str, Any], row: dict[str, Any]) -> int:
 async def ingest(
     user_id: str,
     drafts: list[Draft],
-    provenance: Provenance,
+    provenance: Provenance | list[Provenance],
     *,
     user_tz: str,
     payload: Any = None,
@@ -682,32 +682,42 @@ async def ingest(
     from one (an LLM's JSON, a vendor's records); the drafts themselves are
     frozen when it is not given and `provenance.extractor` names one.
     `on_conflict` says what a row that already exists means: see
-    `ON_CONFLICT_SKIP` and `ON_CONFLICT_AMEND`."""
+    `ON_CONFLICT_SKIP` and `ON_CONFLICT_AMEND`. A list of provenance records
+    codes a mixed API batch in one transaction; extraction payloads require
+    the single-provenance form."""
     report = Report()
     if not drafts:
         return report
+    if isinstance(provenance, list):
+        if len(provenance) != len(drafts) or any(p.extractor for p in provenance):
+            raise ValueError("mixed provenance needs one non-extraction source per draft")
+        sources = provenance
+        extraction_source = None
+    else:
+        sources = [provenance] * len(drafts)
+        extraction_source = provenance
     now = now or datetime.now(tz=translate.zone_for("UTC"))
 
     async with db.transaction() as tx:
-        if provenance.extractor:
+        if extraction_source is not None and extraction_source.extractor:
             frozen = json.dumps(payload if payload is not None else [d.__dict__ for d in drafts], ensure_ascii=False, default=str)
             rows = await tx.execute(_INSERT_EXTRACTION, {
                 "user_id": str(user_id),
-                "source_kind": provenance.source_kind,
-                "source_ref": provenance.source_ref,
-                "extractor": provenance.extractor,
+                "source_kind": extraction_source.source_kind,
+                "source_ref": extraction_source.source_ref,
+                "extractor": extraction_source.extractor,
                 "payload": frozen,
-                "digest": _digest(provenance.source_ref, provenance.extractor, frozen),
-                "report_date": provenance.report_date,
-                "date_source": provenance.date_source,
+                "digest": _digest(extraction_source.source_ref, extraction_source.extractor, frozen),
+                "report_date": extraction_source.report_date,
+                "date_source": extraction_source.date_source,
             })
             report.extraction_id = int(rows[0]["id"]) if rows else None
 
         aliases = await _load_aliases(tx, str(user_id))
-        ranges = await _ranges() if provenance.source_class == series.SOURCE_MANUAL else None
-        for ix, draft in enumerate(drafts):
+        ranges = await _ranges() if any(p.source_class == series.SOURCE_MANUAL for p in sources) else None
+        for ix, (draft, row_source) in enumerate(zip(drafts, sources, strict=True)):
             try:
-                row = prepare(draft, provenance, str(user_id), user_tz, now=now)
+                row = prepare(draft, row_source, str(user_id), user_tz, now=now)
             except Rejected as e:
                 report.reject(e.reason)
                 continue
@@ -717,7 +727,7 @@ async def ingest(
             try:
                 async with tx.savepoint():
                     coding = coding_for(row, aliases)
-                    if ranges is not None and out_of_range(row, coding, ranges):
+                    if row_source.source_class == series.SOURCE_MANUAL and ranges is not None and out_of_range(row, coding, ranges):
                         report.reject(REJECT_OUT_OF_RANGE)
                         continue
                     observation_id, skipped = await _insert(tx, row, on_conflict)

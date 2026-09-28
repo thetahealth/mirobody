@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **Phone health-store records now use device provenance.** `POST /api/data`
+  resolves recognized vendor identifiers through the shipped crosswalk and
+  keeps ambiguous fields uncoded. Mixed sources retain one atomic ingest and
+  the response's rejected counts; submit a Health Connect heart-rate identifier
+  and inspect its LOINC code and device source on readback.
 1.5.2 genetics preview scope: genotype facts and CPIC coverage are available
 with the measured public candidate. Drug phenotypes and rare-disease risk
 interpretation are deferred; the tool reports `not_determined` rather than
