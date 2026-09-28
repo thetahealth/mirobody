@@ -5,6 +5,152 @@
   keeps ambiguous fields uncoded. Mixed sources retain one atomic ingest and
   the response's rejected counts; submit a Health Connect heart-rate identifier
   and inspect its LOINC code and device source on readback.
+1.5.2 genetics preview scope: genotype facts and CPIC coverage are available
+with the measured public candidate. Drug phenotypes and rare-disease risk
+interpretation are deferred; the tool reports `not_determined` rather than
+guessing from an incomplete array.
+
+### Added
+
+- **Genotype uploads now publish an atomic active set.** A failed batch used to
+  leave partial data while still reporting completion, and a repeat upload
+  duplicated rows. The new set remains hidden until every batch and row count
+  pass; another upload replaces it. The public 1000 Genomes end-to-end check
+  uploads nine public renderings, including gzip/BGZF/zip and both genome builds,
+  and observes one active set after each replacement.
+- **The packaged genotype site index now contains a public candidate.** The
+  former one-site dbSNP example could normalize almost no real upload. A
+  SHA-256-pinned dbSNP 155 Common extract now maps 489 SNVs across twelve
+  pharmacogene regions in both GRCh37 and GRCh38; the public two-site upload
+  and Agent path uses the packaged asset. One PGP 23andMe v5 export has
+  262/625,705 observed rsIDs covered and one PGP AncestryDNA v2 export has
+  340/677,436. This is limited regional coverage, not a full chip or rare
+  variant catalogue; unmatched rows remain `unresolved`.
+- **Normalized genotype queries, VCF export and a bounded CPIC coverage tool.**
+  The old genetic tool could only read rsIDs. It now offers an overview, gene
+  and build-specific region search; authenticated users can export mapped
+  GRCh37/38 VCF, and the Agent/MCP can check CPIC A/B drug-gene links without
+  inventing a phenotype. The public two-site integration test checks upload,
+  MCP, VCF and real Agent answers. The public candidate index is restricted to
+  twelve regions, so whole-chip standardization remains a release blocker.
+- **Genotype uploads are no longer readable through the Agent's document mounts.**
+  The file projection previously exposed raw genetic exports through
+  `/uploads/` or `/library/`, bypassing the bounded genetic tool. Both mounts
+  now exclude genetic files; a public-upload database check exercises each
+  projection. The CPIC tool also names missing and no-call definition rsIDs,
+  allowing an answer to cite the actual coverage gap instead of only counts.
+- **VCF export now carries upload provenance and natural contig order.**
+  Lexical chromosome ordering could put 10 before 2, which downstream VCF
+  tools may reject. The exporter walks each indexed chromosome in numeric
+  order and includes the format, vendor and normalization versions in its
+  header; the public upload round trip checks both.
+- **Genotype batches now insert as column arrays.** The per-row executemany
+  path took 80.254 s for 1.3 million public GIAB HG005 SNVs, missing the
+  60 s storage gate. One SQL insert per 50,000-row batch took 42.074 s on
+  the same isolated PostgreSQL host; both runs activated all 1.3 million
+  calls. The benchmark script pins the public source SHA.
+- **The Genomics Data page now ships in the bundled web client.** The page has
+  a dedicated upload entry, processing state and active-set summary. Its source
+  passed 167 tests, lint with zero errors and the open-source build; the local
+  backend serves the copied hashed assets. A Chrome check saw the active-set
+  card update after a public-data replacement; native file-picker upload is
+  still unverified by the browser tool. The isolated `mirobody-web` branch now
+  offers `.bgz/.bgzf`, describes ZIP sidecars in all four languages, and uses
+  a stable completion message; a public VCF dispatched through the page's
+  file-input handler activated a two-row set.
+- **Mapped genetic calls have a bounded FHIR Variant export.** The authenticated
+  `export.fhir.json` route represents selected rsIDs with the STU3 assessment,
+  reference assembly, coordinate, REF/ALT and allelic-state codes. Missing and
+  unrepresentable rows are named rather than silently treated as normal. All
+  nine public upload formats reproduce the two-site truth in this export.
+- **`mirobody migrate-genotypes` for 1.5.1 data.** The new reader only sees
+  active sets, which otherwise hid legacy rows on upgrade. The command moves
+  each person's latest old file into an active set with raw calls marked
+  unverified; a public-data migration check verifies both visibility and safe
+  reruns. Re-upload the source to obtain verified GTs.
+- **Pinned CPIC releases can be installed and selected without executing SQL.**
+  Previously the coverage tool could only read the bundled v1.60.0 extract.
+  `mirobody fetch cpic --version vX.Y.Z` now validates the public dump's COPY
+  data and installs an immutable extract; `CPIC_VERSION` selects an exact or
+  locally newest installed version at query time. Public v1.59.1 and v1.60.0
+  dumps passed the offline fetch and selection checks. Patient-specific star
+  calls and GeT-RM agreement remain release gates.
+
+### Changed
+
+- The 40-question Agent check previously counted generic "no question" replies
+  as answered. It now marks them invalid. On pinned public two-site truth,
+  Qwen selected the expected tool and gave a valid first answer in 37/40
+  questions, with zero automated forbidden-claim alarms; targeted reruns
+  recovered the three misses across configured Qwen and OpenRouter GPT.
+- Some public whole-genome VCF uploads were not recognized: BGZF has multiple
+  gzip blocks, a Big-Y archive ships one VCF with BED/TXT sidecars, and one
+  WGS header exceeded the 16 KiB sniff window. The parser now validates each
+  BGZF block, permits one VCF with bounded and CRC-checked sidecars, refuses a
+  second genotype-looking sidecar, and reads
+  up to 256 KiB of header. Chat attachment classification and legacy file
+  mounts use the same bound, so a long-header VCF or `.bgz` cannot appear as
+  a document. All 17 accessible public PGP genotype exports classify; the
+  public HTML report remains rejected. All 17 original public PGP genotype
+  exports activated through isolated WebSocket/PostgreSQL checks, including
+  two BGZF WGS files with 4,741,304 and 5,017,551 rows. Their VCF GTs are
+  self-described and do not assert whole-genome catalog coverage.
+- The public Big-Y ZIP reached the database but exceeded early preview column
+  widths: two alternate contig names and four ALT strings were longer than
+  the schema allowed. The genotype table now stores those raw fields as text,
+  and schema replay widens an existing preview table. The public 444,297-row
+  Big-Y upload activates and remains queryable. A failed driver statement used
+  to log a traceback that could quote bound genotype values; the central SQL
+  writer now logs only the error type and counts for driver exceptions.
+- Public Ancestry PAR rows were stored but the region tool refused `PAR` and
+  required a reference build they did not have. `query_genetic_data` now
+  accepts an explicit `build=raw` region, labels its unverified coordinates,
+  and indexes raw positions. The public Ancestry v2 export has 27,206
+  X/Y/PAR/MT rows; a bounded PAR lookup is in the public end-to-end check.
+  The added raw-coordinate index kept a fresh 1.3-million-row public GIAB
+  import at 42.510 s, below the 60 s gate; table and indexes grew by
+  280,338,432 bytes in the isolated audit schema.
+- A public VCF that listed only one ALT allele was previously rejected when
+  the dbSNP site listed additional alleles. VCF GT indexes now map into the
+  catalog's allele order while preserving phase. The public HG00096
+  rs4244285 call and all nine upload renderings pass with the packaged
+  multi-allelic candidate index.
+- Chat attachments previously classified a valid compressed genotype file from
+  a truncated archive prefix and exposed its raw bytes in the Agent file
+  mounts. Each attachment now gets its own scene after complete gzip/zip
+  validation; the public privacy check inserts plain, gzip and zip uploads
+  and confirms both mounts hide them.
+- Region queries filtered by the requested assembly but could display the
+  upload's other assembly coordinate as `position`. Results now return the
+  requested coordinate plus `query_build`, `raw_position`, `pos37` and `pos38`;
+  public GRCh37 and GRCh38 VCF uploads pass cross-build query checks.
+- Sex inference used to leave heterozygous non-PAR X/Y calls counted as valid.
+  Activation now marks conflicts unresolved, preserves diploid PAR calls and
+  recounts `n_called` after correction; pinned public 1000G X calls pass the
+  PostgreSQL activation check, including an unknown-build case.
+- DeepAgents' separate conversation summarizer could receive old genotype
+  tool rows and write them to a readable history file before the ordinary
+  model-call guard ran. The summarization slot now redacts genotype results
+  and dependent answers before summary or history writes, and overflow
+  recovery clips only the redacted view. After a genotype query the Agent also
+  refuses scratch-file writes and reads, while the document mounts remain
+  readable. Public-call tests exercise synchronous and asynchronous paths;
+  a two-question live replay now verifies three model boundaries with the
+  prior genotype row and answer redacted. Forced live summarizer/offload
+  remains unmeasured.
+- Previously mislabeled 1.5.1 genetic attachments could remain in the Agent
+  document mounts even after new uploads were classified correctly. The read
+  projection now hides files linked to genotype sets, plain exports with a
+  genotype header, and legacy gzip/zip containers; a final content check
+  refuses raw genetic bytes when cached text is absent. The public PostgreSQL
+  privacy check inserts mislabeled rows and confirms both mounts hide them.
+- Genetic resolver terms previously missed specific CYP2C19, MTHFR, APOE and
+  HLA-B LOINC concepts or resolved ambiguous phrases as a genotype. Nine
+  explicit mappings now target the named concepts and five broad phrases are
+  rejected; the resolver override table records each term and target.
+- Removed the frozen Traditional Chinese and Japanese README editions and their
+  archive index, which contained stale links. Only the live English and Chinese
+  READMEs remain; the removed editions are available in Git history.
 - **A quickstart path could fail before the server started.** The checkout guide now includes clone and database setup before `mirobody dev`, the example Postgres user matches the connection URL, and the CLI's missing-database hint uses the same credentials. The Docker guide runs `doctor` in its container, and the hosted link opens the separate Cloud quickstart. Follow either path and check `/api/health` to confirm the local server is running.
 
 ## 1.5.1

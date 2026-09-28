@@ -63,6 +63,7 @@ jobs:
     - name: Test suite and import contracts
       run: |
         pytest -q
+        python -m unittest discover -s benchmarks/genomics -p 'test_*.py'
         # Must run against the repo source, not an installed wheel.
         lint-imports
 

@@ -10,6 +10,7 @@ import logging
 from datetime import datetime
 from typing import Any
 from mirobody.agent.wire.blocks import answer_text, upgrade
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 from mirobody.utils.llm import async_get_text_completion
 from mirobody.utils.llm_output import strip_code_fence, strip_wrapping
@@ -74,7 +75,7 @@ async def generate_summary(conversation_text: str, provider: str | None = None) 
         return summary
             
     except Exception as e:
-        logger.warning(f"Failed to generate LLM summary, falling back to simple truncation: {str(e)}")
+        logger.warning("summary generation failed: error_type=%s", type(e).__name__)
 
         first_line = conversation_text.split('\n')[0]
         return first_line[:50].replace("User:", " ").replace("Assistant:", " ") + "..." if len(first_line) > 50 else first_line
@@ -97,7 +98,7 @@ async def generate_and_save_summary(user_id: str, session_id: str, provider: str
         )
         
         if not messages:
-            logger.warning(f"No messages found for session {session_id}")
+            logger.warning("no messages for summary: session=%s", session_id)
             return None
 
         # We only feed user turns into the summarizer so the LLM can't
@@ -130,18 +131,19 @@ async def generate_and_save_summary(user_id: str, session_id: str, provider: str
 
         await save_conversation_summary(user_id, session_id, summary)
 
-        logger.info(f"session:{session_id}\tSuccessfully saved conversation summary: {summary}")
+        logger.info("conversation summary saved: session=%s chars=%d", session_id, len(summary))
         return {"event": "summary_generated", "session_id": session_id, "summary": summary}
 
     except Exception as e:
-        logger.error(f"Error in generate_and_save_summary: {str(e)}", exc_info=True)
+        logger.error("conversation summary failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return None
 
 #-----------------------------------------------------------------------------
 
 async def save_conversation_summary(user_id: str, session_id: str, summary: str) -> bool:
     try:
-        logger.info(f"save_conversation_summary: {user_id}, {session_id}, {summary}")
+        logger.info("saving conversation summary: session=%s chars=%d", session_id, len(summary))
 
         summary_sql = """
             INSERT INTO th_sessions (
@@ -168,7 +170,8 @@ async def save_conversation_summary(user_id: str, session_id: str, summary: str)
         return True
 
     except Exception as e:
-        logger.error(f"Error saving conversation summary: {str(e)}", exc_info=True)
+        logger.error("saving conversation summary failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return False
 
 #-----------------------------------------------------------------------------

@@ -24,6 +24,8 @@ Commands:
   the current configuration, and what to set where one has none. Needs no
   database, but it reads the configuration layer, so it needs ``[app]`` or
   ``[parse]``.
+* ``mirobody fetch cpic --version vX.Y.Z`` downloads and validates a CPIC data
+  extract without executing the upstream SQL or requiring a database.
 """
 
 from __future__ import annotations
@@ -234,6 +236,21 @@ def _cmd_doctor(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def _cmd_fetch_cpic(args: argparse.Namespace) -> None:
+    from pathlib import Path
+
+    from mirobody.translate.cpic_extract import fetch_extract
+
+    directory = Path(args.dir or os.environ.get("CPIC_DIR") or "~/.mirobody/cpic")
+    try:
+        version, digest, installed = fetch_extract(args.version, directory)
+    except (OSError, ValueError) as exc:
+        status = getattr(exc, "code", None)
+        suffix = f" status={status}" if isinstance(status, int) else ""
+        sys.exit(f"CPIC fetch failed: {type(exc).__name__}{suffix}; no extract installed")
+    print(f"CPIC {version} installed at {installed}; source sha256={digest}")
+
+
 def _cmd_migrate_observations(args: argparse.Namespace) -> None:
     """Move the retired `th_series_data` history into the observation model.
     Idempotent and bounded; see `collect/migrate_observations.py`."""
@@ -253,6 +270,21 @@ def _cmd_migrate_observations(args: argparse.Namespace) -> None:
             f"{counts['undecrypted']} comment(s) did not decrypt under this connection's key; their unit, "
             "reference range and method were read off the value cell alone. Check PG_ENCRYPTION_KEY and re-run."
         )
+
+
+def _cmd_migrate_genotypes(args: argparse.Namespace) -> None:
+    """Publish 1.5.1 raw genotype rows without inventing normalized calls."""
+    _require_extra("migrate-genotypes", "app", "sqlalchemy", "the database layer")
+    from mirobody.collect.migrate_genotypes import migrate
+    from mirobody.utils.config import Config
+
+    asyncio.run(Config.init(yaml_filenames=args.configs))
+    counts = asyncio.run(migrate(user_id=args.user or None, max_users=args.max_users))
+    print(
+        f"migrated {counts['users']} user(s), {counts['rows']} raw genotype row(s); "
+        f"skipped {counts['skipped_active']} already active and "
+        f"{counts['skipped_invalid']} invalid site(s)"
+    )
 
 
 def _cmd_recode(args: argparse.Namespace) -> None:
@@ -467,6 +499,13 @@ def main(argv: list[str] | None = None) -> None:
     p_doctor.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
     p_doctor.set_defaults(func=_cmd_doctor)
 
+    p_fetch = sub.add_parser("fetch", help="download a versioned public data asset")
+    fetch_sub = p_fetch.add_subparsers(dest="asset", required=True)
+    p_fetch_cpic = fetch_sub.add_parser("cpic", help="install a validated CPIC extract without executing SQL")
+    p_fetch_cpic.add_argument("--version", default="latest", help="exact vX.Y.Z tag or latest")
+    p_fetch_cpic.add_argument("--dir", default="", help="CPIC extract directory (or CPIC_DIR)")
+    p_fetch_cpic.set_defaults(func=_cmd_fetch_cpic)
+
     p_parse = sub.add_parser("parse", help="parse a health document into standardized indicators (requires the [parse] extra and one LLM key)")
     p_parse.add_argument("file", help="path to a lab report (pdf/png/jpg/txt/csv)")
     p_parse.add_argument("--no-resolve", action="store_true", help="skip offline code resolution")
@@ -497,6 +536,15 @@ def main(argv: list[str] | None = None) -> None:
     p_migrate.add_argument("--batch", type=int, default=2000, help="rows per batch (default: 2000)")
     p_migrate.add_argument("--user", default="", help="migrate one person only")
     p_migrate.set_defaults(func=_cmd_migrate_observations)
+
+    p_genotypes = sub.add_parser(
+        "migrate-genotypes",
+        help="move 1.5.1 raw genotypes into an active set (requires the [app] extra)",
+    )
+    p_genotypes.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
+    p_genotypes.add_argument("--user", default="", help="migrate one person only")
+    p_genotypes.add_argument("--max-users", type=int, default=1000, help="maximum users per run")
+    p_genotypes.set_defaults(func=_cmd_migrate_genotypes)
 
     p_recode = sub.add_parser(
         "recode",
