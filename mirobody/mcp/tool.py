@@ -140,8 +140,7 @@ def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
 
     # 0: function description.
     # 1: argument description.
-    # 2: return description.
-    # 3: exception description.
+    # 2: return description, and everything after it.
     line_type = 0
     current_arg_key = ""
     returns_lines: list[str] = []
@@ -201,23 +200,6 @@ def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
         # under their original heading.
         elif line_type == 2:
             returns_lines.append(line)
-
-        # Exception.
-        elif line_type == 3:
-            try:
-                pos = line.find(":")
-                if pos > 0:
-                    key     = line[:pos].strip()
-                    value   = line[pos+1:].strip()
-
-                    if key and value:
-                        if "exception" not in tool:
-                            tool["exception"] = {}
-
-                        tool["exception"][key] = value
-
-            except Exception as e:
-                logger.warning(str(e), extra={"line": line})
 
         # Function.
         else:

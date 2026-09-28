@@ -1,7 +1,7 @@
 """The agent: one harness, on LangChain + deepagents.
 
 `MirobodyAgent.generate_response` runs a turn: the LLM client for the requested
-provider, the MCP tools (the same seven an external client sees, plus the
+provider, the four record tools an external MCP client also sees, plus the
 harness's own filesystem tools, the `eval` REPL and `ask_user`), a Postgres-
 backed virtual filesystem that projects the person's uploads, library and
 health profile read-only, a LangGraph checkpointer that holds the conversation
@@ -451,7 +451,11 @@ class MirobodyAgent:
                 # In-process JS/TS REPL (`eval`). The read-only data tool is
                 # exposed inside it as `tools.<name>`; PTC calls bypass the tool
                 # middleware, so the data tool guards itself.
-                interpreter=CodeInterpreterMiddleware(ptc=list(self._PTC_TOOLS), max_ptc_calls=self._MAX_PTC_CALLS),
+                # `DISALLOWED_TOOLS: [eval]` turns the REPL off, as the agent
+                # README says it does: it only ever reached the MCP tool list,
+                # and the interpreter was added regardless.
+                interpreter=None if "eval" in self.disallowed_tools else CodeInterpreterMiddleware(
+                    ptc=list(self._PTC_TOOLS), max_ptc_calls=self._MAX_PTC_CALLS),
                 tail=tail,
             )
 

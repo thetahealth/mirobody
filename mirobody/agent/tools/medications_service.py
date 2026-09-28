@@ -2,7 +2,7 @@
 
 Medications are an entity, not a series: a plan has a lifecycle, a dose has a
 day, a course has a reason it closed. That grammar has nothing in common with
-`resolution` and `aggregate`, so it is its own tool with five parameters
+a reading's `view`, so it is its own tool with four parameters
 (`meds.TOOL_SCHEMA`) rather than a mode inside the readings tool: a mode
 under which most of the readings parameters would have to be refused.
 

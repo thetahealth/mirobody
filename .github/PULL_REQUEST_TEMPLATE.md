@@ -11,7 +11,7 @@
 - [ ] `pytest -q mirobody` (what a clone runs)
 - [ ] `lint-imports` — required for anything touching `mirobody/kernel`, `mirobody/engine/` or `agent/`
 - [ ] `uvx ruff check mirobody examples`
-- [ ] `benchmarks/run_eval.py --no-embed` — required for any resolver or bundle change
+- [ ] `python -m benchmarks.run_eval` — required for any resolver or bundle change
 
 ## Which benchmark it moves
 

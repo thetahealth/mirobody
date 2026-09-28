@@ -139,9 +139,8 @@ class TempFileManager:
 
         try:
             os.unlink(temp_file_path)
-            logger.info(f"Temporary file deleted: {temp_file_path}")
             return True
-        except Exception as e:
-            logger.error(f"Failed to delete temporary file: {temp_file_path}, error: {str(e)}", stack_info=True)
+        except OSError as e:
+            logger.error("temporary upload copy not deleted: error_type=%s", type(e).__name__)
             return False
 

@@ -111,5 +111,5 @@ If your provider pulls data periodically, implement `pull_from_vendor_api`.
 
 ## 🧩 Reference
 
-- **Base Class**: [`mirobody/collect/providers/_platform/base.py`](platform/base.py)
+- **Base Class**: [`mirobody/collect/providers/_platform/base.py`](_platform/base.py)
 - **Example**: [`mirobody/collect/providers/mirobody_whoop/provider_whoop.py`](mirobody_whoop/provider_whoop.py)

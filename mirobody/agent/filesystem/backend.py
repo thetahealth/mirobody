@@ -10,8 +10,8 @@ profile that quoted the readings verbatim.
 So sourcing moved out and only rendering stayed. Subclasses supply rows through
 `_fetch_row` / `_fetch_rows_under`:
 
-    deep/files_backend.ThFilesBackend   /uploads/ and /library/, over `th_files`
-    deep/profile_backend.ProfileBackend /memories/, over the health profile
+    files_backend.ThFilesBackend        /uploads/ and /library/, over `th_files`
+    profile_backend.ProfileBackend      /memories/, over the health profile
     deepagents StateBackend             /, the scratch space, checkpointed
 
 What stayed here is the part that is expensive to relearn: how a file becomes
@@ -71,8 +71,8 @@ _READONLY = (
     "the workspace root (/) instead."
 )
 
-# 256 KB cap: larger payloads (even utf-8 text) go to object storage to avoid
-# bloating PG rows / index pages.
+# `read_file`'s default `limit`, in lines. A read at the default returns the
+# whole document; only an explicit offset or limit slices it.
 _DEFAULT_READ_LIMIT = 2000
 # Cap for serving raw bytes back as base64 for a multimodal read. Beyond this we
 # return an error instead of base64-bombing the model context.
@@ -171,7 +171,7 @@ class PgFilesystemBackend(BackendProtocol):
 
         This used to be a SELECT against an agent-filesystem table. There is no
         such table: every mount is either graph state or a projection of the
-        table that owns the data (see deep/files_backend.py). Row SOURCING is the
+        table that owns the data (see files_backend.py). Row SOURCING is the
         subclass's job; everything from `als` down is shared.
         """
         raise NotImplementedError("subclass must supply rows")

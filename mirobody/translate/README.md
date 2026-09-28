@@ -6,7 +6,7 @@ on the way to `StandardPulseData`.
 
 > Database schema and initialization used to be the first 60 lines of this file,
 > which made it two unrelated documents in one. They now live with the DDL they
-> describe, in [`mirobody/schema/README.md`](../../schema/README.md).
+> describe, in [`mirobody/schema/README.md`](../schema/README.md).
 
 ## 📋 **Overview**
 

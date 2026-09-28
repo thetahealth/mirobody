@@ -8,7 +8,7 @@ Document Architecture) documents.
 > `HKQuantityTypeIdentifier*` handlers — that does not exist in this codebase
 > and never shipped from it. Extending along that guide produced an immediate
 > `ImportError`. What follows describes the files that are actually here;
-> [docs/apple-health.md](../../../docs/apple-health.md) is the long-form
+> [docs/apple-health.md](../../../../docs/apple-health.md) is the long-form
 > companion and agrees with this layout.
 
 ## What is actually here
@@ -86,7 +86,7 @@ caps decompressed size, because a compressed body is attacker-shaped input.
 3. The provider's `format_data` returns `StandardPulseData`.
 4. `VitalHealthService.process_standard_data` stores the records; unit
    conversion happens on that shared ingest path
-   (see [`../standardize/README.md`](../standardize/README.md)).
+   (see [`mirobody/translate/README.md`](../../../translate/README.md)).
 
 ## Extending to a new data type
 

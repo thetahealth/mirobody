@@ -6,6 +6,7 @@ Handles loading and configuration of tools from multiple sources:
 - User-specific MCP tools
 """
 
+import asyncio
 import functools
 import inspect
 import logging
@@ -85,6 +86,22 @@ def _filtered(kwargs: dict, valid: set[str], takes_kwargs: bool) -> dict:
 #: has to be made at LOAD time: `response_format` is a constructor argument.
 _ENVELOPE_TOOLS = frozenset({query.TOOL_NAME, meds.TOOL_NAME, genetics.TOOL_NAME,
                             pharmacogenomics.TOOL_NAME})
+
+
+def _as_coroutine(func, is_async: bool):
+    """Any tool as one coroutine that drops what it cannot accept (LangGraph
+    passes extras such as ``context``). A sync tool, which only a plugin can
+    ship (the seven shipped tools are async), runs in a thread, as LangChain
+    ran a ``func=`` tool: it must not block the event loop."""
+    valid, takes_kwargs = _accepted_params(func)
+
+    async def run(**kwargs):
+        kwargs = _filtered(kwargs, valid, takes_kwargs)
+        if is_async:
+            return await func(**kwargs)
+        return await asyncio.to_thread(func, **kwargs)
+
+    return run
 
 
 def _envelope_wrapper(bound_method, user_info: dict):
@@ -177,22 +194,7 @@ async def load_global_tools(
                     tool_func = functools.partial(tool_func, user_info=user_info)
                     logger.debug(f"Tool {tool_name} requires auth, injected user_info via partial")
                 
-                # Create a wrapper that filters parameters to only those the function accepts
-                # This prevents errors from extra parameters (like 'context' that LangGraph might pass)
-                if inspect.iscoroutinefunction(original_func):
-                    def create_async_filter_wrapper(f):
-                        valid_params, takes_kwargs = _accepted_params(f)
-                        async def wrapper(**kwargs):
-                            return await f(**_filtered(kwargs, valid_params, takes_kwargs))
-                        return wrapper
-                    tool_func = create_async_filter_wrapper(tool_func)
-                else:
-                    def create_sync_filter_wrapper(f):
-                        valid_params, takes_kwargs = _accepted_params(f)
-                        def wrapper(**kwargs):
-                            return f(**_filtered(kwargs, valid_params, takes_kwargs))
-                        return wrapper
-                    tool_func = create_sync_filter_wrapper(tool_func)
+                tool_func = _as_coroutine(tool_func, inspect.iscoroutinefunction(original_func))
                 
                 # The MCP schema (enums, bounds, defaults) reaches the chat model
                 # as-is (langchain-core accepts a JSON-Schema dict as args_schema).
@@ -217,24 +219,13 @@ async def load_global_tools(
                     if wrapped is not None:
                         tool_func, envelope_tool = wrapped, True
 
-                # Create StructuredTool with explicit args_schema
-                if inspect.iscoroutinefunction(original_func):
-                    logger.info(f"Tool {tool_name} is async, using coroutine handler")
-                    lc_tool = StructuredTool.from_function(
-                        coroutine=tool_func,
-                        name=tool_description.get("name", tool_name),
-                        description=tool_description.get("description", ""),
-                        args_schema=args_schema,
-                        **({"response_format": "content_and_artifact"} if envelope_tool else {}),
-                    )
-                else:
-                    lc_tool = StructuredTool.from_function(
-                        func=tool_func,
-                        name=tool_description.get("name", tool_name),
-                        description=tool_description.get("description", ""),
-                        args_schema=args_schema,
-                        **({"response_format": "content_and_artifact"} if envelope_tool else {}),
-                    )
+                lc_tool = StructuredTool.from_function(
+                    coroutine=tool_func,
+                    name=tool_description.get("name", tool_name),
+                    description=tool_description.get("description", ""),
+                    args_schema=args_schema,
+                    **({"response_format": "content_and_artifact"} if envelope_tool else {}),
+                )
                 
                 langchain_tools.append(lc_tool)
                 tool_names.append(tool_name)

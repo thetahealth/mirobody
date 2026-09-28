@@ -3,7 +3,6 @@ import logging
 import secrets
 import urllib
 
-from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
 from datetime import datetime
 
@@ -11,7 +10,6 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Route
 
-from typing import Any
 
 from mirobody.utils.http import META_PROTOCOL_VERSION, request_origin
 
@@ -58,12 +56,12 @@ _SUPPORTED_PROTOCOL_VERSIONS = (
 # Declared once: `initialize` and `server/discover` MUST advertise the same
 # capabilities, and they held separate copies of this dict that could drift.
 # An empty value means "supported, with no optional sub-capabilities". No
-# `resources` key at all: this server publishes tools and prompts, and a client
-# that asks for resources/list gets method-not-found, which is the spec's word
-# for "not offered". (It used to serve two ChatGPT Apps SDK widgets from here;
+# `resources` or `prompts` key: this server publishes tools, and a client that
+# asks for resources/list or prompts/list gets method-not-found, which is the
+# spec's word for "not offered". (`prompts` was declared, and answered with an
+# empty list: a capability advertised to say there is nothing there.) (It used to serve two ChatGPT Apps SDK widgets from here;
 # no tool ever pointed at them, and they are gone.)
 _CAPABILITIES = {
-    "prompts": {},
     "tools": {
         "listChanged": False,
     },
@@ -112,8 +110,6 @@ class ResponseEncoder(json.JSONEncoder):
 
 class McpService:
 
-    _global_instance = None
-
     def __init__(
         self,
 
@@ -128,7 +124,6 @@ class McpService:
 
         tool_dirs               : list[str] | None = None,
 
-        db_pool                 : AsyncConnectionPool[Any] | None = None,
         redis                   : Redis | None = None,
 
         **kwargs
@@ -146,8 +141,6 @@ class McpService:
         self._version           = version if version else "1.0.0"
 
         self._uri_prefix        = uri_prefix
-
-        self._db_pool           = db_pool
 
         self._redis             = redis
         if self._redis:
@@ -179,18 +172,6 @@ class McpService:
         if not self._tool_descriptions:
             self._tool_descriptions = []
 
-        self._tools_count = 0
-        self._auth_tools_count = 0
-        for tool_name in self._callable:
-            self._tools_count += 1
-
-            tool_info = self._callable[tool_name]
-            if not tool_info or "auth" not in tool_info:
-                continue
-
-            if tool_info["auth"]:
-                self._auth_tools_count += 1
-
         #-------------------------------------------------
 
         if routes is not None:
@@ -205,11 +186,6 @@ class McpService:
         # it is the same object being minted and destroyed, and it keeps the
         # surface at one path to document in four READMEs.
         self.routes.append(Route(f"{uri_prefix}/personal/mcp", endpoint=self.generate_personal_mcp, methods=["POST", "DELETE", "OPTIONS"]))
-
-        #-------------------------------------------------
-
-        if not McpService._global_instance:
-            McpService._global_instance = self
 
     #-----------------------------------------------------
 
@@ -316,6 +292,10 @@ class McpService:
 
     #-----------------------------------------------------
 
+    def tool_counts(self) -> tuple[int, int]:
+        """(tools, of which need an authenticated caller), for the health check."""
+        return len(self._callable), sum(1 for t in self._callable.values() if t and t.get("auth"))
+
     async def mcp_handler(self, request: Request) -> Response:
         if request.method == "OPTIONS":
             # CORS headers are added by CORSMiddleware.
@@ -413,13 +393,12 @@ class McpService:
 
         #-------------------------------------------------
 
-        #   IMPLEMENTED: tools/list, tools/call, prompts/list (always []),
-        #     initialize (handshake revisions only), server/discover
-        #     (2026-07-28 stateless discovery), notifications/initialized, ping
+        #   IMPLEMENTED: tools/list, tools/call, initialize (handshake
+        #     revisions only), server/discover (2026-07-28 stateless
+        #     discovery), notifications/initialized, ping
         #   NOT IMPLEMENTED, where method-not-found is the answer and not a gap:
-        #     prompts/get    zero prompts are advertised, so no name resolves
-        #     resources/*    `_CAPABILITIES` declares none, so a conforming
-        #                    client never sends these
+        #     prompts/*, resources/*   `_CAPABILITIES` declares neither, so a
+        #                              conforming client never sends these
 
         if method == "tools/list":
             # Data-dependent exposure: a data-reading tool for a user with none
@@ -449,17 +428,6 @@ class McpService:
                 request = request
             )
 
-        if method == "prompts/list":
-            return jsonrpc_result(
-                id      = id,
-                protocol_version = negotiated,
-                result  = {
-                    "prompts": []
-                },
-                cache_hint = _LIST_CACHE_HINT,
-                method  = method,
-                request = request
-            )
 
         if method == "tools/call":
 

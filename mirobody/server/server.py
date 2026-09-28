@@ -207,14 +207,11 @@ class Server:
 
             tool_dirs       = tool_dirs,
 
-            db_pool         = self._pg_pool,
             redis           = self._redis
         )
 
         self._chat_service = ChatService(
             token_validator = self._jwt_token_validator,
-
-            db_pool         = self._pg_pool,
 
             uri_prefix      = uri_prefix,
             routes          = self._routes,
@@ -253,13 +250,14 @@ class Server:
     async def health_check_handler(self, request: Request) -> Response:
         from mirobody.agent.registry import agent_name
 
+        total, authenticated = self._mcp_service.tool_counts()
         return JSONResponse(
             content = {
                 "service"               : self._mcp_service._name,
                 "version"               : self._mcp_service._version,
-                "tools"                 : self._mcp_service._tools_count,
-                "public_tools"          : (self._mcp_service._tools_count - self._mcp_service._auth_tools_count),
-                "authenticated_tools"   : self._mcp_service._auth_tools_count,
+                "tools"                 : total,
+                "public_tools"          : total - authenticated,
+                "authenticated_tools"   : authenticated,
                 "agent"                 : agent_name(),
             }
         )

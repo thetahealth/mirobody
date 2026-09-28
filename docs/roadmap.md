@@ -73,7 +73,9 @@ which is why it is worth keeping one.
 
 ### An answer about someone else's record still says "your file"
 
-**Status:** open. The data boundary is right; only the wording is wrong.
+**Status:** closed (Unreleased). The chat layer passes `record_owner`, the
+circle's label for the person (their account name when there is none), and the
+prompt says whose record every reading, document and profile is.
 
 Asking about a record shared with you returns that person's numbers, verified:
 a reviewer on a clean deployment got mom's total cholesterol 5.30 where their
@@ -82,13 +84,6 @@ reached. But the reply calls it "your file", because the system prompt has no
 slot for whose record the turn is about. `MirobodyAgent.__init__` takes the
 CALLER's `user_id` and `user_name`; `query_user_id` reaches the tools and never
 the prompt, so the model cannot know it is answering for someone else.
-
-Closing it means threading a subject label from `chat/service.py`, where
-`query_user_id` is resolved, into `build_system_prompt`, plus one line in
-`prompts/mirobody.jinja`. The label already exists: `chat/session.py` reads a
-member's `nickname` off `care_circle_members` for exactly this case when it
-builds session summaries. Rendering is strict, so a new template variable must
-be supplied by every caller.
 
 ### Reference ranges and abnormal flagging
 

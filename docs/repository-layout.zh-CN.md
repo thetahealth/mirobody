@@ -20,7 +20,7 @@ mirobody/
 ├── collect/     ① 收集 Collect   provider、文件解析、落库、读取（Postgres）
 ├── translate/   ② 转译 Translate 纯函数缝（fold · parse · local_day · series · code ·
 │                devices）、指标目录、单位、aggregate/、derive/
-├── agent/       ③ 智能体 Agent   models/ fs/ wire/ middleware/ tools/ chat/
+├── agent/       ③ 智能体 Agent   models/ filesystem/ wire/ middleware/ tools/ chat/
 ├── mcp/         MCP 服务端
 ├── server/      HTTP 应用：路由、鉴权、自带的前端
 ├── utils/       调用方自己接的机制：config、db、sse、net、llm_output、prompts、log

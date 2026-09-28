@@ -1447,7 +1447,7 @@ class DoseLogStore(Protocol):
 #
 # Medications have their own tool because they have their own grammar: a plan
 # has a lifecycle, a dose log has a day, a course has a reason it closed:
-# none of which is a resolution or an aggregate. Five parameters, every one
+# none of which is a reading's view of a series. Four parameters, every one
 # applicable to every call; the readings tool is `mirobody.kernel.query`.
 
 TOOL_NAME = "query_medications"

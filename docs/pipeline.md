@@ -228,8 +228,8 @@ a clinical event is.
 
 ## 11. Answer
 
-**Implemented.** One tool per data class — `query_health_indicators` (eight
-parameters) and `query_medications` (five) — each with one schema on both
+**Implemented.** One tool per data class — `query_health_indicators` (five
+parameters) and `query_medications` (four) — each with one schema on both
 surfaces, a closed schema that turns an unknown parameter into a structured
 refusal, and a `tools.Envelope` that carries status, provenance and
 truncation beside the rendered text. Governance reads the envelope, never the

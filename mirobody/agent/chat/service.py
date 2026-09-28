@@ -1,7 +1,6 @@
 import functools
 import logging
 
-from psycopg_pool import AsyncConnectionPool
 from pydantic import ValidationError
 
 from mirobody.agent.registry import available_models, load_agent
@@ -117,12 +116,10 @@ class ChatService:
         uri_prefix      : str = "",
         routes          : list | None = None,
 
-        db_pool         : AsyncConnectionPool | None = None,
 
         agent_dirs      : list[str] | None = None,
     ):
         self._token_validator = token_validator
-        self._db_pool = db_pool
 
         # Called for the side effect: the registry holds the one agent class
         # and its LLM clients for the life of the process.

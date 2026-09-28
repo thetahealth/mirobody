@@ -237,6 +237,15 @@ boundary.
   `FILE_CACHE_TTL`/`FILE_CACHE_MAXSIZE` reads. The prompt no longer renders
   `user_name` (always "User"), `language` or `user_info`; a deployment's own
   template naming them must drop them.
+- **Every upload left a copy of the document in `/tmp`.** Each file handler
+  saved the upload to a temporary file that only the text handler reads and
+  nothing deleted: eight lab reports in the demo container. The copy is now
+  deleted as soon as the handler returns. Upload a file and `ls /tmp`.
+- **`DISALLOWED_TOOLS: [eval]` turns the REPL off**, as the agent README said
+  it did; it only ever filtered the MCP tool list.
+- **MCP no longer advertises `prompts`.** It answered `prompts/list` with an
+  empty list; now neither is offered and the method is not found, as for
+  resources. `/api/health` counts tools through `McpService.tool_counts()`.
 - **The chat agent no longer sees `resolve_indicator`, `convert_unit` or
   `normalize_unit`.** `query_health_indicators` already resolves names to
   LOINC and values to the catalogue's unit; those three serve an MCP client

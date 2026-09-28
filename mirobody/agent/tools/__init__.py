@@ -53,14 +53,13 @@ DIRECTORY STRUCTURE
 
 tools/
 ├── __init__.py                      # This documentation
-├── terminology_service.py           # ② Translate over MCP: resolve_indicator, normalize_unit
+├── terminology_service.py           # ② Translate over MCP: resolve_indicator, convert_unit, normalize_unit
 │                                    #   (offline, no user data: works anonymously)
 ├── health_indicators_service.py     # query_health_indicators, readings: catalogue,
-│                                    #   raw rows, buckets, stats, latest (8 parameters)
-├── medications_service.py           # query_medications: plan / log / history (5 parameters)
-├── genetic_service.py               # query_genetic_data: genotype calls at named
-│                                    #   rsIDs, plus the typed neighbours of each
-│                                    #   hit (5 parameters)
+│                                    #   raw rows, buckets, stats, latest (5 parameters)
+├── medications_service.py           # query_medications: plan / log / history (4 parameters)
+├── genetic_service.py               # query_genetic_data: genotype calls by rsID,
+│                                    #   gene or region (6 parameters)
 ├── _authz.py                        # who a read is about
 ├── _base.py                         # RecordTool: authorization and the
 │                                    #   never-raises contract, shared
