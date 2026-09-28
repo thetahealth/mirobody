@@ -8,13 +8,21 @@
   pass; another upload replaces it. The public 1000 Genomes end-to-end check
   uploads seven public renderings, including gzip/zip and both genome builds,
   and observes one active set after each replacement.
+- **The packaged genotype site index now contains a public candidate.** The
+  former one-site dbSNP example could normalize almost no real upload. A
+  SHA-256-pinned dbSNP 155 Common extract now maps 489 SNVs across twelve
+  pharmacogene regions in both GRCh37 and GRCh38; the public two-site upload
+  and Agent path uses the packaged asset. One PGP 23andMe v5 export has
+  262/625,705 observed rsIDs covered and one PGP AncestryDNA v2 export has
+  340/677,436. This is limited regional coverage, not a full chip or rare
+  variant catalogue; unmatched rows remain `unresolved`.
 - **Normalized genotype queries, VCF export and a bounded CPIC coverage tool.**
   The old genetic tool could only read rsIDs. It now offers an overview, gene
   and build-specific region search; authenticated users can export mapped
   GRCh37/38 VCF, and the Agent/MCP can check CPIC A/B drug-gene links without
   inventing a phenotype. The public two-site integration test checks upload,
-  MCP, VCF and real Agent answers. The packaged dbSNP index still has only one
-  sample site, so whole-chip standardization remains a release blocker.
+  MCP, VCF and real Agent answers. The public candidate index is restricted to
+  twelve regions, so whole-chip standardization remains a release blocker.
 - **Genotype uploads are no longer readable through the Agent's document mounts.**
   The file projection previously exposed raw genetic exports through
   `/uploads/` or `/library/`, bypassing the bounded genetic tool. Both mounts
@@ -57,6 +65,11 @@
 
 ### Changed
 
+- A public VCF that listed only one ALT allele was previously rejected when
+  the dbSNP site listed additional alleles. VCF GT indexes now map into the
+  catalog's allele order while preserving phase. The public HG00096
+  rs4244285 call and all seven upload renderings pass with the packaged
+  multi-allelic candidate index.
 - Chat attachments previously classified a valid compressed genotype file from
   a truncated archive prefix and exposed its raw bytes in the Agent file
   mounts. Each attachment now gets its own scene after complete gzip/zip

@@ -39,7 +39,8 @@ def _table_positions(rendered: str) -> dict[str, int]:
     return rows
 
 
-async def upload(base: str, token: str, subject: str, filename: str, payload: bytes) -> None:
+async def upload(base: str, token: str, subject: str, filename: str, payload: bytes,
+                 *, timeout: int = 120) -> None:
     message_id = str(uuid.uuid4())
     session_id = str(uuid.uuid4())
     uri = base.replace("http://", "ws://") + f"/ws/upload-health-report?token={quote(token)}"
@@ -56,13 +57,17 @@ async def upload(base: str, token: str, subject: str, filename: str, payload: by
                     break
                 if event.get("type") in {"error", "upload_error"}:
                     raise AssertionError(f"upload rejected: {event.get('type')}")
-        await socket.send(json.dumps({
-            "type": "upload_chunk", "messageId": message_id, "filename": filename,
-            "contentType": "text/plain", "chunk": base64.b64encode(payload).decode(),
-            "chunkIndex": 0, "totalChunks": 1, "fileSize": len(payload),
-        }))
+        chunk_size = 1024 * 1024
+        total_chunks = max(1, (len(payload) + chunk_size - 1) // chunk_size)
+        for index in range(total_chunks):
+            chunk = payload[index * chunk_size:(index + 1) * chunk_size]
+            await socket.send(json.dumps({
+                "type": "upload_chunk", "messageId": message_id, "filename": filename,
+                "contentType": "text/plain", "chunk": base64.b64encode(chunk).decode(),
+                "chunkIndex": index, "totalChunks": total_chunks, "fileSize": len(payload),
+            }))
         await socket.send(json.dumps({"type": "upload_end", "messageId": message_id, "sessionId": session_id}))
-        async with asyncio.timeout(120):
+        async with asyncio.timeout(timeout):
             while True:
                 event = json.loads(await socket.recv())
                 if event.get("messageId") != message_id:
@@ -88,9 +93,11 @@ async def mcp(client: httpx.AsyncClient, base: str, headers: dict, args: dict,
 
 
 async def run(base: str, corpus: Path, *, agent: bool = False,
-              export_path: Path | None = None) -> None:
+              export_path: Path | None = None,
+              expected_site_version: str | None = None) -> None:
     manifest = json.loads((corpus / "MANIFEST.json").read_text())
     truth = {call["rsid"]: call for call in manifest["calls"]}
+    coverage = load_cpic().array_coverage("CYP2C19", dict.fromkeys(truth, "called"))
     async with httpx.AsyncClient(timeout=30) as client:
         email = f"genomics-public-{secrets.token_hex(4)}@example.invalid"
         password = secrets.token_urlsafe(24)
@@ -136,14 +143,17 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
                 declared_build = "GRCh38" if filename == "public-grch38.vcf" else "GRCh37"
                 assert "called" in rendered and f"declared build={declared_build}" in rendered, rendered
             profile = await mcp(client, base, headers, {})
-            assert "public-1000g-pharmcat-e2e" in profile["result"], profile
+            site_version = re.search(r"site_table_version=([A-Za-z0-9_.-]+)", profile["result"])
+            assert site_version and site_version.group(1) != "missing", profile
+            if expected_site_version:
+                assert site_version.group(1) == expected_site_version, profile
             pgx = await mcp(client, base, headers, {"drugs": ["clopidogrel"]},
                             name="query_pharmacogenomics")
             assert all(term in pgx["result"] for term in (
-                "CYP2C19", "not_determined", "v1.60.0", "43", "41",
+                "CYP2C19", "not_determined", coverage.cpic_version,
+                str(coverage.required_sites), str(len(coverage.missing_sites)),
             )), pgx
-            first_missing = next(site for site in load_cpic().array_coverage("CYP2C19", {}).missing_sites
-                                 if site not in truth)
+            first_missing = next(iter(coverage.missing_sites))
             assert "missing_rsids" in pgx["result"] and first_missing in pgx["result"], pgx
             export = await client.get(f"{base}/api/v1/genomics/export.vcf", headers=headers,
                                       params={"build": "GRCh38"})
@@ -160,9 +170,9 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
             assert set(exported) == set(truth), (filename, exported)
             for rsid, call in truth.items():
                 fields = exported[rsid]
-                assert (fields[0], int(fields[1]), fields[3], fields[4]) == (
-                    "chr10", call["pos38"], "G", "A",
-                ), (filename, fields)
+                assert (fields[0], int(fields[1]), fields[3]) == (
+                    "chr10", call["pos38"], "G",
+                ) and "A" in fields[4].split(","), (filename, fields)
             fhir = await client.get(
                 f"{base}/api/v1/genomics/export.fhir.json", headers=headers,
                 params=[("rsids", rsid) for rsid in sorted(truth)],
@@ -192,7 +202,7 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
                 ("What does my uploaded rs4244285 say? Include its genotype, source and genome build; do not diagnose.",
                  "query_genetic_data", ("rs4244285", "GRCh37")),
                 ("Does my uploaded genotype establish how I respond to clopidogrel? Name the CPIC version and any missing sites.",
-                 "query_pharmacogenomics", ("CYP2C19", "v1.60.0")),
+                 "query_pharmacogenomics", ("CYP2C19", coverage.cpic_version)),
             )
             for question, expected_tool, required in questions:
                 events = []
@@ -215,7 +225,10 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
                     assert any(value in answer for value in ("AG", "0/1", "1|0", "1\\|0")), answer[:1000]
                     assert "unphased" not in answer.lower(), answer[:1000]
                 else:
-                    assert "not determined" in answer.lower() or "cannot" in answer.lower(), answer[:1000]
+                    plain = answer.lower().replace("*", "")
+                    assert any(term in plain for term in (
+                        "not determined", "cannot", "does not establish", "insufficient", "isn't enough",
+                    )) and str(len(coverage.missing_sites)) in plain, answer[:1000]
                 print(f"Agent: tool={expected_tool}, calls={calls}, answer_chars={len(answer)}")
 
 
@@ -225,6 +238,8 @@ if __name__ == "__main__":
     parser.add_argument("--corpus", type=Path, required=True)
     parser.add_argument("--agent", action="store_true", help="Also require a live model answer")
     parser.add_argument("--export-path", type=Path, help="Save the public GRCh38 VCF for an external validator")
+    parser.add_argument("--expected-site-version", help="Require the server's pinned site catalog version")
     options = parser.parse_args()
     asyncio.run(run(options.base, options.corpus, agent=options.agent,
-                    export_path=options.export_path))
+                    export_path=options.export_path,
+                    expected_site_version=options.expected_site_version))

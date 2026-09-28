@@ -1,21 +1,40 @@
-Mirobody genotype site catalog — public sample, dbSNP build 157
+Mirobody genotype site catalog — public pharmacogene-region candidate
 
-Provider: National Center for Biotechnology Information (NCBI), NLM/NIH.
-Source: https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/JSON/refsnp-sample.json.bz2
-Source SHA-256: ed2171d591f12c996107417fc42e2c3d61467814d0f5866af09baef2e1bfbd61
-Marker input: benchmarks/genomics/fixtures/markers.tsv, extracted from the
-  same public RefSNP JSON example, SHA-256
-  1c407585428de558d94b19dbd37a4441783d3081186e3ad1ccfe0b92655f47c7.
-Build: python3 benchmarks/genomics/build_site_catalog.py --manifest
-  benchmarks/genomics/sample-b157.json --output
-  mirobody/res/genomics/genotype_sites.sqlite3
-Asset SHA-256: 1bd296bcbcf7b4f855b8c3f3673ade3af8c38f7223285f509bf1842994cd58de
-Asset version: dbsnp-b157-sample; 1 site, 3 merged old rsIDs, 36,864 bytes.
+Asset: genotype_sites.sqlite3
+Asset version: dbsnp-b155-common-pgx-candidate
+Asset SHA-256: 557fed0f94ff613a091be21a877ebc2b4f7dd2e5019ebfcb6d636afd84083b60
+Asset size: 86,016 bytes; 489 dual-build SNV sites; 41 gene-labelled sites.
 
-NCBI describes dbSNP b157 as open-access public data:
-https://ncbiinsights.ncbi.nlm.nih.gov/2025/03/18/dbsnp-release-157/
-NCBI's reuse policy for unrestricted molecular databases:
-https://www.ncbi.nlm.nih.gov/home/about/policies/
-This catalog is a derived, one-site parser example. It does not contain a
-consumer-array union and does not meet the 1.5.2 G0 acceptance gate. It
-contains no personal genotype or health record.
+Position/allele sources: UCSC dbSNP 155 Common public tracks, derived from
+NCBI dbSNP data. UCSC says raw table data and binary files are freely
+available for public and commercial use: https://genome.ucsc.edu/license/
+GRCh37: https://hgdownload.soe.ucsc.edu/gbdb/hg19/snp/dbSnp155Common.bb
+  Bounded extract SHA-256: 9a9091f4ff92947d30d2d87f4912b3e810a6d56c6df3f79e27ebc2667e2ce857
+GRCh38: https://hgdownload.soe.ucsc.edu/gbdb/hg38/snp/dbSnp155Common.bb
+  Bounded extract SHA-256: c337f7b2de8a442b92e663c12a98e9ba1d1f8de96a999e36819620494034df24
+Bounds: benchmarks/genomics/public-pgx-windows.json; twelve public
+pharmacogene regions from 1000 Genomes phase 3 GRCh37 and PharmCAT 3.4
+GRCh38 positions. The source tracks are pinned by release and the exact
+bounded extracts by SHA-256. No whole-track SHA-256 is asserted.
+
+Marker-selection sources: two openly shared Harvard Personal Genome Project
+participant exports. Only their rsID columns selected sites; no participant
+genotypes or original files are contained in this asset. Harvard PGP open
+consent: https://pgp.med.harvard.edu/about
+23andMe v5: https://my.pgp-hms.org/user_file/download/4220
+  Raw source SHA-256: 515559e5019e1557a3ea18b0a19ac88ea394f6504ef918dada44e58bb168d506
+AncestryDNA v2: https://my.pgp-hms.org/user_file/download/4200
+  Raw source SHA-256: fdfed037ca0e250ccea89a52cf4a3c0786a414a4626a842f80c5467d0c7dff7b
+
+Additional rsID selection and gene labels: public CPIC v1.60.0 data, CC0.
+https://github.com/cpicpgx/cpic-data/releases/tag/v1.60.0
+SQL source SHA-256: 1f02d87a492fffacb52a6d3ca5f45c5f7d6862bdfd382436d2cf7595b08d1ffe
+
+Build: benchmarks/genomics/fetch_public_pgx_windows.py,
+benchmarks/genomics/prepare_public_candidate.py, then
+benchmarks/genomics/build_site_catalog.py. Source URLs, source/extract hashes
+and per-source coverage counts are also in the SQLite metadata table.
+
+Coverage is bounded to these twelve regions and common variants. The asset
+does not represent a full consumer array, rare variant panel, merged-rsID
+history or indel definition set; absence is not a normal genotype.

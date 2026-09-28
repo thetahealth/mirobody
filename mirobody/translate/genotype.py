@@ -106,15 +106,19 @@ def normalize(
     reference_alleles = [ref, *alts]
     if vcf_gt is not None:
         # A VCF already defines its own GT relative to REF/ALT. Preserve
-        # phasing, but refuse if the public site disagrees with the VCF.
-        if site and (ref != (vcf_ref or "").upper() or alt != (vcf_alt or "").upper()):
+        # phasing and remap ALT indexes when dbSNP lists additional alleles.
+        file_ref = (vcf_ref or "").upper()
+        file_alts = [] if not vcf_alt or vcf_alt == "." else vcf_alt.upper().split(",")
+        if site and (ref != file_ref or len(file_alts) != len(set(file_alts))
+                     or any(allele not in alts for allele in file_alts)):
             return NormalizedCall(**basis, gt=None, call_status="unresolved", zygosity=None,
                                   strand_check="reference_conflict")
         parts = vcf_gt.replace("|", "/").split("/")
-        if not all(part.isdigit() and int(part) < len(reference_alleles) for part in parts):
+        if not all(part.isdigit() and int(part) < 1 + len(file_alts) for part in parts):
             return NormalizedCall(**basis, gt=None, call_status="unresolved", zygosity=None,
                                   strand_check="invalid_gt")
-        indices = tuple(int(part) for part in parts)
+        indexes = (0, *(alts.index(allele) + 1 for allele in file_alts)) if site else tuple(range(1 + len(file_alts)))
+        indices = tuple(indexes[int(part)] for part in parts)
         ploidy = _ploidy_decision(chrom, sex, pos37 if matched_build else None,
                                   pos38 if matched_build else None, indices)
         if ploidy in {"haploid_conflict", "par_unknown"}:
@@ -122,7 +126,8 @@ def normalize(
                                   strand_check=ploidy)
         if ploidy == "haploid":
             indices = (indices[0],)
-            vcf_gt = str(indices[0])
+        separator = "|" if "|" in vcf_gt else "/"
+        vcf_gt = separator.join(str(index) for index in indices)
         zygosity = _zygosity(indices)
         return NormalizedCall(**basis, gt=vcf_gt, call_status="called", zygosity=zygosity,
                               strand_check="vcf_plus")

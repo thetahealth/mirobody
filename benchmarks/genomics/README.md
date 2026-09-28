@@ -1,4 +1,4 @@
-# Public dbSNP b157 site catalog build
+# Public genotype site catalog build
 
 `build_site_catalog.py` writes `mirobody/res/genomics/genotype_sites.sqlite3`.
 It reads a JSON manifest, verifies every input's SHA-256 before parsing, and
@@ -6,15 +6,17 @@ replaces the output only after a complete build. The build uses SQLite for
 marker membership, merge history, selected placements and final rows; a fixed
 16 MiB prefilter avoids a disk lookup for nearly every unselected dbSNP row.
 Input VCF/JSON files are streamed from disk and are never loaded in full.
-For a full candidate, the builder checks both manifest SHA-256 and NCBI's
-published `.md5` checksum for each of the three pinned bulk files.
+For a b157 bulk build, the builder checks both manifest SHA-256 and NCBI's
+published `.md5` checksum for each of the three pinned bulk files. The
+distributable candidate uses bounded public regions of UCSC's dbSNP 155
+Common tracks; the manifest pins SHA-256 for both assembly extracts.
 
 Run the checked-in public NCBI example without a download:
 
 ```bash
 python3 benchmarks/genomics/build_site_catalog.py \
   --manifest benchmarks/genomics/sample-b157.json \
-  --output mirobody/res/genomics/genotype_sites.sqlite3
+  --output /tmp/mirobody-b157-sample.sqlite3
 python3 -m unittest discover -s benchmarks/genomics -p 'test_*.py'
 ```
 
@@ -23,13 +25,59 @@ The fixture is NCBI's
 for rs268. `fixtures/markers.tsv` contains only its `refsnp_id`. It is a parser
 and schema example, **not a consumer-array marker list**.
 
-For a full candidate build, supply a separate manifest with exactly four
-marker lists named `wegene`, `23andme_v5`, `ancestry_v2`, `gsa`; each must be a
-UTF-8 file headed `rsid`, followed by one rsID per line. Each manifest entry
-must give `path`, public `url`, SPDX-style `license` from the builder's allow
-list, and the downloaded file's `sha256`. The two VCF entries must be named
-`vcf37` and `vcf38`, and `merged` must name the b157 merged RefSNP JSONL file.
-Use the manifest shape in `sample-b157.json`. The full-build URLs are pinned:
+The revised G0 candidate is selected by rsIDs from two openly shared Harvard
+PGP participant exports (one 23andMe v5 and one AncestryDNA v2) plus the
+bundled public CPIC v1.60.0 definition sites. This is an
+**observed marker union**, not either manufacturer's complete manifest. The
+raw participant exports stay outside the source tree; only rsID-only lists
+are generated in the ignored build directory. PGP's [open consent](https://pgp.med.harvard.edu/about)
+allows reuse; the packaged SQLite contains no participant genotype, name or
+file. `prepare_public_candidate.py` checks the raw file hashes and writes the
+marker lists. `fetch_public_pgx_windows.py` extracts twelve bounded public
+pharmacogene regions from the two UCSC dbSNP 155 Common tracks without a
+whole-genome download. The bounds in `public-pgx-windows.json` derive from
+public 1000 Genomes GRCh37 and PharmCAT 3.4 GRCh38 positions:
+
+| Assembly | Source |
+| --- | --- |
+| GRCh37/hg19 | https://hgdownload.soe.ucsc.edu/gbdb/hg19/snp/dbSnp155Common.bb |
+| GRCh38/hg38 | https://hgdownload.soe.ucsc.edu/gbdb/hg38/snp/dbSnp155Common.bb |
+
+Install UCSC's [free `bigBedToBed` utility](https://genome.ucsc.edu/license/),
+place the [public PGP 4220](https://my.pgp-hms.org/user_file/download/4220)
+and [public PGP 4200](https://my.pgp-hms.org/user_file/download/4200) files
+outside the repository as `23andme_v5_2023-10_male.txt` and
+`ancestrydna_v2_2025-11_male.txt`, then run:
+
+```bash
+python3 benchmarks/genomics/fetch_public_pgx_windows.py \
+  --output-dir internal/genomics/corpus/reference/ucsc155/pgx
+python3 benchmarks/genomics/prepare_public_candidate.py \
+  --pgp-dir /absolute/path/to/public-pgp \
+  --ucsc-dir internal/genomics/corpus/reference/ucsc155/pgx \
+  --output-dir internal/genomics/corpus/candidate
+python3 benchmarks/genomics/build_site_catalog.py \
+  --manifest internal/genomics/corpus/candidate/public-candidate.json \
+  --output mirobody/res/genomics/genotype_sites.sqlite3
+```
+
+The fetcher checks the exact SHA-256 of both region extracts. The builder
+checks input hashes and requires matching GRCh37 and GRCh38 chromosome and
+REF/ALT. It excludes conflicting, non-SNV and absent sites; it does not infer
+an allele. The packaged index has **489 dual-build SNV sites, 86,016 bytes**.
+Of the two observed PGP marker sets it covers **262/625,705** (23andMe v5)
+and **340/677,436** (Ancestry v2); it covers **41/992** CPIC definition rsIDs.
+Some covered IDs occur in more than one source. The union is 489/1,137,144
+distinct input rsIDs. These ratios are expected for a twelve-region preview
+and are **not whole-chip coverage**. Gene symbols are present only where the
+CPIC sequence locations link an rsID to a gene (41 sites, twelve distinct
+gene labels); gene queries are incomplete. The index has no b157 merge
+history, no I/D definitions and no WeGene/GSA manifest. An old merged rsID or
+a site outside the bounded regions stays `unresolved`, even if dbSNP knows it.
+`metadata.stats_json` records the exact per-source covered/total counts.
+
+The previous b157 full-file path remains available for a future broader
+candidate from redistributable marker lists. It takes these pinned sources:
 
 | Entry | NCBI b157 URL | Archive size, bytes (HEAD, 2026-09-26) |
 | --- | --- | ---: |
@@ -37,26 +85,30 @@ Use the manifest shape in `sample-b157.json`. The full-build URLs are pinned:
 | `vcf38` | https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/VCF/GCF_000001405.40.gz | 29,552,227,779 |
 | `merged` | https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/JSON/refsnp-merged.json.bz2 | 813,797,312 |
 
-The three NCBI files total **58,560,825,230 bytes** compressed, before the
-four marker lists or scratch SQLite file. They have not been downloaded here.
-Four complete, publicly licensed marker lists have not been supplied in this
-workspace. Consequently the checked-in 1-row sample is **not G0 acceptance**:
-coverage of any WeGene/23andMe v5/Ancestry v2/GSA export, the estimated 3–5
-million-row union, and the plan's <1% unmatched-site gate remain unmeasured.
-No personal genotype export is an input to this build.
+The three NCBI b157 files total **58,560,825,230 bytes** compressed. They
+have not been downloaded here. The revised candidate makes no claim about a
+3–5 million-site manufacturer union, WeGene/GSA coverage or the former <1%
+unmatched-site target. The one-site example is a parser fixture only.
 
 Packaging includes `**/*.sqlite3`; `scripts/check_wheel_data.py` checks both
-wheel and sdist for the sample index, its NOTICE and the CPIC extract. This
-packages the lookup mechanism, but it does not satisfy the full G0 site
-coverage gate.
+wheel and sdist for the index, its NOTICE and the CPIC extract.
 
 `generate_public_formats.py` uses pinned public 1000 Genomes and PharmCAT
 inputs to render one truth sample in 23andMe, Ancestry, MyHeritage and VCF
 shapes, plus gzip/zip and GRCh38 VCF renderings. `e2e_public_truth.py` runs
 seven upload → active set → MCP → VCF/FHIR paths and
 optionally two real Agent questions. `e2e_legacy_migration.py` checks that
-1.5.1 rows migrate conservatively. Generated raw truth stays under ignored
-`internal/genomics/corpus/`, not in the distribution.
+1.5.1 rows migrate conservatively. Generated raw truth stays outside the
+source tree; the local `internal/genomics/corpus/` link points to that
+private working directory and is not in the distribution.
+
+`e2e_public_candidate.py --pgp-dir /absolute/path/to/public-pgp` also uploads
+the two complete open PGP exports through the real WebSocket path to isolated
+PostgreSQL. The 23andMe v5 export produced 643,535 stored rows and 258 called
+rows; the Ancestry v2 export replaced it with 677,436 rows and 339 called.
+Both active sets and an rsID MCP lookup passed. These low called counts make
+the regional coverage limit visible in an actual import, not just the marker
+set intersection. Raw participant files remain outside the source tree.
 
 `fixtures/public-hg00096.vcf` is the two-call VCF rendering of 1000 Genomes
 phase 3 public male sample HG00096 from the pinned GRCh37 CYP2C19 region VCF
@@ -101,5 +153,5 @@ separated `alt` describe GRCh38, and a site is omitted if its REF/ALT differs
 between the two builds because this schema cannot represent both safely.
 `gene` comes from dbSNP's annotation and is empty when it is absent. The
 `metadata` table records `version`, `scope`, source URL/hash/licence JSON and
-counts. `scope=candidate` only means all required *input classes* were given;
-it does not assert G0's coverage, size or I/D gates.
+counts. `scope=candidate` describes the pinned public input set; it does not
+assert manufacturer coverage, size or I/D gates.

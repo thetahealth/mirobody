@@ -48,7 +48,7 @@ the second is a manifest of data that is deliberately NOT in the checkout.
 | `catalog/labels/zh.tsv` | Chinese display names for catalogue members | `kernel.metrics.register_labels` |
 | `crosswalks/*.tsv` | a vendor's data types → LOINC, with confidence and source | `translate.devices` |
 | `dose_forms.tsv` | UCUM dose-form annotations | `kernel.meds` |
-| `genomics/genotype_sites.sqlite3` | dbSNP b157 site index; the checked-in one-site version is a sample | `translate.genotype_sites.SiteCatalog` |
+| `genomics/genotype_sites.sqlite3` | Public dbSNP 155 Common candidate: 489 dual-build SNVs in twelve pharmacogene regions; see `genotype_sites.NOTICE` for coverage limits | `translate.genotype_sites.SiteCatalog` |
 | `genomics/genotype_sites.NOTICE` | source URL, hashes and sample limits | prose |
 | `EXTERNAL.tsv` | what is NOT here, and where it was | `scripts/fetch_data.sh` |
 

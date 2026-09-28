@@ -1,7 +1,8 @@
 # Genetics on the 1.5.2 branch
 
-> In progress. The packaged site catalog is a **one-site dbSNP sample**, so
-> this branch cannot yet be released as complete genotype standardization.
+> In progress. The packaged site catalog is a **489-site public candidate**
+> bounded to twelve pharmacogene regions. Whole-chip genotype standardization
+> remains unverified.
 > See [the roadmap](roadmap.md) for the measured release gates.
 
 A genotype has no measurement time, unit or trend. Raw genotype uploads use a
@@ -54,24 +55,33 @@ normalization; the migration never guesses a reference allele or strand.
 
 ## The packaged site index
 
-`mirobody/res/genomics/genotype_sites.sqlite3` currently contains one public
-dbSNP b157 example site, `rs268`, and three merged IDs. Its version is
-`dbsnp-b157-sample` and its size is 36,864 bytes. The
+`mirobody/res/genomics/genotype_sites.sqlite3` contains 489 public dbSNP 155
+Common SNVs with matching GRCh37/GRCh38 chromosome and REF/ALT in twelve
+pharmacogene regions. Its version is `dbsnp-b155-common-pgx-candidate` and its
+size is 86,016 bytes. The
 [NOTICE](../mirobody/res/genomics/genotype_sites.NOTICE) records source URLs
 and hashes; [the builder](../benchmarks/genomics/README.md) is reproducible.
-The file is included in wheel and sdist, but does **not** establish coverage
-of a consumer array. The planned 3–5 million-site union of licensed WeGene,
-23andMe v5, Ancestry v2 and GSA manifests is absent. Therefore the <1%
-unmatched-site target, indel definition rate, build lift-over accuracy and
-whole-chip size/performance targets remain unmeasured. Ordinary chip rows
-without a catalog entry are visible as raw `unresolved` rows, never as GT.
+The file is included in wheel and sdist. It covers 262 of 625,705 observed
+rsIDs in one openly shared PGP 23andMe v5 export, 340 of 677,436 in one PGP
+AncestryDNA v2 export, and 41 of 992 public CPIC definition rsIDs. These
+observed exports are not manufacturer manifests. Under the revised G0 scope,
+the index is an explicitly limited public candidate; it does **not** establish
+consumer-array coverage. WeGene/GSA coverage, indel definitions, merged rsID
+history, rare variants, broad gene annotation, full-chip build lift-over
+accuracy and whole-chip size/performance are absent or unmeasured. Ordinary
+chip rows without a catalog entry are visible as raw `unresolved` rows,
+never as GT. A gene query is incomplete outside the 41 CPIC-labelled sites.
+An isolated PostgreSQL upload of the two complete public PGP exports yielded
+643,535 rows / 258 called for 23andMe v5, then atomically replaced that set
+with 677,436 rows / 339 called for Ancestry v2. The active-set and MCP rsID
+checks passed. These counts show how narrow the candidate currently is.
 
 A separate public-data storage benchmark imported 1.3 million unique, called
 biallelic SNVs from NIST GIAB HG005 into isolated PostgreSQL. The original
 batched insert took 80.254 s and added 239,345,664 bytes of table and
 indexes; the column-array insert took 42.074 s and added 239,681,536 bytes.
 These figures do not establish vendor-array catalog coverage or GRCh38 mapping
-accuracy: the packaged catalog still maps only its one sample site.
+accuracy: the packaged catalog only maps its bounded candidate sites.
 
 ## Reading and exporting
 
@@ -135,9 +145,12 @@ The [public-data generator](../benchmarks/genomics/generate_public_formats.py)
 pins a 1000 Genomes HG00096 truth file and PharmCAT 3.4 positions by SHA-256,
 then renders seven upload files from the same two calls, including gzip/zip and
 both reference assemblies. The
-[end-to-end check](../benchmarks/genomics/e2e_public_truth.py) exercises real
+[end-to-end check](../benchmarks/genomics/e2e_public_truth.py) exercises the
+packaged candidate index through real
 WebSocket upload, active-set replacement, rsID/gene/region MCP queries, CPIC
-coverage, GRCh37/38 VCF and FHIR export and real Agent tool use. It is a pipeline check,
+coverage, GRCh37/38 VCF and FHIR export and real Agent tool use. The public
+rs4244285 VCF lists ALT `A` while the candidate dbSNP site lists `A,C,T`;
+the normalizer maps its GT index to the catalog allele order. It is a pipeline check,
 not evidence of whole-chip accuracy. A second check migrates only those public
 truth rows from the 1.5.1 table. No owner's genotype export or personal health
 document belongs in a committed fixture.

@@ -27,6 +27,7 @@ from mirobody.agent.middleware.genotype_summarization import GenotypeSafeSummari
 from mirobody.agent.tools.genetic_service import TOOL_NAME
 from mirobody.kernel import tools
 from mirobody.translate.genotype import normalize, pseudoautosomal_status
+from mirobody.translate.genotype_sites import SiteCatalog
 
 
 PUBLIC_VCF = Path(__file__).parent / "fixtures/public-hg00096.vcf"
@@ -59,6 +60,21 @@ class ChatClassificationTests(unittest.TestCase):
             {"file_name": "notes.txt", "content_type": "text/plain", "content_bytes": b"non-genetic notes"},
         )
         self.assertEqual([_detect_file_scene(file) for file in files], ["genetic", "report"])
+
+
+class PublicCatalogNormalizationTests(unittest.TestCase):
+    def test_public_hg00096_vcf_alt_subset_of_multiallelic_dbsnp_site(self) -> None:
+        row = next(line.split("\t") for line in PUBLIC_VCF.read_text().splitlines()
+                   if line.startswith("10\t96541616\t"))
+        with SiteCatalog() as catalog:
+            self.assertEqual(catalog.version, "dbsnp-b155-common-pgx-candidate")
+            site = catalog.lookup(row[2], row[0], int(row[1]))
+        self.assertEqual(site["alt"], "A,C,T")
+        result = normalize(
+            rsid=row[2], chrom=row[0], position=int(row[1]), genotype=row[9],
+            site=site, vcf_gt=row[9], vcf_ref=row[3], vcf_alt=row[4],
+        )
+        self.assertEqual((result.call_status, result.gt), ("called", "1|0"))
 
 
 class ParCoordinateTests(unittest.TestCase):

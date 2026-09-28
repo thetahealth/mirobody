@@ -63,8 +63,9 @@ all three, aggregates the trend, and names the file every number came from.</em>
 
 **On the 1.5.2 development branch:** genotype uploads now have atomic active
 sets, bounded rsID/gene/region queries, VCF export and a conservative CPIC
-coverage tool. The packaged dbSNP catalog is still a one-site sample, so
-whole-chip normalization and clinical phenotype calling are not ready.
+coverage tool. The packaged public dbSNP candidate covers 489 SNVs in twelve
+pharmacogene regions. Whole-chip normalization and clinical phenotype calling
+are not ready.
 [Current scope and release gates](docs/genetics.md).
 
 ## Try it in 60 seconds

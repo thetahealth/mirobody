@@ -1,4 +1,4 @@
-"""Build a pinned dbSNP b157 site index from public, hashed source files.
+"""Build a pinned dbSNP site index from public, hashed source files.
 
 The input manifest names local files, their original HTTPS URLs, SHA-256 hashes
 and redistribution licences. No download, personal genotype file or inferred
@@ -15,18 +15,24 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 
 RSID = re.compile(r"rs[1-9][0-9]*\Z")
 ALLELE = re.compile(r"[ACGTN]+\Z")
-LICENSES = {"NCBI-PD", "BSD-3-Clause", "CC0-1.0", "MPL-2.0"}
+GENE = re.compile(r"[A-Za-z][A-Za-z0-9_.-]*\Z")
+LICENSES = {"NCBI-PD", "BSD-3-Clause", "CC0-1.0", "MPL-2.0", "PGP-Open-Consent", "UCSC-Public-Data"}
 ASSEMBLIES = {"GRCh37.p13": 37, "GRCh38.p14": 38}
 VCF_URLS = {
     37: "https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/VCF/GCF_000001405.25.gz",
     38: "https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/VCF/GCF_000001405.40.gz",
 }
 MERGED_URL = "https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/JSON/refsnp-merged.json.bz2"
+UCSC_URLS = {
+    37: "https://hgdownload.soe.ucsc.edu/gbdb/hg19/snp/dbSnp155Common.bb",
+    38: "https://hgdownload.soe.ucsc.edu/gbdb/hg38/snp/dbSnp155Common.bb",
+}
 NCBI_MD5 = {
     VCF_URLS[37]: "35db22bcd166f904e4775dbbc29f5965",
     VCF_URLS[38]: "6a6f313e92a39c337571174dad12cfe1",
@@ -87,10 +93,10 @@ def _source(entry: dict, base: Path, *, expected_url: str | None = None) -> tupl
             upstream_digest.update(block)
     if digest.hexdigest() != expected:
         raise ValueError(f"source hash mismatch: {entry['path']}")
-    if expected_url is not None and upstream_digest.hexdigest() != NCBI_MD5[expected_url]:
+    if expected_url in NCBI_MD5 and upstream_digest.hexdigest() != NCBI_MD5[expected_url]:
         raise ValueError(f"source differs from NCBI's b157 checksum: {entry['path']}")
     provenance = {"url": url, "sha256": expected, "license": entry["license"]}
-    if expected_url is not None:
+    if expected_url in NCBI_MD5:
         provenance["ncbi_md5"] = NCBI_MD5[expected_url]
     if "derived_from" in entry:
         provenance["derived_from"] = entry["derived_from"]
@@ -194,6 +200,20 @@ def _load_markers(db: sqlite3.Connection, sources: list[tuple[str, Path]]) -> di
     if total > MAX_MARKERS:
         raise ValueError(f"marker union exceeds {MAX_MARKERS:,} rsIDs")
     return counts
+
+
+def _load_genes(path: Path) -> dict[str, str]:
+    genes: dict[str, set[str]] = {}
+    with _lines(path) as stream:
+        if stream.readline().rstrip("\r\n") != "rsid\tgene":
+            raise ValueError("gene annotation must have rsid and gene columns")
+        for line in stream:
+            fields = line.rstrip("\r\n").split("\t")
+            if (len(fields) != 2 or not _rsid(fields[0])
+                    or any(not GENE.fullmatch(gene) for gene in fields[1].split(","))):
+                raise ValueError("invalid public gene annotation")
+            genes.setdefault(fields[0], set()).update(fields[1].split(","))
+    return {rsid: ",".join(sorted(symbols)) for rsid, symbols in genes.items()}
 
 
 def _merge_targets(record: dict) -> tuple[str, list[str]] | None:
@@ -300,6 +320,48 @@ def _load_vcf(db: sqlite3.Connection, path: Path, build: int, wanted: WantedFilt
     return counts
 
 
+def _load_ucsc_bigbed(
+    db: sqlite3.Connection, path: Path, build: int, wanted: WantedFilter, converter: str,
+) -> dict[str, int]:
+    """Stream the public dbSNP 155 Common bigBed without a second giant extract."""
+    command = [converter, str(path), "stdout"]
+    with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          text=True, encoding="utf-8") as process:
+        assert process.stdout is not None
+        counts = _load_ucsc_rows(db, process.stdout, build, wanted)
+        stderr = process.stderr.read() if process.stderr is not None else ""
+        if process.wait() != 0:
+            raise ValueError(f"bigBedToBed failed for GRCh{build}: {stderr[:300]}")
+    return counts
+
+
+def _load_ucsc_rows(db: sqlite3.Connection, stream, build: int,
+                    wanted: WantedFilter) -> dict[str, int]:
+    counts = {"records": 0, "selected": 0, "invalid": 0}
+    for line in stream:
+        counts["records"] += 1
+        fields = line.rstrip("\r\n").split("\t")
+        if len(fields) < 14:
+            counts["invalid"] += 1
+            continue
+        rsid = _rsid(fields[3])
+        if not rsid or not _wanted(db, rsid, wanted):
+            continue
+        chrom = _chrom(fields[0])
+        alleles = _alleles(fields[4], fields[6].rstrip(","))
+        try:
+            start, end = int(fields[1]), int(fields[2])
+        except ValueError:
+            start, end = -1, -1
+        if (chrom is None or start < 0 or end != start + len(fields[4])
+                or fields[13] != "snv" or alleles is None):
+            counts["invalid"] += 1
+            continue
+        _record_placement(db, rsid, build, chrom, start + 1, *alleles, None)
+        counts["selected"] += 1
+    return counts
+
+
 def _json_placements(record: dict, build: int):
     data = record.get("primary_snapshot_data") or {}
     for item in data.get("placements_with_allele", []):
@@ -383,8 +445,9 @@ def _resolve_merges(db: sqlite3.Connection) -> int:
     return count
 
 
-def _finish(db: sqlite3.Connection) -> dict[str, int]:
-    stats = {"missing_build": 0, "conflict": 0, "allele_mismatch": 0, "sites": 0}
+def _finish(db: sqlite3.Connection, gene_annotations: dict[str, str]) -> dict:
+    stats = {"missing_build": 0, "conflict": 0, "allele_mismatch": 0, "sites": 0,
+             "gene_annotated": 0}
     for (rsid,) in db.execute("SELECT rsid FROM wanted ORDER BY rsid"):
         if db.execute("SELECT 1 FROM merged WHERE old_rsid=?", (rsid,)).fetchone():
             continue
@@ -398,8 +461,10 @@ def _finish(db: sqlite3.Connection) -> dict[str, int]:
             # One REF/ALT pair cannot truthfully describe two different builds.
             stats["allele_mismatch"] += 1
         else:
-            db.execute("INSERT INTO sites VALUES (?,?,?,?,?,?,?)", (rsid, b[0], a[1], b[1], b[2], b[3], b[4] or a[4]))
+            gene = b[4] or a[4] or gene_annotations.get(rsid)
+            db.execute("INSERT INTO sites VALUES (?,?,?,?,?,?,?)", (rsid, b[0], a[1], b[1], b[2], b[3], gene))
             stats["sites"] += 1
+            stats["gene_annotated"] += gene is not None
     db.execute("DELETE FROM merged WHERE rsid NOT IN (SELECT rsid FROM sites)")
     stats["merged"] = db.execute("SELECT COUNT(*) FROM merged").fetchone()[0]
     stats["marker_union"] = db.execute("SELECT COUNT(DISTINCT rsid) FROM marker_ids").fetchone()[0]
@@ -408,13 +473,24 @@ def _finish(db: sqlite3.Connection) -> dict[str, int]:
         "LEFT JOIN merged ON merged.old_rsid=marker_ids.rsid "
         "WHERE COALESCE(merged.rsid, marker_ids.rsid) IN (SELECT rsid FROM sites)"
     ).fetchone()[0]
+    stats["marker_coverage_by_source"] = {
+        source: {"total": total, "covered": covered}
+        for source, total, covered in db.execute(
+            "SELECT marker_ids.source, COUNT(*), "
+            "SUM(CASE WHEN sites.rsid IS NOT NULL THEN 1 ELSE 0 END) "
+            "FROM marker_ids LEFT JOIN merged ON merged.old_rsid=marker_ids.rsid "
+            "LEFT JOIN sites ON sites.rsid=COALESCE(merged.rsid, marker_ids.rsid) "
+            "GROUP BY marker_ids.source ORDER BY marker_ids.source"
+        )
+    }
     return stats
 
 
-def build(manifest_path: Path, output: Path) -> dict:
+def build(manifest_path: Path, output: Path, *, big_bed_to_bed: str = "bigBedToBed") -> dict:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    if manifest.get("release") != "dbsnp-b157":
-        raise ValueError("release must be dbsnp-b157")
+    release = manifest.get("release")
+    if release not in {"dbsnp-b157", "dbsnp-b155-common", "dbsnp-b155-common-pgx"}:
+        raise ValueError("unsupported public dbSNP release")
     if manifest.get("scope") not in {"sample", "candidate"}:
         raise ValueError("scope must be sample or candidate")
     base = manifest_path.resolve().parent
@@ -427,10 +503,26 @@ def build(manifest_path: Path, output: Path) -> dict:
         path, provenance = _source(entry, base)
         sources[name] = provenance
         marker_files.append((name, path))
+    gene_annotations = {}
+    if "gene_annotations" in manifest:
+        path, provenance = _source(manifest["gene_annotations"], base)
+        gene_annotations = _load_genes(path)
+        sources["gene_annotations"] = provenance
+    ucsc_mode = release in {"dbsnp-b155-common", "dbsnp-b155-common-pgx"}
     json_mode = "refsnp_json" in manifest
-    if json_mode == ("vcf37" in manifest or "vcf38" in manifest):
+    if not ucsc_mode and json_mode == ("vcf37" in manifest or "vcf38" in manifest):
         raise ValueError("choose either RefSNP JSONL or both b157 VCF files")
-    if json_mode:
+    if ucsc_mode:
+        if (manifest["scope"] != "candidate" or json_mode or "merged" in manifest
+                or "vcf37" in manifest or "vcf38" in manifest):
+            raise ValueError("dbSNP 155 Common candidate requires only UCSC track inputs")
+        ucsc_paths = {}
+        for build_id in (37, 38):
+            path, provenance = _source(manifest[f"ucsc{build_id}"], base,
+                                       expected_url=UCSC_URLS[build_id])
+            ucsc_paths[build_id] = path
+            sources[f"ucsc{build_id}"] = provenance
+    elif json_mode:
         json_paths = []
         for entry in manifest["refsnp_json"]:
             path, provenance = _source(entry, base)
@@ -459,11 +551,10 @@ def build(manifest_path: Path, output: Path) -> dict:
         ):
             raise ValueError("sample merge source must be NCBI dbSNP")
         sources["merged"] = provenance
-    if manifest["scope"] == "candidate" and (
-        json_mode or merged_path is None or
-        {name for name, _ in marker_files} != {"wegene", "23andme_v5", "ancestry_v2", "gsa"}
+    if release == "dbsnp-b157" and manifest["scope"] == "candidate" and (
+        json_mode or merged_path is None or not marker_files
     ):
-        raise ValueError("candidate requires four marker lists, both VCFs and merged history")
+        raise ValueError("b157 candidate requires public markers, both VCFs and merged history")
     output.parent.mkdir(parents=True, exist_ok=True)
     temp = output.with_name(output.name + f".tmp.{os.getpid()}")
     temp.unlink(missing_ok=True)
@@ -489,17 +580,28 @@ def build(manifest_path: Path, output: Path) -> dict:
             marker_counts = _load_markers(db, marker_files)
             wanted = WantedFilter(db)
             merge_passes = _load_merges(db, merged_path, wanted) if merged_path else 0
-            record_counts = _load_json(db, json_paths, wanted) if json_mode else {
-                str(k): _load_vcf(db, path, k, wanted) for k, path in vcf_paths.items()
-            }
+            if ucsc_mode:
+                if release == "dbsnp-b155-common-pgx":
+                    record_counts = {}
+                    for k, path in ucsc_paths.items():
+                        with path.open(encoding="utf-8") as stream:
+                            record_counts[str(k)] = _load_ucsc_rows(db, stream, k, wanted)
+                else:
+                    record_counts = {str(k): _load_ucsc_bigbed(db, path, k, wanted, big_bed_to_bed)
+                                     for k, path in ucsc_paths.items()}
+            elif json_mode:
+                record_counts = _load_json(db, json_paths, wanted)
+            else:
+                record_counts = {str(k): _load_vcf(db, path, k, wanted)
+                                 for k, path in vcf_paths.items()}
             _resolve_merges(db)
-            stats = _finish(db)
+            stats = _finish(db, gene_annotations)
             if not stats["sites"]:
                 raise ValueError("no dual-build dbSNP sites matched the public marker lists")
             stats.update({"marker_rows": marker_counts, "records": record_counts,
                           "merge_passes": merge_passes,
                           "ambiguous_merges": db.execute("SELECT COUNT(*) FROM ambiguous_merge").fetchone()[0]})
-            version = f"dbsnp-b157-{manifest['scope']}"
+            version = f"{release}-{manifest['scope']}"
             metadata = {
                 "version": version, "scope": manifest["scope"], "sources_json": json.dumps(sources, sort_keys=True),
                 "stats_json": json.dumps(stats, sort_keys=True),
@@ -523,9 +625,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--big-bed-to-bed", default="bigBedToBed")
     args = parser.parse_args()
     try:
-        print(json.dumps(build(args.manifest, args.output), sort_keys=True))
+        print(json.dumps(build(args.manifest, args.output, big_bed_to_bed=args.big_bed_to_bed), sort_keys=True))
     except (OSError, ValueError, KeyError, sqlite3.Error, json.JSONDecodeError) as exc:
         print(f"catalog build failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         raise SystemExit(1) from None

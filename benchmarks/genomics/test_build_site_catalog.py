@@ -16,6 +16,8 @@ HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "build_site_catalog.py"
 MANIFEST = HERE / "sample-b157.json"
 NCBI_SAMPLE_URL = "https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/JSON/refsnp-sample.json.bz2"
+CANDIDATE = HERE.parents[1] / "mirobody/res/genomics/genotype_sites.sqlite3"
+CANDIDATE_SHA256 = "557fed0f94ff613a091be21a877ebc2b4f7dd2e5019ebfcb6d636afd84083b60"
 
 
 def _run(manifest: Path, output: Path) -> subprocess.CompletedProcess[str]:
@@ -26,6 +28,22 @@ def _run(manifest: Path, output: Path) -> subprocess.CompletedProcess[str]:
 
 
 class SiteCatalogBuildTests(unittest.TestCase):
+    def test_shipped_public_candidate_has_measured_scope(self) -> None:
+        self.assertEqual(hashlib.sha256(CANDIDATE.read_bytes()).hexdigest(), CANDIDATE_SHA256)
+        with sqlite3.connect(CANDIDATE) as db:
+            self.assertEqual(db.execute("SELECT value FROM metadata WHERE key='version'").fetchone(),
+                             ("dbsnp-b155-common-pgx-candidate",))
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM sites").fetchone(), (489,))
+            self.assertEqual(
+                db.execute("SELECT pos37,pos38,ref,alt,gene FROM sites WHERE rsid='rs4244285'").fetchone(),
+                (96541616, 94781859, "G", "A,C,T", "CYP2C19"),
+            )
+            stats = json.loads(db.execute("SELECT value FROM metadata WHERE key='stats_json'").fetchone()[0])
+            self.assertEqual(stats["marker_coverage_by_source"]["pgp_23andme_v5"],
+                             {"covered": 262, "total": 625705})
+            self.assertEqual(stats["marker_coverage_by_source"]["pgp_ancestry_v2"],
+                             {"covered": 340, "total": 677436})
+
     def test_official_json_build_is_reproducible_and_readable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             first = Path(directory) / "first.sqlite3"
@@ -120,6 +138,62 @@ class SiteCatalogBuildTests(unittest.TestCase):
             self.assertEqual(counts["marker_covered"], 1)
             with sqlite3.connect(root / "sites.sqlite3") as db:
                 self.assertEqual(db.execute("SELECT rsid FROM merged WHERE old_rsid='rs17850737'").fetchone(), ("rs268",))
+
+    def test_public_common_candidate_accepts_partial_marker_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = root / "markers.tsv"
+            marker.write_text("rsid\nrs4244285\nrs268\n", encoding="utf-8")
+            converter = root / "bigBedToBed"
+            converter.write_text(
+                f"#!{sys.executable}\n"
+                "import sys\n"
+                "position = 96541615 if 'hg19' in sys.argv[1] else 94781858\n"
+                "print('\\t'.join(map(str, ['chr10', position, position + 1, 'rs4244285', "
+                "'G', '3', 'A,C,T,', '0', '31', '', '', '', '1819', 'snv', '', '', ''])))\n",
+                encoding="utf-8",
+            )
+            converter.chmod(0o755)
+            manifest = {
+                "release": "dbsnp-b155-common", "scope": "candidate",
+                "markers": [{
+                    "name": "public_example", "path": str(marker),
+                    "url": "https://github.com/cpicpgx/cpic-data/releases/tag/v1.60.0",
+                    "derived_from": "rs4244285 from CPIC and rs268 from the NCBI b157 sample",
+                    "license": "CC0-1.0", "sha256": hashlib.sha256(marker.read_bytes()).hexdigest(),
+                }],
+            }
+            genes = root / "genes.tsv"
+            genes.write_text("rsid\tgene\nrs4244285\tCYP2C19\n", encoding="utf-8")
+            manifest["gene_annotations"] = {
+                "path": str(genes), "url": "https://github.com/cpicpgx/cpic-data/releases/tag/v1.60.0",
+                "license": "CC0-1.0", "sha256": hashlib.sha256(genes.read_bytes()).hexdigest(),
+            }
+            for build, assembly in ((37, "hg19"), (38, "hg38")):
+                source = root / f"dbSnp155Common-{assembly}.bb"
+                source.write_bytes(b"test converter fixture")
+                manifest[f"ucsc{build}"] = {
+                    "path": str(source),
+                    "url": f"https://hgdownload.soe.ucsc.edu/gbdb/{assembly}/snp/dbSnp155Common.bb",
+                    "license": "UCSC-Public-Data", "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                }
+            manifest_path = root / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            output = root / "candidate.sqlite3"
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "--manifest", str(manifest_path),
+                 "--output", str(output), "--big-bed-to-bed", str(converter)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            counts = json.loads(result.stdout)
+            self.assertEqual(counts["marker_coverage_by_source"]["public_example"],
+                             {"total": 2, "covered": 1})
+            with sqlite3.connect(output) as db:
+                self.assertEqual(db.execute("SELECT rsid,pos37,pos38,ref,alt,gene FROM sites").fetchone(),
+                                 ("rs4244285", 96541616, 94781859, "G", "A,C,T", "CYP2C19"))
+                self.assertEqual(db.execute("SELECT value FROM metadata WHERE key='version'").fetchone(),
+                                 ("dbsnp-b155-common-candidate",))
 
 
 if __name__ == "__main__":
