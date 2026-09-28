@@ -63,7 +63,7 @@ SEED_DIR = DEMO_DIR / "seed"
 _UPSERT_USER = """
 INSERT INTO health_app_user (is_del, email, name, tz)
 VALUES (FALSE, :email, :name, :tz)
-ON CONFLICT (email) DO UPDATE SET is_del = FALSE
+ON CONFLICT (email) WHERE (is_del = false) DO UPDATE SET is_del = FALSE
 RETURNING id
 """
 

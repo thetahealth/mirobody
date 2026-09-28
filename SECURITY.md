@@ -91,6 +91,22 @@ Self-hosting means the data stays on your infrastructure, and so does the
 responsibility for it. Mirobody is Apache-2.0 licensed and provided without
 warranty; it is not a medical device and its output is not medical advice.
 
+## What the server calls off your machine
+
+Everything else stays in your Postgres, your Redis and your upload directory.
+There is no telemetry and no usage reporting.
+
+| Destination | When | What is sent |
+| --- | --- | --- |
+| The model behind your key (`config.llm.yaml`) | chat; reading a report photo or PDF; extracting indicators; splitting a journal sentence; embeddings, when an embedding model is configured | the question and the rows the agent reads; the file; the sentence; the text to embed |
+| Garmin, Oura, Whoop | only after a person links one | OAuth tokens, and requests for that person's own data |
+| Your SMTP server | when `EMAIL_SMTP_*` is configured, to send a sign-in code | the address and the code |
+| S3 or Aliyun OSS | only when configured in place of the local disk | uploaded files |
+| Google, Apple | only when their sign-in is enabled | token verification against their public keys |
+
+`② Translate` (a name to a code, a unit to UCUM) calls nothing: the vocabulary
+ships inside the package.
+
 ## Supported versions
 
 Fixes land on `main` and ship in the next release. We do not backport to older

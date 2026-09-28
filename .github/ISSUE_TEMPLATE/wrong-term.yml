@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         This is the highest-leverage report the project takes. A fix is one row in
-        `mirobody/res/resolver_overrides.tsv` plus one case in
+        `mirobody/res/loinc/resolver_overrides.tsv` plus one case in
         `mirobody/tests/test_engine_coverage.py`; the coverage score is the review.
   - type: input
     id: term

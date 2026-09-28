@@ -228,10 +228,9 @@ def jsonrpc_result(
     ``result_type`` / ``server_info`` carry the MCP 2026-07-28 additions:
 
     * ``resultType`` is REQUIRED on every result in that revision (it is what
-      makes polymorphic results like ``input_required`` possible). Clients on
-      earlier revisions ignore the unknown key, and the spec tells new clients
-      to read an ABSENT ``resultType`` as ``"complete"``, so emitting it is
-      backward compatible in both directions.
+      makes polymorphic results like ``input_required`` possible), and sent
+      only there: the TypeScript SDK 1.30.1 (2025-11-25) parses an empty
+      result strictly and rejected `ping` over the unknown key.
     * ``io.modelcontextprotocol/serverInfo`` in ``_meta`` is a SHOULD, meant for
       display and debugging only; the spec is explicit that neither side may
       make security or behaviour decisions from it.
@@ -276,7 +275,8 @@ def jsonrpc_result(
     #-----------------------------------------------------
 
     if isinstance(result, dict):
-        if result_type and "resultType" not in result:
+        stateless = protocol_version is None or protocol_version >= "2026-07-28"
+        if result_type and stateless and "resultType" not in result:
             result["resultType"] = result_type
         if server_info or protocol_version:
             meta = result.setdefault("_meta", {})

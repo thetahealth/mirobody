@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS health_app_user (
     create_at     timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_at     timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     is_del        boolean NOT NULL,
-    email         character varying NOT NULL UNIQUE,
+    email         character varying NOT NULL,
     name          character varying NOT NULL DEFAULT ''::character varying,
     consultant_id integer NOT NULL DEFAULT 0,
     lang          character varying NOT NULL DEFAULT 'en'::character varying,
@@ -38,6 +38,10 @@ ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS password_hash text;
 
 CREATE        INDEX IF NOT EXISTS idx_health_app_user_apple_sub ON health_app_user USING btree (apple_sub);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_uni_health_app_user_email_active ON health_app_user USING btree (email) WHERE (is_del = false);
+-- The column used to carry its own UNIQUE as well, which outranked the partial
+-- index above: an address stayed taken after its account was deleted, so the
+-- person could never register again. Dropped; the partial index is the rule.
+ALTER TABLE health_app_user DROP CONSTRAINT IF EXISTS health_app_user_email_key;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_uni_health_app_user_apple_sub_active ON health_app_user USING btree (apple_sub) WHERE (is_del = false);
 
 COMMENT ON COLUMN health_app_user.gender IS 'Gender: 0-Unknown 1-Male 2-Female';

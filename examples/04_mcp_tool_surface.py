@@ -9,8 +9,9 @@ tool definition — name, description, JSON Schema — using the official SDK's
 than hand-maintained beside it.
 
 This script loads that surface in-process and prints it. No server, no OAuth, no
-database: this is the *definition* half. Two of the four tools also run offline
-here, because they only read the shipped bundles.
+database: this is the *definition* half. Three of the six tools
+(`resolve_indicator`, `normalize_unit`, `convert_unit`) need no user data and run
+offline; this script calls `resolve_indicator`.
 
 To expose these over HTTP instead, run `mirobody serve` and point a client at
 `/mcp` — same functions, same schemas.

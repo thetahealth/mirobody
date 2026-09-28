@@ -140,6 +140,9 @@ class PlatformManager:
             logger.info(f"Unlink successful for provider {provider_slug}")
             return result_data
 
+        except ValueError:
+            # An unconfigured provider is the caller's 400, not a 500.
+            raise
         except Exception as e:
             logger.error(f"Error unlinking provider {provider_slug}: {str(e)}")
             raise RuntimeError(f"Failed to unlink provider: {str(e)}")

@@ -42,7 +42,7 @@ CREATE INDEX IF NOT EXISTS idx_th_extraction_user ON th_extraction (user_id, cre
 CREATE TABLE IF NOT EXISTS th_observation (
     id                 bigserial PRIMARY KEY,
     user_id            varchar(200) NOT NULL,
-    kind               text NOT NULL,            -- measurement | symptom | finding | organizer
+    kind               text NOT NULL,            -- measurement | symptom | condition | finding | organizer
     modality           text NOT NULL,            -- lab-report | device-sensed | self-reported | manual | derived | llm-unverified
     source_kind        text NOT NULL,            -- file | device | manual | api
     source_ref         text NOT NULL,

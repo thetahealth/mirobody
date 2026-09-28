@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stamp a VERSION member into ``mirobody/res/fhir_loinc_bundle.tar.gz``.
+"""Stamp a VERSION member into ``mirobody/res/loinc/fhir_loinc_bundle.tar.gz``.
 
 The package version and the corpus version are different facts, and until now
 only the first existed. A consumer that generates a seed from the bundle at

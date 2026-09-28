@@ -1,0 +1,150 @@
+# Everyday English -> ICPC-3 S component. OUR writing, Apache-2.0.
+#
+# ICPC-3's own `preferred` and `inclusions` are already indexed straight from
+# res/icpc3/icpc3.tsv, so nothing here repeats them. This file holds
+# what a person types and a classification does not print: "throwing up",
+# "pins and needles", "off my food". Same two sentinels as symptoms_zh.tsv.
+surface	code	note
+# ── general ───────────────────────────────────────────────────────────────
+temperature	AS03
+running a temperature	AS03
+high temperature	AS03
+feverish	AS03
+shivery	AS02
+tired	AS04
+tired all the time	AS04
+exhausted	AS04
+worn out	AS04
+no energy	AS04
+run down	AS04
+knackered	AS04
+under the weather	AS06
+passed out	AS07
+blacked out	AS07
+puffy ankles	KS04
+swollen ankles	KS04
+pain all over	AS01
+aching all over	LS17
+cold hands and feet	AS99.00
+# ── digestive ─────────────────────────────────────────────────────────────
+tummy ache	DS01	ICPC-3 files the literal "stomach ache" under DS02, epigastric
+belly ache	DS01
+stomach cramps	DS01
+indigestion	DS07
+acid reflux	DS03
+throwing up	DS10
+being sick	DS10
+puking	DS10
+feeling queasy	DS09
+the runs	DS11
+loose stools	DS11
+upset stomach	DS11
+backed up	DS12
+bunged up	DS12	UK usage for constipation; the blocked-nose reading is 鼻塞 / RS09
+blood in my stool	DS16
+burping	DS08
+wind	DS08
+bloated	DS08
+bad breath	DS20.02
+mouth ulcer	DS20
+trouble swallowing	DS21
+food gets stuck	DS21
+# ── eye, ear ──────────────────────────────────────────────────────────────
+blurry vision	FS05
+can't see properly	FS05
+gritty eyes	FS07
+watery eyes	FS03.00
+ringing in my ears	HS03
+ears ringing	HS03
+earache	HS01
+can't hear properly	HS02
+# ── heart, circulation ────────────────────────────────────────────────────
+heart racing	KS02
+heart pounding	KS02
+skipped beats	KS03
+tight chest	RS99
+high blood pressure reading	KS51
+low blood pressure reading	KS50
+# ── musculoskeletal ───────────────────────────────────────────────────────
+stiff neck	LS01
+sore back	LS02
+bad back	LS02
+lower back pain	LS03
+sore shoulder	LS07
+sore knee	LS14
+swollen knee	LS14
+sore feet	LS16
+achy joints	LS20
+stiff joints	LS20
+cramps	!ambiguous	leg cramps (LS13) or period pain (GS05)
+# ── neurological ──────────────────────────────────────────────────────────
+pins and needles	NS04
+numb fingers	NS04
+dizzy	NS09
+light-headed	NS09.00
+room spinning	NS09.01
+shaky hands	NS07
+slurring my words	NS11
+# ── psychological ─────────────────────────────────────────────────────────
+feeling low	PS03
+feeling down	PS03
+on edge	PS01
+wound up	PS01
+panicky	PS01
+stressed	PS02
+short fuse	PS04
+can't sleep	PS06
+trouble sleeping	PS06
+waking up at night	PS06
+forgetful	PS17
+can't concentrate	PS17
+brain fog	PS17
+# ── respiratory ───────────────────────────────────────────────────────────
+short of breath	RS02
+breathless	RS02
+out of breath	RS02
+winded	RS02
+chesty cough	RS07
+tickly cough	RS07
+stuffy nose	RS09
+blocked up nose	RS09
+runny nose	RS09
+sore throat	RS12.00
+scratchy throat	RS12
+lost my voice	RS13
+croaky voice	RS13
+coughing up blood	RS14
+hiccups	RS99.00
+# ── skin ──────────────────────────────────────────────────────────────────
+itchy	SS02
+itchy skin	SS02
+rash	SS05
+spots	SS05
+flaky skin	SS08
+losing my hair	SS10
+thinning hair	SS10
+pale	SS07
+dark circles	SS07
+# ── appetite, weight, urinary ─────────────────────────────────────────────
+off my food	TS03
+no appetite	TS03
+losing weight	TS07
+putting on weight	TS06
+always thirsty	TS01
+drinking a lot	TS01
+burning when I pee	US01
+peeing a lot	US02
+up all night to pee	US02
+blood in my pee	US06
+can't hold it	US03
+can't pass urine	US04
+# ── family words that name no single complaint ───────────────────────────
+pain	!too-broad	names a site's worth of codes, not one
+ache	!too-broad
+sore	!too-broad
+ill	!too-broad
+unwell	!too-broad
+inflammation	!too-broad	a conclusion, not a complaint
+infection	!too-broad
+allergy	!too-broad	a mechanism; the complaint is the rash, the sneeze or the swelling
+sick	!ambiguous	vomiting (DS10) in UK usage, unwell generally in US usage

@@ -13,22 +13,30 @@ covered by the project's Apache-2.0 license.)
 These artifacts ship in the git repository (via Git LFS) and in the PyPI wheel;
 use of each is subject to the license terms of its sources:
 
-  Artifact                        Derived from                Notice
-  ------------------------------  --------------------------  -------------------------------
-  fhir_loinc_bundle.tar.gz        LOINC 2.83                  res/fhir_loinc_bundle.NOTICE
-  aliases_src/zh.tsv              LOINC Linguistic Variants   section 1 below
-                                  (claimed; see the note below)
-  crosswalks/*.tsv                LOINC codes; the mapping    section 1 below
-                                  judgements are ours         docs/device-crosswalk.md
-  metrics.tsv                     LOINC codes in the `loinc`  section 1 below
-                                  column; the rest is ours
-  labels/zh.tsv                   hand-written (Apache-2.0)   —
-  aliases_src/zh_curated.tsv      hand-written (Apache-2.0)   —
-  resolver_overrides.tsv          hand-written (Apache-2.0)   —
-  recall_synonyms.tsv             hand-written (Apache-2.0)   —
-  dose_forms.tsv                  UCUM annotations; the       section 2 below
-                                  spellings are ours
-  EXTERNAL.tsv                    a manifest, no content      —
+  Artifact                          Derived from                Notice
+  --------------------------------  --------------------------  -----------------------------
+  loinc/fhir_loinc_bundle.tar.gz    LOINC 2.83                  res/loinc/fhir_loinc_bundle.NOTICE
+  loinc/aliases_src/zh.tsv          LOINC Linguistic Variants   section 1 below
+                                    (claimed; see the note below)
+  loinc/aliases_src/zh_curated.tsv  hand-written (Apache-2.0)   —
+  loinc/resolver_overrides.tsv      hand-written (Apache-2.0)   —
+  loinc/recall_synonyms.tsv         hand-written (Apache-2.0)   —
+  icpc3/icpc3.tsv                   ICPC-3 S and D components,  res/icpc3/icpc3.NOTICE
+                                    verbatim (CC BY-ND)
+  icpc3/symptoms_zh.tsv             hand-written (Apache-2.0)   —
+  icpc3/symptoms_en.tsv             hand-written (Apache-2.0)   —
+  icpc3/conditions_zh.tsv           hand-written (Apache-2.0)   —
+  icpc3/conditions_en.tsv           hand-written (Apache-2.0)   —
+  catalog/metrics.tsv               LOINC codes in the `loinc`  section 1 below
+                                    column; the rest is ours
+  catalog/labels/zh.tsv             hand-written (Apache-2.0)   —
+  crosswalks/*.tsv                  LOINC codes; the mapping    section 1 below
+                                    judgements are ours         docs/device-crosswalk.md
+  ucum/ucum-essence.xml             UCUM 2.2, verbatim          res/ucum/ucum-essence.NOTICE
+  ucum/UCUM-LICENSE.md              the UCUM License 1.1        section 2 below
+  dose_forms.tsv                    UCUM annotations; the       section 2 below
+                                    spellings are ours
+  EXTERNAL.tsv                      a manifest, no content      —
 
 1.5.0 cut the corpus to LOINC only. `fhir_concept_graph.bin`,
 `fhir_meta.csv.gz`, `fhir_snomed_ct_bundle.tar.gz` and `fhir_id_map.npy` are
@@ -37,6 +45,19 @@ every derivative of UMLS, SNOMED CT, RxNorm and ICD-10-CM. Nothing in this
 tree now requires a SNOMED CT Affiliate License or a UMLS Metathesaurus
 License. Releases up to 1.4.x did; their sections are kept at the end of this
 file for anyone reading one of those wheels.
+
+1.5.1 adds ONE new third-party dataset: the S and D components of ICPC-3, under
+Creative Commons Attribution-NoDerivatives (CC BY-ND), redistributable
+verbatim including for commercial use. It needs no signed agreement and no
+account. `res/icpc3/icpc3.NOTICE` carries the attribution, the code system URI
+and what "verbatim" means here; the short version is that no ICPC-3
+term is translated or re-worded anywhere in this package, and the Chinese
+symptom table is our own writing about which phrase points at which code.
+
+1.5.1 also ships UCUM's own machine-readable table, `res/ucum/ucum-essence.xml`,
+byte for byte as Regenstrief publishes it, with its notice and licence text
+(section 2). UCUM was already the unit vocabulary; what is new is that the
+specification itself now travels with the tables that implement it.
 
 A NOTE ON `aliases_src/`, ADDED 2026-09-13, REVISED 2026-09-20
 --------------------------------------------------------------
@@ -53,7 +74,7 @@ re-cut has happened (1.5.0) and they are gone**: the index is now built from
 `Loinc.csv` and `AccessoryFiles/LinguisticVariants/` alone, and a scan of
 `alias_keys.bin` finds zero kana characters. Section 1 (UMLS) no longer
 covers anything in this package. Japanese report spellings still resolve —
-through `res/resolver_overrides.tsv`, this project's own Apache-2.0 file,
+through `res/loinc/resolver_overrides.tsv`, this project's own Apache-2.0 file,
 which maps a Japanese surface to an English name that LOINC's own index
 then answers.
 
@@ -106,7 +127,7 @@ Scope     : LOINC 2.83. `fhir_loinc_bundle.tar.gz` carries 63,416 of the
             carrying a third party's EXTERNAL_COPYRIGHT_NOTICE are dropped
             rather than reproduced. Designations come from Loinc.csv and
             the 21 LinguisticVariants files. Also: the codes and long common
-            names in res/crosswalks/ and res/metrics.tsv.
+            names in res/crosswalks/ and res/catalog/metrics.tsv.
 Attribution: This product includes all or a portion of the LOINC(R) table,
             LOINC panels and forms file, LOINC document ontology file,
             and/or LOINC hierarchies file, or is derived from one or more of
@@ -118,11 +139,18 @@ Attribution: This product includes all or a portion of the LOINC(R) table,
 2. UCUM (Unified Code for Units of Measure)
 -------------------------------------------
 Provider  : Regenstrief Institute, Inc. and the UCUM Organization
-Source    : https://ucum.org/
-License   : UCUM is provided under its own copyright notice; the specification
-            and the unit atoms it defines may be used and implemented freely,
-            with attribution and without modification of the semantics.
-            https://ucum.org/trac/wiki/TermsOfUse
+Source    : https://github.com/ucum-org/ucum (tag v2.2)
+Copyright : Copyright 1999-2024 Regenstrief Institute, Inc. All rights
+            reserved.
+License   : UCUM License, Version 1.1 (June 2024),
+            https://unitsofmeasure.org/license; full text in
+            res/ucum/UCUM-LICENSE.md. Reproduction and distribution of the
+            Work are granted on condition that it is not modified and that a
+            copyright notice, a reference to the License, a reference to its
+            disclaimer of warranties and the License's text or URL travel with
+            it (Section 3); res/ucum/ucum-essence.NOTICE carries all four. Software
+            that interoperates with an unmodified instance of the Work is not
+            a Derivative Work (Section 1.3).
 Scope     : `mirobody/units/` implements UCUM. `tokens.py` maps printed unit
             spellings to canonical UCUM expressions, `families.py` maps a
             canonical unit to the LOINC PROPERTY axis, and `convert.py` does
@@ -130,8 +158,13 @@ Scope     : `mirobody/units/` implements UCUM. `tokens.py` maps printed unit
             their canonical spellings are UCUM's; the printed-spelling variants
             (`Thousand/uL`, `个/HP`, `uIU/mL`, `10⁴/μL` and the multilingual
             morphemes) are hand-written and Apache-2.0.
-Note      : `ucum-essence.xml` is NOT bundled. Our tables are hand-maintained
-            against the published specification rather than generated from it.
+Bundled   : `res/ucum/ucum-essence.xml`, UCUM 2.2, unmodified (SHA-256
+            dfccea1b5dc284245ebae97edd1dc03c45864da4e87df55bc9851797b4fd0b61,
+            refused at read time and at build time if it differs). The tables
+            above are hand-written and interoperate with it: a check reads the
+            file and requires every unit they name to be one UCUM defines and
+            every conversion factor to equal UCUM's. The one exception,
+            `k[arb'U]/L`, is LOINC's own spelling and is named as such.
 
 
 NO LONGER APPLICABLE TO THIS TREE

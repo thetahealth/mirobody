@@ -60,11 +60,6 @@ jobs:
       run: |
         pip install -e '.[app,test]'
 
-    # See test-build.yml: the terminology data that left the checkout. A
-    # release must not be cut with test_readme_numbers skipped.
-    - name: Fetch the out-of-tree terminology data
-      run: ./scripts/fetch_data.sh --all
-
     - name: Test suite and import contracts
       run: |
         pytest -q

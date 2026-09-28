@@ -15,7 +15,8 @@ Two properties worth stating plainly, because they are unusual for an MCP tool:
 
 Measured coverage of the resolver these tools call: see
 ``mirobody/tests/test_engine_coverage.py`` (94 everyday panel terms across English,
-中文 and 日本語).
+中文 and 日本語). The bodies are `mirobody.translate.terminology`, which the stdio
+server (`mcp/stdio.py`) calls too, so both transports answer alike.
 """
 
 import logging
@@ -54,39 +55,17 @@ class TerminologyService:
         Notes for LLMs:
             - Unresolved is an honest "no": report it unmatched, never invent
               a code.
-            - PANEL names ("blood pressure", "血圧") deliberately do not
-              resolve: ask for the specific measurement (systolic/diastolic).
+            - A PANEL name answers with the panel's code ("blood pressure"
+              gives 85354-9), which is not the code of any one value in it:
+              resolve the member ("systolic blood pressure") for a reading.
+              A name for a family of tests ("血脂", "lipid panel") is refused.
             - Same code from two names = same test. That, not string equality,
               decides whether two readings are comparable.
         """
-        if not isinstance(names, list) or not names:
-            return {"success": False, "error": "names must be a non-empty list of strings."}
-        if len(names) > 200:
-            return {"success": False, "error": "Too many names in one call (max 200)."}
+        from mirobody.translate.terminology import resolve_indicators
 
         try:
-            from mirobody.engine import get_resolver
-
-            resolver = get_resolver()
-            results = []
-            for raw in names:
-                if not isinstance(raw, str) or not raw.strip():
-                    continue
-                r = resolver.resolve(raw)
-                results.append({
-                    "name": raw,
-                    "resolved": r.resolved,
-                    "loinc": r.loinc,
-                    "canonical": r.canonical,
-                    "candidates": r.candidates,
-                })
-
-            matched = sum(1 for x in results if x["resolved"])
-            return {
-                "success": True,
-                "message": f"{matched}/{len(results)} resolved",
-                "results": results,
-            }
+            return resolve_indicators(names)
         except Exception as e:
             logger.error(f"[resolve_indicator] {e}", exc_info=True)
             return {"success": False, "error": str(e)}
@@ -121,36 +100,9 @@ class TerminologyService:
                 anything needing a molar mass this engine does not carry, land
                 here. `reason` says which case it was.
         """
-        from mirobody.units import (
-            convert_value, normalize_unit as _norm,
-        )
+        from mirobody.translate.terminology import convert_unit
 
-        src = _norm(from_unit) or from_unit
-        dst = _norm(to_unit) or to_unit
-        try:
-            converted = convert_value(float(value), src, dst, loinc_code=(loinc_code or "").strip())
-        except (TypeError, ValueError):
-            return {"success": False, "error": "value must be a number."}
-
-        if converted is None:
-            return {
-                "success": True,
-                "converted": None,
-                "from_ucum": src,
-                "to_ucum": dst,
-                "reason": (
-                    "These units are not interconvertible. Either they measure "
-                    "different things (a percentage is not an absolute count), "
-                    "or the conversion needs a molar mass this engine does not "
-                    "carry for that code. Report the readings separately."
-                ),
-            }
-        return {
-            "success": True,
-            "converted": converted,
-            "from_ucum": src,
-            "to_ucum": dst,
-        }
+        return convert_unit(value, from_unit, to_unit, loinc_code)
 
     async def normalize_unit(self, units: list[str]) -> dict[str, Any]:
         """
@@ -170,31 +122,10 @@ class TerminologyService:
                 `U/L` and `[IU]/L` are in different families and are the same
                 unit. Call `convert_unit` for that question.
         """
-        if not isinstance(units, list) or not units:
-            return {"success": False, "error": "units must be a non-empty list of strings."}
-        if len(units) > 200:
-            return {"success": False, "error": "Too many units in one call (max 200)."}
+        from mirobody.translate.terminology import normalize_units
 
         try:
-            from mirobody.units import normalize_unit, unit_family
-
-            results = []
-            for raw in units:
-                if not isinstance(raw, str) or not raw.strip():
-                    continue
-                ucum = normalize_unit(raw) or ""
-                results.append({
-                    "unit": raw,
-                    "ucum": ucum,
-                    "family": (unit_family(ucum) or "") if ucum else "",
-                })
-
-            matched = sum(1 for x in results if x["ucum"])
-            return {
-                "success": True,
-                "message": f"{matched}/{len(results)} normalized",
-                "results": results,
-            }
+            return normalize_units(units)
         except Exception as e:
             logger.error(f"[normalize_unit] {e}", exc_info=True)
             return {"success": False, "error": str(e)}

@@ -38,18 +38,17 @@ logger = logging.getLogger(__name__)
 # factory disagree.
 SUPPORTED_EXTENSIONS = {
     # Images (ImageHandler takes any image/*; heic/heif come from iPhones)
-    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".svg",
+    ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".svg",
     ".heic", ".heif",
     # Documents. `.docx`/`.pptx` are back now that `handlers/document.py`
-    # parses them; legacy binary `.doc`/`.ppt` stay out, because python-docx
-    # and python-pptx read only the zip-based formats and accepting a file we
-    # then refuse is the defect this set exists to prevent.
-    ".pdf", ".xls", ".xlsx", ".docx", ".pptx",
+    # parses them; legacy binary `.doc`/`.ppt`/`.xls` stay out, because
+    # python-docx, python-pptx and openpyxl read only the zip-based formats and
+    # accepting a file we then refuse is the defect this set exists to prevent.
+    # `.zip`/`.rar` went for the same reason: nothing here opens an archive.
+    ".pdf", ".xlsx", ".xlsm", ".docx", ".pptx",
     # Plain text: lab exports, genetic raw data, notes. `.csv` belongs here:
     # TextHandler owns it now that the never-injected CSVHandler is gone.
-    ".txt", ".md", ".markdown", ".csv", ".json", ".xml",
-    # Archives: accepted for their contents, not parsed as themselves
-    ".zip", ".rar",
+    ".txt", ".md", ".markdown", ".csv", ".json", ".xml", ".log", ".htm", ".html",
 }
 
 

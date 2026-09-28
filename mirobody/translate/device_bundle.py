@@ -6,9 +6,9 @@ code, the same refusal where the crosswalk has none. Porting the TSVs by hand
 is how two vocabularies start. This module writes what the phone needs, from
 the same files the server reads:
 
-    metrics     the catalogue (``res/metrics.tsv``), every member, with the
+    metrics     the catalogue (``res/catalog/metrics.tsv``), every member, with the
                 ``(system, code)`` identity `Metric.canonical` gives it
-    labels      the shipped display labels (``res/labels/<locale>.tsv``)
+    labels      the shipped display labels (``res/catalog/labels/<locale>.tsv``)
     codes       the crosswalk base table, one row per LOINC code
     vendors     every vendor field read, coded or declined, with its source
     unmappable  the metrics no LOINC code fits, and why
@@ -44,7 +44,7 @@ FORMAT_VERSION = 1
 
 def _labels() -> dict[str, dict[str, dict[str, str]]]:
     out: dict[str, dict[str, dict[str, str]]] = {}
-    root = resources.files("mirobody").joinpath("res", "labels")
+    root = resources.files("mirobody").joinpath("res", "catalog", "labels")
     for entry in sorted(root.iterdir(), key=lambda e: e.name):
         if not entry.name.endswith(".tsv"):
             continue

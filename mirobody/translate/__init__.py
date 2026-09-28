@@ -5,6 +5,8 @@
     local_day.py             the ONE implementation of "which day is this"
     series.py                what may be plotted on one axis
     code.py                  name + unit + value kind -> a Coding, never a guess
+    icpc3.py                 a complaint or a diagnosis in a person's words
+                             -> an ICPC-3 code, on the same terms
     devices.py               thirteen vendors' device fields -> LOINC, with
                              the confidence and the source behind each row
     device_bundle.py         the catalogue and those crosswalks as one
@@ -67,8 +69,9 @@ from .outcome import (
     Coding,
 )
 from .parse import Parsed, parse_range, parse_value
-from .series import Axes, local_series_id, property_dim, series_id
+from .series import Axes, local_series_id, property_dim, series_id, symptom_series_id
 from .code import code, decision_id, release
+from .icpc3 import ICPC3_SYSTEM, resolve_condition, resolve_symptom
 
 #: The pure seam, imported above. `code` is the function, not the module;
 #: `from mirobody.translate.code import code` still reaches the module.
@@ -76,6 +79,7 @@ _SEAM = [
     "Alias",
     "Axes",
     "Coding",
+    "ICPC3_SYSTEM",
     "LOINC_SYSTEM",
     "OUTCOME_CODED",
     "OUTCOME_NEEDS_INPUT",
@@ -90,8 +94,11 @@ _SEAM = [
     "parse_value",
     "property_dim",
     "release",
+    "resolve_condition",
+    "resolve_symptom",
     "resolve_tz",
     "series_id",
+    "symptom_series_id",
     "unit_key",
     "window_for",
     "zone_for",

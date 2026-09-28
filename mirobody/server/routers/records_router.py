@@ -167,7 +167,7 @@ async def standardize(body: StandardizeRequest, user_id: str = Depends(verify_to
 
     stored_count = 0
     if body.store and data:
-        stored_count, _ = await _insert_records(
+        stored_count = (await _insert_records(
             user_id,
             [
                 {
@@ -181,7 +181,7 @@ async def standardize(body: StandardizeRequest, user_id: str = Depends(verify_to
                 for row in data
             ],
             source=_SOURCE_STANDARDIZE,
-        )
+        )).inserted
 
     out: dict[str, Any] = {
         "object": "extraction",
@@ -232,11 +232,11 @@ def _parse_time(raw: str | None) -> datetime:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
-async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source: str) -> tuple[int, int]:
+async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source: str) -> observations.Report:
     """Write readings, standardizing each on the way in.
 
-    Returns `(written, standardized)`: the observations written and how many
-    of them the vocabulary coded. Every write goes through
+    Returns the write's report: the observations written, how many of them
+    the vocabulary coded, and every record not written by reason. Every write goes through
     `observations.ingest`, which folds, parses and codes each row and writes
     the coding beside it. A collision on the identity is a retry, not a
     request for a duplicate row: re-sending a batch after a timeout writes
@@ -263,8 +263,7 @@ async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source
         source_class=series.SOURCE_MANUAL,
     )
     tz = await observations.user_tz(str(user_id))
-    report = await observations.ingest(str(user_id), drafts, provenance, user_tz=tz)
-    return report.inserted, report.coded
+    return await observations.ingest(str(user_id), drafts, provenance, user_tz=tz)
 
 
 @router.post("/data")
@@ -282,11 +281,11 @@ async def write_records(body: WriteRequest, user_id: str = Depends(verify_token)
         for r in body.records
     ]
     try:
-        written, coded = await _insert_records(user_id, records, source=_SOURCE_API)
+        report = await _insert_records(user_id, records, source=_SOURCE_API)
     except Exception as e:
         logger.error(f"[write_records] {e}", exc_info=True)
         return _error(500, "These records could not be written.", "internal_error")
-    return {"status": "ok", "ingested": written, "standardized": coded}
+    return {"status": "ok", "ingested": report.inserted, "standardized": report.coded, "rejected": dict(report.rejected)}
 
 
 @router.get("/data")

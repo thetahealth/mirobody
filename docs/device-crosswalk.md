@@ -21,7 +21,7 @@ carries a **confidence**:
 | `unverified` | semantically close; a person must confirm before a reading is filed under it |
 | *(empty)* | no code; the note says why |
 
-The catalogue in [`mirobody/res/metrics.tsv`](../mirobody/res/metrics.tsv) takes
+The catalogue in [`mirobody/res/catalog/metrics.tsv`](../mirobody/res/catalog/metrics.tsv) takes
 only the confident codes as a metric's identity. An unverified code stays
 visible here and in the tables, and the metric keeps its own namespace until
 someone confirms it.
@@ -33,7 +33,7 @@ ship with `pip install mirobody`.
 
 | File | One row per | Columns |
 | --- | --- | --- |
-| `loinc_device_base.tsv` | LOINC code (66) | `loinc name axes metric confidence` then one column per vendor holding that vendor's field name, verbatim, then `note` |
+| `loinc_device_base.tsv` | LOINC code (68) | `loinc name axes metric confidence` then one column per vendor holding that vendor's field name, verbatim, then `note` |
 | `<vendor>.tsv` (13 files) | vendor field | `type field metric loinc confidence note`; an empty `loinc` is a decline, and the note says why |
 | `unmappable.tsv` | quantity with no code (71) | `reason metric vendors detail disposition` |
 | `open_wearables.tsv` | open-wearables `SeriesType` | the seam to that project's device-access layer; see the file header |
@@ -76,7 +76,7 @@ column links the document each table was read from, all on 2026-09-09.
 | Samsung Health Data SDK (`samsung.tsv`) | 26 | 17 | 15 | [1](https://developer.samsung.com/health/data/api-reference) |
 | Fitbit Web API (`fitbit.tsv`) | 31 | 22 | 16 | [1](https://dev.fitbit.com/build/reference/web-api/) |
 | WHOOP API v2 (`whoop.tsv`) | 34 | 19 | 11 | [1](https://api.prod.whoop.com/developer/doc/openapi.json) |
-| Oura API v2 (`oura.tsv`) | 54 | 25 | 14 | [1](https://cloud.ouraring.com/v2/static/json/openapi-1.37.json) |
+| Oura API v2 (`oura.tsv`) | 54 | 25 | 14 | [1](https://cloud.ouraring.com/v2/static/json/openapi-1.41.json) |
 | Garmin Health API (`garmin.tsv`) | 23 | 17 | 6 | [1](https://developer.garmin.com/gc-developer-program/health-api/) |
 | vivo BlueOS health API (`vivo.tsv`) | 20 | 14 | 11 | [1](https://developers-watch.vivo.com.cn/api/health/health/) · [2](https://developers.vivo.com/doc/d/4ea8ba1ec4cd44bd8bdaca9f3fecf795) |
 | Xiaomi Health cloud (`xiaomi.tsv`) | 13 | 8 | 8 | [1](https://dev.mi.com/) |
@@ -289,7 +289,9 @@ field names are in the TSV.
 | 41982-0 | Percentage of body fat Measured | `bodyFatPercentages` | confident | apple, health_connect, huawei, samsung, fitbit, garmin, xiaomi |
 | 91557-9 | Lean body weight | `bodyFatFreeWeight` | confident | apple, health_connect, huawei, samsung, garmin |
 | 101683-1 | Body water mass | `bodyWaterMass` | confident | health_connect, huawei, samsung, garmin |
+| 101684-9 | Percentage of body water | `bodyWater` | confident | huawei, samsung, garmin |
 | 101685-6 | Body bone mass | `bodyBone` | confident | health_connect, huawei, samsung, garmin |
+| 101686-4 | Body bone percentage | `bonePercentage` | confident | huawei, samsung, garmin |
 | 8280-0 | Waist Circumference at umbilicus by Tape measure | `waistCircumferences` | unverified | apple |
 | 112434-6 | Walking double support [Percentile] | `walkingDoubleSupportPercentage` | confident | apple |
 | 112432-0 | Walking asymmetry | `walkingAsymmetryPercentage` | unverified | apple |
@@ -313,7 +315,7 @@ same list is `mirobody.translate.devices.SOURCES`. All were read on
 | Samsung Health Data SDK | [API reference](https://developer.samsung.com/health/data/api-reference) |
 | Fitbit Web API | [reference](https://dev.fitbit.com/build/reference/web-api/), per-endpoint response tables |
 | WHOOP API v2 | [openapi.json](https://api.prod.whoop.com/developer/doc/openapi.json) |
-| Oura API v2 | [openapi-1.37.json](https://cloud.ouraring.com/v2/static/json/openapi-1.37.json) |
+| Oura API v2 | [openapi-1.41.json](https://cloud.ouraring.com/v2/static/json/openapi-1.41.json) |
 | Garmin Health API | [program page](https://developer.garmin.com/gc-developer-program/health-api/); field-level schemas need approval |
 | vivo | [BlueOS health API](https://developers-watch.vivo.com.cn/api/health/health/), [cloud interface](https://developers.vivo.com/doc/d/4ea8ba1ec4cd44bd8bdaca9f3fecf795) |
 | Xiaomi | public `com.xiaomi.micloud.fit.*` data types via [dev.mi.com](https://dev.mi.com/) |
