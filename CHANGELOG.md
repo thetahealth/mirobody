@@ -5,6 +5,9 @@
   keeps ambiguous fields uncoded. Mixed sources retain one atomic ingest and
   the response's rejected counts; submit a Health Connect heart-rate identifier
   and inspect its LOINC code and device source on readback.
+- **Headless clients can read the API capability version.** `/mirobody.json`
+  now serves `capability_version` and `server_version` even without a web
+  client. A GET or HEAD request verifies that the route exists.
 1.5.2 genetics preview scope: genotype facts and CPIC coverage are available
 with the measured public candidate. Drug phenotypes and rare-disease risk
 interpretation are deferred; the tool reports `not_determined` rather than
