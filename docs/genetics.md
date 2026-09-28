@@ -1,5 +1,7 @@
 # Genetics
 
+**English** · **[中文](genetics.zh-CN.md)**
+
 Mirobody keeps a raw genotype upload as facts: one call per site, with the
 build, allele and strand checks that produced it. Two tools read those facts:
 `query_genetic_data` for sites, genes and regions, and

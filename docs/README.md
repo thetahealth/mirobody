@@ -41,10 +41,11 @@ Start at [quickstart.md](quickstart.md) if you have not run it yet,
 specific subsystem, and [roadmap.md](roadmap.md) for known gaps and deferred
 work — each entry states the measurement that motivated it.
 
-The four guides `README.zh-CN.md` links also have Chinese editions, named
+The five guides `README.zh-CN.md` links also have Chinese editions, named
 `<guide>.zh-CN.md`: [provider-setup](provider-setup.zh-CN.md),
-[standardization](standardization.zh-CN.md), [walkthrough](walkthrough.zh-CN.md)
-and [repository-layout](repository-layout.zh-CN.md). Edit the pair together, the
+[standardization](standardization.zh-CN.md), [walkthrough](walkthrough.zh-CN.md),
+[repository-layout](repository-layout.zh-CN.md) and
+[genetics](genetics.zh-CN.md). Edit the pair together, the
 way the two READMEs are. Everything else here is English: these pages track the
 code closely, and a stale translation of a contributor guide is worse than none.
 

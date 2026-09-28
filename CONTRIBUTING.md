@@ -230,7 +230,10 @@ its source, so there is no `i18n/` here to edit. What is translatable here is th
 two live READMEs — `README.md` and `README.zh-CN.md` — and they are checked as a
 set: links, figures, runnable examples and cross-edition parity all have to
 agree before a release goes out.
-Everything under `docs/` and every in-package `README.md` stays English.
+Every in-package `README.md` stays English, and so does everything under
+`docs/` except the Chinese editions of the guides `README.zh-CN.md` links:
+`<guide>.zh-CN.md`, listed in [`docs/README.md`](docs/README.md) and edited
+together with the English page.
 
 ### Commits
 

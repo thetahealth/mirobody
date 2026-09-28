@@ -9,6 +9,13 @@ boundary.
 
 ### Added
 
+- **The genetics page has a Chinese edition.** The Chinese README linked the
+  genetics page in English only, although every other guide it links has a
+  `<guide>.zh-CN.md`. `docs/genetics.zh-CN.md` now pairs with
+  `docs/genetics.md`, and the Chinese README and the docs index point to it.
+  The file-processing table also listed four vendors and a single-member ZIP
+  for genotype uploads; it now names FTDNA, BGZF and a ZIP of one VCF with
+  BED/TXT sidecars, as the handler accepts.
 - **Phone health-store records now use device provenance.** `POST /api/data`
   resolves recognized vendor identifiers through the shipped crosswalk and
   keeps ambiguous fields uncoded. Mixed sources retain one atomic ingest and
