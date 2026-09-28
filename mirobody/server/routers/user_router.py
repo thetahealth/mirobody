@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from mirobody.user.auth.jwt import validator_from_config
+from mirobody.user.auth.jwt import ACCESS_TOKEN_TYPE, validator_from_config
 from mirobody.server.auth import verify_token
 from mirobody.utils import execute_query
 from mirobody.utils.config import get_default_timezone, global_config
@@ -142,7 +142,7 @@ async def set_user_settings(
                             # endpoint reports it (RFC 7662), so omitting it
                             # would make introspect return null for exactly
                             # the tokens minted here.
-                            "token_type": "oauth_access_token",
+                            "token_type": ACCESS_TOKEN_TYPE,
                         },
                     )
                 }

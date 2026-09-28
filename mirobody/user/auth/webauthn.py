@@ -41,6 +41,7 @@ _MFA_TICKET_PREFIX = "mirobody:webauthn:mfa_ticket:"
 AAL2_SESSION_IDLE_TIMEOUT = 30 * 60       # 30 minutes
 AAL2_SESSION_MAX_LIFETIME = 12 * 60 * 60  # 12 hours
 AAL2_REAUTH_MAX_AGE      = 24 * 60 * 60  # Max age for expired token re-auth
+_SECOND_FACTOR_TTL       = 30.0          # seconds `requires_second_factor` is remembered
 
 
 def _aal2_claims(session_start: int | None = None) -> dict:
@@ -101,6 +102,7 @@ class WebAuthnService:
         self._rp_name = rp_name or "Theta Health"
         self._origin = origin
         self._mfa_ticket_ttl = mfa_ticket_ttl
+        self._second_factor_cache: dict[int, tuple[bool, float]] = {}
 
         # Only register routes if WebAuthn is configured.
         if not self._rp_id:
@@ -271,6 +273,24 @@ class WebAuthnService:
         except Exception as e:
             logger.warning(f"Failed to check mfa_enabled for user {user_id}: {e}")
             return False
+
+    async def requires_second_factor(self, user_id: int) -> bool:
+        """Whether this account's requests need an AAL2 token.
+
+        The same three conditions `check_mfa_required` asks at sign-in, so the
+        gate never demands a passkey the account cannot present. Remembered for
+        `_SECOND_FACTOR_TTL` seconds because the JWT middleware asks on every
+        request; turning MFA on takes effect within that window.
+        """
+        if not self._rp_id:
+            return False
+        now = time.monotonic()
+        cached = self._second_factor_cache.get(user_id)
+        if cached and cached[1] > now:
+            return cached[0]
+        required = await self._is_mfa_enabled(user_id) and bool(await self.get_credentials_for_user(user_id))
+        self._second_factor_cache[user_id] = (required, now + _SECOND_FACTOR_TTL)
+        return required
 
     async def check_mfa_required(self, user_id: int, email: str) -> dict | None:
         """Check if MFA is required for this user.

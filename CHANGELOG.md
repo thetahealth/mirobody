@@ -122,6 +122,40 @@ boundary.
   proof, and the default accepts everything, which every shipped provider
   inherits. A provider that does not override it now answers 401.
 
+- **A passkey protected nothing.** An account with MFA on signs in with an
+  AAL1 fallback token, and no route ever asked for more. Every request of such
+  an account now needs `aal` >= 2, except the WebAuthn and session routes that
+  raise it and the settings read the web client makes first; the client
+  already answers `403 ERROR_AAL2_REQUIRED` by running the passkey upgrade and
+  retrying. Turning MFA off, minting an MCP URL and `/mcp` are gated too. MCP
+  clients an MFA account authorised before this carry no `aal` and must be
+  authorised again.
+- **The assurance level no longer launders through a refresh.** A refresh
+  token was accepted as a bearer credential (60 days), and `/oauth/token`
+  accepted ANY valid token as a refresh token, returning a fresh 30-day token
+  with no `aal`. Refresh tokens are now refused as bearers, the token endpoint
+  requires a refresh token issued to the presenting client, and `aal` rides
+  from the authorising session through the code, the tokens and every refresh.
+- **OAuth: PKCE and `redirect_uri` are checked.** The metadata advertised
+  S256 and nothing verified it. A redirect flow now requires
+  `code_challenge_method=S256`, and the token request must present the
+  matching `code_verifier` and the same `redirect_uri`. A signed-in
+  `GET /oauth/authorize` no longer puts the session token in the redirect URL.
+- **Chat attachments are checked for ownership.** A request named its files by
+  key and nothing asked whose they were: a key taken from someone else's
+  shared conversation was downloaded, extracted into the caller's record, and
+  its row rewritten. Keys another account holds are now dropped before the
+  fetch, and the upsert touches only the uploader's own row. Attachment bytes
+  are no longer copied into Redis (base64, an hour, keyed by file key alone).
+- **Sign in with Apple and Google is removed.** Neither the web client nor
+  anything in this repository called `/apple/verify` or `/google/verify`, and
+  the Apple path checked no audience, so an id_token issued to any app signed
+  its holder in here and matched their account by email. `APPLE_*` and
+  `GOOGLE_CLIENT_ID` are no longer read, `/mirobody.json` drops its two sign-in
+  flags, and `health_app_user.apple_sub` is kept but no longer written. Sign-in
+  is by email code or password. `ensure_user` is now the one find-or-create by
+  email (it was two, one of which raced).
+
 ### Changed
 
 - **Asking on someone's behalf answered as if the record were the asker's.**

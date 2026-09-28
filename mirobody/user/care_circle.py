@@ -531,35 +531,6 @@ def _age_from(birth: str | None) -> int | None:
     return None
 
 
-async def resolve_email_to_user(email: str) -> int | None:
-    """The user id behind an address, minting a shell account on first sight.
-
-    Inviting somebody who has never signed in has to work (that is what an
-    invitation IS) so the row is created here and the invitee claims it at
-    first login. `add_or_get_user` only runs on login, which is why the invite
-    path needs its own upsert.
-    """
-    clean = (email or "").strip().lower()
-    if not clean or "@" not in clean:
-        return None
-    rows = await execute_query(
-        """
-        WITH ins AS (
-            INSERT INTO health_app_user (is_del, email, name)
-            VALUES (false, :email, :name)
-            ON CONFLICT (email) WHERE (is_del = false) DO NOTHING
-            RETURNING id
-        )
-        SELECT id FROM ins
-        UNION ALL
-        SELECT id FROM health_app_user WHERE email = :email AND is_del = false
-        LIMIT 1
-        """,
-        {"email": clean, "name": clean.split("@")[0]},
-    )
-    return int(rows[0]["id"]) if rows else None
-
-
 async def force_accept_managed_member(
     circle_id: int, member_id: int, *, nickname: str | None = None
 ) -> int:

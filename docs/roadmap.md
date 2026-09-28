@@ -399,7 +399,7 @@ One of the copies — `get_user_info`, the profile the chat layer greets you wit
 language and timezone. Twenty-five copies of a predicate is twenty-five chances
 to omit it once, and it was omitted once.
 
-`user.get_user(user_id= | email= | apple_sub=)` is the lookup: exactly one
+`user.get_user(user_id= | email=)` is the lookup: exactly one
 selector, `is_del = false` not expressible as a parameter, email normalized the
 way it is stored, string ids accepted (care-circle ids travel as VARCHAR). 19
 call sites now use it. `test_user_lookup.py` fails on a new hand-rolled read,

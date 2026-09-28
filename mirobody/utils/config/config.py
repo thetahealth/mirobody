@@ -611,22 +611,6 @@ class Config:
         }
 
 
-    def get_apple_options(self) -> dict[str, str]:
-        return {
-            "apple_client_id"   : self.get_str("APPLE_CLIENT_ID"),
-            "apple_team_id"     : self.get_str("APPLE_TEAM_ID"),
-            "apple_key_id"      : self.get_str("APPLE_KEY_ID"),
-            "apple_private_key" : self.get_str("APPLE_PRIVATE_KEY"),
-            "apple_auth_client_id" : self.get_str("APPLE_CLIENT_ID_APP")
-        }
-
-
-    def get_google_options(self) -> dict[str, str]:
-        return {
-            "google_client_id"      : self.get_str("GOOGLE_CLIENT_ID")
-        }
-
-
     def get_webauthn_options(self) -> dict:
         return {
             "webauthn_rp_id"            : self.get_str("WEBAUTHN_RP_ID"),

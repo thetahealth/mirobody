@@ -145,24 +145,12 @@ async def _store_files(params: ChatStreamRequest) -> None:
     prompt tells the model to `read_file` them, so injecting the bytes into the
     turn would duplicate that and blow up the context.
     """
-    if not params.file_list:
-        return
-    from mirobody.utils.config import global_config
-
-    redis_client = None
-    try:
-        redis_client = await global_config().get_redis().get_async_client()
-    except Exception as e:
-        logger.warning("file cache unavailable: error_type=%s", type(e).__name__)
-
     await process_files_from_storage(
         file_list=params.file_list,
         user_id=params.user_id,
         msg_id=params.question_id,
         session_id=params.session_id,
         query_user_id=params.query_user_id,
-        language=params.language,
-        redis_client=redis_client,
     )
 
 

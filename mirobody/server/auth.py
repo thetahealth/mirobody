@@ -17,12 +17,12 @@ Two functions did not come along, both with zero callers anywhere:
 `WebSocket`) and `set_id_decoder`, already listed as dead in docs/roadmap.md.
 """
 
-import jwt
 import logging
 
 from urllib.parse import unquote
 from fastapi import Header, HTTPException
 
+from mirobody.user.auth.jwt import REFRESH_TOKEN_TYPE, JwtTokenValidator
 from mirobody.utils.config import global_config
 from mirobody.utils.log import secret_fingerprint
 from mirobody.utils.req_ctx import get_req_ctx, update_req_ctx
@@ -32,7 +32,6 @@ logger = logging.getLogger(__name__)
 #-----------------------------------------------------------------------------
 
 async def verify_token_string(token_string: str) -> str:
-    # raise HTTPException(status_code=401, detail=f"Token decode failed, token: {token_string}")
     try:
         # Decode it beforehand.
         token = unquote(token_string)
@@ -46,7 +45,6 @@ async def verify_token_string(token_string: str) -> str:
     # Remove Bearer prefix.
     while token.startswith("Bearer "):
         token = token[7:]
-        logger.debug(f"Remove one Bearer prefix, and the length of rest token: '{token[:50]}...'")
 
     jwt_key = global_config().get("JWT_KEY")
     if not jwt_key:
@@ -55,23 +53,14 @@ async def verify_token_string(token_string: str) -> str:
 
     #-----------------------------------------------------
 
-    try:
-        decoded = jwt.decode(
-            token,
-            jwt_key,
-            algorithms  = ["HS256"],
-            options     = {
-                "verify_signature"  : True,
-                "verify_exp"        : True,
-                "verify_orig_iat"   : False,
-                "verify_aud"        : False,
-                "verify_iss"        : False
-            },
-            audience    = None,  # Ignore audience.
-        )
-
-    except Exception as e:
-        logger.warning(f"Failed to decode JWT token: {str(e)}")
+    # One decoder: the middleware's. This was a second copy of the same
+    # `jwt.decode` call, and it is where a refresh token presented as a bearer
+    # credential got in after the middleware had refused it.
+    decoded, err = JwtTokenValidator(jwt_key).verify_token(token)
+    if err:
+        logger.warning("JWT decode failed: error_type=%s", err.split(":")[0])
+        decoded = None
+    if isinstance(decoded, dict) and decoded.get("token_type") == REFRESH_TOKEN_TYPE:
         decoded = None
 
     if not decoded:

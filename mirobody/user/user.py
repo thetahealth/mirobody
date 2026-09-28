@@ -3,10 +3,9 @@
 **Two layers, and the boundary is atomicity.** `utils/db.execute_query` runs ONE
 statement inside its own `engine.begin()`, so anything that must commit or roll
 back together cannot use it: two calls are two transactions. That is the whole
-rule, and in this package it applies to exactly three functions: `add_or_get_user`
-(SELECT then INSERT-or-UPDATE, a read-then-write that must not interleave),
-`del_user` (two tables marked deleted together), and `account_merge` (an explicit
-`conn.transaction()` over the whole merge). Those take an injected
+rule, and in this package it applies to `del_user` (two tables marked deleted
+together) and `account_merge` (an explicit `conn.transaction()` over the whole
+merge). Those take an injected
 `AsyncConnectionPool` and hand-roll `cur.execute(..., %s)`.
 
 Everything else (every single-statement read, wherever it lives) goes through
@@ -25,7 +24,7 @@ import logging
 
 from typing import TYPE_CHECKING
 
-# Type-checking only: `AsyncConnectionPool` appears in three parameter
+# Type-checking only: `AsyncConnectionPool` appears in two parameter
 # annotations, and psycopg_pool lives in the [app] extra. A module-scope
 # import here made `import mirobody.user.care_circle` (the pure authorization
 # rules examples/06 demonstrates) require the server extra.
@@ -41,25 +40,21 @@ logger = logging.getLogger(__name__)
 # Every column a caller has asked for across those 20 sites, so the one accessor
 # can serve all of them. The table is 15 narrow columns; naming them beats `*`
 # because a dropped column then fails here instead of at the first KeyError.
-_USER_COLUMNS = (
-    "id, email, name, lang, response_lang, tz, gender, birth, blood, "
-    "apple_sub, mfa_enabled, consultant_id, coins"
-)
+_USER_COLUMNS = "id, email, name, lang, tz, gender, birth, blood, mfa_enabled"
 
 
 async def get_user(
     *,
     user_id     : int | str | None = None,
     email       : str | None = None,
-    apple_sub   : str | None = None,
 ) -> dict | None:
     """The one `health_app_user` lookup. Returns the live row, or None.
 
     Exactly one selector. `is_del = false` is not optional and not a parameter:
-    a soft-deleted account must not be findable by any of the three keys, which
-    is the bug this function exists to make unrepeatable.
+    a soft-deleted account must not be findable by either key, which is the
+    bug this function exists to make unrepeatable.
     """
-    keys = {"id": user_id, "email": email, "apple_sub": apple_sub}
+    keys = {"id": user_id, "email": email}
     given = {k: v for k, v in keys.items() if v not in (None, "")}
     if len(given) != 1:
         raise ValueError(f"get_user needs exactly one of {list(keys)}, got {list(given)}")
@@ -79,100 +74,34 @@ async def get_user(
 
 #-----------------------------------------------------------------------------
 
-async def add_or_get_user(
-    db_pool         : AsyncConnectionPool,
-    email           : str,
-    name            : str | None = None,
-    apple_subject   : str | None = None,
-) -> tuple[
-    int,        # User ID.
-    str | None  # Error message.
-]:
-    lower_email = email.strip().lower()
-    if not lower_email:
-        return 0, "Invalid email."
+async def ensure_user(email: str) -> int | None:
+    """The live account for an address, created on first sight; None for a
+    malformed address.
 
-    if name is None or (isinstance(name, str) and name.strip() == ""):
-        name = lower_email.split("@")[0]
-
-    if not db_pool:
-        return 0, "Invalid database connection."
-
-    try:
-        async with db_pool.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT id FROM health_app_user WHERE email=%s AND is_del=FALSE;",
-                    [lower_email]
-                )
-                await conn.commit()
-
-                row = await cur.fetchone()
-                if row and len(row) == 1:
-                    user_id = row[0]
-
-                    if apple_subject:
-                        await cur.execute(
-                            "UPDATE health_app_user SET apple_sub=%s WHERE id=%s;",
-                            [apple_subject, user_id]
-                        )
-                        await conn.commit()
-
-                    # Return existing user ID.
-                    return user_id, None
-
-                #-------------------------------------
-
-                if not apple_subject:
-                    apple_subject = None
-
-                await cur.execute(
-                    "INSERT INTO health_app_user (is_del,email,name,apple_sub)"
-                    " VALUES (FALSE,%s,%s,%s) RETURNING id;",
-                    [lower_email, name, apple_subject]
-                )
-                await conn.commit()
-
-                row = await cur.fetchone()
-                if row and len(row) == 1:
-                    # Return inserted user ID.
-                    return row[0], None
-
-    except Exception as e:
-        logger.error(str(e), extra={
-            "email": email, "apple": apple_subject
-        })
-
-        return 0, str(e)
-
-    return 0, "Not found."
-
-#-----------------------------------------------------------------------------
-
-async def get_user_via_apple_subject(
-    apple_subject   : str
-) -> tuple[
-    int,        # User ID.
-    str,        # Email.
-    str | None  # Error message.
-]:
-    if not apple_subject:
-        return 0, "", "Invalid Apple sub."
-
-    try:
-        row = await get_user(apple_sub=apple_subject)
-        if not row:
-            return 0, "", "Not found."
-
-        return row["id"], row["email"], None
-
-    except Exception as e:
-        logger.error(str(e), extra={"apple": apple_subject})
-
-        return 0, "", str(e)
-
-#-----------------------------------------------------------------------------
-
+    One statement, so two sign-ins racing on a new address both get the same
+    row. This replaced two copies: `add_or_get_user` (sign-in), which read then
+    inserted and returned the second racer an IntegrityError as its message,
+    and `care_circle.resolve_email_to_user` (invitations), which was this.
+    """
+    clean = (email or "").strip().lower()
+    if not clean or "@" not in clean:
+        return None
+    rows = await execute_query(
+        """
+        WITH ins AS (
+            INSERT INTO health_app_user (is_del, email, name)
+            VALUES (false, :email, :name)
+            ON CONFLICT (email) WHERE (is_del = false) DO NOTHING
+            RETURNING id
+        )
+        SELECT id FROM ins
+        UNION ALL
+        SELECT id FROM health_app_user WHERE email = :email AND is_del = false
+        LIMIT 1
+        """,
+        {"email": clean, "name": clean.split("@")[0]},
+    )
+    return int(rows[0]["id"]) if rows else None
 
 #-----------------------------------------------------------------------------
 

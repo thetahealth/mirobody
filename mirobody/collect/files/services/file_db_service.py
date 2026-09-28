@@ -100,6 +100,9 @@ class FileDbService:
                     text_length = EXCLUDED.text_length,
                     content_hash = EXCLUDED.content_hash,
                     updated_at = now()
+                -- Only the uploader's own row: a key someone else's file holds
+                -- is not the caller's to rename, re-describe or re-scene.
+                WHERE th_files.user_id = EXCLUDED.user_id
                 RETURNING id
             """
             
@@ -133,6 +136,22 @@ class FileDbService:
             logger.error(f"Failed to insert file: {str(e)}", stack_info=True)
             return None
     
+    @staticmethod
+    async def keys_held_by_others(file_keys: list[str], user_id: str) -> set[str]:
+        """The keys among `file_keys` whose file belongs to another account.
+
+        A chat request names its attachments by key, and nothing checked whose
+        they were: a key read off someone else's shared conversation was
+        downloaded, extracted into the caller's record, and its row rewritten.
+        """
+        if not file_keys:
+            return set()
+        rows = await execute_query(
+            "SELECT file_key FROM th_files WHERE file_key = ANY(:keys) AND user_id <> :user_id",
+            params={"keys": list(file_keys), "user_id": str(user_id)},
+        )
+        return {str(r["file_key"]) for r in rows or []}
+
     @staticmethod
     async def insert_files_batch(
         user_id: str,

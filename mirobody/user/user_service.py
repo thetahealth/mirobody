@@ -5,21 +5,18 @@ from redis.asyncio import Redis
 
 from .auth.jwt import AbstractTokenValidator
 from .auth.email import create_email_validator
-from .auth.apple import AppleTokenValidator
-from .auth.google import GoogleTokenValidator
 from .auth.webauthn import WebAuthnService
 
 from .user import (
-    add_or_get_user,
+    ensure_user,
     del_user,
     get_user,
-    get_user_via_apple_subject,
     update_user_name,
 )
 
 from .account_merge import merge_accounts
 
-from mirobody.utils import execute_query, secret_fingerprint, json_response_with_code, json_response, Request, Response, Route
+from mirobody.utils import execute_query, json_response_with_code, json_response, Request, Response, Route
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +42,6 @@ class UserService:
         email_password  : str = "",
         email_predefined: str | bytes | bytearray | dict[str, str] | None = None,
 
-        apple_client_id : str = "",
-        apple_team_id   : str = "",
-        apple_key_id    : str = "",
-        apple_private_key   : str = "",
-        apple_auth_client_id: str = "",
-
-        google_client_id    : str = "",
-
         # WebAuthn (AAL2).
         webauthn_rp_id      : str = "",
         webauthn_rp_name    : str = "",
@@ -74,22 +63,6 @@ class UserService:
             redis           = redis
         )
         
-        if apple_client_id and apple_team_id and apple_key_id and apple_private_key:
-            self._apple_validator = AppleTokenValidator(
-                apple_client_id,
-                apple_team_id,
-                apple_key_id,
-                apple_private_key,
-                auth_client_id = apple_auth_client_id
-            )
-        else:
-            self._apple_validator = None
-
-        if google_client_id:
-            self._google_validator = GoogleTokenValidator(google_client_id)
-        else:
-            self._google_validator = None
-
          #-------------------------------------------------
 
         self._db_pool = db_pool
@@ -125,12 +98,6 @@ class UserService:
 
         self.routes.append(Route(f"{uri_prefix}/user/del", endpoint=self.user_unregister_handler, methods=["POST", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/user/update_name", endpoint=self.user_update_name_handler, methods=["POST", "OPTIONS"]))
-
-        if self._apple_validator:
-            self.routes.append(Route(f"{uri_prefix}/apple/verify", endpoint=self.apple_verify_handler, methods=["POST", "OPTIONS"]))
-
-        if self._google_validator:
-            self.routes.append(Route(f"{uri_prefix}/google/verify", endpoint=self.google_verify_handler, methods=["POST", "OPTIONS"]))
 
     #-------------------------------------------------------------------------
 
@@ -177,9 +144,9 @@ class UserService:
         
         #-------------------------------------------------
 
-        id, err = await add_or_get_user(self._db_pool, email)
-        if err:
-            return json_response_with_code(-4, err, request=request)
+        id = await ensure_user(email)
+        if not id:
+            return json_response_with_code(-4, "Invalid email.", request=request)
 
         #-------------------------------------------------
 
@@ -459,117 +426,9 @@ class UserService:
 
     #-------------------------------------------------------------------------
 
-    async def apple_verify_handler(self, request: Request) -> Response:
-        if request.method == "OPTIONS":
-            return json_response_with_code(disable_log=True)
-
-        try:
-            request_json = await request.json()
-
-            token   = request_json.get("token")
-            code    = request_json.get("code")
-            if not token and not code:
-                return json_response_with_code(-1, "Apple ID token or authorization code is required.", request=request)
-
-            email   = request_json.get("email")
-            name    = request_json.get("name")
-
-            payload = None
-
-            #---------------------------------------------
-
-            if code:
-                # The authorization code is a live credential (exchangeable for
-                # tokens until it expires); fingerprint it like the JWT below
-                # instead of writing it verbatim: DEBUG logs are not a safe
-                # place for it either.
-                logger.debug("Apple authorization code: %s", secret_fingerprint(code))
-
-                payload, err = await self._apple_validator.verify_authorization_code(code)
-                if err:
-                    logger.error(err, extra={"code": secret_fingerprint(code), "email": email})
-
-                    if not token:
-                        return json_response_with_code(-2, err, request=request)
-
-            #---------------------------------------------
-
-            if not payload:
-                if not token:
-                    return json_response_with_code(-3, "Apple ID token is required.", request=request)
-
-                logger.debug("Apple JWT token: %s", secret_fingerprint(token))
-
-                payload, err = await self._apple_validator.verify_token(token)
-                if err:
-                    return json_response_with_code(-4, err, request=request)
-                if not payload:
-                    return json_response_with_code(-5, "Empty payload.", request=request)
-
-            #---------------------------------------------
-
-            apple_subject = payload.get("sub")      # Apple user ID.
-            if not apple_subject:
-                return json_response_with_code(-6, "Empty Apple subject.", request=request)
-
-            id, email, err = await get_user_via_apple_subject(apple_subject)
-            if err:
-                logger.warning(err, extra={"apple_subject": apple_subject})
-
-                email = payload.get("email")
-                if not email:
-                    email = f"{apple_subject}@apple-private.com"
-
-                id, err = await add_or_get_user(self._db_pool, email, name, apple_subject)
-                if err:
-                    return json_response_with_code(-7, err, request=request)
-                if not id:
-                    return json_response_with_code(-8, "Empty user ID.", request=request)
-
-            #---------------------------------------------
-
-            return await self._generate_auth_response(id, email, "apple", request)
-
-        except Exception as e:
-            return json_response_with_code(-10, str(e), request=request)
-
-    #-------------------------------------------------------------------------
-
-    async def google_verify_handler(self, request: Request) -> Response:
-        if request.method == "OPTIONS":
-            return json_response_with_code(disable_log=True)
-
-        try:
-            request_json = await request.json()
-            
-            token = request_json.get("token")
-            if not token:
-                return json_response_with_code(-1, "Google ID token is required", request=request)
-
-            #---------------------------------------------
-
-            payload, err = await self._google_validator.verify_token(token)
-            if err:
-                logger.warning(err, extra={"token": secret_fingerprint(token)})
-            if not payload:
-                return json_response_with_code(-2, "Invalid Google ID token.", request=request)
-
-            #---------------------------------------------
-
-            verified_email = payload.get("email")
-            if not verified_email:
-                return json_response_with_code(-3, "No email in verified token.", request=request)
-
-            id, err = await add_or_get_user(self._db_pool, verified_email)
-            if err:
-                return json_response_with_code(-4, err, request=request)
-            
-            #-------------------------------------------------
-
-            return await self._generate_auth_response(id, verified_email, "google", request)
-
-        except Exception as e:
-            return json_response_with_code(-6, str(e), request=request)
+    async def requires_second_factor(self, user_id: int) -> bool:
+        """For the JWT middleware: whether `user_id` needs an AAL2 token."""
+        return bool(self._webauthn_service) and await self._webauthn_service.requires_second_factor(user_id)
 
     async def _generate_auth_response(
         self,

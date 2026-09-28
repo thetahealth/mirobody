@@ -359,7 +359,7 @@ async def seed(member_emails: list[str]) -> None:
 
     *member_emails* are the accounts a human will actually sign in as: the keys
     of `EMAIL_PREDEFINE_CODES`. Each is created if absent, because the circle
-    needs a member id and `add_or_get_user` only runs on first login: without
+    needs a member id and `ensure_user` only runs on first login: without
     this, the first sign-in would land on an account that is in no circle.
     """
     from mirobody.user import care_circle as cc

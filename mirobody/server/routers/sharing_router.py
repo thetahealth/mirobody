@@ -35,6 +35,7 @@ from mirobody.server.envelope import err, ok
 from fastapi import Depends
 
 from mirobody.user import care_circle as cc
+from mirobody.user.user import ensure_user
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,7 @@ async def invite_member(request: InviteRequest, user_id: str = Depends(verify_to
     what an invitation is for. Their `health_access` starts at 0 either way: an
     invitation asks someone to join, it does not decide what they share.
     """
-    member_id = await cc.resolve_email_to_user(request.email)
+    member_id = await ensure_user(request.email)
     if member_id is None:
         return err(-1, "A valid email address is required.")
     if member_id == int(user_id):

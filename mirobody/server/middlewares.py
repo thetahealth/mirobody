@@ -2,17 +2,43 @@ import time
 import uuid
 
 from typing import Any
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from psycopg_pool import AsyncConnectionPool
 from redis.asyncio import Redis
 
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from mirobody.utils.i18n import language_from_headers
 
 from mirobody.user import JwtTokenValidator
+from mirobody.user.auth.jwt import REFRESH_TOKEN_TYPE
+
+#-----------------------------------------------------------------------------
+
+#: Paths an AAL1 session of an MFA account may still reach: the WebAuthn and
+#: session routes that raise it to AAL2, and the settings read the web client's
+#: `ensureAAL2` makes to learn whether a passkey is registered. Matched as a
+#: substring so an `API_PREFIX` in front does not matter.
+_AAL1_REACHABLE = ("/auth/webauthn/", "/auth/session/")
+_AAL1_REACHABLE_GETS = ("/api/user/settings",)
+
+
+def _aal1_reachable(method: str, path: str) -> bool:
+    if any(p in path for p in _AAL1_REACHABLE):
+        return True
+    return method == "GET" and any(path.endswith(p) for p in _AAL1_REACHABLE_GETS)
+
+
+def _aal2_required() -> Response:
+    # The web client's interceptor keys on `detail.code`, runs the passkey
+    # upgrade and retries the request (the same shape as the session routes'
+    # ERROR_SESSION_MAX_LIFETIME).
+    return JSONResponse(
+        {"detail": {"code": "ERROR_AAL2_REQUIRED", "message": "This account requires a passkey for this request."}},
+        status_code=403,
+    )
 
 #-----------------------------------------------------------------------------
 
@@ -37,8 +63,13 @@ class JwtMiddleware(BaseHTTPMiddleware):
         app,
         dispatch = None,
         jwt_key: str = "",
-        decode_func: Callable[[str], int] | None = None
+        decode_func: Callable[[str], int] | None = None,
+        requires_second_factor: Callable[[int], Awaitable[bool]] | None = None,
     ):
+        # Whether an account's requests need `aal` >= 2. Without this, MFA
+        # protected nothing: sign-in hands an MFA account an AAL1 fallback
+        # token, and no route ever asked for more.
+        self._requires_second_factor = requires_second_factor
         if jwt_key:
             self._token_validator = JwtTokenValidator(jwt_key)
         else:
@@ -63,6 +94,7 @@ class JwtMiddleware(BaseHTTPMiddleware):
         # Check JWT token.
 
         request.state.user_id = 0
+        aal = 0
 
         if self._token_validator:
             token = request.headers.get("Authorization")
@@ -72,8 +104,17 @@ class JwtMiddleware(BaseHTTPMiddleware):
 
                 if token:
                     payload, err = self._token_validator.verify_token(token)
+                    # A refresh token is exchanged at /oauth/token, never
+                    # presented: accepted here, a 60-day refresh token worked
+                    # as an access token.
+                    if not err and isinstance(payload, dict) and payload.get("token_type") == REFRESH_TOKEN_TYPE:
+                        payload = None
                     if not err and payload:
                         if isinstance(payload, dict) and "sub" in payload:
+                            try:
+                                aal = int(payload.get("aal") or 0)
+                            except (TypeError, ValueError):
+                                aal = 0
                             sub = payload["sub"]
                             if sub:
                                 if self._decode_func:
@@ -90,6 +131,11 @@ class JwtMiddleware(BaseHTTPMiddleware):
 
             if not await is_active_account(request.state.user_id):
                 request.state.user_id = 0
+
+        if (request.state.user_id > 0 and aal < 2 and self._requires_second_factor
+                and not _aal1_reachable(request.method, request.url.path)
+                and await self._requires_second_factor(request.state.user_id)):
+            return _aal2_required()
 
         #-------------------------------------------------
 

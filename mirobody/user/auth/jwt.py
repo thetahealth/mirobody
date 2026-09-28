@@ -6,6 +6,11 @@ from collections.abc import Callable
 
 from starlette.requests import Request
 
+#: `token_type` claims. A refresh token is not a bearer credential: it is only
+#: ever exchanged at the token endpoint, and it lives twice as long.
+ACCESS_TOKEN_TYPE = "oauth_access_token"
+REFRESH_TOKEN_TYPE = "oauth_refresh_token"
+
 #-----------------------------------------------------------------------------
 
 class AbstractTokenValidator:
@@ -35,7 +40,7 @@ class AbstractTokenValidator:
             {
                 "email"     : email.strip().lower(),
                 # "client_id" : f"mcp_{auth_method}_auth" if auth_method else "data_server",
-                "token_type": "oauth_access_token"
+                "token_type": ACCESS_TOKEN_TYPE
             }
         )
 
@@ -48,10 +53,14 @@ class AbstractTokenValidator:
 
         #-------------------------------------------------
 
-        extra_claims = {
-            # "client_id" : f"mcp_{auth_method}_auth" if auth_method else "data_server",
-            "token_type": "oauth_refresh_token"
-        }
+        # The refresh token carries the session's assurance level, so what it
+        # mints is no stronger than the session that minted it. Without it, an
+        # AAL1 fallback login's refresh token came back as an access token with
+        # no `aal` at all.
+        aal = extra_claims.get("aal")
+        extra_claims = {"token_type": REFRESH_TOKEN_TYPE}
+        if aal:
+            extra_claims["aal"] = aal
 
         if client_id:
             extra_claims["client_id"] = client_id
