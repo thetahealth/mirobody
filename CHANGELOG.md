@@ -9,6 +9,18 @@ boundary.
 
 ### Added
 
+- **Phone health-store records now use device provenance.** `POST /api/data`
+  resolves recognized vendor identifiers through the shipped crosswalk and
+  keeps ambiguous fields uncoded. Mixed sources retain one atomic ingest and
+  the response's rejected counts; submit a Health Connect heart-rate identifier
+  and inspect its LOINC code and device source on readback.
+- **Headless clients can read the API capability version.** `/mirobody.json`
+  now serves `capability_version` and `server_version` even without a web
+  client. A GET or HEAD request verifies that the route exists.
+- **The offline device vocabulary can now be exported for phone clients.**
+  `mirobody device-bundle [--out PATH]` writes the metric catalogue, labels,
+  LOINC crosswalk and vendor fields with a canonical SHA-256 digest. Run the
+  command twice and compare the bytes to check reproducibility.
 - **Tracked vocabulary examples for indicators and complaints.** The earlier
   cases lived only in ignored local tests, so a fresh clone could not replay
   typical LOINC/UCUM and ICPC-3 outcomes. `benchmarks/health_records/` now
@@ -56,9 +68,9 @@ boundary.
   header; the public upload round trip checks both.
 - **Genotype batches now insert as column arrays.** The per-row executemany
   path took 80.254 s for 1.3 million public GIAB HG005 SNVs, over the 60 s
-  budget for a whole-chip import. One SQL insert per 50,000-row batch took 42.074 s on
-  the same isolated PostgreSQL host; both runs activated all 1.3 million
-  calls. The benchmark script pins the public source SHA.
+  budget for a whole-chip import. One SQL insert per 50,000-row batch took
+  42.074 s on the same isolated PostgreSQL host; both runs activated all
+  1.3 million calls. The benchmark script pins the public source SHA.
 - **The Genomics Data page now ships in the bundled web client.** The page has
   a dedicated upload entry, processing state and active-set summary. Its source
   passed 167 tests, lint with zero errors and the open-source build; the local
