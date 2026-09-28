@@ -323,10 +323,6 @@ async def get_providers(
         else:
             all_providers = connected_providers + unconnected_providers + unsupported_providers
 
-        # Populate provider statistics
-        if query_user_id:
-            await platform_manager.populate_provider_stats(query_user_id, all_providers)
-
         user_info = f" for user {query_user_id}" if query_user_id else " (no user context)"
         logger.info(f"Retrieved {len(all_providers)} providers{user_info}")
         return StandardResponse(

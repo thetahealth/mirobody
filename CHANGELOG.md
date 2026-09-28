@@ -9,6 +9,14 @@ boundary.
 
 ### Added
 
+- **Every response names its request id, and a failure quotes it.** The id
+  that ties a request's log lines together was minted only for signed-in
+  requests and never left the server, so "it said internal error" matched
+  every error that day. Every request now gets one (the caller's
+  `X-Request-Id` or `X-Trace-Id` when it is 1-64 of `[A-Za-z0-9._:-]`, else a
+  fresh uuid), every response returns it as `X-Request-Id` (exposed to browser
+  scripts), and the chat's internal-error message ends with
+  `(reference: <id>)`. Grep the logs for that id.
 - **The genetics page has a Chinese edition.** The Chinese README linked the
   genetics page in English only, although every other guide it links has a
   `<guide>.zh-CN.md`. `docs/genetics.zh-CN.md` now pairs with
@@ -205,6 +213,18 @@ boundary.
   stayed. It now finds them by the message id within the caller's files.
   `th_files.created_source` is now `data` or `ask`, after the web client's
   tabs (it was `web_drive`/`web_chat`); `90_retire.sql` renames existing rows.
+- **Parameters and state nothing read are gone.** `POST /api/chat` no longer
+  accepts `user_name`, `token` or `trace_id` in its body (none was read; the
+  request id travels in `X-Request-Id`). A tool's injected `user_info` is
+  `{"user_id"}` only, on both surfaces: `token`, `session_id` and `success`
+  reached no tool. Removed with no caller: `collect/core/database.py` (its one
+  live path, the provider list's record counts, always returned nothing), the
+  provider webhook-management methods (`get_webhooks`, `check_format`,
+  `sync_user_devices`, the raw-data readers), `mcp.call_global_tool`,
+  `get_global_tool_count`, `reset_global_tools`, and the agent's
+  `FILE_CACHE_TTL`/`FILE_CACHE_MAXSIZE` reads. The prompt no longer renders
+  `user_name` (always "User"), `language` or `user_info`; a deployment's own
+  template naming them must drop them.
 - **The chat agent no longer sees `resolve_indicator`, `convert_unit` or
   `normalize_unit`.** `query_health_indicators` already resolves names to
   LOINC and values to the catalogue's unit; those three serve an MCP client

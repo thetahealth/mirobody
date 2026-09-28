@@ -239,8 +239,6 @@ async def _agent_kwargs(params: ChatStreamRequest) -> dict[str, Any]:
         "session_id": thread_for(params.user_id, params.session_id),
         "language": params.language,
         "timezone": params.timezone or get_default_timezone(),
-        "token": params.token,
-        "question": params.question,
         "messages": [{"role": "user", "content": params.question}],
         "file_list": params.file_list,
         "provider": params.provider,

@@ -273,22 +273,6 @@ class ProviderDatabaseService:
         logger.info(f"Successfully saved theta provider for user {app_user_id}, provider {provider_slug}, link_type={link_type}")
         return True
 
-    async def get_user_theta_providers(self, user_id: str) -> list[str]:
-        try:
-            query = """
-            SELECT DISTINCT provider 
-            FROM health_user_provider
-            WHERE user_id = :user_id AND is_del = FALSE and provider like 'theta_%'
-            """
-
-            result = await execute_query(query=query, params={"user_id": user_id})
-
-            return [row["provider"] for row in result] if result else []
-
-        except Exception as e:
-            logger.error(f"Error getting user theta providers for {user_id}: {str(e)}")
-            return []
-
     async def delete_user_theta_provider(self, user_id: str, provider_slug: str) -> bool:
         query = """
         UPDATE health_user_provider

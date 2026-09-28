@@ -120,8 +120,6 @@ def _envelope_wrapper(bound_method, user_info: dict):
 
 async def load_global_tools(
     user_id: str,
-    token: str,
-    session_id: str | None = None,
     allowed_tools: list[str] | None = None,
     disallowed_tools: list[str] | None = None
 ) -> list[StructuredTool]:
@@ -129,10 +127,7 @@ async def load_global_tools(
     Load global tools and properly handle async functions.
 
     Args:
-        user_id: User ID for authentication
-        token: JWT token for authentication
-        session_id: Session ID included in the `user_info` passed to tools
-            (see USER_INFO INJECTION in tools/__init__.py)
+        user_id: whose record the tools read, injected as `user_info`
         allowed_tools: List of allowed tool names (whitelist)
         disallowed_tools: List of disallowed tool names (blacklist)
 
@@ -144,12 +139,7 @@ async def load_global_tools(
     existing_tools = get_global_tools()
 
     # Prepare user_info for tools that require authentication
-    user_info = {
-        "user_id": user_id,
-        "token": token,
-        "session_id": session_id,
-        "success": True  # used for authentication
-    }
+    user_info = {"user_id": user_id}
     
     # Convert to LangChain tools
     langchain_tools = []

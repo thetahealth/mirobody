@@ -33,7 +33,7 @@ The loader scans this directory with the following rules:
 
 5. USER_INFO INJECTION
    - If method has `user_info` parameter, it's auto-injected by MCP server
-   - Contains: {"user_id": str, "session_id": str, "success": bool}
+   - Contains: {"user_id": str}, the authenticated account the call reads
 
 6. DECLARED SCHEMAS
    - A Service class (or a method) may set `input_schema` to a JSON Schema

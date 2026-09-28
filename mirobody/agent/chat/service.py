@@ -311,8 +311,6 @@ class ChatService:
         try:
             params = await request.json()
             params["user_id"] = str(user_id)
-            # `or ""`: a missing header is a str field, not None.
-            params["token"] = request.headers.get("Authorization") or ""
 
         except Exception as e:
             return json_response_with_code(-1, str(e), request=request)

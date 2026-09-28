@@ -46,16 +46,11 @@ class ChatStreamRequest(BaseModel):
     prompt_name: str = ""
 
     user_id: str = ""
-    user_name: str = ""
-
-    token: str = ""
     language: str = ""
     timezone: str = ""
 
     #: What `th_messages.scene` records: which surface the turn came from.
     scene: str = "web"
-
-    trace_id: str = ""
 
 
 def has_attachment(file_list: Any) -> bool:
@@ -72,7 +67,3 @@ def has_attachment(file_list: Any) -> bool:
         return False
     return any(isinstance(f, dict) and f.get("file_key") for f in file_list)
 
-
-class UserInfo(BaseModel):
-    user_id: str = Field(..., description="User ID")
-    user_name: str = Field(..., description="User Name")

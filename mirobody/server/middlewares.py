@@ -1,3 +1,4 @@
+import re
 import time
 import uuid
 
@@ -23,6 +24,26 @@ from mirobody.user.auth.jwt import REFRESH_TOKEN_TYPE
 #: substring so an `API_PREFIX` in front does not matter.
 _AAL1_REACHABLE = ("/auth/webauthn/", "/auth/session/")
 _AAL1_REACHABLE_GETS = ("/api/user/settings",)
+
+
+#: What a caller may name its own request id with. It lands in every log line
+#: of the request, so an unchecked header was a way to write into the log.
+_TRACE_ID = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
+TRACE_HEADER = "X-Request-Id"
+
+
+def _trace_id_from(headers) -> str:
+    """The caller's request id when it is a sane one, else a fresh one.
+
+    The two names theta-smart's services already propagate (`X-Request-Id`
+    from the iOS client, `X-Trace-Id` from older callers), so one id follows a
+    request across both backends' logs.
+    """
+    for key in (TRACE_HEADER, "X-Trace-Id"):
+        value = headers.get(key)
+        if value and _TRACE_ID.match(value):
+            return value
+    return str(uuid.uuid4())
 
 
 def _aal1_reachable(method: str, path: str) -> bool:
@@ -90,6 +111,14 @@ class JwtMiddleware(BaseHTTPMiddleware):
         # Record current time.
         request.state.start_time = time.time()
 
+        # Every request gets one, signed in or not, and it goes back to the
+        # caller: the id is only useful for debugging if the person reporting
+        # a failure can quote it. Before, it was minted only for signed-in
+        # requests and never left the server.
+        trace_id = _trace_id_from(request.headers)
+        request.state.trace_id = trace_id
+        ctx: dict[str, Any] = {"trace_id": trace_id}
+
         #-------------------------------------------------
         # Check JWT token.
 
@@ -135,14 +164,14 @@ class JwtMiddleware(BaseHTTPMiddleware):
         if (request.state.user_id > 0 and aal < 2 and self._requires_second_factor
                 and not _aal1_reachable(request.method, request.url.path)
                 and await self._requires_second_factor(request.state.user_id)):
-            return _aal2_required()
+            refused = _aal2_required()
+            refused.headers[TRACE_HEADER] = trace_id
+            return refused
 
         #-------------------------------------------------
 
         if request.state.user_id > 0:
-            ctx = {
-                "user_id": request.state.user_id
-            }
+            ctx["user_id"] = request.state.user_id
             try:
                 ctx.update(get_request_info(request))
             except Exception:
@@ -166,25 +195,14 @@ class JwtMiddleware(BaseHTTPMiddleware):
                     ctx["timezone"] = request.state.timezone
                     break
 
-            # Get request trace ID.
-            request.state.trace_id = ""
-            for key in ["traceid", "trace_id", "X-Request-Id", "x-request-id"]:
-                if key in request.headers:
-                    request.state.trace_id = request.headers.get(key)
-                    ctx["trace_id"] = request.state.trace_id
-                    break
-
-            if not request.state.trace_id:
-                request.state.trace_id = str(uuid.uuid4())
-                ctx["trace_id"] = request.state.trace_id
-
-            if ctx:
-                from mirobody.utils.req_ctx import REQ_CTX
-                REQ_CTX.set(ctx)
+        from mirobody.utils.req_ctx import REQ_CTX
+        REQ_CTX.set(ctx)
 
         #-------------------------------------------------
 
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers[TRACE_HEADER] = trace_id
+        return response
 
 #-----------------------------------------------------------------------------
 

@@ -410,7 +410,6 @@ class McpService:
         # payload also carried an agent name that filtered tools/list: went
         # with BaseAgent.)
         user_id     = ""
-        session_id  = ""
 
         #-------------------------------------------------
 
@@ -581,7 +580,6 @@ class McpService:
                 tool_name   = params["name"],
                 arguments   = params["arguments"] if "arguments" in params else {},
                 user_id     = user_id,
-                session_id  = session_id
             )
 
             # A tool answer used to be able to hijack this reply: any result

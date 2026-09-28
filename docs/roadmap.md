@@ -626,9 +626,6 @@ wrong numbers", which is exactly what you cannot verify by reading:
   `['total']`. `standard_unit` happens to match across every colliding group
   today, so nothing is numerically wrong *yet*; the next collision with
   differing units would be. At minimum, make a duplicate `name` fail at import.
-* **`CacheableDatabaseService._clear_cache` is never called**, so a 300s TTL
-  cache can serve the old name after `update_indicator_name` renames an
-  indicator.
 
 Plus ~20 lower-risk items (dead methods, duplicated IN-clause binding,
 copy-pasted numeric regexes, a README describing method names that moved).

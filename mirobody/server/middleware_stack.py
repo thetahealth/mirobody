@@ -74,6 +74,8 @@ def build_middlewares(
                        allow_methods=allowed_methods.split(", ") if "," in allowed_methods else [allowed_methods],
                        allow_headers=allowed_headers.split(", ") if "," in allowed_headers else [allowed_headers],
                        allow_credentials=allow_credentials,
+                       # So a browser client can read the request id it would quote.
+                       expose_headers=["X-Request-Id"],
                        max_age=max_age,
                        )
         )

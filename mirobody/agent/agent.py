@@ -23,7 +23,6 @@ from collections.abc import AsyncGenerator
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool
 
-from .chat.model import UserInfo
 from .registry import llm_client, llm_client_names
 from mirobody.kernel import query
 from mirobody.kernel.ops import is_driver_exception
@@ -64,9 +63,6 @@ class MirobodyAgent:
 
     def __init__(
         self,
-        user_id: str | None = None,
-        user_name: str | None = None,
-        token: str | None = None,
         timezone: str | None = None,
         allowed_tools: list[str] | None = None,
         disallowed_tools: list[str] | None = None,
@@ -74,9 +70,7 @@ class MirobodyAgent:
         record_owner: str = "",
         **kwargs
     ):
-        self.user_info = UserInfo(user_id=user_id, user_name=user_name or "User")
         self.record_owner = record_owner
-        self.token = token
         from mirobody.utils.config import get_default_timezone
         self.timezone = timezone or get_default_timezone()
         self.allowed_tools = allowed_tools
@@ -86,8 +80,6 @@ class MirobodyAgent:
         # deployment can brand it; it is not an identifier anywhere else.
         self.agent_name = safe_read_cfg("AGENT_NAME") or "Mirobody"
         self.default_provider = safe_read_cfg("DEFAULT_MODEL") or _default_provider()
-        self.file_parse_cache_ttl = int(safe_read_cfg("FILE_CACHE_TTL") or 300)
-        self.file_parse_cache_maxsize = int(safe_read_cfg("FILE_CACHE_MAXSIZE") or 100)
         # Two layers, not interchangeable (see `_build_agent`). MODEL_CALL_LIMIT
         # is the real budget, counted in model calls and enforced by
         # ModelCallLimitMiddleware, which ends the run gracefully so the model
@@ -101,13 +93,13 @@ class MirobodyAgent:
             safe_read_cfg("RECURSION_LIMIT") or max(100, self.model_call_limit * 6)
         )
 
-    async def _init_llm_client(self, provider: str | Any | None) -> tuple[Any, str, bool, str]:
+    async def _init_llm_client(self, provider: str | None) -> tuple[Any, str, bool, str]:
         original_provider = provider
         fallback_used = False
         fallback_message = ""
 
         if provider:
-            agent_llm_client = llm_client(provider) if isinstance(provider, str) else provider
+            agent_llm_client = llm_client(provider)
         else:
             agent_llm_client = llm_client(self.default_provider)
 
@@ -140,7 +132,7 @@ class MirobodyAgent:
 
         return agent_llm_client, model_name, fallback_used, fallback_message
     
-    async def _load_tools(self, user_id: str, session_id: str = "") -> list:
+    async def _load_tools(self, user_id: str) -> list:
 
         tools = []
         from .tool_loader import load_global_tools
@@ -150,8 +142,6 @@ class MirobodyAgent:
         try:
             global_tools = await load_global_tools(
                 user_id=user_id,
-                token=self.token,
-                session_id=session_id,
                 allowed_tools=self.allowed_tools,
                 disallowed_tools=disallowed_tools
             )
@@ -185,7 +175,6 @@ class MirobodyAgent:
     async def _build_system_prompt(
         self,
         base_prompt: str,
-        language: str,
         user_id: str,
         tools: list,
     ) -> str:
@@ -196,11 +185,8 @@ class MirobodyAgent:
         try:
             system_prompt = await build_system_prompt(
                 base_prompt=base_prompt,
-                language=language,
-                user_id=user_id,
                 langchain_tools=tools,
                 agent_name=self.agent_name,
-                user_name=self.user_info.user_name,
                 record_owner=self.record_owner,
                 timezone=self.timezone,
                 health_profile=health_profile,
@@ -308,11 +294,8 @@ class MirobodyAgent:
     async def _prepare_context(
         self,
         user_id: str,
-        session_id: str,
-        language: str,
-        provider: str | Any | None,
+        provider: str | None,
         prompt_name: str,
-        tools: list[BaseTool] | None = None,
     ) -> tuple["BaseChatModel", str, str | None, list[BaseTool], str]:
         """
         Prepare LLM client, tools, and system prompt.
@@ -322,10 +305,10 @@ class MirobodyAgent:
         """
         llm_client, model_name, fallback_used, fallback_msg = await self._init_llm_client(provider)
 
-        loaded_tools = tools if tools is not None else await self._load_tools(user_id, session_id)
+        loaded_tools = await self._load_tools(user_id)
 
         base_prompt = self._get_base_prompt(prompt_name)
-        system_prompt = await self._build_system_prompt(base_prompt, language, user_id, loaded_tools)
+        system_prompt = await self._build_system_prompt(base_prompt, user_id, loaded_tools)
 
         return llm_client, model_name, (fallback_msg if fallback_used else None), loaded_tools, system_prompt
 
@@ -585,12 +568,10 @@ class MirobodyAgent:
         self,
         user_id: str,
         messages: list[dict[str, Any]] | list[BaseMessage],
-        language: str = "en",
         session_id: str = "",
         file_list: list[dict[str, Any]] | None = None,
-        provider: str | Any | None = None,
+        provider: str | None = None,
         prompt_name: str = "",
-        tools: list[BaseTool] | None = None,
         **kwargs
     ) -> AsyncGenerator[dict[str, Any], None]:
 
@@ -611,11 +592,8 @@ class MirobodyAgent:
             # the model to read_file them on demand.
             llm_client, model_name, fallback_msg, loaded_tools, system_prompt = await self._prepare_context(
                 user_id=user_id,
-                session_id=session_id,
-                language=language,
                 provider=provider,
                 prompt_name=prompt_name,
-                tools=tools,
             )
 
             if fallback_msg:
