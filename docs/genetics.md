@@ -158,8 +158,10 @@ X, Y and MT. PharmCAT 3.4.0 reads the exported VCF without warnings. From the
 two public CYP2C19 sites its Named Allele Matcher can only list candidate
 diplotypes, which is why Mirobody itself never names one.
 
-`GET /api/v1/genomics/export.fhir.json?rsids=rs4244285` returns a bounded FHIR
-STU3 Variant Observation collection inside the normal API envelope. It uses
+`GET /api/v1/genomics/export.fhir.json?rsids=rs4244285&rsids=rs4986893`
+returns a bounded FHIR STU3 Variant Observation collection inside the normal
+API envelope. Repeat `rsids` for each site, up to 50; a comma-joined value is
+refused. `build` defaults to `GRCh38`. It uses
 the active upload, requires the same authorization as the genotype tool, and
 returns `missing_rsids` and `omitted_rsids`. Only mapped called or no-call
 sites with coordinates and REF/ALT can be represented. The public two-site
