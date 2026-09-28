@@ -38,10 +38,11 @@ TOOL_SCHEMA: dict[str, object] = {
             "description": "Look up these dbSNP identifiers in the person's active upload.",
         },
         "gene": {"type": "string", "description": "HGNC gene symbol, for example CYP2C19."},
-        "chromosome": {"type": "string", "description": "Chromosome for a bounded region query (1–22, X, Y, MT)."},
+        "chromosome": {"type": "string", "description": "Chromosome for a bounded region query (1–22, X, Y, PAR, MT)."},
         "start": {"type": "integer", "minimum": 1, "description": "Inclusive start coordinate in the chosen build."},
         "end": {"type": "integer", "minimum": 1, "description": "Inclusive end coordinate in the chosen build."},
-        "build": {"type": "string", "enum": ["GRCh37", "GRCh38"], "description": "Required with a region."},
+        "build": {"type": "string", "enum": ["GRCh37", "GRCh38", "raw"],
+                  "description": "Required with a region; raw uses unverified upload positions."},
         "include_nearby": {"type": "boolean", "default": False, "description": "Also show nearby typed sites for an rsID lookup."},
         "nearby_range": {"type": "integer", "minimum": 1, "default": DEFAULT_NEARBY_RANGE,
                          "description": "Distance in base pairs on either side of each rsID."},
@@ -81,14 +82,16 @@ def validate_query(args: Mapping[str, Any]) -> tuple[query.Rejection, ...]:
     if gene and (len(gene) > 32 or not gene.replace("-", "").isalnum()):
         out.append(query.Rejection("gene", "use an HGNC gene symbol"))
     if region:
-        if chrom not in {*(str(i) for i in range(1, 23)), "X", "Y", "MT"}:
-            out.append(query.Rejection("chromosome", "use 1–22, X, Y, or MT"))
+        if chrom not in {*(str(i) for i in range(1, 23)), "X", "Y", "PAR", "MT"}:
+            out.append(query.Rejection("chromosome", "use 1–22, X, Y, PAR, or MT"))
         start, end = args.get("start"), args.get("end")
         if (not isinstance(start, int) or isinstance(start, bool) or not isinstance(end, int)
                 or isinstance(end, bool) or start < 1 or end < start):
             out.append(query.Rejection("start/end", "give a positive, increasing interval"))
-        if args.get("build") not in ("GRCh37", "GRCh38"):
-            out.append(query.Rejection("build", "choose GRCh37 or GRCh38"))
+        if args.get("build") not in ("GRCh37", "GRCh38", "raw"):
+            out.append(query.Rejection("build", "choose GRCh37, GRCh38, or raw"))
+        elif chrom == "PAR" and args.get("build") != "raw":
+            out.append(query.Rejection("build", "PAR uses only raw upload coordinates"))
     limit = args.get("limit")
     if limit not in (None, "") and (not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= MAX_LIMIT):
         out.append(query.Rejection("limit", f"must be an integer between 1 and {MAX_LIMIT}"))
@@ -138,7 +141,8 @@ class GeneticService(RecordTool):
         With no selector, return only a summary. A missing locus, no-call,
         not-applicable or unresolved call does not establish a normal genotype.
         Raw consumer-array calls are not a diagnosis. Region queries require
-        a named genome build. State the upload's source and build in answers.
+        a named genome build or explicit raw upload coordinates. State the
+        upload's source and build in answers.
         """
         envelope = await self.envelope(user_info, **args)
         return {"result": render_compact(envelope, self.columns(args)), **envelope_meta(envelope)}
@@ -262,6 +266,8 @@ def _envelope_for(request: GeneticRequest, hits: Sequence[Mapping[str, Any]],
         "VCF phasing is preserved from the upload but not independently validated; calls do not establish a diagnosis"
         if is_vcf else "consumer-array calls are unphased and do not establish a diagnosis"
     )]
+    if request.build == "raw":
+        notes.append("raw positions are exactly as uploaded; the reference assembly was not verified for these rows")
     missing = tuple(rsid for rsid in request.rsids if rsid not in {row["rsid"] for row in hits})
     if missing:
         notes.append("was not typed in this upload: " + ", ".join(missing))

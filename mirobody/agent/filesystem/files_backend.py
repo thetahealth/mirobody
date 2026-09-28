@@ -169,7 +169,8 @@ class ThFilesBackend(PgFilesystemBackend):
             # with cached text can be identified by their declared header.
             stored_name = str(r.get("file_name") or "").lower()
             pinned_name = str(self._turn_names.get(str(r.get("file_key") or "")) or "").lower()
-            if (stored_name.endswith((".gz", ".zip")) or pinned_name.endswith((".gz", ".zip"))
+            if (stored_name.endswith((".gz", ".bgz", ".bgzf", ".zip"))
+                    or pinned_name.endswith((".gz", ".bgz", ".bgzf", ".zip"))
                     or str(r.get("file_type") or "").lower() in _ARCHIVE_MIMES):
                 continue
             original_text = str(r.get("original_text") or "")

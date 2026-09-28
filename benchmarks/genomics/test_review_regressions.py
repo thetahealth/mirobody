@@ -6,8 +6,11 @@ import asyncio
 import gzip
 import io
 import csv
+from contextlib import asynccontextmanager
+import struct
 import unittest
 import zipfile
+import zlib
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -17,6 +20,7 @@ from deepagents.middleware.summarization import SummarizationMiddleware as DeepS
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from sqlalchemy.exc import DataError
 
 from mirobody.agent.chat.file import _detect_file_scene
 from mirobody.agent import harness
@@ -24,8 +28,10 @@ from mirobody.agent.filesystem.backend import PgFilesystemBackend
 from mirobody.agent.filesystem.files_backend import ThFilesBackend
 from mirobody.agent.middleware.genotype_row_guard import GenotypeRowGuardMiddleware, redact_genotype_history
 from mirobody.agent.middleware.genotype_summarization import GenotypeSafeSummarizationMiddleware
-from mirobody.agent.tools.genetic_service import TOOL_NAME
+from mirobody.agent.tools.genetic_service import TOOL_NAME, validate_query
+from mirobody.collect.files.services.genotype_format import sniff_stream
 from mirobody.kernel import tools
+from mirobody.utils import db
 from mirobody.translate.genotype import normalize, pseudoautosomal_status
 from mirobody.translate.genotype_sites import SiteCatalog
 
@@ -61,8 +67,59 @@ class ChatClassificationTests(unittest.TestCase):
         )
         self.assertEqual([_detect_file_scene(file) for file in files], ["genetic", "report"])
 
+    def test_public_vcf_in_bgzf_blocks_is_recognized(self) -> None:
+        public = PUBLIC_VCF.read_bytes()
+
+        def block(payload: bytes) -> bytes:
+            compressor = zlib.compressobj(wbits=-15)
+            compressed = compressor.compress(payload) + compressor.flush()
+            size = 18 + len(compressed) + 8
+            header = (b"\x1f\x8b\x08\x04\x00\x00\x00\x00\x00\xff\x06\x00BC\x02\x00"
+                      + struct.pack("<H", size - 1))
+            return header + compressed + struct.pack("<II", zlib.crc32(payload), len(payload))
+
+        bgzf = block(public[:87]) + block(public[87:]) + block(b"")
+        self.assertEqual(sniff_stream(io.BytesIO(bgzf)).shape, "vcf")
+        with self.assertRaises(ValueError):
+            sniff_stream(io.BytesIO(bgzf + b"not another gzip block"))
+
+    def test_public_vcf_with_bed_and_readme_in_zip_is_recognized(self) -> None:
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as output:
+            output.writestr("variants.vcf", PUBLIC_VCF.read_bytes())
+            output.writestr("regions.bed", "chr10\t94780652\t94781859\n")
+            output.writestr("readme.txt", "Public 1000 Genomes HG00096 example\n")
+        self.assertEqual(sniff_stream(io.BytesIO(archive.getvalue())).shape, "vcf")
+        with zipfile.ZipFile(archive, "a") as output:
+            output.writestr("second.vcf", PUBLIC_VCF.read_bytes())
+        with self.assertRaises(ValueError):
+            sniff_stream(io.BytesIO(archive.getvalue()))
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as output:
+            output.writestr("variants.vcf", PUBLIC_VCF.read_bytes())
+            output.writestr("second.txt", "# rsid\tchromosome\tposition\tgenotype\nrs4244285\t10\t96541616\tAG\n")
+        with self.assertRaises(ValueError):
+            sniff_stream(io.BytesIO(archive.getvalue()))
+
+    def test_public_vcf_with_long_wgs_header_is_recognized(self) -> None:
+        public = PUBLIC_VCF.read_bytes()
+        header, calls = public.split(b"#CHROM", 1)
+        long_header = header + b"##source=1000Genomes public HG00096\n" * 5000
+        rendered = long_header + b"#CHROM" + calls
+        self.assertGreater(len(long_header), 145_000)
+        self.assertEqual(sniff_stream(io.BytesIO(rendered)).shape, "vcf")
+        self.assertEqual(_detect_file_scene({
+            "file_name": "public-long-header.vcf", "content_type": "text/plain",
+            "content_bytes": rendered,
+        }), "genetic")
+
 
 class PublicCatalogNormalizationTests(unittest.TestCase):
+    def test_public_ancestry_par_raw_region_is_an_explicit_selector(self) -> None:
+        self.assertEqual(validate_query({
+            "chromosome": "PAR", "start": 170700, "end": 170800, "build": "raw",
+        }), ())
+
     def test_public_hg00096_vcf_alt_subset_of_multiallelic_dbsnp_site(self) -> None:
         row = next(line.split("\t") for line in PUBLIC_VCF.read_text().splitlines()
                    if line.startswith("10\t96541616\t"))
@@ -402,6 +459,21 @@ class GenotypeRowGuardTests(unittest.TestCase):
 
 
 class LegacyGenotypeReadTests(unittest.TestCase):
+    def test_mislabelled_long_header_and_bgzf_are_not_mounted(self) -> None:
+        backend = ThFilesBackend(user_id="public-test", scope="uploads", file_keys=["public-file"])
+        public = PUBLIC_VCF.read_text()
+        header, calls = public.split("#CHROM", 1)
+        long_text = header + "##source=1000Genomes public HG00096\n" * 5000 + "#CHROM" + calls
+        rows = [
+            {"file_key": "public-file", "file_name": "notes.txt", "file_type": "text/plain",
+             "original_text": long_text},
+            {"file_key": "public-file", "file_name": "genome.vcf.bgz",
+             "file_type": "application/octet-stream", "original_text": ""},
+        ]
+        with patch("mirobody.agent.filesystem.files_backend.execute_query",
+                   new=AsyncMock(return_value=rows)):
+            self.assertEqual(len(asyncio.run(backend._files())), 0)
+
     def test_mislabelled_plain_upload_cannot_be_read_or_downloaded(self) -> None:
         backend = ThFilesBackend(user_id="public-test", scope="uploads", file_keys=["public-file"])
         row = {"path": "/notes.txt", "content": "", "encoding": "utf-8",
@@ -419,3 +491,29 @@ class LegacyGenotypeReadTests(unittest.TestCase):
         allowed_read, allowed_download = asyncio.run(run(b"public test control"))
         self.assertIn("public test control", allowed_read.file_data["content"])
         self.assertEqual(allowed_download[0].content, b"public test control")
+
+
+class DriverLogPrivacyTests(unittest.TestCase):
+    def test_genotype_batch_error_logs_counts_without_sql_parameters(self) -> None:
+        error = DataError("INSERT INTO th_genotype VALUES (:genotype)",
+                          {"genotype": "AG"}, ValueError("bound genotype AG"))
+
+        class Connection:
+            async def execute(self, _query, _params):
+                raise error
+
+        class Engine:
+            @asynccontextmanager
+            async def begin(self):
+                yield Connection()
+
+        db.use_engines(lambda _config: Engine())
+        try:
+            with patch.object(db.logger, "error") as logged:
+                with self.assertRaises(DataError):
+                    asyncio.run(db.execute_query("INSERT INTO th_genotype VALUES (:genotype)",
+                                                 {"genotype": "AG"}))
+            self.assertFalse(logged.call_args.kwargs["exc_info"])
+            self.assertNotIn("AG", str(logged.call_args))
+        finally:
+            db.use_engines(None)

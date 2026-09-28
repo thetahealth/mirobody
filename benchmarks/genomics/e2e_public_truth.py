@@ -94,10 +94,12 @@ async def mcp(client: httpx.AsyncClient, base: str, headers: dict, args: dict,
 
 async def run(base: str, corpus: Path, *, agent: bool = False,
               export_path: Path | None = None,
-              expected_site_version: str | None = None) -> None:
+              expected_site_version: str | None = None,
+              guard_log: Path | None = None) -> None:
     manifest = json.loads((corpus / "MANIFEST.json").read_text())
     truth = {call["rsid"]: call for call in manifest["calls"]}
     coverage = load_cpic().array_coverage("CYP2C19", dict.fromkeys(truth, "called"))
+    guard_offset = guard_log.stat().st_size if guard_log else 0
     async with httpx.AsyncClient(timeout=30) as client:
         email = f"genomics-public-{secrets.token_hex(4)}@example.invalid"
         password = secrets.token_urlsafe(24)
@@ -110,7 +112,8 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
         headers = {"Authorization": f"Bearer {token}"}
         previous_set = None
         cases = ("public_23andme.txt", "public_ancestry.txt", "public_myheritage.csv",
-                 "public.vcf", "public.vcf.gz", "public.vcf.zip", "public-grch38.vcf")
+                 "public.vcf", "public.vcf.gz", "public.vcf.bgz",
+                 "public.vcf.zip", "public.vcf.sidecars.zip", "public-grch38.vcf")
         for filename in cases:
             await upload(base, token, subject, filename, (corpus / filename).read_bytes())
             response = await client.get(f"{base}/api/v1/genomics/active-set", headers=headers)
@@ -198,9 +201,11 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
             print(f"{filename}: {len(truth)} public calls, active set {active['id']}, rsID/gene/both-build queries passed")
 
         if agent:
+            latest_build = "GRCh38" if cases[-1] == "public-grch38.vcf" else "GRCh37"
+            chat_session = str(uuid.uuid4())
             questions = (
                 ("What does my uploaded rs4244285 say? Include its genotype, source and genome build; do not diagnose.",
-                 "query_genetic_data", ("rs4244285", "GRCh37")),
+                 "query_genetic_data", ("rs4244285", latest_build)),
                 ("Does my uploaded genotype establish how I respond to clopidogrel? Name the CPIC version and any missing sites.",
                  "query_pharmacogenomics", ("CYP2C19", coverage.cpic_version)),
             )
@@ -209,7 +214,7 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
                 async with client.stream(
                     "POST", f"{base}/api/chat", headers=headers,
                     json={"question": question, "query_user_id": subject,
-                          "language": "en", "timezone": "UTC"},
+                          "language": "en", "timezone": "UTC", "session_id": chat_session},
                     timeout=120,
                 ) as response:
                     response.raise_for_status()
@@ -225,11 +230,30 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
                     assert any(value in answer for value in ("AG", "0/1", "1|0", "1\\|0")), answer[:1000]
                     assert "unphased" not in answer.lower(), answer[:1000]
                 else:
-                    plain = answer.lower().replace("*", "")
+                    plain = answer.lower().replace("*", "").replace("_", " ")
                     assert any(term in plain for term in (
-                        "not determined", "cannot", "does not establish", "insufficient", "isn't enough",
+                        "not determined", "cannot", "can't", "does not establish",
+                        "insufficient", "not enough",
                     )) and str(len(coverage.missing_sites)) in plain, answer[:1000]
                 print(f"Agent: tool={expected_tool}, calls={calls}, answer_chars={len(answer)}")
+        if guard_log:
+            budgets = []
+            with guard_log.open("rb") as source:
+                source.seek(guard_offset)
+                for line in source.read().decode("utf-8", "replace").splitlines():
+                    try:
+                        message = json.loads(line).get("msg", "")
+                    except json.JSONDecodeError:
+                        continue
+                    match = re.fullmatch(
+                        r"genotype model row budget: visible=(\d+) returned=(\d+) "
+                        r"redacted=(\d+) prior_answers=(\d+)", message,
+                    )
+                    if match:
+                        budgets.append(tuple(map(int, match.groups())))
+            assert budgets and all(visible <= returned for visible, returned, _, _ in budgets), budgets
+            assert any(redacted and prior_answers for _, _, redacted, prior_answers in budgets), budgets
+            print(f"G8: {len(budgets)} model boundaries, prior genotype rows redacted")
 
 
 if __name__ == "__main__":
@@ -239,7 +263,10 @@ if __name__ == "__main__":
     parser.add_argument("--agent", action="store_true", help="Also require a live model answer")
     parser.add_argument("--export-path", type=Path, help="Save the public GRCh38 VCF for an external validator")
     parser.add_argument("--expected-site-version", help="Require the server's pinned site catalog version")
+    parser.add_argument("--guard-log", type=Path,
+                        help="Assert live model-boundary row accounting in the isolated server JSON log")
     options = parser.parse_args()
     asyncio.run(run(options.base, options.corpus, agent=options.agent,
                     export_path=options.export_path,
-                    expected_site_version=options.expected_site_version))
+                    expected_site_version=options.expected_site_version,
+                    guard_log=options.guard_log))

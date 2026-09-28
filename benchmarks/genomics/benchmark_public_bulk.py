@@ -1,7 +1,7 @@
 """Measure a 1.3M-row genotype import using only pinned public GIAB calls.
 
 This benchmark runs against an isolated disposable database. It keeps the
-source and generated VCF under ignored internal/genomics, never in a wheel or
+source and generated VCF outside the source tree, never in a wheel or
 committed fixture. Selecting SNVs with dbSNP identifiers preserves the GIAB
 sample's actual genotype; no genotype value is fabricated.
 """
@@ -75,10 +75,12 @@ def generate(source: Path, target: Path, *, limit: int) -> dict:
     }
 
 
-async def measure(target: Path, *, batch_size: int, user_id: str) -> dict:
+async def measure(target: Path, *, batch_size: int, user_id: str, schema: str = "public") -> dict:
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", schema):
+        raise ValueError("schema must be a PostgreSQL identifier")
     engine = create_async_engine(
         os.environ["MIROBODY_GENOMICS_TEST_DSN"],
-        connect_args={"options": "-c search_path=public -c app.encryption_key=public-genomics-fixture-key"},
+        connect_args={"options": f"-c search_path={schema},public -c app.encryption_key=public-genomics-fixture-key"},
     )
     use_engines(lambda _name: engine)
     try:
@@ -114,12 +116,14 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=1_300_000)
     parser.add_argument("--batch-size", type=int, default=50_000)
     parser.add_argument("--user", default="public-giab-bulk-benchmark")
+    parser.add_argument("--schema", default="public", help="Disposable test schema containing 32_genomics.sql")
     parser.add_argument("--generate-only", action="store_true")
     options = parser.parse_args()
     manifest = generate(options.source, options.out, limit=options.limit)
     print(json.dumps(manifest, sort_keys=True), flush=True)
     if not options.generate_only:
-        result = asyncio.run(measure(options.out, batch_size=options.batch_size, user_id=options.user))
+        result = asyncio.run(measure(options.out, batch_size=options.batch_size,
+                                     user_id=options.user, schema=options.schema))
         print(json.dumps(result, sort_keys=True), flush=True)
 
 

@@ -82,6 +82,8 @@ FORBIDDEN = re.compile(
 EMPTY_TURN = (
     "This turn ended without an answer.",
     "本轮对话未能生成回答",
+    "I don't see a specific request",
+    "I don't have a question to work from",
 )
 
 
@@ -109,6 +111,8 @@ async def chat(client: httpx.AsyncClient, base: str, headers: dict[str, str],
             raise RuntimeError("chat rate limit did not clear after 12 waits")
         await asyncio.sleep(retry_after + 1)
     calls = [str(event.get("name")) for event in events if event.get("type") == "tool_call"]
+    if any(event.get("type") == "error" for event in events):
+        raise RuntimeError("Agent returned an error event; inspect the server error type")
     answer = "".join(str(event.get("content") or event.get("text") or "")
                      for event in events if event.get("type") == "text")
     return calls, answer
@@ -147,7 +151,7 @@ async def run(base: str, corpus: Path, output: Path, *, limit: int, start: int,
                 selected = expected in calls
                 bad = bool(FORBIDDEN.search(answer))
                 gave_answer = bool(answer.strip()) and not any(
-                    phrase in answer for phrase in EMPTY_TURN
+                    phrase.casefold() in answer.casefold() for phrase in EMPTY_TURN
                 )
                 chosen += selected
                 forbidden += bad

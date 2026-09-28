@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS th_genotype (
     set_id          bigint NOT NULL REFERENCES th_genotype_set(id) ON DELETE CASCADE,
     rsid            varchar(50) NOT NULL,
     rsid_raw        varchar(50) NOT NULL,
-    chrom           varchar(3) NOT NULL,
+    -- Public Big-Y VCFs include alternate contigs longer than three characters.
+    chrom           text NOT NULL,
     position_raw    integer NOT NULL,
     pos37           integer,
     pos38           integer,
@@ -55,10 +56,33 @@ CREATE TABLE IF NOT EXISTS th_genotype (
     )
 );
 
+-- Earlier preview tables used varchar(3) for chrom and varchar(100) for REF/ALT;
+-- the public Big-Y VCF has two longer contigs and four longer ALT strings.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = current_schema() AND table_name = 'th_genotype'
+                 AND column_name = 'chrom' AND data_type <> 'text') THEN
+        ALTER TABLE th_genotype ALTER COLUMN chrom TYPE text;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = current_schema() AND table_name = 'th_genotype'
+                 AND column_name = 'ref' AND data_type <> 'text') THEN
+        ALTER TABLE th_genotype ALTER COLUMN ref TYPE text;
+    END IF;
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = current_schema() AND table_name = 'th_genotype'
+                 AND column_name = 'alt' AND data_type <> 'text') THEN
+        ALTER TABLE th_genotype ALTER COLUMN alt TYPE text;
+    END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_th_genotype_location
     ON th_genotype (set_id, chrom, pos38);
 CREATE INDEX IF NOT EXISTS idx_th_genotype_location_37
     ON th_genotype (set_id, chrom, pos37);
+CREATE INDEX IF NOT EXISTS idx_th_genotype_location_raw
+    ON th_genotype (set_id, chrom, position_raw);
 CREATE INDEX IF NOT EXISTS idx_th_genotype_gene
     ON th_genotype (set_id, gene) WHERE gene IS NOT NULL;
 

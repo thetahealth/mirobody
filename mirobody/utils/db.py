@@ -25,6 +25,8 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
+from mirobody.kernel.ops import is_driver_exception
+
 logger = logging.getLogger(__name__)
 
 _engines: dict[str, Any] = {}
@@ -163,8 +165,8 @@ async def execute_query(
 
     except Exception as e:
         # Counts and a type only, never the parameter VALUES, which are the row
-        # being written; the traceback and `stacklevel` name the statement, and
-        # the INFO line above already carried its text when `log_sql` is on.
+        # being written; driver tracebacks repeat bound values in SQLAlchemy's
+        # exception text, so only non-driver failures may carry exc_info.
         extra = {
             "error_type": type(e).__name__,
             "param_count": len(params) if isinstance(params, list) else (len(params) if params else 0),
@@ -172,7 +174,8 @@ async def execute_query(
         }
         if trace_id:
             extra["trace_id"] = trace_id
-        logger.error("execute_query failed", extra=extra, stacklevel=2, exc_info=True)
+        logger.error("execute_query failed", extra=extra, stacklevel=2,
+                     exc_info=not is_driver_exception(e))
         raise
 
 

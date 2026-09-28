@@ -25,8 +25,8 @@ class GeneticHandler(BaseFileHandler):
     def get_type_name(self) -> str:
         return "genetic"
         
-    #: Maximum plain-text header read; wrapped uploads need full validation.
-    SNIFF_BYTES = genotype_format.SNIFF_BYTES
+    #: Public WGS VCF headers exceed 145 KiB; wrapped uploads need full validation.
+    SNIFF_BYTES = genotype_format.MAX_HEADER_BYTES
 
     #: MIME is a coarse prefilter. The format reader checks the actual content.
     CONTENT_TYPES = frozenset({

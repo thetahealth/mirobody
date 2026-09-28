@@ -33,6 +33,8 @@ SHAPE_WIDE = "wide"
 #: before its column header; the old check read 100 bytes and could only ever
 #: see a banner.
 SNIFF_BYTES = 16 * 1024
+# A public WGS VCF puts its #CHROM declaration 145,727 bytes after the start.
+MAX_HEADER_BYTES = 256 * 1024
 MAX_UNCOMPRESSED_BYTES = 2 * 1024 * 1024 * 1024
 _CHUNK = 64 * 1024
 
@@ -139,7 +141,7 @@ def _declared_format(line: str, vendor: str, build: str) -> GenotypeFormat | Non
 
 
 def _sniff_text(head: str) -> GenotypeFormat | None:
-    text = head[:SNIFF_BYTES].lstrip("\ufeff")
+    text = head[:MAX_HEADER_BYTES].lstrip("\ufeff")
     lowered = text.lower()
     vendor = next((name for name, needle in _VENDORS if needle in lowered), "")
     found = _BUILD.search(text)
@@ -182,26 +184,93 @@ def sniff(head: str | bytes | bytearray | None) -> GenotypeFormat | None:
                 return sniff_stream(io.BytesIO(raw))
             except (OSError, ValueError, zipfile.BadZipFile, zlib.error):
                 return None
-        head = raw[:SNIFF_BYTES].decode("utf-8", errors="ignore")
+        head = raw[:MAX_HEADER_BYTES].decode("utf-8", errors="ignore")
     return _sniff_text(head or "")
 
 
 def _archive_member(archive: zipfile.ZipFile) -> zipfile.ZipInfo:
     members = archive.infolist()
-    if len(members) != 1:
-        raise ValueError("genotype archive must contain exactly one file")
-    member = members[0]
-    name = member.filename
-    if (member.is_dir() or name.startswith(("/", "\\")) or "\\" in name
-            or any(part in {"", ".", ".."} for part in name.split("/"))
-            or member.flag_bits & 1 or stat.S_ISLNK(member.external_attr >> 16)
-            or member.compress_type not in {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}
-            or member.file_size > MAX_UNCOMPRESSED_BYTES):
-        raise ValueError("unsafe genotype archive member")
-    return member
+    if not members or len(members) > 16:
+        raise ValueError("genotype archive has no unique data member")
+    for member in members:
+        name = member.filename
+        if (member.is_dir() or name.startswith(("/", "\\")) or "\\" in name
+                or any(part in {"", ".", ".."} for part in name.split("/"))
+                or member.flag_bits & 1 or stat.S_ISLNK(member.external_attr >> 16)
+                or member.compress_type not in {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}
+                or member.file_size > MAX_UNCOMPRESSED_BYTES):
+            raise ValueError("unsafe genotype archive member")
+    if len(members) == 1:
+        return members[0]
+    variants = [member for member in members if member.filename.lower().endswith(".vcf")]
+    sidecars = [member for member in members if member not in variants]
+    if (len(variants) != 1 or any(not member.filename.lower().endswith((".bed", ".txt"))
+                                  for member in sidecars)
+            or sum(member.file_size for member in sidecars) > 16 * 1024 * 1024):
+        raise ValueError("genotype archive has no unique VCF with bounded sidecars")
+    # Reading every sidecar verifies CRC before the archive is classified as genetic.
+    for member in sidecars:
+        head = bytearray()
+        with archive.open(member) as stream:
+            for block in iter(lambda: stream.read(_CHUNK), b""):
+                if len(head) < MAX_HEADER_BYTES:
+                    head.extend(block[:MAX_HEADER_BYTES - len(head)])
+        if _sniff_text(head.decode("utf-8", "ignore")) is not None:
+            raise ValueError("genotype archive has multiple genotype members")
+    return variants[0]
+
+
+def _bgzf_chunks(source: BinaryIO) -> Iterator[bytes]:
+    """Read each bounded BGZF block and require valid gzip CRCs throughout."""
+    total = 0
+    while fixed := source.read(10):
+        if len(fixed) != 10 or fixed[:4] != b"\x1f\x8b\x08\x04":
+            raise ValueError("invalid BGZF block header")
+        length_bytes = source.read(2)
+        if len(length_bytes) != 2:
+            raise ValueError("truncated BGZF extra header")
+        extra_length = int.from_bytes(length_bytes, "little")
+        if not 6 <= extra_length <= 1024:
+            raise ValueError("invalid BGZF extra header length")
+        extra = source.read(extra_length)
+        if len(extra) != extra_length:
+            raise ValueError("truncated BGZF extra header")
+        block_size = None
+        offset = 0
+        while offset + 4 <= extra_length:
+            field_length = int.from_bytes(extra[offset + 2:offset + 4], "little")
+            end = offset + 4 + field_length
+            if end > extra_length:
+                raise ValueError("invalid BGZF extra field")
+            if extra[offset:offset + 2] == b"BC" and field_length == 2:
+                block_size = int.from_bytes(extra[offset + 4:end], "little") + 1
+            offset = end
+        if offset != extra_length or block_size is None:
+            raise ValueError("missing BGZF block size")
+        remaining = block_size - 12 - extra_length
+        if not 10 <= remaining <= 65536:
+            raise ValueError("invalid BGZF block size")
+        rest = source.read(remaining)
+        if len(rest) != remaining:
+            raise ValueError("truncated BGZF block")
+        decoder = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        data = decoder.decompress(fixed + length_bytes + extra + rest, 65537)
+        if not decoder.eof or decoder.unused_data or decoder.unconsumed_tail or len(data) > 65536:
+            raise ValueError("invalid BGZF block payload")
+        total += len(data)
+        if total > MAX_UNCOMPRESSED_BYTES:
+            raise ValueError("genotype archive exceeds size limit")
+        if data:
+            yield data
 
 
 def _gzip_chunks(source: BinaryIO) -> Iterator[bytes]:
+    head = source.read(18)
+    source.seek(0)
+    if (len(head) >= 18 and head[:4] == b"\x1f\x8b\x08\x04"
+            and head[10:16] == b"\x06\x00BC\x02\x00"):
+        yield from _bgzf_chunks(source)
+        return
     decoder = zlib.decompressobj(16 + zlib.MAX_WBITS)
     total = 0
     while block := source.read(_CHUNK):
@@ -274,12 +343,12 @@ def sniff_stream(source: BinaryIO) -> GenotypeFormat | None:
         magic = source.read(4)
         if not magic.startswith(b"\x1f\x8b") and magic != b"PK\x03\x04":
             source.seek(0)
-            return _sniff_text(source.read(SNIFF_BYTES).decode("utf-8", "ignore"))
+            return _sniff_text(source.read(MAX_HEADER_BYTES).decode("utf-8", "ignore"))
         with open_lines(source) as lines:
             head = ""
             for line in lines:
-                if len(head) < SNIFF_BYTES:
-                    head += line[:SNIFF_BYTES - len(head)] + "\n"
+                if len(head) < MAX_HEADER_BYTES:
+                    head += line[:MAX_HEADER_BYTES - len(head)] + "\n"
             return _sniff_text(head)
     finally:
         source.seek(original)

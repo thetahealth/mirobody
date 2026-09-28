@@ -96,11 +96,15 @@ wheel and sdist for the index, its NOTICE and the CPIC extract.
 `generate_public_formats.py` uses pinned public 1000 Genomes and PharmCAT
 inputs to render one truth sample in 23andMe, Ancestry, MyHeritage and VCF
 shapes, plus gzip/zip and GRCh38 VCF renderings. `e2e_public_truth.py` runs
-seven upload → active set → MCP → VCF/FHIR paths and
+nine upload → active set → MCP → VCF/FHIR paths and
 optionally two real Agent questions. `e2e_legacy_migration.py` checks that
 1.5.1 rows migrate conservatively. Generated raw truth stays outside the
 source tree; the local `internal/genomics/corpus/` link points to that
 private working directory and is not in the distribution.
+Pass `--agent --guard-log /path/to/isolated-server.json.log` to make both
+questions share a checkpoint session and assert that every model boundary
+has `visible <= returned` genotype rows, with the previous answer redacted.
+The isolated live run observed three such boundaries.
 
 `e2e_public_candidate.py --pgp-dir /absolute/path/to/public-pgp` also uploads
 the two complete open PGP exports through the real WebSocket path to isolated
@@ -109,6 +113,35 @@ rows; the Ancestry v2 export replaced it with 677,436 rows and 339 called.
 Both active sets and an rsID MCP lookup passed. These low called counts make
 the regional coverage limit visible in an actual import, not just the marker
 set intersection. Raw participant files remain outside the source tree.
+The Ancestry v2 public export stored 25,242 X, 1,665 Y, 36 PAR and 263 MT
+rows (27,206 total). A bounded `chromosome=PAR, build=raw` MCP lookup returned
+the pinned public rs28736870 row; `raw` is labelled as an upload coordinate,
+not a verified reference assembly.
+Pass `--include-bigy` with the full PGP corpus to upload its public ZIP with a
+VCF and BED/TXT sidecars as a third replacement. That path activated 444,297
+rows, all with GTs described by the VCF itself. The raw two alternate contig
+names and four long ALT strings require the widened text columns in
+`32_genomics.sql`; they are not evidence of catalogue-verified calls.
+The parser's separate public-corpus check classified all 17 accessible PGP
+genotype exports, including two BGZF WGS VCFs with 30–146 KiB headers and a
+Big-Y ZIP containing one VCF plus BED/TXT sidecars. The sole HTML report was
+not classified as genotype. All 17 original public genotype exports were also
+uploaded through the isolated WebSocket/PostgreSQL path, using
+`e2e_public_pgp_corpus.py` for 14 IDs and separate pinned checks for Big-Y
+3779 and WGS 4176/4182. Each produced an active set and MCP overview. The
+two BGZF WGS files produced 4,741,304/4,741,304 and
+5,017,551/5,017,547 stored/called rows; the uncompressed VCF 1241 produced
+2,294,794/2,282,175. These VCF calls use their own REF/ALT and do not
+measure the 489-site candidate's whole-genome coverage. The PGP 179 NCBI36
+export produced zero normalized calls, an expected explicit coverage limit.
+Raw participant files stay outside the source tree.
+Set `MIROBODY_PUBLIC_PGP_DIR` to an external directory containing the pinned
+public PGP `MANIFEST.json` and its downloads, then run
+`python3 -m unittest benchmarks.genomics.test_public_pgp_classification` to
+repeat all 18 hash and classification checks. A clone without that corpus
+skips this optional gate.
+Use `e2e_public_pgp_corpus.py --pgp-dir ... --base ...` to repeat the full
+original-file uploads; `--ids` selects public PGP IDs for a resumed run.
 
 `fixtures/public-hg00096.vcf` is the two-call VCF rendering of 1000 Genomes
 phase 3 public male sample HG00096 from the pinned GRCh37 CYP2C19 region VCF
@@ -144,6 +177,12 @@ Against isolated PostgreSQL, the original 50,000-row executemany batches took
 80.254 s and added 239,345,664 bytes of table plus indexes; column-array
 batches took 42.074 s and added 239,681,536 bytes. This measures storage,
 not consumer-array normalization or build lift.
+After adding the explicit raw-coordinate index for PAR/other unmapped rows,
+the same 1.3-million-row public GIAB import in the isolated audit schema took
+42.510 s and added 280,338,432 bytes of table plus indexes. It remains below
+the 60 s write gate; the extra raw index accounts for additional storage.
+Pass `--schema audit_genomics_152` (or another disposable schema) when the
+test database also hosts an application schema.
 
 The final schema is `metadata(key,value)`,
 `sites(rsid,chrom,pos37,pos38,ref,alt,gene)`, and

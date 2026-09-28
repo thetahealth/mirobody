@@ -1,8 +1,10 @@
 # Genetics on the 1.5.2 branch
 
-> In progress. The packaged site catalog is a **489-site public candidate**
-> bounded to twelve pharmacogene regions. Whole-chip genotype standardization
-> remains unverified.
+> 1.5.2 genetics preview. The packaged site catalog is a **489-site public
+> candidate** bounded to twelve pharmacogene regions. The preview provides
+> genotype facts and CPIC coverage; it returns `not_determined` for drug
+> phenotypes. Whole-chip standardization, GeT-RM phenotype agreement and
+> rare-pathogenic interpretation are deferred.
 > See [the roadmap](roadmap.md) for the measured release gates.
 
 A genotype has no measurement time, unit or trend. Raw genotype uploads use a
@@ -13,10 +15,13 @@ observation pipeline. Neither an absent site nor a no-call is a normal result.
 
 The genetic handler recognizes column headers, not a vendor banner. It accepts
 WeGene/23andMe one-genotype columns, Ancestry two-allele columns,
-MyHeritage/FTDNA CSV, several other public `snps` fixture shapes, VCF, gzip
-and single-member ZIP. Multi-sample VCF requires an explicit sample. An
+MyHeritage/FTDNA CSV, several other public `snps` fixture shapes, VCF, gzip,
+BGZF and ZIP. A ZIP may hold one VCF plus bounded BED/TXT sidecars; multiple
+genotype files remain ambiguous and are refused. Multi-sample VCF requires an explicit sample. An
 Illumina TOP-strand call remains `unresolved` without its manifest. Files
 that only mention rsIDs in prose stay in the document pipeline.
+Noncanonical VCF contig names are retained as raw chromosome text; the
+canonical region query and VCF export omit them rather than inventing a lift.
 
 The parser maps Ancestry 23/24/25/26 to X/Y/PAR/MT and FTDNA 0/XY to PAR.
 `--`, `00` and missing VCF alleles become `no_call`. The raw spelling is
@@ -75,6 +80,19 @@ An isolated PostgreSQL upload of the two complete public PGP exports yielded
 643,535 rows / 258 called for 23andMe v5, then atomically replaced that set
 with 677,436 rows / 339 called for Ancestry v2. The active-set and MCP rsID
 checks passed. These counts show how narrow the candidate currently is.
+The public Ancestry v2 export's X/Y/PAR/MT rows total 27,206
+(25,242/1,665/36/263); a bounded PAR query passed in explicit raw-coordinate
+mode. This says the rows are retained and queryable, not that their PAR
+coordinates have been independently lifted to both assemblies.
+The public multi-member Big-Y ZIP also uploaded in full: 444,297 rows active
+with 444,297 self-described VCF GT calls, including two alternate contigs and
+four ALT strings longer than the early preview schema allowed. These VCF
+calls reflect that file's own REF/ALT, not cross-checked catalogue coverage.
+All 17 accessible original PGP genotype exports have now activated through
+WebSocket and isolated PostgreSQL; the one HTML report was rejected. The two
+public BGZF WGS VCFs stored 4,741,304 and 5,017,551 rows respectively.
+Their high VCF `called` counts use each file's own REF/ALT and do not imply
+that the candidate index verifies those whole genomes.
 
 A separate public-data storage benchmark imported 1.3 million unique, called
 biallelic SNVs from NIST GIAB HG005 into isolated PostgreSQL. The original
@@ -82,11 +100,17 @@ batched insert took 80.254 s and added 239,345,664 bytes of table and
 indexes; the column-array insert took 42.074 s and added 239,681,536 bytes.
 These figures do not establish vendor-array catalog coverage or GRCh38 mapping
 accuracy: the packaged catalog only maps its bounded candidate sites.
+With the additional raw-coordinate index, the 1.3-million-row public GIAB
+import took 42.510 s and added 280,338,432 bytes in an isolated audit schema.
+It remains under the 60 s storage gate; this is a different index layout from
+the earlier 239,681,536-byte run.
 
 ## Reading and exporting
 
 `query_genetic_data` accepts no selector for an active-set overview, or one
-of rsIDs (up to 50), HGNC gene or a bounded GRCh37/GRCh38 region. It returns
+of rsIDs (up to 50), HGNC gene or a bounded GRCh37/GRCh38 region. A region may
+also use `build=raw` to search upload positions without claiming an assembly;
+PAR rows require this raw mode. It returns
 at most 500 direct rows with source, build, call status and truncation notes.
 For a region query, `position` uses the requested build; `query_build`,
 `raw_position`, `pos37` and `pos38` make its provenance explicit.
@@ -109,7 +133,7 @@ bounded FHIR STU3 Variant Observation collection inside the normal API
 envelope. It uses the active upload, requires the same authorization as the
 genotype tool, and returns `missing_rsids` and `omitted_rsids`. Only mapped
 called or no-call sites with coordinates and REF/ALT can be represented; the
-public two-site upload passes this export check in seven renderings. A full
+public two-site upload passes this export check in nine renderings. A full
 profile-validator run and whole-chip coverage remain open.
 
 ## Pharmacogenomics
@@ -143,7 +167,8 @@ Missing sites, no-calls and conflicts must not be represented as normal.
 
 The [public-data generator](../benchmarks/genomics/generate_public_formats.py)
 pins a 1000 Genomes HG00096 truth file and PharmCAT 3.4 positions by SHA-256,
-then renders seven upload files from the same two calls, including gzip/zip and
+then renders nine upload files from the same two calls, including gzip, BGZF,
+ZIP with sidecars and
 both reference assemblies. The
 [end-to-end check](../benchmarks/genomics/e2e_public_truth.py) exercises the
 packaged candidate index through real
@@ -173,11 +198,14 @@ its model provider and applicable consent requirements. The
 [live privacy check](../benchmarks/genomics/check_filesystem_privacy.py) covers
 plain/gzip/zip chat classification, row persistence and both document mounts.
 The model-call guard counts current-turn genetic tool rows and strips previous
-turn's genetic tool results and dependent answers from checkpoint replay; a
-two-turn live replay passed. DeepAgents' separate summarizer and history
-offload now receive redacted genotype results, including during context
-overflow recovery; public-call tests cover the sync and async paths. The
-general-purpose subagent is disabled in this harness. After a genetic query,
+turn's genetic tool results and dependent answers from checkpoint replay. An
+isolated two-question live check logged three model boundaries: every visible
+genotype row was accounted for by a current-turn tool result, and the prior
+row and dependent answer were removed on replay. DeepAgents' separate
+summarizer and history offload also receive redacted genotype results,
+including during context overflow recovery; public-call tests cover the sync
+and async paths. The general-purpose subagent is disabled in this harness.
+After a genetic query,
 the Agent refuses scratch-file reads and writes while still allowing read-only
-access to the document and profile mounts. A full live G8 audit of indirect
-paths remains open.
+access to the document and profile mounts. A forced live summarizer/offload
+run remains unmeasured; those indirect paths have public-call regression tests.

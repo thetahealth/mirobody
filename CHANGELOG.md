@@ -1,12 +1,17 @@
 ## Unreleased
 
+1.5.2 genetics preview scope: genotype facts and CPIC coverage are available
+with the measured public candidate. Drug phenotypes and rare-disease risk
+interpretation are deferred; the tool reports `not_determined` rather than
+guessing from an incomplete array.
+
 ### Added
 
 - **Genotype uploads now publish an atomic active set.** A failed batch used to
   leave partial data while still reporting completion, and a repeat upload
   duplicated rows. The new set remains hidden until every batch and row count
   pass; another upload replaces it. The public 1000 Genomes end-to-end check
-  uploads seven public renderings, including gzip/zip and both genome builds,
+  uploads nine public renderings, including gzip/BGZF/zip and both genome builds,
   and observes one active set after each replacement.
 - **The packaged genotype site index now contains a public candidate.** The
   former one-site dbSNP example could normalize almost no real upload. A
@@ -44,12 +49,15 @@
   passed 167 tests, lint with zero errors and the open-source build; the local
   backend serves the copied hashed assets. A Chrome check saw the active-set
   card update after a public-data replacement; native file-picker upload is
-  still open.
+  still unverified by the browser tool. The isolated `mirobody-web` branch now
+  offers `.bgz/.bgzf`, describes ZIP sidecars in all four languages, and uses
+  a stable completion message; a public VCF dispatched through the page's
+  file-input handler activated a two-row set.
 - **Mapped genetic calls have a bounded FHIR Variant export.** The authenticated
   `export.fhir.json` route represents selected rsIDs with the STU3 assessment,
   reference assembly, coordinate, REF/ALT and allelic-state codes. Missing and
   unrepresentable rows are named rather than silently treated as normal. All
-  seven public upload formats reproduce the two-site truth in this export.
+  nine public upload formats reproduce the two-site truth in this export.
 - **`mirobody migrate-genotypes` for 1.5.1 data.** The new reader only sees
   active sets, which otherwise hid legacy rows on upgrade. The command moves
   each person's latest old file into an active set with raw calls marked
@@ -65,10 +73,37 @@
 
 ### Changed
 
+- Some public whole-genome VCF uploads were not recognized: BGZF has multiple
+  gzip blocks, a Big-Y archive ships one VCF with BED/TXT sidecars, and one
+  WGS header exceeded the 16 KiB sniff window. The parser now validates each
+  BGZF block, permits one VCF with bounded and CRC-checked sidecars, refuses a
+  second genotype-looking sidecar, and reads
+  up to 256 KiB of header. Chat attachment classification and legacy file
+  mounts use the same bound, so a long-header VCF or `.bgz` cannot appear as
+  a document. All 17 accessible public PGP genotype exports classify; the
+  public HTML report remains rejected. All 17 original public PGP genotype
+  exports activated through isolated WebSocket/PostgreSQL checks, including
+  two BGZF WGS files with 4,741,304 and 5,017,551 rows. Their VCF GTs are
+  self-described and do not assert whole-genome catalog coverage.
+- The public Big-Y ZIP reached the database but exceeded early preview column
+  widths: two alternate contig names and four ALT strings were longer than
+  the schema allowed. The genotype table now stores those raw fields as text,
+  and schema replay widens an existing preview table. The public 444,297-row
+  Big-Y upload activates and remains queryable. A failed driver statement used
+  to log a traceback that could quote bound genotype values; the central SQL
+  writer now logs only the error type and counts for driver exceptions.
+- Public Ancestry PAR rows were stored but the region tool refused `PAR` and
+  required a reference build they did not have. `query_genetic_data` now
+  accepts an explicit `build=raw` region, labels its unverified coordinates,
+  and indexes raw positions. The public Ancestry v2 export has 27,206
+  X/Y/PAR/MT rows; a bounded PAR lookup is in the public end-to-end check.
+  The added raw-coordinate index kept a fresh 1.3-million-row public GIAB
+  import at 42.510 s, below the 60 s gate; table and indexes grew by
+  280,338,432 bytes in the isolated audit schema.
 - A public VCF that listed only one ALT allele was previously rejected when
   the dbSNP site listed additional alleles. VCF GT indexes now map into the
   catalog's allele order while preserving phase. The public HG00096
-  rs4244285 call and all seven upload renderings pass with the packaged
+  rs4244285 call and all nine upload renderings pass with the packaged
   multi-allelic candidate index.
 - Chat attachments previously classified a valid compressed genotype file from
   a truncated archive prefix and exposed its raw bytes in the Agent file
@@ -90,7 +125,9 @@
   recovery clips only the redacted view. After a genotype query the Agent also
   refuses scratch-file writes and reads, while the document mounts remain
   readable. Public-call tests exercise synchronous and asynchronous paths;
-  a full live G8 audit remains open.
+  a two-question live replay now verifies three model boundaries with the
+  prior genotype row and answer redacted. Forced live summarizer/offload
+  remains unmeasured.
 - Previously mislabeled 1.5.1 genetic attachments could remain in the Agent
   document mounts even after new uploads were classified correctly. The read
   projection now hides files linked to genotype sets, plain exports with a

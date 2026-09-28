@@ -14,7 +14,9 @@ import hashlib
 import io
 import json
 import sqlite3
+import struct
 import zipfile
+import zlib
 from pathlib import Path
 
 TRUTH_SHA256 = "c63f2e17f9fa7ed06d75c0c03824233eced60910d2a2e5a04cb7b51cab0921ca"
@@ -24,6 +26,17 @@ SOURCE = {
     "truth": "https://www.internationalgenome.org/data/",
     "positions": "https://github.com/PharmGKB/PharmCAT/releases/tag/v3.4.0",
 }
+
+
+def _bgzf_block(payload: bytes) -> bytes:
+    compressor = zlib.compressobj(wbits=-15)
+    compressed = compressor.compress(payload) + compressor.flush()
+    size = 18 + len(compressed) + 8
+    if size > 65536:
+        raise ValueError("public BGZF test block is too large")
+    header = (b"\x1f\x8b\x08\x04\x00\x00\x00\x00\x00\xff\x06\x00BC\x02\x00"
+              + struct.pack("<H", size - 1))
+    return header + compressed + struct.pack("<II", zlib.crc32(payload), len(payload))
 
 
 def _verify(path: Path, expected: str) -> None:
@@ -106,10 +119,21 @@ def build(truth_path: Path, positions_path: Path, out: Path, sample: str) -> dic
     )
     (out / "public.vcf").write_text(vcf37)
     (out / "public.vcf.gz").write_bytes(gzip.compress(vcf37.encode(), mtime=0))
+    midpoint = len(vcf37) // 2
+    (out / "public.vcf.bgz").write_bytes(
+        _bgzf_block(vcf37.encode()[:midpoint]) +
+        _bgzf_block(vcf37.encode()[midpoint:]) + _bgzf_block(b"")
+    )
     archive = io.BytesIO()
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as output:
         output.writestr("public.vcf", vcf37)
     (out / "public.vcf.zip").write_bytes(archive.getvalue())
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as output:
+        output.writestr("variants.vcf", vcf37)
+        output.writestr("regions.bed", f"chr10\t{min(RSIDS.values()) - 1}\t{max(RSIDS.values())}\n")
+        output.writestr("readme.txt", "Public 1000 Genomes HG00096 rendering\n")
+    (out / "public.vcf.sidecars.zip").write_bytes(archive.getvalue())
     (out / "public-grch38.vcf").write_text(
         "##fileformat=VCFv4.2\n##reference=GRCh38\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + sample + "\n" +
         "".join(f"10\t{pos38}\t{rsid}\t{ref}\t{alt}\t.\tPASS\t.\tGT\t{gt}\n"
