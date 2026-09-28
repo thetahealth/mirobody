@@ -163,7 +163,7 @@ def _cmd_dev(args: argparse.Namespace) -> None:
             "    mirobody dev --pg-url postgres://user:pw@localhost:5432/mirobody\n"
             "\n"
             "or set PG_URL / DATABASE_URL. The schema is created on first start.\n"
-            "No database at hand? `docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=pw \\\n"
+            "No database at hand? `docker run -d -p 5432:5432 -e POSTGRES_USER=user -e POSTGRES_PASSWORD=pw \\\n"
             "    -e POSTGRES_DB=mirobody pgvector/pgvector:pg17` — pgvector, not plain\n"
             "postgres: `schema/00_prolog.sql` creates a vector column."
         )

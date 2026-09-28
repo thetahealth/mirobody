@@ -6,12 +6,12 @@ and ignore the other two.
 | You want | Go to | Needs | Key |
 | --- | --- | --- | --- |
 | Names and units resolved in your own code | [A · the library](#a--the-library) | Python 3.12 | none |
-| The whole product running, with data in it | [B · the stack](#b--the-stack) | Docker | one |
+| The whole product running, with data in it | [B · the stack](#b--the-stack) | Docker | one for model features |
 | To change the code and see it | [C · a checkout](#c--a-checkout) | Python + a Postgres | one |
 
-The hosted [Quickstart](https://docs.mirobody.ai/en/quickstart/) covers the same
-ground with screenshots. This page is the version that ships with the code, so
-it cannot drift from the commands in this repository.
+For a hosted API key and `/v1` requests, use the separate [Cloud
+quickstart](https://docs.mirobody.ai/en/api-reference/quickstart/). This page
+covers the open-source engine and its own commands.
 
 ## A · the library
 
@@ -51,11 +51,12 @@ git lfs install && git lfs pull   # the LOINC bundle, 13 MB; a fresh clone holds
 ```
 
 `deploy.sh` writes a `.env` on first run and generates the secrets in it. Put
-**one** model key in that file — any of the six works, and `mirobody doctor`
-tells you which surfaces it lights up:
+**one** model key in that file for extraction and agent answers. If you add it
+after the stack starts, run `docker compose restart`. Check available model
+features inside the server container:
 
 ```bash
-mirobody doctor
+docker compose exec mirobody python -m mirobody doctor
 ```
 
 Sign in as `you@mirobody.ai` with code `111111`; no mail provider is involved.
@@ -73,19 +74,33 @@ and expects the secrets to exist. `dev` is the same server in one process with
 none of that — no config file, generated secrets, Redis optional:
 
 ```bash
+git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
+git lfs install && git lfs pull
+python3.12 -m venv .venv && . .venv/bin/activate
 pip install -e '.[app]'
-mirobody dev --pg-url postgres://user:pw@localhost:5432/mirobody
 ```
 
-No Postgres at hand:
+If you do not already have Postgres with pgvector, start one first:
 
 ```bash
-docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=pw -e POSTGRES_DB=mirobody \
+docker run -d -p 5432:5432 -e POSTGRES_USER=user -e POSTGRES_PASSWORD=pw \
+    -e POSTGRES_DB=mirobody \
     pgvector/pgvector:pg17
 ```
 
-pgvector, not plain postgres — the schema creates a vector column. The schema
-itself is created on first start.
+Then start the API, replacing the connection URL if you use an existing
+database. Check its health endpoint from another terminal:
+
+```bash
+mirobody dev --pg-url postgres://user:pw@localhost:5432/mirobody
+```
+
+```bash
+curl -fsS http://127.0.0.1:18090/api/health
+```
+
+The response includes a `version` field. Use pgvector rather than plain
+Postgres: the schema creates a vector column on first start.
 
 **`dev` serves the API, not the web client.** The built client lives at
 repo-root `frontend/` and is outside the package, so it is there in a checkout
