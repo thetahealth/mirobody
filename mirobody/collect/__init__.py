@@ -84,6 +84,8 @@ _EXPORTS = {
     # Files, shared by server and agent.
     "get_websocket_file_upload_manager": "files.file_upload_manager",
     "FileDbService": "files.services.file_db_service",
+    "SOURCE_ASK": "files.services.file_db_service",
+    "SOURCE_DATA": "files.services.file_db_service",
     "FileUploadData": "files.services.file_processing_service",
     "delete_all_files_from_message": "files.services.file_processing_service",
     "delete_files_from_message": "files.services.file_processing_service",
@@ -134,7 +136,7 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .files.handlers.genetic import GeneticHandler
     from .files.services.drive_listing import get_uploaded_files_paginated, regenerate_file_url
     from .files.services.file_abstract_extractor import FileAbstractExtractor, lookup_extracted_text
-    from .files.services.file_db_service import FileDbService
+    from .files.services.file_db_service import SOURCE_ASK, SOURCE_DATA, FileDbService
     from .files.services.file_processing_service import (
         FileUploadData,
         delete_all_files_from_message,

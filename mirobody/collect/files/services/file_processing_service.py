@@ -386,11 +386,7 @@ async def delete_all_files_from_message(
         logger.info(f"Starting deletion of all files for source_id={message_id}")
         
         # Get all files for this source_id
-        files = await FileDbService.get_files_by_source(
-            user_id=user_id,
-            created_source="file_upload",
-            created_source_id=message_id,
-        )
+        files = await FileDbService.get_files_by_source(user_id=user_id, created_source_id=message_id)
         
         if not files:
             logger.info(f"No files found for source_id={message_id}")

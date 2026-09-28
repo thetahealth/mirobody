@@ -76,7 +76,7 @@ INSERT INTO th_files (
     is_del, created_at, updated_at
 ) VALUES (
     :user_id, :user_id, :file_name, 'text/markdown', :file_key, :file_content,
-    :scene, 'web_drive', :created_source_id, :original_text, :text_length,
+    :scene, 'data', :created_source_id, :original_text, :text_length,
     false, now(), now()
 )
 ON CONFLICT (file_key) DO UPDATE SET

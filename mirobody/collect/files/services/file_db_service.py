@@ -20,6 +20,13 @@ from mirobody.utils.file_types import guess_mime, simple_file_type
 
 logger = logging.getLogger(__name__)
 
+#: Where a file was uploaded, named as the web client names its tabs: the Data
+#: page, or a message on the Ask page. `th_files.created_source` holds one of
+#: these; they were `web_drive`/`web_chat`, and a default "file_upload" that
+#: nothing wrote was what made delete-all-files-of-a-message match nothing.
+SOURCE_DATA = "data"
+SOURCE_ASK = "ask"
+
 
 class FileDbService:
     """
@@ -40,7 +47,8 @@ class FileDbService:
         file_type: str = "",
         file_content: dict[str, Any] | None = None,
         scene: str = "web",
-        created_source: str = "file_upload",
+        *,
+        created_source: str,
         created_source_id: str | None = None,
         query_user_id: str | None = None,
         original_text: str = "",
@@ -103,7 +111,7 @@ class FileDbService:
                 "file_key": file_key,
                 "file_content": safe_json_dumps(file_content or {}),
                 "scene": scene or "web",
-                "created_source": created_source or "file_upload",
+                "created_source": created_source,
                 "created_source_id": created_source_id,
                 "original_text": original_text or "",
                 "text_length": text_length or 0,
@@ -131,7 +139,8 @@ class FileDbService:
         files_info: list[dict[str, Any]],
         scene: str = "web",
         scenes_by_key: dict[str, str] | None = None,
-        created_source: str = "file_upload",
+        *,
+        created_source: str,
         created_source_id: str | None = None,
         query_user_id: str | None = None,
     ) -> list[int]:
@@ -455,21 +464,13 @@ class FileDbService:
             raise Exception(f"Failed to get uploaded files: {str(e)}")
     
     @staticmethod
-    async def get_files_by_source(
-        user_id: str,
-        created_source: str,
-        created_source_id: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """
-        Get files by created source.
-        
-        Args:
-            user_id: User ID
-            created_source: Source identifier
-            created_source_id: Optional source record ID
-            
-        Returns:
-            List of file records
+    async def get_files_by_source(user_id: str, created_source_id: str) -> list[dict[str, Any]]:
+        """The caller's live files attached to one message.
+
+        Not filtered by `created_source`: the one caller passed "file_upload",
+        which nothing wrote, so "delete every file of this message" matched
+        nothing and reported success while the files stayed. The message id
+        names the files and `user_id` scopes them to their owner.
         """
         try:
             sql = """
@@ -480,17 +481,10 @@ class FileDbService:
                        created_at, updated_at
                 FROM th_files
                 WHERE user_id = :user_id
-                  AND created_source = :created_source
+                  AND created_source_id = :created_source_id
                   AND is_del = false
             """
-            params: dict[str, Any] = {
-                "user_id": str(user_id),
-                "created_source": created_source,
-            }
-            
-            if created_source_id:
-                sql += " AND created_source_id = :created_source_id"
-                params["created_source_id"] = created_source_id
+            params: dict[str, Any] = {"user_id": str(user_id), "created_source_id": created_source_id}
             
             result = await execute_query(query=sql, params=params)
             

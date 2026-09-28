@@ -47,7 +47,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from fastapi import WebSocket
 from mirobody.collect.files.file_processor import FileProcessor
-from mirobody.collect.files.services.file_db_service import FileDbService
+from mirobody.collect.files.services.file_db_service import SOURCE_DATA, FileDbService
 from mirobody.utils.file_types import guess_mime
 from mirobody.collect.files.handlers.genetic import GeneticHandler
 from mirobody.utils.tasks import spawn
@@ -816,7 +816,7 @@ class WebSocketFileUploadManager:
                 files_info=files_info,
                 scene="report",
                 scenes_by_key=scenes_by_key,
-                created_source="web_drive",
+                created_source=SOURCE_DATA,
                 created_source_id=message_id,
                 query_user_id=target_user_id,
             )

@@ -165,6 +165,12 @@ boundary.
   event stream.
 - **A turn on someone else's record names them the way the asker does.**
   `record_owner` is the care circle's label ("妈妈") before the account name.
+- **Deleting every file of a message deleted nothing.** It looked the files
+  up by `created_source="file_upload"`, a value nothing writes, found none, and
+  answered success while the rows, the stored objects and their readings
+  stayed. It now finds them by the message id within the caller's files.
+  `th_files.created_source` is now `data` or `ask`, after the web client's
+  tabs (it was `web_drive`/`web_chat`); `90_retire.sql` renames existing rows.
 - **The chat agent no longer sees `resolve_indicator`, `convert_unit` or
   `normalize_unit`.** `query_health_indicators` already resolves names to
   LOINC and values to the catalogue's unit; those three serve an MCP client

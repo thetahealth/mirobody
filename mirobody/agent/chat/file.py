@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Any
 
 from mirobody.collect import process_files_async
-from mirobody.collect import FileDbService
+from mirobody.collect import SOURCE_ASK, FileDbService
 from mirobody.utils.file_types import guess_mime
 from mirobody.utils.config.storage import get_storage_client
 from mirobody.utils.tasks import spawn
@@ -259,7 +259,7 @@ async def process_files_from_storage(
             files_info=files_info,
             scene="report",
             scenes_by_key={str(fi["file_key"]): scene for fi, scene in zip(files_info, scenes, strict=True)},
-            created_source="web_chat",
+            created_source=SOURCE_ASK,
             created_source_id=msg_id,
             query_user_id=query_user_id,
         )

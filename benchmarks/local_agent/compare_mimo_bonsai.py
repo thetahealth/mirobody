@@ -168,7 +168,7 @@ def mock_tool_result(case: dict, args: dict) -> str:
         elif method == "readings":
             result.extend({"indicator": indicator, "time": f"{r['date']} 09:00:00", "value": r["value"],
                            "unit": r["unit"], "file": r.get("file", ""), "total": len(group)}
-                          for r in reversed(group[-request.limit:]))
+                          for r in reversed(group[-query.ROW_CAP:]))
         elif method == "latest":
             r = group[-1]
             result.append({"indicator": indicator, "date": r["date"], "time": f"{r['date']} 09:00:00",
@@ -182,19 +182,14 @@ def mock_tool_result(case: dict, args: dict) -> str:
         else:
             buckets: dict[str, list[float]] = defaultdict(list)
             for r in group:
-                period = r["date"] if request.resolution in ("minute", "hour", "day") else (
-                    r["date"][:7] if request.resolution == "month" else r["date"]
-                )
+                period = r["date"][:7] if request.view == "month" else r["date"]
                 buckets[period].append(float(r["value"]))
             result.extend({"indicator": indicator, "period": period,
                            "avg": round(sum(nums) / len(nums), 4), "min": min(nums), "max": max(nums),
                            "n": len(nums), "unit": unit} for period, nums in buckets.items())
     table = query.compact(result, COLUMNS[method], empty="(no rows)")
     span = f"{request.start}..{request.end}" if request.start or request.end else "all recorded data"
-    meta = f"(window={span}, tz=Asia/Shanghai, dates=tz_exact, resolution={request.resolution}"
-    if request.aggregate != "none":
-        meta += f", aggregate={request.aggregate}/{request.basis}"
-    meta += f", rows={len(result)})"
+    meta = f"(window={span}, tz=Asia/Shanghai, dates=tz_exact, view={request.view}, rows={len(result)})"
     notes = "notes: no data for an indicator means it was never recorded, not that the condition is absent"
     if fell_back:
         notes = "notes: no indicator matched those terms; this is what this person has on file; " + notes[7:]

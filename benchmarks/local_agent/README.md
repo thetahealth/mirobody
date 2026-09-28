@@ -4,10 +4,11 @@
 OpenAI-compatible chat endpoint, such as a local `llama-server`, using the
 shipped system prompt and the real `query_health_indicators` schema
 (`mirobody.kernel.query.TOOL_SCHEMA`). The tool behind it is a mock that
-answers in the shapes the real tool returns: `resolution="day"` gives
-`period`/`avg` rows, `aggregate="stats"` a summary and `aggregate="latest"`
-the last value. `query.validate_request` refuses an invalid `limit`, as it does
-in the product. An unmatched indicator returns the catalogue, as the real
+answers in the shapes the real tool returns: `view="day"` gives
+`period`/`avg` rows, `view="stats"` a summary and `view="latest"` the last
+value. `query.validate_request` refuses an unknown parameter or view, as it
+does in the product. The saved `results/` predate `view` and record the
+`resolution`/`aggregate` schema they ran against. An unmatched indicator returns the catalogue, as the real
 tool's fallback does, and an identical repeated call is refused. All readings
 and the optional report image are synthetic.
 
