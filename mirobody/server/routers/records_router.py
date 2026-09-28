@@ -173,7 +173,7 @@ async def standardize(body: StandardizeRequest, user_id: str = Depends(verify_to
 
     stored_count = 0
     if body.store and data:
-        stored_count, _ = await _insert_records(
+        stored_count = (await _insert_records(
             user_id,
             [
                 {
@@ -187,7 +187,7 @@ async def standardize(body: StandardizeRequest, user_id: str = Depends(verify_to
                 for row in data
             ],
             source=_SOURCE_STANDARDIZE,
-        )
+        )).inserted
 
     out: dict[str, Any] = {
         "object": "extraction",
@@ -299,18 +299,18 @@ def _provenance(vendor: str | None, source: str) -> observations.Provenance:
     )
 
 
-async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source: str) -> tuple[int, int]:
+async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source: str) -> observations.Report:
     """Write readings, standardizing each on the way in.
 
-    Returns `(written, standardized)`: the observations written and how many
-    of them the vocabulary coded. Every write goes through
+    Returns the write's report: the observations written, how many of them
+    the vocabulary coded, and every record not written by reason. Every write goes through
     `observations.ingest`, which folds, parses and codes each row and writes
     the coding beside it. A collision on the identity is a retry, not a
     request for a duplicate row: re-sending a batch after a timeout writes
-    nothing twice. One `ingest` per provenance, so a batch mixing a health
-    store with typed readings codes each the way its source calls for.
+    nothing twice. Per-row provenance keeps a mixed batch in one transaction.
     """
-    groups: dict[str | None, list[observations.Draft]] = {}
+    drafts: list[observations.Draft] = []
+    provenances: list[observations.Provenance] = []
     for ix, record in enumerate(records):
         when = _parse_time(record.get("time"))
         end = _parse_time(record["end_time"]) if record.get("end_time") else when
@@ -319,7 +319,7 @@ async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source
         name, vendor_field = str(record["indicator"]), None
         if vendor is not None:
             name, vendor_field = _device_metric(vendor, name)
-        groups.setdefault(vendor, []).append(observations.Draft(
+        drafts.append(observations.Draft(
             name_text=name,
             observed_start=when,
             observed_end=end,
@@ -329,13 +329,9 @@ async def _insert_records(user_id: str, records: list[dict[str, Any]], *, source
             vendor_field=vendor_field,
             row_ix=ix,
         ))
+        provenances.append(_provenance(vendor, source))
     tz = await observations.user_tz(str(user_id))
-    written = coded = 0
-    for vendor, drafts in groups.items():
-        report = await observations.ingest(str(user_id), drafts, _provenance(vendor, source), user_tz=tz)
-        written += report.inserted
-        coded += report.coded
-    return written, coded
+    return await observations.ingest(str(user_id), drafts, provenances, user_tz=tz)
 
 
 @router.post("/data")
@@ -353,11 +349,11 @@ async def write_records(body: WriteRequest, user_id: str = Depends(verify_token)
         for r in body.records
     ]
     try:
-        written, coded = await _insert_records(user_id, records, source=_SOURCE_API)
+        report = await _insert_records(user_id, records, source=_SOURCE_API)
     except Exception as e:
         logger.error(f"[write_records] {e}", exc_info=True)
         return _error(500, "These records could not be written.", "internal_error")
-    return {"status": "ok", "ingested": written, "standardized": coded}
+    return {"status": "ok", "ingested": report.inserted, "standardized": report.coded, "rejected": dict(report.rejected)}
 
 
 @router.get("/data")

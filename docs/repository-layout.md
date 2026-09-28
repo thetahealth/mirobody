@@ -9,11 +9,11 @@ README keeps the one-line map.
 
 ```
 mirobody/
-├── engine.py    the front door — resolve() and parse_file()
+├── engine/      the front door — resolve(), resolve_reading(), parse_file()
 ├── units/       UCUM units, unit_family, conversions          ┐ the library:
 ├── lexical.py   surface folding + the CJK-aware tokenizer     │ numpy only,
 ├── bundle.py    build-time: the axis table and alias sources    │
-├── res/         the shipped LOINC bundles, res/metrics.tsv       │
+├── res/         the shipped LOINC bundles, catalog/metrics.tsv  │
 ├── kernel/      what health data MEANS, as pure functions:       │
 │                metrics · series · quality · overlay · meds ·    │
 │                query · tools · ops · connect · sink · events ·  │
@@ -42,9 +42,10 @@ mirobody` is **2 packages, 67 MB** — the entries above the `documents/` line, 
 installs it is `requirements.txt`, because the Docker application is
 `git clone && ./deploy.sh` and never a pip install.
 
-**Machine-enforced, not documented:** four import-linter contracts hold the
-lines — the library layer imports nothing but numpy, and the engine never
-imports the agent layer — and `lint-imports` fails the build. A separate gate, `scripts/check_wheel_data.py`, keeps the bundle-build passes and the
+**Machine-enforced, not documented:** six import-linter contracts hold the
+lines — the library layer imports nothing but numpy, the engine never imports
+the agent layer, and `collect` and `translate` each have one front door — and
+`lint-imports` fails the build. A separate gate, `scripts/check_wheel_data.py`, keeps the bundle-build passes and the
 v2 semantic pipeline — 19,000 lines nobody who installs the package can run —
 out of the artifact.
 

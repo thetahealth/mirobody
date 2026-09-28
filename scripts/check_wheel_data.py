@@ -27,18 +27,23 @@ import zipfile
 
 # path inside the artifact (wheel layout) -> minimum plausible size in bytes
 REQUIRED = {
-    "mirobody/res/fhir_loinc_bundle.tar.gz": 1_000_000,
-    "mirobody/res/aliases_src/zh.tsv": 100_000,
-    "mirobody/res/resolver_overrides.tsv": 1_000,
+    "mirobody/res/loinc/fhir_loinc_bundle.tar.gz": 1_000_000,
+    "mirobody/res/loinc/aliases_src/zh.tsv": 100_000,
+    "mirobody/res/loinc/resolver_overrides.tsv": 1_000,
     # The CLASS gate. Absent, `_skipped()` logs a warning and every radiology,
     # dental and cell-marker code becomes reachable again — `癌胚抗原` would go
     # back to answering the flow-cytometry marker. A silent recall regression
     # is exactly what this gate exists to catch.
     # 1.4.0: the indicator catalogue, its Chinese labels and the dose-form
     # table are read at import time by `mirobody.kernel.metrics` / `mirobody.kernel.meds`.
-    "mirobody/res/metrics.tsv": 40_000,
-    "mirobody/res/labels/zh.tsv": 10_000,
+    "mirobody/res/catalog/metrics.tsv": 40_000,
+    "mirobody/res/catalog/labels/zh.tsv": 10_000,
     "mirobody/res/dose_forms.tsv": 300,
+    # UCUM, verbatim: the License requires the whole file, its notice and the
+    # licence text to travel together (`res/ucum/ucum-essence.NOTICE`).
+    "mirobody/res/ucum/ucum-essence.xml": 80_000,
+    "mirobody/res/ucum/ucum-essence.NOTICE": 500,
+    "mirobody/res/ucum/UCUM-LICENSE.md": 10_000,
     "mirobody/kernel/decoders/samples/garmin/dailies.json": 500,
 }
 
@@ -52,7 +57,7 @@ REQUIRED = {
 FORBIDDEN = (
     # 1.5.0: a UMLS-derived Japanese alias file (MSHJPN / MDRJPN) that was
     # listed as a LOINC linguistic variant; LOINC has none for Japanese.
-    "mirobody/res/aliases_src/ja.tsv",
+    "mirobody/res/loinc/aliases_src/ja.tsv",
     # 1.5.0: the five machine-derived language files. Their claimed upstream
     # was LOINC's LinguisticVariants, and a term-by-term measurement did not
     # confirm it (de 68.5%, es 86.4%, fr 76.1%, ko 80.6%, ru 75.2%). This
@@ -60,25 +65,33 @@ FORBIDDEN = (
     # rather than carried unaudited. What LOINC itself publishes for those
     # languages is still in the bundle's alias index, which is built from the
     # release: 7,612 of their 9,866 terms resolve without them.
-    "mirobody/res/aliases_src/de.tsv",
-    "mirobody/res/aliases_src/es.tsv",
-    "mirobody/res/aliases_src/fr.tsv",
-    "mirobody/res/aliases_src/ko.tsv",
-    "mirobody/res/aliases_src/ru.tsv",
-    "mirobody/res/fhir_concept_graph.bin",
-    "mirobody/res/fhir_snomed_ct_bundle.tar.gz",
-    # 1.3.0: superseded by `corpus_names.bin` inside the bundle. The resolver
-    # used to parse this CSV on every load, which is where 677,643 of its
-    # Python strings came from.
-    "mirobody/res/fhir_meta.csv.gz",
+    "mirobody/res/loinc/aliases_src/de.tsv",
+    "mirobody/res/loinc/aliases_src/es.tsv",
+    "mirobody/res/loinc/aliases_src/fr.tsv",
+    "mirobody/res/loinc/aliases_src/ko.tsv",
+    "mirobody/res/loinc/aliases_src/ru.tsv",
     # 1.5.0: deleted, not merely unshipped. It was the manual overlay for
     # `mirobody indicator analyte-digit`, a build command that went with
     # `indicator/`; nothing in translate_build or the resolver reads digits.
-    "mirobody/res/analyte_digit_src/analyte_digit_curated.tsv",
+    "mirobody/res/loinc/analyte_digit_src/analyte_digit_curated.tsv",
     # fhir_id_map.npy is not listed because it no longer exists: it mapped
     # canonical ids to `fhir_indicators.id`, one database's PRIMARY KEYS, and was
     # deleted rather than merely unshipped.
 )
+
+# By file name, anywhere under the package: they sat at the top of `res/`
+# before 1.5.1 and under `res/loinc/` after, and a list of one path let an older
+# checkout ship the other. `fhir_meta.csv.gz` was superseded in 1.3.0 by
+# `corpus_names.bin` inside the bundle.
+FORBIDDEN_NAMES = ("fhir_concept_graph.bin", "fhir_snomed_ct_bundle.tar.gz", "fhir_meta.csv.gz")
+
+# What a wheel carries that an sdist has at its root instead: the default
+# config a run outside a checkout falls back to (scripts/build_backend.py).
+WHEEL_REQUIRED = {
+    "mirobody/_defaults/config.yaml": 1_000,
+    "mirobody/_defaults/config.llm.yaml": 5_000,
+    "mirobody/_defaults/config.devices.yaml": 500,
+}
 
 # Same standard, applied to CODE. These two subtrees are 19,000 lines nobody
 # who installs the package can run — the bundle-build passes need raw
@@ -104,7 +117,7 @@ FORBIDDEN_PREFIXES = (
 # build passes, repacked out of the shipped copy by
 # scripts/build_backend.py::_BUNDLE_RUNTIME_MEMBERS. Shipping them was 17 MB of
 # every artifact that no installed code path could open.
-BUNDLE = "mirobody/res/fhir_loinc_bundle.tar.gz"
+BUNDLE = "mirobody/res/loinc/fhir_loinc_bundle.tar.gz"
 BUNDLE_REQUIRED = (
     "VERSION", "alias_keys.bin", "alias_index.npz",
     "corpus_names.bin", "corpus_names.npz",
@@ -118,6 +131,12 @@ BUNDLE_FORBIDDEN = (
     "loinc_alias_index.npz", "loinc_axis.csv", "loinc_demote.txt",
     "fhir_dose_index.npz", "analyte_digit.tsv", "analyte_digit_curated.tsv",
 )
+
+#: UCUM ships verbatim; a different digest is an edited copy, which its License
+#: forbids distributing. Kept equal to `mirobody.units.essence.UCUM_ESSENCE_SHA256`
+#: (the local suite compares them); read here without importing the package.
+UCUM_ESSENCE = "mirobody/res/ucum/ucum-essence.xml"
+UCUM_ESSENCE_SHA256 = "dfccea1b5dc284245ebae97edd1dc03c45864da4e87df55bc9851797b4fd0b61"
 
 # Git LFS pointer files start with this line and are a few hundred bytes.
 LFS_MAGIC = b"version https://git-lfs.github.com/spec/"
@@ -164,28 +183,43 @@ def _bundle_members(path: str) -> list[str] | None:
         return None
 
 
+def _member_bytes(path: str, member: str) -> bytes | None:
+    try:
+        if path.endswith(".whl"):
+            with zipfile.ZipFile(path) as z:
+                return z.read(member)
+        with tarfile.open(path) as t:
+            m = next(mm for mm in t.getmembers() if mm.name.endswith(member))
+            return t.extractfile(m).read()
+    except Exception:
+        return None
+
+
 def check(path: str) -> list[str]:
-    entries = _wheel_entries(path) if path.endswith(".whl") else _sdist_entries(path)
+    wheel = path.endswith(".whl")
+    # A list: the test check below walks the entries a second time, and over a
+    # generator it saw none, so it never fired.
+    entries = list(_wheel_entries(path) if wheel else _sdist_entries(path))
+    required = {**REQUIRED, **WHEEL_REQUIRED} if wheel else REQUIRED
     seen: dict[str, tuple[int, bytes]] = {}
     stowaways: list[tuple[str, int]] = []
     code_stowaways: list[tuple[str, int]] = []
     for name, size, head in entries:
-        if name in REQUIRED:
+        if name in required:
             seen[name] = (size, head)
-        elif name in FORBIDDEN:
+        elif name in FORBIDDEN or (name.startswith("mirobody/") and name.rsplit("/", 1)[-1] in FORBIDDEN_NAMES):
             stowaways.append((name, size))
         elif name.startswith(FORBIDDEN_PREFIXES):
             code_stowaways.append((name, size))
 
     problems: list[str] = []
-    # Tests and their snapshots live in `tests/` outside the package. A
-    # `test_*.py` or a `goldens/` inside the wheel means one was put back in the
-    # package tree; the build no longer prunes them, so this is the gate.
+    # The wheel only: the sdist is a checkout and carries `mirobody/tests/`, the
+    # suite a clone runs, on purpose. In a wheel a test module is a stowaway.
     test_stowaways = [
         name for name, _, _ in entries
         if name.rsplit("/", 1)[-1].startswith("test_") or "/goldens/" in name
         or name.endswith("/conftest.py") or "/tests/" in name
-    ]
+    ] if wheel else []
     if test_stowaways:
         problems.append(
             f"UNWANTED  {len(test_stowaways)} test file(s) inside the wheel — tests belong in "
@@ -221,7 +255,7 @@ def check(path: str) -> list[str]:
                     "use; check scripts/build_backend.py::_BUNDLE_RUNTIME_MEMBERS"
                 )
 
-    for member, min_size in REQUIRED.items():
+    for member, min_size in required.items():
         if member not in seen:
             problems.append(f"MISSING   {member} — not in the artifact (check package-data globs)")
             continue
@@ -232,6 +266,12 @@ def check(path: str) -> list[str]:
             )
         elif size < min_size:
             problems.append(f"TOO SMALL {member} — {size} B, expected >= {min_size} B")
+
+    import hashlib
+
+    raw = _member_bytes(path, UCUM_ESSENCE)
+    if raw is not None and hashlib.sha256(raw).hexdigest() != UCUM_ESSENCE_SHA256:
+        problems.append(f"MODIFIED  {UCUM_ESSENCE} — not the published UCUM file (digest differs)")
     return problems
 
 
@@ -252,7 +292,7 @@ def main() -> int:
         else:
             print(
                 f"{artifact}: all {len(REQUIRED)} engine data bundles present and real; "
-                f"none of the {len(FORBIDDEN)} build-time-only artifacts or "
+                f"none of the {len(FORBIDDEN) + len(FORBIDDEN_NAMES)} build-time-only artifacts or "
                 f"{len(FORBIDDEN_PREFIXES)} build-time-only code trees shipped"
             )
 

@@ -23,7 +23,7 @@ Run just this benchmark, with the score printed:
     pytest tests/test_engine_coverage.py -v -s
 
 Contributing: a term that misses here is a one-line fix in
-``mirobody/res/resolver_overrides.tsv`` — that file, not
+``mirobody/res/loinc/resolver_overrides.tsv`` — that file, not
 ``aliases_src/*_curated.tsv``, is the one this resolver reads at runtime (the
 curated files are inputs to the bundle BUILD; see the overrides header for why
 the two are separate). Add the row, add the case here, and the score goes up.
@@ -42,7 +42,7 @@ import mirobody
 #: module has moved once and a `dirname(dirname(__file__))` walk pointed
 #: at `mirobody/tests/res/` afterwards — every case then SKIPPED, green
 #: and meaningless.
-_BUNDLE = os.path.join(os.path.dirname(os.path.abspath(mirobody.__file__)), "res", "fhir_loinc_bundle.tar.gz")
+_BUNDLE = os.path.join(os.path.dirname(os.path.abspath(mirobody.__file__)), "res", "loinc", "fhir_loinc_bundle.tar.gz")
 
 
 def _bundle_available() -> bool:
@@ -371,7 +371,7 @@ CASES: list[tuple[str, str, str]] = [
     # ── fifth sweep: the surfaces a report actually prints ───────────────────
     #
     # (a) "名称(缩写)" — the single commonest shape on a Chinese report.
-    #     Handled as a CLASS in engine.py, not row by row: strip the trailing
+    #     Handled as a CLASS in engine/resolver.py, not row by row: strip the trailing
     #     parenthetical, resolve both halves, and refuse when they disagree
     #     (see MUST_NOT_RESOLVE for the refusals).
     ("空腹血糖(GLU)",                 r"glucose",                      r"tolerance|urine"),
@@ -910,13 +910,16 @@ def test_the_class_gate_keeps_the_classes_wearables_live_in():
     from mirobody.engine import resolve
 
     assert resolve("sleep duration").loinc == "93832-4"   # CLASS=H&P.HX
-    assert resolve("HRV").loinc == "76643-6"              # CLASS=EKG.MEAS
+    assert resolve("QT间期").loinc == "8634-8"             # CLASS=EKG.MEAS
     assert resolve("步数").loinc == "41950-7"              # CLASS=CLIN
     assert resolve("体脂率").loinc == "41982-0"            # CLASS=BDYWGT.ATOM
+    # HRV held the EKG.MEAS slot until 1.5.1 sent it to 112429-6, which is
+    # CLIN. See res/crosswalks/README.md for that ruling.
+    assert resolve("HRV").loinc == "112429-6"
 
 
 # ── the device catalogue and its crosswalk ──────────────────────────────────
-# `res/metrics.tsv` carries a LOINC code per device metric where the 2026-09
+# `res/catalog/metrics.tsv` carries a LOINC code per device metric where the 2026-09
 # review of thirteen vendors' data types established one; `res/crosswalks/`
 # is that review. The two must agree, and both must name real codes.
 

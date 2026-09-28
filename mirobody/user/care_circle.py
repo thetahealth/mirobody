@@ -140,6 +140,10 @@ async def accepted_membership(operator_id: int, subject_id: int) -> Membership |
     `GROUP BY` is not optional. A bare aggregate always returns one row (NULL
     when there is no relationship) which would collapse "no relationship at
     all" into `Membership(health_access=0)` and throw away the `None`.
+
+    A deleted account grants nothing and is granted nothing. Deletion leaves
+    the member rows in place, so without the two joins a caregiver kept
+    reading, and writing, the record of someone who had closed it.
     """
     rows = await execute_query(
         """
@@ -147,6 +151,8 @@ async def accepted_membership(operator_id: int, subject_id: int) -> Membership |
           FROM care_circle_members me
           JOIN care_circle_members subject
             ON subject.care_circle_id = me.care_circle_id
+          JOIN health_app_user op ON op.id = me.user_id AND op.is_del = false
+          JOIN health_app_user su ON su.id = subject.user_id AND su.is_del = false
          WHERE me.user_id = :operator AND subject.user_id = :subject
            AND me.status = :accepted AND subject.status = :accepted
            AND me.deleted_at IS NULL AND subject.deleted_at IS NULL

@@ -98,6 +98,14 @@ async def verify_token_string(token_string: str) -> str:
     if not user_id or user_id <= 0:
         raise HTTPException(status_code=401, detail="Invalid user ID")
 
+    # The signature says the token was issued; only the account table says the
+    # account still exists. Without this a deleted account kept working for the
+    # token's 30 days.
+    from mirobody.user.user import is_active_account
+
+    if not await is_active_account(user_id):
+        raise HTTPException(status_code=401, detail="Account closed")
+
     user_id = str(user_id)
     update_req_ctx(token=token, user_id=user_id)
 
