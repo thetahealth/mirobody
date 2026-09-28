@@ -1,0 +1,148 @@
+# Japanese patient language -> ICPC-3 S component. OUR writing, Apache-2.0.
+#
+# NOT a translation of ICPC-3 (CC BY-ND; a translated term list would be a
+# derivative work). Every left-hand side is what a person writes in a symptom
+# log; the right-hand side is our judgement about the code, the same codes
+# symptoms_zh.tsv and symptoms_en.tsv already use. See res/icpc3/icpc3.NOTICE.
+#
+# Same two sentinels as symptoms_zh.tsv: !too-broad and !ambiguous. Matching is
+# exact over translate.fold.name_key: one row per spelling a person types,
+# kana and kanji both. Bare 熱 is left out on purpose: after the zh-Hant fold
+# it would also answer a Chinese 熱 that means only hot.
+surface	code	note
+# ── A: general ──────────────────────────────────────────────────────────────
+発熱	AS03
+熱がある	AS03
+熱っぽい	AS03
+微熱	AS03
+高熱	AS03
+寒気	AS02
+悪寒	AS02
+だるい	AS04
+倦怠感	AS04
+疲れ	AS04
+疲労感	AS04
+体調不良	AS06
+気分が悪い	AS06
+失神	AS07
+むくみ	AS09
+寝汗	AS10.01
+胸痛	AS12
+胸が痛い	AS12
+手足の冷え	AS99.00
+血糖値が高い	AS50.00
+# ── general sentinels ───────────────────────────────────────────────────────
+痛み	!too-broad
+痛い	!too-broad
+# ── D: digestive ────────────────────────────────────────────────────────────
+腹痛	DS01
+お腹が痛い	DS01
+おなかが痛い	DS01
+胃痛	DS02
+胃が痛い	DS02
+胸やけ	DS03
+胸焼け	DS03
+消化不良	DS07
+げっぷ	DS08
+お腹が張る	DS08
+吐き気	DS09
+むかつき	DS09
+嘔吐	DS10
+吐いた	DS10
+下痢	DS11
+便秘	DS12
+血便	DS16
+歯痛	DS19
+歯が痛い	DS19
+口内炎	DS20
+口が渇く	DS20.00
+口臭	DS20.02
+飲み込みにくい	DS21
+# ── F / H: eye, ear ─────────────────────────────────────────────────────────
+目が痛い	FS01
+目の充血	FS02
+目やに	FS03
+かすみ目	FS05
+目がかすむ	FS05
+視力低下	FS05
+目のかゆみ	FS07
+ドライアイ	FS07.00
+耳が痛い	HS01
+耳の痛み	HS01
+聞こえにくい	HS02
+耳鳴り	HS03
+# ── G: genital, menstrual ───────────────────────────────────────────────────
+生理痛	GS05
+月経痛	GS05
+生理不順	GS09
+月経不順	GS09
+ほてり	GS13.01
+# ── K: circulation ──────────────────────────────────────────────────────────
+動悸	KS02
+不整脈	KS03
+足のむくみ	KS04
+血圧が高い	KS51
+血圧が低い	KS50
+# ── L: musculoskeletal ──────────────────────────────────────────────────────
+首が痛い	LS01
+背中が痛い	LS02
+腰痛	LS03
+腰が痛い	LS03
+肩が痛い	LS07
+膝が痛い	LS14
+膝の痛み	LS14
+筋肉痛	LS17
+関節痛	LS20
+関節が痛い	LS20
+# ── N: neurological ─────────────────────────────────────────────────────────
+頭痛	NS01
+頭が痛い	NS01
+手足のしびれ	NS04
+しびれ	NS05
+けいれん	NS06
+手の震え	NS07
+めまい	NS09
+立ちくらみ	NS09.00
+# ── P: psychological ────────────────────────────────────────────────────────
+不安	PS01
+ストレス	PS02
+気分が落ち込む	PS03
+落ち込み	PS03
+イライラ	PS04
+不眠	PS06
+眠れない	PS06
+物忘れ	PS17
+# ── R: respiratory ──────────────────────────────────────────────────────────
+息切れ	RS02
+息苦しい	RS02
+ゼーゼーする	RS03
+いびき	RS05
+咳	RS07
+せき	RS07
+鼻血	RS08
+鼻水	RS09
+鼻づまり	RS09
+くしゃみ	RS09
+喉の痛み	RS12.00
+のどが痛い	RS12.00
+喉が痛い	RS12.00
+声がかすれる	RS13
+痰	RS15
+しゃっくり	RS99.00
+# ── S: skin ─────────────────────────────────────────────────────────────────
+かゆみ	SS02
+かゆい	SS02
+発疹	SS05
+湿疹	SS05
+乾燥肌	SS08.00
+抜け毛	SS10
+# ── T / U: metabolic, urinary ───────────────────────────────────────────────
+喉が渇く	TS01
+食欲不振	TS03
+食欲がない	TS03
+体重増加	TS06
+体重減少	TS07
+排尿痛	US01
+頻尿	US02
+尿漏れ	US03
+血尿	US06

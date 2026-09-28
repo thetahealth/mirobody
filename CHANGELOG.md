@@ -9,6 +9,18 @@ boundary.
 
 ### Added
 
+- **Complaints and diagnoses resolve in Japanese, Russian and Traditional
+  Chinese.** LOINC names already resolved in English, 简体中文, 繁體中文,
+  日本語 and Russian (#88); ICPC-3 complaints resolved only in Chinese and
+  English, and 繁體中文 not at all (發燒, 頭痛, 高血壓 all `no-match`), because
+  the complaint axis never applied the zh-Hant fold the LOINC side does. It now
+  does, term as written first, and Taiwan's 氣喘 (asthma) is curated under its
+  own spelling. `symptoms_ja.tsv`, `conditions_ja.tsv`, `symptoms_ru.tsv` and
+  `conditions_ru.tsv` are new, our own patient phrasing on the codes the
+  Chinese and English files already use, with the same `!too-broad` /
+  `!ambiguous` sentinels (痛み, боль; 糖尿病, сахарный диабет). The
+  health-records benchmark now carries cases in all five and fails if a
+  language drops out: `python -m unittest benchmarks.health_records.test_cases`.
 - **Every response names its request id, and a failure quotes it.** The id
   that ties a request's log lines together was minted only for signed-in
   requests and never left the server, so "it said internal error" matched

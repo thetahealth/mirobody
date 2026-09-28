@@ -9,7 +9,7 @@ uncoded one, because nothing downstream can tell it was wrong.
 
 The vocabulary is ICPC-3, the classification primary care uses, in the two
 components a personal health record needs. `res/icpc3/icpc3.tsv` carries both
-verbatim; `res/icpc3/symptoms_{zh,en}.tsv` and `res/icpc3/conditions_{zh,en}.tsv` are ours,
+verbatim; `res/icpc3/symptoms_{en,zh,ja,ru}.tsv` and `res/icpc3/conditions_{en,zh,ja,ru}.tsv` are ours,
 the everyday spellings a person actually types, because ICPC-3 is written in
 clinical English and nobody logs "epigastric pain".
 
@@ -60,6 +60,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from importlib import resources
 
+from mirobody.zh_fold import fold_to_hans
+
 from .fold import name_key
 from .outcome import (
     OUTCOME_CODED,
@@ -83,8 +85,8 @@ COMPONENT_CONDITION = "D"
 #: Our surfaces, per axis. Both files of an axis are one tier: a surface may be
 #: declared in either language file and the fold is the same.
 CURATED = {
-    COMPONENT_SYMPTOM: ("symptoms_en.tsv", "symptoms_zh.tsv"),
-    COMPONENT_CONDITION: ("conditions_en.tsv", "conditions_zh.tsv"),
+    COMPONENT_SYMPTOM: ("symptoms_en.tsv", "symptoms_zh.tsv", "symptoms_ja.tsv", "symptoms_ru.tsv"),
+    COMPONENT_CONDITION: ("conditions_en.tsv", "conditions_zh.tsv", "conditions_ja.tsv", "conditions_ru.tsv"),
 }
 
 RULE_ALIAS = "alias"
@@ -238,6 +240,14 @@ def _alias_applies(alias: Alias, component: str) -> bool:
     return term is None or term.component == component
 
 
+def _find(hit: dict, key: str):
+    found = hit.get(key)
+    if found is None and key.endswith("了"):
+        # 发烧了, 头疼了: the completive particle, not part of the complaint.
+        found = hit.get(key[:-1])
+    return found
+
+
 def resolve(text: str, component: str, *, alias: Alias | None = None) -> Coding:
     """One term to one `Coding` on one axis, or an abstention that says why."""
     rel = release()
@@ -256,10 +266,16 @@ def resolve(text: str, component: str, *, alias: Alias | None = None) -> Coding:
         return Coding(OUTCOME_NEEDS_INPUT, local, did, RULE_CURATED, rel, reason="icpc3:empty")
 
     hit, tied = _lookup(component)
-    found = hit.get(key)
-    if found is None and key.endswith("了"):
-        # 发烧了, 头疼了: the completive particle, not part of the complaint.
-        found = hit.get(key[:-1])
+    found = _find(hit, key)
+    if found is None:
+        # Traditional script, after the term as written: the fold the LOINC
+        # resolver applies (`lexical`), which this axis lacked, so 血紅蛋白
+        # resolved and 發燒 did not. A Taiwan word that differs from the
+        # mainland one is curated under its own spelling and wins, because the
+        # term as written is looked up first. See `mirobody.zh_fold`.
+        hans = name_key(fold_to_hans(text))
+        if hans != key:
+            found = _find(hit, hans)
     if found is None:
         if key in tied:
             did = decision_id(key, component, rel, RULE_INCLUSION)
