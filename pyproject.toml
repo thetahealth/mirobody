@@ -325,6 +325,13 @@ include = ["mirobody", "mirobody.*"]
     # in this list; scripts/check_wheel_data.py enforces it at build time.
     "**/*.bin",
     "**/*.gz",
+    # Public, small genotype examples ship with the testing toolbox; keep
+    # these globs narrow so a raw personal upload cannot enter a wheel.
+    "testing/genomics/*.vcf",
+    "testing/genomics/*.txt",
+    "testing/genomics/*.csv",
+    "testing/genomics/*.bgz",
+    "testing/genomics/*.zip",
     # The read-only dbSNP site index is queried on genotype import.
     "**/*.sqlite3",
     # res/ucum/ucum-essence.xml: UCUM's own table, verbatim (its NOTICE says why).

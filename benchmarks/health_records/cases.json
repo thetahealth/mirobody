@@ -1,0 +1,22 @@
+{
+  "schema": "mirobody-small-health-record-benchmark-1",
+  "provenance": "Synthetic values and short example phrases; no person's health record is included.",
+  "indicators": [
+    {"name": "血红蛋白", "value": "145", "unit": "g/L", "loinc": "718-7", "ucum": "g/L"},
+    {"name": "Hemoglobin", "value": "14.5", "unit": "g/dL", "loinc": "718-7", "ucum": "g/dL"},
+    {"name": "Total Cholesterol", "value": "200", "unit": "mg/dL", "loinc": "2093-3", "ucum": "mg/dL"},
+    {"name": "总胆固醇", "value": "5.2", "unit": "mmol/L", "loinc": "14647-2", "ucum": "mmol/L"},
+    {"name": "血脂", "value": "2", "unit": "mmol/L", "loinc": null, "ucum": "mmol/L"}
+  ],
+  "complaints": [
+    {"kind": "symptom", "name": "发烧", "code": "AS03", "outcome": "coded", "reason": "", "series": "icpc3:AS03"},
+    {"kind": "symptom", "name": "头疼", "code": "NS01", "outcome": "coded", "reason": "", "series": "icpc3:NS01"},
+    {"kind": "symptom", "name": "疼", "code": null, "outcome": "refused", "reason": "icpc3:too-broad", "series": "local:疼"},
+    {"kind": "symptom", "name": "打嗝", "code": null, "outcome": "needs-input", "reason": "icpc3:ambiguous", "series": "local:打嗝"},
+    {"kind": "symptom", "name": "上火", "code": null, "outcome": "needs-input", "reason": "icpc3:no-match", "series": "local:上火"},
+    {"kind": "condition", "name": "高血压", "code": "KD73", "outcome": "coded", "reason": "", "series": "icpc3:KD73"},
+    {"kind": "condition", "name": "糖尿病", "code": null, "outcome": "needs-input", "reason": "icpc3:ambiguous", "series": "local:糖尿病"},
+    {"kind": "condition", "name": "2型糖尿病", "code": "TD72", "outcome": "coded", "reason": "", "series": "icpc3:TD72"},
+    {"kind": "symptom", "name": "高血压", "code": null, "outcome": "needs-input", "reason": "icpc3:no-match", "series": "local:高血压"}
+  ]
+}

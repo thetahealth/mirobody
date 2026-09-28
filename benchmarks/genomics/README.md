@@ -93,6 +93,18 @@ unmatched-site target. The one-site example is a parser fixture only.
 Packaging includes `**/*.sqlite3`; `scripts/check_wheel_data.py` checks both
 wheel and sdist for the index, its NOTICE and the CPIC extract.
 
+The small [packaged examples](../../mirobody/testing/genomics/README.md) give
+a new clone or wheel 13 pinned HG00096 calls across twelve catalogued genes,
+rendered in WeGene, 23andMe, Ancestry, MyHeritage, FTDNA and VCF shapes. They
+also include gzip/BGZF/ZIP, one public no-call and a separate HG00097 X call.
+`test_packaged_examples.py` compares every file with the same canonical truth
+and checks manifest SHA-256. `build_packaged_examples.py` regenerates them
+from the pinned public 1000G regional extracts and PGP source kept outside the
+repository; the full original files do not enter the wheel.
+With a disposable database-backed server, `python benchmarks/genomics/e2e_packaged_examples.py
+--base http://127.0.0.1:18092` uploads each bundled format and checks the active
+set, MCP rsID/gene queries, a no-call and conservative CPIC result.
+
 `generate_public_formats.py` uses pinned public 1000 Genomes and PharmCAT
 inputs to render one truth sample in 23andMe, Ancestry, MyHeritage and VCF
 shapes, plus gzip/zip and GRCh38 VCF renderings. `e2e_public_truth.py` runs

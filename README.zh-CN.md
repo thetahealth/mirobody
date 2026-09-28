@@ -52,7 +52,10 @@ Mirobody 把不同来源、格式、表述的健康信息，规整成一套语�
 **1.5.2 基因预览分支：**基因型上传已有原子切换的有效数据集、限定行数的 rsID／基因／区域查询、
 VCF 导出和谨慎的 CPIC 位点覆盖查询。随包的公开 dbSNP 候选索引仅覆盖 12 个药物基因
 区域中的 489 个 SNV 位点。整张芯片标准化和临床表型判定留待后续版本。
+[随包的公开小样例](mirobody/testing/genomics/README.md)覆盖多种厂商导出格式和同一份规范化结果，
+开发者无须下载整份基因组即可复测。
 [当前范围与发布门禁](docs/genetics.md)。
+[指标与主诉小样本 benchmark](benchmarks/health_records/README.md)用合成数值复现 LOINC／UCUM 与 ICPC‑3 的编码和拒绝判定。
 
 ## 60 秒试一下
 

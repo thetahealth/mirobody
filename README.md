@@ -66,7 +66,12 @@ sets, bounded rsID/gene/region queries, VCF export and a conservative CPIC
 coverage tool. The packaged public dbSNP candidate covers 489 SNVs in twelve
 pharmacogene regions. Whole-chip normalization and clinical phenotype calling
 are deferred from this preview.
+[Small public genotype examples](mirobody/testing/genomics/README.md) ship with
+the package so a developer can test multiple export formats against one
+canonical result without downloading a whole genome.
 [Current scope and release gates](docs/genetics.md).
+[Small indicator and complaint benchmarks](benchmarks/health_records/README.md)
+show LOINC/UCUM and ICPC-3 decisions with synthetic cases.
 
 ## Try it in 60 seconds
 

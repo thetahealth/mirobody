@@ -7,6 +7,19 @@ guessing from an incomplete array.
 
 ### Added
 
+- **Tracked vocabulary examples for indicators and complaints.** The earlier
+  cases lived only in ignored local tests, so a fresh clone could not replay
+  typical LOINC/UCUM and ICPC-3 outcomes. `benchmarks/health_records/` now
+  holds a small synthetic case set and a command that checks the public APIs.
+- **Small public genotype examples now ship for external parser tests.** The
+  previous public truth lived only in ignored maintainer corpora, so a wheel
+  user could not reproduce cross-format normalization. Thirteen pinned 1000
+  Genomes HG00096 calls across twelve genes now appear as five vendor-shaped
+  exports plus both genome builds, gzip/BGZF and ZIP renderings under
+  `mirobody/testing/genomics/`. A separate public no-call and female X call
+  exercise conservative statuses. `canonical.json` and `manifest.json` pin
+  expected results and source hashes; the tracked benchmark test checks them
+  without downloading a whole genome.
 - **Genotype uploads now publish an atomic active set.** A failed batch used to
   leave partial data while still reporting completion, and a repeat upload
   duplicated rows. The new set remains hidden until every batch and row count

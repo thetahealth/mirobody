@@ -11,6 +11,32 @@ A genotype has no measurement time, unit or trend. Raw genotype uploads use a
 separate collection and two tools, while genetic test **reports** still use the
 observation pipeline. Neither an absent site nor a no-call is a normal result.
 
+## The common representation
+
+Different consumer exports are parsed into one site/call shape: **dbSNP rsID
+when known, chromosome, GRCh37/GRCh38 coordinates when verified, REF/ALT,
+VCF-style GT, call status, zygosity, optional HGNC gene symbol, and the raw
+upload spelling and provenance**. The [VCF specification](https://github.com/samtools/hts-specs)
+defines REF/ALT/GT; [dbSNP](https://www.ncbi.nlm.nih.gov/snp/) identifies
+RefSNP sites; [HGNC](https://hgnc.genenames.org/) names human genes. A chip
+allele pair becomes a GT only when the pinned site catalog supports its
+assembly, coordinates and strand. A VCF can carry its own REF/ALT/GT; that
+does not mean the preview catalog independently verified the whole file.
+
+This serves the same interoperability purpose as ICPC-3 for reported
+complaints and LOINC for measured indicators, but a genotype has no single
+equivalent code: its identity also depends on the reference assembly and
+alleles. The bounded [FHIR Genomics Reporting STU3](https://hl7.org/fhir/uv/genomics-reporting/STU3/index.html)
+export uses LOINC observation/component codes to exchange mapped variant
+facts. The preview has not passed a full FHIR profile validator.
+
+Small, publicly sourced [developer examples](../mirobody/testing/genomics/README.md)
+ship with the wheel: 13 verified calls across 12 genes in five vendor-shaped
+text/CSV layouts and VCF/GRCh37/38/gzip/BGZF/ZIP renderings, plus a separate
+public no-call and female X example. `canonical.json` is the expected common
+result; `manifest.json` pins every file and its source. Original participant
+exports and whole-genome files remain outside the package.
+
 ## Upload and storage
 
 The genetic handler recognizes column headers, not a vendor banner. It accepts
@@ -114,8 +140,10 @@ PAR rows require this raw mode. It returns
 at most 500 direct rows with source, build, call status and truncation notes.
 For a region query, `position` uses the requested build; `query_build`,
 `raw_position`, `pos37` and `pos38` make its provenance explicit.
-The Agent and authenticated MCP surface use the same service. Gene and region
-searches require mapped sites; an unmapped raw row can still be found by rsID.
+The Agent and authenticated MCP surface use the same service. A gene search
+needs a catalog gene label, and an assembly-specific region needs mapped
+coordinates. A `build=raw` region can find unmapped upload positions without
+asserting an assembly; an unmapped row can also be found by rsID.
 Care-circle reads require authorization. The tool does not infer disease risk.
 
 `GET /api/v1/genomics/active-set` gives the Data page counts and provenance.

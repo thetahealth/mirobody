@@ -1,0 +1,219 @@
+{
+  "definition": "dbSNP rsID + assembly positions + VCF REF/ALT/GT + call status; HGNC gene where known",
+  "hg00096": [
+    {
+      "alt": "C",
+      "array_gt": "0/0",
+      "call_status": "called",
+      "chrom": "1",
+      "gene": "DPYD",
+      "pos37": 97981395,
+      "pos38": 97515839,
+      "ref": "T",
+      "rsid": "rs1801159",
+      "vcf_gt": "0|0",
+      "zygosity": "homozygous"
+    },
+    {
+      "alt": "T",
+      "array_gt": "0/1",
+      "call_status": "called",
+      "chrom": "2",
+      "gene": "UGT1A1",
+      "pos37": 234668570,
+      "pos38": 233759924,
+      "ref": "C",
+      "rsid": "rs887829",
+      "vcf_gt": "0|1",
+      "zygosity": "heterozygous"
+    },
+    {
+      "alt": "C,G",
+      "array_gt": "0/0",
+      "call_status": "called",
+      "chrom": "6",
+      "gene": "TPMT",
+      "pos37": 18130918,
+      "pos38": 18130687,
+      "ref": "T",
+      "rsid": "rs1142345",
+      "vcf_gt": "0|0",
+      "zygosity": "homozygous"
+    },
+    {
+      "alt": "T",
+      "array_gt": "0/0",
+      "call_status": "called",
+      "chrom": "7",
+      "gene": "CYP3A5",
+      "pos37": 99262835,
+      "pos38": 99665212,
+      "ref": "C",
+      "rsid": "rs10264272",
+      "vcf_gt": "0|0",
+      "zygosity": "homozygous"
+    },
+    {
+      "alt": "A,C",
+      "array_gt": "2/2",
+      "call_status": "called",
+      "chrom": "8",
+      "gene": "NAT2",
+      "pos37": 18257854,
+      "pos38": 18400344,
+      "ref": "T",
+      "rsid": "rs1801280",
+      "vcf_gt": "2|2",
+      "zygosity": "homozygous"
+    },
+    {
+      "alt": "A",
+      "array_gt": "0/0",
+      "call_status": "called",
+      "chrom": "10",
+      "gene": "CYP2C19",
+      "pos37": 96540410,
+      "pos38": 94780653,
+      "ref": "G",
+      "rsid": "rs4986893",
+      "vcf_gt": "0|0",
+      "zygosity": "homozygous"
+    },
+    {
+      "alt": "A,C,T",
+      "array_gt": "0/1",
+      "call_status": "called",
+      "chrom": "10",
+      "gene": "CYP2C19",
+      "pos37": 96541616,
+      "pos38": 94781859,
+      "ref": "G",
+      "rsid": "rs4244285",
+      "vcf_gt": "1|0",
+      "zygosity": "heterozygous"
+    },
+    {
+      "alt": "C,G",
+      "array_gt": "0/0",
+      "call_status": "called",
+      "chrom": "10",
+      "gene": "CYP2C9",
+      "pos37": 96741053,
+      "pos38": 94981296,
+      "ref": "A",
+      "rsid": "rs1057910",
+      "vcf_gt": "0|0",
+      "zygosity": "homozygous"
+    },
+    {
+      "alt": "C",
+      "array_gt": "0/1",
+      "call_status": "called",
+      "chrom": "12",
+      "gene": "SLCO1B1",
+      "pos37": 21331549,
+      "pos38": 21178615,
+      "ref": "T",
+      "rsid": "rs4149056",
+      "vcf_gt": "1|0",
+      "zygosity": "heterozygous"
+    },
+    {
+      "alt": "T",
+      "array_gt": "0/0",
+      "call_status": "called",
+      "chrom": "13",
+      "gene": "NUDT15",
+      "pos37": 48619855,
+      "pos38": 48045719,
+      "ref": "C",
+      "rsid": "rs116855232",
+      "vcf_gt": "0|0",
+      "zygosity": "homozygous"
+    },
+    {
+      "alt": "A,G,T",
+      "array_gt": "0/3",
+      "call_status": "called",
+      "chrom": "16",
+      "gene": "VKORC1",
+      "pos37": 31107689,
+      "pos38": 31096368,
+      "ref": "C",
+      "rsid": "rs9923231",
+      "vcf_gt": "3|0",
+      "zygosity": "heterozygous"
+    },
+    {
+      "alt": "A",
+      "array_gt": "0/1",
+      "call_status": "called",
+      "chrom": "19",
+      "gene": "CYP4F2",
+      "pos37": 16001215,
+      "pos38": 15890405,
+      "ref": "C",
+      "rsid": "rs3093153",
+      "vcf_gt": "0|1",
+      "zygosity": "heterozygous"
+    },
+    {
+      "alt": "A,T",
+      "array_gt": "0/2",
+      "call_status": "called",
+      "chrom": "19",
+      "gene": "CYP2B6",
+      "pos37": 41512841,
+      "pos38": 41006936,
+      "ref": "G",
+      "rsid": "rs3745274",
+      "vcf_gt": "2|0",
+      "zygosity": "heterozygous"
+    }
+  ],
+  "pgp4220_no_call": {
+    "call_status": "no_call",
+    "chrom": "19",
+    "gene": "CYP2B6",
+    "genotype": "--",
+    "gt": null,
+    "pos37": 41512841,
+    "pos38": 41006936,
+    "rsid": "rs3745274"
+  },
+  "public_x": {
+    "HG00096": [
+      {
+        "alt": "A",
+        "chrom": "X",
+        "gt": "0|1",
+        "pos37": 60052,
+        "ref": "T"
+      },
+      {
+        "alt": "C",
+        "chrom": "X",
+        "gt": "0|0",
+        "pos37": 60026,
+        "ref": "T"
+      },
+      {
+        "alt": "G",
+        "chrom": "X",
+        "gt": "0",
+        "pos37": 3000166,
+        "ref": "A"
+      }
+    ],
+    "HG00097": [
+      {
+        "alt": "G",
+        "chrom": "X",
+        "gt": "1|0",
+        "pos37": 3000679,
+        "ref": "C"
+      }
+    ]
+  },
+  "schema": "mirobody-public-genotype-canonical-1"
+}
