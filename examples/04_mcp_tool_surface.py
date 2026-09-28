@@ -9,7 +9,7 @@ tool definition — name, description, JSON Schema — using the official SDK's
 than hand-maintained beside it.
 
 This script loads that surface in-process and prints it. No server, no OAuth, no
-database: this is the *definition* half. Three of the six tools
+database: this is the *definition* half. Three of the seven tools
 (`resolve_indicator`, `normalize_unit`, `convert_unit`) need no user data and run
 offline; this script calls `resolve_indicator`.
 
@@ -76,5 +76,5 @@ async def main():
 
 asyncio.run(main())
 
-print("\nThe other three tools (query_health_indicators, query_medications, query_genetic_data) read a user's")
+print("\nThe other four tools (query_health_indicators, query_medications, query_genetic_data, query_pharmacogenomics) read a user's")
 print("stored records, so they need `mirobody serve` and a database.")

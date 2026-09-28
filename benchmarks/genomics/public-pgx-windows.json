@@ -1,0 +1,154 @@
+{
+  "track": "UCSC dbSNP 155 Common",
+  "selection": "Public 1000 Genomes phase 3 GRCh37 gene-region VCF bounds and PharmCAT 3.4 GRCh38 positions, each expanded 1 kb. No genotype calls.",
+  "extracts_sha256": {
+    "37": "9a9091f4ff92947d30d2d87f4912b3e810a6d56c6df3f79e27ebc2667e2ce857",
+    "38": "c337f7b2de8a442b92e663c12a98e9ba1d1f8de96a999e36819620494034df24"
+  },
+  "windows": {
+    "CYP2B6": {
+      "37": {
+        "chrom": "chr19",
+        "start": 41445743,
+        "end": 41535289
+      },
+      "38": {
+        "chrom": "chr19",
+        "start": 40990223,
+        "end": 41017810
+      }
+    },
+    "CYP2C19": {
+      "37": {
+        "chrom": "chr10",
+        "start": 96402417,
+        "end": 96623603
+      },
+      "38": {
+        "chrom": "chr10",
+        "start": 94760899,
+        "end": 94853914
+      }
+    },
+    "CYP2C9": {
+      "37": {
+        "chrom": "chr10",
+        "start": 96682724,
+        "end": 96760139
+      },
+      "38": {
+        "chrom": "chr10",
+        "start": 94937682,
+        "end": 94990023
+      }
+    },
+    "CYP3A5": {
+      "37": {
+        "chrom": "chr7",
+        "start": 99234852,
+        "end": 99288605
+      },
+      "38": {
+        "chrom": "chr7",
+        "start": 99651769,
+        "end": 99677198
+      }
+    },
+    "CYP4F2": {
+      "37": {
+        "chrom": "chr19",
+        "start": 15977861,
+        "end": 16019864
+      },
+      "38": {
+        "chrom": "chr19",
+        "start": 15877778,
+        "end": 15898578
+      }
+    },
+    "DPYD": {
+      "37": {
+        "chrom": "chr1",
+        "start": 97532322,
+        "end": 98397584
+      },
+      "38": {
+        "chrom": "chr1",
+        "start": 97077986,
+        "end": 97884368
+      }
+    },
+    "NAT2": {
+      "37": {
+        "chrom": "chr8",
+        "start": 18237827,
+        "end": 18269607
+      },
+      "38": {
+        "chrom": "chr8",
+        "start": 18399009,
+        "end": 18401860
+      }
+    },
+    "NUDT15": {
+      "37": {
+        "chrom": "chr13",
+        "start": 48600757,
+        "end": 48632354
+      },
+      "38": {
+        "chrom": "chr13",
+        "start": 48036747,
+        "end": 48046771
+      }
+    },
+    "SLCO1B1": {
+      "37": {
+        "chrom": "chr12",
+        "start": 21068192,
+        "end": 21403688
+      },
+      "38": {
+        "chrom": "chr12",
+        "start": 21140574,
+        "end": 21240158
+      }
+    },
+    "TPMT": {
+      "37": {
+        "chrom": "chr6",
+        "start": 18117566,
+        "end": 18166319
+      },
+      "38": {
+        "chrom": "chr6",
+        "start": 18129686,
+        "end": 18150127
+      }
+    },
+    "UGT1A1": {
+      "37": {
+        "chrom": "chr2",
+        "start": 234648035,
+        "end": 234692878
+      },
+      "38": {
+        "chrom": "chr2",
+        "start": 233758923,
+        "end": 233761973
+      }
+    },
+    "VKORC1": {
+      "37": {
+        "chrom": "chr16",
+        "start": 31091185,
+        "end": 31116259
+      },
+      "38": {
+        "chrom": "chr16",
+        "start": 31095367,
+        "end": 31097368
+      }
+    }
+  }
+}

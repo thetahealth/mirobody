@@ -39,6 +39,7 @@ from .sharing_router import router as sharing_router
 # scheduler, so the exception never got re-raised and the log just stopped.
 from .records_router import router as records_router
 from .journal_router import router as journal_router
+from .genomics_router import router as genomics_router
 
 public_router.include_router(apple_router)
 
@@ -52,4 +53,5 @@ __all__ = [
     "sharing_router",
     "records_router",
     "journal_router",
+    "genomics_router",
 ]

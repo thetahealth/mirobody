@@ -45,6 +45,10 @@ REQUIRED = {
     "mirobody/res/ucum/ucum-essence.NOTICE": 500,
     "mirobody/res/ucum/UCUM-LICENSE.md": 10_000,
     "mirobody/kernel/decoders/samples/garmin/dailies.json": 500,
+    "mirobody/res/genomics/cpic-v1.60.0.json.gz": 700_000,
+    "mirobody/res/genomics/cpic-v1.60.0.NOTICE": 500,
+    "mirobody/res/genomics/genotype_sites.sqlite3": 30_000,
+    "mirobody/res/genomics/genotype_sites.NOTICE": 500,
 }
 
 # The other direction, and it is worth a gate of its own: the package-data globs

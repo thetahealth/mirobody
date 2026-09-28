@@ -197,9 +197,9 @@ documentation belongs in.
 The README ships in English and Chinese; the web client ships four languages.
 **English is the source of truth** — change it first, then Chinese, and if you
 only change English say so in the PR so the drift is visible instead of silent.
-The 繁體中文 and 日本語 READMEs are frozen at 1.4.0 under
-[`archived/`](archived/README.md); the engine's Traditional Chinese and Japanese
-support is unaffected and still gated by `test_engine_coverage.py`.
+The former 繁體中文 and 日本語 README editions are available in Git history;
+the engine's Traditional Chinese and Japanese support is unaffected and still
+gated by `test_engine_coverage.py`.
 
 Two rules that are specific to this project:
 
