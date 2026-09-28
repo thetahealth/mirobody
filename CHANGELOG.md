@@ -8,6 +8,10 @@
 - **Headless clients can read the API capability version.** `/mirobody.json`
   now serves `capability_version` and `server_version` even without a web
   client. A GET or HEAD request verifies that the route exists.
+- **The offline device vocabulary can now be exported for phone clients.**
+  `mirobody device-bundle [--out PATH]` writes the metric catalogue, labels,
+  LOINC crosswalk and vendor fields with a canonical SHA-256 digest. Run the
+  command twice and compare the bytes to check reproducibility.
 1.5.2 genetics preview scope: genotype facts and CPIC coverage are available
 with the measured public candidate. Drug phenotypes and rare-disease risk
 interpretation are deferred; the tool reports `not_determined` rather than

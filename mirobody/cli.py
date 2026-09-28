@@ -10,6 +10,9 @@ Commands:
   Requires the ``[parse]`` extra.
 * ``mirobody resolve <terms...>``       offline indicator-name resolution
   against the shipped bundles. Needs NOTHING: no key, no config, no network.
+* ``mirobody device-bundle [--out PATH]``  the device vocabulary (catalogue,
+  labels, crosswalks) as one digested JSON file, for a client that codes
+  health-store batches without Python. Needs nothing, like ``resolve``.
 * ``mirobody dev [--pg-url URL]``       the same server in ONE command, with
   no config file, no Redis requirement and generated dev secrets. `config.yaml`
   is not in the wheel, so this is the only shape in which
@@ -351,6 +354,21 @@ def _cmd_mcp(args: argparse.Namespace) -> None:
     raise SystemExit(serve_stdio([]))
 
 
+def _cmd_device_bundle(args: argparse.Namespace) -> None:
+    import json
+
+    from mirobody.translate import device_bundle
+
+    data = device_bundle.dumps()
+    if not args.out:
+        sys.stdout.buffer.write(data)
+        return
+    with open(args.out, "wb") as f:
+        f.write(data)
+    digest = json.loads(data)["digest"]
+    print(f"wrote {args.out} ({len(data)} bytes, {digest})", file=sys.stderr)
+
+
 def _cmd_parse(args: argparse.Namespace) -> None:
     """Read a document into standardized readings. Needs one vision-capable key.
 
@@ -525,6 +543,12 @@ def main(argv: list[str] | None = None) -> None:
     p_resolve.add_argument("terms", nargs="+", help="indicator names in any supported language")
     p_resolve.set_defaults(func=_cmd_resolve)
 
+    p_bundle = sub.add_parser(
+        "device-bundle",
+        help="write the device vocabulary (catalogue, labels, crosswalks) as one JSON file — offline, no extra",
+    )
+    p_bundle.add_argument("--out", default="", help="write to this file instead of stdout")
+    p_bundle.set_defaults(func=_cmd_device_bundle)
     p_mcp = sub.add_parser("mcp", help="run the stdio MCP server over the offline vocabularies (no key, no database)")
     p_mcp.set_defaults(func=_cmd_mcp)
 
