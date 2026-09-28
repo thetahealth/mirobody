@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **Phone health-store records now use device provenance.** `POST /api/data`
+  resolves recognized vendor identifiers through the shipped crosswalk and
+  keeps ambiguous fields uncoded. Mixed sources retain one atomic ingest and
+  the response's rejected counts; submit a Health Connect heart-rate identifier
+  and inspect its LOINC code and device source on readback.
+- **Headless clients can read the API capability version.** `/mirobody.json`
+  now serves `capability_version` and `server_version` even without a web
+  client. A GET or HEAD request verifies that the route exists.
 - **The offline device vocabulary can now be exported for phone clients.**
   `mirobody device-bundle [--out PATH]` writes the metric catalogue, labels,
   LOINC crosswalk and vendor fields with a canonical SHA-256 digest. Run the
