@@ -282,7 +282,7 @@ app = [
 # by `pytest -q`, which is how a minimal install that aborts at collection is
 # caught; without this extra that job installs numpy and exits 127 on a missing
 # pytest, which is what happened when `indicator-build` was deleted beside it.
-test = ["pytest", "pytest-asyncio", "pytest-sugar", "import-linter"]
+test = ["pytest", "pytest-asyncio", "pytest-sugar", "import-linter", "ruff", "build"]
 
 
 [project.urls]
@@ -325,6 +325,8 @@ include = ["mirobody", "mirobody.*"]
     # in this list; scripts/check_wheel_data.py enforces it at build time.
     "**/*.bin",
     "**/*.gz",
+    # The read-only dbSNP site index is queried on genotype import.
+    "**/*.sqlite3",
     # res/ucum/ucum-essence.xml: UCUM's own table, verbatim (its NOTICE says why).
     "**/*.xml",
     "**/*.npy",
@@ -530,6 +532,7 @@ forbidden_modules = [
     "asyncpg",
     "azure",
     "boto3",
+    "build",
     "cryptography",
     "deepagents",
     "docx",
@@ -565,6 +568,7 @@ forbidden_modules = [
     "requests",
     "requests_oauthlib",
     "ruamel",
+    "ruff",
     "sentry_sdk",
     "sqlalchemy",
     "starlette",

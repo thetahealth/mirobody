@@ -398,6 +398,7 @@ class Server:
             indicator_router,
             records_router,
             journal_router,
+            genomics_router,
         )
         app.include_router(pulse_public_router)
         # apple_router is ALSO nested inside pulse_public_router (routers/__init__),
@@ -419,6 +420,7 @@ class Server:
         app.include_router(records_router)
         # The journal (/api/v1/journal), the write side of the ICPC-3 axes.
         app.include_router(journal_router)
+        app.include_router(genomics_router)
 
         for router in fastapi_routers:
             app.include_router(router)

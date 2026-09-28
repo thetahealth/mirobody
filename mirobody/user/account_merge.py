@@ -69,6 +69,29 @@ async def _relink_simple(cur, table: str, columns: list[str], losing_str: str, w
     return total
 
 
+async def _merge_genotype_sets(cur, losing_str: str, winning_str: str) -> int:
+    """Keep one active set when two accounts with uploads are combined."""
+    if not await _table_exists(cur, "th_genotype_set"):
+        return 0
+    await cur.execute(
+        """SELECT id, user_id, activated_at FROM th_genotype_set
+           WHERE user_id IN (%s, %s) AND status = 'active'
+           ORDER BY activated_at DESC NULLS LAST, id DESC FOR UPDATE""",
+        [losing_str, winning_str],
+    )
+    active = await cur.fetchall()
+    for stale in active[1:]:
+        await cur.execute(
+            "UPDATE th_genotype_set SET status = 'superseded', superseded_at = now() WHERE id = %s",
+            [stale[0]],
+        )
+    await cur.execute(
+        "UPDATE th_genotype_set SET user_id = %s WHERE user_id = %s",
+        [winning_str, losing_str],
+    )
+    return cur.rowcount or 0
+
+
 #-----------------------------------------------------------------------------
 # Conflict-aware merges. Each handles one table whose UNIQUE / PK covers
 # user_id columns, so naive UPDATE may collide with rows already on the
@@ -274,6 +297,10 @@ async def merge_accounts(
                     n = await _merge_observations(cur, losing_str, winning_str)
                     if n:
                         affected["th_observation"] = n
+
+                    n = await _merge_genotype_sets(cur, losing_str, winning_str)
+                    if n:
+                        affected["th_genotype_set"] = n
 
                     # 4. Soft-delete the losing health_app_user.
                     await cur.execute(

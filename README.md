@@ -61,6 +61,13 @@ all three, aggregates the trend, and names the file every number came from.</em>
 - **Your model, your key, your data.** Model calls go to the model you chose.
   Everything else stays on your machine.
 
+**On the 1.5.2 genetics preview branch:** genotype uploads have atomic active
+sets, bounded rsID/gene/region queries, VCF export and a conservative CPIC
+coverage tool. The packaged public dbSNP candidate covers 489 SNVs in twelve
+pharmacogene regions. Whole-chip normalization and clinical phenotype calling
+are deferred from this preview.
+[Current scope and release gates](docs/genetics.md).
+
 ## Try it in 60 seconds
 
 One command, five spellings: watch which ones it recognises, and which one it

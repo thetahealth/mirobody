@@ -37,8 +37,8 @@ async def get_user_data_distribution(user_id: str) -> dict[str, Any]:
                 SELECT COUNT(1) FROM v_observation
                 WHERE user_id = :user_id
             ) + (
-                SELECT COUNT(1) FROM th_series_data_genetic
-                WHERE user_id = :user_id AND is_deleted = false
+                SELECT COALESCE(SUM(n_rows), 0) FROM th_genotype_set
+                WHERE user_id = :user_id AND status = 'active'
             ) AS total_records,
             (
                 SELECT COUNT(DISTINCT cat) FROM (
@@ -54,7 +54,8 @@ async def get_user_data_distribution(user_id: str) -> dict[str, Any]:
                     )
                     UNION
                     SELECT 'genetic' WHERE EXISTS (
-                        SELECT 1 FROM th_series_data_genetic WHERE user_id = :user_id
+                        SELECT 1 FROM th_genotype_set
+                        WHERE user_id = :user_id AND status = 'active' AND n_rows > 0
                     )
                 ) cats
             ) AS total_categories
