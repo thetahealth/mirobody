@@ -66,7 +66,7 @@ def validate_query(args: Mapping[str, Any]) -> tuple[query.Rejection, ...]:
         out.append(query.Rejection("rsids", "each identifier must be an rsID"))
     gene = str(args.get("gene") or "").strip()
     chrom = str(args.get("chromosome") or "").strip().upper()
-    region = bool(chrom or args.get("start") or args.get("end") or args.get("build"))
+    region = _is_region(rsids, gene, chrom, args)
     if sum((bool(rsids), bool(gene), region)) > 1:
         out.append(query.Rejection("selector", "choose rsids, gene, or region in one call"))
     if gene and (len(gene) > 32 or not gene.replace("-", "").isalnum()):
@@ -85,17 +85,36 @@ def validate_query(args: Mapping[str, Any]) -> tuple[query.Rejection, ...]:
     return tuple(out)
 
 
+def _is_region(rsids: Sequence[str], gene: str, chrom: str, args: Mapping[str, Any]) -> bool:
+    """A region is asked for by naming a chromosome. With rsIDs or a gene
+    already given, start/end/build are placeholders: some models fill every
+    schema field (`chromosome: ""`, `start: 1`, `end: 1`, `build: "GRCh38"`
+    beside `gene`), and treating those as a second selector refused every such
+    call and had the model retry the same shape, 4-6 refusals a turn (measured
+    2026-09-28 on gpt). Coordinates with no other selector are a region whose
+    chromosome is missing, which the validator names."""
+    if chrom:
+        return True
+    return not (rsids or gene) and bool(args.get("start") or args.get("end"))
+
+
 def parse_query(args: Mapping[str, Any]) -> GeneticRequest:
     problems = validate_query(args)
     if problems:
         raise ValueError("; ".join(f"{p.parameter}: {p.reason}" for p in problems))
+    rsids = query.normalize_list_arg(args.get("rsids"))
+    gene = str(args.get("gene") or "").strip().upper()
+    chrom = str(args.get("chromosome") or "").strip().upper()
+    region = _is_region(rsids, gene, chrom, args)
     return GeneticRequest(
-        rsids=query.normalize_list_arg(args.get("rsids")),
-        gene=str(args.get("gene") or "").strip().upper(),
-        chromosome=str(args.get("chromosome") or "").strip().upper(),
-        start=int(args.get("start") or 0),
-        end=int(args.get("end") or 0),
-        build=str(args.get("build") or ""),
+        rsids=rsids,
+        gene=gene,
+        chromosome=chrom if region else "",
+        start=int(args.get("start") or 0) if region else 0,
+        end=int(args.get("end") or 0) if region else 0,
+        # Only a region reads positions in a chosen build; otherwise a
+        # placeholder build must not pick the coordinate column.
+        build=str(args.get("build") or "") if region else "",
     )
 
 

@@ -254,6 +254,13 @@ boundary.
   model. A config still setting `UTILS_EMBEDDING_MODEL` or
   `EMBEDDING_PROVIDER` is told at boot that nothing reads it, and a MODELS
   entry still carrying `embedding:` is named by the unread-key check.
+- **`query_genetic_data` stopped refusing placeholder coordinates.** Some models
+  fill every schema field, sending `chromosome: ""`, `start: 1`, `end: 1`,
+  `build: "GRCh38"` beside `gene`; any of those counted as a region, so the call
+  was refused as two selectors and retried in the same shape (gpt: 4-6 refusals
+  a turn). A region is now asked for by naming a chromosome; beside rsIDs or a
+  gene the coordinates are ignored, and coordinates alone are refused for want
+  of a chromosome. Ask gpt "我的 CYP2C19 基因型是什么？": one call, no refusal.
 - **The system prompt is a third shorter, measured to behave the same.** The
   template went from 13,537 to 9,141 characters: tool-specific caveats that
   already ride on every tool result as `notes:` left, the depth, chart, table
