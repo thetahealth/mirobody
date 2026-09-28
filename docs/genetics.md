@@ -168,11 +168,10 @@ Missing sites, no-calls and conflicts must not be represented as normal.
 The [public-data generator](../benchmarks/genomics/generate_public_formats.py)
 pins a 1000 Genomes HG00096 truth file and PharmCAT 3.4 positions by SHA-256,
 then renders nine upload files from the same two calls, including gzip, BGZF,
-ZIP with sidecars and
-both reference assemblies. The
+ZIP with sidecars and both reference assemblies. The
 [end-to-end check](../benchmarks/genomics/e2e_public_truth.py) exercises the
-packaged candidate index through real
-WebSocket upload, active-set replacement, rsID/gene/region MCP queries, CPIC
+packaged candidate index through real WebSocket upload, active-set replacement,
+rsID/gene/region MCP queries, CPIC
 coverage, GRCh37/38 VCF and FHIR export and real Agent tool use. The public
 rs4244285 VCF lists ALT `A` while the candidate dbSNP site lists `A,C,T`;
 the normalizer maps its GT index to the catalog allele order. It is a pipeline check,
@@ -180,11 +179,14 @@ not evidence of whole-chip accuracy. A second check migrates only those public
 truth rows from the 1.5.1 table. No owner's genotype export or personal health
 document belongs in a committed fixture.
 
-The 40-question public-truth Agent evaluation selected the expected genetic
-tool in 40/40 OpenAI runs and produced 40/40 nonempty answers, with no match
-for its automated positive-claim alarm. This measures tool choice over two
-sites; it does not validate a clinical interpretation or the entire model
-answer. The evaluation corpus and answers remain outside the repository.
+The current 40-question public-truth Agent evaluation selected the expected
+tool in 37/40 Qwen first turns (92.5%). Three generic "no question" replies
+were invalid answers, so effective first-turn answers were also 37/40; the
+automated forbidden-claim alarm matched none. Targeted reruns answered two
+with Qwen and one with the configured OpenRouter GPT model. This measures
+tool choice over two sites; it does not prove one provider answers every
+question or validate a clinical interpretation. The evaluation corpus and
+answers remain outside the repository.
 
 The system stores genetic data per person. Tool replies cap genotype rows;
 raw genotype files are excluded from the Agent's `/uploads/` and `/library/`

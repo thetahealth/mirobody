@@ -73,6 +73,11 @@ guessing from an incomplete array.
 
 ### Changed
 
+- The 40-question Agent check previously counted generic "no question" replies
+  as answered. It now marks them invalid. On pinned public two-site truth,
+  Qwen selected the expected tool and gave a valid first answer in 37/40
+  questions, with zero automated forbidden-claim alarms; targeted reruns
+  recovered the three misses across configured Qwen and OpenRouter GPT.
 - Some public whole-genome VCF uploads were not recognized: BGZF has multiple
   gzip blocks, a Big-Y archive ships one VCF with BED/TXT sidecars, and one
   WGS header exceeded the 16 KiB sniff window. The parser now validates each

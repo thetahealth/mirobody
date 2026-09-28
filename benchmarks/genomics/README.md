@@ -105,6 +105,17 @@ Pass `--agent --guard-log /path/to/isolated-server.json.log` to make both
 questions share a checkpoint session and assert that every model boundary
 has `visible <= returned` genotype rows, with the previous answer redacted.
 The isolated live run observed three such boundaries.
+The 40-question public-truth Agent check selected the expected tool in
+37/40 Qwen first turns, with zero automated forbidden-claim alarms. Its
+generic "no question" replies in questions 12, 25 and 37 count as invalid
+answers; two Qwen and one OpenRouter GPT targeted reruns recovered them.
+Keep the answer JSONL outside the repository and review it for claims the
+lexical alarm cannot detect.
+`eval_agent_public.py --audit-existing --output /path/to/answers.jsonl` re-scores
+all 40 saved answers without a model key and enforces the preview floor:
+at least 36 correct tool selections, at least 36 valid first answers and
+zero automated forbidden-claim matches. The three generic Qwen replies
+remain recorded as misses even though targeted reruns recovered them.
 
 `e2e_public_candidate.py --pgp-dir /absolute/path/to/public-pgp` also uploads
 the two complete open PGP exports through the real WebSocket path to isolated
