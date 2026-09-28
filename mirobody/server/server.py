@@ -298,8 +298,13 @@ class Server:
         flags read it as on. An overlay's MIROBODY_WEB_CONFIG still wins.
         """
         from mirobody.server.routers import journal_router
+        from mirobody.server.routers import indicator_router, medication_router
 
         self._webpage_config.setdefault("__IS_JOURNAL_ON__", _is_mounted(app, journal_router))
+        self._webpage_config.setdefault("__IS_INDICATOR_RECORDS_ON__", _is_mounted(app, indicator_router))
+        self._webpage_config.setdefault("__IS_INDICATOR_EXPORT_ON__", _is_mounted(app, indicator_router))
+        self._webpage_config.setdefault("__IS_DATA_DELTA_ON__", _is_mounted(app, indicator_router))
+        self._webpage_config.setdefault("__IS_MEDICATIONS_ON__", _is_mounted(app, medication_router))
 
     def get_middlewares(self) -> list:
         return self._middlewares
@@ -412,6 +417,8 @@ class Server:
             records_router,
             journal_router,
             genomics_router,
+            medication_router,
+            data_export_router,
         )
         app.include_router(pulse_public_router)
         # apple_router is ALSO nested inside pulse_public_router (routers/__init__),
@@ -434,6 +441,8 @@ class Server:
         # The journal (/api/v1/journal), the write side of the ICPC-3 axes.
         app.include_router(journal_router)
         app.include_router(genomics_router)
+        app.include_router(medication_router)
+        app.include_router(data_export_router)
 
         for router in fastapi_routers:
             app.include_router(router)

@@ -132,6 +132,22 @@ for can take it over.
   data and installs an immutable extract; `CPIC_VERSION` selects an exact or
   locally newest installed version at query time. Public v1.59.1 and v1.60.0
   dumps passed the offline fetch and selection checks.
+- **The open-source web client now has a shared raw-records view and data delta.**
+  The paginated records endpoint reads the same visible observation rows as
+  the agent, while its `created_since` filter follows amendment and retraction
+  periods. The same query authority now exports the full visible standardized
+  record set as CSV or JSON. A Mirovital-shaped `/api/user/data-export` alias
+  adds a self-describing manifest, paging metadata, and an NDJSON stream with
+  a completion footer. The data page shows entries added since the last visit
+  and keeps source counts consistent with the detail rows.
+- **Medication plans now have a web CRUD and lifecycle surface.** The server
+  exposes owner-only create/edit/stop/resume/void operations, care-circle
+  read-only list and detail access, and course history in one transaction for
+  state changes. The bundled web client includes a medication form and status
+  cards; due and missed states remain derived from the medication kernel.
+- **Capability flags now describe the web surface that is actually mounted.**
+  `/mirobody.json` reports the records, data-delta and medication routes, and
+  the current `mirobody-web` build hides controls when those routes are off.
 
 ### Security
 

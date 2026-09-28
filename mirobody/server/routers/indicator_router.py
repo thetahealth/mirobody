@@ -27,8 +27,12 @@ contradiction on screen was the only symptom.
 from __future__ import annotations
 
 import logging
+import csv
+import io
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from mirobody.collect import REST_CATALOG_MAX, REST_ROW_MAX, PostgresHealthQuery
@@ -49,6 +53,7 @@ router = APIRouter(prefix="/api/v1", tags=["indicators"])
 # reported has its own tab (`/api/v1/journal`).
 _service = HealthIndicatorsService(PostgresHealthQuery(reported=False), catalog_cap=REST_CATALOG_MAX,
                                    row_cap=REST_ROW_MAX)
+_records = PostgresHealthQuery(reported=True)
 
 
 def _split(value: str | None) -> list[str] | None:
@@ -57,6 +62,28 @@ def _split(value: str | None) -> list[str] | None:
         return None
     parts = [p.strip() for p in value.split(",") if p.strip()]
     return parts or None
+
+
+def _date(value: str | None, name: str) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be YYYY-MM-DD") from exc
+
+
+def _instant(value: str) -> datetime:
+    raw = value.strip()
+    if raw.endswith("Z"):
+        raw = raw[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError as exc:
+        raise ValueError("since must be an ISO 8601 timestamp") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("since must include a timezone offset")
+    return parsed
 
 
 @router.get("/health-indicators")
@@ -102,6 +129,141 @@ async def health_indicators(
         return ErrorResponse(code=code, msg="; ".join(envelope.assumptions) or "This lookup could not complete.")
 
     return StandardResponse(data=render_rest(envelope))
+
+
+@router.get("/health-indicators/records")
+async def health_indicator_records(
+    target_user_id: str | None = Query(None),
+    kind: str = Query("measurement"),
+    modality: str | None = Query(None),
+    start_time: str | None = Query(None),
+    end_time: str | None = Query(None),
+    created_since: str | None = Query(None),
+    keywords: str | None = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    user_id: str = Depends(verify_token),
+):
+    """Paginated cross-indicator rows for the web Data view."""
+    owner_id = user_id
+    if target_user_id and target_user_id != user_id:
+        try:
+            await resolve_subject(user_id, target_user_id)
+        except CareCircleDenied:
+            return ErrorResponse(code=403, msg="Not permitted to read this member's health data.")
+        owner_id = target_user_id
+    if kind not in {"measurement", "all"}:
+        return ErrorResponse(code=400, msg="kind must be measurement or all.")
+    try:
+        data = await _records.records(
+            owner_id,
+            kind=kind,
+            modalities=_split(modality),
+            start_time=_date(start_time, "start_time"),
+            end_time=_date(end_time, "end_time"),
+            created_since=_instant(created_since) if created_since else None,
+            keywords=keywords,
+            limit=limit,
+            offset=offset,
+        )
+    except ValueError as exc:
+        return ErrorResponse(code=400, msg=str(exc))
+    except Exception as exc:
+        logger.error("health records query failed: error_type=%s", type(exc).__name__, exc_info=True)
+        return ErrorResponse(code=500, msg="This query could not complete.")
+    return StandardResponse(data=data)
+
+
+@router.get("/health-indicators/export")
+async def export_health_indicators(
+    target_user_id: str | None = Query(None),
+    kind: str = Query("measurement"),
+    modality: str | None = Query(None),
+    start_time: str | None = Query(None),
+    end_time: str | None = Query(None),
+    created_since: str | None = Query(None),
+    keywords: str | None = Query(None),
+    format: str = Query("csv"),
+    user_id: str = Depends(verify_token),
+):
+    """Export every currently visible standardized observation row.
+
+    The endpoint pages through the same query authority as the table, rather
+    than introducing a bulk-only SQL path. CSV is the browser download format;
+    JSON keeps the house envelope for API clients.
+    """
+    owner_id = user_id
+    if target_user_id and target_user_id != user_id:
+        try:
+            await resolve_subject(user_id, target_user_id)
+        except CareCircleDenied:
+            return ErrorResponse(code=403, msg="Not permitted to read this member's health data.")
+        owner_id = target_user_id
+    if format not in {"csv", "json"}:
+        return ErrorResponse(code=400, msg="format must be csv or json.")
+    if kind not in {"measurement", "all"}:
+        return ErrorResponse(code=400, msg="kind must be measurement or all.")
+    try:
+        filters = {
+            "kind": kind,
+            "modalities": _split(modality),
+            "start_time": _date(start_time, "start_time"),
+            "end_time": _date(end_time, "end_time"),
+            "created_since": _instant(created_since) if created_since else None,
+            "keywords": keywords,
+        }
+        rows: list[dict] = []
+        offset = 0
+        while True:
+            page = await _records.records(owner_id, **filters, limit=200, offset=offset)
+            rows.extend(page["rows"])
+            if not page["has_more"]:
+                break
+            offset += len(page["rows"])
+    except ValueError as exc:
+        return ErrorResponse(code=400, msg=str(exc))
+    except Exception as exc:
+        logger.error("health records export failed: error_type=%s", type(exc).__name__, exc_info=True)
+        return ErrorResponse(code=500, msg="This export could not complete.")
+
+    if format == "json":
+        return StandardResponse(data={"rows": rows, "total": len(rows)})
+    output = io.StringIO()
+    fields = ("row_id", "kind", "indicator", "name", "code", "system", "series", "time", "date", "value", "unit", "modality", "source_kind", "file", "file_key", "created_at", "provenance", "text")
+    writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(rows)
+    return Response(
+        content=output.getvalue(), media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="mirobody-indicators.csv"'},
+    )
+
+
+@router.get("/data/data-delta")
+async def data_delta(
+    since: str = Query(...),
+    target_user_id: str | None = Query(None),
+    kind: str = Query("all"),
+    user_id: str = Depends(verify_token),
+):
+    """Count newly visible logical entries since the browser's last visit."""
+    owner_id = user_id
+    if target_user_id and target_user_id != user_id:
+        try:
+            await resolve_subject(user_id, target_user_id)
+        except CareCircleDenied:
+            return ErrorResponse(code=403, msg="Not permitted to read this member's health data.")
+        owner_id = target_user_id
+    if kind not in {"measurement", "all"}:
+        return ErrorResponse(code=400, msg="kind must be measurement or all.")
+    try:
+        data = await _records.delta(owner_id, _instant(since), target_kind=kind)
+    except ValueError as exc:
+        return ErrorResponse(code=400, msg=str(exc))
+    except Exception as exc:
+        logger.error("health delta query failed: error_type=%s", type(exc).__name__, exc_info=True)
+        return ErrorResponse(code=500, msg="This query could not complete.")
+    return StandardResponse(data=data)
 
 
 class ReadingPatch(BaseModel):

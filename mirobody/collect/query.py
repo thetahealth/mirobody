@@ -103,6 +103,39 @@ _FILE_JOIN = """LEFT JOIN th_files f
                         AND f.file_key = split_part(substr(o.source_ref, 10), '_#_', 1)"""
 _FILE_NAME = "decrypt_content(f.file_name) AS file_name"
 
+# ``v_observation`` only exposes the terminal row of an amendment chain. The
+# recursive side table walk recovers the chain's creation history without
+# changing that visibility rule. A terminal row whose chain contains an
+# entered-in-error row is a reassertion, so its own creation starts a new
+# visible period; ordinary amendments keep the root's period start.
+_VISIBLE_PERIODS_CTE = """
+WITH RECURSIVE chain AS (
+    SELECT v.id AS visible_id,
+           v.id AS chain_id,
+           v.amends,
+           v.status,
+           v.created_at
+      FROM v_observation v
+    UNION ALL
+    SELECT p.visible_id,
+           o.id,
+           o.amends,
+           o.status,
+           o.created_at
+      FROM chain p
+      JOIN th_observation o ON o.id = p.amends
+), visible_periods AS (
+    SELECT visible_id,
+           CASE
+             WHEN BOOL_OR(status = 'entered-in-error')
+               THEN MAX(created_at) FILTER (WHERE chain_id = visible_id)
+             ELSE MIN(created_at)
+           END AS period_start
+      FROM chain
+     GROUP BY visible_id
+)
+"""
+
 #: The identity a group reports: that of its most recent row, so a series
 #: holding two codes (mass and molar cholesterol) names one consistent pair.
 _LATEST_IDENTITY = (
@@ -125,6 +158,122 @@ class PostgresHealthQuery:
 
     def __init__(self, *, reported: bool = True) -> None:
         self._reported = reported
+
+    async def records(
+        self,
+        subject_id: str,
+        *,
+        kind: str = "measurement",
+        modalities: list[str] | None = None,
+        start_time: date | None = None,
+        end_time: date | None = None,
+        created_since: datetime | None = None,
+        keywords: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Return the browser's cross-series, paginated observation list.
+
+        The visible row comes from ``v_observation``. ``period_start`` is
+        calculated from its amendment chain: ordinary corrections retain the
+        root row's creation time, while a reassertion after a retraction starts
+        a new visible period. Keeping this rule here means the records list and
+        the delta counter cannot disagree about what "new" means.
+        """
+        from mirobody.utils import execute_query
+
+        params: dict[str, Any] = {
+            "uid": str(subject_id),
+            "limit": max(1, min(int(limit), 200)),
+            "offset": max(0, int(offset)),
+            "kind": kind,
+            "modalities": modalities or [],
+            "keywords": f"%{keywords.strip()}%" if keywords and keywords.strip() else None,
+            "reported": REPORTED_KINDS,
+        }
+        conditions = ["o.user_id = :uid", "(:kind = 'all' OR o.kind = :kind)"]
+        if modalities:
+            conditions.append("o.modality = ANY(:modalities)")
+        if start_time is not None:
+            params["start_time"] = start_time
+            conditions.append("o.local_date >= :start_time")
+        if end_time is not None:
+            params["end_time"] = end_time
+            conditions.append("o.local_date <= :end_time")
+        if params["keywords"] is not None:
+            conditions.append("(o.name_text ILIKE :keywords OR COALESCE(o.display, '') ILIKE :keywords)")
+        if created_since is not None:
+            params["created_since"] = created_since
+            conditions.append("p.period_start > :created_since")
+        if not self._reported:
+            conditions.append("o.kind <> ALL(:reported)")
+        where = " AND ".join(conditions)
+        rows = await execute_query(
+            f"""
+            {_VISIBLE_PERIODS_CTE}
+            SELECT o.id, o.kind, o.modality, o.name_text, o.value_text, o.unit_text,
+                   o.local_date, o.observed_start, o.observed_end, o.tz,
+                   o.code_system, o.code, o.display, o.series_id, o.source_kind,
+                   o.source_ref, o.value_num, o.value_canonical, o.unit_canonical,
+                   o.outcome, o.reason, o.elected, p.period_start,
+                   {_FILE_KEY} AS file_key, {_FILE_NAME},
+                   CASE WHEN o.kind = ANY(:reported) THEN decrypt_content(o.note_text) END AS note,
+                   COUNT(*) OVER () AS total
+              FROM v_observation o
+              JOIN visible_periods p ON p.visible_id = o.id
+            {_FILE_JOIN}
+             WHERE {where}
+             ORDER BY o.observed_start DESC, o.id DESC
+             LIMIT :limit OFFSET :offset
+            """,
+            params,
+            log_sql=False,
+        ) or []
+        total = int(rows[0]["total"]) if rows else 0
+        return {
+            "rows": [_record_row(r) for r in rows],
+            "total": total,
+            "has_more": params["offset"] + len(rows) < total,
+        }
+
+    async def delta(
+        self,
+        subject_id: str,
+        since: datetime,
+        *,
+        target_kind: str = "all",
+    ) -> dict[str, Any]:
+        """Count visible logical entries whose current period starts after ``since``."""
+        from mirobody.utils import execute_query
+
+        params: dict[str, Any] = {
+            "uid": str(subject_id),
+            "since": since,
+            "kind": target_kind,
+            "reported": REPORTED_KINDS,
+        }
+        kind_clause = "(:kind = 'all' OR o.kind = :kind)"
+        if not self._reported:
+            kind_clause += " AND o.kind <> ALL(:reported)"
+        rows = await execute_query(
+            f"""
+            {_VISIBLE_PERIODS_CTE}
+            SELECT o.source_kind, COUNT(*) AS count
+              FROM v_observation o
+              JOIN visible_periods p ON p.visible_id = o.id
+             WHERE o.user_id = :uid AND p.period_start > :since AND {kind_clause}
+             GROUP BY o.source_kind
+             ORDER BY o.source_kind
+            """,
+            params,
+            log_sql=False,
+        ) or []
+        buckets = [{"name": str(r["source_kind"]), "count": int(r["count"])} for r in rows]
+        return {
+            "since": since.isoformat(),
+            "total_new": sum(r["count"] for r in buckets),
+            "by_source": buckets,
+        }
 
     def _kinds(self, params: dict[str, Any]) -> str:
         if self._reported:
@@ -652,6 +801,41 @@ def _number(value: object) -> float | None:
         return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
+
+
+def _record_row(r: dict) -> dict:
+    """Serialize one web record without exposing encrypted/raw SQL columns."""
+    observed = r.get("observed_start")
+    if isinstance(observed, datetime):
+        time_text = observed.isoformat()
+    else:
+        time_text = _text(observed)
+    kind = _text(r.get("kind")) or "measurement"
+    row = {
+        "row_id": int(r["id"]),
+        "kind": kind,
+        "indicator": _text(r.get("display")) or _text(r.get("name_text")),
+        "name": _text(r.get("name_text")),
+        "code": _text(r.get("code")),
+        "system": _text(r.get("code_system")),
+        "series": _text(r.get("series_id")),
+        "time": time_text,
+        "date": r.get("local_date").isoformat() if hasattr(r.get("local_date"), "isoformat") else _text(r.get("local_date")),
+        "value": _text(r.get("value_text")) if kind == "measurement" else "",
+        "unit": _text(r.get("unit_text")) if kind == "measurement" else "",
+        "row_value": _text(r.get("note")) if kind != "measurement" else "",
+        "modality": _text(r.get("modality")),
+        "source_kind": _text(r.get("source_kind")),
+        "file": _text(r.get("file_name")),
+        "file_key": _text(r.get("file_key")),
+        "created_at": r.get("period_start").isoformat() if hasattr(r.get("period_start"), "isoformat") else _text(r.get("period_start")),
+        "provenance": "elected:day_authority" if r.get("elected") else _text(r.get("source_kind")) or "measured",
+        "day_known": bool(r.get("local_date")),
+    }
+    if kind != "measurement":
+        row["text"] = row["row_value"] or _text(r.get("value_text"))
+    row.pop("row_value", None)
+    return row
 
 
 __all__ = [

@@ -99,6 +99,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_th_observation_identity
     ON th_observation (user_id, name_key, observed_start, observed_end, source_ref,
                        COALESCE(source_record_id, ''), COALESCE(member_of, 0), COALESCE(amends, 0));
 CREATE INDEX IF NOT EXISTS idx_th_observation_user_day ON th_observation (user_id, local_date);
+CREATE INDEX IF NOT EXISTS idx_th_observation_user_observed_desc
+    ON th_observation (user_id, observed_start DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_th_observation_user_created
+    ON th_observation (user_id, created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_th_observation_stream ON th_observation (user_id, stream_key, observed_start);
 CREATE INDEX IF NOT EXISTS idx_th_observation_source ON th_observation (source_ref);
 CREATE INDEX IF NOT EXISTS idx_th_observation_amends ON th_observation (amends) WHERE amends IS NOT NULL;

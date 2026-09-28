@@ -28,6 +28,7 @@ from datetime import UTC, date, datetime
 
 from mirobody.kernel import meds, overlay, series
 from mirobody.utils import execute_query
+from mirobody.utils import db
 
 logger = logging.getLogger(__name__)
 
@@ -165,17 +166,27 @@ class PostgresMedicationStore:
     """`meds.MedicationStore` over `th_medication_plan` / `th_medication_course`."""
 
     async def list(self, subject_id: str, *, active_only: bool = False) -> Sequence[meds.MedicationPlan]:
-        sql = f"SELECT {_PLAN_COLUMNS} FROM th_medication_plan WHERE user_id = :uid AND deleted = 0"
+        sql = f"SELECT {_PLAN_COLUMNS} FROM th_medication_plan WHERE user_id = :uid AND deleted = 0 AND status <> :void"
         if active_only:
-            sql += f" AND status = '{meds.PLAN_ACTIVE}'"
+            sql += " AND status = :active"
         sql += " ORDER BY start_date DESC, plan_id"
-        rows = await execute_query(sql, {"uid": str(subject_id)}, log_sql=False) or []
+        params = {"uid": str(subject_id), "void": meds.PLAN_ENTERED_IN_ERROR}
+        if active_only:
+            params["active"] = meds.PLAN_ACTIVE
+        rows = await execute_query(sql, params, log_sql=False) or []
         return [plan_from_row(dict(r)) for r in rows]
 
     async def get(self, plan_id: str) -> meds.MedicationPlan | None:
         sql = f"SELECT {_PLAN_COLUMNS} FROM th_medication_plan WHERE plan_id = :pid AND deleted = 0"
         rows = await execute_query(sql, {"pid": str(plan_id)}, log_sql=False) or []
         return plan_from_row(dict(rows[0])) if rows else None
+
+    async def owner(self, plan_id: str) -> str | None:
+        rows = await execute_query(
+            "SELECT user_id FROM th_medication_plan WHERE plan_id = :pid AND deleted = 0",
+            {"pid": str(plan_id)}, log_sql=False,
+        ) or []
+        return str(rows[0]["user_id"]) if rows else None
 
     async def put(self, plan: meds.MedicationPlan) -> None:
         """Insert or replace one plan. The natural key is `plan_id`, which
@@ -269,6 +280,62 @@ class PostgresMedicationStore:
             },
             log_sql=False,
         )
+
+    async def transition(self, subject_id: str, plan_id: str, event: str, *, today: date) -> meds.MedicationPlan:
+        """Apply a kernel transition and its course changes in one transaction."""
+        async with db.transaction() as tx:
+            rows = await tx.execute(
+                f"SELECT {_PLAN_COLUMNS} FROM th_medication_plan "
+                "WHERE plan_id = :pid AND user_id = :uid AND deleted = 0 FOR UPDATE",
+                {"pid": str(plan_id), "uid": str(subject_id)},
+            )
+            if not rows:
+                raise LookupError("medication plan not found")
+            old = plan_from_row(dict(rows[0]))
+            updated, closed = meds.plan_status_transition(old, event, today=today)  # type: ignore[arg-type]
+            await tx.execute(
+                """
+                UPDATE th_medication_plan SET start_date = :start_date, end_date = :end_date,
+                    status = :status, stopped_on = :stopped_on, update_time = CURRENT_TIMESTAMP
+                WHERE plan_id = :plan_id AND user_id = :user_id
+                """,
+                {
+                    "start_date": updated.start, "end_date": updated.end,
+                    "status": updated.status, "stopped_on": updated.stopped_on,
+                    "plan_id": updated.plan_id, "user_id": str(subject_id),
+                },
+            )
+            if closed is not None:
+                await tx.execute(
+                    """
+                    INSERT INTO th_medication_course
+                        (course_id, plan_id, user_id, order_id, start_date, end_date, closed_by)
+                    VALUES (:course_id, :plan_id, :user_id, :order_id, :start_date, :end_date, :closed_by)
+                    ON CONFLICT (course_id) DO UPDATE SET end_date = EXCLUDED.end_date,
+                        closed_by = EXCLUDED.closed_by
+                    """,
+                    {
+                        "course_id": f"{closed.plan_id}:{closed.start.isoformat()}",
+                        "plan_id": closed.plan_id, "user_id": str(subject_id),
+                        "order_id": closed.order_id, "start_date": closed.start,
+                        "end_date": closed.end, "closed_by": closed.closed_by,
+                    },
+                )
+            if event == "resume":
+                await tx.execute(
+                    """
+                    INSERT INTO th_medication_course
+                        (course_id, plan_id, user_id, order_id, start_date, end_date, closed_by)
+                    VALUES (:course_id, :plan_id, :user_id, :order_id, :start_date, NULL, NULL)
+                    ON CONFLICT (course_id) DO NOTHING
+                    """,
+                    {
+                        "course_id": f"{updated.plan_id}:{updated.start.isoformat()}",
+                        "plan_id": updated.plan_id, "user_id": str(subject_id),
+                        "order_id": updated.order_id, "start_date": updated.start,
+                    },
+                )
+            return updated
 
 
 class PostgresDoseLogStore:
