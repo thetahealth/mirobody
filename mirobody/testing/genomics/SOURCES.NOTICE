@@ -1,0 +1,22 @@
+Mirobody public genotype examples
+
+The HG00096/HG00097 genotype calls come from the open 1000 Genomes phase 3
+resource maintained by IGSR. The twelve GRCh37 regional extract SHA-256
+digests, the public X subset digest, and the exact selected calls are in
+manifest.json and canonical.json. Source directory:
+https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/
+IGSR data use: https://www.internationalgenome.org/data/
+
+The one no-call row from Harvard PGP file 4220 is openly shared under the
+participant's public-data consent. Only that rsID, position and no-call are
+included; the original personal export is not distributed here.
+https://my.pgp-hms.org/user_file/download/4220
+https://pgp.med.harvard.edu/about
+
+Dual-build positions, REF/ALT and gene symbols for the thirteen autosomal
+sites are checked against the bundled public dbSNP 155 Common site index.
+The catalog's separate NOTICE records its UCSC/NCBI source and coverage.
+
+Vendor-shaped text/CSV and compressed VCF files are renderings of those
+unchanged public calls. A filename or header that resembles a vendor export
+does not mean the vendor supplied or endorsed the example.

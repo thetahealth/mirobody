@@ -1,0 +1,5 @@
+##fileformat=VCFv4.2
+##reference=GRCh37
+##source=1000Genomes phase 3 public HG00097 X call
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	HG00097
+X	3000679	.	C	G	.	PASS	.	GT	1|0

@@ -1,0 +1,80 @@
+{
+  "model": "mimo-q4-fixed",
+  "prompt_sha256": "680c953e6022dccfbeadc02b00ec57382b086ea3e1c6c8b69f126da318744885",
+  "mock": "query-shape-aware-v2",
+  "results": [
+    {
+      "case": "missing",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"糖化血红蛋白\", \"HbA1c\", \"glycated hemoglobin\"]}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"HbA1c\", \"糖化血红蛋白\", \"Glycated Hemoglobin\"], \"aggregate\": \"latest\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"hemoglobin\", \"A1c\", \"glycated\"]}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        2.785,
+        5.086,
+        2.305,
+        7.816
+      ],
+      "usages": [
+        {
+          "completion_tokens": 52,
+          "prompt_tokens": 3448,
+          "total_tokens": 3500,
+          "prompt_tokens_details": {
+            "cached_tokens": 2952
+          }
+        },
+        {
+          "completion_tokens": 163,
+          "prompt_tokens": 3591,
+          "total_tokens": 3754,
+          "prompt_tokens_details": {
+            "cached_tokens": 3444
+          }
+        },
+        {
+          "completion_tokens": 52,
+          "prompt_tokens": 3880,
+          "total_tokens": 3932,
+          "prompt_tokens_details": {
+            "cached_tokens": 3587
+          }
+        },
+        {
+          "completion_tokens": 262,
+          "prompt_tokens": 3987,
+          "total_tokens": 4249,
+          "prompt_tokens_details": {
+            "cached_tokens": 3876
+          }
+        }
+      ],
+      "content": "你的健康记录里目前**没有糖化血红蛋白（HbA1c）这项数据**。\n\n我用中英文多种写法（糖化血红蛋白、HbA1c、Glycated Hemoglobin、hemoglobin、A1c）都查过，返回的目录里只有**一项指标：LDL cholesterol（低密度脂蛋白胆固醇）**，日期是 2026-03-10。也就是说，这份记录里从未录入过 HbA1c，而不是\"数值正常\"或\"近期测过\"。\n\n如果你今年确实做过糖化血红蛋白检查，可能是：\n- 报告还没上传到记录里；\n- 或录入时用了不同的名称/单位。\n\n把化验单发我，我可以帮你确认日期、数值和参考范围。",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        "",
+        "",
+        ""
+      ]
+    }
+  ],
+  "max_rounds": 5
+}

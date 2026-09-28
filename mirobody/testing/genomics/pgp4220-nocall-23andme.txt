@@ -1,0 +1,3 @@
+# 23andMe public PGP4220 no-call; GRCh37
+# rsid	chromosome	position	genotype
+rs3745274	19	41512841	--

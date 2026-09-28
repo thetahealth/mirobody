@@ -56,8 +56,9 @@ CREATE TABLE IF NOT EXISTS th_genotype (
     )
 );
 
--- Earlier preview tables used varchar(3) for chrom and varchar(100) for REF/ALT;
--- the public Big-Y VCF has two longer contigs and four longer ALT strings.
+-- A table created while chrom was varchar(3) and REF/ALT varchar(100) is
+-- widened here: the public Big-Y VCF has two longer contigs and four longer
+-- ALT strings, and the insert would otherwise fail on them.
 DO $$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.columns

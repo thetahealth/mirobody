@@ -1,0 +1,201 @@
+{
+  "model": "mimo-q4-fixed",
+  "prompt_sha256": "0adb524c79cd5f38d2cd9b2ecb6da1e48fead0c2820f96f7487b2af40c2b45a3",
+  "mock": "query-shape-aware-v2",
+  "max_rounds": 12,
+  "results": [
+    {
+      "case": "same_chart",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"LDL cholesterol\", \"Low-Density Lipoprotein\", \"total cholesterol\", \"总胆固醇\"], \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\", \"limit\": 30}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"raw\", \"limit\": 30}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\", \"aggregate\": \"stats\", \"limit\": 30}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\", \"aggregate\": \"stats\", \"limit\": 30}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\", \"aggregate\": \"stats\", \"limit\": 30}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\", \"aggregate\": \"stats\", \"limit\": 30}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\", \"aggregate\": \"stats\", \"limit\": 30}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\", \"aggregate\": \"stats\", \"limit\": 30}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\", \"aggregate\": \"stats\", \"limit\": 30}",
+          "duplicate": true
+        }
+      ],
+      "latencies_s": [
+        3.752,
+        3.13,
+        1.262,
+        1.96,
+        2.327,
+        1.458,
+        1.959,
+        1.534,
+        1.549,
+        1.554,
+        1.53,
+        1.527
+      ],
+      "usages": [
+        {
+          "completion_tokens": 83,
+          "prompt_tokens": 3849,
+          "total_tokens": 3932,
+          "prompt_tokens_details": {
+            "cached_tokens": 3345
+          }
+        },
+        {
+          "completion_tokens": 85,
+          "prompt_tokens": 4076,
+          "total_tokens": 4161,
+          "prompt_tokens_details": {
+            "cached_tokens": 3845
+          }
+        },
+        {
+          "completion_tokens": 32,
+          "prompt_tokens": 4145,
+          "total_tokens": 4177,
+          "prompt_tokens_details": {
+            "cached_tokens": 4072
+          }
+        },
+        {
+          "completion_tokens": 39,
+          "prompt_tokens": 4409,
+          "total_tokens": 4448,
+          "prompt_tokens_details": {
+            "cached_tokens": 4141
+          }
+        },
+        {
+          "completion_tokens": 45,
+          "prompt_tokens": 4709,
+          "total_tokens": 4754,
+          "prompt_tokens_details": {
+            "cached_tokens": 4405
+          }
+        },
+        {
+          "completion_tokens": 38,
+          "prompt_tokens": 4784,
+          "total_tokens": 4822,
+          "prompt_tokens_details": {
+            "cached_tokens": 4705
+          }
+        },
+        {
+          "completion_tokens": 44,
+          "prompt_tokens": 4988,
+          "total_tokens": 5032,
+          "prompt_tokens_details": {
+            "cached_tokens": 4780
+          }
+        },
+        {
+          "completion_tokens": 44,
+          "prompt_tokens": 5050,
+          "total_tokens": 5094,
+          "prompt_tokens_details": {
+            "cached_tokens": 4984
+          }
+        },
+        {
+          "completion_tokens": 44,
+          "prompt_tokens": 5112,
+          "total_tokens": 5156,
+          "prompt_tokens_details": {
+            "cached_tokens": 5046
+          }
+        },
+        {
+          "completion_tokens": 44,
+          "prompt_tokens": 5174,
+          "total_tokens": 5218,
+          "prompt_tokens_details": {
+            "cached_tokens": 5108
+          }
+        },
+        {
+          "completion_tokens": 44,
+          "prompt_tokens": 5236,
+          "total_tokens": 5280,
+          "prompt_tokens_details": {
+            "cached_tokens": 5170
+          }
+        },
+        {
+          "completion_tokens": 44,
+          "prompt_tokens": 5298,
+          "total_tokens": 5342,
+          "prompt_tokens_details": {
+            "cached_tokens": 5232
+          }
+        }
+      ],
+      "reasoning_chars": [
+        110,
+        134,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "content": "",
+      "finish_reason": "round_limit"
+    }
+  ]
+}

@@ -69,6 +69,7 @@ jobs:
         pip install -e '.[app,test]'
         pytest -q
         python -m unittest discover -s benchmarks/genomics -p 'test_*.py'
+        python -m unittest discover -s benchmarks/health_records -p 'test_*.py'
         # Must run against the repo source. In a venv holding an installed
         # older wheel it passes vacuously.
         lint-imports

@@ -98,14 +98,15 @@ def audit_existing(output: Path) -> None:
     """Re-score saved public answers after a detector is tightened."""
     rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
     if [row["number"] for row in rows] != list(range(1, 41)):
-        raise ValueError("G9 audit needs all 40 sequential questions")
+        raise ValueError("the audit needs all 40 sequential questions")
     chosen = sum(bool(row["selected"]) for row in rows)
     answered = sum(_valid_answer(str(row.get("answer") or "")) for row in rows)
     forbidden = sum(bool(FORBIDDEN.search(str(row.get("answer") or ""))) for row in rows)
     print(f"tool choice: {chosen}/40; valid first answers: {answered}/40; forbidden claims: {forbidden}")
-    # G9's written floor is 90% tool choice and zero forbidden claims. The
-    # preview applies the same floor to valid answers and names every miss.
-    assert chosen >= 36 and answered >= 36 and forbidden == 0, "G9 preview threshold not met"
+    # The floor is 90% expected-tool choice and zero forbidden claims. Valid
+    # first answers must clear the same 90%: a generic "no question" reply
+    # picked the right tool and still told the person nothing.
+    assert chosen >= 36 and answered >= 36 and forbidden == 0, "Agent evaluation floor not met"
 
 
 async def chat(client: httpx.AsyncClient, base: str, headers: dict[str, str],

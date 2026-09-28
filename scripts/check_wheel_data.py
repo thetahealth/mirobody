@@ -49,6 +49,24 @@ REQUIRED = {
     "mirobody/res/genomics/cpic-v1.60.0.NOTICE": 500,
     "mirobody/res/genomics/genotype_sites.sqlite3": 30_000,
     "mirobody/res/genomics/genotype_sites.NOTICE": 500,
+    # A new clone and a wheel must carry the same public format/canonical pair:
+    # every file test_packaged_examples.py reads, so a narrowed package-data
+    # glob fails here instead of in a wheel user's test.
+    "mirobody/testing/genomics/manifest.json": 2_000,
+    "mirobody/testing/genomics/canonical.json": 2_000,
+    "mirobody/testing/genomics/SOURCES.NOTICE": 300,
+    "mirobody/testing/genomics/hg00096-wegene.txt": 300,
+    "mirobody/testing/genomics/hg00096-23andme.txt": 300,
+    "mirobody/testing/genomics/hg00096-ancestry.txt": 300,
+    "mirobody/testing/genomics/hg00096-myheritage.csv": 300,
+    "mirobody/testing/genomics/hg00096-ftdna.csv": 300,
+    "mirobody/testing/genomics/hg00096-grch37.vcf": 600,
+    "mirobody/testing/genomics/hg00096-grch38.vcf": 500,
+    "mirobody/testing/genomics/hg00096-grch37.vcf.gz": 300,
+    "mirobody/testing/genomics/hg00096-grch37.vcf.bgz": 300,
+    "mirobody/testing/genomics/hg00096-grch37-vcf-sidecars.zip": 500,
+    "mirobody/testing/genomics/hg00097-x-grch37.vcf": 100,
+    "mirobody/testing/genomics/pgp4220-nocall-23andme.txt": 80,
 }
 
 # The other direction, and it is worth a gate of its own: the package-data globs
@@ -295,7 +313,7 @@ def main() -> int:
                 print(f"  {p}")
         else:
             print(
-                f"{artifact}: all {len(REQUIRED)} engine data bundles present and real; "
+                f"{artifact}: all {len(REQUIRED)} required package data files present and real; "
                 f"none of the {len(FORBIDDEN) + len(FORBIDDEN_NAMES)} build-time-only artifacts or "
                 f"{len(FORBIDDEN_PREFIXES)} build-time-only code trees shipped"
             )

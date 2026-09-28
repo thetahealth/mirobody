@@ -1,4 +1,5 @@
-"""Regressions from the 1.5.2 public-data review."""
+"""Regression tests on public data: file classification, site normalization,
+PAR and sex handling, genotype redaction in the Agent, and log privacy."""
 
 from __future__ import annotations
 

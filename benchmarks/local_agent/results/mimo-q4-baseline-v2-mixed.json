@@ -1,0 +1,75 @@
+{
+  "model": "mimo-q4-fixed",
+  "prompt_sha256": "680c953e6022dccfbeadc02b00ec57382b086ea3e1c6c8b69f126da318744885",
+  "mock": "query-shape-aware-v2",
+  "results": [
+    {
+      "case": "mixed_chart",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"空腹血糖\", \"糖化血红蛋白\", \"fasting glucose\", \"HbA1c\"], \"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"latest\", \"limit\": 50}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"aggregate\": \"latest\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"空腹血糖\", \"糖化血红蛋白\", \"fasting glucose\", \"HbA1c\", \"glycated hemoglobin\"], \"limit\": 50}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        12.818,
+        1.445,
+        2.031,
+        17.452
+      ],
+      "usages": [
+        {
+          "completion_tokens": 154,
+          "prompt_tokens": 3468,
+          "total_tokens": 3622,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        {
+          "completion_tokens": 32,
+          "prompt_tokens": 3608,
+          "total_tokens": 3640,
+          "prompt_tokens_details": {
+            "cached_tokens": 3464
+          }
+        },
+        {
+          "completion_tokens": 61,
+          "prompt_tokens": 3683,
+          "total_tokens": 3744,
+          "prompt_tokens_details": {
+            "cached_tokens": 3604
+          }
+        },
+        {
+          "completion_tokens": 587,
+          "prompt_tokens": 4012,
+          "total_tokens": 4599,
+          "prompt_tokens_details": {
+            "cached_tokens": 3679
+          }
+        }
+      ],
+      "content": "数据齐了，六条记录，每月一次（都在当月 10 日 09:00，来自 lab-jan/feb/mar.pdf）。\n\n```vis-chart\n{\"type\":\"line\",\"title\":\"Fasting Glucose and HbA1c, Jan–Mar 2026\",\"axisXTitle\":\"date\",\"axisYTitle\":\"value\",\"data\":[{\"time\":\"2026-01-10\",\"value\":5.1,\"group\":\"Fasting glucose\"},{\"time\":\"2026-02-10\",\"value\":5.5,\"group\":\"Fasting glucose\"},{\"time\":\"2026-03-10\",\"value\":5.8,\"group\":\"Fasting glucose\"},{\"time\":\"2026-01-10\",\"value\":5.4,\"group\":\"HbA1c\"},{\"time\":\"2026-02-10\",\"value\":5.6,\"group\":\"HbA1c\"},{\"time\":\"2026-03-10\",\"value\":5.7,\"group\":\"HbA1c\"}]}\n```\n\n**变化概括**\n\n- 两条线都缓慢上行，方向一致，没有波动。\n- 空腹血糖：5.1 → 5.5 → 5.8 mmol/L，三个月累计 +0.7 mmol/L，约每月 +0.23。\n- 糖化血红蛋白：5.4 → 5.6 → 5.7%，三个月累计 +0.3%，约每月 +0.1%。\n- 两条线的月变化幅度接近（血糖约 0.23/月，HbA1c 约 0.1%/月），说明是同一方向上的连续变化，而不是某一次测量异常。\n- 两条线都仍在常见参考区间内（空腹血糖通常 < 5.6 mmol/L 为正常，5.6–6.9 为空腹血糖受损区间；HbA1c < 5.7% 为正常，5.7–6.4% 为糖尿病前期区间），但都已贴近或进入上边界。\n\n**值得注意的一点**：三次测量都在 10 日 09:00，时间固定，所以这个趋势是可靠的，不是测量时点漂移造成的。\n\n**建议**：这个趋势本身值得在下次体检时继续观察。如果空腹血糖持续在 5.6 以上、HbA1c 持续在 5.7 以上，建议带着这三张化验单（lab-jan/feb/mar.pdf）咨询医生，讨论是否需要进一步评估。",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        "我来查一下 2026 年 1–3 月的空腹血糖和糖化血红蛋白数据。",
+        "",
+        ""
+      ]
+    }
+  ],
+  "max_rounds": 5
+}

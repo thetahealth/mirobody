@@ -253,7 +253,7 @@ async def run(base: str, corpus: Path, *, agent: bool = False,
                         budgets.append(tuple(map(int, match.groups())))
             assert budgets and all(visible <= returned for visible, returned, _, _ in budgets), budgets
             assert any(redacted and prior_answers for _, _, redacted, prior_answers in budgets), budgets
-            print(f"G8: {len(budgets)} model boundaries, prior genotype rows redacted")
+            print(f"genotype row guard: {len(budgets)} model boundaries, prior genotype rows redacted")
 
 
 if __name__ == "__main__":

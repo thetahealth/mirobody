@@ -1,0 +1,396 @@
+{
+  "model": "mimo-q4-fixed",
+  "prompt_sha256": "f6d08199d6201b5474bf9ca8f74af7c09f762975e2731dfdcac1f8d9a2c1f759",
+  "mock": "query-shape-aware-v2",
+  "results": [
+    {
+      "case": "mixed_chart",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"start\": \"2026-01-01\", \"end\": \"2026-03-31\", \"resolution\": \"day\", \"aggregate\": \"stats\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"空腹血糖\", \"糖化血红蛋白\", \"fasting glucose\", \"HbA1c\"], \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"end\": \"2026-03-31\", \"member\": \"me\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"end\": \"2026-03-31\", \"member\": \"me\"}",
+          "duplicate": true
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"end\": \"2026-03-31\", \"member\": \"me\"}",
+          "duplicate": true
+        }
+      ],
+      "latencies_s": [
+        6.347,
+        2.585,
+        1.937,
+        1.45,
+        1.212
+      ],
+      "usages": [
+        {
+          "completion_tokens": 169,
+          "prompt_tokens": 3756,
+          "total_tokens": 3925,
+          "prompt_tokens_details": {
+            "cached_tokens": 3240
+          }
+        },
+        {
+          "completion_tokens": 73,
+          "prompt_tokens": 3905,
+          "total_tokens": 3978,
+          "prompt_tokens_details": {
+            "cached_tokens": 3752
+          }
+        },
+        {
+          "completion_tokens": 34,
+          "prompt_tokens": 4242,
+          "total_tokens": 4276,
+          "prompt_tokens_details": {
+            "cached_tokens": 3901
+          }
+        },
+        {
+          "completion_tokens": 34,
+          "prompt_tokens": 4384,
+          "total_tokens": 4418,
+          "prompt_tokens_details": {
+            "cached_tokens": 4238
+          }
+        },
+        {
+          "completion_tokens": 34,
+          "prompt_tokens": 4436,
+          "total_tokens": 4470,
+          "prompt_tokens_details": {
+            "cached_tokens": 4380
+          }
+        }
+      ],
+      "content": "",
+      "finish_reason": "round_limit"
+    },
+    {
+      "case": "same_chart",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"LDL cholesterol\", \"Low-Density Lipoprotein\", \"total cholesterol\", \"Total Cholesterol\"], \"resolution\": \"day\", \"aggregate\": \"stats\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\", \"limit\": 30}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"raw\", \"limit\": 30}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"LDL cholesterol\", \"Total cholesterol\"], \"resolution\": \"day\", \"aggregate\": \"stats\", \"limit\": 30}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        3.697,
+        3.684,
+        1.233,
+        1.901,
+        2.167
+      ],
+      "usages": [
+        {
+          "completion_tokens": 84,
+          "prompt_tokens": 3744,
+          "total_tokens": 3828,
+          "prompt_tokens_details": {
+            "cached_tokens": 3240
+          }
+        },
+        {
+          "completion_tokens": 106,
+          "prompt_tokens": 3972,
+          "total_tokens": 4078,
+          "prompt_tokens_details": {
+            "cached_tokens": 3740
+          }
+        },
+        {
+          "completion_tokens": 32,
+          "prompt_tokens": 4041,
+          "total_tokens": 4073,
+          "prompt_tokens_details": {
+            "cached_tokens": 3968
+          }
+        },
+        {
+          "completion_tokens": 39,
+          "prompt_tokens": 4305,
+          "total_tokens": 4344,
+          "prompt_tokens_details": {
+            "cached_tokens": 4037
+          }
+        },
+        {
+          "completion_tokens": 45,
+          "prompt_tokens": 4605,
+          "total_tokens": 4650,
+          "prompt_tokens_details": {
+            "cached_tokens": 4301
+          }
+        }
+      ],
+      "content": "",
+      "finish_reason": "round_limit"
+    },
+    {
+      "case": "single_point",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"糖化血红蛋白\", \"HbA1c\", \"glycated hemoglobin\"], \"aggregate\": \"latest\"}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        2.727,
+        1.125
+      ],
+      "usages": [
+        {
+          "completion_tokens": 49,
+          "prompt_tokens": 3740,
+          "total_tokens": 3789,
+          "prompt_tokens_details": {
+            "cached_tokens": 3240
+          }
+        },
+        {
+          "completion_tokens": 23,
+          "prompt_tokens": 3900,
+          "total_tokens": 3923,
+          "prompt_tokens_details": {
+            "cached_tokens": 3736
+          }
+        }
+      ],
+      "content": "5.7%（2026-03-10，来源 lab-mar.pdf）",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        ""
+      ]
+    },
+    {
+      "case": "table_only",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"LDL\", \"低密度脂蛋白\"], \"resolution\": \"day\", \"aggregate\": \"none\", \"limit\": 50, \"member\": \"me\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"LDL\", \"低密度脂蛋白\"], \"resolution\": \"day\", \"aggregate\": \"none\", \"member\": \"me\"}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        6.111,
+        1.648,
+        3.946
+      ],
+      "usages": [
+        {
+          "completion_tokens": 166,
+          "prompt_tokens": 3741,
+          "total_tokens": 3907,
+          "prompt_tokens_details": {
+            "cached_tokens": 3240
+          }
+        },
+        {
+          "completion_tokens": 44,
+          "prompt_tokens": 3841,
+          "total_tokens": 3885,
+          "prompt_tokens_details": {
+            "cached_tokens": 3737
+          }
+        },
+        {
+          "completion_tokens": 118,
+          "prompt_tokens": 4031,
+          "total_tokens": 4149,
+          "prompt_tokens_details": {
+            "cached_tokens": 3837
+          }
+        }
+      ],
+      "content": "| 日期 | LDL 胆固醇 |\n| :--- | :--- |\n| 2025-03-10 | 3.5 mmol/L |\n| 2025-07-10 | 3.2 mmol/L |\n| 2025-11-10 | 2.9 mmol/L |\n\n三次结果来自 LDL cholesterol 指标，单位 mmol/L，呈逐次下降趋势（3.5 → 3.2 → 2.9）。",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        "我来查一下你去年（2025 年）的 LDL 结果。",
+        ""
+      ]
+    },
+    {
+      "case": "missing",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"糖化血红蛋白\", \"HbA1c\", \"glycated hemoglobin\"]}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"HbA1c\", \"糖化\", \"hemoglobin A1c\"]}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"indicators\": [\"HbA1c\"], \"aggregate\": \"latest\"}",
+          "duplicate": false
+        },
+        {
+          "name": "query_health_indicators",
+          "arguments": "{}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        3.15,
+        3.584,
+        1.853,
+        1.629,
+        4.413
+      ],
+      "usages": [
+        {
+          "completion_tokens": 64,
+          "prompt_tokens": 3736,
+          "total_tokens": 3800,
+          "prompt_tokens_details": {
+            "cached_tokens": 3240
+          }
+        },
+        {
+          "completion_tokens": 110,
+          "prompt_tokens": 3879,
+          "total_tokens": 3989,
+          "prompt_tokens_details": {
+            "cached_tokens": 3732
+          }
+        },
+        {
+          "completion_tokens": 49,
+          "prompt_tokens": 4021,
+          "total_tokens": 4070,
+          "prompt_tokens_details": {
+            "cached_tokens": 3875
+          }
+        },
+        {
+          "completion_tokens": 41,
+          "prompt_tokens": 4165,
+          "total_tokens": 4206,
+          "prompt_tokens_details": {
+            "cached_tokens": 4017
+          }
+        },
+        {
+          "completion_tokens": 141,
+          "prompt_tokens": 4272,
+          "total_tokens": 4413,
+          "prompt_tokens_details": {
+            "cached_tokens": 4161
+          }
+        }
+      ],
+      "content": "你的健康记录里目前**没有糖化血红蛋白（HbA1c）这项数据**。\n\n我查了全部记录，目录中只有 LDL cholesterol（2026-03-10 一条）。所以今年没有可引用的糖化血红蛋白数值——这不代表结果正常，只是这项检查没有被记录在案。\n\n如果你想知道今年的数值，建议：\n- 确认是否做过检查但报告未上传；\n- 或安排一次检测（通常空腹抽血，结果以实验室报告为准）。\n\n需要的话，我可以帮你整理 LDL 那条记录。",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "case": "medication_caution",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\": [\"血压\", \"blood pressure\", \"LDL\", \"Low-Density Lipoprotein\", \"胆固醇\"]}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        4.085,
+        12.036
+      ],
+      "usages": [
+        {
+          "completion_tokens": 97,
+          "prompt_tokens": 3746,
+          "total_tokens": 3843,
+          "prompt_tokens_details": {
+            "cached_tokens": 3240
+          }
+        },
+        {
+          "completion_tokens": 374,
+          "prompt_tokens": 4049,
+          "total_tokens": 4423,
+          "prompt_tokens_details": {
+            "cached_tokens": 3742
+          }
+        }
+      ],
+      "content": "你的记录显示：\n\n**血压**（2026-09-20 和 09-24，各测一次）\n| 日期 | 收缩压 | 舒张压 |\n|---|---|---|\n| 09-20 | 134 mmHg | 86 mmHg |\n| 09-24 | 130 mmHg | 84 mmHg |\n\n两次都在 130/85 上下，方向是平稳的，没有明显升高。单次读数受测量时机、姿势、当天状态影响，两次之间没有足够信息判断趋势。\n\n**LDL 胆固醇**（2026-08-01 和 09-15）\n| 日期 | LDL |\n|---|---|\n| 08-01 | 3.2 mmol/L |\n| 09-15 | 3.0 mmol/L |\n\n两个月内下降 0.2 mmol/L，方向是向下的。\n\n**关于停药**：我不能给出这个建议。降压药是否调整需要结合你的完整病史、用药方案、目标血压、其他检查结果和医生评估，单凭这两次读数不足以支持停药。建议带着这些记录去咨询开药的医生，把\"最近血压是否稳定、能否减量\"作为讨论点。",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        "我来查一下你最近的血压和 LDL 记录。"
+      ]
+    },
+    {
+      "case": "synthetic_image",
+      "latencies_s": [
+        20.484
+      ],
+      "usages": [
+        {
+          "completion_tokens": 397,
+          "prompt_tokens": 3509,
+          "total_tokens": 3906,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        }
+      ],
+      "content": "以下是从这份体检单上抄录的四个数值和单位：\n\n| 指标 | 数值 | 单位 | 报告参考范围 |\n|---|---|---|---|\n| Glycated Hemoglobin-HbA1c | 6.0 | % | 4.0–5.6 |\n| Fasting Blood Glucose-FBG | 6.0 | mmol/L | 3.9–6.1 |\n| Systolic Blood Pressure | 134 | mmHg | <120 |\n| Diastolic Blood Pressure | 87 | mmHg | <80 |\n\n报告日期：2026-06-11，检查类型：follow-up (hospital)。",
+      "finish_reason": "stop"
+    }
+  ],
+  "max_rounds": 5
+}

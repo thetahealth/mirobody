@@ -1,0 +1,45 @@
+{
+  "model": "bonsai-ptq1",
+  "prompt_sha256": "0adb524c79cd5f38d2cd9b2ecb6da1e48fead0c2820f96f7487b2af40c2b45a3",
+  "mock": "query-shape-aware-v2",
+  "results": [
+    {
+      "case": "mixed_chart",
+      "calls": [
+        {
+          "name": "query_health_indicators",
+          "arguments": "{\"keywords\":[\"空腹血糖\", \"糖化血红蛋白\", \"fasting glucose\", \"HbA1c\"],\"start\":\"2026-01-01\",\"end\":\"2026-03-31\",\"resolution\":\"day\"}",
+          "duplicate": false
+        }
+      ],
+      "latencies_s": [
+        64.469,
+        79.669
+      ],
+      "usages": [
+        {
+          "completion_tokens": 430,
+          "prompt_tokens": 4078,
+          "total_tokens": 4508,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          }
+        },
+        {
+          "completion_tokens": 1315,
+          "prompt_tokens": 4481,
+          "total_tokens": 5796,
+          "prompt_tokens_details": {
+            "cached_tokens": 4074
+          }
+        }
+      ],
+      "content": "由于空腹血糖（mmol/L）和糖化血红蛋白（%）单位不同，无法共用一个纵轴，我拆成两张图展示。\n\n**空腹血糖**\n\n```vis-chart\n{\"type\":\"line\",\"title\":\"空腹血糖 (Fasting Glucose)\",\"axisXTitle\":\"日期\",\"axisYTitle\":\"mmol/L\",\"data\":[{\"time\":\"2026-01-10\",\"value\":5.1},{\"time\":\"2026-02-10\",\"value\":5.5},{\"time\":\"2026-03-10\",\"value\":5.8}]}\n```\n\n**糖化血红蛋白 (HbA1c)**\n\n```vis-chart\n{\"type\":\"line\",\"title\":\"糖化血红蛋白 (HbA1c)\",\"axisXTitle\":\"日期\",\"axisYTitle\":\"%\",\"data\":[{\"time\":\"2026-01-10\",\"value\":5.4},{\"time\":\"2026-02-10\",\"value\":5.6},{\"time\":\"2026-03-10\",\"value\":5.7}]}\n```\n\n**变化概括**\n\n两项指标在 2026 年 1–3 月均逐月上升，方向一致：\n\n- 空腹血糖：5.1 → 5.5 → 5.8 mmol/L，累计上升 0.7 mmol/L（约 14%）。\n- 糖化血红蛋白：5.4% → 5.6% → 5.7%，累计上升 0.3 个百分点。\n\n两者同步上行，提示血糖控制可能正在变差。需注意：本次数据未附带参考范围，我无法据此判断是否处于正常区间；且 HbA1c 反映的是约前 3 个月的平均血糖，与单次空腹血糖不完全等同。建议把这两项趋势连同最近一次完整化验一起，向医生说明，以便评估是否需要调整方案。",
+      "finish_reason": "stop",
+      "intermediate_content": [
+        "I'll pull your fasting glucose and HbA1c for January–March 2026.\n\n"
+      ]
+    }
+  ],
+  "max_rounds": 5
+}

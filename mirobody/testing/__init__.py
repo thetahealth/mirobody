@@ -12,6 +12,8 @@ does not have to relearn it.
 * :mod:`.coverage`: the provider coverage matrix, generated from the
   decoders so a documentation page cannot promise data the code does not
   produce, plus the CI check that it is current.
+* ``genomics/``: small public genotype exports paired with a canonical truth
+  file and source hashes, for testing a parser from an installed wheel.
 
 This package may use ``pytest`` conventions but does not import it: every
 function returns findings and raises ``AssertionError`` only from the

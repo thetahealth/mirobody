@@ -1,0 +1,92 @@
+{
+  "files": [
+    {
+      "bytes": 4623,
+      "name": "canonical.json",
+      "sha256": "5a4753096cd97b398ecf09fcd969a0b40e1a952e02c56f57fc568e192058e00b"
+    },
+    {
+      "bytes": 410,
+      "name": "hg00096-23andme.txt",
+      "sha256": "afa0b06f4e7a2a79c8629c8b9917e7b7d0229be58c9fc65643a024eebeab0975"
+    },
+    {
+      "bytes": 434,
+      "name": "hg00096-ancestry.txt",
+      "sha256": "074591c0aef02b1ae10f2a5bd96ccd62f6b0a37d39bcc8a4b08b7dceb88c99f7"
+    },
+    {
+      "bytes": 436,
+      "name": "hg00096-ftdna.csv",
+      "sha256": "7a4cb72066a1b0c6d3fb17d15b4ab81557ab1b1f06d55d3ea47535a10b2d5ea5"
+    },
+    {
+      "bytes": 864,
+      "name": "hg00096-grch37-vcf-sidecars.zip",
+      "sha256": "867c6d12f0e825ea4cdf9bd20e41a5b9104062d6a1060b1db7c1591212c70880"
+    },
+    {
+      "bytes": 778,
+      "name": "hg00096-grch37.vcf",
+      "sha256": "07eab0d5290d3fc3cbd04f7ae166af61cc63703e81f2ce0e0650a1cc723ea0f0"
+    },
+    {
+      "bytes": 499,
+      "name": "hg00096-grch37.vcf.bgz",
+      "sha256": "09f932932209d2b11aaa4a4be1b2bef67bc4621302b262e34d073164d0a3ba0c"
+    },
+    {
+      "bytes": 400,
+      "name": "hg00096-grch37.vcf.gz",
+      "sha256": "5fcf300f6525ab7aa236efec591e501befe2d7580ae18a84718cdef8be2c6427"
+    },
+    {
+      "bytes": 688,
+      "name": "hg00096-grch38.vcf",
+      "sha256": "a2aafbd99077f7f2164b78f6aa6423d35b677e8f0cab4c0160d5c1596ca79c25"
+    },
+    {
+      "bytes": 409,
+      "name": "hg00096-myheritage.csv",
+      "sha256": "101e386cf58eddf28b15ab708ecedcff52b5e7765dfe8f903a9a887ac0b6ab06"
+    },
+    {
+      "bytes": 409,
+      "name": "hg00096-wegene.txt",
+      "sha256": "2c98fb1dcd27bac49240326cfb03b71743f3e5ebbd1ff7e490e662ab8753c9c5"
+    },
+    {
+      "bytes": 177,
+      "name": "hg00097-x-grch37.vcf",
+      "sha256": "8f4b64745408153221c8cbea07bbb5ad4c1bd8fc391d7061841486b216795350"
+    },
+    {
+      "bytes": 102,
+      "name": "pgp4220-nocall-23andme.txt",
+      "sha256": "730d58a09900de486b65326dd4dd4c5ff59c5a090d56099bfc02d202e8dad5fd"
+    }
+  ],
+  "schema": "mirobody-public-genotype-examples-1",
+  "source": {
+    "1000g_phase3_region_directory": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/",
+    "pgp4220_raw_sha256": "515559e5019e1557a3ea18b0a19ac88ea394f6504ef918dada44e58bb168d506",
+    "pgp4220_url": "https://my.pgp-hms.org/user_file/download/4220",
+    "public_x_subset_sha256": "70e3a0c535b472b3fbee5f1ae23451f68cab38927126e58ecd8912e3a700f1cf",
+    "public_x_url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chrX.phase3_shapeit2_mvncall_integrated_v1c.20130502.genotypes.vcf.gz",
+    "region_extract_sha256": {
+      "CYP2B6": "373688178ac0539915a59261f43133b4e8dd42fb142316d5140544f24bec55d0",
+      "CYP2C19": "c63f2e17f9fa7ed06d75c0c03824233eced60910d2a2e5a04cb7b51cab0921ca",
+      "CYP2C9": "b95b6d71588c7985dbd54ae878948a8e40217772033bbdc71fd606ea1b634439",
+      "CYP3A5": "8e716b2f8307ca10853773f7b08ce2fb54f1f48f8f834caf7c7239a16daaff3d",
+      "CYP4F2": "e8c7e69029c74485ef36972c25ad8eaba6c0de106b1f75f9250e5eaaab382059",
+      "DPYD": "0bd37d6b30a21259a1a6840b93de399c6d484c1000609171caf05c9185d038ca",
+      "NAT2": "5304567be8951bbeb44bc57359bfd1590230e10aa55edbc3b344d74e67960814",
+      "NUDT15": "defd0ef2f69183bd5130b24f2bf61ed01333f004dbabf40d465b619413b6e4bb",
+      "SLCO1B1": "4b68e0dd9e57a894a92c3b63ed8d632680fa09370579a5bd35ecd01866a92a8d",
+      "TPMT": "b0986a20a4969b0102fb25e09a64157866892899b21ef7570486490ad9a159e1",
+      "UGT1A1": "94745960406de7299df7d3a61d539e048b16562fcef7dbf71fe17a8938abd328",
+      "VKORC1": "4ef02c2d7809555edd1b4a8300a85aaba3fe529341c67f1283fedec1584ca768"
+    },
+    "site_catalog_sha256": "557fed0f94ff613a091be21a877ebc2b4f7dd2e5019ebfcb6d636afd84083b60"
+  }
+}
