@@ -246,6 +246,14 @@ boundary.
 - **MCP no longer advertises `prompts`.** It answered `prompts/list` with an
   empty list; now neither is offered and the method is not found, as for
   resources. `/api/health` counts tools through `McpService.tool_counts()`.
+- **The embedding surface is gone.** Nothing had embedded since 1.5.0 deleted
+  the semantic tier, but `mirobody/utils/embedding.py`, `LLMConfig`,
+  `Config.get_llm`, the `UTILS_EMBEDDING_MODEL` route, four `*-embed` MODELS
+  entries and a doctor row outlived it, and every boot of a DeepSeek- or
+  Anthropic-only deployment warned that a feature that does not exist had no
+  model. A config still setting `UTILS_EMBEDDING_MODEL` or
+  `EMBEDDING_PROVIDER` is told at boot that nothing reads it, and a MODELS
+  entry still carrying `embedding:` is named by the unread-key check.
 - **The chat agent no longer sees `resolve_indicator`, `convert_unit` or
   `normalize_unit`.** `query_health_indicators` already resolves names to
   LOINC and values to the catalogue's unit; those three serve an MCP client

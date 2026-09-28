@@ -81,8 +81,9 @@ One agent, one set of keys — no agent-name suffix (before 1.4.0 these were
 `PROVIDERS_DEEP`, `PROMPTS_DEEP`, `ALLOWED_TOOLS_DEEP`, `DISALLOWED_TOOLS_DEEP`,
 `DEFAULT_PROVIDER_DEEP`), and no "provider" in the model keys: in this project a
 provider is a device or data source (`PROVIDER_DIRS`), so 1.4.1 renamed
-`PROVIDERS` → `MODELS`, `DEFAULT_PROVIDER` → `DEFAULT_MODEL` and
-`EMBEDDING_PROVIDER` → `UTILS_EMBEDDING_MODEL`.
+`PROVIDERS` → `MODELS` and `DEFAULT_PROVIDER` → `DEFAULT_MODEL`
+(`EMBEDDING_PROVIDER` was renamed too, and is now removed with the surface it
+chose).
 
 **Upgrading from 1.3.x or 1.4.0?** The old spellings still work. Each is
 renamed onto its current name as the config file merges, and the log says so
@@ -139,8 +140,7 @@ no second turn, nothing to return.
 unset, the default is the **first entry (in file order) whose key is present** —
 so the order of `MODELS` is a contract. An entry with `chat: false` is for the
 utility surfaces only (file parsing, indicator extraction, titles) and never
-reaches the picker; an entry with `embedding: <family>` is an embedding model
-and is used by nothing but `UTILS_EMBEDDING_MODEL`.
+reaches the picker.
 
 #### Multimodal capability (`supports_pdf` / `supports_image`)
 
@@ -274,25 +274,24 @@ Then reference them in YAML or let the system auto-detect them if they match the
 **One key runs every surface, and every decision is in `config.llm.yaml`.**
 The key itself goes in `.env` (one of the six below); the YAML only names it.
 `MODELS` is one table of entries (alias → `llm_type`, `api_key` name, `base_url`,
-`model`, `supports_image` / `supports_pdf` / `response_format` / `chat` / `embedding`,
+`model`, `supports_image` / `supports_pdf` / `response_format` / `chat`,
 `extra_body`); the chat picker lists the entries whose key is present, first one
 default. `UTILS_VISION_MODEL` (report photos, scans — entries MUST declare
-`supports_image: true`), `UTILS_TEXT_MODEL` (indicator extraction, titles,
-summaries) and `UTILS_EMBEDDING_MODEL` each name the entries their surface may
-use: a list — the first whose key is present wins, which is how one key runs
+`supports_image: true`) and `UTILS_TEXT_MODEL` (indicator extraction, titles,
+summaries) each name the entries their surface may use: a list — the first whose key is present wins, which is how one key runs
 everything — or one name, a `provider/model` string, or an inline spec to pin
 one. The same-named environment variable overrides the file. Python holds no
 model name; `mirobody.utils.config.llm` only reads these. Any one of these keys
 is enough:
 
-| Key in `.env` | Chat (picker default) | Vision + text — `UTILS_VISION_MODEL` / `UTILS_TEXT_MODEL` | `UTILS_EMBEDDING_MODEL` |
-| --- | --- | --- | --- |
-| `OPENROUTER_API_KEY` | `claude-sonnet` (anthropic/claude-sonnet-5) | `openrouter-utils` (google/gemini-3.8-flash) | `openrouter-embed` (qwen/qwen3-embedding-8b) |
-| `DASHSCOPE_API_KEY` | `qwen` (qwen3.8-flash) | `qwen-utils` (qwen3.8-flash) | `qwen-embed` (text-embedding-v4) |
-| `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) | `gemini-flash` (gemini-3.8-flash) | `gemini-utils` (gemini-3.8-flash) | `gemini-embed` (gemini-embedding-001) |
-| `OPENAI_API_KEY` | `openai` (gpt-5.6-terra) | `openai-utils` (gpt-5.6-terra) | `openai-embed` (text-embedding-3-small) |
-| `ANTHROPIC_API_KEY` | `claude` (claude-sonnet-5) | `anthropic-utils` (claude-haiku-4-5) | — (lexical search only) |
-| `DEEPSEEK_API_KEY` | `deepseek` (deepseek-flash) | `deepseek-utils` (deepseek-flash) | — (lexical search only) |
+| Key in `.env` | Chat (picker default) | Vision + text — `UTILS_VISION_MODEL` / `UTILS_TEXT_MODEL` |
+| --- | --- | --- |
+| `OPENROUTER_API_KEY` | `claude-sonnet` (anthropic/claude-sonnet-5) | `openrouter-utils` (google/gemini-3.8-flash) |
+| `DASHSCOPE_API_KEY` | `qwen` (qwen3.8-flash) | `qwen-utils` (qwen3.8-flash) |
+| `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) | `gemini-flash` (gemini-3.8-flash) | `gemini-utils` (gemini-3.8-flash) |
+| `OPENAI_API_KEY` | `openai` (gpt-5.6-terra) | `openai-utils` (gpt-5.6-terra) |
+| `ANTHROPIC_API_KEY` | `claude` (claude-sonnet-5) | `anthropic-utils` (claude-haiku-4-5) |
+| `DEEPSEEK_API_KEY` | `deepseek` (deepseek-flash) | `deepseek-utils` (deepseek-flash) |
 
 The names are `MODELS` entries in `config.llm.yaml`; the model ids in
 parentheses are what those entries said on 2026-09-10 and live only there. The
@@ -304,9 +303,10 @@ so rather than the code guessing. `claude` and `anthropic-utils` are
 `llm_type: anthropic` — the vendor's own API, because its OpenAI-compatible
 endpoint refuses `response_format: json_object` outright and takes a schema
 only in OpenAI strict mode, so extraction there would depend on a model
-remembering to answer in JSON. `gemini-embed` is `llm_type: google-genai`,
-because the embedding factory needs `output_dimensionality`. Everything else
-is `llm_type: openai` against the vendor's own endpoint.
+remembering to answer in JSON. Everything else is `llm_type: openai` against
+the vendor's own endpoint. Nothing embeds: `UTILS_EMBEDDING_MODEL` and the
+`*-embed` entries went with the semantic tier they served, and a deployment
+file still setting the key is told so at boot.
 
 To change a model, edit the entry (or point the surface's `UTILS_*` key at another
 entry, or write `provider/model`); `<PREFIX>_BASE_URL` in `.env` (PREFIX = the api_key
@@ -317,213 +317,6 @@ at boot. `mirobody doctor` prints what each surface selects with the current
 configuration and names the fix where one has nothing; the server and worker log the
 same at boot. Selection happens once per surface; a failed call is reported, never
 retried on another entry.
-
-LLM clients are managed via `LLMConfig`, following the same pattern as `PostgreSQLConfig` / `RedisConfig`:
-
-```python
-from mirobody.utils.config import global_config, LLMProvider
-
-cfg = global_config()
-llm = cfg.get_llm(LLMProvider.OPENAI)
-client = llm.get_async_client()   # → AsyncOpenAI
-```
-
-### Supported Providers
-
-#### OpenAI-compatible (API key + base URL)
-
-These providers all return `OpenAI` / `AsyncOpenAI` clients:
-
-| Provider | Enum | Config Key | Base URL |
-| --- | --- | --- | --- |
-| OpenAI | `OPENAI` | `OPENAI_API_KEY` | `https://api.openai.com/v1` |
-| OpenRouter | `OPENROUTER` | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` |
-| DashScope (Qwen) | `DASHSCOPE` | `DASHSCOPE_API_KEY` | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
-| DeepSeek | `DEEPSEEK` | `DEEPSEEK_API_KEY` | `https://api.deepseek.com/v1` |
-
-Any other OpenAI-compatible vendor (Zhipu, Moonshot, a self-hosted vLLM) is a
-`MODELS` entry in config.llm.yaml — `llm_type: openai`, its `base_url`, the name of
-the `.env` variable holding its secret — rather than an enum member: the enum lists
-what the project selects on its own, and it only selects providers whose
-defaults it has verified.
-
-```bash
-# .env — the key, and nothing else about models
-OPENAI_API_KEY=sk-...
-```
-
-#### Anthropic (Claude)
-
-Returns `Anthropic` / `AsyncAnthropic` clients.
-
-| Config Key |
-| --- |
-| `ANTHROPIC_API_KEY` |
-
-#### Gemini (Google, API key)
-
-Returns `google.genai.Client` / async client.
-
-| Config Key | Description | Default |
-| --- | --- | --- |
-| `GOOGLE_API_KEY` | API key | *(required)* |
-| `GEMINI_API_VERSION` | REST API version (`v1` or `v1beta`) | `v1beta` |
-
-`v1beta` includes all features (Interactions API, Semantic Retriever, Tuned Models). `v1` is the stable subset — sufficient for `generateContent` and `embedContent`.
-
-#### Cloud Providers (no API key — credential-based auth)
-
-| Provider | Enum | Auth | Returns |
-| --- | --- | --- | --- |
-| Vertex AI (GCP) | `VERTEX_AI` | Application Default Credentials | `google.genai.Client` |
-| Azure OpenAI | `AZURE` | Workload Identity Federation | `AzureOpenAI` / `AsyncAzureOpenAI` |
-| AWS Bedrock | `BEDROCK` | IAM role / env credentials | `boto3` / `aioboto3` bedrock-runtime client |
-
-### HTTP Client (`get_aiohttp_session`)
-
-All providers support `get_aiohttp_session()`, which returns an `aiohttp.ClientSession` with `base_url` and auth headers pre-configured. Useful for lightweight REST calls (e.g., embeddings) where the full SDK is unnecessary.
-
-```python
-from mirobody.utils.config import global_config, LLMProvider
-
-cfg = global_config()
-
-# Gemini embedding
-llm = cfg.get_llm(LLMProvider.GEMINI)
-async with llm.get_aiohttp_session() as session:
-    async with session.post("/models/gemini-embedding-001:batchEmbedContents", json=payload) as resp:
-        data = await resp.json()
-
-# DashScope (Qwen) embedding — OpenAI-compatible
-llm = cfg.get_llm(LLMProvider.DASHSCOPE)
-async with llm.get_aiohttp_session() as session:
-    async with session.post("/embeddings", json={
-        "model": "text-embedding-v4",
-        "input": texts,
-    }) as resp:
-        data = await resp.json()
-
-# Vertex AI — ADC token auto-refreshed
-llm = cfg.get_llm(LLMProvider.VERTEX_AI)
-async with llm.get_aiohttp_session() as session:
-    async with session.post("/publishers/google/models/gemini-embedding-001:predict", json=payload) as resp:
-        data = await resp.json()
-```
-
-Auth headers per provider:
-
-| Provider | Header |
-| --- | --- |
-| OpenAI-compatible (7 providers) | `Authorization: Bearer {api_key}` |
-| Anthropic | `x-api-key: {api_key}` |
-| Gemini | `x-goog-api-key: {api_key}` |
-| Vertex AI | `Authorization: Bearer {oauth2_token}` (ADC) |
-
-### Azure OpenAI
-
-Configure via a single `AZURE_OPENAI` block in your `config.{env}.yaml`:
-
-```yaml
-AZURE_OPENAI:
-  endpoint: https://my-resource.openai.azure.com/
-  api_version: 2025-03-01-preview   # optional — defaults to 2025-03-01-preview
-  deployments:
-    gpt-4o: my-gpt4o-deployment     # deployment name; all models share the endpoint above
-    gpt-4.1: my-gpt41-deployment
-    gpt-4o-mini: my-gpt4o-mini
-    text-embedding-3-small: my-embed-small
-    text-embedding-3-large: my-embed-large
-```
-
-All deployment entries inherit `endpoint` from the parent block. Only override `endpoint` at the model level if the model is deployed on a **different** Azure resource (rare):
-
-```yaml
-AZURE_OPENAI:
-  endpoint: https://default.openai.azure.com/
-  deployments:
-    gpt-4o: my-gpt4o-deployment        # uses parent endpoint
-    text-embedding-3-small:
-      deployment: embed-small-prod
-      endpoint: https://embed.openai.azure.com/  # different resource
-```
-
-#### Authentication
-
-Azure OpenAI uses **Workload Identity Federation (WIF)** — no API key is needed. Credentials are auto-injected by the Kubernetes Azure Workload Identity webhook on EKS.
-
-EKS pods must have the following injected by the webhook:
-- `AZURE_CLIENT_ID` environment variable
-- Federated token file at `/var/run/secrets/azure/tokens/azure-identity-token`
-
-#### Configuration Center (JSON)
-
-If your configuration source delivers settings as JSON, set `AZURE_OPENAI` as a JSON string — the system parses it automatically:
-
-```bash
-AZURE_OPENAI='{"endpoint":"https://my-resource.openai.azure.com/","api_version":"2025-03-01-preview","deployments":{"gpt-4o":"my-gpt4o-deployment","gpt-4.1":"my-gpt41-deployment","text-embedding-3-small":"my-embed-small"}}'
-```
-
-#### Key Reference
-
-| Key | Where | Description |
-| --- | ----- | ----------- |
-| `AZURE_OPENAI.endpoint` | YAML / JSON | Azure OpenAI resource endpoint (shared by all models) |
-| `AZURE_OPENAI.api_version` | YAML / JSON | API version, default `2025-03-01-preview` |
-| `AZURE_OPENAI.deployments` | YAML / JSON | Model → deployment name mapping |
-
-### Vertex AI (GCP)
-
-All file processing (document extraction, image analysis) is routed to **Vertex AI Gemini**.
-
-| Variable | Description | Required | Default |
-| -------- | ----------- | -------- | ------- |
-| `GCP_PROJECT` | GCP project ID where Vertex AI is enabled | Yes | *(none)* |
-| `GCP_LOCATION` | Vertex AI region | No | `us-east5` |
-
-```yaml
-GCP_PROJECT: my-gcp-project-id
-GCP_LOCATION: us-east5
-```
-
-#### Authentication
-
-Vertex AI uses **Application Default Credentials (ADC)** — no API key is needed.
-
-- **EKS / GKE**: Workload Identity Federation auto-injects credentials.
-- **Local development**: `gcloud auth application-default login`
-- **Service account**: `export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"`
-
-### AWS Bedrock
-
-AWS Bedrock provides a unified `Converse` API for multiple model providers (Claude, Llama, Nova, Mistral, etc.).
-
-| Variable | Description | Required | Default |
-| -------- | ----------- | -------- | ------- |
-| `AWS_REGION` | AWS region for Bedrock | No | `us-east-1` |
-
-```yaml
-AWS_REGION: us-east-1
-```
-
-#### Authentication
-
-Bedrock uses **IAM credentials** — no API key is needed.
-
-- **EKS**: IAM Roles for Service Accounts (IRSA) auto-injects credentials.
-- **Local development**: `aws configure` or `export AWS_PROFILE=...`
-- **Service account**: `export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...`
-
-#### Usage
-
-```python
-llm = cfg.get_llm(LLMProvider.BEDROCK)
-client = llm.get_client()
-
-response = client.converse(
-    modelId="anthropic.claude-sonnet-4-20250514-v1:0",
-    messages=[{"role": "user", "content": [{"text": "Hello"}]}],
-)
-```
 
 ## 🧪 Testing
 

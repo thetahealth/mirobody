@@ -20,7 +20,7 @@ SECTION INDEX (line numbers are approximate):
     ~828    _calculate_progress_allocation()
     ~851    _create_progress_callback()
     ~934    _send_final_completion_status()
-    ~1010   _start_embedding_update_task()
+    ~1010   _start_profile_refresh()
     ~1048   _build_return_info_for_failed()
     ~1127 ---- End Helper Methods ----
     ~1129   _build_return_info()       build response info for completed files
@@ -683,7 +683,7 @@ class WebSocketFileUploadManager:
             logger.info(f"File processing completed and final message sent: connection_id={connection_id}, message_id={message_id}, status={session['status']}")
 
             # Start embedding update background task (use real user_id for business logic)
-            await self._start_embedding_update_task(user_id_for_business, message_id, query_user_id)
+            await self._start_profile_refresh(user_id_for_business, message_id, query_user_id)
 
         except Exception as e:
             logger.error(f"Asynchronous file processing failed: {e}", exc_info=True)
@@ -994,24 +994,18 @@ class WebSocketFileUploadManager:
         for f in session.get("uploaded_files", []):
             f["content"] = None
 
-    async def _start_embedding_update_task(
+    async def _start_profile_refresh(
         self,
         user_id: str,
         message_id: str,
         query_user_id: str,
     ):
-        """
-        Start embedding update background task after file processing completion.
-        Includes indicator sync and user profile creation.
-        """
+        """Rebuild the record owner's health profile after an upload, in the
+        background. It was named an "embedding update": the embedding half went
+        with the semantic tier, and this is what remained."""
         try:
-            logger.info(f"Starting embedding update background task: user_id={user_id}, message_id={message_id}")
-
-            async def update_embedding_task():
+            async def refresh_profile():
                 try:
-                    # Dim sync + embedding backfill is now handled automatically by
-                    # `indicator_store.save_indicators_to_db`, no need to call here.
-
                     # Start user profile creation. Lazy import, this is
                     # documented seam #4 (see pyproject ignore_imports): the
                     # profile GENERATOR lives agent-side because it calls the
@@ -1025,15 +1019,12 @@ class WebSocketFileUploadManager:
                     owner_user_id = query_user_id if query_user_id else user_id
                     await UserProfileService.create_user_profile(owner_user_id)
 
-                    logger.info(f"Embedding update background task completed: user_id={user_id}, message_id={message_id}")
                 except Exception as e:
-                    logger.error(f"Embedding update background task failed: {e}", stack_info=True)
+                    logger.error("profile refresh after an upload failed: error_type=%s", type(e).__name__)
 
-            spawn(update_embedding_task())
-
-            logger.info(f"Embedding update background task started: user_id={user_id}, message_id={message_id}")
+            spawn(refresh_profile())
         except Exception as e:
-            logger.error(f"Failed to start embedding update background task: {e}", stack_info=True)
+            logger.error("profile refresh after an upload not started: error_type=%s", type(e).__name__)
 
     def _build_return_info_for_failed(
         self,
