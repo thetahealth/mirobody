@@ -35,6 +35,10 @@ CREATE TABLE IF NOT EXISTS health_app_user (
 ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS ethnicity VARCHAR(128);
 ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS password_hash text;
+-- The account that created and manages this one (a family member who does not
+-- sign in); NULL when the person signs in themselves. Nobody signs in to a
+-- managed account: it changes hands only through th_account_activation.
+ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS managed_by INTEGER REFERENCES health_app_user(id);
 
 CREATE        INDEX IF NOT EXISTS idx_health_app_user_apple_sub ON health_app_user USING btree (apple_sub);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_uni_health_app_user_email_active ON health_app_user USING btree (email) WHERE (is_del = false);
@@ -251,3 +255,31 @@ BEGIN
         DROP TABLE th_share_user_config;
     END IF;
 END $$;
+
+-- A managed account handed to the person it describes. The creator names an
+-- address; whoever opens the link proves it (a code sent there, or a password
+-- where this deployment sends no mail) and the account becomes theirs. Only a
+-- hash of the link's token is kept.
+CREATE TABLE IF NOT EXISTS th_account_activation (
+    id          INTEGER     GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    member_id   INTEGER     NOT NULL REFERENCES health_app_user(id),
+    email       VARCHAR     NOT NULL,
+    created_by  INTEGER     NOT NULL REFERENCES health_app_user(id),
+    token_hash  CHAR(64)    NOT NULL UNIQUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at  TIMESTAMPTZ NOT NULL,
+    used_at     TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_th_account_activation_member ON th_account_activation (member_id);
+
+-- Virtual members made before `managed_by` existed: the web client named them
+-- member_<hex>@virtual.mirobody.ai and put them in the creator's circle.
+UPDATE health_app_user u
+   SET managed_by = c.owner_user_id
+  FROM care_circle_members m
+  JOIN care_circles c ON c.id = m.care_circle_id AND c.deleted_at IS NULL
+ WHERE u.managed_by IS NULL
+   AND u.password_hash IS NULL
+   AND u.email LIKE 'member\_%@virtual.mirobody.ai'
+   AND m.user_id = u.id AND m.deleted_at IS NULL
+   AND c.owner_user_id <> u.id;

@@ -65,6 +65,8 @@ REQUEST_RATE_LIMITER:
   /password/register: 5
   /email/login: 5
   /email/verify: 10
+  /account/activation/info: 20
+  /account/activation/complete: 10
 
 # [url_path]
 # USER_INFO_UPDATER:

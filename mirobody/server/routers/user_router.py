@@ -71,7 +71,8 @@ class PostUserSettingsRequest(BaseModel):
 
 class CreateVirtualUserRequest(BaseModel):
     name: str
-    email: str
+    #: Ignored. The server mints the address; see `create_virtual_user`.
+    email: str | None = None
     gender: str | None = "other"  # "male", "female", "other"
     birth: str | None = None
     blood: str | None = None
@@ -325,25 +326,22 @@ async def create_virtual_user(
     try:
         logger.info(f"Creating virtual user for user: {current_user_id}")
 
-        # Check if username already exists
-        existing_user = await get_user(email=request.email)
+        # The address is minted here, never taken from the client. A real one
+        # sent by a client put that person's future account inside the
+        # caller's circle, read-write, the day they first signed in with a
+        # code. The person gets their own sign-in through `activation`.
+        from mirobody.user.activation import placeholder_email
 
-        if existing_user:
-            return JSONResponse(
-                content={"code": -1, "msg": "Username already exists"},
-                status_code=400
-            )
-
-        # Create virtual user in health_app_user table
         create_user_query = """
-            INSERT INTO health_app_user 
-            (is_del, email, name, gender, birth, blood, tz, create_at, update_at)
-            VALUES (false, :email, :name, :gender, :birth, :blood, 'UTC', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            INSERT INTO health_app_user
+            (is_del, email, name, gender, birth, blood, tz, managed_by, create_at, update_at)
+            VALUES (false, :email, :name, :gender, :birth, :blood, 'UTC', :managed_by, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             RETURNING id, name
         """
 
         user_params = {
-            "email": request.email.lower(),
+            "managed_by": int(current_user_id),
+            "email": placeholder_email(),
             "name": request.name,
             "gender": gender_str_to_int(request.gender or "other"),
             "birth": request.birth or "",
@@ -387,7 +385,8 @@ async def create_virtual_user(
                 "data": {
                     "id": virtual_user_id,
                     "name": virtual_user_name,
-                    "email": request.email.lower()
+                    "email": "",
+                    "managed": True,
                 }
             },
         )

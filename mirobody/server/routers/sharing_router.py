@@ -102,7 +102,11 @@ async def shared_by_me_list(user_id: str = Depends(verify_token)):
                 "health_access": r["health_access"],
                 "nickname": r.get("nickname"),
                 "name": r.get("name"),
-                "email": r.get("email"),
+                # A managed member's address is a placeholder; `managed` is
+                # what says so, and who may send the activation link.
+                "email": "" if r.get("managed_by") else r.get("email"),
+                "managed": bool(r.get("managed_by")),
+                "can_invite_to_sign_in": r.get("managed_by") == me,
             }
             for r in rows if int(r["user_id"]) != me
         ]})
@@ -170,6 +174,8 @@ async def shared_with_me_list(user_id: str = Depends(verify_token)):
     rows = await cc.circle_members(user_id)
     me = int(user_id)
     mine = [r for r in rows if int(r["user_id"]) == me]
+    owners = {r["owner_user_id"]: r.get("name") or r.get("nickname") or ""
+              for r in rows if r["user_id"] == r["owner_user_id"]}
     return ok({
         "invitations": [
             {"circle_id": r["circle_id"], "owner_user_id": str(r["owner_user_id"]),
@@ -178,6 +184,7 @@ async def shared_with_me_list(user_id: str = Depends(verify_token)):
         ],
         "circles": [
             {"circle_id": r["circle_id"], "name": r["circle_name"],
+             "owner_user_id": str(r["owner_user_id"]), "owner_name": owners.get(r["owner_user_id"], ""),
              "role": cc.ROLE_NAMES[r["role"]], "health_access": r["health_access"]}
             for r in mine if r["status"] == cc.STATUS_ACCEPTED
         ],

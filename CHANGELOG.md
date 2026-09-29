@@ -9,6 +9,13 @@ boundary.
 
 ### Added
 
+- **A virtual member can take over their own account.** The person who added
+  them gets a one-time link (`POST /account/activation`, valid 7 days) from the
+  member's card. Whoever opens it proves the address it names, by a code sent
+  there or, where the deployment sends no mail, a password, and the account
+  and all its data become theirs; they choose what the creator keeps (edit,
+  view or nothing). An address that already has an account receives the
+  record by merge.
 - **Complaints and diagnoses resolve in Japanese, Russian and Traditional
   Chinese.** LOINC names already resolved in English, 简体中文, 繁體中文,
   日本語 and Russian (#88); ICPC-3 complaints resolved only in Chinese and
@@ -147,6 +154,12 @@ boundary.
   a carer filed for someone could not be opened by that person, and anyone
   allowed into the carer's record could open it. Access now follows
   `query_user_id`, the column the file list already filters on.
+- **A virtual member's address came from the client.** `POST /api/user/virtual`
+  stored whatever address it was sent, and the account sat read-write in the
+  caller's circle, so a real address put that person's future sign-ins
+  inside it. The server now mints an undeliverable `@virtual.invalid`
+  address, marks the account `managed_by` its creator, and never signs anyone
+  in to it.
 - **Anyone who knew a session id could read and write that conversation.**
   The agent's checkpoint thread was the client-supplied `session_id` alone, so
   a second account posting a known id resumed the first account's turns (the

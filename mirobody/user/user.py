@@ -40,7 +40,8 @@ logger = logging.getLogger(__name__)
 # Every column a caller has asked for across those 20 sites, so the one accessor
 # can serve all of them. The table is 15 narrow columns; naming them beats `*`
 # because a dropped column then fails here instead of at the first KeyError.
-_USER_COLUMNS = "id, email, name, lang, tz, gender, birth, blood, mfa_enabled"
+_USER_COLUMNS = ("id, email, name, lang, tz, gender, birth, blood, mfa_enabled, managed_by,"
+                 " (password_hash IS NOT NULL) AS has_password")
 
 
 async def get_user(
@@ -76,7 +77,8 @@ async def get_user(
 
 async def ensure_user(email: str) -> int | None:
     """The live account for an address, created on first sight; None for a
-    malformed address.
+    malformed address, and for a managed account's address: nobody signs in
+    to those or is invited as them.
 
     One statement, so two sign-ins racing on a new address both get the same
     row. This replaced two copies: `add_or_get_user` (sign-in), which read then
@@ -96,7 +98,7 @@ async def ensure_user(email: str) -> int | None:
         )
         SELECT id FROM ins
         UNION ALL
-        SELECT id FROM health_app_user WHERE email = :email AND is_del = false
+        SELECT id FROM health_app_user WHERE email = :email AND is_del = false AND managed_by IS NULL
         LIMIT 1
         """,
         {"email": clean, "name": clean.split("@")[0]},

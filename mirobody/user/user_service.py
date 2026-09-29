@@ -15,6 +15,8 @@ from .user import (
 )
 
 from .account_merge import merge_accounts
+from . import activation
+from .auth.email import DummyEmailCodeValidator
 
 from mirobody.utils import execute_query, json_response_with_code, json_response, Request, Response, Route
 
@@ -95,6 +97,11 @@ class UserService:
         # an account with `password_hash IS NULL` can still only use those.
         self.routes.append(Route(f"{uri_prefix}/password/register", endpoint=self.password_register_handler, methods=["POST", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/password/login", endpoint=self.password_login_handler, methods=["POST", "OPTIONS"]))
+
+        # Handing a managed (virtual) member's account to that person.
+        self.routes.append(Route(f"{uri_prefix}/account/activation", endpoint=self.activation_create_handler, methods=["POST", "OPTIONS"]))
+        self.routes.append(Route(f"{uri_prefix}/account/activation/info", endpoint=self.activation_info_handler, methods=["POST", "OPTIONS"]))
+        self.routes.append(Route(f"{uri_prefix}/account/activation/complete", endpoint=self.activation_complete_handler, methods=["POST", "OPTIONS"]))
 
         self.routes.append(Route(f"{uri_prefix}/user/del", endpoint=self.user_unregister_handler, methods=["POST", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/user/update_name", endpoint=self.user_update_name_handler, methods=["POST", "OPTIONS"]))
@@ -429,6 +436,117 @@ class UserService:
     async def requires_second_factor(self, user_id: int) -> bool:
         """For the JWT middleware: whether `user_id` needs an AAL2 token."""
         return bool(self._webauthn_service) and await self._webauthn_service.requires_second_factor(user_id)
+
+    #-------------------------------------------------------------------------
+
+    def _sends_mail(self) -> bool:
+        return bool(self._email_validator) and not isinstance(self._email_validator, DummyEmailCodeValidator)
+
+    async def activation_create_handler(self, request: Request) -> Response:
+        """A one-time link that hands a managed member's account to them.
+
+        Only the member's creator may ask. The link goes back to the caller to
+        pass on: it proves nothing by itself, the address it names does.
+        """
+        if request.method == "OPTIONS":
+            return json_response_with_code(disable_log=True)
+        creator = request.state.user_id
+        if not isinstance(creator, int) or creator <= 0:
+            return json_response("Unauthorized", status_code=401, request=request)
+        try:
+            data = await request.json()
+            member_id = int(data.get("member_id"))
+        except Exception:
+            return json_response_with_code(-1, "member_id is required.", request=request)
+        try:
+            token, expires_at = await activation.create(creator, member_id, data.get("email") or "")
+        except activation.ActivationError as e:
+            return json_response_with_code(e.code, str(e), request=request)
+        from mirobody.utils.http import request_origin
+
+        return json_response_with_code(data={
+            "url": f"{request_origin(request)}/activate#{token}",
+            "expires_at": expires_at.isoformat(),
+            "sends_mail": self._sends_mail(),
+        }, request=request)
+
+    async def activation_info_handler(self, request: Request) -> Response:
+        if request.method == "OPTIONS":
+            return json_response_with_code(disable_log=True)
+        try:
+            token = (await request.json()).get("token") or ""
+        except Exception:
+            token = ""
+        act = await activation.lookup(token)
+        if act is None:
+            return json_response_with_code(-1, "This link is no longer valid. Ask for a new one.", request=request)
+        return json_response_with_code(data={
+            "member_name": act.member_name,
+            "creator_name": act.creator_name,
+            "email": act.email,
+            "expires_at": act.expires_at.isoformat(),
+            "sends_mail": self._sends_mail(),
+        }, request=request)
+
+    async def activation_complete_handler(self, request: Request) -> Response:
+        """Prove the address, take the account, choose what the creator keeps.
+
+        The proof is one of: a session already signed in as that address, a
+        code sent there, or, where this deployment sends no mail, a password
+        (the existing account's, or a new one).
+        """
+        if request.method == "OPTIONS":
+            return json_response_with_code(disable_log=True)
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+        act = await activation.lookup(str(data.get("token") or ""))
+        if act is None:
+            return json_response_with_code(-1, "This link is no longer valid. Ask for a new one.", request=request)
+        access = activation.ACCESS_BY_NAME.get(str(data.get("access") or ""))
+        if access is None:
+            return json_response_with_code(-6, "Choose what the person who added you can see.", request=request)
+        password = str(data.get("password") or "")
+        if password and len(password) < activation.MIN_PASSWORD_LEN:
+            return json_response_with_code(
+                -5, f"Password must be at least {activation.MIN_PASSWORD_LEN} characters.", request=request)
+
+        existing = await activation.existing_account(act.email)
+        caller = request.state.user_id if isinstance(request.state.user_id, int) else 0
+        me = await get_user(user_id=caller) if caller > 0 else None
+        if me and (me.get("email") or "").strip().lower() == act.email:
+            pass
+        elif self._sends_mail():
+            err = await self._email_validator.verify(act.email, str(data.get("code") or ""))
+            if err:
+                return json_response_with_code(-2, err, request=request)
+        elif existing:
+            if not existing["has_password"]:
+                return json_response_with_code(
+                    -7, "This address already has an account. Sign in to it first, then open the link again.",
+                    request=request)
+            if not await activation.password_matches(int(existing["id"]), password):
+                return json_response_with_code(-4, "The password for this address is wrong.", request=request)
+        elif not password:
+            return json_response_with_code(
+                -5, f"Set a password of at least {activation.MIN_PASSWORD_LEN} characters.", request=request)
+
+        if not await activation.claim(act.id):
+            return json_response_with_code(-1, "This link is no longer valid. Ask for a new one.", request=request)
+        try:
+            owner_id = await activation.hand_over(
+                self._db_pool, act, into=int(existing["id"]) if existing else None,
+                password=password, access=access)
+        except activation.ActivationError as e:
+            await activation.release(act.id)
+            return json_response_with_code(e.code, str(e), request=request)
+        except Exception as e:
+            await activation.release(act.id)
+            logger.error("activation failed: error_type=%s", type(e).__name__)
+            return json_response_with_code(-9, "Could not finish. Nothing was changed; try again.", request=request)
+        logger.info("managed account handed over: member_id=%s owner_id=%s", act.member_id, owner_id)
+        return await self._generate_auth_response(owner_id, act.email, "activation", request)
 
     async def _generate_auth_response(
         self,
