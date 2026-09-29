@@ -155,6 +155,11 @@ class Config:
         # an earlier file pulled in.
         for yaml_filename in self._yaml_filenames:
             self._load_with_includes(yaml_filename)
+        # `.env` reaches us as the environment; a removed key set there was
+        # ignored without a word.
+        for key, reason in _REMOVED_KEYS.items():
+            if key in os.environ:
+                _warn_removed(key, reason)
 
         self.refresh()
 

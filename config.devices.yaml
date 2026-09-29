@@ -1,6 +1,5 @@
-# Devices and mobile sign-in — Garmin, Oura, Whoop; Google / Apple sign-in for
-# the mobile clients. Optional: a `git clone` + `./deploy.sh` deployment uses
-# none of this. Loaded through the INCLUDE list in config.yaml.
+# Devices — Garmin, Oura, Whoop. Optional: a `git clone` + `./deploy.sh`
+# deployment uses none of this. Loaded through the INCLUDE list in config.yaml.
 #
 # Each wearable provider is an OAuth app you register with the vendor (the
 # credentials are yours, they cannot ship here); a provider with empty

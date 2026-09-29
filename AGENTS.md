@@ -10,7 +10,7 @@ machine-checked (`lint-imports`, contracts in `pyproject.toml`):
 
 | Layer | Where | Installs with | May import |
 |---|---|---|---|
-| ② Translate + the kernel (the library) | vocabulary: `engine/`, `lexical.py`, `units/`, `value_scale.py`, `zh_fold.py`, `_bundle.py`, `_strtab.py`; the pure seam: **`translate/`** (`fold`, `parse`, `local_day`, `series`, `code`, `devices`); semantics: **`kernel/`** (`metrics`, `series`, `quality`, `overlay`, `meds`, `query`, `tools`, `ops`, `connect`, `sink`, `events`, `evidence`, `memory`, `vendors/`); toolbox: `testing/` | `pip install mirobody` (numpy only) | each other, nothing else |
+| ② Translate + the kernel (the library) | vocabulary: `engine/`, `lexical.py`, `units/`, `value_scale.py`, `zh_fold.py`, `_bundle.py`, `_strtab.py`; the pure seam: **`translate/`** (`fold`, `parse`, `local_day`, `series`, `code`, `devices`); semantics: **`kernel/`** (`metrics`, `series`, `quality`, `overlay`, `meds`, `query`, `tools`, `ops`, `connect`, `sink`, `events`, `evidence`, `memory`, `decoders/`); toolbox: `testing/` | `pip install mirobody` (numpy only) | each other, nothing else |
 | ② Translate, the parts that reach a database | `translate/aggregate/`, `translate/derive/`, `translate/indicators_info.py`, `translate/canonical_units.py`, `translate/value_range_validator.py` | `[app]` | no agent framework |
 | ① Collect + storage + MCP | `mirobody/documents/`, `collect/`, `utils/`, `user/`, `task/`, `mcp/` | `[parse]` / `[app]` | no `langchain*`, `langgraph`, `deepagents` |
 | ③ Agent | `mirobody/agent/` (one agent: `MirobodyAgent`, on `deepagents`), `server/` | `[agent]` (the harness as a library) / `[app]` | anything |
@@ -37,7 +37,7 @@ pip install -e '.[app,test]'
 ```
 
 The extras are `[parse]`, `[agent]`, `[app]` and `[test]`.
-`[agents]` — plural — has never existed and is not the same thing as `[agent]`,
+`[agents]`, plural, was removed in 1.3.0 and is not the same thing as `[agent]`,
 which 1.4.0 added: pip only WARNS about an unknown extra, so `-e '.[agents,test]'`
 quietly installed `[test]` alone, which is how both CI workflows spent a release
 running the minimal suite while reporting the full one. If a doc says `[agents]`,

@@ -34,10 +34,10 @@ both stdlib:
 mirobody import apple ~/Downloads/export.zip
 ```
 
-Two extras exist for the rest: `pip install 'mirobody[parse]'` to turn a PDF,
-photo or spreadsheet into readings (that one calls a model, so it needs a key),
-and `pip install 'mirobody[app]'` for the server. Neither is needed for the
-above.
+For the rest: `pip install 'mirobody[parse]'` to turn a PDF, photo or
+spreadsheet into readings (that one calls a model, so it needs a key), and
+`pip install 'mirobody[app]'` for the server. Neither is needed for the above.
+(`[agent]` is the agent harness as a library, `[test]` the test suite.)
 
 ## B · the stack
 
