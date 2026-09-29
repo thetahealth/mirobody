@@ -10,7 +10,8 @@ import urllib.parse
 from collections.abc import Callable
 from redis.asyncio import Redis
 
-from .jwt import REFRESH_TOKEN_TYPE, AbstractTokenValidator
+from .bearer import MCP_CLIENT_PREFIX, audience_matches, bearer_subject, mcp_resource
+from .jwt import REFRESH_TOKEN_TYPE, AbstractTokenValidator, minted_at
 
 from mirobody.utils import request_origin, secret_fingerprint, json_response, json_response_with_code, redirect, get_jwt_token, Request, Response, Route
 
@@ -85,14 +86,14 @@ class OAuthService:
 
         self._redis = redis
 
+        self._uri_prefix = uri_prefix
+
         if self._redis:
-            self._state_token_keyprefix = "mirobody:user:state:"
             self._auth_code_keyprefix   = "mirobody:user:auth:code:"
             self._client_keyprefix      = "mirobody:user:client:"
 
         else:
             # Use local memory when no redis connection is available.
-            self._state_tokens  = {}
             self._auth_codes    = {}
             self._clients       = {}
 
@@ -108,12 +109,16 @@ class OAuthService:
         self.routes.append(Route("/.well-known/mcp-configuration", endpoint=self.metadata_handler, methods=["GET"]))
 
         self.routes.append(Route(f"{uri_prefix}/oauth2/authorize", endpoint=self.authorize_handler, methods=["POST", "GET", "OPTIONS"]))
-        self.routes.append(Route(f"{uri_prefix}/oauth2/check_state/{{state:str}}", endpoint=self.check_state_handler, methods=["GET"]))
 
         self.routes.append(Route(f"{uri_prefix}/oauth/register", endpoint=self.register_handler, methods=["POST", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/oauth/authorize", endpoint=self.authorize_handler, methods=["POST", "GET", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/oauth/token", endpoint=self.token_handler, methods=["POST", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/oauth/introspect", endpoint=self.introspect_handler, methods=["POST", "OPTIONS"]))
+
+    #-------------------------------------------------------------------------
+
+    def _mcp_resource(self, request: Request) -> str:
+        return mcp_resource(request_origin(request), self._uri_prefix)
 
     #-------------------------------------------------------------------------
 
@@ -141,7 +146,6 @@ class OAuthService:
             "grant_types_supported": [
                 "authorization_code",
                 "refresh_token",
-                "client_credentials",
             ],
             "token_endpoint_auth_methods_supported": [
                 "client_secret_post",
@@ -176,19 +180,13 @@ class OAuthService:
     #-------------------------------------------------------------------------
 
     async def _is_registered_redirect_uri(self, client_id: str, redirect_uri: str) -> bool:
-        """Is `redirect_uri` one this client registered?
-
-        Out-of-band is the one value with no registration to check against: it
-        is not a URL, nothing is redirected, and the code is shown to the user
-        to paste. Everything else must match a registered entry exactly.
+        """Is `redirect_uri` one this client registered? Exact match only.
 
         A client with no registered URIs cannot use the redirect flow at all.
         RFC 7591 requires `redirect_uris` for the authorization_code grant, and
         treating "none registered" as "anything allowed" would reinstate the
         vulnerability for every client that simply omits the field.
         """
-        if redirect_uri == "urn:ietf:wg:oauth:2.0:oob":
-            return True
         if not redirect_uri or not client_id:
             return False
 
@@ -219,7 +217,7 @@ class OAuthService:
         try:
             data = await request.json()
             logger.debug(f"request.json: {data}")
-            client_id = f"mcp_client_{secrets.token_hex(16)}"
+            client_id = f"{MCP_CLIENT_PREFIX}{secrets.token_hex(16)}"
             client_secret = secrets.token_hex(32)
 
             # `redirect_uris` must be PERSISTED, not merely echoed back. It was
@@ -293,10 +291,6 @@ class OAuthService:
     #-------------------------------------------------------------------------
 
     async def authorize_handler(self, request: Request) -> Response:
-        token = self._get_jwt_token(request)
-
-        payload, err = self._token_validator.verify_token(token)
-        
         if request.method == "GET":
             url_prefix = request_origin(request)
 
@@ -308,285 +302,78 @@ class OAuthService:
             oauth_params = urllib.parse.urlencode(dict(request.query_params))
             return redirect(f"{url_prefix}/mcplogin?oauth_params={urllib.parse.quote(oauth_params)}")
 
-        if request.method == "POST":
-            # Post from the device login url.
-            form_data = await request.form()
+        if request.method != "POST":
+            return json_response_with_code()
 
-            redirect_uri = form_data.get("redirect_uri")
-            if redirect_uri is None or not isinstance(redirect_uri, str):
-                redirect_uri = ""
+        # Posted by the login page, with the signed-in user's session token.
+        form_data = await request.form()
+        client_id = str(form_data.get("client_id") or "")
+        redirect_uri = form_data.get("redirect_uri")
+        redirect_uri = redirect_uri if isinstance(redirect_uri, str) else ""
+        state = form_data.get("state")
+        state = state if isinstance(state, str) else ""
+        # RFC 9207: the metadata advertises `iss` on every authorization
+        # response, and a client that reads that (the MCP SDK does) rejects a
+        # response without it.
+        suffix = (f"&state={urllib.parse.quote(state)}" if state else "") + \
+            f"&iss={urllib.parse.quote(request_origin(request), safe='')}"
 
-            state = form_data.get("state")
-            if state is None or not isinstance(state, str):
-                state = ""
+        # The redirect target must be one the client registered, before any
+        # answer is sent there, a refusal included. Exact string match, per
+        # RFC 6749 §3.1.2.3 and RFC 8252 §7.1: no prefix or host matching,
+        # both routinely bypassed (`https://good.example.evil.com`).
+        if not await self._is_registered_redirect_uri(client_id, redirect_uri):
+            logger.warning("rejected unregistered redirect_uri for client %s", client_id)
+            return json_response(content={"code": -1, "msg": "invalid redirect_uri"}, status_code=400, request=request)
 
-            if form_data.get("action") != "allow":
-                if redirect_uri and redirect_uri != "urn:ietf:wg:oauth:2.0:oob":
-                    return json_response(
-                        content = {
-                            "code"      : 0,
-                            "msg"       : "ok",
-                            "data"      : {},
-                            "location"  : f"{redirect_uri}?error=access_denied" + (f"&state={state}" if state else "")
-                        },
-                        request = request
-                    )
-                
-                # For OOB or no redirect_uri, return JSON response
-                return json_response_with_code(-1, "access_denied", request=request)
+        def go(query: str) -> Response:
+            return json_response(content={"code": 0, "msg": "ok", "data": {}, "location": f"{redirect_uri}?{query}{suffix}"},
+                                 request=request)
 
-            if err or not payload:
-                # For OOB, return JSON error
-                if redirect_uri == "urn:ietf:wg:oauth:2.0:oob":
-                    return json_response_with_code(-2, "Authentication failed", request=request)
-                
-                return json_response(
-                    content = {
-                        "code"      : 0,
-                        "msg"       : "ok",
-                        "data"      : {},
-                        "location"  : f"{redirect_uri}?error=authentication_failed" + (f"&state={state}" if state else "")
-                    },
-                    request = request
-                )
+        if form_data.get("action") != "allow":
+            return go("error=access_denied")
 
-            #---------------------------------------------
+        # A signed-in person's session, not an MCP client's token and not a
+        # refresh token: only the person may grant a client access.
+        payload, err = self._token_validator.verify_token(self._get_jwt_token(request))
+        if err or not await bearer_subject(payload):
+            return go("error=access_denied&error_description=authentication_failed")
 
-            auth_code   = f"auth_code_{secrets.token_urlsafe(32)}"
-            client_id   = str(form_data.get("client_id"))
-            user_id     = str(payload["sub"])
+        # PKCE (RFC 7636), S256 only, as the metadata advertises: an
+        # intercepted code is otherwise as good as a token.
+        code_challenge = str(form_data.get("code_challenge") or "")
+        if not code_challenge or form_data.get("code_challenge_method") != "S256":
+            return json_response(content={"code": -1, "msg": "PKCE with code_challenge_method=S256 is required"},
+                                 status_code=400, request=request)
 
-            # The redirect target must be one the client registered. Exact
-            # string match, per RFC 6749 §3.1.2.3 and RFC 8252 §7.1, no
-            # prefix or host matching, both of which are routinely bypassed
-            # (`https://good.example.evil.com`, `https://good.example/../..`).
-            if not await self._is_registered_redirect_uri(client_id, redirect_uri):
-                logger.warning(
-                    "rejected unregistered redirect_uri for client %s", client_id
-                )
-                return json_response(
-                    content = {"code": -1, "msg": "invalid redirect_uri"},
-                    status_code = 400,
-                    request = request,
-                )
-
-            # PKCE (RFC 7636), S256 only, as the metadata advertises. Required for
-            # a redirect flow: the metadata promised it and nothing checked it,
-            # so an intercepted code was as good as a token. The out-of-band
-            # flow hands back the session token itself and has no code to bind.
-            code_challenge = str(form_data.get("code_challenge") or "")
-            if redirect_uri != "urn:ietf:wg:oauth:2.0:oob" and (
-                    not code_challenge or form_data.get("code_challenge_method") != "S256"):
-                return json_response(
-                    content = {"code": -1, "msg": "PKCE with code_challenge_method=S256 is required"},
-                    status_code = 400,
-                    request = request,
-                )
-
-            cached_auth_code = {
-                "client_id" : client_id,
-                "user_id"   : user_id,
-                "scope"     : str(form_data.get("scope", "mcp:read mcp:write")),
-                "expires_at": int(time.time()) + _AUTH_CODE_TTL_SECONDS,
-                # §4.1.3: the token request must name the same redirect_uri.
-                "redirect_uri"  : redirect_uri,
-                "code_challenge": code_challenge,
-                # What the authorising session proved. The tokens this code
-                # mints carry it, so an AAL1 session cannot mint an MCP token
-                # the AAL2 gate would let through.
-                "aal"       : str(int(payload.get("aal") or 0)),
-            }
-            cached_client = {
-                "user_id"   : user_id
-            }
-
-            if self._redis:
-                redis_key = self._auth_code_keyprefix + auth_code
-                try:
-                    await self._redis.hset(redis_key, mapping=cached_auth_code)
-                    await self._redis.expire(redis_key, _AUTH_CODE_TTL_SECONDS)
-                except Exception as e:
-                    logger.warning(str(e))
-
-                redis_key = self._client_keyprefix + client_id
-                try:
-                    await self._redis.hset(redis_key, mapping=cached_client)
-                except Exception as e:
-                    logger.warning(str(e))
-
-            else:
-                self._auth_codes[auth_code] = cached_auth_code
-                self._clients[client_id].update(cached_client)
-
-            # Initial state,
-            #   will expire in 10 minutes.
-            if state:
-                initial_state = {
-                    "status"    : "pending",
-                    "auth_code" : auth_code,
-                    "expires_at": int(time.time()) + _AUTH_CODE_TTL_SECONDS,
-                }
-
-                if self._redis:
-                    redis_key = self._state_token_keyprefix + state
-
-                    try:
-                        await self._redis.hset(redis_key, mapping=initial_state)
-                        await self._redis.expire(redis_key, self._token_validator.get_expires_in())
-
-                    except Exception as e:
-                        logger.warning(str(e))
-
-                else:
-                    self._state_tokens[state] = initial_state
-
-            if redirect_uri == "urn:ietf:wg:oauth:2.0:oob":
-                if not token:
-                    return json_response_with_code(-3, "No valid access token found", request=request)
-                
-                # Completed state,
-                completed_state = {
-                    "status"    : "completed",
-                    "token"     : token,
-                    "token_type": "Bearer",
-                    "expires_at": int(time.time()) + self._token_validator.get_expires_in(),
-                }
-
-                if self._redis:
-                    redis_key = self._state_token_keyprefix + state
-
-                    try:
-                        await self._redis.hset(redis_key, mapping=completed_state)
-                        await self._redis.expire(redis_key, self._token_validator.get_expires_in())
-                    
-                    except Exception as e:
-                        logger.warning(str(e))
-                
-                else:
-                    if state and state in self._state_tokens:
-                        self._state_tokens[state].update(completed_state)
-
-
-                return json_response(
-                    content = {
-                        # Response in code/msg style. 
-                        "code"      : 0,
-                        "msg"       : "ok",
-                        "data"      : {
-                            "access_token"  : token,
-                            "token_type"    : "Bearer",
-                            "expires_in"    : self._token_validator.get_expires_in() if self._token_validator else 60*60*24*7,
-                            "state"         : state
-                        },
-
-                        # Standard OAuth response.
-                        "success"       : True,
-                        "access_token"  : token,
-                        "token_type"    : "Bearer",
-                        "expires_in"    : self._token_validator.get_expires_in() if self._token_validator else 60*60*24*7,
-                        "state"         : state,
-                        "message"       : "Authorization successful",
-                    },
-                    request = request
-                )
-            
-            return json_response(
-                content = {
-                    "code"      : 0,
-                    "msg"       : "ok",
-                    "data"      : {},
-                    "location"  : f"{redirect_uri}?code={auth_code}" + (f"&state={state}" if state else "")
-                },
-                request = request
-            )
-            
-        return json_response_with_code()
-
-    #-------------------------------------------------------------------------
-
-    async def check_state_handler(self, request: Request) -> Response:
-        state = request.path_params["state"]
-        if not state or not isinstance(state, str):
-            return json_response(
-                content     = {
-                    "error"     : "missing_state",
-                    "message"   : "State parameter is required"
-                },
-                status_code = 400,
-                request     = request
-            )
-
-        
-        #-------------------------------------------------
+        auth_code = f"auth_code_{secrets.token_urlsafe(32)}"
+        cached_auth_code = {
+            "client_id"     : client_id,
+            "user_id"       : str(payload["sub"]),
+            "scope"         : str(form_data.get("scope", "mcp:read mcp:write")),
+            "expires_at"    : int(time.time()) + _AUTH_CODE_TTL_SECONDS,
+            # §4.1.3: the token request must name the same redirect_uri.
+            "redirect_uri"  : redirect_uri,
+            "code_challenge": code_challenge,
+            # RFC 8707: checked against this server's MCP endpoint at /oauth/token.
+            "resource"      : str(form_data.get("resource") or ""),
+            # What the authorising session proved. The tokens this code
+            # mints carry it, so an AAL1 session cannot mint an MCP token
+            # the AAL2 gate would let through.
+            "aal"           : str(int(payload.get("aal") or 0)),
+        }
 
         if self._redis:
+            redis_key = self._auth_code_keyprefix + auth_code
             try:
-                state_info = await self._redis.hgetall(self._state_token_keyprefix + state)
-
-                if state_info and "expires_at" in state_info:
-                    n = int(state_info["expires_at"])
-                    state_info["expires_at"] = n
-            
+                await self._redis.hset(redis_key, mapping=cached_auth_code)
+                await self._redis.expire(redis_key, _AUTH_CODE_TTL_SECONDS)
             except Exception as e:
                 logger.warning(str(e))
-                state_info = {}
-
         else:
-            state_info = self._state_tokens.get(state)
+            self._auth_codes[auth_code] = cached_auth_code
 
-        #-------------------------------------------------
-
-        if not state_info:
-            return json_response(
-                {
-                    "status"    : "not_found",
-                    "message"   : "State not found or authentication not started",
-                },
-                status_code = 404,
-                request     = request
-            )
-        
-        if state_info.get("expires_at", 0) < time.time():
-            if not self._redis:
-                del self._state_tokens[state]
-
-            return json_response(
-                {
-                    "status"    : "expired", 
-                    "message"   : "Authentication session expired"
-                },
-                status_code = 410,
-                request     = request
-            )
-        
-        if state_info["status"] == "pending":
-            return json_response(
-                {
-                    "status"    : "pending",
-                    "message"   : "Authentication in progress, please continue in browser",
-                },
-                request     = request
-            )
-        
-        if state_info["status"] == "completed":
-            return json_response(
-                {
-                    "status"    : "completed",
-                    "token"     : state_info.get("token"),
-                    "token_type": state_info.get("token_type", "Bearer"),
-                    "message"   : "Authentication completed successfully",
-                },
-                request     = request
-            )
-
-        return json_response(
-            {
-                "status"    : "unknown", 
-                "message"   : "Unknown authentication status"
-            },
-            status_code = 500,
-            request     = request
-        )
+        return go(f"code={auth_code}")
 
     #-------------------------------------------------------------------------
 
@@ -709,6 +496,18 @@ class OAuthService:
                         request=request,
                     )
 
+                # RFC 8707: a client may only ask for a token to this server's
+                # MCP endpoint, and the token names it as its audience, which is
+                # the one place it is accepted (`bearer.bearer_subject`).
+                audience = self._mcp_resource(request)
+                requested = data.get("resource") or stored_code.get("resource")
+                if requested and not audience_matches(requested, audience):
+                    return json_response(
+                        {"error": "invalid_target", "error_description": "resource is not this server's MCP endpoint."},
+                        status_code=400,
+                        request=request,
+                    )
+
                 user_id = stored_code.get("user_id")
                 scope   = stored_code.get("scope", "mcp:read mcp:write")
                 aal     = int(stored_code.get("aal") or 0)
@@ -725,7 +524,7 @@ class OAuthService:
 
                 access_token, refresh_token, err = await self._token_validator.generate_tokens(
                     user_id, "", "mcp", client_id=client_id, scope=scope,
-                    gen_claims_func=(lambda _uid, _em: {"aal": aal}) if aal else None,
+                    gen_claims_func=lambda _uid, _em: {"aud": audience, **({"aal": aal} if aal else {})},
                 )
                 if err:
                     logger.error(err)
@@ -803,10 +602,22 @@ class OAuthService:
                         request=request
                     )
 
+                # A closed account, or one whose sessions were revoked after this
+                # refresh token was minted, gets nothing new from it.
+                from mirobody.user.user import is_active_account
+
+                if not await is_active_account(payload["sub"], minted_at(payload)):
+                    return json_response(
+                        {"error": "invalid_grant", "error_description": "This session was signed out."},
+                        status_code=400,
+                        request=request
+                    )
+
                 aal = int(payload.get("aal") or 0)
+                audience = self._mcp_resource(request)
                 new_access_token, new_refresh_token, err = await self._token_validator.generate_tokens(
                     payload["sub"], "", "mcp", client_id=client_id, scope=str(payload.get("scope") or ""),
-                    gen_claims_func=(lambda _uid, _em: {"aal": aal}) if aal else None,
+                    gen_claims_func=lambda _uid, _em: {"aud": audience, **({"aal": aal} if aal else {})},
                 )
                 if err:
                     logger.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
@@ -827,64 +638,6 @@ class OAuthService:
                             "error_description": "Invalid refresh token.",
                         },
                         status_code=401,
-                        request=request
-                    )
-
-                scope = payload["scope"] if "scope" in payload and len(payload["scope"]) > 0 else "mcp:read mcp:write"
-
-                return json_response(
-                    content={
-                        "access_token": new_access_token,
-                        "token_type": "Bearer",
-                        "expires_in": self._token_validator.get_expires_in(),
-                        "refresh_token": new_refresh_token,
-                        "scope": scope,
-                    },
-                    request=request
-                )
-
-            if grant_type == "credentials":
-                cached_client = None
-                if self._redis:
-                    cached_client = await self._redis.hgetall(self._client_keyprefix + client_id)
-                else:
-                    cached_client = self._clients[client_id]
-
-                if not cached_client or not isinstance(cached_client, dict) or \
-                    "client_secret" not in cached_client or not isinstance(cached_client["client_secret"], str) or \
-                    "user_id" not in cached_client or not isinstance(cached_client["user_id"], str) or \
-                    client_secret != cached_client["client_secret"] or \
-                    len(cached_client["user_id"]) == 0:
-
-                    return json_response(
-                        {
-                            "error": "invalid_client",
-                            "error_description": "Invalid client id or secret.",
-                        },
-                        status_code=401,
-                        request=request
-                    )
-                
-                new_access_token, new_refresh_token, err = await self._token_validator.generate_tokens(cached_client["user_id"], "", "mcp", client_id=client_id)
-                if err:
-                    logger.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
-
-                    return json_response(
-                        {
-                            "error": "server_error",
-                            "error_description": err,
-                        },
-                        status_code=500,
-                        request=request
-                    )
-
-                if not new_access_token:
-                    return json_response(
-                        {
-                            "error": "server_error",
-                            "error_description": "Failed to generate access token.",
-                        },
-                        status_code=500,
                         request=request
                     )
 
@@ -938,6 +691,11 @@ class OAuthService:
         payload, err = self._token_validator.verify_token(token)
         if err:
             logger.error(err, extra={"token": secret_fingerprint(token)})
+            return json_response({"active": False}, request=request)
+
+        from mirobody.user.user import is_active_account
+
+        if not await is_active_account(payload.get("sub"), minted_at(payload)):
             return json_response({"active": False}, request=request)
         
         return json_response(

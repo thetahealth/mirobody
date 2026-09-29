@@ -193,6 +193,19 @@ boundary.
   from the authorising session through the code, the tokens and every refresh.
   `/mcp`, `/personal/mcp`, the chat service and the WebAuthn routes decoded
   the header a second time and took a refresh token too; they no longer do.
+- **An MCP client's token worked on every REST route.** A connector granted
+  `mcp:read` could call `DELETE /api/data?all=true`. Tokens from
+  `/oauth/token` now name this server's MCP endpoint as their audience
+  (RFC 8707), are accepted only there, and cannot approve another client.
+  Connectors authorised before 1.5.2 get a 401 and refresh.
+- **The out-of-band MCP sign-in handed out the approver's web session.**
+  An unauthenticated `tools/call` returned a sign-in link with a `state` the
+  caller chose, and `/oauth2/check_state/{state}` then returned the web token
+  of whoever approved it, to anyone, repeatedly. Both are gone, with the
+  never-working `credentials` grant. `tools/call` without a valid token now
+  answers 401 with `WWW-Authenticate` naming
+  `/.well-known/oauth-protected-resource/mcp` (RFC 9728), and OAuth with PKCE
+  takes over.
 - **Registering an address did not prove it.** A password registration for
   someone's address became the account their later code sign-in landed in,
   with the claimant's password and invitations still live. Where mail is
