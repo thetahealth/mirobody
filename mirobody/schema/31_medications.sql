@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS th_medication_plan (
     deleted           integer NOT NULL DEFAULT 0
 );
 
+-- ENCRYPTED: each instruction's own words ("饭后", "with food"), a JSON list
+-- in schedule order. `schedule` holds only structure, so the words a parser
+-- could not turn into structure had nowhere to go and were dropped.
+ALTER TABLE th_medication_plan ADD COLUMN IF NOT EXISTS instructions_text text;
+
 CREATE INDEX IF NOT EXISTS idx_th_medication_plan_user
     ON th_medication_plan (user_id, status) WHERE deleted = 0;
 CREATE INDEX IF NOT EXISTS idx_th_medication_plan_concept

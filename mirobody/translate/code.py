@@ -90,6 +90,26 @@ def axes_for(loinc: str) -> tuple[Axes, str] | None:
     return Axes(component, prop, time, system, scale, method), display
 
 
+#: What a person wrote that is not a reading, a complaint or a diagnosis: a
+#: meal, a mood, a walk. It is kept as written and not coded, by design rather
+#: than for want of a match: there is no open vocabulary for meals or moods
+#: worth coding against, and one made up here would be worse than none.
+RULE_NOTE = "note:free-text"
+
+#: Every note shares one series, so a person's catalogue does not grow an
+#: entry per sentence. `local:` because that prefix is what marks a series as
+#: not standard; `|note` because every other local key begins with a name
+#: (a reading's is `name|unit`, a complaint's the name), so none can equal it.
+NOTE_SERIES = local_series_id("|note")
+
+
+def code_note() -> Coding:
+    """The coding every note gets: refused, in `NOTE_SERIES`."""
+    rel = release()
+    did = decision_id("", "", KIND_NARRATIVE, rel, RULE_NOTE)
+    return Coding(OUTCOME_REFUSED, NOTE_SERIES, did, RULE_NOTE, rel, reason=RULE_NOTE)
+
+
 def code(
     name_text: str,
     *,

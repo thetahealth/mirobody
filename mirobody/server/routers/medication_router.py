@@ -53,6 +53,7 @@ class InstructionInput(BaseModel):
     weekdays: list[int] = Field(default_factory=list, max_length=7)
     as_needed: bool = False
     max_dose_per_day: DoseInput | None = None
+    text: str = Field(default="", max_length=500, description="How to take it, in the person's words (饭后)")
 
     @model_validator(mode="after")
     def validate_instruction(self) -> InstructionInput:
@@ -103,7 +104,12 @@ class MedicationPatch(BaseModel):
 
 
 def _dose(value: DoseInput | None) -> meds.Dose | None:
-    return None if value is None else meds.Dose(value.value, value.unit)
+    """The unit as the kernel spells it (片 and tablet are `{tablet}`), so one
+    plan edited in two languages does not hold two units for one form; a unit
+    the kernel does not know is kept as typed."""
+    if value is None:
+        return None
+    return meds.Dose(value.value, meds.normalize_dose_unit(value.unit) or value.unit.strip())
 
 
 def _schedule(items: list[InstructionInput]) -> tuple[meds.DoseInstruction, ...]:
@@ -112,7 +118,7 @@ def _schedule(items: list[InstructionInput]) -> tuple[meds.DoseInstruction, ...]
             dose=_dose(item.dose), times=tuple(item.times),
             doses_per_day=item.doses_per_day, period_days=item.period_days,
             weekdays=frozenset(item.weekdays), as_needed=item.as_needed,
-            max_dose_per_day=_dose(item.max_dose_per_day),
+            max_dose_per_day=_dose(item.max_dose_per_day), text=item.text.strip(),
         )
         for item in items
     )
@@ -207,6 +213,7 @@ def _json_plan(plan: meds.MedicationPlan, *, today: date, courses: list[meds.Cou
                 "period_days": i.period_days, "weekdays": sorted(i.weekdays),
                 "as_needed": i.as_needed,
                 "max_dose_per_day": {"value": i.max_dose_per_day.value, "unit": i.max_dose_per_day.unit} if i.max_dose_per_day else None,
+                "text": i.text,
             }
             for i in plan.schedule
         ],

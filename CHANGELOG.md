@@ -145,12 +145,25 @@ for can take it over.
   gives the caller's own rows as a JSON page or an NDJSON stream whose footer
   says whether it finished. All four read `PostgresHealthQuery`. To check:
   upload a report, correct one reading, and the delta still counts it once.
-- **Medications can be added and managed from the web.** The medication model
-  had a store but no HTTP surface. `/api/v1/medications` lists, creates,
-  edits, stops, resumes (opening a new course) and voids plans; each state
+- **The journal takes anything; a medication in it goes onto the list.**
+  The 记录 box wrote complaints, diagnoses and readings and refused the rest:
+  a medication was "log it with your medications" and a meal "not a record".
+  A medication part now becomes a `kernel.meds` mention, and
+  `reconcile_mentions` decides: a new plan (unconfirmed, labelled as from the
+  journal until corrected), a drug already listed left alone, "stopped X"
+  stopping the active plan. The model gives the words; the schedule is parsed
+  from them, and 每天早晚 now parses as twice a day (it read as once).
+  Anything else is kept as an uncoded `note`, so nothing typed is lost. To
+  check: log "每天早晚吃二甲双胍500mg，午饭吃了面" and find metformin under
+  指标 › 用药 and the noodles in that day's log.
+- **Medication plans have an HTTP surface and a tab under 指标.** The model
+  had a store and no way in or out of the web. `/api/v1/medications` lists,
+  corrects, stops, resumes (opening a new course) and voids plans; each state
   change writes its course in the same transaction, a family member with a
   read grant can list but not write, and a plan the caller may not read
-  answers 404 like a missing one. See `docs/medications.md`.
+  answers 404 like a missing one. An instruction's own words ("饭后") are kept,
+  encrypted, where the structured schedule has no room for them. See
+  `docs/medications.md`.
 - **`/mirobody.json` names the records, delta and medication surfaces.**
   `__IS_INDICATOR_RECORDS_ON__`, `__IS_INDICATOR_EXPORT_ON__`,
   `__IS_DATA_DELTA_ON__` and `__IS_MEDICATIONS_ON__` follow whether each

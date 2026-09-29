@@ -70,7 +70,7 @@ from .outcome import (
 )
 from .parse import Parsed, parse_range, parse_value
 from .series import Axes, local_series_id, property_dim, series_id, symptom_series_id
-from .code import code, decision_id, release
+from .code import NOTE_SERIES, code, code_note, decision_id, release
 from .icpc3 import ICPC3_SYSTEM, resolve_condition, resolve_symptom
 
 #: The pure seam, imported above. `code` is the function, not the module;
@@ -86,6 +86,8 @@ _SEAM = [
     "OUTCOME_REFUSED",
     "Parsed",
     "code",
+    "code_note",
+    "NOTE_SERIES",
     "decision_id",
     "local_day",
     "local_series_id",

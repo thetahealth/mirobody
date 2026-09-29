@@ -429,13 +429,19 @@ if an extension is added to `SUPPORTED_EXTENSIONS` or `MULTIMODAL_EXTS` without
 being pinned. Also deleted `agent/filesystem/backend._guess_mime`, a fourth copy with
 no callers.
 
-### Resolved: web records, data delta and medication forms
+### Resolved: web records, data delta, and medications from the journal
 
 The open-source web client now has a paginated cross-indicator records route,
-an amendment-aware data-delta counter, and an owner-safe medication form. The
+an amendment-aware data-delta counter, and medications that come from the one
+journal box: a sentence's medication parts go through
+`kernel.meds.reconcile_mentions`, anything else is kept as a `note`. The
 records and delta paths share `PostgresHealthQuery` and the visible-period rule;
 medication lifecycle changes use the kernel transition and close/open courses
 in one transaction. `/mirobody.json` advertises each route's mounted state.
+
+Still open from that surface: a dose taken ("刚吃了一片布洛芬") becomes a plan,
+not a dose event in `th_dose_event`; the journal has no way yet to say "one
+dose, not an ongoing medication".
 
 ### Resolved: task delivery survives a worker restart
 

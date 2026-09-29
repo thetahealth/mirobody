@@ -54,6 +54,9 @@ KIND_SYMPTOM = "symptom"
 #: What a person has been told they have, as opposed to what they feel now.
 #: The two code on different ICPC-3 components and must not share a kind.
 KIND_CONDITION = "condition"
+#: Anything else a person writes about their day (a meal, a mood), kept as
+#: written and never coded (`translate.code_note`).
+KIND_NOTE = "note"
 KIND_FINDING = "finding"
 KIND_ORGANIZER = "organizer"
 
@@ -330,6 +333,8 @@ def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], translate.Ali
         return translate.resolve_symptom(row["name_text"], alias=alias)
     if row["kind"] == KIND_CONDITION:
         return translate.resolve_condition(row["name_text"], alias=alias)
+    if row["kind"] == KIND_NOTE:
+        return translate.code_note()
     if alias is None and row["source_kind"] == SOURCE_DEVICE:
         alias = catalog_alias(row["name_text"]) or translate.Alias(
             _ALIAS_SCOPE_CATALOG, metrics.SYSTEM_DEVICE, row["name_text"].split(".", 1)[0]
@@ -1198,6 +1203,7 @@ __all__ = [
     "GRAIN_INSTANT",
     "GRAIN_WINDOW",
     "KIND_CONDITION",
+    "KIND_NOTE",
     "KIND_FINDING",
     "KIND_MEASUREMENT",
     "KIND_ORGANIZER",

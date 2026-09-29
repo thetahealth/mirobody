@@ -49,7 +49,7 @@ from typing import Any
 from mirobody import translate
 from mirobody.kernel import query
 from mirobody.kernel.tools import PROVENANCE_REPORTED
-from mirobody.collect.observations import KIND_CONDITION, KIND_MEASUREMENT, KIND_SYMPTOM
+from mirobody.collect.observations import KIND_CONDITION, KIND_MEASUREMENT, KIND_NOTE, KIND_SYMPTOM
 
 logger = logging.getLogger(__name__)
 
@@ -79,12 +79,12 @@ _LOCAL_TS = (
 _STAT_VALUE = "CASE WHEN COUNT(DISTINCT unit_ucum) > 1 THEN {agg}(value_canonical) ELSE {agg}(value_num) END"
 _STAT_UNIT = "CASE WHEN COUNT(DISTINCT unit_ucum) > 1 THEN MAX(unit_canonical) ELSE (ARRAY_AGG(unit_ucum ORDER BY at DESC))[1] END"
 
-#: What a person reports about themselves: a symptom felt or a diagnosis given,
-#: in their own words, with no value and no unit. The same table and the same
-#: series as a reading, so the model's tool reads both, and each row says which
-#: it is (`provenance="reported"`). The web client's Indicators tab lists
+#: What a person reports about themselves: a symptom felt, a diagnosis given,
+#: or a note on their day, in their own words, with no value and no unit. The
+#: same table as a reading, so the model's tool reads both, and each row says
+#: which it is (`provenance="reported"`). The web client's Indicators tab lists
 #: readings only (`reported=False`); the journal is its own tab there.
-REPORTED_KINDS = [KIND_SYMPTOM, KIND_CONDITION]
+REPORTED_KINDS = [KIND_SYMPTOM, KIND_CONDITION, KIND_NOTE]
 
 #: What a reported row carries beyond a reading's columns: its kind, why it
 #: is uncoded, and the note the person added (encrypted at rest).

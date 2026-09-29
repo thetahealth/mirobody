@@ -242,20 +242,45 @@ medication list as evidence of what was swallowed. And a dose missing from
 
 | Encrypted | In the clear |
 |---|---|
-| the drug name, the strength, the reason for a skip | `concept_key`, `plan_id`, dates, status, the schedule's STRUCTURE |
+| the drug name, the strength, each instruction's own words, the reason for a skip | `concept_key`, `plan_id`, dates, status, the schedule's STRUCTURE |
 
 The schedule column carries structure only — times, counts, weekdays, dose
-amounts. The person's own words live in the encrypted columns.
+amounts. The person's own words live in the encrypted columns: "饭后" that no
+parser turns into structure is kept in `instructions_text`, one entry per
+instruction.
 
 `collect/meds/store.py` implements `MedicationStore` and `DoseLogStore` and asks
 `mirobody.kernel.meds` every question that has an answer there, rather than
 re-deriving one in SQL.
 
-### The web form (`/api/v1/medications`)
+### From a sentence (`/api/v1/journal/sentence`)
 
-`server/routers/medication_router.py` is the form behind the web client's
-Medications page: a structured plan typed by the person, not a sentence, so no
-model is involved.
+A person does not fill in a form to add a medication. They write "每天早晚吃
+二甲双胍500mg" in the journal, the one box of 数据 › 记录, and:
+
+1. `collect/sentence.py` has the model split the sentence and type each part.
+   A medication part carries the drug, the dose and the frequency **as
+   written**, and whether the person says they take it, stopped it, did not
+   take it, or only wonders about it. The model is never asked for a code or
+   a schedule.
+2. The part becomes a `MedicationMention`, after the checks every part gets:
+   it must quote the sentence, and be about the person, asserted.
+3. `collect/meds/mentions.py` hands the mentions to `reconcile_mentions`,
+   which decides: a drug not on the list is a new plan, unconfirmed and
+   marked `source="journal"`, its schedule parsed from the words by
+   `parse_dose_instruction` (words it cannot read are kept on the
+   instruction); a drug already on the list is left alone; "stopped" stops
+   the matching active plan and never creates one.
+4. The journal lists the plan on the day it was written, and removing it
+   there marks it `entered_in_error`.
+
+The web client's 指标 › 用药 tab lists the plans; saving a correction there
+confirms one.
+
+### The HTTP surface (`/api/v1/medications`)
+
+`server/routers/medication_router.py`: listing, correcting and the lifecycle.
+`POST /` remains for an API client that has a structured plan in hand.
 
 | Route | Does |
 |---|---|

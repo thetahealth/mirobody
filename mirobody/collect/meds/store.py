@@ -53,12 +53,11 @@ def _dose_from_json(raw: object) -> meds.Dose | None:
 
 
 def instruction_to_json(instr: meds.DoseInstruction) -> dict:
-    """One `DoseInstruction` as JSON. `as_needed_for` and `text` are the
-    person's own words and ride encrypted with the rest of the schedule
-    column: the whole `schedule` jsonb is written through `encrypt_content`
-    is NOT possible (jsonb is not text), so those two fields are dropped here
-    and kept in `concept_text` territory instead: a plan's free text lives in
-    the encrypted columns, the schedule column carries only structure."""
+    """One `DoseInstruction`'s structure as JSON. `text` and `as_needed_for`
+    are the person's own words and are not here: `schedule` is jsonb, which
+    `encrypt_content` cannot take. `text` rides in the encrypted
+    `instructions_text` column (`_plan_params`); `as_needed_for` is not
+    stored."""
     return {
         "dose": _dose_to_json(instr.dose),
         "times": list(instr.times),
@@ -109,8 +108,10 @@ def plan_from_row(row: dict) -> meds.MedicationPlan:
         form=str(row.get("concept_form") or ""),
         strength=str(row.get("concept_strength") or ""),
     )
+    words = _loads(row.get("instructions_text"), []) or []
     schedule = tuple(
-        instruction_from_json(i) for i in (_loads(row.get("schedule"), []) or []) if isinstance(i, dict)
+        replace(instruction_from_json(i), text=str(words[n]) if n < len(words) and words[n] else "")
+        for n, i in enumerate(i for i in (_loads(row.get("schedule"), []) or []) if isinstance(i, dict))
     ) or (meds.DoseInstruction(),)
     return meds.MedicationPlan(
         plan_id=str(row["plan_id"]),
@@ -153,7 +154,8 @@ _PLAN_COLUMNS = """
     plan_id, user_id, concept_key, decrypt_content(concept_text) AS concept_text,
     decrypt_content(concept_strength) AS concept_strength, concept_form, codes, schedule,
     start_date, end_date, status, classification, confirmed, order_id, source,
-    source_record_id, stopped_on
+    source_record_id, stopped_on, decrypt_content(instructions_text) AS instructions_text,
+    create_time
 """
 
 _EVENT_COLUMNS = """
@@ -166,13 +168,13 @@ _PUT_PLAN = """
 INSERT INTO th_medication_plan (
     plan_id, user_id, concept_key, concept_text, concept_strength, concept_form,
     codes, schedule, start_date, end_date, status, classification, confirmed,
-    order_id, source, source_record_id, stopped_on, create_time, update_time, deleted
+    order_id, source, source_record_id, stopped_on, instructions_text, create_time, update_time, deleted
 ) VALUES (
     :plan_id, :user_id, :concept_key, encrypt_content(:concept_text),
     encrypt_content(:concept_strength), :concept_form, CAST(:codes AS jsonb),
     CAST(:schedule AS jsonb), :start_date, :end_date, :status, :classification,
     :confirmed, :order_id, :source, :source_record_id, :stopped_on,
-    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0
+    encrypt_content(:instructions_text), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0
 )
 ON CONFLICT (plan_id) DO UPDATE SET
     concept_key = EXCLUDED.concept_key,
@@ -190,9 +192,14 @@ ON CONFLICT (plan_id) DO UPDATE SET
     source = EXCLUDED.source,
     source_record_id = EXCLUDED.source_record_id,
     stopped_on = EXCLUDED.stopped_on,
+    instructions_text = EXCLUDED.instructions_text,
     update_time = CURRENT_TIMESTAMP,
     deleted = 0
 """
+
+
+#: `_PUT_PLAN` for a plan that must be new: an id that exists writes nothing.
+_NEW_PLAN = _PUT_PLAN[: _PUT_PLAN.index("ON CONFLICT")] + "ON CONFLICT (plan_id) DO NOTHING RETURNING plan_id\n"
 
 
 def _plan_params(plan: meds.MedicationPlan) -> dict:
@@ -214,6 +221,8 @@ def _plan_params(plan: meds.MedicationPlan) -> dict:
         "source": plan.source,
         "source_record_id": plan.source_record_id,
         "stopped_on": plan.stopped_on,
+        "instructions_text": json.dumps([i.text for i in plan.schedule], ensure_ascii=False)
+        if any(i.text for i in plan.schedule) else None,
     }
 
 
@@ -290,6 +299,22 @@ class PostgresMedicationStore:
         rows = await execute_query(sql, {"pid": str(plan_id)}, log_sql=False) or []
         return plan_from_row(dict(rows[0])) if rows else None
 
+    async def created_by(
+        self, subject_id: str, source: str, *, since: datetime, until: datetime
+    ) -> list[tuple[meds.MedicationPlan, datetime]]:
+        """The subject's plans `source` created in `[since, until)`, newest
+        first, with when each was created: the journal lists the plans a
+        sentence made on the day it was written, not the day they start."""
+        rows = await execute_query(
+            f"SELECT {_PLAN_COLUMNS} FROM th_medication_plan"
+            " WHERE user_id = :uid AND source = :source AND deleted = 0 AND status <> :void"
+            " AND create_time >= :since AND create_time < :until ORDER BY create_time DESC",
+            {"uid": str(subject_id), "source": source, "void": meds.PLAN_ENTERED_IN_ERROR,
+             "since": since, "until": until},
+            log_sql=False,
+        ) or []
+        return [(plan_from_row(dict(r)), r["create_time"]) for r in rows]
+
     async def owner(self, plan_id: str) -> str | None:
         rows = await execute_query(
             "SELECT user_id FROM th_medication_plan WHERE plan_id = :pid AND deleted = 0",
@@ -303,13 +328,16 @@ class PostgresMedicationStore:
         re-import of the same statement updates rather than duplicates."""
         await execute_query(_PUT_PLAN, _plan_params(plan), log_sql=False)
 
-    async def create(self, plan: meds.MedicationPlan) -> None:
-        """A new plan and its opening course in one transaction. Written as two
+    async def create(self, plan: meds.MedicationPlan) -> bool:
+        """A new plan and its opening course in one transaction; False, and
+        nothing written, when a plan with this id exists. Written as two
         statements, a failure between them left an active plan with no open
         course, and its first stop then closed a course that was never opened."""
         async with db.transaction() as tx:
-            await tx.execute(_PUT_PLAN, _plan_params(plan))
+            if not await tx.execute(_NEW_PLAN, _plan_params(plan)):
+                return False
             await _open_course(tx, plan.subject_id, plan, plan.start)
+            return True
 
     async def revise(self, subject_id: str, plan_id: str, changes: dict) -> meds.MedicationPlan:
         """Apply the fields in `changes` to the subject's plan, under a row lock.

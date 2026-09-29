@@ -43,10 +43,11 @@ all three, aggregates the trend, and names the file every number came from.</em>
   anything already written into Apple Health comes with it; PDFs, phone photos,
   spreadsheets, exports: 23 file types in all, and Mirobody reads them.
 - **Say how you feel, in your own words.** Type `headache since last night,
-  BP 150/95, no fever` into the journal and it files a headache and two
-  blood-pressure readings, each on its standard code, and leaves out the fever
-  you said you do not have. Your model splits the sentence; the codes come from
-  the vocabulary, never from the model.
+  BP 150/95, no fever, metformin 500 mg morning and evening` into the journal
+  and it files a headache and two blood-pressure readings, each on its standard
+  code, puts metformin on your medication list, and leaves out the fever you
+  said you do not have. Your model splits the sentence; the codes come from the
+  vocabulary, never from the model.
 - **No hallucinations, everything traceable.** Every indicator lands in one
   settled system: either it gets a definite code, or it says it could not
   resolve one. It never invents one in between. Built and tested against real
