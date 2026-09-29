@@ -4,12 +4,21 @@ import time
 
 from collections.abc import Callable
 
-from starlette.requests import Request
-
 #: `token_type` claims. A refresh token is not a bearer credential: it is only
 #: ever exchanged at the token endpoint, and it lives twice as long.
 ACCESS_TOKEN_TYPE = "oauth_access_token"
 REFRESH_TOKEN_TYPE = "oauth_refresh_token"
+
+#: `iat` is backdated by this much, for clock skew between hosts.
+ISSUED_AT_SKEW = 60
+
+
+def minted_at(payload: dict) -> float:
+    """When a token was actually issued: `iat` without the skew. 0 if absent."""
+    try:
+        return float(payload.get("iat") or 0) + ISSUED_AT_SKEW
+    except (TypeError, ValueError):
+        return 0.0
 
 #-----------------------------------------------------------------------------
 
@@ -92,37 +101,6 @@ class AbstractTokenValidator:
         # error and hands the client blank credentials. Fail honestly until
         # a real rotation flow exists.
         return "", "", "unsupported_grant_type"
-
-    #-----------------------------------------------------
-
-    def verify_http_token(self, request: Request) -> tuple[str | None, str | None]:
-        if not request:
-            return None, "Invalid request."
-
-        token = request.headers.get("Authorization")
-        if not token or not isinstance(token, str):
-            return None, "Invalid JWT token"
-
-        while token.startswith("Bearer "):
-            token = token[7:]
-
-        if not token:
-            return None, "Empty token."
-        if not isinstance(token, str):
-            return None, "Invalid token."
-
-        payload, err = self.verify_token(token)
-        if err:
-            return None, err
-        if not payload:
-            return None, "Empty payload."
-        if not isinstance(payload, dict):
-            return None, "Invalid payload."
-        
-        if "sub" not in payload:
-            return None, "No subject."
-        
-        return payload["sub"], None
 
 #-----------------------------------------------------------------------------
 
@@ -235,7 +213,7 @@ class JwtTokenValidator(AbstractTokenValidator):
     #-----------------------------------------------------
 
     def generate_token(self, subject: str, extra: dict | None = None, expires_in: int = 0) -> str:
-        now = int(time.time()) - 60
+        now = int(time.time()) - ISSUED_AT_SKEW
 
         payload = {
             "sub"       : subject,                  # Subject of the token (usually user ID).

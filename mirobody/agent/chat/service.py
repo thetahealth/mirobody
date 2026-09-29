@@ -18,7 +18,8 @@ from .message import (
 from . import turn
 
 from mirobody.user import JwtTokenValidator
-from mirobody.user.user import get_user_info, is_active_account
+from mirobody.user.auth.bearer import bearer_subject
+from mirobody.user.user import get_user_info
 from mirobody.user.care_circle import beneficiary_users
 from mirobody.utils.sse import sse_headers
 from mirobody.utils import json_response_with_code, json_response, global_config, Request, Response, StreamingResponse, Route
@@ -95,15 +96,16 @@ def requires_auth(fn):
         if preflight is not None:
             return preflight
 
-        user_id, err = self._token_validator.verify_http_token(request)
+        payload, err = self._token_validator.verify_token(request.headers.get("Authorization") or "")
         if err:
             return json_response(err, status_code=401, request=request)
-        # The signature outlives the account by the token's 30 days; history
-        # read with a deleted account's token was the whole conversation.
-        if not await is_active_account(user_id):
-            return json_response("Account closed", status_code=401, request=request)
+        # The signature outlives the account by the token's 30 days, and a
+        # refresh token or an MCP client's token is no session: all refused.
+        user_id = await bearer_subject(payload)
+        if not user_id:
+            return json_response("Not a valid session", status_code=401, request=request)
 
-        return await fn(self, request, user_id, *args, **kwargs)
+        return await fn(self, request, str(user_id), *args, **kwargs)
 
     wrapper.__mirobody_public__ = False
     return wrapper

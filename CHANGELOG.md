@@ -191,8 +191,8 @@ boundary.
   with no `aal`. Refresh tokens are now refused as bearers, the token endpoint
   requires a refresh token issued to the presenting client, and `aal` rides
   from the authorising session through the code, the tokens and every refresh.
-  `/mcp` and `/personal/mcp` decode the header a second time, and that decode
-  took a refresh token too; it no longer does.
+  `/mcp`, `/personal/mcp`, the chat service and the WebAuthn routes decoded
+  the header a second time and took a refresh token too; they no longer do.
 - **Registering an address did not prove it.** A password registration for
   someone's address became the account their later code sign-in landed in,
   with the claimant's password and invitations still live. Where mail is
