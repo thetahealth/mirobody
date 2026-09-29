@@ -151,15 +151,15 @@ def assemble(
     store: Any = None,
     interrupt_on: Mapping[str, Any] | None = None,
     recursion_limit: int | None = None,
+    model_call_limit: int | None = None,
     excluded_native_tools: Iterable[str] = (),
 ) -> Any:
     """``create_deep_agent`` with both halves of the no-subagent configuration
     applied, and the recursion limit set as a last-resort runaway net.
 
-    The recursion limit must sit well above the model-call budget in the
-    middleware: one tool round costs several LangGraph super-steps, because each
-    built-in middleware compiles its own graph node, and the graceful budget must
-    fire first.
+    The recursion limit must sit above the model-call budget in the middleware,
+    so the graceful budget fires first. With no `recursion_limit` it is derived
+    from the built graph for `model_call_limit` (`recursion_limit_for`).
     """
     from deepagents import create_deep_agent
 
@@ -180,6 +180,22 @@ def assemble(
     if store is not None:
         kwargs["store"] = store
     agent = create_deep_agent(**kwargs)
+    if not recursion_limit and model_call_limit:
+        recursion_limit = recursion_limit_for(agent, model_call_limit)
     if recursion_limit:
         agent = agent.with_config({"recursion_limit": recursion_limit})
     return agent
+
+
+def recursion_limit_for(agent: Any, model_call_limit: int) -> int:
+    """The super-step ceiling a run of `model_call_limit` model calls stays under.
+
+    Each node of the loop runs at most once per model call (a repair jump only
+    skips nodes) and the before/after_agent hooks once per run. A fixed 6x the
+    budget did not hold: the loop had six nodes, so 6 x 50 was exact, and one
+    more after_model hook turned the graceful stop into GraphRecursionError at
+    call 48 (measured 2026-09-29, a local model repeating one refused call).
+    """
+    nodes = [n for n in agent.get_graph().nodes if n not in ("__start__", "__end__")]
+    once = sum(n.endswith((".before_agent", ".after_agent")) for n in nodes)
+    return (model_call_limit + 1) * (len(nodes) - once) + once

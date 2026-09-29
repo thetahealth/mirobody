@@ -84,14 +84,11 @@ class MirobodyAgent:
         # is the real budget, counted in model calls and enforced by
         # ModelCallLimitMiddleware, which ends the run gracefully so the model
         # still writes an answer. RECURSION_LIMIT is a raw LangGraph super-step
-        # ceiling, a last-resort net for a runaway: it must sit WELL above the
-        # call budget or it fires first and hard-fails with GraphRecursionError,
-        # since every middleware compiles its after_model hook as its own node
-        # and one tool round costs several super-steps. Default it to ~6x.
+        # ceiling, a last-resort net for a runaway: it must sit above the call
+        # budget or it fires first and hard-fails with GraphRecursionError.
+        # Unset, `harness.recursion_limit_for` derives it from the built graph.
         self.model_call_limit = int(safe_read_cfg("MODEL_CALL_LIMIT") or 50)
-        self.recursion_limit = int(
-            safe_read_cfg("RECURSION_LIMIT") or max(100, self.model_call_limit * 6)
-        )
+        self.recursion_limit = int(safe_read_cfg("RECURSION_LIMIT") or 0) or None
 
     async def _init_llm_client(self, provider: str | None) -> tuple[Any, str, bool, str]:
         original_provider = provider
@@ -283,10 +280,9 @@ class MirobodyAgent:
         LangGraph does not put `configurable` into checkpoint metadata, so the
         bearer token it held was neither reaching a tool nor reaching Postgres.
         """
-        config: dict[str, Any] = {
-            "recursion_limit": self.recursion_limit,
-            "callbacks": [token_counter],
-        }
+        config: dict[str, Any] = {"callbacks": [token_counter]}
+        if self.recursion_limit:
+            config["recursion_limit"] = self.recursion_limit
         if session_id:
             config["configurable"] = {"thread_id": session_id}
         return config
@@ -479,6 +475,7 @@ class MirobodyAgent:
                 checkpointer=await get_checkpointer(),
                 interrupt_on=ASK_USER_INTERRUPT,
                 recursion_limit=self.recursion_limit,
+                model_call_limit=self.model_call_limit,
                 excluded_native_tools=self._EXCLUDED_NATIVE_TOOLS,
             )
 
