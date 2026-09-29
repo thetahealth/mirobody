@@ -58,7 +58,7 @@ async def verify_token_string(token_string: str) -> str:
     # credential got in after the middleware had refused it.
     decoded, err = JwtTokenValidator(jwt_key).verify_token(token)
     if err:
-        logger.warning("JWT decode failed: error_type=%s", err.split(":")[0])
+        logger.warning("JWT decode failed: error_type=%s", err.split(":")[0])  # phi: ok the decoder's error class
         decoded = None
     if isinstance(decoded, dict) and decoded.get("token_type") == REFRESH_TOKEN_TYPE:
         decoded = None

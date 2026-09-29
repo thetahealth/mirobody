@@ -898,7 +898,7 @@ class WebSocketFileUploadManager:
             # for the person it is about, and this callback fires roughly seven
             # times per file. 1.4.2 moved two statements off the name and left
             # this one, which was the "seven times" the entry was written about.
-            logger.info(f"File{file_index} of {message_id}: internal progress {progress}% -> mapped progress {mapped_progress}% | {message}")
+            logger.info(f"File{file_index} of {message_id}: internal progress {progress}% -> mapped progress {mapped_progress}%")
             await self.update_progress(
                 user_id,
                 message_id,

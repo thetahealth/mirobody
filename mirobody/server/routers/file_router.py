@@ -326,7 +326,7 @@ async def websocket_upload_health_report(
                             logger.warning(f"Unknown message type: {message_type}")
 
                     except json.JSONDecodeError:
-                        logger.error(f"Invalid JSON message: {message}")
+                        logger.error("Invalid JSON message: bytes=%d", len(message))
                         await websocket_file_upload_manager.send_message(
                             connection_id,
                             {"type": "error", "message": "Invalid JSON message format"},

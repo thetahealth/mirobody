@@ -166,9 +166,7 @@ async def get_user_settings(
         user_data = await get_user(user_id=user_id)
 
         # Check if user exists and extract data
-        if user_data:
-            logger.info(f"Using user data: {user_data}")
-        else:
+        if not user_data:
             # User not found or deleted
             logger.warning(f"No user data found for user_id: {user_id}")
 
@@ -249,7 +247,7 @@ async def update_user_settings(
 ):
     """Update user settings in database"""
     try:
-        logger.info(f"Updating settings for user: {user_id}, request: {request.dict()}")
+        logger.info(f"Updating settings for user: {user_id}, fields: {sorted(request.settings.model_fields_set)}")  # phi: ok field names, not values
 
         settings = request.settings
 
@@ -325,7 +323,7 @@ async def create_virtual_user(
 ):
     """Create a virtual user and establish beneficiary relationship"""
     try:
-        logger.info(f"Creating virtual user for user: {current_user_id}, request: {request.dict()}")
+        logger.info(f"Creating virtual user for user: {current_user_id}")
 
         # Check if username already exists
         existing_user = await get_user(email=request.email)
