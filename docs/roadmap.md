@@ -773,8 +773,8 @@ inherits the page origin, and `.svg` is an uploadable extension). Already
 rebuilt into `frontend/`.
 
 
-One remains open, and it is a migration rather than a defect: the config
-encryption key's derivation.
+Two remain open, and both are migrations rather than defects: rotating the
+database-content key, and the config encryption key's derivation.
 
 ### ~~The personal MCP URL cannot be revoked~~ — **closed in 1.5.3**
 
@@ -801,6 +801,15 @@ That is the MCP feature this project has: the tools go OUT to other runtimes
 (`examples/07_claude_agent_sdk.py` shows one); the agent itself is deepagents
 with the tools in-process and does not consume MCP. The three endpoints, the
 sibling per-user prompt store and `chat/user_config.py` are gone.
+
+### `PG_ENCRYPTION_KEY` cannot be rotated
+
+Every field `encrypt_content()` covers is encrypted with one key, and nothing
+re-encrypts them under a new one. A Compose stack first deployed with 1.5.2
+used `config.yaml`'s placeholder, and upgrading keeps it, because a new key
+would leave those fields unreadable. The fix is a command that reads each
+covered column with the old key and writes it with the new one in one
+transaction per table, and `deploy.sh` offering it on upgrade.
 
 ### The config encryption key needs a real KDF, and that is a migration
 

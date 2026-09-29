@@ -59,12 +59,47 @@ takes anything, and a medication written in it goes onto the list.
   any method. `GET /personal/mcp` lists the links you made and the ones
   reading your record; `DELETE /personal/mcp/{id}` revokes either kind;
   `POST` replaces your link with one valid for 10 days from creation, never
-  extended (`MCP_URL_TTL_DAYS`, was 30). Settings shows the expiry, regenerate,
-  revoke and who holds a link to your record. **Every link made before 1.5.3
-  stops working** (none says who made it): make a new one in Settings. To
-  check: have Mom stop sharing, and the family member's link answers 401.
+  extended (`MCP_URL_TTL_DAYS`, was 30). Stopping sharing or leaving the
+  circle also revokes the family member's link, so sharing again later does
+  not bring it back. Settings shows the expiry, regenerate, revoke and who
+  holds a link to your record. **Every link made before 1.5.3 stops working**
+  (none says who made it): make a new one in Settings. To check: have Mom stop
+  sharing, and the family member's link answers 401, before and after she
+  shares again.
+- **A read-only family member could download a whole record.**
+  `GET /api/v1/health-indicators/export` took a care-circle read grant, so a
+  member who could page through Mom's rows took all of them, journal notes
+  included, in one CSV, while `/api/user/data-export` was already the
+  caller's own only. Export is now the owner's on both routes (`403`
+  otherwise), and the web client offers it only on your own record. To check:
+  export with `target_user_id` set to a member who shares with you.
 
 ### Changed
+
+- **A family member with a write grant may change medications, on both ways
+  in.** The journal already let a caregiver add, stop and void another
+  person's plans ("Dad stopped aspirin"), while `/api/v1/medications` refused
+  every write that was not the owner's. Both now follow the grant: write to
+  change, read to list. `POST /api/v1/medications?target_user_id=` adds to
+  that person's record, `/api/beneficiary-users` says `can_write` per person,
+  and the web client shows edit, stop and delete where the server will accept
+  them. To check: with a write grant, stop a member's plan under 指标 › 用药.
+- **Upgrading a 1.5.2 Compose stack works.** `deploy.sh` stopped for a
+  `PG_ENCRYPTION_KEY` that 1.5.2 never wrote (its stacks used `config.yaml`'s
+  placeholder); bypassed, it wrote a new `JWT_KEY` over the overlay's and
+  signed everyone out, and a 1.5.2 `compose.override.yaml` made compose
+  invalid. It now keeps what the old stack used (and the overlay's keys in
+  charge), stops with the fix when the override names redis, removes the redis
+  container, and names the unused 1.5.2 volumes. It also finds the database of
+  a checkout whose directory name has capitals. Steps:
+  `docs/backup-restore.md`, "Upgrading from 1.5.2". To check: upgrade a 1.5.2
+  stack, and a token issued before still works.
+- **The one-line install no longer needs the image on Docker Hub.**
+  `deploy.sh` falls back to the `docker.1ms.run` mirror when the daemon cannot
+  reach Docker Hub (1.5.2 did; 1.5.3 had dropped it), and builds the image
+  from the checkout when it cannot be pulled at all, refusing LFS pointers.
+  The image now carries the demo seed's documents. To check: run `./deploy.sh`
+  on a branch before its release.
 
 - **The application now runs with Postgres as its only state service.** Redis
   previously held login challenges, OAuth state, counters, file cache entries,
@@ -90,6 +125,36 @@ takes anything, and a medication written in it goes onto the list.
   Postgres queue claims tasks with a lease and acknowledges only successful
   work; failed work is retried and retained after five failed attempts. A
   scratch database check covered competing workers, retry and acknowledgement.
+
+### Fixed
+
+- **150 concurrent anonymous logins answered 500.** Every temporary-state call
+  opened its own Postgres connection, so a burst on the rate-limited routes
+  ran out of Postgres's 100 ("too many clients already"). The store now shares
+  at most eight, and a limiter that cannot count answers 503, never 500.
+  After a Postgres restart the first requests no longer fail either. To check:
+  200 concurrent counts hold at most eight connections, and with the cap
+  removed the same burst fails with "too many clients already".
+- **A journal sentence could fail whole.** An assertion outside the schema
+  (`""`, `"affirmed"`) from a provider that does not enforce it was a 500,
+  losing the symptoms and readings with it. A missing one reads as present;
+  any other is skipped as `unclear`, so "没发烧" labelled `absent` is no longer
+  written as a fever.
+- **A task that crashed its worker was claimed forever.** A worker killed
+  mid-batch never marked the attempt failed, so the payload came back after
+  every lease. A spent task is now failed when its lease runs out, and profile
+  generation is bounded by the 600 seconds its lock used to expire after.
+- **The in-container check did not run on the image.** `scripts/` is not in
+  it and the venv moved, so step 4 of `scripts/e2e_docker.sh` failed and step
+  5 could pass having read no log. The script is piped in now
+  (`docker compose exec -T mirobody python - --user 1 < scripts/e2e_health_data.py`),
+  and a missing container fails the check.
+- **Smaller:** `shell/backup.sh` writes its files 0600 and streams the dump
+  out (snap Docker refused `/tmp`); `deploy.sh` prints the port `.env` sets;
+  "每天两次…每天三次" is no parse instead of the first count, and "早、晚" and
+  "as required" are read; voiding a plan closes its open course; the NDJSON
+  export says `complete: false` when the record changed while it streamed;
+  two personal links made at once for one pair no longer collide.
 
 ## 1.5.2
 

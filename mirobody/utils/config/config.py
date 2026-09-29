@@ -409,7 +409,7 @@ class Config:
         if isinstance(obj, str):
             # Same truthy set as `demo.enabled()`: environment variables
             # arrive as strings, and "1"/"yes"/"on" must not silently read
-            # as False (REDIS_SSL=1 used to).
+            # as False (a flag set to 1 once did).
             return obj.strip().upper() in ("TRUE", "1", "YES", "ON")
 
         if isinstance(obj, int):
