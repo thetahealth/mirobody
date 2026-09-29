@@ -61,6 +61,18 @@ class _Connections:
                 self._idle.append(conn)
             self._slots.release()
 
+    def abandon(self) -> None:
+        """Close the idle connections of a loop that has ended. Its loop cannot
+        run `await conn.close()` any more, so libpq's own close does it. Left
+        to the garbage collector they were closed too, each with a
+        ResourceWarning, and only because nothing else held them."""
+        while self._idle:
+            conn = self._idle.pop()
+            try:
+                conn.pgconn.finish()
+            except Exception:
+                pass
+
     async def _checkout(self) -> Any:
         while self._idle:
             conn = self._idle.pop()
@@ -89,6 +101,8 @@ class EphemeralStore:
         closed cannot be used in the next."""
         loop = asyncio.get_running_loop()
         if self._pool is None or self._pool_loop is not loop:
+            if self._pool is not None:
+                self._pool.abandon()
             self._pool = _Connections(lambda: self._pg_config.get_async_client(cursor_factory=None), POOL_MAX)
             self._pool_loop = loop
         return self._pool.connection()
