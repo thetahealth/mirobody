@@ -62,7 +62,12 @@ services:
       PG_PASSWORD: ${PG_PASSWORD:-REPLACE_THIS_VALUE_IN_PRODUCTION}
       HTTP_PROXY: ${HTTP_PROXY:-}
       HTTPS_PROXY: ${HTTPS_PROXY:-}
-      NO_PROXY: ${NO_PROXY:-pg,localhost,127.0.0.1}
+      # host.docker.internal is a model server on this machine (LOCAL_BASE_URL):
+      # through the proxy, every request to it would leave the machine.
+      NO_PROXY: ${NO_PROXY:-pg,localhost,127.0.0.1,host.docker.internal}
+    extra_hosts:
+      # Docker Desktop resolves this name itself; Docker Engine on Linux needs the line.
+      - "host.docker.internal:host-gateway"
     volumes:
       - mirobody_upload:/app/.theta/mcp/upload
       - ${MIROBODY_CONFIG_FILE:-./docker/empty-config.yaml}:/app/config.${ENV:-localdb}.yaml:ro
