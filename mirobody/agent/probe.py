@@ -105,10 +105,25 @@ async def _vision() -> tuple[bool, str]:
     return "5.4" in (text or ""), f"{spec.alias}: {(text or '').strip()[:80]!r}"
 
 
+async def _ocr() -> tuple[bool, str]:
+    from mirobody.documents.ocr import vision_ocr
+    from mirobody.documents.render import text_image
+    from mirobody.utils.config.llm import resolve_route
+
+    spec = resolve_route("ocr")
+    text = await vision_ocr(text_image("Glucose 5.4 mmol/L"), "image/png")
+    return "5.4" in text, f"{spec.alias}: {text.strip()[:80]!r}"
+
+
 async def probe_surfaces() -> list[ProbeResult]:
-    """chat, text, vision, one after the other (a local server may have one slot)."""
+    """chat, text, vision (and ocr when routed), one after the other (a local server may have one slot)."""
+    from mirobody.utils.config.llm import resolve_route
+
+    probes = [("chat", _chat), ("text", _text), ("vision", _vision)]
+    if resolve_route("ocr") is not None:
+        probes.append(("ocr", _ocr))
     results = []
-    for surface, probe in (("chat", _chat), ("text", _text), ("vision", _vision)):
+    for surface, probe in probes:
         start = time.monotonic()
         try:
             passed, detail = await probe()

@@ -76,11 +76,15 @@ def _route_status(surface: str, what: str) -> SurfaceStatus:
 def provider_report(cfg=None) -> list[SurfaceStatus]:
     """One row per surface, against the current configuration. `cfg` is
     accepted for the callers that pass one; the routes read the global."""
-    return [
+    rows = [
         _chat_status(),
         _route_status("vision", SURFACES[1][1]),
         _route_status("text", SURFACES[2][1]),
     ]
+    # Optional: shown when it reads documents, silent when the vision entry does.
+    if resolve_route("ocr") is not None:
+        rows.append(_route_status("ocr", "report images and pages, text and tables (UTILS_OCR_MODEL)"))
+    return rows
 
 
 def format_report(rows: list[SurfaceStatus]) -> str:

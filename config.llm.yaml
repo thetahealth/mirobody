@@ -224,6 +224,22 @@ MODELS:
       chat_template_kwargs:       # thinking off where the template has the switch (Qwen family)
         enable_thinking: false
 
+  local-ocr:
+    # A document-OCR model on your own server (GLM-OCR-0.9B on llama-server).
+    # Off until LOCAL_OCR_BASE_URL is set. It reads report photos and pages:
+    # one pass per prompt, the text and then the tables, whose columns are
+    # read without a model; local-utils still writes titles and summaries.
+    llm_type: openai
+    base_url: LOCAL_OCR_BASE_URL
+    model: glm-ocr
+    supports_image: true
+    chat: false
+    ocr_prompts:                  # GLM-OCR answers only its own task prompts
+      text: "Text Recognition:"
+      tables: "Table Recognition:"
+    extra_body:
+      temperature: 0              # the vision path sends none; OCR should not sample
+
   # More models on a key you already have — add an entry, e.g. Kimi on DashScope:
   # kimi: {llm_type: openai, api_key: DASHSCOPE_API_KEY, base_url: https://dashscope.aliyuncs.com/compatible-mode/v1, model: kimi-k2.5, temperature: 0.1}
 
@@ -247,6 +263,10 @@ UTILS_VISION_MODEL: [openrouter-utils, qwen-utils, gemini-utils, openai-utils, a
 # Indicator extraction from text, file titles/summaries, conversation titles.
 # Not the chat default on purpose: reordering the picker must not change extraction.
 UTILS_TEXT_MODEL: [openrouter-utils, qwen-utils, gemini-utils, openai-utils, anthropic-utils, deepseek-utils, local-utils]
+
+# Optional: a document-OCR model that reads report photos and scanned pages in
+# place of UTILS_VISION_MODEL, and whose tables are read by rule, not by a model.
+UTILS_OCR_MODEL: [local-ocr]
 
 #-----------------------------------------------------------------------------
 # The agent.

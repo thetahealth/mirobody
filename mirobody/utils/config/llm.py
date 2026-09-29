@@ -98,6 +98,9 @@ UTILITY_FAMILIES = ("openai", "openrouter", "anthropic")
 ROUTE_KEYS: dict[str, str] = {
     "vision": "UTILS_VISION_MODEL",
     "text": "UTILS_TEXT_MODEL",
+    # Optional: a document-OCR model (GLM-OCR) that takes over reading report
+    # images and pages from the vision entry. Unset, the vision entry reads them.
+    "ocr": "UTILS_OCR_MODEL",
 }
 
 #: Vertex locations served from a MULTI-REGIONAL endpoint, whose hostname is
@@ -228,6 +231,7 @@ class RouteSpec:
     extra_body: dict[str, Any] = field(default_factory=dict)
     temperature: float | None = None
     base_url_env: str = ""         # the NAME `base_url` was given as; "" = a literal URL
+    ocr_prompts: dict[str, str] = field(default_factory=dict)   # OCR entries: {"text": ..., "tables": ...}
 
     @property
     def takes_json_object(self) -> bool:
@@ -312,6 +316,7 @@ def _spec_from_mapping(alias: str, entry: dict[str, Any]) -> RouteSpec | None:
         extra_body=dict(entry.get("extra_body") or {}),
         temperature=float(temperature) if isinstance(temperature, (int, float)) else None,
         base_url_env=base_url_env,
+        ocr_prompts={str(k): str(v) for k, v in (entry.get("ocr_prompts") or {}).items()},
     )
 
 
@@ -347,7 +352,7 @@ KNOWN_ENTRY_KEYS: frozenset[str] = frozenset({
     # read here, into a RouteSpec
     "llm_type", "api_key", "base_url", "model", "temperature",
     "supports_image", "supports_pdf", "response_format", "reasoning_effort",
-    "extra_body", "chat",
+    "extra_body", "chat", "ocr_prompts",
     # read by the agent's client builder (`agent/models/clients.py`)
     "profile", "thinking_style", "auth_type", "prompt_cache", "response_with_tools",
     "project", "location", "reasoning", "max_tokens", "max_output_tokens",
@@ -428,6 +433,8 @@ def route_candidates(surface: str) -> list[RouteSpec | str]:
 
 
 def _fits(surface: str, spec: RouteSpec) -> bool:
+    if surface == "ocr":
+        return spec.supports_image is not False and bool(spec.ocr_prompts)
     return not (surface == "vision" and spec.supports_image is False)
 
 
