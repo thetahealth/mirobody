@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import codecs
 import io
+import itertools
 import re
 import stat
 import zlib
@@ -173,6 +174,45 @@ def _sniff_text(head: str) -> GenotypeFormat | None:
         if not line.startswith("#") and not in_report:
             return None
     return None
+
+
+#: One call as an export writes it: rsid, chromosome, position, then the
+#: genotype in one cell or two. Stripped of its column header, a file of these
+#: rows is still genotype data, and nothing may send it to a model.
+_CALL_ROW = re.compile(
+    r"^(?:rs|i)\d+[\t, ]+(?:chr)?(?:\d{1,2}|X|Y|XY|MT?)[\t, ]+\d+[\t, ]+"
+    r"(?:[ACGTDIN0-]{1,2}|[ACGTDIN0-][\t, ]+[ACGTDIN0-])$",
+    re.IGNORECASE,
+)
+_VCF_ROW = re.compile(
+    r"^(?:chr)?(?:\d{1,2}|X|Y|MT?)\t\d+\t\S+\t[ACGTN]+\t\S+\t\S+\t\S+\t\S*\tGT\S*\t[\d.]+(?:[/|][\d.]+)?",
+    re.IGNORECASE,
+)
+_ROWS_CHECKED = 10
+
+
+def _headerless_calls(head: str) -> bool:
+    lines = [ln.strip().strip('"') for ln in head.lstrip("\ufeff").splitlines()]
+    data = [ln for ln in lines if ln and not ln.startswith("#")][:_ROWS_CHECKED]
+    hits = sum(1 for ln in data if _CALL_ROW.match(ln) or _VCF_ROW.match(ln))
+    return bool(data) and hits * 5 >= len(data) * 4
+
+
+def headerless_calls(head: str | bytes | bytearray | None) -> bool:
+    """True when the first data lines are genotype calls without the header
+    `sniff` needs. Such a file is refused by the genotype reader and must not
+    fall through to the document path, which hands text to a model."""
+    if isinstance(head, bytes | bytearray):
+        raw = bytes(head)
+        if raw.startswith((b"\x1f\x8b", b"PK\x03\x04")):
+            try:
+                with open_lines(io.BytesIO(raw)) as lines:
+                    head = "\n".join(itertools.islice(lines, _ROWS_CHECKED * 4))
+            except (OSError, ValueError, EOFError, zipfile.BadZipFile, zlib.error):
+                return False
+        else:
+            head = raw[:SNIFF_BYTES].decode("utf-8", errors="ignore")
+    return _headerless_calls(head or "")
 
 
 def sniff(head: str | bytes | bytearray | None) -> GenotypeFormat | None:

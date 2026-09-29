@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import io
 import logging
 from typing import Any
 from mirobody.utils.i18n import localize
@@ -35,31 +34,47 @@ class GeneticHandler(BaseFileHandler):
         "application/zip", "application/x-zip-compressed",
     })
 
+    #: A VCF by name takes this path even when its content cannot be read: the
+    #: genotype reader refuses it, where the document path would pass it to a model.
+    VCF_SUFFIXES = (".vcf", ".vcf.gz", ".vcf.bgz")
+
     @staticmethod
     def _may_be_text(content_type: str | None) -> bool:
         return not content_type or content_type in GeneticHandler.CONTENT_TYPES
+
+    @staticmethod
+    def is_genetic_name(filename: str | None) -> bool:
+        return (filename or "").lower().endswith(GeneticHandler.VCF_SUFFIXES)
 
     @staticmethod
     def is_genetic_content(head: Any, content_type: str | None) -> bool:
         """Genetic-file check on an already-read header (bytes or str).
 
         Wrapped data requires the complete bytes so the archive can be checked
-        for unsafe or multiple members.
+        for unsafe or multiple members. Genotype rows without their column
+        header count: the reader refuses them, and no model may see them.
         """
         if not GeneticHandler._may_be_text(content_type):
             return False
-        return genotype_format.sniff(head) is not None
+        return genotype_format.sniff(head) is not None or genotype_format.headerless_calls(head)
 
     @staticmethod
     async def is_genetic_file(file: UploadFile) -> bool:
         """Check if file is a genetic data file"""
         try:
+            if GeneticHandler.is_genetic_name(file.filename):
+                return True
             if not GeneticHandler._may_be_text(file.content_type):
                 return False
 
             content = getattr(file, "content", None)
-            stream = io.BytesIO(content) if isinstance(content, bytes | bytearray) else file.file
-            return await asyncio.to_thread(genotype_format.sniff_stream, stream) is not None
+            if isinstance(content, bytes | bytearray):
+                return await asyncio.to_thread(GeneticHandler.is_genetic_content, content, None)
+            if await asyncio.to_thread(genotype_format.sniff_stream, file.file) is not None:
+                return True
+            await file.seek(0)
+            head = await file.read(genotype_format.SNIFF_BYTES)
+            return genotype_format.headerless_calls(head)
         except Exception:
             return False
         finally:

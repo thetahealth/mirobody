@@ -91,11 +91,11 @@
     "es": "El procesamiento de datos genéticos se completó exitosamente. El archivo ha sido analizado y todos los registros genéticos válidos han sido importados al perfil de salud del usuario."
   },
   "genetic_processing_failed_message": {
-    "en": "❌ Genetic data file processing failed\n\n🔍 Error Information:\n{error}\n\n💡 Suggestions:\n• Check if the file format is WeGene standard format\n• Ensure the file is not corrupted\n• Contact technical support for help",
-    "zh": "❌ 基因数据文件处理失败\n\n🔍 错误信息:\n{error}\n\n💡 建议:\n• 检查文件格式是否为WeGene标准格式\n• 确保文件未损坏\n• 联系技术支持获取帮助",
-    "fr": "❌ Échec du traitement du fichier de données génétiques\n\n🔍 Informations sur l'erreur:\n{error}\n\n💡 Suggestions:\n• Vérifiez si le format de fichier est le format standard WeGene\n• Assurez-vous que le fichier n'est pas corrompu\n• Contactez le support technique pour obtenir de l'aide",
-    "ja": "❌ 遺伝子データファイルの処理に失敗しました\n\n🔍 エラー情報:\n{error}\n\n💡 提案:\n• ファイル形式がWeGene標準形式かどうか確認してください\n• ファイルが破損していないことを確認してください\n• 技術サポートにお問い合わせください",
-    "es": "❌ Error al procesar el archivo de datos genéticos\n\n🔍 Información del error:\n{error}\n\n💡 Sugerencias:\n• Verifique si el formato del archivo es el formato estándar de WeGene\n• Asegúrese de que el archivo no esté dañado\n• Contacte al soporte técnico para obtener ayuda"
+    "en": "❌ Genetic data file processing failed\n\n🔍 Error Information:\n{error}\n\n💡 Suggestions:\n• Upload the original export from the testing service (23andMe, AncestryDNA, MyHeritage, FamilyTreeDNA, WeGene or a single-sample VCF), column header included\n• Ensure the file is not corrupted",
+    "zh": "❌ 基因数据文件处理失败\n\n🔍 错误信息:\n{error}\n\n💡 建议:\n• 上传检测机构导出的原始文件（23andMe、AncestryDNA、MyHeritage、FamilyTreeDNA、WeGene 或单样本 VCF），保留表头\n• 确保文件未损坏",
+    "fr": "❌ Échec du traitement du fichier de données génétiques\n\n🔍 Informations sur l'erreur:\n{error}\n\n💡 Suggestions:\n• Téléversez l'export d'origine du service de test (23andMe, AncestryDNA, MyHeritage, FamilyTreeDNA, WeGene ou un VCF à un seul échantillon), en-tête compris\n• Assurez-vous que le fichier n'est pas corrompu",
+    "ja": "❌ 遺伝子データファイルの処理に失敗しました\n\n🔍 エラー情報:\n{error}\n\n💡 提案:\n• 検査サービスから書き出した元のファイル（23andMe、AncestryDNA、MyHeritage、FamilyTreeDNA、WeGene、または単一サンプルの VCF）を、ヘッダー付きのままアップロードしてください\n• ファイルが破損していないことを確認してください",
+    "es": "❌ Error al procesar el archivo de datos genéticos\n\n🔍 Información del error:\n{error}\n\n💡 Sugerencias:\n• Suba la exportación original del servicio de pruebas (23andMe, AncestryDNA, MyHeritage, FamilyTreeDNA, WeGene o un VCF de una sola muestra), con su encabezado\n• Asegúrese de que el archivo no esté dañado"
   },
   "genetic_processing_failed_reasoning": {
     "en": "Genetic data processing failed due to an error during file parsing or database operations. Error details: {error}",

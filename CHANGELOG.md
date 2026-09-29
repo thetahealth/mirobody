@@ -132,6 +132,12 @@ boundary.
   They now answer 404 unless `COLLECT_WEBHOOK_SECRET` is set, require it
   (`X-Webhook-Secret` or `?secret=`) when it is, never reach the Apple
   platform, and drop `theta_user_id` / `app_user_id` from the payload.
+- **A genotype file without its header went to the extraction model.** The
+  classifier keyed on the column header, so a 23andMe export with its comment
+  lines removed took the document path and its calls reached two model
+  requests. Rows shaped like calls, and any `.vcf` / `.vcf.gz` / `.vcf.bgz` by
+  name, now take the genetic path on upload, in chat and in the agent's file
+  mounts; the reader refuses them with a request for the original export.
 - **Anyone who knew a session id could read and write that conversation.**
   The agent's checkpoint thread was the client-supplied `session_id` alone, so
   a second account posting a known id resumed the first account's turns (the

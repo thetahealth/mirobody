@@ -73,7 +73,7 @@ def _detect_file_scene(fi: dict[str, Any]) -> str:
     # The archive reader validates the trailer, member count and CRC. A prefix
     # of a valid gzip/zip can look invalid and would let it into /uploads/.
     probe = content if content.startswith((b"\x1f\x8b", b"PK\x03\x04")) else content[: GeneticHandler.SNIFF_BYTES]
-    if GeneticHandler.is_genetic_content(probe, ctype):
+    if GeneticHandler.is_genetic_name(name) or GeneticHandler.is_genetic_content(probe, ctype):
         return "genetic"
     if name.endswith((".xlsx", ".xls")):
         return "excel"

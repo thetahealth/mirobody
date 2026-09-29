@@ -10,23 +10,6 @@ Ordered by (value ÷ risk) within each section.
 
 ## Capability gaps
 
-### A genotype export without its header reaches the extraction model
-
-**Status:** open defect, measured 2026-09-28 with the packaged public examples.
-
-The genetic classifier recognizes a genotype file by its column header. A
-text export whose header lines were removed (a 23andMe file trimmed by hand,
-say) is therefore not a genotype to it, and the upload takes the document
-path, which sends the text to the configured extraction model. Measured on
-the local Docker stack: `hg00096-23andme.txt` with its two comment lines
-removed created no genotype set, and the server log shows two
-`openrouter-utils` structured-output calls for that file, one for the
-abstract and one for indicator extraction. The scene is decided in
-`collect/files/file_upload_manager.py` for WebSocket uploads and in
-`agent/chat/file.py::_detect_file_scene` for chat attachments. Content whose
-leading rows have the rsID/chromosome/position/genotype shape should be
-refused there with a request for the original export, and never reach a model.
-
 ### Genetics beyond the bundled pharmacogene index
 
 **Status:** design questions. The shipped scope and its reasons are in
