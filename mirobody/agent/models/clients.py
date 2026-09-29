@@ -452,6 +452,11 @@ def _openai_kwargs(alias: str, entry: dict, thinking: str | None, resolve: Resol
         key = _resolve_key(alias, entry, resolve)
         if key:
             kwargs["api_key"] = key
+        elif base_url:
+            # No key named, own endpoint: a self-hosted server that needs none.
+            # Left to the SDK, the client read OPENAI_API_KEY and sent it there,
+            # or refused to build on a machine without one (1.5.4).
+            kwargs["api_key"] = "-"
         else:
             kwargs.pop("api_key", None)
     kwargs.update(_openai_thinking_kwargs(entry, str(entry["model"]), str(kwargs.get("base_url") or ""), thinking))
