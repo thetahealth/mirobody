@@ -1006,94 +1006,108 @@ class UserProfileService:
             }
         
         try:
-            # 1. Get version control information
-            version_info = await cls._get_version_info(user_id)
-            current_version = version_info['version']
-            last_execute_doc_id = version_info['last_execute_doc_id']
-            
-            # 2. Get basic information
-            basic_info = await BasicInfoService.get_user_basic_info(user_id)
-            language = basic_info.get('language') or "English"
-            
-            # 3. Get incremental data
-            doc_list = await cls._get_incremental_data(user_id, last_execute_doc_id)
-            
-            if not doc_list:
-                logger.info(f"No incremental data found for user: {user_id}, last_execute_doc_id: {last_execute_doc_id}. Skipping profile update.")
-                return {
-                    "status": "no_incremental_data",
-                    "message": "No new data to process since last update",
-                    "current_version": current_version,
-                    "last_execute_doc_id": last_execute_doc_id
-                }
-            
-            # 4. Get device data
-            device_data = await DeviceDataService.get_device_data(user_id)
-            
-            # 5. Generate user profile (Markdown format)
-            profile_markdown = await UserProfileGenerator.generate_user_profile(
-                user_id=user_id,
-                basic_info=basic_info,
-                doc_list=doc_list,
-                device_data=device_data,
-                language=language
-            )
-            
-            if not profile_markdown:
-                logger.info(f"Failed to generate profile for user: {user_id}")
-                return {
-                    "status": "error",
-                    "message": "Failed to generate user profile"
-                }
-            
-            # 6. Extract scenario from profile
-            profile_without_scenario, scenario_zh = _extract_scenario_from_profile(profile_markdown)
-            
-            # 7. Get scenario info (English translation and image URL)
-            scenario_info = None
-            if scenario_zh:
-                scenario_info = _get_scenario_info(scenario_zh)
-                if scenario_info:
-                    logger.info(f"Extracted scenario for user {user_id}: {scenario_zh} -> {scenario_info['scenario_en']}")
-                else:
-                    logger.warning(f"Scenario extracted but not found in mapping for user {user_id}: {scenario_zh}")
-            
-            # 8. Fallback to default scenario if no scenario matched
-            if not scenario_info:
-                scenario_info = _get_default_scenario_info()
-                logger.info(f"Using default fallback scenario for user {user_id}: {scenario_info['scenario_zh']}")
-            
-            # 9. Save profile
-            new_version = current_version + 1
-            new_last_execute_doc_id = max([doc['id'] for doc in doc_list]) if doc_list else last_execute_doc_id
-            
-            profile_id = await cls._save_profile(
-                user_id=user_id,
-                version=new_version,
-                profile_markdown=profile_without_scenario,
-                last_execute_doc_id=new_last_execute_doc_id,
-                scenario_zh=scenario_info['scenario_zh'] if scenario_info else None,
-                scenario_en=scenario_info['scenario_en'] if scenario_info else None,
-                scenario_image_url=scenario_info['scenario_image_url'] if scenario_info else None,
-                action_type="add"
-            )
-            
-            logger.info(f"Successfully created profile {profile_id} version {new_version} for user: {user_id}, last_execute_doc_id: {new_last_execute_doc_id}, action_type: add")
-
-            # Mirror the FULL detailed profile into the agent's encrypted /memories/
-            # so it can read specifics on demand; the bounded Core Summary is what
-            # gets injected into the system prompt. Best-effort, never blocks save.
-
-            return {
-                "status": "success",
-                "profile_id": profile_id,
-                "version": new_version,
-                "last_execute_doc_id": new_last_execute_doc_id,
-                "profile_data": profile_markdown
-            }
+            # The lock is Postgres's session lock and has no expiry of its own,
+            # and the task queue keeps this row's lease alive while it runs: a
+            # model call that never returns would hold both for good. This is
+            # the 600 s the lock's TTL used to give it.
+            async with asyncio.timeout(PROFILE_LOCK_TIMEOUT_SECONDS):
+                return await cls._create_user_profile_locked(user_id)
+        except TimeoutError:
+            seconds = PROFILE_LOCK_TIMEOUT_SECONDS
+            logger.error("profile creation timed out: user_id=%s seconds=%d", user_id, seconds)
+            return {"status": "error", "message": "Profile generation took too long."}
         finally:
             # Always release lock
             await user_profile_lock_manager.release_lock(user_id, lock_id)
+
+    @classmethod
+    async def _create_user_profile_locked(cls, user_id: str) -> dict[str, Any]:
+        """`create_user_profile`'s work, run while it holds the user's lock."""
+        # 1. Get version control information
+        version_info = await cls._get_version_info(user_id)
+        current_version = version_info['version']
+        last_execute_doc_id = version_info['last_execute_doc_id']
+        
+        # 2. Get basic information
+        basic_info = await BasicInfoService.get_user_basic_info(user_id)
+        language = basic_info.get('language') or "English"
+        
+        # 3. Get incremental data
+        doc_list = await cls._get_incremental_data(user_id, last_execute_doc_id)
+        
+        if not doc_list:
+            logger.info(f"No incremental data found for user: {user_id}, last_execute_doc_id: {last_execute_doc_id}. Skipping profile update.")
+            return {
+                "status": "no_incremental_data",
+                "message": "No new data to process since last update",
+                "current_version": current_version,
+                "last_execute_doc_id": last_execute_doc_id
+            }
+        
+        # 4. Get device data
+        device_data = await DeviceDataService.get_device_data(user_id)
+        
+        # 5. Generate user profile (Markdown format)
+        profile_markdown = await UserProfileGenerator.generate_user_profile(
+            user_id=user_id,
+            basic_info=basic_info,
+            doc_list=doc_list,
+            device_data=device_data,
+            language=language
+        )
+        
+        if not profile_markdown:
+            logger.info(f"Failed to generate profile for user: {user_id}")
+            return {
+                "status": "error",
+                "message": "Failed to generate user profile"
+            }
+        
+        # 6. Extract scenario from profile
+        profile_without_scenario, scenario_zh = _extract_scenario_from_profile(profile_markdown)
+        
+        # 7. Get scenario info (English translation and image URL)
+        scenario_info = None
+        if scenario_zh:
+            scenario_info = _get_scenario_info(scenario_zh)
+            if scenario_info:
+                logger.info(f"Extracted scenario for user {user_id}: {scenario_zh} -> {scenario_info['scenario_en']}")
+            else:
+                logger.warning(f"Scenario extracted but not found in mapping for user {user_id}: {scenario_zh}")
+        
+        # 8. Fallback to default scenario if no scenario matched
+        if not scenario_info:
+            scenario_info = _get_default_scenario_info()
+            logger.info(f"Using default fallback scenario for user {user_id}: {scenario_info['scenario_zh']}")
+        
+        # 9. Save profile
+        new_version = current_version + 1
+        new_last_execute_doc_id = max([doc['id'] for doc in doc_list]) if doc_list else last_execute_doc_id
+        
+        profile_id = await cls._save_profile(
+            user_id=user_id,
+            version=new_version,
+            profile_markdown=profile_without_scenario,
+            last_execute_doc_id=new_last_execute_doc_id,
+            scenario_zh=scenario_info['scenario_zh'] if scenario_info else None,
+            scenario_en=scenario_info['scenario_en'] if scenario_info else None,
+            scenario_image_url=scenario_info['scenario_image_url'] if scenario_info else None,
+            action_type="add"
+        )
+        
+        logger.info(f"Successfully created profile {profile_id} version {new_version} for user: {user_id}, last_execute_doc_id: {new_last_execute_doc_id}, action_type: add")
+
+        # Mirror the FULL detailed profile into the agent's encrypted /memories/
+        # so it can read specifics on demand; the bounded Core Summary is what
+        # gets injected into the system prompt. Best-effort, never blocks save.
+
+        return {
+            "status": "success",
+            "profile_id": profile_id,
+            "version": new_version,
+            "last_execute_doc_id": new_last_execute_doc_id,
+            "profile_data": profile_markdown
+        }
     
     @staticmethod
     async def _get_version_info(user_id: str) -> dict[str, int]:

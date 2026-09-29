@@ -41,15 +41,17 @@ class BaseTask:
             raise RuntimeError(f"{cls.__name__}.queue_key must be set")
         from mirobody.utils.config import global_config
 
-        config = global_config()
-        if config is None:
+        if global_config() is None:
             raise RuntimeError(f"{cls.__name__}.enqueue called before Config.init")
+        from mirobody.utils.db import execute_query
+
         message = payload if isinstance(payload, str) else json.dumps(payload)
-        async with (await config.get_postgresql().get_async_client(cursor_factory=None)) as conn:
-            await conn.execute(
-                "INSERT INTO th_task_queue (queue_name, payload) VALUES (%s, %s)",
-                (cls.queue_key, message),
-            )
+        # The server's pooled engine: an upload enqueues from a request, and a
+        # connection opened per request is what a burst runs out of.
+        await execute_query(
+            "INSERT INTO th_task_queue (queue_name, payload) VALUES (:queue, :payload)",
+            {"queue": cls.queue_key, "payload": message}, log_sql=False,
+        )
         logger.info("task enqueued: type=%s", cls.__name__)
 
     async def consume(self, messages: list[str]) -> None:
@@ -57,14 +59,29 @@ class BaseTask:
 
     async def _claim_batch(self) -> tuple[str, list[tuple[int, str]]]:
         token = str(uuid.uuid4())
+        cls = type(self)
         async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
             async with conn.cursor() as cur:
+                # `attempts` counts claims. A worker killed mid-batch (OOM, a
+                # restart) never reaches `_finish_batch`, so a payload that
+                # kills it came back after every lease, forever. A row whose
+                # lease ran out with its attempts spent is failed here instead.
+                await cur.execute(
+                    "UPDATE th_task_queue SET failed_at = now(), lease_token = NULL"
+                    " WHERE queue_name = %s AND failed_at IS NULL"
+                    " AND available_at <= now() AND attempts >= %s",
+                    (cls.queue_key, cls.max_attempts),
+                )
+                failed_count = cur.rowcount
+                if failed_count:
+                    logger.warning("tasks failed after interrupted attempts: type=%s count=%d",
+                                   cls.__name__, failed_count)
                 await cur.execute(
                     """
                     WITH picked AS (
                         SELECT id FROM th_task_queue
                         WHERE queue_name = %s AND failed_at IS NULL
-                          AND available_at <= now()
+                          AND available_at <= now() AND attempts < %s
                         ORDER BY id DESC
                         LIMIT %s FOR UPDATE SKIP LOCKED
                     )
@@ -74,7 +91,7 @@ class BaseTask:
                     FROM picked WHERE task.id = picked.id
                     RETURNING task.id, task.payload
                     """,
-                    (type(self).queue_key, type(self).drain_cap, type(self).lease_sec, token),
+                    (cls.queue_key, cls.max_attempts, cls.drain_cap, cls.lease_sec, token),
                 )
                 rows = await cur.fetchall()
         return token, [(row_id, payload) for row_id, payload in rows]
