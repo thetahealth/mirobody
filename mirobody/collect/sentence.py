@@ -85,6 +85,14 @@ SKIP_TOO_LONG = "too_long"
 #: as a fever.
 SKIP_UNCLEAR = "unclear"
 
+#: Words that may negate what they stand next to. Read only when the model
+#: gave no assertion at all: then a quote with one of these is not taken as
+#: present. It also catches 不舒服 or 无力, which are symptoms; those are
+#: skipped as unclear rather than written, and the person sees the skip.
+_NEGATION_CUE = re.compile(
+    r"[没沒不无無未非别別]|否认|否認|\b(?:no|not|never|none|without|denies|denied)\b|n't\b", re.IGNORECASE
+)
+
 #: What one sentence may be, and what one entry's name may be (the journal's
 #: own limit for a single entry).
 MAX_SENTENCE = 500
@@ -266,9 +274,14 @@ def parts_from(answer: Mapping[str, Any]) -> list[Part]:
         field = {k: str(item.get(k) or "").strip() for k in Part.__dataclass_fields__}
         if not (field["quote"] or field["name"]):
             continue
-        # Not every provider enforces the schema. A missing assertion is the
-        # schema's default; a different spelling is kept, and refused below.
-        field["assertion"] = field["assertion"].lower() or ASSERT_PRESENT
+        # Not every provider enforces the schema, where `assertion` is required.
+        # A different spelling is kept and refused below. A missing one is
+        # read as present only when nothing in the quote could negate it:
+        # "没发烧" with no assertion was written as a fever.
+        said = field["assertion"].lower()
+        if not said:
+            said = "" if _NEGATION_CUE.search(field["quote"] or field["name"]) else ASSERT_PRESENT
+        field["assertion"] = said
         out.append(Part(**field))
     return out
 
