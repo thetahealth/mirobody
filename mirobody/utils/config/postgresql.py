@@ -108,6 +108,9 @@ class PostgreSQLConfig:
             open            = False,
             min_size        = self.minconn,
             max_size        = self.maxconn,
+            # A connection killed by a Postgres restart is found here and
+            # replaced, not handed to a request that then answers 500.
+            check           = psycopg_pool.AsyncConnectionPool.check_connection,
             kwargs          = {
                 "user": self.user,
                 "password": self.password,
@@ -135,7 +138,10 @@ class PostgreSQLConfig:
                 "options": f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}",
             },
             poolclass   = sqlalchemy.AsyncAdaptedQueuePool,
-            pool_size   = self.maxconn
+            pool_size   = self.maxconn,
+            # After a Postgres restart every pooled connection is dead, and
+            # without this the first request to draw each one answered 500.
+            pool_pre_ping = True,
         )
 
         return async_engine

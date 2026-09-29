@@ -99,6 +99,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_th_observation_identity
     ON th_observation (user_id, name_key, observed_start, observed_end, source_ref,
                        COALESCE(source_record_id, ''), COALESCE(member_of, 0), COALESCE(amends, 0));
 CREATE INDEX IF NOT EXISTS idx_th_observation_user_day ON th_observation (user_id, local_date);
+-- "New since the last visit" (collect/query.py `_WRITTEN_SINCE`) starts from
+-- the rows written after a cutoff; without this it read every row the person
+-- has. Browsing needs no index of its own: the page's total count reads the
+-- whole filtered set, so an (observed_start) index was never chosen.
+CREATE INDEX IF NOT EXISTS idx_th_observation_user_created
+    ON th_observation (user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_th_observation_stream ON th_observation (user_id, stream_key, observed_start);
 CREATE INDEX IF NOT EXISTS idx_th_observation_source ON th_observation (source_ref);
 CREATE INDEX IF NOT EXISTS idx_th_observation_amends ON th_observation (amends) WHERE amends IS NOT NULL;

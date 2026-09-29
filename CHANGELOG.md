@@ -1,3 +1,169 @@
+## Unreleased
+
+Postgres is the only state service and deployment is one image; the journal
+takes anything, and a medication written in it goes onto the list.
+
+### Added
+
+- **The web client lists every entry, counts what is new, and exports it.**
+  The Indicators page could show one indicator's readings at a time, nothing
+  said what had arrived since the last visit, and nothing downloaded the
+  standardized values. `GET /api/v1/health-indicators/records` pages visible
+  entries across all indicators; `GET /api/v1/data/data-delta?since=` counts,
+  by source, the entries whose current period began after `since` (a
+  correction keeps its entry's period, a retraction ends it, a reassertion
+  starts a new one), and `created_since` on the records route lists exactly
+  those. `GET /api/v1/health-indicators/export` downloads the same rows as CSV
+  or JSON, standardized value and unit included; `GET /api/user/data-export`
+  gives the caller's own rows as a JSON page or an NDJSON stream whose footer
+  says whether it finished. All four read `PostgresHealthQuery`. To check:
+  upload a report, correct one reading, and the delta still counts it once.
+- **The journal takes anything; a medication in it goes onto the list.**
+  The 记录 box wrote complaints, diagnoses and readings and refused the rest:
+  a medication was "log it with your medications" and a meal "not a record".
+  A medication part now becomes a `kernel.meds` mention, and
+  `reconcile_mentions` decides: a new plan (unconfirmed, labelled as from the
+  journal until corrected), a drug already listed left alone, "stopped X"
+  stopping the active plan. The model gives the words; the schedule is parsed
+  from them, and 每天早晚 now parses as twice a day (it read as once).
+  Anything else is kept as an uncoded `note`, so nothing typed is lost. To
+  check: log "每天早晚吃二甲双胍500mg，午饭吃了面" and find metformin under
+  指标 › 用药 and the noodles in that day's log.
+- **Medication plans have an HTTP surface and a tab under 指标.** The model
+  had a store and no way in or out of the web. `/api/v1/medications` lists,
+  corrects, stops, resumes (opening a new course) and voids plans; each state
+  change writes its course in the same transaction, a family member with a
+  read grant can list but not write, and a plan the caller may not read
+  answers 404 like a missing one. An instruction's own words ("饭后") are kept,
+  encrypted, where the structured schedule has no room for them. See
+  `docs/medications.md`.
+- **`/mirobody.json` names the records, delta and medication surfaces.**
+  `__IS_INDICATOR_RECORDS_ON__`, `__IS_INDICATOR_EXPORT_ON__`,
+  `__IS_DATA_DELTA_ON__` and `__IS_MEDICATIONS_ON__` follow whether each
+  router is mounted, and the bundled client hides what is off.
+
+### Security
+
+- **A personal MCP link outlived the sharing that allowed it.** A link named
+  only whose record it read, so when Mom stopped sharing, a family member's
+  REST calls were refused (403) while their link kept returning her record for
+  up to 30 days. The same gap left links working after removal from the
+  circle, after the creator's account was deleted and after a 1.5.2 H1
+  take-back. Also: Mom's own link and the one a family member made for her were
+  the same URL, so the family member's "revoke" cut off her client; she could
+  neither see nor revoke other people's links; and "regenerate" returned the
+  first link with its expiry unchanged. Links now live in
+  `th_personal_mcp_url` as a hash, one per creator and subject. Every call
+  checks expiry, revocation, both accounts, the creator's `tokens_valid_after`
+  and, for a family member's link, `resolve_subject`, and refuses with 401 on
+  any method. `GET /personal/mcp` lists the links you made and the ones
+  reading your record; `DELETE /personal/mcp/{id}` revokes either kind;
+  `POST` replaces your link with one valid for 10 days from creation, never
+  extended (`MCP_URL_TTL_DAYS`, was 30). Stopping sharing or leaving the
+  circle also revokes the family member's link, so sharing again later does
+  not bring it back. Settings shows the expiry, regenerate, revoke and who
+  holds a link to your record. **Every link made before 1.5.3 stops working**
+  (none says who made it): make a new one in Settings. To check: have Mom stop
+  sharing, and the family member's link answers 401, before and after she
+  shares again.
+- **A read-only family member could download a whole record.**
+  `GET /api/v1/health-indicators/export` took a care-circle read grant, so a
+  member who could page through Mom's rows took all of them, journal notes
+  included, in one CSV, while `/api/user/data-export` was already the
+  caller's own only. Export is now the owner's on both routes (`403`
+  otherwise), and the web client offers it only on your own record. To check:
+  export with `target_user_id` set to a member who shares with you.
+
+### Changed
+
+- **A family member with a write grant may change medications, on both ways
+  in.** The journal already let a caregiver add, stop and void another
+  person's plans ("Dad stopped aspirin"), while `/api/v1/medications` refused
+  every write that was not the owner's. Both now follow the grant: write to
+  change, read to list. `POST /api/v1/medications?target_user_id=` adds to
+  that person's record, `/api/beneficiary-users` says `can_write` per person,
+  and the web client shows edit, stop and delete where the server will accept
+  them. To check: with a write grant, stop a member's plan under 指标 › 用药.
+- **Upgrading a 1.5.2 Compose stack works.** `deploy.sh` stopped for a
+  `PG_ENCRYPTION_KEY` that 1.5.2 never wrote (its stacks used `config.yaml`'s
+  placeholder); bypassed, it wrote a new `JWT_KEY` over the overlay's and
+  signed everyone out, and a 1.5.2 `compose.override.yaml` made compose
+  invalid. It now keeps what the old stack used (and the overlay's keys in
+  charge), stops with the fix when the override names redis, removes the redis
+  container, and names the unused 1.5.2 volumes. It also finds the database of
+  a checkout whose directory name has capitals. Uploads 1.5.2 wrote belong to
+  root, which this image's user (uid and gid 10001) could read but not add to,
+  so every upload failed after an upgrade; a one-shot `mirobody_init` service
+  gives the upload volume to that user before each start, which also covers a
+  restored 1.5.2 archive. Steps: `docs/backup-restore.md`, "Upgrading from
+  1.5.2". To check: upgrade a 1.5.2 stack; a token issued before still works,
+  and an upload afterwards succeeds.
+- **The one-line install no longer needs the image on Docker Hub.**
+  `deploy.sh` falls back to the `docker.1ms.run` mirror when the daemon cannot
+  reach Docker Hub (1.5.2 did; 1.5.3 had dropped it), and builds the image
+  from the checkout when it cannot be pulled at all, refusing LFS pointers.
+  The image now carries the demo seed's documents. To check: run `./deploy.sh`
+  on a branch before its release.
+
+- **The application now runs with Postgres as its only state service.** Redis
+  previously held login challenges, OAuth state, counters, file cache entries,
+  provider locks and worker messages, making a second database mandatory for a
+  complete deployment. Expiring values now live encrypted in `th_ephemeral`,
+  one-time values are consumed atomically, provider pulls hold session-level
+  advisory locks, and the queue uses `th_task_queue`. A clean Compose stack
+  reached a healthy server and worker with no Redis package installed; a
+  scratch Postgres check exercised expiry, competing claims and lock ownership.
+- **Docker deployment now uses a built application image.** The old Compose
+  mounted source code and installed dependencies on first boot, so a clone was
+  required and startup depended on PyPI. The multi-stage image contains the
+  Python app, schema, terminology bundle and current web client; Compose pulls
+  it and starts Postgres, server and worker. A local image served `/`,
+  `/mirobody.json` and `/api/health` with version `1.5.3.dev0`.
+- **Backups now work when a Docker VM cannot bind the destination path.**
+  The upload archive previously went into the Docker VM's `/tmp` while the
+  script reported success. It now streams to the host, verifies the tar, and
+  only then names it as a backup; a Compose test produced readable database
+  and upload archives under a host `/tmp` directory.
+- **Profile refresh tasks now survive worker interruption.** Redis removed a
+  task from its list before it ran, so a stopped worker lost the refresh. The
+  Postgres queue claims tasks with a lease and acknowledges only successful
+  work; failed work is retried and retained after five failed attempts. A
+  scratch database check covered competing workers, retry and acknowledgement.
+
+### Fixed
+
+- **150 concurrent anonymous logins answered 500.** Every temporary-state call
+  opened its own Postgres connection, so a burst on the rate-limited routes
+  ran out of Postgres's 100 ("too many clients already"). The store now shares
+  at most eight, and a limiter that cannot count answers 503, never 500.
+  After a Postgres restart the first requests no longer fail either. To check:
+  200 concurrent counts hold at most eight connections, and with the cap
+  removed the same burst fails with "too many clients already".
+- **A journal sentence could fail whole.** An assertion outside the schema
+  (`""`, `"affirmed"`) from a provider that does not enforce it was a 500,
+  losing the symptoms and readings with it. Any other value is skipped as
+  `unclear`, so "没发烧" labelled `absent` is no longer written as a fever. A
+  missing one (the schema requires it) reads as present unless the quote
+  has a negation word, which is skipped as `unclear` too: a missed entry
+  the person can see beats a wrong one they cannot.
+- **A task that crashed its worker was claimed forever.** A worker killed
+  mid-batch never marked the attempt failed, so the payload came back after
+  every lease. A spent task is now failed when its lease runs out, and profile
+  generation is bounded by the 600 seconds its lock used to expire after.
+- **The in-container check did not run on the image.** `scripts/` is not in
+  it and the venv moved, so step 4 of `scripts/e2e_docker.sh` failed and step
+  5 could pass having read no log. The script is piped in now
+  (`docker compose exec -T mirobody python - --user 1 < scripts/e2e_health_data.py`),
+  and a missing container fails the check.
+- **Smaller:** `shell/backup.sh` writes its files 0600 and streams the dump
+  out (snap Docker refused `/tmp`); `deploy.sh` prints the port `.env` sets,
+  and finds the image by service, where an image without "mirobody" in its
+  name ended the script silently;
+  "每天两次…每天三次" is no parse instead of the first count, and "早、晚" and
+  "as required" are read; voiding a plan closes its open course; the NDJSON
+  export says `complete: false` when the record changed while it streamed;
+  two personal links made at once for one pair no longer collide.
+
 ## 1.5.2
 
 Genotype uploads arrive as facts: one call per site, checked against a bundled

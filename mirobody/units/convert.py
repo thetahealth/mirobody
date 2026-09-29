@@ -49,7 +49,7 @@ device sample; use this one to compare two readings.
 Both stay where they are. This one is the LIBRARY layer, named in four
 import-linter contracts, because `pip install mirobody` with nothing but numpy
 has to resolve a name and pick a code by unit. `mirobody.translate` is not that
-layer: `translate.aggregate.service` reaches aiohttp, redis and a database.
+layer: `translate.aggregate.service` reaches aiohttp and a database.
 """
 
 from __future__ import annotations

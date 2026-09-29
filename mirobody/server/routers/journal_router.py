@@ -8,14 +8,15 @@ diagnosed with and resolves on its D component. No new table: both are one
 self-reported observation, which the model has had room for since 1.5.0, and
 every invariant `collect.observations` enforces for a lab row holds here too.
 
-`POST /journal` takes one entry. `POST /journal/sentence` takes what a person
-typed ("我头疼，血压150/95") and writes the entries it states: the splitting is
-`collect.sentence`, an extraction step with its own checks, and the coding is
-the same per-kind coding every row gets. A reading stated in a sentence is a
-`measurement` row and is listed here beside the complaints.
-
-It does not take a meal or a dose. Medication has a domain model already
-(`kernel/meds.py`) and food has no vocabulary worth inventing one for.
+`POST /journal` takes one entry. `POST /journal/sentence` takes whatever a
+person typed ("我头疼，血压150/95，每天早晚吃二甲双胍500mg，午饭吃了面") and
+writes what it states: the splitting is `collect.sentence`, an extraction step
+with its own checks, and the coding is the same per-kind coding every row
+gets. A reading stated in a sentence is a `measurement` row and is listed here
+beside the complaints. A medication goes to the medication record through
+`kernel.meds.reconcile_mentions` (a new plan, marked as from the journal, or a
+stop), and is listed on the day it was written. Anything else (a meal, a mood)
+is a `note`, kept as written: food has no vocabulary worth inventing one for.
 
 `target_user_id` is declared and authorized on every route here: a
 parameter a client sends and a route does not declare is dropped without a
@@ -25,14 +26,15 @@ word, and the write files under the caller.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field
 
 from mirobody import translate
-from mirobody.collect import observations, sentence
-from mirobody.kernel import series
+from mirobody.collect import PostgresMedicationStore, apply_medication_mentions, observations, sentence
+from mirobody.kernel import meds, series
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.server.auth import verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse
 from mirobody.user.care_circle import CareCircleDenied, resolve_subject, shared_with_me
@@ -53,7 +55,13 @@ ON_CONFLICT = observations.ON_CONFLICT_REASSERT
 KINDS = {
     "symptom": observations.KIND_SYMPTOM,
     "condition": observations.KIND_CONDITION,
+    "note": observations.KIND_NOTE,
 }
+
+#: The kind a journal-made plan is listed under. Not an observation kind: a
+#: plan lives in the medication record, and is only listed here.
+KIND_MEDICATION = "medication"
+MEDICATION_SOURCE = "journal"
 
 MAX_DAYS = 400
 MAX_ROWS = 2000
@@ -283,6 +291,8 @@ async def log_sentence(
         return ErrorResponse(code=502, msg="The sentence could not be read. Try again, or log one entry.")
     parts, raw = answer
     drafts, skipped = sentence.plan(parts, sentence=entry.text, now=now, default_at=entry.observed_at or now, tz=said)
+    mentions, refused = sentence.mentions(parts, sentence=entry.text, now=now)
+    skipped = [*skipped, *refused]
 
     report = observations.Report()
     if drafts:
@@ -302,9 +312,31 @@ async def log_sentence(
             logger.error("[log_sentence] error_type=%s", type(e).__name__)
             return ErrorResponse(code=500, msg="This sentence could not be saved.")
 
+    medications: list[dict] = []
+    medications_failed = False
+    if mentions:
+        # The instant the observations were written at, so a sentence's plans
+        # and entries are one record, and the writer's day, so "started today"
+        # is theirs. Sending the sentence again is a new record; it adds no
+        # second plan, because `reconcile_mentions` finds the drug listed.
+        record_id = f"journal:{series.stable_hash(owner, entry.text, now.isoformat())[:16]}"
+        try:
+            outcomes = await apply_medication_mentions(
+                owner, mentions, record_date=now.date(), source_record_id=record_id)
+        except Exception as e:
+            logger.error("[log_sentence] medications error_type=%s", type(e).__name__)
+            medications_failed = True
+        else:
+            medications = [
+                {"text": o.name, "quote": o.quote, "action": o.action, "plan_id": o.plan_id, "reason": o.reason}
+                for o in outcomes
+            ]
+
     rows = await execute_query(_SELECT_WRITTEN, {"user_id": owner, "ids": report.ids}) if report.ids else []
     return StandardResponse(data={
         "written": [_entry(r) for r in rows or []],
+        "medications": medications,
+        "medications_failed": medications_failed,
         "skipped": [s.__dict__ for s in skipped],
         "already_logged": report.skipped,
         "rejected": dict(report.rejected),
@@ -347,25 +379,125 @@ async def list_entries(
     if (end - start).days > MAX_DAYS:
         return ErrorResponse(code=400, msg=f"That range is longer than {MAX_DAYS} days.")
 
-    if kind is not None and kind not in KINDS and kind != observations.KIND_MEASUREMENT:
-        listed = sorted([*KINDS, observations.KIND_MEASUREMENT])
+    if kind is not None and kind not in KINDS and kind not in (observations.KIND_MEASUREMENT, KIND_MEDICATION):
+        listed = sorted([*KINDS, observations.KIND_MEASUREMENT, KIND_MEDICATION])
         return ErrorResponse(code=400, msg=f"kind must be one of: {', '.join(listed)}.")
     kinds = [KINDS[kind]] if kind in KINDS else ([] if kind else sorted(KINDS.values()))
-    rows = await execute_query(_SELECT, {
-        "user_id": owner, "kinds": kinds, "journal": SOURCE_REF,
-        "with_readings": kind in (None, observations.KIND_MEASUREMENT),
-        "from_date": start, "to_date": end, "limit": MAX_ROWS,
-    })
+    if kind == KIND_MEDICATION:
+        kinds = []
+    try:
+        rows = await execute_query(_SELECT, {
+            "user_id": owner, "kinds": kinds, "journal": SOURCE_REF,
+            "with_readings": kind in (None, observations.KIND_MEASUREMENT),
+            "from_date": start, "to_date": end, "limit": MAX_ROWS,
+        })
+        plans = await _medications(owner, start, end, tz or x_timezone or "") \
+            if kind in (None, KIND_MEDICATION) else []
+    except Exception as e:
+        logger.error("[list_journal] error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
+        return ErrorResponse(code=500, msg="The journal could not be loaded.")
 
     days: dict[str, list[dict]] = {}
     for row in rows or []:
         days.setdefault(str(row["local_date"]), []).append(_entry(row))
+    if kind in (None, KIND_MEDICATION):
+        for day, item in plans:
+            days.setdefault(day, []).append(item)
+        # As instants: a reading's `at` is UTC and a plan's is local, so their
+        # strings do not sort.
+        for entries in days.values():
+            entries.sort(key=_instant_of, reverse=True)
     return StandardResponse(data={
         "from": start.isoformat(),
         "to": end.isoformat(),
         "count": sum(len(v) for v in days.values()),
         "days": [{"date": d, "entries": days[d]} for d in sorted(days, reverse=True)],
     })
+
+
+async def _medications(owner: str, start: date, end: date, said: str) -> list[tuple[str, dict]]:
+    """The plans the journal made in `[start, end]`, each on the day it was
+    written in the reader's zone, as entries."""
+    record_tz = await observations.user_tz(owner)
+    zone_name, _ = _writer_zone(record_tz, said)
+    zone = translate.zone_for(zone_name or translate.resolve_tz("", record_tz)[0])
+    since = datetime.combine(start, datetime.min.time(), tzinfo=zone)
+    until = datetime.combine(end + timedelta(days=1), datetime.min.time(), tzinfo=zone)
+    made = await PostgresMedicationStore().created_by(
+        owner, MEDICATION_SOURCE, since=since, until=until, limit=MAX_ROWS)
+    out = []
+    for plan, created in made:
+        local = created.astimezone(zone)
+        out.append((local.date().isoformat(), _medication_entry(plan, local)))
+    return out
+
+
+def _instant_of(entry: dict) -> datetime:
+    """An entry's `at` as an instant; a naive one is UTC, which is what the
+    table's timestamps are."""
+    if not entry.get("at"):
+        return datetime.min.replace(tzinfo=UTC)
+    at = datetime.fromisoformat(entry["at"])
+    return at if at.tzinfo else at.replace(tzinfo=UTC)
+
+
+def _medication_entry(plan: meds.MedicationPlan, created: datetime) -> dict:
+    """A plan in the shape of a journal entry, plus what the list needs to
+    say it: `plan_id` to open or remove it, the schedule's structure (the
+    client words it), and its status."""
+    return {
+        "id": None,
+        "plan_id": plan.plan_id,
+        "kind": KIND_MEDICATION,
+        "at": created.isoformat(),
+        "text": plan.concept.text,
+        "value": plan.concept.strength,
+        "unit": "",
+        "display": "",
+        "code_system": None,
+        "code": None,
+        "series_id": None,
+        "coded": False,
+        "reason": "",
+        "note": "; ".join(i.text for i in plan.schedule if i.text),
+        "schedule": [
+            {
+                "dose": {"value": i.dose.value, "unit": i.dose.unit} if i.dose else None,
+                "times": list(i.times), "doses_per_day": i.doses_per_day, "period_days": i.period_days,
+                "weekdays": sorted(i.weekdays), "as_needed": i.as_needed,
+            }
+            for i in plan.schedule
+        ],
+        "status": plan.status,
+        "confirmed": plan.confirmed,
+    }
+
+
+@router.delete("/journal/medication/{plan_id}")
+async def retract_medication(
+    plan_id: str,
+    user_id: str = Depends(verify_token),
+    target_user_id: str | None = Query(None, description="Retract from this person's record; needs a write grant"),
+):
+    """Remove a plan the journal made, with the grant the journal wrote it
+    under: a caregiver who logged "Dad started X" can take it back. It is
+    marked entered-in-error, as any removed plan is; a plan the person made
+    elsewhere is not the journal's to remove."""
+    owner = await _subject(user_id, target_user_id, write=True)
+    if owner is None:
+        return ErrorResponse(code=403, msg="You cannot write to that record.")
+    store = PostgresMedicationStore()
+    try:
+        plan = await store.get(plan_id)
+        if plan is None or plan.subject_id != owner or plan.source != MEDICATION_SOURCE \
+                or plan.status == meds.PLAN_ENTERED_IN_ERROR:
+            return ErrorResponse(code=404, msg="No such entry.")
+        _, now = _writer_zone(await observations.user_tz(owner))
+        await store.transition(owner, plan_id, "void", today=now.date())
+    except Exception as e:
+        logger.error("[retract_medication] error_type=%s", type(e).__name__)
+        return ErrorResponse(code=500, msg="This entry could not be retracted.")
+    return StandardResponse(data={"retracted": 1})
 
 
 @router.delete("/journal/{observation_id}")

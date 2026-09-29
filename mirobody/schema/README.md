@@ -14,6 +14,9 @@ at boot:
 | `40_devices.sql` | provider connections, raw payloads, the point buffer, source priority |
 | `41_device_rules.sql` | the value range a device reading must fall in, with its seed |
 | `50_chat.sql` | sessions, messages, share links |
+| `60_tasks.sql` | leased background tasks and retained failures |
+| `61_ephemeral.sql` | encrypted expiring authentication state, counters, and locks |
+| `62_personal_mcp.sql` | personal MCP links: hashed secret, who made it, whose record it reads, expiry and revocation |
 | `90_retire.sql` | what a database built from older files still carries: renames and drops |
 
 Prefixes are two digits and stay two digits: the replay sorts names as

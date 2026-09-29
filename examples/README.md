@@ -47,7 +47,7 @@ runs offline, which is why the script still does something useful on a bare
 install with no key at all.
 
 05 is the boundary. The chat server, the HTTP MCP endpoint and the agent need
-PostgreSQL, Redis and secrets. It reports every prerequisite at once instead of
+PostgreSQL and secrets. It reports every prerequisite at once instead of
 letting you find them one traceback at a time.
 
 07 is the other side of that boundary: it does not import mirobody. It hands

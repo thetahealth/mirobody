@@ -9,9 +9,12 @@ PHI sentinel — against a live Postgres with real rows in it, because the two
 failures that only a database shows are a statement that will not parse and a
 column that is not there.
 
-    docker compose exec mirobody python -m scripts.e2e_health_data --user 1
+    docker compose exec -T mirobody python - --user 1 < scripts/e2e_health_data.py
     # or, from a checkout with a reachable database:
     python scripts/e2e_health_data.py --user 1
+
+The image carries the package, not `scripts/`, so the first form pipes this
+file in.
 
 Exit status is the number of failed checks, so it is usable in CI.
 
@@ -242,7 +245,10 @@ def main() -> int:
     parser.add_argument("--user", default="1", help="subject id to read (default: the demo user)")
     parser.add_argument("--capture", type=Path, default=None, help="write each answer as JSON into this directory")
     args = parser.parse_args()
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    # From a checkout, the package beside this file; piped into the image
+    # (`python -`) there is no file, and the installed package is the one.
+    if "__file__" in globals():
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     return asyncio.run(run(args.user, args.capture))
 
 

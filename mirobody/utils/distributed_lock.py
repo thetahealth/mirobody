@@ -1,378 +1,173 @@
-"""
-Distributed lock manager for provider pull tasks
-"""
+"""Session-bound Postgres advisory locks for provider pulls."""
+
+from __future__ import annotations
 
 import logging
 import uuid
-import redis.asyncio
-
 from datetime import datetime
+from typing import Any
+
+from mirobody.kernel.ops import is_driver_exception
+from mirobody.utils.config import global_config
 
 logger = logging.getLogger(__name__)
 
-#-----------------------------------------------------------------------------
-
-_global_redis_client = None
-
-async def get_redis_client() -> redis.asyncio.Redis | None:
-    global _global_redis_client
-
-    if not _global_redis_client:
-        from mirobody.utils.config import global_config
-        _global_redis_client = await global_config().get_redis().get_async_client()
-
-    return _global_redis_client
-
-#-----------------------------------------------------------------------------
 
 class PullTaskLockManager:
-    """
-    Pull task distributed lock manager
+    """Hold each advisory lock on its own connection until the pull finishes."""
 
-    Resolves task duplication issues in multi-docker instance environments, supporting:
-    - Provider-based distributed locking
-    - Configurable lock expiration time
-    - Force execution option
-    - Lock status monitoring
-    """
+    def __init__(self) -> None:
+        self.instance_id = str(uuid.uuid4())[:8]
+        self._connections: dict[str, tuple[str, Any]] = {}
 
-    def __init__(self):
-        self.instance_id = str(uuid.uuid4())[:8]  # Instance identifier
-
-    def _get_lock_key(self, provider_slug: str) -> str:
-        """Get Redis key for the lock"""
+    @staticmethod
+    def _lock_key(provider_slug: str) -> str:
         return f"theta_pull_execution_lock:{provider_slug}"
 
-    def _get_lock_value(self, execution_id: str) -> str:
-        """Get lock value containing instance information"""
-        timestamp = datetime.now().isoformat()
-        return f"{self.instance_id}:{timestamp}:{execution_id}"
-    
-    def _get_timestamp_key(self, provider_slug: str) -> str:
-        """Get Redis key for execution timestamp"""
+    @staticmethod
+    def _timestamp_key(provider_slug: str) -> str:
         return f"task_execution_timestamp:{provider_slug}"
 
+    @staticmethod
+    def _last_run_key(provider_slug: str) -> str:
+        return f"pull_task:last_run:{provider_slug}"
+
     async def try_acquire_execution_lock(
-            self, provider_slug: str, lock_duration_hours: float = 23.5, force: bool = False
+        self, provider_slug: str, lock_duration_hours: float = 23.5, force: bool = False
     ) -> str | None:
-        """
-        Try to acquire execution lock
-
-        Args:
-            provider_slug: Provider identifier
-            lock_duration_hours: Lock duration in hours
-            force: Whether to force execution (ignore locks)
-
-        Returns:
-            execution_id if lock acquired, None if failed
-        """
-        execution_id = str(uuid.uuid4())
-        lock_key = self._get_lock_key(provider_slug)
-        redis_client = await get_redis_client()
-        if redis_client is None:
-            # Fail CLOSED. An earlier version answered "lock acquired" here,
-            # which abandoned mutual exclusion at exactly the moment duplicate
-            # concurrent execution is most likely: every instance that could
-            # not reach Redis proceeded at once. A pull that waits for Redis
-            # to come back is a delay; two instances double-pulling and
-            # double-writing the same readings is the bug this class exists
-            # to prevent.
-            logger.error(
-                f"Redis unavailable — refusing execution lock for {provider_slug} "
-                "(fail-closed; task will retry on its next schedule)"
-            )
-            return None
-        # Force execution mode
-        if force:
-            logger.warning(f"Force execution mode enabled for {provider_slug}, ignoring existing locks")
-            # In force mode, delete existing lock first, then acquire new lock
-            await redis_client.delete(lock_key)
-
+        # Force bypasses the scheduler interval, but never mutual exclusion.
+        del lock_duration_hours, force
+        conn = None
         try:
-            lock_value = self._get_lock_value(execution_id)
-            lock_timeout_seconds = int(lock_duration_hours * 3600)
-
-            # Try to acquire lock
-            acquired = await redis_client.set(lock_key, lock_value, ex=lock_timeout_seconds, nx=True)
-
-            if acquired:
-                logger.info(
-                    f"Execution lock acquired for {provider_slug} "
-                    f"(instance: {self.instance_id}, execution: {execution_id}, "
-                    f"duration: {lock_duration_hours}h)"
-                )
-                return execution_id
-            # Failed to acquire lock, check existing lock info
-            existing_lock = await redis_client.get(lock_key)
-            if existing_lock:
-                logger.info(
-                    f"Execution lock already exists for {provider_slug}, "
-                    f"existing: {existing_lock.decode() if isinstance(existing_lock, bytes) else existing_lock}"
-                )
-            else:
-                logger.warning(f"Failed to acquire lock for {provider_slug}, unknown reason")
-            return None
-
-        except Exception as e:
-            logger.error(f"Error acquiring execution lock for {provider_slug}: {str(e)}")
+            conn = await global_config().get_postgresql().get_async_client(cursor_factory=None)
+            await conn.set_autocommit(True)
+            row = await (await conn.execute(
+                "SELECT pg_try_advisory_lock(hashtextextended(%s, 0))",
+                (self._lock_key(provider_slug),),
+            )).fetchone()
+            if not row[0]:
+                await conn.close()
+                return None
+            execution_id = str(uuid.uuid4())
+            self._connections[execution_id] = (provider_slug, conn)
+            logger.info("provider lock acquired: provider=%s execution_id=%s",
+                        provider_slug, execution_id)
+            return execution_id
+        except Exception as exc:
+            if conn is not None:
+                await conn.close()
+            logger.error("provider lock acquire failed: provider=%s error_type=%s",
+                         provider_slug, type(exc).__name__,
+                         exc_info=not is_driver_exception(exc))
             return None
 
     async def release_execution_lock(self, provider_slug: str, execution_id: str) -> bool:
-        """
-        Release execution lock
-
-        Args:
-            provider_slug: Provider identifier
-            execution_id: Execution ID
-
-        Returns:
-            True if released successfully
-        """
-        redis_client = await get_redis_client()
-        if redis_client is None:
-            logger.warning("No redis return true")
-            return True
-
-        lock_key = self._get_lock_key(provider_slug)
-
+        entry = self._connections.get(execution_id)
+        if entry is None or entry[0] != provider_slug:
+            return False
+        _, conn = self._connections.pop(execution_id)
         try:
-            # Check-and-delete must be ONE Redis-side operation. The previous
-            # GET → compare → DELETE ran as three round trips: if this
-            # instance's lock expired between the GET and the DELETE and
-            # another instance acquired it in that window, the DELETE removed
-            # the OTHER instance's live lock: reopening the duplicate-
-            # execution hole. The Lua script evaluates atomically inside Redis.
-            released = await redis_client.eval(
-                self._RELEASE_SCRIPT, 1, lock_key, self.instance_id, execution_id
-            )
-            if released:
-                logger.info(f"Released execution lock for {provider_slug} (execution: {execution_id})")
-                return True
-            logger.warning(
-                f"Lock ownership mismatch for {provider_slug}, "
-                f"expected instance {self.instance_id} / execution {execution_id} — not released"
-            )
+            row = await (await conn.execute(
+                "SELECT pg_advisory_unlock(hashtextextended(%s, 0))",
+                (self._lock_key(provider_slug),),
+            )).fetchone()
+            return bool(row[0])
+        except Exception as exc:
+            logger.error("provider lock release failed: provider=%s error_type=%s",
+                         provider_slug, type(exc).__name__,
+                         exc_info=not is_driver_exception(exc))
             return False
+        finally:
+            await conn.close()
 
-        except Exception as e:
-            logger.error(f"Error releasing execution lock for {provider_slug}: {str(e)}")
-            return False
-
-    # Returns 1 when the lock is gone on exit (deleted by us, or already
-    # expired), 0 when a DIFFERENT owner holds it (left untouched). Plain-text
-    # find is enough: instance_id and execution_id are UUID fragments with no
-    # Lua pattern metacharacters.
-    _RELEASE_SCRIPT = """
-    local v = redis.call('GET', KEYS[1])
-    if not v then return 1 end
-    if string.find(v, ARGV[1], 1, true) and string.find(v, ARGV[2], 1, true) then
-        redis.call('DEL', KEYS[1])
-        return 1
-    end
-    return 0
-    """
-
-    async def get_last_execution_timestamp(
-        self,
-        provider_slug: str
-    ) -> float | None:
-        """
-        Get last execution timestamp for incremental processing
-
-        Args:
-            provider_slug: Task identifier (e.g., "aggregate_indicator")
-
-        Returns:
-            Unix timestamp (float, seconds with sub-second precision) or
-            None if not set. Float preserves millisecond precision so SQL
-            cursors do not silently roll back when source rows share the
-            same integer second.
-        """
-        redis_client = await get_redis_client()
-        if redis_client is None:
-            logger.warning(f"Redis not available for {provider_slug}")
+    async def get_last_execution_timestamp(self, provider_slug: str) -> float | None:
+        try:
+            value = await global_config().get_ephemeral().get(self._timestamp_key(provider_slug))
+            return float(value) if value else None
+        except Exception as exc:
+            logger.warning("execution timestamp read failed: provider=%s error_type=%s",
+                           provider_slug, type(exc).__name__,
+                           exc_info=not is_driver_exception(exc))
             return None
 
+    async def clear_last_execution_timestamp(self, provider_slug: str) -> bool:
         try:
-            key = self._get_timestamp_key(provider_slug)
-            timestamp_str = await redis_client.get(key)
-
-            if timestamp_str:
-                # Handle bytes returned from Redis
-                if isinstance(timestamp_str, bytes):
-                    timestamp_str = timestamp_str.decode('utf-8')
-                # float() also parses pre-existing integer strings, so
-                # legacy integer-second values are read seamlessly.
-                return float(timestamp_str)
-            return None
-            
-        except Exception as e:
-            logger.error(
-                f"Error getting execution timestamp for {provider_slug}: {e}"
-            )
-            return None
-    
-    async def clear_last_execution_timestamp(
-        self,
-        provider_slug: str
-    ) -> bool:
-        """
-        Clear last execution timestamp (for force refresh scenarios)
-        
-        Args:
-            provider_slug: Task identifier
-            
-        Returns:
-            True if cleared successfully
-        """
-        redis_client = await get_redis_client()
-        if redis_client is None:
-            logger.warning(f"Redis not available for {provider_slug}")
-            return False
-        
-        try:
-            key = self._get_timestamp_key(provider_slug)
-            await redis_client.delete(key)
-            logger.info(f"Cleared last execution timestamp for {provider_slug}")
+            await global_config().get_ephemeral().delete(self._timestamp_key(provider_slug))
             return True
-            
-        except Exception as e:
-            logger.error(
-                f"Error clearing execution timestamp for {provider_slug}: {e}"
-            )
+        except Exception as exc:
+            logger.warning("execution timestamp clear failed: provider=%s error_type=%s",
+                           provider_slug, type(exc).__name__,
+                           exc_info=not is_driver_exception(exc))
             return False
-    
-    async def update_last_execution_timestamp(
-        self,
-        provider_slug: str,
-        timestamp: float
-    ) -> bool:
-        """
-        Update last execution timestamp
 
-        Args:
-            provider_slug: Task identifier
-            timestamp: Unix timestamp as float (sub-second precision retained)
-
-        Returns:
-            True if successful
-        """
-        redis_client = await get_redis_client()
-        if redis_client is None:
-            logger.warning(f"Redis not available for {provider_slug}")
-            return False
-        
+    async def update_last_execution_timestamp(self, provider_slug: str,
+                                              timestamp: float) -> bool:
         try:
-            key = self._get_timestamp_key(provider_slug)
-            await redis_client.set(
-                key,
-                str(timestamp),
-                ex=604800  # 7 days TTL
-            )
-            logger.debug(
-                f"Updated execution timestamp for {provider_slug}: {timestamp}"
+            await global_config().get_ephemeral().set(
+                self._timestamp_key(provider_slug), str(timestamp), ex=604800
             )
             return True
-            
-        except Exception as e:
-            logger.error(
-                f"Error updating execution timestamp for {provider_slug}: {e}"
-            )
+        except Exception as exc:
+            logger.warning("execution timestamp write failed: provider=%s error_type=%s",
+                           provider_slug, type(exc).__name__,
+                           exc_info=not is_driver_exception(exc))
             return False
-
-    def _get_last_run_key(self, provider_slug: str) -> str:
-        """Get Redis key for last successful execution wall-clock time."""
-        return f"pull_task:last_run:{provider_slug}"
 
     async def get_last_run(self, provider_slug: str) -> datetime | None:
-        """Read the persisted PullTask.last_run for a provider.
-
-        Returns None if redis is unavailable, the key is unset, or the
-        stored value is unparseable: caller should treat that as "no
-        prior run on record" and let normal scheduling apply. (TH-416)
-        """
-        redis_client = await get_redis_client()
-        if redis_client is None:
-            return None
         try:
-            raw = await redis_client.get(self._get_last_run_key(provider_slug))
-            if not raw:
-                return None
-            if isinstance(raw, bytes):
-                raw = raw.decode("utf-8")
-            return datetime.fromisoformat(raw)
-        except Exception as e:
-            logger.warning(f"Failed to read last_run for {provider_slug}: {e}")
+            value = await global_config().get_ephemeral().get(self._last_run_key(provider_slug))
+            return datetime.fromisoformat(value) if value else None
+        except Exception as exc:
+            logger.warning("last run read failed: provider=%s error_type=%s",
+                           provider_slug, type(exc).__name__,
+                           exc_info=not is_driver_exception(exc))
             return None
 
     async def set_last_run(self, provider_slug: str, ts: datetime) -> bool:
-        """Persist PullTask.last_run so it survives service restarts. (TH-416)
-
-        Uses a 7-day TTL: long enough that even the slowest task
-        (renpho/whoop at 24h) gets multiple writes before expiry, but
-        bounded so stopped tasks don't keep stale keys forever.
-        """
-        redis_client = await get_redis_client()
-        if redis_client is None:
-            return False
         try:
-            await redis_client.set(
-                self._get_last_run_key(provider_slug),
-                ts.isoformat(),
-                ex=604800,  # 7 days
+            await global_config().get_ephemeral().set(
+                self._last_run_key(provider_slug), ts.isoformat(), ex=604800
             )
             return True
-        except Exception as e:
-            logger.warning(f"Failed to persist last_run for {provider_slug}: {e}")
+        except Exception as exc:
+            logger.warning("last run write failed: provider=%s error_type=%s",
+                           provider_slug, type(exc).__name__,
+                           exc_info=not is_driver_exception(exc))
             return False
 
     async def get_lock_status(self, provider_slug: str) -> dict:
-        """
-        Get lock status information
-
-        Args:
-            provider_slug: Provider identifier
-
-        Returns:
-            Lock status information
-        """
-        redis_client = await get_redis_client()
-        if redis_client is None:
-            logger.error(f"Redis client not initialized for {provider_slug}")
-            return {"locked": False, "error": "Redis client not initialized"}
-
+        conn = None
         try:
-            lock_key = self._get_lock_key(provider_slug)
-            existing_lock = await redis_client.get(lock_key)
-            ttl = await redis_client.ttl(lock_key)
-
-            if existing_lock:
-                lock_value = existing_lock.decode() if isinstance(existing_lock, bytes) else existing_lock
-                parts = lock_value.split(":")
-
-                return {
-                    "locked": True,
-                    "lock_value": lock_value,
-                    "holder_instance": parts[0] if len(parts) > 0 else "unknown",
-                    "lock_timestamp": parts[1] if len(parts) > 1 else "unknown",
-                    "execution_id": parts[2] if len(parts) > 2 else "unknown",
-                    "ttl_seconds": ttl if ttl > 0 else 0,
-                    "is_current_instance": parts[0] == self.instance_id if len(parts) > 0 else False,
-                }
+            conn = await global_config().get_postgresql().get_async_client(cursor_factory=None)
+            await conn.set_autocommit(True)
+            row = await (await conn.execute(
+                "SELECT pg_try_advisory_lock(hashtextextended(%s, 0))",
+                (self._lock_key(provider_slug),),
+            )).fetchone()
+            if row[0]:
+                await conn.execute(
+                    "SELECT pg_advisory_unlock(hashtextextended(%s, 0))",
+                    (self._lock_key(provider_slug),),
+                )
+            own = next((execution_id for execution_id, (slug, _) in self._connections.items()
+                        if slug == provider_slug), None)
             return {
-                "locked": False,
+                "locked": not row[0],
                 "lock_value": None,
-                "holder_instance": None,
+                "holder_instance": self.instance_id if own else None,
                 "lock_timestamp": None,
-                "execution_id": None,
+                "execution_id": own,
                 "ttl_seconds": 0,
-                "is_current_instance": False,
+                "is_current_instance": bool(own),
             }
+        except Exception as exc:
+            logger.warning("provider lock status failed: provider=%s error_type=%s",
+                           provider_slug, type(exc).__name__,
+                           exc_info=not is_driver_exception(exc))
+            return {"locked": False, "error": type(exc).__name__}
+        finally:
+            if conn is not None:
+                await conn.close()
 
-        except Exception as e:
-            logger.error(f"Error getting lock status for {provider_slug}: {str(e)}")
-            return {"locked": False, "error": str(e)}
 
-
-# Global lock manager instance
 pull_task_lock_manager = PullTaskLockManager()

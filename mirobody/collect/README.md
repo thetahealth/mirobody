@@ -216,17 +216,11 @@ call site, not at module scope:
 
 ```python
 # BAD — evaluated once, at import, before Config.init() has run
-redis = global_config().get_redis()
+ephemeral = global_config().get_ephemeral()
 
 # GOOD — evaluated per call, after startup
-async def _redis():
-    return await global_config().get_redis().get_async_client()
-```
-
-(The previous example here imported `...utils.utils_redis`, a module that has
-never existed in this repo. The lesson was right; the code was not.)
-
-### Type annotations
+async def store_state(key: str, value: str) -> None:
+    await global_config().get_ephemeral().set(key, value, ex=900)
 ```python
 # BAD:  def func(items=List[str]):     # uses type object as default!
 # GOOD: def func(items: Optional[List[str]] = None):
@@ -276,7 +270,7 @@ def create_provider(cls, config: Dict[str, Any]) -> Optional['XxxProvider']:
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `coroutine object is not iterable` | Forgot `await` | Add `await` before async calls |
-| `'NoneType' has no attribute 'setnx'` | Static import of `redis_client` before init | Use dynamic getter function |
+| Provider pull is skipped when another worker runs it | Postgres advisory lock is held by the other worker | Check the worker status and let the current pull finish |
 | No data pulled but API returns data | `max_stored_key` queried after insert | Query before saving raw data |
 | `UNMAPPED_HEALTH_TYPE` validation error | New health type not in enum | Add to enum or use permissive mode |
 | Circular import on startup | Module dependency cycle | Follow layered architecture, refactor shared code |

@@ -1,7 +1,7 @@
 import logging
 
 from psycopg_pool import AsyncConnectionPool
-from redis.asyncio import Redis
+from mirobody.utils.ephemeral import EphemeralStore
 
 from .auth.jwt import AbstractTokenValidator
 from .auth.email import create_email_validator
@@ -35,7 +35,7 @@ class UserService:
         routes          : list | None = None,
         
         db_pool         : AsyncConnectionPool | None = None,
-        redis           : Redis | None = None,
+        ephemeral           : EphemeralStore | None = None,
 
         email_smtp_host : str = "",
         email_smtp_port : int = 0,
@@ -64,13 +64,13 @@ class UserService:
             from_name       = email_from_name if email_from_name else "Theta Wellness",
             template        = email_template,
             predefined_codes= email_predefined,
-            redis           = redis
+            ephemeral           = ephemeral
         )
         
          #-------------------------------------------------
 
         self._db_pool = db_pool
-        self._redis   = redis
+        self._ephemeral   = ephemeral
 
         # Without mail, an address is only a username (SECURITY.md).
         set_addresses_provable(self.sends_mail())
@@ -81,7 +81,7 @@ class UserService:
             uri_prefix      = uri_prefix,
             routes          = routes,
             db_pool         = db_pool,
-            redis           = redis,
+            ephemeral           = ephemeral,
             rp_id           = webauthn_rp_id,
             rp_name         = webauthn_rp_name,
             origin          = webauthn_origin,

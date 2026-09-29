@@ -429,18 +429,29 @@ if an extension is added to `SUPPORTED_EXTENSIONS` or `MULTIMODAL_EXTS` without
 being pinned. Also deleted `agent/filesystem/backend._guess_mime`, a fourth copy with
 no callers.
 
-### Task delivery is at-most-once, with no re-drive
+### Resolved: web records, data delta, and medications from the journal
 
-`task/base.py:_pop_batch` removes messages from Redis (BLPOP+LPOP) *before*
-`consume()` runs, so a mid-consume crash discards the batch with no requeue.
-`ProfileRefreshTask.consume` additionally swallows per-user failures and
-continues, dropping that user rather than retrying.
+The open-source web client now has a paginated cross-indicator records route,
+an amendment-aware data-delta counter, and medications that come from the one
+journal box: a sentence's medication parts go through
+`kernel.meds.reconcile_mentions`, anything else is kept as a `note`. The
+records and delta paths share `PostgresHealthQuery` and the visible-period rule;
+medication lifecycle changes use the kernel transition and close/open courses
+in one transaction. `/mirobody.json` advertises each route's mounted state.
 
-Low impact today: the profile refresh is idempotent, and any later ingest
-re-triggers it. But file ingest
-(`files/services/indicator_store.py:save_indicators_to_db`) is the
-*only* producer for the queue and there is no cron re-drive, so a refresh
-that dies partway through stays undone until the next real upload.
+Still open from that surface: a dose taken ("刚吃了一片布洛芬") becomes a plan,
+not a dose event in `th_dose_event`; the journal has no way yet to say "one
+dose, not an ongoing medication".
+
+### Resolved: task delivery survives a worker restart
+
+`task/base.py` now claims Postgres rows with `FOR UPDATE SKIP LOCKED`, deletes
+them only after `consume()` succeeds, and retries an interrupted claim after
+its lease expires. A repeatedly failing batch remains visible in the table
+with `failed_at` after five attempts. `ProfileRefreshTask.consume` reports
+per-user failures to the queue instead of acknowledging them as successes.
+The isolated Postgres check exercised competing claims, retry, acknowledgement
+and retained failure rows.
 
 ### Empty-list/dict parameter defaults (~19 remaining)
 
@@ -561,11 +572,10 @@ wrong numbers", which is exactly what you cannot verify by reading:
   invisible to every downstream aggregate. Fixing it means choosing between
   raising and quarantining, which changes ingest behaviour — needs a decision
   and a migration for whatever is already stored wrong.
-* **The distributed lock fails open.** A process that has never reached Redis
-  gets `None` from `get_redis_client()` and `try_acquire_execution_lock`
-  fabricates success — so a container restarted during a Redis outage runs
-  unlocked. Distinguishing "not configured" (dev, fine) from "configured but
-  unreachable" (production, must fail closed) is the fix.
+* **Resolved: provider pulls fail closed when Postgres is unavailable.** The
+  previous Redis client could be missing and still permit an unlocked pull.
+  A session-level Postgres advisory lock now gates each pull; acquisition
+  failure refuses execution, and a dropped session releases its lock.
 * **Two lookups disagree.** 9 `StandardIndicator` members share a wire-format
   `name`, and `_INDICATOR_LOOKUP` (last wins) resolves
   `sleepAnalysis_Asleep(Deep)` to a member with `aggregation_methods=None`
@@ -763,23 +773,23 @@ inherits the page origin, and `.svg` is an uploadable extension). Already
 rebuilt into `frontend/`.
 
 
-Three remain open. None is a defect in code that exists; each is a feature that
-does not, and two need a client change to be useful — which is why they are
-here rather than half-built.
+Two remain open, and both are migrations rather than defects: rotating the
+database-content key, and the config encryption key's derivation.
 
-### The personal MCP URL cannot be revoked
+### ~~The personal MCP URL cannot be revoked~~ — **closed in 1.5.3**
 
-`/mcp/<secret>` is bearer authority in a URL: whoever has the string is the
-user, for 365 days. There is no revoke, no rotate, and re-generating returns
-the SAME value, so a URL leaked through browser history, a screenshot, a shell
-history file or a proxy log cannot be taken back by the person it belongs to.
-Without Redis it degrades further to an unbounded in-process dict with no TTL
-at all.
+`/mcp/<secret>` is bearer authority in a URL. It lived 365 days, then 30 with
+one revoke that took away every link to a record at once, and it named only
+whose record it read, so nothing could ask whether the person who made it may
+still read it. A link is now a row in `th_personal_mcp_url`: the hash, who made
+it, whose record it reads, a fixed 10-day expiry, revocation and last use
+(`user/personal_mcp.py`). Every call re-checks it the way REST checks a
+token, including the care circle for a family member's link; the person can
+list and revoke every link to their record in Settings.
 
-The fix is a `POST /personal/mcp/revoke` that invalidates the current secret and
-mints a new one, plus a shorter default lifetime. It needs a UI affordance in
-the same change or nobody will find it, which is the part this repo cannot do
-alone — the web client ships as a build artifact from another repository.
+A family member's link that the circle stops allowing is refused, not revoked:
+if Mom shares again before it expires, it works again. Revoking it from her
+list is what ends it for good.
 
 ### ~~User-defined MCP servers are write-only~~ — **closed in 1.4.0, by deletion**
 
@@ -791,6 +801,15 @@ That is the MCP feature this project has: the tools go OUT to other runtimes
 (`examples/07_claude_agent_sdk.py` shows one); the agent itself is deepagents
 with the tools in-process and does not consume MCP. The three endpoints, the
 sibling per-user prompt store and `chat/user_config.py` are gone.
+
+### `PG_ENCRYPTION_KEY` cannot be rotated
+
+Every field `encrypt_content()` covers is encrypted with one key, and nothing
+re-encrypts them under a new one. A Compose stack first deployed with 1.5.2
+used `config.yaml`'s placeholder, and upgrading keeps it, because a new key
+would leave those fields unreadable. The fix is a command that reads each
+covered column with the old key and writes it with the new one in one
+transaction per table, and `deploy.sh` offering it on upgrade.
 
 ### The config encryption key needs a real KDF, and that is a migration
 

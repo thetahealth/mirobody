@@ -43,10 +43,11 @@ all three, aggregates the trend, and names the file every number came from.</em>
   anything already written into Apple Health comes with it; PDFs, phone photos,
   spreadsheets, exports: 23 file types in all, and Mirobody reads them.
 - **Say how you feel, in your own words.** Type `headache since last night,
-  BP 150/95, no fever` into the journal and it files a headache and two
-  blood-pressure readings, each on its standard code, and leaves out the fever
-  you said you do not have. Your model splits the sentence; the codes come from
-  the vocabulary, never from the model.
+  BP 150/95, no fever, metformin 500 mg morning and evening` into the journal
+  and it files a headache and two blood-pressure readings, each on its standard
+  code, puts metformin on your medication list, and leaves out the fever you
+  said you do not have. Your model splits the sentence; the codes come from the
+  vocabulary, never from the model.
 - **No hallucinations, everything traceable.** Every indicator lands in one
   settled system: either it gets a definite code, or it says it could not
   resolve one. It never invents one in between. Built and tested against real
@@ -62,7 +63,7 @@ all three, aggregates the trend, and names the file every number came from.</em>
   builds; every other row is kept as uploaded. A drug question gets CPIC
   coverage (which sites were called, missing or unreadable), never a phenotype
   or a change of medication. [How genetics works](docs/genetics.md).
-- **Runs on a laptop.** Four containers, 791 MiB resident, under 5% CPU idle.
+- **Runs on a laptop.** Three containers: Postgres, the server and the worker.
   No GPU, no Node.js.
 - **Your model, your key, your data.** Model calls go to the model you chose.
   Everything else stays on your machine.
@@ -157,7 +158,8 @@ up against a bundle that ships inside the package. No key, no network, no GPU,
 no model. Your record lives in your own Postgres, in containers you run, and
 nothing here reports usage anywhere.
 
-**One key, and it is the only secret you hold.** Put an
+**One model key to bring yourself.** `deploy.sh` generates the database,
+signing and encryption secrets in `.env`. Put an
 [OpenRouter key](https://openrouter.ai/keys) (`OPENROUTER_API_KEY`), a
 [Gemini key](https://aistudio.google.com/apikey) (`GOOGLE_API_KEY`), an
 [OpenAI key](https://platform.openai.com/api-keys) (`OPENAI_API_KEY`) or an
@@ -170,8 +172,8 @@ indicators and which embeds are four lines in
 (`api_key: OPENROUTER_API_KEY`), never the secret. `mirobody doctor` prints
 what each surface selected, and names the fix where one has nothing.
 
-The quickstart ships its secrets as placeholders, and encryption at rest does
-not yet cover every field. Before this reaches a network you do not control,
+The repository's config shows placeholders; `deploy.sh` replaces them for the
+container stack. Encryption at rest does not yet cover every field. Before this reaches a network you do not control,
 read [SECURITY.md](SECURITY.md): it also lists exactly what the server calls
 off your machine.
 
@@ -179,18 +181,22 @@ off your machine.
 
 ```bash
 git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
-git lfs install && git lfs pull   # the resolver's LOINC bundle, 13 MB; a fresh clone holds a pointer stub until you do
-./deploy.sh                       # Postgres + pgvector, Redis, server, worker → http://localhost:18060
+./deploy.sh                       # pulls the app image; starts Postgres, server and worker → http://localhost:18060
 ```
 
 (`--depth 1` skips the history of superseded frontend builds; drop it if you
 plan to send a pull request.)
 
-Two things `deploy.sh` will stop and tell you about, both with the fix in the
-message: one checkout at a time, because `compose.yaml` pins the stack's
-subnet, so a second one needs a different `mirobody_network` subnet; and a
-Docker that refuses named volumes (rootless, hardened) needs bind mounts
-instead, which is what `compose.override.yaml.example` is for.
+`deploy.sh` creates local secrets in `.env` and pulls
+`thetahealth/mirobody:1.5.3` from Docker Hub. The image already carries the
+terminology bundle, so Docker users do not need Git LFS. When the daemon cannot
+reach Docker Hub it uses the `docker.1ms.run` mirror, and when the image cannot
+be pulled at all (a branch, or a release not yet published) it builds it from
+the checkout, which then needs `git lfs pull`. Upgrading a 1.5.2 stack:
+[docs/backup-restore.md](docs/backup-restore.md#upgrading-from-152).
+For a second checkout, set `COMPOSE_PROJECT_NAME` and host ports in its `.env`.
+A Docker daemon that rejects named volumes can use
+`compose.override.yaml.example` for bind mounts.
 
 Sign in on the **Email code** tab as `you@mirobody.ai`, code `111111`, no mail
 provider needed. An account of your own is one request away:

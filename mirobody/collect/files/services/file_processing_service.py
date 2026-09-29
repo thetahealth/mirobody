@@ -28,6 +28,7 @@ from mirobody.collect.files.services.file_uploader import (
 )
 from mirobody.utils.config.storage import get_storage_client
 from mirobody.utils import execute_query
+from mirobody.kernel.ops import is_driver_exception
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ async def process_files_async(
         """
         try:
             filename = file_data["file_name"]
-            logger.info(f"Processing file: {filename}, msg_id: {msg_id}")
+            logger.info("processing file: msg_id=%s", msg_id)
             
             mock_file = MemoryUploadFile(
                 content=file_data["content_bytes"],
@@ -116,16 +117,18 @@ async def process_files_async(
                     "content_hash": result.get("content_hash", ""),
                 }
             
-            logger.info(f"Completed processing file: {filename}, success: {result.get('success')}")
+            logger.info("file processing completed: msg_id=%s", msg_id)
             
             return processed_file_info
             
         except Exception as file_error:
-            logger.error(f"Error processing file {file_data.get('file_name', 'unknown')}: {str(file_error)}", stack_info=True)
+            logger.error("file processing failed: msg_id=%s error_type=%s",
+                         msg_id, type(file_error).__name__,
+                         exc_info=not is_driver_exception(file_error))
             return {
                 "file_name": file_data.get("file_name", "unknown"),
                 "processed": False,
-                "error": str(file_error)
+                "error": "Processing failed"
             }
     
     try:
@@ -449,7 +452,6 @@ async def _background_cascade_delete_by_file_info(
         
         # Process cascade delete for each deleted file
         for file_info in deleted_files:
-            filename = file_info.get("filename", "")
             file_key = file_info.get("file_key", "")
             scene = file_info.get("scene", "")  # Use scene to determine file category
             
@@ -458,9 +460,9 @@ async def _background_cascade_delete_by_file_info(
                 # For genetic files, delete from th_series_data_genetic using file_key
                 genetic_delete_success = await _delete_genetic_data_background(user_id, file_key)
                 if genetic_delete_success:
-                    logger.info(f"Genetic data deletion successful for genetic file: user_id={user_id}, file_key={file_key}, filename={filename}, scene={scene}")
+                    logger.info("genetic data deleted: user_id=%s", user_id)
                 else:
-                    logger.warning(f"Genetic data deletion failed or no data found: user_id={user_id}, file_key={file_key}, filename={filename}, scene={scene}")
+                    logger.warning("genetic data deletion found no rows: user_id=%s", user_id)
             else:
                 # For non-genetic files (report, etc.), erase their observations
                 await _delete_th_series_data_background(user_id, "th_files", message_id, file_key)
@@ -468,7 +470,9 @@ async def _background_cascade_delete_by_file_info(
         logger.info(f"Background cascade delete task completed successfully: message_id={message_id}, user_id={user_id}")
         
     except Exception as e:
-        logger.error(f"Background cascade delete task failed: message_id={message_id}, user_id={user_id}, error={str(e)}", stack_info=True)
+        logger.error("cascade delete failed: message_id=%s user_id=%s error_type=%s",
+                     message_id, user_id, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
 
 
 async def _delete_th_series_data_background(
@@ -616,7 +620,7 @@ async def upload_files_to_storage(
     # Process each file
     for file_index, file in enumerate(files):
         try:
-            logger.info(f"Processing file {file_index + 1}/{len(files)}: {file.filename}")
+            logger.info("processing upload: index=%d total=%d", file_index + 1, len(files))
             
             
             # Read file content
@@ -667,7 +671,7 @@ async def upload_files_to_storage(
             # Record upload start time
             upload_time = datetime.now()
             
-            logger.info(f"Uploading file: {file.filename} ({file_size} bytes) -> {file_key}")
+            logger.info("uploading file: bytes=%d", file_size)
             
             # Upload file using unified storage client
             file_url, error = await storage.put(
@@ -683,7 +687,7 @@ async def upload_files_to_storage(
                 })
                 continue           
             
-            logger.info(f"File uploaded successfully: {file.filename} -> {file_url}")
+            logger.info("file uploaded: bytes=%d", file_size)
             
             # Create upload result data using FileUploadData structure
             upload_data = FileUploadData(
@@ -697,11 +701,11 @@ async def upload_files_to_storage(
             successful_uploads.append(upload_data.model_dump())
             
         except Exception as e:
-            error_msg = str(e)
-            logger.error(f"File upload failed for {file.filename}: {error_msg}", stack_info=True)
+            logger.error("file upload failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             failed_uploads.append({
                 "file_name": file.filename,
-                "error": f"Upload failed: {error_msg}"
+                "error": "Upload failed"
             })
     
     # Calculate statistics
@@ -734,5 +738,3 @@ async def upload_files_to_storage(
         "msg": msg,
         "data": data
     }
-
-

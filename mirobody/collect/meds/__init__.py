@@ -13,6 +13,7 @@ question that has an answer in `mirobody.kernel.meds` is asked there, never
 re-derived in SQL.
 """
 
+from .mentions import MentionOutcome, apply_medication_mentions
 from .store import PostgresDoseLogStore, PostgresMedicationStore, PostgresOverlayStore
 
-__all__ = ["PostgresDoseLogStore", "PostgresMedicationStore", "PostgresOverlayStore"]
+__all__ = ["MentionOutcome", "PostgresDoseLogStore", "PostgresMedicationStore", "PostgresOverlayStore", "apply_medication_mentions"]

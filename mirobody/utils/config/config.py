@@ -18,7 +18,7 @@ from .http import HttpConfig
 
 if TYPE_CHECKING:  # heavy drivers: imported lazily inside the accessors below
     from .postgresql import PostgreSQLConfig
-    from .redis import RedisConfig
+    from mirobody.utils.ephemeral import EphemeralStore
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ class Config:
         self._raw = {}
 
         self._postgresqls = {}
-        self._redises = {}
+        self._ephemeral = None
 
         self._agent_options = {}
 
@@ -176,7 +176,7 @@ class Config:
 
         # Clear cached configuration objects to ensure they use updated _raw values
         self._postgresqls = {}
-        self._redises = {}
+        self._ephemeral = None
 
         self.log = LogConfig(
             name        = self.get_str("LOG_NAME"),
@@ -409,7 +409,7 @@ class Config:
         if isinstance(obj, str):
             # Same truthy set as `demo.enabled()`: environment variables
             # arrive as strings, and "1"/"yes"/"on" must not silently read
-            # as False (REDIS_SSL=1 used to).
+            # as False (a flag set to 1 once did).
             return obj.strip().upper() in ("TRUE", "1", "YES", "ON")
 
         if isinstance(obj, int):
@@ -660,34 +660,13 @@ class Config:
 
     #-----------------------------------------------------
 
-    def get_redis(self, key: str="") -> "RedisConfig":
-        from .redis import RedisConfig          # lazy: see get_postgresql
-
-        upper_key = key.strip().upper()
-        if upper_key in self._redises:
-            return self._redises[upper_key]
-
-        #-------------------------------------------------
-
-        suffix = upper_key
-        if suffix:
-            suffix = "_" + suffix
-
-        redis_config = RedisConfig(
-            host                = self.get_str(f"REDIS_HOST{suffix}"),
-            port                = self.get_int(f"REDIS_PORT{suffix}"),
-            password            = self.get_str(f"REDIS_PASSWORD{suffix}"),
-            database            = self.get_int(f"REDIS_DB{suffix}"),
-            minconn             = self.get_int(f"REDIS_MIN_CONNECTION{suffix}"),
-            maxconn             = self.get_int(f"REDIS_MAX_CONNECTION{suffix}"),
-            timeout             = self.get_int(f"REDIS_TIMEOUT{suffix}"),
-            ssl                 = self.get_bool(f"REDIS_SSL{suffix}"),
-            ssl_check_hostname  = self.get_bool(f"REDIS_SSL_CHECK_HOSTNAME{suffix}"),
-            ssl_cert_reqs       = self.get_str(f"REDIS_SSL_CERT_REQS{suffix}")
-        )
-
-        self._redises[upper_key] = redis_config
-        return redis_config
+    def get_ephemeral(self) -> "EphemeralStore":
+        if self._ephemeral is None:
+            from mirobody.utils.ephemeral import EphemeralStore
+            self._ephemeral = EphemeralStore(
+                self.get_postgresql(), self.get_fernet_key("CONFIG_ENCRYPTION_KEY")
+            )
+        return self._ephemeral
 
     #-----------------------------------------------------
 
@@ -702,7 +681,6 @@ class Config:
         self.log.print()
         self.http.print()
 
-        self.get_redis().print()
         self.get_postgresql().print()
 
         if self.jwt_key:

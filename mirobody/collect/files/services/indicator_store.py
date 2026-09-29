@@ -100,7 +100,7 @@ async def save_indicators_to_db(
 
         if report.inserted:
             # Refresh the user profile. Coalescing + self-guarded, so a
-            # Redis hiccup never fails the ingest write above.
+            # A queue failure must not roll back the observation write above.
             try:
                 from mirobody.task import ProfileRefreshTask
                 await ProfileRefreshTask.enqueue(str(user_id))

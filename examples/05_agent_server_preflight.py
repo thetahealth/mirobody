@@ -5,7 +5,7 @@
 
 Examples 01–04 need nothing but the package. This one covers ③ Answer, which is
 a different proposition: the chat server, the MCP endpoint over HTTP, and the
-agents need PostgreSQL, Redis, a model key and a JWT secret.
+agents need PostgreSQL, a model key and a JWT secret.
 
 Rather than have you discover that one failure at a time from a traceback, this
 reports every prerequisite at once and says exactly what to do about each. It
@@ -47,20 +47,13 @@ for mod, why in (("langchain", "the agent loop"),
                  f"{why} — pip install 'mirobody[app]'"))
 
 # ── 2. services ──────────────────────────────────────────────────────────────
-# Defaults match what this repo's compose.yaml maps onto the host
-# (pg → 127.0.0.1:18062, redis → 127.0.0.1:18069) — the stack the fix-it
-# column tells you to start. A bare-metal Postgres/Redis is checked with
-# PG_PORT=5432 / REDIS_PORT=6379 in the environment.
+# The default matches the host port in compose.yaml. Set PG_HOST/PG_PORT when
+# checking a database installed directly on the host or on a different port.
 pg_host = os.environ.get("PG_HOST", "localhost")
 pg_port = int(os.environ.get("PG_PORT", "18062"))
-rd_host = os.environ.get("REDIS_HOST", "localhost")
-rd_port = int(os.environ.get("REDIS_PORT", "18069"))
 
 rows.append((f"postgres {pg_host}:{pg_port}", _port_open(pg_host, pg_port),
              "docker compose up -d pg   (schema is created on first start)"))
-rows.append((f"redis {rd_host}:{rd_port}", _port_open(rd_host, rd_port),
-             ("docker compose up -d redis   — or skip it: `mirobody dev` runs "
-              "without Redis (in-process memory)")))
 
 # ── 3. secrets ───────────────────────────────────────────────────────────────
 # The five one-key providers (config.yaml's table); any one runs every surface.
@@ -74,16 +67,9 @@ rows.append(("JWT_KEY", bool(os.environ.get("JWT_KEY")),
 rows.append(("CONFIG_ENCRYPTION_KEY", bool(os.environ.get("CONFIG_ENCRYPTION_KEY")),
              "openssl rand -hex 32   — or let `mirobody dev` generate one per run"))
 
-# ── 4. config file ───────────────────────────────────────────────────────────
-env_name = (os.environ.get("ENV") or "").strip()
-cfg = f"config.{env_name}.yaml" if env_name else None
-rows.append(("ENV + config.{ENV}.yaml", bool(cfg and os.path.isfile(cfg)),
-             ("echo 'ENV=localdb' > .env, then create config.localdb.yaml — or skip "
-              "the file entirely: `mirobody dev` configures itself in memory")))
-
-# ── 5. docker, for the one-command path ──────────────────────────────────────
+# ── 4. docker, for the one-command path ──────────────────────────────────────
 rows.append(("docker (optional)", shutil.which("docker") is not None,
-             "only needed for ./deploy.sh; a local Postgres/Redis works too"))
+             "only needed for ./deploy.sh; a local Postgres works too"))
 
 width = max(len(n) for n, _, _ in rows)
 for name, ok, hint in rows:
@@ -93,20 +79,15 @@ blocking = [n for n, ok, _ in rows if not ok and not n.endswith("(optional)")]
 print("=" * 74)
 if blocking:
     print(f"{len(blocking)} prerequisite(s) missing: {', '.join(blocking)}")
-    # Four of the seven are things `mirobody dev` produces for you: Redis
-    # (optional there), both secrets (generated per run) and the config file
-    # (built in memory — `config.yaml` is not in the wheel, so on a
-    # `pip install` there is no file to find).
-    dev_handles = {"JWT_KEY", "CONFIG_ENCRYPTION_KEY", "ENV + config.{ENV}.yaml"}
-    dev_handles |= {n for n in blocking if n.startswith("redis ")}
+    # The development command generates both secrets for that run.
+    dev_handles = {"JWT_KEY", "CONFIG_ENCRYPTION_KEY"}
     left = [n for n in blocking if n not in dev_handles]
     print("\nTwo paths past them:")
     print("    mirobody dev --pg-url postgres://user:pw@localhost:5432/mirobody")
-    print("      one process, no config file, no Redis needed, secrets generated per run.")
+    print("      one process, in-memory config, secrets generated per run.")
     print(f"      still needs: {', '.join(left) if left else 'nothing else'}")
     print("    ./deploy.sh")
-    print("      the Docker path: writes .env and config.localdb.yaml, starts")
-    print("      Postgres, Redis and Mirobody together.")
+    print("      the Docker path: writes .env, starts Postgres, server and worker.")
 else:
     print("Everything needed is present. Start the server with:\n")
     print("    mirobody serve\n")

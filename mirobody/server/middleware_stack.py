@@ -31,7 +31,7 @@ def build_middlewares(
     uri_prefix: str = "",
     url_paths_for_request_rate_limiter=None,
     url_paths_for_user_info_updater=None,
-    redis=None,
+    ephemeral=None,
     pg_pool=None,
 ) -> list[Middleware]:
     """Outermost first, in the order Starlette applies them."""
@@ -88,7 +88,7 @@ def build_middlewares(
 
         if url_paths_for_request_rate_limiter and isinstance(url_paths_for_request_rate_limiter, dict):
             middlewares.append(
-                Middleware(RequestRateLimiterMiddleware, url_paths=url_paths_for_request_rate_limiter, redis_client=redis)
+                Middleware(RequestRateLimiterMiddleware, url_paths=url_paths_for_request_rate_limiter, ephemeral_client=ephemeral)
             )
 
         if url_paths_for_user_info_updater and isinstance(url_paths_for_user_info_updater, list):

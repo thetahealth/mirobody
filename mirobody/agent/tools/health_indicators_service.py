@@ -8,9 +8,10 @@ it let the two halves disagree about what a window meant. Medications are a
 different data class with a different grammar and their own tool
 (`medications_service.py`); genetics likewise.
 
-What the person reported (a symptom felt, a diagnosis given) is read here
-too. It is the same table, the same series and the same window, coded on
-ICPC-3 where a reading is coded on LOINC, so a second tool would only repeat
+What the person reported (a symptom felt, a diagnosis given, a note on their
+day) is read here too. It is the same table, the same series and the same
+window, coded on ICPC-3 where a reading is coded on LOINC (a note is never
+coded), so a second tool would only repeat
 this one and make "was my blood pressure up on the days I had headaches" two
 calls. Such rows carry `provenance="reported"` and render as their own table.
 
@@ -109,8 +110,9 @@ class HealthIndicatorsService(RecordTool):
         """
         Read this person's health record over time: readings (labs, vitals,
         wearable metrics: anything with a value and a time) and what they
-        reported (symptoms they felt, diagnoses they were given, in their own
-        words, coded on ICPC-3).
+        reported (symptoms they felt, diagnoses they were given, coded on
+        ICPC-3; notes on their day, such as a meal, never coded; all in their
+        own words).
 
         USE IT when the question is about their own data: "how has my LDL
         moved", "average resting heart rate this month", "how often do I get

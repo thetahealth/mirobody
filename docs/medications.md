@@ -99,6 +99,7 @@ one frequency, optional clock times.
 | `500 mg twice daily` | dose 500 mg, `doses_per_day=2` |
 | `1 tablet at 08:00 and 20:00` | dose 1 `{tablet}`, `times=("08:00","20:00")` |
 | `每天两次，每次一片` | dose 1 `{tablet}`, `doses_per_day=2` |
+| `500mg 每天早晚` | dose 500 mg, `doses_per_day=2` (早晚 is two a day, 早中晚 three) |
 | `one every other day` | `period_days=2` |
 | `q8h` | `doses_per_day=3` (the clock times are NOT invented) |
 | `on Monday and Thursday` | `weekdays={1,4}` |
@@ -241,14 +242,67 @@ medication list as evidence of what was swallowed. And a dose missing from
 
 | Encrypted | In the clear |
 |---|---|
-| the drug name, the strength, the reason for a skip | `concept_key`, `plan_id`, dates, status, the schedule's STRUCTURE |
+| the drug name, the strength, each instruction's own words, the reason for a skip | `concept_key`, `plan_id`, dates, status, the schedule's STRUCTURE |
 
 The schedule column carries structure only — times, counts, weekdays, dose
-amounts. The person's own words live in the encrypted columns.
+amounts. The person's own words live in the encrypted columns: "饭后" that no
+parser turns into structure is kept in `instructions_text`, one entry per
+instruction.
 
 `collect/meds/store.py` implements `MedicationStore` and `DoseLogStore` and asks
 `mirobody.kernel.meds` every question that has an answer there, rather than
 re-deriving one in SQL.
+
+### From a sentence (`/api/v1/journal/sentence`)
+
+A person does not fill in a form to add a medication. They write "每天早晚吃
+二甲双胍500mg" in the journal, the one box of 数据 › 记录, and:
+
+1. `collect/sentence.py` has the model split the sentence and type each part.
+   A medication part carries the drug, the dose and the frequency **as
+   written**, and whether the person says they take it, stopped it, did not
+   take it, or only wonders about it. The model is never asked for a code or
+   a schedule.
+2. The part becomes a `MedicationMention`, after the checks every part gets:
+   it must quote the sentence, and be about the person, asserted.
+3. `collect/meds/mentions.py` hands the mentions to `reconcile_mentions`,
+   which decides: a drug not on the list is a new plan, unconfirmed and
+   marked `source="journal"`, its schedule parsed from the words by
+   `parse_dose_instruction` (words it cannot read are kept on the
+   instruction); a drug already on the list is left alone; "stopped" stops
+   the matching active plan and never creates one.
+4. The journal lists the plan on the day it was written, and removing it
+   there marks it `entered_in_error`.
+
+The web client's 指标 › 用药 tab lists the plans; saving a correction there
+confirms one.
+
+### The HTTP surface (`/api/v1/medications`)
+
+`server/routers/medication_router.py`: listing, correcting and the lifecycle.
+`POST /` remains for an API client that has a structured plan in hand.
+
+| Route | Does |
+|---|---|
+| `GET /` | the plans, minus `entered_in_error`; `?status=` filters on the effective status; `?target_user_id=` reads a family member's with a read grant |
+| `GET /{plan_id}`, `GET /{plan_id}/courses` | one plan with its courses |
+| `POST /` | a new plan and its opening course, in one transaction; `?target_user_id=` with a write grant |
+| `PATCH /{plan_id}` | the fields sent; the rest stay as stored |
+| `POST /{plan_id}/stop`, `POST /{plan_id}/resume` | `plan_status_transition`, with the course it closes or opens, in one transaction |
+| `DELETE /{plan_id}` | marks it `entered_in_error`; nothing is erased |
+
+Writes need the owner, or a member the owner granted write access; a read
+grant lists and nothing more (`403`). The journal applies the same rule when a
+caregiver logs "Dad stopped X", so the two ways in cannot disagree. `POST /`
+takes `?target_user_id=` for that member's record. A plan the caller may not
+read answers `404`, exactly like one that does not exist. An illegal move (stopping a stopped plan)
+is the kernel's `ValueError`, returned as `400`.
+
+A plan has at most one open course, found by `closed_by IS NULL`; its id is the
+plan, the start and its place in the plan's history, so stopping and resuming on
+one day leaves two courses, not one. A start date may change only on an active
+plan, and the open course moves with it; a stopped plan's start is its last
+course's and stays.
 
 ---
 

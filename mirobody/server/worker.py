@@ -2,12 +2,11 @@
 HTTP server.
 
 Mirrors `Server.start(yaml_files)` in shape so deployment is symmetric: both
-read the same YAML config; this class spins up the Redis-queue consumer loops
-(no uvicorn, no routers). The thin launcher lives at the repo-root
-`main_worker.py`, next to `main.py`.
+read the same YAML config; this class spins up the Postgres task consumers
+without an HTTP server.
 
-Task discovery is automatic: every `BaseRedisTask` subclass registered under
-`mirobody.task` is picked up via `iter_redis_tasks()`, so adding a new task
+Task discovery is automatic: every `BaseTask` subclass registered under
+`mirobody.task` is picked up via `iter_tasks()`, so adding a new task
 class is enough, no wiring needed here.
 """
 
@@ -17,10 +16,27 @@ import asyncio
 import logging
 import signal
 
-from mirobody.task import iter_redis_tasks, load_tasks_from_directories
+from mirobody.task import iter_tasks, load_tasks_from_directories
 from mirobody.utils import Config
+from mirobody.kernel.ops import is_driver_exception
 
 logger = logging.getLogger(__name__)
+
+
+async def _clean_ephemeral(config: Config, stop_event: asyncio.Event) -> None:
+    while not stop_event.is_set():
+        try:
+            count = await config.get_ephemeral().cleanup()
+            if count:
+                logger.info("expired temporary state removed: count=%d", count)
+        except Exception as exc:
+            logger.warning("temporary state cleanup failed: error_type=%s",
+                           type(exc).__name__,
+                           exc_info=not is_driver_exception(exc))
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=3600)
+        except TimeoutError:
+            pass
 
 #-----------------------------------------------------------------------------
 
@@ -45,19 +61,17 @@ class Worker:
 
         logger.info("Worker runner starting")
 
-        # One redis client shared by all consumers: redis.asyncio.Redis has
-        # an internal connection pool (max_connections from config), so each
-        # BLPOP borrows its own connection and they don't serialize.
-        redis = await config.get_redis().get_async_client()
+        pg_config = config.get_postgresql()
 
         # Pull in user-defined task modules before enumerating subclasses.
         load_tasks_from_directories(config.task_dirs)
 
-        task_classes = iter_redis_tasks()
+        task_classes = iter_tasks()
         if not task_classes:
-            raise RuntimeError("No BaseRedisTask subclasses discovered in mirobody.task")
+            raise RuntimeError("No BaseTask subclasses discovered in mirobody.task")
 
         stop_events = [asyncio.Event() for _ in task_classes]
+        cleanup_stop = asyncio.Event()
 
         # Wire SIGTERM/SIGINT → stop events for graceful shutdown.
         loop = asyncio.get_running_loop()
@@ -65,6 +79,7 @@ class Worker:
             logger.info("Shutdown signal received")
             for ev in stop_events:
                 ev.set()
+            cleanup_stop.set()
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:
                 loop.add_signal_handler(sig, _request_stop)
@@ -75,15 +90,12 @@ class Worker:
                      f"{[c.__name__ for c in task_classes]}")
 
         tasks = [
-            asyncio.create_task(cls(redis).run(ev))
+            asyncio.create_task(cls(pg_config).run(ev))
             for cls, ev in zip(task_classes, stop_events, strict=False)
         ]
+        tasks.append(asyncio.create_task(_clean_ephemeral(config, cleanup_stop)))
 
-        try:
-            await asyncio.gather(*tasks)
-        finally:
-            logger.info("Closing redis client")
-            await redis.aclose()
-            logger.info("Worker runner stopped")
+        await asyncio.gather(*tasks)
+        logger.info("Worker runner stopped")
 
 #-----------------------------------------------------------------------------

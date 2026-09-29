@@ -1,0 +1,6 @@
+# aioboto3 15.5.0 requires aiobotocore 2.25.1, whose botocore range is
+# 1.40.46..1.40.61. An unconstrained boto3 1.43 caused pip to backtrack
+# through every older aioboto3 release during the image build.
+aioboto3==15.5.0
+aiobotocore==2.25.1
+boto3==1.40.61

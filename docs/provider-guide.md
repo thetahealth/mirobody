@@ -184,9 +184,9 @@ CREATE TABLE IF NOT EXISTS health_data_<provider> (
     external_user_id VARCHAR(255)
 );
 
-CREATE INDEX idx_health_data_<provider>_theta_user_id 
+CREATE INDEX idx_health_data_<provider>_theta_user_id
     ON health_data_<provider>(theta_user_id);
-CREATE INDEX idx_health_data_<provider>_msg_id 
+CREATE INDEX idx_health_data_<provider>_msg_id
     ON health_data_<provider>(msg_id);
 ```
 
@@ -286,50 +286,50 @@ from mirobody.utils.config import safe_read_cfg, global_config
 
 class YourProvider(BasePullProvider):
     """<Provider> Provider - Data Integration"""
-    
+
     def __init__(self):
         super().__init__()
         # Initialize your provider-specific configuration here
         pass
-    
+
     @classmethod
     def create_provider(cls, config: Dict[str, Any]) -> Optional['YourProvider']:
         """Factory method to create provider instance"""
         pass
-    
+
     @property
     def info(self) -> ProviderInfo:
         """Provider metadata"""
         pass
-    
+
     async def link(self, request: Any) -> Dict[str, Any]:
         """Initiate OAuth flow"""
         pass
-    
+
     async def callback(self, *args, **kwargs) -> Dict[str, Any]:
         """Handle OAuth callback"""
         pass
-    
+
     async def unlink(self, user_id: str) -> Dict[str, Any]:
         """Unlink user connection"""
         pass
-    
+
     async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
         """Vendor payload (fmt_input.payload) -> StandardPulseData"""
         pass
-    
+
     async def pull_from_vendor_api(self, *args, **kwargs) -> List[Dict[str, Any]]:
         """Pull data from vendor API"""
         pass
-    
+
     async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Save raw data to database"""
         pass
-    
+
     async def is_data_already_processed(self, raw_data: Dict[str, Any]) -> bool:
         """Check if data is already processed"""
         pass
-    
+
     async def _pull_and_push_for_user(self, credentials: Dict[str, Any]) -> bool:
         """Pull and push data for a specific user"""
         pass
@@ -374,20 +374,20 @@ DATA_MAPPING = {
 ```python
 def __init__(self):
     super().__init__()
-    
+
     # Load OAuth credentials
     self.client_id = safe_read_cfg("<PROVIDER>_CLIENT_ID")
     self.client_secret = safe_read_cfg("<PROVIDER>_CLIENT_SECRET")
     self.redirect_url = safe_read_cfg("<PROVIDER>_REDIRECT_URL")
-    
+
     # Load API endpoints
     self.auth_url = safe_read_cfg("<PROVIDER>_AUTH_URL") or "https://..."
     self.token_url = safe_read_cfg("<PROVIDER>_TOKEN_URL") or "https://..."
     self.api_base_url = safe_read_cfg("<PROVIDER>_API_BASE_URL") or "https://..."
-    
+
     # Load scopes
     self.scopes = safe_read_cfg("<PROVIDER>_SCOPES") or "default_scope"
-    
+
     # Configuration validation
     if not self.client_id or not self.client_secret:
         logging.error("<Provider> OAuth credentials not configured")
@@ -413,22 +413,22 @@ def __init__(self):
 def create_provider(cls, config: Dict[str, Any]) -> Optional['YourProvider']:
     """
     Factory method to create provider from config
-    
+
     Required config keys:
     - <PROVIDER>_CLIENT_ID
     - <PROVIDER>_CLIENT_SECRET
-    
+
     Returns:
         Provider instance if config is valid, None otherwise
     """
     try:
         client_id = safe_read_cfg("<PROVIDER>_CLIENT_ID")
         client_secret = safe_read_cfg("<PROVIDER>_CLIENT_SECRET")
-        
+
         if not client_id or not client_secret:
             logging.info("<Provider> disabled: missing credentials")
             return None
-        
+
         return cls()
     except Exception as e:
         logging.warning(f"Failed to create <Provider> provider: {e}")
@@ -482,31 +482,30 @@ def info(self) -> ProviderInfo:
 async def link(self, request: Any) -> Dict[str, Any]:
     """
     Initiate OAuth2 flow
-    
+
     Args:
         request: Contains user_id and options (redirect_url, return_url)
-        
+
     Returns:
         Dict with 'link_web_url' for user to visit
-        
+
     Raises:
         RuntimeError: If OAuth configuration is invalid
     """
     user_id = request.user_id
     options = request.options or {}
-    
+
     try:
         # Generate state parameter
         state_payload = {"s": str(uuid.uuid4()), "r": options.get("return_url", "")}
         state = urlencode(state_payload)
-        
-        # Store state in Redis (TTL: 15 minutes)
+
+        # Store state in Postgres temporary state (TTL: 15 minutes)
         cfg = global_config()
-        redis_client = await cfg.get_redis().get_async_client()
-        await redis_client.setex(f"oauth2:state:{state}", 900, user_id)
-        await redis_client.setex(f"oauth2:redir:{state}", 900, self.redirect_url)
-        await redis_client.aclose()
-        
+        ephemeral = cfg.get_ephemeral()
+        await ephemeral.setex(f"oauth2:state:{state}", 900, user_id)
+        await ephemeral.setex(f"oauth2:redir:{state}", 900, self.redirect_url)
+
         # Build authorization URL
         params = {
             "client_id": self.client_id,
@@ -516,10 +515,10 @@ async def link(self, request: Any) -> Dict[str, Any]:
             "state": state,
         }
         authorization_url = f"{self.auth_url}?{urlencode(params)}"
-        
+
         logging.info(f"Generated OAuth2 URL for user {user_id}")
         return {"link_web_url": authorization_url}
-        
+
     except Exception as e:
         logging.error(f"Error linking provider: {str(e)}")
         raise RuntimeError(str(e))
@@ -531,47 +530,46 @@ async def link(self, request: Any) -> Dict[str, Any]:
     """Initiate OAuth1 flow"""
     user_id = request.user_id
     options = request.options or {}
-    
+
     try:
         # Create OAuth1Session
         oauth = OAuth1Session(
             client_key=self.client_id,
             client_secret=self.client_secret,
         )
-        
+
         # Get request token
         resp = oauth.post(self.request_token_url)
         if resp.status_code != 200:
             raise RuntimeError(f"Failed to get request token: {resp.text}")
-        
+
         # Parse response
         params = parse_qs(resp.text)
         oauth_token = params['oauth_token'][0]
         oauth_token_secret = params['oauth_token_secret'][0]
-        
-        # Store token secret in Redis
+
+        # Store token secret in Postgres temporary state
         cfg = global_config()
-        redis_client = await cfg.get_redis().get_async_client()
-        await redis_client.setex(f"oauth:secret:{oauth_token}", 900, oauth_token_secret)
-        await redis_client.setex(f"oauth:user:{oauth_token}", 900, user_id)
-        await redis_client.aclose()
-        
+        ephemeral = cfg.get_ephemeral()
+        await ephemeral.setex(f"oauth:secret:{oauth_token}", 900, oauth_token_secret)
+        await ephemeral.setex(f"oauth:user:{oauth_token}", 900, user_id)
+
         # Build authorization URL
         auth_params = {
             "oauth_token": oauth_token,
             "oauth_callback": self.redirect_url
         }
         authorization_url = f"{self.auth_url}?{urlencode(auth_params)}"
-        
+
         return {"link_web_url": authorization_url}
-        
+
     except Exception as e:
         logging.error(f"Error linking provider: {str(e)}")
         raise RuntimeError(str(e))
 ```
 
 **Key Points**:
-- Store temporary OAuth state/tokens in Redis with TTL
+- Store temporary OAuth state/tokens in Postgres temporary state with TTL
 - Include user_id mapping for callback retrieval
 - Return URL that user must visit
 - Handle both OAuth1 and OAuth2 flows appropriately
@@ -589,35 +587,32 @@ async def link(self, request: Any) -> Dict[str, Any]:
 async def callback(self, code: str, state: str) -> Dict[str, Any]:
     """
     Handle OAuth2 callback
-    
+
     Args:
         code: Authorization code from provider
         state: State parameter for validation
-        
+
     Returns:
         Dict with provider_slug, access_token, and stage="completed"
-        
+
     Raises:
         RuntimeError: If token exchange fails
     """
     try:
-        # Retrieve user_id and redirect_uri from Redis
+        # Retrieve user_id and redirect_uri from Postgres temporary state
         cfg = global_config()
-        redis_client = await cfg.get_redis().get_async_client()
-        user_id = await redis_client.get(f"oauth2:state:{state}")
-        redirect_uri = await redis_client.get(f"oauth2:redir:{state}")
-        await redis_client.delete(f"oauth2:state:{state}")
-        await redis_client.delete(f"oauth2:redir:{state}")
-        await redis_client.aclose()
-        
+        ephemeral = cfg.get_ephemeral()
+        user_id = await ephemeral.take(f"oauth2:state:{state}")
+        redirect_uri = await ephemeral.take(f"oauth2:redir:{state}")
+
         if isinstance(user_id, bytes):
             user_id = user_id.decode("utf-8")
         if isinstance(redirect_uri, bytes):
             redirect_uri = redirect_uri.decode("utf-8")
-        
+
         if not user_id:
             raise ValueError("Missing user_id for callback")
-        
+
         # Exchange code for tokens
         async with aiohttp.ClientSession() as session:
             data = {
@@ -631,35 +626,35 @@ async def callback(self, code: str, state: str) -> Dict[str, Any]:
                 "Content-Type": "application/x-www-form-urlencoded",
                 "Accept": "application/json",
             }
-            
+
             async with session.post(self.token_url, data=data, headers=headers) as resp:
                 if resp.status != 200:
                     text = await resp.text()
                     raise RuntimeError(f"Token exchange failed: {resp.status} - {text}")
-                
+
                 token_data = await resp.json()
-        
+
         access_token = token_data.get("access_token")
         refresh_token = token_data.get("refresh_token")
         expires_in = token_data.get("expires_in")
-        
+
         if not access_token:
             raise RuntimeError("Missing access_token in response")
-        
+
         # Calculate expiry timestamp
         expires_at = None
         if expires_in:
             expires_at = int(time.time()) + int(expires_in)
-        
+
         # Save credentials to database
         success = await self.db_service.save_oauth2_credentials(
             user_id, self.info.slug, access_token, refresh_token, expires_at
         )
         if not success:
             raise RuntimeError("Failed to save credentials")
-        
+
         logging.info(f"Successfully linked provider for user {user_id}")
-        
+
         # Trigger initial data pull
         creds_payload = {
             "user_id": user_id,
@@ -667,13 +662,13 @@ async def callback(self, code: str, state: str) -> Dict[str, Any]:
             "refresh_token": refresh_token,
         }
         asyncio.create_task(self._pull_and_push_for_user(creds_payload))
-        
+
         return {
             "provider_slug": self.info.slug,
             "access_token": access_token[:20] + "...",
             "stage": "completed"
         }
-        
+
     except Exception as e:
         logging.error(f"Error in callback: {str(e)}")
         raise RuntimeError(str(e))
@@ -684,23 +679,20 @@ async def callback(self, code: str, state: str) -> Dict[str, Any]:
 async def callback(self, oauth_token: str, oauth_verifier: str) -> Dict[str, Any]:
     """Handle OAuth1 callback"""
     try:
-        # Retrieve token secret and user_id from Redis
+        # Retrieve token secret and user_id from Postgres temporary state
         cfg = global_config()
-        redis_client = await cfg.get_redis().get_async_client()
-        oauth_token_secret = await redis_client.get(f"oauth:secret:{oauth_token}")
-        user_id = await redis_client.get(f"oauth:user:{oauth_token}")
-        await redis_client.delete(f"oauth:secret:{oauth_token}")
-        await redis_client.delete(f"oauth:user:{oauth_token}")
-        await redis_client.aclose()
-        
+        ephemeral = cfg.get_ephemeral()
+        oauth_token_secret = await ephemeral.take(f"oauth:secret:{oauth_token}")
+        user_id = await ephemeral.take(f"oauth:user:{oauth_token}")
+
         if isinstance(oauth_token_secret, bytes):
             oauth_token_secret = oauth_token_secret.decode("utf-8")
         if isinstance(user_id, bytes):
             user_id = user_id.decode("utf-8")
-        
+
         if not oauth_token_secret or not user_id:
             raise ValueError("Missing OAuth state from stage 1")
-        
+
         # Create OAuth1Session for token exchange
         oauth = OAuth1Session(
             client_key=self.client_id,
@@ -709,26 +701,26 @@ async def callback(self, oauth_token: str, oauth_verifier: str) -> Dict[str, Any
             resource_owner_secret=oauth_token_secret,
             verifier=oauth_verifier
         )
-        
+
         # Get access token
         resp = oauth.post(self.access_token_url)
         if resp.status_code != 200:
             raise RuntimeError(f"Failed to get access token: {resp.text}")
-        
+
         # Parse tokens
         params = parse_qs(resp.text)
         access_token = params['oauth_token'][0]
         access_token_secret = params['oauth_token_secret'][0]
-        
+
         # Save credentials
         success = await self.db_service.save_oauth1_credentials(
             user_id, self.info.slug, access_token, access_token_secret
         )
         if not success:
             raise RuntimeError("Failed to save credentials")
-        
+
         logging.info(f"Successfully linked provider for user {user_id}")
-        
+
         # Trigger initial data pull
         creds_payload = {
             "user_id": user_id,
@@ -736,24 +728,24 @@ async def callback(self, oauth_token: str, oauth_verifier: str) -> Dict[str, Any
             "access_token_secret": access_token_secret,
         }
         asyncio.create_task(self._pull_and_push_for_user(creds_payload))
-        
+
         return {
             "provider_slug": self.info.slug,
             "access_token": access_token[:20] + "...",
             "stage": "completed"
         }
-        
+
     except Exception as e:
         logging.error(f"Error in callback: {str(e)}")
         raise RuntimeError(str(e))
 ```
 
 **Key Points**:
-- Retrieve stored state/tokens from Redis
+- Retrieve stored state/tokens from Postgres temporary state
 - Exchange temporary tokens for permanent ones
 - Save credentials using appropriate db_service method
 - Trigger immediate data pull after successful linking
-- Clean up temporary Redis keys
+- Clean up temporary Postgres temporary state keys
 
 ---
 
@@ -768,28 +760,28 @@ async def callback(self, oauth_token: str, oauth_verifier: str) -> Dict[str, Any
 async def unlink(self, user_id: str) -> Dict[str, Any]:
     """
     Unlink provider connection
-    
+
     Args:
         user_id: User ID to unlink
-        
+
     Returns:
         Dict with success status and message
-        
+
     Raises:
         RuntimeError: If unlinking fails
     """
     try:
         logging.info(f"Unlinking provider for user: {user_id}")
-        
+
         # Get stored credentials
         credentials = await self.db_service.get_user_credentials(
             user_id, self.info.slug, self.info.auth_type
         )
-        
+
         if not credentials:
             logging.warning(f"No credentials found for user {user_id}")
             return {"success": True, "message": "No credentials found"}
-        
+
         # Optional: Call vendor API to revoke access
         # (Not all providers support this)
         try:
@@ -804,7 +796,7 @@ async def unlink(self, user_id: str) -> Dict[str, Any]:
                             f"{self.api_base_url}/revoke",
                             headers=headers
                         )
-            
+
             # For OAuth1:
             elif self.info.auth_type == LinkType.OAUTH1:
                 access_token = credentials.get("access_token")
@@ -819,13 +811,13 @@ async def unlink(self, user_id: str) -> Dict[str, Any]:
                     oauth.delete(f"{self.api_base_url}/revoke")
         except Exception as e:
             logging.warning(f"Failed to revoke access at vendor: {str(e)}")
-        
+
         # Always remove from database
         await self.db_service.delete_user_theta_provider(user_id, self.info.slug)
-        
+
         logging.info(f"Successfully unlinked provider for user {user_id}")
         return {"success": True, "message": "Successfully unlinked"}
-        
+
     except Exception as e:
         logging.error(f"Failed to unlink provider: {str(e)}")
         raise RuntimeError(f"Failed to unlink provider: {str(e)}")
@@ -889,13 +881,13 @@ async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
             "msg_id": fmt_input.context.msg_id or "",
             "user_timezone": user_timezone,
         }
-        
+
         # Ensure data_content is a list
         if not isinstance(data_content, list):
             data_content = [data_content]
-        
+
         health_records: List[StandardPulseRecord] = []
-        
+
         # Process data based on type
         if data_type == "sleeps":
             health_records.extend(
@@ -908,14 +900,14 @@ async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
         # Add more data types as needed
         else:
             logging.warning(f"Unknown data type: {data_type}")
-        
+
         # Update processing info
         processing_info.update({
             "end_time": time.time(),
             "processing_duration_ms": int((time.time() - start_time) * 1000),
             "total_records": len(health_records),
         })
-        
+
         # Create result
         meta_info = StandardPulseMetaInfo(
             userId=user_id,
@@ -923,18 +915,18 @@ async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
             source="theta",
             timezone=user_timezone
         )
-        
+
         result = StandardPulseData(
             metaInfo=meta_info,
             healthData=health_records,
             processingInfo=processing_info,
         )
-        
+
         logging.info(
             f"Formatted {len(health_records)} records for user {user_id}"
         )
         return result
-        
+
     except Exception as e:
         logging.error(f"Error formatting data: {str(e)}")
         request_id = self.generate_request_id()
@@ -945,7 +937,7 @@ def _process_sleep_data(
 ) -> List[StandardPulseRecord]:
     """Process sleep data using mapping configuration"""
     records = []
-    
+
     for item in data:
         try:
             # Parse timestamp
@@ -955,18 +947,18 @@ def _process_sleep_data(
                 if timestamp_str
                 else int(time.time() * 1000)
             )
-            
+
             # Apply data mapping
             for field_path, (indicator_name, converter, unit) in \
                     self.DATA_MAPPING.get("sleeps", {}).items():
-                
+
                 # Navigate nested fields
                 value = item
                 for field in field_path.split("."):
                     value = value.get(field) if isinstance(value, dict) else None
                     if value is None:
                         break
-                
+
                 if value is not None:
                     record = StandardPulseRecord(
                         source=DataFormatter.format_source_name(self.info.slug),
@@ -979,12 +971,12 @@ def _process_sleep_data(
                     )
                     records.append(record)
                     processing_info["processed_indicators"] += 1
-                    
+
         except Exception as e:
             logging.error(f"Error processing sleep item: {str(e)}")
             processing_info["errors"].append(f"Sleep: {str(e)}")
             processing_info["skipped_indicators"] += 1
-    
+
     return records
 ```
 
@@ -1013,12 +1005,12 @@ async def pull_from_vendor_api(
 ) -> List[Dict[str, Any]]:
     """
     Pull data from vendor API
-    
+
     Args:
         access_token: OAuth access token
         refresh_token: OAuth refresh token (OAuth2 only)
         days: Number of days to pull (default: 1)
-        
+
     Returns:
         List of raw data dicts, each containing:
             - user_id: External user identifier
@@ -1028,23 +1020,23 @@ async def pull_from_vendor_api(
     """
     try:
         logging.info(f"Starting data pull (last {days} days)")
-        
+
         if not access_token:
             raise ValueError("Access token is required")
-        
+
         # Prepare headers
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/json"
         }
-        
+
         # Calculate date range
         end_date = datetime.now(timezone.utc)
         start_date = end_date - timedelta(days=days)
-        
+
         all_raw_data = []
         timestamp = int(time.time() * 1000)
-        
+
         async with aiohttp.ClientSession() as session:
             # Fetch different data types
             data_endpoints = {
@@ -1052,19 +1044,19 @@ async def pull_from_vendor_api(
                 "workouts": f"{self.api_base_url}/workouts",
                 "cycles": f"{self.api_base_url}/cycles",
             }
-            
+
             for data_type, endpoint in data_endpoints.items():
                 try:
                     params = {
                         "start": start_date.isoformat(),
                         "end": end_date.isoformat(),
                     }
-                    
+
                     # Fetch paginated data
                     data = await self._fetch_paginated_data(
                         session, endpoint, headers, params
                     )
-                    
+
                     if data:
                         all_raw_data.append({
                             "user_id": "",  # Will be filled by caller
@@ -1073,14 +1065,14 @@ async def pull_from_vendor_api(
                             "timestamp": timestamp,
                         })
                         logging.info(f"Pulled {len(data)} {data_type} records")
-                        
+
                 except Exception as e:
                     logging.error(f"Error pulling {data_type}: {str(e)}")
                     continue
-        
+
         logging.info(f"Completed data pull: {len(all_raw_data)} data sets")
         return all_raw_data
-        
+
     except Exception as e:
         logging.error(f"Error in data pull: {str(e)}")
         return []
@@ -1094,21 +1086,21 @@ async def _fetch_paginated_data(
 ) -> List[Dict[str, Any]]:
     """
     Generic paginated data fetcher
-    
+
     Handles pagination, rate limiting, and retries
     """
     all_records = []
     next_token = None
     params = params or {}
     max_retries = 3
-    
+
     while True:
         if next_token:
             params["nextToken"] = next_token
-        
+
         retry_count = 0
         data = {}
-        
+
         while retry_count <= max_retries:
             try:
                 async with session.get(
@@ -1130,24 +1122,24 @@ async def _fetch_paginated_data(
                         else:
                             logging.error("Max retries exceeded for rate limiting")
                             break
-                    
+
                     # Handle auth errors
                     elif resp.status == 401:
                         text = await resp.text()
                         logging.error(f"Authentication failed: {resp.status} - {text}")
                         break
-                    
+
                     # Handle other errors
                     elif resp.status != 200:
                         text = await resp.text()
                         logging.error(f"Request failed: {resp.status} - {text}")
                         break
-                    
+
                     # Success
                     else:
                         data = await resp.json()
                         break
-                        
+
             except asyncio.TimeoutError:
                 if retry_count < max_retries:
                     retry_count += 1
@@ -1164,29 +1156,29 @@ async def _fetch_paginated_data(
                     continue
                 else:
                     break
-        
+
         # Check if we got data
         if retry_count > max_retries:
             break
-        
+
         # Extract records and next token
         if "records" in data:
             records = data.get("records", [])
             all_records.extend(records)
             next_token = data.get("next_token")
-            
+
             logging.info(
                 f"Fetched {len(records)} records from {endpoint}, "
                 f"total: {len(all_records)}"
             )
-            
+
             if not next_token:
                 break
         else:
             # Non-paginated response
             all_records.append(data)
             break
-    
+
     return all_records
 ```
 
@@ -1210,23 +1202,23 @@ async def _fetch_paginated_data(
 async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Save raw data to database
-    
+
     Args:
         raw_data: Raw data payload
-        
+
     Returns:
         List of saved data dicts with msg_id added
     """
     try:
         if not isinstance(raw_data, dict):
             return []
-        
+
         # Extract user ID
         user_id = raw_data.get("user_id", "")
-        
+
         # Generate message ID for deduplication
         msg_id = f"{self.info.slug}_{user_id}_{int(time.time())}"
-        
+
         # Insert into database
         insert_sql = (
             f"INSERT INTO health_data_{self.info.slug.replace('theta_', '')} "
@@ -1235,7 +1227,7 @@ async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, 
             ":raw_data, :theta_user_id, :external_user_id) "
             "ON CONFLICT (msg_id) DO NOTHING"
         )
-        
+
         params = {
             "is_del": False,
             "msg_id": msg_id,
@@ -1243,16 +1235,16 @@ async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, 
             "theta_user_id": user_id,
             "external_user_id": user_id,
         }
-        
+
         await execute_query(query=insert_sql, params=params)
-        
+
         # Return data with msg_id
         result_data = raw_data.copy()
         result_data["msg_id"] = msg_id
-        
+
         logging.info(f"Saved raw data with msg_id: {msg_id}")
         return [result_data]
-        
+
     except Exception as e:
         logging.error(f"Error saving raw data: {str(e)}")
         return []
@@ -1278,23 +1270,23 @@ async def save_raw_data_to_db(self, raw_data: Dict[str, Any]) -> List[Dict[str, 
 async def is_data_already_processed(self, raw_data: Dict[str, Any]) -> bool:
     """
     Check if data is already processed
-    
+
     Args:
         raw_data: Raw data to check
-        
+
     Returns:
         True if already processed, False otherwise
     """
     # Most providers can rely on database constraints (msg_id uniqueness)
     # Return False to let database handle deduplication
     return False
-    
+
     # Alternative: Query database for existing msg_id
     # try:
     #     msg_id = raw_data.get("msg_id")
     #     if not msg_id:
     #         return False
-    #     
+    #
     #     query = f"""
     #         SELECT EXISTS(
     #             SELECT 1 FROM health_data_{self.info.slug.replace('theta_', '')}
@@ -1326,13 +1318,13 @@ async def is_data_already_processed(self, raw_data: Dict[str, Any]) -> bool:
 async def _pull_and_push_for_user(self, credentials: Dict[str, Any]) -> bool:
     """
     Pull and push data for a specific user
-    
+
     Args:
         credentials: Dict containing:
             - user_id: User identifier
             - access_token: OAuth access token
             - refresh_token: OAuth refresh token (OAuth2 only)
-            
+
     Returns:
         True if successful, False otherwise
     """
@@ -1341,14 +1333,14 @@ async def _pull_and_push_for_user(self, credentials: Dict[str, Any]) -> bool:
         if not user_id:
             logging.error("Missing user_id in credentials")
             return False
-        
+
         # For OAuth2: Ensure token is valid (refresh if needed)
         if self.info.auth_type == LinkType.OAUTH2:
             access_token = await self.get_valid_access_token(user_id)
             if not access_token:
                 logging.error(f"Unable to get valid token for user {user_id}")
                 return False
-            
+
             # Get latest credentials (may have updated refresh token)
             credentials = await self.db_service.get_user_credentials(
                 user_id, self.info.slug, self.info.auth_type
@@ -1363,31 +1355,31 @@ async def _pull_and_push_for_user(self, credentials: Dict[str, Any]) -> bool:
             if not access_token or not token_secret:
                 logging.error(f"Invalid OAuth1 credentials for user {user_id}")
                 return False
-        
+
         # Pull data from vendor API
         raw_data_list = await self.pull_from_vendor_api(
             access_token,
             credentials.get("refresh_token"),
             days=2  # Pull last 2 days
         )
-        
+
         if not raw_data_list:
             logging.info(f"No data pulled for user {user_id}")
             return True
-        
+
         # Push data through the pipeline
         success_count = 0
         error_count = 0
-        
+
         for raw_data in raw_data_list:
             try:
                 # Add user_id to raw data
                 raw_data["user_id"] = user_id
-                
+
                 # Check if already processed (optional)
                 if await self.is_data_already_processed(raw_data):
                     continue
-                
+
                 # Push to data pipeline
                 msg_id = str(uuid.uuid4())
                 push_success = await push_service.push_data(
@@ -1396,7 +1388,7 @@ async def _pull_and_push_for_user(self, credentials: Dict[str, Any]) -> bool:
                     data=raw_data,
                     msg_id=msg_id,
                 )
-                
+
                 if push_success:
                     success_count += 1
                 else:
@@ -1405,18 +1397,18 @@ async def _pull_and_push_for_user(self, credentials: Dict[str, Any]) -> bool:
                         f"Failed to push data for user {user_id} "
                         f"with msg_id {msg_id}"
                     )
-                    
+
             except Exception as e:
                 error_count += 1
                 logging.error(f"Error processing data for user {user_id}: {str(e)}")
                 continue
-        
+
         logging.info(
             f"Processed data for user {user_id}: "
             f"success={success_count}, errors={error_count}"
         )
         return error_count == 0
-        
+
     except Exception as e:
         logging.error(f"Error in _pull_and_push_for_user: {str(e)}")
         return False
@@ -1424,10 +1416,10 @@ async def _pull_and_push_for_user(self, credentials: Dict[str, Any]) -> bool:
 async def get_valid_access_token(self, user_id: str) -> Optional[str]:
     """
     Get valid access token, refreshing if necessary (OAuth2 only)
-    
+
     Args:
         user_id: User identifier
-        
+
     Returns:
         Valid access token or None
     """
@@ -1438,22 +1430,22 @@ async def get_valid_access_token(self, user_id: str) -> Optional[str]:
         )
         if not credentials:
             return None
-        
+
         access_token = credentials.get("access_token")
         refresh_token = credentials.get("refresh_token")
         expires_at = credentials.get("expires_at")
-        
+
         if not access_token:
             return None
-        
+
         # Check if token is expired
         current_time = int(time.time())
-        
+
         if isinstance(expires_at, datetime):
             expires_at = int(expires_at.timestamp())
         elif expires_at:
             expires_at = int(expires_at)
-        
+
         # Token still valid
         if expires_at and current_time < expires_at:
             logging.info(
@@ -1461,14 +1453,14 @@ async def get_valid_access_token(self, user_id: str) -> Optional[str]:
                 f"expires in {expires_at - current_time}s"
             )
             return access_token
-        
+
         # Token expired, try to refresh
         if not refresh_token:
             logging.error(f"No refresh token for user {user_id}")
             return None
-        
+
         logging.info(f"Refreshing token for user {user_id}")
-        
+
         # Refresh token
         async with aiohttp.ClientSession() as session:
             data = {
@@ -1481,7 +1473,7 @@ async def get_valid_access_token(self, user_id: str) -> Optional[str]:
                 "Content-Type": "application/x-www-form-urlencoded",
                 "Accept": "application/json",
             }
-            
+
             async with session.post(
                 self.token_url, data=data, headers=headers
             ) as resp:
@@ -1493,29 +1485,29 @@ async def get_valid_access_token(self, user_id: str) -> Optional[str]:
                         user_id, self.info.slug
                     )
                     return None
-                
+
                 token_data = await resp.json()
-        
+
         new_access_token = token_data.get("access_token")
         new_refresh_token = token_data.get("refresh_token", refresh_token)
         expires_in = token_data.get("expires_in")
-        
+
         if not new_access_token:
             return None
-        
+
         # Calculate new expiry
         new_expires_at = None
         if expires_in:
             new_expires_at = int(time.time()) + int(expires_in)
-        
+
         # Save updated credentials
         await self.db_service.save_oauth2_credentials(
             user_id, self.info.slug, new_access_token, new_refresh_token, new_expires_at
         )
-        
+
         logging.info(f"Successfully refreshed token for user {user_id}")
         return new_access_token
-        
+
     except Exception as e:
         logging.error(f"Error getting valid token for user {user_id}: {str(e)}")
         return None
@@ -1615,7 +1607,7 @@ async def test_link_generates_url(provider):
     class MockRequest:
         user_id = "test_user_123"
         options = {}
-    
+
     result = await provider.link(MockRequest())
     assert "link_web_url" in result
     assert result["link_web_url"].startswith("https://")
@@ -1660,18 +1652,18 @@ async def test_format_data_with_samples(provider):
 async def test_full_oauth_flow():
     """Test complete OAuth flow (requires test credentials)"""
     provider = YourProvider()
-    
+
     # 1. Test link
     class MockRequest:
         user_id = "integration_test_user"
         options = {}
-    
+
     link_result = await provider.link(MockRequest())
     assert "link_web_url" in link_result
-    
+
     # 2. Simulate callback (requires manual authorization)
     # This part typically requires manual intervention or mocking
-    
+
     # 3. Test data pull
     # credentials = await provider.db_service.get_user_credentials(...)
     # raw_data = await provider.pull_from_vendor_api(...)
@@ -1682,14 +1674,14 @@ async def test_full_oauth_flow():
 async def test_data_pipeline():
     """Test data pull, save, and format"""
     provider = YourProvider()
-    
+
     # Mock credentials
     credentials = {
         "user_id": "test_user",
         "access_token": "test_token",
         "refresh_token": "test_refresh"
     }
-    
+
     # Pull data (mocked response)
     with patch.object(provider, 'pull_from_vendor_api') as mock_pull:
         mock_pull.return_value = [
@@ -1699,13 +1691,13 @@ async def test_data_pipeline():
                 "data": [{"start": "2024-01-01T00:00:00Z"}]
             }
         ]
-        
+
         # Save to DB
         raw_data = mock_pull.return_value[0]
         saved = await provider.save_raw_data_to_db(raw_data)
         assert len(saved) == 1
         assert "msg_id" in saved[0]
-        
+
         # Format data — the platform builds the context from the saved row
         ctx = await provider.build_format_context(saved[0])
         formatted = await provider.format_data(FormatDataInput(context=ctx, payload=saved[0]))
@@ -1730,9 +1722,9 @@ async def test_data_pipeline():
    ```python
    # In Python console
    from mirobody.collect.providers.mirobody_<provider>.provider_<provider> import YourProvider
-   
+
    provider = YourProvider()
-   
+
    # Pull data
    import asyncio
    raw_data = asyncio.run(
@@ -1748,7 +1740,7 @@ async def test_data_pipeline():
        "data_type": "sleeps",
        "data": [...]
    }
-   
+
    fmt_input = FormatDataInput(
        context=FormatDataContext(theta_user_id="test_user", user_timezone="UTC"),
        payload=sample_data,
@@ -1785,7 +1777,7 @@ async def test_data_pipeline():
    ```yaml
    # config.yaml (development)
    <PROVIDER>_CLIENT_ID: "dev_client_id"
-   
+
    # config.production.yaml
    <PROVIDER>_CLIENT_ID: "prod_client_id"
    ```
@@ -1879,11 +1871,11 @@ async def test_data_pipeline():
 1. **Use Concurrent Requests**:
    ```python
    semaphore = asyncio.Semaphore(5)  # Limit concurrency
-   
+
    async def fetch_one(item_id):
        async with semaphore:
            return await self.api_call(item_id)
-   
+
    tasks = [fetch_one(id) for id in item_ids]
    results = await asyncio.gather(*tasks)
    ```
@@ -1892,7 +1884,7 @@ async def test_data_pipeline():
    ```python
    all_records = []
    next_token = None
-   
+
    while True:
        page = await self.fetch_page(next_token)
        all_records.extend(page["records"])
@@ -1903,13 +1895,13 @@ async def test_data_pipeline():
 
 3. **Cache Expensive Operations**:
    ```python
-   # Use Redis for temporary caching
-   cached = await redis_client.get(f"cache:{key}")
+   # Use Postgres temporary state for temporary caching
+   cached = await ephemeral.get(f"cache:{key}")
    if cached:
        return json.loads(cached)
-   
+
    result = await expensive_operation()
-   await redis_client.setex(f"cache:{key}", 3600, json.dumps(result))
+   await ephemeral.setex(f"cache:{key}", 3600, json.dumps(result))
    return result
    ```
 
@@ -1919,7 +1911,7 @@ async def test_data_pipeline():
    ```python
    # BAD
    logging.info(f"Token: {access_token}")
-   
+
    # GOOD
    logging.info(f"Token: {access_token[:10]}...")
    ```
@@ -1946,10 +1938,10 @@ async def test_data_pipeline():
        "skipped_indicators": 0,
        "errors": [],
    }
-   
+
    # Update throughout processing
    processing_info["processed_indicators"] += 1
-   
+
    # Log summary
    logging.info(
        f"Processed {processing_info['processed_indicators']} indicators, "
@@ -1978,7 +1970,7 @@ async def test_data_pipeline():
            # Test configuration
            if not self.client_id:
                return False
-           
+
            # Test API connectivity (optional)
            async with aiohttp.ClientSession() as session:
                async with session.get(
@@ -2041,7 +2033,7 @@ Common indicators you'll map to:
 
 **Solutions**:
 1. Verify redirect URL matches exactly in vendor dashboard
-2. Check Redis connectivity for state storage
+2. Check Postgres connectivity: OAuth state lives in `th_ephemeral`
 3. Ensure the provider is loaded, so its callback route is registered: its
    directory must be on `PROVIDER_DIRS` (config.yaml)
 4. Verify state parameter is URL-encoded properly

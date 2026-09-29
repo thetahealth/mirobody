@@ -14,7 +14,7 @@ Commands:
   labels, crosswalks) as one digested JSON file, for a client that codes
   health-store batches without Python. Needs nothing, like ``resolve``.
 * ``mirobody dev [--pg-url URL]``       the same server in ONE command, with
-  no config file, no Redis requirement and generated dev secrets. `config.yaml`
+  no config file and generated dev secrets. `config.yaml`
   is not in the wheel, so this is the only shape in which
   ``pip install 'mirobody[app]'`` alone can start something.
 * ``mirobody serve [config.yaml ...]``  the full HTTP server (chat, MCP,
@@ -95,10 +95,6 @@ PG_MIN_CONNECTION: 1
 PG_MAX_CONNECTION: 4
 PG_TIMEOUT: 10
 
-REDIS_HOST: {redis_host}
-REDIS_PORT: {redis_port}
-REDIS_DATABASE: 0
-
 JWT_KEY: {jwt_key}
 CONFIG_ENCRYPTION_KEY: {config_key}
 
@@ -142,16 +138,8 @@ def _pg_from_url(url: str) -> dict[str, str]:
 def _cmd_dev(args: argparse.Namespace) -> None:
     """One command, one process, no config file: the local-development path.
 
-    `serve` is the deployment shape: it reads `config.{ENV}.yaml`, expects
-    Redis, and expects the secrets to already exist. Every one of those is a
-    prerequisite `examples/05_agent_server_preflight.py` reports as MISSING on
-    a fresh machine, and four of them are things a developer should not have to
-    produce by hand to see the thing run.
-
-    What this does NOT change: Redis stays optional because it already was:
-    `RedisConfig.get_async_client` returns None when it cannot ping, and
-    `Server` logs "local memory mode" and carries on. `dev` just stops treating
-    that as a failure worth blocking on.
+    `serve` reads deployment config and expects secrets to already exist.
+    This path generates them for a local process and uses the supplied Postgres.
     """
     _require_extra("dev", "app", "langchain", "the server and agent layer")
 
@@ -188,7 +176,6 @@ def _cmd_dev(args: argparse.Namespace) -> None:
 
     overlay = _DEV_CONFIG.format(
         host=args.host, port=args.port,
-        redis_host=args.redis_host, redis_port=args.redis_port,
         jwt_key=jwt_key, config_key=config_key,
         **_pg_from_url(pg_url),
     )
@@ -200,7 +187,6 @@ def _cmd_dev(args: argparse.Namespace) -> None:
         print("  set them in the environment to keep them.")
     print(f"  postgres: {_pg_from_url(pg_url)['pg_host']}:{_pg_from_url(pg_url)['pg_port']}"
           f"/{_pg_from_url(pg_url)['pg_dbname']}")
-    print(f"  redis:    {args.redis_host}:{args.redis_port} (optional — falls back to in-process memory)")
     print()
 
     from mirobody.server import Server
@@ -509,8 +495,6 @@ def main(argv: list[str] | None = None) -> None:
     p_dev.add_argument("--pg-url", default="", help="postgres://user:pw@host:port/db (or PG_URL / DATABASE_URL)")
     p_dev.add_argument("--host", default="127.0.0.1", help="bind address (default: loopback only)")
     p_dev.add_argument("--port", type=int, default=18090, help="HTTP port (default: 18090)")
-    p_dev.add_argument("--redis-host", default="127.0.0.1", help="Redis host; unreachable is fine")
-    p_dev.add_argument("--redis-port", type=int, default=6379, help="Redis port; unreachable is fine")
     p_dev.set_defaults(func=_cmd_dev)
 
     p_worker = sub.add_parser("worker", help="run the background task worker")

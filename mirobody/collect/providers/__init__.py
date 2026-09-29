@@ -23,7 +23,7 @@ directory. `installed.py` reads the same convention without importing anything.
 
 # Lazy (PEP 562), matching `mirobody/collect/__init__.py` and
 # `mirobody/agent/__init__.py`. Importing ProviderPlatform eagerly pulls in
-# fastapi, sqlalchemy, psycopg, redis and aiohttp, so `from
+# fastapi, sqlalchemy, psycopg and aiohttp, so `from
 # mirobody.collect.providers.installed import installed_provider_slugs`, a filesystem
 # scan with no imports of its own, was loading the entire server stack just by
 # touching this package. Reading a directory listing should not cost a database
@@ -62,4 +62,3 @@ def __getattr__(name: str):
     value = module if where.rsplit(".", 1)[-1] == name else getattr(module, name)
     globals()[name] = value
     return value
-

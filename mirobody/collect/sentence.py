@@ -13,8 +13,12 @@ that is not written comes back with its reason:
   part the model made up;
 * only what the person asserts about themselves is written: 没发烧 (negated),
   怕是感冒了 (hypothetical) and 我妈高血压 (someone else) are not;
-* a medication is not written here, because medications have their own
-  record, and neither is anything else (a meal, a mood);
+* a medication goes to the medication record, not to an observation: the
+  model reports the drug, dose and frequency as written (`mentions`), and
+  `kernel.meds` parses the schedule and decides whether it is a new plan;
+* anything else worth keeping (a meal, a mood) is a note, kept as written
+  and never coded; a sentence the model finds nothing in is one note, so
+  nothing typed into the box is lost;
 * a time the model resolved ("昨晚") is used only when it parses and is not
   in the future; otherwise the entry takes the default time.
 """
@@ -30,10 +34,11 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from mirobody.collect import observations as obs
+from mirobody.kernel import meds
 
 logger = logging.getLogger(__name__)
 
-EXTRACTOR = "llm:journal-sentence@v1"
+EXTRACTOR = "llm:journal-sentence@v2"
 
 KIND_MEASUREMENT = "measurement"
 KIND_SYMPTOM = "symptom"
@@ -46,12 +51,23 @@ _WRITES = {
     KIND_MEASUREMENT: obs.KIND_MEASUREMENT,
     KIND_SYMPTOM: obs.KIND_SYMPTOM,
     KIND_CONDITION: obs.KIND_CONDITION,
+    KIND_OTHER: obs.KIND_NOTE,
 }
 
 ASSERT_PRESENT = "present"
 ASSERT_NEGATED = "negated"
 ASSERT_HYPOTHETICAL = "hypothetical"
-ASSERTIONS = (ASSERT_PRESENT, ASSERT_NEGATED, ASSERT_HYPOTHETICAL)
+#: Medication only: the person says they no longer take it.
+ASSERT_STOPPED = "stopped"
+ASSERTIONS = (ASSERT_PRESENT, ASSERT_NEGATED, ASSERT_HYPOTHETICAL, ASSERT_STOPPED)
+
+#: The sentence's assertion in `kernel.meds`' words.
+_MENTION_ASSERTION = {
+    ASSERT_PRESENT: meds.ASSERTION_TAKING,
+    ASSERT_STOPPED: meds.ASSERTION_STOPPED,
+    ASSERT_NEGATED: meds.ASSERTION_NEGATED,
+    ASSERT_HYPOTHETICAL: meds.ASSERTION_HYPOTHETICAL,
+}
 
 SUBJECT_SELF = "self"
 SUBJECT_OTHER = "other"
@@ -60,11 +76,22 @@ SUBJECT_OTHER = "other"
 SKIP_NEGATED = "negated"
 SKIP_HYPOTHETICAL = "hypothetical"
 SKIP_SOMEONE_ELSE = "someone_else"
-SKIP_MEDICATION = "medication"
 SKIP_NOT_A_RECORD = "not_a_record"
 SKIP_NO_VALUE = "no_value"
 SKIP_NOT_IN_SENTENCE = "not_in_sentence"
 SKIP_TOO_LONG = "too_long"
+#: An assertion outside `ASSERTIONS`: whether the thing is present, absent or
+#: only wondered about is unknown, and guessing "present" would write "没发烧"
+#: as a fever.
+SKIP_UNCLEAR = "unclear"
+
+#: Words that may negate what they stand next to. Read only when the model
+#: gave no assertion at all: then a quote with one of these is not taken as
+#: present. It also catches 不舒服 or 无力, which are symptoms; those are
+#: skipped as unclear rather than written, and the person sees the skip.
+_NEGATION_CUE = re.compile(
+    r"[没沒不无無未非别別]|否认|否認|\b(?:no|not|never|none|without|denies|denied)\b|n't\b", re.IGNORECASE
+)
 
 #: What one sentence may be, and what one entry's name may be (the journal's
 #: own limit for a single entry).
@@ -98,7 +125,8 @@ RESPONSE_SCHEMA: dict[str, Any] = {
                             "measurement: a number with what it measures (血压150/95, 体温38.5, 空腹血糖6.1). "
                             "symptom: something felt (头疼, 腰痛, 发烧, 咳嗽, sore throat). "
                             "condition: a named diagnosis the person has or was given (高血压, 糖尿病, asthma). "
-                            "medication: a drug taken or stopped. other: anything else (a meal, a mood, an activity)."
+                            "medication: a drug or supplement taken, started or stopped (二甲双胍, 布洛芬, vitamin D). "
+                            "other: anything else about their day worth keeping (a meal, a mood, how they slept, an activity)."
                         ),
                     },
                     "name": {
@@ -109,6 +137,14 @@ RESPONSE_SCHEMA: dict[str, Any] = {
                         ),
                     },
                     "value": {"type": "string", "description": "measurement only: the number as written (150, 38.5). Empty otherwise."},
+                    "dose": {
+                        "type": "string",
+                        "description": "medication only: the amount per dose as written (500mg, 一片, 2 puffs). Empty otherwise or when not said.",
+                    },
+                    "frequency": {
+                        "type": "string",
+                        "description": "medication only: how often and when, as written (每天两次, 早晚各一次, 睡前, 需要时, twice daily). Empty otherwise or when not said.",
+                    },
                     "unit": {
                         "type": "string",
                         "description": "measurement only: the unit as written, or the one the reading plainly has (mmHg for blood pressure, ℃ for a body temperature like 38.5). Empty when unknown.",
@@ -116,7 +152,7 @@ RESPONSE_SCHEMA: dict[str, Any] = {
                     "assertion": {
                         "type": "string",
                         "enum": list(ASSERTIONS),
-                        "description": "present: the person says it is so. negated: they say it is not (没发烧, no cough, 不咳嗽了). hypothetical: a worry, a guess or a question (怕是感冒了, maybe the flu).",
+                        "description": "present: the person says it is so (for a medication: they take it). negated: they say it is not (没发烧, no cough, 不咳嗽了, 今天没吃药). hypothetical: a worry, a guess or a question (怕是感冒了, maybe the flu, 要不要吃点布洛芬). stopped: medication only, they no longer take it (停了二甲双胍, stopped the statin).",
                     },
                     "subject": {
                         "type": "string",
@@ -132,7 +168,7 @@ RESPONSE_SCHEMA: dict[str, Any] = {
                         "description": "Severity, duration, location or other qualifiers, in the person's words (有点, 一整天, 左边). Empty when none.",
                     },
                 },
-                "required": ["quote", "kind", "name", "value", "unit", "assertion", "subject", "when", "detail"],
+                "required": ["quote", "kind", "name", "value", "unit", "dose", "frequency", "assertion", "subject", "when", "detail"],
             },
         },
     },
@@ -152,6 +188,10 @@ not an entry.
 - A blood pressure like 150/95 is TWO measurement entries: 收缩压 150 and 舒张压 95 (in English, \
 systolic blood pressure and diastolic blood pressure), unit mmHg, both quoting the same span.
 - "发烧38.5" is a symptom (发烧) and a measurement (体温 38.5 ℃), both quoting the same span.
+- A medication is one entry: the drug in `name` as written, without the amount; the amount in \
+`dose`; how often in `frequency` ("每天早晚吃二甲双胍500mg": name 二甲双胍, dose 500mg, frequency 每天早晚).
+- Anything else about their day worth keeping (吃了一碗牛肉面, 心情不好, 睡得很差) is one "other" \
+entry whose `name` is the span as written.
 - A negation ("没发烧", "no fever", "不咳嗽了") is still an entry, with assertion "negated".
 - A worry or guess ("怕是感冒了", "might be the flu") is an entry with assertion "hypothetical".
 - About someone else ("我妈头疼") is an entry with subject "other".
@@ -159,7 +199,7 @@ systolic blood pressure and diastolic blood pressure), unit mmHg, both quoting t
 person however the writer refers to them (我爸, Dad, 他, her name, or no subject at all). Anyone else, \
 the writer included, is "other".
 - A time the sentence names is resolved against NOW into `when`; otherwise leave `when` empty.
-- If nothing health-related is stated, return no entries."""
+- If nothing is stated worth an entry, return no entries."""
 
 
 @dataclass(frozen=True)
@@ -175,6 +215,8 @@ class Part:
     subject: str = SUBJECT_SELF
     when: str = ""
     detail: str = ""
+    dose: str = ""
+    frequency: str = ""
 
 
 @dataclass(frozen=True)
@@ -232,6 +274,14 @@ def parts_from(answer: Mapping[str, Any]) -> list[Part]:
         field = {k: str(item.get(k) or "").strip() for k in Part.__dataclass_fields__}
         if not (field["quote"] or field["name"]):
             continue
+        # Not every provider enforces the schema, where `assertion` is required.
+        # A different spelling is kept and refused below. A missing one is
+        # read as present only when nothing in the quote could negate it:
+        # "没发烧" with no assertion was written as a fever.
+        said = field["assertion"].lower()
+        if not said:
+            said = "" if _NEGATION_CUE.search(field["quote"] or field["name"]) else ASSERT_PRESENT
+        field["assertion"] = said
         out.append(Part(**field))
     return out
 
@@ -239,7 +289,10 @@ def parts_from(answer: Mapping[str, Any]) -> list[Part]:
 def plan(
     parts: Sequence[Part], *, sentence: str, now: datetime, default_at: datetime, tz: str = ""
 ) -> tuple[list[obs.Draft], list[Skip]]:
-    """The drafts to write and the parts to report as skipped. Pure.
+    """The observations to write and the parts to report as skipped. Pure.
+
+    Medication parts are not here: `mentions` takes them. A sentence the model
+    found nothing in becomes one note, so what was typed is kept.
 
     `tz` is the zone the writer said they are in, and `now` is read in the
     zone it resolves to. Every draft carries it, so "今天" typed in Shanghai
@@ -248,12 +301,19 @@ def plan(
     drafts: list[obs.Draft] = []
     skipped: list[Skip] = []
     haystack = _squash(sentence)
+    if not parts and sentence.strip():
+        return [_note(sentence.strip(), default_at, tz)], []
     for part in _split_blood_pressure(parts):
+        if part.kind == KIND_MEDICATION:
+            continue
         reason = _skip_reason(part, haystack)
         if reason:
             skipped.append(Skip(part.quote or part.name, part.kind, part.name, reason))
             continue
         at = _when(part.when, now=now, zone=now.tzinfo) or default_at
+        if part.kind == KIND_OTHER:
+            drafts.append(_note(part.quote or part.name, at, tz, detail=part.detail))
+            continue
         drafts.append(obs.Draft(
             name_text=part.name,
             observed_start=at,
@@ -266,22 +326,66 @@ def plan(
     return drafts, skipped
 
 
+def _note(text: str, at: datetime, tz: str, *, detail: str = "") -> obs.Draft:
+    """A note as written. `name_text` holds it, as a complaint's words are held;
+    past `MAX_NAME` the name is its opening and the whole text goes to the
+    encrypted note, so a long entry is kept, not refused."""
+    if len(text) <= MAX_NAME:
+        return obs.Draft(name_text=text, observed_start=at, note_text=detail, kind=obs.KIND_NOTE, tz=tz)
+    return obs.Draft(name_text=text[: MAX_NAME - 1] + "…", observed_start=at, note_text=text,
+                     kind=obs.KIND_NOTE, tz=tz)
+
+
+def mentions(parts: Sequence[Part], *, sentence: str, now: datetime) -> tuple[list[meds.MedicationMention], list[Skip]]:
+    """The medication parts as `kernel.meds` mentions, and the ones refused.
+
+    The same checks as every other part (a quote the sentence contains, about
+    the person, asserted rather than negated or wondered about), so a skip
+    carries its quote back to the person. What is left goes to
+    `meds.reconcile_mentions`, which decides what becomes a plan."""
+    out: list[meds.MedicationMention] = []
+    skipped: list[Skip] = []
+    haystack = _squash(sentence)
+    for part in parts:
+        if part.kind != KIND_MEDICATION:
+            continue
+        reason = _skip_reason(part, haystack)
+        if reason:
+            skipped.append(Skip(part.quote or part.name, part.kind, part.name, reason))
+            continue
+        started = _when(part.when, now=now, zone=now.tzinfo) if part.assertion == ASSERT_PRESENT else None
+        out.append(meds.MedicationMention(
+            name=part.name,
+            dose_text=part.dose,
+            frequency_text=part.frequency,
+            instructions_text=part.detail,
+            started_on=started.date() if started else None,
+            assertion=_MENTION_ASSERTION[part.assertion],
+            quote=part.quote or part.name,
+        ))
+    return out, skipped
+
+
 def _skip_reason(part: Part, haystack: str) -> str:
-    if part.kind == KIND_MEDICATION:
-        return SKIP_MEDICATION
-    if part.kind not in _WRITES or not part.name:
+    if part.kind not in _WRITES and part.kind != KIND_MEDICATION:
+        return SKIP_NOT_A_RECORD
+    if not (part.name or (part.kind == KIND_OTHER and part.quote)):
         return SKIP_NOT_A_RECORD
     if _squash(part.quote or part.name) not in haystack:
         return SKIP_NOT_IN_SENTENCE
     if part.subject == SUBJECT_OTHER:
         return SKIP_SOMEONE_ELSE
+    if part.assertion not in ASSERTIONS:
+        return SKIP_UNCLEAR
     if part.assertion == ASSERT_NEGATED:
         return SKIP_NEGATED
     if part.assertion == ASSERT_HYPOTHETICAL:
         return SKIP_HYPOTHETICAL
+    if part.assertion == ASSERT_STOPPED and part.kind != KIND_MEDICATION:
+        return SKIP_NOT_A_RECORD
     if part.kind == KIND_MEASUREMENT and not part.value:
         return SKIP_NO_VALUE
-    if len(part.name) > MAX_NAME:
+    if part.kind != KIND_OTHER and len(part.name) > MAX_NAME:
         return SKIP_TOO_LONG
     return ""
 
@@ -332,6 +436,7 @@ __all__ = [
     "RESPONSE_SCHEMA",
     "Skip",
     "available",
+    "mentions",
     "messages_for",
     "parts_from",
     "plan",

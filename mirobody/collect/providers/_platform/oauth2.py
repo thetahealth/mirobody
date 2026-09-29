@@ -2,7 +2,7 @@
 Reusable OAuth2 client for providers.
 
 Encapsulates the standard OAuth2 authorization-code flow:
-  1. generate_authorization_url  build auth URL, store state in Redis
+  1. generate_authorization_url  build auth URL, store state in Postgres temporary state
   2. exchange_code_for_tokens    code → tokens, save credentials to DB
   3. get_valid_access_token      auto-refresh expired tokens
   4. refresh_access_token        refresh_token grant
@@ -24,6 +24,7 @@ import aiohttp
 
 from mirobody.collect.core import LinkType
 from mirobody.utils.config import safe_read_cfg, global_config
+from mirobody.kernel.ops import is_driver_exception
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,7 @@ class OAuth2Client:
     async def generate_authorization_url(
         self, user_id: str, options: dict[str, Any]
     ) -> dict[str, Any]:
-        """Generate OAuth2 authorization URL and store state in Redis."""
+        """Generate OAuth2 authorization URL and store state in Postgres temporary state."""
         if not self.client_id or not self.client_secret:
             raise ValueError("Missing OAuth2 client_id or client_secret")
         if not self.redirect_url:
@@ -111,13 +112,12 @@ class OAuth2Client:
 
         try:
             cfg = global_config()
-            redis_config = cfg.get_redis()
-            redis_client = await redis_config.get_async_client()
-            await redis_client.setex(f"oauth2:state:{state}", self.oauth_temp_ttl, user_id or "")
-            await redis_client.setex(f"oauth2:redir:{state}", self.oauth_temp_ttl, self.redirect_url)
-            await redis_client.aclose()
+            ephemeral = cfg.get_ephemeral()
+            await ephemeral.setex(f"oauth2:state:{state}", self.oauth_temp_ttl, user_id or "")
+            await ephemeral.setex(f"oauth2:redir:{state}", self.oauth_temp_ttl, self.redirect_url)
         except Exception as e:
-            logger.warning(f"Failed to write oauth2 temp data to Redis: {e}")
+            logger.warning("OAuth state write failed: error_type=%s", type(e).__name__)
+            raise RuntimeError("OAuth state is unavailable") from None
 
         params = {
             "client_id": self.client_id,
@@ -142,21 +142,17 @@ class OAuth2Client:
         Returns dict with keys: user_id, access_token, refresh_token,
         expires_at, return_url, provider_slug.
         """
-        # Read state from Redis
+        # Read state from Postgres temporary state
         cached_user_id = None
         redirect_uri = None
         return_url = None
 
         try:
             cfg = global_config()
-            redis_config = cfg.get_redis()
-            redis_client = await redis_config.get_async_client()
+            ephemeral = cfg.get_ephemeral()
             if state:
-                cached_user_id = await redis_client.get(f"oauth2:state:{state}")
-                redirect_uri = await redis_client.get(f"oauth2:redir:{state}")
-                await redis_client.delete(f"oauth2:state:{state}")
-                await redis_client.delete(f"oauth2:redir:{state}")
-            await redis_client.aclose()
+                cached_user_id = await ephemeral.take(f"oauth2:state:{state}")
+                redirect_uri = await ephemeral.take(f"oauth2:redir:{state}")
 
             if isinstance(cached_user_id, bytes):
                 cached_user_id = cached_user_id.decode("utf-8")
@@ -171,7 +167,8 @@ class OAuth2Client:
             except Exception:
                 return_url = None
         except Exception as e:
-            logger.warning(f"Failed to read oauth2 temp data from Redis: {e}")
+            logger.warning("OAuth state read failed: error_type=%s", type(e).__name__,
+                           exc_info=not is_driver_exception(e))
 
         user_id = cached_user_id
         if not user_id:

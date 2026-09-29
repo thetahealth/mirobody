@@ -81,6 +81,8 @@ _EXPORTS = {
     "PostgresHealthQuery": "query",
     "REST_CATALOG_MAX": "query",
     "REST_ROW_MAX": "query",
+    "RECORDS_PAGE_MAX": "query",
+    "RECORD_EXPORT_COLUMNS": "query",
     # Files, shared by server and agent.
     "get_websocket_file_upload_manager": "files.file_upload_manager",
     "FileDbService": "files.services.file_db_service",
@@ -101,6 +103,7 @@ _EXPORTS = {
     # What `mirobody.agent` needs beyond the above.
     "PostgresDoseLogStore": "meds",
     "PostgresMedicationStore": "meds",
+    "apply_medication_mentions": "meds.mentions",
     # Note: Specific providers (GarminProvider, etc.) are auto-loaded
     # and can be imported from .providers if needed
 }
@@ -130,8 +133,8 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .providers._platform.startup import start_theta_pull_scheduler
     from .core.models import ConnectInfoField
     from .providers.installed import installed_provider_slugs
-    from .query import PostgresHealthQuery, REST_CATALOG_MAX, REST_ROW_MAX
-    from .meds import PostgresDoseLogStore, PostgresMedicationStore
+    from .query import PostgresHealthQuery, RECORD_EXPORT_COLUMNS, RECORDS_PAGE_MAX, REST_CATALOG_MAX, REST_ROW_MAX
+    from .meds import PostgresDoseLogStore, PostgresMedicationStore, apply_medication_mentions
     from .files.file_upload_manager import get_websocket_file_upload_manager
     from .files.handlers.genetic import GeneticHandler
     from .files.services.drive_listing import get_uploaded_files_paginated, regenerate_file_url

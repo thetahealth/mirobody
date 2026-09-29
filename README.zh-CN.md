@@ -36,9 +36,9 @@ Mirobody 把不同来源、格式、表述的健康信息，规整成一套语�
 - **把全家人的记录合成一份。** 用关爱圈邀请伴侣、父母，甚至是一个完全不会自己登录的孩子，管理家庭的健康档案。
 - **所有来源，照单全收。** Garmin、Oura、Whoop 直接对接；任何写进 Apple Health 的手环、
   戒指、体重秤，也一并进来。PDF、照片、表格、导出文件，23 种文件类型，Mirobody 都能看懂。
-- **用自己的话记下感受。** 在「记录」里写一句 `昨晚开始头疼，血压150/95，没发烧`，
-  它会记下一条头疼、两条血压读数，各自落在标准码上；你说了没有的发烧，不会被记进去。
-  拆句的是你选的模型，编码来自词表，从不来自模型。
+- **用自己的话记下感受。** 在「记录」里写一句 `昨晚开始头疼，血压150/95，没发烧，每天早晚吃二甲双胍500mg`，
+  它会记下一条头疼、两条血压读数，各自落在标准码上，把二甲双胍加入用药清单；
+  你说了没有的发烧，不会被记进去。拆句的是你选的模型，编码来自词表，从不来自模型。
 - **0 幻觉，可追溯。** 每一条健康数据都会落进一套确定的指标体系：要么给出一个确定的编码，
   要么明说没解析出来，绝不自己编一个。基于真实报告开发和测试，英文、中文、日文的写法都认。
 - **Agent 只在编码过的数据上推理。** 按分钟、小时、天、周、月给出趋势，并画成图；一次调
@@ -50,8 +50,8 @@ Mirobody 把不同来源、格式、表述的健康信息，规整成一套语�
   位点原样保存。问到用药，它会告诉你 CPIC 相关位点哪些测到了、哪些缺失、哪些
   没读出来，但不会据此推断你是哪种代谢型，更不会建议你调整用药。
   [基因数据怎么处理](docs/genetics.zh-CN.md)。
-- **一台笔记本就能跑。** 四个容器，常驻 791 MiB，空载 CPU 占用不到 5%。不用
-  GPU，不用 Node.js。
+- **一台笔记本就能跑。** 三个容器：Postgres、服务端和任务进程。不用 GPU，
+  不用 Node.js。
 - **你的模型，你的 key，你的数据。** 模型调用走你自己选的那个模型，其余的一切都留
   在你自己的机器上。
 
@@ -137,7 +137,7 @@ Garmin、Oura、Whoop 走它们自己的 API，只取它们记下的数据。
 不用 key，不联网，不跑模型，也不用 GPU。你的记录存在你自己的 Postgres 里，容器
 是你自己起的，这里不会把任何使用情况报给谁。
 
-**一把 key，也是你唯一要保管的秘密。** 把
+**只需自己准备一把模型 key。** `deploy.sh` 会在 `.env` 里生成数据库、签名与加密密钥。把
 [DeepSeek key](https://platform.deepseek.com/api_keys)（`DEEPSEEK_API_KEY`）或
 [DashScope key](https://dashscope.console.aliyun.com/apiKey)（`DASHSCOPE_API_KEY`）
 写进 `compose.yaml` 旁边的 `.env`，`docker compose restart`，就跑起来了。
@@ -148,7 +148,8 @@ Google，或者任何 OpenAI 兼容网关，单独一家都能把整套跑通。
 里的四行；那个文件写的是变量名（`api_key: OPENROUTER_API_KEY`），不是密钥本身。
 `mirobody doctor` 会把每一环选中了什么列出来，缺了什么也直接告诉你怎么补。
 
-快速上手用的那几个密钥都是占位符，落库加密也还没覆盖到每一个字段。要把它接到一
+仓库里的配置仍展示占位符，`deploy.sh` 会为容器栈生成实际密钥。落库加密还没覆盖到
+每一个字段。要把它接到一
 个你控制不了的网络上，先过一遍 [SECURITY.md](SECURITY.md)：服务端到底会往外发哪
 些请求，也写在那里。
 
@@ -156,16 +157,20 @@ Google，或者任何 OpenAI 兼容网关，单独一家都能把整套跑通。
 
 ```bash
 git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
-git lfs install && git lfs pull   # 解析器的 LOINC 词表，13 MB；新克隆下来是个指针文件，直到你跑这条命令
-./deploy.sh                       # Postgres + pgvector、Redis、服务端、worker → http://localhost:18060
+./deploy.sh                       # 拉取应用镜像，启动 Postgres、服务端与 worker → http://localhost:18060
 ```
 
 （`--depth 1` 跳过历史里那些已经被替换掉的前端构建产物；要提 PR 就去掉它。）
 
-有两件事 `deploy.sh` 会拦下来，并把修法写在报错里：一台机器同时只能跑一份，
-因为 `compose.yaml` 固定了这套栈的子网，再起一份要改 `mirobody_network` 的网段；
-另外，拒绝 named volume 的 Docker（rootless、受限环境）要改用 bind mount，
-`compose.override.yaml.example` 就是为这个准备的。
+`deploy.sh` 会在 `.env` 中生成本机密钥，并从 Docker Hub 拉取
+`thetahealth/mirobody:1.5.3`。镜像已经带有词表，Docker 用户不需要 Git LFS。
+Docker 守护进程连不上 Docker Hub 时，改用 `docker.1ms.run` 镜像源；
+镜像完全拉不到时（分支，或版本尚未发布），用当前检出在本机构建，
+这时需要先 `git lfs pull`。从 1.5.2 升级见
+[docs/backup-restore.md](docs/backup-restore.md#upgrading-from-152)。
+第二份检出可在其 `.env`
+设置 `COMPOSE_PROJECT_NAME` 和宿主端口；不支持 named volume 的 Docker 可使用
+`compose.override.yaml.example` 改为 bind mount。
 
 在「邮箱验证码」页签用 `you@mirobody.ai`、验证码 `111111` 登录，不需要邮件服务。
 注册自己的账号也只要一个请求：

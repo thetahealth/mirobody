@@ -8,7 +8,7 @@ import time
 import urllib.parse
 
 from collections.abc import Callable
-from redis.asyncio import Redis
+from mirobody.utils.ephemeral import EphemeralStore
 
 from .bearer import MCP_CLIENT_PREFIX, audience_matches, bearer_subject, mcp_resource
 from .jwt import REFRESH_TOKEN_TYPE, AbstractTokenValidator, minted_at
@@ -75,7 +75,7 @@ class OAuthService:
         gen_jwt_claims_func : Callable[[str, str], dict] | None = None,
         uri_prefix      : str = "",
         routes          : list | None = None,
-        redis           : Redis | None = None,
+        ephemeral       : EphemeralStore | None = None,
         **kwargs
     ):
         self._token_validator   = token_validator
@@ -84,16 +84,16 @@ class OAuthService:
 
         #-------------------------------------------------
 
-        self._redis = redis
+        self._ephemeral = ephemeral
 
         self._uri_prefix = uri_prefix
 
-        if self._redis:
+        if self._ephemeral:
             self._auth_code_keyprefix   = "mirobody:user:auth:code:"
             self._client_keyprefix      = "mirobody:user:client:"
 
         else:
-            # Use local memory when no redis connection is available.
+            # Local memory when the server has no shared store.
             self._auth_codes    = {}
             self._clients       = {}
 
@@ -191,11 +191,11 @@ class OAuthService:
             return False
 
         raw = None
-        if self._redis:
+        if self._ephemeral:
             try:
-                raw = await self._redis.hget(self._client_keyprefix + client_id, "redirect_uris")
+                raw = await self._ephemeral.hget(self._client_keyprefix + client_id, "redirect_uris")
             except Exception as e:
-                logger.warning(str(e))
+                logger.warning("OAuth client lookup failed: error_type=%s", type(e).__name__)
         else:
             raw = (self._clients.get(client_id) or {}).get("redirect_uris")
 
@@ -226,7 +226,7 @@ class OAuthService:
             # request carried: an attacker could send a logged-in victim to
             # /authorize with `redirect_uri=https://evil.example/cb` and receive
             # a code exchangeable for that victim's tokens (RFC 6749 §10.6).
-            # JSON because a Redis hash value must be a scalar.
+            # JSON because each field of a stored hash is one string.
             registered_redirect_uris = data.get("redirect_uris", [])
             if not isinstance(registered_redirect_uris, list):
                 registered_redirect_uris = []
@@ -236,12 +236,12 @@ class OAuthService:
                 "redirect_uris": json.dumps(registered_redirect_uris),
             }
 
-            if self._redis:
+            if self._ephemeral:
                 try:
-                    await self._redis.hset(self._client_keyprefix + client_id, mapping=cached_client)
+                    await self._ephemeral.hset(self._client_keyprefix + client_id, mapping=cached_client)
 
                 except Exception as e:
-                    logger.warning(str(e))
+                    logger.warning("OAuth client registration failed: error_type=%s", type(e).__name__)
             else:
                 if client_id in self._clients:
                     self._clients[client_id].update(cached_client)
@@ -363,13 +363,13 @@ class OAuthService:
             "aal"           : str(int(payload.get("aal") or 0)),
         }
 
-        if self._redis:
-            redis_key = self._auth_code_keyprefix + auth_code
+        if self._ephemeral:
+            code_key = self._auth_code_keyprefix + auth_code
             try:
-                await self._redis.hset(redis_key, mapping=cached_auth_code)
-                await self._redis.expire(redis_key, _AUTH_CODE_TTL_SECONDS)
+                await self._ephemeral.hset(code_key, mapping=cached_auth_code)
+                await self._ephemeral.expire(code_key, _AUTH_CODE_TTL_SECONDS)
             except Exception as e:
-                logger.warning(str(e))
+                logger.warning("OAuth code store failed: error_type=%s", type(e).__name__)
         else:
             self._auth_codes[auth_code] = cached_auth_code
 
@@ -421,19 +421,20 @@ class OAuthService:
                     code = ""
 
                 # Read AND consume in one step. RFC 6749 §4.1.2 requires an
-                # authorization code to be single-use; the Redis branch used to
-                # read it and leave it in place behind a `# TODO: pass`, so a
-                # leaked code could be exchanged for fresh token pairs for its
-                # whole lifetime. `delete` returning 0 means another request
-                # already redeemed it, that is a replay, and it is refused.
+                # authorization code to be single-use; the shared-store branch
+                # (Redis, then) used to read it and leave it in place behind a
+                # `# TODO: pass`, so a leaked code could be exchanged for fresh
+                # token pairs for its whole lifetime. `take_hash` is one DELETE
+                # ... RETURNING: an empty answer means another request already
+                # redeemed it, that is a replay, and it is refused.
                 consumed = True
-                if self._redis:
+                if self._ephemeral:
                     key = self._auth_code_keyprefix + code
                     try:
-                        stored_code = await self._redis.hgetall(key)
-                        consumed = bool(await self._redis.delete(key))
+                        stored_code = await self._ephemeral.take_hash(key)
+                        consumed = bool(stored_code)
                     except Exception as e:
-                        logger.warning(str(e))
+                        logger.warning("OAuth code redeem failed: error_type=%s", type(e).__name__)
                         stored_code = {}
                         consumed = False
 

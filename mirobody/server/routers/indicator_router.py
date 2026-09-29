@@ -26,14 +26,19 @@ contradiction on screen was the only symptom.
 
 from __future__ import annotations
 
+import csv
+import io
 import logging
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from mirobody.collect import REST_CATALOG_MAX, REST_ROW_MAX, PostgresHealthQuery
+from mirobody.collect import RECORD_EXPORT_COLUMNS, RECORDS_PAGE_MAX, REST_CATALOG_MAX, REST_ROW_MAX, PostgresHealthQuery
 from mirobody.agent.tools._render import render_rest
 from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 from mirobody.server.auth import verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse
@@ -49,6 +54,14 @@ router = APIRouter(prefix="/api/v1", tags=["indicators"])
 # reported has its own tab (`/api/v1/journal`).
 _service = HealthIndicatorsService(PostgresHealthQuery(reported=False), catalog_cap=REST_CATALOG_MAX,
                                    row_cap=REST_ROW_MAX)
+# Every visible entry, reported ones included: the records table and the delta
+# count cover what a person logged as well as what was measured.
+_records = PostgresHealthQuery(reported=True)
+
+#: The most rows one export carries. Past it the export says it was cut short
+#: rather than hold an unbounded account in memory.
+EXPORT_MAX = 100_000
+
 
 
 def _split(value: str | None) -> list[str] | None:
@@ -57,6 +70,71 @@ def _split(value: str | None) -> list[str] | None:
         return None
     parts = [p.strip() for p in value.split(",") if p.strip()]
     return parts or None
+
+
+def _date(value: str | None, name: str) -> date | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be YYYY-MM-DD") from exc
+
+
+def _instant(value: str, name: str = "since") -> datetime:
+    """An ISO 8601 instant that says its offset. A naive one is refused: read
+    as UTC, "since 09:00" from a browser in UTC+8 would count eight hours of
+    entries the person has already seen."""
+    raw = value.strip()
+    if raw.endswith("Z"):
+        raw = raw[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an ISO 8601 timestamp") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{name} must include a timezone offset")
+    return parsed
+
+
+async def _readable(user_id: str, target_user_id: str | None) -> str | None:
+    """Whose record to read: the caller's, or a member's they may read. None
+    when they may not."""
+    if not target_user_id or target_user_id == user_id:
+        return user_id
+    try:
+        await resolve_subject(user_id, target_user_id)
+    except CareCircleDenied:
+        return None
+    return target_user_id
+
+
+def _denied() -> ErrorResponse:
+    return ErrorResponse(code=403, msg="Not permitted to read this member's health data.")
+
+
+def _failed(action: str, exc: Exception, msg: str) -> ErrorResponse:
+    # `exc_info` only for our own bugs: a driver exception's message quotes
+    # the SQL with its bound parameters.
+    logger.error("health %s failed: error_type=%s", action, type(exc).__name__,
+                 exc_info=not is_driver_exception(exc))
+    return ErrorResponse(code=500, msg=msg)
+
+
+def _record_filters(kind: str, modality: str | None, start_time: str | None, end_time: str | None,
+                    created_since: str | None, keywords: str | None) -> dict:
+    """The records filters, parsed. Raises ValueError with a message naming
+    the parameter at fault."""
+    if kind not in {"measurement", "all"}:
+        raise ValueError("kind must be measurement or all.")
+    return {
+        "kind": kind,
+        "modalities": _split(modality),
+        "start_time": _date(start_time, "start_time"),
+        "end_time": _date(end_time, "end_time"),
+        "created_since": _instant(created_since, "created_since") if created_since else None,
+        "keywords": keywords,
+    }
 
 
 @router.get("/health-indicators")
@@ -102,6 +180,103 @@ async def health_indicators(
         return ErrorResponse(code=code, msg="; ".join(envelope.assumptions) or "This lookup could not complete.")
 
     return StandardResponse(data=render_rest(envelope))
+
+
+@router.get("/health-indicators/records")
+async def health_indicator_records(
+    target_user_id: str | None = Query(None),
+    kind: str = Query("measurement", description='"measurement", or "all" to include logged entries'),
+    modality: str | None = Query(None, description="Comma-separated observation modalities"),
+    start_time: str | None = Query(None, description="First day observed, YYYY-MM-DD"),
+    end_time: str | None = Query(None, description="Last day observed, YYYY-MM-DD"),
+    created_since: str | None = Query(None, description="ISO 8601 with offset; entries new after it"),
+    keywords: str | None = Query(None, description="Substring of the printed or standard name"),
+    limit: int = Query(50, ge=1, le=RECORDS_PAGE_MAX),
+    offset: int = Query(0, ge=0),
+    user_id: str = Depends(verify_token),
+):
+    """One page of visible entries across every indicator, newest observed first."""
+    owner = await _readable(user_id, target_user_id)
+    if owner is None:
+        return _denied()
+    try:
+        filters = _record_filters(kind, modality, start_time, end_time, created_since, keywords)
+        data = await _records.records(owner, **filters, limit=limit, offset=offset)
+    except ValueError as exc:
+        return ErrorResponse(code=400, msg=str(exc))
+    except Exception as exc:
+        return _failed("records", exc, "This query could not complete.")
+    return StandardResponse(data=data)
+
+
+@router.get("/health-indicators/export")
+async def export_health_indicators(
+    target_user_id: str | None = Query(None),
+    kind: str = Query("measurement"),
+    modality: str | None = Query(None),
+    start_time: str | None = Query(None),
+    end_time: str | None = Query(None),
+    created_since: str | None = Query(None),
+    keywords: str | None = Query(None),
+    format: str = Query("csv", description='"csv" (a download) or "json"'),
+    user_id: str = Depends(verify_token),
+):
+    """Every visible entry the same filters select, standardized value and unit
+    included, from the same query as the table in one statement. Paging through
+    it instead re-walked each chain once per page.
+
+    The caller's own record only, as `/api/user/data-export`: a care-circle
+    read grant shows a member's rows a page at a time, and does not hand over
+    a copy of the whole record. `target_user_id` naming anyone else is 403."""
+    if target_user_id and target_user_id != user_id:
+        return ErrorResponse(code=403, msg="Only the record owner can export it.")
+    owner = user_id
+    if format not in {"csv", "json"}:
+        return ErrorResponse(code=400, msg="format must be csv or json.")
+    try:
+        filters = _record_filters(kind, modality, start_time, end_time, created_since, keywords)
+        page = await _records.records(owner, **filters, limit=EXPORT_MAX + 1)
+    except ValueError as exc:
+        return ErrorResponse(code=400, msg=str(exc))
+    except Exception as exc:
+        return _failed("export", exc, "This export could not complete.")
+    rows = [{k: r.get(k) for k in RECORD_EXPORT_COLUMNS} for r in page["rows"][:EXPORT_MAX]]
+    truncated = len(page["rows"]) > EXPORT_MAX
+    if format == "json":
+        return StandardResponse(data={
+            "columns": list(RECORD_EXPORT_COLUMNS), "rows": rows, "total": page["total"], "truncated": truncated,
+        })
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=RECORD_EXPORT_COLUMNS)
+    writer.writeheader()
+    writer.writerows(rows)
+    headers = {"Content-Disposition": 'attachment; filename="mirobody-indicators.csv"'}
+    if truncated:
+        headers["X-Export-Truncated"] = "true"
+    return Response(content=output.getvalue(), media_type="text/csv; charset=utf-8", headers=headers)
+
+
+@router.get("/data/data-delta")
+async def data_delta(
+    since: str = Query(..., description="ISO 8601 with offset: the browser's last visit"),
+    target_user_id: str | None = Query(None),
+    kind: str = Query("all"),
+    user_id: str = Depends(verify_token),
+):
+    """How many visible entries are new since `since`, by source. The cursor is
+    the browser's: the server keeps no "last visit" for anyone."""
+    owner = await _readable(user_id, target_user_id)
+    if owner is None:
+        return _denied()
+    if kind not in {"measurement", "all"}:
+        return ErrorResponse(code=400, msg="kind must be measurement or all.")
+    try:
+        data = await _records.delta(owner, _instant(since), target_kind=kind)
+    except ValueError as exc:
+        return ErrorResponse(code=400, msg=str(exc))
+    except Exception as exc:
+        return _failed("delta", exc, "This query could not complete.")
+    return StandardResponse(data=data)
 
 
 class ReadingPatch(BaseModel):

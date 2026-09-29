@@ -45,10 +45,13 @@ This module must stay framework-free: `mirobody/user/` is engine layer, and
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from mirobody.utils.db import execute_query
 from .user import get_user
+
+logger = logging.getLogger(__name__)
 
 # ── wire values ──────────────────────────────────────────────────────────────
 # Integers, and never renumbered: they are written into every row, and the
@@ -350,19 +353,36 @@ async def set_health_access(user_id: int | str, circle_id: int, access: int) -> 
         """,
         {"a": int(access), "u": int(user_id), "c": int(circle_id), "accepted": STATUS_ACCEPTED},
     )
-    return bool(result.get("record_count"))
+    changed = bool(result.get("record_count"))
+    if changed and access < ACCESS_VIEW:
+        await _end_links([user_id])
+    return changed
 
 
 # ── administration ───────────────────────────────────────────────────────────
 
 async def remove_member(member_row_id: int) -> bool:
     """Soft-delete one membership. Guarded, so a repeated delete converges."""
-    result = await execute_query(
+    rows = await execute_query(
         "UPDATE care_circle_members SET deleted_at = now(), updated_at = now()"
-        " WHERE id = :m AND deleted_at IS NULL",
+        " WHERE id = :m AND deleted_at IS NULL RETURNING user_id",
         {"m": int(member_row_id)},
-    )
-    return bool(result.get("record_count"))
+    ) or []
+    if rows:
+        await _end_links([rows[0]["user_id"]])
+    return bool(rows)
+
+
+async def _end_links(user_ids: list) -> None:
+    """Personal MCP links this change stops allowing are revoked, not merely
+    refused, so sharing again does not revive them (`personal_mcp`). Failing to
+    revoke leaves them refused on every use; the change itself stands."""
+    from mirobody.user import personal_mcp
+
+    try:
+        await personal_mcp.revoke_unshared([str(u) for u in user_ids])
+    except Exception as e:
+        logger.warning("personal MCP links not revoked after a sharing change: error_type=%s", type(e).__name__)
 
 
 async def resolve_member_row(member_row_id: int) -> tuple[int, int] | None:
@@ -484,7 +504,9 @@ async def beneficiary_users(user_id: int | str, fallback_name: str = "") -> list
     Serves `/api/beneficiary-users`, which is how the web client learns there is
     a second record to look at: the README's demo turns on this one call. The
     shape is the client's, not the table's: `id`, `name`, `nickname`, `gender`
-    as "male"/"female", `blood_type`, `age`, `is_current_user`.
+    as "male"/"female", `blood_type`, `age`, `is_current_user`, and `can_write`
+    (the member granted write access, so the client can offer the changes the
+    server will accept rather than ones it will refuse).
 
     Age is computed here rather than stored, because `health_app_user.birth` is
     a free-text `character varying` that arrives in three formats.
@@ -499,6 +521,7 @@ async def beneficiary_users(user_id: int | str, fallback_name: str = "") -> list
         "blood_type": (me or {}).get("blood"),
         "age": _age_from((me or {}).get("birth")),
         "is_current_user": True,
+        "can_write": True,
     }]
     for row in await shared_with_me(user_id):
         out.append({
@@ -509,6 +532,7 @@ async def beneficiary_users(user_id: int | str, fallback_name: str = "") -> list
             "blood_type": row.get("blood"),
             "age": _age_from(row.get("birth")),
             "is_current_user": False,
+            "can_write": int(row.get("health_access") or 0) >= ACCESS_EDIT,
         })
     return out
 

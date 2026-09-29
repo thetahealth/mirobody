@@ -5,7 +5,7 @@ import secrets
 import time
 
 from psycopg_pool import AsyncConnectionPool
-from redis.asyncio import Redis
+from mirobody.utils.ephemeral import EphemeralStore
 
 from webauthn import (
     generate_registration_options,
@@ -87,7 +87,7 @@ class WebAuthnService:
         routes          : list | None = None,
 
         db_pool         : AsyncConnectionPool | None = None,
-        redis           : Redis | None = None,
+        ephemeral           : EphemeralStore | None = None,
 
         rp_id           : str = "",
         rp_name         : str = "",
@@ -97,7 +97,7 @@ class WebAuthnService:
         self._token_validator = token_validator
         self._get_jwt_token = get_jwt_token
         self._db_pool = db_pool
-        self._redis = redis
+        self._ephemeral = ephemeral
 
         self._rp_id = rp_id
         self._rp_name = rp_name or "Theta Health"
@@ -197,26 +197,25 @@ class WebAuthnService:
             logger.error(f"Failed to update sign count: {e}")
 
     #-------------------------------------------------------------------------
-    # Challenge storage (Redis)
+    # Challenge storage (ephemeral state)
     #-------------------------------------------------------------------------
 
     async def _store_challenge(self, key: str, challenge: bytes, ttl: int = 300):
-        if self._redis:
+        if self._ephemeral:
             # Store as base64 to avoid UTF-8 decode issues with raw bytes.
             encoded = base64.b64encode(challenge).decode("ascii")
-            await self._redis.set(
+            await self._ephemeral.set(
                 _CHALLENGE_PREFIX + key,
                 encoded,
                 ex=ttl,
             )
 
     async def _get_and_delete_challenge(self, key: str) -> bytes | None:
-        if not self._redis:
+        if not self._ephemeral:
             return None
 
-        val = await self._redis.get(_CHALLENGE_PREFIX + key)
+        val = await self._ephemeral.take(_CHALLENGE_PREFIX + key)
         if val:
-            await self._redis.delete(_CHALLENGE_PREFIX + key)
             if isinstance(val, bytes):
                 val = val.decode("ascii")
             return base64.b64decode(val)
@@ -228,14 +227,14 @@ class WebAuthnService:
 
     async def create_mfa_ticket(self, user_id: int, email: str) -> str | None:
         """Create a short-lived MFA ticket after first-factor verification.
-        Returns the ticket string, or None if Redis is unavailable.
+        Returns the ticket string, or None if ephemeral state is unavailable.
         """
-        if not self._redis:
+        if not self._ephemeral:
             return None
 
         ticket = secrets.token_urlsafe(32)
         data = json.dumps({"user_id": user_id, "email": email})
-        await self._redis.set(
+        await self._ephemeral.set(
             _MFA_TICKET_PREFIX + ticket,
             data,
             ex=self._mfa_ticket_ttl,
@@ -246,15 +245,12 @@ class WebAuthnService:
         """Validate and consume an MFA ticket (one-time use).
         Returns (user_id, email, error).
         """
-        if not self._redis:
-            return 0, "", "Redis unavailable"
+        if not self._ephemeral:
+            return 0, "", "ephemeral state unavailable"
 
-        data = await self._redis.get(_MFA_TICKET_PREFIX + ticket)
+        data = await self._ephemeral.take(_MFA_TICKET_PREFIX + ticket)
         if not data:
             return 0, "", "Invalid or expired MFA ticket"
-
-        # One-time use: delete immediately.
-        await self._redis.delete(_MFA_TICKET_PREFIX + ticket)
 
         try:
             parsed = json.loads(data)
@@ -480,10 +476,10 @@ class WebAuthnService:
             return json_response_with_code(-1, "MFA ticket is required", request=request)
 
         # Peek at the ticket (don't consume yet: will be consumed on verify).
-        if not self._redis:
-            return json_response_with_code(-2, "Redis unavailable", request=request)
+        if not self._ephemeral:
+            return json_response_with_code(-2, "ephemeral state unavailable", request=request)
 
-        ticket_data = await self._redis.get(_MFA_TICKET_PREFIX + mfa_ticket)
+        ticket_data = await self._ephemeral.get(_MFA_TICKET_PREFIX + mfa_ticket)
         if not ticket_data:
             return json_response_with_code(-3, "Invalid or expired MFA ticket", request=request)
 
