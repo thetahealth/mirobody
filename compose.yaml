@@ -20,6 +20,28 @@ services:
       retries: 12
       start_period: 30s
 
+  # Uploads written by 1.5.2 belong to root: it ran the app as root, and this
+  # image runs as uid 10001, which could read them but not add one, so every
+  # upload failed after an upgrade. One pass as root gives the volume to the
+  # app's user before it starts, on every start, so a restored 1.5.2 archive
+  # is covered too. Files it already owns are skipped. A mount that refuses
+  # the change (NFS with root_squash) is reported and never blocks the start.
+  mirobody_init:
+    image: ${MIROBODY_IMAGE:-${DOCKER_MIRROR:-}thetahealth/mirobody:1.5.3}
+    user: "0:0"
+    restart: "no"
+    network_mode: none
+    healthcheck:
+      disable: true
+    command:
+      - sh
+      - -c
+      - >-
+        find /app/.theta/mcp/upload \( ! -user mirobody -o ! -group mirobody \) -exec chown mirobody:mirobody {} +
+        || echo 'mirobody_init: could not give /app/.theta/mcp/upload to uid 10001; uploads may fail' >&2
+    volumes:
+      - mirobody_upload:/app/.theta/mcp/upload
+
   mirobody: &mirobody
     image: ${MIROBODY_IMAGE:-${DOCKER_MIRROR:-}thetahealth/mirobody:1.5.3}
     restart: unless-stopped
@@ -47,6 +69,8 @@ services:
     depends_on:
       pg:
         condition: service_healthy
+      mirobody_init:
+        condition: service_completed_successfully
 
   mirobody_worker:
     <<: *mirobody
@@ -59,6 +83,8 @@ services:
     depends_on:
       pg:
         condition: service_healthy
+      mirobody_init:
+        condition: service_completed_successfully
       mirobody:
         condition: service_healthy
 

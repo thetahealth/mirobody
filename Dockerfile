@@ -51,7 +51,10 @@ COPY frontend/ frontend/
 # /opt/venv, so the seed cannot find them beside itself.
 COPY demo/seed/ demo/seed/
 ENV DEMO_DATA_DIR=/app/demo
-RUN useradd --system --uid 10001 --create-home mirobody \
+# A fixed uid AND gid: bind mounts and restored backups are owned by number,
+# and `mirobody_init` in compose.yaml hands the upload volume to this user.
+RUN groupadd --system --gid 10001 mirobody \
+    && useradd --system --uid 10001 --gid 10001 --create-home mirobody \
     && mkdir -p /app/.theta/mcp/upload \
     && chown -R mirobody:mirobody /app
 USER mirobody

@@ -11,6 +11,10 @@ services:
     volumes:
       - ${MIROBODY_DATA:-../mirobody-data}/pgdata:/var/lib/postgresql/data
 
+  mirobody_init:
+    volumes:
+      - ${MIROBODY_DATA:-../mirobody-data}/upload:/app/.theta/mcp/upload
+
   mirobody:
     volumes:
       - ${MIROBODY_DATA:-../mirobody-data}/upload:/app/.theta/mcp/upload

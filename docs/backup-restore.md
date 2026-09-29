@@ -173,6 +173,13 @@ things to know first:
   password and its field-encryption key, which were `config.yaml`'s
   placeholder (see SECURITY.md before exposing it). A value the app encrypted
   in the overlay that compose needs in plain text (`PG_PASSWORD`) is asked for.
+- **Uploads change owner once.** 1.5.2 ran the app as root, so its upload
+  directories are root's; the 1.5.3 image runs as uid and gid 10001. The
+  `mirobody_init` service in `compose.yaml` gives the upload volume (or the
+  `upload` bind mount of `compose.override.yaml.example`) to that user before
+  every start, so nothing is needed by hand, and a 1.5.2 upload archive
+  restored later is handled the same way. After the upgrade, upload one file
+  to check.
 - **Afterwards** the redis container is removed (`--remove-orphans`); the
   script names the two 1.5.2 volumes that are no longer used
   (`*_mirobody_redis`, `*_mirobody_site_packages`) for `docker volume rm`.
