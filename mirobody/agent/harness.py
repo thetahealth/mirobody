@@ -110,25 +110,33 @@ def standard_middleware(
        contained, reading the envelope that middleware attaches;
     3. invalid-call repair: a call whose JSON never parsed reaches no tool;
        this feeds the parse error back instead of ending the turn empty;
-    4. the per-turn model-call budget, ending the run *gracefully* so the model
+    4. empty-answer repair: a reply with no text and no call (a reasoning
+       model that answered only in its reasoning channel) is asked for once;
+    5. the per-turn model-call budget, ending the run *gracefully* so the model
        still writes its answer: a legitimate multi-step task runs to
        completion while a pathological loop still terminates;
-    5. one cap per named tool (``exit_behavior="continue"``: the tool is
+    6. one cap per named tool (``exit_behavior="continue"``: the tool is
        removed for the rest of the turn, the turn goes on);
-    6. the code interpreter, if given;
-    7. ``tail``: whatever the agent adds last (prompt caching).
+    7. the code interpreter, if given;
+    8. ``tail``: whatever the agent adds last (prompt caching).
 
     A fresh stack per build is a fresh retry ledger per turn, which is what
     "already tried that" has to mean.
     """
     from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
 
-    from .middleware import InvalidToolCallRepairMiddleware, RetryGovernanceMiddleware, ToolFaultMiddleware
+    from .middleware import (
+        EmptyAnswerRepairMiddleware,
+        InvalidToolCallRepairMiddleware,
+        RetryGovernanceMiddleware,
+        ToolFaultMiddleware,
+    )
 
     stack: list = [
         fault_middleware if fault_middleware is not None else ToolFaultMiddleware(),
         RetryGovernanceMiddleware(limit=retry_limit),
         InvalidToolCallRepairMiddleware(),
+        EmptyAnswerRepairMiddleware(),
         ModelCallLimitMiddleware(run_limit=model_call_limit, exit_behavior="end"),
     ]
     for tool_name, limit in (tool_call_limits or {}).items():
