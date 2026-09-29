@@ -12,6 +12,8 @@ import logging
 from typing import Any
 from collections.abc import Callable
 
+from mirobody.collect.files.services.table_indicators import EXTRACTOR as TABLE_EXTRACTOR, table_indicators, without_rows
+from mirobody.utils.config.llm import resolve_route
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
 from mirobody.collect.files.services.prompts.file_indicator_extract import (
@@ -124,8 +126,6 @@ class IndicatorExtractor:
             cannot extract" rendered exactly like "this document has no
             indicators" (#68).
         """
-        from mirobody.utils.llm import async_get_structured_output
-        
         indicators = []
         start_time = time.time()
 
@@ -141,31 +141,23 @@ class IndicatorExtractor:
 
             logger.info(f"[IndicatorExtractor] Extracting indicators from text - user_id: {user_id}, text_length: {len(original_text)}")
 
-            # Generate prompt dynamically based on user's language setting
-            dynamic_prompt = get_extract_indicators_prompt(language=language)
-            
-            # Build messages for LLM
-            messages = [
-                {
-                    "role": "system",
-                    "content": dynamic_prompt
-                },
-                {
-                    "role": "user",
-                    "content": f"Please extract health indicators from the following document content:\n\n{original_text}"
-                }
-            ]
-
-            # Use structured output with schema
-            api_start_time = time.time()
-            llm_ret = await async_get_structured_output(
-                messages=messages,
-                response_format={"type": "json_schema", "json_schema": {"name": "indicators_response", "schema": RESPONSE_SCHEMA_EXTRACT_INDICATORS}},
-                temperature=0.1,
-                max_tokens=32000
-            )
-            api_duration = time.time() - api_start_time
-            logger.info(f"[IndicatorExtractor] LLM text extraction completed - user_id: {user_id}, duration: {api_duration:.2f}s")
+            # With a document-OCR model routed, its tables are read by their
+            # columns. The model reads what the rules left (a row they could
+            # not read, text outside any table), and a rule's row outranks the
+            # model's for the same name: it is the value as printed.
+            extractor = ""
+            rows, table_date, unread_count = table_indicators(original_text) if resolve_route("ocr") else ([], "", 0)
+            if rows and not unread_count:
+                extractor = TABLE_EXTRACTOR
+                llm_ret = {"indicators": rows, "content_info": {"date_time": table_date}}
+                logger.info(f"[IndicatorExtractor] {len(rows)} indicators read off tables, no model - user_id: {user_id}")
+            else:
+                rest = without_rows(original_text, rows) if rows else original_text
+                llm_ret = await IndicatorExtractor._llm_extract(rest, language, user_id)
+                if rows:
+                    extractor = f"{TABLE_EXTRACTOR}+llm:file-parser@indicators-v1"
+                    llm_ret = IndicatorExtractor._merge_rule_rows(rows, table_date, llm_ret)
+                    logger.info(f"[IndicatorExtractor] {len(rows)} indicators read off tables, {unread_count} rows left to the model - user_id: {user_id}")
 
             if not llm_ret:
                 logger.warning(f"[IndicatorExtractor] LLM returned empty response for text extraction - user_id: {user_id}")
@@ -215,6 +207,7 @@ class IndicatorExtractor:
                     "",
                     source_table=source_table,
                     file_key=file_key,
+                    extractor=extractor,
                 )
                 report = {"report_date": start_time_dt.strftime("%Y-%m-%d %H:%M:%S"), "date_source": date_source}
                 db_duration = time.time() - db_start_time
@@ -243,6 +236,38 @@ class IndicatorExtractor:
                 language = request_language()
                 await progress_callback(90, localize("indicator_extraction_error", language, "indicator_extractor"))
             raise e
+
+    @staticmethod
+    def _merge_rule_rows(rows: list[dict], table_date: str, llm_ret: dict | None) -> dict:
+        """The rule rows, then the model's rows for every name the rules did not read."""
+        result = dict(llm_ret or {})
+        seen = {r["original_indicator"].strip().lower() for r in rows}
+        extra = [i for i in result.get("indicators") or [] if str(i.get("original_indicator", "")).strip().lower() not in seen]
+        result["indicators"] = rows + extra
+        info = dict(result.get("content_info") or {})
+        info["date_time"] = table_date or info.get("date_time", "")
+        result["content_info"] = info
+        return result
+
+    @staticmethod
+    async def _llm_extract(original_text: str, language: str, user_id: int) -> dict | None:
+        """The model's reading of a document: `indicators` and `content_info`, or None."""
+        from mirobody.utils.llm import async_get_structured_output
+
+        messages = [
+            {"role": "system", "content": get_extract_indicators_prompt(language=language)},
+            {"role": "user", "content": f"Please extract health indicators from the following document content:\n\n{original_text}"},
+        ]
+        api_start_time = time.time()
+        llm_ret = await async_get_structured_output(
+            messages=messages,
+            response_format={"type": "json_schema", "json_schema": {"name": "indicators_response", "schema": RESPONSE_SCHEMA_EXTRACT_INDICATORS}},
+            temperature=0.1,
+            max_tokens=32000
+        )
+        api_duration = time.time() - api_start_time
+        logger.info(f"[IndicatorExtractor] LLM text extraction completed - user_id: {user_id}, duration: {api_duration:.2f}s")
+        return llm_ret
 
     @staticmethod
     def _deduplicate_indicators(
