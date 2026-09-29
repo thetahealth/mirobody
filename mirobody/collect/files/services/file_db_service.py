@@ -6,6 +6,7 @@ This is a self-contained service: it owns its own DB access and pulls in
 nothing from outside the project.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any
@@ -27,6 +28,13 @@ logger = logging.getLogger(__name__)
 SOURCE_DATA = "data"
 SOURCE_ASK = "ask"
 
+#: Upload sessions whose th_files rows are not inserted yet. The WebSocket path
+#: inserts every row after the whole batch, while the extraction and genotype
+#: tasks it starts per file write to their row as soon as they finish; one that
+#: finished first found no row, and its report date, counts and status were lost.
+_ROWS_PENDING: dict[str, asyncio.Event] = {}
+ROW_WAIT_SECONDS = 600
+
 
 class FileDbService:
     """
@@ -36,7 +44,30 @@ class FileDbService:
     """
     
     TABLE_NAME = "th_files"
-    
+
+    @staticmethod
+    def expect_rows(message_id: str | None) -> None:
+        """This upload's rows will be inserted later; writers must wait."""
+        if message_id:
+            _ROWS_PENDING.setdefault(message_id, asyncio.Event())
+
+    @staticmethod
+    def rows_written(message_id: str | None) -> None:
+        event = _ROWS_PENDING.pop(message_id, None) if message_id else None
+        if event:
+            event.set()
+
+    @staticmethod
+    async def rows_ready(message_id: str | None) -> None:
+        """Return once this upload's rows exist, or at once when none are pending."""
+        event = _ROWS_PENDING.get(message_id) if message_id else None
+        if event is None:
+            return
+        try:
+            await asyncio.wait_for(event.wait(), ROW_WAIT_SECONDS)
+        except TimeoutError:
+            logger.warning("th_files rows still pending after %ds: message_id=%s", ROW_WAIT_SECONDS, message_id)  # phi: ok a constant
+
     # ============== INSERT Operations ==============
     
     @staticmethod

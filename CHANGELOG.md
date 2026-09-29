@@ -199,6 +199,12 @@ boundary.
 - **`convert_unit` no longer reports Infinity or NaN as a conversion.**
   `1e308 g` to `ug` answered `success: true, converted: Infinity`; a
   non-finite value or result is now refused with a reason.
+- **An upload's results no longer race its own row.** The Data page upload
+  inserts `th_files` rows after the whole batch, while indicator extraction
+  and genotype processing wrote to their row as soon as they finished; one
+  that finished first matched no row (`File not found for update`), and the
+  report date, readings count or final status were lost. They now wait for
+  the batch insert.
 - **Asking on someone's behalf answered as if the record were the asker's.**
   The agent read the other person's record but was never told so. Answers said
   "your cholesterol" over her numbers and flagged `mom_lab_2025-11.md` as "not

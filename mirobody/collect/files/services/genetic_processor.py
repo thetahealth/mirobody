@@ -357,6 +357,9 @@ async def process_genetic_file(
         # Use target_user_id if provided (upload for others), otherwise use uploader's user_id
         data_owner_user_id = target_user_id or user_id
 
+        # Every status below is written to the upload's th_files row.
+        await FileDbService.rows_ready(message_id)
+
         # Pass file_key to loader for th_files updates
         loader = GeneticDataLoader(message_id, language, user_id, display_filename, display_file_size, file_key)
 

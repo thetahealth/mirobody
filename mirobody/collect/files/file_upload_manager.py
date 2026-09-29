@@ -517,6 +517,7 @@ class WebSocketFileUploadManager:
             has_genetic_files: Whether files contain genetic data
             real_user_id: Real user ID for business logic (file storage, database operations)
         """
+        FileDbService.expect_rows(message_id)
         try:
             session = self.upload_sessions[message_id]
             # Use real_user_id from parameter or session
@@ -688,6 +689,8 @@ class WebSocketFileUploadManager:
         except Exception as e:
             logger.error(f"Asynchronous file processing failed: {e}", exc_info=True)
             await self.update_progress(connection_id, message_id, "failed", 0, f"Processing failed: {str(e)}")
+        finally:
+            FileDbService.rows_written(message_id)
 
     async def update_genetic_processing_complete(self, user_id: str, message_id: str):
         """Update genetic processing completion status"""
