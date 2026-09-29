@@ -232,6 +232,8 @@ class RouteSpec:
     temperature: float | None = None
     base_url_env: str = ""         # the NAME `base_url` was given as; "" = a literal URL
     ocr_prompts: dict[str, str] = field(default_factory=dict)   # OCR entries: {"text": ..., "tables": ...}
+    timeout: float | None = None      # seconds per request; None = the SDK's 600
+    max_retries: int | None = None    # None = the SDK's 2
 
     @property
     def takes_json_object(self) -> bool:
@@ -317,6 +319,8 @@ def _spec_from_mapping(alias: str, entry: dict[str, Any]) -> RouteSpec | None:
         temperature=float(temperature) if isinstance(temperature, (int, float)) else None,
         base_url_env=base_url_env,
         ocr_prompts={str(k): str(v) for k, v in (entry.get("ocr_prompts") or {}).items()},
+        timeout=float(entry["timeout"]) if isinstance(entry.get("timeout"), (int, float)) else None,
+        max_retries=int(entry["max_retries"]) if isinstance(entry.get("max_retries"), int) else None,
     )
 
 
@@ -352,7 +356,7 @@ KNOWN_ENTRY_KEYS: frozenset[str] = frozenset({
     # read here, into a RouteSpec
     "llm_type", "api_key", "base_url", "model", "temperature",
     "supports_image", "supports_pdf", "response_format", "reasoning_effort",
-    "extra_body", "chat", "ocr_prompts",
+    "extra_body", "chat", "ocr_prompts", "timeout", "max_retries",
     # read by the agent's client builder (`agent/models/clients.py`)
     "profile", "thinking_style", "auth_type", "prompt_cache", "response_with_tools",
     "project", "location", "reasoning", "max_tokens", "max_output_tokens",

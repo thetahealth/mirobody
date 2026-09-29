@@ -220,6 +220,8 @@ MODELS:
     temperature: 0
     supports_image: true
     chat: false
+    timeout: 1800                 # a long report is minutes of writing on a local model, and a
+    max_retries: 0                # retry starts it again from nothing (the SDK: 600 s, twice more)
     extra_body:
       chat_template_kwargs:       # thinking off where the template has the switch (Qwen family)
         enable_thinking: false
@@ -237,6 +239,8 @@ MODELS:
     ocr_prompts:                  # GLM-OCR answers only its own task prompts
       text: "Text Recognition:"
       tables: "Table Recognition:"
+    timeout: 600
+    max_retries: 0
     extra_body:
       temperature: 0              # the vision path sends none; OCR should not sample
 

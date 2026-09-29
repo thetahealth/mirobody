@@ -34,9 +34,9 @@ class AIClientManager:
         key = spec.key
         if spec.api_key_env and not key:
             raise ValueError(f"{spec.alias}: {spec.api_key_env} is not set")
-        cache_key = (spec.base_url, spec.api_key_env)
+        cache_key = (spec.base_url, spec.api_key_env, spec.timeout, spec.max_retries)
         if cache_key not in self._async_clients:
-            self._async_clients[cache_key] = AsyncOpenAI(api_key=key or "-", base_url=spec.base_url or None)
+            self._async_clients[cache_key] = AsyncOpenAI(api_key=key or "-", base_url=spec.base_url or None, **_limits(spec))
         return self._async_clients[cache_key]
 
     @staticmethod
@@ -46,7 +46,19 @@ class AIClientManager:
         key = spec.key
         if spec.api_key_env and not key:
             raise ValueError(f"{spec.alias}: {spec.api_key_env} is not set")
-        return OpenAI(api_key=key or "-", base_url=spec.base_url or None)
+        return OpenAI(api_key=key or "-", base_url=spec.base_url or None, **_limits(spec))
+
+
+def _limits(spec: RouteSpec) -> dict:
+    """An entry's `timeout` / `max_retries`, when it declares them. A local
+    server that needs 20 minutes for a long extraction was cut at the SDK's
+    600 s and asked twice more, from scratch: 1,801 s for nothing (1.5.4)."""
+    limits: dict = {}
+    if spec.timeout is not None:
+        limits["timeout"] = spec.timeout
+    if spec.max_retries is not None:
+        limits["max_retries"] = spec.max_retries
+    return limits
 
 
 client_manager = AIClientManager()
