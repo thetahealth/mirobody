@@ -456,7 +456,7 @@ _PER_DAY = (
     (
         re.compile(
             r"\b(?:three times a day|three times daily|tid|t\.i\.d\.)\b|每天三次|每日三次|一天三次|一日三次|每天3次"
-            r"|早[、,，和]?中[、,，和]?晚|早上[、,，和]?中午[、,，和]?晚上",
+            r"|早[\s、,，和]*中[\s、,，和]*晚|早上[\s、,，和]*中午[\s、,，和]*晚上",
             re.I,
         ),
         3,
@@ -464,7 +464,7 @@ _PER_DAY = (
     (
         re.compile(
             r"\b(?:twice daily|twice a day|two times a day|bid|b\.i\.d\.|morning and (?:evening|night))\b"
-            r"|每天两次|每日两次|一天两次|一日两次|每天2次|早[、,，和]?晚|早上[、,，和]?晚上",
+            r"|每天两次|每日两次|一天两次|一日两次|每天2次|早[\s、,，和]*晚|早上[\s、,，和]*晚上",
             re.I,
         ),
         2,
