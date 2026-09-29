@@ -71,6 +71,13 @@ def _failed(exc: Exception) -> None:
 async def _stream(subject_id: str) -> AsyncIterator[bytes]:
     total = 0
     offset = 0
+    # Pages are by offset, so an entry written or retracted mid-stream shifts
+    # the rest: a row can repeat or be skipped. That is detected, not
+    # prevented: the count moving, or an id seen twice, makes the footer say
+    # the copy is not complete, and a client exports again.
+    expected: int | None = None
+    seen: set = set()
+    changed = False
     yield _line({
         "type": "header", "schema_version": 1,
         "generated_at": datetime.now(UTC).isoformat(),
@@ -79,9 +86,18 @@ async def _stream(subject_id: str) -> AsyncIterator[bytes]:
     try:
         while True:
             page = await _records.records(subject_id, kind="all", limit=STREAM_PAGE, offset=offset)
+            if expected is None:
+                expected = page["total"]
+            elif page["total"] != expected:
+                changed = True
             for row in page["rows"]:
+                data = _row(row)
+                if data.get("row_id") in seen:
+                    changed = True
+                    continue
+                seen.add(data.get("row_id"))
                 total += 1
-                yield _line({"type": "row", "dataset": DATASET, "data": _row(row)})
+                yield _line({"type": "row", "dataset": DATASET, "data": data})
             if not page["has_more"]:
                 break
             offset += len(page["rows"])
@@ -89,6 +105,10 @@ async def _stream(subject_id: str) -> AsyncIterator[bytes]:
         _failed(exc)
         yield _line({"type": "footer", "complete": False, "rows": {DATASET: total},
                      "errors": {DATASET: "unavailable"}})
+        return
+    if changed or total != (expected or 0):
+        yield _line({"type": "footer", "complete": False, "rows": {DATASET: total},
+                     "errors": {DATASET: "changed_during_export"}})
         return
     yield _line({"type": "footer", "complete": True, "rows": {DATASET: total}, "errors": {}})
 
