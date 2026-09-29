@@ -24,11 +24,11 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, date, datetime
 
 from mirobody.kernel import meds, overlay, series
-from mirobody.utils import execute_query
-from mirobody.utils import db
+from mirobody.utils import db, execute_query
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +162,115 @@ _EVENT_COLUMNS = """
 """
 
 
+_PUT_PLAN = """
+INSERT INTO th_medication_plan (
+    plan_id, user_id, concept_key, concept_text, concept_strength, concept_form,
+    codes, schedule, start_date, end_date, status, classification, confirmed,
+    order_id, source, source_record_id, stopped_on, create_time, update_time, deleted
+) VALUES (
+    :plan_id, :user_id, :concept_key, encrypt_content(:concept_text),
+    encrypt_content(:concept_strength), :concept_form, CAST(:codes AS jsonb),
+    CAST(:schedule AS jsonb), :start_date, :end_date, :status, :classification,
+    :confirmed, :order_id, :source, :source_record_id, :stopped_on,
+    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0
+)
+ON CONFLICT (plan_id) DO UPDATE SET
+    concept_key = EXCLUDED.concept_key,
+    concept_text = EXCLUDED.concept_text,
+    concept_strength = EXCLUDED.concept_strength,
+    concept_form = EXCLUDED.concept_form,
+    codes = EXCLUDED.codes,
+    schedule = EXCLUDED.schedule,
+    start_date = EXCLUDED.start_date,
+    end_date = EXCLUDED.end_date,
+    status = EXCLUDED.status,
+    classification = EXCLUDED.classification,
+    confirmed = EXCLUDED.confirmed,
+    order_id = EXCLUDED.order_id,
+    source = EXCLUDED.source,
+    source_record_id = EXCLUDED.source_record_id,
+    stopped_on = EXCLUDED.stopped_on,
+    update_time = CURRENT_TIMESTAMP,
+    deleted = 0
+"""
+
+
+def _plan_params(plan: meds.MedicationPlan) -> dict:
+    return {
+        "plan_id": plan.plan_id,
+        "user_id": plan.subject_id,
+        "concept_key": plan.concept.concept_key,
+        "concept_text": plan.concept.text,
+        "concept_strength": plan.concept.strength,
+        "concept_form": plan.concept.form,
+        "codes": json.dumps(_codes_to_json(plan.concept), ensure_ascii=False),
+        "schedule": json.dumps([instruction_to_json(i) for i in plan.schedule], ensure_ascii=False),
+        "start_date": plan.start,
+        "end_date": plan.end,
+        "status": plan.status,
+        "classification": plan.classification,
+        "confirmed": plan.confirmed,
+        "order_id": plan.order_id,
+        "source": plan.source,
+        "source_record_id": plan.source_record_id,
+        "stopped_on": plan.stopped_on,
+    }
+
+
+#: A course's id is its plan, its start and its place in the plan's history.
+#: Keyed by plan and start alone, a plan stopped and resumed on one day gave the
+#: new course the id of the one just closed: it could not be written, and the
+#: next stop merged the two. The open course is found by `closed_by IS NULL`,
+#: never by rebuilding its id.
+_INSERT_COURSE = """
+INSERT INTO th_medication_course (course_id, plan_id, user_id, order_id, start_date, end_date, closed_by)
+VALUES (:course_id, :plan_id, :user_id, :order_id, :start_date, :end_date, :closed_by)
+"""
+
+
+async def _next_course_id(tx, plan_id: str, start: date) -> str:
+    """Called with the plan row locked, so two writers cannot take one number."""
+    rows = await tx.execute(
+        "SELECT COUNT(*) AS n FROM th_medication_course WHERE plan_id = :pid", {"pid": plan_id})
+    return f"{plan_id}:{start.isoformat()}:{int(rows[0]['n']) if rows else 0}"
+
+
+async def _open_course(tx, subject_id: str, plan: meds.MedicationPlan, start: date) -> None:
+    await tx.execute(_INSERT_COURSE, {
+        "course_id": await _next_course_id(tx, plan.plan_id, start),
+        "plan_id": plan.plan_id, "user_id": str(subject_id), "order_id": plan.order_id,
+        "start_date": start, "end_date": None, "closed_by": None,
+    })
+
+
+async def _close_course(tx, subject_id: str, closed: meds.Course) -> None:
+    """Close the open course; record the closed one when none was open (a plan
+    stored before the web form existed has no course rows)."""
+    rows = await tx.execute(
+        "UPDATE th_medication_course SET end_date = :end_date, closed_by = :closed_by"
+        " WHERE plan_id = :pid AND closed_by IS NULL RETURNING course_id",
+        {"end_date": closed.end, "closed_by": closed.closed_by, "pid": closed.plan_id},
+    )
+    if rows:
+        return
+    await tx.execute(_INSERT_COURSE, {
+        "course_id": await _next_course_id(tx, closed.plan_id, closed.start),
+        "plan_id": closed.plan_id, "user_id": str(subject_id), "order_id": closed.order_id,
+        "start_date": closed.start, "end_date": closed.end, "closed_by": closed.closed_by,
+    })
+
+
+async def _lock_plan(tx, subject_id: str, plan_id: str) -> meds.MedicationPlan:
+    rows = await tx.execute(
+        f"SELECT {_PLAN_COLUMNS} FROM th_medication_plan "
+        "WHERE plan_id = :pid AND user_id = :uid AND deleted = 0 FOR UPDATE",
+        {"pid": str(plan_id), "uid": str(subject_id)},
+    )
+    if not rows:
+        raise LookupError("medication plan not found")
+    return plan_from_row(dict(rows[0]))
+
+
 class PostgresMedicationStore:
     """`meds.MedicationStore` over `th_medication_plan` / `th_medication_course`."""
 
@@ -192,59 +301,47 @@ class PostgresMedicationStore:
         """Insert or replace one plan. The natural key is `plan_id`, which
         `meds.plan_id_for` derives from `(subject, concept_key, start)`, so a
         re-import of the same statement updates rather than duplicates."""
-        await execute_query(
-            """
-            INSERT INTO th_medication_plan (
-                plan_id, user_id, concept_key, concept_text, concept_strength, concept_form,
-                codes, schedule, start_date, end_date, status, classification, confirmed,
-                order_id, source, source_record_id, stopped_on, create_time, update_time, deleted
-            ) VALUES (
-                :plan_id, :user_id, :concept_key, encrypt_content(:concept_text),
-                encrypt_content(:concept_strength), :concept_form, CAST(:codes AS jsonb),
-                CAST(:schedule AS jsonb), :start_date, :end_date, :status, :classification,
-                :confirmed, :order_id, :source, :source_record_id, :stopped_on,
-                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0
-            )
-            ON CONFLICT (plan_id) DO UPDATE SET
-                concept_key = EXCLUDED.concept_key,
-                concept_text = EXCLUDED.concept_text,
-                concept_strength = EXCLUDED.concept_strength,
-                concept_form = EXCLUDED.concept_form,
-                codes = EXCLUDED.codes,
-                schedule = EXCLUDED.schedule,
-                start_date = EXCLUDED.start_date,
-                end_date = EXCLUDED.end_date,
-                status = EXCLUDED.status,
-                classification = EXCLUDED.classification,
-                confirmed = EXCLUDED.confirmed,
-                order_id = EXCLUDED.order_id,
-                source = EXCLUDED.source,
-                source_record_id = EXCLUDED.source_record_id,
-                stopped_on = EXCLUDED.stopped_on,
-                update_time = CURRENT_TIMESTAMP,
-                deleted = 0
-            """,
-            {
-                "plan_id": plan.plan_id,
-                "user_id": plan.subject_id,
-                "concept_key": plan.concept.concept_key,
-                "concept_text": plan.concept.text,
-                "concept_strength": plan.concept.strength,
-                "concept_form": plan.concept.form,
-                "codes": json.dumps(_codes_to_json(plan.concept), ensure_ascii=False),
-                "schedule": json.dumps([instruction_to_json(i) for i in plan.schedule], ensure_ascii=False),
-                "start_date": plan.start,
-                "end_date": plan.end,
-                "status": plan.status,
-                "classification": plan.classification,
-                "confirmed": plan.confirmed,
-                "order_id": plan.order_id,
-                "source": plan.source,
-                "source_record_id": plan.source_record_id,
-                "stopped_on": plan.stopped_on,
-            },
-            log_sql=False,
-        )
+        await execute_query(_PUT_PLAN, _plan_params(plan), log_sql=False)
+
+    async def create(self, plan: meds.MedicationPlan) -> None:
+        """A new plan and its opening course in one transaction. Written as two
+        statements, a failure between them left an active plan with no open
+        course, and its first stop then closed a course that was never opened."""
+        async with db.transaction() as tx:
+            await tx.execute(_PUT_PLAN, _plan_params(plan))
+            await _open_course(tx, plan.subject_id, plan, plan.start)
+
+    async def revise(self, subject_id: str, plan_id: str, changes: dict) -> meds.MedicationPlan:
+        """Apply the fields in `changes` to the subject's plan, under a row lock.
+
+        The open course starts when the plan does, so a start that moves takes
+        the open course with it. A stopped plan's start is its last course's
+        and is history, so it does not move; nor may an active plan's start
+        move back over a course already closed.
+        """
+        async with db.transaction() as tx:
+            old = await _lock_plan(tx, subject_id, plan_id)
+            if old.status == meds.PLAN_ENTERED_IN_ERROR:
+                raise LookupError("medication plan not found")
+            new = replace(old, **changes)
+            if new.start != old.start:
+                if old.status != meds.PLAN_ACTIVE:
+                    raise ValueError("only an active plan's start date can change")
+                closed = await tx.execute(
+                    "SELECT MAX(end_date) AS last_end FROM th_medication_course"
+                    " WHERE plan_id = :pid AND closed_by IS NOT NULL",
+                    {"pid": old.plan_id},
+                )
+                last_end = closed[0]["last_end"] if closed else None
+                if last_end is not None and new.start < last_end:
+                    raise ValueError("start date overlaps a closed course")
+                await tx.execute(
+                    "UPDATE th_medication_course SET start_date = :start"
+                    " WHERE plan_id = :pid AND closed_by IS NULL",
+                    {"start": new.start, "pid": old.plan_id},
+                )
+            await tx.execute(_PUT_PLAN, _plan_params(new))
+            return new
 
     async def overrides(self, plan_id: str) -> Sequence[overlay.Override]:
         return await _overrides_for(TARGET_PLAN, plan_id)
@@ -261,37 +358,10 @@ class PostgresMedicationStore:
             for r in rows
         ]
 
-    async def add_course(self, subject_id: str, course: meds.Course) -> None:
-        await execute_query(
-            """
-            INSERT INTO th_medication_course (course_id, plan_id, user_id, order_id, start_date, end_date, closed_by)
-            VALUES (:course_id, :plan_id, :user_id, :order_id, :start_date, :end_date, :closed_by)
-            ON CONFLICT (course_id) DO UPDATE SET
-                end_date = EXCLUDED.end_date, closed_by = EXCLUDED.closed_by
-            """,
-            {
-                "course_id": f"{course.plan_id}:{course.start.isoformat()}",
-                "plan_id": course.plan_id,
-                "user_id": str(subject_id),
-                "order_id": course.order_id,
-                "start_date": course.start,
-                "end_date": course.end,
-                "closed_by": course.closed_by,
-            },
-            log_sql=False,
-        )
-
     async def transition(self, subject_id: str, plan_id: str, event: str, *, today: date) -> meds.MedicationPlan:
         """Apply a kernel transition and its course changes in one transaction."""
         async with db.transaction() as tx:
-            rows = await tx.execute(
-                f"SELECT {_PLAN_COLUMNS} FROM th_medication_plan "
-                "WHERE plan_id = :pid AND user_id = :uid AND deleted = 0 FOR UPDATE",
-                {"pid": str(plan_id), "uid": str(subject_id)},
-            )
-            if not rows:
-                raise LookupError("medication plan not found")
-            old = plan_from_row(dict(rows[0]))
+            old = await _lock_plan(tx, subject_id, plan_id)
             updated, closed = meds.plan_status_transition(old, event, today=today)  # type: ignore[arg-type]
             await tx.execute(
                 """
@@ -305,36 +375,20 @@ class PostgresMedicationStore:
                     "plan_id": updated.plan_id, "user_id": str(subject_id),
                 },
             )
-            if closed is not None:
-                await tx.execute(
-                    """
-                    INSERT INTO th_medication_course
-                        (course_id, plan_id, user_id, order_id, start_date, end_date, closed_by)
-                    VALUES (:course_id, :plan_id, :user_id, :order_id, :start_date, :end_date, :closed_by)
-                    ON CONFLICT (course_id) DO UPDATE SET end_date = EXCLUDED.end_date,
-                        closed_by = EXCLUDED.closed_by
-                    """,
-                    {
-                        "course_id": f"{closed.plan_id}:{closed.start.isoformat()}",
-                        "plan_id": closed.plan_id, "user_id": str(subject_id),
-                        "order_id": closed.order_id, "start_date": closed.start,
-                        "end_date": closed.end, "closed_by": closed.closed_by,
-                    },
+            if event == "stop" and closed is not None:
+                await _close_course(tx, subject_id, closed)
+            elif event == "resume":
+                # The stop already closed the previous course; the kernel hands
+                # it back for a store that recorded nothing then (a plan stopped
+                # before the web form existed). Record it only in that case.
+                done = closed is not None and await tx.execute(
+                    "SELECT 1 FROM th_medication_course WHERE plan_id = :pid"
+                    " AND closed_by IS NOT NULL AND start_date = :start LIMIT 1",
+                    {"pid": updated.plan_id, "start": closed.start},
                 )
-            if event == "resume":
-                await tx.execute(
-                    """
-                    INSERT INTO th_medication_course
-                        (course_id, plan_id, user_id, order_id, start_date, end_date, closed_by)
-                    VALUES (:course_id, :plan_id, :user_id, :order_id, :start_date, NULL, NULL)
-                    ON CONFLICT (course_id) DO NOTHING
-                    """,
-                    {
-                        "course_id": f"{updated.plan_id}:{updated.start.isoformat()}",
-                        "plan_id": updated.plan_id, "user_id": str(subject_id),
-                        "order_id": updated.order_id, "start_date": updated.start,
-                    },
-                )
+                if closed is not None and not done:
+                    await _close_course(tx, subject_id, closed)
+                await _open_course(tx, subject_id, updated, updated.start)
             return updated
 
 

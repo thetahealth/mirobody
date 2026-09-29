@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from mirobody.collect import PostgresMedicationStore
 from mirobody.kernel import meds, series
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.server.auth import verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse
 from mirobody.user.care_circle import CareCircleDenied, resolve_subject
@@ -25,6 +26,11 @@ from mirobody.user.user import get_user
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/medications", tags=["medications"])
+
+
+
+def _not_found() -> ErrorResponse:
+    return ErrorResponse(code=404, msg="No such medication plan.")
 
 
 class MedicationCodeInput(BaseModel):
@@ -80,8 +86,62 @@ class MedicationInput(BaseModel):
         return self
 
 
+class MedicationPatch(BaseModel):
+    """The fields an edit changes; the rest stay as stored. A full replace
+    dropped whatever the form does not show: the codes an import attached,
+    the classification, every instruction after the first."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=500)
+    form: str | None = Field(default=None, max_length=100)
+    strength: str | None = Field(default=None, max_length=200)
+    codes: list[MedicationCodeInput] | None = Field(default=None, max_length=20)
+    schedule: list[InstructionInput] | None = Field(default=None, min_length=1, max_length=12)
+    start_date: date | None = None
+    end_date: date | None = None
+    classification: str | None = Field(default=None, max_length=100)
+    confirmed: bool | None = None
+
+
 def _dose(value: DoseInput | None) -> meds.Dose | None:
     return None if value is None else meds.Dose(value.value, value.unit)
+
+
+def _schedule(items: list[InstructionInput]) -> tuple[meds.DoseInstruction, ...]:
+    return tuple(
+        meds.DoseInstruction(
+            dose=_dose(item.dose), times=tuple(item.times),
+            doses_per_day=item.doses_per_day, period_days=item.period_days,
+            weekdays=frozenset(item.weekdays), as_needed=item.as_needed,
+            max_dose_per_day=_dose(item.max_dose_per_day),
+        )
+        for item in items
+    )
+
+
+def _changes(body: MedicationPatch, current: meds.MedicationPlan) -> dict[str, Any]:
+    """`MedicationPatch` as `dataclasses.replace` arguments over `current`."""
+    given = body.model_fields_set
+    changes: dict[str, Any] = {}
+    if given & {"name", "form", "strength", "codes"}:
+        c = current.concept
+        changes["concept"] = meds.MedicationConcept(
+            text=body.name.strip() if body.name is not None else c.text,
+            form=body.form.strip() if body.form is not None else c.form,
+            strength=body.strength.strip() if body.strength is not None else c.strength,
+            codes=tuple(meds.Coding(x.system, x.code, x.display, x.tty) for x in body.codes)
+            if body.codes is not None else c.codes,
+        )
+    if body.schedule is not None:
+        changes["schedule"] = _schedule(body.schedule)
+    if body.start_date is not None:
+        changes["start"] = body.start_date
+    if "end_date" in given:
+        changes["end"] = body.end_date
+    if body.classification is not None:
+        changes["classification"] = body.classification.strip()
+    if body.confirmed is not None:
+        changes["confirmed"] = body.confirmed
+    return changes
 
 
 def _plan_input(body: MedicationInput, subject_id: str, plan_id: str | None = None) -> meds.MedicationPlan:
@@ -91,15 +151,7 @@ def _plan_input(body: MedicationInput, subject_id: str, plan_id: str | None = No
         strength=body.strength.strip(),
         codes=tuple(meds.Coding(c.system, c.code, c.display, c.tty) for c in body.codes),
     )
-    schedule = tuple(
-        meds.DoseInstruction(
-            dose=_dose(item.dose), times=tuple(item.times),
-            doses_per_day=item.doses_per_day, period_days=item.period_days,
-            weekdays=frozenset(item.weekdays), as_needed=item.as_needed,
-            max_dose_per_day=_dose(item.max_dose_per_day),
-        )
-        for item in body.schedule
-    )
+    schedule = _schedule(body.schedule)
     return meds.MedicationPlan(
         plan_id=plan_id or meds.plan_id_for(subject_id, str(uuid.uuid4()), concept.concept_key),
         concept=concept, schedule=schedule, start=body.start_date, end=body.end_date,
@@ -108,23 +160,26 @@ def _plan_input(body: MedicationInput, subject_id: str, plan_id: str | None = No
     )
 
 
-async def _subject(caller: str, target: str | None) -> tuple[str | None, ErrorResponse | None]:
+async def _subject(caller: str, target: str | None) -> tuple[str, ErrorResponse | None]:
     if not target or str(target) == str(caller):
         return str(caller), None
     try:
         await resolve_subject(str(caller), str(target))
     except CareCircleDenied:
-        return None, ErrorResponse(code=403, msg="Not permitted to read this member's medications.")
+        return "", ErrorResponse(code=403, msg="Not permitted to read this member's medications.")
     return str(target), None
 
 
 async def _owner_or_404(caller: str, plan_id: str) -> tuple[str | None, ErrorResponse | None]:
-    store = PostgresMedicationStore()
-    owner = await store.owner(plan_id)
+    """The plan's owner when the caller may read it. A plan the caller may not
+    read answers exactly as a missing one does, so a guessed id tells nothing."""
+    owner = await PostgresMedicationStore().owner(plan_id)
     if owner is None:
-        return None, ErrorResponse(code=404, msg="No such medication plan.")
-    subject, error = await _subject(caller, owner)
-    return subject, error
+        return None, _not_found()
+    _, error = await _subject(caller, owner)
+    if error:
+        return None, _not_found()
+    return owner, None
 
 
 async def _zone(subject_id: str) -> str:
@@ -137,6 +192,8 @@ async def _today(subject_id: str) -> date:
 
 
 def _json_plan(plan: meds.MedicationPlan, *, today: date, courses: list[meds.Course] | None = None) -> dict[str, Any]:
+    """`effective_status` is computed against `today` on every read; nothing
+    derived from the clock is stored."""
     return {
         "plan_id": plan.plan_id,
         "name": plan.concept.text,
@@ -160,11 +217,28 @@ def _json_plan(plan: meds.MedicationPlan, *, today: date, courses: list[meds.Cou
         "classification": plan.classification,
         "confirmed": plan.confirmed,
         "source": plan.source,
-        "courses": [
-            {"start_date": c.start.isoformat(), "end_date": c.end.isoformat() if c.end else None, "closed_by": c.closed_by}
-            for c in courses or ()
-        ],
+        "courses": [_json_course(c) for c in courses or ()],
     }
+
+
+def _json_course(course: meds.Course) -> dict[str, Any]:
+    return {
+        "plan_id": course.plan_id,
+        "start_date": course.start.isoformat(),
+        "end_date": course.end.isoformat() if course.end else None,
+        "closed_by": course.closed_by,
+    }
+
+
+def _failed(action: str, exc: Exception, msg: str) -> ErrorResponse:
+    # A type name only: a driver exception quotes the SQL with its bound
+    # parameters, and those are a drug name and a dose.
+    logger.error("medications %s failed: error_type=%s", action, type(exc).__name__,
+                 exc_info=not is_driver_exception(exc))
+    return ErrorResponse(code=500, msg=msg)
+
+
+_STATUSES = {meds.EFFECTIVE_ACTIVE, meds.EFFECTIVE_INTENDED, meds.EFFECTIVE_COMPLETED, meds.EFFECTIVE_STOPPED}
 
 
 @router.get("")
@@ -173,16 +247,16 @@ async def list_medications(
     status: str | None = Query(None),
     user_id: str = Depends(verify_token),
 ):
+    if status and status not in _STATUSES:
+        return ErrorResponse(code=400, msg=f"status must be one of: {', '.join(sorted(_STATUSES))}.")
     subject, error = await _subject(user_id, target_user_id)
     if error:
         return error
-    store = PostgresMedicationStore()
-    plans = await store.list(subject or user_id)
-    if status:
-        allowed = {meds.EFFECTIVE_ACTIVE, meds.EFFECTIVE_INTENDED, meds.EFFECTIVE_COMPLETED, meds.EFFECTIVE_STOPPED}
-        if status not in allowed:
-            return ErrorResponse(code=400, msg="status is invalid.")
-    today = await _today(subject or user_id)
+    try:
+        plans = await PostgresMedicationStore().list(subject)
+        today = await _today(subject)
+    except Exception as exc:
+        return _failed("list", exc, "Medications could not be loaded.")
     rows = [_json_plan(p, today=today) for p in plans]
     if status:
         rows = [r for r in rows if r["effective_status"] == status]
@@ -191,64 +265,92 @@ async def list_medications(
 
 @router.get("/{plan_id}")
 async def get_medication(plan_id: str, user_id: str = Depends(verify_token)):
-    subject, error = await _owner_or_404(user_id, plan_id)
-    if error:
-        return error
-    store = PostgresMedicationStore()
-    plan = await store.get(plan_id)
-    if plan is None or plan.status == meds.PLAN_ENTERED_IN_ERROR:
-        return ErrorResponse(code=404, msg="No such medication plan.")
-    return StandardResponse(data=_json_plan(plan, today=await _today(subject or user_id), courses=[*await store.courses(plan_id)]))
+    try:
+        owner, error = await _owner_or_404(user_id, plan_id)
+        if error:
+            return error
+        store = PostgresMedicationStore()
+        plan = await store.get(plan_id)
+        if plan is None or plan.status == meds.PLAN_ENTERED_IN_ERROR:
+            return _not_found()
+        courses = list(await store.courses(plan_id))
+        today = await _today(owner)
+    except Exception as exc:
+        return _failed("detail", exc, "This medication could not be loaded.")
+    return StandardResponse(data=_json_plan(plan, today=today, courses=courses))
 
 
 @router.get("/{plan_id}/courses")
 async def medication_courses(plan_id: str, user_id: str = Depends(verify_token)):
-    _, error = await _owner_or_404(user_id, plan_id)
-    if error:
-        return error
-    courses = await PostgresMedicationStore().courses(plan_id)
-    return StandardResponse(data={"items": [_json_plan_course(c) for c in courses]})
-
-
-def _json_plan_course(course: meds.Course) -> dict[str, Any]:
-    return {"plan_id": course.plan_id, "start_date": course.start.isoformat(), "end_date": course.end.isoformat() if course.end else None, "closed_by": course.closed_by}
+    try:
+        _, error = await _owner_or_404(user_id, plan_id)
+        if error:
+            return error
+        courses = await PostgresMedicationStore().courses(plan_id)
+    except Exception as exc:
+        return _failed("courses", exc, "This medication's history could not be loaded.")
+    return StandardResponse(data={"items": [_json_course(c) for c in courses]})
 
 
 @router.post("")
 async def create_medication(body: MedicationInput, user_id: str = Depends(verify_token)):
+    """Always the caller's own record: writing to a family member's is not
+    offered, so there is no `target_user_id` here to authorize."""
     plan = _plan_input(body, str(user_id))
-    store = PostgresMedicationStore()
-    await store.put(plan)
-    await store.add_course(str(user_id), meds.Course(plan.plan_id, plan.order_id, plan.start, None))
-    return StandardResponse(data=_json_plan(plan, today=await _today(str(user_id))))
+    try:
+        await PostgresMedicationStore().create(plan)
+        today = await _today(str(user_id))
+    except Exception as exc:
+        return _failed("create", exc, "This medication could not be saved.")
+    return StandardResponse(data=_json_plan(plan, today=today))
 
 
-@router.patch("/{plan_id}")
-async def update_medication(plan_id: str, body: MedicationInput, user_id: str = Depends(verify_token)):
-    owner, error = await _owner_or_404(user_id, plan_id)
-    if error or owner != str(user_id):
-        return error or ErrorResponse(code=403, msg="Only the record owner can edit medications.")
-    current = await PostgresMedicationStore().get(plan_id)
-    if current is None or current.status == meds.PLAN_ENTERED_IN_ERROR:
-        return ErrorResponse(code=404, msg="No such medication plan.")
-    plan = _plan_input(body, str(user_id), plan_id=plan_id)
-    plan = meds.MedicationPlan(**{**plan.__dict__, "status": current.status, "stopped_on": current.stopped_on, "source": current.source})
-    store = PostgresMedicationStore()
-    await store.put(plan)
-    return StandardResponse(data=_json_plan(plan, today=datetime.now().date()))
-
-
-async def _transition(plan_id: str, event: str, user_id: str):
+async def _owned(plan_id: str, user_id: str) -> ErrorResponse | None:
+    """None when the caller owns the plan. A family member who may read it
+    gets 403; anyone else gets the same 404 as a plan that does not exist."""
     owner, error = await _owner_or_404(user_id, plan_id)
     if error:
         return error
     if owner != str(user_id):
         return ErrorResponse(code=403, msg="Only the record owner can change medications.")
+    return None
+
+
+@router.patch("/{plan_id}")
+async def update_medication(plan_id: str, body: MedicationPatch, user_id: str = Depends(verify_token)):
+    store = PostgresMedicationStore()
     try:
-        plan = await PostgresMedicationStore().transition(str(user_id), plan_id, event, today=await _today(str(user_id)))
-    except (LookupError, ValueError) as exc:
+        if (error := await _owned(plan_id, user_id)) is not None:
+            return error
+        current = await store.get(plan_id)
+        if current is None or current.status == meds.PLAN_ENTERED_IN_ERROR:
+            return _not_found()
+        plan = await store.revise(str(user_id), plan_id, _changes(body, current))
+        today = await _today(str(user_id))
+    except LookupError:
+        return _not_found()
+    except ValueError as exc:
         return ErrorResponse(code=400, msg=str(exc))
-    return StandardResponse(data=_json_plan(plan, today=await _today(str(user_id))))
+    except Exception as exc:
+        return _failed("edit", exc, "This medication could not be saved.")
+    return StandardResponse(data=_json_plan(plan, today=today))
+
+
+async def _transition(plan_id: str, event: str, user_id: str):
+    try:
+        if (error := await _owned(plan_id, user_id)) is not None:
+            return error
+        today = await _today(str(user_id))
+        plan = await PostgresMedicationStore().transition(str(user_id), plan_id, event, today=today)
+    except LookupError:
+        return _not_found()
+    except ValueError as exc:
+        # The kernel's refusal of an illegal move ("cannot resume a plan that
+        # is active"): a fixed sentence about states, never the drug.
+        return ErrorResponse(code=400, msg=str(exc))
+    except Exception as exc:
+        return _failed(event, exc, "That medication change could not be completed.")
+    return StandardResponse(data=_json_plan(plan, today=today))
 
 
 @router.post("/{plan_id}/stop")
@@ -258,11 +360,14 @@ async def stop_medication(plan_id: str, user_id: str = Depends(verify_token)):
 
 @router.post("/{plan_id}/resume")
 async def resume_medication(plan_id: str, user_id: str = Depends(verify_token)):
+    """Opens a new course today; the stopped one stays in the history."""
     return await _transition(plan_id, "resume", user_id)
 
 
 @router.delete("/{plan_id}")
 async def delete_medication(plan_id: str, user_id: str = Depends(verify_token)):
+    """Marks the plan entered-in-error. Nothing is erased: the default list
+    leaves it out, and its courses remain."""
     return await _transition(plan_id, "void", user_id)
 
 

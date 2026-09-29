@@ -250,6 +250,31 @@ amounts. The person's own words live in the encrypted columns.
 `mirobody.kernel.meds` every question that has an answer there, rather than
 re-deriving one in SQL.
 
+### The web form (`/api/v1/medications`)
+
+`server/routers/medication_router.py` is the form behind the web client's
+Medications page: a structured plan typed by the person, not a sentence, so no
+model is involved.
+
+| Route | Does |
+|---|---|
+| `GET /` | the plans, minus `entered_in_error`; `?status=` filters on the effective status; `?target_user_id=` reads a family member's with a read grant |
+| `GET /{plan_id}`, `GET /{plan_id}/courses` | one plan with its courses |
+| `POST /` | a new plan and its opening course, in one transaction |
+| `PATCH /{plan_id}` | the fields sent; the rest stay as stored |
+| `POST /{plan_id}/stop`, `POST /{plan_id}/resume` | `plan_status_transition`, with the course it closes or opens, in one transaction |
+| `DELETE /{plan_id}` | marks it `entered_in_error`; nothing is erased |
+
+Writes are the owner's only. A plan the caller may not read answers `404`,
+exactly like one that does not exist. An illegal move (stopping a stopped plan)
+is the kernel's `ValueError`, returned as `400`.
+
+A plan has at most one open course, found by `closed_by IS NULL`; its id is the
+plan, the start and its place in the plan's history, so stopping and resuming on
+one day leaves two courses, not one. A start date may change only on an active
+plan, and the open course moves with it; a stopped plan's start is its last
+course's and stays.
+
 ---
 
 ## Golden tests
