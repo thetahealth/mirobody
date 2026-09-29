@@ -214,7 +214,7 @@ jobs:
         # list in step with the store/HTTP half of [app] in pyproject.toml.
         "$VPIP" install "${WHEEL}[parse]" \
             fastapi python-multipart uvicorn \
-            "psycopg[binary]" "psycopg[pool]" sqlalchemy greenlet redis \
+            "psycopg[binary]" "psycopg[pool]" sqlalchemy greenlet \
             aioboto3 boto3 oss2 "mcp>=2.0.0" pyjwt "webauthn>=2.0.0" mandrill \
             requests-oauthlib
         "$VPY" -c "

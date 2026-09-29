@@ -132,22 +132,29 @@ for can take it over.
   data and installs an immutable extract; `CPIC_VERSION` selects an exact or
   locally newest installed version at query time. Public v1.59.1 and v1.60.0
   dumps passed the offline fetch and selection checks.
-- **The open-source web client now has a shared raw-records view and data delta.**
-  The paginated records endpoint reads the same visible observation rows as
-  the agent, while its `created_since` filter follows amendment and retraction
-  periods. The same query authority now exports the full visible standardized
-  record set as CSV or JSON. A Mirovital-shaped `/api/user/data-export` alias
-  adds a self-describing manifest, paging metadata, and an NDJSON stream with
-  a completion footer. The data page shows entries added since the last visit
-  and keeps source counts consistent with the detail rows.
-- **Medication plans now have a web CRUD and lifecycle surface.** The server
-  exposes owner-only create/edit/stop/resume/void operations, care-circle
-  read-only list and detail access, and course history in one transaction for
-  state changes. The bundled web client includes a medication form and status
-  cards; due and missed states remain derived from the medication kernel.
-- **Capability flags now describe the web surface that is actually mounted.**
-  `/mirobody.json` reports the records, data-delta and medication routes, and
-  the current `mirobody-web` build hides controls when those routes are off.
+- **The web client lists every entry, counts what is new, and exports it.**
+  The Indicators page could show one indicator's readings at a time, nothing
+  said what had arrived since the last visit, and nothing downloaded the
+  standardized values. `GET /api/v1/health-indicators/records` pages visible
+  entries across all indicators; `GET /api/v1/data/data-delta?since=` counts,
+  by source, the entries whose current period began after `since` (a
+  correction keeps its entry's period, a retraction ends it, a reassertion
+  starts a new one), and `created_since` on the records route lists exactly
+  those. `GET /api/v1/health-indicators/export` downloads the same rows as CSV
+  or JSON, standardized value and unit included; `GET /api/user/data-export`
+  gives the caller's own rows as a JSON page or an NDJSON stream whose footer
+  says whether it finished. All four read `PostgresHealthQuery`. To check:
+  upload a report, correct one reading, and the delta still counts it once.
+- **Medications can be added and managed from the web.** The medication model
+  had a store but no HTTP surface. `/api/v1/medications` lists, creates,
+  edits, stops, resumes (opening a new course) and voids plans; each state
+  change writes its course in the same transaction, a family member with a
+  read grant can list but not write, and a plan the caller may not read
+  answers 404 like a missing one. See `docs/medications.md`.
+- **`/mirobody.json` names the records, delta and medication surfaces.**
+  `__IS_INDICATOR_RECORDS_ON__`, `__IS_INDICATOR_EXPORT_ON__`,
+  `__IS_DATA_DELTA_ON__` and `__IS_MEDICATIONS_ON__` follow whether each
+  router is mounted, and the bundled client hides what is off.
 
 ### Security
 

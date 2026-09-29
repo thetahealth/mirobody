@@ -60,10 +60,10 @@ class _CodeVerificationMixin:
     The Mandrill and SMTP validators carried byte-identical verify bodies, and
     both had the same two holes:
 
-    * **The ephemeral state branch never deleted the code on success.** The in-memory
-      branch did (`del self._codes[...]`), so a code was single-use in
-      development and reusable for its whole 600-second TTL in production:
-      the deployment shape where it matters.
+    * **The shared-store branch (Redis, then) never deleted the code on
+      success.** The in-memory branch did (`del self._codes[...]`), so a code
+      was single-use in development and reusable for its whole 600-second TTL
+      in production: the deployment shape where it matters.
     * **Neither counted failures.** With no lockout and no rate limiting
       reachable on an anonymous endpoint, the whole keyspace is walkable.
 
@@ -137,7 +137,8 @@ class MandrillEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator)
         #-------------------------------------------------
         # Limitation on code sending.
 
-        # Use remote memory when ephemeral connection is available.
+        # Shared state when the server has a store; a single process falls
+        # back to memory.
         self._ephemeral = ephemeral
 
         if self._ephemeral:
@@ -145,7 +146,6 @@ class MandrillEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator)
             self._attempt_keyprefix = "mirobody:email:attempt:"
             self._limit_keyprefix   = "mirobody:email:limit:"
 
-        # Use local memory when no ephemeral connection is available.
         self._codes = {}
 
     #-----------------------------------------------------
@@ -323,7 +323,8 @@ class SMTPEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator):
 
         self._predefined_codes = predefined_codes if predefined_codes else {}
 
-        # Use remote memory when ephemeral connection is available.
+        # Shared state when the server has a store; a single process falls
+        # back to memory.
         self._ephemeral = ephemeral
 
         if self._ephemeral:
@@ -331,7 +332,6 @@ class SMTPEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator):
             self._attempt_keyprefix = "mirobody:email:attempt:"
             self._limit_keyprefix   = "mirobody:email:limit:"
 
-        # Use local memory when no ephemeral connection is available.
         self._codes = {}
 
     #-----------------------------------------------------
