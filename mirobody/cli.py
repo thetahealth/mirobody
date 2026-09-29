@@ -225,6 +225,14 @@ def _cmd_doctor(args: argparse.Namespace) -> None:
     print(format_report(rows))
     if not any(r.provider for r in rows):
         sys.exit(1)
+    if args.probe:
+        _require_extra("doctor --probe", "app", "langchain_openai", "the agent stack")
+        from mirobody.agent.probe import format_probes, probe_surfaces
+
+        results = asyncio.run(probe_surfaces())
+        print(format_probes(results))
+        if not all(r.passed for r in results):
+            sys.exit(1)
 
 
 def _cmd_fetch_cpic(args: argparse.Namespace) -> None:
@@ -547,6 +555,7 @@ def main(argv: list[str] | None = None) -> None:
 
     p_doctor = sub.add_parser("doctor", help="show which LLM provider each surface selects with the current config, and what is missing (requires the [app] or [parse] extra)")
     p_doctor.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
+    p_doctor.add_argument("--probe", action="store_true", help="also send one real request per surface (a tool call, a schema-bound answer, an image) and report what the model did")
     p_doctor.set_defaults(func=_cmd_doctor)
 
     p_fetch = sub.add_parser("fetch", help="download a versioned public data asset")
