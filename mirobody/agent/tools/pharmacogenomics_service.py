@@ -105,6 +105,14 @@ class PharmacogenomicsService(RecordTool):
 
         knowledge = load_cpic()
         pairs = knowledge.drug_pairs(drugs=drugs, genes=genes)
+        # A name matching nothing used to vanish when another name matched, so
+        # the model could not say which drug CPIC does not cover.
+        matched_drugs = {pair.drug.casefold() for pair in pairs}
+        matched_genes = {pair.gene for pair in pairs}
+        unmatched = [d for d in drugs if d.casefold() not in matched_drugs]
+        unmatched += [g for g in genes if g.upper() not in matched_genes]
+        if unmatched and pairs:
+            notes.append("no CPIC A/B gene-drug pair for: " + ", ".join(unmatched))
         if len(pairs) > MAX_PAIRS:
             notes.append(f"cut at {MAX_PAIRS} gene-drug pairs; narrow the query")
         rows = []

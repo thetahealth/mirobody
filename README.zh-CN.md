@@ -239,7 +239,7 @@ curl -X POST localhost:18060/password/register -H 'Content-Type: application/jso
   随 wheel 一起发布（[`mirobody/testing/genomics`](mirobody/testing/genomics/README.md)），
   [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py)
   不联网也能跑。
-- **每一条编码判定都能复现**：5 条合成的检验读数、9 条常见的主诉说法，该落到哪个
+- **每一条编码判定都能复现**：13 条合成的检验读数、26 条五种语言的主诉说法，该落到哪个
   LOINC／UCUM 或 ICPC-3 编码，都写在用例里；太笼统、有歧义，宁可不编码也不瞎猜的
   说法，也一并列了进去。[`benchmarks/health_records`](benchmarks/health_records/README.md)。
 - **三个公开基准**，数据集公开，各自一条命令可复现：长期健康 agent、医疗幻觉、

@@ -3,15 +3,6 @@ mirobody/agent/agent.py	interpolation	default_provider
 mirobody/agent/agent.py	interpolation	e
 mirobody/agent/agent.py	interpolation	original_provider
 mirobody/agent/agent.py	interpolation	str(e)
-mirobody/agent/chat/file.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/chat/file.py	interpolation	e
-mirobody/agent/chat/file.py	interpolation	file_dict
-mirobody/agent/chat/file.py	interpolation	file_dict.get('file_name', 'unknown')
-mirobody/agent/chat/file.py	interpolation	file_key
-mirobody/agent/chat/file.py	interpolation	file_name
-mirobody/agent/chat/file.py	interpolation	result
-mirobody/agent/chat/file.py	interpolation	str(e)
-mirobody/agent/chat/file.py	interpolation	str(file_error)
 mirobody/agent/chat/message.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/agent/chat/message.py	interpolation	role
 mirobody/agent/chat/message.py	interpolation	scene
@@ -46,11 +37,6 @@ mirobody/agent/middleware/tool_faults.py	interpolation	repairs
 mirobody/agent/models/clients.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/agent/tools/terminology_service.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/agent/tools/terminology_service.py	interpolation	e
-mirobody/collect/core/database.py	extra_key	records
-mirobody/collect/core/database.py	extra_key	time_cost
-mirobody/collect/core/database.py	interpolation	cache_key
-mirobody/collect/core/database.py	interpolation	logged_query
-mirobody/collect/core/database.py	interpolation	str(e)
 mirobody/collect/core/push_service.py	interpolation	str(e)
 mirobody/collect/files/file_processor.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/collect/files/file_processor.py	interpolation	e
@@ -69,7 +55,6 @@ mirobody/collect/files/file_upload_manager.py	interpolation	has_genetic_files
 mirobody/collect/files/file_upload_manager.py	interpolation	list(self.active_connections.keys())
 mirobody/collect/files/file_upload_manager.py	interpolation	mapped_progress
 mirobody/collect/files/file_upload_manager.py	interpolation	max_progress
-mirobody/collect/files/file_upload_manager.py	interpolation	message
 mirobody/collect/files/file_upload_manager.py	interpolation	message.get('message', '')
 mirobody/collect/files/file_upload_manager.py	interpolation	message.get('type', 'unknown')
 mirobody/collect/files/file_upload_manager.py	interpolation	progress
@@ -122,8 +107,6 @@ mirobody/collect/files/services/file_db_service.py	interpolation	file_key
 mirobody/collect/files/services/file_db_service.py	interpolation	list(updates.keys())
 mirobody/collect/files/services/file_db_service.py	interpolation	str(e)
 mirobody/collect/files/services/file_processing_service.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/collect/files/services/file_processing_service.py	interpolation	cache_error
-mirobody/collect/files/services/file_processing_service.py	interpolation	cache_ttl
 mirobody/collect/files/services/file_processing_service.py	interpolation	e
 mirobody/collect/files/services/file_processing_service.py	interpolation	err
 mirobody/collect/files/services/file_processing_service.py	interpolation	error_msg
@@ -159,7 +142,6 @@ mirobody/collect/files/services/report_date.py	interpolation	e
 mirobody/collect/files/services/report_date.py	interpolation	exam_date
 mirobody/collect/files/services/report_date.py	interpolation	file_key
 mirobody/collect/files/services/temp_file_manager.py	interpolation	filename
-mirobody/collect/files/services/temp_file_manager.py	interpolation	str(e)
 mirobody/collect/files/services/temp_file_manager.py	interpolation	str(ex)
 mirobody/collect/files/services/temp_file_manager.py	interpolation	temp_file_path
 mirobody/collect/files/services/temp_file_manager.py	interpolation	upload_file.filename
@@ -197,7 +179,6 @@ mirobody/collect/providers/_platform/base.py	interpolation	auth_type.value
 mirobody/collect/providers/_platform/base.py	interpolation	cred['user_id']
 mirobody/collect/providers/_platform/base.py	interpolation	e
 mirobody/collect/providers/_platform/base.py	interpolation	str(e)
-mirobody/collect/providers/_platform/base.py	interpolation	table_name
 mirobody/collect/providers/_platform/base.py	interpolation	user_timezone
 mirobody/collect/providers/_platform/database_service.py	interpolation	error_msg
 mirobody/collect/providers/_platform/database_service.py	interpolation	expires_at
@@ -210,10 +191,8 @@ mirobody/collect/providers/_platform/normalize.py	interpolation	str(e)
 mirobody/collect/providers/_platform/normalize.py	interpolation	time_str
 mirobody/collect/providers/_platform/normalize.py	interpolation	timestamp_str
 mirobody/collect/providers/_platform/oauth2.py	interpolation	e
-mirobody/collect/providers/_platform/platform.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/collect/providers/_platform/platform.py	interpolation	directory
 mirobody/collect/providers/_platform/platform.py	interpolation	e
-mirobody/collect/providers/_platform/platform.py	interpolation	page
 mirobody/collect/providers/_platform/platform.py	interpolation	provider_file
 mirobody/collect/providers/_platform/platform.py	interpolation	provider_file.stem
 mirobody/collect/providers/_platform/platform.py	interpolation	str(e)
@@ -283,7 +262,6 @@ mirobody/mcp/tool.py	interpolation	str(e)
 mirobody/mcp/tool.py	interpolation	target_directory
 mirobody/server/auth.py	extra_key	token
 mirobody/server/auth.py	interpolation	str(e)
-mirobody/server/auth.py	interpolation	token[:50]
 mirobody/server/auth.py	interpolation	type(token)
 mirobody/server/bootstrap.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/server/bootstrap.py	extra_key	sql_filename
@@ -306,7 +284,6 @@ mirobody/server/routers/file_router.py	interpolation	current_user
 mirobody/server/routers/file_router.py	interpolation	e
 mirobody/server/routers/file_router.py	interpolation	err
 mirobody/server/routers/file_router.py	interpolation	file_path
-mirobody/server/routers/file_router.py	interpolation	message
 mirobody/server/routers/file_router.py	interpolation	request.file_keys
 mirobody/server/routers/file_router.py	interpolation	send_error
 mirobody/server/routers/file_router.py	interpolation	str(e)
@@ -336,10 +313,8 @@ mirobody/server/routers/sharing_router.py	interpolation	e
 mirobody/server/routers/sharing_router.py	interpolation	handle
 mirobody/server/routers/user_router.py	interpolation	accept_language
 mirobody/server/routers/user_router.py	interpolation	e
-mirobody/server/routers/user_router.py	interpolation	request.dict()
 mirobody/server/routers/user_router.py	interpolation	str(e)
 mirobody/server/routers/user_router.py	interpolation	traceback.format_exc()
-mirobody/server/routers/user_router.py	interpolation	user_data
 mirobody/server/server.py	interpolation	exc
 mirobody/server/server.py	interpolation	request.url.path
 mirobody/server/worker.py	interpolation	[c.__name__ for c in task_classes]
@@ -422,7 +397,6 @@ mirobody/translate/value_range_validator.py	interpolation	rule_str
 mirobody/translate/value_range_validator.py	interpolation	self._rule_set
 mirobody/user/account_merge.py	extra_key	affected_so_far
 mirobody/user/account_merge.py	interpolation	str(e)
-mirobody/user/auth/apple.py	interpolation	e
 mirobody/user/auth/oauth_service.py	extra_key	refresh_token
 mirobody/user/auth/oauth_service.py	extra_key	token
 mirobody/user/auth/oauth_service.py	interpolation	data
@@ -447,13 +421,8 @@ mirobody/user/profile.py	interpolation	scenario_info['scenario_en']
 mirobody/user/profile.py	interpolation	scenario_info['scenario_zh']
 mirobody/user/profile.py	interpolation	scenario_zh
 mirobody/user/profile.py	interpolation	scenario_zh_clean
-mirobody/user/user.py	extra_key	apple
-mirobody/user/user.py	extra_key	email
 mirobody/user/user.py	interpolation	str(e)
 mirobody/user/user_service.py	extra_key	affected
-mirobody/user/user_service.py	extra_key	apple_subject
-mirobody/user/user_service.py	extra_key	email
-mirobody/user/user_service.py	extra_key	token
 mirobody/user/user_service.py	interpolation	err
 mirobody/user/user_service.py	interpolation	existing_owner
 mirobody/utils/config/agent_options.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
@@ -498,8 +467,6 @@ mirobody/utils/distributed_lock.py	interpolation	e
 mirobody/utils/distributed_lock.py	interpolation	existing_lock.decode() if isinstance(existing_lock, bytes) else existing_lock
 mirobody/utils/distributed_lock.py	interpolation	str(e)
 mirobody/utils/distributed_lock.py	interpolation	timestamp
-mirobody/utils/embedding.py	interpolation	e
-mirobody/utils/embedding.py	interpolation	wait
 mirobody/utils/http.py	interpolation	message
 mirobody/utils/http.py	interpolation	msg
 mirobody/utils/llm/file_processors/backends_openai.py	interpolation	e

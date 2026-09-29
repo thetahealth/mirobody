@@ -25,6 +25,10 @@ SIMPLE_RELINK_TABLES: list[tuple[str, list[str]]] = [
     ("th_series_data_genetic",          ["user_id"]),
     ("th_session_share",                ["user_id"]),
     ("th_task_flow",                    ["user_id"]),
+    ("th_medication_plan",              ["user_id"]),
+    ("th_medication_course",            ["user_id"]),
+    ("th_dose_event",                   ["user_id"]),
+    ("th_override",                     ["user_id"]),
     ("user_behavior_insight",           ["user_id"]),
     ("webauthn_credentials",            ["user_id"]),
 
@@ -34,6 +38,7 @@ SIMPLE_RELINK_TABLES: list[tuple[str, list[str]]] = [
     ("health_data_libre",               ["user_id"]),
     ("health_data_oracle",              ["theta_user_id"]),
     ("health_data_oura",                ["theta_user_id"]),
+    ("health_data_whoop",               ["theta_user_id"]),
     ("health_user_profile_by_system",   ["user_id"]),
     ("health_user_provider",            ["user_id"]),
     ("health_vital_user",               ["app_user_id"]),
@@ -45,8 +50,13 @@ SIMPLE_RELINK_TABLES: list[tuple[str, list[str]]] = [
 async def _table_exists(cur, table_name: str) -> bool:
     """Skip tables that aren't part of the current deployment. Avoids
     UndefinedTable errors aborting the txn.
+
+    Resolved through the connection's search_path, where the queries below
+    will look. This asked for `public.<table>`, and the shipped config puts the
+    tables in `theta_ai`: every table was skipped and the losing account was
+    still soft-deleted, so a merge orphaned all of its data.
     """
-    await cur.execute("SELECT to_regclass(%s);", [f"public.{table_name}"])
+    await cur.execute("SELECT to_regclass(%s);", [table_name])
     row = await cur.fetchone()
     return bool(row and row[0])
 

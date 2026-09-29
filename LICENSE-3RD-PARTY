@@ -27,6 +27,10 @@ use of each is subject to the license terms of its sources:
   icpc3/symptoms_en.tsv             hand-written (Apache-2.0)   —
   icpc3/conditions_zh.tsv           hand-written (Apache-2.0)   —
   icpc3/conditions_en.tsv           hand-written (Apache-2.0)   —
+  icpc3/symptoms_ja.tsv             hand-written (Apache-2.0)   —
+  icpc3/symptoms_ru.tsv             hand-written (Apache-2.0)   —
+  icpc3/conditions_ja.tsv           hand-written (Apache-2.0)   —
+  icpc3/conditions_ru.tsv           hand-written (Apache-2.0)   —
   catalog/metrics.tsv               LOINC codes in the `loinc`  section 1 below
                                     column; the rest is ours
   catalog/labels/zh.tsv             hand-written (Apache-2.0)   —
@@ -39,8 +43,8 @@ use of each is subject to the license terms of its sources:
   genomics/cpic-v1.60.0.json.gz     CPIC database v1.60.0      res/genomics/cpic-v1.60.0.NOTICE
                                     (CC0 curated content)
   genomics/cpic-v1.60.0.NOTICE      CPIC attribution           res/genomics/cpic-v1.60.0.NOTICE
-  genomics/genotype_sites.sqlite3   NCBI dbSNP b157 public      res/genomics/genotype_sites.NOTICE
-                                    sample (public domain)
+  genomics/genotype_sites.sqlite3   UCSC dbSNP 155 Common;      res/genomics/genotype_sites.NOTICE
+                                    PGP rsIDs; CPIC (CC0)
   genomics/genotype_sites.NOTICE    hand-written (Apache-2.0)   —
   EXTERNAL.tsv                      a manifest, no content      —
 
@@ -57,20 +61,23 @@ Creative Commons Attribution-NoDerivatives (CC BY-ND), redistributable
 verbatim including for commercial use. It needs no signed agreement and no
 account. `res/icpc3/icpc3.NOTICE` carries the attribution, the code system URI
 and what "verbatim" means here; the short version is that no ICPC-3
-term is translated or re-worded anywhere in this package, and the Chinese
-symptom table is our own writing about which phrase points at which code.
+term is translated or re-worded anywhere in this package, and the Chinese,
+Japanese and Russian phrase tables are our own writing about which phrase
+points at which code.
 
 1.5.1 also ships UCUM's own machine-readable table, `res/ucum/ucum-essence.xml`,
 byte for byte as Regenstrief publishes it, with its notice and licence text
 (section 2). UCUM was already the unit vocabulary; what is new is that the
 specification itself now travels with the tables that implement it.
 
-The 1.5.2 worktree carries a one-site dbSNP b157 **sample** catalog. Its
-`genotype_sites.NOTICE` records the public NCBI source, both input hashes and
-the generated SQLite hash. It is a schema and parser sample; no consumer-array
-coverage claim follows from it. A full candidate must replace it with a
-catalog built from four licensed marker lists and the pinned b157 files.
-Package data includes `.sqlite3`; `scripts/check_wheel_data.py` verifies the
+The genotype site catalog, `res/genomics/genotype_sites.sqlite3`, holds 489
+dual-build SNV sites in twelve public pharmacogene regions. Positions and
+alleles come from UCSC's dbSNP 155 Common tracks, derived from NCBI dbSNP,
+which UCSC makes freely available for public and commercial use. Sites were
+selected by the rsID columns of two Harvard PGP open-consent exports and by
+CPIC v1.60.0 (CC0); no participant genotype is in the file.
+`genotype_sites.NOTICE` records every source URL and hash. It covers those
+regions only, not a consumer array. `scripts/check_wheel_data.py` verifies the
 catalog and its notice in both the wheel and source distribution.
 
 A NOTE ON `aliases_src/`, ADDED 2026-09-13, REVISED 2026-09-20

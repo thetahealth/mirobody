@@ -1,14 +1,24 @@
-## Unreleased
+## 1.5.2
 
 Genotype uploads arrive as facts: one call per site, checked against a bundled
 public site index, with CPIC drug-gene coverage on top. Mirobody names no drug
 phenotype and no rare-disease risk from an array: the coverage tool reports
 `not_determined` rather than guess from calls that cannot establish one.
 [docs/genetics.md](docs/genetics.md) states the scope and the reason for each
-boundary.
+boundary. Around it, the findings of a fresh-deploy review: MCP signs in the
+way its specification says, a token works only where it was issued for, an
+address is proven before it is held, and a family member you keep a record
+for can take it over.
 
 ### Added
 
+- **A virtual member can take over their own account.** The person who added
+  them gets a one-time link (`POST /account/activation`, valid 7 days) from the
+  member's card. Whoever opens it proves the address it names, by a code sent
+  there or, where the deployment sends no mail, a password, and the account
+  and all its data become theirs; they choose what the creator keeps (edit,
+  view or nothing). An address that already has an account receives the
+  record by merge.
 - **Complaints and diagnoses resolve in Japanese, Russian and Traditional
   Chinese.** LOINC names already resolved in English, 简体中文, 繁體中文,
   日本語 and Russian (#88); ICPC-3 complaints resolved only in Chinese and
@@ -125,6 +135,34 @@ boundary.
 
 ### Security
 
+- **The webhook routes wrote into any account, unauthenticated.**
+  `POST /api/v1/pulse/{platform}/webhook` and `/{platform}/{provider}/webhook`
+  took no credential, and the Apple platform reads the account from `user_id`
+  in the body: one anonymous POST added a medication to another user's plan.
+  They now answer 404 unless `COLLECT_WEBHOOK_SECRET` is set, require it
+  (`X-Webhook-Secret` or `?secret=`) when it is, never reach the Apple
+  platform, and drop `theta_user_id` / `app_user_id` from the payload.
+- **A genotype file without its header went to the extraction model.** The
+  classifier keyed on the column header, so a 23andMe export with its comment
+  lines removed took the document path and its calls reached two model
+  requests. Rows shaped like calls, and any `.vcf` / `.vcf.gz` / `.vcf.bgz` by
+  name, now take the genetic path on upload, in chat and in the agent's file
+  mounts; the reader refuses them with a request for the original export.
+- **The shipped placeholder `JWT_KEY` signed tokens on the network.** The
+  placeholder check ran only under `PRODUCTION: true` and the default bind is
+  `0.0.0.0`, so `mirobody serve` from a clone accepted tokens forged from the
+  public string. Off loopback the run now gets its own key and says so.
+  `deploy.sh` draws its generated keys from `/dev/urandom`, not `$RANDOM`.
+- **`/files` checked who uploaded a file, not whose record it is.** A report
+  a carer filed for someone could not be opened by that person, and anyone
+  allowed into the carer's record could open it. Access now follows
+  `query_user_id`, the column the file list already filters on.
+- **A virtual member's address came from the client.** `POST /api/user/virtual`
+  stored whatever address it was sent, and the account sat read-write in the
+  caller's circle, so a real address put that person's future sign-ins
+  inside it. The server now mints an undeliverable `@virtual.invalid`
+  address, marks the account `managed_by` its creator, and never signs anyone
+  in to it.
 - **Anyone who knew a session id could read and write that conversation.**
   The agent's checkpoint thread was the client-supplied `session_id` alone, so
   a second account posting a known id resumed the first account's turns (the
@@ -156,6 +194,29 @@ boundary.
   with no `aal`. Refresh tokens are now refused as bearers, the token endpoint
   requires a refresh token issued to the presenting client, and `aal` rides
   from the authorising session through the code, the tokens and every refresh.
+  `/mcp`, `/personal/mcp`, the chat service and the WebAuthn routes decoded
+  the header a second time and took a refresh token too; they no longer do.
+- **An MCP client's token worked on every REST route.** A connector granted
+  `mcp:read` could call `DELETE /api/data?all=true`. Tokens from
+  `/oauth/token` now name this server's MCP endpoint as their audience
+  (RFC 8707), are accepted only there, and cannot approve another client.
+  Connectors authorised before 1.5.2 get a 401 and refresh.
+- **The out-of-band MCP sign-in handed out the approver's web session.**
+  An unauthenticated `tools/call` returned a sign-in link with a `state` the
+  caller chose, and `/oauth2/check_state/{state}` then returned the web token
+  of whoever approved it, to anyone, repeatedly. Both are gone, with the
+  never-working `credentials` grant. `tools/call` without a valid token now
+  answers 401 with `WWW-Authenticate` naming
+  `/.well-known/oauth-protected-resource/mcp` (RFC 9728), and OAuth with PKCE
+  takes over.
+- **Registering an address did not prove it.** A password registration for
+  someone's address became the account their later code sign-in landed in,
+  with the claimant's password and invitations still live. Where mail is
+  configured, `/password/register` now needs the code sent to the address
+  (`__IS_SIGNUP_CODE_ON__` in `/mirobody.json`). A code sign-in to an account
+  whose password was never proven clears that password and ends every earlier
+  session (`tokens_valid_after`), and such an account cannot accept an
+  invitation until then.
 - **OAuth: PKCE and `redirect_uri` are checked.** The metadata advertised
   S256 and nothing verified it. A redirect flow now requires
   `code_challenge_method=S256`, and the token request must present the
@@ -178,6 +239,35 @@ boundary.
 
 ### Changed
 
+- **The genetic tools say what they could not match.** `query_pharmacogenomics`
+  dropped an unknown drug silently when another matched
+  (`["clopidogrel", "warfarin", "notadrug"]` said nothing about the third); it
+  now notes `no CPIC A/B gene-drug pair for: notadrug`. `query_genetic_data`
+  refused `chr10` and `chrM`; they are read as `10` and `MT`.
+- **`convert_unit` no longer reports Infinity or NaN as a conversion.**
+  `1e308 g` to `ug` answered `success: true, converted: Infinity`; a
+  non-finite value or result is now refused with a reason.
+- **An upload's results no longer race its own row.** The Data page upload
+  inserts `th_files` rows after the whole batch, while indicator extraction
+  and genotype processing wrote to their row as soon as they finished; one
+  that finished first matched no row (`File not found for update`), and the
+  report date, readings count or final status were lost. They now wait for
+  the batch insert.
+- **A multi-file upload session filed every file twice.** Processing started
+  once the files that had begun to arrive were complete, which in a two-file
+  batch was after the first file and again after the second. It now starts
+  once, after every file `upload_start` declared. The web client sends one
+  file per session and was not affected.
+- **An upload with no abstract from its handler lost its generated name.**
+  The fallback abstract extractor called its text helper with two arguments
+  it did not take; the `TypeError` came before any model call. PDFs and
+  images now get their name and abstract on that path too.
+- **Merging two accounts orphaned the losing one's data.** `/email/bind`
+  merges an account into the one that already holds the address. Its table
+  check asked for `public.<table>` while the shipped config puts the tables in
+  `theta_ai`, so nothing moved and the losing account was still closed.
+  Medications were not on the list either. Both are fixed, checked against a
+  real Postgres.
 - **Asking on someone's behalf answered as if the record were the asker's.**
   The agent read the other person's record but was never told so. Answers said
   "your cholesterol" over her numbers and flagged `mom_lab_2025-11.md` as "not

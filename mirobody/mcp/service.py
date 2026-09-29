@@ -1,7 +1,6 @@
 import json
 import logging
 import secrets
-import urllib
 
 from redis.asyncio import Redis
 from datetime import datetime
@@ -16,6 +15,7 @@ from mirobody.utils.http import META_PROTOCOL_VERSION, request_origin
 from mirobody.utils import get_jwt_token, json_response, json_response_with_code, jsonrpc_result, jsonrpc_error
 
 from mirobody.user import AbstractTokenValidator
+from mirobody.user.auth.bearer import bearer_subject, mcp_resource
 
 from .tool import load_tools_from_directories, call_tool
 
@@ -181,11 +181,27 @@ class McpService:
 
         self.routes.append(Route(f"{uri_prefix}/mcp/{{secret:str}}", endpoint=self.mcp_handler, methods=["POST", "GET", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/mcp", endpoint=self.mcp_handler, methods=["POST", "GET", "OPTIONS"]))
+        # RFC 9728 protected-resource metadata, at the path-suffixed location the
+        # MCP authorization spec asks clients to try first, and at the root.
+        self.routes.append(Route(f"/.well-known/oauth-protected-resource{uri_prefix}/mcp", endpoint=self.resource_metadata_handler, methods=["GET"]))
+        self.routes.append(Route("/.well-known/oauth-protected-resource", endpoint=self.resource_metadata_handler, methods=["GET"]))
 
         # DELETE on the same resource rather than a `/personal/mcp/revoke` path:
         # it is the same object being minted and destroyed, and it keeps the
         # surface at one path to document in four READMEs.
         self.routes.append(Route(f"{uri_prefix}/personal/mcp", endpoint=self.generate_personal_mcp, methods=["POST", "DELETE", "OPTIONS"]))
+
+    #-----------------------------------------------------
+
+    async def resource_metadata_handler(self, request: Request) -> Response:
+        origin = request_origin(request)
+        return json_response({
+            "resource": mcp_resource(origin, self._uri_prefix),
+            "authorization_servers": [origin],
+            "scopes_supported": ["mcp:read", "mcp:write"],
+            "bearer_methods_supported": ["header"],
+            "resource_name": self._name,
+        }, request=request)
 
     #-----------------------------------------------------
 
@@ -466,17 +482,14 @@ class McpService:
 
             tool = self._callable[params["name"]]
             jwt_token = get_jwt_token(request)
+            resource = mcp_resource(url_prefix, self._uri_prefix)
 
             if tool["auth"] and not user_id and jwt_token and self._token_validator:
                 payload, err = self._token_validator.verify_token(jwt_token)
                 if err:
                     logger.warning(err)
-                elif not isinstance(payload, dict):
-                    logger.warning("Invalid token payload")
-                elif "sub" not in payload:
-                    logger.warning("No sub field found")
                 else:
-                    user_id = await _live(payload["sub"])
+                    user_id = str(await bearer_subject(payload, mcp_resource=resource) or "")
 
             if tool["auth"] and not user_id:
                 # Redis being down degrades to "unauthenticated" rather than an
@@ -484,62 +497,21 @@ class McpService:
                 user_id = await self._resolve_secret_user(request.path_params.get("secret", ""))
 
             if tool["auth"] and not user_id:
-                state           = secrets.token_urlsafe(32)
-                check_interval  = 10    # Seconds.
-                timeout         = 300   # Seconds.
-
-                oauth_params = {
-                    "response_type" : "code",
-                    "client_id"     : "theta_mcp",
-                    "redirect_uri"  : "urn:ietf:wg:oauth:2.0:oob",
-                    "scope"         : "read write",
-                    "state"         : state,
-                }
-
-                authorization_url = f"""{url_prefix}/mcplogin?oauth_params={urllib.parse.quote(urllib.parse.urlencode(oauth_params))}"""
-
-                return jsonrpc_result(
+                # MCP authorization: 401, and where to find the authorization
+                # server (RFC 9728). The client runs OAuth with PKCE and retries.
+                refused = jsonrpc_error(
                     id      = id,
-                    protocol_version = negotiated,
-                    result  = {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": json.dumps(
-                                    {
-                                        "success": True,
-                                        "message": "OAuth authentication URL generated. Client should open browser automatically",
-                                        "authorization_url": authorization_url,
-                                        "auto_open_browser": True,
-                                        "client_instructions": f"""
-🔐 Authentication link generated (direct login mode)
-
-🌐 Authentication URL: {authorization_url}
-
-📋 Please follow these steps:
-1. The client should automatically open a browser; if not, please manually copy the link above and open it.
-2. Select a login method (Google or email verification code) to complete login.
-3. After successful login, it will automatically redirect to the device authorization page.
-4. After authorization, the system will automatically handle token acquisition.
-
-💡 Tip: After authentication is complete, you can re-call the relevant health data query tools
-""",
-                                        "auto_polling": {
-                                            "enabled": True,
-                                            "state": state,
-                                            "check_interval": check_interval,
-                                            "max_wait_time": timeout,
-                                        }
-                                    },
-                                    ensure_ascii=False,
-                                    separators=(',', ':')
-                                )
-                            }
-                        ]
-                    },
+                    code    = CODE_AUTH_REQUIRED,
+                    msg     = "Authentication required",
                     method  = "tools/call",
                     request = request
                 )
+                refused.status_code = 401
+                challenge = f'Bearer resource_metadata="{url_prefix}/.well-known/oauth-protected-resource{self._uri_prefix}/mcp"'
+                if jwt_token:
+                    challenge += ', error="invalid_token"'
+                refused.headers["WWW-Authenticate"] = challenge
+                return refused
 
             #---------------------------------------------
 
@@ -694,8 +666,8 @@ class McpService:
         payload, err = self._token_validator.verify_token(get_jwt_token(request))
         if err:
             return "", json_response_with_code(-2, err, request=request, status=401)
-        if not payload:
-            return "", json_response_with_code(-3, "Empty token payload.", request=request, status=401)
+        if not await bearer_subject(payload):
+            return "", json_response_with_code(-3, "Not a valid session.", request=request, status=401)
 
         try:
             data = await request.json()

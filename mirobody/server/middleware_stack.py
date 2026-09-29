@@ -28,6 +28,7 @@ def build_middlewares(
     jwt_key: str = "",
     jwt_sub_decode_func=None,
     requires_second_factor=None,
+    uri_prefix: str = "",
     url_paths_for_request_rate_limiter=None,
     url_paths_for_user_info_updater=None,
     redis=None,
@@ -82,7 +83,7 @@ def build_middlewares(
     if jwt_key:
         middlewares.append(
             Middleware(JwtMiddleware, jwt_key=jwt_key, decode_func=jwt_sub_decode_func,
-                       requires_second_factor=requires_second_factor)
+                       requires_second_factor=requires_second_factor, uri_prefix=uri_prefix)
         )
 
         if url_paths_for_request_rate_limiter and isinstance(url_paths_for_request_rate_limiter, dict):

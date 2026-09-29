@@ -334,7 +334,11 @@ def _pad(text: str, width: int) -> str:
 def _cmd_resolve(args: argparse.Namespace) -> None:
     from mirobody.engine import get_resolver
 
-    resolver = get_resolver()   # first call pays the bundle load (~seconds)
+    try:
+        resolver = get_resolver()   # first call pays the bundle load (~seconds)
+    except RuntimeError as e:
+        # A clone without `git lfs pull` has pointer stubs: one line, not a traceback.
+        raise SystemExit(f"mirobody resolve: {e}") from None
     width = max(_width(t) for t in args.terms)
     for term in args.terms:
         r = resolver.resolve(term)

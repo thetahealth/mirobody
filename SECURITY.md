@@ -72,15 +72,27 @@ others:
   (`you@mirobody.ai` and `mom@mirobody.ai`, code `111111`) — remove
   `EMAIL_PREDEFINE_CODES` entirely. With `PRODUCTION: true` the server enforces this instead of
   trusting the checklist.
-- Generate your own `CONFIG_ENCRYPTION_KEY` and keep `.env` out of version
-  control. `deploy.sh` generates one; do not copy a key between environments.
+- Generate your own `CONFIG_ENCRYPTION_KEY` and `JWT_KEY`, and keep `.env` out
+  of version control. `deploy.sh` generates both; do not copy a key between
+  environments. Without `PRODUCTION: true`, a server bound beyond loopback
+  with the placeholder `JWT_KEY` makes one up for the run, so sessions end at
+  restart.
 - **The database-content key is `PG_ENCRYPTION_KEY`, a separate value from
   `CONFIG_ENCRYPTION_KEY`.** It backs the Postgres-side `encrypt_content()`
   function (`pgcrypto`'s `encrypt(..., 'aes')`), which covers chat message
   content, uploaded file name/content/extracted text, medication free text and
-  the user profile's stored markdown. Indicator values in `th_series_data` are
-  not covered. Generate and set `PG_ENCRYPTION_KEY` too; `config.yaml` ships it
-  under the same `REPLACE_THIS_VALUE_IN_PRODUCTION` placeholder.
+  the user profile's stored markdown. Readings in `th_observation` (its
+  `note_text` aside) and genotypes in `th_genotype` are not covered. Generate
+  and set `PG_ENCRYPTION_KEY` too; `config.yaml` ships it under the same
+  `REPLACE_THIS_VALUE_IN_PRODUCTION` placeholder.
+- Leave `COLLECT_WEBHOOK_SECRET` unset unless a vendor pushes to you. The
+  `/api/v1/pulse/{platform}/.../webhook` routes answer 404 without it. With it,
+  give the vendor the URL with `?secret=<value>` or send `X-Webhook-Secret`.
+- Configure mail (`EMAIL_SMTP_*`) before anyone else registers. With mail,
+  registering takes a code sent to the address. Without it an address is
+  only a username, held by whoever registers it first. Once mail is on, the
+  owner's first code sign-in clears a password nobody proved and ends the
+  sessions minted with it.
 - Restrict CORS to the origins you actually serve.
 - Terminate TLS in front of the service. Set `MCP_PUBLIC_URL` to an HTTPS URL —
   the MCP surface carries the same health data as the API.
@@ -98,11 +110,10 @@ There is no telemetry and no usage reporting.
 
 | Destination | When | What is sent |
 | --- | --- | --- |
-| The model behind your key (`config.llm.yaml`) | chat; reading a report photo or PDF; extracting indicators; splitting a journal sentence; embeddings, when an embedding model is configured | the question and the rows the agent reads; the file; the sentence; the text to embed |
+| The model behind your key (`config.llm.yaml`) | chat; reading a report photo or PDF; extracting indicators; splitting a journal sentence | the question and the rows the agent reads; the file; the sentence |
 | Garmin, Oura, Whoop | only after a person links one | OAuth tokens, and requests for that person's own data |
 | Your SMTP server | when `EMAIL_SMTP_*` is configured, to send a sign-in code | the address and the code |
 | S3 or Aliyun OSS | only when configured in place of the local disk | uploaded files |
-| Google, Apple | only when their sign-in is enabled | token verification against their public keys |
 
 `② Translate` (a name to a code, a unit to UCUM) calls nothing: the vocabulary
 ships inside the package.

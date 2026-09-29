@@ -21,6 +21,7 @@ SECTION INDEX (line numbers are approximate):
     ~1022 GET  /theta/indicators       list theta indicators
 """
 
+import hmac
 import json
 import logging
 import os
@@ -28,7 +29,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
@@ -38,6 +39,7 @@ from mirobody.user.platform import get_platform_user_service
 # Import platform manager
 from mirobody.collect import platform_manager
 from mirobody.server.auth import verify_token, verify_token_optional
+from mirobody.utils.config import global_config
 
 logger = logging.getLogger(__name__)
 
@@ -696,6 +698,39 @@ async def update_llm_access(request: UpdateLlmAccessRequest, current_user: str =
         return ErrorResponse(code=500, msg=f"Failed to update LLM access: {str(e)}")
 
 
+#: A vendor push carries no user token, so the webhook routes take a shared
+#: secret instead, from `X-Webhook-Secret` or `?secret=` (some vendor consoles
+#: only take a URL). Unset means the routes answer 404: an open webhook let any
+#: caller write readings into any account by naming it in the body.
+WEBHOOK_SECRET_KEY = "COLLECT_WEBHOOK_SECRET"
+
+#: Internal account ids a payload may name. A push identifies its person by the
+#: vendor's own user id, which the provider maps through the linked account;
+#: an internal id in the body is dropped rather than trusted.
+_INTERNAL_ID_KEYS = ("theta_user_id", "app_user_id")
+
+
+def _check_webhook(platform: str, request: Request) -> None:
+    cfg = global_config()
+    expected = str(cfg.get(WEBHOOK_SECRET_KEY) or "") if cfg else ""
+    if not expected:
+        raise HTTPException(status_code=404, detail=f"Webhooks are off. Set {WEBHOOK_SECRET_KEY} to enable them.")
+    # Apple data arrives signed in, on /apple/health and /apple/cda. Its
+    # platform takes the account from the payload, so it is never a push target.
+    if platform == "apple":
+        raise HTTPException(status_code=404, detail="Apple data is posted to /apple/*, signed in.")
+    given = request.headers.get("X-Webhook-Secret") or request.query_params.get("secret") or ""
+    if not hmac.compare_digest(given.encode(), expected.encode()):
+        raise HTTPException(status_code=401, detail="Webhook secret missing or wrong.")
+
+
+def _without_internal_ids(event_data: Any) -> Any:
+    if isinstance(event_data, dict):
+        for key in _INTERNAL_ID_KEYS:
+            event_data.pop(key, None)
+    return event_data
+
+
 @router.post("/{platform}/webhook", response_model=StandardResponse | ErrorResponse)
 async def universal_webhook(platform: str, request: Request):
     """
@@ -709,13 +744,14 @@ async def universal_webhook(platform: str, request: Request):
         request: Raw request object
     """
 
+    _check_webhook(platform, request)
     try:
         raw_body = await request.body()
         raw_body_str = raw_body.decode("utf-8")
         msg_id = await get_msg_id(request)
 
         # Parse JSON data
-        event_data = json.loads(raw_body_str)
+        event_data = _without_internal_ids(json.loads(raw_body_str))
         provider_slug = await get_provider_slug(platform, event_data)
 
         # Log request
@@ -760,13 +796,14 @@ async def provider_specific_webhook(platform: str, provider: str, request: Reque
         request: Raw request object
     """
 
+    _check_webhook(platform, request)
     try:
         raw_body = await request.body()
         raw_body_str = raw_body.decode("utf-8")
         msg_id = await get_msg_id(request)
 
         # Parse JSON data
-        event_data = json.loads(raw_body_str)
+        event_data = _without_internal_ids(json.loads(raw_body_str))
 
         # Log request with explicit provider info and complete raw data
         logger.info(f"Provider-specific webhook received - platform: {platform}, provider: {provider}, msg_id: {msg_id}")

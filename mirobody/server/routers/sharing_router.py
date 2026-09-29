@@ -35,7 +35,7 @@ from mirobody.server.envelope import err, ok
 from fastapi import Depends
 
 from mirobody.user import care_circle as cc
-from mirobody.user.user import ensure_user
+from mirobody.user.user import addresses_provable, ensure_user, get_user
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,11 @@ async def shared_by_me_list(user_id: str = Depends(verify_token)):
                 "health_access": r["health_access"],
                 "nickname": r.get("nickname"),
                 "name": r.get("name"),
-                "email": r.get("email"),
+                # A managed member's address is a placeholder; `managed` is
+                # what says so, and who may send the activation link.
+                "email": "" if r.get("managed_by") else r.get("email"),
+                "managed": bool(r.get("managed_by")),
+                "can_invite_to_sign_in": r.get("managed_by") == me,
             }
             for r in rows if int(r["user_id"]) != me
         ]})
@@ -170,6 +174,8 @@ async def shared_with_me_list(user_id: str = Depends(verify_token)):
     rows = await cc.circle_members(user_id)
     me = int(user_id)
     mine = [r for r in rows if int(r["user_id"]) == me]
+    owners = {r["owner_user_id"]: r.get("name") or r.get("nickname") or ""
+              for r in rows if r["user_id"] == r["owner_user_id"]}
     return ok({
         "invitations": [
             {"circle_id": r["circle_id"], "owner_user_id": str(r["owner_user_id"]),
@@ -178,6 +184,7 @@ async def shared_with_me_list(user_id: str = Depends(verify_token)):
         ],
         "circles": [
             {"circle_id": r["circle_id"], "name": r["circle_name"],
+             "owner_user_id": str(r["owner_user_id"]), "owner_name": owners.get(r["owner_user_id"], ""),
              "role": cc.ROLE_NAMES[r["role"]], "health_access": r["health_access"]}
             for r in mine if r["status"] == cc.STATUS_ACCEPTED
         ],
@@ -196,6 +203,12 @@ async def respond(request: RespondRequest, user_id: str = Depends(verify_token))
     Scoped to the caller's own pending row, so this cannot accept on anyone
     else's behalf, which the endpoint it replaces could, for any `share_id`.
     """
+    # An invitation goes to an address. Where addresses can be proven, an
+    # account whose password nobody proved may be someone else's claim on it.
+    if request.accept and addresses_provable():
+        me = await get_user(user_id=int(user_id))
+        if me and me.get("unproven"):
+            return err(-2, "Confirm your email first: sign in with a code sent to it, then accept.")
     moved = await cc.respond_to_invitation(user_id, request.circle_id, accept=request.accept)
     if not moved:
         return err(-1, "No pending invitation for you in that circle.")

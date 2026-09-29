@@ -196,6 +196,9 @@ class Server:
             webauthn_mfa_ticket_ttl = webauthn_mfa_ticket_ttl,
         )
 
+        # Registering takes a code sent to the address when one can be sent.
+        self._webpage_config.setdefault("__IS_SIGNUP_CODE_ON__", self._user_service.sends_mail())
+
         self._mcp_service = McpService(
             token_validator = self._jwt_token_validator,
 
@@ -240,6 +243,7 @@ class Server:
             jwt_key=jwt_key,
             jwt_sub_decode_func=jwt_sub_decode_func,
             requires_second_factor=self._user_service.requires_second_factor,
+            uri_prefix=uri_prefix,
             url_paths_for_request_rate_limiter=url_paths_for_request_rate_limiter,
             url_paths_for_user_info_updater=url_paths_for_user_info_updater,
             redis=self._redis,

@@ -65,12 +65,17 @@ END $$;
 -- message (th_messages is written by the asker, never the subject). A thread
 -- with no message row keeps its old key and is unreachable from a turn. Runs
 -- only while an old key is left, because the DISTINCT ON reads every message.
+-- Two IFs, not one OR: PL/pgSQL parses a condition whole, so naming
+-- `checkpoints` beside the to_regclass guard failed on a database that has no
+-- such table yet and rolled back this entire file.
 DO $$
 DECLARE
     t text;
 BEGIN
-    IF to_regclass('checkpoints') IS NULL
-       OR NOT EXISTS (SELECT 1 FROM checkpoints WHERE strpos(thread_id, ':') = 0) THEN
+    IF to_regclass('checkpoints') IS NULL THEN
+        RETURN;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM checkpoints WHERE strpos(thread_id, ':') = 0) THEN
         RETURN;
     END IF;
     FOREACH t IN ARRAY ARRAY['checkpoints', 'checkpoint_blobs', 'checkpoint_writes']

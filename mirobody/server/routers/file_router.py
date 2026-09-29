@@ -87,9 +87,11 @@ async def _authorize_file_read(file_key: str, caller_id: str) -> bool:
     only ever have authorized a stale row. One source is also the point: two
     tables answering "who owns this key" is two chances to disagree.
 
-    Care-circle members reach an owner's files through the same permission
-    check the uploaded-files LIST endpoint already uses, so a shared file and a
-    shared listing cannot disagree.
+    The file belongs to the record it was filed under (`query_user_id`), the
+    column the files LIST filters on, and care-circle members reach it through
+    the same permission check that list uses. This checked the uploader
+    (`user_id`) instead: a report a carer filed for someone could not be opened
+    by that person, and anyone who could read the carer could open it.
 
     An unrecorded key is denied. That is deliberate and it is the reason this
     returns bool rather than raising: a key nobody claims is either gone or was
@@ -98,14 +100,17 @@ async def _authorize_file_read(file_key: str, caller_id: str) -> bool:
     caller = str(caller_id)
 
     rows = await execute_query(
-        "SELECT user_id FROM th_files WHERE file_key = :key AND is_del = FALSE LIMIT 1;",
+        "SELECT COALESCE(query_user_id, user_id) AS owner FROM th_files "
+        "WHERE file_key = :key AND is_del = FALSE LIMIT 1;",
         params={"key": file_key},
     )
     if not rows:
         return False
 
-    owner = str(rows[0].get("user_id") or "")
-    if owner and owner == caller:
+    owner = str(rows[0].get("owner") or "")
+    if not owner:
+        return False
+    if owner == caller:
         return True
 
     try:
@@ -326,7 +331,7 @@ async def websocket_upload_health_report(
                             logger.warning(f"Unknown message type: {message_type}")
 
                     except json.JSONDecodeError:
-                        logger.error(f"Invalid JSON message: {message}")
+                        logger.error("Invalid JSON message: bytes=%d", len(message))
                         await websocket_file_upload_manager.send_message(
                             connection_id,
                             {"type": "error", "message": "Invalid JSON message format"},

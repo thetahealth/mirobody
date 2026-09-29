@@ -52,6 +52,14 @@ handing over a record.
 [`examples/06_care_circle_rules.py`](../examples/06_care_circle_rules.py) prints
 the whole decision table offline.
 
+One member is the exception: someone you add on the Care Circle page, a parent
+who will not sign in. Their address is a placeholder nobody can sign in with,
+so you hold their switch, read-write. When they want their own login, send them
+the invitation link from their card. They prove their real address (a code sent
+there, or a password where the deployment sends no mail), the account and
+everything in it becomes theirs, and they choose what you keep: edit, view or
+nothing. If the address already has an account, the record is merged into it.
+
 **2 · ① Collect.** [`demo/upload/`](../demo/) holds four files the seed
 deliberately leaves out, so uploading one is not a no-op — and they are four
 different formats, because a health record arrives as whatever the lab, the

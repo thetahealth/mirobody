@@ -40,7 +40,10 @@ logger = logging.getLogger(__name__)
 # Every column a caller has asked for across those 20 sites, so the one accessor
 # can serve all of them. The table is 15 narrow columns; naming them beats `*`
 # because a dropped column then fails here instead of at the first KeyError.
-_USER_COLUMNS = "id, email, name, lang, tz, gender, birth, blood, mfa_enabled"
+_USER_COLUMNS = ("id, email, name, lang, tz, gender, birth, blood, mfa_enabled, managed_by,"
+                 " (password_hash IS NOT NULL) AS has_password,"
+                 " (password_hash IS NOT NULL AND email_verified_at IS NULL) AS unproven,"
+                 " EXTRACT(EPOCH FROM tokens_valid_after) AS tokens_valid_after")
 
 
 async def get_user(
@@ -76,7 +79,8 @@ async def get_user(
 
 async def ensure_user(email: str) -> int | None:
     """The live account for an address, created on first sight; None for a
-    malformed address.
+    malformed address, and for a managed account's address: nobody signs in
+    to those or is invited as them.
 
     One statement, so two sign-ins racing on a new address both get the same
     row. This replaced two copies: `add_or_get_user` (sign-in), which read then
@@ -96,7 +100,7 @@ async def ensure_user(email: str) -> int | None:
         )
         SELECT id FROM ins
         UNION ALL
-        SELECT id FROM health_app_user WHERE email = :email AND is_del = false
+        SELECT id FROM health_app_user WHERE email = :email AND is_del = false AND managed_by IS NULL
         LIMIT 1
         """,
         {"email": clean, "name": clean.split("@")[0]},
@@ -176,18 +180,21 @@ async def del_user(
 #-----------------------------------------------------------------------------
 
 #: How long a live account is taken on trust before it is looked up again. A
-#: token outlives the account by at most this long; a closed account is final
-#: and is remembered for good.
+#: token outlives the account, or a revocation, by at most this long; a closed
+#: account is final and is remembered for good.
 _ACTIVE_TTL = 30.0
 _active: dict[int, float] = {}
 _closed: set[int] = set()
+#: `tokens_valid_after` as epoch seconds, cached alongside `_active`.
+_valid_after: dict[int, float] = {}
 
 
-async def is_active_account(user_id: int | str) -> bool:
-    """Whether a token's subject is an account that still exists. A JWT is
-    valid for 30 days and carries nothing a deletion can revoke, so every
-    token check asks this. A lookup that fails answers True: an outage must
-    not sign everyone out."""
+async def is_active_account(user_id: int | str, minted_at: float | None = None) -> bool:
+    """Whether a token's subject is an account that still exists, and, given
+    the token's `minted_at`, whether the account has not revoked it since. A
+    JWT is valid for 30 days and carries nothing a deletion can revoke, so
+    every token check asks this. A lookup that fails answers True: an outage
+    must not sign everyone out."""
     import time
 
     try:
@@ -197,18 +204,62 @@ async def is_active_account(user_id: int | str) -> bool:
     if uid <= 0 or uid in _closed:
         return False
     now = time.monotonic()
-    if _active.get(uid, 0.0) > now:
-        return True
-    try:
-        row = await get_user(user_id=uid)
-    except Exception as e:
-        logger.warning("account lookup failed; token accepted: error_type=%s", type(e).__name__)
-        return True
-    if row is None:
-        _closed.add(uid)
+    if _active.get(uid, 0.0) <= now:
+        try:
+            row = await get_user(user_id=uid)
+        except Exception as e:
+            logger.warning("account lookup failed; token accepted: error_type=%s", type(e).__name__)
+            return True
+        if row is None:
+            _closed.add(uid)
+            return False
+        _active[uid] = now + _ACTIVE_TTL
+        _valid_after[uid] = float(row.get("tokens_valid_after") or 0)
+    return minted_at is None or minted_at >= _valid_after.get(uid, 0.0)
+
+
+#: Whether this deployment can prove an address, which is whether it sends
+#: mail. Without mail an address is only a username. Set by UserService.
+_addresses_provable = False
+
+
+def addresses_provable() -> bool:
+    return _addresses_provable
+
+
+def set_addresses_provable(value: bool) -> None:
+    global _addresses_provable
+    _addresses_provable = bool(value)
+
+
+async def prove_address(user_id: int) -> bool:
+    """Record that a code sent to this account's address came back.
+
+    If the account had a password nobody had proven (it was registered with
+    this address by whoever typed it first), the password is cleared and every
+    token minted before now stops working. Returns whether that happened.
+    The cut-off is this process's clock, the one that stamps `iat`.
+    """
+    import time
+
+    cutoff = int(time.time())
+    rows = await execute_query(
+        """
+        UPDATE health_app_user
+           SET password_hash      = CASE WHEN email_verified_at IS NULL THEN NULL ELSE password_hash END,
+               tokens_valid_after = CASE WHEN email_verified_at IS NULL AND password_hash IS NOT NULL
+                                         THEN to_timestamp(:cutoff) ELSE tokens_valid_after END,
+               email_verified_at  = now()
+         WHERE id = :id AND is_del = false
+        RETURNING EXTRACT(EPOCH FROM tokens_valid_after) AS tokens_valid_after
+        """,
+        {"id": int(user_id), "cutoff": cutoff},
+    )
+    if not rows:
         return False
-    _active[uid] = now + _ACTIVE_TTL
-    return True
+    after = float(rows[0]["tokens_valid_after"] or 0)
+    _valid_after[int(user_id)] = after
+    return after == cutoff
 
 
 #-----------------------------------------------------------------------------

@@ -146,8 +146,11 @@ curl -s http://localhost:18060/api/v1/pulse/user/providers -H "Authorization: Be
 Unlink with `POST /api/v1/pulse/user/providers/unlink`.
 
 **4. Data arrives** either on the pull schedule the provider registers at
-startup, or via webhook — `POST /api/v1/pulse/{platform}/{provider}/webhook`,
-which is the endpoint you give the vendor for push notifications.
+startup, or via webhook: `POST /api/v1/pulse/{platform}/{provider}/webhook`,
+which is the endpoint you give the vendor for push notifications. Webhooks are
+off (404) until you set `COLLECT_WEBHOOK_SECRET`; then register the URL with
+`?secret=<value>`, or send the value in `X-Webhook-Secret`. A push names its
+person by the vendor's own user id, which is matched through the linked account.
 
 ---
 

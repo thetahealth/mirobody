@@ -22,7 +22,8 @@ import logging
 from urllib.parse import unquote
 from fastapi import Header, HTTPException
 
-from mirobody.user.auth.jwt import REFRESH_TOKEN_TYPE, JwtTokenValidator
+from mirobody.user.auth.bearer import bearer_subject
+from mirobody.user.auth.jwt import JwtTokenValidator
 from mirobody.utils.config import global_config
 from mirobody.utils.log import secret_fingerprint
 from mirobody.utils.req_ctx import get_req_ctx, update_req_ctx
@@ -58,9 +59,7 @@ async def verify_token_string(token_string: str) -> str:
     # credential got in after the middleware had refused it.
     decoded, err = JwtTokenValidator(jwt_key).verify_token(token)
     if err:
-        logger.warning("JWT decode failed: error_type=%s", err.split(":")[0])
-        decoded = None
-    if isinstance(decoded, dict) and decoded.get("token_type") == REFRESH_TOKEN_TYPE:
+        logger.warning("JWT decode failed: error_type=%s", err.split(":")[0])  # phi: ok the decoder's error class
         decoded = None
 
     if not decoded:
@@ -70,30 +69,14 @@ async def verify_token_string(token_string: str) -> str:
         # just rejected; the fingerprint goes to our log instead.
         logger.warning("JWT decode failed", extra={"token": secret_fingerprint(token)})
         raise HTTPException(status_code=401, detail="Token decode failed")
-    
+
     #-----------------------------------------------------
 
-    user_id = 0
-    
-    # Get user ID via subject field,
-    #   it should be an integer string.
-    subject = decoded.get("sub")
-    if subject:
-        try:
-            user_id = int(subject)
-        except Exception:
-            user_id = None
-
-    if not user_id or user_id <= 0:
-        raise HTTPException(status_code=401, detail="Invalid user ID")
-
-    # The signature says the token was issued; only the account table says the
-    # account still exists. Without this a deleted account kept working for the
-    # token's 30 days.
-    from mirobody.user.user import is_active_account
-
-    if not await is_active_account(user_id):
-        raise HTTPException(status_code=401, detail="Account closed")
+    # A refresh token, an MCP client's token, a closed account and a revoked
+    # session all stop here; `bearer_subject` is the rule for every route.
+    user_id = await bearer_subject(decoded)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not a valid session")
 
     user_id = str(user_id)
     update_req_ctx(token=token, user_id=user_id)

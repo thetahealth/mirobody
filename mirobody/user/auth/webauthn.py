@@ -24,6 +24,7 @@ from webauthn.helpers.structs import (
     AuthenticatorAttachment,
 )
 
+from .bearer import bearer_subject
 from .jwt import AbstractTokenValidator
 
 from mirobody.utils import json_response_with_code, json_response, get_jwt_token, Request, Response, Route
@@ -337,7 +338,7 @@ class WebAuthnService:
         # Verify JWT token.
         token = self._get_jwt_token(request)
         payload, err = self._token_validator.verify_token(token)
-        if err:
+        if err or not await bearer_subject(payload):
             return json_response({"message": "Unauthorized"}, status_code=401, request=request)
 
         user_id = int(payload.get("sub", 0))
@@ -387,7 +388,7 @@ class WebAuthnService:
         # Verify JWT token.
         token = self._get_jwt_token(request)
         payload, err = self._token_validator.verify_token(token)
-        if err:
+        if err or not await bearer_subject(payload):
             return json_response({"message": "Unauthorized"}, status_code=401, request=request)
 
         user_id = int(payload.get("sub", 0))
@@ -619,7 +620,7 @@ class WebAuthnService:
 
         token = self._get_jwt_token(request)
         payload, err = self._token_validator.verify_token(token)
-        if err:
+        if err or not await bearer_subject(payload):
             return json_response({"message": "Unauthorized"}, status_code=401, request=request)
 
         user_id = int(payload.get("sub", 0))
@@ -660,7 +661,7 @@ class WebAuthnService:
 
         token = self._get_jwt_token(request)
         payload, err = self._token_validator.verify_token(token)
-        if err:
+        if err or not await bearer_subject(payload):
             return json_response({"message": "Unauthorized"}, status_code=401, request=request)
 
         user_id = int(payload.get("sub", 0))
@@ -754,7 +755,7 @@ class WebAuthnService:
 
         token = self._get_jwt_token(request)
         payload, err = self._token_validator.verify_token(token)
-        if err:
+        if err or not await bearer_subject(payload):
             return json_response({"message": "Unauthorized"}, status_code=401, request=request)
 
         # Only AAL2 sessions can be renewed.
@@ -817,7 +818,7 @@ class WebAuthnService:
         payload, err = self._token_validator.verify_token_allow_expired(
             token, max_age=AAL2_REAUTH_MAX_AGE,
         )
-        if err:
+        if err or not await bearer_subject(payload):
             return json_response({"message": "Unauthorized"}, status_code=401, request=request)
 
         aal = payload.get("aal", 0)
@@ -864,7 +865,7 @@ class WebAuthnService:
         payload, err = self._token_validator.verify_token_allow_expired(
             token, max_age=AAL2_REAUTH_MAX_AGE,
         )
-        if err:
+        if err or not await bearer_subject(payload):
             return json_response({"message": "Unauthorized"}, status_code=401, request=request)
 
         aal = payload.get("aal", 0)

@@ -10,23 +10,6 @@ Ordered by (value ÷ risk) within each section.
 
 ## Capability gaps
 
-### A genotype export without its header reaches the extraction model
-
-**Status:** open defect, measured 2026-09-28 with the packaged public examples.
-
-The genetic classifier recognizes a genotype file by its column header. A
-text export whose header lines were removed (a 23andMe file trimmed by hand,
-say) is therefore not a genotype to it, and the upload takes the document
-path, which sends the text to the configured extraction model. Measured on
-the local Docker stack: `hg00096-23andme.txt` with its two comment lines
-removed created no genotype set, and the server log shows two
-`openrouter-utils` structured-output calls for that file, one for the
-abstract and one for indicator extraction. The scene is decided in
-`collect/files/file_upload_manager.py` for WebSocket uploads and in
-`agent/chat/file.py::_detect_file_scene` for chat attachments. Content whose
-leading rows have the rsID/chromosome/position/genotype shape should be
-refused there with a request for the original export, and never reach a model.
-
 ### Genetics beyond the bundled pharmacogene index
 
 **Status:** design questions. The shipped scope and its reasons are in
@@ -527,67 +510,36 @@ here because the port spec docstrings are the valuable part and would need to
 survive whichever option is picked.
 
 
-### Two LLM provider-configuration systems — resolved in 1.4.1 (the data half)
+### Two LLM provider-configuration systems — resolved
 
 `utils/config/llm.py` and `utils/llm/config.py` used to each carry a provider
 table (keys, endpoints, default models) and their own key check; five surfaces
-read five different opinions on "which keys count" (#68). The DATA is one
-table now — `MODELS` in `config.llm.yaml`, with the per-surface routes
-(`UTILS_VISION_MODEL`, `UTILS_TEXT_MODEL`, `UTILS_EMBEDDING_MODEL`) next to it —
-and the vision dispatcher, the text surface, the embedding layer and the
-agent's default all read it, and a gate pins that every surface covers the
-same set. What remains split, on purpose,
-is client CONSTRUCTION: `LLMConfig.get_async_client()` (the `Config` family,
-used by embeddings) and `client_manager` (the direct-SDK extraction paths).
-Both read the registry; merging the two construction paths is still a
-behaviour change with no live-model test behind it, and is not scheduled.
+read five different opinions on "which keys count" (#68). Since 1.4.1 the data
+is one table, `MODELS` in `config.llm.yaml`, with the per-surface routes
+(`UTILS_VISION_MODEL`, `UTILS_TEXT_MODEL`) next to it. Client construction was
+the other half: `LLMConfig` built the embedding clients and `client_manager` the
+rest. The embedding surface and `LLMConfig` are gone, so `utils/llm/clients.py`
+is the only constructor left.
 
 
-### utils/ audit — the confirmed findings not yet acted on
+### utils/ audit — what is left
 
 A 55-agent audit of `utils/` produced 42 findings that survived adversarial
-verification (8 were refuted). The security- and correctness-relevant ones are
-fixed; these remain, each already verified as real:
+verification (8 were refuted). Rechecked 2026-09-29: the dead code it listed is
+deleted (`PgStore`, the sync client family, `LoggedConnection`,
+`set_id_decoder`, the magic-byte sniffer and the rest), the MIME lookups are one
+(`utils/file_types.guess_mime`), and the Gemini, Ark and Qwen client copies went
+with their providers. Two remain:
 
-**Duplication with divergent behaviour** (consolidating changes output, so each
-needs its own commit and characterisation test):
-
-* Retry-with-backoff is hand-rolled independently in at least 3 live paths.
-* "Strip a ```json fence, then json.loads" exists 5 times, unshared.
-* Filename → MIME lookup is reimplemented in 4 places and **disagrees** on real
-  extensions — the reason this cannot be a tidy-up.
-* ~~`STRUCTURED_OUTPUT_PRIORITY` is a hand-maintained copy of
-  `AIConfig._DEFAULT_PROVIDER_PRIORITY`~~ — resolved in 1.4.1: both are gone;
-  each surface reads its `UTILS_*_MODEL` route in config.llm.yaml.
-* Three near-identical Gemini empty/blocked-response checks in
-  `file_processors.py`; the same 5-line AsyncArk client construction three
-  times; `_get_qwen_client()` rebuilds byte-for-byte what `client_manager`
-  already caches.
-
-**Dead code** (safe to delete, mechanical):
-
-* `PgStore` — 550 lines, unreachable from any live path.
-* Roughly half of `AIClientManager` (the whole sync-client family) plus
-  `_GlobalClients`/`init_clients`.
-* Five `AIConfig` methods; four `RedisConfig` methods; `LoggedConnection`;
-  `after_async_sqlarchemy_cursor_execute`; `set_id_decoder`; most of
-  `LocalWebSocketManager`; `AbstractStorage.get_content_type` (the ~140-line
-  magic-byte sniffer, zero callers).
-
-**Correctness, low impact:**
-
-* `AbstractStorage.get_content_type`'s SVG branch cannot fire — `head` is
-  already truncated to 512 bytes above it.
-* `_InProcessSubscriber.__getattr__`'s `writer` special-case never fires;
-  `writer` is a dataclass field, so `__getattr__` is not reached.
-* `normalize.py.__all__` still lists three classes deleted from that module.
-
-**Testability** (the pattern, stated once): `auth.py`, `crypto.py`, `db.py`,
-`embedding.py`, `i18n.py`, `log.py` and `s3.py` all reach for `global_config()`
-at *call* time. Each is untestable without constructing process-wide config,
-and `crypto`/`auth` raise rather than degrade when it is absent. The fix is
-constructor injection with the global as a default — worth doing per-module
-when each is next touched, not as one sweep.
+* "Strip a ```json fence, then json.loads" is still hand-written in
+  `collect/files/services/file_abstract_extractor.py` and
+  `utils/llm/file_processors/results.py`, beside the shared
+  `utils/llm_output.py` helper.
+* **Testability**: `server/auth.py`, `utils/db.py` and
+  `utils/distributed_lock.py` reach for `global_config()` at *call* time, so
+  each is untestable without constructing process-wide config, and `auth`
+  raises rather than degrades when it is absent. The fix is constructor
+  injection with the global as a default, per module when each is next touched.
 
 
 ### collect/core: the findings that need a live database

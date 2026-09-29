@@ -14,7 +14,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from mirobody.utils.i18n import language_from_headers
 
 from mirobody.user import JwtTokenValidator
-from mirobody.user.auth.jwt import REFRESH_TOKEN_TYPE
+from mirobody.user.auth.bearer import bearer_subject, mcp_resource
+from mirobody.utils.http import request_origin
 
 #-----------------------------------------------------------------------------
 
@@ -86,7 +87,12 @@ class JwtMiddleware(BaseHTTPMiddleware):
         jwt_key: str = "",
         decode_func: Callable[[str], int] | None = None,
         requires_second_factor: Callable[[int], Awaitable[bool]] | None = None,
+        uri_prefix: str = "",
     ):
+        # The one place a token issued to an MCP client is a credential; see
+        # `user/auth/bearer.py`.
+        self._uri_prefix = uri_prefix
+        self._mcp_path = f"{uri_prefix}/mcp"
         # Whether an account's requests need `aal` >= 2. Without this, MFA
         # protected nothing: sign-in hands an MFA account an AAL1 fallback
         # token, and no route ever asked for more.
@@ -133,33 +139,19 @@ class JwtMiddleware(BaseHTTPMiddleware):
 
                 if token:
                     payload, err = self._token_validator.verify_token(token)
-                    # A refresh token is exchanged at /oauth/token, never
-                    # presented: accepted here, a 60-day refresh token worked
-                    # as an access token.
-                    if not err and isinstance(payload, dict) and payload.get("token_type") == REFRESH_TOKEN_TYPE:
-                        payload = None
-                    if not err and payload:
-                        if isinstance(payload, dict) and "sub" in payload:
+                    if not err and isinstance(payload, dict):
+                        path = request.url.path
+                        at_mcp = path == self._mcp_path or path.startswith(self._mcp_path + "/")
+                        request.state.user_id = await bearer_subject(
+                            payload,
+                            mcp_resource=mcp_resource(request_origin(request), self._uri_prefix) if at_mcp else "",
+                            decode=self._decode_func,
+                        )
+                        if request.state.user_id:
                             try:
                                 aal = int(payload.get("aal") or 0)
                             except (TypeError, ValueError):
                                 aal = 0
-                            sub = payload["sub"]
-                            if sub:
-                                if self._decode_func:
-                                    request.state.user_id = self._decode_func(sub)
-                                else:
-                                    try:
-                                        request.state.user_id = int(sub)
-                                    except Exception:
-                                        request.state.user_id = 0
-
-        # A valid signature on a deleted account's token is not a session.
-        if request.state.user_id > 0:
-            from mirobody.user.user import is_active_account
-
-            if not await is_active_account(request.state.user_id):
-                request.state.user_id = 0
 
         if (request.state.user_id > 0 and aal < 2 and self._requires_second_factor
                 and not _aal1_reachable(request.method, request.url.path)

@@ -20,6 +20,11 @@ from mirobody.translate.genotype_sites import SiteCatalog
 logger = logging.getLogger(__name__)
 
 
+class NotAGenotypeExport(ValueError):
+    """The file is not one the genotype reader accepts. The message is shown to
+    the person who uploaded it, so it names the fix and never the contents."""
+
+
 class GeneticDataLoader:
     """Genetic data loader, supports large file streaming processing and progress updates"""
 
@@ -174,9 +179,9 @@ class GeneticDataLoader:
         with open(file_path, "rb") as probe:
             fmt = genotype_format.sniff_stream(probe)
         if fmt is None:
-            raise ValueError("not a recognised genotype export: no rsid/chromosome/position column header")
+            raise NotAGenotypeExport("No rsid / chromosome / position / genotype column header was found.")
         if fmt.shape == genotype_format.SHAPE_VCF and len(fmt.samples) != 1 and sample is None:
-            raise ValueError("multi-sample VCF requires an explicit sample")
+            raise NotAGenotypeExport("This VCF holds more than one sample. Upload a single-sample VCF.")
 
         batch: list[dict[str, Any]] = []
         total_processed = total_saved = n_called = batch_count = 0
@@ -352,6 +357,9 @@ async def process_genetic_file(
         # Use target_user_id if provided (upload for others), otherwise use uploader's user_id
         data_owner_user_id = target_user_id or user_id
 
+        # Every status below is written to the upload's th_files row.
+        await FileDbService.rows_ready(message_id)
+
         # Pass file_key to loader for th_files updates
         loader = GeneticDataLoader(message_id, language, user_id, display_filename, display_file_size, file_key)
 
@@ -441,6 +449,7 @@ async def process_genetic_file(
                     "genetic_processing_failed_message",
                     language,
                     "load_genetic_data",
+                    error=str(e) if isinstance(e, NotAGenotypeExport) else error_msg,
                 )
 
                 # Update th_files with failure status

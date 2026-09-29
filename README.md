@@ -272,9 +272,9 @@ dataset.
   the wheel ([`mirobody/testing/genomics`](mirobody/testing/genomics/README.md));
   [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py)
   runs offline.
-- **Coding decisions you can replay**: five synthetic readings and nine
-  complaint phrases with their LOINC/UCUM or ICPC-3 outcome, including the
-  phrases that are refused rather than guessed.
+- **Coding decisions you can replay**: 13 synthetic readings and 26
+  complaint phrases in five languages, with their LOINC/UCUM or ICPC-3
+  outcome, including the phrases that are refused rather than guessed.
   [`benchmarks/health_records`](benchmarks/health_records/README.md).
 - **Three open benchmarks**, public datasets, one command each: longitudinal
   health agents, medical hallucination, harmful medical advice.

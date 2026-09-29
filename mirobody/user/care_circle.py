@@ -462,7 +462,8 @@ async def circle_members(user_id: int | str) -> list[dict]:
                m.nickname          AS nickname,
                m.avatar_key        AS avatar_key,
                u.name              AS name,
-               u.email             AS email
+               u.email             AS email,
+               u.managed_by        AS managed_by
           FROM care_circle_members mine
           JOIN care_circles c
             ON c.id = mine.care_circle_id AND c.deleted_at IS NULL

@@ -548,6 +548,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
                 # On the file row now, not after extraction: the bar's answer
                 # (set_file_report_date) reads and writes this row, and the
                 # readings that land later look here for a manual date.
+                await FileDbService.rows_ready(message_id)
                 await FileDbService.update_file_content(file_key, probe_report)
                 await self._push_upload_event(message_id, {
                     "type": "report_date_detected", "file_key": file_key, "file_name": file_name, **probe_report,
@@ -629,6 +630,9 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
                 logger.warning(f"Async indicator extraction failed for {file_type}: {file_key}, error: {e}")  # phi: ok an extraction error, not document contents
 
             # Update th_files with indicator results
+            from mirobody.collect.files.services.file_db_service import FileDbService
+
+            await FileDbService.rows_ready(message_id)
             await self._update_file_indicators(
                 file_key=file_key,
                 formatted_raw=formatted_raw,

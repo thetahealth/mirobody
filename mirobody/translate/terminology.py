@@ -12,6 +12,7 @@ shipped in the package.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 MAX_BATCH = 200
@@ -67,9 +68,18 @@ def convert_unit(value: float, from_unit: str, to_unit: str, loinc_code: str = "
     src = normalize_unit(from_unit) or from_unit
     dst = normalize_unit(to_unit) or to_unit
     try:
-        converted = convert_value(float(value), src, dst, loinc_code=(loinc_code or "").strip())
+        number = float(value)
     except (TypeError, ValueError):
         return {"success": False, "error": "value must be a number."}
+    # NaN converted to NaN and 1e308 g to Infinity ug, both reported as success.
+    if not math.isfinite(number):
+        return {"success": False, "error": "value must be a finite number."}
+    try:
+        converted = convert_value(number, src, dst, loinc_code=(loinc_code or "").strip())
+    except (TypeError, ValueError):
+        return {"success": False, "error": "value must be a number."}
+    if converted is not None and not math.isfinite(converted):
+        return {"success": False, "error": f"{value} {from_unit} is out of range in {to_unit}."}
     if converted is None:
         return {
             "success": True,
