@@ -225,6 +225,12 @@ boundary.
   The fallback abstract extractor called its text helper with two arguments
   it did not take; the `TypeError` came before any model call. PDFs and
   images now get their name and abstract on that path too.
+- **Merging two accounts orphaned the losing one's data.** `/email/bind`
+  merges an account into the one that already holds the address. Its table
+  check asked for `public.<table>` while the shipped config puts the tables in
+  `theta_ai`, so nothing moved and the losing account was still closed.
+  Medications were not on the list either. Both are fixed, checked against a
+  real Postgres.
 - **Asking on someone's behalf answered as if the record were the asker's.**
   The agent read the other person's record but was never told so. Answers said
   "your cholesterol" over her numbers and flagged `mom_lab_2025-11.md` as "not
