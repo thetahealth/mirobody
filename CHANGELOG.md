@@ -42,6 +42,28 @@ takes anything, and a medication written in it goes onto the list.
   `__IS_DATA_DELTA_ON__` and `__IS_MEDICATIONS_ON__` follow whether each
   router is mounted, and the bundled client hides what is off.
 
+### Security
+
+- **A personal MCP link outlived the sharing that allowed it.** A link named
+  only whose record it read, so when Mom stopped sharing, a family member's
+  REST calls were refused (403) while their link kept returning her record for
+  up to 30 days. The same gap left links working after removal from the
+  circle, after the creator's account was deleted and after a 1.5.2 H1
+  take-back. Also: Mom's own link and the one a family member made for her were
+  the same URL, so the family member's "revoke" cut off her client; she could
+  neither see nor revoke other people's links; and "regenerate" returned the
+  first link with its expiry unchanged. Links now live in
+  `th_personal_mcp_url` as a hash, one per creator and subject. Every call
+  checks expiry, revocation, both accounts, the creator's `tokens_valid_after`
+  and, for a family member's link, `resolve_subject`, and refuses with 401 on
+  any method. `GET /personal/mcp` lists the links you made and the ones
+  reading your record; `DELETE /personal/mcp/{id}` revokes either kind;
+  `POST` replaces your link with one valid for 10 days from creation, never
+  extended (`MCP_URL_TTL_DAYS`, was 30). Settings shows the expiry, regenerate,
+  revoke and who holds a link to your record. **Every link made before 1.5.3
+  stops working** (none says who made it): make a new one in Settings. To
+  check: have Mom stop sharing, and the family member's link answers 401.
+
 ### Changed
 
 - **The application now runs with Postgres as its only state service.** Redis

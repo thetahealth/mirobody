@@ -225,8 +225,6 @@ class Server:
             routes          = self._routes,
 
             tool_dirs       = tool_dirs,
-
-            ephemeral       = self._ephemeral
         )
 
         self._chat_service = ChatService(

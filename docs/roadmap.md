@@ -773,25 +773,23 @@ inherits the page origin, and `.svg` is an uploadable extension). Already
 rebuilt into `frontend/`.
 
 
-Three remain open. None is a defect in code that exists; each is a feature that
-does not, and two need a client change to be useful — which is why they are
-here rather than half-built.
+One remains open, and it is a migration rather than a defect: the config
+encryption key's derivation.
 
-### The personal MCP URL cannot be revoked
+### ~~The personal MCP URL cannot be revoked~~ — **closed in 1.5.3**
 
-`/mcp/<secret>` is bearer authority in a URL: whoever has the string is the
-user, for 365 days. There is no revoke, no rotate, and re-generating returns
-the SAME value, so a URL leaked through browser history, a screenshot, a shell
-history file or a proxy log cannot be taken back by the person it belongs to.
-The deployed service now stores this mapping with a TTL in encrypted Postgres
-temporary state. Direct in-process construction without a state store still
-uses a process-local dict, so that path cannot provide revocation across
-instances.
+`/mcp/<secret>` is bearer authority in a URL. It lived 365 days, then 30 with
+one revoke that took away every link to a record at once, and it named only
+whose record it read, so nothing could ask whether the person who made it may
+still read it. A link is now a row in `th_personal_mcp_url`: the hash, who made
+it, whose record it reads, a fixed 10-day expiry, revocation and last use
+(`user/personal_mcp.py`). Every call re-checks it the way REST checks a
+token, including the care circle for a family member's link; the person can
+list and revoke every link to their record in Settings.
 
-The fix is a `POST /personal/mcp/revoke` that invalidates the current secret and
-mints a new one, plus a shorter default lifetime. It needs a UI affordance in
-the same change or nobody will find it, which is the part this repo cannot do
-alone — the web client ships as a build artifact from another repository.
+A family member's link that the circle stops allowing is refused, not revoked:
+if Mom shares again before it expires, it works again. Revoking it from her
+list is what ends it for good.
 
 ### ~~User-defined MCP servers are write-only~~ — **closed in 1.4.0, by deletion**
 

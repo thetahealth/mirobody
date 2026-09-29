@@ -134,15 +134,17 @@ JWT_SCOPE: "mcp:read mcp:write"
 # Google / Apple sign-in and the mobile clients' settings: config.devices.yaml.
 
 #-----------------------------------------------------------------------------
-# How long a personal MCP URL stays valid, in days (default 30).
+# How long a personal MCP link stays valid, in days from when it is made
+# (default 10), never extended by use.
 #
 # `POST /personal/mcp` mints `{origin}/mcp/{secret}`, and that secret is the
-# WHOLE credential — `/mcp/{secret}` needs no JWT and grants read access to
-# that person's health record. It is a bearer token carried in a URL, so it
-# ends up in desktop-client config files, screenshots and shell history. This
-# was a hardcoded 365 days with no way to revoke; `DELETE /personal/mcp`
-# revokes one now, and the next mint issues a fresh secret.
-MCP_URL_TTL_DAYS: 30
+# WHOLE credential: `/mcp/{secret}` needs no JWT and reads that person's
+# health record. It is a bearer token carried in a URL, so it ends up in
+# desktop-client config files, screenshots and shell history. Every use checks
+# the link again (who made it, whether they may still read that record);
+# `DELETE /personal/mcp` or `/personal/mcp/{id}` revokes one, and making a new
+# one replaces the old.
+MCP_URL_TTL_DAYS: 10
 
 # Plug-in directories: MCP tools, the agent class, device pull providers.
 # Add your own directory to extend.
