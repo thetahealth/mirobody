@@ -140,6 +140,9 @@ curl -s http://localhost:18060/api/v1/pulse/user/providers -H "Authorization: Be
 
 **4. 数据到了。** 要么按 provider 启动时注册的拉取计划来，要么走 webhook：
 `POST /api/v1/pulse/{platform}/{provider}/webhook`，这就是你给厂商填的那个推送地址。
+没设 `COLLECT_WEBHOOK_SECRET` 时 webhook 是关着的（404）；设了之后，给厂商填的地址要带
+`?secret=<值>`，或者在 `X-Webhook-Secret` 头里带上这个值。推送用厂商自己的用户 id
+指明是谁的数据，再通过已关联的账户对上本地用户。
 
 ---
 

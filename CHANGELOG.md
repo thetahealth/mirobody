@@ -125,6 +125,13 @@ boundary.
 
 ### Security
 
+- **The webhook routes wrote into any account, unauthenticated.**
+  `POST /api/v1/pulse/{platform}/webhook` and `/{platform}/{provider}/webhook`
+  took no credential, and the Apple platform reads the account from `user_id`
+  in the body: one anonymous POST added a medication to another user's plan.
+  They now answer 404 unless `COLLECT_WEBHOOK_SECRET` is set, require it
+  (`X-Webhook-Secret` or `?secret=`) when it is, never reach the Apple
+  platform, and drop `theta_user_id` / `app_user_id` from the payload.
 - **Anyone who knew a session id could read and write that conversation.**
   The agent's checkpoint thread was the client-supplied `session_id` alone, so
   a second account posting a known id resumed the first account's turns (the
