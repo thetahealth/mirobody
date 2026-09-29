@@ -118,6 +118,10 @@ def _periods_cte(anchor: str) -> str:
     taking the visible row whenever any retraction was present made a reading
     corrected after its reassertion look newer than it is.
 
+    The walk's step reads `th_observation`, not the view: the rows behind a
+    visible one (retracted, amended) are exactly what the view hides. Every
+    anchor and every reader of the result reads the view.
+
     The anchor must narrow the walk itself. A recursive CTE is an optimisation
     fence, so the outer query's filters never reach inside it: unanchored, it
     walked every visible row in the database on each page (0.69 s against
@@ -253,7 +257,7 @@ class PostgresHealthQuery:
                  WHERE {where}
                  ORDER BY o.observed_start DESC, o.id DESC
                  {page}
-            ), {_periods_cte("FROM th_observation v JOIN page ON page.id = v.id")}
+            ), {_periods_cte("FROM v_observation v JOIN page ON page.id = v.id")}
             SELECT {columns}, page.total
               FROM page
               JOIN v_observation o ON o.id = page.id
@@ -326,7 +330,7 @@ class PostgresHealthQuery:
             WITH RECURSIVE {_periods_cte(_WRITTEN_SINCE)}
             SELECT o.source_kind, COUNT(*) AS count
               FROM visible_periods p
-              JOIN th_observation o ON o.id = p.visible_id
+              JOIN v_observation o ON o.id = p.visible_id
              WHERE p.period_start > :since AND {kind_clause}
              GROUP BY o.source_kind
              ORDER BY o.source_kind
