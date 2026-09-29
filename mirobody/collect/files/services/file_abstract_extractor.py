@@ -430,16 +430,24 @@ Please return strictly in JSON format, do not include any markdown code block ma
                 "file_abstract": f"{context} - Contains relevant content, processed successfully"
             }
     
-    async def _generate_llm_abstract_with_content(self, content: str, context: str) -> dict[str, str]:
+    async def _generate_llm_abstract_with_content(
+        self,
+        content: str,
+        context: str,
+        file_extension: str = "",
+        generate_filename: bool = False,
+    ) -> dict[str, str]:
         """
-        Generate abstract using text content only (fallback method, no filename generation)
-        
+        Generate abstract (and, for PDFs and images, a filename) from extracted text
+
         Args:
             content: Text content to summarize
             context: Context information
-            
+            file_extension: Extension the generated filename must keep
+            generate_filename: Whether to ask for a filename too
+
         Returns:
-            Dict[str, str]: Dictionary with empty file_name and file_abstract
+            Dict[str, str]: Dictionary with file_name and file_abstract
         """
         try:
             # Create a temporary text file for LLM processing
@@ -453,8 +461,8 @@ Please return strictly in JSON format, do not include any markdown code block ma
                     temp_file_path=temp_file_path,
                     content_type="text/plain",
                     context=context,
-                    file_extension="",
-                    generate_filename=False  # Text files don't get generated filename
+                    file_extension=file_extension,
+                    generate_filename=generate_filename,
                 )
                 return result
             finally:
