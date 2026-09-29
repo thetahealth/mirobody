@@ -49,7 +49,7 @@ from typing import Any
 from mirobody import translate
 from mirobody.kernel import query
 from mirobody.kernel.tools import PROVENANCE_REPORTED
-from mirobody.collect.observations import KIND_CONDITION, KIND_SYMPTOM
+from mirobody.collect.observations import KIND_CONDITION, KIND_MEASUREMENT, KIND_SYMPTOM
 
 logger = logging.getLogger(__name__)
 
@@ -103,38 +103,66 @@ _FILE_JOIN = """LEFT JOIN th_files f
                         AND f.file_key = split_part(substr(o.source_ref, 10), '_#_', 1)"""
 _FILE_NAME = "decrypt_content(f.file_name) AS file_name"
 
-# ``v_observation`` only exposes the terminal row of an amendment chain. The
-# recursive side table walk recovers the chain's creation history without
-# changing that visibility rule. A terminal row whose chain contains an
-# entered-in-error row is a reassertion, so its own creation starts a new
-# visible period; ordinary amendments keep the root's period start.
-_VISIBLE_PERIODS_CTE = """
-WITH RECURSIVE chain AS (
-    SELECT v.id AS visible_id,
-           v.id AS chain_id,
-           v.amends,
-           v.status,
-           v.created_at
-      FROM v_observation v
+def _periods_cte(anchor: str) -> str:
+    """`chain`, `cut` and `visible_periods`: when each anchored visible entry
+    began its current period. `anchor` is the FROM/WHERE naming the visible
+    rows (`v`) to start from; the caller writes `WITH RECURSIVE`.
+
+    `v_observation` shows only the end of an amendment chain, so this walks the
+    chain back through `amends`. A correction keeps its entry's period; a
+    retraction ends one, and the row that reasserts the entry after it starts
+    the next. So the period starts at the oldest row newer than the latest
+    retraction in the chain, or at the chain's first row when nothing was ever
+    retracted. Taking the visible row's own time instead listed an old reading
+    corrected yesterday as new; taking the root's missed a reassertion; and
+    taking the visible row whenever any retraction was present made a reading
+    corrected after its reassertion look newer than it is.
+
+    The anchor must narrow the walk itself. A recursive CTE is an optimisation
+    fence, so the outer query's filters never reach inside it: unanchored, it
+    walked every visible row in the database on each page (0.69 s against
+    0.22 s at 62k rows, 21k of them the reader's). Two anchors are exact:
+    one page's ids, and rows written after a cutoff, because a period never
+    starts after its visible row was written.
+    """
+    return f"""
+chain AS (
+    SELECT v.id AS visible_id, v.id AS chain_id, v.amends, v.status, v.created_at, 0 AS depth
+      {anchor}
     UNION ALL
-    SELECT p.visible_id,
-           o.id,
-           o.amends,
-           o.status,
-           o.created_at
+    SELECT p.visible_id, o.id, o.amends, o.status, o.created_at, p.depth + 1
       FROM chain p
       JOIN th_observation o ON o.id = p.amends
-), visible_periods AS (
-    SELECT visible_id,
-           CASE
-             WHEN BOOL_OR(status = 'entered-in-error')
-               THEN MAX(created_at) FILTER (WHERE chain_id = visible_id)
-             ELSE MIN(created_at)
-           END AS period_start
+), cut AS (
+    SELECT visible_id, MIN(depth) FILTER (WHERE status = 'entered-in-error') AS depth
       FROM chain
      GROUP BY visible_id
+), visible_periods AS (
+    SELECT c.visible_id, MIN(c.created_at) AS period_start
+      FROM chain c
+      JOIN cut ON cut.visible_id = c.visible_id
+     WHERE cut.depth IS NULL OR c.depth < cut.depth
+     GROUP BY c.visible_id
 )
 """
+
+
+#: Visible rows of `:uid` written after `:since`: the only rows whose period
+#: can start after it.
+_WRITTEN_SINCE = "FROM v_observation v WHERE v.user_id = :uid AND v.created_at > :since"
+
+#: What the web's records table may ask for in one page.
+RECORDS_PAGE_MAX = 200
+
+#: The columns an export of records carries, in order. A whitelist, not
+#: "whatever the row has": a field added to the row later does not leave in a
+#: download until it is named here.
+RECORD_EXPORT_COLUMNS = (
+    "row_id", "kind", "indicator", "name", "code", "system", "series", "time", "date",
+    "value", "unit", "value_canonical", "unit_canonical", "modality", "source_kind",
+    "file", "file_key", "created_at", "provenance", "text",
+)
+
 
 #: The identity a group reports: that of its most recent row, so a series
 #: holding two codes (mass and molar cholesterol) names one consistent pair.
@@ -163,32 +191,29 @@ class PostgresHealthQuery:
         self,
         subject_id: str,
         *,
-        kind: str = "measurement",
+        kind: str = KIND_MEASUREMENT,
         modalities: list[str] | None = None,
         start_time: date | None = None,
         end_time: date | None = None,
         created_since: datetime | None = None,
         keywords: str | None = None,
-        limit: int = 50,
+        limit: int | None = 50,
         offset: int = 0,
     ) -> dict[str, Any]:
-        """Return the browser's cross-series, paginated observation list.
+        """Visible entries across every series, newest observed first, one page.
 
-        The visible row comes from ``v_observation``. ``period_start`` is
-        calculated from its amendment chain: ordinary corrections retain the
-        root row's creation time, while a reassertion after a retraction starts
-        a new visible period. Keeping this rule here means the records list and
-        the delta counter cannot disagree about what "new" means.
+        `created_since` compares the start of each entry's current period
+        (`_periods_cte`), the same instant `delta` counts, so the rows
+        behind a "3 new" badge are exactly these. `start_time` / `end_time` are
+        days observed, inclusive. `limit=None` is every row, for an export.
         """
         from mirobody.utils import execute_query
 
         params: dict[str, Any] = {
             "uid": str(subject_id),
-            "limit": max(1, min(int(limit), 200)),
             "offset": max(0, int(offset)),
             "kind": kind,
             "modalities": modalities or [],
-            "keywords": f"%{keywords.strip()}%" if keywords and keywords.strip() else None,
             "reported": REPORTED_KINDS,
         }
         conditions = ["o.user_id = :uid", "(:kind = 'all' OR o.kind = :kind)"]
@@ -200,41 +225,80 @@ class PostgresHealthQuery:
         if end_time is not None:
             params["end_time"] = end_time
             conditions.append("o.local_date <= :end_time")
-        if params["keywords"] is not None:
+        if keywords and keywords.strip():
+            params["keywords"] = "%" + _like_escape(keywords.strip()) + "%"
             conditions.append("(o.name_text ILIKE :keywords OR COALESCE(o.display, '') ILIKE :keywords)")
-        if created_since is not None:
-            params["created_since"] = created_since
-            conditions.append("p.period_start > :created_since")
         if not self._reported:
             conditions.append("o.kind <> ALL(:reported)")
+        page = ""
+        if limit is not None:
+            params["limit"] = max(1, int(limit))
+            page = "LIMIT :limit OFFSET :offset"
+        elif params["offset"]:
+            page = "OFFSET :offset"
+        columns = f"""o.id, o.series_id, o.display, o.name_text, o.value_text, o.unit_text,
+                   o.value_num, o.value_canonical, o.unit_canonical,
+                   to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS') AS local_time,
+                   o.local_date, o.modality, o.code_system, o.code, o.elected, o.outcome,
+                   o.source_kind, p.period_start,
+                   {_REPORTED_COLUMNS},
+                   {_FILE_KEY} AS file_key, {_FILE_NAME}"""
         where = " AND ".join(conditions)
-        rows = await execute_query(
-            f"""
-            {_VISIBLE_PERIODS_CTE}
-            SELECT o.id, o.kind, o.modality, o.name_text, o.value_text, o.unit_text,
-                   o.local_date, o.observed_start, o.observed_end, o.tz,
-                   o.code_system, o.code, o.display, o.series_id, o.source_kind,
-                   o.source_ref, o.value_num, o.value_canonical, o.unit_canonical,
-                   o.outcome, o.reason, o.elected, p.period_start,
-                   {_FILE_KEY} AS file_key, {_FILE_NAME},
-                   CASE WHEN o.kind = ANY(:reported) THEN decrypt_content(o.note_text) END AS note,
-                   COUNT(*) OVER () AS total
+        if created_since is None:
+            # Browsing: the page first, then the chains of its rows only.
+            sql = f"""
+            WITH RECURSIVE page AS (
+                SELECT o.id, COUNT(*) OVER () AS total
+                  FROM v_observation o
+                 WHERE {where}
+                 ORDER BY o.observed_start DESC, o.id DESC
+                 {page}
+            ), {_periods_cte("FROM th_observation v JOIN page ON page.id = v.id")}
+            SELECT {columns}, page.total
+              FROM page
+              JOIN v_observation o ON o.id = page.id
+              JOIN visible_periods p ON p.visible_id = o.id
+            {_FILE_JOIN}
+             ORDER BY o.observed_start DESC, o.id DESC
+            """
+        else:
+            params["since"] = created_since
+            sql = f"""
+            WITH RECURSIVE {_periods_cte(_WRITTEN_SINCE)}
+            SELECT {columns}, COUNT(*) OVER () AS total
               FROM v_observation o
               JOIN visible_periods p ON p.visible_id = o.id
             {_FILE_JOIN}
-             WHERE {where}
+             WHERE {where} AND p.period_start > :since
              ORDER BY o.observed_start DESC, o.id DESC
-             LIMIT :limit OFFSET :offset
-            """,
-            params,
-            log_sql=False,
-        ) or []
+             {page}
+            """
+        rows = await execute_query(sql, params, log_sql=False) or []
         total = int(rows[0]["total"]) if rows else 0
+        if not rows and params["offset"]:
+            # Past the end: the window count went with the rows, so ask once.
+            total = await self._records_total(where, params, since=created_since is not None)
         return {
             "rows": [_record_row(r) for r in rows],
             "total": total,
             "has_more": params["offset"] + len(rows) < total,
         }
+
+    async def _records_total(self, where: str, params: dict[str, Any], *, since: bool) -> int:
+        from mirobody.utils import execute_query
+
+        if since:
+            sql = f"""
+            WITH RECURSIVE {_periods_cte(_WRITTEN_SINCE)}
+            SELECT COUNT(*) AS total
+              FROM v_observation o
+              JOIN visible_periods p ON p.visible_id = o.id
+             WHERE {where} AND p.period_start > :since
+            """
+        else:
+            sql = f"SELECT COUNT(*) AS total FROM v_observation o WHERE {where}"
+        rows = await execute_query(sql, params, log_sql=False) or []
+        return int(rows[0]["total"]) if rows else 0
 
     async def delta(
         self,
@@ -243,7 +307,9 @@ class PostgresHealthQuery:
         *,
         target_kind: str = "all",
     ) -> dict[str, Any]:
-        """Count visible logical entries whose current period starts after ``since``."""
+        """Visible entries whose current period began after `since`, by source.
+        The same rule `records(created_since=)` filters on, so the count and
+        the rows behind it cannot disagree."""
         from mirobody.utils import execute_query
 
         params: dict[str, Any] = {
@@ -257,11 +323,11 @@ class PostgresHealthQuery:
             kind_clause += " AND o.kind <> ALL(:reported)"
         rows = await execute_query(
             f"""
-            {_VISIBLE_PERIODS_CTE}
+            WITH RECURSIVE {_periods_cte(_WRITTEN_SINCE)}
             SELECT o.source_kind, COUNT(*) AS count
-              FROM v_observation o
-              JOIN visible_periods p ON p.visible_id = o.id
-             WHERE o.user_id = :uid AND p.period_start > :since AND {kind_clause}
+              FROM visible_periods p
+              JOIN th_observation o ON o.id = p.visible_id
+             WHERE p.period_start > :since AND {kind_clause}
              GROUP BY o.source_kind
              ORDER BY o.source_kind
             """,
@@ -804,44 +870,38 @@ def _number(value: object) -> float | None:
 
 
 def _record_row(r: dict) -> dict:
-    """Serialize one web record without exposing encrypted/raw SQL columns."""
-    observed = r.get("observed_start")
-    if isinstance(observed, datetime):
-        time_text = observed.isoformat()
-    else:
-        time_text = _text(observed)
-    kind = _text(r.get("kind")) or "measurement"
-    row = {
-        "row_id": int(r["id"]),
+    """One row of the records list: a reading row's fields (the same names the
+    Indicators table and the tools read), plus what kind of entry it is, where
+    it came from, and `created_at`, the start of its current visible period.
+
+    An entry that is not a measurement carries no value and no unit, never a
+    made-up one; what the person wrote is `text`."""
+    row = _reading_row(r)
+    row.pop("total", None)
+    kind = r.get("kind") or KIND_MEASUREMENT
+    period = r.get("period_start")
+    row.update({
         "kind": kind,
-        "indicator": _text(r.get("display")) or _text(r.get("name_text")),
-        "name": _text(r.get("name_text")),
-        "code": _text(r.get("code")),
-        "system": _text(r.get("code_system")),
-        "series": _text(r.get("series_id")),
-        "time": time_text,
-        "date": r.get("local_date").isoformat() if hasattr(r.get("local_date"), "isoformat") else _text(r.get("local_date")),
-        "value": _text(r.get("value_text")) if kind == "measurement" else "",
-        "unit": _text(r.get("unit_text")) if kind == "measurement" else "",
-        "row_value": _text(r.get("note")) if kind != "measurement" else "",
-        "modality": _text(r.get("modality")),
-        "source_kind": _text(r.get("source_kind")),
-        "file": _text(r.get("file_name")),
-        "file_key": _text(r.get("file_key")),
-        "created_at": r.get("period_start").isoformat() if hasattr(r.get("period_start"), "isoformat") else _text(r.get("period_start")),
-        "provenance": "elected:day_authority" if r.get("elected") else _text(r.get("source_kind")) or "measured",
-        "day_known": bool(r.get("local_date")),
-    }
-    if kind != "measurement":
-        row["text"] = row["row_value"] or _text(r.get("value_text"))
-    row.pop("row_value", None)
+        "source_kind": r.get("source_kind") or "",
+        "created_at": period.isoformat() if isinstance(period, datetime) else _text(period),
+    })
+    if kind != KIND_MEASUREMENT:
+        row.update({"value": "", "unit": "", "value_canonical": None, "unit_canonical": ""})
+        row["text"] = _text(r.get("note")) or _text(r.get("value_text"))
     return row
+
+
+def _like_escape(text: str) -> str:
+    """`text` matched literally inside ILIKE: `%` and `_` in a name are letters."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 __all__ = [
     "CATALOG_MAX",
     "MAX_KEYWORD_NAMES",
     "PostgresHealthQuery",
+    "RECORDS_PAGE_MAX",
+    "RECORD_EXPORT_COLUMNS",
     "REPORTED_KINDS",
     "REST_CATALOG_MAX",
     "REST_ROW_MAX",
