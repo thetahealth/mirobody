@@ -436,10 +436,6 @@ mirobody/utils/config/storage/local.py	interpolation	self.proxy_url
 mirobody/utils/config/storage/local.py	interpolation	str(e)
 mirobody/utils/config/storage/local.py	interpolation	url
 mirobody/utils/db.py	interpolation	logged_query
-mirobody/utils/distributed_lock.py	interpolation	e
-mirobody/utils/distributed_lock.py	interpolation	existing_lock.decode() if isinstance(existing_lock, bytes) else existing_lock
-mirobody/utils/distributed_lock.py	interpolation	str(e)
-mirobody/utils/distributed_lock.py	interpolation	timestamp
 mirobody/utils/http.py	interpolation	message
 mirobody/utils/http.py	interpolation	msg
 mirobody/utils/llm/file_processors/backends_openai.py	interpolation	e

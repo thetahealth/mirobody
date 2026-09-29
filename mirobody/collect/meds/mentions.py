@@ -105,7 +105,11 @@ async def apply_medication_mentions(
         out.append(outcome(key, NOT_ON_LIST))
     for key, reason in decision.ignored:
         out.append(outcome(key, IGNORED, reason=reason))
-    logger.info("medication mentions applied: subject_id=%s counts=%s", subject_id, decision.counts())
+    logger.info(
+        "medication mentions applied: subject_id=%s created=%d known=%d stopped=%d unknown=%d ignored=%d",
+        subject_id, len(decision.create), len(decision.already_known), len(decision.stopped_known),
+        len(decision.stopped_unknown), len(decision.ignored),
+    )
     return out
 
 

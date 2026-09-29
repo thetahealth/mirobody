@@ -1,3 +1,74 @@
+## Unreleased
+
+Postgres is the only state service and deployment is one image; the journal
+takes anything, and a medication written in it goes onto the list.
+
+### Added
+
+- **The web client lists every entry, counts what is new, and exports it.**
+  The Indicators page could show one indicator's readings at a time, nothing
+  said what had arrived since the last visit, and nothing downloaded the
+  standardized values. `GET /api/v1/health-indicators/records` pages visible
+  entries across all indicators; `GET /api/v1/data/data-delta?since=` counts,
+  by source, the entries whose current period began after `since` (a
+  correction keeps its entry's period, a retraction ends it, a reassertion
+  starts a new one), and `created_since` on the records route lists exactly
+  those. `GET /api/v1/health-indicators/export` downloads the same rows as CSV
+  or JSON, standardized value and unit included; `GET /api/user/data-export`
+  gives the caller's own rows as a JSON page or an NDJSON stream whose footer
+  says whether it finished. All four read `PostgresHealthQuery`. To check:
+  upload a report, correct one reading, and the delta still counts it once.
+- **The journal takes anything; a medication in it goes onto the list.**
+  The 记录 box wrote complaints, diagnoses and readings and refused the rest:
+  a medication was "log it with your medications" and a meal "not a record".
+  A medication part now becomes a `kernel.meds` mention, and
+  `reconcile_mentions` decides: a new plan (unconfirmed, labelled as from the
+  journal until corrected), a drug already listed left alone, "stopped X"
+  stopping the active plan. The model gives the words; the schedule is parsed
+  from them, and 每天早晚 now parses as twice a day (it read as once).
+  Anything else is kept as an uncoded `note`, so nothing typed is lost. To
+  check: log "每天早晚吃二甲双胍500mg，午饭吃了面" and find metformin under
+  指标 › 用药 and the noodles in that day's log.
+- **Medication plans have an HTTP surface and a tab under 指标.** The model
+  had a store and no way in or out of the web. `/api/v1/medications` lists,
+  corrects, stops, resumes (opening a new course) and voids plans; each state
+  change writes its course in the same transaction, a family member with a
+  read grant can list but not write, and a plan the caller may not read
+  answers 404 like a missing one. An instruction's own words ("饭后") are kept,
+  encrypted, where the structured schedule has no room for them. See
+  `docs/medications.md`.
+- **`/mirobody.json` names the records, delta and medication surfaces.**
+  `__IS_INDICATOR_RECORDS_ON__`, `__IS_INDICATOR_EXPORT_ON__`,
+  `__IS_DATA_DELTA_ON__` and `__IS_MEDICATIONS_ON__` follow whether each
+  router is mounted, and the bundled client hides what is off.
+
+### Changed
+
+- **The application now runs with Postgres as its only state service.** Redis
+  previously held login challenges, OAuth state, counters, file cache entries,
+  provider locks and worker messages, making a second database mandatory for a
+  complete deployment. Expiring values now live encrypted in `th_ephemeral`,
+  one-time values are consumed atomically, provider pulls hold session-level
+  advisory locks, and the queue uses `th_task_queue`. A clean Compose stack
+  reached a healthy server and worker with no Redis package installed; a
+  scratch Postgres check exercised expiry, competing claims and lock ownership.
+- **Docker deployment now uses a built application image.** The old Compose
+  mounted source code and installed dependencies on first boot, so a clone was
+  required and startup depended on PyPI. The multi-stage image contains the
+  Python app, schema, terminology bundle and current web client; Compose pulls
+  it and starts Postgres, server and worker. A local image served `/`,
+  `/mirobody.json` and `/api/health` with version `1.5.3.dev0`.
+- **Backups now work when a Docker VM cannot bind the destination path.**
+  The upload archive previously went into the Docker VM's `/tmp` while the
+  script reported success. It now streams to the host, verifies the tar, and
+  only then names it as a backup; a Compose test produced readable database
+  and upload archives under a host `/tmp` directory.
+- **Profile refresh tasks now survive worker interruption.** Redis removed a
+  task from its list before it ran, so a stopped worker lost the refresh. The
+  Postgres queue claims tasks with a lease and acknowledges only successful
+  work; failed work is retried and retained after five failed attempts. A
+  scratch database check covered competing workers, retry and acknowledgement.
+
 ## 1.5.2
 
 Genotype uploads arrive as facts: one call per site, checked against a bundled
@@ -132,42 +203,6 @@ for can take it over.
   data and installs an immutable extract; `CPIC_VERSION` selects an exact or
   locally newest installed version at query time. Public v1.59.1 and v1.60.0
   dumps passed the offline fetch and selection checks.
-- **The web client lists every entry, counts what is new, and exports it.**
-  The Indicators page could show one indicator's readings at a time, nothing
-  said what had arrived since the last visit, and nothing downloaded the
-  standardized values. `GET /api/v1/health-indicators/records` pages visible
-  entries across all indicators; `GET /api/v1/data/data-delta?since=` counts,
-  by source, the entries whose current period began after `since` (a
-  correction keeps its entry's period, a retraction ends it, a reassertion
-  starts a new one), and `created_since` on the records route lists exactly
-  those. `GET /api/v1/health-indicators/export` downloads the same rows as CSV
-  or JSON, standardized value and unit included; `GET /api/user/data-export`
-  gives the caller's own rows as a JSON page or an NDJSON stream whose footer
-  says whether it finished. All four read `PostgresHealthQuery`. To check:
-  upload a report, correct one reading, and the delta still counts it once.
-- **The journal takes anything; a medication in it goes onto the list.**
-  The 记录 box wrote complaints, diagnoses and readings and refused the rest:
-  a medication was "log it with your medications" and a meal "not a record".
-  A medication part now becomes a `kernel.meds` mention, and
-  `reconcile_mentions` decides: a new plan (unconfirmed, labelled as from the
-  journal until corrected), a drug already listed left alone, "stopped X"
-  stopping the active plan. The model gives the words; the schedule is parsed
-  from them, and 每天早晚 now parses as twice a day (it read as once).
-  Anything else is kept as an uncoded `note`, so nothing typed is lost. To
-  check: log "每天早晚吃二甲双胍500mg，午饭吃了面" and find metformin under
-  指标 › 用药 and the noodles in that day's log.
-- **Medication plans have an HTTP surface and a tab under 指标.** The model
-  had a store and no way in or out of the web. `/api/v1/medications` lists,
-  corrects, stops, resumes (opening a new course) and voids plans; each state
-  change writes its course in the same transaction, a family member with a
-  read grant can list but not write, and a plan the caller may not read
-  answers 404 like a missing one. An instruction's own words ("饭后") are kept,
-  encrypted, where the structured schedule has no room for them. See
-  `docs/medications.md`.
-- **`/mirobody.json` names the records, delta and medication surfaces.**
-  `__IS_INDICATOR_RECORDS_ON__`, `__IS_INDICATOR_EXPORT_ON__`,
-  `__IS_DATA_DELTA_ON__` and `__IS_MEDICATIONS_ON__` follow whether each
-  router is mounted, and the bundled client hides what is off.
 
 ### Security
 
@@ -479,36 +514,6 @@ for can take it over.
   HLA-B LOINC concepts or resolved ambiguous phrases as a genotype. Nine
   explicit mappings now target the named concepts and five broad phrases are
   rejected; the resolver override table records each term and target.
-
-- **The application now runs with Postgres as its only state service.** Redis
-  previously held login challenges, OAuth state, counters, file cache entries,
-  provider locks and worker messages, making a second database mandatory for a
-  complete deployment. Expiring values now live encrypted in `th_ephemeral`,
-  one-time values are consumed atomically, provider pulls hold session-level
-  advisory locks, and the queue uses `th_task_queue`. A clean Compose stack
-  reached a healthy server and worker with no Redis package installed; a
-  scratch Postgres check exercised expiry, competing claims and lock ownership.
-- **Docker deployment now uses a built application image.** The old Compose
-  mounted source code and installed dependencies on first boot, so a clone was
-  required and startup depended on PyPI. The multi-stage image contains the
-  Python app, schema, terminology bundle and current web client; Compose pulls
-  it and starts Postgres, server and worker. A local image served `/`,
-  `/mirobody.json` and `/api/health` with version `1.5.3.dev0`.
-- **Backups now work when a Docker VM cannot bind the destination path.**
-  The upload archive previously went into the Docker VM's `/tmp` while the
-  script reported success. It now streams to the host, verifies the tar, and
-  only then names it as a backup; a Compose test produced readable database
-  and upload archives under a host `/tmp` directory.
-- **Profile refresh tasks now survive worker interruption.** Redis removed a
-  task from its list before it ran, so a stopped worker lost the refresh. The
-  Postgres queue claims tasks with a lease and acknowledges only successful
-  work; failed work is retried and retained after five failed attempts. A
-  scratch database check covered competing workers, retry and acknowledgement.
-- **The bundled web client now uses the current `mirobody-web` main build.**
-  The previously shipped assets predated the Indicators/Data navigation and
-  updated empty-state flow. The open-source build completed and its hashed
-  assets replaced the prior bundle.
-
 - Removed the frozen Traditional Chinese and Japanese README editions and their
   archive index, which contained stale links. Only the live English and Chinese
   READMEs remain; the removed editions are available in Git history.
