@@ -35,7 +35,7 @@ from .errors import AgentError, ConfigError, client_safe_error
 from .hitl import ASK_USER_INTERRUPT, ask_user, interrupt_block, pending_answer
 from .models.clients import build_llm_clients
 from .models.usage import usage_block
-from .prompt import attachment_reminder, build_system_prompt
+from .prompt import attachment_reminder, build_system_prompt, question_language
 from .wire.blocks import ERROR, NOTICE
 from .wire.stream import TokenUsageCallback, stream_blocks
 from .middleware import (
@@ -48,6 +48,17 @@ if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
 
 logger = logging.getLogger(__name__)
+
+
+def _latest_question(messages: list) -> str:
+    """The text of the last user message, whichever form the list holds."""
+    for message in reversed(messages or []):
+        role = message.get("role") if isinstance(message, dict) else getattr(message, "type", "")
+        if role in ("user", "human"):
+            content = message.get("content") if isinstance(message, dict) else message.content
+            return content if isinstance(content, str) else " ".join(
+                b.get("text", "") for b in content or [] if isinstance(b, dict))
+    return ""
 
 
 def _default_provider() -> str:
@@ -174,6 +185,7 @@ class MirobodyAgent:
         base_prompt: str,
         user_id: str,
         tools: list,
+        question: str = "",
     ) -> str:
         """Build system prompt with tools, time, user context, and health-profile core."""
         from mirobody.user.profile import get_health_profile_core
@@ -188,6 +200,7 @@ class MirobodyAgent:
                 timezone=self.timezone,
                 health_profile=health_profile,
                 tool_round_limit=self.model_call_limit,
+                answer_language=question_language(question),
             )
             logger.info("Built system prompt successfully")
             return system_prompt
@@ -292,6 +305,7 @@ class MirobodyAgent:
         user_id: str,
         provider: str | None,
         prompt_name: str,
+        question: str = "",
     ) -> tuple["BaseChatModel", str, str | None, list[BaseTool], str]:
         """
         Prepare LLM client, tools, and system prompt.
@@ -304,7 +318,7 @@ class MirobodyAgent:
         loaded_tools = await self._load_tools(user_id)
 
         base_prompt = self._get_base_prompt(prompt_name)
-        system_prompt = await self._build_system_prompt(base_prompt, user_id, loaded_tools)
+        system_prompt = await self._build_system_prompt(base_prompt, user_id, loaded_tools, question)
 
         return llm_client, model_name, (fallback_msg if fallback_used else None), loaded_tools, system_prompt
 
@@ -595,6 +609,7 @@ class MirobodyAgent:
                 user_id=user_id,
                 provider=provider,
                 prompt_name=prompt_name,
+                question=_latest_question(messages),
             )
 
             if fallback_msg:

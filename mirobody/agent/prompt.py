@@ -18,6 +18,7 @@ from the request: see the function for why that distinction has bitten.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -25,6 +26,24 @@ from zoneinfo import ZoneInfo
 from mirobody.utils import prompts
 
 logger = logging.getLogger(__name__)
+
+
+def question_language(text: str) -> str:
+    """The language a question is written in, read off its script, for the
+    languages a model has been seen to answer in English: "" otherwise.
+
+    The prompt already says the latest question decides; Bonsai-27B still
+    answered a Chinese trend question in English, twice in two, after 78
+    rows of English tool output. Naming the language turns inference into
+    an instruction. Kana decides Japanese before Han, which both use.
+    """
+    if re.search(r"[\u3040-\u30ff]", text):
+        return "Japanese (日本語)"
+    if re.search(r"[\uac00-\ud7af]", text):
+        return "Korean (한국어)"
+    if re.search(r"[\u4e00-\u9fff]", text):
+        return "Chinese (中文)"
+    return ""
 
 
 async def build_system_prompt(
@@ -35,10 +54,12 @@ async def build_system_prompt(
     timezone: str = "UTC",
     health_profile: str | None = None,
     tool_round_limit: int = 15,
+    answer_language: str = "",
 ) -> str:
     """Render `base_prompt` with tool descriptions, the current time in
     `timezone`, and the user context the template may reference.
-    `record_owner` names whose record it is when that is not the asker's."""
+    `record_owner` names whose record it is when that is not the asker's;
+    `answer_language` the latest question's language (`question_language`)."""
     tool_prompts = [
         f"**{tool.name}**: {tool.description}"
         for tool in langchain_tools
@@ -58,6 +79,7 @@ async def build_system_prompt(
         tools_description=tools_description,
         health_profile=health_profile,
         tool_round_limit=tool_round_limit,
+        answer_language=answer_language,
     )
 
 async def report_date_status(attached: list[dict[str, Any]]) -> str:
