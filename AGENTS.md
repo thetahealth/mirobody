@@ -58,7 +58,7 @@ With a live database, one more — it catches the two things a unit test cannot,
 a statement that will not parse and a column that is not there:
 
 ```bash
-docker compose exec mirobody python -m scripts.e2e_health_data --user 1
+docker compose exec -T mirobody python - --user 1 < scripts/e2e_health_data.py
 ```
 
 `lint-imports` and `pytest` must run against the repo source, not an installed

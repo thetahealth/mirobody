@@ -194,7 +194,7 @@ without a connection. Two failures only a database shows — a statement that
 will not parse, and a column that is not there — so there is a third check:
 
 ```bash
-docker compose exec mirobody python -m scripts.e2e_health_data --user <your account id>
+docker compose exec -T mirobody python - --user <your account id> < scripts/e2e_health_data.py
 ```
 
 15 cases and 4 invariants, including **"one day, one number"**: a `day` bucket

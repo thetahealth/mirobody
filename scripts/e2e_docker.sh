@@ -17,7 +17,10 @@ set -uo pipefail
 BASE="${BASE:-http://127.0.0.1:18060}"
 EMAIL="${EMAIL:-you@mirobody.ai}"
 CODE="${CODE:-111111}"
-CONTAINER="${CONTAINER:-mirobody-mirobody-1}"
+# The stack's own server container, asked of compose rather than guessed:
+# the name follows the project, and a wrong guess made step 5 grep an empty
+# log and report "no PHI canary".
+CONTAINER="${CONTAINER:-$(docker compose --project-directory "$(dirname "$0")/.." ps -q mirobody 2>/dev/null | head -n 1)}"
 FAILURES=0
 
 # Everything logged from here on is THIS run's. `docker logs` is cumulative, so
@@ -145,20 +148,27 @@ check "$(echo "$REFUSED" | grep -q 'user_info' && echo 1 || echo 0)" \
       "the refusal does not advertise the injected user_info"
 
 # ── 4. the in-process suite, against this database ───────────────────────────
-if docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
-  docker exec "$CONTAINER" sh -c \
-    "cd /app && /root/venv/bin/python scripts/e2e_health_data.py --user $USER_ID" >/tmp/e2e_inproc.txt 2>&1
-  INNER=$?
-  check "$INNER" "scripts/e2e_health_data.py inside the container" "see /tmp/e2e_inproc.txt"
+# Steps 4 and 5 read the container itself. Without one they cannot pass: a log
+# nobody could read is not a log without PHI in it.
+if [ -z "$CONTAINER" ] || ! docker inspect "$CONTAINER" >/dev/null 2>&1; then
+  fail "the server container" "not found; run from the checkout, or set CONTAINER"
+  echo; echo "$FAILURES failed"; echo; exit "$FAILURES"
 fi
+# The image has the package but not scripts/, so the script is piped in.
+docker exec -i "$CONTAINER" python - --user "$USER_ID" \
+  < "$(dirname "$0")/e2e_health_data.py" >/tmp/e2e_inproc.txt 2>&1
+INNER=$?
+check "$INNER" "scripts/e2e_health_data.py inside the container" "see /tmp/e2e_inproc.txt"
 
 # ── 5. the PHI sentinel ──────────────────────────────────────────────────────
 # Everything above put real health data through the process. If the redaction
 # holds, none of it is in the log.
-CANARY=$(docker exec "$CONTAINER" sh -c \
-  'cd /app && /root/venv/bin/python -c "from mirobody.server.demo import PHI_CANARY; print(PHI_CANARY)"' 2>/dev/null \
-  | tr -d '\r' | tail -1)
-CANARY="${CANARY:-PHI-CANARY-3f9a}"
+CANARY=$(docker exec "$CONTAINER" python -c "from mirobody.server.demo import PHI_CANARY; print(PHI_CANARY)" \
+  2>/dev/null | tr -d '\r' | tail -1)
+if [ -z "$CANARY" ]; then
+  fail "read the PHI canary from the container"
+  CANARY="PHI-CANARY-3f9a"
+fi
 HITS=$(docker logs --since "$SINCE" "$CONTAINER" 2>&1 | grep -cF "${CANARY##* }")
 check "$([ "$HITS" = "0" ] && echo 0 || echo 1)" "no PHI canary in the container's logs" "$HITS hit(s)"
 
