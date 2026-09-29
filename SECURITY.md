@@ -72,8 +72,11 @@ others:
   (`you@mirobody.ai` and `mom@mirobody.ai`, code `111111`) — remove
   `EMAIL_PREDEFINE_CODES` entirely. With `PRODUCTION: true` the server enforces this instead of
   trusting the checklist.
-- Generate your own `CONFIG_ENCRYPTION_KEY` and keep `.env` out of version
-  control. `deploy.sh` generates one; do not copy a key between environments.
+- Generate your own `CONFIG_ENCRYPTION_KEY` and `JWT_KEY`, and keep `.env` out
+  of version control. `deploy.sh` generates both; do not copy a key between
+  environments. Without `PRODUCTION: true`, a server bound beyond loopback
+  with the placeholder `JWT_KEY` makes one up for the run, so sessions end at
+  restart.
 - **The database-content key is `PG_ENCRYPTION_KEY`, a separate value from
   `CONFIG_ENCRYPTION_KEY`.** It backs the Postgres-side `encrypt_content()`
   function (`pgcrypto`'s `encrypt(..., 'aes')`), which covers chat message

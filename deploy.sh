@@ -7,14 +7,10 @@ DOCKER_MIRRORS=("docker.1ms.run")
 #-----------------------------------------------------------------------------
 # Check local configure.
 
+# From /dev/urandom: bash's $RANDOM is a 15-bit PRNG, not a source for keys.
 generate_random_string() {
   local length=${1:-16}
-  local chars="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-  local random_str=""
-  for (( i=0; i<length; i++ )); do
-    random_str+=${chars:RANDOM%${#chars}:1}
-  done
-  echo "$random_str"
+  LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c "$length"
 }
 
 local_env=${ENV:-localdb}

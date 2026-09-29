@@ -138,6 +138,11 @@ boundary.
   requests. Rows shaped like calls, and any `.vcf` / `.vcf.gz` / `.vcf.bgz` by
   name, now take the genetic path on upload, in chat and in the agent's file
   mounts; the reader refuses them with a request for the original export.
+- **The shipped placeholder `JWT_KEY` signed tokens on the network.** The
+  placeholder check ran only under `PRODUCTION: true` and the default bind is
+  `0.0.0.0`, so `mirobody serve` from a clone accepted tokens forged from the
+  public string. Off loopback the run now gets its own key and says so.
+  `deploy.sh` draws its generated keys from `/dev/urandom`, not `$RANDOM`.
 - **Anyone who knew a session id could read and write that conversation.**
   The agent's checkpoint thread was the client-supplied `session_id` alone, so
   a second account posting a known id resumed the first account's turns (the
