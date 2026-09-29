@@ -196,6 +196,9 @@ boundary.
   (`["clopidogrel", "warfarin", "notadrug"]` said nothing about the third); it
   now notes `no CPIC A/B gene-drug pair for: notadrug`. `query_genetic_data`
   refused `chr10` and `chrM`; they are read as `10` and `MT`.
+- **`convert_unit` no longer reports Infinity or NaN as a conversion.**
+  `1e308 g` to `ug` answered `success: true, converted: Infinity`; a
+  non-finite value or result is now refused with a reason.
 - **Asking on someone's behalf answered as if the record were the asker's.**
   The agent read the other person's record but was never told so. Answers said
   "your cholesterol" over her numbers and flagged `mom_lab_2025-11.md` as "not
