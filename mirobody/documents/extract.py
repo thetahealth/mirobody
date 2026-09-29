@@ -83,29 +83,37 @@ def digest(data: bytes) -> str:
 
 # --- PDF ---------------------------------------------------------------------------
 
-def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int) -> tuple[list[str], list[tuple[int, bytes]]]:
-    """Sync, CPU-bound: each page's text layer, and the pages too thin to trust
-    rendered to PNG for OCR. Run through `asyncio.to_thread`."""
+def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = False
+               ) -> tuple[list[str], list[tuple[int, bytes]], list[tuple[int, bytes]]]:
+    """Sync, CPU-bound: each page's text layer, the pages too thin to trust
+    rendered to PNG for OCR, and (`render_all`) the others rendered too, for a
+    tables pass. Run through `asyncio.to_thread`."""
     import pypdfium2 as pdfium
+
+    def png(page) -> bytes:
+        buf = io.BytesIO()
+        page.render(scale=dpi / 72).to_pil().save(buf, format="PNG")
+        return buf.getvalue()
 
     doc = pdfium.PdfDocument(data)
     try:
         n = len(doc)
         texts: list[str] = [""] * n
         to_ocr: list[tuple[int, bytes]] = []
+        layered: list[tuple[int, bytes]] = []
         for i in range(n):
             page = doc[i]
             try:
                 text = (page.get_textpage().get_text_range() or "").strip()
                 if len(text) >= min_page_text:
                     texts[i] = text
+                    if render_all:
+                        layered.append((i, png(page)))
                 else:
-                    buf = io.BytesIO()
-                    page.render(scale=dpi / 72).to_pil().save(buf, format="PNG")
-                    to_ocr.append((i, buf.getvalue()))
+                    to_ocr.append((i, png(page)))
             finally:
                 page.close()
-        return texts, to_ocr
+        return texts, to_ocr, layered
     finally:
         doc.close()
 
@@ -113,7 +121,7 @@ def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int) -> tuple[list[str],
 def pdf_text_layer(data: bytes) -> str:
     """Sync: the embedded text layer only, every page, ``--- page N ---`` joined.
     Free and instant for born-digital PDFs; ``""`` for a scan."""
-    texts, _ = _pdf_pages(data, min_page_text=1, dpi=RENDER_DPI)
+    texts, _, _ = _pdf_pages(data, min_page_text=1, dpi=RENDER_DPI)
     return "\n\n".join(f"--- page {i + 1} ---\n{t}" for i, t in enumerate(texts) if t)
 
 
@@ -121,16 +129,32 @@ async def pdf_text(
     data: bytes,
     *,
     ocr: Ocr | None = None,
+    tables: Ocr | None = None,
     min_page_text: int = MIN_PAGE_TEXT,
     dpi: int = RENDER_DPI,
     concurrency: int = OCR_CONCURRENCY,
 ) -> str:
     """A PDF's full text: each page's text layer, or (for a page whose layer is
     empty or too thin (a scan)) the OCR of the rendered page, concurrently.
-    Without an ``ocr`` the scanned pages are left out."""
-    texts, to_ocr = await asyncio.to_thread(_pdf_pages, data, min_page_text=min_page_text, dpi=dpi)
+    Without an ``ocr`` the scanned pages are left out. With ``tables``, a page
+    that has a text layer also gets that pass appended: the layer is exact but
+    has lost its columns, which a table reader returns."""
+    texts, to_ocr, layered = await asyncio.to_thread(
+        _pdf_pages, data, min_page_text=min_page_text, dpi=dpi, render_all=tables is not None)
+    gate = asyncio.Semaphore(max(1, concurrency))
+    if layered and tables is not None:
+        async def _tables(index: int, png: bytes) -> None:
+            async with gate:
+                try:
+                    found = (await tables(png, "image/png")).strip()
+                except Exception as exc:
+                    logger.warning("pdf tables: page failed: page_index=%d error_type=%s", index, type(exc).__name__)
+                    return
+                if found:
+                    texts[index] = f"{texts[index]}\n\n{found}"
+
+        await asyncio.gather(*(_tables(i, png) for i, png in layered))
     if to_ocr and ocr is not None:
-        gate = asyncio.Semaphore(max(1, concurrency))
         failures: list[Exception] = []
 
         async def _one(index: int, png: bytes) -> None:
@@ -150,7 +174,7 @@ async def pdf_text(
         # case is the OCR's error, raised.
         if len(failures) == len(to_ocr) and not any(texts):
             raise failures[-1]
-    logger.info("pdf: page_count=%d ocr_page_count=%d", len(texts), len(to_ocr))
+    logger.info("pdf: page_count=%d ocr_page_count=%d table_page_count=%d", len(texts), len(to_ocr), len(layered))
     return "\n\n".join(f"--- page {i + 1} ---\n{t}" for i, t in enumerate(texts) if t)
 
 
@@ -324,6 +348,7 @@ async def extract_text(
     data: bytes,
     *,
     ocr: Ocr | None = None,
+    tables: Ocr | None = None,
     cache: TextCache | None = None,
     kinds: tuple[str, ...] | None = None,
     min_page_text: int = MIN_PAGE_TEXT,
@@ -357,7 +382,7 @@ async def extract_text(
         if cached is not None:
             return cached
     if which == detect.KIND_PDF:
-        text = await pdf_text(data, ocr=ocr, min_page_text=min_page_text, dpi=dpi, concurrency=ocr_concurrency)
+        text = await pdf_text(data, ocr=ocr, tables=tables, min_page_text=min_page_text, dpi=dpi, concurrency=ocr_concurrency)
     elif which == detect.KIND_IMAGE:
         if ocr is None:
             return ""
