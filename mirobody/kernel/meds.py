@@ -441,8 +441,10 @@ _ZH_WEEKDAY_RE = re.compile(
     r"(?:周|星期|礼拜)([一二三四五六日天][一二三四五六日天、,，和及\s]*)(?!次)"
 )  # 周一、三、五; 每周一次 is "once weekly"
 _PRN_RE = re.compile(r"\b(?:prn|as needed|when needed|if needed)\b|必要时|按需|需要时", re.I)
-#: Most specific first: "twice daily" contains "daily". ``od`` is deliberately
-#: absent: in ophthalmic sigs it means the right eye, not once daily.
+#: Most specific first: "twice daily" contains "daily", and 每天早晚 contains 每天.
+#: ``od`` is deliberately absent: in ophthalmic sigs it means the right eye,
+#: not once daily. 早晚 (morning and evening) and 早中晚 are how a Chinese sig
+#: most often says two and three a day; without them 每天早晚 read as once.
 _PER_DAY = (
     (
         re.compile(r"\b(?:four times a day|four times daily|qid|q\.i\.d\.)\b|每天四次|每日四次|一天四次|每天4次", re.I),
@@ -450,14 +452,15 @@ _PER_DAY = (
     ),
     (
         re.compile(
-            r"\b(?:three times a day|three times daily|tid|t\.i\.d\.)\b|每天三次|每日三次|一天三次|一日三次|每天3次",
+            r"\b(?:three times a day|three times daily|tid|t\.i\.d\.)\b|每天三次|每日三次|一天三次|一日三次|每天3次|早中晚",
             re.I,
         ),
         3,
     ),
     (
         re.compile(
-            r"\b(?:twice daily|twice a day|two times a day|bid|b\.i\.d\.)\b|每天两次|每日两次|一天两次|一日两次|每天2次",
+            r"\b(?:twice daily|twice a day|two times a day|bid|b\.i\.d\.|morning and (?:evening|night))\b"
+            r"|每天两次|每日两次|一天两次|一日两次|每天2次|早晚",
             re.I,
         ),
         2,

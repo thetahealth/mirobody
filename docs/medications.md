@@ -99,6 +99,7 @@ one frequency, optional clock times.
 | `500 mg twice daily` | dose 500 mg, `doses_per_day=2` |
 | `1 tablet at 08:00 and 20:00` | dose 1 `{tablet}`, `times=("08:00","20:00")` |
 | `每天两次，每次一片` | dose 1 `{tablet}`, `doses_per_day=2` |
+| `500mg 每天早晚` | dose 500 mg, `doses_per_day=2` (早晚 is two a day, 早中晚 three) |
 | `one every other day` | `period_days=2` |
 | `q8h` | `doses_per_day=3` (the clock times are NOT invented) |
 | `on Monday and Thursday` | `weekdays={1,4}` |
