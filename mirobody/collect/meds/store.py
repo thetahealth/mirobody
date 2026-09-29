@@ -300,7 +300,7 @@ class PostgresMedicationStore:
         return plan_from_row(dict(rows[0])) if rows else None
 
     async def created_by(
-        self, subject_id: str, source: str, *, since: datetime, until: datetime
+        self, subject_id: str, source: str, *, since: datetime, until: datetime, limit: int = 2000
     ) -> list[tuple[meds.MedicationPlan, datetime]]:
         """The subject's plans `source` created in `[since, until)`, newest
         first, with when each was created: the journal lists the plans a
@@ -308,9 +308,9 @@ class PostgresMedicationStore:
         rows = await execute_query(
             f"SELECT {_PLAN_COLUMNS} FROM th_medication_plan"
             " WHERE user_id = :uid AND source = :source AND deleted = 0 AND status <> :void"
-            " AND create_time >= :since AND create_time < :until ORDER BY create_time DESC",
+            " AND create_time >= :since AND create_time < :until ORDER BY create_time DESC LIMIT :limit",
             {"uid": str(subject_id), "source": source, "void": meds.PLAN_ENTERED_IN_ERROR,
-             "since": since, "until": until},
+             "since": since, "until": until, "limit": max(1, int(limit))},
             log_sql=False,
         ) or []
         return [(plan_from_row(dict(r)), r["create_time"]) for r in rows]
@@ -405,6 +405,14 @@ class PostgresMedicationStore:
             )
             if event == "stop" and closed is not None:
                 await _close_course(tx, subject_id, closed)
+            elif event == "void":
+                # An entry made in error was never followed: its open course
+                # must not read as an exposure still running.
+                await tx.execute(
+                    "UPDATE th_medication_course SET end_date = :today, closed_by = 'entered_in_error'"
+                    " WHERE plan_id = :pid AND closed_by IS NULL",
+                    {"today": today, "pid": plan_id},
+                )
             elif event == "resume":
                 # The stop already closed the previous course; the kernel hands
                 # it back for a store that recorded nothing then (a plan stopped

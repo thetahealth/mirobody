@@ -440,7 +440,10 @@ _ZH_WEEKDAYS = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "日
 _ZH_WEEKDAY_RE = re.compile(
     r"(?:周|星期|礼拜)([一二三四五六日天][一二三四五六日天、,，和及\s]*)(?!次)"
 )  # 周一、三、五; 每周一次 is "once weekly"
-_PRN_RE = re.compile(r"\b(?:prn|as needed|when needed|if needed)\b|必要时|按需|需要时", re.I)
+_PRN_RE = re.compile(
+    r"\b(?:prn|as needed|when needed|if needed|as required|when required)\b|必要时|必要的时候|按需|需要时|需要的时候",
+    re.I,
+)
 #: Most specific first: "twice daily" contains "daily", and 每天早晚 contains 每天.
 #: ``od`` is deliberately absent: in ophthalmic sigs it means the right eye,
 #: not once daily. 早晚 (morning and evening) and 早中晚 are how a Chinese sig
@@ -452,7 +455,8 @@ _PER_DAY = (
     ),
     (
         re.compile(
-            r"\b(?:three times a day|three times daily|tid|t\.i\.d\.)\b|每天三次|每日三次|一天三次|一日三次|每天3次|早中晚",
+            r"\b(?:three times a day|three times daily|tid|t\.i\.d\.)\b|每天三次|每日三次|一天三次|一日三次|每天3次"
+            r"|早[、,，和]?中[、,，和]?晚|早上[、,，和]?中午[、,，和]?晚上",
             re.I,
         ),
         3,
@@ -460,7 +464,7 @@ _PER_DAY = (
     (
         re.compile(
             r"\b(?:twice daily|twice a day|two times a day|bid|b\.i\.d\.|morning and (?:evening|night))\b"
-            r"|每天两次|每日两次|一天两次|一日两次|每天2次|早晚",
+            r"|每天两次|每日两次|一天两次|一日两次|每天2次|早[、,，和]?晚|早上[、,，和]?晚上",
             re.I,
         ),
         2,
@@ -473,6 +477,9 @@ _PER_DAY = (
         1,
     ),
 )
+#: A count said outright. 每天 / daily alone only says "every day", and qualifies
+#: a count rather than competing with it (每天早晚 is two a day, not a conflict).
+_ONCE_RE = re.compile(r"\b(?:once daily|once a day|qd)\b|每天一次|每日一次|一天一次|一日一次", re.I)
 _WEEKLY_RE = re.compile(r"\b(?:once weekly|once a week|weekly|every week)\b|每周一次|每星期一次|每周", re.I)
 _RANGE_RE = re.compile(_NUM + r"\s*[-–~]\s*" + _NUM)
 
@@ -528,14 +535,29 @@ def parse_dose_instruction(text: str | None) -> Schedule | None:
     elif _WEEKLY_RE.search(raw):
         period_days = 7
         frequencies += 1
+    # Every per-day phrase, most specific first, each blanked once matched so
+    # "twice daily" is not also "daily". Two different counts ("每天两次…每天三次")
+    # are two regimens: no parse, not the first one.
+    rest = raw
+    counts: set[int] = set()
+    said_daily = False
     for pattern, n in _PER_DAY:
-        if pattern.search(raw):
-            frequencies += 1  # counted even when another frequency already won: two frequencies is no parse
-            if not (period_days or weekdays or doses_per_day):
-                doses_per_day = n
-                if n == 1:
-                    period_days = 1
-            break
+        if pattern.search(rest):
+            said_daily = True
+            if n > 1:
+                counts.add(n)
+            rest = pattern.sub(" ", rest)
+    if _ONCE_RE.search(raw):
+        counts.add(1)
+    if len(counts) > 1:
+        return None
+    if said_daily:
+        frequencies += 1  # counted even when another frequency already won: two frequencies is no parse
+        n = next(iter(counts)) if counts else 1
+        if not (period_days or weekdays or doses_per_day):
+            doses_per_day = n
+            if n == 1:
+                period_days = 1
     if frequencies > 1:
         return None
     recognised = dose is not None or times or as_needed or period_days or doses_per_day or weekdays
@@ -640,7 +662,7 @@ class Course:
     order_id: str
     start: date
     end: date | None
-    closed_by: Literal["stopped", "superseded", "completed"] | None = None
+    closed_by: Literal["stopped", "superseded", "completed", "entered_in_error"] | None = None
 
 
 def plan_status_transition(

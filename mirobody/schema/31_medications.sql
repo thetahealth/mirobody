@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS th_medication_course (
     order_id     varchar(200) DEFAULT '',
     start_date   date NOT NULL,
     end_date     date,
-    closed_by    varchar(32),                          -- stopped | superseded | completed | NULL while open
+    closed_by    varchar(32),                          -- stopped | superseded | completed | entered_in_error | NULL while open
     create_time  timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
