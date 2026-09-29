@@ -22,9 +22,9 @@ from .llm import (
     RouteSpec,
     chat_default,
     chat_entries,
+    entry_ready,
     keys_present,
     no_provider_message,
-    read_api_key,
     resolve_route,
     retired_model_keys,
     route_candidates,
@@ -52,14 +52,15 @@ class SurfaceStatus:
 def _chat_status() -> SurfaceStatus:
     what = SURFACES[0][1]
     entries = chat_entries()
-    usable = [n for n, e in entries.items() if not (e or {}).get("api_key") or read_api_key(str((e or {}).get("api_key")))]
+    usable = [n for n, e in entries.items() if entry_ready(e)]
     default = chat_default()
     if default:
         others = [n for n in usable if n != default]
         picked = default + (f" (also {', '.join(others)})" if others else "")
         return SurfaceStatus("chat", what, picked, str((entries.get(default) or {}).get("model") or "") or None, "")
     hint = "MODELS is empty — no chat entry is configured at all." if not entries else (
-        "none of the MODELS entries has its key: " + ", ".join(f"{n} ({(e or {}).get('api_key')})" for n, e in entries.items())
+        "none of the MODELS entries has its key: "
+        + ", ".join(f"{n} ({(e or {}).get('api_key') or (e or {}).get('base_url')})" for n, e in entries.items())
     )
     return SurfaceStatus("chat", what, None, None, hint)
 

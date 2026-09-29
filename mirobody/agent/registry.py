@@ -228,7 +228,7 @@ def available_models() -> list[str]:
     """
     if not _llm_clients:
         return []
-    from mirobody.utils.config.llm import read_api_key
+    from mirobody.utils.config.llm import entry_ready
 
     cfg = global_config()
     providers = (cfg.get_agent_settings() or {}).get("providers") or {} if cfg else {}
@@ -236,14 +236,12 @@ def available_models() -> list[str]:
     for name in providers:
         if name not in _llm_clients:
             continue
-        # `read_api_key`, which `config.llm` calls THE admission function, and
-        # not `safe_read_cfg`: the vendor-documented aliases live in it. With
-        # `GEMINI_API_KEY` set and `GOOGLE_API_KEY` unset, the router resolved
-        # the key and built a real client while this returned []: an empty
-        # picker over a chat surface `mirobody doctor` called healthy. One key,
-        # two answers, twice now.
-        key_name = (providers.get(name) or {}).get("api_key", "")
-        if key_name and not read_api_key(key_name):
+        # `entry_ready`, the test `chat_default` and `mirobody doctor` use, and
+        # not a key lookup of its own: with `GEMINI_API_KEY` set and
+        # `GOOGLE_API_KEY` unset this returned [] while the router built a real
+        # client (one key, two answers, twice), and a `local` entry whose
+        # LOCAL_BASE_URL is unset would be offered and fail at chat time.
+        if not entry_ready(providers.get(name)):
             continue
         names.append(name)
     # Config order, not sorted(): `config.llm.yaml` says "in this order; the

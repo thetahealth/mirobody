@@ -167,6 +167,32 @@ def read_api_key(env_name: str) -> str:
     return ""
 
 
+def is_endpoint_name(value: str) -> bool:
+    """Whether an entry's `base_url` is a NAME to look up (`LOCAL_BASE_URL`)
+    rather than a URL. The agent's client builder already read it that way."""
+    return bool(value) and "://" not in value
+
+
+def endpoint_value(name: str) -> str:
+    """The URL a `base_url` NAME holds (environment first), or ""."""
+    from . import safe_read_cfg
+
+    return (safe_read_cfg(name, "") or "").strip()
+
+
+def entry_ready(entry: dict[str, Any] | None) -> bool:
+    """Whether an entry's key and endpoint are both there: the one test the
+    chat picker, its default and `mirobody doctor` share. An entry whose
+    `base_url` names an unset variable is off: that is how the shipped
+    `local` entries stay out of the way until `LOCAL_BASE_URL` is set."""
+    entry = entry or {}
+    ref = str(entry.get("api_key") or "").strip()
+    if ref and not read_api_key(ref):
+        return False
+    base = str(entry.get("base_url") or "").strip()
+    return not is_endpoint_name(base) or bool(endpoint_value(base) or base_url_override(ref))
+
+
 def base_url_override(api_key_env: str) -> str:
     """`<PREFIX>_BASE_URL` for the key named `api_key_env` (OPENROUTER_API_KEY
     → OPENROUTER_BASE_URL), or "". The one redirect rule, applied to every
@@ -201,6 +227,7 @@ class RouteSpec:
     reasoning_effort: str | None = None    # sent only when the entry declares it
     extra_body: dict[str, Any] = field(default_factory=dict)
     temperature: float | None = None
+    base_url_env: str = ""         # the NAME `base_url` was given as; "" = a literal URL
 
     @property
     def takes_json_object(self) -> bool:
@@ -214,6 +241,8 @@ class RouteSpec:
 
     @property
     def routable(self) -> bool:
+        if self.base_url_env and not self.base_url:
+            return False
         return bool(self.model) and (not self.api_key_env or bool(self.key))
 
     @property
@@ -265,7 +294,10 @@ def _spec_from_mapping(alias: str, entry: dict[str, Any]) -> RouteSpec | None:
         return None
     api_key_env = str(entry.get("api_key") or "").strip()
     base_url = str(entry.get("base_url") or "").strip()
-    if not base_url and api_key_env:
+    base_url_env = ""
+    if is_endpoint_name(base_url):
+        base_url_env, base_url = base_url, endpoint_value(base_url)
+    elif not base_url and api_key_env:
         for _name, (key, url) in KNOWN_ENDPOINTS.items():
             if key == api_key_env:
                 base_url = url
@@ -279,6 +311,7 @@ def _spec_from_mapping(alias: str, entry: dict[str, Any]) -> RouteSpec | None:
         reasoning_effort=(str(entry["reasoning_effort"]).strip() or None) if entry.get("reasoning_effort") else None,
         extra_body=dict(entry.get("extra_body") or {}),
         temperature=float(temperature) if isinstance(temperature, (int, float)) else None,
+        base_url_env=base_url_env,
     )
 
 
@@ -318,7 +351,7 @@ KNOWN_ENTRY_KEYS: frozenset[str] = frozenset({
     # read by the agent's client builder (`agent/models/clients.py`)
     "profile", "thinking_style", "auth_type", "prompt_cache", "response_with_tools",
     "project", "location", "reasoning", "max_tokens", "max_output_tokens",
-    "streaming", "stream_usage", "model_kwargs", "output_config",
+    "streaming", "stream_usage", "model_kwargs", "output_config", "stream_chunk_timeout",
 })
 
 
@@ -430,23 +463,24 @@ def no_provider_message(surface: str) -> str:
             f"No {surface} model available: {key} is not set. In config.llm.yaml, set it to a "
             f"MODELS entry (or a list of them), or to provider/model."
         )
-    names, needed, skipped = [], [], []
+    names, keys, urls, skipped = [], [], [], []
     for c in candidates:
         if isinstance(c, str):
             names.append(f"{c} (not a MODELS entry)")
             continue
-        names.append(f"{c.alias} ({c.api_key_env or 'no key'})")
+        names.append(f"{c.alias} ({c.api_key_env or c.base_url_env or 'no key'})")
         if c.api_key_env and not c.key:
-            needed.append(c.api_key_env)
+            keys.append(c.api_key_env)
+        elif c.base_url_env and not c.base_url:
+            urls.append(c.base_url_env)
         elif not _fits(surface, c):
             skipped.append(f"{c.alias} declares supports_image: false")
-    seen: list[str] = []
-    for k in needed:
-        if k not in seen:
-            seen.append(k)
-    where = ", ".join(f"{k} ({KEYS_URL[k]})" if k in KEYS_URL else k for k in seen)
+    keys, urls = list(dict.fromkeys(keys)), list(dict.fromkeys(urls))
+    where = ", ".join(f"{k} ({KEYS_URL[k]})" if k in KEYS_URL else k for k in keys)
+    if urls:
+        where += (", or " if where else "") + " / ".join(urls) + " (the URL of your own model server)"
     text = f"No {surface} model available: {key} lists {', '.join(names)}"
-    if seen:
+    if keys or urls:
         text += f"; none of these keys is set. Put ONE in .env: {where}."
     elif skipped:
         text += f"; {'; '.join(skipped)} — set {key} to an entry whose model reads images."
@@ -465,11 +499,9 @@ def chat_entries() -> dict[str, dict[str, Any]]:
 
 def chat_default() -> str | None:
     """The chat picker's default: the first `MODELS` entry (config order,
-    utility-only entries excluded) whose key is present, or that names no
-    key (ambient auth). None when none is."""
+    utility-only entries excluded) that `entry_ready` admits. None when none is."""
     for name, entry in chat_entries().items():
-        ref = str((entry or {}).get("api_key") or "").strip()
-        if not ref or read_api_key(ref):
+        if entry_ready(entry):
             return name
     return None
 

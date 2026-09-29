@@ -20,6 +20,9 @@
 #   ANTHROPIC_API_KEY    claude          anthropic-utils
 #   DEEPSEEK_API_KEY     deepseek        deepseek-utils
 #
+# No key at all: run your own model server and set LOCAL_BASE_URL in .env instead;
+# the `local` and `local-utils` entries below then serve every surface.
+#
 # `mirobody doctor` (and the boot log) prints what the current config selects.
 # Model ids verified against each vendor's catalogue on 2026-09-10.
 
@@ -135,6 +138,19 @@ MODELS:
     model: openai/gpt-5.6-terra
     temperature: 0.1
     supports_image: true
+  local:
+    # Your own OpenAI-compatible model server, e.g. llama-server. No key, and off
+    # until LOCAL_BASE_URL is set in .env:
+    #   LOCAL_BASE_URL=http://127.0.0.1:8080/v1                (the app on this machine)
+    #   LOCAL_BASE_URL=http://host.docker.internal:8080/v1     (the app in Docker)
+    # llama-server ignores `model`; a server that hosts several needs the one to use.
+    llm_type: openai
+    base_url: LOCAL_BASE_URL
+    model: local
+    temperature: 0
+    supports_image: true
+    stream_chunk_timeout: 600     # nothing streams while a local model reads the prompt:
+                                  # 80 s for the first 8k tokens on an M4 Pro (Bonsai-27B)
 
   # Utility entries (chat: false) — the models behind file parsing, indicator
   # extraction, titles and summaries. MULTIMODAL, one per key, thinking off:
@@ -197,6 +213,17 @@ MODELS:
       thinking:
         type: disabled
 
+  local-utils:
+    llm_type: openai
+    base_url: LOCAL_BASE_URL
+    model: local
+    temperature: 0
+    supports_image: true
+    chat: false
+    extra_body:
+      chat_template_kwargs:       # thinking off where the template has the switch (Qwen family)
+        enable_thinking: false
+
   # More models on a key you already have — add an entry, e.g. Kimi on DashScope:
   # kimi: {llm_type: openai, api_key: DASHSCOPE_API_KEY, base_url: https://dashscope.aliyuncs.com/compatible-mode/v1, model: kimi-k2.5, temperature: 0.1}
 
@@ -215,11 +242,11 @@ MODELS:
 # surface that reads a photo and the surface that reads its text should land on
 # the same vendor, so one unreachable gateway degrades both together instead of
 # leaving a deployment that extracts text but cannot open an image.
-UTILS_VISION_MODEL: [openrouter-utils, qwen-utils, gemini-utils, openai-utils, anthropic-utils, deepseek-utils]
+UTILS_VISION_MODEL: [openrouter-utils, qwen-utils, gemini-utils, openai-utils, anthropic-utils, deepseek-utils, local-utils]
 
 # Indicator extraction from text, file titles/summaries, conversation titles.
 # Not the chat default on purpose: reordering the picker must not change extraction.
-UTILS_TEXT_MODEL: [openrouter-utils, qwen-utils, gemini-utils, openai-utils, anthropic-utils, deepseek-utils]
+UTILS_TEXT_MODEL: [openrouter-utils, qwen-utils, gemini-utils, openai-utils, anthropic-utils, deepseek-utils, local-utils]
 
 #-----------------------------------------------------------------------------
 # The agent.
