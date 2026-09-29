@@ -174,6 +174,8 @@ boundary.
   with no `aal`. Refresh tokens are now refused as bearers, the token endpoint
   requires a refresh token issued to the presenting client, and `aal` rides
   from the authorising session through the code, the tokens and every refresh.
+  `/mcp` and `/personal/mcp` decode the header a second time, and that decode
+  took a refresh token too; it no longer does.
 - **OAuth: PKCE and `redirect_uri` are checked.** The metadata advertised
   S256 and nothing verified it. A redirect flow now requires
   `code_challenge_method=S256`, and the token request must present the

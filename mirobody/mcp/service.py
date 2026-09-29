@@ -16,6 +16,7 @@ from mirobody.utils.http import META_PROTOCOL_VERSION, request_origin
 from mirobody.utils import get_jwt_token, json_response, json_response_with_code, jsonrpc_result, jsonrpc_error
 
 from mirobody.user import AbstractTokenValidator
+from mirobody.user.auth.jwt import REFRESH_TOKEN_TYPE
 
 from .tool import load_tools_from_directories, call_tool
 
@@ -475,6 +476,9 @@ class McpService:
                     logger.warning("Invalid token payload")
                 elif "sub" not in payload:
                     logger.warning("No sub field found")
+                elif payload.get("token_type") == REFRESH_TOKEN_TYPE:
+                    # The HTTP middleware refuses these; this second decode did not.
+                    logger.warning("MCP: refresh token presented as a bearer")
                 else:
                     user_id = await _live(payload["sub"])
 
@@ -694,7 +698,7 @@ class McpService:
         payload, err = self._token_validator.verify_token(get_jwt_token(request))
         if err:
             return "", json_response_with_code(-2, err, request=request, status=401)
-        if not payload:
+        if not payload or payload.get("token_type") == REFRESH_TOKEN_TYPE:
             return "", json_response_with_code(-3, "Empty token payload.", request=request, status=401)
 
         try:
