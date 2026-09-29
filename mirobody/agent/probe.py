@@ -115,6 +115,42 @@ async def _ocr() -> tuple[bool, str]:
     return "5.4" in text, f"{spec.alias}: {text.strip()[:80]!r}"
 
 
+def _local_models() -> set[tuple[str, str]]:
+    """(endpoint, model) for every surface on a local server: an entry whose
+    base_url is a variable, the way the shipped local entries are written."""
+    from mirobody.utils.config.llm import chat_default, chat_entries, endpoint_value, is_endpoint_name, resolve_route
+
+    pairs = set()
+    name = chat_default()
+    entry = chat_entries().get(name) or {} if name else {}
+    base = str(entry.get("base_url") or "")
+    if is_endpoint_name(base) and endpoint_value(base):
+        pairs.add((endpoint_value(base), str(entry.get("model"))))
+    for surface in ("text", "vision", "ocr"):
+        spec = resolve_route(surface)
+        if spec is not None and spec.base_url_env:
+            pairs.add((spec.base_url, spec.model))
+    return pairs
+
+
+async def _served() -> tuple[bool, str]:
+    """Each local server runs the model its entry names. llama-server answers
+    any model name with whatever it loaded, so a swapped file shows up only here."""
+    import urllib.request
+
+    def ids(base: str) -> list[str]:
+        with urllib.request.urlopen(base.rstrip("/") + "/models", timeout=10) as response:
+            return [str(m.get("id")) for m in json.load(response).get("data") or []]
+
+    wrong, seen = [], []
+    for base, model in sorted(_local_models()):
+        served = await asyncio.to_thread(ids, base)
+        seen.append(f"{base} {'/'.join(served)}")
+        if model not in served:
+            wrong.append(f"{base} serves {', '.join(served) or 'nothing'}, the entry names {model}")
+    return not wrong, "; ".join(wrong) if wrong else "; ".join(seen)
+
+
 async def probe_surfaces() -> list[ProbeResult]:
     """chat, text, vision (and ocr when routed), one after the other (a local server may have one slot)."""
     from mirobody.utils.config.llm import resolve_route
@@ -122,6 +158,8 @@ async def probe_surfaces() -> list[ProbeResult]:
     probes = [("chat", _chat), ("text", _text), ("vision", _vision)]
     if resolve_route("ocr") is not None:
         probes.append(("ocr", _ocr))
+    if _local_models():
+        probes.insert(0, ("served", _served))
     results = []
     for surface, probe in probes:
         start = time.monotonic()
