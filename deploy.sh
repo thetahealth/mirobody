@@ -143,7 +143,15 @@ if ! has_setting DOCKER_MIRROR && [[ -z "${DOCKER_MIRROR:-}" ]] && ! registry_an
     done
 fi
 
-app_image="$(docker compose config --images | grep -m1 mirobody)"
+# By service, not by name: `--images mirobody` also lists the images it
+# depends on (pg), and an image named anything (registry.example.com/app)
+# must still be found. grep failing under `set -e` exited here silently.
+pg_image="$(docker compose config --images pg)"
+app_image="$(docker compose config --images mirobody | grep -vxF "$pg_image" | head -n 1 || true)"
+if [[ -z "$app_image" ]]; then
+    printf 'Could not tell which image compose.yaml runs as the mirobody service; check MIROBODY_IMAGE in .env.\n' >&2
+    exit 1
+fi
 if ! docker image inspect "$app_image" >/dev/null 2>&1 && ! docker compose pull --quiet mirobody; then
     # Before a release is published, on a branch, or when no registry answers:
     # the checkout has everything the published image is built from.
