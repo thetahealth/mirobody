@@ -139,14 +139,14 @@ MODELS:
     temperature: 0.1
     supports_image: true
   local:
-    # Your own OpenAI-compatible model server, e.g. llama-server. No key, and off
-    # until LOCAL_BASE_URL is set in .env:
+    # The local agent: Ternary Bonsai 2 27B (PTQ1_0 + its mmproj) on PrismML's
+    # llama-server, which `shell/local-models.sh start` runs as `bonsai-27b`.
+    # No key, and off until LOCAL_BASE_URL is set in .env:
     #   LOCAL_BASE_URL=http://127.0.0.1:8080/v1                (the app on this machine)
     #   LOCAL_BASE_URL=http://host.docker.internal:8080/v1     (the app in Docker)
-    # llama-server ignores `model`; a server that hosts several needs the one to use.
     llm_type: openai
     base_url: LOCAL_BASE_URL
-    model: local
+    model: bonsai-27b
     temperature: 0
     supports_image: true
     stream_chunk_timeout: 600     # nothing streams while a local model reads the prompt:
@@ -214,9 +214,11 @@ MODELS:
         type: disabled
 
   local-utils:
+    # The same Bonsai server with thinking off: titles, summaries, the report
+    # date, and whatever a document's tables did not hold.
     llm_type: openai
     base_url: LOCAL_BASE_URL
-    model: local
+    model: bonsai-27b
     temperature: 0
     supports_image: true
     chat: false
@@ -227,10 +229,10 @@ MODELS:
         enable_thinking: false
 
   local-ocr:
-    # A document-OCR model on your own server (GLM-OCR-0.9B on llama-server).
+    # GLM-OCR-0.9B (Q8_0 + its mmproj), `glm-ocr` in shell/local-models.sh.
     # Off until LOCAL_OCR_BASE_URL is set. It reads report photos and pages:
     # one pass per prompt, the text and then the tables, whose columns are
-    # read without a model; local-utils still writes titles and summaries.
+    # read without a model.
     llm_type: openai
     base_url: LOCAL_OCR_BASE_URL
     model: glm-ocr

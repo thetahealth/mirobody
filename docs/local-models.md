@@ -27,22 +27,26 @@ the model writes each one out at 16 tokens a second.
 
 ## Setup
 
-**1. Two model servers.** The entries speak the OpenAI-compatible API; these
-are the servers that were measured:
+**1. Two model servers.** The local stack is these two models, on PrismML's
+`llama-server` (its [releases](https://github.com/PrismML-Eng/llama.cpp/releases);
+stock llama.cpp cannot load Bonsai's ternary GGUF). Download the four files:
+
+| | Hugging Face repo | files |
+| --- | --- | --- |
+| documents | `ggml-org/GLM-OCR-GGUF` (MIT) | `GLM-OCR-Q8_0.gguf`, `mmproj-GLM-OCR-Q8_0.gguf` |
+| agent | `prism-ml/Ternary-Bonsai-2-27B-gguf` | `Ternary-Bonsai-2-27B-PTQ1_0.gguf`, `Ternary-Bonsai-2-27B-mmproj-Q8_0.gguf` |
+
+and start both with the measured flags:
 
 ```bash
-# documents: GLM-OCR-0.9B (MIT), ggml-org/GLM-OCR-GGUF
-llama-server -m GLM-OCR-Q8_0.gguf --mmproj mmproj-GLM-OCR-Q8_0.gguf \
-  --host 127.0.0.1 --port 8081 -c 16384 --jinja -ngl 99
-
-# the agent
-llama-server -m Ternary-Bonsai-2-27B-PTQ1_0.gguf \
-  --mmproj Ternary-Bonsai-2-27B-mmproj-Q8_0.gguf \
-  --host 127.0.0.1 --port 8080 -c 65536 -np 2 --jinja -ngl 99 --reasoning on
+LLAMA_SERVER=~/llama-prism/llama-server MODELS_DIR=~/models shell/local-models.sh start
+shell/local-models.sh status      # glm-ocr :8081 glm-ocr / bonsai-27b :8080 bonsai-27b
 ```
 
-`--jinja` is what turns on tool calls, and `--mmproj` is the vision half of each
-model. GLM-OCR answers only its own task prompts (`Text Recognition:`,
+The script names each server by the model id `config.llm.yaml` expects
+(`--alias`), and `mirobody doctor --probe` checks that each server is running
+that model: llama-server answers any model name with whatever file it loaded.
+GLM-OCR answers only its own task prompts (`Text Recognition:`,
 `Table Recognition:`), which the `local-ocr` entry sends, one pass each.
 
 **2. Two lines in `.env`:**
