@@ -191,6 +191,11 @@ boundary.
 
 ### Changed
 
+- **The genetic tools say what they could not match.** `query_pharmacogenomics`
+  dropped an unknown drug silently when another matched
+  (`["clopidogrel", "warfarin", "notadrug"]` said nothing about the third); it
+  now notes `no CPIC A/B gene-drug pair for: notadrug`. `query_genetic_data`
+  refused `chr10` and `chrM`; they are read as `10` and `MT`.
 - **Asking on someone's behalf answered as if the record were the asker's.**
   The agent read the other person's record but was never told so. Answers said
   "your cholesterol" over her numbers and flagged `mom_lab_2025-11.md` as "not

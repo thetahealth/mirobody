@@ -65,7 +65,7 @@ def validate_query(args: Mapping[str, Any]) -> tuple[query.Rejection, ...]:
     if any(not rsid.startswith("rs") or not rsid[2:].isdigit() for rsid in rsids):
         out.append(query.Rejection("rsids", "each identifier must be an rsID"))
     gene = str(args.get("gene") or "").strip()
-    chrom = str(args.get("chromosome") or "").strip().upper()
+    chrom = _chromosome(args)
     region = _is_region(rsids, gene, chrom, args)
     if sum((bool(rsids), bool(gene), region)) > 1:
         out.append(query.Rejection("selector", "choose rsids, gene, or region in one call"))
@@ -83,6 +83,15 @@ def validate_query(args: Mapping[str, Any]) -> tuple[query.Rejection, ...]:
         elif chrom == "PAR" and args.get("build") != "raw":
             out.append(query.Rejection("build", "PAR uses only raw upload coordinates"))
     return tuple(out)
+
+
+def _chromosome(args: Mapping[str, Any]) -> str:
+    """The chromosome as the upload stores it: `chr10` and `M` are how UCSC
+    and many papers write 10 and MT, and refusing them cost a retry."""
+    chrom = str(args.get("chromosome") or "").strip().upper()
+    if chrom.startswith("CHR"):
+        chrom = chrom[3:]
+    return "MT" if chrom == "M" else chrom
 
 
 def _is_region(rsids: Sequence[str], gene: str, chrom: str, args: Mapping[str, Any]) -> bool:
@@ -104,7 +113,7 @@ def parse_query(args: Mapping[str, Any]) -> GeneticRequest:
         raise ValueError("; ".join(f"{p.parameter}: {p.reason}" for p in problems))
     rsids = query.normalize_list_arg(args.get("rsids"))
     gene = str(args.get("gene") or "").strip().upper()
-    chrom = str(args.get("chromosome") or "").strip().upper()
+    chrom = _chromosome(args)
     region = _is_region(rsids, gene, chrom, args)
     return GeneticRequest(
         rsids=rsids,
