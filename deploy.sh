@@ -13,18 +13,21 @@ chmod 600 .env
 
 has_setting() { grep -q "^${1}=" .env; }
 add_setting() { printf '%s=%s\n' "$1" "$2" >> .env; }
+setting() { sed -n "s/^${1}=//p" .env | head -n 1; }
 
 if ! has_setting ENV; then
     add_setting ENV "${ENV:-localdb}"
 fi
-env_name="${ENV:-$(sed -n 's/^ENV=//p' .env | head -n 1)}"
+env_name="${ENV:-$(setting ENV)}"
 legacy_overlay="config.${env_name}.yaml"
 
-legacy_value() {
-    if [[ ! -f "$legacy_overlay" ]]; then
-        return
-    fi
-    awk -v name="$1" '$1 == name ":" {print $2; exit}' "$legacy_overlay" | tr -d "'\""
+# The overlay a pre-1.5.3 deploy wrote. The app encrypts any `*_KEY` or
+# `*_PASSWORD` it finds there and rewrites the file, so a value may be a
+# Fernet token (`gAAAA...`, sometimes folded onto the next line) that only the
+# app can read. `overlay_plain` answers only for a value still in plain text.
+overlay_defines() { [[ -f "$legacy_overlay" ]] && grep -qE "^${1}:" "$legacy_overlay"; }
+overlay_plain() {
+    awk -v name="$1" '$1 == name ":" {print $2; exit}' "$legacy_overlay" | tr -d "'\"" | grep -v '^gAAAA' || true
 }
 
 if [[ -f "$legacy_overlay" ]] && ! has_setting MIROBODY_CONFIG_FILE; then
@@ -34,15 +37,39 @@ if ! has_setting MIROBODY_ENV_FILE; then
     add_setting MIROBODY_ENV_FILE './.env'
 fi
 
-project_name="${COMPOSE_PROJECT_NAME:-$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' .env | head -n 1)}"
+# A 1.5.2 override names the redis service and mounts the checkout over /app,
+# which in 1.5.3 is an invalid compose file or an image with its code hidden.
+if [[ -f compose.override.yaml ]] \
+    && grep -qE '^[[:space:]]*redis:|/root/venv|^[[:space:]]*-[[:space:]]*\.:/app' compose.override.yaml; then
+    printf '%s\n' \
+        'compose.override.yaml was written for 1.5.2: it names the redis service or mounts' \
+        'this checkout over /app. 1.5.3 runs a built image with no Redis. Replace it:' \
+        '    mv compose.override.yaml compose.override.yaml.1.5.2' \
+        '    cp compose.override.yaml.example compose.override.yaml' \
+        'and run ./deploy.sh again. docs/backup-restore.md, "Upgrading from 1.5.2", has the rest.' >&2
+    exit 1
+fi
+
+# Compose's project name is the directory's, lowercased and stripped to
+# [a-z0-9_-]: a checkout in `Mirobody/` keeps its database in volume
+# `mirobody_mirobody_postgres`, and asking for `Mirobody_...` finds nothing.
+project_name="${COMPOSE_PROJECT_NAME:-$(setting COMPOSE_PROJECT_NAME)}"
 project_name="${project_name:-$(basename "$PWD")}"
+project_name="$(printf '%s' "$project_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]//g')"
+data_dir="${MIROBODY_DATA:-$(setting MIROBODY_DATA)}"
+data_dir="${data_dir:-../mirobody-data}"
 existing_database=false
 if docker volume inspect "${project_name}_mirobody_postgres" >/dev/null 2>&1; then
+    existing_database=true
+elif [[ -f compose.override.yaml && -d "${data_dir}/pgdata" ]] \
+    && { [[ ! -r "${data_dir}/pgdata" ]] || [[ -n "$(ls -A "${data_dir}/pgdata")" ]]; }; then
+    # The bind-mount override keeps the database outside any named volume. The
+    # directory belongs to Postgres's uid, so unreadable counts as in use.
     existing_database=true
 fi
 
 ensure_secret() {
-    local name=$1 old_value
+    local name=$1 plain
     if has_setting "$name"; then
         return
     fi
@@ -50,23 +77,44 @@ ensure_secret() {
         add_setting "$name" "${!name}"
         return
     fi
-    old_value="$(legacy_value "$name")"
-    if [[ -n "$old_value" && "$old_value" != REPLACE_THIS_VALUE_IN_PRODUCTION ]]; then
-        # The old deploy script kept JWT and database encryption in the YAML
-        # overlay; changing either would strand existing data or sessions.
-        if [[ "$name" == CONFIG_ENCRYPTION_KEY || "$name" == LOG_ENCRYPTION_KEY || "$name" == PG_PASSWORD ]]; then
-            add_setting "$name" "$old_value"
-        fi
-        return
+    if overlay_defines "$name"; then
+        plain="$(overlay_plain "$name")"
+        case "$name" in
+            JWT_KEY|PG_ENCRYPTION_KEY)
+                # The overlay is still mounted and the app decrypts it, so its
+                # value stays in charge. A new one here would sign everyone out,
+                # or leave every encrypted field unreadable.
+                if [[ "$plain" != REPLACE_THIS_VALUE_IN_PRODUCTION ]]; then
+                    return
+                fi
+                ;;
+            *)
+                # Needed before the app reads the overlay: CONFIG_ENCRYPTION_KEY
+                # decrypts it, and compose hands PG_PASSWORD to Postgres and the app.
+                if [[ -z "$plain" ]]; then
+                    printf '%s in %s is encrypted, and compose needs it before the app can read that file.\n' "$name" "$legacy_overlay" >&2
+                    printf 'Put its plain value in .env as %s=... and run ./deploy.sh again.\n' "$name" >&2
+                    exit 1
+                fi
+                if [[ "$plain" != REPLACE_THIS_VALUE_IN_PRODUCTION ]]; then
+                    add_setting "$name" "$plain"
+                    return
+                fi
+                ;;
+        esac
     fi
-    if [[ "$existing_database" == true && "$name" == PG_PASSWORD ]]; then
-        # The pre-1.5.3 Compose service used this fixed database password.
-        add_setting PG_PASSWORD REPLACE_THIS_VALUE_IN_PRODUCTION
-        return
-    fi
-    if [[ "$existing_database" == true && "$name" == PG_ENCRYPTION_KEY ]]; then
-        printf 'Existing database found. Restore its PG_ENCRYPTION_KEY from the old config overlay into .env before upgrading.\n' >&2
-        exit 1
+    if [[ "$existing_database" == true ]]; then
+        case "$name" in
+            PG_PASSWORD|PG_ENCRYPTION_KEY)
+                # What a 1.5.2 stack used: compose's fixed database password,
+                # and config.yaml's placeholder as the field-encryption key. Any
+                # new value leaves the database unreachable or its encrypted
+                # fields unreadable.
+                add_setting "$name" REPLACE_THIS_VALUE_IN_PRODUCTION
+                printf 'Existing database: %s keeps the placeholder value 1.5.2 used. See SECURITY.md before exposing this deployment.\n' "$name" >&2
+                return
+                ;;
+        esac
     fi
     if ! command -v openssl >/dev/null 2>&1; then
         printf 'OpenSSL is required to generate %s. Set it in .env and retry.\n' "$name" >&2
@@ -81,8 +129,48 @@ ensure_secret CONFIG_ENCRYPTION_KEY
 ensure_secret LOG_ENCRYPTION_KEY
 ensure_secret JWT_KEY
 
-printf 'Starting Mirobody with %s\n' "${MIROBODY_IMAGE:-thetahealth/mirobody:1.5.3}"
-docker compose up -d --wait --wait-timeout 600
-printf '\nOpen http://localhost:%s\n' "${MIROBODY_HOST_PORT:-18060}"
-printf 'Demo sign-in: you@mirobody.ai / 111111\n'
+# Ask the daemon, which is what pulls: the shell's proxy settings are not the
+# daemon's, and hub.docker.com (the website) is not registry-1.docker.io. The
+# smallest real image answers in one round trip.
+registry_answers() { docker pull --quiet "${1}library/hello-world:latest" >/dev/null 2>&1; }
+if ! has_setting DOCKER_MIRROR && [[ -z "${DOCKER_MIRROR:-}" ]] && ! registry_answers ""; then
+    for mirror in docker.1ms.run/; do
+        if registry_answers "$mirror"; then
+            printf 'Docker Hub is unreachable from the daemon; using the mirror %s\n' "$mirror"
+            add_setting DOCKER_MIRROR "$mirror"
+            break
+        fi
+    done
+fi
+
+app_image="$(docker compose config --images | grep -m1 mirobody)"
+if ! docker image inspect "$app_image" >/dev/null 2>&1 && ! docker compose pull --quiet mirobody; then
+    # Before a release is published, on a branch, or when no registry answers:
+    # the checkout has everything the published image is built from.
+    if head -c 40 mirobody/res/loinc/fhir_loinc_bundle.tar.gz | grep -q git-lfs; then
+        printf 'Could not pull %s, and this checkout has Git LFS pointers instead of the\n' "$app_image" >&2
+        printf 'terminology bundle, so it cannot be built here. Run: git lfs install && git lfs pull\n' >&2
+        exit 1
+    fi
+    printf 'Could not pull %s. Building it from this checkout (several minutes the first time).\n' "$app_image"
+    docker build -t "$app_image" \
+        --build-arg "UBUNTU_IMAGE=${DOCKER_MIRROR:-$(setting DOCKER_MIRROR)}ubuntu:24.04" \
+        ${PIP_INDEX_URL:+--build-arg "PIP_INDEX_URL=${PIP_INDEX_URL}"} .
+fi
+
+printf 'Starting Mirobody with %s\n' "$app_image"
+# --remove-orphans: a 1.5.2 stack's redis container is not part of 1.5.3.
+docker compose up -d --wait --wait-timeout 600 --remove-orphans
+
+for old in "${project_name}_mirobody_redis" "${project_name}_mirobody_site_packages"; do
+    if docker volume inspect "$old" >/dev/null 2>&1; then
+        printf 'Volume %s is from 1.5.2 and no longer used: docker volume rm %s\n' "$old" "$old"
+    fi
+done
+
+port="${MIROBODY_HOST_PORT:-$(setting MIROBODY_HOST_PORT)}"
+printf '\nOpen http://localhost:%s\n' "${port:-18060}"
+if [[ "${SEED_DEMO_DATA:-$(setting SEED_DEMO_DATA)}" != false ]]; then
+    printf 'Demo sign-in: you@mirobody.ai / 111111\n'
+fi
 printf 'Set one model API key in .env, then run: docker compose up -d\n'

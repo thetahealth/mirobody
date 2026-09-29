@@ -1,6 +1,8 @@
 services:
   pg:
-    image: pgvector/pgvector:0.8.6-pg17-trixie
+    # DOCKER_MIRROR ("docker.1ms.run/") is set by deploy.sh when the daemon
+    # cannot reach Docker Hub.
+    image: ${DOCKER_MIRROR:-}pgvector/pgvector:0.8.6-pg17-trixie
     restart: unless-stopped
     shm_size: 256mb
     ports:
@@ -19,7 +21,7 @@ services:
       start_period: 30s
 
   mirobody: &mirobody
-    image: ${MIROBODY_IMAGE:-thetahealth/mirobody:1.5.3}
+    image: ${MIROBODY_IMAGE:-${DOCKER_MIRROR:-}thetahealth/mirobody:1.5.3}
     restart: unless-stopped
     env_file:
       - ${MIROBODY_ENV_FILE:-./docker/empty-environment}

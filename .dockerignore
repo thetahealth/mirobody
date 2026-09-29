@@ -17,6 +17,9 @@
 !scripts/build_backend.py
 !frontend/
 !frontend/**
+!demo/
+!demo/seed/
+!demo/seed/**
 
 # These can appear below an allowed directory on a developer machine.
 **/.env

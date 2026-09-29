@@ -14,6 +14,8 @@
 #   0 3 * * *  cd /srv/mirobody && BACKUP_DIR=/mnt/nas/mirobody shell/backup.sh >> /var/log/mirobody-backup.log 2>&1
 #
 set -euo pipefail
+# The dump and the archive are health records: readable by this user only.
+umask 077
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -34,6 +36,8 @@ PG_DB="${PG_DB:-holistic_db}"
 # is checked to exist before it is read.
 PROJECT="${COMPOSE_PROJECT_NAME:-$(env_setting COMPOSE_PROJECT_NAME)}"
 PROJECT="${PROJECT:-$(basename "$PWD")}"
+# Compose lowercases the name and keeps only [a-z0-9_-].
+PROJECT="$(printf '%s' "$PROJECT" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]//g')"
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
@@ -70,8 +74,17 @@ log "dumping database $PG_DB (custom format) -> $DUMP"
 # the archive's table of contents, so it fails on a truncated or empty file.
 docker compose exec -T pg sh -c \
     "pg_dump -U '$PG_USER' -d '$PG_DB' -Fc -f '$STAGED' && pg_restore --list '$STAGED' > /dev/null"
-docker compose cp "pg:$STAGED" "$DUMP"
+# Streamed out rather than `docker compose cp`: that writes through the
+# daemon, which on snap Docker sees its own private /tmp and refused a
+# BACKUP_DIR under the host's.
+if ! docker compose exec -T pg cat "$STAGED" > "$DUMP.partial"; then
+    rm -f "$DUMP.partial"
+    docker compose exec -T pg rm -f "$STAGED"
+    log "FATAL: could not copy the dump out of the pg container"
+    exit 1
+fi
 docker compose exec -T pg rm -f "$STAGED"
+mv "$DUMP.partial" "$DUMP"
 log "dump verified readable ($(du -h "$DUMP" | cut -f1))"
 
 #-----------------------------------------------------------------------------

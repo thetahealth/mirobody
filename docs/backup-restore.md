@@ -150,6 +150,36 @@ docker compose up -d
 4. Watch that log tail: the schema DDL runs on the first start (see below), and
    a file that fails is logged with its `sql_filename`.
 
+### Upgrading from 1.5.2
+
+1.5.3 runs a built image with Postgres as its only state service; 1.5.2 ran
+the checkout with Redis beside it. `./deploy.sh` does the rest, with four
+things to know first:
+
+- **Stop the worker and let it finish** (`docker compose stop mirobody_worker`
+  on the 1.5.2 checkout) if a profile refresh was queued. Redis's queue is not
+  carried over; a lost refresh is redone at the next upload.
+- **A `compose.override.yaml` written for 1.5.2 stops the deploy.** It names
+  the redis service and mounts the checkout over `/app`. Move it aside and
+  start from the current example:
+
+  ```bash
+  mv compose.override.yaml compose.override.yaml.1.5.2
+  cp compose.override.yaml.example compose.override.yaml
+  ```
+
+- **Secrets carry over.** The overlay's `JWT_KEY` stays in charge, so nobody
+  is signed out. A database the 1.5.2 compose stack created keeps its
+  password and its field-encryption key, which were `config.yaml`'s
+  placeholder (see SECURITY.md before exposing it). A value the app encrypted
+  in the overlay that compose needs in plain text (`PG_PASSWORD`) is asked for.
+- **Afterwards** the redis container is removed (`--remove-orphans`); the
+  script names the two 1.5.2 volumes that are no longer used
+  (`*_mirobody_redis`, `*_mirobody_site_packages`) for `docker volume rm`.
+  Personal MCP links from 1.5.2 stop working: make new ones in Settings. The
+  first start builds one index on `th_observation` (`idx_th_observation_user_created`),
+  which on a large table holds writes to it for that long.
+
 ### How the schema actually changes
 
 `server/bootstrap.py::create_schema` replays **every** file in

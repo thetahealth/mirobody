@@ -164,6 +164,10 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 
 `deploy.sh` 会在 `.env` 中生成本机密钥，并从 Docker Hub 拉取
 `thetahealth/mirobody:1.5.3`。镜像已经带有词表，Docker 用户不需要 Git LFS。
+Docker 守护进程连不上 Docker Hub 时，改用 `docker.1ms.run` 镜像源；
+镜像完全拉不到时（分支，或版本尚未发布），用当前检出在本机构建，
+这时需要先 `git lfs pull`。从 1.5.2 升级见
+[docs/backup-restore.md](docs/backup-restore.md#upgrading-from-152)。
 第二份检出可在其 `.env`
 设置 `COMPOSE_PROJECT_NAME` 和宿主端口；不支持 named volume 的 Docker 可使用
 `compose.override.yaml.example` 改为 bind mount。

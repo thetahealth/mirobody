@@ -84,7 +84,11 @@ others:
   the user profile's stored markdown. Readings in `th_observation` (its
   `note_text` aside) and genotypes in `th_genotype` are not covered. Generate
   and set `PG_ENCRYPTION_KEY` too; `config.yaml` ships it under the same
-  `REPLACE_THIS_VALUE_IN_PRODUCTION` placeholder.
+  `REPLACE_THIS_VALUE_IN_PRODUCTION` placeholder. A stack first deployed with
+  1.5.2's `deploy.sh` encrypted with that placeholder, and upgrading keeps it:
+  a new key would leave those fields unreadable, and there is no command yet
+  that re-encrypts them (`docs/roadmap.md`). Treat such a deployment as a
+  local one.
 - Leave `COLLECT_WEBHOOK_SECRET` unset unless a vendor pushes to you. The
   `/api/v1/pulse/{platform}/.../webhook` routes answer 404 without it. With it,
   give the vendor the URL with `?secret=<value>` or send `X-Webhook-Secret`.

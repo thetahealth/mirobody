@@ -189,7 +189,11 @@ plan to send a pull request.)
 
 `deploy.sh` creates local secrets in `.env` and pulls
 `thetahealth/mirobody:1.5.3` from Docker Hub. The image already carries the
-terminology bundle, so Docker users do not need Git LFS.
+terminology bundle, so Docker users do not need Git LFS. When the daemon cannot
+reach Docker Hub it uses the `docker.1ms.run` mirror, and when the image cannot
+be pulled at all (a branch, or a release not yet published) it builds it from
+the checkout, which then needs `git lfs pull`. Upgrading a 1.5.2 stack:
+[docs/backup-restore.md](docs/backup-restore.md#upgrading-from-152).
 For a second checkout, set `COMPOSE_PROJECT_NAME` and host ports in its `.env`.
 A Docker daemon that rejects named volumes can use
 `compose.override.yaml.example` for bind mounts.

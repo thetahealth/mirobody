@@ -19,12 +19,12 @@ both panels at once and charts them against the device series. The seeded panel
 prints mg/dL where the uploaded one prints mmol/L, on purpose: what makes the
 two one series is the conversion.
 
-Nothing here ships in the wheel. The files live in the repo-root `demo/`
-directory, beside `frontend/`, for the same reason that one is there: the
-application is `git clone && ./deploy.sh` (`requirements.txt` is `-e .[app]`),
-never a `pip install`, so demo data inside the package would be dead weight for
-everyone who installs the library. `DEMO_DATA_DIR` overrides the location; a
-deployment with neither logs what it looked for and starts anyway.
+Nothing here ships in the wheel: demo data inside the package would be dead
+weight for everyone who installs the library. The files live in the repo-root
+`demo/` directory, beside `frontend/`, and the Docker image copies `demo/seed/`
+to `/app/demo/seed` and sets `DEMO_DATA_DIR`, because its package is installed
+in a venv with no checkout around it. A deployment with neither logs what it
+looked for and starts anyway.
 
 Dates are literals rather than offsets from today, so a replay upserts the same
 rows and a recorded walkthrough keeps matching what a reader sees. The device
@@ -53,10 +53,9 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-#: Where the demo files live: `DEMO_DATA_DIR`, else the repo-root `demo/` beside
-#: this checkout. `parents[2]` because the application always runs from a source
-#: tree (`requirements.txt` is `-e .[app]`); a `pip install` of the library has
-#: no demo data and is not meant to.
+#: Where the demo files live: `DEMO_DATA_DIR` (the Docker image sets it), else
+#: the repo-root `demo/` of a source checkout, which is `parents[2]`. A
+#: `pip install` of the library has no demo data and is not meant to.
 DEMO_DIR = Path(os.environ.get("DEMO_DATA_DIR") or Path(__file__).resolve().parents[2] / "demo")
 SEED_DIR = DEMO_DIR / "seed"
 

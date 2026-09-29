@@ -1,4 +1,9 @@
-FROM ubuntu:24.04 AS builder
+# deploy.sh passes a mirror's ubuntu when the daemon cannot reach Docker Hub,
+# and PIP_INDEX_URL for a slow PyPI.
+ARG UBUNTU_IMAGE=ubuntu:24.04
+FROM ${UBUNTU_IMAGE} AS builder
+ARG PIP_INDEX_URL=https://pypi.org/simple
+ENV PIP_INDEX_URL=${PIP_INDEX_URL}
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -26,7 +31,7 @@ COPY mirobody/ mirobody/
 RUN --mount=type=cache,target=/root/.cache/pip \
     MIROBODY_VERSION="$MIROBODY_VERSION" pip install --no-deps --force-reinstall .
 
-FROM ubuntu:24.04
+FROM ${UBUNTU_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -42,6 +47,10 @@ WORKDIR /app
 COPY config.yaml config.llm.yaml config.devices.yaml ./
 COPY LICENSE LICENSE-3RD-PARTY ./
 COPY frontend/ frontend/
+# The documents the demo seed files for its two accounts. The package lives in
+# /opt/venv, so the seed cannot find them beside itself.
+COPY demo/seed/ demo/seed/
+ENV DEMO_DATA_DIR=/app/demo
 RUN useradd --system --uid 10001 --create-home mirobody \
     && mkdir -p /app/.theta/mcp/upload \
     && chown -R mirobody:mirobody /app
