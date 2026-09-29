@@ -143,6 +143,10 @@ boundary.
   `0.0.0.0`, so `mirobody serve` from a clone accepted tokens forged from the
   public string. Off loopback the run now gets its own key and says so.
   `deploy.sh` draws its generated keys from `/dev/urandom`, not `$RANDOM`.
+- **`/files` checked who uploaded a file, not whose record it is.** A report
+  a carer filed for someone could not be opened by that person, and anyone
+  allowed into the carer's record could open it. Access now follows
+  `query_user_id`, the column the file list already filters on.
 - **Anyone who knew a session id could read and write that conversation.**
   The agent's checkpoint thread was the client-supplied `session_id` alone, so
   a second account posting a known id resumed the first account's turns (the
