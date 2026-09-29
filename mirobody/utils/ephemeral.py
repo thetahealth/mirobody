@@ -2,14 +2,75 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import math
 import secrets
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 from typing import Any
 
 from cryptography.fernet import Fernet
+
+#: Connections this store may hold at once. Every rate-limited request makes
+#: one or two calls here, most of them before sign-in; with a connection opened
+#: per call, 150 concurrent anonymous logins exhausted Postgres's 100 and
+#: answered 500. The burst now queues for these instead, and each call holds
+#: its connection for about a millisecond.
+POOL_MAX = 8
+#: How long a call waits for one of them before failing (`TimeoutError`).
+ACQUIRE_TIMEOUT = 10.0
+
+
+class _Connections:
+    """At most `size` connections open, idle ones reused, per event loop.
+
+    Deliberately not `psycopg_pool`: its background tasks outlive an
+    `asyncio.run` that never closed the pool, and the loop's shutdown then
+    waited on them forever, which is every CLI command and every server exit
+    that does not remember to close this store. Here nothing runs between
+    calls. A reused connection is pinged first, so one killed by a Postgres
+    restart is replaced instead of failing the request that drew it."""
+
+    def __init__(self, connect, size: int) -> None:
+        self._connect = connect
+        self._idle: list[Any] = []
+        self._slots = asyncio.Semaphore(size)
+
+    @asynccontextmanager
+    async def connection(self) -> AsyncIterator[Any]:
+        async with asyncio.timeout(ACQUIRE_TIMEOUT):
+            await self._slots.acquire()
+        conn = None
+        try:
+            conn = await self._checkout()
+            try:
+                yield conn
+            except BaseException:
+                await conn.rollback()
+                raise
+            await conn.commit()
+        except BaseException:
+            if conn is not None and not conn.closed:
+                await conn.close()
+            conn = None
+            raise
+        finally:
+            if conn is not None and not conn.closed:
+                self._idle.append(conn)
+            self._slots.release()
+
+    async def _checkout(self) -> Any:
+        while self._idle:
+            conn = self._idle.pop()
+            try:
+                # Opens the transaction the call then runs in: one round trip.
+                await conn.execute("SELECT 1")
+                return conn
+            except Exception:
+                await conn.close()
+        return await self._connect()
 
 
 class EphemeralStore:
@@ -18,6 +79,19 @@ class EphemeralStore:
     def __init__(self, pg_config: Any, encryption_key: str):
         self._pg_config = pg_config
         self._cipher = Fernet(encryption_key)
+        self._pool: _Connections | None = None
+        self._pool_loop: asyncio.AbstractEventLoop | None = None
+
+    def _connection(self):
+        """One transaction: committed when the block ends, rolled back if it
+        raises. A later event loop (the CLI runs several `asyncio.run` in one
+        process) gets connections of its own: one opened in a loop that has
+        closed cannot be used in the next."""
+        loop = asyncio.get_running_loop()
+        if self._pool is None or self._pool_loop is not loop:
+            self._pool = _Connections(lambda: self._pg_config.get_async_client(cursor_factory=None), POOL_MAX)
+            self._pool_loop = loop
+        return self._pool.connection()
 
     @staticmethod
     def _hash(key: str) -> bytes:
@@ -30,7 +104,7 @@ class EphemeralStore:
         return self._cipher.decrypt(value.encode("ascii")).decode("utf-8")
 
     async def get(self, key: str) -> str | None:
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with self._connection() as conn:
             row = await (await conn.execute(
                 "SELECT value_ciphertext, counter FROM th_ephemeral "
                 "WHERE key_hash = %s AND (expires_at IS NULL OR expires_at > now())",
@@ -42,7 +116,7 @@ class EphemeralStore:
 
     async def take(self, key: str) -> str | None:
         """Consume one-time state in one statement, so concurrent readers cannot replay it."""
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with self._connection() as conn:
             row = await (await conn.execute(
                 "DELETE FROM th_ephemeral WHERE key_hash = %s "
                 "AND (expires_at IS NULL OR expires_at > now()) "
@@ -56,7 +130,7 @@ class EphemeralStore:
     async def set(self, key: str, value: str | int, *, ex: int | None = None,
                   nx: bool = False) -> bool:
         sealed = self._seal(str(value))
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with self._connection() as conn:
             cursor = await conn.execute(
                 "INSERT INTO th_ephemeral (key_hash, value_ciphertext, expires_at) "
                 "VALUES (%s, %s, CASE WHEN %s::integer IS NULL THEN NULL "
@@ -74,7 +148,7 @@ class EphemeralStore:
         return await self.set(key, value, ex=ttl)
 
     async def delete(self, key: str) -> int:
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with self._connection() as conn:
             cursor = await conn.execute(
                 "DELETE FROM th_ephemeral WHERE key_hash = %s", (self._hash(key),),
             )
@@ -82,7 +156,7 @@ class EphemeralStore:
 
     async def delete_if_value(self, key: str, expected: str) -> bool:
         """Release a lock only while its owner still matches."""
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with self._connection() as conn:
             row = await (await conn.execute(
                 "SELECT value_ciphertext FROM th_ephemeral WHERE key_hash = %s "
                 "AND (expires_at IS NULL OR expires_at > now()) FOR UPDATE",
@@ -97,7 +171,7 @@ class EphemeralStore:
 
     async def take_if_value(self, key: str, expected: str) -> bool:
         """Consume a one-time code only if it matches, with the row locked."""
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with self._connection() as conn:
             row = await (await conn.execute(
                 "SELECT value_ciphertext FROM th_ephemeral WHERE key_hash = %s "
                 "AND (expires_at IS NULL OR expires_at > now()) FOR UPDATE",
@@ -109,7 +183,7 @@ class EphemeralStore:
             return True
 
     async def exists(self, key: str) -> bool:
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with self._connection() as conn:
             row = await (await conn.execute(
                 "SELECT 1 FROM th_ephemeral WHERE key_hash = %s "
                 "AND (expires_at IS NULL OR expires_at > now())",
@@ -118,7 +192,7 @@ class EphemeralStore:
         return row is not None
 
     async def expire(self, key: str, seconds: int) -> bool:
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with self._connection() as conn:
             cursor = await conn.execute(
                 "UPDATE th_ephemeral SET expires_at = now() + %s * interval '1 second' "
                 "WHERE key_hash = %s AND (expires_at IS NULL OR expires_at > now())",
@@ -127,7 +201,7 @@ class EphemeralStore:
             return cursor.rowcount > 0
 
     async def ttl(self, key: str) -> int:
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with self._connection() as conn:
             row = await (await conn.execute(
                 "SELECT EXTRACT(EPOCH FROM expires_at - now()) FROM th_ephemeral "
                 "WHERE key_hash = %s AND (expires_at IS NULL OR expires_at > now())",
@@ -139,7 +213,7 @@ class EphemeralStore:
 
     async def incr(self, key: str, *, ttl: int | None = None) -> int:
         """Increment and install the initial window in one atomic statement."""
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with self._connection() as conn:
             row = await (await conn.execute(
                 "INSERT INTO th_ephemeral (key_hash, counter, expires_at) "
                 "VALUES (%s, 1, CASE WHEN %s::integer IS NULL THEN NULL "
@@ -157,7 +231,7 @@ class EphemeralStore:
     async def hset(self, key: str, *, mapping: Mapping[str, Any]) -> int:
         """Merge a small hash under a row lock, preserving its existing TTL."""
         key_hash = self._hash(key)
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with self._connection() as conn:
             await conn.execute(
                 "INSERT INTO th_ephemeral (key_hash, value_ciphertext) VALUES (%s, %s) "
                 "ON CONFLICT (key_hash) DO NOTHING",
@@ -167,7 +241,9 @@ class EphemeralStore:
                 "SELECT value_ciphertext, expires_at <= now() FROM th_ephemeral "
                 "WHERE key_hash = %s FOR UPDATE", (key_hash,),
             )).fetchone()
-            data = {} if row[1] else json.loads(self._open(row[0]))
+            # Expired, or a counter's row (no value to open): start empty,
+            # where Redis would have answered WRONGTYPE.
+            data = {} if row[1] or row[0] is None else json.loads(self._open(row[0]))
             data.update({str(k): str(v) for k, v in mapping.items()})
             await conn.execute(
                 "UPDATE th_ephemeral SET value_ciphertext = %s, counter = NULL, "
@@ -189,7 +265,7 @@ class EphemeralStore:
         return json.loads(raw) if raw else {}
 
     async def cleanup(self) -> int:
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with self._connection() as conn:
             cursor = await conn.execute(
                 "DELETE FROM th_ephemeral WHERE expires_at <= now()"
             )

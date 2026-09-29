@@ -174,7 +174,10 @@ agent = [
     # The checkpointer (langgraph-checkpoint-postgres) and the file-system
     # projections talk to Postgres directly.
     "psycopg[binary]",
+    # 3.2 is the first with `check=`, which replaces a connection a Postgres
+    # restart killed instead of failing the request that drew it.
     "psycopg[pool]",
+    "psycopg-pool>=3.2",
     "jinja2",
     # `utils/config` — the client factory, the checkpointer and the registry
     # read configuration through it; `config/llm.py` imports aiohttp at module
@@ -565,6 +568,7 @@ forbidden_modules = [
     "polars",
     "pptx",
     "psycopg",
+    "psycopg_pool",
     "pydantic",
     "pypdfium2",
     "pytest",
