@@ -1,8 +1,10 @@
-"""Owner-safe medication forms for the open-source web client.
+"""Medication forms for the open-source web client.
 
 The kernel owns schedule validation and lifecycle rules. This router only
-converts JSON into those kernel objects, applies care-circle read access, and
-returns the house ``{code, msg, data}`` envelope.
+converts JSON into those kernel objects, applies care-circle access (a read
+grant to list, a write grant to change, the same rule the journal applies when
+a caregiver logs "Dad stopped X"), and returns the house ``{code, msg, data}``
+envelope.
 """
 
 from __future__ import annotations
@@ -166,12 +168,14 @@ def _plan_input(body: MedicationInput, subject_id: str, plan_id: str | None = No
     )
 
 
-async def _subject(caller: str, target: str | None) -> tuple[str, ErrorResponse | None]:
+async def _subject(caller: str, target: str | None, *, write: bool = False) -> tuple[str, ErrorResponse | None]:
     if not target or str(target) == str(caller):
         return str(caller), None
     try:
-        await resolve_subject(str(caller), str(target))
+        await resolve_subject(str(caller), str(target), require_write=write)
     except CareCircleDenied:
+        if write:
+            return "", ErrorResponse(code=403, msg="This member has not shared write access to their medications.")
         return "", ErrorResponse(code=403, msg="Not permitted to read this member's medications.")
     return str(target), None
 
@@ -300,40 +304,45 @@ async def medication_courses(plan_id: str, user_id: str = Depends(verify_token))
 
 
 @router.post("")
-async def create_medication(body: MedicationInput, user_id: str = Depends(verify_token)):
-    """Always the caller's own record: writing to a family member's is not
-    offered, so there is no `target_user_id` here to authorize."""
-    plan = _plan_input(body, str(user_id))
+async def create_medication(
+    body: MedicationInput,
+    target_user_id: str | None = Query(None, description="Add to this person's record; needs a write grant"),
+    user_id: str = Depends(verify_token),
+):
+    subject, error = await _subject(user_id, target_user_id, write=True)
+    if error:
+        return error
+    plan = _plan_input(body, subject)
     try:
         await PostgresMedicationStore().create(plan)
-        today = await _today(str(user_id))
+        today = await _today(subject)
     except Exception as exc:
         return _failed("create", exc, "This medication could not be saved.")
     return StandardResponse(data=_json_plan(plan, today=today))
 
 
-async def _owned(plan_id: str, user_id: str) -> ErrorResponse | None:
-    """None when the caller owns the plan. A family member who may read it
-    gets 403; anyone else gets the same 404 as a plan that does not exist."""
+async def _writable(plan_id: str, user_id: str) -> tuple[str, ErrorResponse | None]:
+    """The plan's owner, when the caller may change it: the owner, or a
+    member the owner granted write access. A member who may only read it gets
+    403; anyone else gets the same 404 as a plan that does not exist."""
     owner, error = await _owner_or_404(user_id, plan_id)
     if error:
-        return error
-    if owner != str(user_id):
-        return ErrorResponse(code=403, msg="Only the record owner can change medications.")
-    return None
+        return "", error
+    return await _subject(user_id, owner, write=True)
 
 
 @router.patch("/{plan_id}")
 async def update_medication(plan_id: str, body: MedicationPatch, user_id: str = Depends(verify_token)):
     store = PostgresMedicationStore()
     try:
-        if (error := await _owned(plan_id, user_id)) is not None:
+        owner, error = await _writable(plan_id, user_id)
+        if error:
             return error
         current = await store.get(plan_id)
         if current is None or current.status == meds.PLAN_ENTERED_IN_ERROR:
             return _not_found()
-        plan = await store.revise(str(user_id), plan_id, _changes(body, current))
-        today = await _today(str(user_id))
+        plan = await store.revise(owner, plan_id, _changes(body, current))
+        today = await _today(owner)
     except LookupError:
         return _not_found()
     except ValueError as exc:
@@ -345,10 +354,11 @@ async def update_medication(plan_id: str, body: MedicationPatch, user_id: str = 
 
 async def _transition(plan_id: str, event: str, user_id: str):
     try:
-        if (error := await _owned(plan_id, user_id)) is not None:
+        owner, error = await _writable(plan_id, user_id)
+        if error:
             return error
-        today = await _today(str(user_id))
-        plan = await PostgresMedicationStore().transition(str(user_id), plan_id, event, today=today)
+        today = await _today(owner)
+        plan = await PostgresMedicationStore().transition(owner, plan_id, event, today=today)
     except LookupError:
         return _not_found()
     except ValueError as exc:

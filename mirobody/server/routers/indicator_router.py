@@ -223,10 +223,14 @@ async def export_health_indicators(
 ):
     """Every visible entry the same filters select, standardized value and unit
     included, from the same query as the table in one statement. Paging through
-    it instead re-walked each chain once per page."""
-    owner = await _readable(user_id, target_user_id)
-    if owner is None:
-        return _denied()
+    it instead re-walked each chain once per page.
+
+    The caller's own record only, as `/api/user/data-export`: a care-circle
+    read grant shows a member's rows a page at a time, and does not hand over
+    a copy of the whole record. `target_user_id` naming anyone else is 403."""
+    if target_user_id and target_user_id != user_id:
+        return ErrorResponse(code=403, msg="Only the record owner can export it.")
+    owner = user_id
     if format not in {"csv", "json"}:
         return ErrorResponse(code=400, msg="format must be csv or json.")
     try:

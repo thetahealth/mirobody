@@ -286,13 +286,16 @@ confirms one.
 |---|---|
 | `GET /` | the plans, minus `entered_in_error`; `?status=` filters on the effective status; `?target_user_id=` reads a family member's with a read grant |
 | `GET /{plan_id}`, `GET /{plan_id}/courses` | one plan with its courses |
-| `POST /` | a new plan and its opening course, in one transaction |
+| `POST /` | a new plan and its opening course, in one transaction; `?target_user_id=` with a write grant |
 | `PATCH /{plan_id}` | the fields sent; the rest stay as stored |
 | `POST /{plan_id}/stop`, `POST /{plan_id}/resume` | `plan_status_transition`, with the course it closes or opens, in one transaction |
 | `DELETE /{plan_id}` | marks it `entered_in_error`; nothing is erased |
 
-Writes are the owner's only. A plan the caller may not read answers `404`,
-exactly like one that does not exist. An illegal move (stopping a stopped plan)
+Writes need the owner, or a member the owner granted write access; a read
+grant lists and nothing more (`403`). The journal applies the same rule when a
+caregiver logs "Dad stopped X", so the two ways in cannot disagree. `POST /`
+takes `?target_user_id=` for that member's record. A plan the caller may not
+read answers `404`, exactly like one that does not exist. An illegal move (stopping a stopped plan)
 is the kernel's `ValueError`, returned as `400`.
 
 A plan has at most one open course, found by `closed_by IS NULL`; its id is the

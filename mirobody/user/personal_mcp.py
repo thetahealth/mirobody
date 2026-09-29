@@ -15,6 +15,9 @@ circle lets them read the subject. The URL alone grants that, so:
   the creator read the subject, the same `resolve_subject` the REST routes
   ask. Unsharing, removal from a circle, deleting an account and taking one
   back therefore end the link without anyone revoking it.
+* Unsharing and removal also revoke it (`revoke_unshared`, called by
+  `care_circle`), so sharing again later does not bring an old link back: the
+  person stopped sharing for a reason, and a leaked link is one of them.
 * A link lives a fixed number of days from when it was made and is never
   extended by use. Making a new one for the same creator and subject revokes
   the old one in the same transaction.
@@ -80,6 +83,12 @@ async def mint(creator_id: str, subject_id: str, *, ttl_days: int = DEFAULT_TTL_
     there is one at a time and "regenerate" is this."""
     secret = secrets.token_urlsafe(48)
     async with db.transaction() as tx:
+        # Two concurrent mints for one pair would both find nothing to revoke
+        # and collide on the one-live-link index; the second waits here instead.
+        await tx.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended('personal_mcp:' || :creator || ':' || :subject, 0))",
+            {"creator": str(creator_id), "subject": str(subject_id)},
+        )
         await tx.execute(
             "UPDATE th_personal_mcp_url SET revoked_at = now(), revoked_by = :creator"
             " WHERE creator_id = :creator AND subject_id = :subject AND revoked_at IS NULL",
@@ -185,6 +194,37 @@ async def revoke(link_id: int, by_id: str) -> bool:
     return bool(rows)
 
 
+async def revoke_unshared(user_ids: list[str]) -> int:
+    """Revoke every live family link to or from these people that the care
+    circle no longer allows. Called after access is lowered or a membership
+    ends; a link the creator still reaches through another circle stays."""
+    from mirobody.user.care_circle import CareCircleDenied, resolve_subject
+
+    ids = sorted({str(u) for u in user_ids if u})
+    if not ids:
+        return 0
+    rows = await execute_query(
+        "SELECT id, creator_id, subject_id FROM th_personal_mcp_url"
+        " WHERE revoked_at IS NULL AND creator_id <> subject_id"
+        " AND (creator_id = ANY(:ids) OR subject_id = ANY(:ids))",
+        {"ids": ids}, log_sql=False,
+    ) or []
+    ended = []
+    for r in rows:
+        try:
+            await resolve_subject(str(r["creator_id"]), str(r["subject_id"]))
+        except CareCircleDenied:
+            ended.append(int(r["id"]))
+    if ended:
+        await execute_query(
+            "UPDATE th_personal_mcp_url SET revoked_at = now(), revoked_by = 'care_circle'"
+            " WHERE id = ANY(:ids) AND revoked_at IS NULL",
+            {"ids": ended}, log_sql=False,
+        )
+        logger.info("personal MCP links revoked by the care circle: count=%d", len(ended))
+    return len(ended)
+
+
 async def revoke_mine(creator_id: str, subject_id: str) -> int:
     """Revoke the link this creator made for this subject: a family member
     revoking their link to Mom's record leaves Mom's own link working."""
@@ -196,4 +236,4 @@ async def revoke_mine(creator_id: str, subject_id: str) -> int:
     return len(rows)
 
 
-__all__ = ["DEFAULT_TTL_DAYS", "authorize", "listed", "mint", "revoke", "revoke_mine"]
+__all__ = ["DEFAULT_TTL_DAYS", "authorize", "listed", "mint", "revoke", "revoke_mine", "revoke_unshared"]
