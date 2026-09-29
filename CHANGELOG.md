@@ -91,9 +91,13 @@ takes anything, and a medication written in it goes onto the list.
   invalid. It now keeps what the old stack used (and the overlay's keys in
   charge), stops with the fix when the override names redis, removes the redis
   container, and names the unused 1.5.2 volumes. It also finds the database of
-  a checkout whose directory name has capitals. Steps:
-  `docs/backup-restore.md`, "Upgrading from 1.5.2". To check: upgrade a 1.5.2
-  stack, and a token issued before still works.
+  a checkout whose directory name has capitals. Uploads 1.5.2 wrote belong to
+  root, which this image's user (uid and gid 10001) could read but not add to,
+  so every upload failed after an upgrade; a one-shot `mirobody_init` service
+  gives the upload volume to that user before each start, which also covers a
+  restored 1.5.2 archive. Steps: `docs/backup-restore.md`, "Upgrading from
+  1.5.2". To check: upgrade a 1.5.2 stack; a token issued before still works,
+  and an upload afterwards succeeds.
 - **The one-line install no longer needs the image on Docker Hub.**
   `deploy.sh` falls back to the `docker.1ms.run` mirror when the daemon cannot
   reach Docker Hub (1.5.2 did; 1.5.3 had dropped it), and builds the image
@@ -137,9 +141,11 @@ takes anything, and a medication written in it goes onto the list.
   removed the same burst fails with "too many clients already".
 - **A journal sentence could fail whole.** An assertion outside the schema
   (`""`, `"affirmed"`) from a provider that does not enforce it was a 500,
-  losing the symptoms and readings with it. A missing one reads as present;
-  any other is skipped as `unclear`, so "没发烧" labelled `absent` is no longer
-  written as a fever.
+  losing the symptoms and readings with it. Any other value is skipped as
+  `unclear`, so "没发烧" labelled `absent` is no longer written as a fever. A
+  missing one (the schema requires it) reads as present unless the quote
+  has a negation word, which is skipped as `unclear` too: a missed entry
+  the person can see beats a wrong one they cannot.
 - **A task that crashed its worker was claimed forever.** A worker killed
   mid-batch never marked the attempt failed, so the payload came back after
   every lease. A spent task is now failed when its lease runs out, and profile
@@ -150,7 +156,9 @@ takes anything, and a medication written in it goes onto the list.
   (`docker compose exec -T mirobody python - --user 1 < scripts/e2e_health_data.py`),
   and a missing container fails the check.
 - **Smaller:** `shell/backup.sh` writes its files 0600 and streams the dump
-  out (snap Docker refused `/tmp`); `deploy.sh` prints the port `.env` sets;
+  out (snap Docker refused `/tmp`); `deploy.sh` prints the port `.env` sets,
+  and finds the image by service, where an image without "mirobody" in its
+  name ended the script silently;
   "每天两次…每天三次" is no parse instead of the first count, and "早、晚" and
   "as required" are read; voiding a plan closes its open course; the NDJSON
   export says `complete: false` when the record changed while it streamed;
