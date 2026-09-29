@@ -1,11 +1,14 @@
-## Unreleased
+## 1.5.2
 
 Genotype uploads arrive as facts: one call per site, checked against a bundled
 public site index, with CPIC drug-gene coverage on top. Mirobody names no drug
 phenotype and no rare-disease risk from an array: the coverage tool reports
 `not_determined` rather than guess from calls that cannot establish one.
 [docs/genetics.md](docs/genetics.md) states the scope and the reason for each
-boundary.
+boundary. Around it, the findings of a fresh-deploy review: MCP signs in the
+way its specification says, a token works only where it was issued for, an
+address is proven before it is held, and a family member you keep a record
+for can take it over.
 
 ### Added
 
