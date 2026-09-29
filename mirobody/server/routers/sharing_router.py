@@ -35,7 +35,7 @@ from mirobody.server.envelope import err, ok
 from fastapi import Depends
 
 from mirobody.user import care_circle as cc
-from mirobody.user.user import ensure_user
+from mirobody.user.user import addresses_provable, ensure_user, get_user
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +203,12 @@ async def respond(request: RespondRequest, user_id: str = Depends(verify_token))
     Scoped to the caller's own pending row, so this cannot accept on anyone
     else's behalf, which the endpoint it replaces could, for any `share_id`.
     """
+    # An invitation goes to an address. Where addresses can be proven, an
+    # account whose password nobody proved may be someone else's claim on it.
+    if request.accept and addresses_provable():
+        me = await get_user(user_id=int(user_id))
+        if me and me.get("unproven"):
+            return err(-2, "Confirm your email first: sign in with a code sent to it, then accept.")
     moved = await cc.respond_to_invitation(user_id, request.circle_id, accept=request.accept)
     if not moved:
         return err(-1, "No pending invitation for you in that circle.")

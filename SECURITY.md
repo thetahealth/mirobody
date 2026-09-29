@@ -88,6 +88,11 @@ others:
 - Leave `COLLECT_WEBHOOK_SECRET` unset unless a vendor pushes to you. The
   `/api/v1/pulse/{platform}/.../webhook` routes answer 404 without it. With it,
   give the vendor the URL with `?secret=<value>` or send `X-Webhook-Secret`.
+- Configure mail (`EMAIL_SMTP_*`) before anyone else registers. With mail,
+  registering takes a code sent to the address. Without it an address is
+  only a username, held by whoever registers it first. Once mail is on, the
+  owner's first code sign-in clears a password nobody proved and ends the
+  sessions minted with it.
 - Restrict CORS to the origins you actually serve.
 - Terminate TLS in front of the service. Set `MCP_PUBLIC_URL` to an HTTPS URL —
   the MCP surface carries the same health data as the API.

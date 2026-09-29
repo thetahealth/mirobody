@@ -193,6 +193,14 @@ boundary.
   from the authorising session through the code, the tokens and every refresh.
   `/mcp` and `/personal/mcp` decode the header a second time, and that decode
   took a refresh token too; it no longer does.
+- **Registering an address did not prove it.** A password registration for
+  someone's address became the account their later code sign-in landed in,
+  with the claimant's password and invitations still live. Where mail is
+  configured, `/password/register` now needs the code sent to the address
+  (`__IS_SIGNUP_CODE_ON__` in `/mirobody.json`). A code sign-in to an account
+  whose password was never proven clears that password and ends every earlier
+  session (`tokens_valid_after`), and such an account cannot accept an
+  invitation until then.
 - **OAuth: PKCE and `redirect_uri` are checked.** The metadata advertised
   S256 and nothing verified it. A redirect flow now requires
   `code_challenge_method=S256`, and the token request must present the

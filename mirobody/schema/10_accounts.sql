@@ -30,7 +30,10 @@ CREATE TABLE IF NOT EXISTS health_app_user (
     coins         integer DEFAULT 0,
     ethnicity     VARCHAR(128),
     mfa_enabled   BOOLEAN NOT NULL DEFAULT FALSE,       -- per-user WebAuthn AAL2 switch
-    password_hash text                                  -- bcrypt via pgcrypto crypt(); NULL = no password
+    password_hash text,                                 -- bcrypt via pgcrypto crypt(); NULL = no password
+    managed_by    INTEGER REFERENCES health_app_user(id),
+    email_verified_at  TIMESTAMPTZ,                     -- last time a code sent to `email` came back
+    tokens_valid_after TIMESTAMPTZ                      -- tokens minted before this are refused
 );
 ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS ethnicity VARCHAR(128);
 ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;
@@ -39,6 +42,13 @@ ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS password_hash text;
 -- sign in); NULL when the person signs in themselves. Nobody signs in to a
 -- managed account: it changes hands only through th_account_activation.
 ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS managed_by INTEGER REFERENCES health_app_user(id);
+-- A password set by `/password/register` on a server that sends no mail proves
+-- nothing about the address, so an account with a password and no
+-- `email_verified_at` is one somebody may have claimed first. The owner's first
+-- code sign-in clears that password and moves `tokens_valid_after`, which
+-- signs out every session minted before it (user.prove_address).
+ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
+ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS tokens_valid_after TIMESTAMPTZ;
 
 CREATE        INDEX IF NOT EXISTS idx_health_app_user_apple_sub ON health_app_user USING btree (apple_sub);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_uni_health_app_user_email_active ON health_app_user USING btree (email) WHERE (is_del = false);

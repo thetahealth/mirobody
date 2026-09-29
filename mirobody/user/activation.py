@@ -149,16 +149,21 @@ async def release(activation_id: int) -> None:
                         {"i": int(activation_id)}, log_sql=False)
 
 
-async def hand_over(db_pool, act: Activation, *, into: int | None, password: str, access: int) -> int:
+async def hand_over(db_pool, act: Activation, *, into: int | None, password: str, access: int,
+                    proven: bool = False) -> int:
     """Make the managed account the person's; returns the account they now own.
 
     `into` is the account that already holds the address, if any: the managed
     one is merged into it. Otherwise the managed account takes the address.
     The creator's membership is then set to what the person chose, accepted,
-    because a pending row would grant nothing whatever the choice.
+    because a pending row would grant nothing whatever the choice. `proven`
+    says a code sent to the address came back (`user.prove_address`).
     """
     from mirobody.user.account_merge import merge_accounts
+    from mirobody.user.user import prove_address
 
+    if into and proven:
+        await prove_address(into)
     if into:
         _, err = await merge_accounts(db_pool, losing_user_id=act.member_id,
                                       winning_user_id=into, reason="activation")
@@ -177,11 +182,12 @@ async def hand_over(db_pool, act: Activation, *, into: int | None, password: str
             UPDATE health_app_user
                SET email = :e, managed_by = NULL, update_at = now(),
                    password_hash = CASE WHEN :p = '' THEN password_hash
-                                        ELSE crypt(:p, gen_salt('bf', 12)) END
+                                        ELSE crypt(:p, gen_salt('bf', 12)) END,
+                   email_verified_at = CASE WHEN :v THEN now() END
              WHERE id = :m AND managed_by = :c AND is_del = false
             RETURNING id
             """,
-            {"e": act.email, "p": password, "m": act.member_id, "c": act.created_by},
+            {"e": act.email, "p": password, "v": proven, "m": act.member_id, "c": act.created_by},
             log_sql=False,
         )
         if not rows:

@@ -11,6 +11,8 @@ from .user import (
     ensure_user,
     del_user,
     get_user,
+    prove_address,
+    set_addresses_provable,
     update_user_name,
 )
 
@@ -69,6 +71,9 @@ class UserService:
 
         self._db_pool = db_pool
         self._redis   = redis
+
+        # Without mail, an address is only a username (SECURITY.md).
+        set_addresses_provable(self.sends_mail())
 
         # WebAuthn service (enabled only when rp_id is configured).
         self._webauthn_service = WebAuthnService(
@@ -155,6 +160,11 @@ class UserService:
         if not id:
             return json_response_with_code(-4, "Invalid email.", request=request)
 
+        # The code proves the address. A password somebody set on it without
+        # that proof is cleared, and their sessions end.
+        if await prove_address(id):
+            logger.warning("unproven password cleared at code sign-in: user_id=%s", id)
+
         #-------------------------------------------------
 
         return await self._generate_auth_response(id, email, "email", request)
@@ -192,7 +202,8 @@ class UserService:
             return json_response_with_code(disable_log=True)
 
         try:
-            email, password = self._read_credentials(await request.json())
+            data = await request.json()
+            email, password = self._read_credentials(data)
         except Exception as e:
             return json_response_with_code(-1, str(e), request=request)
 
@@ -203,14 +214,27 @@ class UserService:
                 -3, f"Password must be at least {self._MIN_PASSWORD_LEN} characters.", request=request
             )
 
+        # Where a code can reach the address, registering proves it: anyone
+        # could otherwise claim an address first and be the one its owner's
+        # code sign-in lands in. Without mail an address is only a username.
+        proven = self.sends_mail()
+        if proven:
+            code = str(data.get("code") or "")
+            if not code:
+                return json_response_with_code(-5, "Enter the code sent to this address.", request=request)
+            err = await self._email_validator.verify(email, code)
+            if err:
+                return json_response_with_code(-6, err, request=request)
+
         rows = await execute_query(
             """
-            INSERT INTO health_app_user (is_del, email, name, password_hash)
-            VALUES (FALSE, :email, :name, crypt(:password, gen_salt('bf', 12)))
+            INSERT INTO health_app_user (is_del, email, name, password_hash, email_verified_at)
+            VALUES (FALSE, :email, :name, crypt(:password, gen_salt('bf', 12)),
+                    CASE WHEN :proven THEN now() END)
             ON CONFLICT (email) WHERE (is_del = false) DO NOTHING
             RETURNING id
             """,
-            {"email": email, "name": email.split("@")[0], "password": password},
+            {"email": email, "name": email.split("@")[0], "password": password, "proven": proven},
             log_sql=False,
         )
         if not rows:
@@ -313,11 +337,14 @@ class UserService:
 
         if existing_owner == current_user_id:
             # Already bound to me: nothing to do, just refresh token.
+            await self._mark_proven(current_user_id)
             return await self._generate_auth_response(current_user_id, lower_email, "email_bind", request)
 
         if existing_owner and existing_owner != current_user_id:
             # Conflict: the verified email belongs to another live user.
-            # Merge current_user (losing) into existing_owner (winning).
+            # Merge current_user (losing) into existing_owner (winning), after
+            # the proof ends any session somebody holds there without it.
+            await prove_address(existing_owner)
             affected, err = await merge_accounts(
                 self._db_pool,
                 losing_user_id  = current_user_id,
@@ -340,7 +367,8 @@ class UserService:
             async with self._db_pool.connection() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(
-                        "UPDATE health_app_user SET email=%s, update_at=CURRENT_TIMESTAMP WHERE id=%s;",
+                        "UPDATE health_app_user SET email=%s, email_verified_at=now(), update_at=CURRENT_TIMESTAMP"
+                        " WHERE id=%s;",
                         [lower_email, current_user_id]
                     )
                     await conn.commit()
@@ -349,6 +377,14 @@ class UserService:
             return json_response_with_code(-7, str(e), request=request)
 
         return await self._generate_auth_response(current_user_id, lower_email, "email_bind", request)
+
+    @staticmethod
+    async def _mark_proven(user_id: int) -> None:
+        """The caller proved their own address: their password stays theirs."""
+        await execute_query(
+            "UPDATE health_app_user SET email_verified_at = now() WHERE id = :id AND is_del = false",
+            {"id": int(user_id)},
+        )
 
     #-------------------------------------------------------------------------
 
@@ -439,7 +475,8 @@ class UserService:
 
     #-------------------------------------------------------------------------
 
-    def _sends_mail(self) -> bool:
+    def sends_mail(self) -> bool:
+        """Whether a code can reach an address, so an address can be proven."""
         return bool(self._email_validator) and not isinstance(self._email_validator, DummyEmailCodeValidator)
 
     async def activation_create_handler(self, request: Request) -> Response:
@@ -467,7 +504,7 @@ class UserService:
         return json_response_with_code(data={
             "url": f"{request_origin(request)}/activate#{token}",
             "expires_at": expires_at.isoformat(),
-            "sends_mail": self._sends_mail(),
+            "sends_mail": self.sends_mail(),
         }, request=request)
 
     async def activation_info_handler(self, request: Request) -> Response:
@@ -485,7 +522,7 @@ class UserService:
             "creator_name": act.creator_name,
             "email": act.email,
             "expires_at": act.expires_at.isoformat(),
-            "sends_mail": self._sends_mail(),
+            "sends_mail": self.sends_mail(),
         }, request=request)
 
     async def activation_complete_handler(self, request: Request) -> Response:
@@ -515,12 +552,15 @@ class UserService:
         existing = await activation.existing_account(act.email)
         caller = request.state.user_id if isinstance(request.state.user_id, int) else 0
         me = await get_user(user_id=caller) if caller > 0 else None
-        if me and (me.get("email") or "").strip().lower() == act.email:
-            pass
-        elif self._sends_mail():
+        proven = False
+        if (me and (me.get("email") or "").strip().lower() == act.email
+                and not (self.sends_mail() and me.get("unproven"))):
+            proven = self.sends_mail()
+        elif self.sends_mail():
             err = await self._email_validator.verify(act.email, str(data.get("code") or ""))
             if err:
                 return json_response_with_code(-2, err, request=request)
+            proven = True
         elif existing:
             if not existing["has_password"]:
                 return json_response_with_code(
@@ -537,7 +577,7 @@ class UserService:
         try:
             owner_id = await activation.hand_over(
                 self._db_pool, act, into=int(existing["id"]) if existing else None,
-                password=password, access=access)
+                password=password, access=access, proven=proven)
         except activation.ActivationError as e:
             await activation.release(act.id)
             return json_response_with_code(e.code, str(e), request=request)

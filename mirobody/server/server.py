@@ -196,6 +196,9 @@ class Server:
             webauthn_mfa_ticket_ttl = webauthn_mfa_ticket_ttl,
         )
 
+        # Registering takes a code sent to the address when one can be sent.
+        self._webpage_config.setdefault("__IS_SIGNUP_CODE_ON__", self._user_service.sends_mail())
+
         self._mcp_service = McpService(
             token_validator = self._jwt_token_validator,
 
