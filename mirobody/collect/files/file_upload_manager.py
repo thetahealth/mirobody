@@ -444,10 +444,14 @@ class WebSocketFileUploadManager:
 
                 logger.info(f"upload {message_id}: received, {actual_file_size} bytes")  # phi: ok a session id and a size
 
-            # Check if all files have been received
-            all_files_received = all(f["received_chunks"] == f["total_chunks"] for f in session["uploaded_files"])
-            if all_files_received:
-                # Start processing files
+            # Every file upload_start declared, not only those that have begun
+            # to arrive: checking the arrived ones started processing after the
+            # first file of a batch and again after the last, so each file was
+            # filed and extracted twice. Once per session.
+            declared = {f.get("filename") for f in session.get("files") or [] if f.get("filename")}
+            received = {f["filename"] for f in session["uploaded_files"] if f["received_chunks"] == f["total_chunks"]}
+            if len(received) >= len(declared) and not session.get("processing_started"):
+                session["processing_started"] = True
                 await self.start_file_processing(connection_id, message_id)
 
             return True
@@ -470,7 +474,7 @@ class WebSocketFileUploadManager:
         """Start processing uploaded files"""
         try:
             session = self.upload_sessions[message_id]
-            uploaded_files = session["uploaded_files"]
+            uploaded_files = list(session["uploaded_files"])
             query = session["query"]
             query_user_id = session["query_user_id"]  # Get proxy upload user ID
             real_user_id = session["user_id"]  # Real user ID for business logic

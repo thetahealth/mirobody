@@ -216,6 +216,15 @@ boundary.
   that finished first matched no row (`File not found for update`), and the
   report date, readings count or final status were lost. They now wait for
   the batch insert.
+- **A multi-file upload session filed every file twice.** Processing started
+  once the files that had begun to arrive were complete, which in a two-file
+  batch was after the first file and again after the second. It now starts
+  once, after every file `upload_start` declared. The web client sends one
+  file per session and was not affected.
+- **An upload with no abstract from its handler lost its generated name.**
+  The fallback abstract extractor called its text helper with two arguments
+  it did not take; the `TypeError` came before any model call. PDFs and
+  images now get their name and abstract on that path too.
 - **Asking on someone's behalf answered as if the record were the asker's.**
   The agent read the other person's record but was never told so. Answers said
   "your cholesterol" over her numbers and flagged `mom_lab_2025-11.md` as "not
