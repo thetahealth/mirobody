@@ -80,6 +80,10 @@ SKIP_NOT_A_RECORD = "not_a_record"
 SKIP_NO_VALUE = "no_value"
 SKIP_NOT_IN_SENTENCE = "not_in_sentence"
 SKIP_TOO_LONG = "too_long"
+#: An assertion outside `ASSERTIONS`: whether the thing is present, absent or
+#: only wondered about is unknown, and guessing "present" would write "没发烧"
+#: as a fever.
+SKIP_UNCLEAR = "unclear"
 
 #: What one sentence may be, and what one entry's name may be (the journal's
 #: own limit for a single entry).
@@ -262,6 +266,9 @@ def parts_from(answer: Mapping[str, Any]) -> list[Part]:
         field = {k: str(item.get(k) or "").strip() for k in Part.__dataclass_fields__}
         if not (field["quote"] or field["name"]):
             continue
+        # Not every provider enforces the schema. A missing assertion is the
+        # schema's default; a different spelling is kept, and refused below.
+        field["assertion"] = field["assertion"].lower() or ASSERT_PRESENT
         out.append(Part(**field))
     return out
 
@@ -355,6 +362,8 @@ def _skip_reason(part: Part, haystack: str) -> str:
         return SKIP_NOT_IN_SENTENCE
     if part.subject == SUBJECT_OTHER:
         return SKIP_SOMEONE_ELSE
+    if part.assertion not in ASSERTIONS:
+        return SKIP_UNCLEAR
     if part.assertion == ASSERT_NEGATED:
         return SKIP_NEGATED
     if part.assertion == ASSERT_HYPOTHETICAL:

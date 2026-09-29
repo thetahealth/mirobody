@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 from mirobody import translate
 from mirobody.collect import PostgresMedicationStore, apply_medication_mentions, observations, sentence
 from mirobody.kernel import meds, series
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.server.auth import verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse
 from mirobody.user.care_circle import CareCircleDenied, resolve_subject, shared_with_me
@@ -314,8 +315,10 @@ async def log_sentence(
     medications: list[dict] = []
     medications_failed = False
     if mentions:
-        # Same instant as the observations, so a retry of this sentence names
-        # the same record, and the writer's day, so "started today" is theirs.
+        # The instant the observations were written at, so a sentence's plans
+        # and entries are one record, and the writer's day, so "started today"
+        # is theirs. Sending the sentence again is a new record; it adds no
+        # second plan, because `reconcile_mentions` finds the drug listed.
         record_id = f"journal:{series.stable_hash(owner, entry.text, now.isoformat())[:16]}"
         try:
             outcomes = await apply_medication_mentions(
@@ -382,17 +385,23 @@ async def list_entries(
     kinds = [KINDS[kind]] if kind in KINDS else ([] if kind else sorted(KINDS.values()))
     if kind == KIND_MEDICATION:
         kinds = []
-    rows = await execute_query(_SELECT, {
-        "user_id": owner, "kinds": kinds, "journal": SOURCE_REF,
-        "with_readings": kind in (None, observations.KIND_MEASUREMENT),
-        "from_date": start, "to_date": end, "limit": MAX_ROWS,
-    })
+    try:
+        rows = await execute_query(_SELECT, {
+            "user_id": owner, "kinds": kinds, "journal": SOURCE_REF,
+            "with_readings": kind in (None, observations.KIND_MEASUREMENT),
+            "from_date": start, "to_date": end, "limit": MAX_ROWS,
+        })
+        plans = await _medications(owner, start, end, tz or x_timezone or "") \
+            if kind in (None, KIND_MEDICATION) else []
+    except Exception as e:
+        logger.error("[list_journal] error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
+        return ErrorResponse(code=500, msg="The journal could not be loaded.")
 
     days: dict[str, list[dict]] = {}
     for row in rows or []:
         days.setdefault(str(row["local_date"]), []).append(_entry(row))
     if kind in (None, KIND_MEDICATION):
-        for day, item in await _medications(owner, start, end, tz or x_timezone or ""):
+        for day, item in plans:
             days.setdefault(day, []).append(item)
         # As instants: a reading's `at` is UTC and a plan's is local, so their
         # strings do not sort.
@@ -414,7 +423,8 @@ async def _medications(owner: str, start: date, end: date, said: str) -> list[tu
     zone = translate.zone_for(zone_name or translate.resolve_tz("", record_tz)[0])
     since = datetime.combine(start, datetime.min.time(), tzinfo=zone)
     until = datetime.combine(end + timedelta(days=1), datetime.min.time(), tzinfo=zone)
-    made = await PostgresMedicationStore().created_by(owner, MEDICATION_SOURCE, since=since, until=until)
+    made = await PostgresMedicationStore().created_by(
+        owner, MEDICATION_SOURCE, since=since, until=until, limit=MAX_ROWS)
     out = []
     for plan, created in made:
         local = created.astimezone(zone)
