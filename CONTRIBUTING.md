@@ -77,6 +77,11 @@ the mail client.
 
     pytest                # the tests this repo ships: the resolver
                           # benchmark and the cross-language identity gate
+    python -m unittest discover -s benchmarks/genomics -p 'test_*.py'
+    python -m unittest discover -s benchmarks/health_records -p 'test_*.py'
+                          # the two benchmark suites the release workflow runs
+                          # (.github/workflows/pypi-release.yml); see
+                          # benchmarks/README.md
     lint-imports          # the engine/agent boundary, machine-checked
     ruff check mirobody   # the lint gate; its rule set is in pyproject.toml
     ```
@@ -189,6 +194,9 @@ Docs must match the code. A command in a README is a promise that it runs —
 we have shipped a documented subcommand that exits with `invalid choice`. If you
 rename a module, grep the `.md` files.
 
+This repository's `docs/` is contributor documentation. User-facing product
+documentation lives at [docs.mirobody.ai](https://docs.mirobody.ai/).
+
 See [`docs/README.md`](docs/README.md) for which file a given piece of
 documentation belongs in.
 
@@ -224,6 +232,12 @@ as `KNOWN_SPLITS`, each an open fix. The right-hand side of an override row must
 be a key the alias index can look up — **not another row's left-hand side**; the
 resolver does not follow a two-hop chain, and such a row resolves to nothing
 while looking correct.
+
+A complaint phrase (a symptom or diagnosis, coded on ICPC-3 rather than
+LOINC) is a case in
+[`benchmarks/health_records/cases.json`](benchmarks/health_records/cases.json)
+instead; see [that suite's README](benchmarks/health_records/README.md) for
+the languages and vocabularies it covers.
 
 UI strings are **not** in this repo. `frontend/` holds the built web client, not
 its source, so there is no `i18n/` here to edit. What is translatable here is the

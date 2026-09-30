@@ -29,10 +29,11 @@ mirobody/
 ├── user/        identity and the care circle — who may read whose record
 └── schema/      the DDL, replayed at boot in dev
 
-demo/            the care-circle demo fixture, beside frontend/ — a checkout
-frontend/        the bundled web client                          has them, a
-                                                                 pip install
-                                                                 does not
+benchmarks/      public benchmark suites + the resolver scoring harness
+demo/            the care-circle demo fixture                    a checkout
+examples/        runnable library/parse/MCP/agent samples        has them, a
+frontend/        the bundled web client                          pip install
+scripts/         build, packaging and release-gate scripts       does not
 ```
 
 **Two forms, and they want opposite things.** The PyPI package is a LIBRARY and

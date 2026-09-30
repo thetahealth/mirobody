@@ -47,9 +47,11 @@ two trees, and a third that is neither:
   `mirobody/collect/observations.py` each have one). It is gitignored, so it is
   simply absent from a clone, and pytest skips a testpath that does not exist.
   Nothing in this document names a file inside it: a clone cannot open one.
-- `benchmarks/` — the resolver scoring harness (`run_eval.py`). Not a test
-  (nothing asserts), not library code (nothing imports it); it runs from a
-  checkout against a test set you point it at.
+- `benchmarks/`: three runnable suites (`health_records/`, `genomics/`,
+  `local_agent/`) plus `run_eval.py`, the resolver scoring harness that runs
+  against a test set you supply. None is library code: nothing imports it.
+  See [`benchmarks/README.md`](../benchmarks/README.md) for the command and
+  what each proves.
 
 ## Where tests live
 

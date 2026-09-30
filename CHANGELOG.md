@@ -1,3 +1,23 @@
+## Unreleased
+
+### Changed
+
+- **The README starts with the Docker path.** Both editions open with the
+  three commands that bring the stack up (`git clone`, `./deploy.sh`, one key
+  in `.env` then `docker compose up -d`) and what a running deployment does;
+  the library, the ICPC-3 axis and the genetics tools follow, each with a
+  runnable example, and the figures link the public suites under
+  `benchmarks/`. The docs site links point at the pages that exist rather
+  than at redirects, and `docs/`, CONTRIBUTING and the workflow README name
+  the benchmarks. `benchmarks/README.md` is new.
+- **A release publishes its Docker image.** The GitHub Release is created by
+  the workflow's own token, and GitHub starts no workflow from such an event,
+  so `docker-hub.yml`'s `release: published` trigger never fired; the 1.5.3
+  image was published by hand. `pypi-release.yml` now calls it as a reusable
+  workflow once the version is confirmed on PyPI, a final release is also
+  tagged `latest`, and the documentation site is told when
+  `DOCS_DISPATCH_TOKEN` is set.
+
 ## 1.5.3
 
 Postgres is the only state service and deployment is one image; the journal

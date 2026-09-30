@@ -2,17 +2,15 @@
 
 **English** · **[中文](walkthrough.zh-CN.md)**
 
-The care-circle walkthrough the README used to carry in full. Parts 2 to 4 are
-recorded against a running `./deploy.sh` stack with `SEED_DEMO_DATA` on; part 1
-is drawn, because what it shows is the authorization path and a drawing of that
-can be checked against `user/care_circle.py` while a recording cannot. The
-README carries three of the four scenes and links here for the fourth.
-
+The four scenes the README shows, in order. Parts 2 to 4 are recorded
+against a running `./deploy.sh` stack with `SEED_DEMO_DATA` on; part 1 is
+drawn, because what it shows is the authorization path and a drawing of that
+can be checked against `user/care_circle.py` while a recording cannot.
 
 `SEED_DEMO_DATA` defaults to on, so the ① → ② → ③ chain is walkable the moment
-`./deploy.sh` finishes — signing in and browsing the seeded record need no key;
-the extraction in parts 2 and 3 and the questions in part 4 ride the one key
-configured above.
+`./deploy.sh` finishes: signing in and browsing the seeded record need no key;
+the extraction in parts 2 and 3 and the questions in part 4 use the one model
+key in `.env`.
 
 **1 · Arrive.** You sign in as `you@mirobody.ai` and find two records, not one.
 Yours: a year of self-tracked vitals and a lab panel from last November.
