@@ -38,7 +38,8 @@ the database, and every "high" or "normal" against the range the report printed.
 | Qwen3.8-27B Q4_K_M on Ollama | 17 GB | 16/16 | 0 | yes | 99 / 234 s | yes |
 | Ternary-Bonsai-2-27B (PrismML's llama.cpp fork) | 6.6 GB | 16/16 | 0 | yes | 132 / 410 s | not tested |
 | Qwen3.5-9B Q4_K_M | 5.7 GB | 16/16 | 0 | no: called the printed ranges "usual guidance" and missed a printed "high" | 40 / 76 s | yes |
-| MiniCPM5-2B Q4_K_M | 1.6 GB | 9 of the first 10 | a whole invented chart (below) | not reached | 17 s median | no |
+| MiniCPM5-2B Q4_K_M | 1.6 GB | 14/16 (one question unanswered, both runs) | a whole invented chart, both runs (below) | not reached | 17 / 375 s | no |
+| MiniCPM5-1B Q8_0 | 1.1 GB | 2/16 | gave a BMI of 29.4 as the weight in kg | not reached | 3 / 7 s | no |
 | MiMo-V2.6-Distill-Qwen-9B Q4_K_M | 5.4 GB | 10/16 | in 4 of 10 answers with data | not reached | 23 / 736 s | not tested |
 | Hosted (Claude Sonnet 5, GPT-5.6, Qwen3.8-flash) | | 16/16 each | | | 9–23 s | yes |
 
@@ -54,8 +55,13 @@ failures are narrow:
 - Asked on 2026-09-30 for "the past three months", it passed no dates, received
   a year of real daily readings, and answered with October to December 2026:
   92 points and three monthly means that do not exist.
-- One question (a shared record's cholesterol) had no answer after 594 s.
+- One question (a shared record's cholesterol) had no answer in either run
+  (594 s and 375 s).
 - Asked for a reading as JSON, it put the value into the name.
+
+MiniCPM5-1B, at Q8_0 so that quantization is not the excuse, called no tool in
+12 of 16 runs and asked the user which "view" and time zone to use instead, so
+the 2B model is the training base.
 
 None of these is missing knowledge. They are dates, arithmetic and following
 the tool's shape, which is what post-training fixes, and what the harness can
