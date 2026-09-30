@@ -12,6 +12,8 @@ Mirobody-specific middleware on top of the deepagents stack:
   is asked for once more instead of ending the turn blank.
 - `RetryGovernanceMiddleware`: a call that already failed unrecoverably is
   refused before it runs again (`mirobody.kernel.tools.RetryLedger`).
+- `NoVisionReadMiddleware`: for a model that cannot see, `read_file` answers an
+  image with its OCR text instead of an image block.
 
 The filesystem and tool-call repair pieces come from upstream `deepagents`.
 GenotypeSafeSummarizationMiddleware replaces its summarization slot so history
@@ -25,6 +27,7 @@ from .empty_answer import EmptyAnswerRepairMiddleware
 from .prompt_caching import UniversalPromptCachingMiddleware
 from .genotype_row_guard import GenotypeRowGuardMiddleware
 from .genotype_summarization import GenotypeSafeSummarizationMiddleware
+from .no_vision import NoVisionReadMiddleware
 from .retry_governance import RetryGovernanceMiddleware
 from .tool_faults import InvalidToolCallRepairMiddleware, ToolFaultMiddleware
 
@@ -33,6 +36,7 @@ __all__ = [
     "InvalidToolCallRepairMiddleware",
     "GenotypeRowGuardMiddleware",
     "GenotypeSafeSummarizationMiddleware",
+    "NoVisionReadMiddleware",
     "RetryGovernanceMiddleware",
     "ToolFaultMiddleware",
     "UniversalPromptCachingMiddleware",

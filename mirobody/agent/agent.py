@@ -475,6 +475,9 @@ class MirobodyAgent:
                 genotype_guard,
                 UniversalPromptCachingMiddleware(ttl="5m", unsupported_model_behavior="ignore")
             ]
+            if not supports_image:
+                from .middleware import NoVisionReadMiddleware
+                tail.insert(0, NoVisionReadMiddleware())
 
             middleware = harness.standard_middleware(
                 retry_limit=self._RETRY_LIMIT,
