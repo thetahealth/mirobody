@@ -1,50 +1,83 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 380" width="1120" height="380" font-family='Helvetica, Arial, sans-serif' role="img" aria-label="Collect, Translate, Agent: three stages, left to right">
-  <rect width="1120" height="380" fill="#0d1117"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1170 446" width="1170" height="446" font-family='Helvetica, Arial, sans-serif' role="img" aria-label="Collect, Translate, Agent: three stages, left to right">
+  <rect width="1170" height="446" fill="#0d1117"/>
   <defs>
-    <marker id="raw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <marker id="raw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M0 0 L10 5 L0 10 z" fill="#7a8aa0"/>
     </marker>
-    <marker id="std" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <marker id="std" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
       <path d="M0 0 L10 5 L0 10 z" fill="#3fb96f"/>
     </marker>
+    <linearGradient id="grad-raw" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0d1117" stop-opacity="0"/>
+      <stop offset="0.45" stop-color="#7a8aa0" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#7a8aa0"/>
+    </linearGradient>
+    <linearGradient id="grad-std" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0d1117" stop-opacity="0"/>
+      <stop offset="0.45" stop-color="#3fb96f" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#3fb96f"/>
+    </linearGradient>
   </defs>
-  <rect x="40" y="76" width="300" height="240" rx="14" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
-  <text x="190" y="122" text-anchor="middle" font-size="23" font-weight="bold" fill="#c9d1d9">① Collect</text>
-  <text x="190" y="146" text-anchor="middle" font-size="12.5" font-weight="normal" fill="#8b949e">devices · files · exports</text>
-  <g stroke="#8b949e" stroke-width="2" fill="none">
-    <rect x="94" y="186" width="30" height="40" rx="7"/>
-    <path d="M102 186 v-8 h14 v8 M102 226 v8 h14 v-8"/>
-    <circle cx="109" cy="206" r="5" fill="#8b949e" stroke="none"/>
-    <rect x="175" y="180" width="26" height="52" rx="12"/>
-    <path d="M175 210 h26" />
-    <rect x="179" y="214" width="18" height="14" rx="6" fill="#8b949e" stroke="none"/>
-    <rect x="256" y="180" width="34" height="46" rx="4"/>
-    <path d="M264 194 h18 M264 204 h18 M264 214 h11"/>
-  </g>
-  <text x="190" y="266" text-anchor="middle" font-size="11.5" font-weight="normal" fill="#8b949e">the file is kept, and a</text>
-  <text x="190" y="284" text-anchor="middle" font-size="11.5" font-weight="normal" fill="#8b949e">reading points back to it</text>
-  <rect x="410" y="76" width="300" height="240" rx="14" fill="#0e2a19" stroke="#3fb96f" stroke-width="2.5"/>
-  <text x="560" y="122" text-anchor="middle" font-size="23" font-weight="bold" fill="#7ee2a8">② Translate</text>
-  <text x="560" y="146" text-anchor="middle" font-size="12.5" font-weight="normal" fill="#8b949e">one name, one code, one unit</text>
-  <rect x="474" y="176" width="172" height="38" rx="10" fill="#3a2a10" stroke="#d9a24b" stroke-width="1.5"/>
-  <text x="560" y="201" text-anchor="middle" font-size="15" font-weight="bold" fill="#f0c98a">LOINC · UCUM</text>
-  <text x="560" y="244" text-anchor="middle" font-size="11.5" font-weight="normal" fill="#8b949e">offline and deterministic,</text>
-  <text x="560" y="262" text-anchor="middle" font-size="11.5" font-weight="normal" fill="#8b949e">against a bundle in the package;</text>
-  <text x="560" y="284" text-anchor="middle" font-size="11.5" font-weight="normal" fill="#8b949e">abstains rather than guesses</text>
-  <rect x="780" y="76" width="300" height="240" rx="14" fill="#241832" stroke="#b47ee0" stroke-width="2.5"/>
-  <text x="930" y="122" text-anchor="middle" font-size="23" font-weight="bold" fill="#dcb8f5">③ Agent</text>
-  <text x="930" y="146" text-anchor="middle" font-size="12.5" font-weight="normal" fill="#8b949e">reads the original documents</text>
-  <g stroke="#b47ee0" stroke-width="2" fill="none">
-    <path d="M838 176 h64 a8 8 0 0 1 8 8 v26 a8 8 0 0 1 -8 8 h-40 l-14 12 v-12 h-10 a8 8 0 0 1 -8 -8 v-26 a8 8 0 0 1 8 -8 z"/>
-    <path d="M936 222 l26 -14 l22 8 l30 -30" stroke="#3fb96f" stroke-width="2.5"/>
-  </g>
-  <circle cx="936" cy="222" r="3.5" fill="#3fb96f"/>
-  <circle cx="962" cy="208" r="3.5" fill="#3fb96f"/>
-  <circle cx="984" cy="216" r="3.5" fill="#3fb96f"/>
-  <circle cx="1014" cy="186" r="3.5" fill="#3fb96f"/>
-  <text x="930" y="266" text-anchor="middle" font-size="11.5" font-weight="normal" fill="#8b949e">names the file behind</text>
-  <text x="930" y="284" text-anchor="middle" font-size="11.5" font-weight="normal" fill="#8b949e">a number that came from one</text>
-  <path d="M348 196 H400" stroke="#7a8aa0" stroke-width="2.5" fill="none" marker-end="url(#raw)"/>
-  <path d="M718 196 H770" stroke="#3fb96f" stroke-width="2.5" fill="none" marker-end="url(#std)"/>
-  <text x="560" y="356" text-anchor="middle" font-size="14" fill="#c9d1d9">Whatever the lab called it, in — <tspan font-weight="bold" fill="#3fb96f">one coded record an agent can cite, out.</tspan></text>
+  <text x="585" y="40" text-anchor="middle" font-size="15" font-weight="bold" fill="#c9d1d9">Collect · Translate · Agent</text>
+  <rect x="40" y="84" width="290" height="316" rx="14" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+  <text x="185" y="128" text-anchor="middle" font-size="21" font-weight="bold" fill="#c9d1d9">① Collect</text>
+  <text x="185" y="152" text-anchor="middle" font-size="12" font-weight="normal" fill="#8b949e">everything a person has</text>
+  <rect x="58.0" y="180" width="123.0" height="30" rx="9" fill="#1b2129" stroke="#2b333d" stroke-width="1.1"/>
+  <g transform="translate(67.0,186) scale(0.75)" fill="none" stroke="#8b949e" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2.6"/><path d="M10.8 18.4h2.4"/></g>
+  <text x="90.0" y="200" text-anchor="start" font-size="10.5" font-weight="normal" fill="#c3ccd6">Apple Health</text>
+  <rect x="189.0" y="180" width="123.0" height="30" rx="9" fill="#1b2129" stroke="#2b333d" stroke-width="1.1"/>
+  <g transform="translate(198.0,186) scale(0.75)" fill="none" stroke="#8b949e" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="6.5" width="10" height="11" rx="3"/><path d="M9.5 6.5V3.5h5v3M9.5 17.5v3h5v-3"/><path d="M12 10v2.2l1.5 1"/></g>
+  <text x="221.0" y="200" text-anchor="start" font-size="10.5" font-weight="normal" fill="#c3ccd6">Garmin</text>
+  <rect x="58.0" y="220" width="123.0" height="30" rx="9" fill="#1b2129" stroke="#2b333d" stroke-width="1.1"/>
+  <g transform="translate(67.0,226) scale(0.75)" fill="none" stroke="#8b949e" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6.6"/><circle cx="12" cy="12" r="2.6"/></g>
+  <text x="90.0" y="240" text-anchor="start" font-size="10.5" font-weight="normal" fill="#c3ccd6">Oura</text>
+  <rect x="189.0" y="220" width="123.0" height="30" rx="9" fill="#1b2129" stroke="#2b333d" stroke-width="1.1"/>
+  <g transform="translate(198.0,226) scale(0.75)" fill="none" stroke="#8b949e" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="8.5" width="17" height="7" rx="3.5"/><circle cx="12" cy="12" r="1.5"/></g>
+  <text x="221.0" y="240" text-anchor="start" font-size="10.5" font-weight="normal" fill="#c3ccd6">WHOOP</text>
+  <rect x="58" y="260" width="254" height="30" rx="9" fill="#1b2129" stroke="#2b333d" stroke-width="1.1"/>
+  <g transform="translate(67,266) scale(0.75)" fill="none" stroke="#8b949e" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4"/><path d="M9 12h6M9 15h6"/></g>
+  <text x="90" y="280" text-anchor="start" font-size="11" font-weight="normal" fill="#c3ccd6">Lab PDFs · phone photos · spreadsheets</text>
+  <rect x="58" y="300" width="254" height="30" rx="9" fill="#1b2129" stroke="#2b333d" stroke-width="1.1"/>
+  <g transform="translate(67,306) scale(0.75)" fill="none" stroke="#8b949e" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4c0 5 8 5 8 8s-8 3-8 8"/><path d="M16 4c0 5-8 5-8 8s8 3 8 8"/><path d="M9.4 8.5h5.2M9.4 15.5h5.2"/></g>
+  <text x="90" y="320" text-anchor="start" font-size="11" font-weight="normal" fill="#c3ccd6">23andMe · AncestryDNA · WeGene · VCF</text>
+  <rect x="58" y="340" width="254" height="30" rx="9" fill="#1b2129" stroke="#2b333d" stroke-width="1.1"/>
+  <g transform="translate(67,346) scale(0.75)" fill="none" stroke="#8b949e" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5h15v9h-8l-4 3.5v-3.5h-3z"/></g>
+  <text x="90" y="360" text-anchor="start" font-size="11" font-weight="normal" fill="#c3ccd6">a sentence you type</text>
+  <rect x="440" y="84" width="290" height="316" rx="14" fill="#0e2a19" stroke="#3fb96f" stroke-width="2"/>
+  <text x="585" y="128" text-anchor="middle" font-size="21" font-weight="bold" fill="#7ee2a8">② Translate</text>
+  <text x="585" y="152" text-anchor="middle" font-size="12" font-weight="normal" fill="#8b949e">one name, one code, one unit</text>
+  <rect x="458" y="180" width="254" height="30" rx="9" fill="#3a2a10" stroke="#d9a24b" stroke-width="1.1"/>
+  <text x="470" y="200" text-anchor="start" font-size="13" font-weight="bold" fill="#f0c98a">LOINC</text>
+  <text x="700" y="200" text-anchor="end" font-size="10.5" font-weight="normal" fill="#f0c98a">lab analytes</text>
+  <rect x="458" y="220" width="254" height="30" rx="9" fill="#3a2a10" stroke="#d9a24b" stroke-width="1.1"/>
+  <text x="470" y="240" text-anchor="start" font-size="13" font-weight="bold" fill="#f0c98a">UCUM</text>
+  <text x="700" y="240" text-anchor="end" font-size="10.5" font-weight="normal" fill="#f0c98a">units</text>
+  <rect x="458" y="260" width="254" height="30" rx="9" fill="#3a2a10" stroke="#d9a24b" stroke-width="1.1"/>
+  <text x="470" y="280" text-anchor="start" font-size="13" font-weight="bold" fill="#f0c98a">ICPC-3</text>
+  <text x="700" y="280" text-anchor="end" font-size="10.5" font-weight="normal" fill="#f0c98a">complaints</text>
+  <rect x="458" y="300" width="254" height="30" rx="9" fill="#1b2129" stroke="#2b333d" stroke-width="1.1"/>
+  <text x="470" y="320" text-anchor="start" font-size="11" font-weight="normal" fill="#8792a0">refuses rather than guesses</text>
+  <rect x="840" y="84" width="290" height="316" rx="14" fill="#241832" stroke="#b47ee0" stroke-width="2"/>
+  <text x="985" y="128" text-anchor="middle" font-size="21" font-weight="bold" fill="#dcb8f5">③ Agent</text>
+  <text x="985" y="152" text-anchor="middle" font-size="12" font-weight="normal" fill="#8b949e">asks over the coded record</text>
+  <rect x="858" y="180" width="254" height="30" rx="9" fill="#1b2129" stroke="#2b333d" stroke-width="1.1"/>
+  <g transform="translate(867,186) scale(0.75)" fill="none" stroke="#b47ee0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l5-5 3.5 3L20 7"/><path d="M15.5 7H20v4.5"/></g>
+  <text x="890" y="200" text-anchor="start" font-size="11.5" font-weight="bold" fill="#c3ccd6">Trend a value</text>
+  <text x="1100" y="201" text-anchor="end" font-size="10" font-weight="normal" fill="#8b949e">minute … month</text>
+  <rect x="858" y="220" width="254" height="30" rx="9" fill="#1b2129" stroke="#2b333d" stroke-width="1.1"/>
+  <g transform="translate(867,226) scale(0.75)" fill="none" stroke="#b47ee0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l7 3.5-7 3.5-7-3.5z"/><path d="M5 12l7 3.5 7-3.5"/></g>
+  <text x="890" y="240" text-anchor="start" font-size="11.5" font-weight="bold" fill="#c3ccd6">Compare labs</text>
+  <text x="1100" y="241" text-anchor="end" font-size="10" font-weight="normal" fill="#8b949e">one code under them</text>
+  <rect x="858" y="260" width="254" height="30" rx="9" fill="#1b2129" stroke="#2b333d" stroke-width="1.1"/>
+  <g transform="translate(867,266) scale(0.75)" fill="none" stroke="#b47ee0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h7l4 4v12H7z"/><path d="M14 4v4h4"/><path d="M10 14h5M10 17h3"/></g>
+  <text x="890" y="280" text-anchor="start" font-size="11.5" font-weight="bold" fill="#c3ccd6">Cite the file</text>
+  <text x="1100" y="281" text-anchor="end" font-size="10" font-weight="normal" fill="#8b949e">behind every number</text>
+  <rect x="858" y="300" width="254" height="30" rx="9" fill="#1b2129" stroke="#2b333d" stroke-width="1.1"/>
+  <g transform="translate(867,306) scale(0.75)" fill="none" stroke="#b47ee0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5h15v9h-8l-4 3.5v-3.5h-3z"/></g>
+  <text x="890" y="320" text-anchor="start" font-size="11" font-weight="normal" fill="#8792a0">/mcp  ·  gated per user</text>
+  <path d="M342 242 H426" stroke="url(#grad-raw)" stroke-width="3" fill="none" stroke-linecap="round" marker-end="url(#raw)"/>
+  <text x="384.0" y="226" text-anchor="middle" font-size="10" font-weight="normal" fill="#8b949e">source kept</text>
+  <path d="M742 242 H826" stroke="url(#grad-std)" stroke-width="3" fill="none" stroke-linecap="round" marker-end="url(#std)"/>
+  <text x="784.0" y="226" text-anchor="middle" font-size="10" font-weight="normal" fill="#8b949e">one coded record</text>
+  <text x="585" y="422" text-anchor="middle" font-size="13.5" fill="#c9d1d9">Whatever the lab called it, in — <tspan font-weight="bold" fill="#3fb96f">one coded record an agent can cite, out.</tspan></text>
 </svg>
