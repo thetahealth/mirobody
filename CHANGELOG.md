@@ -2,17 +2,16 @@
 
 ### Added
 
-- **`skills/`: three skills for someone else's agent.** `npx skills add
+- **`skills/`: two skills for someone else's agent.** `npx skills add
   thetahealth/mirobody --skill <name>` drops one into Claude Code, Codex,
-  Cursor or Gemini CLI. `dont-guess-my-labs` reads a lab report against the
-  offline resolver instead of memory; `translate-health-data` turns lab
-  documents, an Apple Health export, symptoms and units into LOINC, UCUM and
-  ICPC-3 rows and FHIR Observations; `mirobody` runs the Docker stack and
-  connects an agent to it over MCP. `.claude-plugin/marketplace.json` offers
-  the same three as a Claude Code plugin. `mirobody/tests/test_skills.py`
+  Cursor or Gemini CLI. `translate-health-data` turns lab documents, an Apple
+  Health export, symptoms and units into LOINC, UCUM and ICPC-3 rows and FHIR
+  Observations; `mirobody` runs the Docker stack and connects an agent to it
+  over MCP. `.claude-plugin/marketplace.json` offers the same two as a Claude
+  Code plugin. `mirobody/tests/test_skills.py`
   re-runs every code, subcommand, Compose service and number the prose
-  quotes, and pins five terms that resolve wrongly today so a fix updates
-  the text in the same commit.
+  quotes, and pins six category terms that must stay deliberately unresolved.
+  The module ships in the wheel and sdist as inspectable release evidence.
 
 ### Changed
 
@@ -31,6 +30,21 @@
   workflow once the version is confirmed on PyPI, a final release is also
   tagged `latest`, and the documentation site is told when
   `DOCS_DISPATCH_TOKEN` is set.
+- **The Docker Hub page now has one source of truth.** The image workflow
+  publishes the short and full repository description from
+  `docs/docker-hub-description.md`; a manual dispatch can rebuild a repaired
+  source ref under an existing version tag without moving the release tag.
+
+### Fixed
+
+- **Category words no longer select a specific LOINC assay.** `免疫`, `stool`,
+  `重金属`, `heavy metals`, `激素` and `enzymes` now return an explicit
+  unresolved result; each names a category or specimen rather than one
+  observation. The public skill reference and its shipped regression module
+  carry the same rule.
+- **The skills evidence module is present in release artifacts.** Wheels now
+  include `mirobody/tests/test_skills.py` while checkout-only test modules stay
+  out of the install.
 
 ## 1.5.3
 

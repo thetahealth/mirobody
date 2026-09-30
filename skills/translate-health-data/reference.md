@@ -100,18 +100,18 @@ single value against a panel code.**
 
 ---
 
-## 4. Known bad resolutions, verified 2026-09-30
+## 4. Category words deliberately unresolved, verified 2026-09-30
 
 The resolver is lexical, so a category word can land on a plausible specific
-code. These are **real, reproducible defects** in the shipped bundle:
+code. These six surfaces are now explicit refusals in the shipped bundle:
 
-| Term | Means | Resolves to | Why it is wrong |
+| Term | Means | Result | Why |
 |---|---|---|---|
-| `免疫` | "immunity" (category) | `99308-9` Acid alpha glucosidase cross-reactive immunologic material (CRIM) [Presence] in Leukocytes by Immunoblot | **Worst case.** A category word becomes a rare-disease immunoblot |
-| `stool` | a specimen | `102489-2` Budgerigar droppings IgE Ab [Presence] in Serum by RAST | A specimen word becomes a bird-droppings allergy test |
-| `重金属` / `heavy metals` | a category | `31148-0` Heavy metals [Identifier] in Tissue | Wrong specimen: tissue, on a blood or urine report |
-| `激素` | "hormones" (category) | `60516-2` Hormone treatment | A treatment, not a level |
-| `enzymes` | a category | `1857-2` Angiotensin converting enzyme [Enzymatic activity/volume] in Blood | One enzyme stands in for the whole category |
+| `免疫` | "immunity" (category) | **unresolved** | A category word must not become one rare-disease immunoblot |
+| `stool` | a specimen | **unresolved** | A specimen word must not become one bird-droppings allergy test |
+| `重金属` / `heavy metals` | a category | **unresolved** | The report must supply the actual analytes and specimen |
+| `激素` | "hormones" (category) | **unresolved** | A category must not become a hormone treatment |
+| `enzymes` | a category | **unresolved** | One enzyme must not stand in for the whole category |
 
 **The detection rule, which generalizes beyond this list:**
 
@@ -119,8 +119,8 @@ code. These are **real, reproducible defects** in the shipped bundle:
 > name on the page (a category word landing on one named analyte, a score, a
 > treatment, or a different specimen) treat it as unresolved.
 
-Hitting one is worth
-[reporting](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml).
+An unresolved category is correct behavior. A new suspiciously specific match is
+worth [reporting](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml).
 A wrong term is the highest-leverage bug this project takes.
 
 ---

@@ -1,14 +1,14 @@
 """Build backend: setuptools, minus the build-time-only data and code.
 
 The local regression suite lives in a gitignored `tests/` at the repo root and
-never reaches a build. What DOES reach one is `mirobody/tests/`, the gate suite
-that ships in the repository because each module is EVIDENCE for a public claim
-— the resolver score the README links, the README gates, the export tables.
-Useful to anyone with a checkout, useless in someone's site-packages, so the
-hook prunes the whole directory (:func:`_should_drop`), and
-`scripts/check_wheel_data.py` fails the build if one comes back. Also dropped: the terminology artifacts nothing at
-runtime reads (:data:`_BUILD_ONLY_DATA`) and the two bundle-build code trees
-nobody who installs the package can run (:data:`_BUILD_ONLY_CODE`).
+never reaches a build. `mirobody/tests/` holds checkout gates plus
+`test_skills.py`, the public evidence module that checks the installable skill
+claims. That one module travels in the wheel and sdist; the other checkout-only
+tests are pruned by :func:`_should_drop`, and
+`scripts/check_wheel_data.py` fails the build if they come back. Also dropped:
+the terminology artifacts nothing at runtime reads (:data:`_BUILD_ONLY_DATA`)
+and the two bundle-build code trees nobody who installs the package can run
+(:data:`_BUILD_ONLY_CODE`).
 
 `[tool.setuptools.exclude-package-data]` cannot express the data half, because
 the broad `**/*.bin` / `**/*.npy` globs in `package-data` win, and the exclusion
@@ -175,7 +175,7 @@ def _slim_sdist(path: str) -> None:
 
 
 def _rewrite_wheel(path: str) -> None:
-    """Repack the wheel without test modules, fixing RECORD as we go."""
+    """Repack the wheel without checkout-only tests, fixing RECORD as we go."""
     import base64
     import csv
     import hashlib
@@ -234,6 +234,7 @@ def _rewrite_wheel(path: str) -> None:
 #: `conftest.py` too: it is package *code* to setuptools, and a root conftest
 #: in someone's site-packages changes how THEIR pytest collects.
 _EXCLUDED_NAMES = ("conftest.py",)
+_PUBLIC_TEST_ARTIFACTS = frozenset({"mirobody/tests/test_skills.py"})
 
 
 def _is_test_artifact(path: str) -> bool:
@@ -249,8 +250,11 @@ def _should_drop(member: str) -> bool:
     parts = member.split("/")
     if "goldens" in parts or "fixtures" in parts:
         return True
-    # The gate suite by DIRECTORY, not by filename: `mirobody/tests/__init__.py`
-    # is not a `test_*.py`, and a basename rule would have shipped it.
+    if member in _PUBLIC_TEST_ARTIFACTS:
+        return False
+    # The checkout gate suite is selected by DIRECTORY, not by filename:
+    # `mirobody/tests/__init__.py` is not a `test_*.py`, and a basename rule
+    # would have shipped it.
     if "tests" in parts:
         return True
     return _is_test_artifact(member)

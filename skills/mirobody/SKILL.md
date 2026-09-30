@@ -16,10 +16,9 @@ record with each number traced to the file it came from. It runs in Docker on
 the user's machine, on a model key they choose. Nothing leaves the machine
 except calls to that model and to a wearable vendor once one is linked.
 
-This skill gets a stack running and connects an agent to it. Two sibling
-skills cover the library without Docker: `translate-health-data` turns raw
-files into coded rows, and `dont-guess-my-labs` reads one lab report to a
-person without guessing.
+This skill gets a stack running and connects an agent to it. The sibling
+`translate-health-data` skill covers the library without Docker: it turns raw
+files into coded rows and explains a report only from resolved evidence.
 
 ## Agent contract
 
