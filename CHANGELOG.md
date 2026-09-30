@@ -16,6 +16,11 @@
 
 ### Changed
 
+- **The README links the benchmarks.** ESL-Bench, MedHall-Bench and
+  MedHarm-Bench each drew 4,000+ Hugging Face downloads in the 30 days to
+  2026-10-01, and none of their cards linked here, nor did either README link
+  them, the ESL-Bench paper or `thetahealth/mirobody-eval`. Both editions'
+  "Numbers you can check" tables now carry one row for them.
 - **Two commands to a running stack.** `deploy.sh` writes a model key given
   in its environment into `.env` (`OPENROUTER_API_KEY=sk-or-... ./deploy.sh`),
   under the variable names `config.llm.yaml` reads, so a first run needs no
@@ -95,6 +100,25 @@
 
 ### Fixed
 
+- **The Data page lists the devices you configured.** With Oura, WHOOP or
+  Garmin credentials set, `/api/v1/pulse/providers` answered with the
+  device, but the "connect a source" tab said there was nothing to connect.
+  Its list was fetched only by the component that renders it, and that
+  component was shown only once the list was non-empty, so the request was
+  never made. The page now asks for the list itself, and shows a loading
+  skeleton until the answer arrives (mirobody-web 61f102e). To tell: set
+  `OURA_CLIENT_ID` and `OURA_CLIENT_SECRET` in the config overlay, restart,
+  and open Data › connect a source; the Oura row is there.
+- **The page no longer fetches provider logos from Theta's servers.** Once a
+  device was listed, its row loaded its logo from `static.thetahealth.ai`, so
+  a self-hosted page contacted a server outside the deployment. The README's
+  privacy line ("nothing leaves your machine except calls to the model you
+  chose, and to a device vendor once you link one") did not hold. The web
+  client now ships the built-in providers' logos, inlined into the bundle;
+  the API's `logo` field is unchanged for other clients. `docs/provider-guide.md`
+  had told plugin authors to host their logo on that CDN, and now says the
+  field is optional and loaded from wherever it points. To tell: on the tab
+  above, every request goes to the stack itself.
 - **An upload made after the server restarted is no longer lost.** In a page
   opened before a restart (the README's own order: open the page, add the
   key, `docker compose up -d`), the first file sat at "uploading" forever and

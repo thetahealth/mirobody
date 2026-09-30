@@ -175,6 +175,7 @@ Nothing leaves your machine except calls to the model you chose, and to a device
 | **328 UCUM units** with dimensional analysis, a molar-mass bridge, and an explicit refusal to convert a percentage into a count | [Standardization in depth](docs/standardization.md) |
 | **316 standard device indicators** | [Device crosswalk](docs/device-crosswalk.md) |
 | The package names the vocabulary that answered you: `mirobody.BUNDLE_VERSION` is `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
+| Three public benchmarks for health agents: [ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench) (longitudinal virtual users; paper [arXiv 2604.02834](https://arxiv.org/abs/2604.02834)), [MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench) (field-level hallucination: dose, unit, reference range, code) and [MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) (red-team safety) | [`thetahealth/mirobody-eval`](https://github.com/thetahealth/mirobody-eval) runs them under one scoring discipline |
 
 The engine powers **[Theta Wellness](https://www.thetahealth.ai/)**, a live consumer health product with 12,000+ registered users and 1,700+ daily active.
 
