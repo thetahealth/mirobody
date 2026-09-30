@@ -97,6 +97,10 @@ To publish to official PyPI, add:
   keeping the published tag at `1.5.3`.
 - Set `page_only=true` on a manual run to sync the page without building an
   image. The page job is separate so a metadata error can be retried alone.
+- The image can publish with a token that has image read/write scope, but the
+  page update additionally needs repository-admin metadata permission. If that
+  scope is absent, a normal release warns after the image succeeds and a
+  `page_only=true` retry fails clearly until the token is upgraded.
 
 A GitHub Actions secret is write-only: rotate or delete it, but never read it
 back. Its value is masked in logs, and a fork or a fork's pull request never
