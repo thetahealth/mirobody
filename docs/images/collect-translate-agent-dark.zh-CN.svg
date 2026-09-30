@@ -1,17 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1170 446" width="1170" height="446" font-family='"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif' role="img" aria-label="收集、转译、智能体：三个阶段，从左到右">
   <rect width="1170" height="446" fill="#0d1117"/>
-  <defs>
-    <linearGradient id="grad-raw" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#0d1117" stop-opacity="0"/>
-      <stop offset="0.45" stop-color="#7a8aa0" stop-opacity="0.85"/>
-      <stop offset="1" stop-color="#7a8aa0"/>
-    </linearGradient>
-    <linearGradient id="grad-std" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#0d1117" stop-opacity="0"/>
-      <stop offset="0.45" stop-color="#3fb96f" stop-opacity="0.85"/>
-      <stop offset="1" stop-color="#3fb96f"/>
-    </linearGradient>
-  </defs>
   <text x="585" y="40" text-anchor="middle" font-size="15" font-weight="bold" fill="#c9d1d9">收集 · 转译 · 智能体</text>
   <rect x="40" y="84" width="290" height="316" rx="14" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
   <text x="185" y="128" text-anchor="middle" font-size="21" font-weight="bold" fill="#c9d1d9">① 收集 Collect</text>
@@ -69,9 +57,19 @@
   <rect x="858" y="300" width="254" height="30" rx="9" fill="#1b2129" stroke="#2b333d" stroke-width="1.1"/>
   <g transform="translate(867,306) scale(0.75)" fill="none" stroke="#b47ee0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5h15v9h-8l-4 3.5v-3.5h-3z"/></g>
   <text x="890" y="320" text-anchor="start" font-size="11" font-weight="normal" fill="#8792a0">/mcp  ·  按用户鉴权</text>
+  <linearGradient id="grad-raw" gradientUnits="userSpaceOnUse" x1="342" y1="242" x2="426" y2="242">
+    <stop offset="0" stop-color="#7a8aa0" stop-opacity="0"/>
+    <stop offset="0.5" stop-color="#7a8aa0" stop-opacity="0.7"/>
+    <stop offset="1" stop-color="#7a8aa0" stop-opacity="1"/>
+  </linearGradient>
   <path d="M342 242 H413" stroke="url(#grad-raw)" stroke-width="3.2" fill="none" stroke-linecap="round"/>
   <path d="M417 234 L426 242 L417 250" fill="none" stroke="#7a8aa0" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
   <text x="384.0" y="224" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#8b949e">源文件留下</text>
+  <linearGradient id="grad-std" gradientUnits="userSpaceOnUse" x1="742" y1="242" x2="826" y2="242">
+    <stop offset="0" stop-color="#3fb96f" stop-opacity="0"/>
+    <stop offset="0.5" stop-color="#3fb96f" stop-opacity="0.7"/>
+    <stop offset="1" stop-color="#3fb96f" stop-opacity="1"/>
+  </linearGradient>
   <path d="M742 242 H813" stroke="url(#grad-std)" stroke-width="3.2" fill="none" stroke-linecap="round"/>
   <path d="M817 234 L826 242 L817 250" fill="none" stroke="#3fb96f" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
   <text x="784.0" y="224" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#8b949e">一条带码记录</text>
