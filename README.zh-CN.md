@@ -127,6 +127,17 @@ resolve_condition("糖尿病").outcome    # 'needs-input'  哪一型？问你，
 
 → [标准化详解](docs/standardization.zh-CN.md) · [作为库使用](https://docs.mirobody.ai/zh/quickstart#a--the-library) · [`examples/`](examples/README.md)
 
+### 或者交给你的 agent
+
+两个 skill 教会 Claude Code、Codex、Cursor 或 Gemini CLI 用它。一个把原始健康文件、导出和症状变成带码的行、读化验单时查解析器而不靠记忆，不需要 key；另一个跑起整套引擎、通过 MCP 接入：
+
+```bash
+npx skills add thetahealth/mirobody --skill translate-health-data
+npx skills add thetahealth/mirobody --skill mirobody
+```
+
+→ [`skills/`](skills/README.md)
+
 ## 隐私
 
 除了你自己选的那个模型，以及你连上的设备厂商，没有任何数据离开你的机器。**② 转译这一层完全在本地**：名字对到码、单位换算成 UCUM，查的是随包发布的词表，不用 key，不联网。你的记录存在你自己的 Postgres 里，容器是你自己起的，这里不会把任何使用情况报给谁。落库加密还没覆盖到每一个字段；要把它接到一个你控制不了的网络上，先过一遍 [SECURITY.md](SECURITY.md)。
@@ -150,6 +161,7 @@ resolve_condition("糖尿病").outcome    # 'needs-input'  哪一型？问你，
 | 把一份文件变成读数 | `pip install 'mirobody[parse]'`：PDF、图片、Excel、Word、PowerPoint、文本都行；只有扫描件才会送到视觉模型 |
 | 在 Claude Desktop、Cursor 或自己的 loop 里用这些工具 | 设置 → MCP：每个 agent 工具同时挂在 `/mcp` 上，按用户鉴权 |
 | 加一个工具或一个设备数据源 | 往 `mirobody/agent/tools/` 或 `mirobody/collect/providers/` 丢个文件重启，或者 `pip install` 一个声明了 `mirobody.providers` / `mirobody.tools` / `mirobody.agents` entry point 的包 |
+| 让你的编码 agent 学会用它 | `npx skills add thetahealth/mirobody --skill translate-health-data` 用库，`--skill mirobody` 装整套引擎；见 [`skills/`](skills/README.md) |
 | 换掉自带的 agent 框架 | `pip install 'mirobody[agent]'` 拿中间件和虚拟文件系统后端；或者把 `AGENT_DIRS` 指向自己的目录，整体替换自带的 agent |
 
 → [MCP 接入](https://docs.mirobody.ai/zh/tools/mcp-integration) · [添加工具](https://docs.mirobody.ai/zh/tools/adding-tools) · [接入自己的 agent](CONTRIBUTING.md#-bringing-your-own-agent)

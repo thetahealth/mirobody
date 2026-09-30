@@ -1,5 +1,19 @@
 ## Unreleased
 
+### Added
+
+- **`skills/`: three skills for someone else's agent.** `npx skills add
+  thetahealth/mirobody --skill <name>` drops one into Claude Code, Codex,
+  Cursor or Gemini CLI. `dont-guess-my-labs` reads a lab report against the
+  offline resolver instead of memory; `translate-health-data` turns lab
+  documents, an Apple Health export, symptoms and units into LOINC, UCUM and
+  ICPC-3 rows and FHIR Observations; `mirobody` runs the Docker stack and
+  connects an agent to it over MCP. `.claude-plugin/marketplace.json` offers
+  the same three as a Claude Code plugin. `mirobody/tests/test_skills.py`
+  re-runs every code, subcommand, Compose service and number the prose
+  quotes, and pins five terms that resolve wrongly today so a fix updates
+  the text in the same commit.
+
 ### Changed
 
 - **The README starts with the Docker path.** Both editions open with the
