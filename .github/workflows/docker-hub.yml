@@ -1,9 +1,23 @@
 name: Docker Hub image
 
+# Publishes thetahealth4mirobody/mirobody for a version, on linux/amd64 and
+# linux/arm64. Three triggers: a GitHub Release, a manual dispatch, and
+# workflow_call from pypi-release.yml. The default GITHUB_TOKEN that creates
+# a release can never itself trigger another workflow, so `release:
+# published` alone never fires after an automated release; workflow_call is
+# what lets the PyPI workflow chain this one. A bare X.Y.Z tag also gets
+# `latest`; a pre-release publishes only its own tag.
+
 on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Version tag to publish, for example 1.5.3
+        required: true
+        type: string
+  workflow_call:
     inputs:
       tag:
         description: Version tag to publish, for example 1.5.3
@@ -19,8 +33,8 @@ jobs:
     env:
       IMAGE: thetahealth4mirobody/mirobody
     steps:
-      # Build the tag named, not the ref the dispatch ran on: a run started
-      # from a branch would otherwise publish that branch as the release.
+      # Build the tag named, not the ref the run started on: a dispatch or
+      # call from a branch would otherwise publish that branch as the release.
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
@@ -43,6 +57,17 @@ jobs:
             exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          # A pre-release suffix (1.5.3-rc1) is not a bare X.Y.Z, so it never
+          # moves the `latest` tag onto a release that is not final.
+          tags="$IMAGE:$tag"
+          if [[ "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            tags="$tags"$'\n'"$IMAGE:latest"
+          fi
+          {
+            echo "tags<<EOF"
+            echo "$tags"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v4
@@ -57,7 +82,7 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ env.IMAGE }}:${{ steps.release.outputs.tag }}
+          tags: ${{ steps.release.outputs.tags }}
           build-args: MIROBODY_VERSION=${{ steps.release.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

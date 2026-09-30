@@ -28,6 +28,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    # Job-level, not step-level: a step's `if:` cannot see an `env:` defined
+    # on that same step, only one set at the job or workflow level.
+    env:
+      DOCS_DISPATCH_TOKEN: ${{ secrets.DOCS_DISPATCH_TOKEN }}
 
     steps:
     # lfs: true is load-bearing, not hygiene. The engine's data bundles
@@ -70,6 +76,7 @@ jobs:
 
     # Get version from tag or use test version
     - name: Set version from tag or manual trigger
+      id: version
       run: |
         if [[ "$GITHUB_EVENT_NAME" == "release" ]]; then
           # If triggered by release creation on github.com
@@ -92,6 +99,7 @@ jobs:
         echo "VERSION=$VERSION" >> $GITHUB_ENV
         # mirobody/__init__.py reads MIROBODY_VERSION at build time (see its docstring).
         echo "MIROBODY_VERSION=$VERSION" >> $GITHUB_ENV
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
         echo "Setting version to $VERSION"
 
         # A real release tag must match the version the source tree calls
@@ -285,6 +293,17 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    # Tells mirobody-health-docs to open a PR pinning this version, same day
+    # instead of waiting for its daily PyPI poll. Skipped when the secret is
+    # unset: the default GITHUB_TOKEN cannot reach another repository, so
+    # this needs its own fine-grained token, and there is none until the
+    # owner adds one.
+    - name: Notify the docs site
+      if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'release') && github.event.inputs.test_mode != 'true' && env.DOCS_DISPATCH_TOKEN != ''
+      env:
+        GH_TOKEN: ${{ env.DOCS_DISPATCH_TOKEN }}
+      run: gh api repos/thetahealth/mirobody-health-docs/dispatches -f event_type=mirobody-release
+
     # Optional: Print installation instructions
     - name: Print installation instructions
       run: |
@@ -298,3 +317,16 @@ jobs:
         echo ""
         echo "📦 Or download from GitHub Release:"
         echo "https://github.com/${{ github.repository }}/releases/tag/$VERSION"
+
+  # Runs only after the PyPI upload and the "is it actually there" check both
+  # succeeded, so an image is never published for a version that is not on
+  # PyPI. Same condition as the Publish to PyPI step above.
+  docker-image:
+    needs: build-and-publish
+    if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'release') && github.event.inputs.test_mode != 'true'
+    uses: ./.github/workflows/docker-hub.yml
+    with:
+      tag: ${{ needs.build-and-publish.outputs.version }}
+    secrets: inherit
+    permissions:
+      contents: read
