@@ -20,8 +20,9 @@
 #   ANTHROPIC_API_KEY    claude          anthropic-utils
 #   DEEPSEEK_API_KEY     deepseek        deepseek-utils
 #
-# No key at all: run your own model server and set LOCAL_BASE_URL in .env instead;
-# the `local` and `local-utils` entries below then serve every surface.
+# No key at all: run the local models (docker/local-models.ini, docs/local-models.md)
+# and set LOCAL_BASE_URL and LOCAL_OCR_BASE_URL; the `local*` entries then serve
+# every surface. With a key set as well, the key's models come first.
 #
 # `mirobody doctor` (and the boot log) prints what the current config selects.
 # Model ids verified against each vendor's catalogue on 2026-09-10.
@@ -139,18 +140,18 @@ MODELS:
     temperature: 0.1
     supports_image: true
   local:
-    # The local agent: Ternary Bonsai 2 27B (PTQ1_0 + its mmproj) on PrismML's
-    # llama-server, which `shell/local-models.sh start` runs as `bonsai-27b`.
-    # No key, and off until LOCAL_BASE_URL is set in .env:
+    # The local agent: Qwen3.8-27B (ISTA-DASLab GSQ-RCO IQ3_S + MTP head), the
+    # `qwen3.8-27b` section of docker/local-models.ini on llama.cpp's router.
+    # No key, and off until LOCAL_BASE_URL is set:
     #   LOCAL_BASE_URL=http://127.0.0.1:8080/v1                (the app on this machine)
     #   LOCAL_BASE_URL=http://host.docker.internal:8080/v1     (the app in Docker)
     llm_type: openai
     base_url: LOCAL_BASE_URL
-    model: bonsai-27b
+    model: qwen3.8-27b
     temperature: 0
     supports_image: true
     stream_chunk_timeout: 600     # nothing streams while a local model reads the prompt:
-                                  # 80 s for the first 8k tokens on an M4 Pro (Bonsai-27B)
+                                  # 80 s for the first 8k tokens on an M4 Pro
 
   # Utility entries (chat: false) — the models behind file parsing, indicator
   # extraction, titles and summaries. MULTIMODAL, one per key, thinking off:
@@ -214,11 +215,11 @@ MODELS:
         type: disabled
 
   local-utils:
-    # The same Bonsai server with thinking off: titles, summaries, the report
+    # The same agent model with thinking off: titles, summaries, the report
     # date, and whatever a document's tables did not hold.
     llm_type: openai
     base_url: LOCAL_BASE_URL
-    model: bonsai-27b
+    model: qwen3.8-27b
     temperature: 0
     supports_image: true
     chat: false
@@ -229,7 +230,7 @@ MODELS:
         enable_thinking: false
 
   local-ocr:
-    # GLM-OCR-0.9B (Q8_0 + its mmproj), `glm-ocr` in shell/local-models.sh.
+    # GLM-OCR-0.9B (Q8_0 + its mmproj), `glm-ocr` in docker/local-models.ini.
     # Off until LOCAL_OCR_BASE_URL is set. It reads report photos and pages:
     # one pass per prompt, the text and then the tables, whose columns are
     # read without a model.

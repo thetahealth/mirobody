@@ -1,92 +1,112 @@
-# Running on your own model server
+# Running on your own machine, with no API key
 
 Mirobody talks to models over the OpenAI-compatible API, so a model server on
-your own machine can take the place of every vendor key. This page is the setup
-that was measured, and what it costs.
+your own machine can take the place of every vendor key: your record, your
+documents and your questions then never leave it. This page is the setup that
+was measured, what it needs, and what it costs.
 
-Two models, two jobs. A document-OCR model (GLM-OCR-0.9B) reads report photos
-and pages into text and HTML tables, and the tables' rows are read by their
-column headers, with no model, then coded by ② Translate, which is offline
-and deterministic. A general model (Bonsai-27B) is the agent, and writes the
-titles and summaries and reads what no table holds. Neither has to know a code.
+Two models, two jobs. **GLM-OCR-0.9B** reads report photos and pages into text
+and tables; the tables' rows are read by their column headers, with no model,
+then coded by ② Translate, which is offline and deterministic. **Qwen3.8-27B**
+is the agent, and writes titles and summaries. Neither has to know a code.
 
-## What was measured
+Both run on [llama.cpp](https://github.com/ggml-org/llama.cpp)'s `llama-server`,
+which has official builds for macOS, Linux (CPU, CUDA, ROCm, Vulkan) and
+Windows. One server serves both: [`docker/local-models.ini`](../docker/local-models.ini)
+is a preset for its router mode, and each model downloads from Hugging Face the
+first time it is asked for.
 
-One Apple M4 Pro with 48 GB of unified memory, 2026-09-29, PrismML's
-`llama-server` (build 10743, the fork that runs ternary GGUF).
+## What it needs
 
-| | GLM-OCR-0.9B Q8_0 (documents) | Ternary Bonsai 2 27B PTQ1_0 (agent) |
+| | Documents | Agent |
 | --- | --- | --- |
-| Files | 0.95 GB + 0.48 GB mmproj | 5.95 GB + 0.63 GB mmproj |
-| Speed | one report photo: ~6 s text, ~10 s tables | ~100 tokens/s reading, ~16 writing |
-| Demo uploads (PDF, photo, CSV, XLSX) | 27 of 27 readings, all by rule, all coded | |
+| Model | GLM-OCR-0.9B Q8_0 (MIT) | Qwen3.8-27B, GSQ-RCO IQ3_S with its MTP head, by ISTA-DASLab (Apache-2.0) |
+| Download | 1.4 GB | 13 GB |
+| Memory while running | about 18–20 GB for both: a Mac with 32 GB, or a GPU with 24 GB | |
 
-A turn that reads one reading takes about 20 s. A turn that charts three months
-of daily values took six minutes: a `vis-chart` block carries every point, so
-the model writes each one out at 16 tokens a second.
+Measured on an Apple M4 Pro with 48 GB (2026-09-30, llama.cpp b11269): the
+eight test questions answered 16 of 16 times with no number the record does
+not hold. A question took from 20 seconds to four and a half minutes (a
+three-month chart), two minutes typically. The four demo documents: 27 of 27
+readings, all read by rule.
 
-## Setup
+## Start the models
 
-**1. Two model servers.** The local stack is these two models, on PrismML's
-`llama-server` (its [releases](https://github.com/PrismML-Eng/llama.cpp/releases);
-stock llama.cpp cannot load Bonsai's ternary GGUF). Download the four files:
-
-| | Hugging Face repo | files |
-| --- | --- | --- |
-| documents | `ggml-org/GLM-OCR-GGUF` (MIT) | `GLM-OCR-Q8_0.gguf`, `mmproj-GLM-OCR-Q8_0.gguf` |
-| agent | `prism-ml/Ternary-Bonsai-2-27B-gguf` | `Ternary-Bonsai-2-27B-PTQ1_0.gguf`, `Ternary-Bonsai-2-27B-mmproj-Q8_0.gguf` |
-
-and start both with the measured flags:
+**macOS**
 
 ```bash
-LLAMA_SERVER=~/llama-prism/llama-server MODELS_DIR=~/models shell/local-models.sh start
-shell/local-models.sh status      # glm-ocr :8081 glm-ocr / bonsai-27b :8080 bonsai-27b
+brew install llama.cpp
+llama-server --models-preset docker/local-models.ini --port 8080
 ```
 
-The script names each server by the model id `config.llm.yaml` expects
-(`--alias`), and `mirobody doctor --probe` checks that each server is running
-that model: llama-server answers any model name with whatever file it loaded.
-GLM-OCR answers only its own task prompts (`Text Recognition:`,
-`Table Recognition:`), which the `local-ocr` entry sends, one pass each.
-
-**2. Two lines in `.env`:**
+**Linux with an NVIDIA GPU**, next to the app in Docker:
 
 ```bash
-LOCAL_BASE_URL=http://127.0.0.1:8080/v1       # the agent, titles, summaries
-LOCAL_OCR_BASE_URL=http://127.0.0.1:8081/v1   # report photos and pages
-# in Docker (compose.yaml): http://host.docker.internal:8080/v1 and :8081/v1
+docker compose --profile local up -d      # adds the `llama` service
 ```
 
-They turn on the `local`, `local-utils` and `local-ocr` entries in
-[`config.llm.yaml`](../config.llm.yaml). With no vendor key set they serve every
-surface. With a key set, the key's models stay first; set `DEFAULT_MODEL=local`,
-`UTILS_VISION_MODEL=local-utils` and `UTILS_TEXT_MODEL=local-utils` to use the
-local servers anyway. Without `LOCAL_OCR_BASE_URL`, the agent's model reads the
-documents too, and a model, not a rule, turns them into readings.
+**Linux or Windows without Docker for the models**: download `llama-server`
+from the [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases)
+(CUDA, Vulkan or CPU build) and run the same command as on macOS.
+
+The first question after starting waits for the downloads. Later starts read
+the cache.
+
+## Point Mirobody at them
+
+Two lines in `.env`, then `docker compose up -d` (a restart does not reread `.env`):
+
+```bash
+LOCAL_BASE_URL=http://host.docker.internal:8080/v1        # app in Docker, models on the host
+LOCAL_OCR_BASE_URL=http://host.docker.internal:8080/v1
+# with `--profile local`:      http://llama:8080/v1 for both
+# app and models on the host:  http://127.0.0.1:8080/v1 for both
+```
+
+With a vendor key set as well, the key's models come first. To use the local
+ones anyway, set `DEFAULT_MODEL=local`, `UTILS_VISION_MODEL=local-utils` and
+`UTILS_TEXT_MODEL=local-utils`.
 
 `compose.yaml` maps `host.docker.internal` for Docker Engine on Linux and keeps
 it out of `HTTP_PROXY`, so a proxied deployment does not route model requests
-through the proxy. On macOS (colima, measured) a container reaches a server
-listening on `127.0.0.1`. On Linux the name points at the Docker bridge, which
-cannot reach the host's loopback, so the server has to listen on the bridge
-address (`--host 172.17.0.1` on a default install) instead.
+through the proxy. On Linux that name points at the Docker bridge, so a server
+on the host has to listen on it (`--host 0.0.0.0`, or the bridge address).
 
-**3. Check it:**
+## Check it
 
 ```bash
-mirobody doctor --probe
+docker compose exec mirobody mirobody doctor --probe
 ```
 
-`doctor` shows which entry each surface uses; `--probe` then sends each one a
-real request (a tool call, a schema-bound answer, a rendered image, and the OCR
-passes) through the code the product uses, and prints what the model did.
+`doctor` shows which entry each surface uses; `--probe` sends each one a real
+request (a tool call, a schema-bound answer, a rendered image, the OCR passes)
+through the code the product uses, and checks that each server runs the model
+its entry names.
+
+## Other servers
+
+Any OpenAI-compatible server works: set the two addresses and, in an overlay,
+the model names it serves (`curl <address>/v1/models`).
+
+**Ollama.** `ollama pull qwen3.8:27b` (17 GB) answered the same sixteen questions
+correctly, and fastest. Two things to know:
+
+- Ollama sets the context from the GPU's memory, and below 24 GB it is 4,096
+  tokens, which cuts Mirobody's prompt short without an error. Set
+  `OLLAMA_CONTEXT_LENGTH=65536` before `ollama serve`.
+- Its `glm-ocr` does not stop after reading a page in 0.34.1 and later
+  ([ollama/ollama#18609](https://github.com/ollama/ollama/issues/18609)). Keep
+  the documents on llama.cpp until that is fixed.
+
+**Ternary Bonsai 2 27B** is the same Qwen3.8-27B in 6.6 GB and answered as well,
+but today only PrismML's [llama.cpp fork](https://github.com/PrismML-Eng/llama.cpp)
+runs it. It becomes the default once upstream llama.cpp does.
 
 ## Things that behave differently from a hosted model
 
-- **Nothing streams while the prompt is read.** On the machine above, a turn
-  that adds 6.6k new tokens waits 82 s for its first byte. The `local` entry
-  allows 600 s of silence (`stream_chunk_timeout`); the library default of
-  120 s fails a long turn.
+- **Nothing streams while the prompt is read.** A turn that adds 6.6k new tokens
+  waits over a minute for its first byte. The `local` entry allows 600 s of
+  silence (`stream_chunk_timeout`); the library default of 120 s fails a long turn.
 - **The first turn after loading is the slow one.** The server caches the
   prompt it has read, so later turns read only what changed.
 - **A reply can be all reasoning.** The agent asks once more when a reply has

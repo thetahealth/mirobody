@@ -64,7 +64,7 @@ services:
       HTTPS_PROXY: ${HTTPS_PROXY:-}
       # host.docker.internal is a model server on this machine (LOCAL_BASE_URL):
       # through the proxy, every request to it would leave the machine.
-      NO_PROXY: ${NO_PROXY:-pg,localhost,127.0.0.1,host.docker.internal}
+      NO_PROXY: ${NO_PROXY:-pg,llama,localhost,127.0.0.1,host.docker.internal}
     extra_hosts:
       # Docker Desktop resolves this name itself; Docker Engine on Linux needs the line.
       - "host.docker.internal:host-gateway"
@@ -93,6 +93,29 @@ services:
       mirobody:
         condition: service_healthy
 
+  # The local models (docker/local-models.ini) for Linux with an NVIDIA GPU:
+  # `docker compose --profile local up -d`, with LOCAL_BASE_URL and
+  # LOCAL_OCR_BASE_URL set to http://llama:8080/v1. A container on a Mac cannot
+  # use the GPU, so there llama-server runs on the host (docs/local-models.md).
+  llama:
+    profiles: [local]
+    image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
+    restart: unless-stopped
+    command: ["--models-preset", "/presets/local-models.ini", "--host", "0.0.0.0", "--port", "8080"]
+    environment:
+      LLAMA_CACHE: /models
+    volumes:
+      - ./docker/local-models.ini:/presets/local-models.ini:ro
+      - mirobody_models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
 volumes:
   mirobody_postgres:
   mirobody_upload:
+  mirobody_models:
