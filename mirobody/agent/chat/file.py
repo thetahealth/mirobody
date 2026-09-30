@@ -88,15 +88,19 @@ async def process_files_from_storage(
     msg_id: str,
     session_id: str = "",
     query_user_id: str = "",
-) -> None:
-    """File this turn's attachments in th_files and start their extraction.
+    source: str = SOURCE_ASK,
+) -> int:
+    """File stored uploads in th_files and start their extraction; returns
+    how many were filed.
 
     `user_id` is the uploader, `query_user_id` the record the readings land in
     (the care-circle target when asking on someone's behalf). A key whose file
-    belongs to another account is dropped before it is fetched.
+    belongs to another account is dropped before it is fetched. `source` is
+    `SOURCE_ASK` for a turn's attachments, `SOURCE_DATA` for `POST
+    /files/upload?file=true`.
     """
     if not file_list:
-        return
+        return 0
     query_user_id = query_user_id or user_id
     try:
         foreign = await FileDbService.keys_held_by_others(
@@ -110,7 +114,7 @@ async def process_files_from_storage(
         ))
         files_info = [r for r in results if r]
         if not files_info:
-            return
+            return 0
 
         scenes = await asyncio.gather(*(asyncio.to_thread(_detect_file_scene, fi) for fi in files_info))
         await FileDbService.insert_files_batch(
@@ -118,11 +122,13 @@ async def process_files_from_storage(
             files_info=files_info,
             scene="report",
             scenes_by_key={str(fi["file_key"]): scene for fi, scene in zip(files_info, scenes, strict=True)},
-            created_source=SOURCE_ASK,
+            created_source=source,
             created_source_id=msg_id,
             query_user_id=query_user_id,
         )
         spawn(process_files_async(files_data=files_info, user_id=query_user_id, msg_id=msg_id))
+        return len(files_info)
     except Exception as e:
         logger.error("attachment filing failed: error_type=%s", type(e).__name__,
                      exc_info=not is_driver_exception(e))
+        return 0

@@ -47,6 +47,14 @@
   150 ms over one person's 149,000 readings. Writes no longer pay for it, and
   the table is dropped at boot.
 
+### Added
+
+- **`POST /files/upload?file=true` files what it stores.** Without the flag
+  the route only stores the file, the first step of a chat attachment that
+  the turn then files, and its message now says so instead of "uploaded
+  successfully". With it, the files land in the record and extraction
+  starts, as a Data-page upload does.
+
 ## 1.5.3
 
 Postgres is the only state service and deployment is one image; the journal
