@@ -120,6 +120,31 @@ correctly, and fastest. Two things to know:
 but today only PrismML's [llama.cpp fork](https://github.com/PrismML-Eng/llama.cpp)
 runs it. It becomes the default once upstream llama.cpp does.
 
+## What each model can read in a photo
+
+GLM-OCR reads printed text and tables. It cannot say what a photo shows: a
+meal, a rash or a scene is beyond it. Its official prompts are the only ones
+Mirobody sends (`Text Recognition:` and `Table Recognition:`, the `local-ocr`
+entry's `ocr_prompts`). Its JSON information-extraction prompt was measured
+and is not used: on a blood-pressure display, a Chinese nutrition table and
+an FDA label it put a value in the wrong field every time (systolic 76 for a
+128/91 reading, energy "3" from the NRV% column), and asked for the dish on a
+meal photo with no text it invented one.
+
+What that means for each kind of photo (Apple M4 Pro, 2026-09-30):
+
+| Photo | GLM-OCR (text pass) | Qwen3.8-27B (the default agent, sees) |
+| --- | --- | --- |
+| Lab report, nutrition table, FDA label | every row read correctly | reads it |
+| Monitor display 128/91, pulse 76 | the three numbers, no labels | "128/91 mmHg, pulse 76" |
+| A plate of food | nothing (there is no text) | a calorie range with its reasoning, and a wrong dish name |
+
+The default agent sees, so a photo in the chat reaches it as an image and a
+meal can be estimated, roughly: expect a range, not a count. An agent that
+cannot see (MiniCPM5-2B, or a quant served without its `mmproj`) is detected
+from its server, gets the photo's OCR text instead, and is told that is all it
+is; for a meal it says it cannot see the photo and asks what was eaten.
+
 ## Things that behave differently from a hosted model
 
 - **Nothing streams while the prompt is read.** A turn that adds 6.6k new tokens
