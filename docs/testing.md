@@ -17,9 +17,12 @@ long-lived venv:
 | `'.[test,app]'` | 146 | 134 passed, 13 xfailed |
 
 The extras no longer change what a clone can run, and that is not a mistake in
-the table. Two gate modules ship: `test_engine_coverage.py`, the resolver
-score the README links, and `test_cross_language_identity.py`. Neither needs an
-extra, so all three installs run both and nothing else. The 13 xfails are the
+the table. Three public modules are kept in the repository: the resolver score,
+the cross-language identity gate, and `test_skills.py`, which checks the agent
+skills' commands and claims. The first two are checkout gates; the skills
+module also ships in the wheel as inspectable release evidence, but skips when
+the wheel is installed without the repository-root `skills/` directory. None
+needs an extra, so all three installs run all three in a clone. The 13 xfails are the
 known cross-language splits, described below. What the extras still decide is what the SERVER needs, which is
 what the package counts are for.
 
@@ -38,10 +41,10 @@ enough.
 That is the entire happy path. `testpaths` is set, so bare `pytest` collects
 two trees, and a third that is neither:
 
-- `mirobody/tests/` — two modules, described below.
-  It ships in the repository and is what `pytest mirobody` runs in a clone; the
-  build prunes the directory, and `scripts/check_wheel_data.py` fails if a
-  member of it turns up in the wheel.
+- `mirobody/tests/` — three public modules, described below.
+  It ships in the repository and is what `pytest mirobody` runs in a clone;
+  only `test_skills.py` is carried into the wheel, and
+  `scripts/check_wheel_data.py` fails if another test member turns up there.
 - `tests/` at the repo root — the maintainers' regression suite, one module per
   package module (`mirobody/kernel/series.py`, `mirobody/translate/` and
   `mirobody/collect/observations.py` each have one). It is gitignored, so it is
@@ -55,7 +58,7 @@ two trees, and a third that is neither:
 
 ## Where tests live
 
-**Two roots, and only `mirobody/tests/` is published.**
+**Two roots; `mirobody/tests/` is the public evidence suite.**
 
 `mirobody/tests/test_engine_coverage.py` is the gate that ships. It is
 *evidence* for a number the README prints and links: a benchmark nobody can run
@@ -66,6 +69,7 @@ a clone can re-run it.
 | --- | --- | --- |
 | `test_engine_coverage.py` | **the published accuracy number** | 296 cases: the panels an ordinary checkup prints, in English, 简体中文, 繁體中文 and 日本語, plus device vocabulary, report shapes (`名称(缩写)`, `Name-ABBREV`, snake_case, full-width), unit-dependent codes and non-numeric readings. Run with `-s` to print the score; `COVERAGE_FLOOR = 1.0` |
 | `test_cross_language_identity.py` | one analyte, one code, in every language | `SAME_ANALYTE` rows must agree; `KNOWN_SPLITS` are the rows that do not yet, each a strict xfail that fails once fixed, so the row moves up |
+| `test_skills.py` | agent skill commands, frontmatter, Compose names and resolver examples | ships in the wheel and sdist as public evidence; it skips the repository-only skill files when run from `site-packages` |
 
 ```bash
 pytest mirobody/tests/test_engine_coverage.py -s

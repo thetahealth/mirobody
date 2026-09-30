@@ -115,6 +115,11 @@ WHEEL_REQUIRED = {
     "mirobody/_defaults/config.devices.yaml": 500,
 }
 
+# `test_skills.py` is release evidence for the two agent skills: a user who
+# installs the wheel can inspect and run the claims it makes. The other
+# checkout gate modules remain deliberately out of the wheel.
+PUBLIC_TEST_ARTIFACTS = frozenset({"mirobody/tests/test_skills.py"})
+
 # Same standard, applied to CODE. These two subtrees are 19,000 lines nobody
 # who installs the package can run — the bundle-build passes need raw
 # LOINC/UMLS releases that are licensed per user, and the v2 semantic pipeline
@@ -235,12 +240,15 @@ def check(path: str) -> list[str]:
             code_stowaways.append((name, size))
 
     problems: list[str] = []
-    # The wheel only: the sdist is a checkout and carries `mirobody/tests/`, the
-    # suite a clone runs, on purpose. In a wheel a test module is a stowaway.
+    # The sdist is a checkout and carries `mirobody/tests/`, the suite a clone
+    # runs, on purpose. A wheel carries only the public skill evidence module;
+    # every other test module is a stowaway.
     test_stowaways = [
         name for name, _, _ in entries
-        if name.rsplit("/", 1)[-1].startswith("test_") or "/goldens/" in name
-        or name.endswith("/conftest.py") or "/tests/" in name
+        if name not in PUBLIC_TEST_ARTIFACTS and (
+            name.rsplit("/", 1)[-1].startswith("test_") or "/goldens/" in name
+            or name.endswith("/conftest.py") or "/tests/" in name
+        )
     ] if wheel else []
     if test_stowaways:
         problems.append(

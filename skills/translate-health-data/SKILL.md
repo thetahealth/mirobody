@@ -225,20 +225,19 @@ a tool rather than through Python.
 - **A refusal is a row with no code, not a dropped row.** Write the name, the
   value and the unit, leave the code empty, and say why: unresolved, refused
   (too broad), or needs-input (ambiguous).
-- **Treat a suspiciously specific match as unresolved.** The resolver is
-  lexical; a category word can land on one named assay. Today `免疫`
-  ("immunity") answers a rare-disease immunoblot and `stool` a bird-droppings
-  allergy test. If the canonical name is far more specific than the source's
-  word, do not use it, and
+- **Treat a suspiciously specific match as unresolved.** The resolver now
+  refuses the category surfaces `免疫`, `stool`, `重金属`, `heavy metals`, `激素`
+  and `enzymes`; it must not turn a category or specimen word into one named
+  assay. If a new term has the same shape, do not use its code and
   [report the term](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml):
   a wrong term is the highest-leverage bug this project takes.
 - **Reference ranges are not in this skill.** Carry the range the source
   printed; never supply one.
 
 `reference.md` holds the confusion tables: the unit pairs, adjacent names
-that are not the same test, category headings that abstain, the known wrong
-resolutions, the extractor shapes worth a retry, and the demo report row by
-row.
+that are not the same test, category headings that abstain, the deliberately
+unresolved category surfaces, the extractor shapes worth a retry, and the demo
+report row by row.
 
 ## 8. Reading a report to the person it belongs to
 

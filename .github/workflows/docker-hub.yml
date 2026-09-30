@@ -17,11 +17,21 @@ on:
         description: Version tag to publish, for example 1.5.3
         required: true
         type: string
+      source_ref:
+        description: Checkout ref for a repair rebuild; leave empty to use the tag
+        required: false
+        default: ""
+        type: string
   workflow_call:
     inputs:
       tag:
         description: Version tag to publish, for example 1.5.3
         required: true
+        type: string
+      source_ref:
+        description: Checkout ref for a repair rebuild; leave empty to use the tag
+        required: false
+        default: ""
         type: string
 
 permissions:
@@ -37,7 +47,7 @@ jobs:
       # call from a branch would otherwise publish that branch as the release.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
+          ref: ${{ inputs.source_ref || github.event.release.tag_name || inputs.tag }}
           lfs: true
 
       - name: Validate release tag and credentials
@@ -89,3 +99,52 @@ jobs:
 
       - name: Inspect published platforms
         run: docker buildx imagetools inspect "$IMAGE:${{ steps.release.outputs.tag }}"
+
+      - name: Update Docker Hub repository page
+        env:
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+
+          page = Path("docs/docker-hub-description.md").read_text(encoding="utf-8")
+          short = page.split("## Short description", 1)[1].split("## Full description", 1)[0].strip()
+          full = page.split("## Full description", 1)[1].strip()
+          credentials = json.dumps({
+              "username": os.environ["DOCKERHUB_USERNAME"],
+              "password": os.environ["DOCKERHUB_TOKEN"],
+          }).encode()
+          login = Request(
+              "https://hub.docker.com/v2/users/login",
+              data=credentials,
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          with urlopen(login) as response:
+              bearer = json.load(response).get("token")
+          if not bearer:
+              raise RuntimeError("Docker Hub authentication returned no bearer token")
+
+          payload = json.dumps({
+              "description": short,
+              "full_description": full,
+          }).encode()
+          update = Request(
+              "https://hub.docker.com/v2/namespaces/thetahealth4mirobody/repositories/mirobody",
+              data=payload,
+              headers={
+                  "Accept": "application/json",
+                  "Authorization": f"Bearer {bearer}",
+                  "Content-Type": "application/json",
+              },
+              method="PATCH",
+          )
+          with urlopen(update) as response:
+              if response.status not in (200, 204):
+                  raise RuntimeError(f"Docker Hub repository update returned {response.status}")
+          print("Docker Hub repository description updated")
+          PY

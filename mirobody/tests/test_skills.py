@@ -81,7 +81,9 @@ def test_skills_dir_is_outside_the_package() -> None:
     assert not (_PKG / "skills").exists()
     assert _SKILLS.parent == _ROOT
     pyproject = _text(_ROOT / "pyproject.toml")
-    assert "skills" not in re.search(r"\[tool\.setuptools\.packages\.find\](.*?)\n\[", pyproject, re.S).group(1)
+    find_block = re.search(r"\[tool\.setuptools\.packages\.find\](.*?)\n\[", pyproject, re.S).group(1)
+    include_line = re.search(r"^include\s*=\s*(.+)$", find_block, re.M).group(1)
+    assert "skills" not in include_line
 
 
 @pytest.mark.parametrize("name", _SKILL_NAMES)
@@ -213,17 +215,10 @@ _ABSTAIN = ["血脂", "三大常规", "甲功", "心肌酶", "生化全套", "�
             "微量元素", "激素六项", "维生素", "尿常规", "肿瘤标志物", "电解质",
             "Lipid-Low-Density Lipoprotein Particle Number"]
 
-#: reference.md section 4: WRONG today, pinned so a fix turns the test red and
-#: the prose is updated in the same commit. Verified 2026-09-30 against
-#: loinc-2.83+2026.09.17-aacb2c715b56.
-_KNOWN_BAD = [
-    ("免疫", "99308-9"),
-    ("stool", "102489-2"),
-    ("重金属", "31148-0"),
-    ("heavy metals", "31148-0"),
-    ("激素", "60516-2"),
-    ("enzymes", "1857-2"),
-]
+#: reference.md section 4: category words that must refuse instead of selecting
+#: one arbitrarily specific LOINC observation. These were the six known wrong
+#: answers in the 1.5.3 bundle.
+_KNOWN_CATEGORY = ["免疫", "stool", "重金属", "heavy metals", "激素", "enzymes"]
 
 #: reference.md section 6: demo/upload/you_annual_checkup_2026-05.pdf, every
 #: printed row with its unit, and what name-only resolution would have given.
@@ -269,21 +264,20 @@ def test_category_word_abstains(term) -> None:
     assert not r.resolved, f"{term} answered {r.loinc} {r.canonical!r}"
 
 
-@pytest.mark.parametrize("term,loinc", _KNOWN_BAD)
-def test_known_bad_resolution_still_reproduces(term, loinc) -> None:
+@pytest.mark.parametrize("term", _KNOWN_CATEGORY)
+def test_category_words_refuse(term) -> None:
     r = resolve(term)
-    assert r.resolved and r.loinc == loinc, (
-        f"{term} no longer resolves to {loinc} (now {r.loinc}). If it was FIXED, "
-        "drop this row and update reference.md section 4 and SKILL.md step 6."
+    assert not r.resolved and r.method == "refused", (
+        f"{term} still answers {r.loinc} {r.canonical!r}; category words must not "
+        "select one specific LOINC observation"
     )
 
 
-def test_known_bad_terms_are_documented() -> None:
+def test_category_words_are_documented() -> None:
     ref = _text(_REF)
-    for term, loinc in _KNOWN_BAD:
-        if term == "heavy metals":
-            continue  # shares its row with 重金属
-        assert f"`{term}`" in ref and loinc in ref, f"{term} / {loinc} missing from reference.md"
+    for term in _KNOWN_CATEGORY:
+        assert f"`{term}`" in ref, f"{term} missing from reference.md"
+    assert "deliberately unresolved" in ref
 
 
 @pytest.mark.parametrize("name,value,unit,with_unit,name_only", _DEMO_ROWS)
@@ -387,8 +381,8 @@ def test_bundle_and_coverage_quoted_are_current() -> None:
 
 
 def test_no_loinc_code_is_invented() -> None:
-    """Every LOINC-shaped token in the three skills is one a test above derives."""
-    derived = {c for *_, c in _UNIT_PAIRS} | {c for _, c in _NAME_ONLY} | {c for _, c in _KNOWN_BAD}
+    """Every LOINC-shaped token in the two skills is one a test above derives."""
+    derived = {c for *_, c in _UNIT_PAIRS} | {c for _, c in _NAME_ONLY}
     derived |= {a for *_, a, _ in _DEMO_ROWS} | {b for *_, b in _DEMO_ROWS}
     derived |= {"718-7", "26511-6", "26499-4", "2339-0", "2160-0", "43727-7", "24325-3", "22748-8"}
     for name in _SKILL_NAMES:
