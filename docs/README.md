@@ -33,6 +33,8 @@ notes to PyPI under a filename that told open-source readers to ignore it.
 | ①②③ | [genetics.md](genetics.md) | raw genotype uploads, active sets, migration, bounded queries, VCF and FHIR export, pinned CPIC coverage, and the scope of each |
 | ③ | [frontend.md](frontend.md) | how the bundled web client is served, and how to replace it |
 | ③ | [walkthrough.md](walkthrough.md) | the four-minute care-circle walkthrough, all four scenes |
+| | [local-models.md](local-models.md) | running every model on your own machine: the two models, what they need, the start command per platform, and what each can read in a photo |
+| | [local-models-roadmap.md](local-models-roadmap.md) | the local models measured side by side, what GLM-OCR can and cannot read, and the plan for a ~3 GB post-trained pair |
 | | [repository-layout.md](repository-layout.md) | the directory map and the two forms the code ships in (library vs application) |
 | | [backup-restore.md](backup-restore.md) | what to copy, how to get it back, and what changes on upgrade |
 | | [testing.md](testing.md) | test layout, markers, snapshots, release gates |
