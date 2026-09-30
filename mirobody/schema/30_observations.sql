@@ -9,8 +9,6 @@
 --   th_coding_decision   why a (name, unit, value kind) got its code, shared
 --   th_coding_alias      mappings a person confirmed
 --   th_concept           display names and axes of the codes in use
---   th_series            one row per (user, series): the catalogue an
---                        assistant reads first
 --   th_day_authority     which observation a day publishes
 --   th_check_result      consistency checks, as rows
 --   v_observation        the one read surface
@@ -186,31 +184,6 @@ CREATE TABLE IF NOT EXISTS th_concept (
     loinc_scale      text,
     loinc_method     text,
     PRIMARY KEY (release, code_system, code)
-);
-
-CREATE TABLE IF NOT EXISTS th_series (
-    user_id          varchar(200) NOT NULL,
-    series_id        text NOT NULL,
-    standard         boolean NOT NULL,           -- false when series_id starts with 'local:'
-    code_system      text,
-    code             text,
-    display          text NOT NULL,
-    display_zh       text,
-    unit_canonical   text,
-    kind             text NOT NULL,
-    modalities       text[] NOT NULL DEFAULT '{}',
-    n                int NOT NULL,
-    first_at         timestamptz,
-    last_at          timestamptz,
-    value_min        numeric,
-    value_max        numeric,
-    last_value       numeric,
-    last_value_text  text,
-    reason           text,
-    checks_failed    int NOT NULL DEFAULT 0,
-    release          text NOT NULL,
-    refreshed_at     timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (user_id, series_id)
 );
 
 CREATE TABLE IF NOT EXISTS th_day_authority (

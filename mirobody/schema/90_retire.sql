@@ -38,9 +38,13 @@ END $$;
 --                           projection now
 --   th_share_permission_type  the advertised sharing vocabulary; the grant
 --                           is one column with three values (10_accounts.sql)
+--   th_series               a per-person catalogue refreshed on every write
+--                           that nothing read: `catalog()` groups
+--                           `v_observation`, 150 ms over 149k rows (1.5.4)
 DROP TABLE IF EXISTS th_file_contents;
 DROP TABLE IF EXISTS deep_agent_workspace;
 DROP TABLE IF EXISTS th_share_permission_type;
+DROP TABLE IF EXISTS th_series;
 
 -- Indexes that charged every insert on the two busiest tables for a read
 -- nothing performs: a trigram index over an always-empty comment, a tags

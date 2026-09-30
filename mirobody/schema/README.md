@@ -80,8 +80,7 @@ Three rules the tables enforce rather than document:
 - **the day is decided once.** `th_day_authority` names the observation a
   (person, series, local day) publishes; election writes it, readers join it.
 
-`th_series` is the per-person catalogue an assistant reads first. `th_concept`
-caches display names and axes of the codes in use. `th_check_result` holds
+`th_concept` caches display names and axes of the codes in use. `th_check_result` holds
 consistency checks as rows. `th_coding_alias` holds mappings a person confirmed.
 
 `90_retire.sql` drops `th_series_dim`, `fhir_indicators` and

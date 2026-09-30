@@ -42,6 +42,10 @@
   workflow once the version is confirmed on PyPI, a final release is also
   tagged `latest`, and the documentation site is told when
   `DOCS_DISPATCH_TOKEN` is set.
+- **`th_series` is gone.** The per-person catalogue was rewritten on every
+  write and read by nothing: `catalog()` groups `v_observation` directly,
+  150 ms over one person's 149,000 readings. Writes no longer pay for it, and
+  the table is dropped at boot.
 
 ## 1.5.3
 

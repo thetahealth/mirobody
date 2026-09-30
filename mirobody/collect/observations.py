@@ -17,9 +17,7 @@ What one `ingest()` call does, in ONE transaction:
    not a duplicate, and is counted as skipped), then codes it and writes
    `th_coding_current`, `th_coding_history`, `th_coding_decision` and, for any
    code that carries a display name, `th_concept`;
-3. refreshes `th_series`, the catalogue an assistant reads first, for the
-   series the batch touched;
-4. records the batch's verdict on the extraction row.
+3. records the batch's verdict on the extraction row.
 
 A draft that cannot be a row (no name, no time, an impossible time, a value
 outside its unit's range) is counted by reason code and not written; the
@@ -175,7 +173,6 @@ class Report:
     skipped: int = 0
     rejected: dict[str, int] = field(default_factory=dict)
     ids: list[int] = field(default_factory=list)
-    series: set[str] = field(default_factory=set)
     extraction_id: int | None = None
     coded: int = 0
 
@@ -417,49 +414,6 @@ SELECT scope, name_key, unit_ucum, code_system, code
  ORDER BY (scope = :global_scope), id
 """
 
-_REFRESH_SERIES = """
-INSERT INTO th_series (user_id, series_id, standard, code_system, code, display, display_zh, unit_canonical, kind,
-                       modalities, n, first_at, last_at, value_min, value_max, last_value, last_value_text,
-                       reason, release, refreshed_at)
-SELECT o.user_id,
-       o.series_id,
-       o.series_id NOT LIKE 'local:%',
-       MAX(o.code_system),
-       MAX(o.code),
-       COALESCE(MAX(o.display), (ARRAY_AGG(o.name_text ORDER BY o.observed_start DESC))[1]),
-       MAX(o.display_zh),
-       (ARRAY_AGG(COALESCE(o.unit_canonical, o.unit_ucum) ORDER BY o.observed_start DESC))[1],
-       (ARRAY_AGG(o.kind ORDER BY o.observed_start DESC))[1],
-       ARRAY_AGG(DISTINCT o.modality),
-       COUNT(*),
-       MIN(o.observed_start),
-       MAX(o.observed_end),
-       MIN(COALESCE(o.value_canonical, o.value_num)),
-       MAX(COALESCE(o.value_canonical, o.value_num)),
-       (ARRAY_AGG(COALESCE(o.value_canonical, o.value_num) ORDER BY o.observed_start DESC))[1],
-       (ARRAY_AGG(o.value_text ORDER BY o.observed_start DESC))[1],
-       MAX(o.reason),
-       MAX(o.release),
-       now()
-  FROM v_observation o
- WHERE o.user_id = :user_id AND o.series_id = ANY(:series_ids)
- GROUP BY o.user_id, o.series_id
-ON CONFLICT (user_id, series_id) DO UPDATE SET
-    standard = EXCLUDED.standard, code_system = EXCLUDED.code_system, code = EXCLUDED.code,
-    display = EXCLUDED.display, display_zh = EXCLUDED.display_zh, unit_canonical = EXCLUDED.unit_canonical,
-    kind = EXCLUDED.kind, modalities = EXCLUDED.modalities, n = EXCLUDED.n,
-    first_at = EXCLUDED.first_at, last_at = EXCLUDED.last_at,
-    value_min = EXCLUDED.value_min, value_max = EXCLUDED.value_max,
-    last_value = EXCLUDED.last_value, last_value_text = EXCLUDED.last_value_text,
-    reason = EXCLUDED.reason, release = EXCLUDED.release, refreshed_at = now()
-"""
-
-_PRUNE_SERIES = """
-DELETE FROM th_series s
- WHERE s.user_id = :user_id AND s.series_id = ANY(:series_ids)
-   AND NOT EXISTS (SELECT 1 FROM v_observation o WHERE o.user_id = s.user_id AND o.series_id = s.series_id)
-"""
-
 _SELECT_ROW = "SELECT * FROM th_observation WHERE id = :id AND user_id = :user_id"
 
 _COPY_CURRENT = f"""
@@ -470,8 +424,6 @@ _COPY_HISTORY = f"""
 INSERT INTO th_coding_history (observation_id, cause, {_CODING_COLUMNS})
 SELECT :new_id, :cause, {_CODING_COLUMNS} FROM th_coding_current WHERE observation_id = :old_id
 """
-
-_SERIES_OF = "SELECT series_id FROM th_coding_current WHERE observation_id = ANY(:ids)"
 
 # The visible row that already holds an identity: the one a re-sent value amends.
 _SELECT_CURRENT = """
@@ -616,31 +568,6 @@ def out_of_range(row: dict[str, Any], coding: translate.Coding, ranges: Any) -> 
     return False
 
 
-async def rebuild_series(user_id: str) -> int:
-    """Recompute the whole catalogue of one person from the fact table:
-    after an account merge, or a migration. Returns the number of series."""
-    async with db.transaction() as tx:
-        rows = await tx.execute(
-            "SELECT DISTINCT series_id FROM th_coding_current k JOIN th_observation o ON o.id = k.observation_id"
-            " WHERE o.user_id = :user_id",
-            {"user_id": str(user_id)},
-        )
-        current = {str(r["series_id"]) for r in rows or []}
-        stale = await tx.execute("SELECT series_id FROM th_series WHERE user_id = :user_id", {"user_id": str(user_id)})
-        await refresh_series(tx, str(user_id), current | {str(r["series_id"]) for r in stale or []})
-    return len(current)
-
-
-async def refresh_series(tx: db.Transaction, user_id: str, series_ids: set[str]) -> None:
-    """Recompute `th_series` for the series a write touched, and drop the
-    entries whose last observation is gone."""
-    if not series_ids:
-        return
-    ids = sorted(series_ids)
-    await tx.execute(_REFRESH_SERIES, {"user_id": str(user_id), "series_ids": ids})
-    await tx.execute(_PRUNE_SERIES, {"user_id": str(user_id), "series_ids": ids})
-
-
 async def _insert(tx: db.Transaction, row: dict[str, Any], on_conflict: str) -> tuple[int | None, bool]:
     """`(id, skipped)`: the new row's id, or `None` with `skipped=True` when
     the identity is already held by an equal row (or, under `skip`, by any
@@ -747,11 +674,9 @@ async def ingest(
                 continue
             report.inserted += 1
             report.ids.append(observation_id)
-            report.series.add(coding.series_id)
             if coding.coded:
                 report.coded += 1
 
-        await refresh_series(tx, str(user_id), report.series)
         if report.extraction_id is not None:
             status = "ok" if not report.rejected else ("failed" if not report.inserted and not report.skipped else "ok")
             reason = ", ".join(f"{k}={v}" for k, v in sorted(report.rejected.items()))
@@ -770,7 +695,6 @@ async def retract(user_id: str, observation_ids: list[int], *, note: str = "") -
     A row already amended or retracted is left alone."""
     if not observation_ids:
         return 0
-    touched: set[str] = set()
     count = 0
     async with db.transaction() as tx:
         for oid in observation_ids:
@@ -786,10 +710,7 @@ async def retract(user_id: str, observation_ids: list[int], *, note: str = "") -
             new_id = _inserted_id(inserted[0], new)
             await tx.execute(_COPY_CURRENT, {"new_id": new_id, "old_id": int(oid)})
             await tx.execute(_COPY_HISTORY, {"new_id": new_id, "old_id": int(oid), "cause": CAUSE_AMEND})
-            series_rows = await tx.execute(_SERIES_OF, {"ids": [int(oid)]})
-            touched.update(str(r["series_id"]) for r in series_rows or [])
             count += 1
-        await refresh_series(tx, str(user_id), touched)
     return count
 
 
@@ -840,9 +761,6 @@ async def amend(
         aliases = await _load_aliases(tx, str(user_id))
         coding = coding_for(row, aliases)
         await _write_coding(tx, new_id, row, coding, CAUSE_AMEND)
-        series_rows = await tx.execute(_SERIES_OF, {"ids": [int(observation_id)]})
-        touched = {coding.series_id, *(str(r["series_id"]) for r in series_rows or [])}
-        await refresh_series(tx, str(user_id), touched)
     return new_id
 
 
@@ -897,18 +815,11 @@ async def erase(
         return 0
     params["user_id"] = str(user_id)
     async with db.transaction() as tx:
-        series_rows = await tx.execute(
-            f"SELECT DISTINCT k.series_id FROM th_coding_current k JOIN th_observation o ON o.id = k.observation_id"
-            f" WHERE o.user_id = :user_id AND {where}",
-            params,
-        )
-        touched = {str(r["series_id"]) for r in series_rows or []}
         deleted = await tx.execute(f"DELETE FROM th_observation WHERE user_id = :user_id AND {where} RETURNING id", params)
         if source_ref:
             await tx.execute("DELETE FROM th_extraction WHERE user_id = :user_id AND source_ref = :source_ref", params)
         elif everything:
             await tx.execute("DELETE FROM th_extraction WHERE user_id = :user_id", params)
-        await refresh_series(tx, str(user_id), touched)
     return len(deleted or [])
 
 
@@ -949,7 +860,6 @@ class RecodeReport:
     scanned: int = 0
     changed: int = 0
     outcomes: dict[str, int] = field(default_factory=dict)
-    series: set[str] = field(default_factory=set)
 
     def count(self, outcome: str) -> None:
         self.outcomes[outcome] = self.outcomes.get(outcome, 0) + 1
@@ -1019,13 +929,10 @@ async def recode(
                 await _write_concept(tx, coding)
                 report.changed += 1
                 report.count(coding.outcome)
-                report.series.update((str(row["series_id"]), coding.series_id))
                 if str(row["series_id"]) != coding.series_id:
                     changed_ids.append(int(row["id"]))
             if changed_ids:
                 await tx.execute(_DROP_AUTHORITY, {"ids": changed_ids})
-            await refresh_series(tx, str(user_id), report.series)
-            report.series.clear()
             if len(rows) < batch:
                 break
     logger.info("recode: scanned=%d changed=%d outcomes=%s", report.scanned, report.changed, report.outcomes)
@@ -1181,7 +1088,6 @@ async def ingest_legacy(rows: list[dict[str, Any]], *, on_conflict: str = ON_CON
         for reason, n in report.rejected.items():
             total.rejected[reason] = total.rejected.get(reason, 0) + n
         total.ids.extend(report.ids)
-        total.series |= report.series
     return total
 
 
@@ -1241,10 +1147,8 @@ __all__ = [
     "legacy_draft",
     "legacy_provenance",
     "prepare",
-    "rebuild_series",
     "recode",
     "redate",
-    "refresh_series",
     "retract",
     "user_tz",
 ]

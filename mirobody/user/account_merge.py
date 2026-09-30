@@ -179,13 +179,12 @@ async def _merge_care_circle_members(cur, losing_id: int, winning_id: int) -> in
 
 async def _merge_observations(cur, losing_str: str, winning_str: str) -> int:
     """th_observation has a unique identity that includes user_id, and
-    th_series / th_day_authority are keyed by (user_id, series_id[, day]).
+    th_day_authority is keyed by (user_id, series_id, day).
 
     A losing observation whose identity the winner already holds (the same
     report uploaded to both accounts) is dropped; the rest move over. The
-    per-user catalogue and day authority are deleted for the loser and
-    rebuilt for the winner after the merge commits (`rebuild_series`), so the
-    two never hold a row the fact table contradicts.
+    loser's day authority is deleted, so it never names a row the fact table
+    no longer gives that person.
     """
     if not await _table_exists(cur, "th_observation"):
         return 0
@@ -212,10 +211,9 @@ async def _merge_observations(cur, losing_str: str, winning_str: str) -> int:
 
     await cur.execute("UPDATE th_observation SET user_id=%s WHERE user_id=%s;", [winning_str, losing_str])
     total += cur.rowcount or 0
-    for table in ("th_series", "th_day_authority"):
-        if await _table_exists(cur, table):
-            await cur.execute(f"DELETE FROM {table} WHERE user_id=%s;", [losing_str])
-            total += cur.rowcount or 0
+    if await _table_exists(cur, "th_day_authority"):
+        await cur.execute("DELETE FROM th_day_authority WHERE user_id=%s;", [losing_str])
+        total += cur.rowcount or 0
     return total
 
 
@@ -338,15 +336,6 @@ async def merge_accounts(
         })
 
         return affected, str(e)
-
-    if affected.get("th_observation"):
-        # Outside the merge transaction on purpose: the catalogue is derived
-        # from the fact table and is rebuilt from it, never carried across.
-        try:
-            from mirobody.collect.observations import rebuild_series
-            await rebuild_series(winning_str)
-        except Exception as e:
-            logger.warning("series catalogue not rebuilt after merge: error_type=%s", type(e).__name__)
 
     return affected, None
 
