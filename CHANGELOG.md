@@ -45,6 +45,10 @@
   architectures import `mirobody.resolve`, read `BUNDLE_VERSION` and resolve
   hemoglobin outside the source directory, so a stale version stub fails the
   build instead of reaching Docker Hub.
+- **A Docker Hub metadata permission error no longer hides a successful image
+  publish.** Normal releases warn after the image is available; a strict
+  `page_only=true` retry still fails until `DOCKERHUB_TOKEN` has repository
+  admin metadata permission.
 - **Category words no longer select a specific LOINC assay.** `免疫`, `stool`,
   `重金属`, `heavy metals`, `激素` and `enzymes` now return an explicit
   unresolved result; each names a category or specimen rather than one

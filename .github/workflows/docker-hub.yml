@@ -113,6 +113,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Update Docker Hub repository page
+        id: page
+        # A publish must not be reported as failed after both platform images
+        # are already on Docker Hub. `page_only=true` stays strict so a manual
+        # metadata retry makes a missing admin scope visible.
+        continue-on-error: ${{ !inputs.page_only }}
         env:
           DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -161,3 +166,9 @@ jobs:
                   raise RuntimeError(f"Docker Hub repository update returned {response.status}")
           print("Docker Hub repository description updated")
           PY
+
+      - name: Explain repository page permission failure
+        if: steps.page.outcome == 'failure'
+        run: |
+          echo '::warning::Docker image publishing succeeded, but Docker Hub refused the repository page update.'
+          echo '::warning::Give DOCKERHUB_TOKEN repository-admin metadata permission, then rerun this workflow with page_only=true.'
