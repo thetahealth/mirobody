@@ -8,7 +8,7 @@ from starlette.responses import Response
 from starlette.routing import Route
 
 
-from mirobody.utils.http import META_PROTOCOL_VERSION, request_origin
+from mirobody.utils.http import META_PROTOCOL_VERSION, loggable_path, request_origin
 
 from mirobody.utils import get_jwt_token, json_response, json_response_with_code, jsonrpc_result, jsonrpc_error
 
@@ -316,7 +316,7 @@ class McpService:
             logger.warning(
                 "MCP: malformed JSON-RPC body",
                 extra={
-                    "path": request.url.path,
+                    "path": loggable_path(request.url.path),
                     "body_bytes": len(body),
                     "content_type": request.headers.get("content-type", ""),
                 },
@@ -380,6 +380,16 @@ class McpService:
             refused.headers["WWW-Authenticate"] = 'Bearer error="invalid_token"'
             return refused
 
+        # A notification (no "id") is answered 202 Accepted with no body, which
+        # Streamable HTTP requires. `notifications/initialized` got 200 and a
+        # JSON `""` body: Codex's client read that as a malformed message,
+        # initialized three times over and never listed a tool. Any other
+        # notification fell through to "method not found", an answer a
+        # notification may not receive at all.
+        if "id" not in jsonrpc:
+            logger.info("mcp notification", extra={"mcp_method": method, "status": 202})
+            return Response(status_code=202)
+
         # The revision THIS request is speaking. 2026-07-28 removed the
         # initialize/initialized handshake, so there is no session in which to
         # remember a negotiated version: the client restates it in `_meta` on
@@ -404,7 +414,7 @@ class McpService:
 
         #   IMPLEMENTED: tools/list, tools/call, initialize (handshake
         #     revisions only), server/discover (2026-07-28 stateless
-        #     discovery), notifications/initialized, ping
+        #     discovery), ping; every notification is accepted above (202)
         #   NOT IMPLEMENTED, where method-not-found is the answer and not a gap:
         #     prompts/*, resources/*   `_CAPABILITIES` declares neither, so a
         #                              conforming client never sends these
@@ -609,13 +619,6 @@ class McpService:
                 cache_hint = _LIST_CACHE_HINT,
                 method  = method,
                 request = request
-            )
-
-        if method == "notifications/initialized":
-            return json_response(
-                content     = "",
-                status_code = 200,
-                request     = request
             )
 
         if method == "ping":

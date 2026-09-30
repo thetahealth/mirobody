@@ -1,5 +1,7 @@
+import hashlib
 import json
 import logging
+import re
 import time
 
 from starlette.responses import Response
@@ -63,15 +65,32 @@ def get_jwt_token(request: Request) -> str:
 
 #-----------------------------------------------------------------------------
 
+#: Paths whose next segment IS the credential: a personal MCP link opens one
+#: person's record, a share id opens a chat. Every request line logged them
+#: whole, so anyone reading the log could use them.
+_CAPABILITY_SEGMENT = re.compile(r"(/mcp/|/api/share/)([A-Za-z0-9_-]{16,})")
+
+
+def loggable_path(path: str) -> str:
+    """`path` with any capability segment replaced by a short digest of it.
+
+    The digest keeps requests from one link correlatable in the log; it is not
+    the link, and 32 bits of its SHA-256 cannot be turned back into it. Short
+    literal routes (`/api/share/deactivate`) are left as they are."""
+    return _CAPABILITY_SEGMENT.sub(
+        lambda m: f"{m.group(1)}~{hashlib.sha256(m.group(2).encode()).hexdigest()[:8]}", path
+    )
+
+
 def _fill_extra_log(request: Request = None, extra: dict[str, any] = None):
     if not request:
         return
-    
+
     if not isinstance(extra, dict):
         return
-    
+
     if request.url and request.url.path:
-        extra["url"] = request.url.path
+        extra["url"] = loggable_path(request.url.path)
 
     platform = request.headers.get("X-Platform")
     if platform:
