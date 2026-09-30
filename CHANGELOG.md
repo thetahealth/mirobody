@@ -7,8 +7,9 @@
   Cursor or Gemini CLI. `translate-health-data` turns lab documents, an Apple
   Health export, symptoms and units into LOINC, UCUM and ICPC-3 rows and FHIR
   Observations; `mirobody` runs the Docker stack and connects an agent to it
-  over MCP. `.claude-plugin/marketplace.json` offers the same two as a Claude
-  Code plugin. `mirobody/tests/test_skills.py`
+  over MCP. `.claude-plugin/marketplace.json` offers the same two as a plugin
+  for Claude Code and for Codex, which reads that file as it is.
+  `mirobody/tests/test_skills.py`
   re-runs every code, subcommand, Compose service and number the prose
   quotes, and pins six category terms that must stay deliberately unresolved.
   The module ships in the wheel and sdist as inspectable release evidence.
@@ -53,8 +54,16 @@
   rows it read with `resolve_reading`; what `needs-input` with
   `icpc3:no-match` asks for; `standardize_report` over stdio needs `[parse]`
   and a key. `mirobody`: one stack per Compose name, ports only from `.env`,
-  the per-client MCP table, three troubleshooting rows. `skills/README.md`
-  names the Claude Code plugin marketplace.
+  the per-client MCP table, three troubleshooting rows, and Claude Code and
+  Codex named in its description. The README (both editions) and
+  `skills/README.md` give the plugin install for Claude Code
+  (`claude plugin marketplace add thetahealth/mirobody`, then
+  `claude plugin install mirobody@mirobody`) and for Codex
+  (`codex plugin marketplace add …`, then `codex plugin add mirobody@mirobody`).
+  To tell: both install from GitHub (Claude Code 2.1.285, Codex 0.159.2), and
+  Codex lists `mirobody:translate-health-data` and `mirobody:mirobody`. Asked
+  to code a checkup PDF with no key, it read that skill, searched only its
+  working directory and coded 9 of 9 rows as the Claude Code run did.
 - **The journal has its GIF.** Step 4 of the README types one sentence into
   Data › Records and shows it become a complaint, two readings and a
   medication, with "no fever" kept out (`docs/images/journal-demo.gif` and its

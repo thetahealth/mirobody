@@ -139,7 +139,12 @@ npx skills add thetahealth/mirobody --skill translate-health-data
 npx skills add thetahealth/mirobody --skill mirobody
 ```
 
-在 Claude Code 里用插件市场装这两个，不需要 Node：先 `/plugin marketplace add thetahealth/mirobody`，再 `/plugin install mirobody@mirobody`。
+或者不用 Node，从 Claude Code 和 Codex 都认的插件市场装：
+
+```bash
+claude plugin marketplace add thetahealth/mirobody && claude plugin install mirobody@mirobody
+codex plugin marketplace add thetahealth/mirobody && codex plugin add mirobody@mirobody
+```
 
 → [`skills/`](skills/README.md)
 

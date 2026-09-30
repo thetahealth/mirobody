@@ -8,9 +8,20 @@ skill, installable on its own:
 npx skills add thetahealth/mirobody --skill <name>
 ```
 
-In Claude Code, the plugin marketplace installs both without Node:
-`/plugin marketplace add thetahealth/mirobody`, then
-`/plugin install mirobody@mirobody` (`.claude-plugin/marketplace.json`).
+Or install both without Node, from the plugin marketplace
+(`.claude-plugin/marketplace.json`). Codex reads that same file, so one
+manifest serves both:
+
+```bash
+claude plugin marketplace add thetahealth/mirobody && claude plugin install mirobody@mirobody
+codex plugin marketplace add thetahealth/mirobody && codex plugin add mirobody@mirobody
+```
+
+Inside a Claude Code session the same two steps are
+`/plugin marketplace add thetahealth/mirobody` and
+`/plugin install mirobody@mirobody`. Claude Code warns that two files arrived
+as Git LFS pointers. They are the LOINC and CPIC data bundles, which neither
+skill reads: the resolver comes from PyPI.
 
 | Skill | For | Needs |
 | --- | --- | --- |

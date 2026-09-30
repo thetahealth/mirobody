@@ -93,7 +93,7 @@ else:
     print("    mirobody serve\n")
     print("Then:")
     print("    http://localhost:18060          the web client")
-    print("    http://localhost:18060/mcp      the MCP endpoint for Claude Desktop / Cursor")
+    print("    Settings → MCP link             a personal /mcp link for Claude Code, Codex, Cursor")
     print("    http://localhost:18060/docs     the REST API")
 
 if present:

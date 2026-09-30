@@ -139,7 +139,12 @@ npx skills add thetahealth/mirobody --skill translate-health-data
 npx skills add thetahealth/mirobody --skill mirobody
 ```
 
-In Claude Code the plugin marketplace installs both, no Node needed: `/plugin marketplace add thetahealth/mirobody`, then `/plugin install mirobody@mirobody`.
+Or, with no Node, from the plugin marketplace that Claude Code and Codex both read:
+
+```bash
+claude plugin marketplace add thetahealth/mirobody && claude plugin install mirobody@mirobody
+codex plugin marketplace add thetahealth/mirobody && codex plugin add mirobody@mirobody
+```
 
 → [`skills/`](skills/README.md)
 

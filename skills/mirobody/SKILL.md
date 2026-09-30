@@ -1,6 +1,6 @@
 ---
 name: mirobody
-description: Self-host Mirobody, the open-source health data engine, and use it from an agent. Use when the user wants to run a personal or family health record on their own machine, bring lab reports and wearables (Apple Health, Garmin, Oura, WHOOP) into one place an AI can read, expose their health data to Claude Desktop, Cursor or another agent over MCP, or operate a stack that is already running (model key, upgrade, backup, ports). Docker is the only requirement; one model API key runs every surface.
+description: Self-host Mirobody, the open-source health data engine, and use it from an agent. Use when the user wants to run a personal or family health record on their own machine, bring lab reports and wearables (Apple Health, Garmin, Oura, WHOOP) into one place an AI can read, expose their health data to Claude Code, Codex, Cursor, Claude Desktop or another agent over MCP, or operate a stack that is already running (model key, upgrade, backup, ports). Docker is the only requirement; one model API key runs every surface.
 license: Apache-2.0
 metadata:
   author: thetahealth

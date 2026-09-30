@@ -28,7 +28,7 @@ config overlay at a directory holding one class with `generate_response`
 (see `mirobody/agent/registry.py` for the two-method contract) and the chat
 endpoints run yours instead. Contributions that improve the shipped agent are
 welcome here; a second built-in agent will not be merged. Every other agent
-runtime — Claude Desktop, Cursor, your own — reaches the same tools over
+runtime — Claude Code, Codex, Cursor, Claude Desktop, your own — reaches the same tools over
 `/mcp`, which is the seam that is meant for it.
 
 If your agent lives in its own service rather than inside this server,
