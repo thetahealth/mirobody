@@ -1,4 +1,4 @@
-## Unreleased
+## 1.5.3
 
 Postgres is the only state service and deployment is one image; the journal
 takes anything, and a medication written in it goes onto the list.
