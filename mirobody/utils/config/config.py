@@ -842,7 +842,9 @@ class Config:
         default_yaml = "config.yaml" if os.path.exists("config.yaml") else _shipped_defaults()
         if default_yaml and default_yaml not in yaml_file_list:
             final_yaml_file_list.append(default_yaml)
-            logger.info("Default config has been loaded.")
+            # DEBUG: config.print() names the files anyway, and at INFO this was
+            # the JSON line printed above `mirobody doctor`'s table.
+            logger.debug("Default config has been loaded.")
 
 
         for yaml_filename in yaml_file_list:

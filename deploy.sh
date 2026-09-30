@@ -56,6 +56,24 @@ fi
 project_name="${COMPOSE_PROJECT_NAME:-$(setting COMPOSE_PROJECT_NAME)}"
 project_name="${project_name:-$(basename "$PWD")}"
 project_name="$(printf '%s' "$project_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]//g')"
+
+# Two checkouts under one project name are one stack to Compose: `up` here
+# silently replaced the other checkout's containers and reused its database
+# volume with this checkout's newly generated keys. A second clone called
+# `mirobody` is the common way in (an agent following the skill picks it).
+here="$(pwd -P)"
+while IFS= read -r other; do
+    [[ -z "$other" ]] && continue
+    if [[ "$(cd "$other" 2>/dev/null && pwd -P || printf '%s' "$other")" != "$here" ]]; then
+        printf 'A Mirobody stack named "%s" already runs from %s.\n' "$project_name" "$other" >&2
+        printf 'Starting this checkout under the same name would take over its containers and its database.\n' >&2
+        printf 'Run ./deploy.sh in %s, or give this checkout its own name and ports in .env:\n' "$other" >&2
+        printf '    COMPOSE_PROJECT_NAME=%s-2\n    MIROBODY_HOST_PORT=18070\n    PG_HOST_PORT=18072\n' "$project_name" >&2
+        exit 1
+    fi
+done < <(docker ps -a --filter "label=com.docker.compose.project=${project_name}" \
+    --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u)
+
 data_dir="${MIROBODY_DATA:-$(setting MIROBODY_DATA)}"
 data_dir="${data_dir:-../mirobody-data}"
 existing_database=false
@@ -129,6 +147,19 @@ ensure_secret CONFIG_ENCRYPTION_KEY
 ensure_secret LOG_ENCRYPTION_KEY
 ensure_secret JWT_KEY
 
+# A model key given on the command line (`OPENROUTER_API_KEY=... ./deploy.sh`)
+# goes into .env, the one file the containers read, so a first run needs no
+# second step. The names are the ones config.llm.yaml reads, and a key already
+# in .env is left as it is.
+model_keys=()
+while IFS= read -r key_name; do
+    [[ -z "$key_name" ]] && continue
+    if [[ -n "${!key_name:-}" ]] && ! has_setting "$key_name"; then
+        add_setting "$key_name" "${!key_name}"
+    fi
+    has_setting "$key_name" && model_keys+=("$key_name")
+done < <(sed -n 's/^[[:space:]]*api_key:[[:space:]]*\([A-Z0-9_]*\).*/\1/p' config.llm.yaml | sort -u)
+
 # Ask the daemon, which is what pulls: the shell's proxy settings are not the
 # daemon's, and hub.docker.com (the website) is not registry-1.docker.io. The
 # smallest real image answers in one round trip.
@@ -166,6 +197,23 @@ if ! docker image inspect "$app_image" >/dev/null 2>&1 && ! docker compose pull 
         ${PIP_INDEX_URL:+--build-arg "PIP_INDEX_URL=${PIP_INDEX_URL}"} .
 fi
 
+# A port another program holds ended the run in Docker's own words, naming
+# neither the variable to change nor the file it goes in. Asked only when this
+# stack is not already up: a re-run's own containers hold these ports.
+if [[ -z "$(docker ps -q --filter "label=com.docker.compose.project=${project_name}" --filter status=running)" ]]; then
+    for pair in "MIROBODY_HOST_PORT:18060" "PG_HOST_PORT:18062"; do
+        var="${pair%%:*}"
+        wanted="${!var:-$(setting "$var")}"
+        wanted="${wanted:-${pair#*:}}"
+        if (exec 3<>"/dev/tcp/127.0.0.1/${wanted}") 2>/dev/null; then
+            printf 'Port %s is already in use on this machine.\n' "$wanted" >&2
+            printf 'Pick a free one for %s in .env, e.g.  %s=%s  and run ./deploy.sh again.\n' \
+                "$var" "$var" "$((wanted + 200))" >&2
+            exit 1
+        fi
+    done
+fi
+
 printf 'Starting Mirobody with %s\n' "$app_image"
 # --remove-orphans: a 1.5.2 stack's redis container is not part of 1.5.3.
 docker compose up -d --wait --wait-timeout 600 --remove-orphans
@@ -179,6 +227,10 @@ done
 port="${MIROBODY_HOST_PORT:-$(setting MIROBODY_HOST_PORT)}"
 printf '\nOpen http://localhost:%s\n' "${port:-18060}"
 if [[ "${SEED_DEMO_DATA:-$(setting SEED_DEMO_DATA)}" != false ]]; then
-    printf 'Demo sign-in: you@mirobody.ai / 111111\n'
+    printf 'Demo sign-in: you@mirobody.ai, code 111111 on the Email code tab\n'
 fi
-printf 'Set one model API key in .env, then run: docker compose up -d\n'
+if [[ ${#model_keys[@]} -eq 0 ]]; then
+    printf 'No model key yet. Run this again with one, e.g.\n'
+    printf '    OPENROUTER_API_KEY=sk-or-... ./deploy.sh\n'
+    printf 'or put it in .env and run: docker compose up -d   (restart does not read .env)\n'
+fi

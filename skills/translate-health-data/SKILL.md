@@ -30,12 +30,22 @@ pip install 'mirobody[parse]'     # adds document parsing, which needs one model
 ```
 
 The first is two packages, numpy and this one; the vocabulary ships inside
-the wheel and the first call loads it in a few seconds. With `uvx`, no
-install: `uvx mirobody resolve 血红蛋白`. For parsing, put ONE key in the
-environment or a `.env` in the working directory (`OPENROUTER_API_KEY`,
-`OPENAI_API_KEY`, `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`
-or `DASHSCOPE_API_KEY`). The model reads the document into rows; the codes
-still come from the offline resolver.
+the wheel and the first call loads it in a few seconds. It needs Python 3.12
+or newer: on an older interpreter pip quietly installs a release from before
+1.2, which has no `mirobody resolve`. Install into a virtual environment
+(`python3.12 -m venv .venv`), never into the user's system Python. With `uvx`,
+no install: `uvx --python 3.12 mirobody resolve 血红蛋白` (uv fetches that
+Python if it is missing). For parsing, put ONE key in the environment or a
+`.env` in the working directory (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`,
+`GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY` or
+`DASHSCOPE_API_KEY`). The model reads the document into rows; the codes still
+come from the offline resolver.
+
+**No key, no search.** If neither the environment nor the working directory's
+`.env` has a key, do not look for one anywhere else: no `find ~`, no reading
+another project's `.env` or `~/.config`. Read the document yourself, then
+resolve every row with `resolve_reading(name, value, unit)`, which needs no
+key. Ask the user for a key only if they want `mirobody parse` itself.
 
 ## Which command, by what you were given
 
@@ -160,8 +170,11 @@ resolve_condition("hypertension").code # 'KD73'        Hypertension, uncomplicat
 ```
 
 Three outcomes, each an instruction: `coded` gives `code` and `display`;
-`refused` means keep the words and do not code; `needs-input` means the text
-is ambiguous and the source, or the user, has to say which.
+`refused` means keep the words and do not code; `needs-input` means it cannot
+be coded as given, and `reason` says why. `icpc3:ambiguous` asks which one
+(the source or the user has to say); `icpc3:no-match` means the text is not
+one complaint or diagnosis on this axis: split a sentence into its terms
+first, and send a diagnosis to `resolve_condition`, not `resolve_symptom`.
 
 ## 5. Units
 
@@ -204,14 +217,16 @@ extension records how the code was chosen, so a reviewer can audit the row.
 ## 7. The same functions over MCP, without the server
 
 ```bash
-uvx mirobody mcp
+uvx --python 3.12 mirobody mcp
 ```
 
-Serves six tools over stdio, offline and with no key: `resolve_indicator`,
-`normalize_unit`, `convert_unit`, `standardize_reading`,
-`standardize_complaint` and `standardize_report`. Point Claude Desktop, Cursor
-or any MCP client at that command when the agent should call the resolver as
-a tool rather than through Python.
+Serves six tools over stdio. Five are offline and need no key:
+`resolve_indicator`, `normalize_unit`, `convert_unit`, `standardize_reading`
+and `standardize_complaint`. The sixth, `standardize_report`, reads a whole
+document with a model, so it needs `uvx --python 3.12 --from 'mirobody[parse]' mirobody mcp`
+and one model key; without them it answers with that instruction. Point
+Claude Code, Codex, Cursor, Claude Desktop or any MCP client at the command
+when the agent should call the resolver as a tool rather than through Python.
 
 ## Rules that keep the output honest
 

@@ -78,7 +78,7 @@ name then, and `""` on the asker's own record. `messages` carries ONLY this turn
 state is the agent's own (the shipped one keys a LangGraph checkpointer on
 `session_id`).
 
-Every other agent runtime — Claude Desktop, Cursor, a Responses-API loop of
+Every other agent runtime — Claude Code, Codex, Cursor, Claude Desktop, a Responses-API loop of
 your own — is meant to reach the same data through `/mcp`, and needs nothing
 from this directory.
 

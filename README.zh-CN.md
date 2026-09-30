@@ -30,23 +30,24 @@
 </p>
 <p align="center"><em>三份文件，三种写法，同一个码。智能体把三份都找出来，画出趋势，并说明每个数字来自哪份文件。</em></p>
 
-## 三条命令跑起来
+## 两条命令跑起来
 
 ```bash
 git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
-./deploy.sh                          # 拉取镜像；Postgres、服务端、worker 起来 → http://localhost:18060
-echo 'OPENROUTER_API_KEY=sk-or-...' >> .env && docker compose up -d   # 一把模型 key，打开抽取和问答
+OPENROUTER_API_KEY=sk-or-... ./deploy.sh     # Postgres、服务端、worker 起来 → http://localhost:18060
 ```
 
-只需要 Docker：不用 Python，不用 Node.js，不用 GPU，也不用 Git LFS。`deploy.sh` 会把密钥写进 `.env`，拉取预构建镜像，拉不到时才用当前检出在本机构建。
+只需要 Docker：不用 Python，不用 Node.js，不用 GPU，不用 Git LFS，连 Git 都可以不装（`curl -L https://github.com/thetahealth/mirobody/archive/refs/heads/main.tar.gz | tar xz && cd mirobody-main` 得到的是同一份检出）。`deploy.sh` 会把密钥和你的 key 写进 `.env`，拉取预构建镜像，拉不到时才用当前检出在本机构建；端口被占用、或同名的另一套 Mirobody 已经在跑时，它会停下来并说清楚怎么改。镜像要和自己的 Postgres 一起跑，所以单独 `docker run` 是跑不起来的。之后再加 key：写进 `.env`，然后 `docker compose up -d`；`restart` 不会重新读 `.env`。
 
-1. **登录。** 在「邮箱验证码」页签用 `you@mirobody.ai`、验证码 `111111` 登录。`SEED_DEMO_DATA` 默认打开，一开始两个账号就合计有 **2,019 条读数**：你自己，和把记录以只读方式共享给你的 `mom@mirobody.ai`。
-2. **把一份文件拖到 Data 页。** [`demo/upload/`](demo/) 里放着四份种子数据故意没写进库的文件：一份化验单 PDF、一张打印报告的照片、一个表格、另一家化验所导出的 CSV。每一项分析物都带着数值、单位和编码被抽出来，并链回它来源的那一页。
+1. **登录。** 登录页会直接给出演示账号：「邮箱验证码」页签，`you@mirobody.ai`，验证码 `111111`。`SEED_DEMO_DATA` 默认打开，一开始两个账号就合计有 **2,019 条读数**：你自己，和把记录以只读方式共享给你的 `mom@mirobody.ai`。
+2. **把一份文件拖到 Data 页。** [`demo/upload/`](demo/) 里放着四份种子数据故意没写进库的文件：化验单 PDF 和另一家化验所导出的 CSV 是你的，打印报告的照片和表格是妈妈的，要用她的账号上传。每一项分析物都带着数值、单位和编码被抽出来，并链回它来源的那一页。
 3. **提问。**「我的胆固醇怎么变的？」会把带着这一项的文件全都找出来，不管化验所怎么写，画出趋势，并说明每个数字出自哪份文件。同一个问题问到共享给你的那份记录上，答案就来自你只能看、不能改的数据。
+4. **用自己的话记下感受。** 在「数据 › 记录」里写一句 `昨晚开始头疼，血压150/95，没发烧，每天早晚吃二甲双胍500mg`：一句话变成一条带码的症状、两条带码的读数和一条用药，「没发烧」不会被当成发烧记下来。
 
 <p align="center">
   <img src="docs/images/upload-demo.zh-CN.gif" alt="把化验单 PDF 拖到 Data 页；分析物被抽取出来，带着 LOINC 码出现在指标表里" width="880">
   <img src="docs/images/ask-circle-demo.zh-CN.gif" alt="同一个问题问到共享记录上；答案来自另一个人的文件" width="880">
+  <img src="docs/images/journal-demo.zh-CN.gif" alt="写一句话，头疼编成 NS01，血压编成 8480-6 和 8462-4，二甲双胍进入用药清单；「没发烧」不记" width="880">
 </p>
 
 **用哪把 key。** 下面任何一把都能把整套跑通：[OpenRouter](https://openrouter.ai/keys)（`OPENROUTER_API_KEY`）、[OpenAI](https://platform.openai.com/api-keys)（`OPENAI_API_KEY`）、[Gemini](https://aistudio.google.com/apikey)（`GOOGLE_API_KEY`）、[Anthropic](https://platform.claude.com/settings/keys)（`ANTHROPIC_API_KEY`）、DeepSeek、DashScope，或者任何 OpenAI 兼容网关（`<PROVIDER>_BASE_URL`）。[`config.llm.yaml`](config.llm.yaml) 写的是变量名（`api_key: OPENROUTER_API_KEY`），不是密钥本身；`mirobody doctor` 会列出每一环选中了什么。
@@ -91,8 +92,10 @@ echo 'OPENROUTER_API_KEY=sk-or-...' >> .env && docker compose up -d   # 一把�
 一条命令，五种写法，不用 key，不用联网；用 `uvx`，连装都省了。
 
 ```bash
-uvx mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン "空腹血糖(GLU)" 血脂
+uvx --python 3.12 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン "空腹血糖(GLU)" 血脂
 ```
+
+`--python 3.12` 让 uv 自己取到这个包需要的 Python：默认解释器版本较旧时，它会装上 1.2 之前的旧版本。
 
 <p align="center">
   <img src="docs/images/resolve-demo.zh-CN.gif" alt="mirobody resolve：血红蛋白和 ヘモグロビン 落在同一个 LOINC 码上，血脂 是一次故意的弃答" width="880">
@@ -136,7 +139,29 @@ npx skills add thetahealth/mirobody --skill translate-health-data
 npx skills add thetahealth/mirobody --skill mirobody
 ```
 
+或者不用 Node，从 Claude Code 和 Codex 都认的插件市场装：
+
+```bash
+claude plugin marketplace add thetahealth/mirobody && claude plugin install mirobody@mirobody
+codex plugin marketplace add thetahealth/mirobody && codex plugin add mirobody@mirobody
+```
+
 → [`skills/`](skills/README.md)
+
+### 或者通过 MCP 接到你的 agent
+
+内置智能体的每个工具同时挂在 `/mcp` 上，一人一条链接：**设置 → MCP 链接** 生成的链接只打开你自己的记录。在同一台电脑上：
+
+| 客户端 | 配置 |
+| --- | --- |
+| Claude Code | `claude mcp add --transport http mirobody <链接>` |
+| Codex | `codex mcp add mirobody --url <链接>` |
+| Cursor | `~/.cursor/mcp.json`：`{"mcpServers": {"mirobody": {"url": "<链接>"}}}` |
+| Gemini CLI | `gemini mcp add --transport http mirobody <链接>` |
+| Claude Desktop | `claude_desktop_config.json`：`{"mcpServers": {"mirobody": {"command": "npx", "args": ["-y", "mcp-remote", "<链接>"]}}}`。它的「添加自定义连接器」是从 Anthropic 的云端去连，访问不到 `localhost`。 |
+| ChatGPT、claude.ai | 同样从云端连接，所以需要一个它们访问得到的 HTTPS 地址：[部署到服务器](https://docs.mirobody.ai/zh/deployment/production)，并先读 [SECURITY.md](SECURITY.md)。 |
+
+不起整套服务时，`uvx --python 3.12 mirobody mcp` 通过 stdio 提供词表工具，离线、不需要 key：名称到 LOINC、单位，以及把读数或症状写成 FHIR。其中读整份文档的 `standardize_report` 还需要 `[parse]` 扩展和一把模型 key：`uvx --python 3.12 --from 'mirobody[parse]' mirobody mcp`。
 
 ## 隐私
 
@@ -157,9 +182,9 @@ npx skills add thetahealth/mirobody --skill mirobody
 
 | 你想要 | 这样做 |
 | --- | --- |
-| 在自己代码里做离线解析和单位换算 | `pip install mirobody`：不用 key，不用联网，两个包 |
+| 在自己代码里做离线解析和单位换算 | `pip install mirobody`（Python 3.12+）：不用 key，不用联网，两个包 |
 | 把一份文件变成读数 | `pip install 'mirobody[parse]'`：PDF、图片、Excel、Word、PowerPoint、文本都行；只有扫描件才会送到视觉模型 |
-| 在 Claude Desktop、Cursor 或自己的 loop 里用这些工具 | 设置 → MCP：每个 agent 工具同时挂在 `/mcp` 上，按用户鉴权 |
+| 在 Claude Code、Codex、Cursor、Claude Desktop 或自己的 loop 里用这些工具 | 设置 → MCP 链接，再按[各客户端一行配置](#或者通过-mcp-接到你的-agent) |
 | 加一个工具或一个设备数据源 | 往 `mirobody/agent/tools/` 或 `mirobody/collect/providers/` 丢个文件重启，或者 `pip install` 一个声明了 `mirobody.providers` / `mirobody.tools` / `mirobody.agents` entry point 的包 |
 | 让你的编码 agent 学会用它 | `npx skills add thetahealth/mirobody --skill translate-health-data` 用库，`--skill mirobody` 装整套引擎；见 [`skills/`](skills/README.md) |
 | 换掉自带的 agent 框架 | `pip install 'mirobody[agent]'` 拿中间件和虚拟文件系统后端；或者把 `AGENT_DIRS` 指向自己的目录，整体替换自带的 agent |
@@ -182,7 +207,7 @@ lint-imports && ruff check mirobody examples
 
 ## 文档，以及这套设计参考过的项目
 
-**[docs.mirobody.ai](https://docs.mirobody.ai/zh/self-host)**，中英双语，开源部分在每次发版时直接从本仓库的 [`docs/`](docs/README.md) 生成，所以不会和仓库里的命令走偏。
+**[docs.mirobody.ai](https://docs.mirobody.ai/zh/self-host)** 是中英双语的使用指南；本仓库的 [`docs/`](docs/README.md) 放的是代码据以核对的设计说明：数据管线、回答接口、标准化。
 
 本项目的设计参考了以下标准与项目，特此鸣谢：
 [HL7 FHIR](https://hl7.org/fhir/)、[Regenstrief Institute](https://www.regenstrief.org/)（[LOINC](https://loinc.org/)）、[UCUM](https://ucum.org/)、[ICPC-3](https://icpc-3.info/)（WONCA）、[CPIC](https://cpicpgx.org/)、[OHDSI OMOP](https://www.ohdsi.org/)、

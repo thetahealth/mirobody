@@ -351,7 +351,7 @@ async def websocket_upload_health_report(
                     active_uploads_count = websocket_file_upload_manager.get_active_uploads_count(connection_id)
 
                     if idle_seconds >= timeout_threshold:
-                        logger.info(f"⏰ [DataService] File upload WebSocket {timeout_type} timeout ({idle_seconds:.1f}s/{timeout_threshold}s) for user {user_id} connection {connection_id} (active uploads: {active_uploads_count}), closing connection")
+                        logger.info(f"[DataService] File upload WebSocket {timeout_type} timeout ({idle_seconds:.1f}s/{timeout_threshold}s) for user {user_id} connection {connection_id} (active uploads: {active_uploads_count}), closing connection")
 
                         # Check if WebSocket connection is still active before sending notification
                         try:
