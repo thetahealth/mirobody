@@ -10,6 +10,8 @@ Commands:
   Requires the ``[parse]`` extra.
 * ``mirobody resolve <terms...>``       offline indicator-name resolution
   against the shipped bundles. Needs NOTHING: no key, no config, no network.
+  ``--symptom`` / ``--condition`` code a complaint or a diagnosis on ICPC-3
+  instead of a lab analyte on LOINC.
 * ``mirobody device-bundle [--out PATH]``  the device vocabulary (catalogue,
   labels, crosswalks) as one digested JSON file, for a client that codes
   health-store batches without Python. Needs nothing, like ``resolve``.
@@ -317,7 +319,49 @@ def _pad(text: str, width: int) -> str:
     return text + " " * max(0, width - _width(text))
 
 
+def _complaint_axis_hint(term: str) -> str:
+    """When LOINC has no answer but ICPC-3 does, the reason names the axis that owns the term.
+
+    A curated complaint ("发烧") or diagnosis ("高血压") is not a lab analyte, so
+    the LOINC branch abstains. The same word is coded on ICPC-3's complaint (S) or
+    diagnosis (D) axis; the hint names which, with its code and the flag that
+    reaches it. Empty when neither axis codes the term, so a pure miss keeps its
+    one-line message unchanged.
+    """
+    from mirobody.translate import resolve_condition, resolve_symptom
+
+    for fn, flag, kind in ((resolve_symptom, "--symptom", "complaint"),
+                           (resolve_condition, "--condition", "diagnosis")):
+        r = fn(term)
+        if r.coded:
+            return f"not a lab analyte. This is a {kind}: ICPC-3 {r.code} ({r.display}). Ask with {flag}."
+    return ""
+
+
+def _print_icpc3(terms: list[str], width: int, *, condition: bool) -> None:
+    """The complaint (`--symptom`) and diagnosis (`--condition`) axes, on ICPC-3.
+
+    Same shape as the LOINC branch: the term, then the code and its ICPC-3 display.
+    An abstention prints its `reason` in the register of the LOINC branch's
+    "unresolved: ..." line, because a complaint ICPC-3 cannot place is a decision a
+    person can close, not a miss to guess past.
+    """
+    from mirobody.translate import resolve_condition, resolve_symptom
+
+    code = resolve_condition if condition else resolve_symptom
+    for term in terms:
+        r = code(term)
+        if r.coded:
+            print(f"  {_pad(term, width)}  {f'ICPC-3 {r.code}':<16}  {r.display}")
+        else:
+            print(f"  {_pad(term, width)}  {r.outcome}: {r.reason}")
+
+
 def _cmd_resolve(args: argparse.Namespace) -> None:
+    width = max(_width(t) for t in args.terms)
+    if args.symptom or args.condition:
+        _print_icpc3(args.terms, width, condition=args.condition)
+        return
     from mirobody.engine import get_resolver
 
     try:
@@ -325,7 +369,6 @@ def _cmd_resolve(args: argparse.Namespace) -> None:
     except RuntimeError as e:
         # A clone without `git lfs pull` has pointer stubs: one line, not a traceback.
         raise SystemExit(f"mirobody resolve: {e}") from None
-    width = max(_width(t) for t in args.terms)
     for term in args.terms:
         r = resolver.resolve(term)
         if r.resolved:
@@ -333,8 +376,9 @@ def _cmd_resolve(args: argparse.Namespace) -> None:
             print(f"  {_pad(term, width)}  {loinc:<16}  {r.canonical}"
                   + (f"   [{r.candidates} candidates]" if r.candidates > 1 else ""))
         else:
-            print(f"  {_pad(term, width)}  unresolved: not in the lexical index, and no code is "
-                  "given rather than a guessed one")
+            why = _complaint_axis_hint(term) or (
+                "not in the lexical index, and no code is given rather than a guessed one")
+            print(f"  {_pad(term, width)}  unresolved: {why}")
 
 
 def _cmd_mcp(args: argparse.Namespace) -> None:
@@ -529,6 +573,11 @@ def main(argv: list[str] | None = None) -> None:
 
     p_resolve = sub.add_parser("resolve", help="resolve indicator names to standard codes — fully offline, no key needed")
     p_resolve.add_argument("terms", nargs="+", help="indicator names in any supported language")
+    axis = p_resolve.add_mutually_exclusive_group()
+    axis.add_argument("--symptom", action="store_true",
+                      help="treat each term as a complaint and code it on ICPC-3 (an S code)")
+    axis.add_argument("--condition", action="store_true",
+                      help="treat each term as a diagnosis and code it on ICPC-3 (a D code)")
     p_resolve.set_defaults(func=_cmd_resolve)
 
     p_bundle = sub.add_parser(

@@ -373,6 +373,106 @@ Vitamins	!unresolved
 电解质	!unresolved
 電解質	!unresolved
 
+# ══ Complaints and diagnoses are not lab analytes ══════════════════════════
+# A complaint codes on the ICPC-3 complaint axis, so its LOINC match is a test
+# FOR the thing: an organism assay, an antibody, a gene, a drug level, a risk
+# score, or an observation about somebody else ("in Mother", "in Vomitus",
+# "History of"). 发烧 answered 103717-5 Crimean-Congo virus RNA, 高血压 a
+# diuretic (41218-9 Xipamid), and 乳腺癌 a gene test (BRCA1 mutations). The
+# complaint axis answers these: `mirobody.translate.resolve_symptom` /
+# `resolve_condition`, or `mirobody resolve --symptom` / `--condition`.
+aids	!unresolved
+allergy	!unresolved
+cancer	!unresolved
+covid-19	!unresolved
+diabetes	!unresolved
+hearing loss	!unresolved
+hep b	!unresolved
+hep c	!unresolved
+hiv	!unresolved
+ibd	!unresolved
+ibs	!unresolved
+light-headed	!unresolved
+mini-stroke	!unresolved
+tia	!unresolved
+whooping cough	!unresolved
+stroke	!unresolved
+ulcer	!unresolved
+ache	!unresolved
+# Russian.
+температура	!unresolved
+рак	!unresolved
+диабет	!unresolved
+# Japanese.
+下痢	!unresolved
+不安	!unresolved
+# Chinese and its Traditional spellings.
+乙肝	!unresolved
+乳糜泻	!unresolved
+乳腺癌	!unresolved
+传染性单核细胞增多症	!unresolved
+便血	!unresolved
+克罗恩病	!unresolved
+冠心病	!unresolved
+前列腺癌	!unresolved
+发烧	!unresolved
+口疮	!unresolved
+口腔溃疡	!unresolved
+呕吐	!unresolved
+嘔吐	!unresolved
+多毛	!unresolved
+大肠癌	!unresolved
+帕金森病	!unresolved
+带状疱疹	!unresolved
+心力衰竭	!unresolved
+心房颤动	!unresolved
+恶性肿瘤	!unresolved
+房颤	!unresolved
+梅毒	!unresolved
+氣喘	!unresolved
+水痘	!unresolved
+流感	!unresolved
+淋病	!unresolved
+炎症性肠病	!unresolved
+烧伤	!unresolved
+焦虑症	!unresolved
+甲减	!unresolved
+甲状腺功能减退	!unresolved
+甲状腺癌	!unresolved
+疟疾	!unresolved
+疥疮	!unresolved
+癌症	!unresolved
+癫痫	!unresolved
+白血病	!unresolved
+百日咳	!unresolved
+破伤风	!unresolved
+类风湿关节炎	!unresolved
+糖尿病	!unresolved
+結核	!unresolved
+结核病	!unresolved
+肠易激综合征	!unresolved
+肺结核	!unresolved
+胃癌	!unresolved
+脑膜炎	!unresolved
+腮腺炎	!unresolved
+膀胱癌	!unresolved
+艾滋病	!unresolved
+血友病	!unresolved
+过敏性鼻炎	!unresolved
+阳痿	!unresolved
+阿尔茨海默病	!unresolved
+风疹	!unresolved
+高血压	!unresolved
+高血压病	!unresolved
+麻疹	!unresolved
+发热	!unresolved
+疲倦	!unresolved
+疲乏	!unresolved
+血糖高	!unresolved
+淋巴结肿大	!unresolved
+腹水	!unresolved
+老年痴呆	!unresolved
+
 # Specimen-prefixed Chinese, which is how a real report prints them. The index
 # carries the bare noun (肌酐, 尿酸, 总胆固醇) because that is the alias shape
 # the lexicon was built from; a printed 中文 panel writes 血清肌酐 / 尿白细胞.
