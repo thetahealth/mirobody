@@ -49,6 +49,9 @@
   publish.** Normal releases warn after the image is available; a strict
   `page_only=true` retry still fails until `DOCKERHUB_TOKEN` has repository
   admin metadata permission.
+- **The release workflow uses the supported GitHub Release action runtime.**
+  `softprops/action-gh-release@v1` was obsolete and triggered actionlint's
+  runtime warning; it now uses the current Node 24-compatible `v3` line.
 - **Category words no longer select a specific LOINC assay.** `免疫`, `stool`,
   `重金属`, `heavy metals`, `激素` and `enzymes` now return an explicit
   unresolved result; each names a category or specimen rather than one

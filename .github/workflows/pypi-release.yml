@@ -282,7 +282,7 @@ jobs:
     # Create or update GitHub Release (upload build artifacts)
     - name: Upload to GitHub Release
       if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'release') && github.event.inputs.test_mode != 'true'
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v3
       with:
         files: dist/*
         generate_release_notes: true
