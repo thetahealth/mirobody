@@ -85,6 +85,11 @@ it out of `HTTP_PROXY`, so a proxied deployment does not route model requests
 through the proxy. On Linux that name points at the Docker bridge, so a server
 on the host has to listen on it (`--host 0.0.0.0`, or the bridge address).
 
+`failed to initialize router models: ... Is a directory` in the `llama` log
+means Docker could not see the checkout, and mounted an empty directory where
+the preset should be. Colima shares only your home directory by default; keep
+the checkout under it, or add the path to colima's `mounts`.
+
 ## Check it
 
 ```bash
