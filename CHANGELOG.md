@@ -37,6 +37,14 @@
 
 ### Fixed
 
+- **Docker Hub page synchronization uses the metadata write endpoint.** The
+  first sync authenticated but its PATCH to the namespace read endpoint
+  returned 403. It now uses the repository write path and current token API;
+  `page_only=true` retries metadata without rebuilding an image.
+- **Image builds check the installed package before publishing.** Both
+  architectures import `mirobody.resolve`, read `BUNDLE_VERSION` and resolve
+  hemoglobin outside the source directory, so a stale version stub fails the
+  build instead of reaching Docker Hub.
 - **Category words no longer select a specific LOINC assay.** `免疫`, `stool`,
   `重金属`, `heavy metals`, `激素` and `enzymes` now return an explicit
   unresolved result; each names a category or specimen rather than one

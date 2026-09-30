@@ -34,6 +34,10 @@ COPY mirobody/ mirobody/
 RUN rm -rf build *.egg-info
 RUN --mount=type=cache,target=/root/.cache/pip \
     MIROBODY_VERSION="$MIROBODY_VERSION" pip install --no-deps --force-reinstall .
+# Import outside /src so the real installed wheel is checked, not the checkout.
+# Both platform builds must reject a cached stub before publishing the image.
+RUN cd / && python -c \
+    'import mirobody; from mirobody import resolve; assert mirobody.BUNDLE_VERSION; assert resolve("hemoglobin").loinc == "718-7"'
 
 FROM ${UBUNTU_IMAGE}
 
