@@ -127,6 +127,17 @@ resolve_condition("糖尿病").outcome    # 'needs-input'  which type? asked, no
 
 → [Standardization in depth](docs/standardization.md) · [The library](https://docs.mirobody.ai/en/quickstart#a--the-library) · [`examples/`](examples/README.md)
 
+### Or hand it to your agent
+
+Two skills teach Claude Code, Codex, Cursor or Gemini CLI to use it. One turns raw health files, exports and symptoms into coded rows and reads a lab report against the resolver instead of memory, with no key; the other runs the stack and connects it over MCP:
+
+```bash
+npx skills add thetahealth/mirobody --skill translate-health-data
+npx skills add thetahealth/mirobody --skill mirobody
+```
+
+→ [`skills/`](skills/README.md)
+
 ## Privacy
 
 Nothing leaves your machine except calls to the model you chose, and to a device vendor once you link one. **② Translate stays local entirely**: a name to a code, a unit to UCUM, looked up in a bundle that ships inside the package, with no key and no network. Your record lives in your own Postgres, in containers you run, and nothing here reports usage anywhere. Encryption at rest does not yet cover every field; before this reaches a network you do not control, read [SECURITY.md](SECURITY.md).
@@ -150,6 +161,7 @@ The engine powers **[Theta Wellness](https://www.thetahealth.ai/)**, a live cons
 | A document turned into readings | `pip install 'mirobody[parse]'`: PDF, image, Excel, Word, PowerPoint, text; only a scanned page reaches a vision model |
 | These tools in Claude Desktop, Cursor or your own loop | Settings → MCP: every agent tool is also served at `/mcp`, gated per user |
 | A new tool or device provider | Drop a file into `mirobody/agent/tools/` or `mirobody/collect/providers/` and restart, or `pip install` a package declaring a `mirobody.providers` / `mirobody.tools` / `mirobody.agents` entry point |
+| Your coding agent taught to use it | `npx skills add thetahealth/mirobody --skill translate-health-data` for the library, `--skill mirobody` for the stack; see [`skills/`](skills/README.md) |
 | Your own agent harness | `pip install 'mirobody[agent]'` for the middleware and virtual-filesystem backends, or point `AGENT_DIRS` at your directory to replace the shipped agent outright |
 
 → [MCP integration](https://docs.mirobody.ai/en/tools/mcp-integration) · [Adding tools](https://docs.mirobody.ai/en/tools/adding-tools) · [Bringing your own agent](CONTRIBUTING.md#-bringing-your-own-agent)

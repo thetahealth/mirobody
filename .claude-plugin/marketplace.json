@@ -1,0 +1,23 @@
+{
+  "name": "mirobody",
+  "owner": {
+    "name": "Theta Health",
+    "email": "developer@thetahealth.ai"
+  },
+  "metadata": {
+    "description": "Skills for the Mirobody health data engine: turn raw health files into coded rows and read lab reports without guessing, or self-host the whole engine.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "mirobody",
+      "description": "Translate raw health data into LOINC/UCUM/ICPC-3 coded rows and read lab reports against an offline resolver; self-host Mirobody and connect an agent over MCP.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/translate-health-data",
+        "./skills/mirobody"
+      ]
+    }
+  ]
+}
