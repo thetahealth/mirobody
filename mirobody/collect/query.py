@@ -241,7 +241,7 @@ class PostgresHealthQuery:
         elif params["offset"]:
             page = "OFFSET :offset"
         columns = f"""o.id, o.series_id, o.display, o.name_text, o.value_text, o.unit_text,
-                   o.value_num, o.value_canonical, o.unit_canonical,
+                   o.ref_text, o.flag_text, o.value_num, o.value_canonical, o.unit_canonical,
                    to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS') AS local_time,
                    o.local_date, o.modality, o.code_system, o.code, o.elected, o.outcome,
                    o.source_kind, p.period_start,
@@ -426,7 +426,7 @@ class PostgresHealthQuery:
             f"""
             SELECT * FROM (
                 SELECT o.id, o.series_id, o.display, o.name_text, o.value_text, o.unit_text,
-                       o.value_num, o.value_canonical, o.unit_canonical, o.comparator,
+                       o.ref_text, o.flag_text, o.value_num, o.value_canonical, o.unit_canonical, o.comparator,
                        to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS') AS local_time,
                        o.tz, o.local_date, o.modality, o.code_system, o.code, o.elected, o.outcome,
                        {_REPORTED_COLUMNS},
@@ -518,7 +518,7 @@ class PostgresHealthQuery:
         rows = await execute_query(
             f"""
             SELECT DISTINCT ON (o.series_id)
-                   o.series_id, o.display, o.name_text, o.value_text, o.unit_text, o.value_num,
+                   o.series_id, o.display, o.name_text, o.value_text, o.unit_text, o.ref_text, o.flag_text, o.value_num,
                    o.value_canonical, o.unit_canonical, o.code_system, o.code, o.local_date, o.elected, o.modality,
                    o.outcome, {_REPORTED_COLUMNS},
                    {_FILE_KEY} AS file_key, {_FILE_NAME},
@@ -785,6 +785,10 @@ def _reading_row(r: dict) -> dict:
         "date": _text(r.get("local_date")),
         "value": _text(r.get("value_text")),
         "unit": r.get("unit_text") or "",
+        # As printed on the report, empty when it printed none: without them a
+        # model judged against a range it remembered (1.5.4 local runs).
+        "ref": r.get("ref_text") or "",
+        "flag": r.get("flag_text") or "",
         "value_canonical": _number(r.get("value_canonical")),
         "unit_canonical": r.get("unit_canonical") or "",
         # `file_key` opens the document; `file` is what a person calls it. The
@@ -849,6 +853,10 @@ def _latest_row(r: dict) -> dict:
         "date": _text(r.get("local_date")),
         "value": _text(r.get("value_text")),
         "unit": r.get("unit_text") or "",
+        # As printed on the report, empty when it printed none: without them a
+        # model judged against a range it remembered (1.5.4 local runs).
+        "ref": r.get("ref_text") or "",
+        "flag": r.get("flag_text") or "",
         "value_canonical": _number(r.get("value_canonical")),
         "unit_canonical": r.get("unit_canonical") or "",
         # The latest value is the answer asked for most, and it came without the

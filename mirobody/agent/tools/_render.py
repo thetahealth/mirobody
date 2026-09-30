@@ -39,11 +39,11 @@ MAX_RENDER_CHARS = 40_000
 #: device-namespace row carries the indicator's own name in `code`.
 _COLUMNS: dict[str, tuple[str, ...]] = {
     "catalog": ("indicator", "system", "code", "count", "first_date", "last_date", "reason"),
-    "readings": ("indicator", "name", "time", "value", "unit", "system", "code", "file"),
+    "readings": ("indicator", "name", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
     "buckets": ("indicator", "period", "avg", "min", "max", "n", "unit", "system", "code"),
     "stats": ("indicator", "count", "min", "max", "avg", "first", "first_date", "last", "last_date",
               "change", "unit", "mixed_units", "system", "code"),
-    "latest": ("indicator", "name", "date", "time", "value", "unit", "system", "code", "file"),
+    "latest": ("indicator", "name", "date", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
 }
 
 #: The same, for what the person REPORTED: `name` is their words and is the
