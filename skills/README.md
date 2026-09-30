@@ -8,9 +8,13 @@ skill, installable on its own:
 npx skills add thetahealth/mirobody --skill <name>
 ```
 
+In Claude Code, the plugin marketplace installs both without Node:
+`/plugin marketplace add thetahealth/mirobody`, then
+`/plugin install mirobody@mirobody` (`.claude-plugin/marketplace.json`).
+
 | Skill | For | Needs |
 | --- | --- | --- |
-| [`translate-health-data`](translate-health-data/) | Raw health data into coded rows, and reading a lab report without guessing: lab documents, an Apple Health export, symptoms, units, FHIR | `pip install mirobody`; a key only to parse documents |
+| [`translate-health-data`](translate-health-data/) | Raw health data into coded rows, and reading a lab report without guessing: lab documents, an Apple Health export, symptoms, units, FHIR | `pip install mirobody` on Python 3.12+; a key only to parse documents |
 | [`mirobody`](mirobody/) | Running the whole engine and connecting an agent to it over MCP | Docker, one model key |
 
 Every code, command and number the skills print is a promise made to a

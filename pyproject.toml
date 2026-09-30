@@ -94,9 +94,10 @@ mirobody-mcp = "mirobody.mcp.stdio:main"
 # `AbstractStorage.__subclasses__()` — aws and aliyun are peers in the code and
 # were split by geography only in the packaging.
 #
-# Two extras remain, because there are two questions:
+# Three runtime extras remain, one per question (plus [test] for working on it):
 #
 #   [parse]  do you also want to read documents?   <- the one real choice
+#   [agent]  the agent harness as a library, without the server (1.4.0)
 #   [app]    everything; this is what the image installs
 [project.optional-dependencies]
 # ① Collect, single-file surface: `mirobody parse labs.pdf` — a lab report in,

@@ -91,8 +91,8 @@ the mail client.
     `[app]` for the server and agent layers. What each install pulls in is in
     [docs/testing.md](docs/testing.md).
 
-    A clone collects **147** tests whichever you install (134 pass, 13 are
-    strict xfails): the two gate modules that ship need no extras. The maintainers'
+    A clone collects **232** tests whichever you install (219 pass, 13 are
+    strict xfails): the three gate modules that ship need no extras. The maintainers'
     regression suite is gitignored, so the extras buy you the ability to RUN the
     layer you are changing, not more tests. Write new tests under `tests/` at
     the repo root and say in the PR what you ran. Everything there is dropped at

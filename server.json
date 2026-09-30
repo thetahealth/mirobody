@@ -30,6 +30,7 @@
       "identifier": "mirobody",
       "version": "1.5.3",
       "runtimeHint": "uvx",
+      "runtimeArguments": [{"type": "named", "name": "--python", "value": "3.12"}],
       "transport": {"type": "stdio"},
       "packageArguments": [{"type": "positional", "value": "mcp"}]
     }

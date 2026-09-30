@@ -15,6 +15,55 @@
 
 ### Changed
 
+- **Two commands to a running stack.** `deploy.sh` writes a model key given
+  in its environment into `.env` (`OPENROUTER_API_KEY=sk-or-... ./deploy.sh`),
+  under the variable names `config.llm.yaml` reads, so a first run needs no
+  second step; a key added later still goes in `.env`, then
+  `docker compose up -d`. The README (both editions), the skills and the
+  Docker Hub copy say so, and name the source tarball as the way in without
+  Git. To tell: after that one command, `mirobody doctor` names a provider.
+- **The sign-in page offers the demo account while it is seeded.** Only
+  `deploy.sh`'s last line and the README said `you@mirobody.ai` / `111111`.
+  `/mirobody.json` carries `__DEMO_SIGN_IN__` under the seed's own three
+  conditions (the flag, not PRODUCTION, a predefined code), and **Use it**
+  fills the Email code tab.
+- **Settings' "API Config" is off unless the overlay turns it on.**
+  `__IS_API_CONFIG_ON__` defaulted to true, so every self-hosted page offered
+  a "Server URL" field that points the page at another server; this one
+  serves the page from its own origin. A deployment that hosts the bundle
+  elsewhere sets it in `MIROBODY_WEB_CONFIG`.
+- **MCP setup is written per client.** The README, the Settings hint and the
+  `mirobody` skill told people to paste the personal link into Claude
+  Desktop, whose custom connectors connect from Anthropic's cloud and cannot
+  reach `localhost`. They now give one line each for Claude Code, Codex,
+  Cursor and Gemini CLI (the link as it is), Claude Desktop (through
+  `npx -y mcp-remote <link>`), and say ChatGPT and claude.ai need an HTTPS
+  address. Run against a stack: Codex 0.153 and 0.159, Claude Code, and the
+  `mcp-remote` bridge answered with the right readings and files; Gemini
+  CLI completed the handshake; Cursor's entry is its documented form.
+- **`uvx --python 3.12`.** With a default interpreter older than 3.12, uv
+  resolved `mirobody` 1.0.62 (177 dependencies and no `mirobody` command) or
+  failed to resolve at all, because PyPI releases before 1.2.1 still declare
+  `requires-python >=3.8` / `>=3.11`. The README, the skills, the Docker Hub
+  copy and `server.json` (`runtimeArguments`) now pin the interpreter; pip
+  installs say Python 3.12+.
+- **Skills.** `translate-health-data`: install into a virtual environment on
+  Python 3.12+; with no key, never search outside the working directory (two
+  agent runs listed `~/.config` and ran `find ~ -name .env`) and resolve the
+  rows it read with `resolve_reading`; what `needs-input` with
+  `icpc3:no-match` asks for; `standardize_report` over stdio needs `[parse]`
+  and a key. `mirobody`: one stack per Compose name, ports only from `.env`,
+  the per-client MCP table, three troubleshooting rows. `skills/README.md`
+  names the Claude Code plugin marketplace.
+- **The journal has its GIF.** Step 4 of the README types one sentence into
+  Data › Records and shows it become a complaint, two readings and a
+  medication, with "no fever" kept out (`docs/images/journal-demo.gif` and its
+  zh-CN twin).
+- **Docs say what the tree does.** AGENTS.md and CONTRIBUTING.md count 232
+  tests in three shipped modules (they said 147 in two); `pyproject.toml`'s
+  note on extras names the three runtime extras; `demo/README.md` stops
+  quoting 1.4.4 and 1.5.0; the README no longer says the docs site is
+  rendered from `docs/`, which its MCP page is not.
 - **The README starts with the Docker path.** Both editions open with the
   three commands that bring the stack up (`git clone`, `./deploy.sh`, one key
   in `.env` then `docker compose up -d`) and what a running deployment does;
@@ -37,6 +86,49 @@
 
 ### Fixed
 
+- **An upload made after the server restarted is no longer lost.** In a page
+  opened before a restart (the README's own order: open the page, add the
+  key, `docker compose up -d`), the first file sat at "uploading" forever and
+  never reached the server: the page sent it while its socket was still
+  connecting and dropped it with a console line. Reproduced 2 of 4 times. The
+  upload now waits for the socket to open (10 s), fails the row with a
+  message when it cannot, and a tab that is not the leader asks the leader to
+  connect (mirobody-web c143e8f). To tell: with the Data page open, restart
+  the `mirobody` container and upload; the file is processed.
+- **Codex lists and calls the MCP tools.** `/mcp` answered a JSON-RPC
+  notification with 200 and a JSON `""` body; Streamable HTTP requires 202
+  and no body, and Codex's client re-initialized three times and never
+  listed a tool. Every notification now gets 202; any other than
+  `notifications/initialized` used to get a "method not found" error.
+- **A personal MCP link and a chat share id stay out of the log.** Every
+  request line logged its path, and for `/mcp/<secret>` and `/api/share/<id>`
+  the path is the credential. That segment is now a digest (`/mcp/~1a2b3c4d`),
+  the same for every request of one link. To tell:
+  `docker compose logs mirobody | grep '/mcp/'` shows no link.
+- **The image run alone says why it cannot start.** `docker run` with no
+  Postgres beside it waited on a TCP connect to config.yaml's placeholder
+  host with no timeout, logged nothing and stayed `health: starting`. It now
+  stops after 10 s, naming the address and `./deploy.sh`.
+- **The "no model key" line names the command that works.** It said "and
+  restart", and `docker compose restart` keeps the old environment, so the
+  key just added was never read. It says `docker compose up -d`.
+- **`deploy.sh` stops before Docker does, and says why.** A port another
+  program held ended the run in Docker's words ("port is already
+  allocated"); a second checkout under the same folder name took over the
+  first stack's containers and its database volume without a word. It now
+  names the port and the variable to set, and refuses a Compose project name
+  another checkout already runs, naming the folder.
+- **A genotype file dropped on the Files tab goes to the Genomics tab.**
+  There it is checked as one and replacing the active set is confirmed; on
+  Files it skipped both, and a VCF was refused as a type the tab does not
+  take. The Files hint no longer lists "genetic raw data (txt)".
+- **Quieter, truer boot and copy.** Garmin and Whoop without credentials log
+  "not configured" at INFO rather than "Failed to create provider" at
+  WARNING; the upload-timeout line lost its emoji; `mirobody doctor` prints
+  no JSON line above its table. In the page: the tour no longer promises six
+  steps over a counter of seven, the medications hint says Data › Records
+  like the tab, a VCF's source reads "VCF file" instead of `generic_vcf`, the
+  declared build reads 未经核实, and Escape closes the model menu.
 - **Docker Hub page synchronization uses the metadata write endpoint.** The
   first sync authenticated but its PATCH to the namespace read endpoint
   returned 403. It now uses the repository write path and current token API;

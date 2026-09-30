@@ -53,11 +53,11 @@ its `Body weight` and `Systolic Blood Pressure` sit beside the watch's
 those do. Two sources, two rows, one code.
 
 The units match across the files on purpose. LOINC puts the unit IN the
-identity: cholesterol is 14647-2 in mmol/L and **2093-3** in mg/dL. Reconciling
-those two is the comparability key 1.5.0 brings, and nothing here pretends
-1.4.4 already does it. What 1.4.4 does convert is the DEVICE path, where
-`translate.convert_to_standard` turns `154.5 lb` into `70.08 kg` before it is
-stored; `examples/02_standardize_a_reading.py` prints that offline.
+identity: cholesterol is 14647-2 in mmol/L and **2093-3** in mg/dL, two codes
+for one analyte, and a demo that mixed them would show the comparability key
+rather than the three-spellings point these files make. The DEVICE path
+converts before it stores: `translate.convert_to_standard` turns `154.5 lb`
+into `70.08 kg`, and `examples/02_standardize_a_reading.py` prints that offline.
 
 Every file carries ONE collection date, because `resolve_report_date` gives a
 whole file a single date. A spreadsheet of seven mornings lands as one reading:
