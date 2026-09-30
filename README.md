@@ -188,7 +188,7 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 plan to send a pull request.)
 
 `deploy.sh` creates local secrets in `.env` and pulls
-`thetahealth/mirobody:1.5.3` from Docker Hub. The image already carries the
+`thetahealth4mirobody/mirobody:1.5.3` from Docker Hub. The image already carries the
 terminology bundle, so Docker users do not need Git LFS. When the daemon cannot
 reach Docker Hub it uses the `docker.1ms.run` mirror, and when the image cannot
 be pulled at all (a branch, or a release not yet published) it builds it from

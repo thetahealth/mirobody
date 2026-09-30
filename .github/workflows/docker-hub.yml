@@ -16,9 +16,14 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      IMAGE: thetahealth4mirobody/mirobody
     steps:
+      # Build the tag named, not the ref the dispatch ran on: a run started
+      # from a branch would otherwise publish that branch as the release.
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
           lfs: true
 
       - name: Validate release tag and credentials
@@ -52,10 +57,10 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: thetahealth/mirobody:${{ steps.release.outputs.tag }}
+          tags: ${{ env.IMAGE }}:${{ steps.release.outputs.tag }}
           build-args: MIROBODY_VERSION=${{ steps.release.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Inspect published platforms
-        run: docker buildx imagetools inspect "thetahealth/mirobody:${{ steps.release.outputs.tag }}"
+        run: docker buildx imagetools inspect "$IMAGE:${{ steps.release.outputs.tag }}"

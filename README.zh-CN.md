@@ -163,7 +163,7 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 （`--depth 1` 跳过历史里那些已经被替换掉的前端构建产物；要提 PR 就去掉它。）
 
 `deploy.sh` 会在 `.env` 中生成本机密钥，并从 Docker Hub 拉取
-`thetahealth/mirobody:1.5.3`。镜像已经带有词表，Docker 用户不需要 Git LFS。
+`thetahealth4mirobody/mirobody:1.5.3`。镜像已经带有词表，Docker 用户不需要 Git LFS。
 Docker 守护进程连不上 Docker Hub 时，改用 `docker.1ms.run` 镜像源；
 镜像完全拉不到时（分支，或版本尚未发布），用当前检出在本机构建，
 这时需要先 `git lfs pull`。从 1.5.2 升级见
