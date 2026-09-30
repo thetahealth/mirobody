@@ -28,6 +28,10 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     MIROBODY_VERSION="$MIROBODY_VERSION" pip install \
     --timeout 120 --retries 5 --constraint docker/constraints.txt '.[app]'
 COPY mirobody/ mirobody/
+# The install above left `build/lib` holding the version stub, newer than the
+# COPY'd source, so the next build skipped `mirobody/__init__.py` and shipped a
+# 22-byte package: `import mirobody` works, `mirobody.resolve` raises ImportError.
+RUN rm -rf build *.egg-info
 RUN --mount=type=cache,target=/root/.cache/pip \
     MIROBODY_VERSION="$MIROBODY_VERSION" pip install --no-deps --force-reinstall .
 
