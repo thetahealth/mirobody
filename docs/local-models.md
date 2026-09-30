@@ -39,22 +39,34 @@ brew install llama.cpp
 llama-server --models-preset docker/local-models.ini --port 8080
 ```
 
-**Linux with an NVIDIA GPU**, next to the app in Docker:
+**Linux, or Windows with Docker Desktop, and an NVIDIA GPU**, next to the app:
 
 ```bash
 docker compose --profile local up -d      # adds the `llama` service
 ```
 
-**Linux or Windows without Docker for the models**: download `llama-server`
-from the [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases)
-(CUDA, Vulkan or CPU build) and run the same command as on macOS.
+**No GPU** (much slower; 32 GB of memory):
+
+```bash
+docker compose --profile local-cpu up -d  # the same service on the CPU image
+```
+
+**Windows with an AMD or Intel GPU, or no Docker for the models**: download
+`llama-server` from the [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases)
+(Vulkan, CUDA or CPU build) and run the same command as on macOS.
 
 The first question after starting waits for the downloads. Later starts read
 the cache.
 
 ## Point Mirobody at them
 
-Two lines in `.env`, then `docker compose up -d` (a restart does not reread `.env`):
+On the setup page (`./deploy.sh` prints its link; Settings → Model later),
+choose **100% on this machine**. Mirobody looks for the server at
+`host.docker.internal:8080`, then compose's `llama:8080`, then
+`127.0.0.1:8080`, checks it serves both models, asks it to load them, and
+shows their progress. The choice is stored encrypted in the database.
+
+Or two lines in `.env`, then `docker compose up -d` (a restart does not reread `.env`):
 
 ```bash
 LOCAL_BASE_URL=http://host.docker.internal:8080/v1        # app in Docker, models on the host
@@ -63,8 +75,9 @@ LOCAL_OCR_BASE_URL=http://host.docker.internal:8080/v1
 # app and models on the host:  http://127.0.0.1:8080/v1 for both
 ```
 
-With a vendor key set as well, the key's models come first. To use the local
-ones anyway, set `DEFAULT_MODEL=local`, `UTILS_VISION_MODEL=local-utils` and
+With a vendor key set as well, the key's models come first, so the setup page
+refuses local while `.env` holds a key. To use the local ones anyway, set
+`DEFAULT_MODEL=local`, `UTILS_VISION_MODEL=local-utils` and
 `UTILS_TEXT_MODEL=local-utils`.
 
 `compose.yaml` maps `host.docker.internal` for Docker Engine on Linux and keeps

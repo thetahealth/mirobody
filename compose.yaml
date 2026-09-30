@@ -93,11 +93,11 @@ services:
       mirobody:
         condition: service_healthy
 
-  # The local models (docker/local-models.ini) for Linux with an NVIDIA GPU:
-  # `docker compose --profile local up -d`, with LOCAL_BASE_URL and
-  # LOCAL_OCR_BASE_URL set to http://llama:8080/v1. A container on a Mac cannot
-  # use the GPU, so there llama-server runs on the host (docs/local-models.md).
-  llama:
+  # The local models (docker/local-models.ini, or LOCAL_MODELS_PRESET) on
+  # Linux or Windows with an NVIDIA GPU: `docker compose --profile local up -d`.
+  # A container on a Mac cannot use its GPU, so there llama-server runs on the
+  # host (docs/local-models.md). The first-run page finds either one.
+  llama: &llama
     profiles: [local]
     image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
     restart: unless-stopped
@@ -105,7 +105,7 @@ services:
     environment:
       LLAMA_CACHE: /models
     volumes:
-      - ./docker/local-models.ini:/presets/local-models.ini:ro
+      - ${LOCAL_MODELS_PRESET:-./docker/local-models.ini}:/presets/local-models.ini:ro
       - mirobody_models:/models
     deploy:
       resources:
@@ -114,6 +114,17 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+  # The same models with no GPU (`--profile local-cpu`): slower, under the
+  # same name, so the app reaches it at http://llama:8080/v1 as well.
+  llama_cpu:
+    <<: *llama
+    profiles: [local-cpu]
+    image: ${LLAMA_CPU_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
+    deploy: {}
+    networks:
+      default:
+        aliases: [llama]
 
 volumes:
   mirobody_postgres:
