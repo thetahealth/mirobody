@@ -65,6 +65,20 @@ def _local_setup() -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _candidates() -> list[str]:
+    urls = _local_setup().get("base_urls") or []
+    return [str(u) for u in urls if str(u).startswith(("http://", "https://"))]
+
+
+def _chat_model() -> str:
+    """The model the default chat entry runs, which is what a person knows it
+    by ("qwen3.8-27b"), rather than the entry's name ("local")."""
+    from mirobody.utils.config.llm import chat_default, chat_entries
+
+    name = chat_default()
+    return str((chat_entries().get(name) or {}).get("model") or name) if name else ""
+
+
 def _entry_for_key(name: str) -> tuple[str, dict] | None:
     from mirobody.utils.config.llm import chat_entries
 
@@ -126,18 +140,24 @@ async def setup_state() -> Any:
                           "model": str(found[1].get("model") or "") if found else "",
                           "set": bool(os.environ.get(name)), "in_env_file": name in fixed})
     local = _local_setup()
-    base_url = os.environ.get("LOCAL_BASE_URL") or str(local.get("base_url") or "")
+    base_url = os.environ.get("LOCAL_BASE_URL") or ""
+    ocr_base_url = os.environ.get("LOCAL_OCR_BASE_URL") or base_url
     models = _local_models()
-    status = await asyncio.to_thread(_served, base_url) if os.environ.get("LOCAL_BASE_URL") else {}
+    status = {}
+    if base_url:
+        status = await asyncio.to_thread(_served, base_url)
+        if ocr_base_url != base_url:
+            status = {**status, **await asyncio.to_thread(_served, ocr_base_url)}
     return ok({
         "needed": chat_default() is None,
-        "chat_model": chat_default() or "",
+        "chat_model": _chat_model(),
         "providers": providers,
         "local": {
             "configured": bool(os.environ.get("LOCAL_BASE_URL")),
             "base_url": base_url,
+            "candidates": _candidates(),
             "models": models,
-            "status": {role: status.get(model, "missing") for role, model in models.items() if model} if status else {},
+            "status": {role: status.get(model, "missing") for role, model in models.items() if model} if base_url else {},
             "download_gb": local.get("download_gb"),
             "memory_gb": local.get("memory_gb"),
             "preset": local.get("preset") or "",
@@ -191,23 +211,41 @@ async def setup_save(choice: SetupChoice, request: Request, x_setup_token: str =
                     os.environ[name] = before
         if not passed:
             return err(400, f"The key did not work: {detail}")
-        await settings.save({name: value})
+        # One choice at a time: another saved key or a local address left in
+        # place would decide which model answers, not this choice.
+        await settings.save(dict.fromkeys(settings.allowed_names() - fixed, "") | {name: value})
     else:
         if "LOCAL_BASE_URL" in fixed:
             return err(409, "LOCAL_BASE_URL is set in .env; change it there.")
-        base_url = (choice.base_url or str(_local_setup().get("base_url") or "")).strip()
-        ocr_base_url = (choice.ocr_base_url or base_url).strip()
-        if not base_url.startswith(("http://", "https://")):
+        # A vendor key is chosen before the local models whenever both exist.
+        keys_in_env = sorted(n for n in fixed if n in KEYS_URL)
+        if keys_in_env:
+            return err(409, f"{', '.join(keys_in_env)} is set in .env, and a key is used before local models. "
+                            "Remove it from .env, run docker compose up -d, and choose local again.")
+        given = choice.base_url.strip()
+        if given and not given.startswith(("http://", "https://")):
             return err(400, "Give the address of the model server, e.g. http://host.docker.internal:8080/v1.")
         models = _local_models()
-        served = {**await asyncio.to_thread(_served, base_url), **await asyncio.to_thread(_served, ocr_base_url)}
-        missing = [m for m in models.values() if m and m not in served]
-        if missing:
-            listed = ", ".join(sorted(served)) or "nothing (is it running?)"
-            return err(400, f"The server at {base_url} does not serve {', '.join(sorted(set(missing)))}; it serves {listed}.")
-        await settings.save({"LOCAL_BASE_URL": base_url, "LOCAL_OCR_BASE_URL": ocr_base_url})
+        wanted = sorted({m for m in models.values() if m})
+        base_url, ocr_base_url, answers = "", "", []
+        for candidate in [given] if given else _candidates():
+            ocr = (choice.ocr_base_url.strip() if given else "") or candidate
+            served = await asyncio.to_thread(_served, candidate)
+            if ocr != candidate:
+                served = {**served, **await asyncio.to_thread(_served, ocr)}
+            if served and not set(wanted) - set(served):
+                base_url, ocr_base_url = candidate, ocr
+                break
+            if served:
+                answers.append(f"{candidate} serves {', '.join(sorted(served))}")
+        if not base_url:
+            if answers:
+                return err(400, f"No server serves {', '.join(wanted)}: {'; '.join(answers)}.")
+            tried = given or ", ".join(_candidates())
+            return err(400, f"No model server answered at {tried}. Start it and try again.")
+        await settings.save(dict.fromkeys(KEYS_URL, "") | {"LOCAL_BASE_URL": base_url, "LOCAL_OCR_BASE_URL": ocr_base_url})
         for model in {models["agent"], models["ocr"]} - {""}:
             await asyncio.to_thread(_load, ocr_base_url if model == models["ocr"] else base_url, model)
 
     registry.reload_llm_clients()
-    return ok({"needed": chat_default() is None, "chat_model": chat_default() or ""})
+    return ok({"needed": chat_default() is None, "chat_model": _chat_model()})

@@ -260,13 +260,18 @@ MODELS:
 #   UTILS_VISION_MODEL=dashscope/qwen3.8-flash
 # Selection happens once; a failed call is reported, never retried elsewhere.
 
-# What the first-run page tells someone choosing 100% local, and where it looks
-# for the model server first (docs/local-models.md).
+# What the first-run page tells someone choosing 100% local (docs/local-models.md),
+# and where it looks for the model server when given no address, in order:
+# llama-server on this machine, compose's `llama` service, and a server beside
+# an app that is not in Docker.
 LOCAL_SETUP:
   preset: docker/local-models.ini
   download_gb: 14.5
   memory_gb: 20
-  base_url: http://host.docker.internal:8080/v1
+  base_urls:
+    - http://host.docker.internal:8080/v1
+    - http://llama:8080/v1
+    - http://127.0.0.1:8080/v1
 
 # Report photos and scanned PDF pages. Entries MUST be multimodal (supports_image: true).
 # Same order as UTILS_TEXT_MODEL, deliberately: with several keys present, the

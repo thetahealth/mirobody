@@ -188,5 +188,5 @@ else
     printf 'to choose a model: paste one API key, or run every model on this machine.\n'
 fi
 if [[ "${SEED_DEMO_DATA:-$(setting SEED_DEMO_DATA)}" != false ]]; then
-    printf 'Demo sign-in: you@mirobody.ai / 111111\n'
+    printf 'Demo sign-in: you@mirobody.ai, code 111111 on the Email code tab\n'
 fi
