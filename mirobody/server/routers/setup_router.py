@@ -12,6 +12,7 @@ serves the models the local entries name.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hmac
 import logging
 import os
@@ -48,6 +49,34 @@ _env_lock = asyncio.Lock()
 
 def setup_token() -> str:
     return _token
+
+
+def _trusted(request: Request, token: str) -> bool:
+    """The token matches. A wrong one counts toward the client's limit."""
+    if token and hmac.compare_digest(token, _token):
+        return True
+    if token:
+        _failures.setdefault(request.client.host if request.client else "?", []).append(time.monotonic())
+    return False
+
+
+@contextlib.contextmanager
+def _environment(changes: dict[str, str | None]):
+    """Apply `changes` to os.environ (None removes a name), then restore it."""
+    before = {name: os.environ.get(name) for name in changes}
+    try:
+        for name, value in changes.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+        yield
+    finally:
+        for name, value in before.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 def _refused(client: str) -> bool:
@@ -128,19 +157,23 @@ def _load(base_url: str, model: str) -> None:
 
 
 @router.get("")
-async def setup_state() -> Any:
+async def setup_state(request: Request, x_setup_token: str = Header(default="")) -> Any:
+    """Anyone may learn whether a model is needed and what each choice takes;
+    which keys are set, the model in use and the local address take the token."""
     from mirobody.utils.config import settings
     from mirobody.utils.config.llm import KEYS_URL, chat_default
 
-    fixed = settings.set_in_environment()
+    client = request.client.host if request.client else "?"
+    trusted = not _refused(client) and _trusted(request, x_setup_token)
+    fixed = settings.set_in_environment() if trusted else frozenset()
     providers = []
     for name, url in KEYS_URL.items():
         found = _entry_for_key(name)
         providers.append({"key": name, "label": _LABELS.get(name, name), "get_key_url": url,
                           "model": str(found[1].get("model") or "") if found else "",
-                          "set": bool(os.environ.get(name)), "in_env_file": name in fixed})
+                          "set": trusted and bool(os.environ.get(name)), "in_env_file": name in fixed})
     local = _local_setup()
-    base_url = os.environ.get("LOCAL_BASE_URL") or ""
+    base_url = (os.environ.get("LOCAL_BASE_URL") or "") if trusted else ""
     ocr_base_url = os.environ.get("LOCAL_OCR_BASE_URL") or base_url
     models = _local_models()
     status = {}
@@ -150,10 +183,11 @@ async def setup_state() -> Any:
             status = {**status, **await asyncio.to_thread(_served, ocr_base_url)}
     return ok({
         "needed": chat_default() is None,
-        "chat_model": _chat_model(),
+        "trusted": trusted,
+        "chat_model": _chat_model() if trusted else "",
         "providers": providers,
         "local": {
-            "configured": bool(os.environ.get("LOCAL_BASE_URL")),
+            "configured": bool(base_url),
             "base_url": base_url,
             "candidates": _candidates(),
             "models": models,
@@ -183,8 +217,9 @@ async def setup_save(choice: SetupChoice, request: Request, x_setup_token: str =
     client = request.client.host if request.client else "?"
     if _refused(client):
         return err(429, "Too many wrong setup tokens. Wait ten minutes.")
-    if not x_setup_token or not hmac.compare_digest(x_setup_token, _token):
-        _failures.setdefault(client, []).append(time.monotonic())
+    if not _trusted(request, x_setup_token):
+        if not x_setup_token:
+            _failures.setdefault(client, []).append(time.monotonic())
         return err(403, "The setup token is wrong. It is printed in the app's log at startup.")
     fixed = settings.set_in_environment()
 
@@ -194,25 +229,29 @@ async def setup_save(choice: SetupChoice, request: Request, x_setup_token: str =
             return err(400, "Choose a supported service and paste its key.")
         if name in fixed:
             return err(409, f"{name} is set in .env; change it there.")
-        found = _entry_for_key(name)
-        if not found:
+        if not _entry_for_key(name):
             return err(400, f"No chat model uses {name}.")
+        # Tried in the environment the save would leave: the page's earlier
+        # choices gone, `.env` as it is. A key there that ranks higher would
+        # keep answering, so the page says so instead of saving.
+        from mirobody.utils.config.llm import chat_entries
+
         async with _env_lock:
-            before = os.environ.get(name)
-            os.environ[name] = value
-            try:
-                passed, detail = await asyncio.wait_for(probe._chat(found[0]), timeout=90)
-            except Exception as e:
-                passed, detail = False, type(e).__name__
-            finally:
-                if before is None:
-                    os.environ.pop(name, None)
-                else:
-                    os.environ[name] = before
+            with _environment(dict.fromkeys(settings.allowed_names() - fixed) | {name: value}):
+                winner = chat_default() or ""
+                winner_key = str((chat_entries().get(winner) or {}).get("api_key") or "")
+                passed, detail = False, ""
+                if winner_key == name:
+                    try:
+                        passed, detail = await asyncio.wait_for(probe._chat(winner), timeout=90)
+                    except Exception as e:
+                        passed, detail = False, type(e).__name__
+        if not winner:
+            return err(400, f"No chat model uses {name}.")
+        if winner_key != name:
+            return err(409, f"{winner_key or winner} is set in .env and is used before {name}; change it there.")
         if not passed:
             return err(400, f"The key did not work: {detail}")
-        # One choice at a time: another saved key or a local address left in
-        # place would decide which model answers, not this choice.
         await settings.save(dict.fromkeys(settings.allowed_names() - fixed, "") | {name: value})
     else:
         if "LOCAL_BASE_URL" in fixed:
