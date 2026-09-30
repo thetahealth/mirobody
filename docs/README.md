@@ -27,7 +27,8 @@ notes to PyPI under a filename that told open-source readers to ignore it.
 | ① | [apple-health.md](apple-health.md) | Apple Health export + CDA import |
 | ② | [standardization.md](standardization.md) | the long form of ② Translate: the alias tiers, which LOINC release and what the cut contains — moved out of the README in 1.4.1 |
 | ② | [device-crosswalk.md](device-crosswalk.md) | thirteen wearable vendors' fields to LOINC, with a confidence and a source per row, the 71 quantities no code fits, and the normalisation traps between vendors |
-| ③ | [answers.md](answers.md) | the one health-data tool: its matrix, its envelope, its governance, and the PHI discipline |
+| ② | [benchmarks/README.md](../benchmarks/README.md) | the coding decisions: how a resolver change is scored, what the three benchmark suites prove, and how to run each from a clone |
+| ③ | [answers.md](answers.md) | one tool per data class: the matrix, the envelope, the governance, and the PHI discipline |
 | ③ | [medications.md](medications.md) | the medication model, its state tables and its instruction grammar (provisional) |
 | ①②③ | [genetics.md](genetics.md) | raw genotype uploads, active sets, migration, bounded queries, VCF and FHIR export, pinned CPIC coverage, and the scope of each |
 | ③ | [frontend.md](frontend.md) | how the bundled web client is served, and how to replace it |

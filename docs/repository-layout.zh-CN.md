@@ -27,8 +27,11 @@ mirobody/
 ├── user/        身份与关爱圈：谁可以读谁的记录
 └── schema/      DDL，开发环境启动时重放
 
-demo/            关爱圈演示数据，和 frontend/ 并排      检出会带这两个目录，
-frontend/        自带的前端                            pip install 不会
+benchmarks/      公开的基准套件 + resolver 打分工具
+demo/            关爱圈演示数据                          检出会带这几个
+examples/        可运行的库/parse/MCP/agent 示例          目录，pip
+frontend/        自带的前端                              install 不会
+scripts/         构建、打包与发版闸门脚本
 ```
 
 从 `engine/` 到 `kernel/` 这一段就是**库**的全部：只依赖 numpy，两个包。
