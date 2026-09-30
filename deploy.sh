@@ -128,6 +128,8 @@ ensure_secret PG_ENCRYPTION_KEY
 ensure_secret CONFIG_ENCRYPTION_KEY
 ensure_secret LOG_ENCRYPTION_KEY
 ensure_secret JWT_KEY
+# What the first-run page asks for before it changes where health data goes.
+ensure_secret SETUP_TOKEN
 
 # Ask the daemon, which is what pulls: the shell's proxy settings are not the
 # daemon's, and hub.docker.com (the website) is not registry-1.docker.io. The
@@ -177,8 +179,14 @@ for old in "${project_name}_mirobody_redis" "${project_name}_mirobody_site_packa
 done
 
 port="${MIROBODY_HOST_PORT:-$(setting MIROBODY_HOST_PORT)}"
-printf '\nOpen http://localhost:%s\n' "${port:-18060}"
+url="http://localhost:${port:-18060}"
+# A key in .env, or one saved from the page earlier: the app is what knows.
+if curl -fsS "${url}/mirobody.json" 2>/dev/null | grep -q '"__MODEL_SETUP__": *"ready"'; then
+    printf '\nOpen %s\n' "$url"
+else
+    printf '\nOpen %s/setup?token=%s\n' "$url" "$(setting SETUP_TOKEN)"
+    printf 'to choose a model: paste one API key, or run every model on this machine.\n'
+fi
 if [[ "${SEED_DEMO_DATA:-$(setting SEED_DEMO_DATA)}" != false ]]; then
     printf 'Demo sign-in: you@mirobody.ai / 111111\n'
 fi
-printf 'Set one model API key in .env, then run: docker compose up -d\n'

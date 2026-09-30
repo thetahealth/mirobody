@@ -260,6 +260,14 @@ MODELS:
 #   UTILS_VISION_MODEL=dashscope/qwen3.8-flash
 # Selection happens once; a failed call is reported, never retried elsewhere.
 
+# What the first-run page tells someone choosing 100% local, and where it looks
+# for the model server first (docs/local-models.md).
+LOCAL_SETUP:
+  preset: docker/local-models.ini
+  download_gb: 14.5
+  memory_gb: 20
+  base_url: http://host.docker.internal:8080/v1
+
 # Report photos and scanned PDF pages. Entries MUST be multimodal (supports_image: true).
 # Same order as UTILS_TEXT_MODEL, deliberately: with several keys present, the
 # surface that reads a photo and the surface that reads its text should land on

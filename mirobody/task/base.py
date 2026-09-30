@@ -10,6 +10,7 @@ import uuid
 from typing import Any, ClassVar
 
 from mirobody.kernel.ops import is_driver_exception
+from mirobody.utils.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,7 @@ class BaseTask:
         last_active = time.monotonic()
         while not stop_event.is_set():
             try:
+                await settings.refresh()
                 token, batch = await self._claim_batch()
                 if not batch:
                     if time.monotonic() - last_active >= cls.heartbeat_sec:

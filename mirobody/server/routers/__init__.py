@@ -42,6 +42,7 @@ from .journal_router import router as journal_router
 from .genomics_router import router as genomics_router
 from .medication_router import router as medication_router
 from .data_export_router import router as data_export_router
+from .setup_router import router as setup_router
 
 public_router.include_router(apple_router)
 
@@ -58,4 +59,5 @@ __all__ = [
     "genomics_router",
     "medication_router",
     "data_export_router",
+    "setup_router",
 ]

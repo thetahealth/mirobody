@@ -30,6 +30,25 @@ logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
+def _model_setup() -> dict[str, str]:
+    """`needed` sends the web client to its first-run page: no chat model is
+    usable yet. Read per request, because the page changes it."""
+    from mirobody.utils.config.llm import chat_default
+
+    return {"__MODEL_SETUP__": "needed" if chat_default() is None else "ready"}
+
+
+def _print_setup_link(port: int) -> None:
+    """The first-run page takes this token before it will change where health
+    data goes; printing it here makes whoever can read the log its keeper."""
+    from mirobody.server.routers.setup_router import setup_token
+    from mirobody.utils.config.llm import chat_default
+
+    state = "no model is set up yet" if chat_default() is None else "to change the model"
+    print(f"Mirobody: {state}. Open http://localhost:{port}/setup?token={setup_token()}"
+          " (use the port you published).", flush=True)
+
+
 def _is_mounted(app, router) -> bool:
     """Whether any route of `router` resolves in `app`. Asked through
     `url_path_for`, not by scanning `app.routes`: FastAPI 0.141 keeps an
@@ -245,7 +264,7 @@ class Server:
         self._routes.append(
             Route(
                 "/mirobody.json",
-                endpoint=lambda x: JSONResponse(content=self._webpage_config),
+                endpoint=lambda x: JSONResponse(content={**self._webpage_config, **_model_setup()}),
                 methods=["GET", "HEAD"]
             )
         )
@@ -340,6 +359,11 @@ class Server:
         ephemeral = config.get_ephemeral()
         await ephemeral.cleanup()
 
+        # A key or local address saved from the first-run page, applied before
+        # the agent builds its model clients (`.env` still wins).
+        from mirobody.utils.config import settings
+        await settings.apply()
+
         server = Server(
             server_name     = config.http.name,
             server_version  = config.http.version,
@@ -417,6 +441,7 @@ class Server:
             genomics_router,
             medication_router,
             data_export_router,
+            setup_router,
         )
         app.include_router(pulse_public_router)
         # apple_router is ALSO nested inside pulse_public_router (routers/__init__),
@@ -441,6 +466,7 @@ class Server:
         app.include_router(genomics_router)
         app.include_router(medication_router)
         app.include_router(data_export_router)
+        app.include_router(setup_router)
 
         for router in fastapi_routers:
             app.include_router(router)
@@ -455,6 +481,7 @@ class Server:
         # Start asgi server.
 
         config.print_predefined_codes()
+        _print_setup_link(config.http.port)
 
         import uvicorn
         asgi_server = uvicorn.Server(

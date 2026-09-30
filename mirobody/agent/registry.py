@@ -158,25 +158,37 @@ def load_agent(dirs: list[str], config: Config | None = None) -> type | None:
             klass.__name__, len(extra),
         )
 
-    clients: dict[str, Any] = {}
-    loader = getattr(klass, "load_llm_clients", None)
-    cfg = config or global_config()
-    if callable(loader) and cfg:
-        providers = (cfg.get_agent_settings() or {}).get("providers") or {}
-        # `chat: false` entries (utility and embedding models) are not chat
-        # models and must not reach the picker or be built as one.
-        providers = {n: e for n, e in providers.items()
-                     if str((e or {}).get("chat", "")).strip().lower() not in ("false", "0", "no", "off")
-                     and not (e or {}).get("embedding")}
-        try:
-            clients = loader(providers) or {}
-        except Exception as e:
-            logger.error("agent LLM clients failed to load: agent_class=%s error_type=%s", klass.__name__, type(e).__name__)
-            clients = {}
-
-    _agent_class, _llm_clients = klass, clients
-    logger.info("agent loaded: agent_class=%s provider_count=%d", klass.__name__, len(clients))
+    _agent_class, _llm_clients = klass, _build_clients(klass, config or global_config())
+    logger.info("agent loaded: agent_class=%s provider_count=%d", klass.__name__, len(_llm_clients))
     return klass
+
+
+def _build_clients(klass: type, cfg: Config | None) -> dict[str, Any]:
+    loader = getattr(klass, "load_llm_clients", None)
+    if not callable(loader) or not cfg:
+        return {}
+    providers = (cfg.get_agent_settings() or {}).get("providers") or {}
+    # `chat: false` entries (utility and embedding models) are not chat
+    # models and must not reach the picker or be built as one.
+    providers = {n: e for n, e in providers.items()
+                 if str((e or {}).get("chat", "")).strip().lower() not in ("false", "0", "no", "off")
+                 and not (e or {}).get("embedding")}
+    try:
+        return loader(providers) or {}
+    except Exception as e:
+        logger.error("agent LLM clients failed to load: agent_class=%s error_type=%s", klass.__name__, type(e).__name__)
+        return {}
+
+
+def reload_llm_clients() -> int:
+    """Rebuild the chat clients after a key or a local address changed (the
+    first-run page), without restarting. Returns how many there are."""
+    global _llm_clients
+    if _agent_class is None:
+        return 0
+    _llm_clients = _build_clients(_agent_class, global_config())
+    logger.info("agent LLM clients rebuilt: provider_count=%d", len(_llm_clients))
+    return len(_llm_clients)
 
 
 #-----------------------------------------------------------------------------

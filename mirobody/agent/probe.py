@@ -59,11 +59,12 @@ class ProbeResult:
     detail: str
 
 
-async def _chat() -> tuple[bool, str]:
+async def _chat(name: str | None = None) -> tuple[bool, str]:
+    """One tool call through the chat entry `name`, or the default one."""
     from mirobody.agent.models.clients import build_chat_model
     from mirobody.utils.config.llm import chat_default, chat_entries
 
-    name = chat_default()
+    name = name or chat_default()
     if not name:
         return False, "no chat entry is usable"
     model = build_chat_model(chat_entries()[name], alias=name).bind_tools([_TOOL])

@@ -22,7 +22,7 @@ class AIClientManager:
     """AI client manager: one cached async client per (endpoint, key)."""
 
     def __init__(self):
-        self._async_clients: dict[tuple[str, str], AsyncOpenAI] = {}
+        self._async_clients: dict[tuple, AsyncOpenAI] = {}
 
     def for_spec(self, spec: RouteSpec) -> AsyncOpenAI:
         """The cached async client for a resolved route.
@@ -34,7 +34,9 @@ class AIClientManager:
         key = spec.key
         if spec.api_key_env and not key:
             raise ValueError(f"{spec.alias}: {spec.api_key_env} is not set")
-        cache_key = (spec.base_url, spec.api_key_env, spec.timeout, spec.max_retries)
+        # The key's value, not only its name: the first-run page can replace a
+        # key in a running process, and the old client would keep the old one.
+        cache_key = (spec.base_url, spec.api_key_env, key, spec.timeout, spec.max_retries)
         if cache_key not in self._async_clients:
             self._async_clients[cache_key] = AsyncOpenAI(api_key=key or "-", base_url=spec.base_url or None, **_limits(spec))
         return self._async_clients[cache_key]
