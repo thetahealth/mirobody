@@ -1,12 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1170 446" width="1170" height="446" font-family='"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif' role="img" aria-label="收集、转译、智能体：三个阶段，从左到右">
   <rect width="1170" height="446" fill="#ffffff"/>
   <defs>
-    <marker id="raw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M0 0 L10 5 L0 10 z" fill="#7a8aa0"/>
-    </marker>
-    <marker id="std" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M0 0 L10 5 L0 10 z" fill="#2f7d4a"/>
-    </marker>
     <linearGradient id="grad-raw" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
       <stop offset="0.45" stop-color="#7a8aa0" stop-opacity="0.85"/>
@@ -23,16 +17,16 @@
   <text x="185" y="128" text-anchor="middle" font-size="21" font-weight="bold" fill="#22303f">① 收集 Collect</text>
   <text x="185" y="152" text-anchor="middle" font-size="12" font-weight="normal" fill="#5a6b7a">一个人的全部数据</text>
   <rect x="58.0" y="180" width="123.0" height="30" rx="9" fill="#ffffff" stroke="#d8e1ec" stroke-width="1.1"/>
-  <g transform="translate(67.0,186) scale(0.75)" fill="none" stroke="#4a5f74" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2.6"/><path d="M10.8 18.4h2.4"/></g>
+  <g transform="translate(67.0,186) scale(0.75)" fill="none" stroke="#4a5f74" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path fill="#4a5f74" stroke="none" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></g>
   <text x="90.0" y="200" text-anchor="start" font-size="10.5" font-weight="normal" fill="#31404f">Apple Health</text>
   <rect x="189.0" y="180" width="123.0" height="30" rx="9" fill="#ffffff" stroke="#d8e1ec" stroke-width="1.1"/>
-  <g transform="translate(198.0,186) scale(0.75)" fill="none" stroke="#4a5f74" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="6.5" width="10" height="11" rx="3"/><path d="M9.5 6.5V3.5h5v3M9.5 17.5v3h5v-3"/><path d="M12 10v2.2l1.5 1"/></g>
+  <g transform="translate(198.0,186) scale(0.75)" fill="none" stroke="#4a5f74" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path fill="#4a5f74" stroke="none" d="M12 3.2 L21.4 20.4 H2.6 Z"/></g>
   <text x="221.0" y="200" text-anchor="start" font-size="10.5" font-weight="normal" fill="#31404f">Garmin</text>
   <rect x="58.0" y="220" width="123.0" height="30" rx="9" fill="#ffffff" stroke="#d8e1ec" stroke-width="1.1"/>
-  <g transform="translate(67.0,226) scale(0.75)" fill="none" stroke="#4a5f74" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6.6"/><circle cx="12" cy="12" r="2.6"/></g>
+  <g transform="translate(67.0,226) scale(0.75)" fill="none" stroke="#4a5f74" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="3.1" fill="#4a5f74" stroke="none"/></g>
   <text x="90.0" y="240" text-anchor="start" font-size="10.5" font-weight="normal" fill="#31404f">Oura</text>
   <rect x="189.0" y="220" width="123.0" height="30" rx="9" fill="#ffffff" stroke="#d8e1ec" stroke-width="1.1"/>
-  <g transform="translate(198.0,226) scale(0.75)" fill="none" stroke="#4a5f74" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="8.5" width="17" height="7" rx="3.5"/><circle cx="12" cy="12" r="1.5"/></g>
+  <g transform="translate(198.0,226) scale(0.75)" fill="none" stroke="#4a5f74" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.8" y="7.6" width="18.4" height="8.8" rx="4.4"/><circle cx="12" cy="12" r="2.5" fill="#4a5f74" stroke="none"/></g>
   <text x="221.0" y="240" text-anchor="start" font-size="10.5" font-weight="normal" fill="#31404f">WHOOP</text>
   <rect x="58" y="260" width="254" height="30" rx="9" fill="#ffffff" stroke="#d8e1ec" stroke-width="1.1"/>
   <g transform="translate(67,266) scale(0.75)" fill="none" stroke="#4a5f74" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5h7l4 4v13h-11z"/><path d="M13.5 3.5v4h4"/><path d="M9 12h6M9 15h6"/></g>
@@ -75,9 +69,11 @@
   <rect x="858" y="300" width="254" height="30" rx="9" fill="#ffffff" stroke="#d8e1ec" stroke-width="1.1"/>
   <g transform="translate(867,306) scale(0.75)" fill="none" stroke="#8a4fb0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5h15v9h-8l-4 3.5v-3.5h-3z"/></g>
   <text x="890" y="320" text-anchor="start" font-size="11" font-weight="normal" fill="#77869a">/mcp  ·  按用户鉴权</text>
-  <path d="M342 242 H426" stroke="url(#grad-raw)" stroke-width="3" fill="none" stroke-linecap="round" marker-end="url(#raw)"/>
-  <text x="384.0" y="226" text-anchor="middle" font-size="10" font-weight="normal" fill="#5a6b7a">源文件留下</text>
-  <path d="M742 242 H826" stroke="url(#grad-std)" stroke-width="3" fill="none" stroke-linecap="round" marker-end="url(#std)"/>
-  <text x="784.0" y="226" text-anchor="middle" font-size="10" font-weight="normal" fill="#5a6b7a">一条带码记录</text>
+  <path d="M342 242 H413" stroke="url(#grad-raw)" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+  <path d="M417 234 L426 242 L417 250" fill="none" stroke="#7a8aa0" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="384.0" y="224" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#5a6b7a">源文件留下</text>
+  <path d="M742 242 H813" stroke="url(#grad-std)" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+  <path d="M817 234 L826 242 L817 250" fill="none" stroke="#2f7d4a" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="784.0" y="224" text-anchor="middle" font-size="10.5" font-weight="normal" fill="#5a6b7a">一条带码记录</text>
   <text x="585" y="422" text-anchor="middle" font-size="13.5" fill="#22303f">化验所怎么写都行，进来 —— <tspan font-weight="bold" fill="#2f7d4a">出去是一条带码、可溯源的记录。</tspan></text>
 </svg>
