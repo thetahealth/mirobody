@@ -38,8 +38,8 @@ to the table.
 
 **A retirement goes in `90_retire.sql`, not in a delete.** Removing a statement
 from a domain file only changes what a new database gets. A table with a
-person's history is renamed (`*_retired_15`), never dropped here; a table or
-index that held none is dropped.
+person's history is renamed (`*_retired_15`) and dropped only once no live row
+is left; a table or index that held none is dropped.
 
 **It is a dev convenience.** The replay runs while `BOOTSTRAP_SCHEMA` is true
 (the default). A real deployment provisions its schema ahead of time and sets
@@ -84,10 +84,11 @@ Three rules the tables enforce rather than document:
 caches display names and axes of the codes in use. `th_check_result` holds
 consistency checks as rows. `th_coding_alias` holds mappings a person confirmed.
 
-`90_retire.sql` renames `th_series_data`, `th_series_dim`, `fhir_indicators`
-and `standard_indicators_device` to `*_retired_15`; `mirobody
-migrate-observations` moves the old rows through the new writer. Drop the
-retired tables yourself once that has run.
+`90_retire.sql` drops `th_series_dim`, `fhir_indicators` and
+`standard_indicators_device` (1.5.4). It renames `th_series_data`, which held
+the readings, to `th_series_data_retired_15`; `mirobody migrate-observations`
+moves those rows through the new writer and drops the table after a full pass
+that rejected nothing. Until then the history stays.
 
 ## Applying it by hand
 

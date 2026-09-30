@@ -27,7 +27,7 @@ async def get_user_data_distribution(user_id: str) -> dict[str, Any]:
 
         # `v_observation` hides amended and retracted rows, so a count off it
         # is what the Indicators tab shows. The old query read th_series_data
-        # and th_series_dim.department; 90_retire.sql renames both, and
+        # and th_series_dim.department; 90_retire.sql retires both, and
         # nothing replaced `department`, so the category is the LOINC SYSTEM
         # axis (the specimen: Ser/Plas, Bld, Urine) for coded rows, 'Other'
         # for uncoded ones, and 'genetic' when the person has genotypes.

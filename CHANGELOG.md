@@ -1,5 +1,16 @@
 ## Unreleased
 
+### Upgrade notes
+
+- **The reading tables 1.5.0 replaced are dropped.** `th_series_dim`,
+  `fhir_indicators` and `standard_indicators_device` never held a reading and
+  go at the first boot. `th_series_data`, which held every reading before
+  1.5.0, is dropped at boot only when no live row is left; otherwise
+  `mirobody migrate-observations` drops it after a full pass that moved every
+  row, and says what it kept and why when it cannot. Upgrading from 1.4.x or
+  earlier: after the first boot, run `mirobody migrate-observations` until it
+  reports the table dropped.
+
 ### Added
 
 - **`skills/`: three skills for someone else's agent.** `npx skills add

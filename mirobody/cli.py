@@ -251,14 +251,18 @@ def _cmd_fetch_cpic(args: argparse.Namespace) -> None:
 
 
 def _cmd_migrate_observations(args: argparse.Namespace) -> None:
-    """Move the retired `th_series_data` history into the observation model.
-    Idempotent and bounded; see `collect/migrate_observations.py`."""
+    """Move the retired `th_series_data` history into the observation model,
+    then drop it after a clean full pass. Idempotent and bounded; see
+    `collect/migrate_observations.py`."""
     _require_extra("migrate-observations", "app", "sqlalchemy", "the database layer")
     from mirobody.utils.config import Config
     from mirobody.collect.migrate_observations import migrate
 
     asyncio.run(Config.init(yaml_filenames=args.configs))
     counts = asyncio.run(migrate(batch=args.batch, user_id=args.user or None))
+    if not counts["present"]:
+        print("nothing to migrate: this database has no retired th_series_data")
+        return
     rejected = ", ".join(f"{k}={v}" for k, v in sorted(counts["rejected"].items())) or "none"
     print(
         f"read {counts['read']} rows in {counts['batches']} batch(es): wrote {counts['written']} observations "
@@ -269,6 +273,11 @@ def _cmd_migrate_observations(args: argparse.Namespace) -> None:
             f"{counts['undecrypted']} comment(s) did not decrypt under this connection's key; their unit, "
             "reference range and method were read off the value cell alone. Check PG_ENCRYPTION_KEY and re-run."
         )
+    if counts["dropped"]:
+        print("every row is in the observation model; th_series_data_retired_15 is dropped")
+    else:
+        print("th_series_data_retired_15 is kept: re-run without --user until nothing is rejected or undecrypted,"
+              " or drop it yourself if the rejected rows are not worth keeping")
 
 
 def _cmd_migrate_genotypes(args: argparse.Namespace) -> None:

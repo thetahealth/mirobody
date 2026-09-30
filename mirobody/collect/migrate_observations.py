@@ -9,6 +9,10 @@ its day and coded exactly like a new one. It is idempotent: a re-run skips
 what it already wrote (the identity index), and bounded by `batch` so a
 large history can be moved over several invocations.
 
+A full pass (every person, to the last row) that decrypted every comment and
+rejected no row drops the retired table (1.5.4). Anything less keeps it: a
+rejected row is one the new model cannot hold, and it goes only by hand.
+
 What the old rows lose and what the new ones say about it:
 
 * a file row's name was written in the user's language by the extractor,
@@ -79,12 +83,19 @@ def _legacy_row(r: dict[str, Any]) -> tuple[dict[str, Any], bool]:
 
 async def migrate(*, batch: int = 2000, user_id: str | None = None, max_batches: int = 10_000) -> dict[str, Any]:
     """Move rows in id order. Returns the counts: `read`, `written`, `coded`,
-    `skipped` (already present), `undecrypted`, `batches` and `rejected`,
-    a dict of reason to count."""
+    `skipped` (already present), `undecrypted`, `batches`, `rejected` (a dict
+    of reason to count), `present` (whether there was a retired table at all)
+    and `dropped`."""
     after = 0
     counts: dict[str, Any] = {
         "read": 0, "written": 0, "coded": 0, "skipped": 0, "undecrypted": 0, "batches": 0, "rejected": {},
+        "present": False, "dropped": False,
     }
+    found = await execute_query("SELECT to_regclass(:name) IS NOT NULL AS present", {"name": RETIRED}, log_sql=False)
+    if not (found and found[0]["present"]):
+        return counts
+    counts["present"] = True
+    finished = False
     user_filter = " AND user_id = :user_id" if user_id else ""
     params: dict[str, Any] = {"batch": batch}
     if user_id:
@@ -92,6 +103,7 @@ async def migrate(*, batch: int = 2000, user_id: str | None = None, max_batches:
     while counts["batches"] < max_batches:
         rows = await execute_query(_SELECT.format(user_filter=user_filter), {**params, "after": after}, log_sql=False) or []
         if not rows:
+            finished = True
             break
         counts["batches"] += 1
         counts["read"] += len(rows)
@@ -115,6 +127,10 @@ async def migrate(*, batch: int = 2000, user_id: str | None = None, max_batches:
             "migrate-observations: batch=%d read=%d written=%d skipped=%d rejected=%d undecrypted=%d last_id=%d",
             batches, read_count, written, skipped, rejected, undecrypted, last_id,
         )
+    if finished and not user_id and not counts["undecrypted"] and not counts["rejected"]:
+        await execute_query(f"DROP TABLE {RETIRED}", {}, log_sql=False)
+        counts["dropped"] = True
+        logger.info("migrate-observations: every row moved, th_series_data_retired_15 dropped")
     return counts
 
 

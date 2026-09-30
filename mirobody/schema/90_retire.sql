@@ -4,27 +4,29 @@
 -- gets; the replay has no ledger and never drops anything on its own. This
 -- file is where a retirement is spelled out, so a dev database that ran the
 -- old chain catches up. Last on purpose: it names objects the files before
--- it create. Nothing here destroys a person's data: tables with history are
--- renamed, tables and indexes that held none are dropped.
+-- it create. Nothing here destroys a person's data: a table with history is
+-- dropped only once it holds none, the rest are dropped outright.
 
--- The reading tables the observation model replaces (30_observations.sql).
--- Renamed, not dropped: `mirobody migrate-observations` reads the rows off
--- the retired name. Drop the `_retired_15` tables yourself once it has run.
---   th_series_data              one row per reading, value and unit in one
---                               text column, code in a never-filled fhir_id
+-- The reading tables the observation model replaced in 1.5.0, dropped in 1.5.4.
 --   th_series_dim               the per-name dimension with embeddings
 --   fhir_indicators             a code registry nothing ever filled
 --   standard_indicators_device  a daily mirror of the in-code catalogue
+-- `th_series_data` held the readings: renamed `*_retired_15`, which
+-- `mirobody migrate-observations` reads and drops after a full pass. Here it
+-- is dropped only once no live row is left, so an unmigrated history stays.
+DROP TABLE IF EXISTS th_series_dim, th_series_dim_retired_15, fhir_indicators, fhir_indicators_retired_15,
+                     standard_indicators_device, standard_indicators_device_retired_15 CASCADE;
 DO $$
-DECLARE
-    old_name text;
 BEGIN
-    FOREACH old_name IN ARRAY ARRAY['th_series_data', 'th_series_dim', 'fhir_indicators', 'standard_indicators_device']
-    LOOP
-        IF to_regclass(old_name) IS NOT NULL AND to_regclass(old_name || '_retired_15') IS NULL THEN
-            EXECUTE format('ALTER TABLE %I RENAME TO %I', old_name, old_name || '_retired_15');
-        END IF;
-    END LOOP;
+    IF to_regclass('th_series_data') IS NOT NULL AND to_regclass('th_series_data_retired_15') IS NULL THEN
+        ALTER TABLE th_series_data RENAME TO th_series_data_retired_15;
+    END IF;
+    IF to_regclass('th_series_data_retired_15') IS NULL THEN
+        RETURN;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM th_series_data_retired_15 WHERE deleted = 0) THEN
+        DROP TABLE th_series_data_retired_15;
+    END IF;
 END $$;
 
 -- Tables that held a second copy of something another table owns.

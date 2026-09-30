@@ -144,9 +144,10 @@ bucket), and its standardization was a second UPDATE on the hot table, which
 is where every production deadlock on it came from.
 
 **Stated, not hidden.** A deployment upgraded in place keeps its history in
-`th_series_data_retired_15` (`90_retire.sql` renames, never
-drops) and answers from an empty catalogue until `mirobody
-migrate-observations` has moved the rows through the same writer. A migrated
+`th_series_data_retired_15` (`90_retire.sql` renames it and never drops a
+row that is still there) and answers from an empty catalogue until `mirobody
+migrate-observations` has moved the rows through the same writer, which then
+drops the table. A migrated
 file reading carries `note_text = migrated:th_series_data`, because its name
 was written in the user's language by the old extractor rather than as
 printed.
