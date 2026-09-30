@@ -260,3 +260,16 @@ def available_models() -> list[str]:
     # FIRST is the default", and `chat_default()` reads it that way. Sorting
     # here made the picker's first entry disagree with the server's default.
     return names
+
+
+def model_labels(names: list[str]) -> dict[str, str]:
+    """What a person knows each entry by: the model it runs ("qwen3.8-27b",
+    not "local"), without an OpenRouter-style vendor prefix. When two entries
+    run the same model, the entry's name tells them apart."""
+    cfg = global_config()
+    providers = (cfg.get_agent_settings() or {}).get("providers") or {} if cfg else {}
+    labels = {n: str((providers.get(n) or {}).get("model") or n).rsplit("/", 1)[-1] for n in names}
+    counts: dict[str, int] = {}
+    for label in labels.values():
+        counts[label] = counts.get(label, 0) + 1
+    return {n: f"{label} ({n})" if counts[label] > 1 else label for n, label in labels.items()}

@@ -81,6 +81,9 @@
 - **A reply with no answer text no longer ends the turn empty.** The agent
   asks once more when a reply has neither text nor a tool call, and reports
   an error when the second is empty too.
+- **The chat's model menu names the model.** A local deployment showed
+  `local` where it runs `qwen3.8-27b`; `/api/models?labels=1` gives each
+  entry's model, and the bare list is unchanged for other clients.
 - **Answers come in the question's language.** The prompt names it; a local
   model answered Chinese questions in English.
 

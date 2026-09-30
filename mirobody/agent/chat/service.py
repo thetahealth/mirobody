@@ -3,7 +3,7 @@ import logging
 
 from pydantic import ValidationError
 
-from mirobody.agent.registry import available_models, load_agent
+from mirobody.agent.registry import available_models, load_agent, model_labels
 from .session import (
     create_session,
     get_session_summaries,
@@ -160,9 +160,14 @@ class ChatService:
 
         The shipped web client splits each entry on `/` into `{agent, provider}`
         and falls back to the whole string as the provider when there is no
-        slash, so a bare name works unchanged.
+        slash, so a bare name works unchanged. `?labels=1` answers with
+        `{"name", "model"}` objects instead, so a picker can show the model a
+        person knows while still sending back the entry's name.
         """
         data = available_models()
+        if request.query_params.get("labels"):
+            labels = model_labels(data)
+            data = [{"name": n, "model": labels[n]} for n in data]
 
         return json_response_with_code(
             data=data,
