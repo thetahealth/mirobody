@@ -437,9 +437,17 @@ def route_candidates(surface: str) -> list[RouteSpec | str]:
 
 
 def _fits(surface: str, spec: RouteSpec) -> bool:
-    if surface == "ocr":
-        return spec.supports_image is not False and bool(spec.ocr_prompts)
-    return not (surface == "vision" and spec.supports_image is False)
+    """Whether `surface` may use `spec`. An image surface asks the server
+    behind a configured address what it serves (`served.sees`): the entry's
+    `supports_image` describes the model it was written for, not the one
+    running now."""
+    if surface not in ("ocr", "vision"):
+        return True
+    from mirobody.utils.config.served import sees
+
+    if surface == "ocr" and not spec.ocr_prompts:
+        return False
+    return sees(spec)
 
 
 def resolve_route(surface: str) -> RouteSpec | None:

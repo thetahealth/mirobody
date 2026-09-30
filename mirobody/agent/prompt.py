@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime
+from pathlib import PurePosixPath
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -114,6 +115,9 @@ async def report_date_status(attached: list[dict[str, Any]]) -> str:
     return "Report dates:\n" + "\n".join(lines)
 
 
+_IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".heif"})
+
+
 async def attachment_reminder(backend: Any,
                               file_list: list[dict[str, Any]] | None) -> str | None:
     """A short note naming this turn's attachments and their `/uploads/` paths,
@@ -178,6 +182,17 @@ async def attachment_reminder(backend: Any,
         f"{listing}\n"
         f"{await report_date_status(attached)}"
     )
+    # Before it reads anything: a text-only model is handed an image's OCR
+    # text, and must not answer as if it had seen the picture.
+    if not getattr(uploads, "supports_image", True) and any(
+        PurePosixPath(p).suffix.lower() in _IMAGE_SUFFIXES for p in paths
+    ):
+        note += (
+            "\nYou cannot see images: an attached image reaches you as the text an OCR "
+            "model read from it (printed text and tables only). For what a photo shows, "
+            "such as a meal, a rash or a scene, say you cannot see it and ask the user to "
+            "describe it."
+        )
     # Say so rather than quietly listing fewer than were sent: a model that
     # believes it has seen everything answers about everything.
     if len(paths) < len(attached):

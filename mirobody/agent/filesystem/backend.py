@@ -109,6 +109,7 @@ class PgFilesystemBackend(BackendProtocol):
         session_id: str = "",
         scope: Scope = "library",
         supports_file_block: bool = False,
+        supports_image: bool = True,
     ) -> None:
         if not user_id:
             raise ValueError("PgFilesystemBackend requires a non-empty user_id")
@@ -124,6 +125,14 @@ class PgFilesystemBackend(BackendProtocol):
         # extracted text: extracted on that first read. See aread's
         # _TEXT_DOC_EXTS branch.
         self._supports_file_block = bool(supports_file_block)
+        # False when the bound model cannot see (a text-only local model): an
+        # image then reads as the text the OCR model found in it, with a note
+        # saying that is all it is. See `_image_as_text`.
+        self._supports_image = bool(supports_image)
+
+    @property
+    def supports_image(self) -> bool:
+        return self._supports_image
 
     @property
     def user_id(self) -> str:
@@ -236,6 +245,25 @@ class PgFilesystemBackend(BackendProtocol):
         except Exception as e:
             logger.warning(f"lazy doc extract failed for {file_path}: {e}")
         return None
+
+    async def _image_as_text(
+        self, row: dict[str, Any], file_path: str, inline_text: str, created: str, modified: str
+    ) -> ReadResult:
+        """An image for a model that cannot see: what the OCR model read from it.
+
+        GLM-OCR transcribes printed text and tables and nothing else; it cannot
+        say what a photo shows. So the note says exactly that, and tells the
+        model to ask rather than guess when the question is about the picture
+        (a meal's calories, a rash). A text-only model sent the image block
+        instead failed the turn: "image input is not supported" (MiniCPM5-2B).
+        """
+        name = PurePosixPath(file_path).name
+        text = inline_text.strip() or (await self._lazy_extract_doc_text(row, file_path) or "").strip()
+        note = (_NO_VISION_TEXT if text else _NO_VISION_EMPTY).format(name=name)
+        return ReadResult(
+            file_data={"content": note + (f"\n\n{text}" if text else ""), "encoding": "utf-8",
+                       "created_at": created, "modified_at": modified}
+        )
 
     async def _persist_inline_text(self, file_key: str, text: str) -> None:
         """Cache extracted text where the rest of the system can see it.
@@ -355,6 +383,9 @@ class PgFilesystemBackend(BackendProtocol):
                 file_data={"content": content, "encoding": "utf-8",
                            "created_at": created, "modified_at": modified}
             )
+
+        if ext in _IMAGE_EXTS and not self._supports_image:
+            return await self._image_as_text(row, file_path, inline_text, created, modified)
 
         # Binary / multimodal file: serve the raw bytes as base64 so the
         # deepagents read_file tool emits a multimodal content block (image /
@@ -552,6 +583,20 @@ class PgFilesystemBackend(BackendProtocol):
 #: `.xlsb` were present without `.doc`, which is arbitrary. `documents` decides
 #: what a document is; this module decides what to do with one.
 _TEXT_DOC_EXTS = frozenset(detect.DOCUMENT_SUFFIXES)
+_IMAGE_EXTS = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".heif"})
+
+_NO_VISION_TEXT = (
+    '[You cannot see images. "{name}" reached you as the text a text-recognition (OCR) '
+    "model read from it: printed text and tables only, below. It says nothing about "
+    "what the picture shows. If the question needs that (a meal and its calories, a "
+    "rash, a scene, a screen without text), say you cannot see the photo and ask the "
+    "user to describe it; do not guess.]"
+)
+_NO_VISION_EMPTY = (
+    '[You cannot see images, and the text-recognition (OCR) model found no printed text '
+    'in "{name}". Do not guess what it shows and do not read it again: say you cannot '
+    "see the photo and ask the user to describe it.]"
+)
 
 
 def _is_text_mime(mime_type: str | None, path: str = "") -> bool:
