@@ -175,6 +175,7 @@ codex plugin marketplace add thetahealth/mirobody && codex plugin add mirobody@m
 | **328 个 UCUM 单位**，带量纲分析和摩尔质量换算，百分比和绝对值之间明确拒绝换算 | [标准化详解](docs/standardization.zh-CN.md) |
 | **316 项设备指标** | [设备对照表](docs/device-crosswalk.md) |
 | 包会自己说清楚是哪份词表在回答你：`mirobody.BUNDLE_VERSION` 是 `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
+| 三个公开的健康 agent 评测集：[ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench)（纵向的虚拟用户；论文 [arXiv 2604.02834](https://arxiv.org/abs/2604.02834)）、[MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench)（逐字段查幻觉：剂量、单位、参考范围、编码）和 [MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench)（红队安全） | [`thetahealth/mirobody-eval`](https://github.com/thetahealth/mirobody-eval) 用同一套打分规则跑它们 |
 
 这套引擎驱动着 **[Theta Wellness](https://www.thetahealth.ai/)**：一款已经上线、注册用户 12,000+、日活 1,700+ 的个人健康产品。
 

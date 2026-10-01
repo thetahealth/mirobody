@@ -457,7 +457,7 @@ def info(self) -> ProviderInfo:
         slug="theta_<provider>",              # Unique identifier
         name="<Provider Name>",               # Display name
         description="<Provider> health data integration via OAuth",
-        logo="https://static.thetahealth.ai/res/<provider>.png",
+        logo=None,                            # optional: an https URL you host
         supported=True,                       # Whether provider is active
         auth_type=LinkType.OAUTH2,           # OAUTH1 or OAUTH2
         status=ProviderStatus.AVAILABLE,     # Status
@@ -467,7 +467,7 @@ def info(self) -> ProviderInfo:
 **Key Points**:
 - `slug` must be unique across all providers
 - `auth_type` must match your OAuth implementation
-- Logo should be hosted on CDN
+- `logo` is optional. The web client ships the built-in providers' logos itself (`src/pages/Drive/Vital/logos.js` in mirobody-web), so a self-hosted page loads them from nowhere else. For your own provider, give an https URL you host; the page loads it from there, so leave it `None` if that request should not happen
 
 ---
 
