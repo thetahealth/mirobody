@@ -16,6 +16,12 @@ provider，照样会在启动日志里说出来，那就说明机制是通的。
 凭证写进去，或者写进你的 `config.{env}.yaml` 覆盖层，后者优先级更高（下面的 YAML 块
 放哪个里都行）。
 
+**用 Docker 部署时**，镜像里自带这几个文件，改 checkout 里的 `config.devices.yaml` 不会
+生效。把 YAML 块写进 `compose.yaml` 旁边的 `config.localdb.yaml`，再跑一次 `./deploy.sh`：
+它会把这个文件挂进去（在 `.env` 里设置 `MIROBODY_CONFIG_FILE`）。checkout 要放在你的
+home 目录下：Docker 不共享的路径（比如用 colima 时放在 `/tmp` 下的 checkout）会被挂成一个
+空目录，服务就读不到你的文件。
+
 > **Apple Health 不在这个列表里，也不可能在。** HealthKit 只能由签名过的 iOS App 在
 > 设备本机、并且用户按类型逐项授权之后读取，没有网页 OAuth 流程，也没有服务器到服务
 > 器的 API。这个服务端是**接收**方（`/apple/health`、`/apple/statistics`、
@@ -106,7 +112,9 @@ GARMIN_REDIRECT_URL:  'https://abc123.ngrok-free.app/api/v1/pulse/theta/theta_ga
 
 ## 验证
 
-**1. provider 起来了。** 重启，然后看启动日志：
+**1. provider 起来了。** 再跑一次 `./deploy.sh`，或者 `docker compose up -d`
+（`docker compose restart` 不会重新挂载文件，也不会重读环境变量），然后用
+`docker compose logs mirobody` 看启动日志：
 
 ```
 Loaded provider from /app/mirobody/collect/providers/mirobody_oura/provider_oura.py
@@ -125,7 +133,7 @@ Provider OuraProvider declined to start (not configured)
 **2. 它被提供给用户了。**
 
 ```bash
-curl -s http://localhost:18060/api/v1/pulse/providers | jq '.data[].slug'
+curl -s http://localhost:18060/api/v1/pulse/providers | jq '.data.providers[].slug'
 ```
 
 **3. 绑一个账号。** `POST /api/v1/pulse/user/providers/link`（需要鉴权）会返回厂商的

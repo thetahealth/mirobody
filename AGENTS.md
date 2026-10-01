@@ -83,7 +83,8 @@ wheel in the same venv — otherwise they pass vacuously.
   answer and the dashboard could disagree about the same Tuesday.
 - **A new LIBRARY-LAYER module goes under `mirobody/kernel/`, into all FOUR
   import-linter contracts AND into `tests/test_library_layer.py::LIBRARY_MODULES`.** Miss either and the gate is
-  green for the wrong reason. It may import stdlib, numpy and its siblings —
+  green for the wrong reason. That test is in the maintainers' gitignored suite, so a
+  clone can run only the contracts: name the new module in the PR. It may import stdlib, numpy and its siblings —
   nothing else — and it must not contain a `test_*.py` (a test inside the
   package drags pytest into the library layer).
 - **Logs carry ids, counts, durations, status codes and type names. Never a
@@ -91,7 +92,8 @@ wheel in the same venv — otherwise they pass vacuously.
   to "what was measured", so it does not go in either. In a broad `except`,
   `exc_info=not is_driver_exception(e)` — a driver's message quotes the SQL
   with its bound parameters.
-- **A prompt may only name tools the harness provides** (`test_prompts.py`).
+- **A prompt may only name tools the harness provides** (`test_prompts.py`, in
+  the maintainers' suite; from a clone, grep the templates for the old name).
   Renaming a tool means the template and that registry change in the same
   commit.
 - **A decode table says how to convert INTO the catalogue's unit; it never

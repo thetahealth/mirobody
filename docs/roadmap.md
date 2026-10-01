@@ -605,6 +605,21 @@ decision, not a cleanup.
 
 ## Verification debt
 
+### OAuth `state` is bound to the account, not to the browser
+
+`generate_authorization_url` stores `state` → user id and the callback takes it
+once (`collect/providers/_platform/oauth2.py`). Nothing ties the callback to the
+browser that started the link, so a consent page started by one account and
+completed by another user puts that user's vendor tokens in the first account
+(RFC 6749 §10.12). SECURITY.md tells operators so.
+
+The fix is a short-lived HttpOnly, `SameSite=Lax` cookie that
+`POST /user/providers/link` sets and the callback checks, for OAuth2 and for
+Garmin's OAuth1 alike. It is not in yet because it changes every vendor's link
+flow, and verifying it takes one real authorization per vendor, which no test
+here can make. A client that starts the link in one user agent and finishes it
+in another (an app opening the system browser) needs a different binding.
+
 ### ~~`mirobody serve` end to end~~ — **closed in 1.4.0**
 
 `scripts/e2e_docker.sh` exercises the running stack over HTTP: the login flow,
