@@ -17,7 +17,8 @@ from pydantic import BaseModel, field_validator
 from mirobody.utils import execute_query
 from mirobody.utils.i18n import language_from_headers
 from mirobody.utils.req_ctx import set_req_ctx
-from mirobody.server.auth import verify_token, verify_token_string
+from mirobody.server.auth import verify_token, verify_token_claims
+from mirobody.server.middlewares import aal2_required_response, lacks_second_factor
 from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 
 from mirobody.collect import get_websocket_file_upload_manager
@@ -27,6 +28,7 @@ from mirobody.collect import get_user_data_distribution
 from mirobody.collect import delete_files_from_message, delete_all_files_from_message, upload_files_to_storage
 from mirobody.collect import FileUploadData
 from mirobody.utils.log import secret_fingerprint
+from mirobody.kernel.ops import is_driver_exception
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +124,7 @@ async def _authorize_file_read(file_key: str, caller_id: str) -> bool:
 
 @router.get("/files/{file_path:path}", tags=["files"])
 async def serve_storage_file(
+    request: Request,
     file_path: str,
     authorization: str | None = Header(None),
     access_token: str | None = Query(
@@ -150,19 +153,26 @@ async def serve_storage_file(
     from mirobody.utils.config.storage import get_storage_client
     import io
 
+    # Storage keys name their owner (`demo/<email>/...`), so the log carries a
+    # fingerprint of the key, never the key.
+    key_id = secret_fingerprint(file_path)
     try:
         # Security check: prevent path traversal
         if ".." in file_path or file_path.startswith("/"):
-            logger.warning(f"Attempted path traversal: {file_path}")
+            logger.warning("refused a file path that leaves the storage root: key=%s", key_id)
             raise HTTPException(status_code=403, detail="Access denied")
 
-        caller_id = await verify_token_string(authorization or access_token or "")
+        caller_id, claims = await verify_token_claims(authorization or access_token or "")
+        if await lacks_second_factor(
+            int(caller_id), claims, getattr(request.app.state, "requires_second_factor", None)
+        ):
+            return aal2_required_response()
 
         if not await _authorize_file_read(file_path, caller_id):
             # 404, not 403: a 403 confirms the key exists, which turns this
             # route back into the enumeration oracle it just stopped being.
             logger.warning(
-                "unauthorized file read: user=%s key=%s", caller_id, file_path
+                "unauthorized file read: caller_id=%s key=%s", caller_id, key_id
             )
             raise HTTPException(status_code=404, detail="File not found")
 
@@ -172,10 +182,10 @@ async def serve_storage_file(
         # Get file from storage
         content, err = await storage.get(file_path)
         if err:
-            logger.warning(err)
+            logger.warning("storage read failed: key=%s", key_id)
         
         if content is None:
-            logger.warning(f"File not found in storage: {file_path}")
+            logger.warning("file not found in storage: key=%s", key_id)
             raise HTTPException(status_code=404, detail="File not found")
         
         # Determine content type from filename
@@ -184,7 +194,8 @@ async def serve_storage_file(
         # Extract filename for Content-Disposition header
         filename = file_path.split("/")[-1] if "/" in file_path else file_path
         
-        logger.debug(f"Serving file from storage: {file_path}, size: {len(content)} bytes")
+        content_bytes = len(content)
+        logger.debug("serving file from storage: key=%s bytes=%d", key_id, content_bytes)
         
         # Return file as streaming response
         return StreamingResponse(
@@ -205,7 +216,10 @@ async def serve_storage_file(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error serving file {file_path}: {str(e)}")
+        logger.error(
+            "serving a file failed: key=%s (%s)", key_id, type(e).__name__,
+            exc_info=not is_driver_exception(e),
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -250,7 +264,7 @@ async def websocket_upload_health_report(
         try:
             # Verify token
             try:
-                user_id = await verify_token_string(token)
+                user_id, claims = await verify_token_claims(token)
                 if not user_id:
                     await websocket.close(code=1008, reason="Invalid token")
                     return
@@ -260,6 +274,15 @@ async def websocket_upload_health_report(
                     extra={"token": secret_fingerprint(token)},
                 )
                 await websocket.close(code=1008, reason="Token verification failed")
+                return
+
+            # The HTTP middleware never sees a WebSocket, so this socket asks the
+            # second-factor rule itself: an MFA account's AAL1 token used to open
+            # it and upload into the record without the passkey.
+            if await lacks_second_factor(
+                int(user_id), claims, getattr(websocket.app.state, "requires_second_factor", None)
+            ):
+                await websocket.close(code=1008, reason="Second factor required")
                 return
 
             # Use client-provided connectionId or default to user_id (backward compatible)
@@ -310,6 +333,7 @@ async def websocket_upload_health_report(
                             message_data["_real_user_id"] = str(user_id)
                             await websocket_file_upload_manager.handle_upload_start(connection_id, message_data)
                         elif message_type == "upload_chunk":
+                            message_data["_real_user_id"] = str(user_id)
                             await websocket_file_upload_manager.handle_file_chunk(connection_id, message_data)
                         elif message_type == "upload_end":
                             message_data["_real_user_id"] = str(user_id)
@@ -325,7 +349,9 @@ async def websocket_upload_health_report(
                         elif message_type == "get_status":
                             message_id = message_data.get("messageId")
                             if message_id:
-                                status = await websocket_file_upload_manager.get_upload_status(connection_id, message_id)
+                                status = await websocket_file_upload_manager.get_upload_status(
+                                    connection_id, message_id, user_id=str(user_id)
+                                )
                                 await websocket_file_upload_manager.send_message(connection_id, status)
                         else:
                             logger.warning(f"Unknown message type: {message_type}")

@@ -298,8 +298,8 @@ test = ["pytest", "pytest-asyncio", "pytest-sugar", "import-linter", "ruff", "bu
 include = ["mirobody", "mirobody.*"]
 # `mirobody/tests/` is the part of the suite in git: the resolver score the
 # README publishes, the cross-language identity checks a terminology
-# contributor runs, and `test_skills.py`, the public evidence for the agent
-# skills. The build backend ships only that evidence module and prunes the
+# contributor runs, the server's security gates, and `test_skills.py`, the
+# public evidence for the agent skills. The build backend ships only that evidence module and prunes the
 # checkout-only gates; `scripts/check_wheel_data.py` enforces the split.
 #
 # Everything else lives in a gitignored `tests/` at the repo root, so the local
@@ -374,7 +374,8 @@ disable_test_id_escaping_and_forfeit_all_rights_to_community_support = true
 # natively supported" on every machine.
 asyncio_mode = "auto"
 # Two roots. `mirobody/tests/` holds the gates that ship: the resolver
-# benchmark the README scores itself against, and cross-language identity. `tests/` is the local regression
+# benchmark the README scores itself against, cross-language identity and the
+# server's security gates. `tests/` is the local regression
 # suite and is gitignored: internal quality control that can be as detailed as
 # it needs to be without becoming part of the project's public surface. It is simply absent from a clone, and
 # pytest skips a testpath that does not exist. (Historical note: the README

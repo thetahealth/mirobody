@@ -40,6 +40,7 @@ from mirobody.user.platform import get_platform_user_service
 from mirobody.collect import platform_manager
 from mirobody.server.auth import verify_token, verify_token_optional
 from mirobody.utils.config import global_config
+from mirobody.utils.http import request_origin, safe_return_url
 
 logger = logging.getLogger(__name__)
 
@@ -186,9 +187,26 @@ def _sort_providers_by_priority(providers: list[ProviderInfo]) -> list[ProviderI
 
 
 def handle_redirect(request: Request, return_url: str, success: bool, platform: str, provider: str, error_msg: str = None):
-    """Build a redirect response for OAuth callback with minimal safe params."""
+    """Build a redirect response for OAuth callback with minimal safe params.
+
+    Only to where `safe_return_url` keeps it: this origin, the CORS origin the
+    deployment allows, and `OAUTH_RETURN_ORIGINS`. Anywhere else gets the
+    completion page this callback shows when there is no `return_url`.
+    """
     from urllib.parse import urlencode
     from fastapi.responses import RedirectResponse
+
+    cfg = global_config()
+    allowed = list(cfg.get_list("OAUTH_RETURN_ORIGINS") or []) if cfg else []
+    # A list of (name, value) pairs, as `middleware_stack` reads it.
+    cors_origin = dict((cfg.http.headers or []) if cfg else []).get("Access-Control-Allow-Origin", "")
+    if cors_origin and cors_origin != "*":
+        allowed.append(cors_origin)
+    return_url = safe_return_url(return_url, request_origin(request), allowed)
+    if return_url is None:
+        provider_slug = provider
+        logger.warning("refused an OAuth return_url outside this deployment: provider_slug=%s", provider_slug)
+        return HTMLResponse(content=_generate_oauth_completion_html(platform, provider, success, None, error_msg))
 
     code = 0
     if not success:

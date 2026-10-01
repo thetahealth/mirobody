@@ -60,6 +60,47 @@ def request_origin(request: Request) -> str:
     return f"{request.url.scheme}://{request.url.netloc}"
 
 
+_SCHEME_ENTRY = re.compile(r"^([a-z][a-z0-9+.-]*):(?://)?$")
+
+
+def safe_return_url(url: str, own_origin: str, also_allowed=()) -> str | None:
+    """`url` if a redirect there stays with this deployment, else None.
+
+    A vendor's OAuth callback is public by nature and took `return_url` from
+    its query string, so `state=success&return_url=https://anywhere` answered
+    302 to anywhere (reproduced 2026-10-01). Kept: a path on this origin, this
+    origin, and what `also_allowed` names, either an origin
+    (`https://app.example.com`) or a scheme for an app's own links (`theta:`).
+    """
+    if not isinstance(url, str) or not url or url != url.strip():
+        return None
+    # A backslash or a control character is read differently by different
+    # parsers: browsers treat `/\evil.example` as `//evil.example`.
+    if "\\" in url or any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in url):
+        return None
+    if url.startswith("/"):
+        return None if url.startswith("//") else url
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    scheme = parts.scheme.lower()
+    origins, schemes = set(), set()
+    for entry in also_allowed or ():
+        entry = str(entry).strip().lower().rstrip("/")
+        m = _SCHEME_ENTRY.match(entry + (":" if entry and ":" not in entry else ""))
+        if entry.startswith(("http://", "https://")):
+            origins.add(entry)
+        elif m:
+            schemes.add(m.group(1))
+    if scheme in ("http", "https"):
+        if not parts.netloc or "@" in parts.netloc:
+            return None
+        origin = f"{scheme}://{parts.netloc.lower()}"
+        return url if origin in origins | {own_origin.lower().rstrip("/")} else None
+    return url if scheme and scheme in schemes else None
+
+#-----------------------------------------------------------------------------
+
 def get_jwt_token(request: Request) -> str:
     return request.headers.get("Authorization")
 

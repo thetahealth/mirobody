@@ -44,6 +44,14 @@ HTTP_SERVER_NAME: mirobody
 # HTTP_URI_PREFIX: ''
 HTTP_ROOT: frontend
 
+# Where a device vendor's OAuth callback may send the browser back to, besides
+# this server's origin and the Access-Control-Allow-Origin below: an origin,
+# or an app's own scheme. See SECURITY.md.
+# OAUTH_RETURN_ORIGINS: ['https://app.example.com', 'theta:']
+
+# Passkeys and MFA: your domain. Without it there is no WebAuthn service.
+# WEBAUTHN_RP_ID: example.com
+
 # HTTP_HEADERS:
 #   Access-Control-Allow-Origin: 'http://localhost:18080'  # CHANGE FOR PRODUCTION
 #   Access-Control-Allow-Credentials: 'true'

@@ -31,8 +31,6 @@ import secrets
 
 logger = logging.getLogger(__name__)
 
-_LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
-
 _SCHEMA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "schema")
 
 
@@ -104,22 +102,22 @@ def enforce_production_auth_safety(config) -> None:
 
 def _guard_placeholder_jwt_key(config) -> None:
     """A placeholder JWT_KEY is a public signing key: anyone who has read
-    config.yaml can mint a token for any account. On loopback that is the demo
-    and only warned about; on any other address this run gets its own key, as
-    `mirobody dev` does. Production refuses to start instead (above)."""
+    config.yaml can mint a token for any account. So this run gets its own key,
+    as `mirobody dev` does, and sessions end at restart until JWT_KEY is set.
+
+    Loopback used to keep the placeholder and only warn, but a reverse proxy on
+    the same machine puts a loopback server on the internet. On 2026-10-01 a
+    token minted with the placeholder for a demo account read that account's
+    files from a loopback server. Production refuses to start instead (above)."""
     from mirobody.utils.config.config import PLACEHOLDER_SENTINEL
 
     if config.get_str("JWT_KEY") not in ("", PLACEHOLDER_SENTINEL):
         return
-    if config.http.host in _LOOPBACK:
-        logger.warning("JWT_KEY is the shipped placeholder. Set a real one before binding beyond loopback.")
-        return
     os.environ["JWT_KEY"] = secrets.token_hex(32)
     config.refresh()
-    logger.warning(  # phi: ok the bind address
-        "JWT_KEY is unset or the shipped placeholder and the server listens on %s: "
-        "using a key generated for this run, so sessions end at restart. Set JWT_KEY to keep them.",
-        config.http.host,
+    logger.warning(
+        "JWT_KEY is unset or the shipped placeholder: using a key generated for this run, "
+        "so sessions end at restart. Set JWT_KEY to keep them."
     )
 
 
