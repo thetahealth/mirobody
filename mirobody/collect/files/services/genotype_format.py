@@ -192,7 +192,11 @@ _ROWS_CHECKED = 10
 
 
 def _headerless_calls(head: str) -> bool:
-    lines = [ln.strip().strip('"') for ln in head.lstrip("\ufeff").splitlines()]
+    # MyHeritage and FamilyTreeDNA quote every field ("rs4477212","1","82154",
+    # "AA"). Stripping quotes only at the ends of a line left `","` between the
+    # fields, so those rows without their header read as a spreadsheet and went
+    # to a model. A quote has no other business in a call row.
+    lines = [ln.strip().replace('"', "") for ln in head.lstrip("\ufeff").splitlines()]
     data = [ln for ln in lines if ln and not ln.startswith("#")][:_ROWS_CHECKED]
     hits = sum(1 for ln in data if _CALL_ROW.match(ln) or _VCF_ROW.match(ln))
     return bool(data) and hits * 5 >= len(data) * 4

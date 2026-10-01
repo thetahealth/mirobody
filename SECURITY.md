@@ -103,6 +103,12 @@ others:
   server's origin, the CORS origin above, or what `OAUTH_RETURN_ORIGINS`
   lists (an origin, or an app's own scheme such as `theta:`). Anything else
   gets the completion page instead of a redirect.
+- Connecting a device ties the vendor's consent to the account that started
+  the link, not to the browser that finishes it. Someone with an account on
+  the same server could start a link and send its consent page to another
+  user, whose wearable data would then reach the first account. On a server
+  shared beyond people you trust, connect devices only from links you started
+  yourself; `docs/roadmap.md` has the fix and why it is not in yet.
 - Set `WEBAUTHN_RP_ID` to your domain to offer passkeys. An account that
   turns MFA on then needs its passkey for every request, a file link
   (`?access_token=`) and the upload socket included.

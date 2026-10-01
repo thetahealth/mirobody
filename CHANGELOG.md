@@ -155,6 +155,25 @@ decisions.
 
 ### Fixed
 
+- **Quoted genotype rows without their header no longer reach a model.**
+  MyHeritage and FamilyTreeDNA quote every field (`"rs4477212","1","82154","AA"`).
+  The check for header-stripped genotype rows took quotes off only the ends of a
+  line, so such a file read as a spreadsheet: a chat upload was classed `csv`, the
+  upload path did not claim it, and its rows went to document extraction and its
+  model. Quotes inside a row are now dropped too, and both vendors' shapes are
+  pinned in `benchmarks/genomics`. Ordinary quoted lab tables still read as
+  spreadsheets. To tell: such a file is refused as a genotype export.
+- **Device setup on Docker works as the guide says.** `docs/provider-setup.md` told
+  Docker users to edit `config.devices.yaml`, which the image carries its own copy
+  of, so a credential put there was never read. The guide now says to put the
+  blocks in `config.localdb.yaml` next to `compose.yaml` and run `./deploy.sh`,
+  which mounts it. Its verify command (`jq '.data[].slug'`) failed on the real
+  response, which nests the list under `providers`, and it said to restart, which
+  keeps the old mounts. Both editions are fixed. To tell: the guide's steps, run
+  on a fresh clone, print `"theta_oura"`.
+- **`convert_unit` says why Fahrenheit does not convert.** It refused °F→°C, by
+  design (conversions here are a factor), but blamed percentages and molar mass.
+  It now says temperature scales also differ by an offset, and gives the formula.
 - **The README's badges render on GitHub.** Docker Hub, Downloads and GitHub
   stars showed as broken images, and PyPI did at other times. GitHub serves
   README images through its proxy, camo, which gives up at about 4.5 s. A

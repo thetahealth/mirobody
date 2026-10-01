@@ -8,6 +8,7 @@ import gzip
 import io
 import csv
 from contextlib import asynccontextmanager
+from importlib.resources import files
 import struct
 import unittest
 import zipfile
@@ -30,6 +31,8 @@ from mirobody.agent.filesystem.files_backend import ThFilesBackend
 from mirobody.agent.middleware.genotype_row_guard import GenotypeRowGuardMiddleware, redact_genotype_history
 from mirobody.agent.middleware.genotype_summarization import GenotypeSafeSummarizationMiddleware
 from mirobody.agent.tools.genetic_service import TOOL_NAME, validate_query
+from mirobody.collect.files.handlers.genetic import GeneticHandler
+from mirobody.collect.files.services.genetic_processor import build_from_votes
 from mirobody.collect.files.services.genotype_format import sniff_stream
 from mirobody.kernel import tools
 from mirobody.utils import db
@@ -60,6 +63,21 @@ class ChatClassificationTests(unittest.TestCase):
                 self.assertEqual(_detect_file_scene({
                     "file_name": name, "content_type": mime, "content_bytes": data,
                 }), "genetic")
+
+    def test_quoted_vendor_rows_without_their_header_are_genetic(self) -> None:
+        # MyHeritage and FamilyTreeDNA quote every field. With the column
+        # header removed, those rows read as a spreadsheet and went to a model.
+        examples = files("mirobody.testing").joinpath("genomics")
+        for name in ("hg00096-myheritage.csv", "hg00096-ftdna.csv"):
+            lines = examples.joinpath(name).read_text().splitlines()
+            rows = [ln for ln in lines if ln and not ln.startswith("#")][1:]
+            body = "\n".join('"' + '","'.join(next(csv.reader([r]))) + '"' for r in rows).encode()
+            with self.subTest(name=name):
+                self.assertTrue(body.startswith(b'"rs'))
+                self.assertEqual(_detect_file_scene({
+                    "file_name": "raw.csv", "content_type": "text/csv", "content_bytes": body,
+                }), "genetic")
+                self.assertTrue(GeneticHandler.is_genetic_content(body, "text/csv"))
 
     def test_classification_is_per_file(self) -> None:
         files = (
@@ -133,6 +151,45 @@ class PublicCatalogNormalizationTests(unittest.TestCase):
             site=site, vcf_gt=row[9], vcf_ref=row[3], vcf_alt=row[4],
         )
         self.assertEqual((result.call_status, result.gt), ("called", "1|0"))
+
+
+class BuildDetectionTests(unittest.TestCase):
+    """Votes from real catalog sites, through `normalize`, as the loader counts them."""
+
+    def _votes(self, catalog: SiteCatalog, rows, column: int) -> dict[str, int]:
+        votes = {"GRCh37": 0, "GRCh38": 0}
+        for row in rows:
+            rsid, chrom, ref = row[0], row[1], row[4]
+            site = catalog.lookup(rsid, chrom, row[column])
+            call = normalize(rsid=rsid, chrom=chrom, position=row[column], genotype=ref * 2, site=site)
+            if call.matched_build:
+                votes[call.matched_build] += 1
+        return votes
+
+    def _sites(self, catalog: SiteCatalog, n: int):
+        rows = catalog._conn.execute(
+            "SELECT rsid, chrom, pos37, pos38, ref, alt FROM sites "
+            "WHERE pos37 <> pos38 AND chrom NOT IN ('X', 'Y', 'MT') AND length(ref) = 1 "
+            "ORDER BY rsid LIMIT ?", (n,),
+        ).fetchall()
+        self.assertEqual(len(rows), n)
+        return rows
+
+    def test_twenty_five_sites_name_their_build(self) -> None:
+        with SiteCatalog() as catalog:
+            rows = self._sites(catalog, 25)
+            self.assertEqual(build_from_votes(self._votes(catalog, rows, 2)), "GRCh37")
+            self.assertEqual(build_from_votes(self._votes(catalog, rows, 3)), "GRCh38")
+
+    def test_too_few_sites_or_a_mixed_file_stay_unknown(self) -> None:
+        with SiteCatalog() as catalog:
+            self.assertEqual(build_from_votes(self._votes(catalog, self._sites(catalog, 13), 3)), "unknown")
+            rows = self._sites(catalog, 25)
+            mixed = self._votes(catalog, rows[:20], 3)
+            for build, count in self._votes(catalog, rows[20:], 2).items():
+                mixed[build] += count
+            self.assertEqual(mixed, {"GRCh37": 5, "GRCh38": 20})
+            self.assertEqual(build_from_votes(mixed), "unknown")
 
 
 class ParCoordinateTests(unittest.TestCase):
