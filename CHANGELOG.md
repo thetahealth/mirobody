@@ -100,6 +100,15 @@
 
 ### Fixed
 
+- **The README's badges render on GitHub.** Docker Hub, Downloads and GitHub
+  stars showed as broken images, and PyPI did at other times. GitHub serves
+  README images through its proxy, camo, which gives up at about 4.5 s. A
+  cold fetch through it of shields.io's live badges (PyPI version, Docker
+  version, pepy downloads, stars) answered 504 after 4.5 s every time on
+  2026-10-01, while badgen and pepy's own badge answered 200 in 0.6–1.0 s.
+  Both editions now use badgen and pepy for the live values. Docker Hub
+  becomes a static badge naming the image, since it only repeated the PyPI
+  version. To tell: the five badges at the top of the README all render.
 - **The Data page lists the devices you configured.** With Oura, WHOOP or
   Garmin credentials set, `/api/v1/pulse/providers` answered with the
   device, but the "connect a source" tab said there was nothing to connect.
