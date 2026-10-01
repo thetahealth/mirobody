@@ -11,11 +11,11 @@
 
 **[English](README.md)** · **中文**
 
-[![PyPI](https://img.shields.io/pypi/v/mirobody?label=PyPI&color=3775A9)](https://pypi.org/project/mirobody/)
-[![Docker Hub](https://img.shields.io/docker/v/thetahealth4mirobody/mirobody?label=Docker%20Hub&logo=docker&logoColor=white&color=2496ED)](https://hub.docker.com/r/thetahealth4mirobody/mirobody)
-[![PyPI Downloads](https://img.shields.io/pepy/dt/mirobody?label=Downloads&color=orange)](https://pepy.tech/projects/mirobody)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/thetahealth/mirobody?style=social)](https://github.com/thetahealth/mirobody/stargazers)
+[![PyPI](https://badgen.net/pypi/v/mirobody?label=PyPI&color=3775A9&icon=pypi)](https://pypi.org/project/mirobody/)
+[![Docker Hub](https://badgen.net/badge/Docker%20Hub/thetahealth4mirobody%2Fmirobody/2496ED?icon=docker)](https://hub.docker.com/r/thetahealth4mirobody/mirobody)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/mirobody?period=total&units=international_system&left_color=grey&right_color=orange&left_text=Downloads)](https://pepy.tech/projects/mirobody)
+[![License: Apache-2.0](https://badgen.net/badge/license/Apache-2.0/blue)](LICENSE)
+[![GitHub stars](https://badgen.net/github/stars/thetahealth/mirobody?icon=github&label=stars)](https://github.com/thetahealth/mirobody/stargazers)
 
 **[▶ 在线 Demo，免注册](https://chat.mirobody.ai/demo)** · **[📚 文档](https://docs.mirobody.ai/zh/self-host)** · **[🐳 Docker Hub](https://hub.docker.com/r/thetahealth4mirobody/mirobody)** · **[☁ 云端 API](https://platform.mirobody.cn/)**
 
