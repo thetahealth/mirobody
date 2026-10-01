@@ -56,7 +56,7 @@ def _aal1_reachable(method: str, path: str) -> bool:
     return method == "GET" and any(path.endswith(p) for p in _AAL1_REACHABLE_GETS)
 
 
-def _aal2_required() -> Response:
+def aal2_required_response() -> Response:
     # The web client's interceptor keys on `detail.code`, runs the passkey
     # upgrade and retries the request (the same shape as the session routes'
     # ERROR_SESSION_MAX_LIFETIME).
@@ -64,6 +64,45 @@ def _aal2_required() -> Response:
         {"detail": {"code": "ERROR_AAL2_REQUIRED", "message": "This account requires a passkey for this request."}},
         status_code=403,
     )
+
+
+async def lacks_second_factor(
+    user_id: int,
+    claims: dict | None,
+    requires_second_factor: Callable[[int], Awaitable[bool]] | None,
+) -> bool:
+    """Whether this token is too weak for this account: the account needs an
+    AAL2 token (a passkey) and the token's `aal` is lower.
+
+    The JWT middleware asks this for a token in the Authorization header. A
+    route that takes its token from the query string must ask it itself: the
+    middleware never sees that token, so `GET /files/...?access_token=` and the
+    upload socket's `?token=` accepted an MFA account's AAL1 token.
+    """
+    if user_id <= 0 or requires_second_factor is None:
+        return False
+    try:
+        aal = int((claims or {}).get("aal") or 0)
+    except (TypeError, ValueError):
+        aal = 0
+    return aal < 2 and await requires_second_factor(user_id)
+
+
+#: On every response. `nosniff` stops a browser from running an uploaded file
+#: served as text; SAMEORIGIN keeps the page out of other sites' frames; and
+#: `same-origin` keeps the full URL out of the Referer sent to other sites,
+#: which matters because /mcp/<token> and /share/<id> carry credentials.
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Referrer-Policy": "same-origin",
+}
+
+
+def _with_security_headers(response: Response) -> Response:
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    return response
 
 #-----------------------------------------------------------------------------
 
@@ -132,7 +171,7 @@ class JwtMiddleware(BaseHTTPMiddleware):
         # Check JWT token.
 
         request.state.user_id = 0
-        aal = 0
+        claims = None
 
         if self._token_validator:
             token = request.headers.get("Authorization")
@@ -151,17 +190,14 @@ class JwtMiddleware(BaseHTTPMiddleware):
                             decode=self._decode_func,
                         )
                         if request.state.user_id:
-                            try:
-                                aal = int(payload.get("aal") or 0)
-                            except (TypeError, ValueError):
-                                aal = 0
+                            claims = payload
 
-        if (request.state.user_id > 0 and aal < 2 and self._requires_second_factor
+        if (request.state.user_id > 0
                 and not _aal1_reachable(request.method, request.url.path)
-                and await self._requires_second_factor(request.state.user_id)):
-            refused = _aal2_required()
+                and await lacks_second_factor(request.state.user_id, claims, self._requires_second_factor)):
+            refused = aal2_required_response()
             refused.headers[TRACE_HEADER] = trace_id
-            return refused
+            return _with_security_headers(refused)
 
         #-------------------------------------------------
 
@@ -197,7 +233,7 @@ class JwtMiddleware(BaseHTTPMiddleware):
 
         response = await call_next(request)
         response.headers[TRACE_HEADER] = trace_id
-        return response
+        return _with_security_headers(response)
 
 #-----------------------------------------------------------------------------
 

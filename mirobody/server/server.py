@@ -385,16 +385,29 @@ class Server:
 
             **config.get_jwt_options(),
             **config.get_email_options(),
+            # Without these, `WEBAUTHN_RP_ID` in config never reached the
+            # server: Settings offered passkeys and MFA, but there was no
+            # WebAuthn service to enrol with, and an account with MFA on was
+            # never asked for a second factor.
+            **config.get_webauthn_options(),
         )
 
         #-----------------------------------------------------
         # Init fastapi server.
 
         from fastapi import FastAPI
+        # The interactive docs list every route and its parameters, readable
+        # without signing in. A deployment facing real users has no use for
+        # them; everywhere else they stay, for the people building on the API.
+        from mirobody.server.bootstrap import is_production
+        docs_off = is_production(config)
         app = FastAPI(
             debug       = config.log.level <= logging.DEBUG,
             routes      = server.get_routes(),
-            middleware  = server.get_middlewares()
+            middleware  = server.get_middlewares(),
+            docs_url    = None if docs_off else "/docs",
+            redoc_url   = None if docs_off else "/redoc",
+            openapi_url = None if docs_off else "/openapi.json",
         )
 
         # One handler for care-circle denial, so a route that forgets to catch
@@ -417,6 +430,9 @@ class Server:
         # Store global resources in app.state for access by all routers
         app.state.ephemeral = ephemeral
         app.state.pg_pool = pg_pool
+        # For the routes that take a token from the query string, which the JWT
+        # middleware never sees (`middlewares.lacks_second_factor`).
+        app.state.requires_second_factor = server._user_service.requires_second_factor
         
         logger.info("Global resources ready")
 

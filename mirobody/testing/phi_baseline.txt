@@ -271,8 +271,6 @@ mirobody/server/routers/file_router.py	interpolation	close_error
 mirobody/server/routers/file_router.py	interpolation	connectionId
 mirobody/server/routers/file_router.py	interpolation	current_user
 mirobody/server/routers/file_router.py	interpolation	e
-mirobody/server/routers/file_router.py	interpolation	err
-mirobody/server/routers/file_router.py	interpolation	file_path
 mirobody/server/routers/file_router.py	interpolation	request.file_keys
 mirobody/server/routers/file_router.py	interpolation	send_error
 mirobody/server/routers/file_router.py	interpolation	str(e)
@@ -301,9 +299,6 @@ mirobody/server/routers/sharing_router.py	interpolation	denied
 mirobody/server/routers/sharing_router.py	interpolation	e
 mirobody/server/routers/sharing_router.py	interpolation	handle
 mirobody/server/routers/user_router.py	interpolation	accept_language
-mirobody/server/routers/user_router.py	interpolation	e
-mirobody/server/routers/user_router.py	interpolation	str(e)
-mirobody/server/routers/user_router.py	interpolation	traceback.format_exc()
 mirobody/server/server.py	interpolation	exc
 mirobody/server/server.py	interpolation	request.url.path
 mirobody/server/worker.py	interpolation	[c.__name__ for c in task_classes]
@@ -428,13 +423,9 @@ mirobody/utils/config/storage/aws.py	interpolation	object_key
 mirobody/utils/config/storage/aws.py	interpolation	self.bucket
 mirobody/utils/config/storage/aws.py	interpolation	self.region
 mirobody/utils/config/storage/factory.py	interpolation	e
-mirobody/utils/config/storage/local.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/utils/config/storage/local.py	interpolation	error_msg
-mirobody/utils/config/storage/local.py	interpolation	file_path
 mirobody/utils/config/storage/local.py	interpolation	self.base_path
 mirobody/utils/config/storage/local.py	interpolation	self.proxy_url
 mirobody/utils/config/storage/local.py	interpolation	str(e)
-mirobody/utils/config/storage/local.py	interpolation	url
 mirobody/utils/db.py	interpolation	logged_query
 mirobody/utils/http.py	interpolation	message
 mirobody/utils/http.py	interpolation	msg

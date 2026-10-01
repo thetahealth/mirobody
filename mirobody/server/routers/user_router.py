@@ -4,7 +4,6 @@ User settings management module
 """
 
 import logging
-import traceback
 
 
 from fastapi import APIRouter, Depends, Header
@@ -17,6 +16,7 @@ from mirobody.utils import execute_query
 from mirobody.utils.config import get_default_timezone, global_config
 from mirobody.user import care_circle as cc
 from mirobody.user.user import get_user
+from mirobody.kernel.ops import is_driver_exception
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,10 @@ async def set_user_settings(
     try:
         await execute_query(update_sql, params=params)
     except Exception as e:
-        return JSONResponse(content={"code": -2, "msg": str(e)})
+        # A driver's message quotes the SQL with its bound parameters: it goes
+        # to neither the caller nor the log.
+        logger.warning("profile update failed: %s", type(e).__name__, exc_info=not is_driver_exception(e))
+        return JSONResponse(content={"code": -2, "msg": "Failed to update the profile."})
 
     response_data = None
 
@@ -148,7 +151,7 @@ async def set_user_settings(
                     )
                 }
         except Exception as e:
-            logger.warning(f"Failed to generate AAL1 token on MFA disable: {e}")
+            logger.warning("Failed to generate AAL1 token on MFA disable: %s", type(e).__name__)
 
     return JSONResponse(content={"code": 0, "msg": "Okay.", "data": response_data})
 
@@ -230,11 +233,11 @@ async def get_user_settings(
 
 
     except Exception as e:
-        logger.error(f"Error getting user settings: {str(e)}\n{traceback.format_exc()}")
+        logger.error("getting user settings failed: %s", type(e).__name__, exc_info=not is_driver_exception(e))
 
         # raise HTTPException(status_code=500, detail="Failed to get user settings")
         return JSONResponse(
-            content={"code": -1, "msg": f"Failed to get user settings: {str(e)}"},
+            content={"code": -1, "msg": "Failed to get user settings."},
         )
     
 
@@ -309,11 +312,11 @@ async def update_user_settings(
         )
 
     except Exception as e:
-        logger.error(f"Error updating user settings: {str(e)}\n{traceback.format_exc()}")
+        logger.error("updating user settings failed: %s", type(e).__name__, exc_info=not is_driver_exception(e))
         # raise HTTPException(status_code=500, detail="Failed to update user settings")
 
         return JSONResponse(
-            content={"code": -1, "msg": f"Failed to update user settings: {str(e)}"},
+            content={"code": -1, "msg": "Failed to update user settings."},
         )
 
 
@@ -392,9 +395,9 @@ async def create_virtual_user(
         )
 
     except Exception as e:
-        logger.error(f"Error creating virtual user: {str(e)}\n{traceback.format_exc()}")
+        logger.error("creating a virtual user failed: %s", type(e).__name__, exc_info=not is_driver_exception(e))
         
         return JSONResponse(
-            content={"code": -1, "msg": f"Failed to create virtual user: {str(e)}"},
+            content={"code": -1, "msg": "Failed to create the virtual user."},
             status_code=500
         )

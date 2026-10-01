@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 from typing import IO
 
+from mirobody.utils.log import secret_fingerprint
+
 from .abstract import AbstractStorage
 
 logger = logging.getLogger(__name__)
@@ -188,13 +190,16 @@ class LocalStorage(AbstractStorage):
             # Generate URL
             url = self._build_url(key)
             
-            logger.info(f"File saved to local storage: {file_path} -> {url}")
+            key_id = secret_fingerprint(key)
+            logger.info("file saved to local storage: key=%s", key_id)
             
             return url, None
             
         except Exception as e:
-            error_msg = f"Failed to save file to local storage: {str(e)}"
-            logger.error(error_msg, exc_info=True)
+            error_type = type(e).__name__
+            error_msg = f"Failed to save file to local storage ({error_type})"
+            key_id = secret_fingerprint(key)
+            logger.error("saving to local storage failed: key=%s (%s)", key_id, error_type)
             return None, error_msg
 
     #-----------------------------------------------------
@@ -213,7 +218,8 @@ class LocalStorage(AbstractStorage):
             file_path = self._get_file_path(key)
 
             if not file_path.exists():
-                logger.warning(f"File not found: {file_path}")
+                key_id = secret_fingerprint(key)
+                logger.warning("file not found in local storage: key=%s", key_id)
                 return None, f"File not found: {key}"
 
             # Read file content
@@ -226,8 +232,10 @@ class LocalStorage(AbstractStorage):
             return content, None
 
         except Exception as e:
-            error_msg = f"Failed to read file from local storage: {str(e)}"
-            logger.error(error_msg, exc_info=True)
+            error_type = type(e).__name__
+            error_msg = f"Failed to read file from local storage ({error_type})"
+            key_id = secret_fingerprint(key)
+            logger.error("reading from local storage failed: key=%s (%s)", key_id, error_type)
             return None, error_msg
     
     #-----------------------------------------------------
@@ -246,7 +254,8 @@ class LocalStorage(AbstractStorage):
             file_path = self._get_file_path(key)
 
             if not file_path.exists():
-                logger.warning(f"File not found for deletion: {file_path}")
+                key_id = secret_fingerprint(key)
+                logger.warning("file to delete not found in local storage: key=%s", key_id)
                 return None  # Consider non-existent file as successfully deleted
 
             # Delete file
@@ -256,13 +265,16 @@ class LocalStorage(AbstractStorage):
                 lambda: file_path.unlink()
             )
 
-            logger.info(f"File deleted from local storage: {file_path}")
+            key_id = secret_fingerprint(key)
+            logger.info("file deleted from local storage: key=%s", key_id)
 
             return None
 
         except Exception as e:
-            error_msg = f"Failed to delete file from local storage: {str(e)}"
-            logger.error(error_msg, exc_info=True)
+            error_type = type(e).__name__
+            error_msg = f"Failed to delete file from local storage ({error_type})"
+            key_id = secret_fingerprint(key)
+            logger.error("deleting from local storage failed: key=%s (%s)", key_id, error_type)
             return error_msg
 
     #-----------------------------------------------------
@@ -290,14 +302,17 @@ class LocalStorage(AbstractStorage):
             file_path = self._get_file_path(key)
 
             if not file_path.exists():
-                logger.warning(f"File not found: {file_path}")
+                key_id = secret_fingerprint(key)
+                logger.warning("file not found in local storage: key=%s", key_id)
                 return None, f"File not found: {key}"
 
             return self._build_url(key), None
 
         except Exception as e:
-            error_msg = f"Failed to generate URL for local file: {str(e)}"
-            logger.error(error_msg, exc_info=True)
+            error_type = type(e).__name__
+            error_msg = f"Failed to generate URL for local file ({error_type})"
+            key_id = secret_fingerprint(key)
+            logger.error("building a local file URL failed: key=%s (%s)", key_id, error_type)
             return None, error_msg
 
     #-----------------------------------------------------

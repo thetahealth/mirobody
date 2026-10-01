@@ -14,6 +14,61 @@
   quotes, and pins six category terms that must stay deliberately unresolved.
   The module ships in the wheel and sdist as inspectable release evidence.
 
+### Security
+
+Each item below was reproduced on a running server on 2026-10-01 before its
+fix, and re-run after it; `mirobody/tests/test_security_gates.py` pins the
+decisions.
+
+- **MFA covers file links and the upload socket.** The JWT middleware asks
+  for a second factor only of a token in the Authorization header. A file
+  link (`GET /files/{path}?access_token=`) and the upload socket (`?token=`)
+  take their token from the query string, so with MFA on, an account's
+  code-only token (`aal` 1) still read its lab report and opened the socket.
+  Both now ask the same rule (`middlewares.lacks_second_factor`): the link
+  answers 403 `ERROR_AAL2_REQUIRED`, and the socket is closed with 1008.
+- **Passkeys and MFA work once `WEBAUTHN_RP_ID` is set.** `Server.start()`
+  never passed `config.get_webauthn_options()`, so the setting never reached
+  the server. Settings offered passkeys (`webauthn_supported: true`), but
+  there was no WebAuthn service to enrol with, and an account with
+  `mfa_enabled` was never asked for a second factor. A deployment that sets
+  `WEBAUTHN_RP_ID` now has WebAuthn, and an account that already has MFA on
+  and a passkey registered is asked for it. To tell: `/mirobody.json` says
+  `__IS_WEBAUTHN_ON__: true`.
+- **An upload belongs to the account that started it.** Upload sessions are
+  keyed by the client's `messageId`, and the chunk, end and status handlers
+  never checked whose session it was. A second account's socket read another
+  account's upload status, and pushed a chunk that was processed and stored
+  as that account's file. Each handler now checks the session's account:
+  another account gets "Invalid upload session" or `not_found`, and cannot
+  reuse an id another account holds.
+- **The vendor callback redirects only within the deployment.**
+  `/api/v1/pulse/{platform}/{provider}/callback?state=success&return_url=`
+  answered 302 to any URL, unauthenticated. It now redirects to a path on
+  this origin, this origin, the CORS origin, or what the new
+  `OAUTH_RETURN_ORIGINS` lists (`utils/http.safe_return_url`). Anything else
+  gets the completion page. Not changed: the OAuth `state` is still bound to
+  the account, not to the browser that started the link.
+- **A placeholder `JWT_KEY` never signs a token.** On loopback the server
+  kept the shipped placeholder and only warned, and a token minted with it
+  read a demo account's files. A reverse proxy on the same machine puts a
+  loopback server on the internet. Every run without a real key now gets
+  one made for it, wherever it listens, so sessions end at restart until
+  `JWT_KEY` is set. `deploy.sh` sets one.
+- **Response headers, and no API docs in production.** No response carried
+  `nosniff`, a frame policy or a referrer policy, and the referrer matters
+  here: `/mcp/<token>` and `/share/<id>` are credentials. Every response now
+  carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`
+  and `Referrer-Policy: same-origin`. With `PRODUCTION: true`, `/docs`,
+  `/redoc` and `/openapi.json` answer 404.
+- **Logs and error replies carry no storage keys or exception text.** A
+  storage key names its owner (`demo/<email>/...`). The file route and local
+  storage logged keys whole. Three user routes logged `str(e)` with a
+  traceback, and four returned it to the caller; a driver's message quotes
+  the SQL with its bound parameters. They now log a key fingerprint and the
+  exception's type, and answer with a fixed message. The PHI baseline loses
+  nine entries.
+
 ### Changed
 
 - **The README links the benchmarks.** ESL-Bench, MedHall-Bench and

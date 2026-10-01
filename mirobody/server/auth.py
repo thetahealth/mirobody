@@ -32,7 +32,13 @@ logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
-async def verify_token_string(token_string: str) -> str:
+async def verify_token_claims(token_string: str) -> tuple[str, dict]:
+    """The account a token speaks for, and its decoded claims.
+
+    For a route that takes its token from the query string: it must check
+    the claims' `aal` itself (`middlewares.lacks_second_factor`), because
+    the JWT middleware only reads the Authorization header.
+    """
     try:
         # Decode it beforehand.
         token = unquote(token_string)
@@ -81,6 +87,11 @@ async def verify_token_string(token_string: str) -> str:
     user_id = str(user_id)
     update_req_ctx(token=token, user_id=user_id)
 
+    return user_id, decoded
+
+
+async def verify_token_string(token_string: str) -> str:
+    user_id, _ = await verify_token_claims(token_string)
     return user_id
 
 #-----------------------------------------------------------------------------
