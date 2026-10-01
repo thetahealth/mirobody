@@ -385,6 +385,11 @@ class Server:
 
             **config.get_jwt_options(),
             **config.get_email_options(),
+            # Without these, `WEBAUTHN_RP_ID` in config never reached the
+            # server: Settings offered passkeys and MFA, but there was no
+            # WebAuthn service to enrol with, and an account with MFA on was
+            # never asked for a second factor.
+            **config.get_webauthn_options(),
         )
 
         #-----------------------------------------------------
