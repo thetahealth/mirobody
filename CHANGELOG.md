@@ -143,6 +143,27 @@ decisions.
 
 ### Changed
 
+- **The cloud models are the ones vendors ship now.** `config.llm.yaml` still
+  named September's: Claude Sonnet 5 and GPT-5.6 Terra. `claude-sonnet`
+  (OpenRouter) now runs `anthropic/claude-sonnet-5.5` and `claude` (Anthropic)
+  `claude-sonnet-5-5`; `openai` runs `gpt-6-sol` and `openai-utils`
+  `gpt-6-luna`, both at `reasoning_effort: none`, the only effort at which
+  GPT-6 takes a function tool on Chat Completions or a `temperature`.
+  GPT-6.1 Sol is not the `openai` entry because OpenAI serves its tool calls
+  only on the Responses API, and the agent speaks Chat Completions; it is the
+  `gpt` entry, on OpenRouter, which carries them.
+  `openrouter-utils` asks Gemini 3.8 Flash for `low` reasoning, not `minimal`,
+  which Google documents as an error on that model; `claude-sonnet` and `gpt`
+  drop a `temperature` that Sonnet 5.5 and GPT-6.1 Sol do not take. Still each
+  vendor's newest, so unchanged: `qwen3.8-flash`, `gemini-3.8-flash`,
+  `deepseek-flash` (DeepSeek V4.1 Flash), `claude-haiku-4-5-20251001`. A model
+  set through an entry's `model_env` variable is kept. To tell: `mirobody
+  doctor` names the new ids. Measured 2026-10-06 through the product's own
+  calls (a tool call and a second round with its result, a schema-bound
+  answer, an image, and the demo photo read and its nine readings extracted):
+  every OpenRouter and DashScope entry passes. The OpenAI, Anthropic, Google
+  and DeepSeek direct entries were checked against each vendor's
+  documentation, not called.
 - **The README starts with the first-run page, and says what leaves the
   machine in each mode.** `./deploy.sh` alone is the first command; a GIF
   (English and Chinese) shows the page, a table compares a model key, 100% on

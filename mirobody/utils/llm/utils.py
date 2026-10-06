@@ -89,8 +89,9 @@ def _request_kwargs(spec: RouteSpec, kwargs: dict[str, Any]) -> dict[str, Any]:
     if spec.reasoning_effort and "reasoning_effort" not in out:
         # Only when the entry declares it, so an endpoint that has never heard
         # of the parameter never sees it. `openai-utils` declares `none`
-        # because gpt-5.6-terra otherwise keeps reasoning on and then rejects
-        # the `temperature: 0` every extraction caller sends.
+        # because GPT-6 Luna, like gpt-5.6-terra before it, otherwise keeps
+        # reasoning on and then rejects the `temperature: 0` every extraction
+        # caller sends.
         out["reasoning_effort"] = spec.reasoning_effort
     return out
 

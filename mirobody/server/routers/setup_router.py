@@ -200,7 +200,7 @@ def _model_change(found: tuple[str, dict] | None, chosen: str, fixed: frozenset[
     if env in fixed:
         return {} if chosen == str(found[1].get("model") or "") else err(409, f"{env} is set in .env; change it there.")
     if len(chosen) > 200 or any(c.isspace() for c in chosen):
-        return err(400, "A model name has no spaces, like anthropic/claude-sonnet-5 or qwen3.8-flash.")
+        return err(400, "A model name has no spaces, like anthropic/claude-sonnet-5.5 or qwen3.8-flash.")
     return {env: "" if chosen == _configured_model(found[0]) else chosen}
 
 

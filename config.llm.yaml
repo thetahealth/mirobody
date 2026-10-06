@@ -27,7 +27,7 @@
 # every surface. With a key set as well, the key's models come first.
 #
 # `mirobody doctor` (and the boot log) prints what the current config selects.
-# Model ids verified against each vendor's catalogue on 2026-09-10.
+# Model ids verified against each vendor's catalogue on 2026-10-06.
 
 #-----------------------------------------------------------------------------
 # MODELS — one entry per model you want to call. (Not "providers": in this
@@ -54,8 +54,8 @@
 #                   no matter what this says (measured — claude-sonnet over
 #                   OpenRouter answers 400 to the block, and reads the text fine)
 #   reasoning_effort sent only when declared. `none` is how a reasoning model is
-#                   told to stop reasoning — required on gpt-5.6-terra, which
-#                   otherwise refuses the `temperature: 0` extraction sends
+#                   told to stop reasoning — required on OpenAI's GPT-6 Sol and Luna,
+#                   which take a function tool or a `temperature` only at `none`
 #   response_format json_schema (default) | json_object | none — what the endpoint
 #                   accepts. Below json_schema the schema is written into the prompt
 #   chat            false = utility surfaces only, hidden from the chat picker
@@ -68,16 +68,20 @@ MODELS:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
-    model: anthropic/claude-sonnet-5
+    model: anthropic/claude-sonnet-5.5
     model_env: OPENROUTER_CHAT_MODEL
-    temperature: 0.1
     supports_image: true
     supports_pdf: true
+    # No temperature: on Anthropic's API Claude Sonnet 5.5 answers 400 to a
+    # non-default sampling value. Through OpenRouter this entry passed a tool
+    # call and a second round with and without the 0.1 it used to carry
+    # (2026-10-06); without it, it does not depend on OpenRouter leaving the
+    # value out.
   qwen:
     llm_type: openai
     api_key: DASHSCOPE_API_KEY
     base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
-    model: qwen3.8-flash          # multimodal, tool calls verified 2026-09-10
+    model: qwen3.8-flash          # multimodal, tool calls verified 2026-10-06
     model_env: DASHSCOPE_CHAT_MODEL
     temperature: 0.1
     supports_image: true
@@ -109,32 +113,37 @@ MODELS:
     llm_type: openai
     api_key: OPENAI_API_KEY
     base_url: https://api.openai.com/v1
-    model: gpt-5.6-terra
+    model: gpt-6-sol              # not gpt-6.1-sol: OpenAI's model page says "Use the Responses
+                                  # API for tool calling. Chat Completions is supported without
+                                  # tool calling", and the agent speaks Chat Completions
     model_env: OPENAI_CHAT_MODEL
     temperature: 0.1
     supports_image: true
-    reasoning_effort: none        # REQUIRED for an agent: "Function tools with reasoning_effort
-                                  # are not supported for gpt-5.6-terra in /v1/chat/completions"
-                                  # — and with reasoning on, temperature must be 1 (measured
-                                  # 2026-09-10). Without this the picker's OpenAI entry cannot
-                                  # call a single tool.
+    reasoning_effort: none        # REQUIRED for an agent. OpenAI's GPT-6 guide: GPT-6 Sol and
+                                  # Luna take "function calling in Chat Completions only with
+                                  # reasoning_effort: none", and temperature only at `none`.
+                                  # gpt-5.6-terra 400ed the same way (measured 2026-09-10).
+                                  # Without this the picker's OpenAI entry cannot call a tool.
   claude:
     llm_type: anthropic           # the vendor's own API, not its OpenAI-compatible layer:
                                   # prompt caching and the thinking channel are only there
     api_key: ANTHROPIC_API_KEY
-    model: claude-sonnet-5
+    model: claude-sonnet-5-5
     model_env: ANTHROPIC_CHAT_MODEL
     supports_image: true
     supports_pdf: true
     # No sampling parameters on ANY `llm_type: anthropic` or
-    # `google_anthropic_vertex` entry. Two separate reasons, both measured:
-    # Claude Sonnet 5 answers 400 "`temperature` is deprecated for this model"
-    # (2026-09-10), and `anthropic` 1.x REMOVED `temperature` / `top_p` /
+    # `google_anthropic_vertex` entry. Two separate reasons: Claude Sonnet 5
+    # answered 400 "`temperature` is deprecated for this model" (measured
+    # 2026-09-10; Sonnet 5.5 400s on any non-default value, per Anthropic's
+    # migration guide), and `anthropic` 1.x REMOVED `temperature` / `top_p` /
     # `top_k` from the messages API altogether, with no `**kwargs` to absorb
     # them — so one reaching the client is a TypeError before a request exists
     # (#72). `clients._drop_rejected_sampling` strips them against the
     # installed signature and warns; this note is so nobody adds one expecting
-    # it to work.
+    # it to work. Nor `thinking: {type: disabled}` here: Sonnet 5.5 and Opus 5.5
+    # answer it with a 400, which is why `clients` sends no thinking block at all
+    # for "off".
   deepseek:
     llm_type: openai
     api_key: DEEPSEEK_API_KEY
@@ -147,8 +156,10 @@ MODELS:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
-    model: openai/gpt-5.6-terra
-    temperature: 0.1
+    model: openai/gpt-6.1-sol     # OpenRouter carries its tool calls, which OpenAI's own Chat
+                                  # Completions does not (see `openai`): a tool call and a second
+                                  # round passed, 2026-10-06. No temperature: GPT-6.1 Sol always
+                                  # reasons, and OpenAI's guide says to remove it then.
     supports_image: true
   local:
     # The local agent: MiniCPM5-2B, the `minicpm5-2b` section of
@@ -180,8 +191,10 @@ MODELS:
     chat: false
     extra_body:
       reasoning:                  # `enabled: false` is a 400 here — "Reasoning is mandatory
-        effort: minimal           # for this endpoint and cannot be disabled" (measured
-        exclude: true             # 2026-09-10). The least it allows, and no trace returned.
+        effort: low               # for this endpoint and cannot be disabled" (measured
+        exclude: true             # 2026-09-10). `low` is the least Gemini 3.8 Flash takes:
+                                  # Google's model page says `minimal` "returns an error", and
+                                  # OpenRouter lists high/medium/low. No trace returned.
   qwen-utils:
     llm_type: openai
     api_key: DASHSCOPE_API_KEY
@@ -205,11 +218,12 @@ MODELS:
     llm_type: openai
     api_key: OPENAI_API_KEY
     base_url: https://api.openai.com/v1
-    model: gpt-5.6-terra
+    model: gpt-6-luna             # GPT-6's fast tier: images, structured outputs, $0.10/$0.50 per M
     model_env: OPENAI_UTILS_MODEL
     supports_image: true
     chat: false
-    reasoning_effort: none        # thinking off, like every utility entry
+    reasoning_effort: none        # thinking off, like every utility entry; and the only effort at
+                                  # which GPT-6 Luna takes the `temperature` extraction sends
   anthropic-utils:
     llm_type: anthropic           # the vendor's own API, not its OpenAI-compatible layer: only
                                   # here does `output_config.format` GUARANTEE schema-valid JSON
