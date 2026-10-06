@@ -33,6 +33,9 @@ def get_extract_indicators_prompt(language: str = "zh-cn") -> str:
 - **Food/Nutrition**: Food images, nutrition labels, recipes, dietary records (NOT extracted)
 - **Other**: Any content with no health measurement, test result or clinical finding in it
 
+A notice printed on a document (a watermark, "SAMPLE", "COPY", "仅供参考", a disclaimer) does not make it
+non-health content: judge it by the measurements and findings it carries.
+
 **For non-health content, immediately return:**
 ```json
 {{

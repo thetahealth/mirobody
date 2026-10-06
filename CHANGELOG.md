@@ -280,6 +280,16 @@ decisions.
 
 ### Fixed
 
+- **What the table rules leave of a report is still read as a report.**
+  Since the text model is handed only what the rules did not read, a page's
+  leftover could look like nothing medical on its own: MiniCPM5-2B answered
+  `non_health_related` and stored none of it, six haematology rows on one
+  page and 26 on another, where a "SAMPLE" banner was most of what remained
+  (benchmarks/local_ocr). The request now says the text is the rest of a
+  medical report, and the prompt says a printed notice (a watermark,
+  "SAMPLE", "COPY", "仅供参考", a disclaimer) does not make a document
+  non-health content. To check: a report stamped "仅供参考" with readings
+  outside its tables keeps them.
 - **A model that loops on a page stops sooner and keeps the rows it read.**
   An extraction request allowed 32,000 tokens; MiniCPM5-2B looped on a
   handwritten blood-pressure log for 13 minutes, 30,067 tokens, until its

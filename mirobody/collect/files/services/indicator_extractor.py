@@ -70,6 +70,18 @@ PAGE_READ_CHARS = 3000
 PAGE_READ_CONCURRENCY = 2
 
 
+#: Said before what the table rules left of a page. The rules already found
+#: readings, so the document IS medical; asked to judge the leftover alone,
+#: MiniCPM5-2B called it non-health and dropped it: six haematology rows on
+#: one page, 26 on another where a generator's "SYNTHETIC SAMPLE" banner was
+#: most of what remained (benchmarks/local_ocr, e2044e9, seeds 7, 8, 9).
+REMAINDER_NOTE = (
+    "This text is what is left of a medical report after its tables were read separately. "
+    "It is health content: extract every measured value it still contains, and return no "
+    "indicators only if none is left."
+)
+
+
 def answer_budget(text: str) -> int:
     """max_tokens for one extraction request: room for every row the text can
     hold (a row's JSON is ~3.5 tokens per printed character), not the whole
@@ -222,7 +234,7 @@ class IndicatorExtractor:
                 llm_ret = {"indicators": rows, "content_info": {"date_time": table_date}}
                 logger.info(f"[IndicatorExtractor] {len(rows)} indicators read off tables, no model - user_id: {user_id}")
             else:
-                llm_ret = await IndicatorExtractor._llm_extract(rest, language, user_id)
+                llm_ret = await IndicatorExtractor._llm_extract(rest, language, user_id, remainder=bool(rows))
                 if rows:
                     extractor = f"{TABLE_EXTRACTOR}+llm:file-parser@indicators-v1"
                     llm_ret = IndicatorExtractor._merge_rule_rows(rows, table_date, llm_ret)
@@ -325,17 +337,18 @@ class IndicatorExtractor:
         return result
 
     @staticmethod
-    async def _llm_extract(original_text: str, language: str, user_id: int) -> dict | None:
+    async def _llm_extract(original_text: str, language: str, user_id: int, *, remainder: bool = False) -> dict | None:
         """The model's reading of a document: `indicators` and `content_info`,
-        or None. A long document is read a page at a time (`_pages`)."""
+        or None. A long document is read a page at a time (`_pages`).
+        `remainder`: the text is what the table rules left (`REMAINDER_NOTE`)."""
         pages = _pages(original_text)
         if len(pages) == 1:
-            return await IndicatorExtractor._llm_extract_one(original_text, language, user_id)
+            return await IndicatorExtractor._llm_extract_one(original_text, language, user_id, remainder=remainder)
         gate = asyncio.Semaphore(PAGE_READ_CONCURRENCY)
 
         async def read(page: str) -> dict | None:
             async with gate:
-                return await IndicatorExtractor._llm_extract_one(page, language, user_id)
+                return await IndicatorExtractor._llm_extract_one(page, language, user_id, remainder=remainder)
 
         answers = await asyncio.gather(*(read(p) for p in pages))
         failed = sum(1 for a in answers if not isinstance(a, dict))
@@ -343,13 +356,16 @@ class IndicatorExtractor:
         return _merge_pages(list(answers))
 
     @staticmethod
-    async def _llm_extract_one(original_text: str, language: str, user_id: int) -> dict | None:
+    async def _llm_extract_one(
+        original_text: str, language: str, user_id: int, *, remainder: bool = False
+    ) -> dict | None:
         """One request: the whole text given, `indicators` and `content_info`, or None."""
         from mirobody.utils.llm import async_get_structured_output
 
+        note = f"{REMAINDER_NOTE}\n\n" if remainder else ""
         messages = [
             {"role": "system", "content": get_extract_indicators_prompt(language=language)},
-            {"role": "user", "content": f"Please extract health indicators from the following document content:\n\n{original_text}"},
+            {"role": "user", "content": f"{note}Please extract health indicators from the following document content:\n\n{original_text}"},
         ]
         api_start_time = time.time()
         llm_ret = await async_get_structured_output(
