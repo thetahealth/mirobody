@@ -345,6 +345,19 @@ decisions.
   PaddleOCR-VL 22,053 → 5,374, MinerU 17,686 → 9,105; every printed row the
   rules leave that was in the model's text before is in it still. To tell: a
   page whose rows the rules read logs `indicators read off tables, no model`.
+- **One printed row read by the rules and by the model is stored once.** The
+  merge dropped a model row only under the rule row's name or a name a
+  misread character apart, so the small-model eval stored `血红蛋白（HGB） 153`
+  (rules) and `血红蛋白 153` (model). `same_reading` now also folds two names
+  the vocabulary files under one series (`translate.code` on the name alone:
+  `血红蛋白`, `血红蛋白（HGB）`, `HGB`, `Hemoglobin`), and compares values less
+  a flag and less a range the model copied with them. Two analytes with one
+  value (`EO#` and `EO%`, both 0.6) stay two readings. Replayed on the OCR
+  benchmark's stored model answers, printed rows stored twice: GLM-OCR 7 → 2,
+  PaddleOCR-VL 3 → 1, MinerU 9 → 1; what is left is not one analyte by the
+  vocabulary (`TT4` resolves to free thyroxine, `抗TPO抗体` to nothing, and one
+  model row named `间接胆红素` plain `胆红素`). To tell: a report with
+  `血红蛋白（HGB） 153` in a table stores one hemoglobin reading.
 - **A document with no date is not filed under the prompt's example date.**
   The extraction prompt's worked example said `"date_time": "2024-10-30
   00:00:00"`, and MiniCPM5-2B copied it onto documents that print no date of

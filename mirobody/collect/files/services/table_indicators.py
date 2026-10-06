@@ -58,6 +58,7 @@ from dataclasses import dataclass, field
 from html.parser import HTMLParser
 
 from mirobody import translate
+from mirobody.translate.parse import KIND_ABSENT
 from mirobody.units import normalize_unit
 from mirobody.zh_fold import fold_to_hans
 
@@ -1136,12 +1137,47 @@ def left_for_model(text: str) -> str:
 
 
 def same_reading(a: dict, b: dict) -> bool:
-    """Whether two extractions name the same printed row: the same value, and
-    names a misread character apart (`γ-谷氨酰转移酶` / `y-谷氨酰转移酶`)."""
-    if str(a.get("value", "")).strip() != str(b.get("value", "")).strip():
+    """Whether two extractions name the same printed row: the same value (less
+    a trailing flag: `6.49↑` / `6.49`), and names a misread character apart
+    (`γ-谷氨酰转移酶` / `y-谷氨酰转移酶`) or names the vocabulary files under
+    one series (`血红蛋白（HGB）` / `血红蛋白` / `HGB` / `Hemoglobin`). Measured
+    on the 2026-10-07 small-model eval: the rule row `血红蛋白（HGB） 153` and
+    the model's `血红蛋白 153` were both stored, one printed row twice. Two
+    analytes with one value (`EO%` and `EO#`, both 0.6) stay two readings."""
+    if not _same_value(str(a.get("value", "")), str(b.get("value", ""))):
         return False
-    x, y = (_key(str(r.get("original_indicator", ""))) for r in (a, b))
-    return bool(x) and bool(y) and (x == y or difflib.SequenceMatcher(None, x, y).ratio() >= 0.8)
+    names = [str(r.get("original_indicator", "")).strip() for r in (a, b)]
+    x, y = (_key(n) for n in names)
+    if not x or not y:
+        return False
+    if x == y or difflib.SequenceMatcher(None, x, y).ratio() >= 0.8:
+        return True
+    series = _series_of_name(names[0])
+    return bool(series) and series == _series_of_name(names[1])
+
+
+def _same_value(a: str, b: str) -> bool:
+    """The same printed value: as text, or as one number less a trailing flag
+    and less the range a model copied with it: on the OCR benchmark
+    (2026-10-07) MiniCPM5-2B returned a slip's whole cell, `2.873 (0.270 -
+    4.200)&mIU/L`, beside the rule's `2.873`."""
+    if a.strip() == b.strip():
+        return True
+    x, y = (translate.parse_value(_split_flag((_value_parts(v.strip()) or (v.strip(),))[0], "")[0], "")
+            for v in (a, b))
+    return (x.value_kind == y.value_kind == "quantity" and x.value_num == y.value_num
+            and x.comparator == y.comparator)
+
+
+@functools.lru_cache(maxsize=4096)
+def _series_of_name(name: str) -> str:
+    """The series the vocabulary files a printed name under, by the name
+    alone (`translate.code`, the coder `observations.coding_for` stores every
+    reading through, with no value and no unit, so a model row that left the
+    unit off still resolves), or "" when it codes to none."""
+    key = translate.name_key(name)
+    coding = translate.code(name, name_key=key, local_key=key, value_kind=KIND_ABSENT)
+    return coding.series_id if coding.coded else ""
 
 
 __all__ = ["EXTRACTOR", "left_for_model", "same_reading", "status_of", "table_indicators", "without_rows"]

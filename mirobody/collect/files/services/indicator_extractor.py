@@ -302,7 +302,9 @@ class IndicatorExtractor:
     def _merge_rule_rows(rows: list[dict], table_date: str, llm_ret: dict | None) -> dict:
         """The rule rows, then the model's rows for every printed row the rules
         did not read: not the same name, and not the same value under a name a
-        misread character apart (the OCR's `y-` for the text layer's `γ-`)."""
+        misread character apart (the OCR's `y-` for the text layer's `γ-`) or
+        a name the vocabulary resolves to the same analyte (`血红蛋白` beside
+        the rule's `血红蛋白（HGB）`): `same_reading`."""
         result = dict(llm_ret or {})
         seen = {r["original_indicator"].strip().lower() for r in rows}
         extra = [i for i in result.get("indicators") or []
