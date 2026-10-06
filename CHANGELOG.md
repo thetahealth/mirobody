@@ -135,6 +135,14 @@ decisions.
 
 ### Changed
 
+- **The README starts with the first-run page, and says what leaves the
+  machine in each mode.** `./deploy.sh` alone is the first command; a GIF
+  (English and Chinese) shows the page, a table compares a model key, 100% on
+  this machine and the library alone with what each needs, and "Privacy"
+  became a per-mode table that names the model download, the image registry
+  and its mirror, and what encryption at rest does not cover yet. The README,
+  the quickstart, `docs/local-models.md`, the Docker Hub copy and the
+  `mirobody` skill name llama.cpp as the local model runtime.
 - **The README links the benchmarks.** ESL-Bench, MedHall-Bench and
   MedHarm-Bench each drew 4,000+ Hugging Face downloads in the 30 days to
   2026-10-01, and none of their cards linked here, nor did either README link

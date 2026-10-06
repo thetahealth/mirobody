@@ -5,6 +5,13 @@ your own machine can take the place of every vendor key: your record, your
 documents and your questions then never leave it. This page is the setup that
 was measured, what it needs, and what it costs.
 
+**The local model runtime is [llama.cpp](https://github.com/ggml-org/llama.cpp).**
+Mirobody does not run models itself: `llama-server` serves them, and Mirobody
+calls it. The shipped preset, the compose profiles, the first-run page's
+search for a server, the vision check (`/props`) and every measurement on this
+page are llama.cpp's. Any other OpenAI-compatible server can stand in for it
+([Other servers](#other-servers)), but llama.cpp is the one shipped and tested.
+
 Two models, two jobs. **GLM-OCR-0.9B** reads report photos and pages into text
 and tables; the tables' rows are read by their column headers, with no model,
 then coded by ② Translate, which is offline and deterministic. **Qwen3.8-27B**
