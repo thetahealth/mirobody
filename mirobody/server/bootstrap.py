@@ -31,8 +31,6 @@ import secrets
 
 logger = logging.getLogger(__name__)
 
-_LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
-
 _SCHEMA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "schema")
 
 
@@ -104,22 +102,22 @@ def enforce_production_auth_safety(config) -> None:
 
 def _guard_placeholder_jwt_key(config) -> None:
     """A placeholder JWT_KEY is a public signing key: anyone who has read
-    config.yaml can mint a token for any account. On loopback that is the demo
-    and only warned about; on any other address this run gets its own key, as
-    `mirobody dev` does. Production refuses to start instead (above)."""
+    config.yaml can mint a token for any account. So this run gets its own key,
+    as `mirobody dev` does, and sessions end at restart until JWT_KEY is set.
+
+    Loopback used to keep the placeholder and only warn, but a reverse proxy on
+    the same machine puts a loopback server on the internet. On 2026-10-01 a
+    token minted with the placeholder for a demo account read that account's
+    files from a loopback server. Production refuses to start instead (above)."""
     from mirobody.utils.config.config import PLACEHOLDER_SENTINEL
 
     if config.get_str("JWT_KEY") not in ("", PLACEHOLDER_SENTINEL):
         return
-    if config.http.host in _LOOPBACK:
-        logger.warning("JWT_KEY is the shipped placeholder. Set a real one before binding beyond loopback.")
-        return
     os.environ["JWT_KEY"] = secrets.token_hex(32)
     config.refresh()
-    logger.warning(  # phi: ok the bind address
-        "JWT_KEY is unset or the shipped placeholder and the server listens on %s: "
-        "using a key generated for this run, so sessions end at restart. Set JWT_KEY to keep them.",
-        config.http.host,
+    logger.warning(
+        "JWT_KEY is unset or the shipped placeholder: using a key generated for this run, "
+        "so sessions end at restart. Set JWT_KEY to keep them."
     )
 
 
@@ -191,6 +189,63 @@ async def create_schema(config) -> None:
                     await conn.rollback()
 
             logger.info("SQL files initialization completed.")
+
+
+#: Seconds a boot waits for Postgres before it says it cannot reach it.
+POSTGRES_CONNECT_TIMEOUT_S = 10
+
+
+async def ensure_postgres_reachable(config, timeout_s: int = POSTGRES_CONNECT_TIMEOUT_S) -> None:
+    """Refuse to start, saying why, when Postgres does not answer in time.
+
+    libpq has no connect timeout by default. The image run on its own
+    (`docker run thetahealth4mirobody/mirobody`, no Postgres beside it) waited
+    on a TCP connect to config.yaml's placeholder host for as long as the OS
+    allowed, logged nothing, and sat at `health: starting` for good."""
+    import psycopg
+
+    pg = config.get_postgresql()
+    try:
+        conn = await psycopg.AsyncConnection.connect(
+            host=pg.host, port=pg.port, dbname=pg.database,
+            user=pg.user, password=pg.password, connect_timeout=timeout_s,
+        )
+        await conn.close()
+    except psycopg.OperationalError as e:
+        # The driver's message can quote the connection string; its type cannot.
+        # The address is the `pg` line config.print() wrote just above.
+        timeout_seconds = timeout_s
+        logger.error(
+            "cannot reach Postgres (the pg line above) within %s seconds (%s): Mirobody "
+            "runs beside its own Postgres; start both with ./deploy.sh (compose.yaml), "
+            "or point PG_HOST / PG_PORT at yours",
+            timeout_seconds, type(e).__name__,
+        )
+        raise RuntimeError(
+            f"Cannot reach Postgres at {pg.host}:{pg.port} within {timeout_s} s "
+            f"({type(e).__name__}). Start it with ./deploy.sh, or set PG_HOST / PG_PORT."
+        ) from None
+
+
+def demo_sign_in(config) -> dict[str, str] | None:
+    """The account to sign in with, for the sign-in page to show, when
+    `seed_demo_data` below seeds one; None otherwise.
+
+    The same three conditions as the seed: the flag, not PRODUCTION, and a
+    predefined code. The first account is the one the seed makes the circle's
+    owner. Only `deploy.sh`'s last line and the README said
+    `you@mirobody.ai / 111111`, so a newcomer who missed both met a sign-in form
+    with no way in. The codes are public by construction (config.yaml).
+    """
+    from .demo import enabled
+
+    if not enabled() or is_production(config):
+        return None
+    codes = config.get_dict("EMAIL_PREDEFINE_CODES", {}) or {}
+    for email, code in codes.items():
+        if email and code:
+            return {"email": str(email), "code": str(code)}
+    return None
 
 
 async def seed_demo_data(config) -> None:

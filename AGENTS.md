@@ -48,8 +48,9 @@ running the minimal suite while reporting the full one. If a doc says `[agents]`
 ```bash
 ruff check mirobody examples   # rule set in pyproject.toml; 0 findings on main
 python -m compileall -q mirobody
-pytest -q               # 147 in a clone: the two shipped gate modules, which
-                        # need no extras. The regression suite is gitignored
+pytest -q               # 253 in a clone (240 pass, 13 strict xfails): the four
+                        # shipped gate modules. On `[test]` alone the security
+                        # module skips. The regression suite is gitignored
 lint-imports            # 6 contracts, must say "0 broken"
 python3 -c "import mirobody.kernel.meds, mirobody.kernel.query"   # the library layer, bare interpreter
 ```
@@ -82,7 +83,8 @@ wheel in the same venv — otherwise they pass vacuously.
   answer and the dashboard could disagree about the same Tuesday.
 - **A new LIBRARY-LAYER module goes under `mirobody/kernel/`, into all FOUR
   import-linter contracts AND into `tests/test_library_layer.py::LIBRARY_MODULES`.** Miss either and the gate is
-  green for the wrong reason. It may import stdlib, numpy and its siblings —
+  green for the wrong reason. That test is in the maintainers' gitignored suite, so a
+  clone can run only the contracts: name the new module in the PR. It may import stdlib, numpy and its siblings —
   nothing else — and it must not contain a `test_*.py` (a test inside the
   package drags pytest into the library layer).
 - **Logs carry ids, counts, durations, status codes and type names. Never a
@@ -90,7 +92,8 @@ wheel in the same venv — otherwise they pass vacuously.
   to "what was measured", so it does not go in either. In a broad `except`,
   `exc_info=not is_driver_exception(e)` — a driver's message quotes the SQL
   with its bound parameters.
-- **A prompt may only name tools the harness provides** (`test_prompts.py`).
+- **A prompt may only name tools the harness provides** (`test_prompts.py`, in
+  the maintainers' suite; from a clone, grep the templates for the old name).
   Renaming a tool means the template and that registry change in the same
   commit.
 - **A decode table says how to convert INTO the catalogue's unit; it never

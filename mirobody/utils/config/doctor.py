@@ -125,7 +125,14 @@ def log_report(rows: list[SurfaceStatus], log: logging.Logger) -> None:
         key_id = name
         log.warning("config key %s is no longer read (1.4.1): a model belongs to a MODELS entry, and a surface's choice to UTILS_VISION_MODEL / UTILS_TEXT_MODEL in config.llm.yaml", key_id)
     if len(missing) == len(rows):
-        reason = "no LLM API key is set; put ONE in .env (see config.llm.yaml) and restart"
+        # "and restart" sent Docker users to `docker compose restart`, which
+        # keeps the container's old environment: the key they had just added
+        # was never read, and this line came back unchanged.
+        reason = (
+            "no LLM API key is set; put ONE in .env (see config.llm.yaml), then run "
+            "`docker compose up -d` (a plain `restart` keeps the old environment), "
+            "or start `mirobody serve` again"
+        )
         log.error("no LLM model on any surface — chat, file parsing and indicator extraction will fail on every request: %s", reason)
         return
     for r in missing:

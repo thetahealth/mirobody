@@ -13,17 +13,17 @@
 
 ### Added
 
-- **`skills/`: three skills for someone else's agent.** `npx skills add
+- **`skills/`: two skills for someone else's agent.** `npx skills add
   thetahealth/mirobody --skill <name>` drops one into Claude Code, Codex,
-  Cursor or Gemini CLI. `dont-guess-my-labs` reads a lab report against the
-  offline resolver instead of memory; `translate-health-data` turns lab
-  documents, an Apple Health export, symptoms and units into LOINC, UCUM and
-  ICPC-3 rows and FHIR Observations; `mirobody` runs the Docker stack and
-  connects an agent to it over MCP. `.claude-plugin/marketplace.json` offers
-  the same three as a Claude Code plugin. `mirobody/tests/test_skills.py`
+  Cursor or Gemini CLI. `translate-health-data` turns lab documents, an Apple
+  Health export, symptoms and units into LOINC, UCUM and ICPC-3 rows and FHIR
+  Observations; `mirobody` runs the Docker stack and connects an agent to it
+  over MCP. `.claude-plugin/marketplace.json` offers the same two as a plugin
+  for Claude Code and for Codex, which reads that file as it is.
+  `mirobody/tests/test_skills.py`
   re-runs every code, subcommand, Compose service and number the prose
-  quotes, and pins five terms that resolve wrongly today so a fix updates
-  the text in the same commit.
+  quotes, and pins six category terms that must stay deliberately unresolved.
+  The module ships in the wheel and sdist as inspectable release evidence.
 - **The first start asks for a model in the browser.** With no key in
   `.env` the stack still starts, and `./deploy.sh` prints a link to `/setup`:
   paste one vendor key, kept only after a real request through it works, or
@@ -50,8 +50,125 @@
   successfully". With it, the files land in the record and extraction
   starts, as a Data-page upload does.
 
+### Security
+
+Each item below was reproduced on a running server on 2026-10-01 before its
+fix, and re-run after it; `mirobody/tests/test_security_gates.py` pins the
+decisions.
+
+- **MFA covers file links and the upload socket.** The JWT middleware asks
+  for a second factor only of a token in the Authorization header. A file
+  link (`GET /files/{path}?access_token=`) and the upload socket (`?token=`)
+  take their token from the query string, so with MFA on, an account's
+  code-only token (`aal` 1) still read its lab report and opened the socket.
+  Both now ask the same rule (`middlewares.lacks_second_factor`): the link
+  answers 403 `ERROR_AAL2_REQUIRED`, and the socket is closed with 1008.
+- **Passkeys and MFA work once `WEBAUTHN_RP_ID` is set.** `Server.start()`
+  never passed `config.get_webauthn_options()`, so the setting never reached
+  the server. Settings offered passkeys (`webauthn_supported: true`), but
+  there was no WebAuthn service to enrol with, and an account with
+  `mfa_enabled` was never asked for a second factor. A deployment that sets
+  `WEBAUTHN_RP_ID` now has WebAuthn, and an account that already has MFA on
+  and a passkey registered is asked for it. To tell: `/mirobody.json` says
+  `__IS_WEBAUTHN_ON__: true`.
+- **An upload belongs to the account that started it.** Upload sessions are
+  keyed by the client's `messageId`, and the chunk, end and status handlers
+  never checked whose session it was. A second account's socket read another
+  account's upload status, and pushed a chunk that was processed and stored
+  as that account's file. Each handler now checks the session's account:
+  another account gets "Invalid upload session" or `not_found`, and cannot
+  reuse an id another account holds.
+- **The vendor callback redirects only within the deployment.**
+  `/api/v1/pulse/{platform}/{provider}/callback?state=success&return_url=`
+  answered 302 to any URL, unauthenticated. It now redirects to a path on
+  this origin, this origin, the CORS origin, or what the new
+  `OAUTH_RETURN_ORIGINS` lists (`utils/http.safe_return_url`). Anything else
+  gets the completion page. Not changed: the OAuth `state` is still bound to
+  the account, not to the browser that started the link.
+- **A placeholder `JWT_KEY` never signs a token.** On loopback the server
+  kept the shipped placeholder and only warned, and a token minted with it
+  read a demo account's files. A reverse proxy on the same machine puts a
+  loopback server on the internet. Every run without a real key now gets
+  one made for it, wherever it listens, so sessions end at restart until
+  `JWT_KEY` is set. `deploy.sh` sets one.
+- **Response headers, and no API docs in production.** No response carried
+  `nosniff`, a frame policy or a referrer policy, and the referrer matters
+  here: `/mcp/<token>` and `/share/<id>` are credentials. Every response now
+  carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`
+  and `Referrer-Policy: same-origin`. With `PRODUCTION: true`, `/docs`,
+  `/redoc` and `/openapi.json` answer 404.
+- **Logs and error replies carry no storage keys or exception text.** A
+  storage key names its owner (`demo/<email>/...`). The file route and local
+  storage logged keys whole. Three user routes logged `str(e)` with a
+  traceback, and four returned it to the caller; a driver's message quotes
+  the SQL with its bound parameters. They now log a key fingerprint and the
+  exception's type, and answer with a fixed message. The PHI baseline loses
+  nine entries.
+
 ### Changed
 
+- **The README links the benchmarks.** ESL-Bench, MedHall-Bench and
+  MedHarm-Bench each drew 4,000+ Hugging Face downloads in the 30 days to
+  2026-10-01, and none of their cards linked here, nor did either README link
+  them, the ESL-Bench paper or `thetahealth/mirobody-eval`. Both editions'
+  "Numbers you can check" tables now carry one row for them.
+- **Two commands to a running stack.** `deploy.sh` writes a model key given
+  in its environment into `.env` (`OPENROUTER_API_KEY=sk-or-... ./deploy.sh`),
+  under the variable names `config.llm.yaml` reads, so a first run needs no
+  second step; a key added later still goes in `.env`, then
+  `docker compose up -d`. The README (both editions), the skills and the
+  Docker Hub copy say so, and name the source tarball as the way in without
+  Git. To tell: after that one command, `mirobody doctor` names a provider.
+- **The sign-in page offers the demo account while it is seeded.** Only
+  `deploy.sh`'s last line and the README said `you@mirobody.ai` / `111111`.
+  `/mirobody.json` carries `__DEMO_SIGN_IN__` under the seed's own three
+  conditions (the flag, not PRODUCTION, a predefined code), and **Use it**
+  fills the Email code tab.
+- **Settings' "API Config" is off unless the overlay turns it on.**
+  `__IS_API_CONFIG_ON__` defaulted to true, so every self-hosted page offered
+  a "Server URL" field that points the page at another server; this one
+  serves the page from its own origin. A deployment that hosts the bundle
+  elsewhere sets it in `MIROBODY_WEB_CONFIG`.
+- **MCP setup is written per client.** The README, the Settings hint and the
+  `mirobody` skill told people to paste the personal link into Claude
+  Desktop, whose custom connectors connect from Anthropic's cloud and cannot
+  reach `localhost`. They now give one line each for Claude Code, Codex,
+  Cursor and Gemini CLI (the link as it is), Claude Desktop (through
+  `npx -y mcp-remote <link>`), and say ChatGPT and claude.ai need an HTTPS
+  address. Run against a stack: Codex 0.153 and 0.159, Claude Code, and the
+  `mcp-remote` bridge answered with the right readings and files; Gemini
+  CLI completed the handshake; Cursor's entry is its documented form.
+- **`uvx --python 3.12`.** With a default interpreter older than 3.12, uv
+  resolved `mirobody` 1.0.62 (177 dependencies and no `mirobody` command) or
+  failed to resolve at all, because PyPI releases before 1.2.1 still declare
+  `requires-python >=3.8` / `>=3.11`. The README, the skills, the Docker Hub
+  copy and `server.json` (`runtimeArguments`) now pin the interpreter; pip
+  installs say Python 3.12+.
+- **Skills.** `translate-health-data`: install into a virtual environment on
+  Python 3.12+; with no key, never search outside the working directory (two
+  agent runs listed `~/.config` and ran `find ~ -name .env`) and resolve the
+  rows it read with `resolve_reading`; what `needs-input` with
+  `icpc3:no-match` asks for; `standardize_report` over stdio needs `[parse]`
+  and a key. `mirobody`: one stack per Compose name, ports only from `.env`,
+  the per-client MCP table, three troubleshooting rows, and Claude Code and
+  Codex named in its description. The README (both editions) and
+  `skills/README.md` give the plugin install for Claude Code
+  (`claude plugin marketplace add thetahealth/mirobody`, then
+  `claude plugin install mirobody@mirobody`) and for Codex
+  (`codex plugin marketplace add …`, then `codex plugin add mirobody@mirobody`).
+  To tell: both install from GitHub (Claude Code 2.1.285, Codex 0.159.2), and
+  Codex lists `mirobody:translate-health-data` and `mirobody:mirobody`. Asked
+  to code a checkup PDF with no key, it read that skill, searched only its
+  working directory and coded 9 of 9 rows as the Claude Code run did.
+- **The journal has its GIF.** Step 4 of the README types one sentence into
+  Data › Records and shows it become a complaint, two readings and a
+  medication, with "no fever" kept out (`docs/images/journal-demo.gif` and its
+  zh-CN twin).
+- **Docs say what the tree does.** AGENTS.md and CONTRIBUTING.md count 232
+  tests in three shipped modules (they said 147 in two); `pyproject.toml`'s
+  note on extras names the three runtime extras; `demo/README.md` stops
+  quoting 1.4.4 and 1.5.0; the README no longer says the docs site is
+  rendered from `docs/`, which its MCP page is not.
 - **The README starts with the Docker path.** Both editions open with the
   three commands that bring the stack up (`git clone`, `./deploy.sh`, one key
   in `.env` then `docker compose up -d`) and what a running deployment does;
@@ -67,6 +184,10 @@
   workflow once the version is confirmed on PyPI, a final release is also
   tagged `latest`, and the documentation site is told when
   `DOCS_DISPATCH_TOKEN` is set.
+- **The Docker Hub page now has one source of truth.** The image workflow
+  publishes the short and full repository description from
+  `docs/docker-hub-description.md`; a manual dispatch can rebuild a repaired
+  source ref under an existing version tag without moving the release tag.
 - **Readings carry the range and flag the report printed.** Readings and
   latest values from `query_health_indicators` now include `ref` and `flag`,
   empty when the report printed none. Without them a model judged a value
@@ -78,6 +199,119 @@
 
 ### Fixed
 
+- **Quoted genotype rows without their header no longer reach a model.**
+  MyHeritage and FamilyTreeDNA quote every field (`"rs4477212","1","82154","AA"`).
+  The check for header-stripped genotype rows took quotes off only the ends of a
+  line, so such a file read as a spreadsheet: a chat upload was classed `csv`, the
+  upload path did not claim it, and its rows went to document extraction and its
+  model. Quotes inside a row are now dropped too, and both vendors' shapes are
+  pinned in `benchmarks/genomics`. Ordinary quoted lab tables still read as
+  spreadsheets. To tell: such a file is refused as a genotype export.
+- **Device setup on Docker works as the guide says.** `docs/provider-setup.md` told
+  Docker users to edit `config.devices.yaml`, which the image carries its own copy
+  of, so a credential put there was never read. The guide now says to put the
+  blocks in `config.localdb.yaml` next to `compose.yaml` and run `./deploy.sh`,
+  which mounts it. Its verify command (`jq '.data[].slug'`) failed on the real
+  response, which nests the list under `providers`, and it said to restart, which
+  keeps the old mounts. Both editions are fixed. To tell: the guide's steps, run
+  on a fresh clone, print `"theta_oura"`.
+- **`convert_unit` says why Fahrenheit does not convert.** It refused °F→°C, by
+  design (conversions here are a factor), but blamed percentages and molar mass.
+  It now says temperature scales also differ by an offset, and gives the formula.
+- **The README's badges render on GitHub.** Docker Hub, Downloads and GitHub
+  stars showed as broken images, and PyPI did at other times. GitHub serves
+  README images through its proxy, camo, which gives up at about 4.5 s. A
+  cold fetch through it of shields.io's live badges (PyPI version, Docker
+  version, pepy downloads, stars) answered 504 after 4.5 s every time on
+  2026-10-01, while badgen and pepy's own badge answered 200 in 0.6–1.0 s.
+  Both editions now use badgen and pepy for the live values. Docker Hub
+  becomes a static badge naming the image, since it only repeated the PyPI
+  version. To tell: the five badges at the top of the README all render.
+- **The Data page lists the devices you configured.** With Oura, WHOOP or
+  Garmin credentials set, `/api/v1/pulse/providers` answered with the
+  device, but the "connect a source" tab said there was nothing to connect.
+  Its list was fetched only by the component that renders it, and that
+  component was shown only once the list was non-empty, so the request was
+  never made. The page now asks for the list itself, and shows a loading
+  skeleton until the answer arrives (mirobody-web 61f102e). To tell: set
+  `OURA_CLIENT_ID` and `OURA_CLIENT_SECRET` in the config overlay, restart,
+  and open Data › connect a source; the Oura row is there.
+- **The page no longer fetches provider logos from Theta's servers.** Once a
+  device was listed, its row loaded its logo from `static.thetahealth.ai`, so
+  a self-hosted page contacted a server outside the deployment. The README's
+  privacy line ("nothing leaves your machine except calls to the model you
+  chose, and to a device vendor once you link one") did not hold. The web
+  client now ships the built-in providers' logos, inlined into the bundle;
+  the API's `logo` field is unchanged for other clients. `docs/provider-guide.md`
+  had told plugin authors to host their logo on that CDN, and now says the
+  field is optional and loaded from wherever it points. To tell: on the tab
+  above, every request goes to the stack itself.
+- **An upload made after the server restarted is no longer lost.** In a page
+  opened before a restart (the README's own order: open the page, add the
+  key, `docker compose up -d`), the first file sat at "uploading" forever and
+  never reached the server: the page sent it while its socket was still
+  connecting and dropped it with a console line. Reproduced 2 of 4 times. The
+  upload now waits for the socket to open (10 s), fails the row with a
+  message when it cannot, and a tab that is not the leader asks the leader to
+  connect (mirobody-web c143e8f). To tell: with the Data page open, restart
+  the `mirobody` container and upload; the file is processed.
+- **Codex lists and calls the MCP tools.** `/mcp` answered a JSON-RPC
+  notification with 200 and a JSON `""` body; Streamable HTTP requires 202
+  and no body, and Codex's client re-initialized three times and never
+  listed a tool. Every notification now gets 202; any other than
+  `notifications/initialized` used to get a "method not found" error.
+- **A personal MCP link and a chat share id stay out of the log.** Every
+  request line logged its path, and for `/mcp/<secret>` and `/api/share/<id>`
+  the path is the credential. That segment is now a digest (`/mcp/~1a2b3c4d`),
+  the same for every request of one link. To tell:
+  `docker compose logs mirobody | grep '/mcp/'` shows no link.
+- **The image run alone says why it cannot start.** `docker run` with no
+  Postgres beside it waited on a TCP connect to config.yaml's placeholder
+  host with no timeout, logged nothing and stayed `health: starting`. It now
+  stops after 10 s, naming the address and `./deploy.sh`.
+- **The "no model key" line names the command that works.** It said "and
+  restart", and `docker compose restart` keeps the old environment, so the
+  key just added was never read. It says `docker compose up -d`.
+- **`deploy.sh` stops before Docker does, and says why.** A port another
+  program held ended the run in Docker's words ("port is already
+  allocated"); a second checkout under the same folder name took over the
+  first stack's containers and its database volume without a word. It now
+  names the port and the variable to set, and refuses a Compose project name
+  another checkout already runs, naming the folder.
+- **A genotype file dropped on the Files tab goes to the Genomics tab.**
+  There it is checked as one and replacing the active set is confirmed; on
+  Files it skipped both, and a VCF was refused as a type the tab does not
+  take. The Files hint no longer lists "genetic raw data (txt)".
+- **Quieter, truer boot and copy.** Garmin and Whoop without credentials log
+  "not configured" at INFO rather than "Failed to create provider" at
+  WARNING; the upload-timeout line lost its emoji; `mirobody doctor` prints
+  no JSON line above its table. In the page: the tour no longer promises six
+  steps over a counter of seven, the medications hint says Data › Records
+  like the tab, a VCF's source reads "VCF file" instead of `generic_vcf`, the
+  declared build reads 未经核实, and Escape closes the model menu.
+- **Docker Hub page synchronization uses the metadata write endpoint.** The
+  first sync authenticated but its PATCH to the namespace read endpoint
+  returned 403. It now uses the repository write path and current token API;
+  `page_only=true` retries metadata without rebuilding an image.
+- **Image builds check the installed package before publishing.** Both
+  architectures import `mirobody.resolve`, read `BUNDLE_VERSION` and resolve
+  hemoglobin outside the source directory, so a stale version stub fails the
+  build instead of reaching Docker Hub.
+- **A Docker Hub metadata permission error no longer hides a successful image
+  publish.** Normal releases warn after the image is available; a strict
+  `page_only=true` retry still fails until `DOCKERHUB_TOKEN` has repository
+  admin metadata permission.
+- **The release workflow uses the supported GitHub Release action runtime.**
+  `softprops/action-gh-release@v1` was obsolete and triggered actionlint's
+  runtime warning; it now uses the current Node 24-compatible `v3` line.
+- **Category words no longer select a specific LOINC assay.** `免疫`, `stool`,
+  `重金属`, `heavy metals`, `激素` and `enzymes` now return an explicit
+  unresolved result; each names a category or specimen rather than one
+  observation. The public skill reference and its shipped regression module
+  carry the same rule.
+- **The skills evidence module is present in release artifacts.** Wheels now
+  include `mirobody/tests/test_skills.py` while checkout-only test modules stay
+  out of the install.
 - **A reply with no answer text no longer ends the turn empty.** The agent
   asks once more when a reply has neither text nor a tool call, and reports
   an error when the second is empty too.

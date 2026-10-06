@@ -1,5 +1,7 @@
+import hashlib
 import json
 import logging
+import re
 import time
 
 from starlette.responses import Response
@@ -58,20 +60,78 @@ def request_origin(request: Request) -> str:
     return f"{request.url.scheme}://{request.url.netloc}"
 
 
+_SCHEME_ENTRY = re.compile(r"^([a-z][a-z0-9+.-]*):(?://)?$")
+
+
+def safe_return_url(url: str, own_origin: str, also_allowed=()) -> str | None:
+    """`url` if a redirect there stays with this deployment, else None.
+
+    A vendor's OAuth callback is public by nature and took `return_url` from
+    its query string, so `state=success&return_url=https://anywhere` answered
+    302 to anywhere (reproduced 2026-10-01). Kept: a path on this origin, this
+    origin, and what `also_allowed` names, either an origin
+    (`https://app.example.com`) or a scheme for an app's own links (`theta:`).
+    """
+    if not isinstance(url, str) or not url or url != url.strip():
+        return None
+    # A backslash or a control character is read differently by different
+    # parsers: browsers treat `/\evil.example` as `//evil.example`.
+    if "\\" in url or any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in url):
+        return None
+    if url.startswith("/"):
+        return None if url.startswith("//") else url
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    scheme = parts.scheme.lower()
+    origins, schemes = set(), set()
+    for entry in also_allowed or ():
+        entry = str(entry).strip().lower().rstrip("/")
+        m = _SCHEME_ENTRY.match(entry + (":" if entry and ":" not in entry else ""))
+        if entry.startswith(("http://", "https://")):
+            origins.add(entry)
+        elif m:
+            schemes.add(m.group(1))
+    if scheme in ("http", "https"):
+        if not parts.netloc or "@" in parts.netloc:
+            return None
+        origin = f"{scheme}://{parts.netloc.lower()}"
+        return url if origin in origins | {own_origin.lower().rstrip("/")} else None
+    return url if scheme and scheme in schemes else None
+
+#-----------------------------------------------------------------------------
+
 def get_jwt_token(request: Request) -> str:
     return request.headers.get("Authorization")
 
 #-----------------------------------------------------------------------------
 
+#: Paths whose next segment IS the credential: a personal MCP link opens one
+#: person's record, a share id opens a chat. Every request line logged them
+#: whole, so anyone reading the log could use them.
+_CAPABILITY_SEGMENT = re.compile(r"(/mcp/|/api/share/)([A-Za-z0-9_-]{16,})")
+
+
+def loggable_path(path: str) -> str:
+    """`path` with any capability segment replaced by a short digest of it.
+
+    The digest keeps requests from one link correlatable in the log; it is not
+    the link, and 32 bits of its SHA-256 cannot be turned back into it. Short
+    literal routes (`/api/share/deactivate`) are left as they are."""
+    return _CAPABILITY_SEGMENT.sub(
+        lambda m: f"{m.group(1)}~{hashlib.sha256(m.group(2).encode()).hexdigest()[:8]}", path
+    )
+
+
 def _fill_extra_log(request: Request = None, extra: dict[str, any] = None):
     if not request:
         return
-    
+
     if not isinstance(extra, dict):
         return
-    
+
     if request.url and request.url.path:
-        extra["url"] = request.url.path
+        extra["url"] = loggable_path(request.url.path)
 
     platform = request.headers.get("X-Platform")
     if platform:

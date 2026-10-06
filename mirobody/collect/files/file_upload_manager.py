@@ -67,6 +67,19 @@ class WebSocketFileUploadManager:
         # Database service will be initialized when needed
         self.db_service = None
 
+    def _session_for(self, message_id: str | None, user_id: str | None) -> dict | None:
+        """The upload `message_id` names, if `user_id` started it, else None.
+
+        `messageId` comes from the client and the table is keyed by it alone, so
+        any signed-in socket could read another account's upload status or push
+        chunks into its upload. Reproduced 2026-10-01: a second account's chunk
+        was processed and stored as the first account's file.
+        """
+        session = self.upload_sessions.get(message_id) if message_id else None
+        if session is None or str(session.get("user_id")) != str(user_id):
+            return None
+        return session
+
     @property
     def file_processor(self):
         """Lazy initialization of FileProcessor to allow ExcelProcessor injection"""
@@ -256,6 +269,17 @@ class WebSocketFileUploadManager:
                 "query_user_id": query_user_id,
             }
 
+            existing = self.upload_sessions.get(message_id)
+            if existing is not None and str(existing.get("user_id")) != str(real_user_id):
+                # Same answer as an unknown id: whether someone else holds this
+                # messageId is not this caller's to learn.
+                await self.send_message(
+                    connection_id,
+                    {"type": "upload_error", "messageId": message_id, "status": "failed",
+                     "message": "Invalid upload session"},
+                )
+                return False
+
             # Prevent duplicate message creation, check if message ID already exists
             if message_id in self.upload_sessions:
                 # If message ID exists and status is incomplete, it might be a duplicate request
@@ -339,7 +363,8 @@ class WebSocketFileUploadManager:
             chunk_index = message_data.get("chunkIndex", 0)
             total_chunks = message_data.get("totalChunks", 1)
 
-            if not message_id or message_id not in self.upload_sessions:
+            real_user_id = message_data.get("_real_user_id") or connection_id.split("_")[0]
+            if self._session_for(message_id, real_user_id) is None:
                 await self.send_message(
                     connection_id,
                     {
@@ -1366,8 +1391,9 @@ class WebSocketFileUploadManager:
             message_id = message_data.get("messageId")
             logger.info(f"Handling upload end: connection_id={connection_id}, message_id={message_id}")
 
-            if message_id and message_id in self.upload_sessions:
-                session = self.upload_sessions[message_id]
+            real_user_id = message_data.get("_real_user_id") or connection_id.split("_")[0]
+            session = self._session_for(message_id, real_user_id)
+            if session is not None:
 
                 # Update session status
                 session["status"] = "completed"
@@ -1412,11 +1438,11 @@ class WebSocketFileUploadManager:
             )
             return False
 
-    async def get_upload_status(self, connection_id: str, message_id: str) -> dict:
-        """Get upload status"""
+    async def get_upload_status(self, connection_id: str, message_id: str, user_id: str | None = None) -> dict:
+        """Get upload status, for the account that started the upload only."""
         try:
-            if message_id in self.upload_sessions:
-                session = self.upload_sessions[message_id]
+            session = self._session_for(message_id, user_id or connection_id.split("_")[0])
+            if session is not None:
                 return {
                     "type": "upload_status",
                     "messageId": message_id,

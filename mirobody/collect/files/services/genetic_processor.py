@@ -20,6 +20,22 @@ from mirobody.translate.genotype_sites import SiteCatalog
 logger = logging.getLogger(__name__)
 
 
+#: A build is named only when this many calls sit on a known site and almost
+#: all of them on one build's coordinates. The packaged examples hold 13 sites,
+#: so no test ever reached a detected build until `build_from_votes` had one.
+BUILD_MIN_VOTES = 20
+BUILD_MIN_SHARE = 0.9
+
+
+def build_from_votes(build_votes: dict[str, int]) -> str:
+    """The genome build the calls' positions point to, or "unknown"."""
+    total = sum(build_votes.values())
+    if total < BUILD_MIN_VOTES:
+        return "unknown"
+    detected = max(build_votes, key=build_votes.get)
+    return detected if build_votes[detected] / total >= BUILD_MIN_SHARE else "unknown"
+
+
 class NotAGenotypeExport(ValueError):
     """The file is not one the genotype reader accepts. The message is shown to
     the person who uploaded it, so it names the fix and never the contents."""
@@ -274,9 +290,7 @@ class GeneticDataLoader:
                 batch_count += 1
 
             sex = infer_sex(x_total=x_total, x_heterozygous=x_heterozygous, y_called=y_called)
-            vote_total = sum(build_votes.values())
-            detected = max(build_votes, key=build_votes.get)
-            build = detected if vote_total >= 20 and build_votes[detected] / vote_total >= 0.9 else "unknown"
+            build = build_from_votes(build_votes)
             await self.store.activate_set(
                 set_id, user_id, n_rows=total_processed, n_called=n_called,
                 build_detected=build, sex_inferred=sex,

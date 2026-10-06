@@ -1,7 +1,8 @@
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
-# A thin wrapper over setuptools that drops test modules from the built
-# distribution. `exclude-package-data` cannot do it: `test_*.py` files are
+# A thin wrapper over setuptools that drops checkout-only test modules from the
+# built distribution. `test_skills.py` is retained as public release evidence;
+# `exclude-package-data` cannot do this split because `test_*.py` files are
 # package CODE, not data. See scripts/build_backend.py.
 build-backend = "build_backend"
 backend-path = ["scripts"]
@@ -93,9 +94,10 @@ mirobody-mcp = "mirobody.mcp.stdio:main"
 # `AbstractStorage.__subclasses__()` — aws and aliyun are peers in the code and
 # were split by geography only in the packaging.
 #
-# Two extras remain, because there are two questions:
+# Three runtime extras remain, one per question (plus [test] for working on it):
 #
 #   [parse]  do you also want to read documents?   <- the one real choice
+#   [agent]  the agent harness as a library, without the server (1.4.0)
 #   [app]    everything; this is what the image installs
 [project.optional-dependencies]
 # ① Collect, single-file surface: `mirobody parse labs.pdf` — a lab report in,
@@ -295,11 +297,10 @@ test = ["pytest", "pytest-asyncio", "pytest-sugar", "import-linter", "ruff", "bu
 [tool.setuptools.packages.find]
 include = ["mirobody", "mirobody.*"]
 # `mirobody/tests/` is the part of the suite in git: the resolver score the
-# README publishes and links, and the cross-language identity checks a
-# terminology contributor runs. It is pruned from the artifact by
-# `scripts/build_backend.py` (useful to a reader with a clone, useless in
-# someone's site-packages) and `scripts/check_wheel_data.py` fails the build if
-# a test module comes back.
+# README publishes, the cross-language identity checks a terminology
+# contributor runs, the server's security gates, and `test_skills.py`, the
+# public evidence for the agent skills. The build backend ships only that evidence module and prunes the
+# checkout-only gates; `scripts/check_wheel_data.py` enforces the split.
 #
 # Everything else lives in a gitignored `tests/` at the repo root, so the local
 # regression suite can be thorough without becoming public API. That rule was
@@ -373,7 +374,8 @@ disable_test_id_escaping_and_forfeit_all_rights_to_community_support = true
 # natively supported" on every machine.
 asyncio_mode = "auto"
 # Two roots. `mirobody/tests/` holds the gates that ship: the resolver
-# benchmark the README scores itself against, and cross-language identity. `tests/` is the local regression
+# benchmark the README scores itself against, cross-language identity and the
+# server's security gates. `tests/` is the local regression
 # suite and is gitignored: internal quality control that can be as detailed as
 # it needs to be without becoming part of the project's public surface. It is simply absent from a clone, and
 # pytest skips a testpath that does not exist. (Historical note: the README

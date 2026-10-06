@@ -11,11 +11,11 @@
 
 **English** · **[中文](README.zh-CN.md)**
 
-[![PyPI](https://img.shields.io/pypi/v/mirobody?label=PyPI&color=3775A9)](https://pypi.org/project/mirobody/)
-[![Docker Hub](https://img.shields.io/docker/v/thetahealth4mirobody/mirobody?label=Docker%20Hub&logo=docker&logoColor=white&color=2496ED)](https://hub.docker.com/r/thetahealth4mirobody/mirobody)
-[![PyPI Downloads](https://img.shields.io/pepy/dt/mirobody?label=Downloads&color=orange)](https://pepy.tech/projects/mirobody)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/thetahealth/mirobody?style=social)](https://github.com/thetahealth/mirobody/stargazers)
+[![PyPI](https://badgen.net/pypi/v/mirobody?label=PyPI&color=3775A9&icon=pypi)](https://pypi.org/project/mirobody/)
+[![Docker Hub](https://badgen.net/badge/Docker%20Hub/thetahealth4mirobody%2Fmirobody/2496ED?icon=docker)](https://hub.docker.com/r/thetahealth4mirobody/mirobody)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/mirobody?period=total&units=international_system&left_color=grey&right_color=orange&left_text=Downloads)](https://pepy.tech/projects/mirobody)
+[![License: Apache-2.0](https://badgen.net/badge/license/Apache-2.0/blue)](LICENSE)
+[![GitHub stars](https://badgen.net/github/stars/thetahealth/mirobody?icon=github&label=stars)](https://github.com/thetahealth/mirobody/stargazers)
 
 **[▶ Live demo, no sign-up](https://chat.mirobody.ai/demo)** · **[📚 Documentation](https://docs.mirobody.ai/en/self-host)** · **[🐳 Docker Hub](https://hub.docker.com/r/thetahealth4mirobody/mirobody)** · **[☁ Cloud API](https://platform.mirobody.ai/)**
 
@@ -30,23 +30,24 @@ Last year's checkup wrote `A1c`, this year's panel `HbA1c`, the new clinic `Glyc
 </p>
 <p align="center"><em>Three files, three names for the same test, one code. The agent finds all three, charts the trend, and names the file every number came from.</em></p>
 
-## Run it in three commands
+## Run it in two commands
 
 ```bash
 git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
-./deploy.sh                          # pulls the image; Postgres, server and worker → http://localhost:18060
-echo 'OPENROUTER_API_KEY=sk-or-...' >> .env && docker compose up -d   # one model key: extraction and answers
+OPENROUTER_API_KEY=sk-or-... ./deploy.sh     # Postgres, server and worker → http://localhost:18060
 ```
 
-Docker is the only requirement: no Python, Node.js, GPU or Git LFS. `deploy.sh` writes the secrets into `.env`, pulls the prebuilt image, and builds from the checkout when the pull fails.
+Docker is the only requirement: no Python, Node.js, GPU or Git LFS, and not even Git (`curl -L https://github.com/thetahealth/mirobody/archive/refs/heads/main.tar.gz | tar xz && cd mirobody-main` is the same checkout). `deploy.sh` writes the secrets and your key into `.env` and pulls the prebuilt image, building it from the checkout when the pull fails. It stops and names the fix when a port is taken or another Mirobody stack already runs under this folder's name. The image runs beside its own Postgres, so `docker run` alone is not a way in. A key added later goes in `.env`, then `docker compose up -d`: a `restart` does not read `.env` again.
 
-1. **Sign in** on the Email code tab as `you@mirobody.ai`, code `111111`. `SEED_DEMO_DATA` is on by default, so two accounts already hold **2,019 readings**: you, and `mom@mirobody.ai`, who shares her record with you view-only.
-2. **Drop a file on the Data page.** [`demo/upload/`](demo/) holds four files the seed leaves out: a lab PDF, a report photo, a spreadsheet and another lab's CSV. Each analyte comes out with a value, a unit and a code, linked to the page it was read from.
+1. **Sign in.** The sign-in page offers the demo account, `you@mirobody.ai` with code `111111` on the Email code tab. `SEED_DEMO_DATA` is on by default, so two accounts already hold **2,019 readings**: you, and `mom@mirobody.ai`, who shares her record with you view-only.
+2. **Drop a file on the Data page.** [`demo/upload/`](demo/) holds four files the seed leaves out. The lab PDF and the other lab's CSV are yours; the report photo and the spreadsheet are mom's, so drop those signed in as her. Each analyte comes out with a value, a unit and a code, linked to the page it was read from.
 3. **Ask.** "How has my cholesterol moved?" finds every file that carries it, whatever the lab called it, charts the trend, and names the file behind each number. The same question on the shared record answers from data you can only view.
+4. **Say how you feel.** Type `headache since last night, BP 150/95, no fever, metformin 500 mg morning and evening` under Data › Records. One sentence becomes a coded complaint, two coded readings and a medication on your list, and "no fever" is kept out of the record rather than logged as a fever.
 
 <p align="center">
   <img src="docs/images/upload-demo.gif" alt="Dropping a lab-report PDF on the Data page; its analytes are extracted and appear in the indicators table, each with a LOINC code" width="880">
   <img src="docs/images/ask-circle-demo.gif" alt="The same question asked on the shared record; the agent answers from a different person's files" width="880">
+  <img src="docs/images/journal-demo.gif" alt="One typed sentence becomes a headache coded NS01, blood pressure coded 8480-6 and 8462-4, and metformin on the medication list; 'no fever' is not logged" width="880">
 </p>
 
 **Which key.** Any one of these runs every surface: [OpenRouter](https://openrouter.ai/keys) (`OPENROUTER_API_KEY`), [OpenAI](https://platform.openai.com/api-keys) (`OPENAI_API_KEY`), [Gemini](https://aistudio.google.com/apikey) (`GOOGLE_API_KEY`), [Anthropic](https://platform.claude.com/settings/keys) (`ANTHROPIC_API_KEY`), DeepSeek, DashScope, or any OpenAI-compatible gateway through `<PROVIDER>_BASE_URL`. [`config.llm.yaml`](config.llm.yaml) names the variable (`api_key: OPENROUTER_API_KEY`), never the secret; `mirobody doctor` prints what each surface selected.
@@ -91,8 +92,10 @@ Docker is the only requirement: no Python, Node.js, GPU or Git LFS. `deploy.sh` 
 One command, five spellings, no key, no network, and with `uvx` no install either.
 
 ```bash
-uvx mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン "空腹血糖(GLU)" 血脂
+uvx --python 3.12 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン "空腹血糖(GLU)" 血脂
 ```
+
+`--python 3.12` lets uv fetch the Python the package needs: on an older default interpreter it would pick a release from before 1.2 instead.
 
 <p align="center">
   <img src="docs/images/resolve-demo.gif" alt="mirobody resolve: 血红蛋白 and ヘモグロビン landing on the same LOINC code, and one deliberate abstention" width="880">
@@ -136,7 +139,29 @@ npx skills add thetahealth/mirobody --skill translate-health-data
 npx skills add thetahealth/mirobody --skill mirobody
 ```
 
+Or, with no Node, from the plugin marketplace that Claude Code and Codex both read:
+
+```bash
+claude plugin marketplace add thetahealth/mirobody && claude plugin install mirobody@mirobody
+codex plugin marketplace add thetahealth/mirobody && codex plugin add mirobody@mirobody
+```
+
 → [`skills/`](skills/README.md)
+
+### Or connect it to your agent over MCP
+
+Every tool the built-in agent has is also served at `/mcp`, one link per person: **Settings → MCP link** makes one that opens your record and nothing else. On the same computer:
+
+| Client | Setup |
+| --- | --- |
+| Claude Code | `claude mcp add --transport http mirobody <link>` |
+| Codex | `codex mcp add mirobody --url <link>` |
+| Cursor | `~/.cursor/mcp.json`: `{"mcpServers": {"mirobody": {"url": "<link>"}}}` |
+| Gemini CLI | `gemini mcp add --transport http mirobody <link>` |
+| Claude Desktop | `claude_desktop_config.json`: `{"mcpServers": {"mirobody": {"command": "npx", "args": ["-y", "mcp-remote", "<link>"]}}}`. Its "Add custom connector" connects from Anthropic's cloud, which cannot reach `localhost`. |
+| ChatGPT, claude.ai | They connect from the cloud as well, so the stack needs an HTTPS address they can reach: [deploy it on a server](https://docs.mirobody.ai/en/deployment/production), and read [SECURITY.md](SECURITY.md) first. |
+
+Without the stack, `uvx --python 3.12 mirobody mcp` serves the vocabulary over stdio, offline and with no key: names to LOINC, units, and a reading or a complaint to FHIR. Its one tool that reads a whole document, `standardize_report`, also needs the `[parse]` extra and a model key: `uvx --python 3.12 --from 'mirobody[parse]' mirobody mcp`.
 
 ## Privacy
 
@@ -150,6 +175,7 @@ Nothing leaves your machine except calls to the model you chose, and to a device
 | **328 UCUM units** with dimensional analysis, a molar-mass bridge, and an explicit refusal to convert a percentage into a count | [Standardization in depth](docs/standardization.md) |
 | **316 standard device indicators** | [Device crosswalk](docs/device-crosswalk.md) |
 | The package names the vocabulary that answered you: `mirobody.BUNDLE_VERSION` is `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
+| Three public benchmarks for health agents: [ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench) (longitudinal virtual users; paper [arXiv 2604.02834](https://arxiv.org/abs/2604.02834)), [MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench) (field-level hallucination: dose, unit, reference range, code) and [MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) (red-team safety) | [`thetahealth/mirobody-eval`](https://github.com/thetahealth/mirobody-eval) runs them under one scoring discipline |
 
 The engine powers **[Theta Wellness](https://www.thetahealth.ai/)**, a live consumer health product with 12,000+ registered users and 1,700+ daily active.
 
@@ -157,9 +183,9 @@ The engine powers **[Theta Wellness](https://www.thetahealth.ai/)**, a live cons
 
 | You want | Do this |
 | --- | --- |
-| Offline resolution and units in your code | `pip install mirobody`: no key, no network, two packages |
+| Offline resolution and units in your code | `pip install mirobody` on Python 3.12+: no key, no network, two packages |
 | A document turned into readings | `pip install 'mirobody[parse]'`: PDF, image, Excel, Word, PowerPoint, text; only a scanned page reaches a vision model |
-| These tools in Claude Desktop, Cursor or your own loop | Settings → MCP: every agent tool is also served at `/mcp`, gated per user |
+| These tools in Claude Code, Codex, Cursor, Claude Desktop or your own loop | Settings → MCP link, then [one line per client](#or-connect-it-to-your-agent-over-mcp) |
 | A new tool or device provider | Drop a file into `mirobody/agent/tools/` or `mirobody/collect/providers/` and restart, or `pip install` a package declaring a `mirobody.providers` / `mirobody.tools` / `mirobody.agents` entry point |
 | Your coding agent taught to use it | `npx skills add thetahealth/mirobody --skill translate-health-data` for the library, `--skill mirobody` for the stack; see [`skills/`](skills/README.md) |
 | Your own agent harness | `pip install 'mirobody[agent]'` for the middleware and virtual-filesystem backends, or point `AGENT_DIRS` at your directory to replace the shipped agent outright |
@@ -182,7 +208,7 @@ lint-imports && ruff check mirobody examples
 
 ## Documentation, and what shaped this
 
-**[docs.mirobody.ai](https://docs.mirobody.ai/en/self-host)**, in English and Chinese, is rendered from this repository's own [`docs/`](docs/README.md) at each release, so it cannot drift from the tree.
+**[docs.mirobody.ai](https://docs.mirobody.ai/en/self-host)** has the guides, in English and Chinese. This repository's [`docs/`](docs/README.md) holds the design notes the code is checked against: the pipeline, the answer surface, standardization.
 
 Mirobody's design draws on the following standards and projects, with thanks:
 [HL7 FHIR](https://hl7.org/fhir/), [Regenstrief Institute](https://www.regenstrief.org/) ([LOINC](https://loinc.org/)), [UCUM](https://ucum.org/), [ICPC-3](https://icpc-3.info/) (WONCA), [CPIC](https://cpicpgx.org/), [OHDSI OMOP](https://www.ohdsi.org/),

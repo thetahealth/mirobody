@@ -1,6 +1,6 @@
 ---
 name: mirobody
-description: Self-host Mirobody, the open-source health data engine, and use it from an agent. Use when the user wants to run a personal or family health record on their own machine, bring lab reports and wearables (Apple Health, Garmin, Oura, WHOOP) into one place an AI can read, expose their health data to Claude Desktop, Cursor or another agent over MCP, or operate a stack that is already running (model key, upgrade, backup, ports). Docker is the only requirement; one model API key runs every surface.
+description: Self-host Mirobody, the open-source health data engine, and use it from an agent. Use when the user wants to run a personal or family health record on their own machine, bring lab reports and wearables (Apple Health, Garmin, Oura, WHOOP) into one place an AI can read, expose their health data to Claude Code, Codex, Cursor, Claude Desktop or another agent over MCP, or operate a stack that is already running (model key, upgrade, backup, ports). Docker is the only requirement; one model API key runs every surface.
 license: Apache-2.0
 metadata:
   author: thetahealth
@@ -16,10 +16,9 @@ record with each number traced to the file it came from. It runs in Docker on
 the user's machine, on a model key they choose. Nothing leaves the machine
 except calls to that model and to a wearable vendor once one is linked.
 
-This skill gets a stack running and connects an agent to it. Two sibling
-skills cover the library without Docker: `translate-health-data` turns raw
-files into coded rows, and `dont-guess-my-labs` reads one lab report to a
-person without guessing.
+This skill gets a stack running and connects an agent to it. The sibling
+`translate-health-data` skill covers the library without Docker: it turns raw
+files into coded rows and explains a report only from resolved evidence.
 
 ## Agent contract
 
@@ -34,6 +33,14 @@ person without guessing.
   machine or one home network.
 - **Never commit `.env`.** `deploy.sh` creates it with mode 0600 and the
   repository ignores it; leave both as they are.
+- **One stack per name.** Compose names a stack after its folder, so a second
+  checkout called `mirobody` would take over the first one's containers and
+  database. Run `docker compose ls` before cloning: if a `mirobody` project
+  already runs from another directory, operate that one, or give the new
+  checkout its own `COMPOSE_PROJECT_NAME` and ports in `.env` (`deploy.sh`
+  refuses otherwise, and says so).
+- **Ports come from `.env` and nowhere else.** `deploy.sh` never picks one; if
+  the stack answers on another port, say which variable set it.
 - **Do not skip a verification step** because the previous one printed nothing
   alarming. Each step below checks a different thing.
 
@@ -44,29 +51,36 @@ docker --version && docker compose version    # Docker 24+ with Compose v2
 git --version
 ```
 
-The image is about 460 MB to download, and the stack uses ports `18060`
-(app) and `18062` (Postgres, bound to localhost only). If either port is
-taken, set `MIROBODY_HOST_PORT` or `PG_HOST_PORT` in `.env` before step 2.
-No Python, Node.js, GPU or Git LFS is needed on the host.
+The download is about 390 MB (the app image about 230 MB, Postgres about
+160 MB), and the stack uses ports `18060` (app) and `18062` (Postgres, bound
+to localhost only). If either port is taken, set `MIROBODY_HOST_PORT` or
+`PG_HOST_PORT` in `.env` before step 2; `deploy.sh` checks both and names the
+one to change. No Python, Node.js, GPU or Git LFS is needed on the host, and
+no Git either: the release tarball
+(`curl -L https://github.com/thetahealth/mirobody/archive/refs/heads/main.tar.gz | tar xz`)
+is the same checkout.
 
-## Install: three commands
+## Install: two commands
 
 ```bash
 git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
-./deploy.sh
-echo 'OPENROUTER_API_KEY=sk-or-...' >> .env && docker compose up -d
+OPENROUTER_API_KEY=sk-or-... ./deploy.sh
 ```
 
 What `deploy.sh` does, so you can explain it: writes the five secrets the
-stack needs into `.env` (generated with `openssl rand`), pulls the published
-image `thetahealth4mirobody/mirobody`, starts Postgres, the server and the
-worker with `docker compose up -d --wait`, and prints the demo sign-in. If
-Docker Hub is unreachable from the daemon it switches to a mirror on its own;
-if the image cannot be pulled at all it builds one from the checkout, which
-takes several minutes and needs `git lfs pull` first.
+stack needs into `.env` (generated with `openssl rand`), and the model key
+given in its environment too; pulls the published image
+`thetahealth4mirobody/mirobody`; starts Postgres, the server and the worker
+with `docker compose up -d --wait`; and prints the demo sign-in. If Docker Hub
+is unreachable from the daemon it switches to a mirror on its own; if the
+image cannot be pulled at all it builds one from the checkout, which takes
+several minutes and needs `git lfs pull` first. It stops before starting
+anything when a port is taken or another stack runs under the same name.
 
-The third command is the only one that needs the user. Any ONE of these keys
-runs every surface (extraction, chat, embeddings):
+The key is the only thing that needs the user: run `./deploy.sh` without it
+if they have not chosen one yet, and put it in `.env` later (then
+`docker compose up -d`). Any ONE of these keys runs every surface (chat,
+vision, text extraction):
 
 | Provider | Variable |
 | --- | --- |
@@ -106,24 +120,26 @@ means the server is not up; read `docker compose logs mirobody`.
 docker compose exec mirobody mirobody doctor
 ```
 
-Prints one row per surface (chat, extraction, embeddings) with the provider
-each one selected. **Exit status 1 with no key set is expected before step 3**
+Prints one row per surface (chat, vision, text) with the provider each one
+selected. **Exit status 1 with no key set is expected until the key is in**
 and means "no provider anywhere"; after the key is in and `up -d` has run, it
 exits 0 and every row names a provider. A row left blank with a key present
 means that key's provider cannot serve that surface; the table says which.
 
 ## First use
 
-Open `http://localhost:18060` and sign in on the Email code tab as
-`you@mirobody.ai` with code `111111`. `SEED_DEMO_DATA` is on by default, so
-two accounts already hold data: this one, and `mom@mirobody.ai`, who shares
-her record view-only. Set `SEED_DEMO_DATA=false` in `.env` before the first
-start for an empty deployment.
+Open `http://localhost:18060`. The sign-in page offers the demo account
+(**Use it** fills the Email code tab): `you@mirobody.ai` with code `111111`.
+`SEED_DEMO_DATA` is on by default, so two accounts already hold data: this
+one, and `mom@mirobody.ai`, who shares her record view-only. Set
+`SEED_DEMO_DATA=false` in `.env` before the first start for an empty
+deployment.
 
 - **Data page**: drop a file. `demo/upload/` in the checkout holds four the
-  seed leaves out (a lab PDF, a report photo, a spreadsheet, a CSV). Each
-  analyte comes out with a value, a unit and a code, linked to the page it was
-  read from.
+  seed leaves out: the lab PDF and the CSV are `you`'s, the report photo and
+  the spreadsheet are `mom`'s (upload those signed in as her). Each analyte
+  comes out with a value, a unit and a code, linked to the page it was read
+  from. A genotype export goes on the Genomics tab, not here.
 - **Ask page**: a question such as "How has my cholesterol moved?" finds every
   file that carries it, whatever the lab called it, and names the file behind
   each number.
@@ -133,18 +149,33 @@ start for an empty deployment.
 ## Connect an agent over MCP
 
 Every tool the built-in agent has is also served at `/mcp`, gated per user.
-In the web app, **Settings** issues a personal MCP link; paste it into Claude
-Desktop, Cursor, or any MCP client. The tool list is data-gated: an account
-with no lab data does not see the lab-query tool, so an empty list is a
-signal to upload something, not a fault.
+In the web app, **Settings** issues a personal MCP link. The tool list is
+data-gated: an account with no lab data does not see the lab-query tool, so
+an empty list is a signal to upload something, not a fault. The link goes to
+a client on the same computer:
 
-The library's offline tools also run without the server, over stdio and
-with no key, as six MCP tools (`resolve_indicator`, `normalize_unit`,
-`convert_unit`, `standardize_reading`, `standardize_complaint`,
-`standardize_report`):
+| Client | Setup |
+| --- | --- |
+| Claude Code | `claude mcp add --transport http mirobody <link>` |
+| Codex | `codex mcp add mirobody --url <link>` |
+| Cursor | `~/.cursor/mcp.json`: `{"mcpServers": {"mirobody": {"url": "<link>"}}}` |
+| Gemini CLI | `gemini mcp add --transport http mirobody <link>` |
+| Claude Desktop | `claude_desktop_config.json`: `{"mcpServers": {"mirobody": {"command": "npx", "args": ["-y", "mcp-remote", "<link>"]}}}` |
+
+Do not tell the user to paste the link into Claude Desktop's "Add custom
+connector", ChatGPT or claude.ai: those connect from their vendor's cloud,
+which cannot reach `localhost`. They need the stack behind an HTTPS address,
+which is a server deployment (`SECURITY.md` first), not this one.
+
+The library's offline tools also run without the server, over stdio. Five
+need no key (`resolve_indicator`, `normalize_unit`, `convert_unit`,
+`standardize_reading`, `standardize_complaint`); `standardize_report` reads a
+whole document with a model, so it needs the `[parse]` extra and one model
+key, and says so when either is missing:
 
 ```bash
-uvx mirobody mcp
+uvx --python 3.12 mirobody mcp
+uvx --python 3.12 --from 'mirobody[parse]' mirobody mcp    # with standardize_report
 ```
 
 ## Operate
@@ -171,7 +202,9 @@ Health export.
 
 | Symptom | Cause and fix |
 | --- | --- |
-| `deploy.sh` says a port is in use | Set `MIROBODY_HOST_PORT` or `PG_HOST_PORT` in `.env`, run it again |
+| `deploy.sh` says a port is in use | Set the variable it names (`MIROBODY_HOST_PORT` or `PG_HOST_PORT`) in `.env`, run it again |
+| `deploy.sh` says a Mirobody stack of that name already runs from another folder | A second checkout under the same Compose name. Operate the first one, or set `COMPOSE_PROJECT_NAME` and both ports in this checkout's `.env` |
+| `uvx mirobody …` says the package provides no executables, or cannot resolve it | The default Python is older than 3.12, so uv picked an old release. Use `uvx --python 3.12 mirobody …` |
 | `doctor` exits 1 after the key was added | `.env` was edited but `docker compose up -d` was not run, or the line has a typo; `grep -o '^[A-Z_]*_API_KEY=' .env` shows the name without printing the value |
 | The server log says `config.localdb.yaml` is a directory | Docker Desktop mounted the overlay from a path it does not share as a file (a checkout under `/tmp` on macOS does this); the stack runs on defaults. Move the checkout under the home directory and run `./deploy.sh` again |
 | `deploy.sh` says `compose.override.yaml` is from 1.5.2 | The message names the two commands; it is an upgrade from an older layout |

@@ -34,6 +34,17 @@
 # than shipping.
 
 # ══ English ═══════════════════════════════════════════════════════════════
+# ── category-only terms ---------------------------------------------------
+# These names describe a family, specimen or treatment rather than one
+# observation. The lexical index can still find a narrow assay whose name
+# contains the word, but selecting it would invent the user's intended test.
+免疫	!unresolved
+stool	!unresolved
+重金属	!unresolved
+heavy metals	!unresolved
+激素	!unresolved
+enzymes	!unresolved
+
 # ── lipid panel ──────────────────────────────────────────────────────────
 total cholesterol	Cholesterol
 cholesterol total	Cholesterol

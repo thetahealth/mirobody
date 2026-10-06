@@ -61,6 +61,10 @@ def normalize_units(units: list[str]) -> dict[str, Any]:
     return {"success": True, "message": f"{matched}/{len(results)} normalized", "results": results}
 
 
+#: The UCUM codes `normalize_unit` gives Fahrenheit, Celsius and kelvin.
+_TEMPERATURE_UCUM = frozenset({"[degF]", "Cel", "K"})
+
+
 def convert_unit(value: float, from_unit: str, to_unit: str, loinc_code: str = "") -> dict[str, Any]:
     """One value between two units; `converted` is None when they do not convert."""
     from mirobody.units import convert_value, normalize_unit
@@ -81,17 +85,28 @@ def convert_unit(value: float, from_unit: str, to_unit: str, loinc_code: str = "
     if converted is not None and not math.isfinite(converted):
         return {"success": False, "error": f"{value} {from_unit} is out of range in {to_unit}."}
     if converted is None:
+        # Temperature is refused by design (conversions here are a factor, and
+        # a temperature scale also has an offset), but the general reason below
+        # blamed percentages and molar mass for it.
+        if {src, dst} <= _TEMPERATURE_UCUM:
+            reason = (
+                "Temperature scales differ by an offset as well as a factor, and "
+                "this engine converts by factor only: °C = (°F − 32) × 5/9, and "
+                "K = °C + 273.15."
+            )
+        else:
+            reason = (
+                "These units are not interconvertible. Either they measure "
+                "different things (a percentage is not an absolute count), "
+                "or the conversion needs a molar mass this engine does not "
+                "carry for that code. Report the readings separately."
+            )
         return {
             "success": True,
             "converted": None,
             "from_ucum": src,
             "to_ucum": dst,
-            "reason": (
-                "These units are not interconvertible. Either they measure "
-                "different things (a percentage is not an absolute count), "
-                "or the conversion needs a molar mass this engine does not "
-                "carry for that code. Report the readings separately."
-            ),
+            "reason": reason,
         }
     return {"success": True, "converted": converted, "from_ucum": src, "to_ucum": dst}
 

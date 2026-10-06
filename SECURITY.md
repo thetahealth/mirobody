@@ -74,9 +74,10 @@ others:
   trusting the checklist.
 - Generate your own `CONFIG_ENCRYPTION_KEY` and `JWT_KEY`, and keep `.env` out
   of version control. `deploy.sh` generates both; do not copy a key between
-  environments. Without `PRODUCTION: true`, a server bound beyond loopback
-  with the placeholder `JWT_KEY` makes one up for the run, so sessions end at
-  restart.
+  environments. Without `PRODUCTION: true`, a server with the placeholder
+  `JWT_KEY` makes one up for the run, wherever it listens, so sessions end at
+  restart. A loopback server used to keep the placeholder, but a reverse proxy
+  on the same machine puts it on the internet.
 - **The database-content key is `PG_ENCRYPTION_KEY`, a separate value from
   `CONFIG_ENCRYPTION_KEY`.** It backs the Postgres-side `encrypt_content()`
   function (`pgcrypto`'s `encrypt(..., 'aes')`), which covers chat message
@@ -98,8 +99,24 @@ others:
   owner's first code sign-in clears a password nobody proved and ends the
   sessions minted with it.
 - Restrict CORS to the origins you actually serve.
+- A device vendor's OAuth callback sends the browser back only to this
+  server's origin, the CORS origin above, or what `OAUTH_RETURN_ORIGINS`
+  lists (an origin, or an app's own scheme such as `theta:`). Anything else
+  gets the completion page instead of a redirect.
+- Connecting a device ties the vendor's consent to the account that started
+  the link, not to the browser that finishes it. Someone with an account on
+  the same server could start a link and send its consent page to another
+  user, whose wearable data would then reach the first account. On a server
+  shared beyond people you trust, connect devices only from links you started
+  yourself; `docs/roadmap.md` has the fix and why it is not in yet.
+- Set `WEBAUTHN_RP_ID` to your domain to offer passkeys. An account that
+  turns MFA on then needs its passkey for every request, a file link
+  (`?access_token=`) and the upload socket included.
 - Terminate TLS in front of the service. Set `MCP_PUBLIC_URL` to an HTTPS URL —
-  the MCP surface carries the same health data as the API.
+  the MCP surface carries the same health data as the API. Set HSTS there: every
+  response already carries `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: SAMEORIGIN` and `Referrer-Policy: same-origin`, and with
+  `PRODUCTION: true` the API docs (`/docs`, `/redoc`, `/openapi.json`) are off.
 - Do not expose Postgres. `compose.yaml` binds its host port to `127.0.0.1`
   for local development; restrict access to that port on shared hosts.
 

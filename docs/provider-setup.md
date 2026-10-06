@@ -19,6 +19,14 @@ empty credentials and each vendor's endpoint defaults already filled in; put you
 credentials there, or in your `config.{env}.yaml` overlay, which overrides it
 (the YAML blocks below work in either).
 
+**With Docker** the image carries its own copy of these files, so editing the
+checkout's `config.devices.yaml` changes nothing. Put the blocks in
+`config.localdb.yaml` next to `compose.yaml` and run `./deploy.sh` again: it
+mounts that file, by setting `MIROBODY_CONFIG_FILE` in `.env`. Keep the checkout
+under your home directory. A path Docker does not share, such as a checkout
+under `/tmp` with colima, mounts as an empty directory, and the server runs
+without your file.
+
 > **Apple Health is not in this list, and cannot be.** HealthKit is readable
 > only from a signed iOS app, on-device, after per-type user consent — there is
 > no web OAuth flow and no server-to-server API. This server *receives* Apple
@@ -113,7 +121,9 @@ Optional, with defaults: `GARMIN_AUTH_URL`, `GARMIN_TOKEN_URL`,
 
 ## Verify
 
-**1. The provider starts.** Restart and read the boot log:
+**1. The provider starts.** Run `./deploy.sh` again, or `docker compose up -d`
+(a `docker compose restart` keeps the old mounts and environment), and read the
+boot log with `docker compose logs mirobody`:
 
 ```
 Loaded provider from /app/mirobody/collect/providers/mirobody_oura/provider_oura.py
@@ -132,7 +142,7 @@ that is an import error, and a regression test covers it.
 **2. It is offered to users.**
 
 ```bash
-curl -s http://localhost:18060/api/v1/pulse/providers | jq '.data[].slug'
+curl -s http://localhost:18060/api/v1/pulse/providers | jq '.data.providers[].slug'
 ```
 
 **3. Link an account.** `POST /api/v1/pulse/user/providers/link` (authenticated)

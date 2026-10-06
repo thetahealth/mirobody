@@ -11,7 +11,13 @@ from starlette.responses import Response, JSONResponse
 from starlette.routing import Route
 
 
-from .bootstrap import create_schema, enforce_production_auth_safety, seed_demo_data
+from .bootstrap import (
+    create_schema,
+    demo_sign_in,
+    enforce_production_auth_safety,
+    ensure_postgres_reachable,
+    seed_demo_data,
+)
 from .middleware_stack import build_middlewares
 from .htdoc import add_htdoc_routes
 
@@ -63,6 +69,17 @@ def _is_mounted(app, router) -> bool:
         except NoMatchFound:
             continue
     return False
+
+
+def _webpage_config(config) -> dict[str, Any]:
+    """`/mirobody.json`'s overlay, plus the demo account while the demo is seeded.
+
+    The overlay's MIROBODY_WEB_CONFIG still wins, as it does for every flag."""
+    webpage = dict(config.get_dict("MIROBODY_WEB_CONFIG", {}) or {})
+    hint = demo_sign_in(config)
+    if hint:
+        webpage.setdefault("__DEMO_SIGN_IN__", hint)
+    return webpage
 
 
 class Server:
@@ -178,8 +195,12 @@ class Server:
             # MCP is always served (/mcp is registered unconditionally below).
             self._webpage_config["__IS_NEW_FEATURES_ON__"] = ["MCP"]
 
+        # Settings' "API Config" points the page at another server. This one
+        # serves the bundle from its own origin, where that field only confuses
+        # (and a wrong value breaks the page until the session ends); a
+        # deployment that hosts the bundle elsewhere turns it on in the overlay.
         if "__IS_API_CONFIG_ON__" not in self._webpage_config:
-            self._webpage_config["__IS_API_CONFIG_ON__"] = True
+            self._webpage_config["__IS_API_CONFIG_ON__"] = False
 
         self._webpage_config.setdefault("capability_version", CAPABILITY_VERSION)
         self._webpage_config.setdefault("server_version", server_version or __version__)
@@ -348,6 +369,7 @@ class Server:
         # carries demo login codes must not come up at all.
         enforce_production_auth_safety(config)
 
+        await ensure_postgres_reachable(config)
         await create_schema(config)
         await seed_demo_data(config)
 
@@ -375,7 +397,7 @@ class Server:
             pg_pool         = pg_pool,
             ephemeral       = ephemeral,
 
-            webpage_config  = config.get_dict("MIROBODY_WEB_CONFIG", {}),
+            webpage_config  = _webpage_config(config),
 
             url_paths_for_request_rate_limiter  = config.get_dict("REQUEST_RATE_LIMITER"),
             url_paths_for_user_info_updater     = config.get_list("USER_INFO_UPDATER"),
@@ -387,16 +409,29 @@ class Server:
 
             **config.get_jwt_options(),
             **config.get_email_options(),
+            # Without these, `WEBAUTHN_RP_ID` in config never reached the
+            # server: Settings offered passkeys and MFA, but there was no
+            # WebAuthn service to enrol with, and an account with MFA on was
+            # never asked for a second factor.
+            **config.get_webauthn_options(),
         )
 
         #-----------------------------------------------------
         # Init fastapi server.
 
         from fastapi import FastAPI
+        # The interactive docs list every route and its parameters, readable
+        # without signing in. A deployment facing real users has no use for
+        # them; everywhere else they stay, for the people building on the API.
+        from mirobody.server.bootstrap import is_production
+        docs_off = is_production(config)
         app = FastAPI(
             debug       = config.log.level <= logging.DEBUG,
             routes      = server.get_routes(),
-            middleware  = server.get_middlewares()
+            middleware  = server.get_middlewares(),
+            docs_url    = None if docs_off else "/docs",
+            redoc_url   = None if docs_off else "/redoc",
+            openapi_url = None if docs_off else "/openapi.json",
         )
 
         # One handler for care-circle denial, so a route that forgets to catch
@@ -419,6 +454,9 @@ class Server:
         # Store global resources in app.state for access by all routers
         app.state.ephemeral = ephemeral
         app.state.pg_pool = pg_pool
+        # For the routes that take a token from the query string, which the JWT
+        # middleware never sees (`middlewares.lacks_second_factor`).
+        app.state.requires_second_factor = server._user_service.requires_second_factor
         
         logger.info("Global resources ready")
 

@@ -56,6 +56,24 @@ fi
 project_name="${COMPOSE_PROJECT_NAME:-$(setting COMPOSE_PROJECT_NAME)}"
 project_name="${project_name:-$(basename "$PWD")}"
 project_name="$(printf '%s' "$project_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]//g')"
+
+# Two checkouts under one project name are one stack to Compose: `up` here
+# silently replaced the other checkout's containers and reused its database
+# volume with this checkout's newly generated keys. A second clone called
+# `mirobody` is the common way in (an agent following the skill picks it).
+here="$(pwd -P)"
+while IFS= read -r other; do
+    [[ -z "$other" ]] && continue
+    if [[ "$(cd "$other" 2>/dev/null && pwd -P || printf '%s' "$other")" != "$here" ]]; then
+        printf 'A Mirobody stack named "%s" already runs from %s.\n' "$project_name" "$other" >&2
+        printf 'Starting this checkout under the same name would take over its containers and its database.\n' >&2
+        printf 'Run ./deploy.sh in %s, or give this checkout its own name and ports in .env:\n' "$other" >&2
+        printf '    COMPOSE_PROJECT_NAME=%s-2\n    MIROBODY_HOST_PORT=18070\n    PG_HOST_PORT=18072\n' "$project_name" >&2
+        exit 1
+    fi
+done < <(docker ps -a --filter "label=com.docker.compose.project=${project_name}" \
+    --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u)
+
 data_dir="${MIROBODY_DATA:-$(setting MIROBODY_DATA)}"
 data_dir="${data_dir:-../mirobody-data}"
 existing_database=false
@@ -131,6 +149,18 @@ ensure_secret JWT_KEY
 # What the first-run page asks for before it changes where health data goes.
 ensure_secret SETUP_TOKEN
 
+# A model key or a local model server given on the command line
+# (`OPENROUTER_API_KEY=... ./deploy.sh`, `LOCAL_BASE_URL=... ./deploy.sh`) goes
+# into .env, the one file the containers read, so a first run needs no second
+# step. The names are the ones config.llm.yaml reads, and a value already in
+# .env is left as it is.
+while IFS= read -r name; do
+    [[ -z "$name" ]] && continue
+    if [[ -n "${!name:-}" ]] && ! has_setting "$name"; then
+        add_setting "$name" "${!name}"
+    fi
+done < <(sed -nE 's/^[[:space:]]*(api_key|base_url):[[:space:]]*([A-Z][A-Z0-9_]*)[[:space:]]*(#.*)?$/\2/p' config.llm.yaml | sort -u)
+
 # Ask the daemon, which is what pulls: the shell's proxy settings are not the
 # daemon's, and hub.docker.com (the website) is not registry-1.docker.io. The
 # smallest real image answers in one round trip.
@@ -168,6 +198,23 @@ if ! docker image inspect "$app_image" >/dev/null 2>&1 && ! docker compose pull 
         ${PIP_INDEX_URL:+--build-arg "PIP_INDEX_URL=${PIP_INDEX_URL}"} .
 fi
 
+# A port another program holds ended the run in Docker's own words, naming
+# neither the variable to change nor the file it goes in. Asked only when this
+# stack is not already up: a re-run's own containers hold these ports.
+if [[ -z "$(docker ps -q --filter "label=com.docker.compose.project=${project_name}" --filter status=running)" ]]; then
+    for pair in "MIROBODY_HOST_PORT:18060" "PG_HOST_PORT:18062"; do
+        var="${pair%%:*}"
+        wanted="${!var:-$(setting "$var")}"
+        wanted="${wanted:-${pair#*:}}"
+        if (exec 3<>"/dev/tcp/127.0.0.1/${wanted}") 2>/dev/null; then
+            printf 'Port %s is already in use on this machine.\n' "$wanted" >&2
+            printf 'Pick a free one for %s in .env, e.g.  %s=%s  and run ./deploy.sh again.\n' \
+                "$var" "$var" "$((wanted + 200))" >&2
+            exit 1
+        fi
+    done
+fi
+
 printf 'Starting Mirobody with %s\n' "$app_image"
 # --remove-orphans: a 1.5.2 stack's redis container is not part of 1.5.3.
 docker compose up -d --wait --wait-timeout 600 --remove-orphans
@@ -180,13 +227,24 @@ done
 
 port="${MIROBODY_HOST_PORT:-$(setting MIROBODY_HOST_PORT)}"
 url="http://localhost:${port:-18060}"
-# A key in .env, or one saved from the page earlier: the app is what knows.
-if curl -fsS "${url}/mirobody.json" 2>/dev/null | grep -q '"__MODEL_SETUP__": *"ready"'; then
-    printf '\nOpen %s\n' "$url"
-else
-    printf '\nOpen %s/setup?token=%s\n' "$url" "$(setting SETUP_TOKEN)"
-    printf 'to choose a model: paste one API key, or run every model on this machine.\n'
-fi
+# A key or server in .env, or a choice saved from the setup page earlier: only
+# the app knows which, so it is asked rather than .env counted.
+model_setup="$(curl -fsS "${url}/mirobody.json" 2>/dev/null \
+    | sed -n 's/.*"__MODEL_SETUP__": *"\([a-z]*\)".*/\1/p' || true)"
+case "$model_setup" in
+    ready)
+        printf '\nOpen %s\n' "$url"
+        ;;
+    needed)
+        printf '\nChoose a model: open %s/setup?token=%s\n' "$url" "$(setting SETUP_TOKEN)"
+        printf 'and paste one API key, or run every model on this machine.\n'
+        printf 'Or give it here instead, e.g.  OPENROUTER_API_KEY=sk-or-... ./deploy.sh\n'
+        ;;
+    *)
+        printf '\nOpen %s\n' "$url"
+        printf 'The app did not say whether it has a model yet; docker compose logs mirobody says why.\n' >&2
+        ;;
+esac
 if [[ "${SEED_DEMO_DATA:-$(setting SEED_DEMO_DATA)}" != false ]]; then
     printf 'Demo sign-in: you@mirobody.ai, code 111111 on the Email code tab\n'
 fi

@@ -121,7 +121,9 @@ class WhoopProvider(BasePullProvider):
                 client_id, secret_fingerprint(client_secret),
             )
             if not client_id or not client_secret:
-                logger.warning("Failed to create Whoop provider: unable to read config values")
+                # Unset credentials are the usual self-hosted state, not a fault:
+                # at WARNING this read as a failure on every boot.
+                logger.info("Whoop not configured (WHOOP_CLIENT_ID / WHOOP_CLIENT_SECRET unset); provider off")
                 return None
 
             return cls()

@@ -92,6 +92,15 @@ To publish to official PyPI, add:
 
 - `DOCKERHUB_USERNAME` (repository **variable**, not a secret): the Docker Hub account or org that owns `thetahealth4mirobody/mirobody`
 - `DOCKERHUB_TOKEN` (repository **secret**): a Docker Hub access token with read/write scope on that repository
+- The image workflow also syncs `docs/docker-hub-description.md` to the
+  repository page. A manual repair rebuild can set `source_ref=main` while
+  keeping the published tag at `1.5.3`.
+- Set `page_only=true` on a manual run to sync the page without building an
+  image. The page job is separate so a metadata error can be retried alone.
+- The image can publish with a token that has image read/write scope, but the
+  page update additionally needs repository-admin metadata permission. If that
+  scope is absent, a normal release warns after the image succeeds and a
+  `page_only=true` retry fails clearly until the token is upgraded.
 
 A GitHub Actions secret is write-only: rotate or delete it, but never read it
 back. Its value is masked in logs, and a fork or a fork's pull request never

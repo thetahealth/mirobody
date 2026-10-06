@@ -95,7 +95,7 @@ Charting belongs to the chat agent alone: the model writes a fenced vis-chart co
 block of pure-data JSON (no styling) directly in its reply, and the frontend
 renders it as an interactive chart. No tool call, no server round-trip, no PNG.
 
-An external MCP client (Claude Desktop, Cursor, a custom host) brings its own
+An external MCP client (Claude Code, Codex, Cursor, a custom host) brings its own
 visualization: the tools return data, never chart markup.
 
 The former ChartService MCP tools (generate_*_chart), which rendered PNGs
