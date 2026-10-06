@@ -54,7 +54,9 @@
   (documents) on llama.cpp; `docker compose --profile local` (NVIDIA) or
   `--profile local-cpu` runs it next to the app. On an Apple M4 Pro: 16 of 16
   test questions with no number the record lacks, about two minutes an
-  answer, and 27 of 27 demo readings. See `docs/local-models.md`.
+  answer, and 27 of 27 demo readings. See `docs/local-models.md`. The
+  models download from Hugging Face the first time; `HF_ENDPOINT` in `.env`
+  points the `llama` service at a mirror.
 - **A table is read by its header, without a model**, when a document-OCR
   model is routed (the local setup). Rows under a header the rules know
   (项目名称 / 结果 / 参考值 / 单位, Analyte / Result / Unit, a CSV's first

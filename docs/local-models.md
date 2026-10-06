@@ -56,7 +56,10 @@ docker compose --profile local-cpu up -d  # the same service on the CPU image
 (Vulkan, CUDA or CPU build) and run the same command as on macOS.
 
 The first question after starting waits for the downloads. Later starts read
-the cache.
+the cache. Where huggingface.co is unreachable, point the download at a mirror:
+`HF_ENDPOINT=https://<mirror>` in `.env` for the compose services, or in the
+shell before `llama-server` on a Mac. The models are the only thing fetched;
+nothing about you is sent.
 
 ## Point Mirobody at them
 

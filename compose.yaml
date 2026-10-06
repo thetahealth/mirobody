@@ -104,6 +104,11 @@ services:
     command: ["--models-preset", "/presets/local-models.ini", "--host", "0.0.0.0", "--port", "8080"]
     environment:
       LLAMA_CACHE: /models
+      # Where the models download from the first time: a Hugging Face mirror
+      # where huggingface.co is unreachable (llama.cpp reads MODEL_ENDPOINT,
+      # then HF_ENDPOINT). Passed only when .env sets one.
+      HF_ENDPOINT:
+      MODEL_ENDPOINT:
     volumes:
       - ${LOCAL_MODELS_PRESET:-./docker/local-models.ini}:/presets/local-models.ini:ro
       - mirobody_models:/models
