@@ -157,6 +157,9 @@ is; for a meal it says it cannot see the photo and asks what was eaten.
   empty too.
 - **A table is read by its header.** Rows under a header the rules know (项目名称 /
   结果 / 参考值 / 单位, Analyte / Result / Unit, a CSV's first line) are stored as
-  printed and labelled `rules:table@v1`. When a table row is left unread, or a
-  document has no table, the text model reads the document as well, and a rule's
-  row outranks the model's for the same name.
+  printed and labelled `rules:table@v1`, when they look like readings and the
+  page's other copy (the text layer, or the OCR's text pass) shows the same
+  value. Patient details are skipped. A row left unread, text outside the
+  tables that holds a number or a finding, and a document with no table go to
+  the text model, and a rule's row outranks the model's for the same printed
+  row.

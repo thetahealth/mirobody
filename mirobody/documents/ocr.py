@@ -13,8 +13,11 @@ prompt the entry declares: its text, then its tables as HTML, whose columns
 
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
+
+logger = logging.getLogger(__name__)
 
 OCR_PROMPT = """Extract and return ALL text content from this document/image.
 
@@ -62,11 +65,22 @@ async def _extract(image: bytes, mime: str, prompt: str, provider: str | None = 
 
 
 async def vision_ocr(image: bytes, mime: str, *, prompt: str = OCR_PROMPT) -> str:
-    """Text of one image: the OCR entry's passes when one is routed, else the vision provider."""
+    """Text of one image: the OCR entry's passes when one is routed, else the
+    vision provider. A pass that fails costs only itself: the text pass of a
+    photo is still a document when its tables pass times out. When every pass
+    fails, the last error is raised."""
     spec = _ocr_route()
     if spec is None:
         return await _extract(image, mime, prompt)
-    parts = [await _extract(image, mime, p, spec.alias) for p in spec.ocr_prompts.values()]
+    parts, failure = [], None
+    for name, task in spec.ocr_prompts.items():
+        try:
+            parts.append(await _extract(image, mime, task, spec.alias))
+        except Exception as exc:
+            logger.warning("ocr pass failed: pass=%s error_type=%s", name, type(exc).__name__)
+            failure = exc
+    if failure is not None and not parts:
+        raise failure
     return "\n\n".join(part.strip() for part in parts if part.strip())
 
 

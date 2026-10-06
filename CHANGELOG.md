@@ -44,10 +44,16 @@
   `--profile local-cpu` runs it next to the app. On an Apple M4 Pro: 16 of 16
   test questions with no number the record lacks, about two minutes an
   answer, and 27 of 27 demo readings. See `docs/local-models.md`.
-- **A table is read by its header, without a model.** Rows under a header the
-  rules know (项目名称 / 结果 / 参考值 / 单位, Analyte / Result / Unit, a
-  CSV's first line) are stored as printed and labelled `rules:table@v1`; the
-  text model reads only what they leave.
+- **A table is read by its header, without a model**, when a document-OCR
+  model is routed (the local setup). Rows under a header the rules know
+  (项目名称 / 结果 / 参考值 / 单位, Analyte / Result / Unit, a CSV's first
+  line), including two panels side by side, are stored as printed and
+  labelled `rules:table@v1`, with only the flag the report printed. A row is
+  read only when it looks like a reading (a number, `1+` or 阴性 beside a
+  unit and a range); patient details are skipped; a value the page's other
+  copy (the text layer, or the OCR's text pass) does not confirm, a table of
+  one row per day, and any text outside the tables that holds a number or a
+  finding go to the text model.
 - **`mirobody doctor --probe` sends one real request per surface** (a tool
   call, a schema-bound answer, an image, the OCR passes) and checks that each
   local server runs the model its entry names.
@@ -195,10 +201,12 @@ decisions.
   publishes the short and full repository description from
   `docs/docker-hub-description.md`; a manual dispatch can rebuild a repaired
   source ref under an existing version tag without moving the release tag.
-- **Readings carry the range and flag the report printed.** Readings and
-  latest values from `query_health_indicators` now include `ref` and `flag`,
-  empty when the report printed none. Without them a model judged a value
-  against a range it remembered.
+- **Readings carry the printed range and a flag.** Readings and latest
+  values from `query_health_indicators` now include `ref`, the range as
+  printed (empty when none was), and `flag`: the report's own when a table
+  rule read the row, the extracting model's high/low/normal against that
+  range otherwise. Without the range a model judged a value against one it
+  remembered.
 - **`th_series` is gone.** The per-person catalogue was rewritten on every
   write and read by nothing: `catalog()` groups `v_observation` directly,
   150 ms over one person's 149,000 readings. Writes no longer pay for it, and

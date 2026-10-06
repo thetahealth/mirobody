@@ -785,8 +785,10 @@ def _reading_row(r: dict) -> dict:
         "date": _text(r.get("local_date")),
         "value": _text(r.get("value_text")),
         "unit": r.get("unit_text") or "",
-        # As printed on the report, empty when it printed none: without them a
-        # model judged against a range it remembered (1.5.4 local runs).
+        # The range as printed, empty when the report printed none: without
+        # it a model judged against a range it remembered (1.5.4 local runs).
+        # The flag is the report's own when a table rule read the row; a
+        # model-read row's is that model's high/low/normal against the range.
         "ref": r.get("ref_text") or "",
         "flag": r.get("flag_text") or "",
         "value_canonical": _number(r.get("value_canonical")),
@@ -853,8 +855,10 @@ def _latest_row(r: dict) -> dict:
         "date": _text(r.get("local_date")),
         "value": _text(r.get("value_text")),
         "unit": r.get("unit_text") or "",
-        # As printed on the report, empty when it printed none: without them a
-        # model judged against a range it remembered (1.5.4 local runs).
+        # The range as printed, empty when the report printed none: without
+        # it a model judged against a range it remembered (1.5.4 local runs).
+        # The flag is the report's own when a table rule read the row; a
+        # model-read row's is that model's high/low/normal against the range.
         "ref": r.get("ref_text") or "",
         "flag": r.get("flag_text") or "",
         "value_canonical": _number(r.get("value_canonical")),

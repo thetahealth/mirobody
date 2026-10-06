@@ -12,7 +12,13 @@ import logging
 from typing import Any
 from collections.abc import Callable
 
-from mirobody.collect.files.services.table_indicators import EXTRACTOR as TABLE_EXTRACTOR, table_indicators, without_rows
+from mirobody.collect.files.services.table_indicators import (
+    EXTRACTOR as TABLE_EXTRACTOR,
+    left_for_model,
+    same_reading,
+    table_indicators,
+    without_rows,
+)
 from mirobody.utils.config.llm import resolve_route
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
@@ -144,20 +150,20 @@ class IndicatorExtractor:
             # With a document-OCR model routed, its tables are read by their
             # columns. The model reads what the rules left (a row they could
             # not read, text outside any table), and a rule's row outranks the
-            # model's for the same name: it is the value as printed.
+            # model's for the same printed row: it is the value as printed.
             extractor = ""
             rows, table_date, unread_count = table_indicators(original_text) if resolve_route("ocr") else ([], "", 0)
-            if rows and not unread_count:
+            rest = without_rows(original_text, rows) if rows else original_text
+            if rows and not unread_count and not left_for_model(rest):
                 extractor = TABLE_EXTRACTOR
                 llm_ret = {"indicators": rows, "content_info": {"date_time": table_date}}
                 logger.info(f"[IndicatorExtractor] {len(rows)} indicators read off tables, no model - user_id: {user_id}")
             else:
-                rest = without_rows(original_text, rows) if rows else original_text
                 llm_ret = await IndicatorExtractor._llm_extract(rest, language, user_id)
                 if rows:
                     extractor = f"{TABLE_EXTRACTOR}+llm:file-parser@indicators-v1"
                     llm_ret = IndicatorExtractor._merge_rule_rows(rows, table_date, llm_ret)
-                    logger.info(f"[IndicatorExtractor] {len(rows)} indicators read off tables, {unread_count} rows left to the model - user_id: {user_id}")
+                    logger.info(f"[IndicatorExtractor] {len(rows)} indicators read off tables, {unread_count} rows and the text outside them left to the model - user_id: {user_id}")
 
             if not llm_ret:
                 logger.warning(f"[IndicatorExtractor] LLM returned empty response for text extraction - user_id: {user_id}")
@@ -239,10 +245,14 @@ class IndicatorExtractor:
 
     @staticmethod
     def _merge_rule_rows(rows: list[dict], table_date: str, llm_ret: dict | None) -> dict:
-        """The rule rows, then the model's rows for every name the rules did not read."""
+        """The rule rows, then the model's rows for every printed row the rules
+        did not read: not the same name, and not the same value under a name a
+        misread character apart (the OCR's `y-` for the text layer's `γ-`)."""
         result = dict(llm_ret or {})
         seen = {r["original_indicator"].strip().lower() for r in rows}
-        extra = [i for i in result.get("indicators") or [] if str(i.get("original_indicator", "")).strip().lower() not in seen]
+        extra = [i for i in result.get("indicators") or []
+                 if str(i.get("original_indicator", "")).strip().lower() not in seen
+                 and not any(same_reading(i, r) for r in rows)]
         result["indicators"] = rows + extra
         info = dict(result.get("content_info") or {})
         info["date_time"] = table_date or info.get("date_time", "")

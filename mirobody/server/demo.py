@@ -141,9 +141,9 @@ _PROFILES: dict[str, dict] = {
         "sleep_h": (6.1, 5.4),
         "bp": (132, 86, 14),
         "lab": ("2025-11-12", "mom_lab_2025-11.md", (
-            ("Glycated Hemoglobin-HbA1c", 5.8, "%", "4.0-5.6", "H"),
+            ("Glycated Hemoglobin-HbA1c", 5.8, "%", "4.0-5.6", "high"),
             ("Fasting Blood Glucose-FBG", 5.6, "mmol/L", "3.9-6.1", ""),
-            ("Total Cholesterol-TC", 5.30, "mmol/L", "3.0-5.18", "H"),
+            ("Total Cholesterol-TC", 5.30, "mmol/L", "3.0-5.18", "high"),
         )),
         "uploads": ("mom_physical_2026-06.jpg", "mom_clinic_visit_2026-07.xlsx"),
     },
@@ -269,7 +269,8 @@ def _member_series(member_id: str, email: str) -> list[dict]:
     # HbA1c` is 4548-4; and the file this account uploads prints the same
     # names, so the upload lands on this series instead of beside it.
     # With the range and flag the document prints: without them an answer
-    # had to open the file to say whether a value was in range.
+    # had to open the file to say whether a value was in range. The flag is
+    # in the words an upload of the same document stores (`H` -> `high`).
     lab_day, document, panel = profile["lab"]
     for indicator, value, unit, ref, flag in panel:
         rows.append(row(indicator, value, lab_day, unit, "Lab draw",
