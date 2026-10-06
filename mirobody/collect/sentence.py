@@ -104,6 +104,11 @@ MAX_NAME = 200
 _FUTURE_SLACK = timedelta(minutes=10)
 
 _BP_NAME = re.compile(r"血压|blood\s*pressure|\bbp\b", re.IGNORECASE)
+#: A measurement's value starts with its number (a comparator first is fine).
+#: DeepSeek V4.1 Flash once answered `"value": "收缩压 123"`, the name inside
+#: the value, and it was stored as an uncoded reading nobody could chart
+#: (benchmarks/local_models, 2026-10-06); now it is reported as no value.
+_NUMBER_FIRST = re.compile(r"^\s*[<>≤≥]?\s*[-+]?\d")
 _BP_VALUE = re.compile(r"^\s*(\d{2,3}(?:\.\d+)?)\s*/\s*(\d{2,3}(?:\.\d+)?)\s*$")
 _CJK = re.compile(r"[一-鿿]")
 
@@ -432,7 +437,7 @@ def _skip_reason(part: Part, haystack: str) -> str:
         return SKIP_HYPOTHETICAL
     if part.assertion == ASSERT_STOPPED and part.kind != KIND_MEDICATION:
         return SKIP_NOT_A_RECORD
-    if part.kind == KIND_MEASUREMENT and not part.value:
+    if part.kind == KIND_MEASUREMENT and not _NUMBER_FIRST.match(part.value):
         return SKIP_NO_VALUE
     if part.kind != KIND_OTHER and len(part.name) > MAX_NAME:
         return SKIP_TOO_LONG

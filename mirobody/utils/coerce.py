@@ -21,7 +21,8 @@ from zoneinfo import ZoneInfo
 #: date is typed by a person and an export date is written by a machine. The
 #: printed shapes too (年月日, dots): a small local model copies the date as the
 #: report prints it, and MiniCPM5-2B wrote 2026年05月01日 for an XLSX, which
-#: then went under the upload day (benchmarks/local_models, 2026-10-06).
+#: then went under the upload day (benchmarks/local_models, 2026-10-06). An
+#: app screenshot printing 20260418 went the same way, with either model.
 DATE_FORMATS = (
     "%Y-%m-%d %H:%M:%S",
     "%Y-%m-%d",
@@ -34,6 +35,7 @@ DATE_FORMATS = (
     "%Y年%m月%d日 %H:%M:%S",
     "%Y.%m.%d",
     "%Y.%m.%d %H:%M",
+    "%Y%m%d",
 )
 
 
@@ -78,6 +80,9 @@ def parse_date(date_str: str, default: datetime | None = None) -> datetime | Non
     if not date_str:
         return default
     for fmt in DATE_FORMATS:
+        if fmt == "%Y%m%d" and not (len(date_str) == 8 and date_str.isdigit()):
+            # strptime reads 2026041 as 2026-04-01: one digit short is no date.
+            continue
         try:
             return datetime.strptime(date_str, fmt)
         except ValueError:

@@ -13,12 +13,29 @@ prints the unit twice anyway.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from mirobody.collect import observations
+from mirobody.utils.coerce import parse_date
 
 logger = logging.getLogger(__name__)
+
+
+def row_time(printed: Any, report_time: datetime) -> datetime:
+    """The time a row's reading was taken: the date the row itself prints
+    (a home log, a table by day), else the document's.
+
+    A log of twelve morning weights used to be filed as twelve readings of one
+    day, or one reading after the name-and-value dedup, because the extraction
+    had one date per document. A printed row date that does not parse, or is
+    more than a day ahead of now (a misread), is not used: the document's date
+    is, as it was for every row before.
+    """
+    at = parse_date(str(printed or ""))
+    if at is None or at > datetime.now() + timedelta(days=1):
+        return report_time
+    return at
 
 
 def generate_source_table_id(msg_id: str, file_key: str) -> str:
@@ -71,7 +88,7 @@ async def save_indicators_to_db(
             kind = observations.KIND_FINDING if method in ("Imaging", "Pathological") else observations.KIND_MEASUREMENT
             drafts.append(observations.Draft(
                 name_text=str(original_indicator),
-                observed_start=start_time,
+                observed_start=row_time(indicator.get("date_time"), start_time),
                 value_text=str(indicator.get("value") or ""),
                 unit_text=str(indicator.get("unit") or ""),
                 ref_text=str(indicator.get("reference_range") or ""),

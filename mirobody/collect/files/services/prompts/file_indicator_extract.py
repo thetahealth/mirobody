@@ -31,7 +31,7 @@ def get_extract_indicators_prompt(language: str = "zh-cn") -> str:
 - **Personal**: ID cards, certificates, tickets, receipts (non-medical)
 - **Communication**: Chat messages, emails (non-medical), letters
 - **Food/Nutrition**: Food images, nutrition labels, recipes, dietary records (NOT extracted)
-- **Other**: Any content without explicit medical examination reports or medical device data
+- **Other**: Any content with no health measurement, test result or clinical finding in it
 
 **For non-health content, immediately return:**
 ```json
@@ -53,6 +53,8 @@ Only continue extraction if content is a **medical examination report**:
 - Pathology reports: Biopsy results, cytology, histopathology
 - Physiological test reports: ECG, EEG, pulmonary function tests, etc.
 - Medical device data: Blood glucose monitors, blood pressure monitors, wearable health devices
+- Clinical notes: outpatient and inpatient records, discharge summaries, consultation notes. Extract every measured value they state (temperature, pulse, blood pressure, weight, a lab value quoted in the text), each as one indicator; the narrative itself is not an indicator
+- Self-measurement logs: home blood pressure, glucose, weight or temperature records, as a table, a list or a photo of a screen or a notebook. Every value in every row is one indicator, with that row's own `date_time`
 
 ---
 
@@ -95,6 +97,7 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 | detection_method | "laboratory" / "Imaging" / "Physiological" / "Pathological" / "wearable" |
 | status | "normal" / "high" / "low" as the report flags it, or by comparing with the reference range |
 | notes | Clinical significance or abnormality explanation in user's language |
+| date_time | The date (and time) printed on THIS row, YYYY-MM-DD HH:MM:SS, when rows carry their own dates (a log, a table by day); empty string when the row has the document's date |
 
 ### Completeness Requirements:
 1. **Extract EVERY indicator** listed in the report, including normal results
@@ -103,6 +106,7 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 4. **Preserve precision**: Keep exact numerical values and units as shown in report
 5. **Include sub-items**: If a test has multiple components (e.g., lipid panel), extract each component separately
 6. **Split pairs**: A value printed as a pair (blood pressure "120/80") is two indicators (systolic, diastolic), each with its own value
+7. **Rows with their own dates**: In a log or a table by day, each row's values are separate indicators carrying that row's `date_time`; the same name on twelve days is twelve indicators
 
 ---
 
@@ -141,8 +145,8 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
     "reference_number": ""
   }},
   "indicators": [
-    {{"original_indicator": "白细胞计数", "value": "15.5", "reference_range": "4.0-10.0", "unit": "×10⁹/L", "detection_method": "laboratory", "status": "high", "notes": "偏高"}},
-    {{"original_indicator": "红细胞计数", "value": "4.5", "reference_range": "4.0-5.5", "unit": "×10¹²/L", "detection_method": "laboratory", "status": "normal", "notes": ""}}
+    {{"original_indicator": "白细胞计数", "value": "15.5", "reference_range": "4.0-10.0", "unit": "×10⁹/L", "detection_method": "laboratory", "status": "high", "notes": "偏高", "date_time": ""}},
+    {{"original_indicator": "红细胞计数", "value": "4.5", "reference_range": "4.0-5.5", "unit": "×10¹²/L", "detection_method": "laboratory", "status": "normal", "notes": "", "date_time": ""}}
   ],
   "additional_info": {{
     "content_summary": "血常规检查",
@@ -254,6 +258,10 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                         "type": "string",
                         "description": "Clinical significance or abnormality explanation. Language determined by user language settings.",
                     },
+                    "date_time": {
+                        "type": "string",
+                        "description": "The date (and time) printed on THIS row, YYYY-MM-DD HH:MM:SS, when rows carry their own dates (a home log, a table by day). Empty string when the row has the document's date.",
+                    },
                 },
                 # Every column the report prints is required, empty string
                 # when the report shows none. Left optional, the model omitted
@@ -266,6 +274,7 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                     "reference_range",
                     "detection_method",
                     "status",
+                    "date_time",
                 ],
             },
         },

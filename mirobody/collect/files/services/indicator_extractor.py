@@ -6,7 +6,9 @@ Responsible for extracting health indicators from medical documents
 
 from mirobody.collect.files.services.indicator_store import save_indicators_to_db
 from mirobody.collect.files.services.report_date import manual_report_date, resolve_report_date
+import asyncio
 import json
+import re
 import time
 import logging
 from typing import Any
@@ -19,6 +21,7 @@ from mirobody.collect.files.services.table_indicators import (
     table_indicators,
     without_rows,
 )
+from mirobody.utils.coerce import parse_date
 from mirobody.utils.config.llm import resolve_route
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
@@ -51,6 +54,56 @@ _DATE_PROBE_SCHEMA = {
     },
     "required": ["date_time"],
 }
+
+
+#: Text longer than this that prints more than one page is read a page at a
+#: time. MiniCPM5-2B given a 7-page check-up book (8,945 characters, 5,251
+#: prompt tokens) in one request returned the header and `"indicators": []`;
+#: page by page it found 77 of the 78 printed rows. Groups of pages up to
+#: 3,000 and 4,500 characters found 72 and 67: a cover page in the same
+#: request was enough for it to answer with nothing (benchmarks/local_models,
+#: 2026-10-06). A one-page slip stays one request.
+PAGE_READ_CHARS = 3000
+#: How many pages are in flight at once: the local server's two slots.
+PAGE_READ_CONCURRENCY = 2
+#: The page header `documents.extract` writes between pages.
+_PAGE_MARK = re.compile(r"(?=^--- page \d+ ---$)", re.MULTILINE)
+
+
+def _pages(text: str) -> list[str]:
+    """The text's pages when it is long enough to read a page at a time,
+    else `[text]`."""
+    if len(text) <= PAGE_READ_CHARS:
+        return [text]
+    pages = [p for p in _PAGE_MARK.split(text) if p.strip()]
+    return pages if len(pages) > 1 else [text]
+
+
+def _merge_pages(answers: list[dict | None]) -> dict | None:
+    """One answer from a document's per-page answers: every page's rows in
+    page order; the document details from the first page that dates them (the
+    cover usually carries them); medical if any page is, since a cover page
+    alone reads as not health-related. None when no page was answered."""
+    read = [a for a in answers if isinstance(a, dict)]
+    if not read:
+        return None
+    medical = [a for a in read if a.get("content_type") == "medical_report"]
+    merged = dict((medical or read)[0])
+    dated = next((a for a in read if (a.get("content_info") or {}).get("date_time")), None)
+    if dated is not None:
+        merged["content_info"] = dated["content_info"]
+    if medical:
+        merged["content_type"] = "medical_report"
+    merged["indicators"] = [i for a in read for i in (a.get("indicators") or [])]
+    return merged
+
+
+def _latest_row_date(indicators: list[dict[str, Any]]) -> str:
+    """The latest date the rows print, as the document's date when it names
+    none of its own: a home log has no report date, and filed under the
+    upload day it would ask "which date?", whose answer moves every row to it."""
+    dated = [d for d in (parse_date(str(i.get("date_time") or "")) for i in indicators) if d is not None]
+    return max(dated).strftime("%Y-%m-%d %H:%M:%S") if dated else ""
 
 
 class IndicatorExtractor:
@@ -175,7 +228,7 @@ class IndicatorExtractor:
             # Parse result (async_get_structured_output returns dict directly)
             result = llm_ret if isinstance(llm_ret, dict) else json.loads(llm_ret)
             indicators = result.get("indicators", [])
-            exam_date = result.get("content_info", {}).get("date_time", "")
+            exam_date = result.get("content_info", {}).get("date_time", "") or _latest_row_date(indicators)
 
             logger.info(f"[IndicatorExtractor] Parsed {len(indicators)} indicators from text - user_id: {user_id}")
 
@@ -261,7 +314,25 @@ class IndicatorExtractor:
 
     @staticmethod
     async def _llm_extract(original_text: str, language: str, user_id: int) -> dict | None:
-        """The model's reading of a document: `indicators` and `content_info`, or None."""
+        """The model's reading of a document: `indicators` and `content_info`,
+        or None. A long document is read a page at a time (`_pages`)."""
+        pages = _pages(original_text)
+        if len(pages) == 1:
+            return await IndicatorExtractor._llm_extract_one(original_text, language, user_id)
+        gate = asyncio.Semaphore(PAGE_READ_CONCURRENCY)
+
+        async def read(page: str) -> dict | None:
+            async with gate:
+                return await IndicatorExtractor._llm_extract_one(page, language, user_id)
+
+        answers = await asyncio.gather(*(read(p) for p in pages))
+        failed = sum(1 for a in answers if not isinstance(a, dict))
+        logger.info(f"[IndicatorExtractor] read {len(pages)} pages, {failed} unanswered - user_id: {user_id}")
+        return _merge_pages(list(answers))
+
+    @staticmethod
+    async def _llm_extract_one(original_text: str, language: str, user_id: int) -> dict | None:
+        """One request: the whole text given, `indicators` and `content_info`, or None."""
         from mirobody.utils.llm import async_get_structured_output
 
         messages = [
@@ -295,7 +366,8 @@ class IndicatorExtractor:
         if not indicators:
             return []
 
-        # Use indicator name and value as deduplication key
+        # Name, value and the row's own date: a log prints the same weight on
+        # different mornings, and those are different readings.
         seen = set()
         unique_indicators = []
 
@@ -306,7 +378,7 @@ class IndicatorExtractor:
             if not name or not value:
                 continue
 
-            dedup_key = f"{name}_{value}"
+            dedup_key = (name, value, str(indicator.get("date_time") or "").strip())
 
             if dedup_key not in seen:
                 seen.add(dedup_key)

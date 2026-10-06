@@ -255,6 +255,26 @@ decisions.
 
 ### Fixed
 
+- **Long reports, clinic notes and home logs give their readings.** Three
+  shapes of document came back with none:
+  - a multi-page report sent to a small model in one request: MiniCPM5-2B
+    read the 7-page check-up book of the evaluation (78 printed rows) as
+    its header and `"indicators": []`. Text over 3,000 characters with page
+    headers is now read a page at a time, two pages at once, and the pages'
+    rows are joined: 78 of 78 on the same book;
+  - an outpatient note with its vitals in the text (T 36.6℃, BP 111/65, 体重
+    84.9kg): the prompt allowed only examination reports and device data.
+    Clinical notes and self-measurement logs are now health content, and the
+    values they state are readings: 10 rows from that note;
+  - a log of twelve morning weights: the extraction had one date per
+    document, so twelve weights could only be twelve readings of one day,
+    and two equal weights were deduplicated into one. A row now carries the
+    date it prints (`date_time`), the reading is filed under it, the same
+    value on two mornings is two readings, and a log with no date of its own
+    takes its latest row's: 12 rows on 12 mornings.
+  Measured with the product's own request on MiniCPM5-2B
+  (benchmarks/local_models, seed 7). To check: upload a photo of a weight
+  log; the Data page lists one reading per row, each on its own day.
 - **The journal reads a sentence on a small local model.** Under the JSON
   schema the journal asks for, MiniCPM5-2B answered `{"entries": []}` for
   "Been leg cramps for 5 days.", and the evaluation's 15 diary sentences
@@ -265,12 +285,15 @@ decisions.
   a negation, a meal), and MiniCPM5-2B answers each test sentence in 1-4 s
   in the writer's language. DeepSeek V4.1 Flash went from 6 to 8 of 8 test
   sentences right on the same change and Gemini 3.8 Flash stayed at 8.
-  Rows carry `llm:journal-sentence@v3`. To check: on the local small size,
-  type "Been leg cramps for 5 days." in the journal; it is a symptom, not a
-  note.
+  Rows carry `llm:journal-sentence@v3`. A measurement whose value does not
+  start with its number (`"收缩压 123"`, the name inside the value) is
+  reported as having no value instead of stored as an uncoded reading. To
+  check: on the local small size, type "Been leg cramps for 5 days." in the
+  journal; it is a symptom, not a note.
 - **A report date printed as 2026年05月01日 is the report's date.** The
   date reader knew `2026-05-01` and `2026/05/01` only, so a date the model
-  copied as printed (年月日, or dots: `2024.05.10`) counted as no date and the
+  copied as printed (年月日, dots: `2024.05.10`, or eight digits as an app
+  screenshot prints it: `20260418`) counted as no date and the
   readings went under the upload day, with the Data page asking which date.
   Small local models copy the printed form; MiniCPM5-2B did on an XLSX lab
   slip. The warning for a date it still cannot read logs the date's length,
