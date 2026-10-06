@@ -568,32 +568,33 @@ class PostgresHealthQuery:
         ) or []
         return [str(r["series_id"]) for r in rows]
 
-    async def _labels(self, subject_id: str, window: query.Window | None) -> list[tuple[str, str, str]]:
-        """`(label, series_id, code)` for every display and printed name."""
+    async def _labels(self, subject_id: str, window: query.Window | None) -> list[tuple[str, str]]:
+        """`(label, series_id)` for every display and printed name."""
         from mirobody.utils import execute_query
 
         params: dict[str, Any] = {"uid": str(subject_id)}
         where = self._kinds(params) + _window_clause(params, window)
         rows = await execute_query(
-            f"SELECT o.series_id, o.name_text, o.display, o.code FROM v_observation o"
+            f"SELECT o.series_id, o.name_text, o.display FROM v_observation o"
             f" WHERE o.user_id = :uid {where}"
-            f" GROUP BY o.series_id, o.name_text, o.display, o.code",
+            f" GROUP BY o.series_id, o.name_text, o.display",
             params,
             log_sql=False,
         ) or []
-        out: list[tuple[str, str, str]] = []
+        out: list[tuple[str, str]] = []
         for r in rows:
-            sid, code = str(r["series_id"]), str(r["code"] or "")
-            out.append((str(r["name_text"]), sid, code))
+            sid = str(r["series_id"])
+            out.append((str(r["name_text"]), sid))
             if r["display"]:
-                out.append((str(r["display"]), sid, code))
+                out.append((str(r["display"]), sid))
         return out
 
     async def _by_keywords(self, subject_id: str, keywords: tuple[str, ...], window: query.Window | None) -> list[str]:
         """Free text to the person's own series, in two tiers per keyword: a
         lexical rank over their printed and display names (free, deterministic,
-        scoped to what they have), then the offline resolvers' codes matched
-        against their codes, which reaches the same place with no key at all.
+        scoped to what they have), then the series the offline resolvers' codes
+        name, matched against their series, which reaches the same place with
+        no key at all.
 
         The tiers are per keyword: in ["血压", "头痛"] a lexical hit on the
         first must not stop the second from reaching an entry written 头疼,
@@ -603,34 +604,43 @@ class PostgresHealthQuery:
             return []
         labels = await self._labels(subject_id, window)
         by_label: dict[str, str] = {}
-        for label, sid, _code in labels:
+        for label, sid in labels:
             by_label.setdefault(label, sid)
         found: list[str] = []
         for kw in kws:
             ranked = [by_label[label] for label in query.rank_catalog(kw, list(by_label), limit=MAX_KEYWORD_NAMES)]
             if not ranked:
-                codes = self._codes_for(kw)
-                ranked = [sid for _label, sid, code in labels if code and code in codes]
+                named = self._series_for(kw)
+                ranked = [sid for _label, sid in labels if sid in named]
             found.extend(ranked)
         return list(dict.fromkeys(found))[:MAX_KEYWORD_NAMES]
 
-    def _codes_for(self, keyword: str) -> set[str]:
-        """The codes one keyword names: LOINC always, and the two ICPC-3 axes
+    def _series_for(self, keyword: str) -> set[str]:
+        """The series one keyword names: LOINC always, and the two ICPC-3 axes
         when reported entries are in scope. Each resolver abstains on what is
-        not its own, so 头痛 yields only NS01 and 血压 only a LOINC code."""
-        codes: set[str] = set()
+        not its own, so 头痛 yields only NS01 and 血压 only a LOINC series.
+
+        A series, not a code. The resolver answers a NAME with one code, and
+        a reading is coded by its unit too: "triglycerides" resolves to 2571-8
+        (mass) and a reading printed in mmol/L is 14927-8 (moles), so matching
+        codes missed it (1.5.4 local-model evaluation). The series is where the
+        writer files both (`translate.series_of`), mass and moles, with or
+        without a method."""
+        named: set[str] = set()
         try:
             from mirobody.engine import resolve
             hit = resolve(keyword)
             if hit.resolved and hit.loinc and hit.method == "lexical":
-                codes.add(hit.loinc)
+                series = translate.series_of(hit.loinc)
+                if series:
+                    named.add(series)
         except Exception as e:
             logger.warning("offline resolver unavailable in keyword recall: error_type=%s", type(e).__name__)
         if self._reported:
             for coding in (translate.resolve_symptom(keyword), translate.resolve_condition(keyword)):
                 if coding.outcome == "coded" and coding.code:
-                    codes.add(coding.code)
-        return codes
+                    named.add(coding.series_id)
+        return named
 
     async def _subday_buckets(self, subject_id: str, names: list[str], window: query.Window, resolution: str) -> list[dict]:
         from mirobody.utils import execute_query

@@ -300,6 +300,29 @@ decisions.
   Measured with the product's own request on MiniCPM5-2B
   (benchmarks/local_models, seed 7). To check: upload a photo of a weight
   log; the Data page lists one reading per row, each on its own day.
+- **A keyword finds a reading whatever its unit and however it is spelled.**
+  On the 1.5.4 local-model evaluation, `query_health_indicators(keywords=
+  ["triglycerides"])` left out a triglyceride printed as `甘油三酯（TG）` in
+  mmol/L, for every model size. Two tiers missed it. The lexical one compared
+  the word with its plural `s` against `Triglyceride [Moles/volume] …`, and
+  "triglyceride" found it. The code one compared codes: the word resolves to
+  2571-8 (mass) and the reading was coded 14927-8 (moles). Words are now
+  plural-folded on both sides (`lexical.fold_plural`: `-s`, `-ies`, `-sses`,
+  by suffix), and the code tier matches the series the code names
+  (`translate.series_of`), which holds mass and moles, with or without a
+  method, together. "creatinines", "ferritins", "weights" and "LDLs" missed
+  the same way and now find their readings. To tell: with a triglyceride
+  stored in mmol/L, `keywords=["triglycerides"]` and `["TG"]` both return it.
+- **`FER` is ferritin, and `haemoglobin` is hemoglobin.** A lab slip's `FER
+  42.3 ng/mL` was coded 2498-4, Iron: LOINC's French translations name iron
+  `Fer`, and the index folds case. A ferritin question then saw July's
+  reading and not March's; DeepSeek V4.1 Flash found March only by searching
+  the report text. The British `haemoglobin` answered 4548-4, Hemoglobin A1c,
+  as `血红蛋白` once did. Both now answer what their spelled-out names answer
+  (20567-4 and 718-7), through two rows in `resolver_overrides.tsv`; a French
+  report's bare `Fer` now answers ferritin too. Readings already stored keep
+  their code until `mirobody recode` runs. To tell: `mirobody resolve FER`
+  prints a Ferritin code; resolver coverage is 300/300.
 - **The journal reads a sentence on a small local model.** Under the JSON
   schema the journal asks for, MiniCPM5-2B answered `{"entries": []}` for
   "Been leg cramps for 5 days.", and the evaluation's 15 diary sentences

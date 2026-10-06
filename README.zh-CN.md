@@ -194,7 +194,7 @@ codex plugin marketplace add thetahealth/mirobody && codex plugin add mirobody@m
 
 | 说法 | 怎么验 |
 | --- | --- |
-| **296/296**：常规体检会打印的那些项目，按报告上真正的印法写，覆盖英文、中文（简体和繁体）、日文、俄文和爱沙尼亚文 | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 跑一下就会把分数打出来 |
+| **300/300**：常规体检会打印的那些项目，按报告上真正的印法写，覆盖英文、中文（简体和繁体）、日文、俄文和爱沙尼亚文 | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 跑一下就会把分数打出来 |
 | **328 个 UCUM 单位**，带量纲分析和摩尔质量换算，百分比和绝对值之间明确拒绝换算 | [标准化详解](docs/standardization.zh-CN.md) |
 | **316 项设备指标** | [设备对照表](docs/device-crosswalk.md) |
 | 包会自己说清楚是哪份词表在回答你：`mirobody.BUNDLE_VERSION` 是 `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
