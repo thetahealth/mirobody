@@ -61,7 +61,10 @@
   local` (NVIDIA) or `--profile local-cpu` runs it next to the app. Each
   model server keeps at most 1 GiB of prompt cache, the reader none:
   llama.cpp's default is 8 GiB per model, and two small models filled a
-  16 GB Mac's disk with swap. The evaluation, its seed and how to rerun it
+  16 GB Mac's disk with swap. Both slots of a model share one KV pool
+  (`kv-unified`), so one long question can use the whole context: split, a
+  32k model answered in a 16k slot and two evaluation questions ended in
+  `ContextOverflowError`, at the same memory. The evaluation, its seed and how to rerun it
   are in `benchmarks/local_models/`; `docs/local-models.md` is the guide.
   The models download from Hugging Face the first time; `HF_ENDPOINT` in
   `.env` points the `llama` service at a mirror.
@@ -252,6 +255,19 @@ decisions.
 
 ### Fixed
 
+- **The journal reads a sentence on a small local model.** Under the JSON
+  schema the journal asks for, MiniCPM5-2B answered `{"entries": []}` for
+  "Been leg cramps for 5 days.", and the evaluation's 15 diary sentences
+  became 1 entry of 31 (benchmarks/local_models, seed 7); every sentence was
+  kept only as a note. Unconstrained, the model found the entries, but it
+  started its answer by echoing the schema. The request now shows two worked
+  answers first (a symptom with a time, a temperature, someone else's cough,
+  a negation, a meal), and MiniCPM5-2B answers each test sentence in 1-4 s
+  in the writer's language. DeepSeek V4.1 Flash went from 6 to 8 of 8 test
+  sentences right on the same change and Gemini 3.8 Flash stayed at 8.
+  Rows carry `llm:journal-sentence@v3`. To check: on the local small size,
+  type "Been leg cramps for 5 days." in the journal; it is a symptom, not a
+  note.
 - **A report date printed as 2026年05月01日 is the report's date.** The
   date reader knew `2026-05-01` and `2026/05/01` only, so a date the model
   copied as printed (年月日, or dots: `2024.05.10`) counted as no date and the

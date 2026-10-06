@@ -25,6 +25,7 @@ that is not written comes back with its reason:
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import unicodedata
@@ -38,7 +39,7 @@ from mirobody.kernel import meds
 
 logger = logging.getLogger(__name__)
 
-EXTRACTOR = "llm:journal-sentence@v2"
+EXTRACTOR = "llm:journal-sentence@v3"
 
 KIND_MEASUREMENT = "measurement"
 KIND_SYMPTOM = "symptom"
@@ -202,6 +203,47 @@ the writer included, is "other".
 - If nothing is stated worth an entry, return no entries."""
 
 
+def _entry(**fields: str) -> dict[str, str]:
+    """One answer entry with every required field, as the schema spells it."""
+    blank = dict.fromkeys(RESPONSE_SCHEMA["properties"]["entries"]["items"]["required"], "")
+    return {**blank, "assertion": ASSERT_PRESENT, "subject": SUBJECT_SELF, **fields}
+
+
+#: Two worked answers, sent as earlier turns before the real sentence. Under
+#: a json_schema (or json_object) grammar, MiniCPM5-2B closed `entries` at
+#: once: `[]` for "Been leg cramps for 5 days." and 30 of the evaluation's
+#: 31 entries (benchmarks/local_models, 2026-10-06). Unconstrained, the same
+#: model found them, but opened its answer by echoing the schema's own
+#: `{"type": "object", "properties": ...}`, so the grammar forced it off
+#: its path. With these two turns first it answered all six repro
+#: sentences in 1-4 s, in the writer's language. They show the rules a
+#: small model needs to see rather than read: one entry per thing, the
+#: person's words, a negation and someone else kept and marked, a time
+#: resolved from NOW, and a meal as an `other` entry.
+_EXAMPLES: tuple[tuple[str, dict[str, Any]], ...] = (
+    (
+        (
+            "NOW: 2026-03-02 09:00 (CST)\n"
+            "SENTENCE: Sore throat since yesterday, temp 38.2 this morning, my son has a cough too."
+        ),
+        {"entries": [
+            _entry(quote="Sore throat since yesterday", kind=KIND_SYMPTOM, name="Sore throat", when="2026-03-01 09:00"),
+            _entry(quote="temp 38.2 this morning", kind=KIND_MEASUREMENT, name="temp", value="38.2", unit="℃",
+                   when="2026-03-02 08:00"),
+            _entry(quote="my son has a cough too", kind=KIND_SYMPTOM, name="cough", subject=SUBJECT_OTHER),
+        ]},
+    ),
+    (
+        "NOW: 2026-03-02 21:00 (CST)\nSENTENCE: 没发烧，晚饭吃了一碗面，有点头晕",
+        {"entries": [
+            _entry(quote="没发烧", kind=KIND_SYMPTOM, name="发烧", assertion=ASSERT_NEGATED),
+            _entry(quote="晚饭吃了一碗面", kind=KIND_OTHER, name="晚饭吃了一碗面"),
+            _entry(quote="有点头晕", kind=KIND_SYMPTOM, name="头晕", detail="有点"),
+        ]},
+    ),
+)
+
+
 @dataclass(frozen=True)
 class Part:
     """One entry as the model stated it, before any check."""
@@ -243,8 +285,15 @@ def messages_for(sentence: str, now: datetime, *, record_of: str | None = None) 
     head = f"NOW: {now:%Y-%m-%d %H:%M} ({now.tzname() or ''})\n"
     if record_of is not None:
         head += f"RECORD OF: {record_of or 'the person the writer is logging for'}\n"
+    shown: list[dict[str, str]] = []
+    for asked, answered in _EXAMPLES:
+        shown += [
+            {"role": "user", "content": asked},
+            {"role": "assistant", "content": json.dumps(answered, ensure_ascii=False)},
+        ]
     return [
         {"role": "system", "content": _PROMPT},
+        *shown,
         {"role": "user", "content": f"{head}SENTENCE: {sentence}"},
     ]
 
