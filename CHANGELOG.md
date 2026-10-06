@@ -255,6 +255,26 @@ decisions.
 
 ### Fixed
 
+- **The table rules keep a table's unit and range, and store no signer line.**
+  On the local-model evaluation (benchmarks/local_models, seed 7), the rules
+  read `单位(Unit)`, `正常范围值`, a slip's bare `参考`, a blank header over the
+  ranges and ranges printed under `结果提示` as no column, so a book's readings
+  were stored with no unit and no range: hemoglobin 140 was `needs-input,
+  unit:missing` and uncoded, and a query by its code missed it. A photo's OCR
+  put the signer line `检查者：…` inside the result table and it was stored as
+  a reading: the patient and paperwork labels matched only a cell that held
+  the label alone, and the name after it passed as a result word. Those
+  headers are now in the vocabulary; a column under a blank header, or under a
+  flag word, is typed by its cells (ranges, or units); a unit printed after
+  the range (`<7.00&ng/mL`) is the unit; a label is recognized with its value
+  in the same cell; and a word with a colon, a unit alone in the value cell
+  (`MCV | fl`) and a panel's `是否异常 | 是` go to the model instead. On the
+  21 corpus documents the rules read, rebuilt from the generator's own HTML:
+  units 54 → 883 of 883 printed, ranges 54 → 1,005 of 1,005, rows stored that
+  are not printed readings 18 → 0, readings coded 573 → 807; the same 21
+  documents are read, with the same dates. To tell: upload a report whose
+  header is `检测项目 | 测定值 | | 单位(Unit)`; hemoglobin is stored with g/L
+  and its range, and coded 718-7.
 - **The journal reads a sentence on a small local model.** Under the JSON
   schema the journal asks for, MiniCPM5-2B answered `{"entries": []}` for
   "Been leg cramps for 5 days.", and the evaluation's 15 diary sentences
