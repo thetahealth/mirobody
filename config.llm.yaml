@@ -309,11 +309,6 @@ LOCAL_SETUP:
       agent: minicpm5-2b
       ocr: glm-ocr
       download_gb: 3.0
-    - id: medium
-      sees: true
-      agent: qwen3.5-9b
-      ocr: glm-ocr
-      download_gb: 8.0
     - id: large
       sees: true
       agent: qwen3.8-27b
