@@ -194,7 +194,7 @@ Encryption at rest covers chat, uploaded files, medication text and your profile
 
 | Claim | Check it |
 | --- | --- |
-| **300/300** on the tests an ordinary checkup prints, written the way a report prints them, in English, Chinese (Simplified and Traditional), Japanese, Russian and Estonian | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the score when you run it |
+| **317/317** on the tests an ordinary checkup prints, written the way a report prints them, in English, Chinese (Simplified and Traditional), Japanese, Russian and Estonian | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the score when you run it |
 | **328 UCUM units** with dimensional analysis, a molar-mass bridge, and an explicit refusal to convert a percentage into a count | [Standardization in depth](docs/standardization.md) |
 | **316 standard device indicators** | [Device crosswalk](docs/device-crosswalk.md) |
 | The package names the vocabulary that answered you: `mirobody.BUNDLE_VERSION` is `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |

@@ -280,6 +280,17 @@ decisions.
 
 ### Fixed
 
+- **The thyroid panel resolves as its slips print it.** `TT4` answered
+  3024-7, FREE thyroxine, so a total T4 of 114.5 nmol/L would be stored as
+  free T4, and `总甲状腺素(TT4)` was refused as naming two analytes; `TRAb`
+  answered 63363-6, the antibody in blood from a fetus; and `TT3`, `超敏促甲状腺
+  激素`, `抗TPO抗体`, `抗TG抗体`, `促甲状腺素受体抗体` and the English antibody names
+  resolved to nothing. Seventeen rows in `resolver_overrides.tsv` point each
+  at a key the index answers correctly (found reading the OCR benchmark's
+  corpus). `Tg` (thyroglobulin) still answers triglycerides: keys are
+  case-blind and TG is the far commoner reading. Readings already stored keep
+  their code until `mirobody recode`. To tell: `mirobody resolve TT4` prints
+  3026-2; resolver coverage is 317/317.
 - **Any document-OCR model's answer is read: PaddleOCR-VL's and MinerU's
   tables too.** Each OCR pass reached the readers as the model wrote it.
   PaddleOCR-VL-1.6 and MinerU2.5 answer `Table Recognition:` in OTSL

@@ -302,7 +302,7 @@ it came from memory.
 
 Storing, charting, and Garmin, Oura or WHOOP data are the running
 application, one `./deploy.sh` away and covered by the `mirobody` skill.
-Coverage is 300/300 on the tests an ordinary checkup prints, in English,
+Coverage is 317/317 on the tests an ordinary checkup prints, in English,
 Chinese (Simplified and Traditional), Japanese, Russian and Estonian, against
 bundle `loinc-2.83+2026.09.17-aacb2c715b56`. Beyond those panels, expect
 gaps, and prefer a reported gap to a confident guess.

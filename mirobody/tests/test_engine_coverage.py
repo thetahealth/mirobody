@@ -157,6 +157,25 @@ CASES: list[tuple[str, str, str]] = [
     # `FER` answered 2498-4 Iron: French LOINC names the iron component `Fer`.
     ("FER",                         r"ferritin",                     r"^iron"),
     ("Ferritin (FER)",              r"ferritin",                     r"^iron"),
+    # `TT4` answered 3024-7, free thyroxine; the antibodies resolved to nothing.
+    ("TT4",                         r"^thyroxine \(T4\)",           r"free"),
+    ("总甲状腺素(TT4)",               r"^thyroxine \(T4\)",           r"free"),
+    ("Total thyroxine",             r"^thyroxine \(T4\)",           r"free"),
+    ("TT3",                         r"^triiodothyronine \(T3\)",    r"free"),
+    ("总三碘甲状腺原氨酸(TT3)",        r"^triiodothyronine \(T3\)",    r"free"),
+    ("Total triiodothyronine",      r"^triiodothyronine \(T3\)",    r"free"),
+    ("超敏促甲状腺激素",              r"thyrotropin",                  r"receptor"),
+    ("抗TPO抗体",                    r"thyroperoxidase ab",           ""),
+    ("TPO抗体",                      r"thyroperoxidase ab",           ""),
+    ("抗甲状腺过氧化物酶抗体",          r"thyroperoxidase ab",           ""),
+    ("Thyroid peroxidase antibody", r"thyroperoxidase ab",           ""),
+    ("抗TG抗体",                     r"thyroglobulin ab",             ""),
+    ("TG-Ab",                       r"thyroglobulin ab",             r"triglyceride"),
+    ("抗甲状腺球蛋白抗体",              r"thyroglobulin ab",             ""),
+    ("Thyroglobulin antibody",      r"thyroglobulin ab",             ""),
+    ("促甲状腺素受体抗体",              r"thyrotropin receptor ab",      r"fetus"),
+    # `TRAb` answered 63363-6, the antibody in blood from a fetus.
+    ("TRAb",                        r"thyrotropin receptor ab",      r"fetus"),
     ("CRP",                         r"c reactive protein",           r""),
     # ── Simplified Chinese ────────────────────────────────────────────────────
     ("血红蛋白",                     r"hemoglobin",                   r"A1c|glycated"),
