@@ -15,6 +15,19 @@ cells; a header that names the name column twice is two panels side by side
 rows that look like readings under it. Headers are compared with Traditional
 folded to Simplified (`zh_fold`), so `檢驗項目 | 結果` reads as `检验项目 | 结果`.
 
+An OCR model's grid is not the printed one. Measured on the OCR benchmark
+(benchmarks/local_ocr, 2026-10-07), PaddleOCR-VL-1.6 returns a whole page as
+one grid: every panel's title and header inside it, a header split over two
+rows or several header words in one cell, a page's opening rows above the
+next panel's header, and a row's empty cells moved (`ALT | 23 | | U/L | 7~40 |
+02 |` under `… | Methodology | Status | Unit | Normal Range | Lab`). So spans
+keep their columns (`_Tables`), a split header is joined (`_rejoined`,
+`_split_cells`), rows above a table's first header borrow it, a row whose
+cells contradict their columns is laid again by content (`_seat`), and a
+table with no header at all is typed by its cells when nothing about it is
+ambiguous (`_by_content`). GLM-OCR and MinerU2.5 make the same moves less
+often; each is read the same way.
+
 A row is a reading only when it looks like one: a result that is a number, an
 ordinal (`1+`) or a nominal word (阴性, negative), beside a unit the unit engine
 knows and a range (or nothing there). A row of patient details (姓名, 年龄,
@@ -36,6 +49,7 @@ from __future__ import annotations
 import bisect
 import csv
 import difflib
+import functools
 import html
 import itertools
 import re
@@ -63,7 +77,12 @@ _HEADERS: dict[str, tuple[str, ...]] = {
              "testname", "testitem", "item", "items", "parameter", "name", "indicator", "component",
              "observation", "metric"),
     "value": ("结果", "检验结果", "检查结果", "检测结果", "化验结果", "报告结果", "本次结果", "测定结果", "测定值",
-              "测量值", "检测值", "数值", "result", "results", "value", "measured", "measuredvalue"),
+              "测量值", "检测值", "数值", "result", "results", "value", "measured", "measuredvalue", "inrange"),
+    # A second result column, read when the first is empty: `Items | In Range |
+    # Out of Range | Reference Interval`, the layout of a US lab's report, puts
+    # each result under one of the two. None of the three OCR models' tables
+    # of it was read before this (OCR benchmark, 2026-10-07).
+    "out": ("outofrange",),
     "unit": ("单位", "单位unit", "unit", "units"),
     "ref": ("参考值", "参考范围", "参考区间", "参考", "参考值范围", "正常值", "正常范围", "正常范围值", "正常参考值",
             "生物参考区间", "reference", "referencerange", "referenceinterval", "range", "ref", "refrange",
@@ -94,6 +113,11 @@ _ADMIN = {
     "登记号", "样本号", "标本号", "标本类型", "样本类型", "标本", "条码号", "申请医生", "送检医生", "开单医生",
     "申请科室", "送检科室", "检查者", "检验者", "检验医师", "检验人", "审核者", "审核人", "审核医师", "报告者", "报告人",
     "报告医生", "操作者", "采样时间", "采集时间", "接收时间", "检验时间", "报告时间", "报告日期", "送检日期",
+    # The date labels `_DATE_LABELS` reads were not all here: a slip's
+    # `采样日期：20221205 | 报告日期：20221205` row, which PaddleOCR-VL-1.6 put
+    # in the result table, was left to the model as an unread row (OCR
+    # benchmark, 2026-10-07).
+    "采样日期", "采集日期", "检查日期", "检验日期", "检查时间",
     "临床诊断", "备注", "电话", "地址", "身份证号", "医院", "页码",
     # The report's own tally of its abnormal rows (`异常项目数 | 7`), printed
     # inside the table: four corpus documents had it stored as a reading.
@@ -147,34 +171,64 @@ def _key(cell: str) -> str:
 
 
 class _Tables(HTMLParser):
-    """Every <table> as a list of rows, a row as its cell texts."""
+    """Every <table> as a list of rows, a row as its cell texts laid on the
+    table's grid: a cell spanning columns is followed by empty cells, and a
+    row under a cell spanning rows has an empty cell in its place, so every
+    cell keeps its column. Measured on the OCR benchmark (2026-10-07): a
+    header of PaddleOCR-VL's whose `Lab` cell spanned two columns read one
+    column short of its rows, and every cell after it under the wrong word."""
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.tables: list[list[list[str]]] = []
         self._row: list[str] | None = None
         self._cell: list[str] | None = None
+        self._span = (1, 1)
+        self._above: dict[int, int] = {}  # column -> rows a cell above still covers, this one included
+        self._new: dict[int, int] = {}
 
     def handle_starttag(self, tag, attrs):
         if tag == "table":
             self.tables.append([])
+            self._above = {}
         elif tag == "tr" and self.tables:
-            self._row = []
+            self._row, self._new = [], {}
         elif tag in ("td", "th") and self._row is not None:
             self._cell = []
+            a = dict(attrs)
+            self._span = (_span(a.get("colspan")), _span(a.get("rowspan")))
+
+    def _covered(self):
+        while self._row is not None and len(self._row) in self._above:
+            self._row.append("")
 
     def handle_endtag(self, tag):
         if tag in ("td", "th") and self._row is not None and self._cell is not None:
+            self._covered()
+            columns, rows = self._span
+            start = len(self._row)
             self._row.append(" ".join("".join(self._cell).split()))
+            self._row.extend([""] * (columns - 1))
+            if rows > 1:
+                self._new.update(dict.fromkeys(range(start, start + columns), rows - 1))
             self._cell = None
         elif tag == "tr" and self._row is not None:
+            self._covered()
             if any(self._row):
                 self.tables[-1].append(self._row)
+            self._above = {c: n - 1 for c, n in self._above.items() if n > 1} | self._new
             self._row = None
 
     def handle_data(self, data):
         if self._cell is not None:
             self._cell.append(data)
+
+
+def _span(value: str | None) -> int:
+    try:
+        return min(max(int(value or 1), 1), 100)
+    except ValueError:
+        return 1
 
 
 def _html_tables(text: str) -> list[list[list[str]]]:
@@ -257,6 +311,127 @@ def _header(row: list[str]) -> list[dict[str, int]] | None:
     return groups or None
 
 
+def _split_cells(row: list[str]) -> list[str]:
+    """A header row with each cell that names several columns split into one
+    cell per column, or `row` itself when no cell does. Measured on the OCR
+    benchmark (2026-10-07): PaddleOCR-VL-1.6 wrote a check-up book's
+    `Measurement | Methodology | Status | Unit` as one cell over its two
+    columns of results and units. A cell is split only when two or more of
+    its words are column words, so `Test Item` or `Normal Range` stays whole."""
+    out: list[str] = []
+    for cell in row:
+        words = cell.split()
+        if len(words) < 2 or _column(cell):
+            out.append(cell)
+            continue
+        parts, i = [], 0
+        while i < len(words):
+            n = next(n for n in (3, 2, 1) if i + n <= len(words) and (n == 1 or _column(" ".join(words[i:i + n]))))
+            parts.append(" ".join(words[i:i + n]))
+            i += n
+        out.extend(parts if sum(1 for part in parts if _column(part)) >= 2 else [cell])
+    return out if len(out) > len(row) else row
+
+
+def _joined(rest: list[str], name_row: list[str]) -> list[str] | None:
+    """`rest` with the one cell of `name_row`, a name column word, in its
+    column, when that makes a header of `rest`: a header the OCR split over
+    two rows. Measured on the OCR benchmark (2026-10-07): PaddleOCR-VL-1.6 put
+    a panel's title in the header row, `血常规 | 英文名称 | 化验结果 | 参考值`,
+    and `检查项目` alone on the row under it, and the 22 rows of the panel went
+    unread for want of a name column."""
+    filled = [(i, c) for i, c in enumerate(name_row) if c.strip()]
+    if len(filled) != 1 or _column(filled[0][1]) != "name" or filled[0][0] >= len(rest):
+        return None
+    i, word = filled[0]
+    if _column(rest[i]) or _header(rest):
+        return None
+    joined = [*rest[:i], word, *rest[i + 1:]]
+    return joined if _header(joined) else None
+
+
+def _rejoined(table: list[list[str]]) -> list[list[str]]:
+    """`table` with every header split over two rows (`_joined`) as one row."""
+    out: list[list[str]] = []
+    i = 0
+    while i < len(table):
+        after = table[i + 1] if i + 1 < len(table) else None
+        joined = after is not None and (_joined(table[i], after) or _joined(after, table[i]))
+        out.append(joined or table[i])
+        i += 2 if joined else 1
+    return out
+
+
+def _by_content(table: list[list[str]]) -> list[dict[str, int]] | None:
+    """The one panel of a table with no header, typed by its cells alone, or
+    None unless every column a reading needs is unambiguous: one column of
+    numeric results, one of ranges (a lab table prints them; a list of doses
+    or prices does not), names to the left of the results, at most one unit
+    column, and results on the scale of their ranges in four rows of five.
+    A row number, a code repeated on every row and a mostly empty column are
+    no column. Two result columns (this result and the last) are the model's.
+    Measured on the OCR benchmark (2026-10-07): a check-up book's second page
+    continues the first page's panel with no header of its own, and a photo
+    of that page alone held 20 readings no rule could read."""
+    body = [r for r in table if sum(1 for c in r if c.strip()) >= 3 and not _admin(next(c for c in r if c.strip()))]
+    if len(body) < 3:
+        return None
+    columns: dict[str, list[int]] = {"name": [], "value": [], "ref": [], "unit": []}
+    for i in range(max(len(r) for r in body)):
+        cells = [r[i].strip() for r in body if i < len(r) and r[i].strip()]
+        if 5 * len(cells) < 4 * len(body) or len(set(cells)) == 1:
+            continue
+        if all(c.isdigit() for c in cells) and all(int(b) == int(a) + 1 for a, b in itertools.pairwise(cells)):
+            continue
+        kinds = [_kinds(c) for c in cells]
+        if all("ref" in k and _RANGE_IN.search(c) for k, c in zip(kinds, cells, strict=True)):
+            columns["ref"].append(i)
+        elif all("value" in k and re.search(r"\d", c) for k, c in zip(kinds, cells, strict=True)):
+            columns["value"].append(i)
+        elif _unit_cells(cells):
+            columns["unit"].append(i)
+        elif all("text" in k for k in kinds):
+            columns["name"].append(i)
+    if len(columns["value"]) != 1 or len(columns["ref"]) != 1 or len(columns["unit"]) > 1:
+        return None
+    value = columns["value"][0]
+    names = [i for i in columns["name"] if i < value]
+    if not names:
+        return None
+    panel = {"name": names[-1], "value": value, "ref": columns["ref"][0]}
+    if columns["unit"]:
+        panel["unit"] = columns["unit"][0]
+    near = [n for r in body if max(value, panel["ref"]) < len(r) and (n := _near(r[value], r[panel["ref"]])) is not None]
+    return [panel] if near and 5 * sum(near) >= 4 * len(near) else None
+
+
+def _near(value: str, ref: str) -> bool | None:
+    """Whether a result is within ten times its range (or bound), None when
+    either is not a number: how a lab result sits beside its range."""
+    number = re.match(r"\s*[<>≤≥]?\s*([-+]?\d+(?:\.\d+)?)", value)
+    bounds = [float(b) for b in re.findall(r"\d+(?:\.\d+)?", (_ref_unit(ref) or (ref,))[0])]
+    if not number or not bounds:
+        return None
+    v = float(number.group(1))
+    return min(bounds) / 10 <= v <= max(bounds) * 10 if max(bounds) > 0 else v <= 10
+
+
+def _header_at(table: list[list[str]], i: int) -> tuple[list[dict[str, int]] | None, int, bool] | None:
+    """When row `i` is a header: (its panels as the cells under it confirm
+    them, or None when they contradict every one; its width; whether its
+    cells were split, so every row under it is laid by content). None when
+    row `i` is no header."""
+    row = _split_cells(table[i])
+    header = _header(row)
+    if not header:
+        return None
+    split = row is not table[i]
+    body = table[i + 1:]
+    if split:
+        body = [_seat(r, header, len(row)) or [] for r in itertools.takewhile(lambda r: not _header(r), body)]
+    return _by_cells(row, header, body) or None, len(row), split
+
+
 def _admin(cell: str) -> bool:
     """Whether `cell` is a label of the patient or the paperwork, printed alone
     (`审核者`) or with its value after a colon (`审核者：王五`). Measured on the
@@ -293,7 +468,8 @@ def _unit_cells(cells: list[str]) -> bool:
 def _results(cells: list[str]) -> int:
     """How many cells read as a result: a number, an ordinal or a nominal word,
     less a trailing flag."""
-    return sum(1 for c in cells if translate.parse_value(_split_flag(c, "")[0], "").value_kind in _RESULT_KINDS)
+    return sum(1 for c in cells if translate.parse_value(_split_flag(c, "")[0], "").value_kind in _RESULT_KINDS
+               or _value_parts(c))
 
 
 def _by_cells(row: list[str], groups: list[dict[str, int]], body: list[list[str]]) -> list[dict[str, int]]:
@@ -347,6 +523,13 @@ def _by_cells(row: list[str], groups: list[dict[str, int]], body: list[list[str]
                 g["unit"] = i
         typed.append(g)
     return typed
+
+
+def _is_unit(cell: str) -> bool:
+    """A unit and nothing else: not `<5.18 mmol/L` or `10.0/L`, which the unit
+    engine reads past their numbers, and not `1`, which it reads as unity."""
+    return (normalize_unit(cell) is not None and not _NUMBER.match(cell)
+            and translate.parse_value(cell, "").value_kind != "quantity")
 
 
 def _unit_like(unit: str) -> bool:
@@ -408,13 +591,165 @@ def _split_flag(value: str, ref: str) -> tuple[str, str]:
 def _ref_unit(ref: str) -> tuple[str, str] | None:
     """`(range, unit)` when a reference cell prints the unit after the range: a
     slip with no unit column does (`<7.00&ng/mL`, `125-350&10^9/L`, `0-5.0
-    ng/mL`). After an `&` the range may be cut short (`<8.…&mg/L`)."""
-    head, amp, tail = ref.rpartition("&")
-    if amp and re.search(r"\d", head) and normalize_unit(tail.strip()) is not None:
-        return head.strip(), tail.strip()
+    ng/mL`). After an `&` the range may be cut short (`<8.…&mg/L`). A `±`
+    between a range and a unit is that `&` misread: PaddleOCR-VL-1.6 read
+    every `&` of a slip as `\\pm` (OCR benchmark, 2026-10-07), and a tolerance
+    is a number, never a unit."""
+    for separator in ("&", "±"):
+        head, found, tail = ref.rpartition(separator)
+        if found and re.search(r"\d", head) and _is_unit(tail.strip()):
+            return head.strip(), tail.strip()
     m = _REF_UNIT.match(ref)
     unit = m.group(2) or m.group(3) if m else None
     return (m.group(1).strip(), unit.strip()) if unit and normalize_unit(unit) is not None else None
+
+
+_VALUE_HEAD = re.compile(r"^\s*([<>≤≥]?\s*[-+]?\d+(?:\.\d+)?\s*(?:↑↑|↓↓|↑|↓)?)\s+(\S.*?)\s*$")
+
+
+def _value_parts(cell: str) -> tuple[str, str, str] | None:
+    """`(value, range, unit)` of a result cell that also holds its row's range,
+    and maybe its unit, after the number: PaddleOCR-VL-1.6 read a slip's
+    `报告结果 | 正常值` columns, printed `2.873 (0.270 - 4.200)&mIU/L`, as one
+    cell (OCR benchmark, 2026-10-07)."""
+    m = _VALUE_HEAD.match(cell)
+    if not m:
+        return None
+    value, rest = m.group(1).replace(" ", ""), m.group(2)
+    if not re.match(r"[(（]?\s*[<>≤≥]?=?\s*[-+]?\d", rest):
+        return None  # `5.4 mmol/L 3.9-6.1`: a unit first is no range tail
+    if split := _ref_unit(rest):
+        return value, split[0], split[1]
+    if _RANGE_IN.search(rest) and _range_cell(rest):
+        return value, rest, ""
+    return None
+
+
+# --- a row the OCR laid out of line with its header -------------------------------------
+#
+# Measured on the OCR benchmark (benchmarks/local_ocr, 2026-10-07): an OCR model
+# puts a row's empty cells where it likes. Under a check-up book's `Test Item |
+# Measurement | Methodology | Status | Unit | Normal Range | Lab`, PaddleOCR-VL-1.6
+# wrote `ALT | 23 | | U/L | 7~40 | 02 |` (the two empty cells as one, the
+# spare one at the end) and GLM-OCR `Urea | 4.57 | | mmol/L | 2.60--7.50 | | 02`.
+# Read by position, the unit sat under `Status`, the range under `Unit`, and
+# the lab code `02` was stored as Urea's reference range. The filled cells are
+# still in their printed order; only the gaps moved. So a row whose cells
+# contradict the columns they are under is laid again, its filled cells in
+# order under the columns their content fits, and read only when exactly one
+# layout fits best.
+
+_TYPED = frozenset({"unit", "ref", "flag"})
+
+
+def _kinds(cell: str) -> frozenset[str]:
+    """What a cell's content says it is: a "unit", a "ref" (a range, a bound
+    or an expected word), a "flag", a "value" (a result), or "text" (a name, a
+    code, a unit the engine does not know) when it says none of these."""
+    kinds = set()
+    if _printed_flag(cell):
+        kinds.add("flag")
+    if _is_unit(cell):
+        kinds.add("unit")
+    else:
+        if _range_cell(cell) or _ref_unit(cell):
+            kinds.add("ref")
+        if translate.parse_value(_split_flag(cell, "")[0], "").value_kind in _RESULT_KINDS or _value_parts(cell):
+            kinds.add("value")
+    if re.fullmatch(_DATE_VALUE, cell):
+        kinds = {"date"}
+    return frozenset(kinds or {"text"})
+
+
+def _layout(width: int, groups: list[dict[str, int]]) -> list[tuple[int, str | None]]:
+    """Each column's panel and the column it is in that panel (None for a
+    column no header word names). A column before a panel's name column
+    belongs to the panel on its left, the first panel for the first ones."""
+    starts = [g["name"] for g in groups]
+    out: list[tuple[int, str | None]] = [(max(0, bisect.bisect_right(starts, i) - 1), None) for i in range(width)]
+    for p, g in enumerate(groups):
+        for column, i in g.items():
+            if i < width:
+                out[i] = (p, column)
+    return out
+
+
+def _fit(kinds: frozenset[str], own: set[str], column: str | None) -> int | None:
+    """How a cell of `kinds` sits under `column`: 1 as its own kind, 0 as
+    something it may be (a name that reads as a unit, `K`; a unit the engine
+    does not know), None when it cannot. A unit, range or flag never sits in a
+    column no header names while its panel has a column of its own for it."""
+    if column is None:
+        return None if kinds & own & _TYPED else 0
+    if column == "out":
+        column = "value"
+    if column == "name":
+        if "text" in kinds:
+            return 1
+        return 0 if kinds & {"value", "unit"} else None
+    if column in kinds:
+        return 1
+    return 0 if "text" in kinds and column != "date" else None
+
+
+def _misplaced(row: list[str], groups: list[dict[str, int]]) -> bool:
+    """Whether a cell contradicts the column it is under: a cell that is
+    plainly another column's (a range under the unit header, a unit under the
+    range or flag header, a number under any of the three), or a unit, range
+    or flag in a column no header names while its panel's own column for it
+    is empty."""
+    layout = _layout(len(row), groups)
+    for i, cell in enumerate(row):
+        cell = cell.strip()
+        if not cell:
+            continue
+        panel, column = layout[i]
+        kinds = _kinds(cell)
+        if column in _TYPED and column not in kinds and kinds & (_TYPED | {"value"}):
+            return True
+        if column is None and any(not _cell(row, groups[panel], k) for k in kinds & _TYPED & set(groups[panel])):
+            return True
+    return False
+
+
+def _seat(row: list[str], groups: list[dict[str, int]], width: int) -> list[str] | None:
+    """`row`'s filled cells, in their order, under the header columns their
+    content fits best, or None when no layout fits or two fit equally well
+    and disagree on what a column holds. Cells under unnamed columns are
+    dropped: nothing reads them."""
+    cells = [c.strip() for c in row if c.strip()]
+    layout = _layout(max(width, len(row)), groups)
+    own = [set(g) for g in groups]
+    kinds = [_kinds(c) for c in cells]
+    n, m = len(cells), len(layout)
+
+    @functools.cache
+    def best(k: int, j: int) -> tuple[int, frozenset] | None:
+        # The best score of cells k.. under columns j.., and the layouts (as
+        # (column, cell) pairs of the named columns) that reach it, two at most.
+        if k == n:
+            return 0, frozenset({()})
+        if m - j < n - k:
+            return None
+        options = [found] if (found := best(k, j + 1)) else []
+        panel, column = layout[j]
+        fit = _fit(kinds[k], own[panel], column)
+        if fit is not None and (rest := best(k + 1, j + 1)):
+            here = ((j, k),) if column is not None else ()
+            options.append((fit + rest[0], frozenset(here + r for r in rest[1])))
+        if not options:
+            return None
+        top = max(score for score, _ in options)
+        layouts = frozenset().union(*(found for score, found in options if score == top))
+        return top, frozenset(itertools.islice(layouts, 2))
+
+    found = best(0, 0)
+    if not found or len(found[1]) != 1:
+        return None
+    seated = [""] * m
+    for j, k in next(iter(found[1])):
+        seated[j] = cells[k]
+    return seated
 
 
 @dataclass
@@ -433,7 +768,10 @@ def _cell(row: list[str], columns: dict[str, int], column: str) -> str:
 def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> dict[str, str] | str | None:
     """One panel of one row: a reading, `"admin"` for a patient-details row,
     `"empty"` for a panel with nothing in it, or None for a row a model should read."""
-    name, value = _cell(row, columns, "name"), _cell(row, columns, "value")
+    name, value, out = _cell(row, columns, "name"), _cell(row, columns, "value"), _cell(row, columns, "out")
+    if value and out:
+        return None  # a result in both columns: which one is printed is the model's to read
+    value = value or out
     if not name and not value:
         return "empty"
     if _admin(name) or _column(name) == "name":
@@ -449,11 +787,13 @@ def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> dict
     if _key(value) in _NOT_DONE:
         return "empty"
     ref, unit, flag = _cell(row, columns, "ref"), _cell(row, columns, "unit"), _cell(row, columns, "flag")
+    if not ref and (parts := _value_parts(value)):
+        value, ref, unit = parts[0], parts[1], unit or parts[2]
     if not unit and (split := _ref_unit(ref)):
         ref, unit = split
     if unit and normalize_unit(unit) is None and _RANGE_IN.search(unit):
-        # A range under the unit header: the row is out of line with its
-        # header (two English books had `Globulin | 32.8 | | | 20.0--40.0 |`).
+        # A range under the unit header that `_seat` left there: the row is
+        # out of line with its header in a way no one layout explains.
         return None
     if not flag:
         value, flag = _split_flag(value, ref)
@@ -549,7 +889,7 @@ def table_indicators(text: str) -> tuple[list[dict[str, str]], str, int]:
     readings: list[dict[str, str]] = []
     unread = 0
     groups: list[dict[str, int]] | None = None
-    width = 0
+    width, split = 0, False
     pages = _pages(text)
     markup = any(_html_tables(p) or _markdown_tables(p) for p in pages)
     for page in pages:
@@ -560,21 +900,38 @@ def table_indicators(text: str) -> tuple[list[dict[str, str]], str, int]:
         for table, from_ocr in sources:
             table_readings: list[dict[str, str]] = []
             table_unread = 0
+            table = _rejoined(table)
             borrowed = groups is not None
+            if groups is None:
+                # Rows above a table's first header, with no header before
+                # it: a page that opens mid-panel, the panel's header on the
+                # page before. The OCR laid them on that header's grid, so
+                # they borrow it, as a later table borrows an earlier one.
+                ahead = next((h for k in range(len(table)) if (h := _header_at(table, k))), None)
+                if ahead and ahead[0]:
+                    groups, width, split = ahead
+                    borrowed = True
+                elif not ahead and (typed := _by_content(table)):
+                    groups, width, split, borrowed = typed, max(len(r) for r in table), False, True
             for i, row in enumerate(table):
                 cells = [c for c in row if c]
                 if len(cells) == 1 or _admin(cells[0]):
                     continue
-                if header := _header(row):
+                if found := _header_at(table, i):
                     # A header whose every panel its cells contradict reads
                     # nothing: its rows, and a table that would borrow it,
                     # are the model's.
-                    groups = _by_cells(row, header, table[i + 1:]) or None
-                    width, borrowed = len(row), False
+                    groups, width, split = found
+                    borrowed = False
                     continue
                 if groups is None or (borrowed and len(row) > width):
                     table_unread += 1
                     continue
+                if split or _misplaced(row, groups):
+                    row = _seat(row, groups, width)
+                    if row is None:
+                        table_unread += 1
+                        continue
                 got = _read_row(row, groups, borrowed=borrowed)
                 confirmed = [r for r in got.readings if not from_ocr or _confirmed(r, elsewhere)]
                 table_readings.extend(confirmed)

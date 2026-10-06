@@ -248,9 +248,13 @@ what was eaten.
   结果 / 参考值 / 单位, Analyte / Result / Unit, a CSV's first line) are stored as
   printed and labelled `rules:table@v1`, when they look like readings and the
   page's other copy (the text layer, or the OCR's text pass) shows the same
-  value. Patient details are skipped. A row left unread, text outside the
-  tables that holds a number or a finding, and a document with no table go to
-  the text model, and a rule's row outranks the model's for the same printed
+  value. Patient details are skipped. The grid the OCR returns is read as the
+  report printed it: a row whose empty cells moved is laid again by content,
+  a header split over two rows or cells is joined, rows above a table's first
+  header borrow it, and a page with no header is typed by its cells when
+  nothing about it is ambiguous. A row left unread, text outside the tables
+  that holds a number or a finding, and a document with no table go to the
+  text model, and a rule's row outranks the model's for the same printed
   row.
 - **Any OCR model's answer is read the same way.** An answer's OTSL tables
   (PaddleOCR-VL, MinerU) become HTML, its LaTeX (`\(\mu mol/L\)`) the

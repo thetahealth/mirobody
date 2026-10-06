@@ -300,6 +300,35 @@ decisions.
   `local-ocr`, a scanned report's stored text holds `<table>` and `μmol/L`,
   not `<fcel>` or `\mu`. `docker/local-models.ini` gains a `paddleocr-vl`
   section; the default reader is still `glm-ocr`.
+- **The table rules read an OCR model's grid, not only the printed one.** An
+  OCR model does not return the table a report prints. On the same benchmark
+  PaddleOCR-VL returned a whole page as one grid: a page's first rows (its
+  panel's header on the page before) above the next panel's header, a header
+  split over two rows (`血常规 | 英文名称 | 化验结果 | 参考值`, then `检查项目`),
+  four header words in one cell, and rows whose empty cells moved (`ALT | 23
+  | | U/L | 7~40 | 02 |` under `… | Methodology | Status | Unit | Normal
+  Range | Lab`, read as a unit under `Status` and the lab code `02` as the
+  range). GLM-OCR and MinerU moved empty cells the same way, and all three
+  read a US lab's `In Range | Out of Range` columns as no header. Now cell
+  spans keep their columns; a row whose cells contradict their columns is
+  laid again by content, in order, and read only when one layout fits best;
+  a split header is joined; rows above a table's first header borrow it; a
+  page with no header at all is typed by its cells when one column holds
+  results, one ranges, and the results sit on their ranges' scale (two
+  result columns, this result and the last, still go to the model); a result
+  cell that holds its range and unit (`2.873 (0.270 - 4.200)&mIU/L`) is split;
+  `Out of Range` is the result column a row's empty `In Range` points to; a
+  `±` between a range and a unit is a misread `&`; and `采样日期`, `检查日期`
+  and their kin are paperwork. A range under the unit header beside an empty
+  range cell, which the previous entry left to the model, is now read in its
+  place. Rules-only, all three models, with no row stored that is not a
+  printed reading: GLM-OCR 162 → 204 rows (unit and range right 156 → 198),
+  PaddleOCR-VL 0 → 276 (149 with the benchmark's own OTSL conversion; unit
+  and range right 106 → 262), MinerU 0 → 196 (139); table rows left unread
+  69 / 185 / 84 → 26 / 52 / 26; pages read with no model 1 / 0 / 2 → 10 /
+  10 / 10. To tell: a check-up page printed `Test Item | Measurement |
+  Methodology | Status | Unit | Normal Range | Lab` stores ALT with U/L and
+  7–40, labelled `rules:table@v1`.
 - **A document with no date is not filed under the prompt's example date.**
   The extraction prompt's worked example said `"date_time": "2024-10-30
   00:00:00"`, and MiniCPM5-2B copied it onto documents that print no date of
