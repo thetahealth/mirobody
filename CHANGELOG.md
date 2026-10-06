@@ -280,6 +280,13 @@ decisions.
 
 ### Fixed
 
+- **`view=stats` names a reading's own day.** Its `first_date` and
+  `last_date` were the UTC date of the instant, so a report filed at local
+  midnight in Asia/Shanghai (UTC+8) showed the day before: a ferritin of
+  5 March came back as 4 March, and a model repeated it
+  (benchmarks/local_models). They are now the stored local day, as the
+  catalogue's are. To check: `scripts/e2e_health_data.py` asserts that stats
+  and the catalogue name the same last day.
 - **What the table rules leave of a report is still read as a report.**
   Since the text model is handed only what the rules did not read, a page's
   leftover could look like nothing medical on its own: MiniCPM5-2B answered

@@ -465,6 +465,12 @@ class PostgresHealthQuery:
         window, in SQL, over `_STATS_CTE`: a day with an elected authority
         counts once, as that value; any other day counts every reading.
 
+        `first_date`/`last_date` are the readings' stored local days, as the
+        catalogue's are. They were the UTC date of the instant, so a report
+        filed at local midnight in Asia/Shanghai showed the day before: a
+        ferritin of 2026-03-05 came back as 2026-03-04 and a model repeated it
+        (benchmarks/local_models, qa3).
+
         Which of the two a day is was already decided on the write side, so
         the caller is not asked. It used to be: `resolution=raw` counted every
         reading, which averages a watch's and a phone's step totals for the
@@ -491,9 +497,9 @@ class PostgresHealthQuery:
                    {_STAT_VALUE.format(agg="MAX")} AS max,
                    ROUND(({_STAT_VALUE.format(agg="AVG")})::numeric, 4) AS avg,
                    (ARRAY_AGG(value_text ORDER BY at ASC))[1] AS first,
-                   to_char(MIN(at), 'YYYY-MM-DD') AS first_date,
+                   to_char((ARRAY_AGG(local_date ORDER BY at ASC))[1], 'YYYY-MM-DD') AS first_date,
                    (ARRAY_AGG(value_text ORDER BY at DESC))[1] AS last,
-                   to_char(MAX(at), 'YYYY-MM-DD') AS last_date,
+                   to_char((ARRAY_AGG(local_date ORDER BY at DESC))[1], 'YYYY-MM-DD') AS last_date,
                    {_STAT_UNIT} AS unit,
                    COUNT(DISTINCT unit_ucum) > 1 AS mixed_units,
                    (ARRAY_AGG(value_num ORDER BY at ASC))[1] AS first_num,
@@ -720,8 +726,8 @@ class PostgresHealthQuery:
 #: alone where the write side elected one, every reading otherwise.
 _STATS_CTE = """
 WITH day_rows AS (
-    SELECT o.series_id, o.display, o.code_system, o.code, o.observed_start AS at, o.value_text, o.value_num,
-           o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected, o.kind = ANY(:reported) AS reported,
+    SELECT o.series_id, o.display, o.code_system, o.code, o.observed_start AS at, o.local_date, o.value_text,
+           o.value_num, o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected, o.kind = ANY(:reported) AS reported,
            bool_or(o.elected) OVER (PARTITION BY o.series_id, o.local_date) AS day_elected
       FROM v_observation o
      WHERE o.user_id = :uid AND o.series_id = ANY(:names) {where}

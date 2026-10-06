@@ -208,6 +208,13 @@ async def run(user_id: str, capture: Path | None) -> int:
             str(row["first_date"]) <= str(row["last_date"]),
             f"first_date={row['first_date']} last_date={row['last_date']}",
         )
+        # Both are the stored local day. Stats rendered the UTC date of the
+        # instant, a day early for a reading filed before 08:00 in Shanghai.
+        failures += not _check(
+            "stats and the catalogue name the same last day",
+            str(row["last_date"]) == probe[1],
+            f"stats last_date={row['last_date']} catalogue last_date={probe[1]}",
+        )
 
     # Medications are their own tool; the three views must all answer.
     medications = MedicationsService()
