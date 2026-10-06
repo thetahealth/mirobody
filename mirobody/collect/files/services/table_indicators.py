@@ -7,15 +7,17 @@ and handed to the store in the shape the LLM extractor produces. Measured on one
 real 11-page checkup: one HTML table held several panels, each opened by a
 single-cell section row and a repeated header, the reference column BEFORE the
 unit column, and a page's first row continuing the previous page's panel with no
-header of its own. So columns are mapped per header, never by position; a header
-that names the name column twice is two panels side by side (双栏); and a table
-with no header of its own borrows the last one only for rows that look like
-readings under it.
+header of its own. So columns are mapped per header, never by position; a
+column whose header is blank, or a flag word over printed ranges, is typed by
+its cells; a header that names the name column twice is two panels side by
+side (双栏); and a table with no header of its own borrows the last one only
+for rows that look like readings under it.
 
 A row is a reading only when it looks like one: a result that is a number, an
 ordinal (`1+`) or a nominal word (阴性, negative), beside a unit the unit engine
 knows and a range (or nothing there). A row of patient details (姓名, 年龄,
-送检医生) is skipped; any other row of two or more cells is left to the model.
+送检医生, or `审核者：王五` in one cell) is skipped; any other row of two or
+more cells is left to the model.
 Measured on 2026-10-06, before these checks: a footer `检验者|李四|审核者|王五`
 and a page-2 `姓名|张三|性别|男` were stored as readings, a medication table was
 read under the lab table's header, and the right half of a side-by-side panel
@@ -29,9 +31,11 @@ different dates is a series, not one report, and is left to the model.
 
 from __future__ import annotations
 
+import bisect
 import csv
 import difflib
 import html
+import itertools
 import re
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
@@ -41,14 +45,18 @@ from mirobody.units import normalize_unit
 
 EXTRACTOR = "rules:table@v1"
 
-#: Header words per column, compared after lowercasing and dropping spaces.
+#: Header words per column, compared after `_key` (lowercased, no spaces,
+#: colons or brackets), so a bilingual `单位(Unit)` or `单位 Unit` is `单位unit`.
+#: Measured on the 2026-10-06 local-model corpus: `单位(Unit)`, `正常范围值` and a
+#: slip's bare `参考` were not here, and every reading of those tables was
+#: stored with no unit or no range (hemoglobin 140 then cannot be coded).
 _HEADERS: dict[str, tuple[str, ...]] = {
     "name": ("项目名称", "检验项目", "检查项目", "检测项目", "化验项目", "项目", "项目名", "中文名称", "名称",
              "指标", "指标名称", "analyte", "test", "testname", "item", "parameter", "name", "indicator",
              "measurement", "measure", "component", "observation", "metric"),
     "value": ("结果", "检验结果", "检查结果", "测定结果", "测定值", "检测值", "result", "results", "value"),
-    "unit": ("单位", "unit", "units"),
-    "ref": ("参考值", "参考范围", "参考区间", "正常值", "正常范围", "生物参考区间",
+    "unit": ("单位", "单位unit", "unit", "units"),
+    "ref": ("参考值", "参考范围", "参考区间", "参考", "正常值", "正常范围", "正常范围值", "生物参考区间",
             "reference", "referencerange", "range", "ref", "normalrange"),
     "flag": ("标志", "提示", "异常", "结果提示", "flag", "状态"),
     "date": ("采样时间", "采集时间", "检验时间", "日期", "collected", "collectiondate", "date"),
@@ -58,8 +66,9 @@ _FLAG_LOW = {"↓", "l", "低", "偏低", "low", "ll", "↓↓"}
 _FLAG_NORMAL = {"n", "正常", "normal"}
 
 #: Row labels that name a part of a report, not a measurement: the model reads
-#: those rows with their section around them.
-_LABELS = {"检查描述", "检查结论", "描述", "结论", "所见", "检查所见", "诊断", "小结", "建议", "意见",
+#: those rows with their section around them. `是否异常 | 是` closes an ECG
+#: panel: it says the section is abnormal, and was stored as a reading.
+_LABELS = {"检查描述", "检查结论", "描述", "结论", "所见", "检查所见", "诊断", "小结", "建议", "意见", "是否异常",
            "description", "conclusion", "impression", "findings", "comment", "remarks"}
 
 #: Row labels of the patient and the paperwork: skipped, and nothing left for a
@@ -67,7 +76,7 @@ _LABELS = {"检查描述", "检查结论", "描述", "结论", "所见", "检查
 _ADMIN = {
     "姓名", "性别", "年龄", "出生日期", "科室", "科别", "病区", "床号", "病历号", "住院号", "门诊号", "就诊号",
     "登记号", "样本号", "标本号", "标本类型", "样本类型", "标本", "条码号", "申请医生", "送检医生", "开单医生",
-    "申请科室", "送检科室", "检验者", "检验医师", "检验人", "审核者", "审核人", "审核医师", "报告者", "报告人",
+    "申请科室", "送检科室", "检查者", "检验者", "检验医师", "检验人", "审核者", "审核人", "审核医师", "报告者", "报告人",
     "报告医生", "操作者", "采样时间", "采集时间", "接收时间", "检验时间", "报告时间", "报告日期", "送检日期",
     "临床诊断", "备注", "电话", "地址", "身份证号", "医院", "页码",
     "patient", "patientname", "subject", "sex", "gender", "age", "dob", "dateofbirth", "birthdate", "birthday",
@@ -96,6 +105,9 @@ _RANGE = re.compile(r"^\s*([-+]?\d+(?:\.\d+)?)\s*(?:-{1,2}|~|–|—|至)\s*([-+
 _BOUND = re.compile(r"^\s*([<>≤≥]|<=|>=)\s*([-+]?\d+(?:\.\d+)?)\s*$")
 #: A flag printed after the number in the value cell, when the table has no flag column.
 _TRAILING_FLAG = re.compile(r"^(.*?\d)\s*(↑↑|↓↓|↑|↓|偏高|偏低|高|低|HH|LL|H|L)$")
+#: A range or bound, then what follows it in the same cell (`<7.00&ng/mL`).
+_REF_UNIT = re.compile(
+    r"^\s*(\(?[<>≤≥]?=?\s*[-+]?\d+(?:\.\d+)?(?:\s*(?:-{1,2}|~|–|—|至)\s*[-+]?\d+(?:\.\d+)?)?\)?)\s*&?\s*([^\d\s&].*?)\s*$")
 _RESULT_KINDS = ("quantity", "ordinal", "nominal")
 #: The longest text result read without a model ("淡黄色", "微浑"); a longer
 #: one is a sentence, and a sentence is the model's to read.
@@ -205,6 +217,72 @@ def _header(row: list[str]) -> list[dict[str, int]] | None:
     return groups or None
 
 
+def _admin(cell: str) -> bool:
+    """Whether `cell` is a label of the patient or the paperwork, printed alone
+    (`审核者`) or with its value after a colon (`审核者：王五`). Measured on the
+    2026-10-06 local-model corpus: a photo's OCR put the signer line
+    `检查者：武娟琳 | 检验者：段松洋` inside the result table, and the whole-cell
+    comparison let it through as a reading."""
+    return _key(re.split(r"[:：]", cell, maxsplit=1)[0]) in _ADMIN
+
+
+#: A printed range or bound inside a reference cell.
+_RANGE_IN = re.compile(r"[-+]?\d+(?:\.\d+)?\s*(?:-{1,2}|~|–|—|至)\s*[-+]?\d+(?:\.\d+)?|[<>≤≥]=?\s*[-+]?\d+(?:\.\d+)?")
+
+
+def _range_cell(cell: str) -> bool:
+    """A reference cell and nothing else: ranges or bounds with no other number
+    beside them (`(<3.00)`, `90-139/60-89`, `男:4.30--5.80 女:3.80--5.10`), or
+    an expected word (`阴性`). A result, a date or a flag is not one."""
+    if _RANGE_IN.search(cell):
+        return not re.search(r"\d", _RANGE_IN.sub("", cell))
+    return not _printed_flag(cell) and translate.parse_value(cell, "").value_kind in ("nominal", "ordinal")
+
+
+def _unit_cells(cells: list[str]) -> bool:
+    """Whether a column of cells is a unit column: none is a flag, a number,
+    a range or a result word, and most are units the engine reads. Most, not
+    all: a coagulation panel's `mg/L FEU` is a unit the engine does not know,
+    beside `s` and `g/L` that it does."""
+    if any(_printed_flag(c) or _NUMBER.match(c) or _RANGE_IN.search(c)
+           or translate.parse_value(c, "").value_kind in _RESULT_KINDS for c in cells):
+        return False
+    return 2 * sum(1 for c in cells if normalize_unit(c) is not None) > len(cells)
+
+
+def _by_cells(row: list[str], groups: list[dict[str, int]], body: list[list[str]]) -> list[dict[str, int]]:
+    """`groups` with a panel's missing range or unit column found by its cells,
+    when its header does not name it: under a blank header, cells that are all
+    units are the unit column and cells that are all ranges the range column;
+    under a flag word (`提示`, `结果提示`), cells that are all ranges are the
+    range column, not flags. `body` is the table below `row`, read up to the
+    next header. Measured on the 2026-10-06 local-model corpus: a book printed
+    `检测项目 | 测定值 | (blank) | 单位(Unit)`, another put its ranges under
+    `结果提示`, and the rules stored those ranges as nothing."""
+    body = list(itertools.takewhile(lambda r: not _header(r), body))
+    body = [r for r in body if sum(1 for c in r if c) > 1 and not _admin(next(c for c in r if c))]
+    starts = [i for i, cell in enumerate(row) if _column(cell) == "name"]
+    typed = []
+    for g in groups:
+        g = dict(g)
+        for i, head in enumerate(row):
+            owner = starts[max(0, bisect.bisect_right(starts, i) - 1)]
+            blank, flag = not _key(head), g.get("flag") == i
+            if owner != g["name"] or not (blank or flag):
+                continue
+            cells = [r[i].strip() for r in body if i < len(r) and r[i].strip()]
+            if not cells:
+                continue
+            if "ref" not in g and all(_range_cell(c) for c in cells) and any(_RANGE_IN.search(c) for c in cells):
+                g["ref"] = i
+                if flag:
+                    del g["flag"]
+            elif blank and "unit" not in g and _unit_cells(cells):
+                g["unit"] = i
+        typed.append(g)
+    return typed
+
+
 def _unit_like(unit: str) -> bool:
     return not unit or normalize_unit(unit) is not None
 
@@ -279,7 +357,7 @@ def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> dict
     name, value = _cell(row, columns, "name"), _cell(row, columns, "value")
     if not name and not value:
         return "empty"
-    if _key(name) in _ADMIN:
+    if _admin(name):
         return "admin"
     if re.fullmatch(r"(?i)rs\d+|i\d{4,}", name):
         return "admin"  # a genotype call: the genomics upload reads those
@@ -288,6 +366,10 @@ def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> dict
     if _key(name) in _LABELS or _column(value):
         return None
     ref, unit, flag = _cell(row, columns, "ref"), _cell(row, columns, "unit"), _cell(row, columns, "flag")
+    if not unit and (m := _REF_UNIT.match(ref)) and normalize_unit(m.group(2)) is not None:
+        # A slip with no unit column prints the unit after the range
+        # (`<7.00&ng/mL`): it is the reading's unit, and the range is the rest.
+        ref, unit = m.group(1).strip(), m.group(2).strip()
     if not flag:
         value, flag = _split_flag(value, ref)
         if not unit and re.search(r"\d\s*L{1,2}$", value):
@@ -304,9 +386,12 @@ def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> dict
     if parsed.value_kind in _RESULT_KINDS:
         if borrowed and not _unit_like(unit):
             return None
-    elif borrowed or len(value) > _SHORT_TEXT or re.search(r"\d", value) or not _unit_like(unit):
+    elif (borrowed or len(value) > _SHORT_TEXT or re.search(r"\d|[:：]", value) or not _unit_like(unit)
+          or normalize_unit(value) is not None):
         # A word under the table's own header ("淡黄色") is a result; under a
-        # borrowed one, or beside a cell that is not a unit, it is a name.
+        # borrowed one, or beside a cell that is not a unit, it is a name. A
+        # word with a colon is a label and its value (`检验者：段松洋`), and a
+        # unit alone (`MCV | fl`) is a result whose number was not printed.
         return None
     return {
         "original_indicator": name,
@@ -388,12 +473,12 @@ def table_indicators(text: str) -> tuple[list[dict[str, str]], str, int]:
             table_readings: list[dict[str, str]] = []
             table_unread = 0
             borrowed = groups is not None
-            for row in table:
+            for i, row in enumerate(table):
                 cells = [c for c in row if c]
-                if len(cells) == 1 or _key(cells[0]) in _ADMIN:
+                if len(cells) == 1 or _admin(cells[0]):
                     continue
                 if header := _header(row):
-                    groups, width, borrowed = header, len(row), False
+                    groups, width, borrowed = _by_cells(row, header, table[i + 1:]), len(row), False
                     continue
                 if groups is None or (borrowed and len(row) > width):
                     table_unread += 1
@@ -498,8 +583,7 @@ def left_for_model(text: str) -> str:
         if not line or _PAGE_LINE.match(line):
             continue
         cells = _markdown_row(raw)
-        first = _key(cells[0] if cells else re.split(r"[:：\s]", line, maxsplit=1)[0])
-        if first in _ADMIN or _header(cells or [line]):
+        if _admin(cells[0] if cells else re.split(r"\s", line, maxsplit=1)[0]) or _header(cells or [line]):
             continue
         undated = _LABELLED_DATE.sub(" ", re.sub(_DATE_VALUE, " ", line))
         # A number, not a digit inside a name (HbA1c) or a date.
