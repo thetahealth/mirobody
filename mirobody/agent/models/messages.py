@@ -43,10 +43,12 @@ def message_text(msg) -> str:
     if isinstance(content, str):
         raw = content
     elif isinstance(content, list):
+        # LangChain allows plain strings in a block list; Gemini answers
+        # `["a", "b"]` when not streaming, and that was read as no text.
         raw = "".join(
-            block.get("text") or ""
+            block if isinstance(block, str) else block.get("text") or ""
             for block in content
-            if isinstance(block, dict) and block.get("type") not in _REASONING_BLOCKS
+            if isinstance(block, str) or (isinstance(block, dict) and block.get("type") not in _REASONING_BLOCKS)
         )
     else:
         raw = "" if content is None else str(content)

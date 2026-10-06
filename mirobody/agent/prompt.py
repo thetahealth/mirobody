@@ -29,21 +29,56 @@ from mirobody.utils import prompts
 logger = logging.getLogger(__name__)
 
 
+#: Word-sized units per script: a Latin or Cyrillic word, two Han characters
+#: (most Chinese words), two kana, one Hangul block (a syllable of a word).
+_SCRIPTS = (
+    ("latin", re.compile(r"[A-Za-z\u00c0-\u024f]+"), 1.0),
+    ("cyrillic", re.compile(r"[\u0400-\u04ff]+"), 1.0),
+    ("kana", re.compile(r"[\u3040-\u30ff]"), 0.5),
+    ("han", re.compile(r"[\u4e00-\u9fff]"), 0.5),
+    ("hangul", re.compile(r"[\uac00-\ud7af]"), 0.5),
+)
+#: Letters only Ukrainian, Belarusian or Serbian use: Cyrillic is not Russian then.
+_NOT_RUSSIAN = re.compile(r"[іїєґўђјљњћџ]", re.I)
+
+
 def question_language(text: str) -> str:
     """The language a question is written in, read off its script, for the
-    languages a model has been seen to answer in English: "" otherwise.
+    languages a model has been seen to answer in English; "" when the
+    question's own words leave it to the model (English, a mix, too short).
 
     The prompt already says the latest question decides; Bonsai-27B still
     answered a Chinese trend question in English, twice in two, after 78
     rows of English tool output. Naming the language turns inference into
-    an instruction. Kana decides Japanese before Han, which both use.
+    an instruction, so it is named only when the question is mostly in it:
+    one Chinese lab term in an English question ("What does 甘油三酯 mean?")
+    named Chinese and ordered a Chinese answer. Kana marks Japanese, which
+    shares Han with Chinese; fewer than three Han characters alone (血圧) could
+    be either, and are left to the model.
     """
-    if re.search(r"[\u3040-\u30ff]", text):
-        return "Japanese (日本語)"
-    if re.search(r"[\uac00-\ud7af]", text):
+    # A term (LDL, HbA1c, VO2) is the same in every language and says nothing
+    # about this one: a Chinese question names its tests in Latin letters.
+    words = re.sub(r"(?<![A-Za-z0-9])[A-Za-z0-9]*(?:[A-Z]{2,}|\d)[A-Za-z0-9]*(?![A-Za-z0-9])", " ", text)
+    units = {name: len(pattern.findall(words)) * weight for name, pattern, weight in _SCRIPTS}
+    total = sum(units.values())
+    if not total:
+        return ""
+    if units["kana"]:
+        cjk = units["kana"] + units["han"]
+        return "Japanese (日本語)" if cjk / total >= 0.5 else ""
+    script = max(units, key=units.get)
+    if units[script] / total < 0.6:
+        return ""
+    if script == "han":
+        if units["han"] < 1.5:  # fewer than three characters
+            return ""
+        from mirobody.zh_fold import fold_to_hans
+
+        return "Traditional Chinese (繁體中文)" if fold_to_hans(text) != text else "Chinese (中文)"
+    if script == "hangul":
         return "Korean (한국어)"
-    if re.search(r"[\u4e00-\u9fff]", text):
-        return "Chinese (中文)"
+    if script == "cyrillic" and not _NOT_RUSSIAN.search(text):
+        return "Russian (русский)"
     return ""
 
 

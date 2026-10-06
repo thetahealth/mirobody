@@ -18,6 +18,7 @@ from typing import Any
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
+from mirobody.agent.middleware.empty_answer import NUDGE_NAME
 from mirobody.agent.tools.genetic_service import TOOL_NAME
 from mirobody.kernel import tools
 
@@ -73,7 +74,9 @@ def redact_genotype_history(messages: Sequence[Any]) -> list[Any]:
     dependent_answer = False
     genetic_ids = _genetic_call_ids(messages)
     for message in messages:
-        if isinstance(message, HumanMessage):
+        # A turn starts at the person's message, not at the harness's own
+        # (the empty-answer nudge), or the answer after it went unredacted.
+        if isinstance(message, HumanMessage) and message.name != NUDGE_NAME:
             dependent_answer = False
         if _is_genetic_result(message, genetic_ids):
             redacted.append(_redacted_tool(message))

@@ -340,19 +340,34 @@ decisions.
   copies deleted, a moved row is never read again, and merging two accounts
   moves the losing account's unmigrated rows to the one that stays.
 - **A reply with no answer text no longer ends the turn empty.** The agent
-  asks once more when a reply has neither text nor a tool call, and reports
-  an error when the second is empty too.
+  asks once more when a reply has neither text nor a tool call; when the
+  second is empty too, the turn ends with the "no answer" line and
+  `finish_reason=empty`. The request for the answer is not kept in the
+  conversation.
+- **A model that runs out of calls stops gracefully.** The recursion limit was
+  six times the model-call budget for a six-node loop, so any further hook
+  turned the budget's graceful stop into `GraphRecursionError` (a model
+  repeating one refused call hit it at call 48). Unset, it is now read off
+  the built graph; `RECURSION_LIMIT` still overrides.
+- **A local model server gets no OpenAI key.** An entry with a `base_url`
+  and no `api_key` fell back to `OPENAI_API_KEY`: without one the agent
+  loaded no model, and with one it sent that key to the local server.
 - **A model that cannot see is not sent images.** A text-only local model
   (MiniCPM5-2B) failed the turn on an attached photo ("image input is not
   supported"). Whether a local model can see is now asked of its server
   (llama.cpp `/props`, without loading anything; Ollama `/api/show`); one that
   cannot gets the photo's OCR text, told that it is only printed text, so a
-  meal photo gets "describe it" instead of a guess.
+  meal photo gets "describe it" instead of a guess. An image already in the
+  conversation, from before a switch to such a model, is replaced by a line
+  saying one was there.
 - **The chat's model menu names the model.** A local deployment showed
   `local` where it runs `qwen3.8-27b`; `/api/models?labels=1` gives each
   entry's model, and the bare list is unchanged for other clients.
-- **Answers come in the question's language.** The prompt names it; a local
-  model answered Chinese questions in English.
+- **Answers come in the question's language.** The prompt names it when the
+  question is mostly in it (Chinese, Traditional Chinese, Japanese, Korean,
+  Russian; test names such as LDL or HbA1c do not count); a local model
+  answered Chinese questions in English. One Chinese term in an English
+  question leaves the answer in English.
 
 ## 1.5.3
 
