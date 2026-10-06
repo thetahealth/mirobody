@@ -286,12 +286,42 @@ MODELS:
 # an app that is not in Docker.
 LOCAL_SETUP:
   preset: docker/local-models.ini
-  download_gb: 14.5
-  memory_gb: 20
   base_urls:
     - http://host.docker.internal:8080/v1
     - http://llama:8080/v1
     - http://127.0.0.1:8080/v1
+  # The sizes the page offers, smallest first: the model that answers
+  # (`agent`) beside the document reader (`ocr`), both sections of the preset.
+  # download_gb adds up the GGUF files the preset fetches (Hugging Face,
+  # 2026-10-06); memory_gb is what llama-server held with both loaded, and
+  # answer_s the median seconds per answer, on the machine `measured_on` names.
+  # `sees`: whether the answering model reads a photo itself (else its OCR
+  # text); `checks` is how many of the evaluation's checks the size passed
+  # (docs/local-models.md has the evaluation).
+  tiers:
+    - id: tiny
+      sees: false
+      agent: minicpm5-1b
+      ocr: glm-ocr
+      download_gb: 2.6
+    - id: small
+      sees: false
+      agent: minicpm5-2b
+      ocr: glm-ocr
+      download_gb: 3.0
+    - id: medium
+      sees: true
+      agent: qwen3.5-9b
+      ocr: glm-ocr
+      download_gb: 8.0
+    - id: large
+      sees: true
+      agent: qwen3.8-27b
+      ocr: glm-ocr
+      download_gb: 14.5
+      memory_gb: 20
+      answer_s: 134
+      measured_on: Apple M4 Pro, 48 GB
 
 # Report photos and scanned PDF pages. Entries MUST be multimodal (supports_image: true).
 # Same order as UTILS_TEXT_MODEL, deliberately: with several keys present, the

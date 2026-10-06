@@ -101,7 +101,7 @@ services:
     profiles: [local]
     image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
     restart: unless-stopped
-    command: ["--models-preset", "/presets/local-models.ini", "--host", "0.0.0.0", "--port", "8080"]
+    command: ["--models-preset", "/presets/local-models.ini", "--models-max", "2", "--host", "0.0.0.0", "--port", "8080"]
     environment:
       LLAMA_CACHE: /models
       # Where the models download from the first time: a Hugging Face mirror

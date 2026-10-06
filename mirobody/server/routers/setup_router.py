@@ -108,6 +108,26 @@ def _local_setup() -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+_TIER_FIELDS = (("download_gb", float), ("memory_gb", float), ("answer_s", float), ("checks", str), ("measured_on", str))
+
+
+def _tiers() -> list[dict[str, Any]]:
+    """The sizes LOCAL_SETUP offers, smallest first, with what each needs and
+    how it measured. A figure the config does not give is null: unmeasured,
+    and the page says so rather than show a guess."""
+    out = []
+    for row in _local_setup().get("tiers") or []:
+        if not isinstance(row, dict) or not row.get("id") or not row.get("agent"):
+            continue
+        tier: dict[str, Any] = {"id": str(row["id"]), "agent": str(row["agent"]), "ocr": str(row.get("ocr") or ""),
+                                "sees": bool(row.get("sees"))}
+        for name, kind in _TIER_FIELDS:
+            value = row.get(name)
+            tier[name] = kind(value) if value not in (None, "") else None
+        out.append(tier)
+    return out
+
+
 def _candidates() -> list[str]:
     urls = _local_setup().get("base_urls") or []
     return [str(u) for u in urls if str(u).startswith(("http://", "https://"))]
@@ -254,8 +274,7 @@ async def setup_state(request: Request, x_setup_token: str = Header(default=""))
             "model_fields": {role: _model_field((entry, local_entries[entry]) if entry in local_entries else None, fixed)
                              for role, entry in _LOCAL_ROLES},
             "status": {role: status.get(model, "missing") for role, model in models.items() if model} if base_url else {},
-            "download_gb": local.get("download_gb"),
-            "memory_gb": local.get("memory_gb"),
+            "tiers": _tiers(),
             "preset": local.get("preset") or "",
             "in_env_file": "LOCAL_BASE_URL" in fixed,
         },
