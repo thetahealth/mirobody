@@ -45,14 +45,17 @@ def _model_setup() -> dict[str, str]:
 
 
 def _print_setup_link(port: int) -> None:
-    """The first-run page takes this token before it will change where health
-    data goes; printing it here makes whoever can read the log its keeper."""
+    """While no model is set up, the first-run link with its token: `docker
+    run` alone has no deploy.sh to print it. Printed, not logged, so it reads
+    plainly in `docker logs`, and only then: once a model is set up, changing
+    it takes a signed-in session too, and a token repeated at every boot would
+    sit in every log shipper for good."""
     from mirobody.server.routers.setup_router import setup_token
     from mirobody.utils.config.llm import chat_default
 
-    state = "no model is set up yet" if chat_default() is None else "to change the model"
-    print(f"Mirobody: {state}. Open http://localhost:{port}/setup?token={setup_token()}"
-          " (use the port you published).", flush=True)
+    if chat_default() is None:
+        print(f"Mirobody: no model is set up yet. Open http://localhost:{port}/setup?token={setup_token()}"
+              " (use the port you published).", flush=True)
 
 
 def _is_mounted(app, router) -> bool:
@@ -360,11 +363,6 @@ class Server:
         config = await Config.init(yaml_filenames=yaml_files)
         config.print()
 
-        # Which LLM surfaces have a provider, before the first request finds
-        # out. A zero-key server used to boot in silence (#68).
-        from mirobody.utils.config.doctor import log_report, provider_report
-        log_report(provider_report(config), logger)
-
         # Fail fast, before any socket is bound: a production ENV that still
         # carries demo login codes must not come up at all.
         enforce_production_auth_safety(config)
@@ -385,6 +383,13 @@ class Server:
         # the agent builds its model clients (`.env` still wins).
         from mirobody.utils.config import settings
         await settings.apply()
+
+        # Which LLM surfaces have a provider, before the first request finds
+        # out: a zero-key server used to boot in silence (#68). After the
+        # saved settings, or a deployment set up in the browser logs "no LLM
+        # API key is set" at every boot while its model works.
+        from mirobody.utils.config.doctor import log_report, provider_report
+        log_report(provider_report(config), logger)
 
         server = Server(
             server_name     = config.http.name,

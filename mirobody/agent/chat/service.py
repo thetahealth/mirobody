@@ -165,7 +165,7 @@ class ChatService:
         person knows while still sending back the entry's name.
         """
         data = available_models()
-        if request.query_params.get("labels"):
+        if request.query_params.get("labels", "").lower() in ("1", "true", "yes"):
             labels = model_labels(data)
             data = [{"name": n, "model": labels[n]} for n in data]
 

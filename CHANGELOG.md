@@ -35,8 +35,12 @@
   `.env` the stack still starts, and `./deploy.sh` prints a link to `/setup`:
   paste one vendor key, kept only after a real request through it works, or
   choose 100% on this machine. The choice is stored encrypted, applies without
-  a restart and never overrides `.env`; saving takes the `SETUP_TOKEN`
-  `deploy.sh` writes. Settings › Model returns to the page.
+  a restart and never overrides `.env` (nor a key `.env` holds under another
+  name, `GEMINI_API_KEY` for `GOOGLE_API_KEY`). Saving takes the
+  `SETUP_TOKEN` `deploy.sh` writes, and once a model is set up, a signed-in
+  session too: the server prints the link only while none is. A key is
+  checked with one real request before it is kept, without changing what
+  other requests read meanwhile. Settings › Model returns to the page.
 - **Every model can run on the same machine.** `LOCAL_BASE_URL` and
   `LOCAL_OCR_BASE_URL` point the `local` entries at any OpenAI-compatible
   server. The shipped preset serves Qwen3.8-27B (answers) and GLM-OCR-0.9B
@@ -56,7 +60,9 @@
   finding go to the text model.
 - **`mirobody doctor --probe` sends one real request per surface** (a tool
   call, a schema-bound answer, an image, the OCR passes) and checks that each
-  local server runs the model its entry names.
+  local server runs the model its entry names. `doctor` reads the setup
+  page's choice as the server does, so a deployment set up in the browser is
+  not reported as having no model.
 - **`POST /files/upload?file=true` files what it stores.** Without the flag
   the route only stores the file, the first step of a chat attachment that
   the turn then files, and its message now says so instead of "uploaded

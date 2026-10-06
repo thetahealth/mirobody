@@ -45,6 +45,7 @@ import json
 import logging
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -154,18 +155,27 @@ class NoProviderError(ValueError):
 #-----------------------------------------------------------------------------
 # Keys.
 
-def read_api_key(env_name: str) -> str:
+#: How a name is read: `safe_read_cfg` (the environment, then the config
+#: files), unless a caller asks about another state, as the setup page does
+#: about the one a save would leave, without touching `os.environ`.
+Lookup = Callable[[str], str]
+
+
+def _read(name: str, lookup: Lookup | None) -> str:
+    from . import safe_read_cfg
+
+    return ((lookup or safe_read_cfg)(name) or "").strip()
+
+
+def read_api_key(env_name: str, lookup: Lookup | None = None) -> str:
     """The value of `env_name`, or of any name that means the same key.
 
     THE admission function: every surface that decides "is this entry usable"
     goes through here (through `safe_read_cfg`, which tests control), so the
     surfaces cannot disagree about what counts as a key being present.
     """
-    from . import safe_read_cfg
-
     for name in (env_name, *KEY_ALIASES.get(env_name, ())):
-        value = (safe_read_cfg(name, "") or "").strip()
-        if value:
+        if value := _read(name, lookup):
             return value
     return ""
 
@@ -176,38 +186,34 @@ def is_endpoint_name(value: str) -> bool:
     return bool(value) and "://" not in value
 
 
-def endpoint_value(name: str) -> str:
+def endpoint_value(name: str, lookup: Lookup | None = None) -> str:
     """The URL a `base_url` NAME holds (environment first), or ""."""
-    from . import safe_read_cfg
-
-    return (safe_read_cfg(name, "") or "").strip()
+    return _read(name, lookup)
 
 
-def entry_ready(entry: dict[str, Any] | None) -> bool:
+def entry_ready(entry: dict[str, Any] | None, lookup: Lookup | None = None) -> bool:
     """Whether an entry's key and endpoint are both there: the one test the
     chat picker, its default and `mirobody doctor` share. An entry whose
     `base_url` names an unset variable is off: that is how the shipped
     `local` entries stay out of the way until `LOCAL_BASE_URL` is set."""
     entry = entry or {}
     ref = str(entry.get("api_key") or "").strip()
-    if ref and not read_api_key(ref):
+    if ref and not read_api_key(ref, lookup):
         return False
     base = str(entry.get("base_url") or "").strip()
-    return not is_endpoint_name(base) or bool(endpoint_value(base) or base_url_override(ref))
+    return not is_endpoint_name(base) or bool(endpoint_value(base, lookup) or base_url_override(ref, lookup))
 
 
-def base_url_override(api_key_env: str) -> str:
+def base_url_override(api_key_env: str, lookup: Lookup | None = None) -> str:
     """`<PREFIX>_BASE_URL` for the key named `api_key_env` (OPENROUTER_API_KEY
     → OPENROUTER_BASE_URL), or "". The one redirect rule, applied to every
     entry that reads the key: chat, vision, text (#52)."""
-    from . import safe_read_cfg
-
     if not api_key_env.endswith("_API_KEY"):
         return ""
     prefix = api_key_env[: -len("_API_KEY")]
     names = [prefix] + [a[: -len("_API_KEY")] for a in KEY_ALIASES.get(api_key_env, ()) if a.endswith("_API_KEY")]
     for name in names:
-        if value := (safe_read_cfg(f"{name}_BASE_URL", "") or "").strip():
+        if value := _read(f"{name}_BASE_URL", lookup):
             return value
     return ""
 
@@ -516,11 +522,11 @@ def chat_entries() -> dict[str, dict[str, Any]]:
     }
 
 
-def chat_default() -> str | None:
+def chat_default(lookup: Lookup | None = None) -> str | None:
     """The chat picker's default: the first `MODELS` entry (config order,
     utility-only entries excluded) that `entry_ready` admits. None when none is."""
     for name, entry in chat_entries().items():
-        if entry_ready(entry):
+        if entry_ready(entry, lookup):
             return name
     return None
 

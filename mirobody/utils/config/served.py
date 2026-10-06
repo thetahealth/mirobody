@@ -17,14 +17,20 @@ Anything else says nothing, and the entry's own `supports_image` stands.
 from __future__ import annotations
 
 import json
+import threading
 import time
 import urllib.parse
 import urllib.request
 from typing import Any
 
 _TTL_SEC = 300.0
+#: How long "the server does not say" stands: a router that has not loaded the
+#: model yet says nothing, and says it once the setup page has loaded it.
+_UNKNOWN_TTL_SEC = 30.0
 _TIMEOUT_SEC = 3.0
 _cache: dict[tuple[str, str], tuple[float, bool | None]] = {}
+_refreshing: set[tuple[str, str]] = set()
+_lock = threading.Lock()
 
 
 def _fetch(url: str, body: dict | None = None) -> Any:
@@ -66,21 +72,43 @@ def _ask(root: str, model: str) -> bool | None:
     return "vision" in capabilities if isinstance(capabilities, list) else None
 
 
-def served_vision(base_url: str, model: str) -> bool | None:
-    """True or False when the server says whether `model` takes images; None
-    when it does not say or cannot be reached. Cached for five minutes."""
-    if not base_url or not model:
-        return None
-    key = (base_url, model)
-    hit = _cache.get(key)
-    if hit and time.monotonic() - hit[0] < _TTL_SEC:
-        return hit[1]
+def _read(key: tuple[str, str]) -> bool | None:
     try:
-        answer = _ask(base_url.rstrip("/").removesuffix("/v1"), model)
+        answer = _ask(key[0].rstrip("/").removesuffix("/v1"), key[1])
     except Exception:
         answer = None
     _cache[key] = (time.monotonic(), answer)
     return answer
+
+
+def _refresh(key: tuple[str, str]) -> None:
+    try:
+        _read(key)
+    finally:
+        with _lock:
+            _refreshing.discard(key)
+
+
+def served_vision(base_url: str, model: str) -> bool | None:
+    """True or False when the server says whether `model` takes images; None
+    when it does not say or cannot be reached. Cached for five minutes (30 s
+    for None). Callers run on the event loop, and a server that does not
+    answer costs up to three timeouts: so a stale answer is returned at once
+    and re-read beside the caller, and only the first question in a process
+    waits for the server."""
+    if not base_url or not model:
+        return None
+    key = (base_url, model)
+    hit = _cache.get(key)
+    if hit is None:
+        return _read(key)
+    if time.monotonic() - hit[0] >= (_TTL_SEC if hit[1] is not None else _UNKNOWN_TTL_SEC):
+        with _lock:
+            start = key not in _refreshing
+            _refreshing.add(key)
+        if start:
+            threading.Thread(target=_refresh, args=(key,), daemon=True).start()
+    return hit[1]
 
 
 def sees(spec: Any) -> bool:

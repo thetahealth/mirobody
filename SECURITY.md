@@ -90,6 +90,15 @@ others:
   a new key would leave those fields unreadable, and there is no command yet
   that re-encrypts them (`docs/roadmap.md`). Treat such a deployment as a
   local one.
+- **`SETUP_TOKEN` guards the setup page, which decides where health data is
+  sent** (a vendor key, or the address of a model server). `deploy.sh`
+  generates it into `.env`; without it the server makes one per run. While no
+  model is set up, the token alone saves a choice, and the server prints the
+  link with it at startup. Once a model is set up, a change also needs a
+  signed-in session (with its second factor when MFA is on), and the link is
+  no longer printed. Keep the token as secret as `.env`, and set the model in
+  `.env` instead if you would rather not have the page at all: a name set
+  there is never replaced from the page.
 - Leave `COLLECT_WEBHOOK_SECRET` unset unless a vendor pushes to you. The
   `/api/v1/pulse/{platform}/.../webhook` routes answer 404 without it. With it,
   give the vendor the URL with `?secret=<value>` or send `X-Webhook-Secret`.
@@ -132,6 +141,7 @@ There is no telemetry and no usage reporting.
 | Destination | When | What is sent |
 | --- | --- | --- |
 | The model behind your key (`config.llm.yaml`) | chat; reading a report photo or PDF; extracting indicators; splitting a journal sentence | the question and the rows the agent reads; the file; the sentence |
+| Your own model server (`LOCAL_BASE_URL`, `LOCAL_OCR_BASE_URL`), when set instead of a key | the same | the same, to that server: with it on this machine, none of it leaves |
 | Garmin, Oura, Whoop | only after a person links one | OAuth tokens, and requests for that person's own data |
 | Your SMTP server | when `EMAIL_SMTP_*` is configured, to send a sign-in code | the address and the code |
 | S3 or Aliyun OSS | only when configured in place of the local disk | uploaded files |

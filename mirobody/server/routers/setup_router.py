@@ -2,17 +2,19 @@
 
 `GET /api/setup` says whether a model is still needed and what each choice
 takes; it returns no saved value. `POST /api/setup` changes where health data
-is sent, so it takes the setup token the app prints to its log at startup
-(or `SETUP_TOKEN` from `.env`, which `deploy.sh` generates): whoever can read
-the deployment's log is whoever deployed it. A key is saved only after one
-real request through it succeeds; a local address only when the server there
-serves the models the local entries name.
+is sent, so it takes the setup token: `SETUP_TOKEN` from `.env`, which
+`deploy.sh` generates, or the one the app prints at startup while no model is
+set up. Once one is, the token alone no longer changes it: the request must
+also come from a signed-in session, which the JWT middleware has already held
+to its second factor. A token copied out of an old log, or out of a log
+shipper, is then not enough to point every later question at another server.
+A key is saved only after one real request through it succeeds; a local
+address only when the server there serves the models the local entries name.
 """
 
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import hmac
 import logging
 import os
@@ -25,6 +27,7 @@ from fastapi import APIRouter, Header, Request
 from pydantic import BaseModel
 
 from mirobody.server.envelope import err, ok
+from mirobody.kernel.ops import is_driver_exception
 
 logger = logging.getLogger(__name__)
 
@@ -44,46 +47,57 @@ _LABELS = {
 _token = os.environ.get("SETUP_TOKEN") or secrets.token_urlsafe(18)
 _failures: dict[str, list[float]] = {}
 _MAX_FAILURES, _FAILURE_WINDOW_SEC = 10, 600
-_env_lock = asyncio.Lock()
+#: One save at a time: two would each check a key against a state the other
+#: is about to change.
+_save_lock = asyncio.Lock()
 
 
 def setup_token() -> str:
     return _token
 
 
+def _client(request: Request) -> str:
+    return request.client.host if request.client else "?"
+
+
 def _trusted(request: Request, token: str) -> bool:
-    """The token matches. A wrong one counts toward the client's limit."""
-    if token and hmac.compare_digest(token, _token):
+    """The token matches; a wrong or missing one counts toward the client's
+    limit. Compared as bytes: `compare_digest` refuses a non-ASCII str with
+    a TypeError, which was a 500."""
+    if token and hmac.compare_digest(token.encode(), _token.encode()):
         return True
-    if token:
-        _failures.setdefault(request.client.host if request.client else "?", []).append(time.monotonic())
+    now = time.monotonic()
+    if len(_failures) > 1000:
+        for client in [c for c, times in _failures.items() if not times or now - times[-1] >= _FAILURE_WINDOW_SEC]:
+            del _failures[client]
+    _failures.setdefault(_client(request), []).append(now)
     return False
 
 
-@contextlib.contextmanager
-def _environment(changes: dict[str, str | None]):
-    """Apply `changes` to os.environ (None removes a name), then restore it."""
-    before = {name: os.environ.get(name) for name in changes}
-    try:
-        for name, value in changes.items():
-            if value is None:
-                os.environ.pop(name, None)
-            else:
-                os.environ[name] = value
-        yield
-    finally:
-        for name, value in before.items():
-            if value is None:
-                os.environ.pop(name, None)
-            else:
-                os.environ[name] = value
-
-
 def _refused(client: str) -> bool:
+    """Ten wrong tokens in ten minutes from one address. Asked only after a
+    wrong one: behind a proxy every client shares an address, and the owner's
+    right token must still work while a guesser is being refused."""
     now = time.monotonic()
     recent = [t for t in _failures.get(client, []) if now - t < _FAILURE_WINDOW_SEC]
     _failures[client] = recent
     return len(recent) >= _MAX_FAILURES
+
+
+def _would_leave(name: str, value: str, cleared: frozenset[str]):
+    """The lookup (`llm.Lookup`) of the state a save would leave: `name` set
+    to `value`, the page's other choices gone, everything else as it is. Asked
+    instead of changing `os.environ` for the check, which every other request
+    in this process reads: a chat summary sent mid-check went to the vendor
+    under a key nobody had accepted yet."""
+    from mirobody.utils.config import safe_read_cfg
+
+    def lookup(n: str) -> str:
+        if n == name:
+            return value
+        return "" if n in cleared else (safe_read_cfg(n, "") or "")
+
+    return lookup
 
 
 def _local_setup() -> dict[str, Any]:
@@ -163,8 +177,7 @@ async def setup_state(request: Request, x_setup_token: str = Header(default=""))
     from mirobody.utils.config import settings
     from mirobody.utils.config.llm import KEYS_URL, chat_default
 
-    client = request.client.host if request.client else "?"
-    trusted = not _refused(client) and _trusted(request, x_setup_token)
+    trusted = bool(x_setup_token) and _trusted(request, x_setup_token)
     fixed = settings.set_in_environment() if trusted else frozenset()
     providers = []
     for name, url in KEYS_URL.items():
@@ -210,19 +223,29 @@ class SetupChoice(BaseModel):
 
 @router.post("")
 async def setup_save(choice: SetupChoice, request: Request, x_setup_token: str = Header(default="")) -> Any:
+    from mirobody.utils.config.llm import chat_default
+
+    if not _trusted(request, x_setup_token):
+        if _refused(_client(request)):
+            return err(429, "Too many wrong setup tokens. Wait ten minutes.")
+        return err(403, "The setup token is wrong. It is SETUP_TOKEN in the .env next to compose.yaml, "
+                        "or the one the app prints at startup while no model is set up.")
+    if chat_default() is not None and not getattr(request.state, "user_id", 0):
+        return err(401, "Sign in to change the model. Once a model is set up, the setup token alone does not change it.")
+    async with _save_lock:
+        try:
+            return await _save(choice)
+        except Exception as e:
+            logger.warning("setup not saved: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
+            return err(500, f"The choice could not be saved ({type(e).__name__}); the app's log has the details.")
+
+
+async def _save(choice: SetupChoice) -> Any:
     from mirobody.agent import probe, registry
     from mirobody.utils.config import settings
     from mirobody.utils.config.llm import KEYS_URL, chat_default
 
-    client = request.client.host if request.client else "?"
-    if _refused(client):
-        return err(429, "Too many wrong setup tokens. Wait ten minutes.")
-    if not _trusted(request, x_setup_token):
-        if not x_setup_token:
-            _failures.setdefault(client, []).append(time.monotonic())
-        return err(403, "The setup token is wrong. It is printed in the app's log at startup.")
     fixed = settings.set_in_environment()
-
     if choice.mode == "key":
         name, value = choice.name.strip(), choice.value.strip()
         if name not in KEYS_URL or not value:
@@ -231,21 +254,23 @@ async def setup_save(choice: SetupChoice, request: Request, x_setup_token: str =
             return err(409, f"{name} is set in .env; change it there.")
         if not _entry_for_key(name):
             return err(400, f"No chat model uses {name}.")
-        # Tried in the environment the save would leave: the page's earlier
-        # choices gone, `.env` as it is. A key there that ranks higher would
-        # keep answering, so the page says so instead of saving.
-        from mirobody.utils.config.llm import chat_entries
+        # Tried in the state the save would leave: the page's earlier choices
+        # gone, `.env` as it is. A key there that ranks higher would keep
+        # answering, so the page says so instead of saving.
+        from mirobody.utils.config.llm import chat_entries, read_api_key
 
-        async with _env_lock:
-            with _environment(dict.fromkeys(settings.allowed_names() - fixed) | {name: value}):
-                winner = chat_default() or ""
-                winner_key = str((chat_entries().get(winner) or {}).get("api_key") or "")
-                passed, detail = False, ""
-                if winner_key == name:
-                    try:
-                        passed, detail = await asyncio.wait_for(probe._chat(winner), timeout=90)
-                    except Exception as e:
-                        passed, detail = False, type(e).__name__
+        lookup = _would_leave(name, value, settings.allowed_names() - fixed)
+        winner = chat_default(lookup) or ""
+        winner_key = str((chat_entries().get(winner) or {}).get("api_key") or "")
+        passed, detail = False, ""
+        if winner_key == name:
+            def resolve(n: str) -> str | None:
+                return (read_api_key(n, lookup) if n.endswith("_API_KEY") else lookup(n)) or None
+
+            try:
+                passed, detail = await asyncio.wait_for(probe._chat(winner, resolve=resolve), timeout=90)
+            except Exception as e:
+                passed, detail = False, type(e).__name__
         if not winner:
             return err(400, f"No chat model uses {name}.")
         if winner_key != name:

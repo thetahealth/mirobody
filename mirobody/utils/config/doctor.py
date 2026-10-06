@@ -129,7 +129,8 @@ def log_report(rows: list[SurfaceStatus], log: logging.Logger) -> None:
         # keeps the container's old environment: the key they had just added
         # was never read, and this line came back unchanged.
         reason = (
-            "no LLM API key is set; put ONE in .env (see config.llm.yaml), then run "
+            "no LLM API key is set; choose one on the setup page (the server prints its link once "
+            "it listens), or put ONE in .env (see config.llm.yaml), then run "
             "`docker compose up -d` (a plain `restart` keeps the old environment), "
             "or start `mirobody serve` again"
         )
