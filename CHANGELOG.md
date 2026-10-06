@@ -280,6 +280,26 @@ decisions.
 
 ### Fixed
 
+- **Any document-OCR model's answer is read: PaddleOCR-VL's and MinerU's
+  tables too.** Each OCR pass reached the readers as the model wrote it.
+  PaddleOCR-VL-1.6 and MinerU2.5 answer `Table Recognition:` in OTSL
+  (`<fcel>…<nl>`), which nothing parsed: on the OCR benchmark's 26 pages
+  (benchmarks/local_ocr, 303 printed rows) the table rules read none of
+  PaddleOCR's rows, where its text held 300. PaddleOCR also writes units and
+  flags as LaTeX (`\(\mu mol/L\)`, `6.49\(\uparrow\)`), which the unit engine
+  and the value parser do not read, and its text pass repeated `未见异常` on an
+  ECG page until the benchmark's 8,192-token cap; the product sent no cap, so
+  a loop ran to the end of the model's context. Every answer is now cleaned
+  once in `documents/ocr.py` (`clean_answer`): OTSL becomes an HTML table with
+  its spans, LaTeX the characters it typesets (`μmol/L`, `×10^9/L`, `↑`), and
+  a line or phrase repeated 64 times in a row one copy, with a warning that
+  carries only counts. An OCR model's pass is capped at 8,192 tokens, five
+  times the longest answer measured (`unified_file_extract(max_tokens=)`, sent
+  under the name the endpoint takes, on the Anthropic backend too). GLM-OCR's
+  answers hold none of this and are unchanged. To tell: with PaddleOCR-VL as
+  `local-ocr`, a scanned report's stored text holds `<table>` and `μmol/L`,
+  not `<fcel>` or `\mu`. `docker/local-models.ini` gains a `paddleocr-vl`
+  section; the default reader is still `glm-ocr`.
 - **A document with no date is not filed under the prompt's example date.**
   The extraction prompt's worked example said `"date_time": "2024-10-30
   00:00:00"`, and MiniCPM5-2B copied it onto documents that print no date of
