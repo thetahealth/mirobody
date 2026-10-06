@@ -55,7 +55,10 @@ CASES: list[tuple[str, dict]] = [
     ("latest", {"indicators": ["RestingHeartRate-RHR"], "view": "latest"}),
     ("keywords", {"keywords": ["resting heart"]}),
     ("keywords_miss", {"keywords": ["definitely-not-an-indicator-zzz"]}),
-    ("refused_catalog_view", {"view": "day"}),
+    # A view with no indicator is answered with the catalogue and told so: the
+    # refusal it used to get cost small local models a turn each time
+    # (benchmarks/local_models, 2026-10-06).
+    ("catalog_view_answers", {"view": "day"}),
     ("refused_wrong_kind", {"kind": "medications", "view": "day"}),  # the former mode switch
     ("refused_retired_limit", {"indicators": ["x"], "limit": 5}),
 ]
@@ -138,6 +141,12 @@ async def run(user_id: str, capture: Path | None) -> int:
             failures += not _check(
                 f"{name}: window semantics declared",
                 envelope.meta.window_semantics in (query.SEMANTICS_TZ_EXACT, query.SEMANTICS_DATE_PADDED),
+            )
+        if name == "catalog_view_answers":
+            failures += not _check(f"{name}: is the catalogue", envelope.meta.view == "")
+            failures += not _check(
+                f"{name}: says the view was not applied",
+                any("was not applied" in a for a in envelope.assumptions),
             )
 
     print("\ninvariants\n")
