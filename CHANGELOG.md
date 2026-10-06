@@ -51,17 +51,20 @@
 - **Every model can run on the same machine.** `LOCAL_BASE_URL` and
   `LOCAL_OCR_BASE_URL` point the `local` entries at any OpenAI-compatible
   server. The shipped preset runs on llama.cpp: GLM-OCR-0.9B reads
-  documents and one of three models answers (MiniCPM5-1B, MiniCPM5-2B,
-  Qwen3.8-27B), picked on the setup page by what each downloads
-  and needs; `docker compose --profile local` (NVIDIA) or `--profile
-  local-cpu` runs it next to the app. Each model server keeps at most 1 GiB
-  of prompt cache, the reader none: llama.cpp's default is 8 GiB per model,
-  and two small models filled a 16 GB Mac's disk with swap. Qwen3.8-27B on an
-  Apple M4 Pro: 16 of 16 test questions with no number the record lacks,
-  about two minutes an answer, and 27 of 27 demo readings. See
-  `docs/local-models.md`. The
-  models download from Hugging Face the first time; `HF_ENDPOINT` in `.env`
-  points the `llama` service at a mirror.
+  documents, and one of two models answers, picked on the setup page by what
+  each downloads and needs. MiniCPM5-2B, the default: 3.0 GB with the
+  reader, 5.7 GB of memory at most, 28 s a median answer on a 16 GB M1 Pro,
+  16 of 24 evaluation questions passed and 14 answered with every expected
+  fact. Qwen3.8-27B: 14.5 GB, about 20 GB of memory; on an Apple M4 Pro 16 of
+  16 earlier test questions with no number the record lacks, about two
+  minutes an answer, 27 of 27 demo readings. `docker compose --profile
+  local` (NVIDIA) or `--profile local-cpu` runs it next to the app. Each
+  model server keeps at most 1 GiB of prompt cache, the reader none:
+  llama.cpp's default is 8 GiB per model, and two small models filled a
+  16 GB Mac's disk with swap. The evaluation, its seed and how to rerun it
+  are in `benchmarks/local_models/`; `docs/local-models.md` is the guide.
+  The models download from Hugging Face the first time; `HF_ENDPOINT` in
+  `.env` points the `llama` service at a mirror.
 - **A table is read by its header, without a model**, when a document-OCR
   model is routed (the local setup). Rows under a header the rules know
   (项目名称 / 结果 / 参考值 / 单位, Analyte / Result / Unit, a CSV's first

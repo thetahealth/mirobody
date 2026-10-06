@@ -151,17 +151,19 @@ MODELS:
     temperature: 0.1
     supports_image: true
   local:
-    # The local agent: Qwen3.8-27B (ISTA-DASLab GSQ-RCO IQ3_S + MTP head), the
-    # `qwen3.8-27b` section of docker/local-models.ini on llama.cpp's router.
-    # No key, and off until LOCAL_BASE_URL is set:
+    # The local agent: MiniCPM5-2B, the `minicpm5-2b` section of
+    # docker/local-models.ini on llama.cpp's router, the size an ordinary
+    # computer runs and the one the setup page opens on. LOCAL_MODEL=qwen3.8-27b
+    # (or the page's large size) answers better on 20 GB. No key, and off
+    # until LOCAL_BASE_URL is set:
     #   LOCAL_BASE_URL=http://127.0.0.1:8080/v1                (the app on this machine)
     #   LOCAL_BASE_URL=http://host.docker.internal:8080/v1     (the app in Docker)
     llm_type: openai
     base_url: LOCAL_BASE_URL
-    model: qwen3.8-27b
+    model: minicpm5-2b
     model_env: LOCAL_MODEL
     temperature: 0
-    supports_image: true
+    supports_image: true          # the server says whether the model sees (/props)
     stream_chunk_timeout: 600     # nothing streams while a local model reads the prompt:
                                   # 80 s for the first 8k tokens on an M4 Pro
 
@@ -237,7 +239,7 @@ MODELS:
     # date, and whatever a document's tables did not hold.
     llm_type: openai
     base_url: LOCAL_BASE_URL
-    model: qwen3.8-27b
+    model: minicpm5-2b
     model_env: LOCAL_MODEL
     temperature: 0
     supports_image: true
@@ -293,22 +295,22 @@ LOCAL_SETUP:
   # The sizes the page offers, smallest first: the model that answers
   # (`agent`) beside the document reader (`ocr`), both sections of the preset.
   # download_gb adds up the GGUF files the preset fetches (Hugging Face,
-  # 2026-10-06); memory_gb is what llama-server held with both loaded, and
-  # answer_s the median seconds per answer, on the machine `measured_on` names.
+  # 2026-10-06); memory_gb is the peak llama-server held with both loaded
+  # while answering, and answer_s the median seconds per answer, on the
+  # machine `measured_on` names (benchmarks/local_models has the evaluation).
   # `sees`: whether the answering model reads a photo itself (else its OCR
-  # text); `checks` is how many of the evaluation's checks the size passed
-  # (docs/local-models.md has the evaluation).
+  # text). MiniCPM5-1B and Qwen3.5-9B were evaluated and are not offered: the
+  # 1B answered 2 of 24 questions fully for 0.4 GB less download, the 9B did
+  # not fit beside the stack on 16 GB.
   tiers:
-    - id: tiny
-      sees: false
-      agent: minicpm5-1b
-      ocr: glm-ocr
-      download_gb: 2.6
     - id: small
       sees: false
       agent: minicpm5-2b
       ocr: glm-ocr
       download_gb: 3.0
+      memory_gb: 5.7
+      answer_s: 28
+      measured_on: Apple M1 Pro, 16 GB
     - id: large
       sees: true
       agent: qwen3.8-27b
