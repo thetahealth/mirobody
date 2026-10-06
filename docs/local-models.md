@@ -107,8 +107,13 @@ refuses local while `.env` holds a key. To use the local ones anyway, set
 
 `compose.yaml` maps `host.docker.internal` for Docker Engine on Linux and keeps
 it out of `HTTP_PROXY`, so a proxied deployment does not route model requests
-through the proxy. On Linux that name points at the Docker bridge, so a server
-on the host has to listen on it (`--host 0.0.0.0`, or the bridge address).
+through the proxy. On a Mac (Docker Desktop or colima) that name reaches the
+host's loopback, so `llama-server` keeps its default `127.0.0.1`. On Linux it
+points at the Docker bridge, so a server on the host has to listen there: give
+it the bridge address (`--host 172.17.0.1`, from `ip -4 addr show docker0`),
+not `0.0.0.0`, which also offers the server, with no key, to every machine on
+your network. The `--profile local` service needs neither: the app reaches it
+on compose's own network.
 
 `failed to initialize router models: ... Is a directory` in the `llama` log
 means Docker could not see the checkout, and mounted an empty directory where
