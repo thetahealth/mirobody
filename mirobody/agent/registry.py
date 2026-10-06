@@ -164,10 +164,14 @@ def load_agent(dirs: list[str], config: Config | None = None) -> type | None:
 
 
 def _build_clients(klass: type, cfg: Config | None) -> dict[str, Any]:
+    from mirobody.utils.config.llm import model_entries
+
     loader = getattr(klass, "load_llm_clients", None)
     if not callable(loader) or not cfg:
         return {}
-    providers = (cfg.get_agent_settings() or {}).get("providers") or {}
+    # With each entry's `model_env` applied: a model changed on the setup
+    # page is rebuilt here (`reload_llm_clients`) without a restart.
+    providers = model_entries()
     # `chat: false` entries (utility and embedding models) are not chat
     # models and must not reach the picker or be built as one.
     providers = {n: e for n, e in providers.items()
@@ -240,10 +244,9 @@ def available_models() -> list[str]:
     """
     if not _llm_clients:
         return []
-    from mirobody.utils.config.llm import entry_ready
+    from mirobody.utils.config.llm import entry_ready, model_entries
 
-    cfg = global_config()
-    providers = (cfg.get_agent_settings() or {}).get("providers") or {} if cfg else {}
+    providers = model_entries()
     names = []
     for name in providers:
         if name not in _llm_clients:
@@ -266,8 +269,9 @@ def model_labels(names: list[str]) -> dict[str, str]:
     """What a person knows each entry by: the model it runs ("qwen3.8-27b",
     not "local"), without an OpenRouter-style vendor prefix. When two entries
     run the same model, the entry's name tells them apart."""
-    cfg = global_config()
-    providers = (cfg.get_agent_settings() or {}).get("providers") or {} if cfg else {}
+    from mirobody.utils.config.llm import model_entries
+
+    providers = model_entries()
     labels = {n: str((providers.get(n) or {}).get("model") or n).rsplit("/", 1)[-1] for n in names}
     counts: dict[str, int] = {}
     for label in labels.values():

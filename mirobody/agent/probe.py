@@ -60,17 +60,18 @@ class ProbeResult:
     detail: str
 
 
-async def _chat(name: str | None = None, resolve: Any = None) -> tuple[bool, str]:
+async def _chat(name: str | None = None, resolve: Any = None, entry: dict | None = None) -> tuple[bool, str]:
     """One tool call through the chat entry `name`, or the default one;
-    `resolve` reads its key and address (`clients.Resolver`) when they are not
-    the environment's, as for a key the setup page has not saved yet."""
+    `resolve` reads its key and address (`clients.Resolver`) and `entry` is
+    the entry itself, when they are not what the environment says, as for a
+    key and model the setup page has not saved yet."""
     from mirobody.agent.models.clients import build_chat_model
     from mirobody.utils.config.llm import chat_default, chat_entries
 
     name = name or chat_default()
     if not name:
         return False, "no chat entry is usable"
-    model = build_chat_model(chat_entries()[name], alias=name, resolve=resolve).bind_tools([_TOOL])
+    model = build_chat_model(entry or chat_entries()[name], alias=name, resolve=resolve).bind_tools([_TOOL])
     reply = await model.ainvoke("What was my fasting glucose over the last 90 days? Look it up.")
     calls = getattr(reply, "tool_calls", None) or []
     if not calls:

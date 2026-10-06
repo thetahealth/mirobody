@@ -84,17 +84,17 @@ def _refused(client: str) -> bool:
     return len(recent) >= _MAX_FAILURES
 
 
-def _would_leave(name: str, value: str, cleared: frozenset[str]):
-    """The lookup (`llm.Lookup`) of the state a save would leave: `name` set
-    to `value`, the page's other choices gone, everything else as it is. Asked
+def _would_leave(changes: dict[str, str], cleared: frozenset[str]):
+    """The lookup (`llm.Lookup`) of the state a save would leave: `changes`
+    applied, the page's other choices gone, everything else as it is. Asked
     instead of changing `os.environ` for the check, which every other request
     in this process reads: a chat summary sent mid-check went to the vendor
     under a key nobody had accepted yet."""
     from mirobody.utils.config import safe_read_cfg
 
     def lookup(n: str) -> str:
-        if n == name:
-            return value
+        if n in changes:
+            return changes[n]
         return "" if n in cleared else (safe_read_cfg(n, "") or "")
 
     return lookup
@@ -122,21 +122,66 @@ def _chat_model() -> str:
     return str((chat_entries().get(name) or {}).get("model") or name) if name else ""
 
 
-def _entry_for_key(name: str) -> tuple[str, dict] | None:
-    from mirobody.utils.config.llm import chat_entries
+def _entry_for_key(name: str, lookup: Any = None, *, chat: bool = True) -> tuple[str, dict] | None:
+    """The first chat entry (or, `chat=False`, utility entry) reading key `name`."""
+    from mirobody.utils.config.llm import chat_entries, model_entries
 
-    for entry_name, entry in chat_entries().items():
+    entries = chat_entries(lookup) if chat else {
+        n: e for n, e in model_entries(lookup).items() if str(e.get("chat", "")).lower() in ("false", "0", "no", "off")}
+    for entry_name, entry in entries.items():
         if str(entry.get("api_key") or "") == name:
             return entry_name, entry
     return None
 
 
-def _local_models() -> dict[str, str]:
+def _configured_model(entry_name: str) -> str:
+    """The model `config.llm.yaml` writes for an entry, before any `model_env`."""
+    from mirobody.utils.config.llm import model_entries
+
+    return str((model_entries(lambda _name: "").get(entry_name) or {}).get("model") or "")
+
+
+def _model_field(found: tuple[str, dict] | None, fixed: frozenset[str]) -> dict[str, Any]:
+    """What the page shows to let a person change an entry's model: the model
+    in use, the one the config writes, and the variable that holds a change."""
+    if not found:
+        return {"model": "", "default": "", "env": "", "in_env_file": False}
+    env = str(found[1].get("model_env") or "")
+    return {"model": str(found[1].get("model") or ""), "default": _configured_model(found[0]),
+            "env": env, "in_env_file": bool(env) and env in fixed}
+
+
+_LOCAL_ROLES = (("agent", "local"), ("utils", "local-utils"), ("ocr", "local-ocr"))
+
+
+def _local_models(lookup: Any = None) -> dict[str, str]:
+    from mirobody.utils.config.llm import model_entries
+
+    table = model_entries(lookup)
+    return {role: str((table.get(entry) or {}).get("model") or "") for role, entry in _LOCAL_ROLES}
+
+
+def _local_entries() -> dict[str, dict]:
     from mirobody.utils.config.llm import model_entries
 
     table = model_entries()
-    return {role: str((table.get(entry) or {}).get("model") or "")
-            for role, entry in (("agent", "local"), ("utils", "local-utils"), ("ocr", "local-ocr"))}
+    return {entry: table[entry] for _, entry in _LOCAL_ROLES if entry in table}
+
+
+def _model_change(found: tuple[str, dict] | None, chosen: str, fixed: frozenset[str]) -> dict[str, str] | Any:
+    """`{variable: value}` for a model a person typed for an entry: {} when
+    they typed nothing or the entry has no `model_env`, "" for the configured
+    model itself (so a later config update reaches them); or the error
+    envelope, when `.env` holds the variable or the name cannot be one."""
+    chosen = chosen.strip()
+    if not chosen or not found or not found[1].get("model_env"):
+        return {}
+    env = str(found[1]["model_env"])
+    if env in fixed:
+        return {} if chosen == str(found[1].get("model") or "") else err(409, f"{env} is set in .env; change it there.")
+    if len(chosen) > 200 or any(c.isspace() for c in chosen):
+        return err(400, "A model name has no spaces, like anthropic/claude-sonnet-5 or qwen3.8-flash.")
+    return {env: "" if chosen == _configured_model(found[0]) else chosen}
 
 
 def _served(base_url: str) -> dict[str, str]:
@@ -181,11 +226,13 @@ async def setup_state(request: Request, x_setup_token: str = Header(default=""))
     fixed = settings.set_in_environment() if trusted else frozenset()
     providers = []
     for name, url in KEYS_URL.items():
-        found = _entry_for_key(name)
+        chat = _model_field(_entry_for_key(name), fixed)
+        utils = _model_field(_entry_for_key(name, chat=False), fixed)
         providers.append({"key": name, "label": _LABELS.get(name, name), "get_key_url": url,
-                          "model": str(found[1].get("model") or "") if found else "",
+                          "model": chat["model"], "chat_model": chat, "utils_model": utils,
                           "set": trusted and bool(os.environ.get(name)), "in_env_file": name in fixed})
     local = _local_setup()
+    local_entries = _local_entries()
     base_url = (os.environ.get("LOCAL_BASE_URL") or "") if trusted else ""
     ocr_base_url = os.environ.get("LOCAL_OCR_BASE_URL") or base_url
     models = _local_models()
@@ -204,6 +251,8 @@ async def setup_state(request: Request, x_setup_token: str = Header(default=""))
             "base_url": base_url,
             "candidates": _candidates(),
             "models": models,
+            "model_fields": {role: _model_field((entry, local_entries[entry]) if entry in local_entries else None, fixed)
+                             for role, entry in _LOCAL_ROLES},
             "status": {role: status.get(model, "missing") for role, model in models.items() if model} if base_url else {},
             "download_gb": local.get("download_gb"),
             "memory_gb": local.get("memory_gb"),
@@ -219,6 +268,33 @@ class SetupChoice(BaseModel):
     value: str = ""
     base_url: str = ""
     ocr_base_url: str = ""
+    #: The model to run, when not the one the config writes: the chat model
+    #: beside a key (`model`) and the one that reads documents with it
+    #: (`utils_model`); the agent (`model`) and the OCR model (`ocr_model`)
+    #: on a local server. Empty keeps what is in use.
+    model: str = ""
+    utils_model: str = ""
+    ocr_model: str = ""
+
+
+@router.get("/local")
+async def setup_local(request: Request, base_url: str = "", x_setup_token: str = Header(default="")) -> Any:
+    """The models a local server serves, for the page to offer: at `base_url`,
+    or at the first of the usual addresses that answers. Takes the token: it
+    makes this server send a request to an address the caller names."""
+    if not _trusted(request, x_setup_token):
+        if _refused(_client(request)):
+            return err(429, "Too many wrong setup tokens. Wait ten minutes.")
+        return err(403, "The setup token is wrong.")
+    given = base_url.strip()
+    if given and not given.startswith(("http://", "https://")):
+        return err(400, "Give the address of the model server, e.g. http://host.docker.internal:8080/v1.")
+    for candidate in [given] if given else _candidates():
+        served = await asyncio.to_thread(_served, candidate)
+        if served:
+            return ok({"base_url": candidate, "served": [{"id": m, "status": s} for m, s in sorted(served.items())],
+                       "models": _local_models()})
+    return err(400, f"No model server answered at {given or ', '.join(_candidates())}. Start it and try again.")
 
 
 @router.post("")
@@ -252,32 +328,41 @@ async def _save(choice: SetupChoice) -> Any:
             return err(400, "Choose a supported service and paste its key.")
         if name in fixed:
             return err(409, f"{name} is set in .env; change it there.")
-        if not _entry_for_key(name):
+        chat = _entry_for_key(name)
+        if not chat:
             return err(400, f"No chat model uses {name}.")
+        models: dict[str, str] = {}
+        for found, chosen in ((chat, choice.model), (_entry_for_key(name, chat=False), choice.utils_model)):
+            change = _model_change(found, chosen, fixed)
+            if not isinstance(change, dict):
+                return change
+            models.update(change)
         # Tried in the state the save would leave: the page's earlier choices
-        # gone, `.env` as it is. A key there that ranks higher would keep
-        # answering, so the page says so instead of saving.
+        # gone, `.env` as it is, the model as typed. A key there that ranks
+        # higher would keep answering, so the page says so instead of saving.
         from mirobody.utils.config.llm import chat_entries, read_api_key
 
-        lookup = _would_leave(name, value, settings.allowed_names() - fixed)
+        lookup = _would_leave({name: value, **models}, settings.allowed_names() - fixed)
         winner = chat_default(lookup) or ""
-        winner_key = str((chat_entries().get(winner) or {}).get("api_key") or "")
+        entry = chat_entries(lookup).get(winner) or {}
+        winner_key = str(entry.get("api_key") or "")
         passed, detail = False, ""
         if winner_key == name:
             def resolve(n: str) -> str | None:
                 return (read_api_key(n, lookup) if n.endswith("_API_KEY") else lookup(n)) or None
 
             try:
-                passed, detail = await asyncio.wait_for(probe._chat(winner, resolve=resolve), timeout=90)
+                passed, detail = await asyncio.wait_for(probe._chat(winner, resolve=resolve, entry=entry), timeout=90)
             except Exception as e:
-                passed, detail = False, type(e).__name__
+                # A model name the vendor does not know answers 404 or 400 here.
+                passed, detail = False, f"{type(e).__name__} (check the key, and the model name {entry.get('model')})"
         if not winner:
             return err(400, f"No chat model uses {name}.")
         if winner_key != name:
             return err(409, f"{winner_key or winner} is set in .env and is used before {name}; change it there.")
         if not passed:
             return err(400, f"The key did not work: {detail}")
-        await settings.save(dict.fromkeys(settings.allowed_names() - fixed, "") | {name: value})
+        await settings.save(dict.fromkeys(settings.allowed_names() - fixed, "") | {name: value} | models)
     else:
         if "LOCAL_BASE_URL" in fixed:
             return err(409, "LOCAL_BASE_URL is set in .env; change it there.")
@@ -289,7 +374,15 @@ async def _save(choice: SetupChoice) -> Any:
         given = choice.base_url.strip()
         if given and not given.startswith(("http://", "https://")):
             return err(400, "Give the address of the model server, e.g. http://host.docker.internal:8080/v1.")
-        models = _local_models()
+        changes: dict[str, str] = {}
+        table = _local_entries()
+        for role, chosen in (("agent", choice.model), ("ocr", choice.ocr_model)):
+            entry = "local" if role == "agent" else "local-ocr"
+            change = _model_change((entry, table[entry]) if entry in table else None, chosen, fixed)
+            if not isinstance(change, dict):
+                return change
+            changes.update(change)
+        models = _local_models(_would_leave(changes, frozenset()))
         wanted = sorted({m for m in models.values() if m})
         base_url, ocr_base_url, answers = "", "", []
         for candidate in [given] if given else _candidates():
@@ -307,7 +400,8 @@ async def _save(choice: SetupChoice) -> Any:
                 return err(400, f"No server serves {', '.join(wanted)}: {'; '.join(answers)}.")
             tried = given or ", ".join(_candidates())
             return err(400, f"No model server answered at {tried}. Start it and try again.")
-        await settings.save(dict.fromkeys(KEYS_URL, "") | {"LOCAL_BASE_URL": base_url, "LOCAL_OCR_BASE_URL": ocr_base_url})
+        await settings.save(dict.fromkeys(KEYS_URL, "") | {"LOCAL_BASE_URL": base_url, "LOCAL_OCR_BASE_URL": ocr_base_url}
+                            | changes)
         for model in {models["agent"], models["ocr"]} - {""}:
             await asyncio.to_thread(_load, ocr_base_url if model == models["ocr"] else base_url, model)
 

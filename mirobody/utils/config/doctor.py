@@ -91,7 +91,9 @@ def format_report(rows: list[SurfaceStatus]) -> str:
     """The `mirobody doctor` table."""
     lines = ["LLM models by surface (config.llm.yaml)", "-" * 72]
     keys = keys_present()
-    lines.append("keys present   : " + (", ".join(keys) if keys else "none — put ONE in .env"))
+    # A local server needs no key, so "none" is advice only when nothing works.
+    advice = "" if any(r.provider for r in rows) else " — choose a model on the setup page, or put ONE key in .env"
+    lines.append("keys present   : " + (", ".join(keys) if keys else "none" + advice))
     lines.append("")
     width = max(len(r.surface) for r in rows)
     for r in rows:

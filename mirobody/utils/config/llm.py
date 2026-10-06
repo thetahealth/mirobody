@@ -360,7 +360,7 @@ def _spec_from_string(value: str, entries: dict[str, dict]) -> RouteSpec | None:
 #: into a line at boot instead of zero indicators over a successful upload.
 KNOWN_ENTRY_KEYS: frozenset[str] = frozenset({
     # read here, into a RouteSpec
-    "llm_type", "api_key", "base_url", "model", "temperature",
+    "llm_type", "api_key", "base_url", "model", "model_env", "temperature",
     "supports_image", "supports_pdf", "response_format", "reasoning_effort",
     "extra_body", "chat", "ocr_prompts", "timeout", "max_retries",
     # read by the agent's client builder (`agent/models/clients.py`)
@@ -380,14 +380,31 @@ def unread_entry_keys() -> dict[str, list[str]]:
     return out
 
 
-def model_entries() -> dict[str, dict[str, Any]]:
-    """The `MODELS` table as configured ({} with no Config loaded)."""
+def model_entries(lookup: Lookup | None = None) -> dict[str, dict[str, Any]]:
+    """The `MODELS` table ({} with no Config loaded), each entry's `model`
+    replaced by its `model_env` variable when that is set. Read per call: the
+    setup page changes the variable without a restart, and every reader (the
+    chat clients, the utility routes, the doctor) has to see the same model."""
     from .config import global_config
 
     cfg = global_config()
     if cfg is None:
         return {}
-    return dict((cfg.get_agent_settings() or {}).get("providers") or {})
+    entries = {}
+    for name, entry in ((cfg.get_agent_settings() or {}).get("providers") or {}).items():
+        ref = str((entry or {}).get("model_env") or "").strip()
+        model = _read(ref, lookup) if ref else ""
+        entries[name] = {**entry, "model": model} if model else entry
+    return entries
+
+
+def model_env_names() -> frozenset[str]:
+    """Every variable a `MODELS` entry lets replace its model (`model_env`)."""
+    from .config import global_config
+
+    cfg = global_config()
+    providers = ((cfg.get_agent_settings() or {}).get("providers") or {}) if cfg else {}
+    return frozenset(str(e.get("model_env")).strip() for e in providers.values() if (e or {}).get("model_env"))
 
 
 def route_value(surface: str) -> Any:
@@ -514,10 +531,10 @@ def no_provider_message(surface: str) -> str:
     return text
 
 
-def chat_entries() -> dict[str, dict[str, Any]]:
+def chat_entries(lookup: Lookup | None = None) -> dict[str, dict[str, Any]]:
     """`MODELS` minus the utility-only entries (`chat: false`), in order."""
     return {
-        name: entry for name, entry in model_entries().items()
+        name: entry for name, entry in model_entries(lookup).items()
         if _flag((entry or {}).get("chat")) is not False
     }
 
@@ -525,7 +542,7 @@ def chat_entries() -> dict[str, dict[str, Any]]:
 def chat_default(lookup: Lookup | None = None) -> str | None:
     """The chat picker's default: the first `MODELS` entry (config order,
     utility-only entries excluded) that `entry_ready` admits. None when none is."""
-    for name, entry in chat_entries().items():
+    for name, entry in chat_entries(lookup).items():
         if entry_ready(entry, lookup):
             return name
     return None

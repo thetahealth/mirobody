@@ -63,7 +63,8 @@ the cache.
 On the setup page (`./deploy.sh` prints its link; Settings → Model later),
 choose **100% on this machine**. Mirobody looks for the server at
 `host.docker.internal:8080`, then compose's `llama:8080`, then
-`127.0.0.1:8080`, checks it serves both models, asks it to load them, and
+`127.0.0.1:8080`, lists the models it serves, checks it serves the two you
+choose (the preset's, unless you pick others), asks it to load them, and
 shows their progress. The choice is stored encrypted in the database.
 
 Or two lines in `.env`, then `docker compose up -d` (a restart does not reread `.env`):
@@ -74,6 +75,30 @@ LOCAL_OCR_BASE_URL=http://host.docker.internal:8080/v1
 # with `--profile local`:      http://llama:8080/v1 for both
 # app and models on the host:  http://127.0.0.1:8080/v1 for both
 ```
+
+## Other models, smaller ones included
+
+The answering model is `qwen3.8-27b` and the document reader `glm-ocr` because
+those are the names `config.llm.yaml` writes and the sections of
+`docker/local-models.ini`. To run another model, add its section to the preset
+(or serve it any other way), then either pick it on the setup page, which
+lists what the server serves, or set the name in `.env`:
+
+```bash
+LOCAL_MODEL=minicpm5-2b        # answers questions, writes titles and summaries
+LOCAL_OCR_MODEL=glm-ocr        # reads report photos and pages
+```
+
+A model chosen this way is checked the same way: the server has to serve it.
+Smaller models answer faster on less memory and get more wrong; the measured
+results for MiniCPM5-2B and others are in
+[local-models-roadmap.md](local-models-roadmap.md). A model that cannot see is
+detected from its server and sent a photo's text instead of the photo.
+
+The same works for a vendor key: the setup page shows the model beside the key
+and takes another name (`OPENROUTER_CHAT_MODEL=anthropic/claude-opus-5`, for
+one), checked with one real request before it is kept. Every entry's variable
+is its `model_env` in `config.llm.yaml`.
 
 With a vendor key set as well, the key's models come first, so the setup page
 refuses local while `.env` holds a key. To use the local ones anyway, set
@@ -103,8 +128,9 @@ its entry names.
 
 ## Other servers
 
-Any OpenAI-compatible server works: set the two addresses and, in an overlay,
-the model names it serves (`curl <address>/v1/models`).
+Any OpenAI-compatible server works: set the two addresses and the model names
+it serves (`curl <address>/v1/models`), on the setup page or as `LOCAL_MODEL`
+and `LOCAL_OCR_MODEL`.
 
 **Ollama.** `ollama pull qwen3.8:27b` (17 GB) answered the same sixteen questions
 correctly, and fastest. Two things to know:

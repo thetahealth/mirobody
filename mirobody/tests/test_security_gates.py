@@ -247,33 +247,63 @@ def test_the_first_choice_takes_the_token_alone(monkeypatch):
     assert client.post("/api/setup", json={"mode": "local"}, headers={"X-Setup-Token": "right-token"}).json()["code"] == 0
 
 
-def test_a_key_is_checked_without_touching_the_process_environment(monkeypatch):
+class _ModelsConfig:
+    """Just the MODELS table, for the setup checks below."""
+
+    def __init__(self, providers):
+        self._providers = providers
+
+    def get_agent_settings(self):
+        return {"providers": self._providers}
+
+
+def _key_check(monkeypatch, choice_fields):
     import os
 
     from mirobody.agent import probe, registry
-    from mirobody.utils.config import llm, settings
+    from mirobody.utils.config import config, settings
 
     setup = _setup_module()
-    monkeypatch.setattr(setup, "_token", "right-token")
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
-    entries = {"claude-sonnet": {"llm_type": "openai", "api_key": "OPENROUTER_API_KEY", "model": "m"}}
-    monkeypatch.setattr(llm, "chat_entries", lambda: entries)
-    monkeypatch.setattr(llm, "model_entries", lambda: entries)
-    monkeypatch.setattr(setup, "_entry_for_key", lambda name: ("claude-sonnet", entries["claude-sonnet"]))
+    providers = {
+        "claude-sonnet": {"llm_type": "openai", "api_key": "OPENROUTER_API_KEY", "model": "vendor/model-a",
+                          "model_env": "OPENROUTER_CHAT_MODEL"},
+        "openrouter-utils": {"llm_type": "openai", "api_key": "OPENROUTER_API_KEY", "model": "vendor/utils-a",
+                             "model_env": "OPENROUTER_UTILS_MODEL", "chat": False},
+    }
+    monkeypatch.setattr(config, "global_config", lambda: _ModelsConfig(providers))
+    for name in ("OPENROUTER_API_KEY", "OPENROUTER_CHAT_MODEL", "OPENROUTER_UTILS_MODEL"):
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(settings, "set_in_environment", lambda: frozenset())
     seen = {}
 
-    async def chat(name, resolve=None):
+    async def chat(name, resolve=None, entry=None):
         seen["environ"] = os.environ.get("OPENROUTER_API_KEY")
         seen["resolved"] = resolve("OPENROUTER_API_KEY")
+        seen["model"] = (entry or {}).get("model")
         return True, "ok"
 
     async def save(values):
-        seen["saved"] = values.get("OPENROUTER_API_KEY")
+        seen["saved"] = {k: v for k, v in values.items() if v}
 
     monkeypatch.setattr(probe, "_chat", chat)
     monkeypatch.setattr(settings, "save", save)
     monkeypatch.setattr(registry, "reload_llm_clients", lambda: None)
-    choice = setup.SetupChoice(mode="key", name="OPENROUTER_API_KEY", value="sk-or-candidate")
-    asyncio.run(setup._save(choice))
-    assert seen == {"environ": None, "resolved": "sk-or-candidate", "saved": "sk-or-candidate"}
+    answer = asyncio.run(setup._save(setup.SetupChoice(mode="key", name="OPENROUTER_API_KEY",
+                                                        value="sk-or-candidate", **choice_fields)))
+    return answer, seen
+
+
+def test_a_key_is_checked_without_touching_the_process_environment(monkeypatch):
+    answer, seen = _key_check(monkeypatch, {})
+    assert answer.code == 0
+    assert seen == {"environ": None, "resolved": "sk-or-candidate", "model": "vendor/model-a",
+                    "saved": {"OPENROUTER_API_KEY": "sk-or-candidate"}}
+
+
+def test_a_model_typed_beside_the_key_is_the_one_checked_and_kept(monkeypatch):
+    answer, seen = _key_check(monkeypatch, {"model": "vendor/model-b", "utils_model": "vendor/utils-a"})
+    assert answer.code == 0
+    # The utility model typed is the configured one: nothing to keep for it.
+    assert seen["model"] == "vendor/model-b"
+    assert seen["saved"] == {"OPENROUTER_API_KEY": "sk-or-candidate", "OPENROUTER_CHAT_MODEL": "vendor/model-b"}
+    assert _key_check(monkeypatch, {"model": "two words"})[0].code == 400

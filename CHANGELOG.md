@@ -41,6 +41,13 @@
   session too: the server prints the link only while none is. A key is
   checked with one real request before it is kept, without changing what
   other requests read meanwhile. Settings › Model returns to the page.
+- **A model name is yours to change.** Model names change faster than
+  releases. The setup page shows the model beside each key and on the local
+  server, and takes another (a local server's are listed to pick from); a
+  vendor model is checked with one real request first. In `.env` the same is
+  one line, the variable each `config.llm.yaml` entry names as its
+  `model_env` (`OPENROUTER_CHAT_MODEL`, `LOCAL_MODEL`, `LOCAL_OCR_MODEL`, …),
+  and `deploy.sh` copies it from the command line like a key.
 - **Every model can run on the same machine.** `LOCAL_BASE_URL` and
   `LOCAL_OCR_BASE_URL` point the `local` entries at any OpenAI-compatible
   server. The shipped preset serves Qwen3.8-27B (answers) and GLM-OCR-0.9B

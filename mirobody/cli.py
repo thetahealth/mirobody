@@ -224,11 +224,12 @@ def _cmd_doctor(args: argparse.Namespace) -> None:
         await Config.init(yaml_filenames=args.configs)
         # The setup page's choice, as the server applies it at boot: a
         # deployment set up in the browser has no key in .env, and this
-        # reported "no model" for it. Without a database it says nothing.
+        # reported "no model" for it. Without a database it says nothing,
+        # and does not wait the driver's 75 s to say it.
         try:
             from mirobody.utils.config import settings
 
-            await settings.apply()
+            await asyncio.wait_for(settings.apply(), timeout=5)
         except Exception:
             pass
 

@@ -1,8 +1,9 @@
 """Model settings saved from the first-run page, for a deployment set up in the
 browser rather than in `.env`.
 
-Only the names that choose where health data goes are accepted: each vendor's
-key and the two local-model addresses. They are applied to this process's
+Only the names that choose where health data goes, and which model reads it,
+are accepted: each vendor's key, the two local-model addresses, and the
+variables an entry names to replace its model (`model_env`). They are applied to this process's
 environment, which is where every model entry reads them, so nothing else has
 to know where a value came from. A name the environment or a config file
 already answered when the process started (a key under any of its aliases
@@ -33,7 +34,11 @@ _applied_at = 0.0
 
 
 def allowed_names() -> frozenset[str]:
-    return frozenset(KEYS_URL) | frozenset(ENDPOINT_NAMES)
+    """Each vendor's key, the two local addresses, and every variable a
+    `MODELS` entry lets replace its model (`model_env`)."""
+    from mirobody.utils.config.llm import model_env_names
+
+    return frozenset(KEYS_URL) | frozenset(ENDPOINT_NAMES) | model_env_names()
 
 
 def _set_now() -> frozenset[str]:

@@ -149,17 +149,18 @@ ensure_secret JWT_KEY
 # What the first-run page asks for before it changes where health data goes.
 ensure_secret SETUP_TOKEN
 
-# A model key or a local model server given on the command line
-# (`OPENROUTER_API_KEY=... ./deploy.sh`, `LOCAL_BASE_URL=... ./deploy.sh`) goes
-# into .env, the one file the containers read, so a first run needs no second
-# step. The names are the ones config.llm.yaml reads, and a value already in
-# .env is left as it is.
+# A model key, a local model server or a model name given on the command line
+# (`OPENROUTER_API_KEY=... ./deploy.sh`, `LOCAL_BASE_URL=... LOCAL_MODEL=...
+# ./deploy.sh`) goes into .env, the one file the containers read, so a first
+# run needs no second step. The names are the ones config.llm.yaml reads
+# (`api_key`, `base_url`, `model_env`), and a value already in .env is left as
+# it is.
 while IFS= read -r name; do
     [[ -z "$name" ]] && continue
     if [[ -n "${!name:-}" ]] && ! has_setting "$name"; then
         add_setting "$name" "${!name}"
     fi
-done < <(sed -nE 's/^[[:space:]]*(api_key|base_url):[[:space:]]*([A-Z][A-Z0-9_]*)[[:space:]]*(#.*)?$/\2/p' config.llm.yaml | sort -u)
+done < <(sed -nE 's/^[[:space:]]*(api_key|base_url|model_env):[[:space:]]*([A-Z][A-Z0-9_]*)[[:space:]]*(#.*)?$/\2/p' config.llm.yaml | sort -u)
 
 # Ask the daemon, which is what pulls: the shell's proxy settings are not the
 # daemon's, and hub.docker.com (the website) is not registry-1.docker.io. The
