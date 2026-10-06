@@ -23,6 +23,9 @@ SIMPLE_RELINK_TABLES: list[tuple[str, list[str]]] = [
     ("th_extraction",                   ["user_id"]),
     ("th_check_result",                 ["user_id"]),
     ("th_series_data_genetic",          ["user_id"]),
+    # readings `mirobody migrate-observations` has not moved yet: moved under
+    # the losing account, they would land on an account that is closed
+    ("th_series_data_retired_15",       ["user_id"]),
     ("th_session_share",                ["user_id"]),
     ("th_task_flow",                    ["user_id"]),
     ("th_medication_plan",              ["user_id"]),

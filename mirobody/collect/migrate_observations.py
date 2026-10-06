@@ -1,17 +1,33 @@
 """Move a deployment's history from the retired `th_series_data` into the
 observation model.
 
-`90_retire.sql` renames the old table to
-`th_series_data_retired_15` and leaves its rows alone; this pass reads them
-in id order and writes them through `pulse.observations`, the same seam
-every live writer uses, so a migrated reading is folded, parsed, placed on
-its day and coded exactly like a new one. It is idempotent: a re-run skips
-what it already wrote (the identity index), and bounded by `batch` so a
-large history can be moved over several invocations.
+`90_retire.sql` renames the old table to `th_series_data_retired_15` and
+leaves its rows alone; this pass reads them in id order and writes them
+through `collect.observations`, the same seam every live writer uses, so a
+migrated reading is folded, parsed, placed on its day and coded exactly like
+a new one. It is bounded by `batch`, so a large history can be moved over
+several invocations, and a re-run starts where the last one left rows.
 
-A full pass (every person, to the last row) that decrypted every comment and
-rejected no row drops the retired table (1.5.4). Anything less keeps it: a
-rejected row is one the new model cannot hold, and it goes only by hand.
+A row is marked moved (`deleted = 2`) only once a row with the same
+fingerprint is in the observation model: written now, or found there from an
+earlier run. Anything else stays live, and the table is dropped (here, or by
+the next boot's `90_retire.sql`) only when no live row is left:
+
+* `differs`: the identity already holds a different row. Before 1.5.4 a
+  re-run counted that as present, so a row written from a comment that did
+  not decrypt (no unit, range or method) passed for the full one, and
+  dropping the table would have lost the original. `repair=True` amends such
+  a row when nobody has changed it since it was written;
+* `undecrypted`: the comment does not decrypt under this connection's key.
+  The row is not written, so the right key can still bring it over whole;
+  `write_undecrypted=True` writes it without what the comment held, for a
+  key that is lost for good;
+* `rejected`: the new model cannot hold the row; it goes only by hand.
+
+`verify_only=True` writes nothing: it marks the rows already present and
+counts the rest as `missing`. That is the safe first run for a database
+migrated before 1.5.4, where a reading the person erased since is missing
+too, and nothing recorded the erasure to tell the two apart.
 
 What the old rows lose and what the new ones say about it:
 
@@ -20,11 +36,9 @@ What the old rows lose and what the new ones say about it:
   `note_text = migrated:th_series_data` so a reader knows the name is a
   translation and the report is where the original is;
 * a file row's unit, reference range and method were JSON inside the
-  encrypted `comment`; they land in their own columns. A comment the
-  connection's key cannot decrypt is counted as `undecrypted` and the unit
-  is then read off the value cell alone, so check `PG_ENCRYPTION_KEY` when
-  that count is not zero;
-* a soft-deleted row (`deleted = 1`) is not migrated: the person removed it.
+  encrypted `comment`; they land in their own columns;
+* a soft-deleted row (`deleted = 1`) is not migrated: the person removed it,
+  and it goes with the table.
 
 Run: `mirobody migrate-observations` (requires the [app] extra and the
 deployment's config). Progress and counts are logged; nothing is printed
@@ -43,8 +57,10 @@ from . import observations
 
 logger = logging.getLogger(__name__)
 
-RETIRED = "th_series_data_retired_15"
+RETIRED = observations.RETIRED_READINGS
 MIGRATED_NOTE = "migrated:th_series_data"
+#: `deleted` of a row whose copy is in the observation model.
+MOVED = 2
 #: What `encrypt_content` prefixes; a comment still carrying it after
 #: `decrypt_content` was encrypted under another key.
 _CIPHER_PREFIX = "gAAAA"
@@ -81,15 +97,25 @@ def _legacy_row(r: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     return row, undecrypted
 
 
-async def migrate(*, batch: int = 2000, user_id: str | None = None, max_batches: int = 10_000) -> dict[str, Any]:
+async def migrate(
+    *,
+    batch: int = 2000,
+    user_id: str | None = None,
+    max_batches: int = 10_000,
+    repair: bool = False,
+    write_undecrypted: bool = False,
+    verify_only: bool = False,
+) -> dict[str, Any]:
     """Move rows in id order. Returns the counts: `read`, `written`, `coded`,
-    `skipped` (already present), `undecrypted`, `batches`, `rejected` (a dict
-    of reason to count), `present` (whether there was a retired table at all)
-    and `dropped`."""
+    `skipped` (an equal row was already there), `differs`, `missing`
+    (under `verify_only`: not there, and not written), `undecrypted`,
+    `batches`, `rejected` (a dict of reason to count), `present` (whether
+    there was a retired table at all), `left` (live rows after a pass that
+    reached the end; None otherwise) and `dropped`."""
     after = 0
     counts: dict[str, Any] = {
-        "read": 0, "written": 0, "coded": 0, "skipped": 0, "undecrypted": 0, "batches": 0, "rejected": {},
-        "present": False, "dropped": False,
+        "read": 0, "written": 0, "coded": 0, "skipped": 0, "differs": 0, "missing": 0, "undecrypted": 0, "batches": 0,
+        "rejected": {}, "present": False, "left": None, "dropped": False,
     }
     found = await execute_query("SELECT to_regclass(:name) IS NOT NULL AS present", {"name": RETIRED}, log_sql=False)
     if not (found and found[0]["present"]):
@@ -100,6 +126,7 @@ async def migrate(*, batch: int = 2000, user_id: str | None = None, max_batches:
     params: dict[str, Any] = {"batch": batch}
     if user_id:
         params["user_id"] = str(user_id)
+    on_conflict = observations.ON_CONFLICT_REPAIR if repair else observations.ON_CONFLICT_VERIFY
     while counts["batches"] < max_batches:
         rows = await execute_query(_SELECT.format(user_filter=user_filter), {**params, "after": after}, log_sql=False) or []
         if not rows:
@@ -108,30 +135,46 @@ async def migrate(*, batch: int = 2000, user_id: str | None = None, max_batches:
         counts["batches"] += 1
         counts["read"] += len(rows)
         after = int(rows[-1]["id"])
-        legacy = []
+        legacy, ids = [], []
         for r in rows:
             row, undecrypted = _legacy_row(r)
-            legacy.append(row)
             counts["undecrypted"] += int(undecrypted)
-        report = await observations.ingest_legacy(legacy, on_conflict=observations.ON_CONFLICT_SKIP)
+            if undecrypted and not write_undecrypted:
+                continue
+            legacy.append(row)
+            ids.append(int(r["id"]))
+        if verify_only:
+            present = await observations.legacy_present(legacy) if legacy else []
+            moved = [i for i, here in zip(ids, present, strict=True) if here]
+            counts["skipped"] += len(moved)
+            counts["missing"] += len(ids) - len(moved)
+            report = observations.Report()
+        else:
+            report = await observations.ingest_legacy(legacy, on_conflict=on_conflict) if legacy else observations.Report()
+            moved = [i for i, outcome in zip(ids, report.outcomes, strict=True)
+                     if outcome in (observations.OUTCOME_INSERTED, observations.OUTCOME_SKIPPED)]
+        if moved:
+            await execute_query(f"UPDATE {RETIRED} SET deleted = {MOVED} WHERE id = ANY(:ids)", {"ids": moved}, log_sql=False)
         counts["written"] += report.inserted
         counts["coded"] += report.coded
         counts["skipped"] += report.skipped
+        counts["differs"] += report.differs
         for reason, n in report.rejected.items():
             counts["rejected"][reason] = counts["rejected"].get(reason, 0) + n
-        batches, read_count, written = counts["batches"], counts["read"], counts["written"]
-        skipped, undecrypted = counts["skipped"], counts["undecrypted"]
-        rejected = sum(counts["rejected"].values())
-        last_id = after
         logger.info(
-            "migrate-observations: batch=%d read=%d written=%d skipped=%d rejected=%d undecrypted=%d last_id=%d",
-            batches, read_count, written, skipped, rejected, undecrypted, last_id,
+            "migrate-observations: batch=%d read=%d written=%d skipped=%d differs=%d missing=%d rejected=%d "
+            "undecrypted=%d last_id=%d",
+            counts["batches"], counts["read"], counts["written"], counts["skipped"], counts["differs"], counts["missing"],
+            sum(counts["rejected"].values()), counts["undecrypted"], after,
         )
-    if finished and not user_id and not counts["undecrypted"] and not counts["rejected"]:
-        await execute_query(f"DROP TABLE {RETIRED}", {}, log_sql=False)
-        counts["dropped"] = True
-        logger.info("migrate-observations: every row moved, th_series_data_retired_15 dropped")
+    if finished:
+        left = await execute_query(f"SELECT count(*) AS n FROM {RETIRED} WHERE deleted = 0", {}, log_sql=False)
+        counts["left"] = int(left[0]["n"]) if left else None
+        if counts["left"] == 0:
+            await execute_query(f"DROP TABLE {RETIRED}", {}, log_sql=False)
+            counts["dropped"] = True
+            logger.info("migrate-observations: every row moved, %s dropped", RETIRED)
     return counts
 
 
-__all__ = ["MIGRATED_NOTE", "RETIRED", "migrate"]
+__all__ = ["MIGRATED_NOTE", "MOVED", "RETIRED", "migrate"]

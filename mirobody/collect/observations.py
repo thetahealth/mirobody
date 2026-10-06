@@ -94,6 +94,25 @@ CAUSE_RECODE_ALIAS = "recode-alias"
 ON_CONFLICT_SKIP = "skip"
 ON_CONFLICT_AMEND = "amend"
 ON_CONFLICT_REASSERT = "reassert"
+#: `verify`: the batch copies rows another table still holds (the 1.5
+#: migration), and that table may be dropped once every row is here. A row
+#: with the same fingerprint anywhere in the identity's chain is the copy and
+#: counts as skipped; any other row under the identity is counted as
+#: `differs` and left alone. `skip` would call both "already present", and
+#: a row written from a comment that did not decrypt (no unit, range or
+#: method) then passed for the full one, and the original was dropped.
+ON_CONFLICT_VERIFY = "verify"
+#: `repair`: `verify`, except that a differing identity whose only row is the
+#: one first written, never amended or retracted since, is amended with this
+#: row. That repairs a copy written from a comment that did not decrypt,
+#: without overriding anything a person or a later sync changed.
+ON_CONFLICT_REPAIR = "repair"
+
+#: What `ingest` did with each draft, in `Report.outcomes`.
+OUTCOME_INSERTED = "inserted"
+OUTCOME_SKIPPED = "skipped"
+OUTCOME_DIFFERS = "differs"
+OUTCOME_REJECTED = "rejected"
 
 #: `task_id` values the aggregation passes stamp on the rows they publish.
 AGGREGATE_TASK_IDS = frozenset({"aggregate_indicator", "derived_indicator", "derived_aggregator", "apple_health_statistics"})
@@ -171,10 +190,14 @@ class Provenance:
 class Report:
     inserted: int = 0
     skipped: int = 0
+    #: Under `verify` or `repair`: drafts whose identity holds a different row.
+    differs: int = 0
     rejected: dict[str, int] = field(default_factory=dict)
     ids: list[int] = field(default_factory=list)
     extraction_id: int | None = None
     coded: int = 0
+    #: One `OUTCOME_*` per draft, in the order given.
+    outcomes: list[str] = field(default_factory=list)
 
     @property
     def written(self) -> int:
@@ -182,6 +205,7 @@ class Report:
 
     def reject(self, reason: str) -> None:
         self.rejected[reason] = self.rejected.get(reason, 0) + 1
+        self.outcomes.append(OUTCOME_REJECTED)
 
 
 class Rejected(ValueError):
@@ -437,6 +461,34 @@ SELECT id, fingerprint FROM th_observation o
  ORDER BY o.id DESC LIMIT 1
 """
 
+# Any row of the identity's chain, visible or not, holding this fingerprint.
+_SELECT_EQUAL = """
+SELECT 1 FROM th_observation o
+ WHERE o.user_id = :user_id AND o.name_key = :name_key
+   AND o.observed_start = :observed_start AND o.observed_end = :observed_end AND o.source_ref = :source_ref
+   AND COALESCE(o.source_record_id, '') = COALESCE(:source_record_id, '')
+   AND COALESCE(o.member_of, 0) = COALESCE(:member_of, 0)
+   AND o.fingerprint = :fingerprint
+ LIMIT 1
+"""
+
+# The identity's chain when it is one row, final and never amended: the row
+# a repair may amend. Two or more rows mean someone changed it since.
+_SELECT_UNTOUCHED = """
+SELECT o.id, o.status, (SELECT count(*) FROM th_observation c
+                         WHERE c.user_id = o.user_id AND c.name_key = o.name_key
+                           AND c.observed_start = o.observed_start AND c.observed_end = o.observed_end
+                           AND c.source_ref = o.source_ref
+                           AND COALESCE(c.source_record_id, '') = COALESCE(o.source_record_id, '')
+                           AND COALESCE(c.member_of, 0) = COALESCE(o.member_of, 0)) AS chain
+  FROM th_observation o
+ WHERE o.user_id = :user_id AND o.name_key = :name_key
+   AND o.observed_start = :observed_start AND o.observed_end = :observed_end AND o.source_ref = :source_ref
+   AND COALESCE(o.source_record_id, '') = COALESCE(:source_record_id, '')
+   AND COALESCE(o.member_of, 0) = COALESCE(:member_of, 0)
+   AND o.amends IS NULL
+"""
+
 # The retraction that ends an identity's chain: the row a re-typed entry amends.
 _SELECT_RETRACTED = """
 SELECT id FROM th_observation o
@@ -568,29 +620,39 @@ def out_of_range(row: dict[str, Any], coding: translate.Coding, ranges: Any) -> 
     return False
 
 
-async def _insert(tx: db.Transaction, row: dict[str, Any], on_conflict: str) -> tuple[int | None, bool]:
-    """`(id, skipped)`: the new row's id, or `None` with `skipped=True` when
-    the identity is already held by an equal row (or, under `skip`, by any
-    row). Under `amend`, a changed value is inserted as an amendment; under
-    `reassert`, an identity whose row was retracted is written again."""
+async def _insert(tx: db.Transaction, row: dict[str, Any], on_conflict: str) -> tuple[int | None, str]:
+    """`(id, outcome)`: the new row's id and `OUTCOME_INSERTED`, or `None` and
+    `OUTCOME_SKIPPED` when the identity is already held by an equal row (or,
+    under `skip`, by any row), or `OUTCOME_DIFFERS` under `verify`/`repair`
+    when it is held by a different one. Under `amend`, a changed value is
+    inserted as an amendment; under `reassert`, an identity whose row was
+    retracted is written again; under `repair`, see `ON_CONFLICT_REPAIR`."""
     inserted = await tx.execute(_INSERT_OBSERVATION, row)
     if inserted:
-        return _inserted_id(inserted[0], row), False
-    if on_conflict == ON_CONFLICT_REASSERT:
+        return _inserted_id(inserted[0], row), OUTCOME_INSERTED
+    if on_conflict in (ON_CONFLICT_VERIFY, ON_CONFLICT_REPAIR):
+        if await tx.execute(_SELECT_EQUAL, row):
+            return None, OUTCOME_SKIPPED
+        if on_conflict == ON_CONFLICT_VERIFY:
+            return None, OUTCOME_DIFFERS
+        current = await tx.execute(_SELECT_UNTOUCHED, row)
+        if not current or int(current[0]["chain"]) != 1 or current[0]["status"] != "final":
+            return None, OUTCOME_DIFFERS
+    elif on_conflict == ON_CONFLICT_REASSERT:
         current = await tx.execute(_SELECT_RETRACTED, row)
         if not current:
-            return None, True
+            return None, OUTCOME_SKIPPED
     elif on_conflict == ON_CONFLICT_AMEND:
         current = await tx.execute(_SELECT_CURRENT, row)
         if not current or str(current[0]["fingerprint"]) == row["fingerprint"]:
-            return None, True
+            return None, OUTCOME_SKIPPED
     else:
-        return None, True
+        return None, OUTCOME_SKIPPED
     amended = dict(row, amends=int(current[0]["id"]))
     inserted = await tx.execute(_INSERT_OBSERVATION, amended)
     if not inserted:
-        return None, True
-    return _inserted_id(inserted[0], row), False
+        return None, OUTCOME_SKIPPED
+    return _inserted_id(inserted[0], row), OUTCOME_INSERTED
 
 
 def _inserted_id(returned: dict[str, Any], row: dict[str, Any]) -> int:
@@ -662,9 +724,13 @@ async def ingest(
                     if row_source.source_class == series.SOURCE_MANUAL and ranges is not None and out_of_range(row, coding, ranges):
                         report.reject(REJECT_OUT_OF_RANGE)
                         continue
-                    observation_id, skipped = await _insert(tx, row, on_conflict)
+                    observation_id, outcome = await _insert(tx, row, on_conflict)
                     if observation_id is None:
-                        report.skipped += 1
+                        if outcome == OUTCOME_DIFFERS:
+                            report.differs += 1
+                        else:
+                            report.skipped += 1
+                        report.outcomes.append(outcome)
                         continue
                     await _write_coding(tx, observation_id, row, coding, CAUSE_INGEST if row.get("amends") is None else CAUSE_AMEND)
             except Exception as e:
@@ -674,6 +740,7 @@ async def ingest(
                 continue
             report.inserted += 1
             report.ids.append(observation_id)
+            report.outcomes.append(OUTCOME_INSERTED)
             if coding.coded:
                 report.coded += 1
 
@@ -801,8 +868,12 @@ async def erase(
 ) -> int:
     """The privacy path: physically delete a person's observations, by id,
     by source document, by a name pattern, or all of them. Coding, day
-    authority and check rows go with them (`ON DELETE CASCADE`); the series
-    catalogue is recomputed. Returns how many observations were deleted."""
+    authority and check rows go with them (`ON DELETE CASCADE`). The same
+    readings still waiting in the retired 1.4 table are marked deleted too,
+    or `mirobody migrate-observations` would write them back: by source
+    document (a file's), by name pattern and all of them; a row erased by id
+    has a copy there only once it has been moved, and a moved row is never
+    read again. Returns how many observations were deleted."""
     if ids:
         where, params = "id = ANY(:ids)", {"ids": [int(i) for i in ids]}
     elif source_ref:
@@ -820,7 +891,27 @@ async def erase(
             await tx.execute("DELETE FROM th_extraction WHERE user_id = :user_id AND source_ref = :source_ref", params)
         elif everything:
             await tx.execute("DELETE FROM th_extraction WHERE user_id = :user_id", params)
+        retired_where = _retired_where(source_ref, name_pattern, everything)
+        if retired_where and (await tx.execute("SELECT to_regclass(:name) IS NOT NULL AS present", {"name": RETIRED_READINGS}))[0]["present"]:
+            await tx.execute(
+                f"UPDATE {RETIRED_READINGS} SET deleted = 1 WHERE user_id = :user_id AND deleted = 0 AND {retired_where}",
+                {**params, "file_id": source_ref.removeprefix("th_files:") if source_ref else ""})
     return len(deleted or [])
+
+
+#: Where 1.4 kept the readings, until `mirobody migrate-observations` has
+#: moved every row (`collect/migrate_observations.py`).
+RETIRED_READINGS = "th_series_data_retired_15"
+
+
+def _retired_where(source_ref: str | None, name_pattern: str | None, everything: bool) -> str:
+    """The retired table's rows an `erase` covers, by the columns that held
+    the same facts there; "" when none can be told apart (an erase by id)."""
+    if source_ref:
+        return "source_table = 'th_files' AND source_table_id = :file_id" if source_ref.startswith("th_files:") else ""
+    if name_pattern:
+        return "indicator ILIKE :pattern"
+    return "TRUE" if everything else ""
 
 
 # --- recoding: the same frozen rows under a newer vocabulary or rule -------
@@ -1071,24 +1162,49 @@ async def user_tz(user_id: str) -> str:
 
 async def ingest_legacy(rows: list[dict[str, Any]], *, on_conflict: str = ON_CONFLICT_AMEND) -> Report:
     """Write rows in the collect layer's dict shape, grouped by person and
-    provenance, and total the reports."""
-    groups: dict[tuple[str, Provenance], list[Draft]] = {}
-    for r in rows:
+    provenance, and total the reports. `outcomes` is in the order of `rows`."""
+    groups: dict[tuple[str, Provenance], list[tuple[int, Draft]]] = {}
+    for ix, r in enumerate(rows):
         prov = legacy_provenance(r)
-        groups.setdefault((str(r.get("user_id") or ""), prov), []).append(legacy_draft(r))
+        groups.setdefault((str(r.get("user_id") or ""), prov), []).append((ix, legacy_draft(r)))
     total = Report()
+    outcomes: list[str] = [OUTCOME_REJECTED] * len(rows)
     zones: dict[str, str] = {}
-    for (uid, prov), drafts in groups.items():
+    for (uid, prov), indexed in groups.items():
         if uid not in zones:
             zones[uid] = await user_tz(uid)
-        report = await ingest(uid, drafts, prov, user_tz=zones[uid], on_conflict=on_conflict)
+        report = await ingest(uid, [d for _, d in indexed], prov, user_tz=zones[uid], on_conflict=on_conflict)
         total.inserted += report.inserted
         total.skipped += report.skipped
+        total.differs += report.differs
         total.coded += report.coded
         for reason, n in report.rejected.items():
             total.rejected[reason] = total.rejected.get(reason, 0) + n
         total.ids.extend(report.ids)
+        for (ix, _), outcome in zip(indexed, report.outcomes, strict=True):
+            outcomes[ix] = outcome
+    total.outcomes = outcomes
     return total
+
+
+async def legacy_present(rows: list[dict[str, Any]]) -> list[bool]:
+    """Whether a row with each legacy row's fingerprint is already stored,
+    writing nothing (`mirobody migrate-observations --verify-only`). A row
+    the new model would reject is not present."""
+    present = [False] * len(rows)
+    zones: dict[str, str] = {}
+    now = datetime.now(tz=translate.zone_for("UTC"))
+    async with db.transaction() as tx:
+        for ix, r in enumerate(rows):
+            uid = str(r.get("user_id") or "")
+            if uid not in zones:
+                zones[uid] = await user_tz(uid)
+            try:
+                row = prepare(legacy_draft(r), legacy_provenance(r), uid, zones[uid], now=now)
+            except Rejected:
+                continue
+            present[ix] = bool(await tx.execute(_SELECT_EQUAL, row))
+    return present
 
 
 async def ingest_legacy_rows(rows: list[dict[str, Any]], *, on_conflict: str = ON_CONFLICT_AMEND) -> int:
@@ -1123,13 +1239,20 @@ __all__ = [
     "NoteNotEncrypted",
     "ON_CONFLICT_AMEND",
     "ON_CONFLICT_REASSERT",
+    "ON_CONFLICT_REPAIR",
     "ON_CONFLICT_SKIP",
+    "ON_CONFLICT_VERIFY",
+    "OUTCOME_DIFFERS",
+    "OUTCOME_INSERTED",
+    "OUTCOME_REJECTED",
+    "OUTCOME_SKIPPED",
     "Provenance",
     "RecodeReport",
     "REJECT_NO_NAME",
     "REJECT_NO_TIME",
     "REJECT_WRITE_ERROR",
     "Rejected",
+    "RETIRED_READINGS",
     "Report",
     "SOURCE_API",
     "SOURCE_DEVICE",
@@ -1145,6 +1268,7 @@ __all__ = [
     "ingest_legacy",
     "ingest_legacy_rows",
     "legacy_draft",
+    "legacy_present",
     "legacy_provenance",
     "prepare",
     "recode",

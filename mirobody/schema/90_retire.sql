@@ -12,8 +12,10 @@
 --   fhir_indicators             a code registry nothing ever filled
 --   standard_indicators_device  a daily mirror of the in-code catalogue
 -- `th_series_data` held the readings: renamed `*_retired_15`, which
--- `mirobody migrate-observations` reads and drops after a full pass. Here it
--- is dropped only once no live row is left, so an unmigrated history stays.
+-- `mirobody migrate-observations` reads. It marks a row `deleted = 2` once a
+-- row with the same fingerprint is in th_observation (`deleted = 1` is a row
+-- the person deleted), so a live row (0) is one whose copy is not proven.
+-- The table is dropped only once no live row is left.
 DROP TABLE IF EXISTS th_series_dim, th_series_dim_retired_15, fhir_indicators, fhir_indicators_retired_15,
                      standard_indicators_device, standard_indicators_device_retired_15 CASCADE;
 DO $$

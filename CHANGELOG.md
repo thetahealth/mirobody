@@ -4,12 +4,19 @@
 
 - **The reading tables 1.5.0 replaced are dropped.** `th_series_dim`,
   `fhir_indicators` and `standard_indicators_device` never held a reading and
-  go at the first boot. `th_series_data`, which held every reading before
-  1.5.0, is dropped at boot only when no live row is left; otherwise
-  `mirobody migrate-observations` drops it after a full pass that moved every
-  row, and says what it kept and why when it cannot. Upgrading from 1.4.x or
-  earlier: after the first boot, run `mirobody migrate-observations` until it
-  reports the table dropped.
+  go at the first boot. `th_series_data` (renamed `th_series_data_retired_15`
+  in 1.5.0), which held every reading before 1.5.0, goes only once every row
+  in it is proven moved: `mirobody migrate-observations` marks a row moved
+  when a row with the same fingerprint is in the observation model, and the
+  table is dropped, by that command or at the next boot, when no other row is
+  left. Rows the person deleted go with it. Upgrading from 1.4.x, or from
+  1.5.0–1.5.3 if the table is still there: after the first boot, run
+  `docker compose exec mirobody mirobody migrate-observations` until it
+  reports the table dropped; it says which rows keep it and what to do. If
+  you ran it on 1.5.0–1.5.3 and have erased readings since, run it with
+  `--verify-only` first: nothing recorded those erasures, so a plain run would
+  write them back. That run writes nothing, marks what is already moved and
+  counts the rest.
 
 ### Added
 
@@ -312,6 +319,12 @@ decisions.
 - **The skills evidence module is present in release artifacts.** Wheels now
   include `mirobody/tests/test_skills.py` while checkout-only test modules stay
   out of the install.
+- **An erased reading stays erased.** Erasing by document, by name or
+  everything removed the readings from the observation model but left their
+  1.4 copies in `th_series_data_retired_15`, and the next `mirobody
+  migrate-observations` wrote them back. The same erase now marks those
+  copies deleted, a moved row is never read again, and merging two accounts
+  moves the losing account's unmigrated rows to the one that stays.
 - **A reply with no answer text no longer ends the turn empty.** The agent
   asks once more when a reply has neither text nor a tool call, and reports
   an error when the second is empty too.

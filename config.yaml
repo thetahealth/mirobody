@@ -169,7 +169,3 @@ PROVIDER_DIRS:
 # 0 skips the LLM indicator extraction on uploads (the file is still stored).
 ENABLE_INDICATOR_EXTRACTION: 1
 
-# Optional fhir_id mapping on writes: _R looks indicators up in fhir_indicators,
-# _W also registers missing ones. Readings write fine without either.
-# FHIR_TABLE_AUTO_R: true
-# FHIR_TABLE_AUTO_W: true
