@@ -399,6 +399,12 @@ class QueryRequest:
             return "catalog"
         return DISPATCH[self.view]
 
+    @property
+    def view_unapplied(self) -> bool:
+        """A view was named with nothing selected: the catalogue answers, and
+        the caller should say the view waits for the names it lists."""
+        return self.selection.kind == "catalog" and self.view != "raw"
+
 
 @dataclass(frozen=True)
 class Rejection:
@@ -431,7 +437,14 @@ def reject_dates(args: Mapping[str, object]) -> list[Rejection]:
 def validate_request(args: Mapping[str, object]) -> tuple[Rejection, ...]:
     """Everything wrong with the raw arguments, in a stable order. Empty
     means :func:`parse_request` will succeed. Checks the enums, the selection
-    rule and the dates."""
+    rule and the dates.
+
+    A view with no selection is not refused: it is a catalogue call
+    (:attr:`QueryRequest.view_unapplied`). Refused, MiniCPM5-2B opened with
+    `view="latest"` and no names 3 times and MiniCPM5-1B 7 times, then
+    repeated it until the harness refused the repeat (`retry_refused`) 6
+    times (2026-10-06), each attempt a model turn on an 8k-token prompt. The
+    catalogue is the list the next call copies its names from."""
     out: list[Rejection] = reject_unknown(args, TOOL_SCHEMA)
     view = args.get("view")
     if view not in (None, "") and view not in VIEWS:
@@ -439,8 +452,6 @@ def validate_request(args: Mapping[str, object]) -> tuple[Rejection, ...]:
     selectors = [p for p in ("keywords", "indicators") if args.get(p) not in (None, "", [], ())]
     if len(selectors) > 1:
         out.append(Rejection("keywords+indicators", "give keywords or indicators — not both"))
-    if not selectors and view not in (None, "", "raw"):
-        out.append(Rejection("view", "the catalogue has one shape; pick indicators first"))
     out.extend(reject_dates(args))
     return tuple(out)
 

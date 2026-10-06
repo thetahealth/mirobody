@@ -20,8 +20,8 @@ Two rules decided that shape, and they pull in opposite directions:
   read tool (`search_health_indicators` + `fetch_health_data`, 1.2.0) cost a
   model call to discover names before any numbers could be asked for, and the
   two halves could disagree about what a window meant. So a readings call
-  with no selector returns the catalogue, `keywords` finds names, and exact
-  `indicators` fetch values — one tool.
+  with no selector returns the catalogue, whatever `view` it names,
+  `keywords` finds names, and exact `indicators` fetch values — one tool.
 * **Split what has a different grammar.** A plan has a lifecycle, a dose has
   a day, a course has a reason it closed; none of that is a reading's `view`
   of a series. A draft of 1.4.0 put medications behind a `kind` switch inside
@@ -127,6 +127,28 @@ And `view` is a dispatch TABLE, not a chain of `if`s (`query.DISPATCH`):
 | `day` / `week` / `month` | one point per bucket, from the day authority |
 | `stats` | count/min/max/avg/first/last/change over the window |
 | `latest` | the most recent value per indicator |
+| any, with no `keywords` or `indicators` | the catalogue, and a note that the view waits for names |
+
+A view with nothing selected used to be refused ("the catalogue has one
+shape"). In the 2026-10-06 local-model evaluation MiniCPM5-2B opened with
+`view="latest"` and no indicator 3 times and MiniCPM5-1B 7 times, then
+repeated the refused call until the harness stopped it (`retry_refused`, 6
+times), each attempt a model turn on an 8k-token prompt; DeepSeek V4.1 Flash
+never sent it. Now the call is a catalogue call that teaches: the answer is
+the catalogue, `next_steps` is `use_indicators`, and a note says
+`view=latest was not applied … call again with indicators copied from it`.
+The chat tool and the MCP tool are one `HealthIndicatorsService`, so both
+answer it the same way.
+
+The catalogue does not grow a latest-value column to answer that call in one
+step, although `collect/query.py` already computes `latest_value`. A value
+there would come without the range the report printed and without its file,
+and those columns were added to readings because a model judged a value
+against a range it remembered (1.5.4 local runs). It would also be a second
+rule for "latest": the catalogue takes the newest row, `view="latest"` the
+day's elected one, so on a day a watch and a phone both reported the two
+would print different numbers. And it would cost a column on every catalogue,
+up to 200 rows, to save one call in the case a small model gets wrong.
 
 It replaced `resolution` × `aggregate`: eighteen cells, two refused, `limit`
 valid in one, and two prompt paragraphs teaching which was which. The
@@ -188,9 +210,9 @@ Two rules about it are load-bearing:
   summarise or evict a tool message's content; governance that parsed prose
   would silently stop governing exactly where a long turn needs it. The
   envelope rides on `ToolMessage.artifact`.
-* **`next_steps` never suggests something the matrix would refuse.** A
-  truncated catalogue is told to use `indicators` and narrow the window — not
-  to ask for `view=stats`, which the very next call would reject.
+* **`next_steps` never suggests a call that cannot help.** A truncated
+  catalogue is told to use `indicators` and narrow the window — not to ask
+  for `view=stats`, which with no names answers with the same catalogue.
 
 ### Two renderings, one query
 

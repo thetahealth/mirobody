@@ -242,6 +242,11 @@ def _envelope_for(
         assumptions.append(window.note)
     if fell_back:
         assumptions.append("no indicator matched those terms; this is what this person has on file")
+    if method == "catalog" and request.view_unapplied:
+        assumptions.append(
+            f"view={request.view} was not applied: with no keywords or indicators the answer is this catalogue; "
+            f"call again with indicators copied from it and view={request.view}"
+        )
     if semantics == query.SEMANTICS_DATE_PADDED:
         assumptions.append("some rows predate the stored local day; their window is padded a day each way")
     assumptions.append(_ABSENCE_NOTE)
@@ -251,8 +256,9 @@ def _envelope_for(
     if any(r.get("kind") == "condition" for r in reported):
         assumptions.append(_SELF_DIAGNOSED_NOTE)
 
-    # What to do next, and never something the next call would refuse: a
-    # catalogue has one shape, so "ask for stats" is not advice there.
+    # What to do next, and never something the next call would refuse or
+    # answer the same way: stats with no names is this catalogue again, so
+    # "ask for stats" is not advice there.
     next_steps: list[str] = []
     if method == "catalog":
         next_steps.append(tools.NEXT_USE_INDICATORS)

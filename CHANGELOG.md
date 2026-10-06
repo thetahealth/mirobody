@@ -270,6 +270,16 @@ decisions.
   `PROMPT_EXTRACT_INDICATORS` constant is gone. To check: set
   `OPENROUTER_UTILS_MODEL=openai/gpt-6-luna` and upload
   `demo/upload/you_lipid_panel_2026-08.csv`; five readings are filed.
+- **Asking for a view before naming an indicator gets the catalogue, not a
+  refusal.** `query_health_indicators(view="latest")` with no `keywords` or
+  `indicators` was refused ("the catalogue has one shape"). Small local
+  models open that way: MiniCPM5-2B 3 times and MiniCPM5-1B 7 times in the
+  2026-10-06 evaluation, then they repeated the refused call until the harness
+  stopped it, 6 times, each a model turn. Now any view with nothing selected
+  answers with the catalogue and a note that the view was not applied and
+  which call to make next, over MCP and in chat alike. To check:
+  `query_health_indicators(view="latest")` lists what the person has, with
+  `view=latest was not applied` in its notes.
 - **The journal reads a sentence on a small local model.** Under the JSON
   schema the journal asks for, MiniCPM5-2B answered `{"entries": []}` for
   "Been leg cramps for 5 days.", and the evaluation's 15 diary sentences
