@@ -293,6 +293,19 @@ decisions.
   stated reason. To check: `query_health_indicators(keywords=["steps"],
   view="day")` on the demo account answers 92 rows marked `truncated`,
   ending on the last day on file.
+- **A chart with a stray brace is drawn, or says it could not be.** The
+  answer's charts are JSON the model writes by hand in a ```` ```vis-chart ````
+  block. One `}` too many (MiniCPM5-2B on a steps chart, 2026-10-06) and the
+  web client drew nothing, with no sign a chart was missing; nothing on the
+  server checks the block, and it reaches the browser as it streams, so the
+  browser is where it is read. Once the block's closing fence has arrived, the
+  client now mends structural slips (extra or missing closing brackets, a
+  trailing comma, the JSON fenced a second time inside the block) without
+  touching a value, and a block it still cannot draw shows "This chart could
+  not be drawn" with its data one click away. A doubled fence no longer turns
+  the rest of the answer into a code block. Ships with the next web build in
+  `frontend/`. To check: an answer containing a vis-chart block whose JSON
+  ends in `}}` draws the chart.
 - **The journal reads a sentence on a small local model.** Under the JSON
   schema the journal asks for, MiniCPM5-2B answered `{"entries": []}` for
   "Been leg cramps for 5 days.", and the evaluation's 15 diary sentences
