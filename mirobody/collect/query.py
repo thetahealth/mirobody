@@ -446,16 +446,18 @@ class PostgresHealthQuery:
         return [_reading_row(r) for r in rows]
 
     async def buckets(
-        self, subject_id: str, sel: query.Selection, window: query.Window, *, resolution: str
+        self, subject_id: str, sel: query.Selection, window: query.Window, *, resolution: str, limit: int
     ) -> list[dict]:
-        """One point per bucket. Day and coarser read the day authority."""
+        """One point per bucket, the newest `limit` per series, oldest first.
+        Day and coarser read the day authority. `total` per series comes from
+        the same statement, as for `readings`."""
         names = await self._resolve(subject_id, sel, window)
         if not names:
             return []
         if resolution in _SUBDAY_TRUNC:
-            rows = await self._subday_buckets(subject_id, names, window, resolution)
+            rows = await self._subday_buckets(subject_id, names, window, resolution, limit)
         else:
-            rows = await self._day_buckets(subject_id, names, window, resolution)
+            rows = await self._day_buckets(subject_id, names, window, resolution, limit)
         return [_bucket_row(r) for r in rows]
 
     async def stats(self, subject_id: str, sel: query.Selection, window: query.Window) -> list[dict]:
@@ -632,10 +634,12 @@ class PostgresHealthQuery:
                     codes.add(coding.code)
         return codes
 
-    async def _subday_buckets(self, subject_id: str, names: list[str], window: query.Window, resolution: str) -> list[dict]:
+    async def _subday_buckets(
+        self, subject_id: str, names: list[str], window: query.Window, resolution: str, limit: int
+    ) -> list[dict]:
         from mirobody.utils import execute_query
 
-        params: dict[str, Any] = {"uid": str(subject_id), "names": names}
+        params: dict[str, Any] = {"uid": str(subject_id), "names": names, "limit": max(1, int(limit))}
         where = _window_clause(params, window)
         trunc = _SUBDAY_TRUNC[resolution]
         return await execute_query(
@@ -645,47 +649,56 @@ class PostgresHealthQuery:
                        o.unit_ucum, o.unit_canonical, date_trunc('{trunc}', {_LOCAL_TS}) AS at
                   FROM v_observation o
                  WHERE o.user_id = :uid AND o.series_id = ANY(:names) AND o.value_num IS NOT NULL {where}
+            ), grouped AS (
+                SELECT series_id, {_LATEST_IDENTITY},
+                       to_char(at, 'YYYY-MM-DD HH24:MI') AS period,
+                       COUNT(*) AS n,
+                       ROUND(({_STAT_VALUE.format(agg="AVG")})::numeric, 4) AS avg,
+                       {_STAT_VALUE.format(agg="MIN")} AS min,
+                       {_STAT_VALUE.format(agg="MAX")} AS max,
+                       {_STAT_UNIT} AS unit,
+                       false AS elected,
+                       {_BUCKET_BUDGET.format(bucket="at")}
+                  FROM base
+                 GROUP BY series_id, at
             )
-            SELECT series_id, {_LATEST_IDENTITY},
-                   to_char(at, 'YYYY-MM-DD HH24:MI') AS period,
-                   COUNT(*) AS n,
-                   ROUND(({_STAT_VALUE.format(agg="AVG")})::numeric, 4) AS avg,
-                   {_STAT_VALUE.format(agg="MIN")} AS min,
-                   {_STAT_VALUE.format(agg="MAX")} AS max,
-                   {_STAT_UNIT} AS unit,
-                   false AS elected
-              FROM base
-             GROUP BY series_id, at
-             ORDER BY series_id, period
+            SELECT * FROM grouped WHERE rn <= :limit ORDER BY series_id, period
             """,
             params,
             log_sql=False,
         ) or []
 
-    async def _day_buckets(self, subject_id: str, names: list[str], window: query.Window, resolution: str) -> list[dict]:
+    async def _day_buckets(
+        self, subject_id: str, names: list[str], window: query.Window, resolution: str, limit: int
+    ) -> list[dict]:
         """Day and coarser: one row per (series, bucket), from the day
         authority where one has been elected and the newest reading of the
         day otherwise, which `provenance` reports."""
         from mirobody.utils import execute_query
 
-        params: dict[str, Any] = {"uid": str(subject_id), "names": names, "reported": REPORTED_KINDS}
+        params: dict[str, Any] = {
+            "uid": str(subject_id), "names": names, "reported": REPORTED_KINDS, "limit": max(1, int(limit)),
+        }
         where = _window_clause(params, window)
         trunc = _DAY_TRUNC[resolution]
+        bucket = f"date_trunc('{trunc}', at::timestamp)"
         return await execute_query(
             f"""
-            {_DAY_AUTHORITY_CTE.format(where=where)}
-            SELECT series_id, {_LATEST_IDENTITY},
-                   to_char(date_trunc('{trunc}', at::timestamp), 'YYYY-MM-DD') AS period,
-                   COUNT(*) AS n,
-                   ROUND(({_STAT_VALUE.format(agg="AVG")})::numeric, 4) AS avg,
-                   {_STAT_VALUE.format(agg="MIN")} AS min,
-                   {_STAT_VALUE.format(agg="MAX")} AS max,
-                   {_STAT_UNIT} AS unit,
-                   bool_or(elected) AS elected,
-                   bool_or(reported) AS reported
-              FROM base
-             GROUP BY series_id, date_trunc('{trunc}', at::timestamp)
-             ORDER BY series_id, period
+            {_DAY_AUTHORITY_CTE.format(where=where)}, grouped AS (
+                SELECT series_id, {_LATEST_IDENTITY},
+                       to_char({bucket}, 'YYYY-MM-DD') AS period,
+                       COUNT(*) AS n,
+                       ROUND(({_STAT_VALUE.format(agg="AVG")})::numeric, 4) AS avg,
+                       {_STAT_VALUE.format(agg="MIN")} AS min,
+                       {_STAT_VALUE.format(agg="MAX")} AS max,
+                       {_STAT_UNIT} AS unit,
+                       bool_or(elected) AS elected,
+                       bool_or(reported) AS reported,
+                       {_BUCKET_BUDGET.format(bucket=bucket)}
+                  FROM base
+                 GROUP BY series_id, {bucket}
+            )
+            SELECT * FROM grouped WHERE rn <= :limit ORDER BY series_id, period
             """,
             params,
             log_sql=False,
@@ -705,6 +718,16 @@ WITH day_rows AS (
 ), base AS (
     SELECT * FROM day_rows WHERE elected OR NOT day_elected
 )"""
+
+#: The two window columns a bucket statement adds over its grouped rows:
+#: how many buckets each series has (window functions run after GROUP BY, so
+#: this counts buckets, not readings) and each bucket's rank from the newest.
+#: `{bucket}` is the GROUP BY expression, since a window's ORDER BY may not
+#: name an output alias.
+_BUCKET_BUDGET = (
+    "COUNT(*) OVER (PARTITION BY series_id) AS total,"
+    " ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY {bucket} DESC) AS rn"
+)
 
 #: One row per (series, local day): the elected authority where one exists,
 #: the newest reading of that day otherwise.
@@ -816,6 +839,7 @@ def _bucket_row(r: dict) -> dict:
         "max": _number(r.get("max")),
         "n": int(r.get("n") or 0),
         "unit": r.get("unit") or "",
+        "total": int(r.get("total") or 0),
         "day_known": True,
         "provenance": "elected:day_authority" if r.get("elected") else "measured",
         **({"provenance": PROVENANCE_REPORTED} if r.get("reported") else {}),

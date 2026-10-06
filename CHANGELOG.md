@@ -280,6 +280,19 @@ decisions.
   which call to make next, over MCP and in chat alike. To check:
   `query_health_indicators(view="latest")` lists what the person has, with
   `view=latest was not applied` in its notes.
+- **A day view over a whole record no longer floods the model's context.**
+  `view="day"` with no dates returned every day on file: MiniCPM5-2B got
+  13,930 and then 33,657 characters, and paged the second from a file until
+  its context overflowed. Minute to month views now keep the newest 92 points
+  per indicator (`query.BUCKET_CAP`, the longest three months), cut in SQL,
+  marked `truncated`, with a note naming the dates that came back and the
+  coarser view that covers more. A year of the demo's daily steps renders in
+  3,622 characters instead of 12,346. Day, week and month answers also say
+  that each day counts once (its elected value, else its last reading), so a
+  month's `avg` that differs from `view="stats"` over the same month has a
+  stated reason. To check: `query_health_indicators(keywords=["steps"],
+  view="day")` on the demo account answers 92 rows marked `truncated`,
+  ending on the last day on file.
 - **The journal reads a sentence on a small local model.** Under the JSON
   schema the journal asks for, MiniCPM5-2B answered `{"entries": []}` for
   "Been leg cramps for 5 days.", and the evaluation's 15 diary sentences

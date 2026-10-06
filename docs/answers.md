@@ -123,8 +123,8 @@ And `view` is a dispatch TABLE, not a chain of `if`s (`query.DISPATCH`):
 | `view` | answers with |
 |---|---|
 | `raw` | readings, newest first, at most 50 per indicator (`query.ROW_CAP`) |
-| `minute` / `hour` | one point per bucket |
-| `day` / `week` / `month` | one point per bucket, from the day authority |
+| `minute` / `hour` | one point per bucket, the newest 92 per indicator (`query.BUCKET_CAP`) |
+| `day` / `week` / `month` | the same, from the day authority: each day counts once |
 | `stats` | count/min/max/avg/first/last/change over the window |
 | `latest` | the most recent value per indicator |
 | any, with no `keywords` or `indicators` | the catalogue, and a note that the view waits for names |
@@ -168,6 +168,27 @@ day, the second would drop the morning.
 at `query.ROW_CAP` and say so, and what a cut means is a narrower window or
 `view=stats`. The browser's reading list is a separate budget
 (`collect.REST_ROW_MAX`).
+
+Bucket views have one too, `query.BUCKET_CAP`: the newest 92 points per
+indicator, cut in SQL, with `truncated` set and a note naming the span that
+came back and the coarser view that covers more. Uncapped, MiniCPM5-2B asked
+for `view="day"` with no dates and got the whole record, 13,930 and 33,657
+characters; the second was evicted to a file it paged until the context
+overflowed. 92 is the longest three calendar months, so the three-month daily
+chart that evaluation asked for is never cut. Rendered through the tool from
+the demo generator's year (`server/demo.py`), daily steps went from 12,346
+characters to 3,622, and steps with resting heart rate from 40,192 (the
+renderer's 40,000-character cut) to 14,150. The alternative, choosing a
+coarser view when the answer is long, was not taken: the model asked for
+days, and weekly rows that read like days are a worse answer than the newest
+days with the cut said out loud.
+
+A day, week or month point counts each day once: the day's elected value, or
+its last reading where nothing was elected, the number a dashboard shows. So
+a month's `avg` is a mean of days, not of readings, and differs from `stats`
+over the same month whenever a day had several readings: a month of home
+blood pressures read 106.0 as `view="month"` and 111.0 over its readings
+(2026-10-06). Every such answer says so in `assumptions`.
 
 ---
 

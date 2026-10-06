@@ -336,6 +336,13 @@ VIEWS = ("raw", *BUCKETS, "stats", "latest")
 #: that could raise it used to, and got a longer table instead of an answer.
 #: Narrowing the window or asking for `stats` is what a cut row count means.
 ROW_CAP = 50
+#: Points per indicator in a minute…month view: the newest are kept, oldest
+#: first. Uncapped, MiniCPM5-2B asked for `view="day"` with no dates and got
+#: the whole record back, 13,930 and 33,657 characters (2026-10-06); the second
+#: was evicted to a file it paged until the context overflowed. 92 is the
+#: longest three calendar months, so the three-month daily chart that
+#: evaluation asked for is never cut, and a year is.
+BUCKET_CAP = 92
 
 TOOL_NAME = "query_health_indicators"
 
@@ -485,20 +492,22 @@ class HealthQuery(Protocol):
     head. The implementation owns the SQL, the time-zone lookup and any
     read-time refresh. Day-grained values come from the elected daily
     authority: the same numbers a dashboard shows, by construction; raw
-    rows are newest first; ``latest`` is the most recent value *inside the
-    window*."""
+    rows are newest first; buckets are the newest ``limit`` per series,
+    oldest first; both carry ``total`` per series so a cut can say so;
+    ``latest`` is the most recent value *inside the window*."""
 
     def tz(self, subject_id: str) -> str: ...
     def on_read(self, subject_id: str) -> None: ...
     def catalog(self, subject_id: str, window: Window | None) -> Rows: ...
     def readings(self, subject_id: str, sel: Selection, window: Window, *, limit: int) -> Rows: ...
-    def buckets(self, subject_id: str, sel: Selection, window: Window, *, resolution: str) -> Rows: ...
+    def buckets(self, subject_id: str, sel: Selection, window: Window, *, resolution: str, limit: int) -> Rows: ...
     def stats(self, subject_id: str, sel: Selection, window: Window) -> Rows: ...
     def latest(self, subject_id: str, sel: Selection, window: Window) -> Rows: ...
 
 
 __all__ = [
     "BUCKETS",
+    "BUCKET_CAP",
     "DISPATCH",
     "HealthQuery",
     "QueryRequest",
