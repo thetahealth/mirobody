@@ -280,6 +280,21 @@ decisions.
 
 ### Fixed
 
+- **A range printed `120--200` is 120 to 200, and `6.49↑` keeps its
+  number.** Two readings came out wrong whatever model read the page, found
+  by the OCR benchmark (benchmarks/local_ocr):
+  - the range reader took the second dash of a doubled dash as a minus sign,
+    so `35.0--45.0`, the way check-up books print a range, was stored as
+    -45.0 to 35.0; a doubled dash is now one separator (`-3--3` stays -3 to
+    3);
+  - a value the model returned with the report's flag still on it (`6.49↑`,
+    `5.6 H`) was stored as text with no number, so it never charted and
+    never compared with its range: every one of GLM-OCR's 16 value errors
+    end to end. The model path now moves a printed flag out of the value
+    the way the table rules do, `L` read as litres unless the range says
+    low, and keeps the printed flag over the model's `status`.
+  To check: `mirobody.translate.parse_range("35.0--45.0")` is `(35.0, 45.0)`;
+  a report whose result column prints `6.49↑` stores 6.49 with the flag ↑.
 - **Long reports, clinic notes and home logs give their readings.** Three
   shapes of document came back with none:
   - a multi-page report sent to a small model in one request: MiniCPM5-2B
