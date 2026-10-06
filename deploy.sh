@@ -162,6 +162,13 @@ while IFS= read -r name; do
     fi
 done < <(sed -nE 's/^[[:space:]]*(api_key|base_url|model_env):[[:space:]]*([A-Z][A-Z0-9_]*)[[:space:]]*(#.*)?$/\2/p' config.llm.yaml | sort -u)
 
+# The model service started with the stack (`COMPOSE_PROFILES=local-cpu
+# ./deploy.sh` with no GPU, `local` on an NVIDIA GPU) stays on for every later
+# `docker compose up -d`, which reads .env and not this shell.
+if [[ -n "${COMPOSE_PROFILES:-}" ]] && ! has_setting COMPOSE_PROFILES; then
+    add_setting COMPOSE_PROFILES "$COMPOSE_PROFILES"
+fi
+
 # Ask the daemon, which is what pulls: the shell's proxy settings are not the
 # daemon's, and hub.docker.com (the website) is not registry-1.docker.io. The
 # smallest real image answers in one round trip.
