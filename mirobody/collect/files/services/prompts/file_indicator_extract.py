@@ -136,7 +136,7 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
   "content_info": {{
     "content_type_detail": "Complete Blood Count",
     "content_category": "Laboratory Test",
-    "date_time": "2024-10-30 00:00:00",
+    "date_time": "<the date this document prints, YYYY-MM-DD HH:MM:SS, or empty>",
     "subject_info": {{
       "name": "张三",
       "details": "Male, 31 years"

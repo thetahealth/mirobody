@@ -255,6 +255,12 @@ _EXAMPLES: tuple[tuple[str, dict[str, Any]], ...] = (
 )
 
 
+#: The `when` values the worked examples answer with; see `_when`.
+_EXAMPLE_WHENS = frozenset(
+    e["when"] for _asked, answered in _EXAMPLES for e in answered["entries"] if e["when"]
+)
+
+
 @dataclass(frozen=True)
 class Part:
     """One entry as the model stated it, before any check."""
@@ -468,8 +474,12 @@ def _split_blood_pressure(parts: Sequence[Part]) -> list[Part]:
 
 def _when(text: str, *, now: datetime, zone: Any) -> datetime | None:
     """A local 'YYYY-MM-DD HH:MM' (or a bare date) as an instant in the
-    person's zone; `None` when it does not parse or is in the future."""
-    if not text:
+    person's zone; `None` when it does not parse, is in the future, or is a
+    time the worked examples state (`_EXAMPLE_WHENS`): a small model copies
+    an example's date onto a sentence that names none, as MiniCPM5-2B copied
+    the extraction prompt's 2024-10-30 onto undated documents
+    (benchmarks/local_models, qa3, 2026-10-07)."""
+    if not text or text.strip() in _EXAMPLE_WHENS:
         return None
     for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
         try:

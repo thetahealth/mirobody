@@ -280,6 +280,16 @@ decisions.
 
 ### Fixed
 
+- **A document with no date is not filed under the prompt's example date.**
+  The extraction prompt's worked example said `"date_time": "2024-10-30
+  00:00:00"`, and MiniCPM5-2B copied it onto documents that print no date of
+  their own: on the evaluation's record (benchmarks/local_models, qa3) a few
+  readings were filed under 30 October 2024. The example now describes the
+  field instead of giving a date, so a copied value does not parse and the
+  file goes under the upload time with the Data page's "which date?". The
+  journal's worked examples state two times too; a `when` equal to one of
+  them is ignored the same way. To check: no `YYYY-MM-DD` appears in the
+  extraction prompt; an undated report asks which date it is.
 - **A range printed `120--200` is 120 to 200, and `6.49↑` keeps its
   number.** Two readings came out wrong whatever model read the page, found
   by the OCR benchmark (benchmarks/local_ocr):
