@@ -255,6 +255,21 @@ decisions.
 
 ### Fixed
 
+- **OpenAI models can read uploads and the journal.** With GPT-6 Luna,
+  GPT-6 Sol, GPT-6.1 Sol or GPT-5.6 Terra as the utility model (through
+  OpenRouter, 2026-10-06), indicator extraction and the journal's sentence
+  reader got HTTP 400 on every call: OpenAI's json_schema refuses an object
+  that is not closed with `additionalProperties: false` or that leaves a
+  property out of `required`, so no upload was read and no sentence was
+  journaled. Gemini and DeepSeek accept such schemas, which is how it went
+  unnoticed. Every json_schema Mirobody sends is now closed and lists every
+  property; a field a document does not show comes back as an empty string,
+  which every reader already treats as absent. GPT-6 Luna, GPT-6 Sol and
+  GPT-5.6 Terra then read all five rows of the demo lipid CSV; Gemini 3.8
+  Flash and DeepSeek V4.1 Flash still pass. The unused
+  `PROMPT_EXTRACT_INDICATORS` constant is gone. To check: set
+  `OPENROUTER_UTILS_MODEL=openai/gpt-6-luna` and upload
+  `demo/upload/you_lipid_panel_2026-08.csv`; five readings are filed.
 - **The journal reads a sentence on a small local model.** Under the JSON
   schema the journal asks for, MiniCPM5-2B answered `{"entries": []}` for
   "Been leg cramps for 5 days.", and the evaluation's 15 diary sentences

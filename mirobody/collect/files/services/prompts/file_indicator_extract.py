@@ -185,11 +185,16 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 """
 
 
-# Legacy constant for backward compatibility
-PROMPT_EXTRACT_INDICATORS = get_extract_indicators_prompt()
-
+# Strict-compatible: every object closed with `additionalProperties: false`
+# and every property in `required`. OpenAI's json_schema answers HTTP 400
+# otherwise ("'additionalProperties' is required to be supplied and to be
+# false"): GPT-6 Luna, GPT-6 Sol, GPT-6.1 Sol and GPT-5.6 Terra through
+# OpenRouter, 2026-10-06, so no upload could be read with them. A field the
+# document does not show is an empty string, which every reader already treats
+# as absent (`content_formatter` tests each one for truth).
 RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
     "type": "object",
+    "additionalProperties": False,
     "properties": {
         "language": {
             "type": "string",
@@ -201,6 +206,7 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
         },
         "content_info": {
             "type": "object",
+            "additionalProperties": False,
             "properties": {
                 "content_type_detail": {"type": "string", "description": "Specific content type description, returned according to user language settings (e.g., Complete Blood Count, Biochemical Panel, CT, MRI, Ultrasound, etc.)"},
                 "content_category": {
@@ -210,19 +216,30 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                 "date_time": {"type": "string", "description": "Relevant date and time (YYYY-MM-DD HH:MM:SS format). Date Priority: Sample Collection Date > Sample Receipt Date > Report Date. Always use the highest priority date found in the document; empty string when the document shows no date — never invent one."},
                 "subject_info": {
                     "type": "object",
+                    "additionalProperties": False,
                     "properties": {
                         "name": {"type": "string", "description": "Patient name"},
                         "details": {"type": "string", "description": "Patient details (gender, age, etc.)"},
                     },
+                    "required": ["name", "details"],
                 },
                 "source": {"type": "string", "description": "Source information (hospital name, brand name, capture environment, etc.)"},
                 "reference_number": {"type": "string", "description": "Relevant number (examination number, product number, record number, etc.)"},
             },
+            "required": [
+                "content_type_detail",
+                "content_category",
+                "date_time",
+                "subject_info",
+                "source",
+                "reference_number",
+            ],
         },
         "indicators": {
             "type": "array",
             "items": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "original_indicator": {
                         "type": "string",
@@ -266,11 +283,14 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                     "reference_range",
                     "detection_method",
                     "status",
+                    "notes",
+                    "date_time",
                 ],
             },
         },
         "additional_info": {
             "type": "object",
+            "additionalProperties": False,
             "properties": {
                 "content_summary": {"type": "string", "description": "Findings summary from the medical report. Language determined by user language settings."},
                 "assessment": {"type": "string", "description": "Impression/diagnosis from the report. Language determined by user language settings."},
@@ -279,9 +299,17 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                 "specialist": {"type": "string", "description": "Reporting doctor name."},
                 "reviewer": {"type": "string", "description": "Reviewing doctor name."},
             },
+            "required": [
+                "content_summary",
+                "assessment",
+                "recommendations",
+                "follow_up",
+                "specialist",
+                "reviewer",
+            ],
         },
     },
-    "required": ["language", "content_type", "content_info", "indicators"],
+    "required": ["language", "content_type", "content_info", "indicators", "additional_info"],
 }
 
 
