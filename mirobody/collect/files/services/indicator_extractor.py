@@ -68,6 +68,14 @@ _DATE_PROBE_SCHEMA = {
 PAGE_READ_CHARS = 3000
 #: How many pages are in flight at once: the local server's two slots.
 PAGE_READ_CONCURRENCY = 2
+
+
+def answer_budget(text: str) -> int:
+    """max_tokens for one extraction request: room for every row the text can
+    hold (a row's JSON is ~3.5 tokens per printed character), not the whole
+    context. At a flat 32,000 a looping MiniCPM5-2B wrote 30,067 tokens for
+    13 minutes on one handwritten page (benchmarks/local_ocr, 2026-10-07)."""
+    return min(32000, 2048 + 4 * len(text))
 #: The page header `documents.extract` writes between pages.
 _PAGE_MARK = re.compile(r"(?=^--- page \d+ ---$)", re.MULTILINE)
 
@@ -348,7 +356,7 @@ class IndicatorExtractor:
             messages=messages,
             response_format={"type": "json_schema", "json_schema": {"name": "indicators_response", "schema": RESPONSE_SCHEMA_EXTRACT_INDICATORS}},
             temperature=0.1,
-            max_tokens=32000
+            max_tokens=answer_budget(original_text),
         )
         api_duration = time.time() - api_start_time
         logger.info(f"[IndicatorExtractor] LLM text extraction completed - user_id: {user_id}, duration: {api_duration:.2f}s")

@@ -280,6 +280,16 @@ decisions.
 
 ### Fixed
 
+- **A model that loops on a page stops sooner and keeps the rows it read.**
+  An extraction request allowed 32,000 tokens; MiniCPM5-2B looped on a
+  handwritten blood-pressure log for 13 minutes, 30,067 tokens, until its
+  context was full, and the cut answer was thrown away with every row it had
+  read (benchmarks/local_ocr). A request is now bounded by its text (2,048
+  tokens plus 4 per character, at most 32,000), and an answer cut off at
+  that bound keeps every value that closed before the cut; the repeats a
+  loop wrote are dropped as duplicates. An answer that ends normally but
+  does not parse is still a failed call. To check: the log says "hit
+  max_tokens; kept its complete part" instead of a JSON error.
 - **The thyroid panel resolves as its slips print it.** `TT4` answered
   3024-7, FREE thyroxine, so a total T4 of 114.5 nmol/L would be stored as
   free T4, and `总甲状腺素(TT4)` was refused as naming two analytes; `TRAb`
