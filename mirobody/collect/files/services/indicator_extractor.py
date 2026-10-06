@@ -38,9 +38,11 @@ logger = logging.getLogger(__name__)
 #: date?" until it knows there is no date, so the date is looked up first, on
 #: its own, in a few seconds. Sample collection outranks receipt outranks report
 #: date, the same priority the full extraction uses; empty when the document
-#: shows none, never invented.
+#: shows none, never invented. Closed like every json_schema the product sends
+#: (see `prompts/file_indicator_extract.py`).
 _DATE_PROBE_SCHEMA = {
     "type": "object",
+    "additionalProperties": False,
     "properties": {
         "date_time": {
             "type": "string",

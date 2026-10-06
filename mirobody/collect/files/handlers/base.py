@@ -24,6 +24,26 @@ from mirobody.utils.req_ctx import request_language
 
 logger = logging.getLogger(__name__)
 
+#: What the text-side abstract asks for. Closed (`additionalProperties: false`)
+#: like every json_schema the product sends: OpenAI answers HTTP 400 to an open
+#: nested object (measured through OpenRouter, 2026-10-06). This flat one was
+#: accepted open; closed, a nested field added later cannot bring the 400 back.
+ABSTRACT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "file_name": {
+            "type": "string",
+            "description": "Generated filename with extension"
+        },
+        "file_abstract": {
+            "type": "string",
+            "description": "Brief summary of file content (max 150 chars)"
+        }
+    },
+    "required": ["file_name", "file_abstract"]
+}
+
 # Import services type hints (avoid circular imports if possible, or use Any)
 # In a real scenario, we might use Protocol or specific imports if avoiding circular deps.
 # For now we assume services are passed in and duck-typed or we use Any.
@@ -243,23 +263,7 @@ class BaseFileHandler(abc.ABC):
         """
         try:
             from mirobody.utils.llm import async_get_structured_output
-            
-            # Define response schema
-            response_schema = {
-                "type": "object",
-                "properties": {
-                    "file_name": {
-                        "type": "string",
-                        "description": "Generated filename with extension"
-                    },
-                    "file_abstract": {
-                        "type": "string",
-                        "description": "Brief summary of file content (max 150 chars)"
-                    }
-                },
-                "required": ["file_name", "file_abstract"]
-            }
-            
+
             # `language` reaches this prompt because it used to be an unused
             # parameter, and "use the same language as the content" was one
             # bullet in a list the model ignored. An English lab report came
@@ -291,7 +295,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             
             result = await async_get_structured_output(
                 messages=messages,
-                response_format={"type": "json_schema", "json_schema": {"name": "abstract_response", "schema": response_schema}},
+                response_format={"type": "json_schema", "json_schema": {"name": "abstract_response", "schema": ABSTRACT_SCHEMA}},
                 temperature=0.1,
                 max_tokens=32000
             )

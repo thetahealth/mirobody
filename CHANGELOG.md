@@ -343,6 +343,57 @@ decisions.
   documents are read, with the same dates. To tell: upload a report whose
   header is `检测项目 | 测定值 | | 单位(Unit)`; hemoglobin is stored with g/L
   and its range, and coded 718-7.
+- **OpenAI models can read uploads and the journal.** With GPT-6 Luna,
+  GPT-6 Sol, GPT-6.1 Sol or GPT-5.6 Terra as the utility model (through
+  OpenRouter, 2026-10-06), indicator extraction and the journal's sentence
+  reader got HTTP 400 on every call: OpenAI's json_schema refuses an object
+  that is not closed with `additionalProperties: false` or that leaves a
+  property out of `required`, so no upload was read and no sentence was
+  journaled. Gemini and DeepSeek accept such schemas, which is how it went
+  unnoticed. Every json_schema Mirobody sends is now closed and lists every
+  property; a field a document does not show comes back as an empty string,
+  which every reader already treats as absent. GPT-6 Luna, GPT-6 Sol and
+  GPT-5.6 Terra then read all five rows of the demo lipid CSV; Gemini 3.8
+  Flash and DeepSeek V4.1 Flash still pass. The unused
+  `PROMPT_EXTRACT_INDICATORS` constant is gone. To check: set
+  `OPENROUTER_UTILS_MODEL=openai/gpt-6-luna` and upload
+  `demo/upload/you_lipid_panel_2026-08.csv`; five readings are filed.
+- **Asking for a view before naming an indicator gets the catalogue, not a
+  refusal.** `query_health_indicators(view="latest")` with no `keywords` or
+  `indicators` was refused ("the catalogue has one shape"). Small local
+  models open that way: MiniCPM5-2B 3 times and MiniCPM5-1B 7 times in the
+  2026-10-06 evaluation, then they repeated the refused call until the harness
+  stopped it, 6 times, each a model turn. Now any view with nothing selected
+  answers with the catalogue and a note that the view was not applied and
+  which call to make next, over MCP and in chat alike. To check:
+  `query_health_indicators(view="latest")` lists what the person has, with
+  `view=latest was not applied` in its notes.
+- **A day view over a whole record no longer floods the model's context.**
+  `view="day"` with no dates returned every day on file: MiniCPM5-2B got
+  13,930 and then 33,657 characters, and paged the second from a file until
+  its context overflowed. Minute to month views now keep the newest 92 points
+  per indicator (`query.BUCKET_CAP`, the longest three months), cut in SQL,
+  marked `truncated`, with a note naming the dates that came back and the
+  coarser view that covers more. A year of the demo's daily steps renders in
+  3,622 characters instead of 12,346. Day, week and month answers also say
+  that each day counts once (its elected value, else its last reading), so a
+  month's `avg` that differs from `view="stats"` over the same month has a
+  stated reason. To check: `query_health_indicators(keywords=["steps"],
+  view="day")` on the demo account answers 92 rows marked `truncated`,
+  ending on the last day on file.
+- **A chart with a stray brace is drawn, or says it could not be.** The
+  answer's charts are JSON the model writes by hand in a ```` ```vis-chart ````
+  block. One `}` too many (MiniCPM5-2B on a steps chart, 2026-10-06) and the
+  web client drew nothing, with no sign a chart was missing; nothing on the
+  server checks the block, and it reaches the browser as it streams, so the
+  browser is where it is read. Once the block's closing fence has arrived, the
+  client now mends structural slips (extra or missing closing brackets, a
+  trailing comma, the JSON fenced a second time inside the block) without
+  touching a value, and a block it still cannot draw shows "This chart could
+  not be drawn" with its data one click away. A doubled fence no longer turns
+  the rest of the answer into a code block. Ships with the next web build in
+  `frontend/`. To check: an answer containing a vis-chart block whose JSON
+  ends in `}}` draws the chart.
 - **The journal reads a sentence on a small local model.** Under the JSON
   schema the journal asks for, MiniCPM5-2B answered `{"entries": []}` for
   "Been leg cramps for 5 days.", and the evaluation's 15 diary sentences

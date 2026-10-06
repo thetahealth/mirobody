@@ -349,6 +349,13 @@ VIEWS = ("raw", *BUCKETS, "stats", "latest")
 #: that could raise it used to, and got a longer table instead of an answer.
 #: Narrowing the window or asking for `stats` is what a cut row count means.
 ROW_CAP = 50
+#: Points per indicator in a minute…month view: the newest are kept, oldest
+#: first. Uncapped, MiniCPM5-2B asked for `view="day"` with no dates and got
+#: the whole record back, 13,930 and 33,657 characters (2026-10-06); the second
+#: was evicted to a file it paged until the context overflowed. 92 is the
+#: longest three calendar months, so the three-month daily chart that
+#: evaluation asked for is never cut, and a year is.
+BUCKET_CAP = 92
 
 TOOL_NAME = "query_health_indicators"
 
@@ -412,6 +419,12 @@ class QueryRequest:
             return "catalog"
         return DISPATCH[self.view]
 
+    @property
+    def view_unapplied(self) -> bool:
+        """A view was named with nothing selected: the catalogue answers, and
+        the caller should say the view waits for the names it lists."""
+        return self.selection.kind == "catalog" and self.view != "raw"
+
 
 @dataclass(frozen=True)
 class Rejection:
@@ -444,7 +457,14 @@ def reject_dates(args: Mapping[str, object]) -> list[Rejection]:
 def validate_request(args: Mapping[str, object]) -> tuple[Rejection, ...]:
     """Everything wrong with the raw arguments, in a stable order. Empty
     means :func:`parse_request` will succeed. Checks the enums, the selection
-    rule and the dates."""
+    rule and the dates.
+
+    A view with no selection is not refused: it is a catalogue call
+    (:attr:`QueryRequest.view_unapplied`). Refused, MiniCPM5-2B opened with
+    `view="latest"` and no names 3 times and MiniCPM5-1B 7 times, then
+    repeated it until the harness refused the repeat (`retry_refused`) 6
+    times (2026-10-06), each attempt a model turn on an 8k-token prompt. The
+    catalogue is the list the next call copies its names from."""
     out: list[Rejection] = reject_unknown(args, TOOL_SCHEMA)
     view = args.get("view")
     if view not in (None, "") and view not in VIEWS:
@@ -452,8 +472,6 @@ def validate_request(args: Mapping[str, object]) -> tuple[Rejection, ...]:
     selectors = [p for p in ("keywords", "indicators") if args.get(p) not in (None, "", [], ())]
     if len(selectors) > 1:
         out.append(Rejection("keywords+indicators", "give keywords or indicators — not both"))
-    if not selectors and view not in (None, "", "raw"):
-        out.append(Rejection("view", "the catalogue has one shape; pick indicators first"))
     out.extend(reject_dates(args))
     return tuple(out)
 
@@ -487,20 +505,22 @@ class HealthQuery(Protocol):
     head. The implementation owns the SQL, the time-zone lookup and any
     read-time refresh. Day-grained values come from the elected daily
     authority: the same numbers a dashboard shows, by construction; raw
-    rows are newest first; ``latest`` is the most recent value *inside the
-    window*."""
+    rows are newest first; buckets are the newest ``limit`` per series,
+    oldest first; both carry ``total`` per series so a cut can say so;
+    ``latest`` is the most recent value *inside the window*."""
 
     def tz(self, subject_id: str) -> str: ...
     def on_read(self, subject_id: str) -> None: ...
     def catalog(self, subject_id: str, window: Window | None) -> Rows: ...
     def readings(self, subject_id: str, sel: Selection, window: Window, *, limit: int) -> Rows: ...
-    def buckets(self, subject_id: str, sel: Selection, window: Window, *, resolution: str) -> Rows: ...
+    def buckets(self, subject_id: str, sel: Selection, window: Window, *, resolution: str, limit: int) -> Rows: ...
     def stats(self, subject_id: str, sel: Selection, window: Window) -> Rows: ...
     def latest(self, subject_id: str, sel: Selection, window: Window) -> Rows: ...
 
 
 __all__ = [
     "BUCKETS",
+    "BUCKET_CAP",
     "DISPATCH",
     "HealthQuery",
     "QueryRequest",

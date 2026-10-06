@@ -112,13 +112,19 @@ _NUMBER_FIRST = re.compile(r"^\s*[<>≤≥]?\s*[-+]?\d")
 _BP_VALUE = re.compile(r"^\s*(\d{2,3}(?:\.\d+)?)\s*/\s*(\d{2,3}(?:\.\d+)?)\s*$")
 _CJK = re.compile(r"[一-鿿]")
 
+#: Closed at both levels (`additionalProperties: false`, every key required):
+#: OpenAI's json_schema answers HTTP 400 to an open object, so the journal
+#: read nothing on GPT-6 Luna, GPT-6 Sol, GPT-6.1 Sol or GPT-5.6 Terra
+#: (through OpenRouter, 2026-10-06).
 RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
+    "additionalProperties": False,
     "properties": {
         "entries": {
             "type": "array",
             "items": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "quote": {
                         "type": "string",

@@ -72,6 +72,16 @@ _WORDS_NOTE = (
 )
 _SELF_DIAGNOSED_NOTE = "a condition entry is what the person reports being diagnosed with, not a clinical record"
 
+#: Said on a day, week or month view: each of those reads one value per day
+#: (`collect/query.py::_DAY_AUTHORITY_CTE`), while `stats` counts every
+#: reading of a day nothing elected. Unsaid, the two disagree with no
+#: visible reason: a month of home blood pressures averaged 106.0 in
+#: `view="month"` against 111.0 over all its readings (2026-10-06).
+_DAY_VALUE_NOTE = (
+    "each day counts once here, as its elected value or else its last reading; "
+    "view=stats counts every reading of such a day"
+)
+
 
 class HealthIndicatorsService(RecordTool):
     """The tool body.
@@ -92,13 +102,14 @@ class HealthIndicatorsService(RecordTool):
     input_schema = query.TOOL_SCHEMA
 
     def __init__(self, health_query: Any = None, *, now: Any = None, catalog_cap: int | None = None,
-                 row_cap: int = query.ROW_CAP) -> None:
+                 row_cap: int = query.ROW_CAP, bucket_cap: int = query.BUCKET_CAP) -> None:
         self._health_query = health_query
         self._now = now  # injected in tests; production reads the clock
         # A browser's catalogue and reading list are tables it scrolls, not a
         # model's context window. `None` leaves the model-facing catalogue cap.
         self._catalog_cap = catalog_cap
         self._row_cap = row_cap
+        self._bucket_cap = bucket_cap
 
     def _query(self) -> Any:
         if self._health_query is None:
@@ -137,8 +148,9 @@ class HealthIndicatorsService(RecordTool):
             A compact table plus a `meta` block saying which window was read,
             in which time zone, in which view, how many rows came back and
             whether they were cut. `truncated` means narrow the window or ask
-            for `view="stats"`. No dates means the whole record. Row cap: 50
-            raw rows per indicator, 200 catalogue names.
+            for `view="stats"` (or a coarser view). No dates means the whole
+            record. Caps: 50 raw rows and 92 minute…month points per
+            indicator (the newest), 200 catalogue names.
 
         Notes for LLMs:
             - No data for an indicator means it was never recorded. It does NOT
@@ -182,7 +194,7 @@ class HealthIndicatorsService(RecordTool):
             rows = await self._dispatch(hq, "catalog", subject_id, request, window)
             method, fell_back = "catalog", True
 
-        return _envelope_for(method, request, window, rows, fell_back=fell_back)
+        return _envelope_for(method, request, window, rows, fell_back=fell_back, bucket_cap=self._bucket_cap)
 
     async def _dispatch(
         self, hq: Any, method: str, subject_id: str, request: query.QueryRequest, window: query.Window
@@ -202,7 +214,7 @@ class HealthIndicatorsService(RecordTool):
         if method == "readings":
             return await awaited(hq.readings(subject_id, sel, window, limit=self._row_cap))
         if method == "buckets":
-            return await awaited(hq.buckets(subject_id, sel, window, resolution=request.view))
+            return await awaited(hq.buckets(subject_id, sel, window, resolution=request.view, limit=self._bucket_cap))
         if method == "stats":
             return await awaited(hq.stats(subject_id, sel, window))
         if method == "latest":
@@ -220,13 +232,14 @@ def _envelope_for(
     rows: Sequence[Mapping[str, Any]],
     *,
     fell_back: bool = False,
+    bucket_cap: int = query.BUCKET_CAP,
 ) -> tools.Envelope:
     rows = list(rows)
     dated = bool(request.start or request.end)
     total = max((int(r.get("total") or 0) for r in rows), default=0)
     # A catalogue row's `total` is the catalogue's size, not its series' row
     # count: read per indicator, every complete catalogue of two was "cut".
-    truncated = bool(total and total > len(rows)) or (method != "catalog" and _per_indicator_truncated(rows))
+    truncated = bool(total and total > len(rows)) or (method != "catalog" and bool(_cut_indicators(rows)))
     semantics = _semantics(rows)
     meta = tools.Meta(
         window=(window.start, window.end) if dated else ("", ""),
@@ -242,6 +255,15 @@ def _envelope_for(
         assumptions.append(window.note)
     if fell_back:
         assumptions.append("no indicator matched those terms; this is what this person has on file")
+    if method == "catalog" and request.view_unapplied:
+        assumptions.append(
+            f"view={request.view} was not applied: with no keywords or indicators the answer is this catalogue; "
+            f"call again with indicators copied from it and view={request.view}"
+        )
+    if method == "buckets" and truncated:
+        assumptions.append(_cut_note(request.view, rows, bucket_cap))
+    if method == "buckets" and request.view in ("day", "week", "month"):
+        assumptions.append(_DAY_VALUE_NOTE)
     if semantics == query.SEMANTICS_DATE_PADDED:
         assumptions.append("some rows predate the stored local day; their window is padded a day each way")
     assumptions.append(_ABSENCE_NOTE)
@@ -251,8 +273,9 @@ def _envelope_for(
     if any(r.get("kind") == "condition" for r in reported):
         assumptions.append(_SELF_DIAGNOSED_NOTE)
 
-    # What to do next, and never something the next call would refuse: a
-    # catalogue has one shape, so "ask for stats" is not advice there.
+    # What to do next, and never something the next call would refuse or
+    # answer the same way: stats with no names is this catalogue again, so
+    # "ask for stats" is not advice there.
     next_steps: list[str] = []
     if method == "catalog":
         next_steps.append(tools.NEXT_USE_INDICATORS)
@@ -274,14 +297,30 @@ def _envelope_for(
     )
 
 
-def _per_indicator_truncated(rows: Sequence[Mapping[str, Any]]) -> bool:
+def _cut_note(view: str, rows: Sequence[Mapping[str, Any]], cap: int) -> str:
+    """What a cut bucket answer covers, and the one call that covers more.
+    The span is stated because the window line still reads "all recorded
+    data": MiniCPM5-2B, handed a year of days for "the past three months",
+    answered with October to December, months the record does not have
+    (2026-09-30, docs/local-models-roadmap.md)."""
+    cut = _cut_indicators(rows)
+    periods = [str(r.get("period") or "") for r in rows if r.get("period") and str(r.get("indicator") or "") in cut]
+    span = f" ({min(periods)}..{max(periods)})" if periods else ""
+    at = query.BUCKETS.index(view) if view in query.BUCKETS else -1
+    coarser = query.BUCKETS[at + 1] if 0 <= at < len(query.BUCKETS) - 1 else ""
+    wider = f"ask view={coarser} or name start and end" if coarser else "name start and end"
+    return f"cut to the latest {cap} {view} points per indicator{span}; for more, {wider}"
+
+
+def _cut_indicators(rows: Sequence[Mapping[str, Any]]) -> set[str]:
+    """The indicators whose rows stop short of their `total`."""
     seen: dict[str, int] = {}
     totals: dict[str, int] = {}
     for r in rows:
         name = str(r.get("indicator") or "")
         seen[name] = seen.get(name, 0) + 1
         totals[name] = max(totals.get(name, 0), int(r.get("total") or 0))
-    return any(totals[n] > seen[n] for n in seen if totals.get(n))
+    return {n for n in seen if totals.get(n) and totals[n] > seen[n]}
 
 
 def _semantics(rows: Sequence[Mapping[str, Any]]) -> str:
