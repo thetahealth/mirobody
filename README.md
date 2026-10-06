@@ -23,7 +23,7 @@
 
 ---
 
-Last year's checkup wrote `A1c`, this year's panel `HbA1c`, the new clinic `Glycated Hemoglobin`. One test, three names, nothing to compare. Mirobody reads any source, any format, any language, settles every value onto one standard, and answers questions over that record with each number traced to its file. It runs on your machine, with one model key or with every model on that same machine, and the record stays in a Postgres you run.
+Last year's checkup wrote `A1c`, this year's panel `HbA1c`, the new clinic `Glycated Hemoglobin`. One test, three names, nothing to compare. Mirobody reads any source, any format, any language, settles every value onto one standard, and answers questions over that record with each number traced to its file. It runs on your machine, with one model key or with every model on that same machine, served by [llama.cpp](https://github.com/ggml-org/llama.cpp), and the record stays in a Postgres you run.
 
 <p align="center">
   <img src="docs/images/ask-own-demo.gif" alt="Asking how cholesterol has changed: the agent finds three files that name the test differently, resolves them to one code, and charts the trend" width="880">
@@ -42,12 +42,12 @@ The first-run page asks who reads your health data: paste one model key, or choo
 <p align="center">
   <img src="docs/images/setup-demo.gif" alt="The first-run page: a model name edited beside an OpenRouter key, then 100% on this machine: the page finds the llama.cpp server, lists the models it serves, and both models are ready" width="880">
 </p>
-<p align="center"><em>Recorded on a 16 GB laptop with the small pair (MiniCPM5-2B answering, GLM-OCR-0.9B reading). The default local pair is Qwen3.8-27B and GLM-OCR, which needs about 20 GB.</em></p>
+<p align="center"><em>Recorded on a 16 GB laptop with the default local pair, MiniCPM5-2B answering and GLM-OCR-0.9B reading, both served by llama.cpp. The large size, Qwen3.8-27B, needs about 20 GB.</em></p>
 
 | | Where the models run | You need | What leaves the machine |
 | --- | --- | --- | --- |
 | **A model key** | at the vendor whose key you paste: OpenRouter, OpenAI, Gemini, Anthropic, DeepSeek, DashScope, or any OpenAI-compatible gateway | Docker and one key | your questions, the rows the agent reads and the documents it reads go to that vendor |
-| **100% on this machine** | [llama.cpp](docs/local-models.md) (`llama-server`) beside the stack, the local model runtime Mirobody ships and tests: Qwen3.8-27B answers, GLM-OCR-0.9B reads documents; the model names are yours to change | Docker and about 20 GB of memory (a 32 GB Mac, or a 24 GB NVIDIA GPU with `--profile local`); a one-time 14.5 GB model download | nothing about you; an answer takes about two minutes on an M4 Pro |
+| **100% on this machine** | **[llama.cpp](https://github.com/ggml-org/llama.cpp)'s `llama-server` serves the models**, beside the stack; Mirobody runs no model itself. By default MiniCPM5-2B answers and GLM-OCR-0.9B reads documents; Qwen3.8-27B answers better on more memory. The model names are yours to change ([guide](docs/local-models.md)) | Docker and 16 GB of memory for the default, no GPU, on Windows, Linux or macOS (about 20 GB for Qwen3.8-27B); a one-time 3.0 GB download (14.5 GB) | nothing about you; an answer takes about 30 s on a 16 GB M1 Pro (about two minutes for Qwen3.8-27B on an M4 Pro) |
 | **The library alone** | no model: `pip install mirobody` or `uvx --python 3.12 mirobody` resolves names to LOINC and units to UCUM | Python 3.12 | nothing: the vocabulary ships in the package |
 
 With a model key, Docker is the only requirement: no Python, Node.js, GPU or Git LFS, and not even Git (`curl -L https://github.com/thetahealth/mirobody/archive/refs/heads/main.tar.gz | tar xz && cd mirobody-main` is the same checkout). `deploy.sh` writes the secrets and your key into `.env` and pulls the prebuilt image, building it from the checkout when the pull fails. It stops and names the fix when a port is taken or another Mirobody stack already runs under this folder's name. The image runs beside its own Postgres, so `docker run` alone is not a way in. A key added later goes in `.env`, then `docker compose up -d`: a `restart` does not read `.env` again.

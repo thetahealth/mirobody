@@ -174,7 +174,11 @@ decisions.
   became a per-mode table that names the model download, the image registry
   and its mirror, and what encryption at rest does not cover yet. The README,
   the quickstart, `docs/local-models.md`, the Docker Hub copy and the
-  `mirobody` skill name llama.cpp as the local model runtime.
+  `mirobody` skill name llama.cpp as the local model runtime: the README's
+  first paragraph and its mode table say that llama.cpp's `llama-server`
+  serves the local models and Mirobody runs none itself. The table gives the
+  default size (MiniCPM5-2B with GLM-OCR: 16 GB of memory, no GPU, 3.0 GB to
+  download) before the large one; it had given only Qwen3.8-27B's 20 GB.
 - **The README links the benchmarks.** ESL-Bench, MedHall-Bench and
   MedHarm-Bench each drew 4,000+ Hugging Face downloads in the 30 days to
   2026-10-01, and none of their cards linked here, nor did either README link

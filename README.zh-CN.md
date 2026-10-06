@@ -23,7 +23,7 @@
 
 ---
 
-去年体检写 `A1c`，今年医院写 `HbA1c`，换家机构又成 `糖化血红蛋白`。一项检查三个名字，读不懂，也比不了。Mirobody 把任何来源、任何格式、任何语言的健康数据读进来，每个值都落到同一套标准上，再在这份记录上回答你的问题，每个数字都能追回它出自的那份文件。全部跑在你自己的机器上：用一把模型 key，或者让所有模型也跑在这台机器上；记录存在你自己运行的 Postgres 里。
+去年体检写 `A1c`，今年医院写 `HbA1c`，换家机构又成 `糖化血红蛋白`。一项检查三个名字，读不懂，也比不了。Mirobody 把任何来源、任何格式、任何语言的健康数据读进来，每个值都落到同一套标准上，再在这份记录上回答你的问题，每个数字都能追回它出自的那份文件。全部跑在你自己的机器上：用一把模型 key，或者让所有模型也跑在这台机器上，由 [llama.cpp](https://github.com/ggml-org/llama.cpp) 提供模型服务；记录存在你自己运行的 Postgres 里。
 
 <p align="center">
   <img src="docs/images/ask-own-demo.zh-CN.gif" alt="用中文问胆固醇怎么变的，agent 找到三份用不同写法记录同一项检查的文件，把它们解析成同一个码，并画出趋势" width="880">
@@ -42,12 +42,12 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 <p align="center">
   <img src="docs/images/setup-demo.zh-CN.gif" alt="首次设置页：在 OpenRouter 的 key 旁边改模型名；再选 100% 在本机运行：页面找到 llama.cpp 服务，列出它提供的模型，两个模型都就绪" width="880">
 </p>
-<p align="center"><em>在一台 16 GB 内存的笔记本上录制，用的是小模型组合（MiniCPM5-2B 回答问题，GLM-OCR-0.9B 读文档）。默认的本地组合是 Qwen3.8-27B 加 GLM-OCR，需要约 20 GB 内存。</em></p>
+<p align="center"><em>在一台 16 GB 内存的笔记本上录制，用的是默认的本地组合：MiniCPM5-2B 回答问题，GLM-OCR-0.9B 读文档，两个都由 llama.cpp 提供服务。大号的 Qwen3.8-27B 需要约 20 GB 内存。</em></p>
 
 | | 模型在哪里跑 | 你需要 | 什么会离开这台机器 |
 | --- | --- | --- | --- |
 | **一把模型 key** | 在你粘贴 key 的那家厂商：OpenRouter、OpenAI、Gemini、Anthropic、DeepSeek、DashScope，或任何 OpenAI 兼容网关 | Docker 和一把 key | 你的提问、智能体读到的数据行和它读的文档，都会发给那家厂商 |
-| **100% 在本机运行** | 跟服务一起跑的 [llama.cpp](docs/local-models.md)（`llama-server`），Mirobody 自带并实测过的本地模型运行时：Qwen3.8-27B 回答问题，GLM-OCR-0.9B 读文档；模型名可以自己改 | Docker 和约 20 GB 内存（32 GB 的 Mac，或用 `--profile local` 的 24 GB NVIDIA 显卡）；模型一次性下载 14.5 GB | 与你有关的任何数据都不会离开；在 M4 Pro 上一个回答约两分钟 |
+| **100% 在本机运行** | **由 [llama.cpp](https://github.com/ggml-org/llama.cpp) 的 `llama-server` 提供模型服务**，跟服务一起跑；Mirobody 自己不跑模型。默认由 MiniCPM5-2B 回答问题、GLM-OCR-0.9B 读文档；内存更多时可换 Qwen3.8-27B，回答更好。模型名可以自己改（[说明](docs/local-models.md)） | Docker 和 16 GB 内存即可跑默认组合，不需要显卡，Windows、Linux、macOS 都行（Qwen3.8-27B 约需 20 GB）；模型一次性下载 3.0 GB（大号 14.5 GB） | 与你有关的任何数据都不会离开；在 16 GB 的 M1 Pro 上一个回答约 30 秒（Qwen3.8-27B 在 M4 Pro 上约两分钟） |
 | **只用库** | 不需要模型：`pip install mirobody` 或 `uvx --python 3.12 mirobody` 把名称解析到 LOINC、单位换算到 UCUM | Python 3.12 | 什么都不会离开：词表随包发布 |
 
 用模型 key 时只需要 Docker：不用 Python，不用 Node.js，不用 GPU，不用 Git LFS，连 Git 都可以不装（`curl -L https://github.com/thetahealth/mirobody/archive/refs/heads/main.tar.gz | tar xz && cd mirobody-main` 得到的是同一份检出）。`deploy.sh` 会把密钥和你的 key 写进 `.env`，拉取预构建镜像，拉不到时才用当前检出在本机构建；端口被占用、或同名的另一套 Mirobody 已经在跑时，它会停下来并说清楚怎么改。镜像要和自己的 Postgres 一起跑，所以单独 `docker run` 是跑不起来的。之后再加 key：写进 `.env`，然后 `docker compose up -d`；`restart` 不会重新读 `.env`。
