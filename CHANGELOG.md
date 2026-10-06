@@ -225,6 +225,13 @@ decisions.
   150 ms over one person's 149,000 readings. Writes no longer pay for it, and
   the table is dropped at boot.
 
+- **Settings no longer report switches that do not exist.** `GET
+  /api/user/settings` answered `privacy` (`dataSharing`, `aiAnalysis`,
+  `analyticsTracking`) and `notifications` (`email`, `push`, `weeklyReport`, …)
+  as `true` for every account, and `PUT` accepted and dropped them: nothing
+  shares, tracks or notifies. Both groups are gone from the answer; a client
+  that still sends them is not refused.
+
 ### Fixed
 
 - **Quoted genotype rows without their header no longer reach a model.**
