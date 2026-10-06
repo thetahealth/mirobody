@@ -1,0 +1,1 @@
+const i="http://in-app.invalid",e=["/login","/mcplogin"];function r(t){if(typeof t!="string"||!t.startsWith("/"))return"";let n;try{n=new URL(t,i)}catch{return""}return n.origin!==i||e.includes(n.pathname)?"":n.pathname+n.search+n.hash}const o=t=>`/login?redirect=${encodeURIComponent(t)}`;export{r as i,o as l};
