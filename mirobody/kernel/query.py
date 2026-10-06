@@ -200,8 +200,10 @@ SYNONYMS: dict[str, tuple[str, ...]] = _load_synonyms()
 
 
 def _tokens(text: str) -> set[str]:
+    """A name's word tokens, plural-folded (`lexical.fold_plural`) like the
+    query's, so `heartRates` holds `rate` for "heart rate"."""
     base = {t.lower() for t in _CAMEL.split(text or "") if t}
-    return base | {t.lower() for t in lexical.word_tokens(text or "")}
+    return {lexical.fold_plural(t) for t in base | {t.lower() for t in lexical.word_tokens(text or "")}}
 
 
 def _expand(query: str, synonyms: Mapping[str, tuple[str, ...]]) -> set[str]:
@@ -220,13 +222,21 @@ def rank_catalog(
     first, with no network call. Tiers: exact normalised surface (3.0) >
     query tokens all inside the name's tokens (2.0) > normalised substring
     (1.5) > per-token hits (1.0 + 0.2 per hit). Nothing scoring under 1.0 is
-    returned; an empty result means "use a richer recall"."""
+    returned; an empty result means "use a richer recall".
+
+    A query word matches its plural and its singular alike
+    (`lexical.fold_plural` has the miss that made this necessary), synonym
+    words included: the seed maps 甘油三酯 to `triglycerides`, a display
+    says `Triglyceride`. The substring tier tries a word both as written and
+    folded, so folding only ever adds a match: `calories` folds to `calory`,
+    which is not a substring of `activecalories`."""
     q = (query or "").strip()
     if not q or not catalog:
         return ()
     syn = SYNONYMS if synonyms is None else synonyms
     qn = lexical.normalize(q)
-    qtok = {t.lower() for t in lexical.word_tokens(q)} | _expand(q, syn)
+    words = {t.lower() for t in lexical.word_tokens(q)} | _expand(q, syn)
+    qtok = {lexical.fold_plural(t) for t in words}
     scored: list[tuple[float, str]] = []
     for name in catalog:
         nl = name.lower()
@@ -238,7 +248,10 @@ def rank_catalog(
         else:
             if len(qn) >= 2 and qn in nl:
                 s = 1.5
-            hits = sum(1 for t in qtok if len(t) >= 2 and t in nl)
+            hits = sum(
+                1 for t in words
+                if any(len(form) >= 2 and form in nl for form in (t, lexical.fold_plural(t)))
+            )
             if hits:
                 s = max(s, 1.0 + 0.2 * hits)
         if s >= 1.0:

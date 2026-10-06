@@ -42,6 +42,7 @@ import unicodedata
 
 __all__ = [
     "TRAILING_PARENTHETICAL",
+    "fold_plural",
     "index_fold",
     "is_component_suffix",
     "join_series_suffix",
@@ -162,6 +163,40 @@ def word_tokens(text: str) -> list[str]:
     if cur:
         out.append("".join(cur))
     return out
+
+
+def fold_plural(token: str) -> str:
+    """An English word token with its plural ending folded off, for MATCHING.
+
+    ``triglycerides`` and ``triglyceride`` are one word to a reader, and a
+    token comparison treated them as two: on the 1.5.4 local-model evaluation
+    the keyword ``triglycerides`` found nothing in a catalogue whose reading
+    was labelled ``Triglyceride [Moles/volume] in Serum or Plasma``, while
+    ``triglyceride`` found it. A model writes the plural as often as not, and
+    device metric names are plural (``heartRates``, ``systolicPressures``).
+
+    A matching key, not a lemma: both sides of a comparison go through it, so
+    ``calories`` and ``calorie`` need only land on the SAME string (``calory``),
+    not on the dictionary form. The rules are the regular English ones, by
+    suffix, never a word list: ``-ies`` and ``-ie`` to ``-y``, ``-sses`` to
+    ``-ss``, and a final ``-s`` dropped unless the word ends ``-ss``, ``-us`` or
+    ``-is`` (``mass``, ``status``, ``analysis`` are singular). Tokens under four
+    letters are left alone, which keeps ``gas``, ``abs`` and ``hrs`` apart from
+    ``ga``, ``ab`` and ``hr``; anything that is not plain ASCII letters
+    (``hba1c``, ``25``, CJK) passes through unchanged.
+    """
+    t = token or ""
+    if len(t) < 4 or not (t.isascii() and t.isalpha()):
+        return t
+    if t.endswith("ies") and len(t) > 4:
+        t = t[:-3] + "y"
+    elif t.endswith("sses"):
+        t = t[:-2]
+    elif t.endswith("s") and not t.endswith(("ss", "us", "is")):
+        t = t[:-1]
+    if t.endswith("ie"):
+        t = t[:-2] + "y"
+    return t
 
 
 # "Total Cholesterol-TC" -> "Total Cholesterol": the analyte and its

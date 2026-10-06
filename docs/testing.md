@@ -67,7 +67,7 @@ a clone can re-run it.
 
 | Module | Covers | Notes |
 | --- | --- | --- |
-| `test_engine_coverage.py` | **the published accuracy number** | 296 cases: the panels an ordinary checkup prints, in English, 简体中文, 繁體中文 and 日本語, plus device vocabulary, report shapes (`名称(缩写)`, `Name-ABBREV`, snake_case, full-width), unit-dependent codes and non-numeric readings. Run with `-s` to print the score; `COVERAGE_FLOOR = 1.0` |
+| `test_engine_coverage.py` | **the published accuracy number** | 300 cases: the panels an ordinary checkup prints, in English, 简体中文, 繁體中文 and 日本語, plus device vocabulary, report shapes (`名称(缩写)`, `Name-ABBREV`, snake_case, full-width), unit-dependent codes and non-numeric readings. Run with `-s` to print the score; `COVERAGE_FLOOR = 1.0` |
 | `test_cross_language_identity.py` | one analyte, one code, in every language | `SAME_ANALYTE` rows must agree; `KNOWN_SPLITS` are the rows that do not yet, each a strict xfail that fails once fixed, so the row moves up |
 | `test_skills.py` | agent skill commands, frontmatter, Compose names and resolver examples | ships in the wheel and sdist as public evidence; it skips the repository-only skill files when run from `site-packages` |
 | `test_security_gates.py` | the server's security decisions: the OAuth return URL, the second factor for a token in the query string, upload ownership, the placeholder `JWT_KEY`, the response headers | needs `[app]` and skips without it. Each case was reproduced on a running server before its fix |
