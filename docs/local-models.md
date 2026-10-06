@@ -254,8 +254,8 @@ what was eaten.
   header borrow it, and a page with no header is typed by its cells when
   nothing about it is ambiguous. A row left unread, text outside the tables
   that holds a number or a finding, and a document with no table go to the
-  text model, and a rule's row outranks the model's for the same printed
-  row.
+  text model, without the text pass's copies of rows already read; a rule's
+  row outranks the model's for the same printed row.
 - **Any OCR model's answer is read the same way.** An answer's OTSL tables
   (PaddleOCR-VL, MinerU) become HTML, its LaTeX (`\(\mu mol/L\)`) the
   characters it typesets, and a line it repeats until the token cap one copy;

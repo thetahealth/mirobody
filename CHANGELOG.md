@@ -329,6 +329,22 @@ decisions.
   10 / 10. To tell: a check-up page printed `Test Item | Measurement |
   Methodology | Status | Unit | Normal Range | Lab` stores ALT with U/L and
   7–40, labelled `rules:table@v1`.
+- **The text model is handed what the rules did not read, not a copy of
+  it.** A row the rules read left the model's text only when every number in
+  it was a read value under its own name, and an OCR's text pass prints each
+  row again with what that test misses: a lab code on every row (`02`), the
+  row number, the abbreviation in the name's place (`WBC 6.27 3.50-9.50`), a
+  column on its own (`5.73↑`), a previous result. On the benchmark those
+  copies were most of the text the 2B model got on pages the rules had read
+  whole, so it read them again, and its readings of them are where the end-
+  to-end errors came from. A line that only repeats a row the rules read, a
+  code or row-number column, a previous-result column, a patient-details row
+  and a table left with only its header now stay out of the model's text; a
+  line holding anything else (`血糖 4.57 mmol/L` beside a read `尿素 4.57`)
+  stays in. Text left for the model: GLM-OCR 15,747 → 5,542 characters,
+  PaddleOCR-VL 22,053 → 5,374, MinerU 17,686 → 9,105; every printed row the
+  rules leave that was in the model's text before is in it still. To tell: a
+  page whose rows the rules read logs `indicators read off tables, no model`.
 - **A document with no date is not filed under the prompt's example date.**
   The extraction prompt's worked example said `"date_time": "2024-10-30
   00:00:00"`, and MiniCPM5-2B copied it onto documents that print no date of

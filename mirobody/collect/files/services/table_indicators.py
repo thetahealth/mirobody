@@ -53,6 +53,7 @@ import functools
 import html
 import itertools
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 
@@ -963,14 +964,51 @@ _NOT_RESULT = re.compile(r"[-+]?\d+(?:\.\d+)?\s*(?:-{1,2}|~|–|—|至)\s*[-+]?
 _NUMBER_TOKEN = re.compile(r"(?<![\w.])[<>≤≥]?[-+]?\d+(?:\.\d+)?(?![\w.])")
 
 
-def _row_read(cells: list[str], pairs: set[tuple[str, str]]) -> bool:
-    """Whether every result in a table row is a read reading named in that row."""
+def _row_read(cells: list[str], pairs: set[tuple[str, str]], codes: frozenset[int] = frozenset()) -> bool:
+    """Whether every result in a table row is a read reading named in that row.
+    A cell in one of `codes` (a lab's code, a row number, a previous result)
+    is no result of this report; a result may carry its unit (`125g/L`),
+    its flag or its range (`2.873 (0.270 - 4.200)&mIU/L`)."""
     names = {c for c in cells if c}
-    results = [c for c in cells if c and translate.parse_value(_split_flag(c, "")[0], "").value_kind == "quantity"
-               and not _RANGE.match(c) and not _BOUND.match(c) and normalize_unit(c) is None]
+    results = [c for i, c in enumerate(cells) if c and i not in codes and not _is_unit(c)
+               and not (_RANGE_IN.search(c) and _range_cell(c))
+               and (translate.parse_value(_split_flag(c, "")[0], "").value_kind == "quantity" or _value_parts(c))]
     if not results:
         return False
-    return all(any(value in (c, _split_flag(c, "")[0]) and name in names for name, value in pairs) for c in results)
+
+    def printed(c: str) -> set[str]:
+        head = re.match(r"\s*([<>≤≥]?\s*[-+]?\d+(?:\.\d+)?)", c)
+        return {c, _split_flag(c, "")[0], (_value_parts(c) or ("",))[0], head.group(1).replace(" ", "") if head else c}
+
+    return all(any(value in printed(c) and name in names for name, value in pairs) for c in results)
+
+
+#: Header words of a column that repeats an earlier report's result beside
+#: this one's: what it holds was read from that report, on that report's day.
+_PREVIOUS = {"上次结果", "前次结果", "上次", "前次", "历史结果", "previous", "previousresult", "lastresult",
+             "priorresult", "prior"}
+
+
+def _code_columns(rows: list[list[str]]) -> frozenset[int]:
+    """The columns of a table that hold no result of this report: one number
+    on every row (a lab's code), the row numbers, or a previous result.
+    Measured on the OCR benchmark (2026-10-07): a check-up book prints `Lab |
+    02` on every row, and with `02` taken for an unread result, no row it was
+    on, and no line of the text pass that repeated one, left the model's text;
+    a slip's `上次结果` column left its six rows to the model too."""
+    out = set()
+    for i in range(max((len(r) for r in rows), default=0)):
+        cells = [r[i].strip() for r in rows if i < len(r) and r[i].strip()]
+        if any(_key(c) in _PREVIOUS for c in cells):
+            out.add(i)
+            continue
+        numbers = [c for c in cells if c.isdigit()]
+        if len(numbers) < 3 or any(_column(c) in ("value", "out", "either") for c in cells):
+            continue
+        counts = [int(c) for c in numbers]
+        if len(set(numbers)) == 1 or all(b in (a + 1, 1) for a, b in itertools.pairwise(counts)):
+            out.add(i)
+    return frozenset(out)
 
 
 def _line_read(line: str, pairs: set[tuple[str, str]]) -> bool:
@@ -984,24 +1022,75 @@ def _line_read(line: str, pairs: set[tuple[str, str]]) -> bool:
     return all(t in values for t in _NUMBER_TOKEN.findall(_NOT_RESULT.sub(" ", line)))
 
 
+def _fold(text: str) -> str:
+    """`text` as two passes of one OCR model print it differently: width,
+    script (`總` / `总`), case, spacing, the `&` before a unit, and the dash or
+    tilde of a range all set aside."""
+    text = fold_to_hans(unicodedata.normalize("NFKC", text)).lower().replace("&", "")
+    return re.sub(r"--|[~～—–－一]", "-", "".join(text.split()))
+
+
+def _copied(line: str, rows: list[list[str]]) -> bool:
+    """Whether a plain line with a number in it is a copy of one table row the
+    rules read, whole or in part: every word of it is in that row's cells. An
+    OCR's text pass prints each row of the page again, with the code, the row
+    number or the abbreviation the reading's name is not (`WBC 6.27 3.50~9.50`
+    for the row `白细胞计数 | WBC | 6.27 | 3.50~9.50`), or a column at a time
+    (`5.73↑` on a line of its own). Measured on the OCR benchmark (2026-10-07):
+    those copies were most of what the model was handed on pages whose every
+    row the rules had read, so it read them all again."""
+    if not re.search(r"\d", line):
+        return False
+    words = [_fold(w) for w in line.split()]
+    return any(all(w in joined for w in words) for joined in ("\x00".join(_fold(c) for c in r) for r in rows))
+
+
 def without_rows(text: str, readings: list[dict[str, str]]) -> str:
     """`text` less every table row and line whose results the rules read: what
     a model still has to read. A row with another result in it (the unread
     half of a side-by-side panel) stays whole, and a name is matched as a
-    word, so `K 4.1` does not take `Creatinine 64.1` with it."""
+    word, so `K 4.1` does not take `Creatinine 64.1` with it. A line that only
+    repeats a row the rules read (`_copied`) goes with the row."""
     pairs = {(r["original_indicator"], r["value"]) for r in readings}
+    copied: list[list[str]] = []
+    headings: set[str] = set()
 
-    def tr(m: re.Match) -> str:
-        cells = [html.unescape(_TAG.sub(" ", c)).strip() for c in _TD.findall(m.group(0))]
-        return "" if _row_read([" ".join(c.split()) for c in cells], pairs) else m.group(0)
+    def cells_of(row: str) -> list[str]:
+        return [" ".join(html.unescape(_TAG.sub(" ", c)).split()) for c in _TD.findall(row)]
 
-    text = _TR.sub(tr, text)
+    def table(block: re.Match) -> str:
+        codes = _code_columns([cells_of(row) for row in _TR.findall(block.group(0))])
+
+        def tr(m: re.Match) -> str:
+            cells = cells_of(m.group(0))
+            if _header(cells):
+                headings.update(_fold(c) for c in cells if c)
+            if _row_read(cells, pairs, codes) or _admin(next((c for c in cells if c), "")):
+                # A patient-details row holds nothing for a model either, and
+                # neither does the text pass's copy of it (`68岁`).
+                copied.append(cells)
+                return ""
+            return m.group(0)
+
+        rest = _TR.sub(tr, block.group(0))
+        # A table left with its header and rows that hold nothing for a model
+        # (a page mark), each judged as `left_for_model` judges a line: a
+        # row of findings (`心电图诊断：…`) keeps the table.
+        left = [cells_of(row) for row in _TR.findall(rest)]
+        return "" if all(_header(c) or not left_for_model(" ".join(c)) for c in left) else rest
+
+    text = _TABLE_BLOCK.sub(table, text)
+    # Rows outside a closed table: an answer cut off at the token cap.
+    text = _TR.sub(lambda m: "" if _row_read(cells_of(m.group(0)), pairs) else m.group(0), text)
+    lines = [(line, _markdown_row(line) or _delimited_row(line)) for line in text.splitlines()]
+    copied += [cells for _, cells in lines if cells is not None and _row_read(cells, pairs)]
     kept = []
-    for line in text.splitlines():
-        cells = _markdown_row(line) or _delimited_row(line)
+    for line, cells in lines:
         if cells is not None and _row_read(cells, pairs):
             continue
-        if cells is None and _line_read(line, pairs):
+        if cells is None and (_line_read(line, pairs) or _copied(line, copied) or _fold(line) in headings):
+            # `_fold(line) in headings`: a column's header word on a line of
+            # its own, a text pass reading the table a column at a time.
             continue
         kept.append(line)
     return "\n".join(kept)
@@ -1033,6 +1122,11 @@ def left_for_model(text: str) -> str:
             continue
         cells = _markdown_row(raw)
         if _admin(cells[0] if cells else re.split(r"\s", line, maxsplit=1)[0]) or _header(cells or [line]):
+            continue
+        if not re.search(r"\d", line) and _header(line.split()):
+            # A text pass's copy of a header (`检查项目名称 化验结果 医生建议
+            # 参考值(范围)`), kept for its `建议` otherwise. Only with no number
+            # in it: `HbA1c Test Result: 6.1%` names a column twice and is a reading.
             continue
         undated = _LABELLED_DATE.sub(" ", re.sub(_DATE_VALUE, " ", line))
         # A number, not a digit inside a name (HbA1c) or a date.
