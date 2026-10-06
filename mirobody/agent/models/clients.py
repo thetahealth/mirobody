@@ -188,7 +188,7 @@ def _apply_anthropic_thinking(kwargs: dict, entry: dict, model_name: str, effort
     output_config.setdefault("effort", effort)
     request["output_config"] = output_config
     # Sampling parameters are rejected alongside thinking on the models that
-    # take this shape (Opus 4.7+, Sonnet 5).
+    # take this shape (Opus 4.7+, Sonnet 5 and 5.5).
     for field in ("temperature", "top_p", "top_k"):
         kwargs.pop(field, None)
 

@@ -117,7 +117,7 @@ MODELS:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
-    model: anthropic/claude-sonnet-5
+    model: anthropic/claude-sonnet-5.5
     supports_image: true
   gemini-flash:
     llm_type: google-genai      # NOT the OpenAI-compatible endpoint — see below
@@ -284,15 +284,15 @@ is enough:
 
 | Key in `.env` | Chat (picker default) | Vision + text — `UTILS_VISION_MODEL` / `UTILS_TEXT_MODEL` |
 | --- | --- | --- |
-| `OPENROUTER_API_KEY` | `claude-sonnet` (anthropic/claude-sonnet-5) | `openrouter-utils` (google/gemini-3.8-flash) |
+| `OPENROUTER_API_KEY` | `claude-sonnet` (anthropic/claude-sonnet-5.5) | `openrouter-utils` (google/gemini-3.8-flash) |
 | `DASHSCOPE_API_KEY` | `qwen` (qwen3.8-flash) | `qwen-utils` (qwen3.8-flash) |
 | `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) | `gemini-flash` (gemini-3.8-flash) | `gemini-utils` (gemini-3.8-flash) |
-| `OPENAI_API_KEY` | `openai` (gpt-5.6-terra) | `openai-utils` (gpt-5.6-terra) |
-| `ANTHROPIC_API_KEY` | `claude` (claude-sonnet-5) | `anthropic-utils` (claude-haiku-4-5) |
+| `OPENAI_API_KEY` | `openai` (gpt-6-sol) | `openai-utils` (gpt-6-luna) |
+| `ANTHROPIC_API_KEY` | `claude` (claude-sonnet-5-5) | `anthropic-utils` (claude-haiku-4-5) |
 | `DEEPSEEK_API_KEY` | `deepseek` (deepseek-flash) | `deepseek-utils` (deepseek-flash) |
 
 The names are `MODELS` entries in `config.llm.yaml`; the model ids in
-parentheses are what those entries said on 2026-09-10 and live only there. The
+parentheses are what those entries said on 2026-10-06 and live only there. The
 `*-utils` entries are multimodal on purpose: the vision surface reads report
 photos and scanned pages, and a text-only model there is issue #68.
 

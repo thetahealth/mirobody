@@ -31,7 +31,7 @@ MODELS:            # the model picker: one LangChain chat model per entry
     llm_type: openai
     api_key: OPENROUTER_API_KEY     # the config/env key that holds the secret
     base_url: https://openrouter.ai/api/v1
-    model: anthropic/claude-sonnet-5
+    model: anthropic/claude-sonnet-5.5
 PROMPTS:
   - agent/prompts/mirobody.jinja   # path, or path@name; the first is the default
 ALLOWED_TOOLS:        # whitelist, or

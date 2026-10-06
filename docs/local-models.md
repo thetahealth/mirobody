@@ -116,7 +116,7 @@ results for MiniCPM5-2B and others are in
 detected from its server and sent a photo's text instead of the photo.
 
 The same works for a vendor key: the setup page shows the model beside the key
-and takes another name (`OPENROUTER_CHAT_MODEL=anthropic/claude-opus-5`, for
+and takes another name (`OPENROUTER_CHAT_MODEL=anthropic/claude-opus-5.5`, for
 one), checked with one real request before it is kept. Every entry's variable
 is its `model_env` in `config.llm.yaml`.
 

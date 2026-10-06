@@ -354,10 +354,12 @@ def _spec_from_string(value: str, entries: dict[str, dict]) -> RouteSpec | None:
 
 #: Entry keys something actually reads. `RouteSpec` is a whitelist: a key it
 #: does not name is dropped on the floor, silently, which is how `openai-utils`
-#: came to declare `reasoning_effort: none` (REQUIRED there: without it
-#: gpt-5.6-terra keeps reasoning on and then refuses the extraction callers'
-#: `temperature: 0`) and have it read by nobody. `unread_entry_keys` turns that
-#: into a line at boot instead of zero indicators over a successful upload.
+#: came to declare `reasoning_effort: none` (REQUIRED there: without it an
+#: OpenAI reasoning model keeps reasoning on and then refuses the extraction
+#: callers' `temperature: 0`, measured on gpt-5.6-terra and stated for GPT-6
+#: Luna by OpenAI's GPT-6 guide) and have it read by nobody.
+#: `unread_entry_keys` turns that into a line at boot instead of zero
+#: indicators over a successful upload.
 KNOWN_ENTRY_KEYS: frozenset[str] = frozenset({
     # read here, into a RouteSpec
     "llm_type", "api_key", "base_url", "model", "model_env", "temperature",
