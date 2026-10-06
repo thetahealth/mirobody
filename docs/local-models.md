@@ -30,6 +30,16 @@ not hold. A question took from 20 seconds to four and a half minutes (a
 three-month chart), two minutes typically. The four demo documents: 27 of 27
 readings, all read by rule.
 
+Measured again on 2026-10-06 with the table rules of this release, on an
+Apple M1 Pro with 16 GB (8 of them given to Docker), llama.cpp b11429, and the
+small pair instead: MiniCPM5-2B Q4_K_M answering and GLM-OCR-0.9B reading.
+The four demo documents were again 27 of 27, every value, unit, range and
+printed flag as printed, all read by rule; on the photo and the PDF the text
+model read only the note beside the table, and found nothing to add. A photo
+took 26 s from upload to stored readings, the PDF 31 s. `mirobody doctor
+--probe` passed for chat (a tool call), text and OCR. What the small model
+gets wrong in answers is in [local-models-roadmap.md](local-models-roadmap.md).
+
 ## Start the models
 
 **macOS**

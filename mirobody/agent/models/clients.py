@@ -68,6 +68,8 @@ NON_INIT_CONFIG_KEYS = frozenset({
     "thinking_style", "auth_type", "prompt_cache",
     # read by the utility surfaces (config.llm), never by a chat constructor
     "chat", "response_format", "ocr_prompts",
+    # read by config.llm.model_entries, which has already put its value in `model`
+    "model_env",
 })
 
 OPENAI_COMPATIBLE_TYPES = frozenset({"openai", "openrouter"})

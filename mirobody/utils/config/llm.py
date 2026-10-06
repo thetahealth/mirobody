@@ -516,18 +516,29 @@ def no_provider_message(surface: str) -> str:
         elif c.base_url_env and not c.base_url:
             urls.append(c.base_url_env)
         elif not _fits(surface, c):
-            skipped.append(f"{c.alias} declares supports_image: false")
+            if surface == "ocr" and not c.ocr_prompts:
+                skipped.append(f"{c.alias} declares no ocr_prompts")
+            elif c.supports_image is False:
+                skipped.append(f"{c.alias} declares supports_image: false")
+            else:
+                # Set, and still not used: "none of these keys is set" sent a
+                # local deployment looking for a key it does not need.
+                skipped.append(f"{c.alias} runs {c.model}, which its server says cannot read images")
     keys, urls = list(dict.fromkeys(keys)), list(dict.fromkeys(urls))
     where = ", ".join(f"{k} ({KEYS_URL[k]})" if k in KEYS_URL else k for k in keys)
     if urls:
         where += (", or " if where else "") + " / ".join(urls) + " (the URL of your own model server)"
     text = f"No {surface} model available: {key} lists {', '.join(names)}"
+    if skipped:
+        text += f"; {'; '.join(skipped)}"
     if keys or urls:
-        text += f"; none of these keys is set. Put ONE in .env: {where}."
+        text += f"; {'the others need' if skipped else 'none of these keys is set'} a key. Put ONE in .env: {where}."
     elif skipped:
-        text += f"; {'; '.join(skipped)} — set {key} to an entry whose model reads images."
+        text += f" — set {key} to an entry whose model reads images."
     else:
         text += "."
+    if surface == "vision" and resolve_route("ocr") is not None:
+        text += " Report photos and scanned pages are read by the OCR entry instead (UTILS_OCR_MODEL)."
     return text
 
 

@@ -160,7 +160,12 @@ async def probe_surfaces() -> list[ProbeResult]:
     """chat, text, vision (and ocr when routed), one after the other (a local server may have one slot)."""
     from mirobody.utils.config.llm import resolve_route
 
-    probes = [("chat", _chat), ("text", _text), ("vision", _vision)]
+    probes = [("chat", _chat), ("text", _text)]
+    # With no model that sees but an OCR entry routed (the small local pair:
+    # MiniCPM5-2B cannot see), photos and scans go to the OCR entry, whose
+    # probe below covers them; a vision FAIL would fail a working deployment.
+    if resolve_route("vision") is not None or resolve_route("ocr") is None:
+        probes.append(("vision", _vision))
     if resolve_route("ocr") is not None:
         probes.append(("ocr", _ocr))
     if _local_models():
