@@ -50,11 +50,16 @@
   and `deploy.sh` copies it from the command line like a key.
 - **Every model can run on the same machine.** `LOCAL_BASE_URL` and
   `LOCAL_OCR_BASE_URL` point the `local` entries at any OpenAI-compatible
-  server. The shipped preset serves Qwen3.8-27B (answers) and GLM-OCR-0.9B
-  (documents) on llama.cpp; `docker compose --profile local` (NVIDIA) or
-  `--profile local-cpu` runs it next to the app. On an Apple M4 Pro: 16 of 16
-  test questions with no number the record lacks, about two minutes an
-  answer, and 27 of 27 demo readings. See `docs/local-models.md`. The
+  server. The shipped preset runs on llama.cpp: GLM-OCR-0.9B reads
+  documents and one of four models answers (MiniCPM5-1B, MiniCPM5-2B,
+  Qwen3.5-9B, Qwen3.8-27B), picked on the setup page by what each downloads
+  and needs; `docker compose --profile local` (NVIDIA) or `--profile
+  local-cpu` runs it next to the app. Each model server keeps at most 1 GiB
+  of prompt cache, the reader none: llama.cpp's default is 8 GiB per model,
+  and two small models filled a 16 GB Mac's disk with swap. Qwen3.8-27B on an
+  Apple M4 Pro: 16 of 16 test questions with no number the record lacks,
+  about two minutes an answer, and 27 of 27 demo readings. See
+  `docs/local-models.md`. The
   models download from Hugging Face the first time; `HF_ENDPOINT` in `.env`
   points the `llama` service at a mirror.
 - **A table is read by its header, without a model**, when a document-OCR
