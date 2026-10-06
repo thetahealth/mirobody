@@ -323,6 +323,28 @@ decisions.
   report's bare `Fer` now answers ferritin too. Readings already stored keep
   their code until `mirobody recode` runs. To tell: `mirobody resolve FER`
   prints a Ferritin code; resolver coverage is 300/300.
+- **The table rules read the headers most reports print.** Their vocabulary
+  lacked `检测结果`, `化验结果`, `报告结果`, `本次结果`, `数值`, `测量值`, `检查名称`,
+  `测定项目`, `Test Item`, `Tests`, `Items`, `Measured`, `REF.RANGE`,
+  `参考值(范围)`, `正常参考值` and every Traditional header, and took `Measurement`
+  for the name column. On the local-model evaluation's corpus (seed 7) the
+  rules read 21 of its 70 documents; the other lab tables went to the text
+  model, which on a 1-2B model reads them less exactly. Those words are now in
+  the vocabulary; headers, patient labels and date labels are compared with
+  Traditional folded to Simplified; `Measurement` is the result column beside
+  a name word and the name column without one; and a name or value column is
+  kept only when the cells under it agree, so a header word over the wrong
+  cells reads nothing. Flag columns headed `标记`, `提示信息`, `判断`, `Status`
+  or `Abnormal` keep their printed flag, a flag after a glued unit
+  (`50.5% H`) comes off the value, a unit after `&` is the unit even when it
+  starts with a digit (`125-350&10^9/L`), and four row kinds the wider reach
+  met are not stored: the report's `异常项目数`, the patient's `Name` inside
+  the table, `未做`, and a range under the unit header. Same corpus: 57 of 70
+  documents read (Traditional 4 of 4, English 9 of 10), 2,186 rows with units
+  1,696 of 1,697 and ranges 2,118 of 2,118, no row stored that is not a
+  printed reading, and the readings read before unchanged but two flags the
+  `标记` column now keeps. To tell: upload a slip headed `检查名称 | 化验结果 |
+  参考值(范围)`; its readings are labelled `rules:table@v1`.
 - **The table rules keep a table's unit and range, and store no signer line.**
   On the local-model evaluation (benchmarks/local_models, seed 7), the rules
   read `单位(Unit)`, `正常范围值`, a slip's bare `参考`, a blank header over the
