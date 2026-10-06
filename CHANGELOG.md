@@ -249,6 +249,14 @@ decisions.
 
 ### Fixed
 
+- **A report date printed as 2026年05月01日 is the report's date.** The
+  date reader knew `2026-05-01` and `2026/05/01` only, so a date the model
+  copied as printed (年月日, or dots: `2024.05.10`) counted as no date and the
+  readings went under the upload day, with the Data page asking which date.
+  Small local models copy the printed form; MiniCPM5-2B did on an XLSX lab
+  slip. The warning for a date it still cannot read logs the date's length,
+  not the date. To check: upload a report whose date reads 2024年05月10日;
+  its readings are filed on May 10.
 - **Quoted genotype rows without their header no longer reach a model.**
   MyHeritage and FamilyTreeDNA quote every field (`"rs4477212","1","82154","AA"`).
   The check for header-stripped genotype rows took quotes off only the ends of a

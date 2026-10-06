@@ -18,7 +18,10 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 #: Tried in order. Both separators, with and without seconds, because a report
-#: date is typed by a person and an export date is written by a machine.
+#: date is typed by a person and an export date is written by a machine. The
+#: printed shapes too (年月日, dots): a small local model copies the date as the
+#: report prints it, and MiniCPM5-2B wrote 2026年05月01日 for an XLSX, which
+#: then went under the upload day (benchmarks/local_models, 2026-10-06).
 DATE_FORMATS = (
     "%Y-%m-%d %H:%M:%S",
     "%Y-%m-%d",
@@ -26,6 +29,11 @@ DATE_FORMATS = (
     "%Y-%m-%d %H:%M",
     "%Y/%m/%d %H:%M:%S",
     "%Y/%m/%d %H:%M",
+    "%Y年%m月%d日",
+    "%Y年%m月%d日 %H:%M",
+    "%Y年%m月%d日 %H:%M:%S",
+    "%Y.%m.%d",
+    "%Y.%m.%d %H:%M",
 )
 
 
