@@ -3,7 +3,9 @@ import uuid
 
 from datetime import datetime
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
+from mirobody.utils.log import secret_fingerprint
 from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 
 logger = logging.getLogger(__name__)
@@ -356,8 +358,9 @@ async def create_or_get_share_session(user_id: str, session_id: str) -> dict:
         }
 
     except Exception as e:
-        logger.error(f"Error creating/getting share session: {str(e)}", exc_info=True)
-        return {"code": -3, "msg": f"Internal error: {str(e)}", "data": {}}
+        logger.error("share link creation failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
+        return {"code": -3, "msg": "The share link could not be created.", "data": {}}
 
 #-----------------------------------------------------------------------------
 
@@ -391,13 +394,14 @@ async def get_shared_session_history(share_session_id: str) -> dict:
 
         history = await get_chat_history(user_id, session_id)
 
-        logger.info(f"Retrieved {len(history)} messages for share session {share_session_id}")
+        logger.info("shared chat read: share=%s message_count=%d", secret_fingerprint(share_session_id), len(history))
 
         return {"code": 0, "msg": "ok", "data": {"history": history}}
 
     except Exception as e:
-        logger.error(f"Error getting shared session history: {str(e)}", exc_info=True)
-        return {"code": -4, "msg": f"Internal error: {str(e)}", "data": {}}
+        logger.error("shared chat read failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
+        return {"code": -4, "msg": "The shared chat could not be loaded.", "data": {}}
 
 #-----------------------------------------------------------------------------
 
@@ -430,7 +434,8 @@ async def deactivate_share_session(user_id: str, session_id: str) -> dict:
         return {"code": 0, "msg": "Share session deactivated successfully", "data": {}}
 
     except Exception as e:
-        logger.error(f"Error deactivating share session: {str(e)}", exc_info=True)
-        return {"code": -3, "msg": f"Internal error: {str(e)}", "data": {}}
+        logger.error("share link deactivation failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
+        return {"code": -3, "msg": "The share link could not be stopped.", "data": {}}
 
 #-----------------------------------------------------------------------------

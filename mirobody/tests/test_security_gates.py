@@ -527,6 +527,12 @@ def test_a_public_share_link_answers_a_sentence_not_the_exception(monkeypatch):
     answer = client.get("/api/share/0123456789abcdef0123")
     assert answer.json()["code"] == 500 and "mirobody.ai" not in answer.text
 
+    # The service catches its own failures and answered "Internal error: <text>".
+    monkeypatch.undo()
+    monkeypatch.setattr(share.chat_session, "execute_query", _raises())
+    answer = client.get("/api/share/0123456789abcdef0123")
+    assert answer.json()["code"] == -4 and "mirobody.ai" not in answer.text
+
 
 @pytest.mark.parametrize("body", ["7.3 mmol/L, not JSON",
                                   '{"metaInfo": {"timezone": "UTC"}, "healthData": "7.3 mmol/L"}'])
