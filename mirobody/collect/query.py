@@ -49,7 +49,7 @@ from typing import Any
 from mirobody import translate
 from mirobody.kernel import query
 from mirobody.kernel.tools import PROVENANCE_REPORTED
-from mirobody.collect.observations import KIND_CONDITION, KIND_MEASUREMENT, KIND_NOTE, KIND_SYMPTOM
+from mirobody.collect.observations import KIND_CONDITION, KIND_MEASUREMENT, KIND_NOTE, KIND_SYMPTOM, contains_pattern
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +230,7 @@ class PostgresHealthQuery:
             params["end_time"] = end_time
             conditions.append("o.local_date <= :end_time")
         if keywords and keywords.strip():
-            params["keywords"] = "%" + _like_escape(keywords.strip()) + "%"
+            params["keywords"] = contains_pattern(keywords.strip())
             conditions.append("(o.name_text ILIKE :keywords OR COALESCE(o.display, '') ILIKE :keywords)")
         if not self._reported:
             conditions.append("o.kind <> ALL(:reported)")
@@ -949,11 +949,6 @@ def _record_row(r: dict) -> dict:
         row.update({"value": "", "unit": "", "value_canonical": None, "unit_canonical": ""})
         row["text"] = _text(r.get("note")) or _text(r.get("value_text"))
     return row
-
-
-def _like_escape(text: str) -> str:
-    """`text` matched literally inside ILIKE: `%` and `_` in a name are letters."""
-    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 __all__ = [

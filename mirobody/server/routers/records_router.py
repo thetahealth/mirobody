@@ -453,7 +453,7 @@ async def erase_records(
         if id is not None:
             deleted = await observations.erase(str(user_id), ids=[id])
         elif indicator:
-            deleted = await observations.erase(str(user_id), name_pattern=f"%{indicator}%")
+            deleted = await observations.erase(str(user_id), name_contains=indicator)
         else:
             deleted = await observations.erase(str(user_id), everything=True)
     except Exception as e:

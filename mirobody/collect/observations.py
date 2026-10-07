@@ -858,40 +858,77 @@ async def _select_by_source(user_id: str, source_ref: str) -> list[dict[str, Any
     return [dict(r) for r in rows or []]
 
 
+def contains_pattern(text: str) -> str:
+    """An ILIKE pattern that matches `text` literally anywhere in a value:
+    `%` and `_` in a name are letters, not wildcards."""
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+# The rows an erase selects, and every row of their amendment chains in both
+# directions. `v_observation` shows only a chain's last row, so deleting the
+# id a reader was given left the original behind and it became visible again;
+# deleting an older row alone broke the `amends` reference of the next one.
+_ERASE_CHAINS = """
+WITH RECURSIVE chain(id) AS (
+    SELECT id FROM th_observation WHERE user_id = :user_id AND {where}
+  UNION
+    SELECT o.id
+      FROM chain c
+      JOIN th_observation x ON x.id = c.id
+      JOIN th_observation o ON o.user_id = :user_id AND (o.id = x.amends OR o.amends = x.id)
+)
+DELETE FROM th_observation WHERE user_id = :user_id AND id IN (SELECT id FROM chain) RETURNING id
+"""
+
+
 async def erase(
     user_id: str,
     *,
     ids: list[int] | None = None,
     source_ref: str | None = None,
-    name_pattern: str | None = None,
+    name_contains: str | None = None,
     everything: bool = False,
 ) -> int:
     """The privacy path: physically delete a person's observations, by id,
-    by source document, by a name pattern, or all of them. Coding, day
-    authority and check rows go with them (`ON DELETE CASCADE`). The same
-    readings still waiting in the retired 1.4 table are marked deleted too,
-    or `mirobody migrate-observations` would write them back: by source
-    document (a file's), by name pattern and all of them; a row erased by id
-    has a copy there only once it has been moved, and a moved row is never
-    read again. Returns how many observations were deleted."""
+    by source document, by a piece of the printed name (matched literally,
+    case-insensitively), or all of them. Each selected row goes with its
+    whole amendment chain, the corrected and retracted rows behind it
+    included. Coding, day authority and check rows go with them (`ON DELETE
+    CASCADE`).
+
+    Erasing by name or everything also deletes the device points of those
+    names in `series_data`, which the aggregation reads. The same readings
+    still waiting in the retired 1.4 table are marked deleted too, or
+    `mirobody migrate-observations` would write them back: by source
+    document (a file's), by name and all of them; a row erased by id has a
+    copy there only once it has been moved, and a moved row is never read
+    again. Returns how many rows of `th_observation` were deleted, the hidden
+    rows of each chain included."""
+    params: dict[str, Any] = {"user_id": str(user_id)}
     if ids:
-        where, params = "id = ANY(:ids)", {"ids": [int(i) for i in ids]}
+        where, params["ids"] = "id = ANY(:ids)", [int(i) for i in ids]
     elif source_ref:
-        where, params = "source_ref = :source_ref", {"source_ref": source_ref}
-    elif name_pattern:
-        where, params = "name_text ILIKE :pattern", {"pattern": name_pattern}
+        where, params["source_ref"] = "source_ref = :source_ref", source_ref
+    elif name_contains:
+        where, params["pattern"] = "name_text ILIKE :pattern", contains_pattern(name_contains)
     elif everything:
-        where, params = "TRUE", {}
+        where = "TRUE"
     else:
         return 0
-    params["user_id"] = str(user_id)
     async with db.transaction() as tx:
-        deleted = await tx.execute(f"DELETE FROM th_observation WHERE user_id = :user_id AND {where} RETURNING id", params)
+        if everything:
+            deleted = await tx.execute("DELETE FROM th_observation WHERE user_id = :user_id RETURNING id", params)
+        else:
+            deleted = await tx.execute(_ERASE_CHAINS.format(where=where), params)
         if source_ref:
             await tx.execute("DELETE FROM th_extraction WHERE user_id = :user_id AND source_ref = :source_ref", params)
         elif everything:
             await tx.execute("DELETE FROM th_extraction WHERE user_id = :user_id", params)
-        retired_where = _retired_where(source_ref, name_pattern, everything)
+        if everything or name_contains:
+            points = "TRUE" if everything else "indicator ILIKE :pattern"
+            await tx.execute(f"DELETE FROM series_data WHERE user_id = :user_id AND {points}", params)
+        retired_where = _retired_where(source_ref, name_contains, everything)
         if retired_where and (await tx.execute("SELECT to_regclass(:name) IS NOT NULL AS present", {"name": RETIRED_READINGS}))[0]["present"]:
             await tx.execute(
                 f"UPDATE {RETIRED_READINGS} SET deleted = 1 WHERE user_id = :user_id AND deleted = 0 AND {retired_where}",
@@ -904,12 +941,12 @@ async def erase(
 RETIRED_READINGS = "th_series_data_retired_15"
 
 
-def _retired_where(source_ref: str | None, name_pattern: str | None, everything: bool) -> str:
+def _retired_where(source_ref: str | None, name_contains: str | None, everything: bool) -> str:
     """The retired table's rows an `erase` covers, by the columns that held
     the same facts there; "" when none can be told apart (an erase by id)."""
     if source_ref:
         return "source_table = 'th_files' AND source_table_id = :file_id" if source_ref.startswith("th_files:") else ""
-    if name_pattern:
+    if name_contains:
         return "indicator ILIKE :pattern"
     return "TRUE" if everything else ""
 
@@ -1263,6 +1300,7 @@ __all__ = [
     "catalog_alias",
     "coding_for",
     "confirm_alias",
+    "contains_pattern",
     "erase",
     "ingest",
     "ingest_legacy",
