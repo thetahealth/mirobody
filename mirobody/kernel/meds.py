@@ -569,21 +569,40 @@ def parse_dose_instruction(text: str | None) -> Schedule | None:
     if not recognised:
         return None
     try:
-        if as_needed:
-            instr = DoseInstruction(dose=dose, as_needed=True, text=raw)
-        elif weekdays:
-            instr = DoseInstruction(dose=dose, weekdays=frozenset(weekdays), times=times, text=raw)
-        elif times:
-            instr = DoseInstruction(
-                dose=dose, times=times, period_days=period_days if (period_days or 1) > 1 else None, text=raw
-            )
-        elif doses_per_day > 1:
-            instr = DoseInstruction(dose=dose, doses_per_day=doses_per_day, text=raw)
-        else:
-            instr = DoseInstruction(dose=dose, period_days=period_days, text=raw)
+        instr = _instruction(dose=dose, times=times, doses_per_day=doses_per_day, period_days=period_days,
+                             weekdays=frozenset(weekdays), as_needed=as_needed, text=raw)
     except ValueError:
         return None
     return (instr,)
+
+
+def _instruction(
+    *,
+    dose: Dose | None,
+    times: tuple[str, ...],
+    doses_per_day: int,
+    period_days: int | None,
+    weekdays: frozenset[int],
+    as_needed: bool,
+    text: str,
+    max_dose_per_day: Dose | None = None,
+) -> DoseInstruction:
+    """The one timing shape `DoseInstruction` allows, chosen from fields read
+    out of a sig or a FHIR dosage, most specific first: as needed, weekdays,
+    clock times, a count per day, a period. Raises ``ValueError`` when the
+    fields still contradict each other."""
+    if as_needed:
+        return DoseInstruction(dose=dose, as_needed=True, max_dose_per_day=max_dose_per_day, text=text)
+    if weekdays:
+        return DoseInstruction(dose=dose, weekdays=weekdays, times=times, text=text)
+    if times:
+        # A period of one day is every day: fixed times, not an interval.
+        return DoseInstruction(
+            dose=dose, times=times, period_days=period_days if (period_days or 1) > 1 else None, text=text
+        )
+    if doses_per_day > 1:
+        return DoseInstruction(dose=dose, doses_per_day=doses_per_day, text=text)
+    return DoseInstruction(dose=dose, period_days=period_days, text=text)
 
 
 # --- plans, prescriptions, courses ------------------------------------------------
@@ -1353,17 +1372,8 @@ def _instruction_from_fhir_dosage(d: Mapping) -> DoseInstruction:
         if parsed is not None:
             return replace(parsed[0], text=text)
     try:
-        if as_needed:
-            return DoseInstruction(dose=dose, as_needed=True, max_dose_per_day=max_per_day, text=text)
-        if weekdays:
-            return DoseInstruction(dose=dose, weekdays=weekdays, times=times, text=text)
-        if times:
-            return DoseInstruction(
-                dose=dose, times=times, period_days=period_days if (period_days or 1) > 1 else None, text=text
-            )
-        if doses_per_day > 1:
-            return DoseInstruction(dose=dose, doses_per_day=doses_per_day, text=text)
-        return DoseInstruction(dose=dose, period_days=period_days, text=text)
+        return _instruction(dose=dose, times=times, doses_per_day=doses_per_day, period_days=period_days,
+                            weekdays=weekdays, as_needed=as_needed, text=text, max_dose_per_day=max_per_day)
     except ValueError:
         return DoseInstruction(dose=dose, text=text)
 
