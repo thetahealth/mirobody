@@ -5,6 +5,7 @@ import os
 
 from types import ModuleType, FunctionType
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.plugin_dirs import GROUP_TOOLS, entry_point_modules, import_plugin_module, resolve_plugin_dir
 
 logger = logging.getLogger(__name__)
@@ -15,40 +16,10 @@ logger = logging.getLogger(__name__)
 # the verified JWT; the rest are the footgun this warns about.
 _CALLER_IDENTITY_PARAMS = {"user_id", "userid", "uid", "current_user"}
 
-class _ToolRegistry:
-    """What the tool loaders discovered, in one object instead of two module
-    dicts.
-
-    The dicts were module-level and only ever added to, so discovery results
-    outlived whatever imported them: a test could not load one directory,
-    assert, and load another, it inherited every tool the previous test had
-    published, and the only reliable isolation was a fresh process. `reset()`
-    is the whole reason this is a class.
-
-    The accessor functions below are unchanged and remain the public API;
-    nothing outside this module touches the containers.
-    """
-
-    __slots__ = ("tools", "descriptions")
-
-    def __init__(self) -> None:
-        self.tools: dict = {}
-        self.descriptions: list = []
-
-    def publish(self, tools: dict, descriptions: list) -> None:
-        if tools:
-            self.tools.update(tools)
-        if descriptions:
-            self.descriptions.extend(descriptions)
-
-    def reset(self) -> None:
-        self.tools.clear()
-        self.descriptions.clear()
-
-
-#: The process-wide registry. One instance, because the MCP surface a client
-#: sees is process-wide; `reset_global_tools()` is how a test gets a clean one.
-_registry = _ToolRegistry()
+#: What the tool loaders discovered: the process-wide MCP surface. Added to by
+#: `_publish`, read through `get_global_tools` / `get_global_descriptions`.
+_tools: dict = {}
+_descriptions: list = []
 
 #-----------------------------------------------------------------------------
 
@@ -145,7 +116,9 @@ def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
     current_arg_key = ""
     returns_lines: list[str] = []
 
-    for line in function.__doc__.splitlines():
+    # `getdoc`: a function without a docstring has `__doc__` None, and
+    # `.splitlines()` on it stopped the whole boot.
+    for line in (inspect.getdoc(function) or "").splitlines():
 
         #-------------------------------------------------
         # Ignore empty line.
@@ -189,7 +162,9 @@ def parse_function(function: FunctionType) -> tuple[dict, bool, dict]:
                     tool["inputSchema"]["properties"][current_arg_key]["description"] = desc + "\n" + line if desc else line
 
             except Exception as e:
-                logger.warning(str(e), extra={"line": line})
+                function_name = function.__name__
+                logger.warning("a docstring line was not read: function_name=%s error_type=%s",
+                               function_name, type(e).__name__)
 
         # Return value, and anything after it (Notes, caveats, examples).
         # This used to be `pass`: everything from `Returns:` onward was parsed
@@ -254,13 +229,15 @@ def load_tools_from_class(klass, module_name: str) -> dict:
                 logger.info(f"Skipping disabled tool class: {klass.__name__}")
                 return {}
         except Exception as e:
-            logger.warning(f"Error checking _enabled for {klass.__name__}: {e}")
+            class_name = klass.__name__
+            logger.warning("a tool class's _enabled check failed: class_name=%s error_type=%s",
+                           class_name, type(e).__name__)
             return {}
 
     try:
         functions = inspect.getmembers(klass, predicate=inspect.isfunction)
     except Exception as e:
-        logger.warning(f"Error getting tool functions: {e}")
+        logger.warning("listing a tool class's functions failed: error_type=%s", type(e).__name__)
         return {}
 
     #-----------------------------------------------------
@@ -334,7 +311,7 @@ def load_tools_from_module(module: ModuleType, module_name: str) -> dict:
     try:
         classes = inspect.getmembers(module, predicate=inspect.isclass)
     except Exception as e:
-        logger.warning(f"Error getting tool classes: {e}")
+        logger.warning("listing a tool module's classes failed: error_type=%s", type(e).__name__)
         classes = {}
 
     for class_name, klass in classes:
@@ -356,7 +333,7 @@ def load_tools_from_module(module: ModuleType, module_name: str) -> dict:
     try:
         functions = inspect.getmembers(module, predicate=inspect.isfunction)
     except Exception as e:
-        logger.warning(f"Error getting tool functions: {e}")
+        logger.warning("listing a tool module's functions failed: error_type=%s", type(e).__name__)
         functions = {}
 
     module_tools = {}
@@ -410,8 +387,8 @@ def load_tools_from_directory(dir: str) -> tuple[dict, list]:
 
     try:
         entries = os.scandir(target_directory)
-    except Exception as e:
-        logger.warning(f"Error scanning tool directory {target_directory}: {e}")
+    except OSError as e:
+        logger.warning("a tool directory could not be scanned: error_type=%s", type(e).__name__)
         return {}, []
 
     #-----------------------------------------------------
@@ -431,7 +408,8 @@ def load_tools_from_directory(dir: str) -> tuple[dict, list]:
                 target_directory, module_name_prefix, entry.name
             )
         except Exception as e:
-            logger.warning(f"Error importing tool module {entry.name} from {target_directory}: {e}")
+            logger.warning("a tool module could not be imported: error_type=%s", type(e).__name__,
+                           exc_info=not is_driver_exception(e))
             continue
 
         #-------------------------------------------------
@@ -443,8 +421,15 @@ def load_tools_from_directory(dir: str) -> tuple[dict, list]:
 
 
 def _register_module(module: ModuleType, module_name: str, tools: dict, descriptions: list) -> None:
-    """Every tool `module` defines goes into `tools` / `descriptions`."""
-    module_tools = load_tools_from_module(module, module_name)
+    """Every tool `module` defines goes into `tools` / `descriptions`. A module
+    that cannot be read is logged and left out: one plugin's broken tool used
+    to stop the server from starting."""
+    try:
+        module_tools = load_tools_from_module(module, module_name)
+    except Exception as e:
+        logger.warning("a tool module was left out: error_type=%s", type(e).__name__,
+                       exc_info=not is_driver_exception(e))
+        return
     for class_tools in (module_tools or {}).values():
         if not class_tools or not isinstance(class_tools, dict):
             continue
@@ -455,7 +440,8 @@ def _register_module(module: ModuleType, module_name: str, tools: dict, descript
 
 
 def _publish(tools: dict, descriptions: list) -> None:
-    _registry.publish(tools, descriptions)
+    _tools.update(tools)
+    _descriptions.extend(descriptions)
 
 
 def load_tools_from_entry_points() -> tuple[dict, list]:
@@ -538,7 +524,7 @@ async def call_tool(tools: dict, tool_name: str, arguments: dict | None = None, 
                 f"Unknown argument(s) for {tool_name}: {', '.join(sorted(unknown))}. "
                 f"Accepted: {accepted}."
             )
-            logger.warning(error)
+            logger.warning("unknown tool arguments refused: tool_name=%s count=%d", tool_name, len(unknown))
             return {
                 "success"   : False,
                 "error"     : error
@@ -560,11 +546,13 @@ async def call_tool(tools: dict, tool_name: str, arguments: dict | None = None, 
             result = tool["instance"](**kwargs)
 
     except Exception as e:
-        logger.error(str(e))
-
+        # The type only, to the caller and the log: a driver's message quotes
+        # the statement with its parameters.
+        logger.error("tool call failed: tool_name=%s error_type=%s", tool_name, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return {
             "success"   : False,
-            "error"     : str(e)
+            "error"     : f"{tool_name} failed ({type(e).__name__})."
         }
 
     return result
@@ -580,11 +568,11 @@ def get_global_descriptions() -> list:
     every `Returns:` section, and the four types the old schema generator got
     wrong. Removing it once cost real debugging time; don't remove it again.
     """
-    return _registry.descriptions
+    return _descriptions
 
 
 def get_global_tools() -> dict:
-    return _registry.tools
+    return _tools
 
 
 
