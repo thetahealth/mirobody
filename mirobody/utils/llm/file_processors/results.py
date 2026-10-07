@@ -11,6 +11,8 @@ import json
 import logging
 from typing import Any
 
+from mirobody.utils.llm_output import strip_code_fence
+
 logger = logging.getLogger(__name__)
 
 # =============================================================================
@@ -68,6 +70,26 @@ def salvage_truncated_json(text: str) -> Any | None:
         except json.JSONDecodeError:
             continue
     return None
+
+
+def parse_json_answer(content: str, *, cut: bool) -> Any:
+    """A model's JSON answer, fence and all. When the answer was `cut` at
+    max_tokens, the part that closed (`salvage_truncated_json`); otherwise,
+    or when nothing closed, the `json.JSONDecodeError` of a failed call.
+
+    A model told to answer in JSON by the prompt wraps it in a ```json fence
+    (measured on Anthropic's compatibility endpoint, 2026-09-10); stripping one
+    from an answer that has none changes nothing."""
+    body = strip_code_fence(content)
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError:
+        if not cut:
+            raise
+        salvaged = salvage_truncated_json(body)
+        if salvaged is None:
+            raise
+        return salvaged
 
 
 def _build_prompt_with_schema(prompt: str, response_schema: Any | None = None) -> str:

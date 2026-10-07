@@ -39,8 +39,10 @@ import time
 from functools import lru_cache
 from typing import Any
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.config.llm import RouteSpec
 from mirobody.utils.llm import clients
+from mirobody.utils.llm.file_processors.results import parse_json_answer
 
 logger = logging.getLogger(__name__)
 
@@ -147,12 +149,12 @@ async def structured_output(spec: RouteSpec, messages: list[dict], schema: dict 
     """One JSON answer, constrained by `schema`. None when the call failed.
 
     With `output_config.format` the model cannot emit anything but a document
-    matching the schema, so the text block parses without cleaning.
+    matching the schema, so the text block parses as it is, unless it was cut
+    at max_tokens: then its complete part is kept, as on the OpenAI path.
     """
     from anthropic import transform_schema
 
-    provider_name, model_name = spec.alias, spec.model
-    start = time.time()
+    start = time.monotonic()
     system, converted = _split_system(messages)
     params = _request_params(spec, kwargs)
     if schema:
@@ -164,35 +166,34 @@ async def structured_output(spec: RouteSpec, messages: list[dict], schema: dict 
         if not content.strip():
             # `max_tokens` reached before any text, or a refusal: either way
             # the caller must not read it as an empty document (#68).
-            logger.error(f"structured output from {provider_name} ({model_name}) was empty (stop_reason={response.stop_reason})")
+            logger.error("structured output was empty: model=%s stop_reason=%s", spec.model, response.stop_reason)
             return None
-        result = json.loads(content)
-        duration = time.time() - start
-        logger.info(f"{provider_name} structured output completed, duration: {duration:.3f}s")
+        cut = response.stop_reason == "max_tokens"
+        result = parse_json_answer(content, cut=cut)
+        if cut:
+            logger.warning("structured output hit max_tokens, its complete part kept: model=%s char_count=%d",
+                           spec.model, len(content))
+        logger.info("structured output: model=%s duration_ms=%d", spec.model, _ms(start))
         return result
     except Exception as e:
-        duration = time.time() - start
-        # The vendor's own error text is the sentence that says WHY extraction
-        # produced nothing, which is the whole point of #68.
-        logger.error(f"Structured output API error ({provider_name}, {model_name}): {type(e).__name__}: {e}, duration: {duration:.3f}s")  # phi: ok vendor error, never document contents
+        logger.error("structured output failed: model=%s error_type=%s duration_ms=%d", spec.model,
+                     type(e).__name__, _ms(start), exc_info=not is_driver_exception(e))
         return None
 
 
 async def text_completion(spec: RouteSpec, messages: list[dict], **kwargs) -> str | None:
     """Plain text (titles, summaries, profile prose). None when the call failed."""
-    provider_name, model_name = spec.alias, spec.model
-    start = time.time()
+    start = time.monotonic()
     system, converted = _split_system(messages)
     try:
         response = await _create(spec, model=spec.model, messages=converted,
                                  **({"system": system} if system else {}),
                                  **_request_params(spec, kwargs))
-        duration = time.time() - start
-        logger.info(f"{provider_name} text generation completed, duration: {duration:.3f}s")
+        logger.info("text completion: model=%s duration_ms=%d", spec.model, _ms(start))
         return _text_of(response)
     except Exception as e:
-        duration = time.time() - start
-        logger.error(f"Text generation API error ({provider_name}, {model_name}): {type(e).__name__}: {e}, duration: {duration:.3f}s")  # phi: ok vendor error, never document contents
+        logger.error("text completion failed: model=%s error_type=%s duration_ms=%d", spec.model,
+                     type(e).__name__, _ms(start), exc_info=not is_driver_exception(e))
         return None
 
 
@@ -279,3 +280,7 @@ async def file_extract(
     except Exception as e:
         logger.error(f"{provider_name} extraction failed ({model_name}): {e}", stack_info=True)  # phi: ok vendor error, never document contents
         raise ValueError(f"{provider_name} ({model_name}) failed: {e}") from e
+
+
+def _ms(start: float) -> int:
+    return int((time.monotonic() - start) * 1000)
