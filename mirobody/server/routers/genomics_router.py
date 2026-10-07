@@ -24,9 +24,11 @@ _FHIR_VALUES = {"called_present": ("LA9633-4", "Present"),
                 "called_absent": ("LA9634-2", "Absent"),
                 "no_call": ("LA18198-4", "No call")}
 _FHIR_BUILDS = {"GRCh37": "LA14029-5", "GRCh38": "LA26806-2"}
+#: Keyed by the tool rows' `zygosity` (`agent/tools/_genotype.zygosity`). The
+#: `_ref` forms are "Absent" calls and carry no allelic state.
 _FHIR_ZYGOSITY = {"heterozygous": ("LA6706-1", "Heterozygous"),
-                   "homozygous": ("LA6705-3", "Homozygous"),
-                   "hemizygous": ("LA6707-9", "Hemizygous")}
+                   "homozygous_alt": ("LA6705-3", "Homozygous"),
+                   "hemizygous_alt": ("LA6707-9", "Hemizygous")}
 
 
 def _vcf_meta(value: object) -> str:
