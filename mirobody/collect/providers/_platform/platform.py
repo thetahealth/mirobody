@@ -15,6 +15,7 @@ from mirobody.utils.scheduler import scheduler
 from mirobody.collect.ingest import FormatDataInput
 from mirobody.collect.ingest import StandardHealthService
 from mirobody.collect.providers._platform.database_service import ProviderDatabaseService
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.config import Config
 from .base import BasePullProvider
 from .pull_task import ProviderPullTask
@@ -272,10 +273,8 @@ class ProviderPlatform(Platform):
 
         provider = self.get_provider(provider_slug)
         if not provider:
-            return {"provider_slug": provider_slug,
-                    "username": request.credentials.get("username", ""),
-                    "msg": f"Provider {provider_slug} not found in theta platform"
-                    }
+            # Answering a dict here read as a successful link to the caller.
+            raise ValueError(f"provider {provider_slug} is not registered on this platform")
         return await provider.link(request)
 
     async def unlink(self, user_id: str, provider_slug: str) -> dict[str, Any]:
@@ -292,60 +291,56 @@ class ProviderPlatform(Platform):
             raise RuntimeError(f"Failed to unlink provider: {str(e)}") from e
 
     async def post_data(self, provider_slug: str, data: dict[str, Any], msg_id: str) -> bool:
+        """Save a payload, format it and store its readings; False on any failure.
+
+        A payload that carries something but saves nothing (a push for an
+        account nobody linked, a failed insert) is a failure, so a vendor
+        that retries on an error answer retries it. A Garmin deregistration
+        is saved and formats to nothing, which is success.
+        """
         provider = self.get_provider(provider_slug)
         if not provider:
-            logger.error(f"Provider {provider_slug} not found in theta platform")
+            logger.error("post_data for an unregistered provider: provider=%s", provider_slug)
             return False
 
+        data["msg_id"] = msg_id
         try:
-            data["msg_id"] = msg_id
             saved_data_list = await provider.save_raw_data_to_db(data)
-            if not saved_data_list:
-                logger.warning(f"Raw data save failed for provider {provider_slug}, msg_id={msg_id}")
-
-            standard_health_service = StandardHealthService()
-            total_records = 0
-            success_count = 0
-            error_count = 0
-
-            for saved_data in saved_data_list:
-                try:
-                    ctx = await provider.build_format_context(saved_data)
-                    fmt_input = FormatDataInput(context=ctx, payload=saved_data)
-                    standard_pulse_data = await provider.format_data(fmt_input)
-                    if not standard_pulse_data or not standard_pulse_data.healthData:
-                        logger.info(f"No data formatted by theta provider {provider_slug}")
-                        continue
-
-                    user_id = standard_pulse_data.metaInfo.userId
-                    if not user_id:
-                        logger.error(f"No user ID found in formatted data from provider {provider_slug}")
-                        error_count += 1
-                        continue
-
-                    success = await standard_health_service.process_standard_data(standard_pulse_data, user_id)
-                    records_count = len(standard_pulse_data.healthData)
-
-                    if success:
-                        success_count += 1
-                        total_records += records_count
-                        logger.info(f"Processed {records_count} records for user {user_id}")
-                    else:
-                        error_count += 1
-                        logger.error(f"Failed to process {records_count} records for user {user_id}")
-
-                except Exception as e:
-                    error_count += 1
-                    logger.error(f"Error processing saved_data item: {str(e)}")
-                    continue
-
-            logger.info(
-                f"provider platform completed: {total_records} total records, {success_count} success, {error_count} errors")
-            return error_count == 0
-
         except Exception as e:
-            logger.error(f"Error posting data to theta provider {provider_slug}: {str(e)}")
+            logger.error("raw save failed: provider=%s msg_id=%s error_type=%s", provider_slug, msg_id,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
             return False
+        if not saved_data_list:
+            carries_data = any(value for key, value in data.items() if key != "msg_id")
+            if carries_data:
+                logger.warning("payload saved nothing: provider=%s msg_id=%s", provider_slug, msg_id)
+            return not carries_data
+
+        standard_health_service = StandardHealthService()
+        record_count = 0
+        error_count = 0
+        for saved_data in saved_data_list:
+            try:
+                ctx = await provider.build_format_context(saved_data)
+                standard_pulse_data = await provider.format_data(FormatDataInput(context=ctx, payload=saved_data))
+                if not standard_pulse_data or not standard_pulse_data.healthData:
+                    continue
+                user_id = standard_pulse_data.metaInfo.userId
+                if not user_id:
+                    logger.error("formatted data names no account: provider=%s msg_id=%s", provider_slug, msg_id)
+                    error_count += 1
+                    continue
+                if await standard_health_service.process_standard_data(standard_pulse_data, user_id):
+                    record_count += len(standard_pulse_data.healthData)
+                else:
+                    error_count += 1
+            except Exception as e:
+                error_count += 1
+                logger.error("format or store failed: provider=%s msg_id=%s error_type=%s", provider_slug, msg_id,
+                             type(e).__name__, exc_info=not is_driver_exception(e))
+        logger.info("post_data done: provider=%s msg_id=%s record_count=%d error_count=%d",
+                    provider_slug, msg_id, record_count, error_count)
+        return error_count == 0
 
     async def start_pull_scheduler(self) -> None:
         try:

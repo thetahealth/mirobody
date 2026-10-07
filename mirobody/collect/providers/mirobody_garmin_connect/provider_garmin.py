@@ -408,7 +408,7 @@ class GarminProvider(BasePullProvider):
         records: list[StandardPulseRecord] = []
         types: list[str] = []
         for key, items in fmt_input.payload.items():
-            if key in ("theta_user_id", "msg_id") or not isinstance(items, list) or not items:
+            if key in ("theta_user_id", "msg_id", "deregistrations") or not isinstance(items, list) or not items:
                 continue
             types.append(key)
             for item in items:
@@ -537,9 +537,9 @@ class GarminProvider(BasePullProvider):
                 continue
             if "deregistrations" in by_type:
                 # The person removed Mirobody in Garmin Connect: the link goes.
+                # The row is still returned: it is handled, and formats to nothing.
                 await self.db_service.delete_user_theta_provider(theta_user_id, self.info.slug)
                 logger.info("Garmin deregistration: user_id=%s", theta_user_id)
-                continue
             saved.append(row)
         return saved
 
