@@ -40,6 +40,7 @@ from functools import lru_cache
 from typing import Any
 
 from mirobody.utils.config.llm import RouteSpec
+from mirobody.utils.llm import clients
 
 logger = logging.getLogger(__name__)
 
@@ -48,23 +49,6 @@ logger = logging.getLogger(__name__)
 #: tokens of JSON: with a constrained grammar, hitting the cap truncates into
 #: invalid JSON rather than into a short answer, so the default is generous.
 DEFAULT_MAX_TOKENS = 16384
-
-_clients: dict[tuple[str, str], Any] = {}
-
-
-def client_for(spec: RouteSpec):
-    """The cached `AsyncAnthropic` for a resolved route, keyed like
-    `AIClientManager`: one per (endpoint, key name)."""
-    key = spec.key
-    if spec.api_key_env and not key:
-        raise ValueError(f"{spec.alias}: {spec.api_key_env} is not set")
-    cache_key = (spec.base_url, spec.api_key_env)
-    if cache_key not in _clients:
-        from anthropic import AsyncAnthropic
-
-        _clients[cache_key] = AsyncAnthropic(api_key=key or "-", base_url=spec.base_url or None)
-    return _clients[cache_key]
-
 
 #-----------------------------------------------------------------------------
 # OpenAI-shaped input → Anthropic-shaped request.
@@ -146,7 +130,7 @@ async def _create(spec: RouteSpec, **params):
     constrained grammar; streaming removes the ceiling instead, and
     `get_final_message()` hands back the same Message object either way.
     """
-    async with client_for(spec).messages.stream(**params) as stream:
+    async with clients.client_manager.anthropic_for_spec(spec).messages.stream(**params) as stream:
         return await stream.get_final_message()
 
 
