@@ -36,7 +36,7 @@ GGUF files the preset fetches, document reader included; memory is the most
 
 | Size | Answers | Download | Memory | Per answer | A photo in the chat | On the evaluation |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Small**, the default | MiniCPM5-2B, Q4_K_M | 3.0 GB | 5.7 GB | 28 s median, Apple M1 Pro 16 GB | read as its OCR text | 19 of 24 questions passed, 140 of 140 printed rows, 24 of 31 journal entries |
+| **Small**, the default | MiniCPM5-2B, Q4_K_M | 3.0 GB | 5.7 GB | 29 s median, Apple M1 Pro 16 GB | read as its OCR text | 19 of 24 questions passed, 140 of 140 printed rows, 22 of 31 journal entries |
 | **Large** | Qwen3.8-27B, IQ3_S (ISTA-DASLab GSQ-RCO) | 14.5 GB | about 20 GB | about 2 min, Apple M4 Pro 48 GB | looked at | 16 of 16 earlier questions with no number the record lacks (a different question set) |
 
 Small runs on any computer with 16 GB of memory and no GPU, Windows, Linux or

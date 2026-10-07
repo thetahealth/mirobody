@@ -12,8 +12,8 @@ both in view:
 - **how good the answers need to be**, and what speed and cost buy them.
 
 Every figure here comes from the same evaluation, run through the product's
-own API on one synthetic record, so the models differ only in the model
-([How it was measured](#how-it-was-measured-and-how-to-rerun-it)).
+own API on one synthetic record; where two runs differ in more than the
+model, the notes under the results say so ([How it was measured](#how-it-was-measured-and-how-to-rerun-it)).
 
 ## The short answer
 
@@ -21,8 +21,8 @@ own API on one synthetic record, so the models differ only in the model
 | --- | --- | --- |
 | Nothing may leave; an ordinary computer (16 GB, no GPU) | **Local, small**: MiniCPM5-2B answers, GLM-OCR-0.9B reads documents, both on llama.cpp | nothing |
 | Nothing may leave; a 32 GB Mac or a 24 GB GPU | **Local, large**: Qwen3.8-27B answers and sees photos, GLM-OCR-0.9B reads documents | nothing |
-| The best answers | **Claude Sonnet 5.5**, through OpenRouter with zero data retention | your questions, the rows the agent reads, your documents' text |
-| The lowest cost, or the fastest answers | **GPT-6 Luna**, the cheapest measured, or **DeepSeek V4.1 Flash** (open weights), the fastest, the same way | the same |
+| The best answers | **Claude Sonnet 5.5**, **Claude Opus 5.5** or **Gemini 3.8 Flash**, through OpenRouter with zero data retention: tied on this evaluation, Gemini at the lowest price | your questions, the rows the agent reads, your documents' text |
+| The lowest cost, or the fastest answers | **GPT-6 Luna**, the cheapest per answer, or **DeepSeek V4.1 Flash** (open weights), the fastest, the same way | the same |
 | Document images stay home, a cloud model answers | **A mix**: GLM-OCR on llama.cpp reads every photo and page, a cloud model answers | the same, without the page images |
 
 ## Three modes, and what leaves the machine
@@ -33,7 +33,7 @@ The first-run page offers the first two; the third is a few lines of `.env`
 | | 100% on this machine | A model key | Local reader, cloud answerer |
 | --- | --- | --- | --- |
 | Photos and scanned pages of your documents | read here by GLM-OCR | sent to the vendor's vision model | read here by GLM-OCR |
-| The text of your documents | read here | sent to the vendor | sent to the vendor's text model, except the table rows the rules read here |
+| The text of your documents | read here | sent to the vendor, except the table rows the rules read here; the first 3,000 characters go for a title and summary either way | the same |
 | Your questions, and the rows the agent reads to answer them | stay here | sent to the vendor | sent to the vendor |
 | A photo opened in the chat | read here: as its OCR text (small) or looked at (large) | sent, when the chat model sees | sent, when the chat model sees |
 | Names to codes, units to UCUM (② Translate) | here, offline, from the package | the same | the same |
@@ -60,9 +60,9 @@ start command for Windows, Linux and macOS.
 | Download, reader included | 3.0 GB | 14.5 GB |
 | Memory, both models loaded | 5.7 GB at most while answering | about 20 GB |
 | Runs on | any computer with 16 GB of memory, no GPU: Windows, Linux or macOS | a 32 GB Mac, or a 24 GB NVIDIA GPU |
-| Median answer | 28 s, Apple M1 Pro 16 GB | about 2 min (134 s), Apple M4 Pro 48 GB |
+| Median answer | 29 s, Apple M1 Pro 16 GB | about 2 min (134 s), Apple M4 Pro 48 GB |
 | A photo in the chat | read as its OCR text: it cannot see | looked at |
-| On the evaluation | 19 of 24 questions passed (grade 209 of 248), 140 of 140 printed rows, 24 of 31 journal entries | 16 of 16 runs of an earlier 8-question set, no number the record lacks; not run on the 24 questions below |
+| On the evaluation | 19 of 24 questions passed (grade 215 of 248), 140 of 140 printed rows, 22 of 31 journal entries | 16 of 16 runs of an earlier 8-question set, no number the record lacks; not run on the 24 questions below |
 
 The answer times are Apple silicon's, where llama.cpp runs on the GPU. With
 no GPU it is minutes, not seconds: in llama.cpp's CPU image on 4 vCPUs (Linux,
@@ -71,20 +71,31 @@ a first answer takes 2–3 minutes and later turns reuse the server's prompt
 cache; the two models hold about 6.0 GiB, so Docker needs at least 8 GB of
 memory ([local-models.md](local-models.md#without-a-gpu)).
 
-On the evaluation below, the small size passes 19 of 24 questions (Claude
-Code grade 209 of 248), stores all 140 printed rows of the 12 documents and
-writes 24 of 31 journal entries. Before 1.5.4's harness changes it passed 16
-of 24 (190 of 248), stored 45 of 140 rows and wrote none of the 31 entries. The changes since are each in the [CHANGELOG](../CHANGELOG.md):
-worked examples in the journal's request, long reports read page by page,
-notes and logs with their rows' dates, table rules that read the headers most
-reports print, keyword recall across spellings and units, closed JSON
-schemas, a bound on a looping answer, the context a page's leftover text
-needs, and `view="stats"` naming a reading's own day. Where it still loses
-points: averages it works out from day rows instead of asking for the month
-view, a keyword search that mixed in other readings, a chart that took the
-tool's cut to the latest 92 days for missing data, a judgement against a range
-the report did not print, a genotype misnamed, and two replies that ran on to
-the 600 s timeout. A local reply now stops at 6,144 tokens.
+On the evaluation below, on the final code, the small size passes 19 of 24
+questions (Claude Code grade 215 of 248), stores all 140 printed rows of the
+12 documents, every one with its unit and range as printed, and writes 22 of
+31 journal entries, with no answer timed out. It got there in two rounds of
+harness changes, each in the [CHANGELOG](../CHANGELOG.md):
+
+| The small size | Grade | Passed | Printed rows | Journal |
+| --- | ---: | ---: | ---: | ---: |
+| before 1.5.4's changes | 190 of 248 | 16 of 24 | 45 of 140 | 0 of 31 |
+| after the first round | 209 of 248 | 19 of 24 | 140 of 140 | 24 of 31 |
+| on the final code | 215 of 248 | 19 of 24 | 140 of 140 | 22 of 31 |
+
+The first round: worked examples in the journal's request, long reports read
+page by page, notes and logs with their rows' dates, table rules that read the
+headers most reports print, keyword recall across spellings and units, closed
+JSON schemas, a bound on a looping answer, the context a page's leftover text
+needs, and `view="stats"` naming a reading's own day. The second: a reading
+printed on two pages stored once, a printed flag split from its unit, a page's
+print date no longer dating its readings, a born-digital PDF's tables read off
+its text layer, a cut answer saying so before its rows, and a local reply
+stopped at 6,144 tokens. Where it still loses points: means it gets wrong
+(July's sleep, August's weight, May's diastolic pressure), a weight chart that
+came back empty after 15 tool calls, a check-up summary it stopped reading
+after the first 200 lines, a "normal range" claim where the report printed
+none, and a genotype misnamed.
 
 ### The document reader: GLM-OCR-0.9B
 
@@ -123,15 +134,17 @@ says it cannot see the photo and asks what was eaten. The large size looks at
 the photo, and estimates a meal as a calorie range with its reasoning, which
 can name the wrong dish ([what each model can read in a photo](local-models.md#what-each-model-can-read-in-a-photo)).
 
-## Cloud: one open baseline, two closed references
+## Cloud: one open baseline, four closed references
 
-Three cloud models ran through the same stack, on the same questions,
-documents and journal sentences, with the same scoring as the local sizes:
+Five cloud models ran through the same stack, on the same questions,
+documents and journal sentences, with the same scoring as the small size:
 
 | Model | Weights | Through | Host |
 | --- | --- | --- | --- |
 | DeepSeek V4.1 Flash | open | OpenRouter, zero data retention, no fallback | Together |
 | Claude Sonnet 5.5 | closed | the same | Google Vertex |
+| Claude Opus 5.5 | closed | the same | Google Vertex |
+| Gemini 3.8 Flash | closed | the same | Google Vertex |
 | GPT-6 Luna | closed | the same | Azure |
 
 Each ran so that only the answering model differs from the small size:
@@ -147,10 +160,12 @@ with every image kept home.
 
 | | Runs on | Questions: grade | Questions: passed | Median answer | Printed rows stored, 12 documents | Journal entries, 15 sentences |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| MiniCPM5-2B, small | Apple M1 Pro 16 GB | 209 of 248 | 19 of 24 | 28 s | 140 of 140 | 24 of 31 |
+| MiniCPM5-2B, small | Apple M1 Pro 16 GB | 215 of 248 | 19 of 24 | 29 s | 140 of 140 | 22 of 31 |
 | Qwen3.8-27B, large | Apple M4 Pro 48 GB | not run on these | 16 of 16, an earlier set | 134 s | 27 of 27, the four demo documents | not measured |
 | DeepSeek V4.1 Flash | Together | 245 of 248 | 23 of 24 | 4.2 s | 138 of 140 | 29 of 31 |
 | Claude Sonnet 5.5 | Google Vertex | 247 of 248 | 23 of 24 | 9.0 s | 140 of 140 | 30 of 31 |
+| Claude Opus 5.5 | Google Vertex | 247 of 248 | 23 of 24 | 14.9 s | 139 of 140 | 29 of 31 |
+| Gemini 3.8 Flash | Google Vertex | 247 of 248 | 23 of 24 | 14.9 s | 140 of 140 | 31 of 31 |
 | GPT-6 Luna | Azure | 237 of 248 | 21 of 24 | 9.7 s | 140 of 140 | 31 of 31 |
 
 - **Grade** is Claude Code's points against a written rubric: correct,
@@ -159,49 +174,91 @@ with every image kept home.
   **Passed** is all five automatic checks: answered, the right tool, every
   expected fact, the question's language, and a chart that parses.
 - **Printed rows** counts stored readings that match a row the document
-  prints. Beside them every model stored readings that match none:
-  DeepSeek 48, Sonnet 48, Luna 49, the small size 32 (0 before the fixes).
-  They have not been read one by one; in an earlier DeepSeek run 40 of them
-  came from the 7-page check-up book.
+  prints. Beside them every model stored readings that match none: the cloud
+  models 47 to 49, the small size 9. They have not been read one by one; in
+  an earlier DeepSeek run 40 of them came from the 7-page check-up book. With
+  the table rules in front ([below](#with-the-table-rules-in-front)) the
+  cloud models' fell to 26–41.
 - The large size's row is the earlier measurement that `config.llm.yaml` and
   [local-models.md](local-models.md) carry: 8 questions asked twice, and the
   four demo documents. It does not fit on the 16 GB machine the rest ran on.
-- **Commits.** The small size ran entirely at 321aa2c. The cloud models read
-  the documents and the journal at 4e3c06f, answered 20 of the questions at
-  490a0e1, and the 4 that read two re-read documents at 321aa2c.
+- **Records and commits.** The small size ran entirely at 958fae5, on a record
+  (`qa4`) loaded through the final pipeline, as a user's would be today. The
+  cloud models answered from the record loaded at 490a0e1 (`qa3`, two
+  documents read again at 321aa2c), which was not reloaded. DeepSeek, Sonnet
+  and Luna read the documents and the journal at 4e3c06f, answered 20 of the
+  questions at 490a0e1 and the 4 that read the re-read documents at 321aa2c;
+  Opus and Gemini ran every part on 321aa2c's application code.
 
 What the table says:
 
-- **Claude Sonnet 5.5** is graded highest, 247 of 248, at 17 times
-  DeepSeek's price an answer and about 30 times Luna's.
-- **DeepSeek V4.1 Flash**, the open-weights baseline, answers fastest (4.2 s
-  median), 2 points behind Sonnet, and missed 2 of the 140 printed rows.
-- **GPT-6 Luna** stored every printed row and every journal entry, and cost
-  the least of the three. Its 11 lost points include a search limited to one
+- **Three models tie at the top**: Claude Sonnet 5.5, Claude Opus 5.5 and
+  Gemini 3.8 Flash, 247 of 248 each, and each lost the same point, to the
+  month view's average (a finding in the pipeline, not in the models). One
+  set of 24 questions cannot rank them; price and speed can. Gemini costs
+  $0.012 an answer, Sonnet about $0.029 and Opus $0.045, and Sonnet answers
+  fastest of the three (9.0 s median, against 14.9 s).
+- **DeepSeek V4.1 Flash**, the open-weights baseline, answers fastest of all
+  (4.2 s median), 2 points behind the top, and missed 2 of the 140 printed
+  rows.
+- **GPT-6 Luna** costs the least an answer ($0.0009) and stored every printed
+  row and journal entry. Its 11 lost points include a search limited to one
   year, a lipid question handed back to the person instead of queried, and a
   printed range it said was missing.
 - **MiniCPM5-2B**, on a 16 GB laptop with nothing sent anywhere, stored every
-  printed row too, and is 38 points behind Sonnet on the questions.
+  printed row too, every one with its unit and range as printed, and is 32
+  points behind the top three on the questions.
+
+### With the table rules in front
+
+Since c396b4f the table rules read every upload, whatever model is
+configured, and a cloud model reads only what they leave. Four of the
+references read the 12 documents again on that code, from the same stored
+OCR text, each in a fresh account through its pinned host:
+
+| Four cloud models, 12 documents | Before | With the rules in front |
+| --- | --- | --- |
+| Printed rows found, of 140 | 138–140 | 138–140 |
+| Ranges as printed | 133–136 | 138–139 |
+| Readings on no printed row | about 48 (Gemini 47) | 26–28 (Gemini 41) |
+| Document text sent to the vendor's indicator call | 27,184 characters | 16,910 (−37%) |
+
+Five of the 12 documents (two lab-slip PDFs, the spreadsheet, the photo and
+the photocopy) now need no model at all. What this does and does not measure:
+
+- **It is not "rules off" against "rules on".** The references' overlays
+  kept a local OCR route configured, so the rules ran in the earlier runs
+  too; they knew fewer headers then. The comparison measures the wider header
+  vocabulary. Gemini's earlier run was already on it, which is why its two
+  runs differ by almost nothing.
+- **Reading every upload by rule matters most where this did not look**: a
+  deployment with a vendor key and no local OCR model, where no table was
+  read by rule before c396b4f.
+- **The title and summary call still sends each document's first 3,000
+  characters** to the vendor, rules or not (12,200 characters for the 12).
 
 ### What it costs
 
 | | Per answer | 100 documents like these twelve |
 | --- | ---: | ---: |
 | Local, either size | nothing per call | nothing per call |
-| DeepSeek V4.1 Flash | $0.0017 | about $0.56 |
-| GPT-6 Luna | $0.0009 | about $0.21 |
-| Claude Sonnet 5.5 | about $0.029 | about $9 |
+| GPT-6 Luna | $0.0009 | about $0.31 |
+| DeepSeek V4.1 Flash | $0.0017 | about $0.23 |
+| Gemini 3.8 Flash | $0.012 | about $2.1 |
+| Claude Sonnet 5.5 | about $0.029 | about $6.6 |
+| Claude Opus 5.5 | $0.045 | about $8.5 |
 
 Per answer is OpenRouter's charge for the 24 questions, read once it had
 settled (OpenRouter books a request's cost up to minutes after the answer),
 divided by 24; Sonnet's is an estimate, because its question runs overlapped
-another model's on the same key. Per hundred documents is the settled charge for the twelve documents and
-the fifteen journal sentences together, which the key's usage could not tell
-apart, times 100/12: an upper bound for documents like these (one-page lab
-slips, a CSV, a spreadsheet, scans and photos, a 7-page check-up book), whose
-OCR ran on the machine. With a vendor reading the page images too, add its
-vision calls. The key was shared with other work, so every figure is an
-upper bound. Every cloud run of this evaluation together cost $2.98.
+another model's on the same key. Per hundred documents is the charge for
+reading the twelve with the table rules in front, times 100/12 (Opus's is its
+own run's extraction, on code that sent the same document text): documents
+like these (one-page lab slips, a CSV, a spreadsheet, scans and photos, a
+7-page check-up book), whose OCR ran on the machine. With a vendor reading the
+page images too, add its vision calls. The key was shared with other work, so
+every figure is an upper bound. Every cloud run of this evaluation together
+cost $7.55.
 
 ## Health data on OpenRouter
 
@@ -249,11 +306,14 @@ So the evaluation, and this guide, do two things:
    used: OpenRouter lists no temperature for GPT-6 Luna and answers it with
    404. Before each run, the pinned host answered one request shaped
    like the entry's own, temperature and JSON format included (`host_probe`
-   in each reference's `meta.json`).
+   in each reference's `meta.json`). For Claude Opus 5.5 and Gemini 3.8 Flash
+   only Google's host passed: `anthropic`, `azure` and `amazon-bedrock` gave
+   Opus no endpoint for a JSON-schema request with a temperature, and zero
+   data retention removes Gemini's `google-ai-studio`.
 
 The host goes in a `config.llm.yaml` entry's `extra_body`, which Mirobody
 sends as it is. The entries the evaluation used for DeepSeek V4.1 Flash on
-Together were these (the other two are the same with their model and host,
+Together were these (the other four are the same with their model and host,
 and none of the DeepSeek-only lines):
 
 ```yaml
@@ -282,7 +342,10 @@ MODELS:                           # beside the entries already there
 Then route to them in `.env`: `DEFAULT_MODEL=deepseek-zdr` and
 `UTILS_TEXT_MODEL=deepseek-zdr-utils`. GPT-6 Luna's utility entry carries
 `reasoning_effort: none` instead of the two DeepSeek lines (as the shipped
-`openai-utils` does); Sonnet 5.5's adds nothing beyond the host. The files
+`openai-utils` does), and Gemini 3.8 Flash's `extra_body` carries
+`reasoning: {effort: low, exclude: true}` (as the shipped `openrouter-utils`
+does: its reasoning cannot be turned off); Sonnet 5.5's and Opus 5.5's add
+nothing beyond the host. The files
 the evaluation mounted are in
 [`benchmarks/local_models/refs/`](../benchmarks/local_models/refs/), written
 by `overlays.py` from the shipped `config.llm.yaml`.
@@ -310,7 +373,7 @@ pins no host: OpenRouter routes it under your account's settings.
 ### Privacy first, on an ordinary computer
 
 The small size: `./deploy.sh`, then **100% on this machine** on the page it
-links. 16 GB of memory, no GPU, 3.0 GB to download. Expect about 28 s an
+links. 16 GB of memory, no GPU, 3.0 GB to download. Expect about 29 s an
 answer on an M1 Pro (2–3 minutes for a first answer on a CPU alone), every
 printed row of a lab report stored, and most
 questions answered right (19 of 24); it is weakest where it works out an
@@ -324,22 +387,27 @@ looks at a photo.
 
 ### The best answers
 
-Claude Sonnet 5.5 through OpenRouter, with zero data retention and the host
-pinned ([above](#health-data-on-openrouter)). About $0.029 an answer and
-about $9 per hundred documents.
+Claude Sonnet 5.5, Claude Opus 5.5 or Gemini 3.8 Flash, through OpenRouter
+with zero data retention and the host pinned ([above](#health-data-on-openrouter)).
+The three tied at 247 of 248, and on one set of 24 questions a tie is not a
+ranking; price and speed separate them. Gemini 3.8 Flash costs $0.012 an
+answer and about $2.1 per hundred documents, and is what an OpenRouter key's
+utility surfaces use by default (`openrouter-utils`). Sonnet costs about
+$0.029 and $6.6, and answers fastest of the three. Opus costs $0.045 and $8.5.
 
 ### The lowest cost
 
 GPT-6 Luna on Azure or DeepSeek V4.1 Flash on Together, the same way: $0.0009
-and $0.0017 an answer. Luna cost the least here and stored every printed row;
-DeepSeek answers fastest and its weights are open.
+and $0.0017 an answer, about $0.31 and $0.23 per hundred documents. Luna
+stored every printed row; DeepSeek answers fastest and its weights are open.
 
 ### A mix: documents read here, answers from the cloud
 
 Keep GLM-OCR on your machine and let a cloud model answer. Every report
 photo and scanned page is read here; what reaches the vendor is text: your
-questions, the rows the agent reads, and the document text the table rules
-did not read. This is how the cloud references above were measured. In
+questions, the rows the agent reads, the document text the table rules did
+not read, and each document's first 3,000 characters for its title and
+summary. This is how the cloud references above were measured. In
 `.env`, with `llama-server` running the preset (only `glm-ocr` is asked for):
 
 ```bash

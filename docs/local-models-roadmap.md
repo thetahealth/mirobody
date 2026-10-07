@@ -13,8 +13,8 @@ for photos, and the plan for the whole thing to fit on an ordinary computer.
   1.6 GB) answers and **GLM-OCR-0.9B** (1.4 GB) reads documents, 3.0 GB
   together on llama.cpp, in 16 GB of memory with no GPU. On the evaluation now
   published in [`benchmarks/local_models/`](../benchmarks/local_models/README.md)
-  it passes 19 of 24 questions (Claude Code grade 209 of 248), stores all
-  140 printed rows of its 12 documents and writes 24 of 31 journal entries; before 1.5.4's
+  it passes 19 of 24 questions (Claude Code grade 215 of 248), stores all
+  140 printed rows of its 12 documents and writes 22 of 31 journal entries; before 1.5.4's
   harness changes ([below](#first-the-harness)) it passed 16 of 24 questions,
   stored 45 of 140 printed rows and wrote none of 31 journal entries.
 - **The large size** is Qwen3.8-27B (GSQ-RCO IQ3_S, 13 GB), measured below:
@@ -137,15 +137,17 @@ get wrong. Where 1.5.4 left each:
 5. **A shorter prompt for small models**, measured the way the prompt in
    `benchmarks/local_agent/` was. *Remains* for the agent. The journal's
    request now opens with two worked answers; between the two evaluations
-   MiniCPM5-2B's journal went from 0 of 31 entries to 24 of 31.
+   MiniCPM5-2B's journal went from 0 of 31 entries to 22 of 31 on the final
+   code (24 after the first round of changes).
 
 Also in 1.5.4, and not on the list (each in the [CHANGELOG](../CHANGELOG.md)):
 
-- a table is read by its header with no model, from the printed page or from
-  an OCR model's grid, and the text model gets only what the rules leave,
+- a table is read by its header with no model, whatever model is configured,
+  from a born-digital PDF's text layer, the printed page or an OCR model's grid, and the text model gets only what the rules leave,
   told it is the rest of a medical report;
 - a long report is read a page at a time, and notes and logs give readings
-  with their rows' dates;
+  with their rows' dates; a reading printed on two pages is stored once, and
+  a page's print date no longer dates its readings;
 - a looping extraction is bounded by its text and keeps its complete part;
 - a view asked for with no indicator answers with the catalogue, and minute
   to month views keep the newest 92 points instead of flooding the context;

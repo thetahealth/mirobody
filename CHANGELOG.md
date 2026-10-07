@@ -53,9 +53,10 @@
   server. The shipped preset runs on llama.cpp's `llama-server`: GLM-OCR-0.9B
   reads documents, and one of two sizes answers, picked on the setup page by
   what each downloads and needs. Small, MiniCPM5-2B, the default: 3.0 GB with
-  the reader, 5.7 GB of memory at most, 28 s a median answer on a 16 GB M1
-  Pro, 19 of 24 evaluation questions passed, all 140 printed rows of 12
-  documents stored and 24 of 31 journal entries written. Large, Qwen3.8-27B:
+  the reader, 5.7 GB of memory at most, 29 s a median answer on a 16 GB M1
+  Pro, 19 of 24 evaluation questions passed (Claude Code grade 215 of 248),
+  all 140 printed rows of 12 documents stored with their units and ranges as
+  printed, and 22 of 31 journal entries written. Large, Qwen3.8-27B:
   14.5 GB, about 20 GB of memory; on an Apple M4 Pro 16 of 16 earlier test
   questions with no number the record lacks, about two minutes an answer, 27
   of 27 demo readings. MiniCPM5-1B and Qwen3.5-9B were evaluated and dropped:
@@ -94,7 +95,15 @@
   each mode, including GLM-OCR on the machine with a cloud model answering;
   how to keep OpenRouter to zero-data-retention hosts, one host per model;
   what an answer and a hundred documents cost; and it previews the Mirobody
-  model 1.6.0 will ship. `benchmarks/local_models/` and
+  model 1.6.0 will ship. Sonnet 5.5, Opus 5.5 and Gemini 3.8 Flash tie at
+  247 of 248 on the questions, so the guide separates them by price and
+  speed, not by one 24-question set; with the table rules in front of every
+  model (c396b4f) four of the references, reading the 12 documents again,
+  got 37% less document text in the indicator call and stored fewer readings
+  that are on no printed row (about 48 to 26–28; Gemini 47 to 41), a measure
+  of the wider header
+  vocabulary rather than of the rules being switched on, since the earlier
+  runs kept a local OCR route. `benchmarks/local_models/` and
   `benchmarks/local_ocr/` are the two evaluations, with cases, results, every
   grade's reason and the commands to rerun them. The OCR one is why GLM-OCR
   stays the reader: 283 of 303 printed rows stored right, 302 without the
