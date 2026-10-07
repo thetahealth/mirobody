@@ -156,14 +156,15 @@ class FileDbService:
             if result:
                 file_id = result[0].get("id")
                 if file_id:
-                    logger.info(f"File inserted: id={file_id}, file_key={file_key}")
+                    logger.info("file filed: id=%s file_key=%s", file_id, file_key)
                     return file_id
 
-            logger.warning(f"No id returned for file: file_key={file_key}")
+            logger.warning("file not filed, no id returned: file_key=%s", file_key)
             return None
             
         except Exception as e:
-            logger.error(f"Failed to insert file: {str(e)}", stack_info=True)
+            logger.error("filing a file failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return None
     
     @staticmethod
@@ -218,7 +219,7 @@ class FileDbService:
         for file_info in files_info:
             file_key = file_info.get("file_key")
             if not file_key:
-                logger.warning(f"Skipping file without file_key: {file_info}")
+                logger.warning("a file with no storage key is not filed: created_source_id=%s", created_source_id)
                 continue
             
             # Build file_content with all necessary metadata
@@ -261,7 +262,7 @@ class FileDbService:
             if file_id:
                 inserted_ids.append(file_id)
         
-        logger.info(f"Batch insert completed: {len(inserted_ids)}/{len(files_info)} files")
+        logger.info("files filed: inserted=%d total=%d", len(inserted_ids), len(files_info))
         return inserted_ids
     
     # ============== SELECT Operations ==============
@@ -309,7 +310,8 @@ class FileDbService:
             return record
             
         except Exception as e:
-            logger.error(f"Failed to get file by key: {str(e)}", stack_info=True)
+            logger.error("reading a file row failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return None
     
     @staticmethod
@@ -499,7 +501,7 @@ class FileDbService:
                 if first_row:
                     total = first_row.get("total", 0)
             
-            logger.info(f"Get files paginated: user_id={target_user_id}, total={total}, returned={len(files)}")
+            logger.info("files listed: user_id=%s total=%s returned=%d", target_user_id, total, len(files))
             
             return {
                 "files": files,
@@ -548,7 +550,8 @@ class FileDbService:
             return files
             
         except Exception as e:
-            logger.error(f"Failed to get files by source: {str(e)}", stack_info=True)
+            logger.error("listing a message's files failed: created_source_id=%s error_type=%s", created_source_id,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
             return []
     
     # ============== UPDATE Operations ==============
@@ -576,7 +579,7 @@ class FileDbService:
             # First get current file_content
             current = await FileDbService.get_file_by_key(file_key, user_id)
             if not current:
-                logger.warning(f"File not found for update: file_key={file_key}")
+                logger.warning("file not found for update: file_key=%s", file_key)
                 return False
             
             # Merge updates into current content
@@ -615,11 +618,12 @@ class FileDbService:
                 params["user_id"] = str(user_id)
             
             await execute_query(query=sql, params=params)
-            logger.info(f"File content updated: file_key={file_key}, updates={list(updates.keys())}")
+            logger.info("file row updated: file_key=%s field_count=%d", file_key, len(updates))
             return True
             
         except Exception as e:
-            logger.error(f"Failed to update file content: {str(e)}", stack_info=True)
+            logger.error("updating a file row failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return False
     
     @staticmethod
@@ -745,12 +749,13 @@ class FileDbService:
             )
             
             if result:
-                logger.info(f"File soft deleted: file_key={file_key}")
+                logger.info("file deleted: file_key=%s", file_key)
                 return True
             
-            logger.warning(f"File not found for deletion: file_key={file_key}")
+            logger.warning("file not found for deletion: file_key=%s", file_key)
             return False
             
         except Exception as e:
-            logger.error(f"Failed to soft delete file: {str(e)}", stack_info=True)
+            logger.error("deleting a file row failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return False

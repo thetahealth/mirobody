@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
 
@@ -49,7 +50,7 @@ class TempFileManager:
 
             # Check if content is empty
             if not content or len(content) == 0:
-                logger.error(f"File content is empty: {upload_file.filename}")
+                logger.error("upload is empty, no temporary copy made")
                 raise ValueError(localize("file_empty", language, "temp_file_manager"))
 
             # Get original filename and extension
@@ -70,14 +71,14 @@ class TempFileManager:
 
             return Path(temp_file_path), temp_file_path
         except Exception as e:
-            logger.error("Error creating temporary file", stack_info=True)
+            logger.error("temporary copy failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
             # If error occurs, ensure to delete potentially created temporary file
             if temp_file_path and os.path.exists(temp_file_path):
                 try:
                     os.unlink(temp_file_path)
-                except Exception as ex:
-                    logger.error(f"Error deleting temporary file: {str(ex)}")
-            raise e
+                except OSError as ex:
+                    logger.error("temporary copy not deleted: error_type=%s", type(ex).__name__)
+            raise
 
     @staticmethod
     def cleanup_temp_file(temp_file_path: str) -> bool:

@@ -8,7 +8,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from typing import Any
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 # `fastapi` lives in the [app] extra, but file parsing is advertised engine
 # functionality: a bare `pip install mirobody` must import this module. Every
@@ -18,7 +18,12 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
-from mirobody.collect.files.errors import failure_reason
+
+    from mirobody.collect.files.services.file_abstract_extractor import FileAbstractExtractor
+    from mirobody.collect.files.services.file_uploader import FileUploader
+    from mirobody.collect.files.services.indicator_extractor import IndicatorExtractor
+    from mirobody.collect.files.services.temp_file_manager import TempFileManager
+from mirobody.collect.files.errors import UploadError, failure_reason
 from mirobody.documents.extract import PartialText
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.i18n import localize
@@ -27,10 +32,6 @@ from mirobody.utils.tasks import spawn
 
 logger = logging.getLogger(__name__)
 
-# Import services type hints (avoid circular imports if possible, or use Any)
-# In a real scenario, we might use Protocol or specific imports if avoiding circular deps.
-# For now we assume services are passed in and duck-typed or we use Any.
-
 @dataclass
 class FileProcessingContext:
     file: UploadFile
@@ -38,7 +39,7 @@ class FileProcessingContext:
     message_id: str | None
     query: str = ""
     query_user_id: str = ""
-    progress_callback: Callable[[int, str], None] | None = None
+    progress_callback: Callable[[int, str], Awaitable[None]] | None = None
     file_key: str | None = None
     skip_upload_oss: bool = False
     original_filename: str | None = None
@@ -56,7 +57,7 @@ class FileProcessingContext:
         return self.original_filename or self.file.filename
         
     @property
-    def content_type(self) -> str:
+    def content_type(self) -> str | None:
         return self.file.content_type
 
 
@@ -77,12 +78,12 @@ def _no_answer_reason() -> str:
 
 class BaseFileHandler(abc.ABC):
     def __init__(
-        self, 
-        uploader=None, 
-        temp_manager=None, 
-        indicator_extractor=None,
-        abstract_extractor=None
-    ):
+        self,
+        uploader: FileUploader | None = None,
+        temp_manager: TempFileManager | None = None,
+        indicator_extractor: IndicatorExtractor | None = None,
+        abstract_extractor: FileAbstractExtractor | None = None,
+    ) -> None:
         self.uploader = uploader
         self.temp_manager = temp_manager
         self.indicator_extractor = indicator_extractor
@@ -96,7 +97,7 @@ class BaseFileHandler(abc.ABC):
             
             await ctx.file.seek(0)
             if not await ctx.file.read(1):
-                raise ValueError(localize("file_empty", language, "temp_file_manager"))
+                raise UploadError(localize("file_empty", language, "temp_file_manager"))
 
             # 1. Generate unique filename if needed
             unique_filename = self._get_unique_filename(ctx)
@@ -114,7 +115,7 @@ class BaseFileHandler(abc.ABC):
                 # we know why. Reporting success here rendered "indicators:
                 # none" over a working-looking upload (#68); the failure and
                 # its reason belong on the upload itself.
-                raise RuntimeError(f"could not read the document: {ctx.extraction_error}")
+                raise UploadError(f"could not read the document: {ctx.extraction_error}")
             if original_text and original_text.strip() and self.indicator_extractor:
                 self._start_background_indicator_extraction(
                     original_text=original_text,
@@ -184,7 +185,7 @@ class BaseFileHandler(abc.ABC):
             file_content = await ctx.file.read()
 
             if not file_content:
-                logger.warning(f"[BaseFileHandler] Empty file content: {ctx.message_id}")
+                logger.warning("upload is empty: message_id=%s", ctx.message_id)
                 return None, None
 
             content_hash = hashlib.sha256(file_content).hexdigest()
@@ -202,11 +203,9 @@ class BaseFileHandler(abc.ABC):
             return original_text, content_hash
 
         except Exception as e:
-            logger.error(
-                f"[BaseFileHandler] Failed to extract original text for {ctx.filename}: {e}",
-                exc_info=True
-            )
-            ctx.extraction_error = f"{type(e).__name__}: {e}"
+            logger.error("text extraction failed: message_id=%s error_type=%s", ctx.message_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            ctx.extraction_error = failure_reason(e)
             return None, None
 
     async def _abstract(self, ctx: FileProcessingContext, original_text: str | None, language: str) -> tuple[str, str]:
@@ -293,40 +292,37 @@ class BaseFileHandler(abc.ABC):
         return response
 
     async def _handle_error(self, ctx: FileProcessingContext, e: Exception, file_key: str | None = None) -> dict[str, Any]:
+        """The failed upload's answer, its reason included: "Image processing
+        failed" alone sent the reporter of #68 into the server logs for a
+        cause that was one sentence long ("no vision provider: set one of
+        these keys"). The reason is `failure_reason`'s, never a driver's or a
+        vendor's message."""
         language = request_language()
-        error_msg = str(e)
-        logger.error(f"File processing failed: {ctx.filename}, file_key: {file_key}, error: {error_msg}", exc_info=True)
+        reason = failure_reason(e)
+        logger.error("file processing failed: message_id=%s file_key=%s error_type=%s", ctx.message_id, file_key,
+                     type(e).__name__, exc_info=not is_driver_exception(e))
 
         if ctx.message_id:
             try:
                 await update_message_content(
                     message_id=ctx.message_id,
-                    content=f"❌ {localize('file_upload_failed', language, 'file_processor')}\n\n{localize('error', language, 'file_processor')}: {error_msg}",
-                    reasoning=f"Error occurred during file processing: {error_msg}",
+                    content=f"{localize('file_upload_failed', language, 'file_processor')}\n\n"
+                            f"{localize('error', language, 'file_processor')}: {reason}",
+                    reasoning=f"Error occurred during file processing: {reason}",
                 )
             except Exception as update_error:
-                logger.error(f"Failed to update message status: {str(update_error)}", stack_info=True)
+                logger.error("recording a failed upload on its message failed: message_id=%s error_type=%s",
+                             ctx.message_id, type(update_error).__name__,
+                             exc_info=not is_driver_exception(update_error))
 
         user_message = localize(f"{self.get_type_name()}_processing_failed", language, "file_processor")
-        if not user_message:
-             user_message = localize('file_upload_failed', language, 'file_processor')
-        # The reason travels with the message: "Image processing failed" alone
-        # sent the reporter of #68 into the server logs for a cause that was
-        # one sentence long ("no vision provider: set one of these keys").
-        if error_msg:
-            user_message = f"{user_message}: {error_msg}"
-
-        # Some specialized error handling for JSON parsing if needed
-        if "JSON parsing failed" in error_msg:
-             user_message = localize("json_parsing_failed", language, "file_processor") or "File processing failed: Invalid response format"
-
         return {
             "success": False,
-            "message": user_message,
+            "message": f"{user_message}: {reason}",
             "status": "error",
             "message_id": ctx.message_id,
             "filename": ctx.filename,
-            "error": error_msg,
+            "error": reason,
             "type": self.get_type_name(),
             "raw": f"Processing failed: {ctx.filename}",
             "file_key": file_key or "",  # Include file_key even on failure
@@ -371,10 +367,7 @@ class BaseFileHandler(abc.ABC):
         passes None: the agent asks about the date instead.
         """
         if not self._indicator_extraction_enabled():
-            logger.info(
-                f"⏭️  {self.get_type_name()} upload completed, indicator extraction "
-                f"skipped (ENABLE_INDICATOR_EXTRACTION=0): {file_key}"
-            )
+            logger.info("indicator extraction off (ENABLE_INDICATOR_EXTRACTION=0): file_key=%s", file_key)
             return
 
         # `spawn` holds the task: the handler is discarded once `process`
@@ -389,10 +382,7 @@ class BaseFileHandler(abc.ABC):
             ),
             name="indicator-extraction",
         )
-        logger.info(
-            f"{self.get_type_name()} upload completed, "
-            f"background indicator extraction started: {file_key}"
-        )
+        logger.info("indicator extraction started: file_key=%s", file_key)
 
     @staticmethod
     async def _push_upload_event(message_id: str | None, event: dict[str, Any]) -> None:
@@ -415,7 +405,8 @@ class BaseFileHandler(abc.ABC):
             payload = {**event, "messageId": message_id, "sessionId": session.get("session_id", "")}
             await manager.send_message_by_message_id(message_id, payload)
         except Exception as e:
-            logger.debug(f"upload event {event.get('type')} not delivered for {message_id}: {e}")
+            logger.debug("upload event not delivered: message_id=%s event=%s error_type=%s", message_id,
+                         event.get("type"), type(e).__name__)
 
     async def _async_extract_indicators(
         self,
@@ -526,7 +517,8 @@ class BaseFileHandler(abc.ABC):
             )
 
         except Exception as e:
-            logger.warning(f"Failed to save original text to th_files: {file_key}, error: {e}")
+            logger.warning("saving a file's text failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                           exc_info=not is_driver_exception(e))
 
     async def _update_file_indicators(
         self,
@@ -569,8 +561,7 @@ class BaseFileHandler(abc.ABC):
                 updates=updates,
             )
 
-            logger.info(f"Updated th_files indicators: {file_key}")
-
         except Exception as e:
-            logger.warning(f"Failed to update file indicators: {e}")
+            logger.warning("recording a file's readings failed: file_key=%s error_type=%s", file_key,
+                           type(e).__name__, exc_info=not is_driver_exception(e))
 
