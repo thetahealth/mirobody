@@ -41,6 +41,7 @@ from __future__ import annotations
 import csv
 import io
 from dataclasses import dataclass
+from datetime import datetime
 from importlib import resources
 
 from mirobody.kernel import metrics
@@ -207,10 +208,15 @@ def _instant_ms(item: dict, tz: str) -> int:
     `now()`: a synthetic time is indistinguishable from a measured one
     afterwards, and one of the platforms this reads from does exactly that.
     """
-    raw = item.get("timestamp") or item.get("recorded_at") or ""
+    raw = str(item.get("timestamp") or item.get("recorded_at") or "")
     offset = str(item.get("zone_offset") or "")
-    if isinstance(raw, str) and offset and len(raw) >= 19 and raw[-1] not in "Zz" and "+" not in raw[10:]:
-        raw = raw + offset
+    if offset and "T" in raw:
+        try:
+            naive = datetime.fromisoformat(raw.replace("Z", "+00:00")).tzinfo is None
+        except ValueError:
+            naive = False
+        if naive:
+            raw += offset
     return parse_ts_smart(raw, tz)
 
 

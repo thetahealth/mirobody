@@ -107,19 +107,20 @@ def canonical_type(data_type: str) -> str:
 
 
 def window_ms(data_type: str, item: dict, tz: str, pulled_at_ms: int) -> tuple[int, int]:
-    """The instant or span a record describes. Sleep, cycle and workout
-    carry start/end; a recovery is stamped when created; body measurements
-    have no time of their own and are filed at the pull instant."""
+    """The instant or span a record describes, ``(0, 0)`` when it carries
+    none. Sleep, cycle and workout carry start/end; a recovery is stamped when
+    created; body measurements have no time of their own, they state what
+    holds now, and are filed at the pull instant."""
     if data_type in ("sleep", "cycle", "workout"):
         start = parse_ts_smart(item.get("start"), tz)
         if not start and data_type == "sleep":
             start = parse_ts_smart(item.get("created_at"), tz)
         if not start:
-            start = pulled_at_ms
+            return 0, 0
         end = parse_ts_smart(item.get("end"), tz)
         return start, (end if end and end > start else start)
     if data_type == "recovery":
-        point = parse_ts_smart(item.get("created_at"), tz) or pulled_at_ms
+        point = parse_ts_smart(item.get("created_at"), tz)
         return point, point
     return pulled_at_ms, pulled_at_ms
 
