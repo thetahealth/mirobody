@@ -271,8 +271,12 @@ MODELS:
     timeout: 1800                 # a long report is minutes of writing on a local model, and a
     max_retries: 0                # retry starts it again from nothing (the SDK: 600 s, twice more)
     extra_body:
-      chat_template_kwargs:       # thinking off where the template has the switch (Qwen family)
-        enable_thinking: false
+      chat_template_kwargs:       # thinking off: both answering models' templates (their GGUFs'
+        enable_thinking: false    # tokenizer.chat_template) prefill an empty <think></think> when
+                                  # this is false. llama-server passes true otherwise: MiniCPM5-2B
+                                  # then reasoned 98 tokens before a one-word answer it gives in 2
+                                  # with the switch (llama.cpp 0.6.0, 2026-10-07), and Qwen3.8-27B's
+                                  # template opens <think> whenever it is not false.
 
   local-ocr:
     # GLM-OCR-0.9B (Q8_0 + its mmproj), `glm-ocr` in docker/local-models.ini.
