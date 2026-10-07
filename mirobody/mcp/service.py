@@ -8,7 +8,7 @@ from starlette.responses import Response
 from starlette.routing import Route
 
 
-from mirobody.utils.http import META_PROTOCOL_VERSION, loggable_path, request_origin
+from mirobody.utils.http import META_PROTOCOL_VERSION, request_origin
 
 from mirobody.utils import get_jwt_token, json_response, json_response_with_code, jsonrpc_result, jsonrpc_error
 
@@ -300,7 +300,6 @@ class McpService:
             logger.warning(
                 "MCP: malformed JSON-RPC body",
                 extra={
-                    "path": loggable_path(request.url.path),
                     "body_bytes": len(body),
                     "content_type": request.headers.get("content-type", ""),
                 },

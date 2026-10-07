@@ -576,7 +576,8 @@ class OAuthService:
                 
                 payload, err = self._token_validator.verify_token(refresh_token)
                 if err or not payload:
-                    logger.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
+                    logger.warning("refresh grant refused: client_id=%s token=%s reason=%s",
+                                   client_id, secret_fingerprint(refresh_token), err)
 
                     return json_response(
                         {
@@ -594,7 +595,8 @@ class OAuthService:
                         or payload.get("token_type") != REFRESH_TOKEN_TYPE
                         or payload.get("client_id") != client_id):
                     err = "Not a refresh token issued to this client."
-                    logger.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
+                    logger.warning("refresh grant refused: client_id=%s token=%s reason=%s",
+                                   client_id, secret_fingerprint(refresh_token), err)
 
                     return json_response(
                         {
@@ -623,7 +625,8 @@ class OAuthService:
                     gen_claims_func=lambda _uid, _em: {"aud": audience, **({"aal": aal} if aal else {})},
                 )
                 if err:
-                    logger.error(err, extra={"refresh_token": secret_fingerprint(refresh_token), "client_id": client_id})
+                    logger.error("refresh grant could not mint tokens: client_id=%s token=%s reason=%s",
+                                 client_id, secret_fingerprint(refresh_token), err)
 
                     return json_response(
                         {
@@ -694,7 +697,7 @@ class OAuthService:
         
         payload, err = self._token_validator.verify_token(token)
         if err:
-            logger.error(err, extra={"token": secret_fingerprint(token)})
+            logger.warning("introspection refused a token: token=%s reason=%s", secret_fingerprint(token), err)
             return json_response({"active": False}, request=request)
 
         from mirobody.user.user import is_active_account
