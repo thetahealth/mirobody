@@ -76,9 +76,11 @@ async def generate_summary(conversation_text: str, provider: str | None = None) 
             
     except Exception as e:
         logger.warning("summary generation failed: error_type=%s", type(e).__name__)
-
-        first_line = conversation_text.split('\n')[0]
-        return first_line[:50].replace("User:", " ").replace("Assistant:", " ") + "..." if len(first_line) > 50 else first_line
+        # The first line, without the "User: " label the transcript above put
+        # on it: the label used to be stripped only from a line long enough to
+        # be cut, so a short question's title read "User: my LDL?".
+        first_line = conversation_text.split("\n")[0].removeprefix("User:").removeprefix("Assistant:").strip()
+        return first_line[:50] + "..." if len(first_line) > 50 else first_line
 
 #-----------------------------------------------------------------------------
 
