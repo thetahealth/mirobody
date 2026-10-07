@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 import statistics
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -143,18 +143,28 @@ class Density:
     longest_gap_days: int
 
 
+def _missing_runs(have: set[date], lo: date, hi: date) -> Iterator[tuple[date, int]]:
+    """``(first missing day, length)`` of every run of days in ``lo..hi``
+    with no data, in order."""
+    run_start: date | None = None
+    d = lo
+    while d <= hi + timedelta(days=1):
+        missing = d <= hi and d not in have
+        if missing and run_start is None:
+            run_start = d
+        elif not missing and run_start is not None:
+            yield run_start, (d - run_start).days
+            run_start = None
+        d += timedelta(days=1)
+
+
 def density(days_with_data: Sequence[date], window: tuple[date, date]) -> Density:
     lo, hi = window
     if hi < lo:
         raise ValueError("window end precedes start")
     total = (hi - lo).days + 1
     have = {d for d in days_with_data if lo <= d <= hi}
-    longest = run = 0
-    d = lo
-    while d <= hi:
-        run = 0 if d in have else run + 1
-        longest = max(longest, run)
-        d += timedelta(days=1)
+    longest = max((length for _, length in _missing_runs(have, lo, hi)), default=0)
     return Density(total, len(have), round(len(have) / total, 4), longest)
 
 
@@ -164,29 +174,17 @@ def gaps(
     """Runs of missing days at least ``policy.gap_days`` long, as detections
     dated on the last missing day."""
     lo, hi = window
-    have = set(days_with_data)
-    out: list[Detection] = []
-    run_start: date | None = None
-    d = lo
-    while d <= hi + timedelta(days=1):
-        missing = d <= hi and d not in have
-        if missing and run_start is None:
-            run_start = d
-        elif not missing and run_start is not None:
-            length = (d - run_start).days
-            if length >= policy.gap_days:
-                out.append(
-                    Detection(
-                        indicator,
-                        KIND_GAP,
-                        SEVERITY_MILD,
-                        d - timedelta(days=1),
-                        {"gap_days": length, "gap_start": run_start.isoformat()},
-                    )
-                )
-            run_start = None
-        d += timedelta(days=1)
-    return tuple(out)
+    return tuple(
+        Detection(
+            indicator,
+            KIND_GAP,
+            SEVERITY_MILD,
+            run_start + timedelta(days=length - 1),
+            {"gap_days": length, "gap_start": run_start.isoformat()},
+        )
+        for run_start, length in _missing_runs(set(days_with_data), lo, hi)
+        if length >= policy.gap_days
+    )
 
 
 @dataclass(frozen=True)

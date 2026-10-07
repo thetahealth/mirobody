@@ -10,8 +10,9 @@ Three things every deployment re-learned on its own:
   expired;
 * a **backfill** is a bounded list of windows, never "everything since
   forever" in one request;
-* what a provider can do is a **set of capabilities**, some of which exclude
-  each other, checked once at registration instead of at every call site.
+* what a provider can do is a **set of capabilities**, some of which presume
+  another (``backfill`` needs ``pull``), checked once at registration
+  instead of at every call site.
 
 Pure; stdlib only. The IO (OAuth dances, HTTP, token storage) stays with
 whoever runs it.
@@ -128,7 +129,7 @@ CAPABILITIES = frozenset(
     {CAP_PULL, CAP_WEBHOOK, CAP_BACKFILL, CAP_INTRADAY, CAP_MULTI_ACCOUNT, CAP_MEDICATIONS, CAP_DOCUMENTS}
 )
 
-#: Pairs that make no sense together; checked at registration.
+#: Pairs that make no sense together, checked at registration; none so far.
 EXCLUSIVE: tuple[tuple[str, str], ...] = ()
 #: A capability that presumes another.
 REQUIRES: dict[str, str] = {CAP_BACKFILL: CAP_PULL}

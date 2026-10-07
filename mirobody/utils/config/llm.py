@@ -4,8 +4,9 @@ Nothing in this module names a model. `config.llm.yaml` does: `MODELS` is a
 table of entries (alias → llm_type / api_key NAME / base_url / model /
 capabilities; "providers" in this project are devices), and three keys say
 which entry each utility surface uses: `UTILS_VISION_MODEL` (report photos,
-scanned pages) and `UTILS_TEXT_MODEL` (indicator extraction from text, titles,
-summaries).
+scanned pages), `UTILS_TEXT_MODEL` (indicator extraction from text, titles,
+summaries) and the optional `UTILS_OCR_MODEL` (a document reader that takes
+photos and pages over from the vision entry).
 A value is an entry name, a list of them (the FIRST whose key is present wins,
 that is how one key runs everything), a `provider/model` string, or an inline
 spec shaped like an entry. The chat picker is the `MODELS` table itself,
@@ -559,6 +560,20 @@ def chat_default(lookup: Lookup | None = None) -> str | None:
         if entry_ready(entry, lookup):
             return name
     return None
+
+
+def default_model(lookup: Lookup | None = None) -> str:
+    """The chat entry a turn uses when the request names none: `DEFAULT_MODEL`
+    when it names a chat entry `entry_ready` admits, else `chat_default`; ""
+    when none is ready. The one answer for the agent, `/api/models` and
+    `mirobody doctor`: the agent read `DEFAULT_MODEL` while the picker and the
+    doctor read `chat_default()`, so `DEFAULT_MODEL=local` chatted with
+    `local` and reported another entry."""
+    configured = _read("DEFAULT_MODEL", lookup)
+    entries = chat_entries(lookup)
+    if configured in entries and entry_ready(entries[configured], lookup):
+        return configured
+    return chat_default(lookup) or ""
 
 
 def keys_present() -> list[str]:

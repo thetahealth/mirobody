@@ -823,8 +823,8 @@ def build_llm_clients(
             logger.error("[%s] model %s failed: error_type=%s", class_name, model, type(exc).__name__,
                          exc_info=not is_driver_exception(exc))
             failed.append((model, type(exc).__name__))
-    for model, reason in failed:
-        logger.warning("[%s] model %s skipped: %s", class_name, model, reason)
+    for model, error_type in failed:
+        logger.warning("[%s] model %s skipped: error_type=%s", class_name, model, error_type)
     logger.info(
         "[%s] models loaded: loaded_count=%d total_count=%d placeholder_count=%d",
         class_name, len(clients), len(llm_client_config), placeholder_count,

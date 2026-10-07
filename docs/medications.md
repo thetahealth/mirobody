@@ -1,7 +1,7 @@
 # Medications
 
 > **Status: provisional.** The vocabulary, the arithmetic and the reference
-> storage are here and pinned by 74 golden tests. The reference application is
+> storage are here and pinned by 77 golden tests. The reference application is
 > the first consumer; a second production consumer will find things to move,
 > and the shapes below may change in a minor release until one exists. Nothing
 > derived is stored, so a change here is a change to code, not a migration.
@@ -185,10 +185,10 @@ two different doses, and a re-projection after a zone change would churn every
 row.
 
 **Daylight saving.** A slot at 02:30 on a spring-forward day has no instant.
-`gap="shift_forward"` moves it to the first instant that exists;
-`gap="skip"` leaves `utc_ms=None` and `slot_state` answers `unschedulable`.
-Neither is a default — the caller says which, because a blood-pressure tablet
-and a contraceptive want different answers.
+`gap="shift_forward"`, the default, moves it forward by the length of the gap
+(to 03:30 when the clocks jump an hour); `gap="skip"` leaves `utc_ms=None` and
+`slot_state` answers `unschedulable`. The caller can choose, because a
+blood-pressure tablet and a contraceptive want different answers.
 
 ---
 

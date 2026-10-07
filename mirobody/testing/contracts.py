@@ -10,7 +10,7 @@ keeps its promises. Pure; stdlib only.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Hashable, Mapping, Sequence
+from collections.abc import Callable, Hashable, Mapping
 
 from mirobody.kernel.sink import Sink
 
@@ -79,7 +79,3 @@ def check_dispositions_are_closed(sink: Sink, row: Mapping[str, object]) -> list
 
 
 __all__ = ["check_dispositions_are_closed", "check_sink"]
-
-
-def _unused(_: Sequence[object]) -> None:  # keeps Sequence imported for type hints in consumers
-    return None

@@ -2,8 +2,7 @@
 
 This package is consumed by two very different installs: the ``[app]`` server,
 which uses everything here, and the ``[agent]`` library extra, or a consumer
-that wants only ``utils.sse`` / ``utils.net`` / ``utils.llm_output`` /
-``utils.prompts``. A package ``__init__`` that eagerly imported the config
+that wants only ``utils.sse`` / ``utils.llm_output`` / ``utils.prompts``. A package ``__init__`` that eagerly imported the config
 loader, the HTTP helpers and the database module would make ``import
 mirobody.utils.sse`` require ``ruamel.yaml``, ``starlette`` and a database
 driver. So the names this package re-exports are resolved lazily (PEP 562):
@@ -25,7 +24,6 @@ _EXPORTS = {
     "secret_fingerprint": ".log",
     "init_log_console": ".log",
     "init_log_file": ".log",
-    "init_log_tqdm": ".log",
     "init_log": ".log",
     "request_origin": ".http",
     "get_client_ip": ".http",
@@ -75,5 +73,5 @@ if TYPE_CHECKING:  # the same names, visible to type checkers and IDEs
         redirect,
         request_origin,
     )
-    from .log import JsonFormatter, init_log, init_log_console, init_log_file, init_log_tqdm, secret_fingerprint
+    from .log import JsonFormatter, init_log, init_log_console, init_log_file, secret_fingerprint
     from .req_ctx import get_req_ctx, update_req_ctx

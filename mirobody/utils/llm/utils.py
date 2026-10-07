@@ -45,7 +45,7 @@ def _route(provider: str | None, model_name: str | None, surface: str) -> RouteS
     spec = resolve_route(surface)
     if spec is None:
         reason = no_provider_message(surface)
-        logger.error(reason)
+        logger.error(reason)  # phi: ok a configuration sentence naming keys, never their values
     return spec
 
 

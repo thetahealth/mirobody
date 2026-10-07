@@ -38,13 +38,13 @@ import re
 import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, tzinfo
 from importlib import resources
-from typing import Literal, Protocol
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from typing import Literal, NamedTuple, Protocol
 
 from mirobody import units
-from .series import day_bounds_ms, stable_hash
+from . import query
+from .series import day_bounds_ms, stable_hash, zone
 
 MS = 1000
 
@@ -390,7 +390,9 @@ def weekday_from(value: int | str, convention: Literal["iso", "zero_monday", "ze
 
 @dataclass(frozen=True)
 class ScheduleParts:
-    """A description of a schedule with no words in it: labels render it."""
+    """A description of a schedule with no words in it: labels render it.
+    ``doses_per_day`` counts the doses on each day the schedule is due (0 for
+    as-needed and unscheduled), whichever way the instruction stores them."""
 
     kind: str
     times: tuple[str, ...]
@@ -401,10 +403,13 @@ class ScheduleParts:
 
 
 def describe_schedule(instruction: DoseInstruction) -> ScheduleParts:
+    kind = instruction.schedule_kind()
     return ScheduleParts(
-        kind=instruction.schedule_kind(),
+        kind=kind,
         times=instruction.times,
-        doses_per_day=instruction.doses_per_day or len(instruction.times),
+        # Counted from the slots: once daily is stored as `period_days=1` with
+        # no count, and the stored fields alone read "0x/day".
+        doses_per_day=0 if kind in (KIND_PRN, KIND_UNSCHEDULED) else len(instruction.slots()),
         period_days=instruction.period_days,
         weekdays=tuple(sorted(instruction.weekdays)),
         as_needed=instruction.as_needed,
@@ -564,21 +569,40 @@ def parse_dose_instruction(text: str | None) -> Schedule | None:
     if not recognised:
         return None
     try:
-        if as_needed:
-            instr = DoseInstruction(dose=dose, as_needed=True, text=raw)
-        elif weekdays:
-            instr = DoseInstruction(dose=dose, weekdays=frozenset(weekdays), times=times, text=raw)
-        elif times:
-            instr = DoseInstruction(
-                dose=dose, times=times, period_days=period_days if (period_days or 1) > 1 else None, text=raw
-            )
-        elif doses_per_day > 1:
-            instr = DoseInstruction(dose=dose, doses_per_day=doses_per_day, text=raw)
-        else:
-            instr = DoseInstruction(dose=dose, period_days=period_days, text=raw)
+        instr = _instruction(dose=dose, times=times, doses_per_day=doses_per_day, period_days=period_days,
+                             weekdays=frozenset(weekdays), as_needed=as_needed, text=raw)
     except ValueError:
         return None
     return (instr,)
+
+
+def _instruction(
+    *,
+    dose: Dose | None,
+    times: tuple[str, ...],
+    doses_per_day: int,
+    period_days: int | None,
+    weekdays: frozenset[int],
+    as_needed: bool,
+    text: str,
+    max_dose_per_day: Dose | None = None,
+) -> DoseInstruction:
+    """The one timing shape `DoseInstruction` allows, chosen from fields read
+    out of a sig or a FHIR dosage, most specific first: as needed, weekdays,
+    clock times, a count per day, a period. Raises ``ValueError`` when the
+    fields still contradict each other."""
+    if as_needed:
+        return DoseInstruction(dose=dose, as_needed=True, max_dose_per_day=max_dose_per_day, text=text)
+    if weekdays:
+        return DoseInstruction(dose=dose, weekdays=weekdays, times=times, text=text)
+    if times:
+        # A period of one day is every day: fixed times, not an interval.
+        return DoseInstruction(
+            dose=dose, times=times, period_days=period_days if (period_days or 1) > 1 else None, text=text
+        )
+    if doses_per_day > 1:
+        return DoseInstruction(dose=dose, doses_per_day=doses_per_day, text=text)
+    return DoseInstruction(dose=dose, period_days=period_days, text=text)
 
 
 # --- plans, prescriptions, courses ------------------------------------------------
@@ -636,6 +660,16 @@ class MedicationPlan:
         object.__setattr__(self, "schedule", tuple(self.schedule))
         if not self.schedule:
             raise ValueError("a plan needs at least one instruction (an empty DoseInstruction() is fine)")
+
+    @property
+    def last_day(self) -> date | None:
+        """The last day the plan was in effect: the earlier of its end and the
+        day it was stopped; ``None`` while it is open-ended. A plan can be
+        stopped after its end date (the stored status stays ``active`` past
+        it), and five call sites read ``stopped_on or end``, the later one."""
+        if self.stopped_on is None or self.end is None:
+            return self.stopped_on or self.end
+        return min(self.stopped_on, self.end)
 
 
 def effective_status(plan: MedicationPlan, today: date) -> str:
@@ -696,7 +730,7 @@ def plan_status_transition(
     if event == "resume":
         if plan.status != PLAN_STOPPED:
             raise ValueError(f"cannot resume a plan that is {plan.status}")
-        closed = Course(plan.plan_id, plan.order_id, plan.start, plan.stopped_on or plan.end, "stopped")
+        closed = Course(plan.plan_id, plan.order_id, plan.start, plan.last_day, "stopped")
         return replace(plan, status=PLAN_ACTIVE, stopped_on=None, start=today, end=None), closed
     raise ValueError(f"unknown plan event {event!r}")
 
@@ -758,7 +792,7 @@ def courses(plan: MedicationPlan, *, today: date) -> tuple[Course, ...]:
     if eff in (EFFECTIVE_ENTERED_IN_ERROR, EFFECTIVE_INTENDED):
         return ()
     if eff == EFFECTIVE_STOPPED:
-        return (Course(plan.plan_id, plan.order_id, plan.start, plan.stopped_on or plan.end, "stopped"),)
+        return (Course(plan.plan_id, plan.order_id, plan.start, plan.last_day, "stopped"),)
     if eff == EFFECTIVE_COMPLETED:
         return (Course(plan.plan_id, plan.order_id, plan.start, plan.end, "completed"),)
     return (Course(plan.plan_id, plan.order_id, plan.start, None, None),)
@@ -770,11 +804,10 @@ GAP_SHIFT_FORWARD = "shift_forward"  # a 02:30 that does not exist becomes 03:30
 GAP_SKIP = "skip"  # ...or the slot has no instant that day
 
 
-def _zone(tz: str) -> ZoneInfo:
-    try:
-        return ZoneInfo(tz)
-    except (ZoneInfoNotFoundError, ValueError) as e:
-        raise ValueError(f"unknown time zone {tz!r}") from e
+def _zone(tz: str) -> tzinfo:
+    """The subject's zone, strictly: a dose placed in UTC because its zone
+    was unreadable is a dose on the wrong day."""
+    return zone(tz, strict=True)
 
 
 def slot_instant(d: date, slot: str, tz: str, *, gap: str = GAP_SHIFT_FORWARD) -> int | None:
@@ -797,10 +830,19 @@ def slot_instant(d: date, slot: str, tz: str, *, gap: str = GAP_SHIFT_FORWARD) -
     return ms
 
 
+class SlotKey(NamedTuple):
+    """A slot's identity. A plain ``(plan_id, local_date, slot)`` tuple is
+    equal to it and hashes the same, so a store may pass either."""
+
+    plan_id: str
+    local_date: date
+    slot: str
+
+
 @dataclass(frozen=True)
 class DoseSlot:
-    """One planned intake. Identity is ``key`` (``(plan_id, local_date,
-    slot)``) never the instant. ``utc_ms`` is derived at projection time
+    """One planned intake. Identity is ``key`` (a :class:`SlotKey`), never
+    the instant. ``utc_ms`` is derived at projection time
     (``None`` for a skipped daylight-saving gap) and is what reminders and
     :func:`slot_state` use."""
 
@@ -826,8 +868,8 @@ class DoseSlot:
         return cls(plan_id, local_date, slot, tz, dose, slot_instant(local_date, slot, tz, gap=gap))
 
     @property
-    def key(self) -> tuple[str, date, str]:
-        return (self.plan_id, self.local_date, self.slot)
+    def key(self) -> SlotKey:
+        return SlotKey(self.plan_id, self.local_date, self.slot)
 
 
 def _due_on(instruction: DoseInstruction, plan_start: date, d: date) -> bool:
@@ -843,13 +885,20 @@ def _due_on(instruction: DoseInstruction, plan_start: date, d: date) -> bool:
 
 def _slot_names(schedule: Schedule) -> tuple[tuple[DoseInstruction, str], ...]:
     """Every (instruction, slot) of one due day; a slot name shared by two
-    instructions gets ``#i`` so the two doses keep separate identities."""
+    instructions gets ``#i`` so the two doses keep separate identities. An
+    as-needed or unscheduled instruction has no slot: counted, its ``day``
+    renamed a once-daily ``day`` to ``day#0``, and adding an as-needed dose
+    to a plan moved every key of its daily one."""
+    scheduled = [
+        (i, instr) for i, instr in enumerate(schedule)
+        if instr.schedule_kind() not in (KIND_PRN, KIND_UNSCHEDULED)
+    ]
     counts: dict[str, int] = {}
-    for instr in schedule:
+    for _, instr in scheduled:
         for s in instr.slots():
             counts[s] = counts.get(s, 0) + 1
     out: list[tuple[DoseInstruction, str]] = []
-    for i, instr in enumerate(schedule):
+    for i, instr in scheduled:
         for s in instr.slots():
             out.append((instr, f"{s}#{i}" if counts[s] > 1 else s))
     return tuple(out)
@@ -873,15 +922,13 @@ def project_schedule(
     if plan.status == PLAN_ENTERED_IN_ERROR:
         return ()
     first = max(start, plan.start)
-    last = end if plan.end is None else min(end, plan.end)
-    if plan.stopped_on is not None:
-        last = min(last, plan.stopped_on)
+    last = end if plan.last_day is None else min(end, plan.last_day)
     names = _slot_names(plan.schedule)
     out: list[DoseSlot] = []
     d = first
     while d <= last:
         for instr, slot in names:
-            if instr.schedule_kind() in (KIND_PRN, KIND_UNSCHEDULED) or not _due_on(instr, plan.start, d):
+            if not _due_on(instr, plan.start, d):
                 continue
             out.append(DoseSlot(plan.plan_id, d, slot, tz, instr.dose, slot_instant(d, slot, tz, gap=gap)))
         d += timedelta(days=1)
@@ -898,8 +945,14 @@ def diff_projection(
     dated on or after the subject's current local day."""
     have = {d.key: d for d in existing}
     want = {d.key: d for d in projected}
-    to_add = tuple(want[k] for k in sorted(want.keys() - have.keys(), key=lambda k: (k[1], k[2])))
-    to_remove = tuple(have[k] for k in sorted(have.keys() - want.keys(), key=lambda k: (k[1], k[2])))
+
+    def order(k: SlotKey) -> tuple[date, str, str]:
+        # The plan id breaks ties: without it two plans' 08:00 came out in
+        # set order, which the string hash seed changes from run to run.
+        return (k.local_date, k.slot, k.plan_id)
+
+    to_add = tuple(want[k] for k in sorted(want.keys() - have.keys(), key=order))
+    to_remove = tuple(have[k] for k in sorted(have.keys() - want.keys(), key=order))
     return to_add, to_remove
 
 
@@ -931,7 +984,7 @@ class DoseEvent:
     status: str
     taken_at_ms: int
     tz: str
-    slot_key: tuple[str, date, str] | None = None
+    slot_key: SlotKey | None = None
     dose: Dose | None = None
     recorded_by: str = "user"  # user | caregiver | device | import
     reason: str = field(default="", repr=False)
@@ -940,9 +993,24 @@ class DoseEvent:
         if self.status not in STORED_EVENT_STATUSES:
             raise ValueError(f"a stored dose event is {sorted(STORED_EVENT_STATUSES)}, never a derived state")
         if self.slot_key is not None:
-            if self.slot_key[0] != self.plan_id:
+            plan_id, local_date, slot = self.slot_key
+            if plan_id != self.plan_id:
                 raise ValueError("slot_key belongs to another plan")
-            object.__setattr__(self, "slot_key", (self.slot_key[0], self.slot_key[1], normalize_slot(self.slot_key[2])))
+            object.__setattr__(self, "slot_key", SlotKey(plan_id, local_date, normalize_slot(slot)))
+
+
+def _answers(events: Iterable[DoseEvent]) -> dict[SlotKey, DoseEvent]:
+    """The event that answers each slot: the latest by ``taken_at_ms``,
+    whatever order the store returns (the reference store's is newest first,
+    and the plan view used to keep the last one it saw, the oldest)."""
+    answered: dict[SlotKey, DoseEvent] = {}
+    for e in events:
+        if e.slot_key is None:
+            continue
+        prev = answered.get(e.slot_key)
+        if prev is None or e.taken_at_ms > prev.taken_at_ms:
+            answered[e.slot_key] = e
+    return answered
 
 
 def _deadline_ms(slot: DoseSlot, due_ms: int, grace: str | int) -> int:
@@ -1011,15 +1079,11 @@ def adherence(
     zone = _zone(tz)
     slots = [d for d in scheduled if d.plan_id == plan.plan_id and lo <= d.local_date <= hi]
     by_key = {d.key: d for d in slots}
-    answered: dict[tuple[str, date, str], DoseEvent] = {}
+    mine = [e for e in events if e.plan_id == plan.plan_id]
+    answered = _answers(e for e in mine if e.slot_key in by_key)
     extra = extra_skipped = 0
-    for e in events:
-        if e.plan_id != plan.plan_id:
-            continue
+    for e in mine:
         if e.slot_key is not None and e.slot_key in by_key:
-            prev = answered.get(e.slot_key)
-            if prev is None or e.taken_at_ms > prev.taken_at_ms:
-                answered[e.slot_key] = e
             continue
         if lo <= datetime.fromtimestamp(e.taken_at_ms / MS, zone).date() <= hi:
             if e.status == EVENT_TAKEN:
@@ -1307,17 +1371,8 @@ def _instruction_from_fhir_dosage(d: Mapping) -> DoseInstruction:
         if parsed is not None:
             return replace(parsed[0], text=text)
     try:
-        if as_needed:
-            return DoseInstruction(dose=dose, as_needed=True, max_dose_per_day=max_per_day, text=text)
-        if weekdays:
-            return DoseInstruction(dose=dose, weekdays=weekdays, times=times, text=text)
-        if times:
-            return DoseInstruction(
-                dose=dose, times=times, period_days=period_days if (period_days or 1) > 1 else None, text=text
-            )
-        if doses_per_day > 1:
-            return DoseInstruction(dose=dose, doses_per_day=doses_per_day, text=text)
-        return DoseInstruction(dose=dose, period_days=period_days, text=text)
+        return _instruction(dose=dose, times=times, doses_per_day=doses_per_day, period_days=period_days,
+                            weekdays=weekdays, as_needed=as_needed, text=text, max_dose_per_day=max_per_day)
     except ValueError:
         return DoseInstruction(dose=dose, text=text)
 
@@ -1480,8 +1535,9 @@ VIEW_PLAN = "plan"
 VIEW_LOG = "log"
 VIEW_HISTORY = "history"
 VIEWS = (VIEW_PLAN, VIEW_LOG, VIEW_HISTORY)
-#: Rows one answer may carry; the newest come first. A medication list is
-#: short by nature, a dose log is bounded by its window.
+#: Rows one answer may carry, after each view's own order: the dose log and the
+#: history newest first, the plan view active plans first, earliest start first.
+#: A medication list is short by nature, a dose log is bounded by its window.
 MAX_ROWS = 200
 #: The dose log's window when the caller names no dates.
 LOG_DEFAULT_DAYS = 30
@@ -1529,15 +1585,11 @@ class MedicationsRequest:
     end: str = ""
 
 
-def validate_query(args: Mapping[str, object]) -> tuple:
-    """Everything wrong with the raw arguments (``query.Rejection`` rows);
-    empty means :func:`parse_query` will succeed."""
-    from . import query
-
+def validate_query(args: Mapping[str, object]) -> tuple[query.Rejection, ...]:
+    """Everything wrong with the raw arguments; empty means
+    :func:`parse_query` will succeed."""
     out = query.reject_unknown(args, TOOL_SCHEMA)
-    view = args.get("view")
-    if view not in (None, "") and view not in VIEWS:
-        out.append(query.Rejection("view", f"must be one of {', '.join(VIEWS)}"))
+    out.extend(query.reject_view(args, VIEWS))
     out.extend(query.reject_dates(args))
     return tuple(out)
 
@@ -1545,8 +1597,6 @@ def validate_query(args: Mapping[str, object]) -> tuple:
 def parse_query(args: Mapping[str, object]) -> MedicationsRequest:
     """Raw arguments → a :class:`MedicationsRequest`; ``ValueError`` when
     :func:`validate_query` finds anything."""
-    from . import query
-
     problems = validate_query(args)
     if problems:
         raise ValueError("; ".join(f"{r.parameter}: {r.reason}" for r in problems))
@@ -1589,18 +1639,19 @@ def schedule_text(schedule: Schedule) -> str:
     for instr in schedule:
         d = describe_schedule(instr)
         dose = f"{instr.dose.value:g} {instr.dose.unit}" if instr.dose else ""
-        if d.kind == KIND_FIXED_TIMES:
-            when = "/".join(d.times)
-        elif d.kind == KIND_DAILY:
-            when = f"{d.doses_per_day}x/day"
-        elif d.kind == KIND_WEEKLY:
-            when = "wd" + ",".join(str(w) for w in d.weekdays)
-        elif d.kind == KIND_INTERVAL:
-            when = f"every {d.period_days}d"
-        elif d.kind == KIND_PRN:
+        if d.kind == KIND_PRN:
             when = "as needed"
-        else:
+        elif d.kind == KIND_UNSCHEDULED:
             when = "unscheduled"
+        else:
+            # What a due day holds, then which days are due: a weekly or
+            # interval plan's clock times were dropped.
+            days = {
+                KIND_WEEKLY: "wd" + ",".join(str(w) for w in d.weekdays),
+                KIND_INTERVAL: f"every {d.period_days}d",
+            }.get(d.kind, "")
+            per_day = "/".join(d.times) if d.times else f"{d.doses_per_day}x" + ("" if days else "/day")
+            when = " ".join(x for x in (per_day, days) if x)
         parts.append(" ".join(x for x in (dose, when) if x))
     return "; ".join(parts)
 
@@ -1623,18 +1674,14 @@ def plan_rows(
     ``limit`` rows, as in each view: a caller that asks for one more than it
     shows can tell a cut answer from a complete one."""
     out: list[dict] = []
-    by_plan: dict[str, dict[tuple, DoseEvent]] = {}
-    for e in todays_events:
-        if e.slot_key:
-            by_plan.setdefault(e.plan_id, {})[e.slot_key] = e
+    answered = _answers(todays_events)
     for plan in plans:
         if plan.status == PLAN_ENTERED_IN_ERROR or not matches(plan.concept, keywords):
             continue
-        if not _overlaps(plan.start, plan.stopped_on or plan.end, window):
+        if not _overlaps(plan.start, plan.last_day, window):
             continue
         status = effective_status(plan, today)
         slots = project_schedule(plan, start=today, end=today, tz=tz) if status == EFFECTIVE_ACTIVE else ()
-        answered = by_plan.get(plan.plan_id, {})
         out.append(
             {
                 "medication": plan.concept.text,
@@ -1642,7 +1689,7 @@ def plan_rows(
                 "schedule": schedule_text(plan.schedule),
                 "today": ", ".join(f"{s.slot}={slot_state(s, answered.get(s.key), now_ms=now_ms)}" for s in slots),
                 "since": plan.start.isoformat(),
-                "until": (plan.stopped_on or plan.end).isoformat() if (plan.stopped_on or plan.end) else "",
+                "until": plan.last_day.isoformat() if plan.last_day else "",
                 "source": plan.source,
                 "plan_id": plan.plan_id,
                 "provenance": "measured" if plan.confirmed else "computed",
@@ -1672,7 +1719,7 @@ def log_rows(
                 "time": at.strftime("%H:%M"),
                 "medication": plan.concept.text if plan else "",
                 "status": e.status,
-                "slot": e.slot_key[2] if e.slot_key else "",
+                "slot": e.slot_key.slot if e.slot_key else "",
                 "dose": f"{e.dose.value:g} {e.dose.unit}" if e.dose else "",
                 "recorded_by": e.recorded_by,
                 "plan_id": e.plan_id,
@@ -1759,6 +1806,7 @@ __all__ = [
     "Reconcile",
     "Schedule",
     "ScheduleParts",
+    "SlotKey",
     "Terminology",
     "adherence",
     "courses",

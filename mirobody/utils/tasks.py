@@ -11,8 +11,8 @@ preference. The CPython docs are explicit:
 
 This repo had 15 such call sites, and they run the work a user would most
 notice losing: file processing after upload, OAuth callback token exchange,
-vendor data pulls, embedding updates. A collected task fails silently, no
-exception, no log, just a job that never happened.
+vendor data pulls. A collected task fails silently, no exception, no log,
+just a job that never happened.
 
 The same docs note the second half of the problem: nobody awaits these, so a
 failure surfaces only as "Task exception was never retrieved" at GC time, if at
@@ -29,6 +29,8 @@ import logging
 from typing import Any
 from collections.abc import Coroutine
 
+from mirobody.kernel.ops import is_driver_exception
+
 logger = logging.getLogger(__name__)
 
 # Strong references, per the documented pattern. Tasks remove themselves on
@@ -42,9 +44,8 @@ def _log_result(task: asyncio.Task) -> None:
         return
     exc = task.exception()
     if exc is not None:
-        logger.error(
-            "background task %r failed: %s", task.get_name(), exc, exc_info=exc,
-        )
+        logger.error("background task failed: task=%s error_type=%s",  # phi: ok a label the code chose
+                     task.get_name(), type(exc).__name__, exc_info=None if is_driver_exception(exc) else exc)
 
 
 def spawn(coro: Coroutine[Any, Any, Any], *, name: str | None = None) -> asyncio.Task:
@@ -59,8 +60,3 @@ def spawn(coro: Coroutine[Any, Any, Any], *, name: str | None = None) -> asyncio
     _BACKGROUND_TASKS.add(task)
     task.add_done_callback(_log_result)
     return task
-
-
-def pending_count() -> int:
-    """How many spawned tasks are still running. For diagnostics and tests."""
-    return len(_BACKGROUND_TASKS)

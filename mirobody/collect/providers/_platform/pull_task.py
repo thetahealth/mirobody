@@ -21,16 +21,6 @@ PROVIDER_EXECUTION_INTERVALS = {
     "default": 1.0,  # Default: execute once every 1 hour
 }
 
-# Provider lock duration configuration (hours)
-PROVIDER_LOCK_DURATIONS = {
-    "theta_renpho": 23.5,  # Renpho: lock for 23.5 hours
-    "theta_vital": 5.5,  # Vital: lock for 5.5 hours
-    "theta_cgm": 0.5,  # CGM: lock for 0.5 hours
-    "theta_whoop": 23.5,  # Whoop: lock for 23.5 hours
-    "theta_oura": 4 / 60,  # Oura: lock for 4 min (< 5 min interval)
-    "default": 0.5,  # Default: lock for 0.5 hours
-}
-
 
 class ProviderPullTask(PullTask):
     """
@@ -39,8 +29,6 @@ class ProviderPullTask(PullTask):
     Create corresponding pull task for each provider, supporting:
     - Configurable execution intervals (different frequencies for different providers)
     - Distributed locks (prevent duplicate execution in multi-docker instances)
-    - Force execution mode
-    - Detailed status monitoring
     """
 
     def __init__(
@@ -48,7 +36,6 @@ class ProviderPullTask(PullTask):
         provider: BasePullProvider,
         schedule_type: ScheduleType = ScheduleType.HOURLY,
         custom_execution_interval: float | None = None,
-        custom_lock_duration: float | None = None,
     ):
         """
         Initialize Pull Task
@@ -57,35 +44,27 @@ class ProviderPullTask(PullTask):
             provider: provider instance
             schedule_type: Schedule type, defaults to hourly scheduling
             custom_execution_interval: Custom execution interval (hours), overrides default configuration
-            custom_lock_duration: Custom lock duration (hours), overrides default configuration
         """
         self.provider = provider
 
         # Get provider execution interval configuration
         execution_interval = custom_execution_interval or self._get_execution_interval()
-        lock_duration = custom_lock_duration or self._get_lock_duration()
 
         super().__init__(
             provider_slug=provider.info.slug,
             schedule_type=schedule_type,
             execution_interval_hours=execution_interval,
-            lock_duration_hours=lock_duration,
         )
 
         logger.info(
             f"Initialized pull task for {self.provider_slug}: "
             f"execution_interval={execution_interval:.2f}h, "
-            f"lock_duration={lock_duration:.2f}h, "
             f"schedule_type={schedule_type.value}"
         )
 
     def _get_execution_interval(self) -> float:
         """Get provider execution interval configuration"""
         return PROVIDER_EXECUTION_INTERVALS.get(self.provider.info.slug, PROVIDER_EXECUTION_INTERVALS["default"])
-
-    def _get_lock_duration(self) -> float:
-        """Get provider lock duration configuration"""
-        return PROVIDER_LOCK_DURATIONS.get(self.provider.info.slug, PROVIDER_LOCK_DURATIONS["default"])
 
     async def execute(self) -> bool:
         """
@@ -120,10 +99,8 @@ class ProviderPullTask(PullTask):
             "provider_slug": self.provider_slug,
             "provider_name": getattr(self.provider.info, "name", "Unknown"),
             "execution_interval_hours": self.execution_interval_hours,
-            "lock_duration_hours": self.lock_duration_hours,
             "schedule_type": self.schedule_type.value,
             "configured_interval": PROVIDER_EXECUTION_INTERVALS.get(self.provider_slug, "default"),
-            "configured_lock_duration": PROVIDER_LOCK_DURATIONS.get(self.provider_slug, "default"),
         }
 
 
@@ -131,7 +108,6 @@ def create_pull_task_for_provider(
     provider: BasePullProvider,
     schedule_type: ScheduleType = ScheduleType.HOURLY,
     custom_execution_interval: float | None = None,
-    custom_lock_duration: float | None = None,
 ) -> ProviderPullTask:
     """
     Create Pull Task for provider
@@ -140,7 +116,6 @@ def create_pull_task_for_provider(
         provider: Provider instance
         schedule_type: Schedule type
         custom_execution_interval: Custom execution interval (hours)
-        custom_lock_duration: Custom lock duration (hours)
 
     Returns:
         Configured Pull Task instance
@@ -149,7 +124,6 @@ def create_pull_task_for_provider(
         provider=provider,
         schedule_type=schedule_type,
         custom_execution_interval=custom_execution_interval,
-        custom_lock_duration=custom_lock_duration,
     )
 
     return task

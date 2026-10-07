@@ -182,9 +182,9 @@ agent = [
     "psycopg-pool>=3.2",
     "jinja2",
     # `utils/config` — the client factory, the checkpointer and the registry
-    # read configuration through it; `config/llm.py` imports aiohttp at module
-    # level. `mirobody.utils` itself resolves its re-exports lazily, so
-    # importing one helper (`utils.sse`, `utils.net`, …) pulls none of this.
+    # read configuration through it. `mirobody.utils` itself resolves its
+    # re-exports lazily, so importing one helper (`utils.sse`, `utils.prompts`,
+    # …) pulls none of this.
     "ruamel.yaml",
     "python-dotenv",
     "cryptography",

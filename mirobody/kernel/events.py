@@ -32,7 +32,8 @@ The variants, and why each exists:
 THE SINGLE-TERMINAL-OUTCOME INVARIANT: exactly one of ``Completed``,
 ``Interrupted``, ``Failed``, and nothing after it. :func:`is_terminal` and
 :func:`enforce_single_terminal_outcome` are the shared enforcement, proven
-here against synthetic sequences; the runtime wraps its own output with it.
+here against synthetic sequences, for a runtime to wrap its own output
+with; the reference agent in this repository does not use them yet.
 
 These definitions are meant to be taken verbatim by a consumer's agent
 runtime; a consumer's ``AgentRequest`` (a wire contract) deliberately is not

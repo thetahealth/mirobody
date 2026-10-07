@@ -19,9 +19,9 @@ else, and the reader sees the order.
 So one requested filename fans out to as many as four candidates, order
 matters (later wins), and duplicates must not be loaded twice. That expansion
 is pure (filenames and an env name in, an ordered list out) but it used to
-live inside `Config.init`, an async staticmethod that also configures logging
-and fetches remote config over the network. 100 of that method's 170 lines
-were this, and none of it could be exercised without the other two thirds.
+live inside `Config.init`, which also configures logging. 100 of that
+method's 170 lines were this, and none of it could be exercised without the
+rest.
 
 Here it is a function, and `test_yaml_files.py` covers the cases that used to
 be verifiable only by starting the app: the `.key.yaml` pairing, the `{env}`
@@ -69,10 +69,8 @@ def _with_key_files(names: list[str]) -> list[str]:
     """After each `x.yaml`, its `x.key.yaml` sibling.
 
     This is the split that keeps secrets out of the file checked into git.
-    A name that IS already a `.key.yaml` is passed through (it has no sibling
-    of its own), and anything not ending in `.yaml` is dropped: the historical
-    behaviour, which quietly ignores a non-YAML entry rather than failing the
-    boot on it.
+    A name that IS already a `.key.yaml`, or does not end in `.yaml`, is kept
+    as given and gets no sibling.
     """
     out: list = []
     for name in names:
@@ -142,8 +140,8 @@ def include_paths(base: str | None, includes) -> list[str]:
 def expand_yaml_filenames(yaml_filenames: str | list[str] | None, env: str) -> list[str]:
     """The ordered candidate list for `yaml_filenames` under `env`.
 
-    Existence is NOT checked here: the caller filters, because one of the
-    entries it adds is a remote config that has no path at all.
+    Existence is NOT checked here: the caller filters, because a stream
+    entry has no path at all.
 
     With no filenames and an env, the convention applies on its own:
     `config.{env}.yaml` + `config.{env}.key.yaml`.

@@ -168,11 +168,13 @@ helpers raise.
    `# phi: ok <reason>` escape.
 
    The baseline (`mirobody/testing/phi_baseline.txt`) records what was already
-   there. The local suite fails on anything NEW, and the baseline may only
-   shrink:
+   there. CI fails on anything NEW, and the baseline may only shrink. With no
+   tree arguments the command scans `phi_lint.DEFAULT_TREES`, the trees the
+   baseline covers; regenerating over any other set writes a different file:
 
    ```bash
-   python -m mirobody.testing.phi_lint mirobody --write-baseline   # after removing some
+   python -m mirobody.testing.phi_lint --baseline mirobody/testing/phi_baseline.txt   # what CI runs
+   python -m mirobody.testing.phi_lint --write-baseline                               # after removing some
    ```
 
 2. **Runtime.** `ops.PHIPolicy().install()` adds a logging filter that redacts

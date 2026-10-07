@@ -149,7 +149,7 @@ async def create_schema(config) -> None:
     pg_config = config.get_postgresql()
 
     try:
-        conn_ctx = await pg_config.get_async_client(cursor_factory=None)
+        conn_ctx = await pg_config.get_async_client()
     except Exception as e:
         # `ensure_postgres_reachable` has just reached Postgres, so this is an
         # outage in the moments since. Outside production the boot goes on

@@ -41,7 +41,7 @@ AGENT_NAME:           # the persona name in the prompt; default "Mirobody"
 ```
 
 `/api/models` lists the `MODELS` entries whose key resolves, as bare names,
-the default first (`registry.default_model`, which `mirobody doctor --probe`
+the default first (`utils.config.llm.default_model`, which `mirobody doctor --probe`
 tests too). A chat request picks one with `provider`.
 
 ## Replacing the agent

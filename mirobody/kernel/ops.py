@@ -18,24 +18,41 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
 #: The ``extra=`` keys a log record may carry. Everything else is dropped by
-#: the filter. Names, not values: a key called ``user_id`` may carry an id,
-#: a key called ``value`` may not exist.
+#: the filter, and ``phi_lint`` refuses any other key in an ``extra=`` dict,
+#: so a key the filter would drop never looks logged. Names, not values: a
+#: key called ``user_id`` may carry an id, a key called ``value`` may not exist.
 LOG_FIELDS: frozenset[str] = frozenset(
     {
+        "id",
         "user_id",
         "subject_id",
         "session_id",
         "request_id",
         "msg_id",
+        "message_id",
         "task_id",
+        "set_id",
+        "client_id",
+        "winning_user_id",
+        "losing_user_id",
         "tool_name",
+        "mcp_method",
         "provider",
         "data_type",
+        "content_type",
         "indicator_count",
         "row_count",
         "record_count",
+        "user_count",
+        "skipped_invalid_count",
+        "param_count",
+        "size_bytes",
+        "body_bytes",
         "error_type",
         "error_kind",
+        "error_code",
+        "result_type",
+        "content_types",
         "status",
         "status_code",
         "duration_ms",
@@ -69,8 +86,25 @@ def safe_error_text(exc: BaseException) -> str:
 
 
 def is_driver_exception(exc: BaseException) -> bool:
-    mod = type(exc).__module__ or ""
-    return mod.split(".")[0] in DRIVER_EXCEPTION_PREFIXES
+    """Whether ``exc``, or an exception it was raised from or while handling,
+    comes from a database driver. Wrapping is common (the provider base class
+    re-raises a failed link as ``RuntimeError(str(e)) from e``), and the
+    traceback prints the driver's message, with its statement and bound
+    parameters, as the cause."""
+    return _raised_by(exc, DRIVER_EXCEPTION_PREFIXES)
+
+
+def _raised_by(exc: BaseException, prefixes: tuple[str, ...]) -> bool:
+    """Whether a module named in ``prefixes`` raised ``exc`` or anything in its
+    ``__cause__``/``__context__`` chain, the chain a traceback prints."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if (type(current).__module__ or "").split(".")[0] in prefixes:
+            return True
+        current = current.__cause__ or current.__context__
+    return False
 
 
 def redact(record: Mapping[str, object], allowed: Iterable[str] = LOG_FIELDS) -> dict[str, object]:
@@ -91,16 +125,18 @@ class PHIPolicy:
     driver_prefixes: tuple[str, ...] = DRIVER_EXCEPTION_PREFIXES
 
     def install(self, logger: logging.Logger | None = None) -> PHIFilter:
-        """Attach the filter to ``logger`` (the root by default): once; a
-        second install returns the existing filter."""
+        """Attach the filter to ``logger`` (the root by default) and to every
+        handler it has now. A record from a child logger passes only the
+        handlers' filters, never the root logger's, so the handlers are what
+        enforce this. Repeatable: the logger's existing filter, and its
+        policy, are kept and attached to handlers installed since."""
         target = logger or logging.getLogger()
-        for f in target.filters:
-            if isinstance(f, PHIFilter):
-                return f
-        flt = PHIFilter(self)
-        target.addFilter(flt)
-        for h in target.handlers:  # handlers filter independently of the logger
-            h.addFilter(flt)
+        flt = next((f for f in target.filters if isinstance(f, PHIFilter)), None)
+        if flt is None:
+            flt = PHIFilter(self)
+            target.addFilter(flt)
+        for h in target.handlers:
+            h.addFilter(flt)  # a no-op for a handler that already has it
         return flt
 
 
@@ -127,7 +163,7 @@ class PHIFilter(logging.Filter):
                 self.dropped_fields += 1
         if record.exc_info and record.exc_info[1] is not None:
             exc = record.exc_info[1]
-            if (type(exc).__module__ or "").split(".")[0] in self.policy.driver_prefixes:
+            if _raised_by(exc, self.policy.driver_prefixes):
                 record.exc_info = None
                 record.exc_text = None
                 record.msg = f"{record.getMessage()} [{safe_error_text(exc)}]"

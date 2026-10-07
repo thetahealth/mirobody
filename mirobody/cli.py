@@ -47,6 +47,7 @@ import unicodedata
 import asyncio
 import importlib.util
 import json
+import logging
 import os
 import sys
 
@@ -175,9 +176,9 @@ def _cmd_dev(args: argparse.Namespace) -> None:
     # builds its `FernetEncrypter` from `get_fernet_key("CONFIG_ENCRYPTION_KEY")`
     # BEFORE it loads any YAML, so a value supplied in config can never satisfy
     # it: the run logs "CONFIG_ENCRYPTION_KEY is not set" at ERROR and encrypts
-    # with a publicly-known key. `LOG_ENCRYPTION_KEY` reads the same way.
+    # with a publicly-known key.
     generated = []
-    for name, nbytes in (("JWT_KEY", 32), ("CONFIG_ENCRYPTION_KEY", 16), ("LOG_ENCRYPTION_KEY", 16)):
+    for name, nbytes in (("JWT_KEY", 32), ("CONFIG_ENCRYPTION_KEY", 16)):
         if not os.environ.get(name):
             os.environ[name] = secrets.token_hex(nbytes)
             generated.append(name)
@@ -233,6 +234,10 @@ def _cmd_doctor(args: argparse.Namespace) -> None:
 
     async def configure() -> None:
         await Config.init(yaml_filenames=args.configs)
+        # The table is this command's output; at INFO it sat under the
+        # libraries' JSON lines (every statement `settings.apply` ran, among
+        # them). A warning still shows.
+        logging.getLogger().setLevel(logging.WARNING)
         # The setup page's choice, as the server applies it at boot: a
         # deployment set up in the browser has no key in .env, and this
         # reported "no model" for it. Without a database it says nothing,

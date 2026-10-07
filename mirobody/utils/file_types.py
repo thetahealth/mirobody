@@ -107,18 +107,6 @@ def guess_mime(filename_or_ext: str | None) -> str:
 IMAGE_EXTENSIONS: set[str] = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 
 
-# Extension → MIME type. Used when constructing multimodal LLM
-# content blocks for image inputs.
-IMAGE_MEDIA_TYPES: dict[str, str] = {
-    ".jpg":  "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png":  "image/png",
-    ".gif":  "image/gif",
-    ".webp": "image/webp",
-    ".bmp":  "image/bmp",
-}
-
-
 # Extension + MIME sets for the "which extractor handles this?" question.
 # The Excel pair existed verbatim in two places: `ExcelHandler.is_excel_file`
 # (deciding which handler runs) and `FileAbstractExtractor._is_excel_file`

@@ -71,7 +71,7 @@ class RetryGovernanceMiddleware(AgentMiddleware):
         async with self._lock:
             allowed, reason = self._ledger.allows(tool_name, args)
         if not allowed:
-            logger.info("refused repeat call to %s (%s)", tool_name, reason)
+            logger.info("refused repeat call to %s (%s)", tool_name, reason)  # phi: ok the ledger's refusal code
             return _refusal(self._ledger, call, tool_name, reason)
 
         result = await handler(request)
@@ -90,7 +90,7 @@ class RetryGovernanceMiddleware(AgentMiddleware):
 
         allowed, reason = self._ledger.allows(tool_name, args)
         if not allowed:
-            logger.info("refused repeat call to %s (%s)", tool_name, reason)
+            logger.info("refused repeat call to %s (%s)", tool_name, reason)  # phi: ok the ledger's refusal code
             return _refusal(self._ledger, call, tool_name, reason)
         result = handler(request)
         self._ledger.record(tool_name, args, error_class=_error_class(result))

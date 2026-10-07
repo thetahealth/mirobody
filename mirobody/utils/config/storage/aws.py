@@ -2,7 +2,9 @@ import logging
 
 from typing import BinaryIO
 
-from .abstract import AbstractStorage
+from mirobody.utils.log import secret_fingerprint
+
+from .abstract import AbstractStorage, storage_failure
 
 logger = logging.getLogger(__name__)
 
@@ -129,14 +131,12 @@ class AwsStorage(AbstractStorage):
                 ExpiresIn=expires
             )
             
-            logger.info(f"File uploaded to S3 successfully: {object_key}")
+            logger.info("file uploaded to S3: key=%s", secret_fingerprint(key))
             
             return url, None
         
         except Exception as e:
-            error_msg = f"Failed to upload to S3: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            return None, error_msg
+            return None, storage_failure("S3 upload", key, e)
     
     #-----------------------------------------------------
 
@@ -155,9 +155,7 @@ class AwsStorage(AbstractStorage):
             return file_content, None
 
         except Exception as e:
-            error_msg = f"Failed to get file from S3: {str(e)}, object_key: {self._build_object_key(key)}, bucket: {self.bucket}"
-            logger.error(error_msg, exc_info=True)
-            return None, error_msg
+            return None, storage_failure("S3 download", key, e)
     
     #-----------------------------------------------------
 
@@ -170,14 +168,12 @@ class AwsStorage(AbstractStorage):
 
             await self._client.delete_object(Bucket=self.bucket, Key=object_key)
 
-            logger.info(f"File deleted from S3 successfully: {object_key}")
+            logger.info("file deleted from S3: key=%s", secret_fingerprint(key))
 
             return None
 
         except Exception as e:
-            error_msg = f"Failed to delete from S3: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            return error_msg
+            return storage_failure("S3 delete", key, e)
 
     #-----------------------------------------------------
 
@@ -211,9 +207,7 @@ class AwsStorage(AbstractStorage):
             return url, None
 
         except Exception as e:
-            error_msg = f"Failed to generate signed URL: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            return None, error_msg
+            return None, storage_failure("S3 signed URL", key, e)
 
     #-----------------------------------------------------
 

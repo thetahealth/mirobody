@@ -17,7 +17,6 @@ class PullTaskLockManager:
     """Hold each advisory lock on its own connection until the pull finishes."""
 
     def __init__(self) -> None:
-        self.instance_id = str(uuid.uuid4())[:8]
         self._connections: dict[str, tuple[str, Any]] = {}
 
     @staticmethod
@@ -32,14 +31,14 @@ class PullTaskLockManager:
     def _last_run_key(provider_slug: str) -> str:
         return f"pull_task:last_run:{provider_slug}"
 
-    async def try_acquire_execution_lock(
-        self, provider_slug: str, lock_duration_hours: float = 23.5, force: bool = False
-    ) -> str | None:
-        # Force bypasses the scheduler interval, but never mutual exclusion.
-        del lock_duration_hours, force
+    async def try_acquire_execution_lock(self, provider_slug: str) -> str | None:
+        """An execution id while this instance holds the provider's lock, or
+        None when another session holds it or the database is unreachable.
+        The lock lasts until `release_execution_lock`: a session lock has no
+        duration, and a run longer than any fixed one must not lose it."""
         conn = None
         try:
-            conn = await global_config().get_postgresql().get_async_client(cursor_factory=None)
+            conn = await global_config().get_postgresql().get_async_client()
             await conn.set_autocommit(True)
             row = await (await conn.execute(
                 "SELECT pg_try_advisory_lock(hashtextextended(%s, 0))",
@@ -90,16 +89,6 @@ class PullTaskLockManager:
                            exc_info=not is_driver_exception(exc))
             return None
 
-    async def clear_last_execution_timestamp(self, provider_slug: str) -> bool:
-        try:
-            await global_config().get_ephemeral().delete(self._timestamp_key(provider_slug))
-            return True
-        except Exception as exc:
-            logger.warning("execution timestamp clear failed: provider=%s error_type=%s",
-                           provider_slug, type(exc).__name__,
-                           exc_info=not is_driver_exception(exc))
-            return False
-
     async def update_last_execution_timestamp(self, provider_slug: str,
                                               timestamp: float) -> bool:
         try:
@@ -134,40 +123,6 @@ class PullTaskLockManager:
                            provider_slug, type(exc).__name__,
                            exc_info=not is_driver_exception(exc))
             return False
-
-    async def get_lock_status(self, provider_slug: str) -> dict:
-        conn = None
-        try:
-            conn = await global_config().get_postgresql().get_async_client(cursor_factory=None)
-            await conn.set_autocommit(True)
-            row = await (await conn.execute(
-                "SELECT pg_try_advisory_lock(hashtextextended(%s, 0))",
-                (self._lock_key(provider_slug),),
-            )).fetchone()
-            if row[0]:
-                await conn.execute(
-                    "SELECT pg_advisory_unlock(hashtextextended(%s, 0))",
-                    (self._lock_key(provider_slug),),
-                )
-            own = next((execution_id for execution_id, (slug, _) in self._connections.items()
-                        if slug == provider_slug), None)
-            return {
-                "locked": not row[0],
-                "lock_value": None,
-                "holder_instance": self.instance_id if own else None,
-                "lock_timestamp": None,
-                "execution_id": own,
-                "ttl_seconds": 0,
-                "is_current_instance": bool(own),
-            }
-        except Exception as exc:
-            logger.warning("provider lock status failed: provider=%s error_type=%s",
-                           provider_slug, type(exc).__name__,
-                           exc_info=not is_driver_exception(exc))
-            return {"locked": False, "error": type(exc).__name__}
-        finally:
-            if conn is not None:
-                await conn.close()
 
 
 pull_task_lock_manager = PullTaskLockManager()

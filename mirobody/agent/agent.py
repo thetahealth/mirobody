@@ -25,13 +25,13 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool
 
-from .registry import default_model, llm_client, llm_client_names
+from .registry import llm_client, llm_client_names
 from mirobody.kernel import query
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import get_req_ctx
 from mirobody.utils.config import safe_read_cfg
-from mirobody.utils.config.llm import chat_entries
+from mirobody.utils.config.llm import chat_entries, default_model
 
 from . import harness
 from .errors import AgentError, ConfigError, client_safe_error

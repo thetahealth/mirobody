@@ -228,25 +228,6 @@ def llm_client_names() -> list[str]:
     return list(_llm_clients)
 
 
-def default_model() -> str:
-    """The chat entry a turn uses when the request names none: `DEFAULT_MODEL`
-    when it names a chat entry that is ready (`entry_ready`), else the first
-    ready one in config order (`chat_default`); "" when none is ready.
-
-    One answer for the agent, `/api/models` and `mirobody doctor --probe`. The
-    agent read `DEFAULT_MODEL` while the picker and the probe read
-    `chat_default()`, so `DEFAULT_MODEL=local` chatted with `local` and
-    preselected, and probed, another entry."""
-    from mirobody.utils.config import safe_read_cfg
-    from mirobody.utils.config.llm import chat_default, chat_entries, entry_ready
-
-    configured = str(safe_read_cfg("DEFAULT_MODEL") or "").strip()
-    entries = chat_entries()
-    if configured in entries and entry_ready(entries[configured]):
-        return configured
-    return chat_default() or ""
-
-
 def available_models() -> list[str]:
     """The `/api/models` list: the entries whose key resolves RIGHT NOW, the
     default (`default_model`) first, the rest in config order.
@@ -270,6 +251,8 @@ def available_models() -> list[str]:
     # LOCAL_BASE_URL is unset would be offered and fail at chat time.
     names = [name for name, entry in entries.items() if name in _llm_clients and entry_ready(entry)]
     # The web client preselects the first entry, so the first is the default.
+    from mirobody.utils.config.llm import default_model
+
     default = default_model()
     if default in names:
         names.remove(default)

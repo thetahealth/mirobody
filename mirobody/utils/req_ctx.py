@@ -5,9 +5,10 @@ session: who is asking, in what language, in what timezone, under what trace
 id. `server/middlewares.py` fills it for HTTP, `file_router` for the upload
 socket.
 
-Read it through the named accessors below, not `request_language()`.
-Eleven call sites spelled that out, which is eleven places to get the default
-wrong and no way to grep for who depends on the key.
+Read it through the named accessors below (`request_language()`), not
+`get_req_ctx("language", "en")`. Eleven call sites spelled that out, which is
+eleven places to get the default wrong and no way to grep for who depends on
+the key.
 """
 
 from contextlib import contextmanager

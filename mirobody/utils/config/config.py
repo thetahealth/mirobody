@@ -6,10 +6,12 @@ import logging
 import os
 import re
 
+from collections.abc import Collection
 from ruamel.yaml import YAML
 from typing import Any
 
 from mirobody import __version__
+from mirobody.kernel.ops import is_driver_exception
 from typing import TYPE_CHECKING
 
 from .encrypt import FernetEncrypter
@@ -33,39 +35,21 @@ _global_config = None
 #: carries it (see `server/bootstrap.py`).
 PLACEHOLDER_SENTINEL = "REPLACE_THIS_VALUE_IN_PRODUCTION"
 
-# Keys 1.4.0 and 1.4.1 renamed, and the one place that knows every spelling.
-# `_DEEP` went when the agent stopped being "the DeepAgent"; `PROVIDERS` became
-# `MODELS` once a provider meant a device. The upgrade failure was silent: a
-# 1.3.x overlay still said `PROVIDERS_DEEP`, the new key was absent from it,
-# and the agent booted with zero models and an empty `/api/models`.
-# Renaming happens at LOAD time, not read time, because the shipped
-# `config.llm.yaml` declares `MODELS` itself and would shadow a read-time
-# fallback. Renaming as each file merges lets ordinary layering decide.
-_RENAMED_KEYS = {
-    "PROVIDERS_DEEP": "MODELS",
-    "PROMPTS_DEEP": "PROMPTS",
-    "ALLOWED_TOOLS_DEEP": "ALLOWED_TOOLS",
-    "DISALLOWED_TOOLS_DEEP": "DISALLOWED_TOOLS",
-    "DEFAULT_PROVIDER_DEEP": "DEFAULT_MODEL",
-    # 1.4.1: in this project a "provider" is a device or data source
-    # (PROVIDER_DIRS, mirobody/collect/providers); the model table is MODELS.
-    "PROVIDERS": "MODELS",
-    "DEFAULT_PROVIDER": "DEFAULT_MODEL",
-}
-
-#: new spelling -> its old spellings, for the environment-variable half.
-_RENAMED_FROM: dict[str, tuple[str, ...]] = {}
-for _old, _new in _RENAMED_KEYS.items():
-    _RENAMED_FROM[_new] = (*_RENAMED_FROM.get(_new, ()), _old)
-
-#: Keys 1.4.0 REMOVED, with what replaced them. Deliberately not aliased:
-#: `SSE_HEARTBEAT_SECONDS` is not `HEARTBEAT_INTERVAL` under a new name (the
-#: old pair multiplied to a first ping at 40 s; the new one fires on silence),
-#: and the two directory keys have no successor. Silently ignoring them is what
-#: makes an upgrade look fine while behaving differently, so they are named.
+#: Keys no longer read, with what to write instead. Each one present is named
+#: once at boot, because an upgrade that drops a key without a word looks fine
+#: while behaving differently: a 1.3.x overlay still saying `PROVIDERS_DEEP`
+#: booted the agent with zero models. The renamed spellings were read as their
+#: successors from 1.4.0 to 1.5.4; they are named and ignored like the rest.
+#: `SSE_HEARTBEAT_SECONDS` is not `HEARTBEAT_INTERVAL` renamed: the old pair
+#: multiplied to a first ping at 40 s, the new one fires on silence.
 _REMOVED_KEYS = {
-    # No surface embeds: the semantic tier was deleted in 1.5.0, and the
-    # embedding client and model routing that outlived it are gone too.
+    "PROVIDERS_DEEP": "renamed `MODELS`",
+    "PROMPTS_DEEP": "renamed `PROMPTS`",
+    "ALLOWED_TOOLS_DEEP": "renamed `ALLOWED_TOOLS`",
+    "DISALLOWED_TOOLS_DEEP": "renamed `DISALLOWED_TOOLS`",
+    "DEFAULT_PROVIDER_DEEP": "renamed `DEFAULT_MODEL`",
+    "PROVIDERS": "renamed `MODELS` (a provider is a device)",
+    "DEFAULT_PROVIDER": "renamed `DEFAULT_MODEL`",
     "UTILS_EMBEDDING_MODEL": "removed; nothing embeds (the semantic tier went in 1.5.0)",
     "EMBEDDING_PROVIDER": "removed; nothing embeds (the semantic tier went in 1.5.0)",
     "PRIVATE_AGENT_DIRS": "removed; `AGENT_DIRS` is the one agent search path",
@@ -80,17 +64,6 @@ _REMOVED_KEYS = {
 _warned_keys: set[str] = set()
 
 
-def _warn_renamed(old_key: str, new_key: str) -> None:
-    if old_key in _warned_keys:
-        return
-    _warned_keys.add(old_key)
-    logger.warning(
-        "config key %s was renamed to %s; the old spelling is being "
-        "read as the new one. Rename it in your overlay — this alias is a "
-        "migration courtesy, not the contract.", old_key, new_key,
-    )
-
-
 def _warn_removed(key: str, reason: str) -> None:
     """`reason` is passed in rather than looked up here: `phi_lint` flags every
     subscript inside a `logger.*` call, and a table lookup at the call site is
@@ -98,20 +71,8 @@ def _warn_removed(key: str, reason: str) -> None:
     if key in _warned_keys:
         return
     _warned_keys.add(key)
-    logger.warning("config key %s is %s; it is being ignored.", key, reason)
+    logger.warning("config key %s is %s; it is being ignored.", key, reason)  # phi: ok `_REMOVED_KEYS` text
 
-
-def _legacy_env(upper_key: str) -> str | None:
-    """The 1.3.x environment variable for `upper_key`, if that is where the
-    value is. `None` when the key was never renamed or the old one is unset,
-    so a deployment on the current spelling pays one dict lookup and warns
-    never."""
-    for old in _RENAMED_FROM.get(upper_key, ()):
-        s = os.environ.get(old)
-        if s is not None:
-            _warn_renamed(old, upper_key)
-            return s
-    return None
 
 #-----------------------------------------------------------------------------
 
@@ -124,8 +85,12 @@ class Config:
     def __init__(
         self,
         yaml_filenames: str | list[str | io.StringIO] | None = None,
-        encrypter: FernetEncrypter | None = None
+        encrypter: FernetEncrypter | None = None,
+        read_only: Collection[str] = (),
     ):
+        """`read_only` names files never written back, and their INCLUDEs: the
+        defaults `Config.init` adds. Every other file named here has a secret
+        it holds in plaintext encrypted in place."""
         if isinstance(yaml_filenames, str | io.StringIO):
             self._yaml_filenames = [yaml_filenames]
         elif isinstance(yaml_filenames, list):
@@ -154,7 +119,7 @@ class Config:
         # before the next file, so a later overlay still wins over everything
         # an earlier file pulled in.
         for yaml_filename in self._yaml_filenames:
-            self._load_with_includes(yaml_filename)
+            self._load_with_includes(yaml_filename, write_back=yaml_filename not in read_only)
         # `.env` reaches us as the environment; a removed key set there was
         # ignored without a word.
         for key, reason in _REMOVED_KEYS.items():
@@ -168,12 +133,8 @@ class Config:
 
     #-----------------------------------------------------
 
-    def refresh(self, data: dict | None = None):
-        if data is None:
-            data = {}
-        if data:
-            self._raw.update(data)
-
+    def refresh(self) -> None:
+        """Rebuild the derived settings from the current keys and environment."""
         # Clear cached configuration objects to ensure they use updated _raw values
         self._postgresqls = {}
         self._ephemeral = None
@@ -182,7 +143,6 @@ class Config:
             name        = self.get_str("LOG_NAME"),
             dir         = self.get_str("LOG_DIR"),
             level       = logging.getLevelNamesMapping().get(self.get_str("LOG_LEVEL").strip().upper(), logging.INFO),
-            secret_key  = self.get_fernet_key("LOG_ENCRYPTION_KEY")
         )
 
         self.http = HttpConfig(
@@ -207,10 +167,10 @@ class Config:
         self.api_keys = self.get_api_keys()
 
 
-    def _load_with_includes(self, file: str | io.StringIO, depth: int = 0) -> None:
+    def _load_with_includes(self, file: str | io.StringIO, depth: int = 0, write_back: bool = True) -> None:
         from .yaml_files import include_paths
 
-        includes = self.load_yaml(file)
+        includes = self.load_yaml(file, write_back=write_back)
         if depth >= 3:
             if includes:
                 logger.warning("INCLUDE nesting deeper than 3 in %s is ignored", file)
@@ -219,11 +179,13 @@ class Config:
             if not os.path.exists(path):
                 logger.warning("INCLUDE names %s, which does not exist; skipped", path)  # phi: ok a filename from our own INCLUDE list
                 continue
-            self._load_with_includes(path, depth + 1)
+            self._load_with_includes(path, depth + 1, write_back)
 
-    def load_yaml(self, file: str | io.StringIO) -> list:
+    def load_yaml(self, file: str | io.StringIO, write_back: bool = True) -> list:
         """Merge one YAML document into the configuration. Returns the file's
-        `INCLUDE` list (empty when it has none) for the caller to load next."""
+        `INCLUDE` list (empty when it has none) for the caller to load next.
+        With `write_back`, a secret the file holds in plaintext is encrypted
+        in the file itself."""
         if not file:
             return []
 
@@ -237,11 +199,12 @@ class Config:
                     stream = io.StringIO(s)
 
             except Exception as e:
-                logger.warning(f"Failed to load YAML file '{file}': {str(e)}")
+                logger.warning("config file %s not read: error_type=%s", file, type(e).__name__,  # phi: ok a config path
+                               exc_info=not is_driver_exception(e))
                 return []
 
         elif isinstance(file, io.StringIO):
-            # File content from StringIO (e.g., remote config)
+            # An overlay built in memory (`mirobody dev`).
             stream = file
 
         if stream is None:
@@ -275,15 +238,6 @@ class Config:
                 _warn_removed(upper_key, _REMOVED_KEYS[upper_key])
                 continue
 
-            renamed = _RENAMED_KEYS.get(upper_key)
-            if renamed:
-                if any(isinstance(k, str) and k.upper() == renamed for k in data):
-                    # This file spells it both ways. The current name wins,
-                    # rather than whichever `data` happened to yield last.
-                    continue
-                _warn_renamed(upper_key, renamed)
-                upper_key = renamed
-
             if self._encrypter and isinstance(value, str) and len(value) > 0:
                 # Check non-empty strings.
 
@@ -292,7 +246,8 @@ class Config:
                     self._raw[upper_key] = self._encrypter.decrypt(value, upper_key)
                     continue
 
-                if re.search(r"_KEY|_PASSWORD|_PASS|_PWD|_SECRET|_SK|_TOKEN", upper_key) and \
+                if write_back and isinstance(file, str) and \
+                    re.search(r"_KEY|_PASSWORD|_PASS|_PWD|_SECRET|_SK|_TOKEN", upper_key) and \
                     not upper_key.endswith("_URL") and \
                     value != PLACEHOLDER_SENTINEL:
 
@@ -327,7 +282,8 @@ class Config:
                         Config.yaml.dump(data, f)
 
             except Exception as e:
-                logger.warning(f"Failed to update YAML file '{file}': {str(e)}")
+                logger.warning("config file %s not rewritten: error_type=%s", file, type(e).__name__,  # phi: ok a config path
+                               exc_info=not is_driver_exception(e))
 
         return includes
 
@@ -346,14 +302,6 @@ class Config:
         # Check key in upper case again.
         upper_key = stripped_key.upper()
         s = os.environ.get(upper_key)
-        if s is not None:
-            return s
-
-        # The pre-1.4.0 spelling, if the deployment sets it in the environment
-        # rather than in an overlay. Before `self._raw`, because environment
-        # beats file, and the shipped `config.yaml` declares four of these, so
-        # checking after would mean the default always won.
-        s = _legacy_env(upper_key)
         if s is not None:
             return s
 
@@ -377,13 +325,12 @@ class Config:
         if s is not None:
             return s
 
-        # The pre-1.4.0 spelling: see `get`.
-        s = _legacy_env(upper_key)
-        if s is not None:
-            return s
-
-        # Then check the configuration variables.
-        s = self._raw.get(upper_key, default)
+        # Then check the configuration variables. A key written with no value
+        # (`LOG_NAME:`) loads as None, which became the string "None": a log
+        # file by that name, `None/files/...` links, a `None/1.5.3` banner.
+        s = self._raw.get(upper_key)
+        if s is None:
+            return default
         return s if isinstance(s, str) else str(s)
 
 
@@ -491,7 +438,7 @@ class Config:
         operation only for ASCII. A passphrase with any CJK, accented or emoji
         character produced 33-96 bytes, `ljust(32)` padded nothing, `Fernet()`
         rejected the result, and the encrypter silently became a no-op: see
-        `FernetEncrypter.__init__`, and `_load_data` for what a no-op encrypter
+        `FernetEncrypter.__init__`, and `load_yaml` for what a no-op encrypter
         then did to the config file.
 
         Slicing the ENCODED bytes fixes it and changes nothing for an ASCII
@@ -517,9 +464,9 @@ class Config:
             return base64.urlsafe_b64encode(raw).decode()
 
         except Exception as e:
-            # Deliberately not logging `s`: it is the encryption passphrase,
-            # and the old version put it in the log line verbatim.
-            logger.error("could not derive a Fernet key from %s: %s", key, e)
+            # Neither `s` nor the error nor a traceback: `s` is the passphrase,
+            # and an encoding error quotes the characters it failed on.
+            logger.error("could not derive a Fernet key from %s: error_type=%s", key, type(e).__name__)
             return ""
 
 
@@ -562,19 +509,6 @@ class Config:
         return results
 
     #-----------------------------------------------------
-
-    def get_mcp_options(self) -> dict[str, str | list[str]]:
-        return {
-            "tool_dirs"         : self.mcp_tool_dirs,
-        }
-
-
-    def get_agent_options(self) -> dict[str, list[str] | dict[str, str]]:
-        return {
-            "agent_dirs"        : self.agent_dirs,
-            "api_keys"          : self.api_keys
-        }
-
 
     def get_agent_settings(self) -> dict[str, Any]:
         """The agent's runtime settings from the four plain keys, cached.
@@ -775,21 +709,20 @@ class Config:
     @staticmethod
     async def init(
         yaml_filenames  : str | list[str] | None = None,
-        dotenv_filenames: str | list[str] = None,
+        dotenv_filenames: str | list[str] | None = None,
         log_extra       : dict | None = None
     ):
-        if log_extra is None:
-            log_extra = {}
         if dotenv_filenames is None:
             dotenv_filenames = [".env"]
         log_extra = dict(log_extra) if log_extra else {}
 
         # `.env` first, because ENV feeds the log fields below and the formatter
-        # has to be built with them already in place.
+        # has to be built with them already in place. ENV tagged nothing while
+        # this also required a caller's `log_extra`, which no caller passes.
         Config.load_dotenv(dotenv_filenames)
 
         env = os.environ.get("ENV", "").strip().lower()
-        if env and log_extra:
+        if env:
             log_extra["env"] = env
 
         from mirobody.utils.log import init_log_console
@@ -815,21 +748,11 @@ class Config:
         )
 
         #-----------------------------------------------------
-
-        # `env` and `load_dotenv` used to run HERE, ~25 lines after
-        # `init_log_console` had already been handed `log_extra`. The `env`
-        # field still reached the log records, but only because JsonFormatter
-        # stores the dict it is given by reference rather than copying it,
-        # so adding a defensive `dict(extra)` to the formatter, an obviously
-        # safe-looking change, would have silently dropped `env` from every log
-        # line in production. Ordering, not aliasing, now makes it work.
-
-        #-----------------------------------------------------
         # Which files to look for: each requested `x.yaml` also brings its
         # `x.key.yaml` secret sibling and their `{env}` variants. That
         # expansion is pure and lives in `yaml_files.py`, where it is tested;
-        # existence is checked below because one entry (the remote config) has
-        # no path.
+        # existence is checked below because a stream (an overlay built in
+        # memory) has no path.
 
         from .yaml_files import expand_yaml_filenames
 
@@ -839,13 +762,18 @@ class Config:
 
         final_yaml_file_list = []
 
-        default_yaml = "config.yaml" if os.path.exists("config.yaml") else _shipped_defaults()
+        # The working directory's config.yaml is the defaults only when it is
+        # Mirobody's, with its config.llm.yaml beside it: `mirobody parse` run
+        # in another project read that project's config.yaml, and encrypted
+        # its secrets in place. Defaults are read, never written.
+        if os.path.isfile("config.yaml") and os.path.isfile("config.llm.yaml"):
+            default_yaml = "config.yaml"
+        else:
+            default_yaml = _shipped_defaults()
+        read_only = []
         if default_yaml and default_yaml not in yaml_file_list:
             final_yaml_file_list.append(default_yaml)
-            # DEBUG: config.print() names the files anyway, and at INFO this was
-            # the JSON line printed above `mirobody doctor`'s table.
-            logger.debug("Default config has been loaded.")
-
+            read_only.append(default_yaml)
 
         for yaml_filename in yaml_file_list:
             # A stream (config built in memory) has no path to stat. Only a
@@ -854,7 +782,7 @@ class Config:
             if not isinstance(yaml_filename, str) or os.path.exists(yaml_filename):
                 final_yaml_file_list.append(yaml_filename)
 
-        config = Config(yaml_filenames=final_yaml_file_list)
+        config = Config(yaml_filenames=final_yaml_file_list, read_only=read_only)
 
         #-----------------------------------------------------
 
@@ -864,7 +792,6 @@ class Config:
             dir         = config.log.dir,
             level       = config.log.level,
             extra       = log_extra,
-            secret_key  = config.log.secret_key
         )
 
         return config

@@ -18,8 +18,8 @@ Two invariants are enforced by signature rather than by review:
   truncated.
 
 Pure; stdlib only. Storage and the file-system projection an agent harness
-mounts are the consumer's (the reference implementation lives in
-``mirobody.agent``).
+mounts are the consumer's. Nothing in this repository calls it yet: the
+reference server's profile rewrite (``user/profile.py``) predates it.
 """
 
 from __future__ import annotations

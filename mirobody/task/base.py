@@ -70,7 +70,7 @@ class BaseTask:
     async def _claim_batch(self) -> tuple[str, list[tuple[int, str]]]:
         token = str(uuid.uuid4())
         cls = type(self)
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with (await self._pg_config.get_async_client()) as conn:
             async with conn.cursor() as cur:
                 # `attempts` counts claims. A worker killed mid-batch (OOM, a
                 # restart) never reaches `_finish_batch`, so a payload that
@@ -109,7 +109,7 @@ class BaseTask:
     async def _finish_batch(self, token: str, ids: list[int], *, success: bool) -> None:
         if not ids:
             return
-        async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+        async with (await self._pg_config.get_async_client()) as conn:
             if success:
                 await conn.execute(
                     "DELETE FROM th_task_queue WHERE id = ANY(%s) AND lease_token = %s",
@@ -135,7 +135,7 @@ class BaseTask:
                 return
             except TimeoutError:
                 pass
-            async with (await self._pg_config.get_async_client(cursor_factory=None)) as conn:
+            async with (await self._pg_config.get_async_client()) as conn:
                 await conn.execute(
                     "UPDATE th_task_queue SET available_at = now() + (%s * interval '1 second') "
                     "WHERE id = ANY(%s) AND lease_token = %s",
