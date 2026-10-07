@@ -148,12 +148,17 @@ _BIRTH = re.compile(r"(?:出生|birth|dob|born)\W*$", re.I)
 _NUMBER = re.compile(r"^[<>≤≥]?\s*[-+]?\d+(?:\.\d+)?$")
 _RANGE = re.compile(r"^\s*([-+]?\d+(?:\.\d+)?)\s*(?:-{1,2}|~|–|—|至)\s*([-+]?\d+(?:\.\d+)?)\s*$")
 _BOUND = re.compile(r"^\s*([<>≤≥]|<=|>=)\s*([-+]?\d+(?:\.\d+)?)\s*$")
-#: A flag printed after the number in the value cell, when the table has no
-#: flag column: right after the number (`7.2↑`, `3.1 L`), or after a unit glued
-#: to it (`7.49mmol/L偏高`, `50.5% H`). A letter after a unit needs a space
-#: before it, so the `L` of `mmol/L` is not read as low.
+#: A flag printed after the value in its own cell, when the table has no flag
+#: column: right after the number (`7.2↑`, `3.1 L`); after a unit, glued to the
+#: number or not (`7.49mmol/L偏高`, `1.69 g/L↑`, `50.5% H`); or after a result
+#: word (`阳性 偏高`, `Positive H`). A letter needs a space before it, so the
+#: `L` of `mmol/L` is not read as low. Measured on the 2026-10-07 small-model
+#: eval: with a digit required right before the arrow, a check-up book's
+#: summary rows `1.69 g/L↑` and `0.58 g/L↓` were stored as narratives, unit and
+#: arrow in the value; on the corpus's text-layer books, `阳性 偏高`, `Positive
+#: H` and `++ H` kept their flags in the value the same way.
 _TRAILING_FLAG = re.compile(r"^(.*?\d)\s*(↑↑|↓↓|↑|↓|偏高|偏低|高|低|HH|LL|H|L)$"
-                            r"|^(.*?\d\S*?)(↑↑|↓↓|↑|↓|偏高|偏低)$|^(.*?\d\S*)\s+(HH|LL|H|L)$")
+                            r"|^(.*?\S)\s*(↑↑|↓↓|↑|↓|偏高|偏低)$|^(.*?\S)\s+(HH|LL|H|L)$")
 #: A range or bound, then a unit after it in the same cell: `0-5.0 ng/mL`, or
 #: one that starts with a digit after a space (`4.0-10.0 10^9/L`), never glued
 #: digits (`3.5-5.51` is a range).
@@ -577,15 +582,18 @@ def status_of(value: str, ref: str, flag: str = "") -> str:
 
 
 def _split_flag(value: str, ref: str) -> tuple[str, str]:
-    """`(value, flag)` with a flag printed after the number moved out. A bare
+    """`(value, flag)` with a flag printed after the value moved out. A bare
     `L` is a flag only when the printed range says the value is low: `1.5 L`
-    of urine is litres."""
+    of urine is litres. A bare `H` after a word is a flag only after a result
+    word (`Positive H`), never after any other (`Vitamin H`)."""
     m = _TRAILING_FLAG.match(value.strip())
     if not m:
         return value, ""
     number, flag = next((m.group(i).strip(), m.group(i + 1)) for i in (1, 3, 5) if m.group(i) is not None)
     lead = re.match(r"\s*[-+]?\d+(?:\.\d+)?", number)
     if flag in ("L", "LL") and status_of(lead.group(0) if lead else number, ref) != "low":
+        return value, ""
+    if flag in ("H", "HH") and not lead and translate.parse_value(number, "").value_kind not in ("ordinal", "nominal"):
         return value, ""
     return number, flag
 

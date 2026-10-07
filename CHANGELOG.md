@@ -280,6 +280,13 @@ decisions.
 
 ### Fixed
 
+- **A flag printed after a unit or a word leaves the value.** A flag was split
+  off only right after a number or a unit glued to it, so `1.69 g/L↑` and
+  `0.58 g/L↓` were stored with the unit and arrow in the value and no number,
+  and `阳性 偏高`, `Positive H` and `++ H` with the flag in a word result. Now
+  an arrow or 偏高/偏低 comes off after anything, and `H` after a unit or a
+  result word; `L` still only when the printed range says low (`1.5 L` of
+  urine is litres). To tell: `1.69 g/L↑` is stored as 1.69 g/L, flag ↑.
 - **`view=stats` names a reading's own day.** Its `first_date` and
   `last_date` were the UTC date of the instant, so a report filed at local
   midnight in Asia/Shanghai (UTC+8) showed the day before: a ferritin of
