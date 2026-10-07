@@ -325,7 +325,7 @@ def test_a_secret_written_where_a_key_name_belongs_is_never_repeated(caplog):
     assert _LITERAL_KEY not in caplog.text
     assert _LITERAL_KEY not in unavailable_reason(clients["gpt"])
     with pytest.raises(AttributeError) as raised:
-        clients["gpt"].invoke
+        _ = clients["gpt"].invoke
     assert _LITERAL_KEY not in str(raised.value)
     # A variable NAME is what tells the operator what to set: it stays.
     assert "OPENAI_API_KEY" in unavailable_reason(clients["named"])
