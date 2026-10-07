@@ -221,16 +221,13 @@ def _entry(**fields: str) -> dict[str, str]:
 
 
 #: Two worked answers, sent as earlier turns before the real sentence. Under
-#: a json_schema (or json_object) grammar, MiniCPM5-2B closed `entries` at
-#: once: `[]` for "Been leg cramps for 5 days." and 30 of the evaluation's
-#: 31 entries (benchmarks/local_models, 2026-10-06). Unconstrained, the same
-#: model found them, but opened its answer by echoing the schema's own
-#: `{"type": "object", "properties": ...}`, so the grammar forced it off
-#: its path. With these two turns first it answered all six repro
-#: sentences in 1-4 s, in the writer's language. They show the rules a
-#: small model needs to see rather than read: one entry per thing, the
-#: person's words, a negation and someone else kept and marked, a time
-#: resolved from NOW, and a meal as an `other` entry.
+#: a json_schema grammar MiniCPM5-2B closed `entries` at once, `[]` for 30 of
+#: the evaluation's 31 entries (benchmarks/local_models, 2026-10-06), though
+#: unconstrained it found them. With these two turns first it answered all six
+#: repro sentences in 1-4 s, in the writer's language. They show what a small
+#: model needs to see rather than read: one entry per thing, the person's words,
+#: a negation and someone else kept and marked, a time resolved from NOW, and a
+#: meal as an `other` entry.
 _EXAMPLES: tuple[tuple[str, dict[str, Any]], ...] = (
     (
         (

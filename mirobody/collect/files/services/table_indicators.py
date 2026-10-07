@@ -69,12 +69,11 @@ EXTRACTOR = "rules:table@v1"
 #: Header words per column, compared after `_key` (lowercased, Traditional
 #: folded to Simplified, no spaces, colons or brackets), so a bilingual
 #: `单位(Unit)` or `单位 Unit` is `单位unit` and a Traditional `檢驗項目` is
-#: `检验项目`. Measured on the 2026-10-06 local-model corpus: with `单位(Unit)`,
-#: `正常范围值` and a slip's bare `参考` missing, every reading of those tables
-#: was stored with no unit or no range (hemoglobin 140 then cannot be coded);
-#: with `检测结果`, `化验结果`, `本次结果`, `数值`, `检查名称`, `Test Item`,
-#: `Measured`, `REF.RANGE` and the Traditional headers missing, 49 of the
-#: corpus' 70 documents went to the model, which reads them less exactly.
+#: `检验项目`. Measured on the 2026-10-06 local-model corpus: without
+#: `单位(Unit)`, `正常范围值` and a slip's bare `参考`, those tables were stored
+#: with no unit or range; without `检测结果`, `化验结果`, `本次结果`, `数值`,
+#: `检查名称`, `Test Item`, `Measured`, `REF.RANGE` and the Traditional
+#: headers, 49 of the corpus' 70 documents went to the model.
 _HEADERS: dict[str, tuple[str, ...]] = {
     "name": ("项目名称", "检验项目", "检查项目", "检测项目", "化验项目", "测定项目", "项目", "项目名", "中文名称",
              "名称", "检查名称", "检查项目名称", "检验项目名称", "指标", "指标名称", "analyte", "test", "tests",
@@ -154,11 +153,9 @@ _BOUND = re.compile(r"^\s*([<>≤≥]|<=|>=)\s*([-+]?\d+(?:\.\d+)?)\s*$")
 #: column: right after the number (`7.2↑`, `3.1 L`); after a unit, glued to the
 #: number or not (`7.49mmol/L偏高`, `1.69 g/L↑`, `50.5% H`); or after a result
 #: word (`阳性 偏高`, `Positive H`). A letter needs a space before it, so the
-#: `L` of `mmol/L` is not read as low. Measured on the 2026-10-07 small-model
-#: eval: with a digit required right before the arrow, a check-up book's
-#: summary rows `1.69 g/L↑` and `0.58 g/L↓` were stored as narratives, unit and
-#: arrow in the value; on the corpus's text-layer books, `阳性 偏高`, `Positive
-#: H` and `++ H` kept their flags in the value the same way.
+#: `L` of `mmol/L` is not read as low. With a digit required right before the
+#: arrow (2026-10-07 small-model eval), a check-up book's `1.69 g/L↑` and the
+#: text-layer books' `阳性 偏高` and `++ H` were stored with the flag in the value.
 _TRAILING_FLAG = re.compile(r"^(.*?\d)\s*(↑↑|↓↓|↑|↓|偏高|偏低|高|低|HH|LL|H|L)$"
                             r"|^(.*?\S)\s*(↑↑|↓↓|↑|↓|偏高|偏低)$|^(.*?\S)\s+(HH|LL|H|L)$")
 #: A range or bound, then a unit after it in the same cell: `0-5.0 ng/mL`, or
@@ -639,17 +636,12 @@ def _value_parts(cell: str) -> tuple[str, str, str] | None:
 
 # --- a row the OCR laid out of line with its header -------------------------------------
 #
-# Measured on the OCR benchmark (benchmarks/local_ocr, 2026-10-07): an OCR model
-# puts a row's empty cells where it likes. Under a check-up book's `Test Item |
-# Measurement | Methodology | Status | Unit | Normal Range | Lab`, PaddleOCR-VL-1.6
-# wrote `ALT | 23 | | U/L | 7~40 | 02 |` (the two empty cells as one, the
-# spare one at the end) and GLM-OCR `Urea | 4.57 | | mmol/L | 2.60--7.50 | | 02`.
-# Read by position, the unit sat under `Status`, the range under `Unit`, and
-# the lab code `02` was stored as Urea's reference range. The filled cells are
-# still in their printed order; only the gaps moved. So a row whose cells
-# contradict the columns they are under is laid again, its filled cells in
-# order under the columns their content fits, and read only when exactly one
-# layout fits best.
+# An OCR model puts a row's empty cells where it likes (benchmarks/local_ocr,
+# 2026-10-07): under `Test Item | Measurement | Methodology | Status | Unit |
+# Normal Range | Lab`, GLM-OCR wrote `Urea | 4.57 | | mmol/L | 2.60--7.50 | | 02`
+# and, read by position, the lab code `02` was stored as Urea's range. The filled
+# cells keep their printed order, so a row whose cells contradict their columns
+# is laid again under the columns its content fits, read only if one layout wins.
 
 _TYPED = frozenset({"unit", "ref", "flag"})
 

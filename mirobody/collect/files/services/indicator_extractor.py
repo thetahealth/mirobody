@@ -239,14 +239,11 @@ class IndicatorExtractor:
 
             # Tables are read by their columns first, whatever model reads the
             # rest: a born-digital PDF's from its text layer, a scan's from the
-            # OCR tables pass, a CSV's and a sheet's as they are. The model
-            # reads what the rules left (a row they could not read, text
-            # outside any table), and a rule's row outranks the model's for the
-            # same printed row: it is the value as printed. This ran only with
-            # a local OCR route; on a vendor key the whole text went to the
-            # vendor's model, table rows included (owner's call, 1.5.4: the
-            # rules store no row a document does not print, and what they read
-            # does not leave the machine).
+            # OCR tables pass, a CSV's and a sheet's as they are. The model reads
+            # what the rules left, and a rule's row outranks the model's for the
+            # same printed row. In every mode, a vendor key included: for three of
+            # four cloud references (benchmarks/local_models, ref-*-rules) readings
+            # on no printed row fell from about 48 to 27, and the text sent by 37%.
             extractor = ""
             rows, table_date, unread_count = table_indicators(original_text)
             rest = without_rows(original_text, rows) if rows else original_text

@@ -263,14 +263,12 @@ def _member_series(member_id: str, email: str) -> list[dict]:
                             "Watch, self-tracked", time="07:00:00"))
 
     # The seeded panel, last, under the names a lab report PRINTS rather than
-    # the device catalogue's. Two reasons, both measured: `collect.query`
-    # resolves the indicator NAME to a LOINC code at read time, and
-    # `GlycatedHemoglobin-HbA1c` does not resolve while `Glycated Hemoglobin-
-    # HbA1c` is 4548-4; and the file this account uploads prints the same
-    # names, so the upload lands on this series instead of beside it.
-    # With the range and flag the document prints: without them an answer
-    # had to open the file to say whether a value was in range. The flag is
-    # in the words an upload of the same document stores (`H` -> `high`).
+    # the device catalogue's: `collect.query` resolves the NAME to a LOINC code
+    # at read time, and `GlycatedHemoglobin-HbA1c` does not resolve while
+    # `Glycated Hemoglobin-HbA1c` is 4548-4; and the file this account uploads
+    # prints the same names, so the upload lands on this series. With the range
+    # and flag the document prints, in the words an upload stores (`H` -> `high`):
+    # without them an answer had to open the file to say whether one was in range.
     lab_day, document, panel = profile["lab"]
     for indicator, value, unit, ref, flag in panel:
         rows.append(row(indicator, value, lab_day, unit, "Lab draw",

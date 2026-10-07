@@ -87,14 +87,12 @@ def digest(data: bytes) -> str:
 
 # --- a text layer's tables ----------------------------------------------------------
 #
-# A text layer keeps every character exactly but writes a table row as one line
-# of words (`Hemoglobin(HGB) 138 g/L 115--150 02`), so the table rules
-# (`collect/files/services/table_indicators`) cannot tell its columns apart and
-# a born-digital report went whole to the extraction model. The characters'
-# positions still say where each cell is: a run of characters is a cell, a
-# wide gap starts the next one, lines are laid in columns by where their cells
-# overlap, and the result is the HTML table the rules already read from an OCR
-# model's tables pass, the text itself the layer's own.
+# A text layer keeps every character but writes a table row as one line of words
+# (`Hemoglobin(HGB) 138 g/L 115--150 02`), so `table_indicators` could not tell
+# its columns apart and a born-digital report went whole to the model. The
+# characters' positions still say where each cell is: a wide gap starts the next
+# cell, lines are laid in columns by where their cells overlap, and the result is
+# the HTML table the rules read from an OCR tables pass, every character the layer's.
 
 #: Two runs of one line further apart than this many font sizes are two cells.
 #: A word space is about a third of the font size; the closest columns in the
