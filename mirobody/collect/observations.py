@@ -43,6 +43,7 @@ from typing import Any
 
 from mirobody import translate, units
 from mirobody.kernel import metrics, quality, series
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import db
 
 logger = logging.getLogger(__name__)
@@ -203,10 +204,6 @@ class Report:
     coded: int = 0
     #: One `OUTCOME_*` per draft, in the order given.
     outcomes: list[str] = field(default_factory=list)
-
-    @property
-    def written(self) -> int:
-        return self.inserted
 
     def reject(self, reason: str) -> None:
         self.rejected[reason] = self.rejected.get(reason, 0) + 1
@@ -686,8 +683,8 @@ async def ingest(
     does. `payload` is the extraction's verbatim output when the batch came
     from one (an LLM's JSON, a vendor's records); the drafts themselves are
     frozen when it is not given and `provenance.extractor` names one.
-    `on_conflict` says what a row that already exists means: see
-    `ON_CONFLICT_SKIP` and `ON_CONFLICT_AMEND`. A list of provenance records
+    `on_conflict` says what a row that already exists means, one of the
+    five `ON_CONFLICT_*` policies. A list of provenance records
     codes a mixed API batch in one transaction; extraction payloads require
     the single-provenance form."""
     report = Report()
@@ -746,7 +743,8 @@ async def ingest(
                     await _write_coding(tx, observation_id, row, coding, CAUSE_INGEST if row.get("amends") is None else CAUSE_AMEND)
             except Exception as e:
                 # Counts and a type: the row is health data and stays out of the log.
-                logger.warning("observation not written: row_ix=%d error_type=%s", ix, type(e).__name__)
+                logger.warning("observation not written: row_ix=%d error_type=%s", ix, type(e).__name__,
+                               exc_info=not is_driver_exception(e))
                 report.reject(REJECT_WRITE_ERROR)
                 continue
             report.inserted += 1
